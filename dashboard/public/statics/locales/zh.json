@@ -4,6 +4,8 @@
   "dashboard": "仪表板",
   "master": "总体",
   "dashboardDescription": "PasarGuard 管理仪表板",
+  "default": "默认",
+  "unlimited": "无限制",
   "allStatuses": "所有状态",
   "status": "状态",
   "statistics": "统计",

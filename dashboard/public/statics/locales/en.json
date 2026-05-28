@@ -3,6 +3,8 @@
   "dashboard": "Dashboard",
   "master": "Overall",
   "dashboardDescription": "PasarGuard Management Dashboard",
+  "default": "Default",
+  "unlimited": "Unlimited",
   "active": "active",
   "online": "Online",
   "platform": "Platform",

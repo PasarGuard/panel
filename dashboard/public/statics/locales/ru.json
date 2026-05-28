@@ -3,6 +3,8 @@
   "dashboard": "Панель управления",
   "master": "Общее",
   "dashboardDescription": "Панель управления PasarGuard",
+  "default": "По умолчанию",
+  "unlimited": "Без ограничений",
   "active": "активный",
   "online": "В сети",
   "platform": "Платформа",

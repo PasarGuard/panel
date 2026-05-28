@@ -32,7 +32,8 @@ import {
   Copy,
   ArrowLeft,
   QrCode,
-  Check
+  Check,
+  Infinity
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
@@ -55,7 +56,7 @@ const getPreviewRandomHex = (index: number, count: number) => {
 }
 
 export default function BulkCreateUsersPage() {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const dir = useDirDetection()
   const isRTL = dir === 'rtl'
@@ -81,6 +82,7 @@ export default function BulkCreateUsersPage() {
 
   const templates = templatesData || []
   const selectedTemplate = templates.find(t => t.id === selectedTemplateId)
+  const unlimitedLabel = t('unlimited', { defaultValue: 'Unlimited' })
 
   useEffect(() => {
     if (templates.length > 0 && !selectedTemplateId) {
@@ -435,7 +437,13 @@ export default function BulkCreateUsersPage() {
                   {selectedTemplate.data_limit !== null && selectedTemplate.data_limit !== undefined && (
                     <div className="flex items-center justify-between">
                       <span className="text-muted-foreground">{t('userDialog.dataLimit')}:</span>
-                      <span className="font-medium" dir="ltr">{formatBytes(selectedTemplate.data_limit)}</span>
+                      <span className="font-medium" dir="ltr">
+                        {selectedTemplate.data_limit === 0 ? (
+                          <Infinity className="inline h-4 w-4" aria-label={unlimitedLabel} />
+                        ) : (
+                          formatBytes(selectedTemplate.data_limit)
+                        )}
+                      </span>
                     </div>
                   )}
                   {selectedTemplate.hwid_limit !== undefined && (
@@ -445,7 +453,7 @@ export default function BulkCreateUsersPage() {
                         {selectedTemplate.hwid_limit === null
                           ? t('default', { defaultValue: 'Default' })
                           : selectedTemplate.hwid_limit === 0
-                            ? t('unlimited', { defaultValue: 'Unlimited' })
+                            ? <Infinity className="inline h-4 w-4" aria-label={unlimitedLabel} />
                             : selectedTemplate.hwid_limit}
                       </span>
                     </div>
@@ -453,14 +461,20 @@ export default function BulkCreateUsersPage() {
                   {selectedTemplate.expire_duration !== null && selectedTemplate.expire_duration !== undefined && (
                     <div className="flex items-center justify-between">
                       <span className="text-muted-foreground">{t('expire')}:</span>
-                      <span className="font-medium">{Math.floor(selectedTemplate.expire_duration / 86400)}{t('dateInfo.day')}</span>
+                      <span className="font-medium">
+                        {selectedTemplate.expire_duration === 0 ? (
+                          <Infinity className="inline h-4 w-4" aria-label={unlimitedLabel} />
+                        ) : (
+                          `${Math.floor(selectedTemplate.expire_duration / 86400)}${t('dateInfo.day')}`
+                        )}
+                      </span>
                     </div>
                   )}
                   {selectedTemplate.group_ids && selectedTemplate.group_ids.length > 0 && (
                     <div className="flex items-center justify-between">
                       <span className="text-muted-foreground">{t('groups')}:</span>
                       <span className="font-medium">
-                        {selectedTemplate.group_ids.length} {i18n.language === 'fa' ? 'گروه' : t('groups')}
+                        {t('bulk.groupsCount', { count: selectedTemplate.group_ids.length, defaultValue: '{{count}} groups' })}
                       </span>
                     </div>
                   )}
