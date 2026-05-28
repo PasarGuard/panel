@@ -59,11 +59,10 @@ export default function HostsPage() {
         (!formData.mux_settings.clash?.protocol || formData.mux_settings.clash.protocol === 'none') &&
         !formData.mux_settings.xray?.concurrency
 
-      // If creating a new host, set priority to max+1
+      // If creating a new host, set priority to max+1 (or 0 if no hosts exist yet)
       let priority = formData.priority
-      if (!editingHost?.id && data && data.length > 0) {
-        const priorities = data.map(h => h.priority ?? 0)
-        const maxPriority = Math.max(...priorities)
+      if (!editingHost?.id) {
+        const maxPriority = data && data.length > 0 ? Math.max(...data.map(h => h.priority ?? 0)) : -1
         priority = maxPriority + 1
       }
 

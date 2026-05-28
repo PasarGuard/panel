@@ -350,8 +350,10 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
     if (!canCreate || !host) return
 
     try {
-      // Create duplicate with slightly modified name and same priority
-      // The priority will be handled by the drag-and-drop reordering system
+      // Assign a unique priority: one higher than the current maximum
+      const maxPriority = hosts && hosts.length > 0 ? Math.max(...hosts.map(h => h.priority ?? 0)) : 0
+      const newPriority = maxPriority + 1
+
       const newHost: CreateHost = {
         remark: `${host.remark || ''} (copy)`,
         address: host.address || [],
@@ -369,7 +371,7 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
         random_user_agent: host.random_user_agent || false,
         use_sni_as_host: host.use_sni_as_host || false,
         vless_route: host.vless_route || undefined,
-        priority: host.priority ?? 0, // Use the same priority as the original host
+        priority: newPriority,
         ech_config_list: host.ech_config_list,
         ech_query_strategy: host.ech_query_strategy || undefined,
         pinned_peer_cert_sha256: host.pinned_peer_cert_sha256 || undefined,
@@ -414,10 +416,10 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
     return Object.keys(cleaned).length > 0 ? cleaned : undefined
   }
 
-  const handleSubmit = async (data: HostFormValues) => {
+  const handleSubmit = async (data: HostFormValues): Promise<{ status: number }> => {
     try {
-      if (editingHost?.id && !canUpdate) return
-      if (!editingHost?.id && !canCreate) return
+      if (editingHost?.id && !canUpdate) return { status: 403 }
+      if (!editingHost?.id && !canCreate) return { status: 403 }
 
       const response = await onSubmit(data)
       if (response.status === 200) {
