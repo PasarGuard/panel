@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Eye, MoreVertical, Pencil, Trash2 } from 'lucide-react'
+import { Copy, Eye, MoreVertical, Pencil, Trash2 } from 'lucide-react'
 
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
@@ -17,10 +17,11 @@ import { isProtectedRole, isReadOnlyRole } from '@/features/admin-roles/forms/ad
 interface AdminRoleActionsMenuProps {
   role: AdminRoleResponse
   onEdit: (role: AdminRoleResponse) => void
+  onDuplicate: (role: AdminRoleResponse) => void
   className?: string
 }
 
-export default function AdminRoleActionsMenu({ role, onEdit, className }: AdminRoleActionsMenuProps) {
+export default function AdminRoleActionsMenu({ role, onEdit, onDuplicate, className }: AdminRoleActionsMenuProps) {
   const { t } = useTranslation()
   const dir = useDirDetection()
   const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false)
@@ -78,7 +79,16 @@ export default function AdminRoleActionsMenu({ role, onEdit, className }: AdminR
                 {readOnlyRole ? t('view', { defaultValue: 'View' }) : t('edit', { defaultValue: 'Edit' })}
               </span>
             </DropdownMenuItem>
-            {canDeleteRole && <DropdownMenuSeparator />}
+            <DropdownMenuItem
+              onSelect={e => {
+                e.stopPropagation()
+                onDuplicate(role)
+              }}
+            >
+              <Copy className={cn('h-4 w-4 shrink-0', dir === 'rtl' ? 'ml-2' : 'mr-2')} />
+              <span className="min-w-0 truncate">{t('duplicate', { defaultValue: 'Duplicate' })}</span>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
             <DropdownMenuItem disabled={protectedRole} onSelect={handleDeleteClick} className="text-destructive">
               <Trash2 className={cn('h-4 w-4 shrink-0', dir === 'rtl' ? 'ml-2' : 'mr-2')} />
               <span className="min-w-0 truncate">{t('delete')}</span>

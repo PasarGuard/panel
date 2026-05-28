@@ -22,6 +22,7 @@ import {
   AdminRoleResponse,
   getGetRolesQueryKey,
   getGetRolesSimpleQueryKey,
+  useCreateRole,
   useDeleteRole,
   useGetRoles,
 } from '@/service/api'
@@ -35,6 +36,7 @@ import {
   adminRoleFormDefaultValues,
   adminRoleFormFromResponse,
   adminRoleFormSchema,
+  adminRoleFormToPayload,
   isProtectedRole,
   isReadOnlyRole,
 } from '@/features/admin-roles/forms/admin-role-form'
@@ -56,6 +58,7 @@ export default function AdminRolesList({ isDialogOpen, onOpenChange }: AdminRole
   const [viewMode, setViewMode] = usePersistedViewMode('view-mode:admin-roles')
   const [selectedRoleIds, setSelectedRoleIds] = useState<number[]>([])
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false)
+  const createRole = useCreateRole()
   const deleteRole = useDeleteRole()
 
   const { data: rolesData, isLoading, isFetching, refetch } = useGetRoles({ limit: 100, offset: 0, sort: 'created_at' })
@@ -70,6 +73,45 @@ export default function AdminRolesList({ isDialogOpen, onOpenChange }: AdminRole
     setIsReadOnly(isReadOnlyRole(role))
     form.reset(adminRoleFormFromResponse(role))
     onOpenChange(true)
+  }
+
+  const getDuplicateRoleName = (name: string) => {
+    const existingNames = new Set((rolesData?.roles || []).map(role => role.name.toLowerCase()))
+    const baseName = `${name} (copy)`
+    if (!existingNames.has(baseName.toLowerCase())) return baseName
+
+    for (let index = 2; index < 1000; index += 1) {
+      const nextName = `${name} (copy ${index})`
+      if (!existingNames.has(nextName.toLowerCase())) return nextName
+    }
+
+    return `${baseName} ${Date.now()}`
+  }
+
+  const handleDuplicate = async (role: AdminRoleResponse) => {
+    try {
+      const values = adminRoleFormSchema.parse({
+        ...adminRoleFormFromResponse(role),
+        name: getDuplicateRoleName(role.name),
+      })
+      const payload = adminRoleFormToPayload(values)
+
+      await createRole.mutateAsync({ data: payload })
+      toast.success(t('success', { defaultValue: 'Success' }), {
+        description: t('adminRoles.duplicateSuccess', {
+          name: role.name,
+          defaultValue: 'Role "{{name}}" has been duplicated successfully.',
+        }),
+      })
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: getGetRolesQueryKey() }),
+        queryClient.invalidateQueries({ queryKey: getGetRolesSimpleQueryKey() }),
+      ])
+    } catch (error: any) {
+      toast.error(t('error', { defaultValue: 'Error' }), {
+        description: error?.data?.detail || error?.message || t('adminRoles.duplicateFailed', { name: role.name, defaultValue: 'Failed to duplicate role "{{name}}".' }),
+      })
+    }
   }
 
   const handleDialogChange = (open: boolean) => {
@@ -103,7 +145,7 @@ export default function AdminRolesList({ isDialogOpen, onOpenChange }: AdminRole
   const isEmpty = !isCurrentlyLoading && filteredRoles.length === 0 && !hasSearch
   const isSearchEmpty = !isCurrentlyLoading && filteredRoles.length === 0 && hasSearch
 
-  const listColumns = useAdminRolesListColumns({ onEdit: handleEdit })
+  const listColumns = useAdminRolesListColumns({ onEdit: handleEdit, onDuplicate: handleDuplicate })
 
   const clearSelection = () => setSelectedRoleIds([])
 
@@ -233,7 +275,7 @@ export default function AdminRolesList({ isDialogOpen, onOpenChange }: AdminRole
             selectedRowIds={selectedRoleIds}
             onSelectionChange={ids => setSelectedRoleIds(ids.map(id => Number(id)))}
             showEmptyState={false}
-            renderItem={role => <AdminRoleCard role={role} onEdit={handleEdit} />}
+            renderItem={role => <AdminRoleCard role={role} onEdit={handleEdit} onDuplicate={handleDuplicate} />}
             renderSkeleton={i => (
               <Card key={i} className="px-4 py-5">
                 <div className="flex items-center gap-2 sm:gap-3">
