@@ -146,6 +146,12 @@ class XRayConfig(dict):
         }
         return settings
 
+    @staticmethod
+    def _is_unix_socket(inbound: dict) -> bool:
+        """Return True if the inbound listens on a Unix domain socket instead of a TCP/UDP port."""
+        listen = inbound.get("listen", "")
+        return isinstance(listen, str) and (listen.startswith("/") or listen.startswith("@"))
+
     def _handle_port_settings(self, inbound: dict, settings: dict):
         """Handle port settings for an inbound."""
         port_found = True
@@ -153,6 +159,10 @@ class XRayConfig(dict):
             settings["port"] = inbound["port"]
         except KeyError:
             port_found = False
+
+        # Unix socket listeners don't require a port
+        if not port_found and self._is_unix_socket(inbound):
+            return
 
         if self._fallbacks_inbound and "<=>" not in inbound["tag"]:
             if inbound.get("settings", {}).get("fallbacks", []):
