@@ -47,10 +47,10 @@ ADMINISTRATOR_PERMISSIONS = {
 }
 OPERATOR_PERMISSIONS = {
     "users": {"create": True, "read": {"scope": 1}, "read_simple": {"scope": 1}, "update": {"scope": 1}, "delete": {"scope": 1}, "reset_usage": {"scope": 1}, "revoke_sub": {"scope": 1}, "set_owner": None, "activate_next_plan": {"scope": 1}},
-    "groups": {"create": None, "read": False, "read_simple": True, "update": None, "delete": None},
-    "templates": {"create": None, "read": True, "read_simple": True, "update": None, "delete": None},
+    "groups": {"create": False, "read": False, "read_simple": True, "update": False, "delete": False},
+    "templates": {"create": False, "read": True, "read_simple": True, "update": False, "delete": False},
     "system": {"read": True},
-    "settings": {"read": None, "read_general": True, "update": None},
+    "settings": {"read": False, "read_general": True, "update": False},
     "hwids": {"read": True, "delete": True},
 }
 DEFAULT_LIMITS = {"max_users": None, "data_limit_min": None, "data_limit_max": None, "expire_min": None, "expire_max": None, "min_hwid_per_user": None, "max_hwid_per_user": None}
