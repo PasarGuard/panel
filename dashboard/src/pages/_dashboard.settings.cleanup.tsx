@@ -359,7 +359,7 @@ export default function CleanupSettings() {
             </Popover>
           </div>
 
-          <div className="space-y-2">
+          <div className="gap-y-2 flex flex-col">
             <label className="text-xs font-medium sm:text-sm">{t('settings.cleanup.expiredUsers.target')}</label>
             <Select value={deleteTarget} onValueChange={value => setDeleteTarget(value as CleanupDeleteTarget)}>
               <SelectTrigger className="w-full text-xs sm:text-sm">
@@ -462,7 +462,7 @@ export default function CleanupSettings() {
           <CardDescription className="text-xs sm:text-sm">{t('settings.cleanup.clearUsageData.description')}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3 p-4 pt-0 sm:space-y-4 sm:px-6">
-          <div className="space-y-2">
+          <div className="gap-y-2 flex flex-col">
             <label className="text-xs font-medium sm:text-sm">{t('settings.cleanup.clearUsageData.selectTable')}</label>
             <Select value={selectedTable} onValueChange={setSelectedTable}>
               <SelectTrigger className="w-full text-xs sm:text-sm">
