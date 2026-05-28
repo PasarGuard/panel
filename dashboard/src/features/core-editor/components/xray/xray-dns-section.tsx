@@ -65,6 +65,15 @@ function defaultDns(): Dns {
   return { servers: [] }
 }
 
+function mergeDnsPatch(dns: Dns, patch: Partial<Dns>): Dns {
+  const next = { ...(dns as unknown as Record<string, unknown>) }
+  for (const [key, value] of Object.entries(patch as Record<string, unknown>)) {
+    if (value === undefined) delete next[key]
+    else next[key] = value
+  }
+  return next as unknown as Dns
+}
+
 function serverAddress(v: DnsServerEntry): string {
   return typeof v === 'string' ? v : (v.address ?? '')
 }
@@ -445,7 +454,7 @@ export function XrayDnsSection({ headerAddPulse, headerAddEpoch }: XrayDnsSectio
   }
 
   const patchDns = (patch: Partial<Dns>) => {
-    updateXrayProfile(p => updateDns(p, dns => ({ ...dns, ...patch })))
+    updateXrayProfile(p => updateDns(p, dns => mergeDnsPatch(dns, patch)))
   }
 
   if (!profile) return null

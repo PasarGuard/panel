@@ -1689,7 +1689,8 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
       if (key === 'encryption' || key === 'decryption') continue
       if (key === 'flow') continue
       if (key === 'fallbacks') continue
-      if (val !== undefined) base[key] = val
+      if (val === undefined) delete base[key]
+      else base[key] = val
     }
     if ('encryption' in patch) {
       const v = patch.encryption
@@ -1709,14 +1710,6 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
     if ('listen' in patch) {
       if (!shouldPersistInboundListen(patch.listen as string | undefined)) delete base.listen
     }
-    if ('sniffing' in patch && patch.sniffing === undefined) delete base.sniffing
-    if ('port' in patch && patch.port === undefined) delete base.port
-    if ('address' in patch && patch.address === undefined) delete base.address
-    if ('targetPort' in patch && patch.targetPort === undefined) delete base.targetPort
-    if ('network' in patch && patch.network === undefined) delete base.network
-    if ('raw' in patch && patch.raw === undefined) delete base.raw
-    if ('portMap' in patch && patch.portMap === undefined) delete base.portMap
-    if ('password' in patch && patch.password === undefined) delete base.password
     if ('fallbacks' in patch) {
       const fb = patch.fallbacks as Fallback[] | undefined
       if (fb === undefined || (Array.isArray(fb) && fb.length === 0)) delete base.fallbacks

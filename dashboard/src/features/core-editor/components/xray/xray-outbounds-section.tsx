@@ -294,6 +294,22 @@ function cloneOutbound(ob: Outbound): Outbound {
   return JSON.parse(JSON.stringify(ob)) as Outbound
 }
 
+function stripUndefinedPropertiesDeep(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(stripUndefinedPropertiesDeep)
+  if (!value || typeof value !== 'object') return value
+
+  const next: Record<string, unknown> = {}
+  for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+    if (child === undefined) continue
+    next[key] = stripUndefinedPropertiesDeep(child)
+  }
+  return next
+}
+
+function sanitizeOutboundForState(ob: Outbound): Outbound {
+  return stripSparseOutboundEnvelope(stripUndefinedPropertiesDeep(ob) as Record<string, unknown>) as Outbound
+}
+
 function getOutboundStreamSettingsRecord(ob: Outbound): Record<string, unknown> | null {
   const raw = (ob as { streamSettings?: unknown }).streamSettings
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
@@ -643,11 +659,12 @@ export function XrayOutboundsSection({ headerAddPulse, headerAddEpoch }: XrayOut
   }
 
   const patchOutbound = (next: Outbound) => {
+    const sanitized = sanitizeOutboundForState(next)
     if (dialogMode === 'add' && draftOutbound !== null) {
-      setDraftOutbound(next)
+      setDraftOutbound(sanitized)
       return
     }
-    updateXrayProfile(p => replaceOutbound(p, selected, next))
+    updateXrayProfile(p => replaceOutbound(p, selected, sanitized))
   }
 
   const isTagDuplicate = (candidateRaw: string): boolean => {
