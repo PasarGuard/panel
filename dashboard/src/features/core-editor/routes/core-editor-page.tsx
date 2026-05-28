@@ -200,6 +200,7 @@ export default function CoreEditorPage() {
 
   const [discardOpen, setDiscardOpen] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [nameSubmitAttempted, setNameSubmitAttempted] = useState(false)
   const [headerAddPulse, setHeaderAddPulse] = useState<SectionHeaderAddPulse>({ target: '', n: 0 })
   const [headerAddEpoch, setHeaderAddEpoch] = useState(0)
 
@@ -281,9 +282,11 @@ export default function CoreEditorPage() {
   const handleSave = useCallback(async () => {
     const name = coreName.trim()
     if (!name) {
-      toast.error(t('coreEditor.nameRequired', { defaultValue: 'Name is required' }))
+      setNameSubmitAttempted(true)
+      toast.error(t('coreConfigModal.nameRequired', { defaultValue: 'Core name is required' }))
       return
     }
+    setNameSubmitAttempted(false)
     setSaving(true)
     try {
       if (kind === 'wg') {
@@ -393,6 +396,10 @@ export default function CoreEditorPage() {
     t,
   ])
 
+  const nameRequiredMessage = t('coreConfigModal.nameRequired', { defaultValue: 'Core name is required' })
+  const showNameRequired = nameSubmitAttempted && coreName.trim() === ''
+  const canSaveCore = isNew || hasActualChanges
+
   const header = (
     <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
       <div className="flex min-w-0 flex-1 gap-2 items-center sm:gap-3">
@@ -411,9 +418,15 @@ export default function CoreEditorPage() {
             <div className="min-w-0 flex-1">
               <Input
                 value={coreName}
-                onChange={e => setCoreName(e.target.value)}
+                onChange={e => {
+                  const nextName = e.target.value
+                  setCoreName(nextName)
+                  if (nextName.trim()) setNameSubmitAttempted(false)
+                }}
+                isError={showNameRequired}
                 className="h-10 font-medium sm:max-w-md"
-                placeholder={t('coreConfigModal.namePlaceholder', { defaultValue: 'Core name' })}
+                placeholder={showNameRequired ? nameRequiredMessage : t('coreConfigModal.namePlaceholder', { defaultValue: 'Core name' })}
+                aria-invalid={showNameRequired}
               />
             </div>
             <Select
@@ -580,6 +593,8 @@ export default function CoreEditorPage() {
           </div>
         }
         dirty={hasActualChanges}
+        canSave={canSaveCore}
+        saveLabel={isNew ? t('create', { defaultValue: 'Create' }) : undefined}
         onSave={handleSave}
         onDiscard={() => discardDraft()}
         saving={saving || createMutation.isPending || modifyMutation.isPending}

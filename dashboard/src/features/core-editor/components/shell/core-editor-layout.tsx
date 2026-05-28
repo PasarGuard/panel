@@ -9,6 +9,8 @@ interface CoreEditorLayoutProps {
   sectionHeader?: ReactNode
   main: ReactNode
   dirty: boolean
+  canSave?: boolean
+  saveLabel?: string
   onSave: () => void
   onDiscard: () => void
   saving: boolean
@@ -23,6 +25,8 @@ export function CoreEditorLayout({
   sectionHeader,
   main,
   dirty,
+  canSave,
+  saveLabel,
   onSave,
   onDiscard,
   saving,
@@ -42,6 +46,8 @@ export function CoreEditorLayout({
       </div>
       <StickySaveBar
         dirty={dirty}
+        canSave={canSave}
+        saveLabel={saveLabel}
         onSave={onSave}
         onDiscard={onDiscard}
         saving={saving}

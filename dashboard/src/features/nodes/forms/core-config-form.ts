@@ -4,7 +4,7 @@ export const coreBackendTypes = ['xray', 'wg', 'mtproto', 'singbox'] as const
 export type CoreBackendType = (typeof coreBackendTypes)[number]
 
 export const coreConfigFormSchema = z.object({
-  name: z.string().min(1, 'Name is required'),
+  name: z.string().trim().min(1, 'Core name is required'),
   type: z.enum(coreBackendTypes).optional(),
   config: z.string().min(1, 'Configuration is required'),
   fallback_id: z.array(z.string()).optional(),

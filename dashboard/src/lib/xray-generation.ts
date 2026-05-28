@@ -32,6 +32,15 @@ export type { ShadowsocksPasswordResult, VlessEncryptionResult, VlessBuilderOpti
 
 export type VlessEncryptionMethodSelect = 'none' | (typeof VLESS_ENCRYPTION_METHODS)[number]['value']
 
+export const SHADOWSOCKS_PASSWORD_GENERATION_METHODS = [
+  '2022-blake3-aes-128-gcm',
+  '2022-blake3-aes-256-gcm',
+] as const
+
+export function canGenerateShadowsocksPassword(method: string): boolean {
+  return SHADOWSOCKS_PASSWORD_GENERATION_METHODS.some(candidate => candidate === method)
+}
+
 /** Parses the second segment of a vision `encryption` / `decryption` string, or a legacy single-token value. */
 export function parseVlessEncryptionMethodTokenFromString(raw: string): VlessEncryptionMethodSelect | null {
   const trimmed = raw.trim()

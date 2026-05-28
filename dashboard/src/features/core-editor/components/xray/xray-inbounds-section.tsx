@@ -31,6 +31,7 @@ import { useCoreEditorStore } from '@/features/core-editor/state/core-editor-sto
 import { generateWireGuardKeyPair, getWireGuardPublicKey } from '@/utils/wireguard'
 import {
   buildVlessGenerationOptionsFromInboundForm,
+  canGenerateShadowsocksPassword,
   generateShadowsocksPassword,
   generateRealityKeyPair,
   generateRealityShortId,
@@ -740,6 +741,7 @@ function shadowsocksMethodFormValue(row: Inbound): string {
 
 function shadowsocksPasswordFormValue(row: Inbound): string {
   if (row.protocol !== 'shadowsocks') return ''
+  if (!canGenerateShadowsocksPassword(shadowsocksMethodFormValue(row))) return ''
   const p = 'password' in row ? row.password : undefined
   return p === undefined || p === null ? '' : String(p)
 }
@@ -764,7 +766,7 @@ function mergeShadowsocksInboundStreamFields(prev: Inbound, next: Inbound): Inbo
   const p = prev as { method?: string; password?: string; network?: string | string[] }
   const merged = { ...next } as { method?: string; password?: string; network?: string | string[] }
   if (p.method !== undefined) merged.method = p.method
-  if (p.password !== undefined) merged.password = p.password
+  if (p.password !== undefined && canGenerateShadowsocksPassword(merged.method ?? '')) merged.password = p.password
   if (p.network !== undefined) merged.network = p.network
   return merged as Inbound
 }
@@ -1714,6 +1716,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
     if ('network' in patch && patch.network === undefined) delete base.network
     if ('raw' in patch && patch.raw === undefined) delete base.raw
     if ('portMap' in patch && patch.portMap === undefined) delete base.portMap
+    if ('password' in patch && patch.password === undefined) delete base.password
     if ('fallbacks' in patch) {
       const fb = patch.fallbacks as Fallback[] | undefined
       if (fb === undefined || (Array.isArray(fb) && fb.length === 0)) delete base.fallbacks
@@ -2024,6 +2027,10 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
 
   const generateInboundShadowsocksPassword = () => {
     const methodValue = form.getValues('shadowsocksMethod')
+    if (!canGenerateShadowsocksPassword(methodValue)) {
+      toast.error(t('coreConfigModal.shadowsocksPasswordGenerationFailed'))
+      return
+    }
     setIsGeneratingShadowsocksPassword(true)
     try {
       const result = generateShadowsocksPassword(methodValue)
@@ -2586,7 +2593,12 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                             onValueChange={v => {
                               field.onChange(v)
                               setShadowsocksPasswordJustGenerated(false)
-                              patchInbound({ method: v as ShadowsocksMethod } as Partial<Inbound>)
+                              if (canGenerateShadowsocksPassword(v)) {
+                                patchInbound({ method: v as ShadowsocksMethod } as Partial<Inbound>)
+                              } else {
+                                form.setValue('shadowsocksPassword', '')
+                                patchInbound({ method: v as ShadowsocksMethod, password: undefined } as Partial<Inbound>)
+                              }
                             }}
                           >
                             <FormControl>
@@ -2639,45 +2651,48 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                       )}
                     />
 
-                    <FormField
-                      control={form.control}
-                      name="shadowsocksPassword"
-                      render={({ field }) => (
-                        <FormItem className="w-full min-w-0 sm:col-span-2">
-                          <FormLabel className="text-muted-foreground text-xs font-semibold tracking-wide">{t('coreConfigModal.shadowsocksPassword')}</FormLabel>
-                          <FormControl>
-                            <PasswordInput
-                              dir="ltr"
-                              autoComplete="new-password"
-                              className="h-10 w-full"
-                              value={field.value}
-                              onChange={e => {
-                                const v = e.target.value
-                                field.onChange(v)
-                                setShadowsocksPasswordJustGenerated(false)
-                                patchInbound({ password: v } as Partial<Inbound>)
-                              }}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <div className="sm:col-span-2">
-                      <LoaderButton
-                        type="button"
-                        onClick={generateInboundShadowsocksPassword}
-                        className="h-10 w-full text-sm font-medium transition-all hover:shadow-md sm:h-11"
-                        isLoading={isGeneratingShadowsocksPassword}
-                        loadingText={t('coreConfigModal.generatingShadowsocksPassword')}
-                      >
-                        <span className="flex items-center gap-2 truncate">
-                          {shadowsocksPasswordJustGenerated && <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-green-500 ring-2 ring-green-500/20" />}
-                          {t('coreConfigModal.generateShadowsocksPassword')}
-                        </span>
-                      </LoaderButton>
-                    </div>
+                    {canGenerateShadowsocksPassword(form.watch('shadowsocksMethod')) && (
+                      <>
+                        <FormField
+                          control={form.control}
+                          name="shadowsocksPassword"
+                          render={({ field }) => (
+                            <FormItem className="w-full min-w-0 sm:col-span-2">
+                              <FormLabel className="text-muted-foreground text-xs font-semibold tracking-wide">{t('coreConfigModal.shadowsocksPassword')}</FormLabel>
+                              <FormControl>
+                                <PasswordInput
+                                  dir="ltr"
+                                  autoComplete="new-password"
+                                  className="h-10 w-full"
+                                  value={field.value}
+                                  onChange={e => {
+                                    const v = e.target.value
+                                    field.onChange(v)
+                                    setShadowsocksPasswordJustGenerated(false)
+                                    patchInbound({ password: v } as Partial<Inbound>)
+                                  }}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <div className="sm:col-span-2">
+                          <LoaderButton
+                            type="button"
+                            onClick={generateInboundShadowsocksPassword}
+                            className="h-10 w-full text-sm font-medium transition-all hover:shadow-md sm:h-11"
+                            isLoading={isGeneratingShadowsocksPassword}
+                            loadingText={t('coreConfigModal.generatingShadowsocksPassword')}
+                          >
+                            <span className="flex items-center gap-2 truncate">
+                              {shadowsocksPasswordJustGenerated && <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-green-500 ring-2 ring-green-500/20" />}
+                              {t('coreConfigModal.generateShadowsocksPassword')}
+                            </span>
+                          </LoaderButton>
+                        </div>
+                      </>
+                    )}
                   </>
                 )}
 
