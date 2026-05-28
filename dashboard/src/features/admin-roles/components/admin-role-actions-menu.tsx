@@ -98,7 +98,7 @@ export default function AdminRoleActionsMenu({ role, onEdit, onDuplicate, classN
       </div>
 
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
+        <AlertDialogContent onClick={event => event.stopPropagation()}>
           <AlertDialogHeader>
             <AlertDialogTitle>{t('adminRoles.deleteConfirmation', { defaultValue: 'Delete role' })}</AlertDialogTitle>
             <AlertDialogDescription>
