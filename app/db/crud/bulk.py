@@ -180,7 +180,11 @@ async def add_groups_to_users(db: AsyncSession, bulk_model: BulkGroup) -> tuple[
     if not new_rows:
         return [], count_effctive_users
 
-    await db.execute(users_groups_association.insert(), new_rows)
+    # PostgreSQL asyncpg limits bind parameters to 32767 per query.
+    # Each row has 2 columns (user_id, groups_id), so cap batches at 16000 rows.
+    BATCH_SIZE = 16_000
+    for i in range(0, len(new_rows), BATCH_SIZE):
+        await db.execute(users_groups_association.insert(), new_rows[i : i + BATCH_SIZE])
     await db.commit()
 
     # Return users that actually had groups added
