@@ -262,8 +262,10 @@ export default function NodeActionsMenu({
 
   const isWireGuard = coresData?.cores?.find(core => core.id === node.core_config_id)?.type === 'wg'
   const hasRowActions = canUpdate || canDelete || canReconnect || canUpdateCore || canReadStats
-  const hasSecondaryActions = canReadStats || canUpdate || canReconnect
-  const hasCoreActions = canUpdateCore
+  const primaryActionCount = canUpdate ? 2 : 0
+  const secondaryActionCount = (canReadStats ? 1 : 0) + (canUpdate ? 2 : 0) + (canReconnect ? 1 : 0)
+  const coreActionCount = (canUpdateCore && !isWireGuard ? 2 : 0) + (canUpdateCore ? 1 : 0)
+  const destructiveActionCount = canDelete ? 1 : 0
 
   const handleDeleteClick = (event: Event) => {
     event.preventDefault()
@@ -429,7 +431,7 @@ export default function NodeActionsMenu({
                   </DropdownMenuItem>
                 </>
               )}
-              {canUpdate && hasSecondaryActions && <DropdownMenuSeparator />}
+              {primaryActionCount > 0 && secondaryActionCount > 0 && <DropdownMenuSeparator />}
               {canReadStats && (
                 <DropdownMenuItem
                   onSelect={e => {
@@ -478,7 +480,7 @@ export default function NodeActionsMenu({
                   <span className="min-w-0 truncate">{reconnecting ? t('nodeModal.reconnecting') : t('nodeModal.reconnect')}</span>
                 </DropdownMenuItem>
               )}
-              {hasSecondaryActions && hasCoreActions && <DropdownMenuSeparator />}
+              {secondaryActionCount > 0 && coreActionCount > 0 && <DropdownMenuSeparator />}
               {canUpdateCore && !isWireGuard && (
                 <>
                   <DropdownMenuItem
@@ -517,7 +519,7 @@ export default function NodeActionsMenu({
                   </span>
                 </DropdownMenuItem>
               )}
-              {(canUpdate || hasSecondaryActions || hasCoreActions) && canDelete && <DropdownMenuSeparator />}
+              {primaryActionCount + secondaryActionCount + coreActionCount > 0 && destructiveActionCount > 0 && <DropdownMenuSeparator />}
               {canDelete && (
                 <DropdownMenuItem onSelect={handleDeleteClick} className="text-destructive focus:text-destructive">
                   <Trash2 className="mr-2 h-4 w-4 shrink-0" />

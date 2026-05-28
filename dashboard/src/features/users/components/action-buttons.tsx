@@ -325,6 +325,9 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
   const canUpdateAllUsers = hasScopeAll(currentAdmin, 'users', 'update')
   const canReadAllUsers = hasScopeAll(currentAdmin, 'users', 'read')
   const canDeleteUsers = hasPermission(currentAdmin, 'users', 'delete')
+  const topDropdownActionCount = (canUpdateUsers ? 1 : 0) + (canUpdateAllUsers ? 1 : 0) + (canReadAllUsers ? 1 : 0)
+  const middleDropdownActionCount = (canUpdateUsers ? 2 : 0) + 3 + (canUpdateUsers && user.next_plan ? 1 : 0) + (canReadAllUsers ? 1 : 0)
+  const destructiveDropdownActionCount = canDeleteUsers ? 1 : 0
 
   // Create form for user editing
   const userForm = useForm<UseEditFormValues>({
@@ -725,7 +728,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
                 </DropdownMenuItem>
               )}
 
-              <DropdownMenuSeparator />
+              {topDropdownActionCount > 0 && middleDropdownActionCount > 0 && <DropdownMenuSeparator />}
 
               {/* Revoke Sub */}
               {canUpdateUsers && <DropdownMenuItem onSelect={handleRevokeSubscription}>
@@ -770,7 +773,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
                 </DropdownMenuItem>
               )}
 
-              <DropdownMenuSeparator />
+              {middleDropdownActionCount > 0 && destructiveDropdownActionCount > 0 && <DropdownMenuSeparator />}
 
               {/* Trash */}
               {canDeleteUsers && <DropdownMenuItem onSelect={handleDelete} className="text-red-600">

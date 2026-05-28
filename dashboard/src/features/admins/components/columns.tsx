@@ -188,14 +188,17 @@ export const setupColumns = ({
       id: 'actions',
       cell: ({ row }) => {
         const isOwnerTarget = isOwner(row.original)
+        const nonDestructiveActionCount =
+          (onEdit ? 1 : 0) +
+          (onResetUsage ? 1 : 0) +
+          (!isOwnerTarget && toggleStatus ? 1 : 0) +
+          (!isOwnerTarget && onDisableAllActiveUsers ? 1 : 0) +
+          (!isOwnerTarget && onActivateAllDisabledUsers ? 1 : 0) +
+          (!isOwnerTarget && onRemoveAllUsers ? 1 : 0)
+        const canDeleteAdmin = !isOwnerTarget && row.original.username !== currentAdminUsername && !!onDelete
         const hasActions =
-          !!onEdit ||
-          !!onResetUsage ||
-          (!isOwnerTarget && !!toggleStatus) ||
-          (!isOwnerTarget && !!onDisableAllActiveUsers) ||
-          (!isOwnerTarget && !!onActivateAllDisabledUsers) ||
-          (!isOwnerTarget && !!onRemoveAllUsers) ||
-          (!isOwnerTarget && row.original.username !== currentAdminUsername && !!onDelete)
+          nonDestructiveActionCount > 0 ||
+          canDeleteAdmin
 
         if (!hasActions) return null
 
@@ -277,9 +280,9 @@ export const setupColumns = ({
                     {t('admins.removeAllUsers')}
                   </DropdownMenuItem>
                 )}
-                {!isOwnerTarget && row.original.username !== currentAdminUsername && onDelete && (
+                {canDeleteAdmin && (
                   <>
-                    <DropdownMenuSeparator />
+                    {nonDestructiveActionCount > 0 && <DropdownMenuSeparator />}
                     <DropdownMenuItem
                       className="text-destructive"
                       onSelect={e => {

@@ -58,13 +58,14 @@ const ExpandedRowContent = memo(
     const { t } = useTranslation()
     const isOwnerTarget = isOwner(row)
     const isDisabled = getAdminStatus(row) === 'disabled'
-    const hasMoreActions =
-      (!isOwnerTarget && row.username !== currentAdminUsername && !!onToggleStatus) ||
-      !!onResetUsage ||
-      (!isOwnerTarget && !!onDisableAllActiveUsers) ||
-      (!isOwnerTarget && !!onActivateAllDisabledUsers) ||
-      (!isOwnerTarget && !!onRemoveAllUsers) ||
-      (!isOwnerTarget && row.username !== currentAdminUsername && !!onDelete)
+    const nonDestructiveActionCount =
+      (!isOwnerTarget && row.username !== currentAdminUsername && onToggleStatus ? 1 : 0) +
+      (onResetUsage ? 1 : 0) +
+      (!isOwnerTarget && onDisableAllActiveUsers ? 1 : 0) +
+      (!isOwnerTarget && onActivateAllDisabledUsers ? 1 : 0) +
+      (!isOwnerTarget && onRemoveAllUsers ? 1 : 0)
+    const canDeleteAdmin = !isOwnerTarget && row.username !== currentAdminUsername && !!onDelete
+    const hasMoreActions = nonDestructiveActionCount > 0 || canDeleteAdmin
 
     return (
       <div className="flex flex-col gap-y-3 border-b px-3 py-3 text-xs">
@@ -159,9 +160,9 @@ const ExpandedRowContent = memo(
                   {t('admins.removeAllUsers')}
                 </DropdownMenuItem>
               )}
-              {!isOwnerTarget && row.username !== currentAdminUsername && onDelete && (
+              {canDeleteAdmin && (
                 <>
-                  <DropdownMenuSeparator />
+                  {nonDestructiveActionCount > 0 && <DropdownMenuSeparator />}
                   <DropdownMenuItem
                     className="text-destructive"
                     onSelect={e => {

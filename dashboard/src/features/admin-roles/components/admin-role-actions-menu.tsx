@@ -27,9 +27,11 @@ export default function AdminRoleActionsMenu({ role, onEdit, className }: AdminR
   const deleteRole = useDeleteRole()
   const protectedRole = isProtectedRole(role)
   const readOnlyRole = isReadOnlyRole(role)
+  const canDeleteRole = !protectedRole
 
   const handleDeleteClick = (event: Event) => {
     event.stopPropagation()
+    if (!canDeleteRole) return
     setDeleteDialogOpen(true)
   }
 
@@ -76,7 +78,7 @@ export default function AdminRoleActionsMenu({ role, onEdit, className }: AdminR
                 {readOnlyRole ? t('view', { defaultValue: 'View' }) : t('edit', { defaultValue: 'Edit' })}
               </span>
             </DropdownMenuItem>
-            <DropdownMenuSeparator />
+            {canDeleteRole && <DropdownMenuSeparator />}
             <DropdownMenuItem disabled={protectedRole} onSelect={handleDeleteClick} className="text-destructive">
               <Trash2 className={cn('h-4 w-4 shrink-0', dir === 'rtl' ? 'ml-2' : 'mr-2')} />
               <span className="min-w-0 truncate">{t('delete')}</span>
