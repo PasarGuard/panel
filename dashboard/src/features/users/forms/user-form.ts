@@ -98,7 +98,7 @@ export const getDefaultUserForm = async () => {
     username: '',
     status: 'active',
     data_limit: 0,
-    hwid_limit: undefined,
+    hwid_limit: null,
     expire: '',
     note: '',
     group_ids: [],

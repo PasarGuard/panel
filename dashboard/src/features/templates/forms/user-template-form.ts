@@ -53,7 +53,7 @@ export const userTemplateFormDefaultValues: Partial<UserTemplatesFromValueInput>
   username_prefix: '',
   username_suffix: '',
   data_limit: 0,
-  hwid_limit: undefined,
+  hwid_limit: null,
   expire_duration: 0,
   method: ShadowsocksMethods['chacha20-ietf-poly1305'],
   on_hold_timeout: undefined,

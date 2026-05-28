@@ -69,7 +69,7 @@ export default function UserTemplates() {
       name: userTemplate.name || undefined,
       status: userTemplate.status || undefined,
       data_limit: bytesToFormGigabytes(userTemplate.data_limit),
-      hwid_limit: userTemplate.hwid_limit ?? undefined,
+      hwid_limit: userTemplate.hwid_limit ?? null,
       expire_duration: userTemplate.expire_duration || undefined,
       method: userTemplate.extra_settings?.method || undefined,
       groups: userTemplate.group_ids || undefined,

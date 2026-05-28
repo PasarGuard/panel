@@ -409,13 +409,13 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
                       <FormLabel>{t('templates.hwidLimit', { defaultValue: 'HWID Limit' })}</FormLabel>
                       <FormControl>
                         <DecimalInput
-                          placeholder={t('templates.hwidLimitPlaceholder', { defaultValue: 'Empty for default, 0 for unlimited' })}
+                          placeholder={t('templates.hwidLimitPlaceholder', { defaultValue: 'Empty = default, 0 = unlimited' })}
                           value={field.value}
                           emptyValue={undefined}
                           zeroValue={0}
                           keepZeroOnBlur
                           normalizeDisplayValueOnBlur={Math.floor}
-                          onValueChange={field.onChange}
+                          onValueChange={value => field.onChange(value ?? null)}
                         />
                       </FormControl>
                       <FormMessage />

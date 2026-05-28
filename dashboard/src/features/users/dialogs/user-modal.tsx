@@ -1656,7 +1656,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
                               <FormLabel>{t('userDialog.hwidLimit', { defaultValue: 'HWID Limit' })}</FormLabel>
                               <FormControl>
                                 <Input
-                                  placeholder={t('userDialog.hwidLimitPlaceholder', { defaultValue: 'Empty field = fallback, 0 = unlimited' })}
+                                  placeholder={t('userDialog.hwidLimitPlaceholder', { defaultValue: 'Empty = default, 0 = unlimited' })}
                                   value={field.value ?? ''}
                                   inputMode="numeric"
                                   pattern="[0-9]*"
@@ -1665,7 +1665,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
                                     const nextValue = event.target.value.trim()
                                     if (!/^\d*$/.test(nextValue)) return
 
-                                    const value = nextValue === '' ? undefined : Number(nextValue)
+                                    const value = nextValue === '' ? null : Number(nextValue)
                                     field.onChange(value)
                                     handleFieldChange('hwid_limit', value)
                                   }}
