@@ -760,17 +760,48 @@ class Group(Base, IdMixin):
     )
     is_disabled: Mapped[bool] = mapped_column(server_default="0", default=False)
 
-    @property
-    def inbound_ids(self):
+    @hybrid_property
+    def inbound_ids(self) -> list[int]:
         return [inbound.id for inbound in self.inbounds]
 
-    @property
-    def inbound_tags(self):
+    @inbound_ids.expression
+    def inbound_ids(cls):
+        return (
+            select(func.aggregate_strings(ProxyInbound.id, ","))
+            .select_from(inbounds_groups_association)
+            .join(ProxyInbound, inbounds_groups_association.c.inbound_id == ProxyInbound.id)
+            .where(inbounds_groups_association.c.group_id == cls.id)
+            .scalar_subquery()
+            .label("inbound_ids")
+        )
+
+    @hybrid_property
+    def inbound_tags(self) -> list[str]:
         return [inbound.tag for inbound in self.inbounds]
 
-    @property
-    def total_users(self):
+    @inbound_tags.expression
+    def inbound_tags(cls):
+        return (
+            select(func.aggregate_strings(ProxyInbound.tag, ","))
+            .select_from(inbounds_groups_association)
+            .join(ProxyInbound, inbounds_groups_association.c.inbound_id == ProxyInbound.id)
+            .where(inbounds_groups_association.c.group_id == cls.id)
+            .scalar_subquery()
+            .label("inbound_tags")
+        )
+
+    @hybrid_property
+    def total_users(self) -> int:
         return len(self.users)
+
+    @total_users.expression
+    def total_users(cls):
+        return (
+            select(func.count(users_groups_association.c.user_id))
+            .where(users_groups_association.c.groups_id == cls.id)
+            .scalar_subquery()
+            .label("total_users")
+        )
 
 
 class CoreType(str, Enum):
