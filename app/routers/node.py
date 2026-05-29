@@ -353,34 +353,57 @@ async def realtime_nodes_stats(_: AdminDetails = Depends(require_permission("nod
     return await node_operator.get_nodes_system_stats()
 
 
-@router.get("/online_stats/{username}/ip", response_model=UserIPListAll)
+@router.get("/online_stats/{id}/ip", response_model=UserIPListAll)
 async def user_online_ip_list_all_nodes(
-    username: str, db: AsyncSession = Depends(get_db), _: AdminDetails = Depends(require_permission("nodes", "stats"))
+    id: int,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(require_permission("nodes", "stats")),
 ):
     """Retrieve user ips from all nodes."""
-    return await node_operator.get_user_ip_list_all_nodes(db=db, username=username)
+    db_user = await node_operator.get_validated_user_by_id(
+        db,
+        user_id=id,
+        admin=admin,
+        scope_resource="nodes",
+        scope_action="stats",
+    )
+    return await node_operator.get_user_ip_list_all_nodes(db=db, username=db_user.username)
 
 
-@router.get("/{node_id}/online_stats/{username}", response_model=dict[int, int])
+@router.get("/{node_id}/online_stats/{id}", response_model=dict[int, int])
 async def user_online_stats(
     node_id: int,
-    username: str,
+    id: int,
     db: AsyncSession = Depends(get_db),
-    _: AdminDetails = Depends(require_permission("nodes", "stats")),
+    admin: AdminDetails = Depends(require_permission("nodes", "stats")),
 ):
     """Retrieve user online stats by node."""
-    return await node_operator.get_user_online_stats_by_node(db=db, node_id=node_id, username=username)
+    db_user = await node_operator.get_validated_user_by_id(
+        db,
+        user_id=id,
+        admin=admin,
+        scope_resource="nodes",
+        scope_action="stats",
+    )
+    return await node_operator.get_user_online_stats_by_node(db=db, node_id=node_id, username=db_user.username)
 
 
-@router.get("/{node_id}/online_stats/{username}/ip", response_model=UserIPList)
+@router.get("/{node_id}/online_stats/{id}/ip", response_model=UserIPList)
 async def user_online_ip_list(
     node_id: int,
-    username: str,
+    id: int,
     db: AsyncSession = Depends(get_db),
-    _: AdminDetails = Depends(require_permission("nodes", "stats")),
+    admin: AdminDetails = Depends(require_permission("nodes", "stats")),
 ):
     """Retrieve user ips by node."""
-    return await node_operator.get_user_ip_list_by_node(db=db, node_id=node_id, username=username)
+    db_user = await node_operator.get_validated_user_by_id(
+        db,
+        user_id=id,
+        admin=admin,
+        scope_resource="nodes",
+        scope_action="stats",
+    )
+    return await node_operator.get_user_ip_list_by_node(db=db, node_id=node_id, username=db_user.username)
 
 
 @router.delete(

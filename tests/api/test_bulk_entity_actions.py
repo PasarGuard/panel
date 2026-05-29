@@ -5,8 +5,7 @@ from uuid import uuid4
 from fastapi import status
 from sqlalchemy import func, select, update
 
-from app.db.crud.node import create_node as db_create_node
-from app.db.crud.node import remove_node as db_remove_node
+from app.db.crud.node import create_node as db_create_node, remove_node as db_remove_node
 from app.db.models import Admin, AdminUsageLogs, Node
 from app.models.node import NodeCreate
 from tests.api import TestSession, client
@@ -117,8 +116,19 @@ def delete_host_if_present(access_token: str, host_id: int) -> None:
 
 
 def delete_user_if_present(access_token: str, username: str) -> None:
-    response = client.delete(f"/api/user/{username}", headers=auth_headers(access_token))
-    assert response.status_code in (status.HTTP_204_NO_CONTENT, status.HTTP_404_NOT_FOUND)
+    lookup = client.get(
+        "/api/users",
+        headers=auth_headers(access_token),
+        params={"username": username},
+    )
+    assert lookup.status_code == status.HTTP_200_OK
+    users = lookup.json()["users"]
+    user = next((item for item in users if item["username"] == username), None)
+    if user is None:
+        return
+
+    response = client.delete(f"/api/user/{user['id']}", headers=auth_headers(access_token))
+    assert response.status_code == status.HTTP_204_NO_CONTENT
 
 
 def valid_group_name(prefix: str) -> str:
@@ -364,14 +374,14 @@ def test_bulk_admin_user_actions(access_token):
     try:
         for user in (active_user, disabled_user):
             response = client.put(
-                f"/api/user/{user['username']}/set_owner",
+                f"/api/user/{user['id']}/set_owner",
                 headers=auth_headers(access_token),
                 params={"admin_username": admin["username"]},
             )
             assert response.status_code == status.HTTP_200_OK
 
         response = client.put(
-            f"/api/user/{disabled_user['username']}",
+            f"/api/user/{disabled_user['id']}",
             headers=auth_headers(access_token),
             json={"status": "disabled"},
         )
@@ -385,9 +395,9 @@ def test_bulk_admin_user_actions(access_token):
         assert response.status_code == status.HTTP_200_OK
         assert response.json()["count"] == 1
 
-        active_user_response = client.get(f"/api/user/{active_user['username']}", headers=auth_headers(access_token))
+        active_user_response = client.get(f"/api/user/{active_user['id']}", headers=auth_headers(access_token))
         disabled_user_response = client.get(
-            f"/api/user/{disabled_user['username']}",
+            f"/api/user/{disabled_user['id']}",
             headers=auth_headers(access_token),
         )
         assert active_user_response.status_code == status.HTTP_200_OK
@@ -403,9 +413,9 @@ def test_bulk_admin_user_actions(access_token):
         assert response.status_code == status.HTTP_200_OK
         assert response.json()["count"] == 1
 
-        active_user_response = client.get(f"/api/user/{active_user['username']}", headers=auth_headers(access_token))
+        active_user_response = client.get(f"/api/user/{active_user['id']}", headers=auth_headers(access_token))
         disabled_user_response = client.get(
-            f"/api/user/{disabled_user['username']}",
+            f"/api/user/{disabled_user['id']}",
             headers=auth_headers(access_token),
         )
         assert active_user_response.status_code == status.HTTP_200_OK
@@ -423,8 +433,13 @@ def test_bulk_admin_user_actions(access_token):
         assert response.json()["count"] == 1
 
         for username in (active_user["username"], disabled_user["username"]):
-            lookup = client.get(f"/api/user/{username}", headers=auth_headers(access_token))
-            assert lookup.status_code == status.HTTP_404_NOT_FOUND
+            lookup = client.get(
+                "/api/users",
+                headers=auth_headers(access_token),
+                params={"username": username},
+            )
+            assert lookup.status_code == status.HTTP_200_OK
+            assert lookup.json()["users"] == []
     finally:
         delete_user_if_present(access_token, active_user["username"])
         delete_user_if_present(access_token, disabled_user["username"])
