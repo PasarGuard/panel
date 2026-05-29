@@ -160,21 +160,20 @@ class XRayConfig(dict):
         except KeyError:
             port_found = False
 
-        # Unix socket listeners don't require a port
-        if not port_found and self._is_unix_socket(inbound):
-            return
+        is_unix_socket = self._is_unix_socket(inbound)
 
         if self._fallbacks_inbound and "<=>" not in inbound["tag"]:
             if inbound.get("settings", {}).get("fallbacks", []):
-                if not port_found:
+                if not port_found and not is_unix_socket:
                     raise ValueError(f"{settings['tag']} inbound doesn't have port")
-                else:
-                    return
+                return
             fallbacks = self._find_fallback_inbound(inbound)
             if fallbacks:
                 settings["is_fallback"] = True
                 settings["fallbacks"] = fallbacks
-        elif not port_found:
+                return
+
+        if not port_found and not is_unix_socket:
             raise ValueError(f"{settings['tag']} inbound doesn't have port")
 
     def _handle_tls_settings(self, tls_settings: dict, settings: dict, inbound_tag: str):
