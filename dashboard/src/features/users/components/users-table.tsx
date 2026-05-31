@@ -59,7 +59,11 @@ const getSearchParams = (): URLSearchParams => {
 const updateURLParams = (params: URLSearchParams) => {
   const hash = window.location.hash
   const hashPath = hash.split('?')[0]
-  const newHash = params.toString() ? `${hashPath}?${params.toString()}` : hashPath
+  const query = Array.from(params.entries())
+    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+    .join('&')
+  const newHash = query ? `${hashPath}?${query}` : hashPath
+  if (hash === newHash) return
   window.history.replaceState(null, '', newHash)
 }
 
@@ -367,11 +371,15 @@ const UsersTable = memo(() => {
   }, [selectedUser, userForm])
 
   useEffect(() => {
-    setFilters(prev => ({
-      ...prev,
-      limit: itemsPerPage,
-      offset: currentPage * itemsPerPage,
-    }))
+    setFilters(prev => {
+      const nextOffset = currentPage * itemsPerPage
+      if (prev.limit === itemsPerPage && prev.offset === nextOffset) return prev
+      return {
+        ...prev,
+        limit: itemsPerPage,
+        offset: nextOffset,
+      }
+    })
   }, [currentPage, itemsPerPage])
 
   useEffect(() => {
@@ -559,44 +567,41 @@ const UsersTable = memo(() => {
     [advanceSearchForm],
   )
 
-  const handleFilterChange = useCallback(
-    (newFilters: Partial<typeof filters>) => {
-      setFilters(prev => {
-        let updated = { ...prev, ...newFilters }
-        if ('search' in newFilters) {
-          const nextSearch = newFilters.search?.trim() || undefined
-          const currentSearch = prev.proxy_id || prev.search
-          const nextIsProtocol = nextSearch ? (newFilters.is_protocol ?? prev.is_protocol) : false
-          // Only reset offset and page if search actually changed
-          const searchChanged = nextSearch !== currentSearch || nextIsProtocol !== prev.is_protocol
-          if (searchChanged) {
-            if (nextIsProtocol) {
-              updated.proxy_id = nextSearch
-              updated.search = undefined
-            } else {
-              updated.search = nextSearch
-              updated.proxy_id = undefined
-            }
-            updated.is_protocol = nextIsProtocol
-            updated.offset = 0
-          } else {
-            // Preserve current offset if search didn't change
-            updated.offset = prev.offset
-          }
-        }
-        return updated
-      })
+  const handleFilterChange = useCallback((newFilters: Partial<typeof filters>) => {
+    setFilters(prev => {
+      let updated = { ...prev, ...newFilters }
+      if ('search' in newFilters) {
+        const nextSearch = newFilters.search?.trim() || undefined
+        const currentSearch = prev.proxy_id || prev.search
+        const nextIsProtocol = nextSearch ? (newFilters.is_protocol ?? prev.is_protocol) : false
+        const searchChanged = nextSearch !== currentSearch || nextIsProtocol !== prev.is_protocol
 
-      const nextSearch = newFilters.search?.trim() || undefined
-      const currentSearch = filters.proxy_id || filters.search
-      const nextIsProtocol = nextSearch ? (newFilters.is_protocol ?? filters.is_protocol) : false
-      // Only reset page if search actually changed
-      if ('search' in newFilters && (nextSearch !== currentSearch || nextIsProtocol !== filters.is_protocol)) {
-        setCurrentPage(0)
+        if (searchChanged) {
+          if (nextIsProtocol) {
+            updated.proxy_id = nextSearch
+            updated.search = undefined
+          } else {
+            updated.search = nextSearch
+            updated.proxy_id = undefined
+          }
+          updated.is_protocol = nextIsProtocol
+          updated.offset = 0
+        } else {
+          updated.offset = prev.offset
+        }
       }
-    },
-    [filters.search, filters.proxy_id, filters.is_protocol],
-  )
+
+      const hasChanged = Object.keys(updated).some(key => {
+        const filterKey = key as keyof typeof filters
+        return !Object.is(updated[filterKey], prev[filterKey])
+      })
+      return hasChanged ? updated : prev
+    })
+
+    if ('search' in newFilters) {
+      setCurrentPage(0)
+    }
+  }, [])
 
   const handleManualRefresh = async () => {
     isAutoRefreshingRef.current = false

@@ -403,7 +403,7 @@ export default function AdvanceSearchModal({ isDialogOpen, onOpenChange, form, o
                             {!!field.value?.length && <Badge variant="secondary">{field.value.length}</Badge>}
                           </div>
                           <FormControl>
-                            <>
+                            <div>
                               <div className="mb-3 flex flex-wrap gap-2">
                                 {field.value?.map(tag => (
                                   <Badge key={tag} variant="secondary" className="flex items-center gap-1">
@@ -427,7 +427,7 @@ export default function AdvanceSearchModal({ isDialogOpen, onOpenChange, form, o
                                   </AccordionContent>
                                 </AccordionItem>
                               </Accordion>
-                            </>
+                            </div>
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -445,7 +445,7 @@ export default function AdvanceSearchModal({ isDialogOpen, onOpenChange, form, o
                               {!!field.value?.length && <Badge variant="secondary">{field.value.length}</Badge>}
                             </div>
                             <FormControl>
-                              <>
+                              <div>
                                 <div className="mb-3 flex flex-wrap gap-2">
                                   {field.value?.map(tag => (
                                     <Badge key={tag} variant="secondary" className="flex items-center gap-1">
@@ -469,7 +469,7 @@ export default function AdvanceSearchModal({ isDialogOpen, onOpenChange, form, o
                                     </AccordionContent>
                                   </AccordionItem>
                                 </Accordion>
-                              </>
+                              </div>
                             </FormControl>
                             <FormMessage />
                           </FormItem>
