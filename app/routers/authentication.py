@@ -215,13 +215,13 @@ async def get_current(request: Request, db: AsyncSession = Depends(get_db), toke
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials",
-            headers={"WWW-Authenticate": "Bearer, ApiKey"},
+            headers={"WWW-Authenticate": "Bearer"},
         )
     if admin.status == AdminStatus.disabled:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="your account has been disabled",
-            headers={"WWW-Authenticate": "Bearer, ApiKey"},
+            headers={"WWW-Authenticate": "Bearer"},
         )
     return admin
 
@@ -244,13 +244,13 @@ async def get_current_with_metrics(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials",
-            headers={"WWW-Authenticate": "Bearer, ApiKey"},
+            headers={"WWW-Authenticate": "Bearer"},
         )
     if admin.status == AdminStatus.disabled:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="your account has been disabled",
-            headers={"WWW-Authenticate": "Bearer, ApiKey"},
+            headers={"WWW-Authenticate": "Bearer"},
         )
     return admin
 

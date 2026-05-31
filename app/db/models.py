@@ -153,6 +153,11 @@ class Admin(Base, IdMixin, CreatedAtUTCMixin):
     def total_users(self) -> int:
         return len(self.users)
 
+    @property
+    def has_api_keys(self) -> bool:
+        """True when the admin owns at least one API key."""
+        return len(self.api_keys) > 0
+
 
 class AdminUsageLogs(Base, IdMixin):
     __tablename__ = "admin_usage_logs"

@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -87,3 +87,9 @@ async def get_api_keys(
 async def delete_api_key(db: AsyncSession, db_key: APIKey) -> None:
     await db.delete(db_key)
     await db.flush()
+
+
+async def update_api_keys_role(db: AsyncSession, admin_id: int, new_role_id: int) -> int:
+    """Update role_id on all API keys belonging to admin_id. Returns affected row count."""
+    result = await db.execute(update(APIKey).where(APIKey.admin_id == admin_id).values(role_id=new_role_id))
+    return result.rowcount

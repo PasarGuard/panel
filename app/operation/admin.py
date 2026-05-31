@@ -18,6 +18,7 @@ from app.db.crud.admin import (
     reset_admin_usage,
     update_admin,
 )
+from app.db.crud.api_key import update_api_keys_role
 from app.db.crud.bulk import activate_all_disabled_users, disable_all_active_users
 from app.db.crud.user import get_users, remove_users
 from app.models.user import UserListQuery
@@ -120,6 +121,11 @@ class AdminOperation(BaseOperation):
 
         old_status = db_admin.status
         db_admin = await update_admin(db, db_admin, modified_admin)
+
+        # Keep API key roles in sync with the admin's new role
+        if modified_admin.role_id is not None and db_admin.has_api_keys:
+            await update_api_keys_role(db, db_admin.id, modified_admin.role_id)
+            await db.commit()
 
         # Sync users to nodes if admin status changed due to data_limit change
         if modified_admin.data_limit is not None:
