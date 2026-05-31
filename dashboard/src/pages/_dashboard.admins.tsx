@@ -35,7 +35,7 @@ export default function AdminsPage() {
 
   const removeAdminMutation = useRemoveAdminById()
   const modifyAdminMutation = useModifyAdminById()
-  const rolesQuery = useGetRolesSimple(undefined, { query: { enabled: canUpdateAdmins } })
+  const rolesQuery = useGetRolesSimple({ query: { enabled: canUpdateAdmins } })
   const modifyDisableAllAdminUsers = useDisableAllActiveUsersById()
   const modifyActivateAllAdminUsers = useActivateAllDisabledUsersById()
   const resetUsageMutation = useResetAdminUsageById()
@@ -110,7 +110,6 @@ export default function AdminsPage() {
           profile_title: admin.profile_title,
           sub_domain: admin.sub_domain,
           note: admin.note,
-          discord_id: admin.discord_id,
         },
       })
       upsertAdminInAdminsCache(queryClient, updatedAdmin, { allowInsert: true })
@@ -164,7 +163,6 @@ export default function AdminsPage() {
       profile_title: admin.profile_title || '',
       sub_domain: admin.sub_domain || '',
       note: admin.note || '',
-      discord_id: admin.discord_id || undefined,
       password: undefined,
       permission_overrides: {
         ...adminPermissionOverridesDefaultValues,

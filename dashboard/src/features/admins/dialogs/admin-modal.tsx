@@ -161,7 +161,6 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
         telegram_id: values.telegram_id,
         profile_title: values.profile_title,
         note: values.note,
-        discord_id: values.discord_id,
         notification_enable: values.notification_enable || null,
         role_id: values.role_id,
         permission_overrides: normalizePermissionOverrides(values.permission_overrides),
@@ -204,7 +203,6 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
           telegram_id: values.telegram_id,
           profile_title: values.profile_title,
           note: values.note,
-          discord_id: values.discord_id,
           notification_enable: values.notification_enable || null,
           role_id: values.role_id,
           permission_overrides: normalizePermissionOverrides(values.permission_overrides),
@@ -237,7 +235,6 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
         'telegram_id',
         'profile_title',
         'note',
-        'discord_id',
         'permission_overrides',
       ]
       handleError({ error, fields, form, contextKey: 'admins' })
@@ -411,28 +408,6 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
                       />
                       <FormField
                         control={form.control}
-                        name="discord_id"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>{t('admins.discordId')}</FormLabel>
-                            <FormControl>
-                              <Input
-                                type="number"
-                                placeholder={t('admins.discordId')}
-                                autoComplete="off"
-                                onChange={e => {
-                                  const value = e.target.value
-                                  field.onChange(value ? parseInt(value) : 0)
-                                }}
-                                value={field.value ? field.value : ''}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
                         name="discord_webhook"
                         render={({ field }) => (
                           <FormItem>
@@ -490,7 +465,7 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
                         control={form.control}
                         name="sub_template"
                         render={({ field }) => (
-                          <FormItem className="sm:col-span-2">
+                          <FormItem>
                             <FormLabel>{t('admins.subTemplate')}</FormLabel>
                             <FormControl>
                               <Input placeholder={t('admins.subTemplate')} autoComplete="off" {...field} />

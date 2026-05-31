@@ -3243,8 +3243,6 @@ export type AdminModifySubTemplate = string | null
 
 export type AdminModifyIsDisabled = boolean | null
 
-export type AdminModifyDiscordId = number | null
-
 export type AdminModifyDiscordWebhook = string | null
 
 export type AdminModifyTelegramId = number | null
@@ -3259,7 +3257,6 @@ export interface AdminModify {
   password?: AdminModifyPassword
   telegram_id?: AdminModifyTelegramId
   discord_webhook?: AdminModifyDiscordWebhook
-  discord_id?: AdminModifyDiscordId
   status?: AdminModifyStatus
   data_limit?: AdminModifyDataLimit
   is_disabled?: AdminModifyIsDisabled
@@ -3282,8 +3279,6 @@ export type AdminDetailsNote = string | null
 export type AdminDetailsLifetimeUsedTraffic = number | null
 
 export type AdminDetailsSubTemplate = string | null
-
-export type AdminDetailsDiscordId = number | null
 
 export type AdminDetailsId = number | null
 
@@ -3321,7 +3316,6 @@ export interface AdminDetails {
   status?: AdminDetailsStatus
   is_disabled?: boolean
   is_limited?: boolean
-  discord_id?: AdminDetailsDiscordId
   sub_template?: AdminDetailsSubTemplate
   lifetime_used_traffic?: AdminDetailsLifetimeUsedTraffic
   note?: AdminDetailsNote
@@ -3345,8 +3339,6 @@ export type AdminCreateSubTemplate = string | null
 
 export type AdminCreateIsDisabled = boolean | null
 
-export type AdminCreateDiscordId = number | null
-
 export type AdminCreateDiscordWebhook = string | null
 
 export type AdminCreateTelegramId = number | null
@@ -3362,7 +3354,6 @@ export interface AdminCreate {
   password: string
   telegram_id?: AdminCreateTelegramId
   discord_webhook?: AdminCreateDiscordWebhook
-  discord_id?: AdminCreateDiscordId
   status?: AdminCreateStatus
   data_limit?: AdminCreateDataLimit
   is_disabled?: AdminCreateIsDisabled

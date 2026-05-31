@@ -42,7 +42,6 @@ def _admin_usage_warning_details(admin: Admin) -> AdminDetails:
         status=admin.status,
         telegram_id=admin.telegram_id,
         discord_webhook=admin.discord_webhook,
-        discord_id=admin.discord_id,
         sub_domain=admin.sub_domain,
         profile_title=admin.profile_title,
         support_url=admin.support_url,

@@ -715,7 +715,6 @@
     "activateAllDisabledUsersSuccess": "All disabled users under admin «{{name}}» have been activated successfully",
     "activateAllDisabledUsersFailed": "Failed to activate all disabled users under admin «{{name}}»",
     "reset": "Reset usage",
-    "discordId": "Discord ID",
     "used": {
       "traffic": "Usage"
     },

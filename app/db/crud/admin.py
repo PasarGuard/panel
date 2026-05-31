@@ -60,7 +60,6 @@ def build_admin_details(
         support_url=db_admin.support_url,
         note=db_admin.note,
         notification_enable=db_admin.notification_enable,
-        discord_id=db_admin.discord_id,
         sub_template=db_admin.sub_template,
         lifetime_used_traffic=None if reseted_usage is None else int(reseted_usage or 0) + used_traffic,
         role=AdminRoleData.model_validate(db_admin.role) if db_admin.role is not None else None,
@@ -178,8 +177,6 @@ async def update_admin(db: AsyncSession, db_admin: Admin, modified_admin: AdminM
         db_admin.telegram_id = modified_admin.telegram_id
     if modified_admin.discord_webhook is not None:
         db_admin.discord_webhook = modified_admin.discord_webhook
-    if modified_admin.discord_id is not None:
-        db_admin.discord_id = modified_admin.discord_id
     if modified_admin.sub_template is not None:
         db_admin.sub_template = modified_admin.sub_template
     if modified_admin.sub_domain is not None:
@@ -260,19 +257,6 @@ async def find_admins_by_telegram_id(
     if limit is not None:
         stmt = stmt.limit(limit)
     return (await db.execute(stmt)).scalars().all()
-
-
-async def get_admin_by_discord_id(
-    db: AsyncSession,
-    discord_id: int,
-    *,
-    load_users: bool = True,
-    load_usage_logs: bool = True,
-) -> Admin:
-    admin = (await db.execute(select(Admin).where(Admin.discord_id == discord_id))).scalar_one_or_none()
-    if admin:
-        await load_admin_attrs(admin, load_users=load_users, load_usage_logs=load_usage_logs)
-    return admin
 
 
 async def get_admins(
