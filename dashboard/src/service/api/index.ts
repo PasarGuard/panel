@@ -3,7 +3,7 @@
  * Do not edit manually.
  * PasarGuardAPI
  * Unified GUI Censorship Resistant Solution
- * OpenAPI spec version: 4.0.2
+ * OpenAPI spec version: 5.0.0-rc.1
  */
 import { useMutation, useQuery } from '@tanstack/react-query'
 import type {
@@ -311,6 +311,13 @@ export type GetSystemStatsParams = {
   admin_username?: string | null
 }
 
+export type DeleteOwnerParams = {
+  /**
+   * One-time temp key for deleting the owner admin
+   */
+  key: string
+}
+
 export type GetRolesParams = {
   search?: string | null
   offset?: number | null
@@ -391,6 +398,13 @@ export type XrayMuxSettingsInputXudpConcurrency = number | null
 
 export type XrayMuxSettingsInputConcurrency = number | null
 
+export interface XrayMuxSettingsInput {
+  enabled?: boolean
+  concurrency?: XrayMuxSettingsInputConcurrency
+  xudp_concurrency?: XrayMuxSettingsInputXudpConcurrency
+  xudp_proxy_udp_443?: Xudp
+}
+
 export interface XrayFragmentSettings {
   /** @pattern ^(:?tlshello|[\d-]{1,16})$ */
   packets: string
@@ -408,13 +422,6 @@ export const Xudp = {
   allow: 'allow',
   skip: 'skip',
 } as const
-
-export interface XrayMuxSettingsInput {
-  enabled?: boolean
-  concurrency?: XrayMuxSettingsInputConcurrency
-  xudp_concurrency?: XrayMuxSettingsInputXudpConcurrency
-  xudp_proxy_udp_443?: Xudp
-}
 
 export type XMuxSettingsOutputHKeepAlivePeriod = number | null
 
@@ -439,15 +446,15 @@ export interface XMuxSettingsOutput {
 
 export type XMuxSettingsInputHKeepAlivePeriod = number | null
 
-export type XMuxSettingsInputHMaxRequestTimes = string | number | null
+export type XMuxSettingsInputHMaxRequestTimes = string | null
 
-export type XMuxSettingsInputHMaxReusableSecs = string | number | null
+export type XMuxSettingsInputHMaxReusableSecs = string | null
 
-export type XMuxSettingsInputCMaxReuseTimes = string | number | null
+export type XMuxSettingsInputCMaxReuseTimes = string | null
 
-export type XMuxSettingsInputMaxConnections = string | number | null
+export type XMuxSettingsInputMaxConnections = string | null
 
-export type XMuxSettingsInputMaxConcurrency = string | number | null
+export type XMuxSettingsInputMaxConcurrency = string | null
 
 export interface XMuxSettingsInput {
   max_concurrency?: XMuxSettingsInputMaxConcurrency
@@ -525,11 +532,11 @@ export type XHttpSettingsInputDownloadSettings = number | null
 
 export type XHttpSettingsInputXmux = XMuxSettingsInput | null
 
-export type XHttpSettingsInputScMinPostsIntervalMs = string | number | null
+export type XHttpSettingsInputScMinPostsIntervalMs = string | null
 
-export type XHttpSettingsInputScMaxEachPostBytes = string | number | null
+export type XHttpSettingsInputScMaxEachPostBytes = string | null
 
-export type XHttpSettingsInputUplinkChunkSize = string | number | null
+export type XHttpSettingsInputUplinkChunkSize = string | null
 
 export type XHttpSettingsInputUplinkDataKey = string | null
 
@@ -555,7 +562,7 @@ export type XHttpSettingsInputXPaddingKey = string | null
 
 export type XHttpSettingsInputXPaddingObfsMode = boolean | null
 
-export type XHttpSettingsInputXPaddingBytes = string | number | null
+export type XHttpSettingsInputXPaddingBytes = string | null
 
 export type XHttpSettingsInputNoGrpcHeader = boolean | null
 
@@ -723,14 +730,6 @@ export type UsersPermissionsResetUsageAnyOf = { [key: string]: PermissionScope |
 
 export type UsersPermissionsResetUsage = boolean | UsersPermissionsResetUsageAnyOf | null
 
-export type UsersPermissionsDeleteAnyOf = { [key: string]: PermissionScope | number }
-
-export type UsersPermissionsDelete = boolean | UsersPermissionsDeleteAnyOf | null
-
-export type UsersPermissionsUpdateAnyOf = { [key: string]: PermissionScope | number }
-
-export type UsersPermissionsUpdate = boolean | UsersPermissionsUpdateAnyOf | null
-
 export interface UsersPermissions {
   create?: UsersPermissionsCreate
   read?: UsersPermissionsRead
@@ -742,6 +741,14 @@ export interface UsersPermissions {
   set_owner?: UsersPermissionsSetOwner
   activate_next_plan?: UsersPermissionsActivateNextPlan
 }
+
+export type UsersPermissionsDeleteAnyOf = { [key: string]: PermissionScope | number }
+
+export type UsersPermissionsDelete = boolean | UsersPermissionsDeleteAnyOf | null
+
+export type UsersPermissionsUpdateAnyOf = { [key: string]: PermissionScope | number }
+
+export type UsersPermissionsUpdate = boolean | UsersPermissionsUpdateAnyOf | null
 
 export type UsersPermissionsReadSimpleAnyOf = { [key: string]: PermissionScope | number }
 
@@ -1743,24 +1750,20 @@ export const Period = {
   month: 'month',
 } as const
 
-export interface OwnerResetRequest {
-  key: string
-  password: string
-}
-
-export interface OwnerDeleteRequest {
-  key: string
-}
-
 export interface OwnerUpgradeRequest {
   key: string
   username: string
 }
 
+export interface OwnerResetRequest {
+  key: string
+  password: string
+}
+
 export interface OwnerCreateRequest {
   key: string
-  username: string
   password: string
+  username: string
 }
 
 export type NotificationSettingsProxyUrl = string | null
@@ -1799,20 +1802,6 @@ export interface NotificationEnable {
   percentage_reached?: boolean
 }
 
-/**
- * Per-object notification channels
- */
-export interface NotificationChannels {
-  admin?: NotificationChannel
-  admin_role?: NotificationChannel
-  core?: NotificationChannel
-  group?: NotificationChannel
-  host?: NotificationChannel
-  node?: NotificationChannel
-  user?: NotificationChannel
-  user_template?: NotificationChannel
-}
-
 export type NotificationChannelDiscordWebhookUrl = string | null
 
 export type NotificationChannelTelegramTopicId = number | null
@@ -1826,6 +1815,20 @@ export interface NotificationChannel {
   telegram_chat_id?: NotificationChannelTelegramChatId
   telegram_topic_id?: NotificationChannelTelegramTopicId
   discord_webhook_url?: NotificationChannelDiscordWebhookUrl
+}
+
+/**
+ * Per-object notification channels
+ */
+export interface NotificationChannels {
+  admin?: NotificationChannel
+  admin_role?: NotificationChannel
+  core?: NotificationChannel
+  group?: NotificationChannel
+  host?: NotificationChannel
+  node?: NotificationChannel
+  user?: NotificationChannel
+  user_template?: NotificationChannel
 }
 
 export interface NotFound {
@@ -1863,18 +1866,6 @@ export type NodesPermissionsUpdateCoreAnyOf = { [key: string]: PermissionScope |
 
 export type NodesPermissionsUpdateCore = boolean | NodesPermissionsUpdateCoreAnyOf | null
 
-export interface NodesPermissions {
-  create?: NodesPermissionsCreate
-  read?: NodesPermissionsRead
-  read_simple?: NodesPermissionsReadSimple
-  update?: NodesPermissionsUpdate
-  delete?: NodesPermissionsDelete
-  reconnect?: NodesPermissionsReconnect
-  update_core?: NodesPermissionsUpdateCore
-  logs?: NodesPermissionsLogs
-  stats?: NodesPermissionsStats
-}
-
 export type NodesPermissionsReconnectAnyOf = { [key: string]: PermissionScope | number }
 
 export type NodesPermissionsReconnect = boolean | NodesPermissionsReconnectAnyOf | null
@@ -1886,6 +1877,18 @@ export type NodesPermissionsDelete = boolean | NodesPermissionsDeleteAnyOf | nul
 export type NodesPermissionsUpdateAnyOf = { [key: string]: PermissionScope | number }
 
 export type NodesPermissionsUpdate = boolean | NodesPermissionsUpdateAnyOf | null
+
+export interface NodesPermissions {
+  create?: NodesPermissionsCreate
+  read?: NodesPermissionsRead
+  read_simple?: NodesPermissionsReadSimple
+  update?: NodesPermissionsUpdate
+  delete?: NodesPermissionsDelete
+  reconnect?: NodesPermissionsReconnect
+  update_core?: NodesPermissionsUpdateCore
+  logs?: NodesPermissionsLogs
+  stats?: NodesPermissionsStats
+}
 
 export type NodesPermissionsReadSimpleAnyOf = { [key: string]: PermissionScope | number }
 
@@ -2263,6 +2266,12 @@ export type HostsPermissionsUpdateAnyOf = { [key: string]: PermissionScope | num
 
 export type HostsPermissionsUpdate = boolean | HostsPermissionsUpdateAnyOf | null
 
+export interface HostsPermissions {
+  create?: HostsPermissionsCreate
+  read?: HostsPermissionsRead
+  update?: HostsPermissionsUpdate
+}
+
 export type HostsPermissionsReadAnyOf = { [key: string]: PermissionScope | number }
 
 export type HostsPermissionsRead = boolean | HostsPermissionsReadAnyOf | null
@@ -2271,12 +2280,6 @@ export type HostsPermissionsCreateAnyOf = { [key: string]: PermissionScope | num
 
 export type HostsPermissionsCreate = boolean | HostsPermissionsCreateAnyOf | null
 
-export interface HostsPermissions {
-  create?: HostsPermissionsCreate
-  read?: HostsPermissionsRead
-  update?: HostsPermissionsUpdate
-}
-
 export interface HostNotificationEnable {
   create?: boolean
   modify?: boolean
@@ -2284,15 +2287,18 @@ export interface HostNotificationEnable {
   modify_hosts?: boolean
 }
 
+export type HWIDSettingsMaxLimit = number | null
+
+export type HWIDSettingsMinLimit = number | null
+
+export type HWIDSettingsFallbackLimit = number | null
+
 export interface HWIDSettings {
   enabled?: boolean
   forced?: boolean
-  /** @minimum 0 */
-  fallback_limit?: number | null
-  /** @minimum 0 */
-  min_limit?: number | null
-  /** @minimum 0 */
-  max_limit?: number | null
+  fallback_limit?: HWIDSettingsFallbackLimit
+  min_limit?: HWIDSettingsMinLimit
+  max_limit?: HWIDSettingsMaxLimit
 }
 
 export interface HTTPValidationError {
@@ -2709,19 +2715,6 @@ export type CRUDPermissionsDeleteAnyOf = { [key: string]: PermissionScope | numb
 
 export type CRUDPermissionsDelete = boolean | CRUDPermissionsDeleteAnyOf | null
 
-/**
- * Standard create/read/read_simple/update/delete permissions.
-Used directly by: groups, templates, client_templates, cores, admin_roles.
-Also serves as base for resources with additional actions.
- */
-export interface CRUDPermissions {
-  create?: CRUDPermissionsCreate
-  read?: CRUDPermissionsRead
-  read_simple?: CRUDPermissionsReadSimple
-  update?: CRUDPermissionsUpdate
-  delete?: CRUDPermissionsDelete
-}
-
 export type CRUDPermissionsUpdateAnyOf = { [key: string]: PermissionScope | number }
 
 export type CRUDPermissionsUpdate = boolean | CRUDPermissionsUpdateAnyOf | null
@@ -2737,6 +2730,19 @@ export type CRUDPermissionsRead = boolean | CRUDPermissionsReadAnyOf | null
 export type CRUDPermissionsCreateAnyOf = { [key: string]: PermissionScope | number }
 
 export type CRUDPermissionsCreate = boolean | CRUDPermissionsCreateAnyOf | null
+
+/**
+ * Standard create/read/read_simple/update/delete permissions.
+Used directly by: groups, templates, client_templates, cores, admin_roles.
+Also serves as base for resources with additional actions.
+ */
+export interface CRUDPermissions {
+  create?: CRUDPermissionsCreate
+  read?: CRUDPermissionsRead
+  read_simple?: CRUDPermissionsReadSimple
+  update?: CRUDPermissionsUpdate
+  delete?: CRUDPermissionsDelete
+}
 
 export type BulkWireGuardPeerIPsExpireBefore = string | null
 
@@ -2989,26 +2995,6 @@ export type BaseHostMuxSettings = MuxSettingsOutput | null
 
 export type BaseHostTransportSettings = TransportSettingsOutput | null
 
-export type BaseHostHttpHeadersAnyOf = { [key: string]: string }
-
-export type BaseHostHttpHeaders = BaseHostHttpHeadersAnyOf | null
-
-export type BaseHostAllowinsecure = boolean | null
-
-export type BaseHostAlpn = ProxyHostALPN[] | null
-
-export type BaseHostPath = string | null
-
-export type BaseHostHost = string[] | null
-
-export type BaseHostSni = string[] | null
-
-export type BaseHostPort = number | null
-
-export type BaseHostInboundTag = string | null
-
-export type BaseHostId = number | null
-
 export interface BaseHost {
   id?: BaseHostId
   remark: string
@@ -3041,6 +3027,26 @@ export interface BaseHost {
   subscription_templates?: BaseHostSubscriptionTemplates
 }
 
+export type BaseHostHttpHeadersAnyOf = { [key: string]: string }
+
+export type BaseHostHttpHeaders = BaseHostHttpHeadersAnyOf | null
+
+export type BaseHostAllowinsecure = boolean | null
+
+export type BaseHostAlpn = ProxyHostALPN[] | null
+
+export type BaseHostPath = string | null
+
+export type BaseHostHost = string[] | null
+
+export type BaseHostSni = string[] | null
+
+export type BaseHostPort = number | null
+
+export type BaseHostInboundTag = string | null
+
+export type BaseHostId = number | null
+
 export type ApplicationDescription = { [key: string]: string }
 
 export interface Application {
@@ -3057,6 +3063,14 @@ export interface Application {
 }
 
 /**
+ * Response model for lightweight admin list.
+ */
+export interface AdminsSimpleResponse {
+  admins: AdminSimple[]
+  total: number
+}
+
+/**
  * Response model for admins list with pagination and statistics.
  */
 export interface AdminsResponse {
@@ -3067,28 +3081,9 @@ export interface AdminsResponse {
   limited: number
 }
 
-export type AdminStatus = (typeof AdminStatus)[keyof typeof AdminStatus]
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
-export const AdminStatus = {
-  active: 'active',
-  disabled: 'disabled',
-  limited: 'limited',
-} as const
-
-export type AdminStatusModify = 'active' | 'disabled'
-
 export type AdminsPermissionsResetUsageAnyOf = { [key: string]: PermissionScope | number }
 
 export type AdminsPermissionsResetUsage = boolean | AdminsPermissionsResetUsageAnyOf | null
-
-export type AdminsPermissionsDeleteAnyOf = { [key: string]: PermissionScope | number }
-
-export type AdminsPermissionsDelete = boolean | AdminsPermissionsDeleteAnyOf | null
-
-export type AdminsPermissionsUpdateAnyOf = { [key: string]: PermissionScope | number }
-
-export type AdminsPermissionsUpdate = boolean | AdminsPermissionsUpdateAnyOf | null
 
 export interface AdminsPermissions {
   create?: AdminsPermissionsCreate
@@ -3098,6 +3093,14 @@ export interface AdminsPermissions {
   delete?: AdminsPermissionsDelete
   reset_usage?: AdminsPermissionsResetUsage
 }
+
+export type AdminsPermissionsDeleteAnyOf = { [key: string]: PermissionScope | number }
+
+export type AdminsPermissionsDelete = boolean | AdminsPermissionsDeleteAnyOf | null
+
+export type AdminsPermissionsUpdateAnyOf = { [key: string]: PermissionScope | number }
+
+export type AdminsPermissionsUpdate = boolean | AdminsPermissionsUpdateAnyOf | null
 
 export type AdminsPermissionsReadSimpleAnyOf = { [key: string]: PermissionScope | number }
 
@@ -3111,20 +3114,21 @@ export type AdminsPermissionsCreateAnyOf = { [key: string]: PermissionScope | nu
 
 export type AdminsPermissionsCreate = boolean | AdminsPermissionsCreateAnyOf | null
 
+export type AdminStatus = (typeof AdminStatus)[keyof typeof AdminStatus]
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const AdminStatus = {
+  active: 'active',
+  disabled: 'disabled',
+  limited: 'limited',
+} as const
+
 /**
  * Lightweight admin model with only id and username for performance.
  */
 export interface AdminSimple {
   id: number
   username: string
-}
-
-/**
- * Response model for lightweight admin list.
- */
-export interface AdminsSimpleResponse {
-  admins: AdminSimple[]
-  total: number
 }
 
 export interface AdminRoleSimple {
@@ -3158,6 +3162,12 @@ export interface AdminRolesResponse {
   total: number
 }
 
+export type AdminRoleModifyDisableUsersWhenLimited = boolean | null
+
+export type AdminRoleModifyDisabledWhenLimited = boolean | null
+
+export type AdminRoleModifyHwid = HWIDSettings | null
+
 export type AdminRoleModifyAccess = RoleAccess | null
 
 export type AdminRoleModifyFeatures = RoleFeatures | null
@@ -3166,13 +3176,7 @@ export type AdminRoleModifyLimits = RoleLimits | null
 
 export type AdminRoleModifyPermissions = RolePermissions | null
 
-export type AdminRoleModifyHwid = HWIDSettings | null
-
 export type AdminRoleModifyName = string | null
-
-export type AdminRoleModifyDisableUsersWhenLimited = boolean | null
-
-export type AdminRoleModifyDisabledWhenLimited = boolean | null
 
 export interface AdminRoleModify {
   name?: AdminRoleModifyName
@@ -3241,7 +3245,9 @@ export type AdminModifySubDomain = string | null
 
 export type AdminModifySubTemplate = string | null
 
-export type AdminModifyIsDisabled = boolean | null
+export type AdminModifyDataLimit = number | null
+
+export type AdminModifyStatus = 'active' | 'disabled' | null
 
 export type AdminModifyDiscordWebhook = string | null
 
@@ -3249,17 +3255,12 @@ export type AdminModifyTelegramId = number | null
 
 export type AdminModifyPassword = string | null
 
-export type AdminModifyDataLimit = number | null
-
-export type AdminModifyStatus = AdminStatusModify | null
-
 export interface AdminModify {
   password?: AdminModifyPassword
   telegram_id?: AdminModifyTelegramId
   discord_webhook?: AdminModifyDiscordWebhook
   status?: AdminModifyStatus
   data_limit?: AdminModifyDataLimit
-  is_disabled?: AdminModifyIsDisabled
   sub_template?: AdminModifySubTemplate
   sub_domain?: AdminModifySubDomain
   profile_title?: AdminModifyProfileTitle
@@ -3280,7 +3281,7 @@ export type AdminDetailsLifetimeUsedTraffic = number | null
 
 export type AdminDetailsSubTemplate = string | null
 
-export type AdminDetailsId = number | null
+export type AdminDetailsDataLimit = number | null
 
 export type AdminDetailsNotificationEnable = UserNotificationEnable | null
 
@@ -3294,14 +3295,13 @@ export type AdminDetailsDiscordWebhook = string | null
 
 export type AdminDetailsTelegramId = number | null
 
-export type AdminDetailsDataLimit = number | null
-
-export type AdminDetailsStatus = AdminStatus
+export type AdminDetailsId = number | null
 
 /**
  * Complete admin model with all fields for database representation and API responses.
  */
 export interface AdminDetails {
+  id?: AdminDetailsId
   username: string
   telegram_id?: AdminDetailsTelegramId
   discord_webhook?: AdminDetailsDiscordWebhook
@@ -3309,18 +3309,17 @@ export interface AdminDetails {
   profile_title?: AdminDetailsProfileTitle
   support_url?: AdminDetailsSupportUrl
   notification_enable?: AdminDetailsNotificationEnable
-  id?: AdminDetailsId
   total_users?: number
   used_traffic?: number
   data_limit?: AdminDetailsDataLimit
-  status?: AdminDetailsStatus
-  is_disabled?: boolean
-  is_limited?: boolean
+  status?: AdminStatus
   sub_template?: AdminDetailsSubTemplate
   lifetime_used_traffic?: AdminDetailsLifetimeUsedTraffic
   note?: AdminDetailsNote
   role?: AdminDetailsRole
   permission_overrides?: AdminDetailsPermissionOverrides
+  readonly is_disabled: boolean
+  readonly is_limited: boolean
 }
 
 export type AdminCreatePermissionOverrides = RoleLimits | null
@@ -3337,15 +3336,13 @@ export type AdminCreateSubDomain = string | null
 
 export type AdminCreateSubTemplate = string | null
 
-export type AdminCreateIsDisabled = boolean | null
+export type AdminCreateDataLimit = number | null
+
+export type AdminCreateStatus = 'active' | 'disabled' | null
 
 export type AdminCreateDiscordWebhook = string | null
 
 export type AdminCreateTelegramId = number | null
-
-export type AdminCreateDataLimit = number | null
-
-export type AdminCreateStatus = AdminStatusModify | null
 
 /**
  * Model for creating new admin accounts requiring username and password.
@@ -3356,7 +3353,6 @@ export interface AdminCreate {
   discord_webhook?: AdminCreateDiscordWebhook
   status?: AdminCreateStatus
   data_limit?: AdminCreateDataLimit
-  is_disabled?: AdminCreateIsDisabled
   sub_template?: AdminCreateSubTemplate
   sub_domain?: AdminCreateSubDomain
   profile_title?: AdminCreateProfileTitle
@@ -3380,10 +3376,13 @@ export type AdminContactInfoDiscordWebhook = string | null
 
 export type AdminContactInfoTelegramId = number | null
 
+export type AdminContactInfoId = number | null
+
 /**
  * Base model containing the core admin identification fields.
  */
 export interface AdminContactInfo {
+  id?: AdminContactInfoId
   username: string
   telegram_id?: AdminContactInfoTelegramId
   discord_webhook?: AdminContactInfoDiscordWebhook
@@ -3393,10 +3392,13 @@ export interface AdminContactInfo {
   notification_enable?: AdminContactInfoNotificationEnable
 }
 
+export type AdminBaseId = number | null
+
 /**
  * Minimal admin model containing only the username.
  */
 export interface AdminBase {
+  id?: AdminBaseId
   username: string
 }
 
@@ -5607,98 +5609,6 @@ export const useCreateOwner = <TData = Awaited<ReturnType<typeof createOwner>>, 
 }
 
 /**
- * Upgrade an existing admin to owner using a one-time temp key.
- * @summary Upgrade Owner
- */
-export const upgradeOwner = (ownerUpgradeRequest: BodyType<OwnerUpgradeRequest>, signal?: AbortSignal) => {
-  return orvalFetcher<AdminDetails>({ url: `/api/setup/owner/upgrade`, method: 'POST', headers: { 'Content-Type': 'application/json' }, data: ownerUpgradeRequest, signal })
-}
-
-export const getUpgradeOwnerMutationOptions = <
-  TData = Awaited<ReturnType<typeof upgradeOwner>>,
-  TError = ErrorType<HTTPException | NotFound | Conflict | void | HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<TData, TError, { data: BodyType<OwnerUpgradeRequest> }, TContext>
-}) => {
-  const mutationKey = ['upgradeOwner']
-  const { mutation: mutationOptions } = options
-    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey } }
-
-  const mutationFn: MutationFunction<Awaited<ReturnType<typeof upgradeOwner>>, { data: BodyType<OwnerUpgradeRequest> }> = props => {
-    const { data } = props ?? {}
-
-    return upgradeOwner(data)
-  }
-
-  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { data: BodyType<OwnerUpgradeRequest> }, TContext>
-}
-
-export type UpgradeOwnerMutationResult = NonNullable<Awaited<ReturnType<typeof upgradeOwner>>>
-export type UpgradeOwnerMutationBody = BodyType<OwnerUpgradeRequest>
-export type UpgradeOwnerMutationError = ErrorType<HTTPException | NotFound | Conflict | void | HTTPValidationError>
-
-/**
- * @summary Upgrade Owner
- */
-export const useUpgradeOwner = <TData = Awaited<ReturnType<typeof upgradeOwner>>, TError = ErrorType<HTTPException | NotFound | Conflict | void | HTTPValidationError>, TContext = unknown>(options?: {
-  mutation?: UseMutationOptions<TData, TError, { data: BodyType<OwnerUpgradeRequest> }, TContext>
-}): UseMutationResult<TData, TError, { data: BodyType<OwnerUpgradeRequest> }, TContext> => {
-  const mutationOptions = getUpgradeOwnerMutationOptions(options)
-
-  return useMutation(mutationOptions)
-}
-
-/**
- * Delete the owner admin using a one-time temp key.
- * @summary Delete Owner
- */
-export const deleteOwner = (ownerDeleteRequest: BodyType<OwnerDeleteRequest>) => {
-  return orvalFetcher<void>({ url: `/api/setup/owner`, method: 'DELETE', params: { ...ownerDeleteRequest } })
-}
-
-export const getDeleteOwnerMutationOptions = <
-  TData = Awaited<ReturnType<typeof deleteOwner>>,
-  TError = ErrorType<HTTPException | NotFound | void | HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<TData, TError, { data: BodyType<OwnerDeleteRequest> }, TContext>
-}) => {
-  const mutationKey = ['deleteOwner']
-  const { mutation: mutationOptions } = options
-    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey } }
-
-  const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteOwner>>, { data: BodyType<OwnerDeleteRequest> }> = props => {
-    const { data } = props ?? {}
-
-    return deleteOwner(data)
-  }
-
-  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { data: BodyType<OwnerDeleteRequest> }, TContext>
-}
-
-export type DeleteOwnerMutationResult = NonNullable<Awaited<ReturnType<typeof deleteOwner>>>
-export type DeleteOwnerMutationBody = BodyType<OwnerDeleteRequest>
-export type DeleteOwnerMutationError = ErrorType<HTTPException | NotFound | void | HTTPValidationError>
-
-/**
- * @summary Delete Owner
- */
-export const useDeleteOwner = <TData = Awaited<ReturnType<typeof deleteOwner>>, TError = ErrorType<HTTPException | NotFound | void | HTTPValidationError>, TContext = unknown>(options?: {
-  mutation?: UseMutationOptions<TData, TError, { data: BodyType<OwnerDeleteRequest> }, TContext>
-}): UseMutationResult<TData, TError, { data: BodyType<OwnerDeleteRequest> }, TContext> => {
-  const mutationOptions = getDeleteOwnerMutationOptions(options)
-
-  return useMutation(mutationOptions)
-}
-
-/**
  * Reset the owner admin's password using a one-time temp key.
  * @summary Reset Owner Password
  */
@@ -5740,6 +5650,98 @@ export const useResetOwnerPassword = <TData = Awaited<ReturnType<typeof resetOwn
   mutation?: UseMutationOptions<TData, TError, { data: BodyType<OwnerResetRequest> }, TContext>
 }): UseMutationResult<TData, TError, { data: BodyType<OwnerResetRequest> }, TContext> => {
   const mutationOptions = getResetOwnerPasswordMutationOptions(options)
+
+  return useMutation(mutationOptions)
+}
+
+/**
+ * Delete the owner admin using a one-time temp key.
+ * @summary Delete Owner
+ */
+export const deleteOwner = (params: DeleteOwnerParams) => {
+  return orvalFetcher<void>({ url: `/api/setup/owner`, method: 'DELETE', params })
+}
+
+export const getDeleteOwnerMutationOptions = <
+  TData = Awaited<ReturnType<typeof deleteOwner>>,
+  TError = ErrorType<HTTPException | NotFound | void | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { params: DeleteOwnerParams }, TContext>
+}) => {
+  const mutationKey = ['deleteOwner']
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } }
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteOwner>>, { params: DeleteOwnerParams }> = props => {
+    const { params } = props ?? {}
+
+    return deleteOwner(params)
+  }
+
+  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { params: DeleteOwnerParams }, TContext>
+}
+
+export type DeleteOwnerMutationResult = NonNullable<Awaited<ReturnType<typeof deleteOwner>>>
+
+export type DeleteOwnerMutationError = ErrorType<HTTPException | NotFound | void | HTTPValidationError>
+
+/**
+ * @summary Delete Owner
+ */
+export const useDeleteOwner = <TData = Awaited<ReturnType<typeof deleteOwner>>, TError = ErrorType<HTTPException | NotFound | void | HTTPValidationError>, TContext = unknown>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { params: DeleteOwnerParams }, TContext>
+}): UseMutationResult<TData, TError, { params: DeleteOwnerParams }, TContext> => {
+  const mutationOptions = getDeleteOwnerMutationOptions(options)
+
+  return useMutation(mutationOptions)
+}
+
+/**
+ * Upgrade an existing admin to owner using a one-time temp key.
+ * @summary Upgrade Owner
+ */
+export const upgradeOwner = (ownerUpgradeRequest: BodyType<OwnerUpgradeRequest>, signal?: AbortSignal) => {
+  return orvalFetcher<AdminDetails>({ url: `/api/setup/owner/upgrade`, method: 'POST', headers: { 'Content-Type': 'application/json' }, data: ownerUpgradeRequest, signal })
+}
+
+export const getUpgradeOwnerMutationOptions = <
+  TData = Awaited<ReturnType<typeof upgradeOwner>>,
+  TError = ErrorType<HTTPException | NotFound | Conflict | void | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<OwnerUpgradeRequest> }, TContext>
+}) => {
+  const mutationKey = ['upgradeOwner']
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } }
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof upgradeOwner>>, { data: BodyType<OwnerUpgradeRequest> }> = props => {
+    const { data } = props ?? {}
+
+    return upgradeOwner(data)
+  }
+
+  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { data: BodyType<OwnerUpgradeRequest> }, TContext>
+}
+
+export type UpgradeOwnerMutationResult = NonNullable<Awaited<ReturnType<typeof upgradeOwner>>>
+export type UpgradeOwnerMutationBody = BodyType<OwnerUpgradeRequest>
+export type UpgradeOwnerMutationError = ErrorType<HTTPException | NotFound | Conflict | void | HTTPValidationError>
+
+/**
+ * @summary Upgrade Owner
+ */
+export const useUpgradeOwner = <TData = Awaited<ReturnType<typeof upgradeOwner>>, TError = ErrorType<HTTPException | NotFound | Conflict | void | HTTPValidationError>, TContext = unknown>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<OwnerUpgradeRequest> }, TContext>
+}): UseMutationResult<TData, TError, { data: BodyType<OwnerUpgradeRequest> }, TContext> => {
+  const mutationOptions = getUpgradeOwnerMutationOptions(options)
 
   return useMutation(mutationOptions)
 }

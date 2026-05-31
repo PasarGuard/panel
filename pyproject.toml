@@ -1,6 +1,6 @@
 [project]
 name = "PasarGuard"
-version = "4.0.2"
+version = "5.0.0-rc.1"
 description = "Unified GUI Censorship Resistant Solution"
 readme = "README.md"
 requires-python = ">=3.14"
