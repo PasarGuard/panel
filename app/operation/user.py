@@ -749,7 +749,7 @@ class UserOperation(BaseOperation):
     async def modify_user_by_id(
         self, db: AsyncSession, user_id: int, modified_user: UserModify, admin: AdminDetails
     ) -> UserResponse:
-        db_user = await self.get_validated_user_by_id(db, user_id, admin)
+        db_user = await self.get_validated_user_by_id(db, user_id, admin, scope_action="update")
         return await self._modify_user(db, db_user, modified_user, admin)
 
     async def _remove_user(self, db: AsyncSession, db_user: User, admin: AdminDetails) -> dict:
@@ -772,7 +772,7 @@ class UserOperation(BaseOperation):
         return await self._remove_user(db, db_user, admin)
 
     async def remove_user_by_id(self, db: AsyncSession, user_id: int, admin: AdminDetails):
-        db_user = await self.get_validated_user_by_id(db, user_id, admin)
+        db_user = await self.get_validated_user_by_id(db, user_id, admin, scope_action="delete")
         return await self._remove_user(db, db_user, admin)
 
     async def _get_validated_users_by_ids(
@@ -823,7 +823,7 @@ class UserOperation(BaseOperation):
     async def bulk_remove_users(
         self, db: AsyncSession, bulk_users: BulkUsersSelection, admin: AdminDetails
     ) -> RemoveUsersResponse:
-        db_users = await self._get_validated_users_by_ids(db, bulk_users.ids, admin)
+        db_users = await self._get_validated_users_by_ids(db, bulk_users.ids, admin, scope_action="delete")
         users = [await self.validate_user(db_user, include_subscription_url=False) for db_user in db_users]
 
         await remove_users(db, db_users)
@@ -873,13 +873,15 @@ class UserOperation(BaseOperation):
         return await self._reset_user_data_usage(db, db_user, admin)
 
     async def reset_user_data_usage_by_id(self, db: AsyncSession, user_id: int, admin: AdminDetails):
-        db_user = await self.get_validated_user_by_id(db, user_id, admin)
+        db_user = await self.get_validated_user_by_id(db, user_id, admin, scope_action="update")
         return await self._reset_user_data_usage(db, db_user, admin)
 
     async def bulk_reset_user_data_usage(
         self, db: AsyncSession, bulk_users: BulkUsersSelection, admin: AdminDetails
     ) -> BulkUsersActionResponse:
-        db_users = await self._get_validated_users_by_ids(db, bulk_users.ids, admin, load_usage_logs=False)
+        db_users = await self._get_validated_users_by_ids(
+            db, bulk_users.ids, admin, load_usage_logs=False, scope_action="reset_usage"
+        )
         old_statuses = {user.id: user.status for user in db_users}
 
         db_users = await bulk_reset_user_data_usage(
@@ -918,7 +920,9 @@ class UserOperation(BaseOperation):
         return await self._revoke_user_sub(db, db_user, admin)
 
     async def revoke_user_sub_by_id(self, db: AsyncSession, user_id: int, admin: AdminDetails) -> UserResponse:
-        db_user = await self.get_validated_user_by_id(db, user_id, admin, load_usage_logs=False)
+        db_user = await self.get_validated_user_by_id(
+            db, user_id, admin, load_usage_logs=False, scope_action="revoke_sub"
+        )
         return await self._revoke_user_sub(db, db_user, admin)
 
     async def bulk_revoke_user_sub(
@@ -1051,7 +1055,7 @@ class UserOperation(BaseOperation):
         return await self._active_next_plan(db, db_user, admin)
 
     async def active_next_plan_by_id(self, db: AsyncSession, user_id: int, admin: AdminDetails) -> UserResponse:
-        db_user = await self.get_validated_user_by_id(db, user_id, admin)
+        db_user = await self.get_validated_user_by_id(db, user_id, admin, scope_action="update")
         return await self._active_next_plan(db, db_user, admin)
 
     async def _set_owner(self, db: AsyncSession, db_user: User, new_admin, admin: AdminDetails) -> UserResponse:
@@ -1079,14 +1083,16 @@ class UserOperation(BaseOperation):
         self, db: AsyncSession, user_id: int, admin_username: str, admin: AdminDetails
     ) -> UserResponse:
         new_admin = await self.get_validated_admin(db, username=admin_username)
-        db_user = await self.get_validated_user_by_id(db, user_id, admin)
+        db_user = await self.get_validated_user_by_id(db, user_id, admin, scope_action="update")
         return await self._set_owner(db, db_user, new_admin, admin)
 
     async def bulk_set_owner(
         self, db: AsyncSession, bulk_users: BulkUsersSetOwner, admin: AdminDetails
     ) -> BulkUsersActionResponse:
         new_admin = await self.get_validated_admin(db, username=bulk_users.admin_username)
-        db_users = await self._get_validated_users_by_ids(db, bulk_users.ids, admin, load_usage_logs=False)
+        db_users = await self._get_validated_users_by_ids(
+            db, bulk_users.ids, admin, load_usage_logs=False, scope_action="update"
+        )
 
         db_users = await bulk_set_owner(db, db_users, new_admin)
         users = [await self.validate_user(db_user) for db_user in db_users]
@@ -1491,7 +1497,7 @@ class UserOperation(BaseOperation):
     async def modify_user_with_template_by_id(
         self, db: AsyncSession, user_id: int, modified_template: ModifyUserByTemplate, admin: AdminDetails
     ) -> UserResponse:
-        db_user = await self.get_validated_user_by_id(db, user_id, admin)
+        db_user = await self.get_validated_user_by_id(db, user_id, admin, scope_action="update")
         return await self._modify_user_with_template(db, db_user, modified_template, admin)
 
     async def bulk_create_users_from_template(

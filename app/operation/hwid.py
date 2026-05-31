@@ -13,13 +13,13 @@ class HWIDOperation(BaseOperation):
         return UserHWIDListResponse(hwids=hwid_responses, count=len(hwid_responses))
 
     async def delete_user_hwid(self, db: AsyncSession, user_id: int, hwid: str, admin: AdminDetails) -> dict:
-        db_user = await self.get_validated_user_by_id(db, user_id, admin)
+        db_user = await self.get_validated_user_by_id(db, user_id, admin, scope_action="delete")
         deleted = await delete_user_hwid(db, db_user.id, hwid)
         if not deleted:
             await self.raise_error(message="HWID not found", code=404)
         return {}
 
     async def reset_user_hwids(self, db: AsyncSession, user_id: int, admin: AdminDetails) -> dict:
-        db_user = await self.get_validated_user_by_id(db, user_id, admin)
+        db_user = await self.get_validated_user_by_id(db, user_id, admin, scope_action="delete")
         count = await reset_user_hwids(db, db_user.id)
         return {"count": count}
