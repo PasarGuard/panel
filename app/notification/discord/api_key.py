@@ -1,6 +1,6 @@
 from app.models.api_key import APIKeyResponse
 from app.models.settings import NotificationSettings
-from app.notification.client import send_discord_message
+from app.notification.client import send_discord_webhook
 from app.notification.helpers import get_discord_webhook
 from app.settings import notification_settings
 
@@ -26,7 +26,7 @@ async def create_api_key(api_key: APIKeyResponse, admin_username: str, by: str):
     settings: NotificationSettings = await notification_settings()
     if settings.notify_discord:
         webhook_url = get_discord_webhook(settings, ENTITY)
-        await send_discord_message(data, webhook_url)
+        await send_discord_webhook(data, webhook_url)
 
 
 async def modify_api_key(api_key: APIKeyResponse, admin_username: str, by: str):
@@ -47,7 +47,7 @@ async def modify_api_key(api_key: APIKeyResponse, admin_username: str, by: str):
     settings: NotificationSettings = await notification_settings()
     if settings.notify_discord:
         webhook_url = get_discord_webhook(settings, ENTITY)
-        await send_discord_message(data, webhook_url)
+        await send_discord_webhook(data, webhook_url)
 
 
 async def remove_api_key(api_key: APIKeyResponse, admin_username: str, by: str):
@@ -65,4 +65,4 @@ async def remove_api_key(api_key: APIKeyResponse, admin_username: str, by: str):
     settings: NotificationSettings = await notification_settings()
     if settings.notify_discord:
         webhook_url = get_discord_webhook(settings, ENTITY)
-        await send_discord_message(data, webhook_url)
+        await send_discord_webhook(data, webhook_url)
