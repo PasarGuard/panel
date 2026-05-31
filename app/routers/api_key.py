@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, status
+from starlette.responses import Response
 
 from app.db import AsyncSession, get_db
 from app.models.admin import AdminDetails
@@ -58,4 +59,4 @@ async def remove_api_key(
     admin: AdminDetails = Depends(require_permission("api_keys", "delete")),
 ):
     await api_key_operator.delete_api_key(db, admin=admin, key_id=key_id)
-    return {}
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
