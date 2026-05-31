@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useTranslation } from 'react-i18next'
-import { useUserOnlineStats, useUserOnlineIpList } from '@/service/api'
+import { useGetUsersSimple, useUserOnlineStats, useUserOnlineIpList } from '@/service/api'
 import { cn } from '@/lib/utils'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { Users, Search, RefreshCw, Loader2, Activity, Eye, AlertCircle, ArrowLeft } from 'lucide-react'
@@ -23,14 +23,15 @@ interface UserOnlineStatsDialogProps {
 }
 
 interface UserStatsCardProps {
+  userId: number
   username: string
   stats: { [key: string]: number }
   nodeId: number
-  onViewIPs: (username: string) => void
+  onViewIPs: (user: { id: number; username: string }) => void
 }
 
 // Memoized UserStatsCard component to prevent unnecessary re-renders
-const UserStatsCard = React.memo(({ username, stats, onViewIPs }: UserStatsCardProps) => {
+const UserStatsCard = React.memo(({ userId, username, stats, onViewIPs }: UserStatsCardProps) => {
   const { t } = useTranslation()
 
   // Memoize calculations to avoid recalculating on every render
@@ -39,8 +40,8 @@ const UserStatsCard = React.memo(({ username, stats, onViewIPs }: UserStatsCardP
   }, [stats])
 
   const handleViewIPs = useCallback(() => {
-    onViewIPs(username)
-  }, [onViewIPs, username])
+    onViewIPs({ id: userId, username })
+  }, [onViewIPs, userId, username])
 
   return (
     <Card className="transition-colors hover:bg-accent/50">
@@ -153,7 +154,7 @@ export default function UserOnlineStatsModal({ isOpen, onOpenChange, nodeId, nod
   const dir = useDirDetection()
   const [specificUsername, setSpecificUsername] = useState('')
   const [refreshing, setRefreshing] = useState(false)
-  const [viewingIPs, setViewingIPs] = useState<string | null>(null)
+  const [viewingIPs, setViewingIPs] = useState<{ id: number; username: string } | null>(null)
   const { search: searchTerm, debouncedSearch: debouncedSearchTerm, setSearch: setSearchTerm } = useDebouncedSearch('', 500)
 
   // Update specificUsername when debounced search changes
@@ -177,7 +178,7 @@ export default function UserOnlineStatsModal({ isOpen, onOpenChange, nodeId, nod
   const userStatsQueryOptions = useMemo(
     () => ({
       query: {
-        enabled: !!(isOpen && nodeId && specificUsername),
+        enabled: false,
         refetchInterval: (query: any) => {
           if (!isOpen || query.state.error) {
             return false
@@ -192,7 +193,7 @@ export default function UserOnlineStatsModal({ isOpen, onOpenChange, nodeId, nod
   const userIPsQueryOptions = useMemo(
     () => ({
       query: {
-        enabled: !!(isOpen && nodeId && viewingIPs),
+        enabled: !!(isOpen && nodeId && viewingIPs?.id),
         refetchInterval: (query: any) => {
           if (!isOpen || query.state.error) {
             return false
@@ -204,11 +205,37 @@ export default function UserOnlineStatsModal({ isOpen, onOpenChange, nodeId, nod
     [isOpen, nodeId, viewingIPs],
   )
 
+  const { data: usersResponse, isLoading: isLoadingUserLookup } = useGetUsersSimple(
+    specificUsername ? { usernames: [specificUsername], limit: 1 } : undefined,
+    {
+      query: {
+        enabled: !!(isOpen && specificUsername),
+      },
+    },
+  )
+
+  const searchedUser = useMemo(() => {
+    return usersResponse?.users?.find(user => user.username === specificUsername) || null
+  }, [usersResponse, specificUsername])
+
+  const searchedUserId = searchedUser?.id || 0
+
   // Query for specific user stats (when searching for a specific user)
-  const { data: userStats, isLoading: isLoadingUserStats, error: userStatsError, refetch: refetchUserStats } = useUserOnlineStats(nodeId || 0, specificUsername, userStatsQueryOptions)
+  const effectiveUserStatsQueryOptions = useMemo(
+    () => ({
+      ...userStatsQueryOptions,
+      query: {
+        ...userStatsQueryOptions.query,
+        enabled: !!(isOpen && nodeId && searchedUserId),
+      },
+    }),
+    [isOpen, nodeId, searchedUserId, userStatsQueryOptions],
+  )
+
+  const { data: userStats, isLoading: isLoadingUserStats, error: userStatsError, refetch: refetchUserStats } = useUserOnlineStats(nodeId || 0, searchedUserId, effectiveUserStatsQueryOptions)
 
   // Query for user IP list (when viewing IPs)
-  const { data: userIPs, error: userIPsError, refetch: refetchIPs } = useUserOnlineIpList(nodeId || 0, viewingIPs || '', userIPsQueryOptions)
+  const { data: userIPs, error: userIPsError, refetch: refetchIPs } = useUserOnlineIpList(nodeId || 0, viewingIPs?.id || 0, userIPsQueryOptions)
 
   // Memoized error handlers
   const handleUserStatsError = useCallback(
@@ -240,7 +267,7 @@ export default function UserOnlineStatsModal({ isOpen, onOpenChange, nodeId, nod
         toast.error(
           t('nodeModal.onlineStats.userNotFound', {
             defaultValue: 'User not found or not online',
-            username: viewingIPs,
+            username: viewingIPs?.username,
           }),
         )
       } else {
@@ -303,8 +330,8 @@ export default function UserOnlineStatsModal({ isOpen, onOpenChange, nodeId, nod
     }
   }, [specificUsername, viewingIPs, refetchUserStats, refetchIPs, t])
 
-  const handleViewIPs = useCallback((username: string) => {
-    setViewingIPs(username)
+  const handleViewIPs = useCallback((user: { id: number; username: string }) => {
+    setViewingIPs(user)
   }, [])
 
   const handleBackToStats = useCallback(() => {
@@ -348,6 +375,20 @@ export default function UserOnlineStatsModal({ isOpen, onOpenChange, nodeId, nod
             transformedData[ip].push(timeString)
           })
         }
+      })
+    } else if ('ips' in userIPs && typeof userIPs.ips === 'object' && userIPs.ips !== null) {
+      Object.entries(userIPs.ips).forEach(([ip, timestamp]) => {
+        if (!transformedData[ip]) transformedData[ip] = []
+        let tsNum = Number(timestamp)
+        if (tsNum < 1e12) tsNum = tsNum * 1000
+        const date = new Date(tsNum)
+        const timeString = date.toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: false,
+        })
+        transformedData[ip].push(timeString)
       })
     } else if (typeof userIPs === 'object' && Object.keys(userIPs).length === 1 && !isNaN(Number(Object.keys(userIPs)[0]))) {
       // If userIPs is an object with a single numeric key, use its value
@@ -431,12 +472,16 @@ export default function UserOnlineStatsModal({ isOpen, onOpenChange, nodeId, nod
   }, [transformedIPData, userIPs, handleBackToStats, dir, t])
 
   const renderUserStats = useCallback(() => {
-    if (isLoadingUserStats) {
+    if (isLoadingUserLookup || isLoadingUserStats) {
       return <LoadingState />
     }
 
     if (userStatsError) {
       return <ErrorState message={t('nodeModal.onlineStats.errorLoading', { defaultValue: 'Error loading user stats' })} />
+    }
+
+    if (specificUsername && !isLoadingUserLookup && !searchedUser) {
+      return <EmptyState message={t('nodeModal.onlineStats.userNotFound', { defaultValue: 'User not found or not online' })} />
     }
 
     if (!filteredStats || Object.keys(filteredStats).length === 0) {
@@ -448,17 +493,17 @@ export default function UserOnlineStatsModal({ isOpen, onOpenChange, nodeId, nod
 
     return (
       <div className="space-y-3">
-        <UserStatsCard username={specificUsername} stats={filteredStats} nodeId={nodeId || 0} onViewIPs={handleViewIPs} />
+        <UserStatsCard userId={searchedUserId} username={specificUsername} stats={filteredStats} nodeId={nodeId || 0} onViewIPs={handleViewIPs} />
       </div>
     )
-  }, [isLoadingUserStats, userStatsError, filteredStats, specificUsername, nodeId, handleViewIPs, t])
+  }, [isLoadingUserLookup, isLoadingUserStats, userStatsError, filteredStats, specificUsername, searchedUser, searchedUserId, nodeId, handleViewIPs, t])
 
   // Memoized dialog title
   const dialogTitle = useMemo(() => {
     return viewingIPs
       ? t('nodeModal.onlineStats.ipListTitle', {
           defaultValue: 'IP Addresses for {{username}}',
-          username: viewingIPs,
+          username: viewingIPs.username,
         })
       : t('nodeModal.onlineStats.title', { defaultValue: 'Online User Statistics' })
   }, [viewingIPs, t])

@@ -9069,25 +9069,25 @@ export function useRealtimeNodesStats<TData = Awaited<ReturnType<typeof realtime
  * Retrieve user ips from all nodes.
  * @summary User Online Ip List All Nodes
  */
-export const userOnlineIpListAllNodes = (username: string, signal?: AbortSignal) => {
-  return orvalFetcher<UserIPListAll>({ url: `/api/node/online_stats/${username}/ip`, method: 'GET', signal })
+export const userOnlineIpListAllNodes = (userId: number, signal?: AbortSignal) => {
+  return orvalFetcher<UserIPListAll>({ url: `/api/node/online_stats/${userId}/ip`, method: 'GET', signal })
 }
 
-export const getUserOnlineIpListAllNodesQueryKey = (username: string) => {
-  return [`/api/node/online_stats/${username}/ip`] as const
+export const getUserOnlineIpListAllNodesQueryKey = (userId: number) => {
+  return [`/api/node/online_stats/${userId}/ip`] as const
 }
 
 export const getUserOnlineIpListAllNodesQueryOptions = <TData = Awaited<ReturnType<typeof userOnlineIpListAllNodes>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
-  username: string,
+  userId: number,
   options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof userOnlineIpListAllNodes>>, TError, TData>> },
 ) => {
   const { query: queryOptions } = options ?? {}
 
-  const queryKey = queryOptions?.queryKey ?? getUserOnlineIpListAllNodesQueryKey(username)
+  const queryKey = queryOptions?.queryKey ?? getUserOnlineIpListAllNodesQueryKey(userId)
 
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof userOnlineIpListAllNodes>>> = ({ signal }) => userOnlineIpListAllNodes(username, signal)
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof userOnlineIpListAllNodes>>> = ({ signal }) => userOnlineIpListAllNodes(userId, signal)
 
-  return { queryKey, queryFn, enabled: !!username, ...queryOptions } as UseQueryOptions<Awaited<ReturnType<typeof userOnlineIpListAllNodes>>, TError, TData> & {
+  return { queryKey, queryFn, enabled: !!userId, ...queryOptions } as UseQueryOptions<Awaited<ReturnType<typeof userOnlineIpListAllNodes>>, TError, TData> & {
     queryKey: DataTag<QueryKey, TData, TError>
   }
 }
@@ -9096,21 +9096,21 @@ export type UserOnlineIpListAllNodesQueryResult = NonNullable<Awaited<ReturnType
 export type UserOnlineIpListAllNodesQueryError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>
 
 export function useUserOnlineIpListAllNodes<TData = Awaited<ReturnType<typeof userOnlineIpListAllNodes>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
-  username: string,
+  userId: number,
   options: {
     query: Partial<UseQueryOptions<Awaited<ReturnType<typeof userOnlineIpListAllNodes>>, TError, TData>> &
       Pick<DefinedInitialDataOptions<Awaited<ReturnType<typeof userOnlineIpListAllNodes>>, TError, TData>, 'initialData'>
   },
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useUserOnlineIpListAllNodes<TData = Awaited<ReturnType<typeof userOnlineIpListAllNodes>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
-  username: string,
+  userId: number,
   options?: {
     query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof userOnlineIpListAllNodes>>, TError, TData>> &
       Pick<UndefinedInitialDataOptions<Awaited<ReturnType<typeof userOnlineIpListAllNodes>>, TError, TData>, 'initialData'>
   },
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useUserOnlineIpListAllNodes<TData = Awaited<ReturnType<typeof userOnlineIpListAllNodes>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
-  username: string,
+  userId: number,
   options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof userOnlineIpListAllNodes>>, TError, TData>> },
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
@@ -9118,10 +9118,10 @@ export function useUserOnlineIpListAllNodes<TData = Awaited<ReturnType<typeof us
  */
 
 export function useUserOnlineIpListAllNodes<TData = Awaited<ReturnType<typeof userOnlineIpListAllNodes>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
-  username: string,
+  userId: number,
   options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof userOnlineIpListAllNodes>>, TError, TData>> },
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getUserOnlineIpListAllNodesQueryOptions(username, options)
+  const queryOptions = getUserOnlineIpListAllNodesQueryOptions(userId, options)
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 
@@ -9134,26 +9134,26 @@ export function useUserOnlineIpListAllNodes<TData = Awaited<ReturnType<typeof us
  * Retrieve user online stats by node.
  * @summary User Online Stats
  */
-export const userOnlineStats = (nodeId: number, username: string, signal?: AbortSignal) => {
-  return orvalFetcher<UserOnlineStats200>({ url: `/api/node/${nodeId}/online_stats/${username}`, method: 'GET', signal })
+export const userOnlineStats = (nodeId: number, userId: number, signal?: AbortSignal) => {
+  return orvalFetcher<UserOnlineStats200>({ url: `/api/node/${nodeId}/online_stats/${userId}`, method: 'GET', signal })
 }
 
-export const getUserOnlineStatsQueryKey = (nodeId: number, username: string) => {
-  return [`/api/node/${nodeId}/online_stats/${username}`] as const
+export const getUserOnlineStatsQueryKey = (nodeId: number, userId: number) => {
+  return [`/api/node/${nodeId}/online_stats/${userId}`] as const
 }
 
 export const getUserOnlineStatsQueryOptions = <TData = Awaited<ReturnType<typeof userOnlineStats>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
   nodeId: number,
-  username: string,
+  userId: number,
   options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof userOnlineStats>>, TError, TData>> },
 ) => {
   const { query: queryOptions } = options ?? {}
 
-  const queryKey = queryOptions?.queryKey ?? getUserOnlineStatsQueryKey(nodeId, username)
+  const queryKey = queryOptions?.queryKey ?? getUserOnlineStatsQueryKey(nodeId, userId)
 
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof userOnlineStats>>> = ({ signal }) => userOnlineStats(nodeId, username, signal)
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof userOnlineStats>>> = ({ signal }) => userOnlineStats(nodeId, userId, signal)
 
-  return { queryKey, queryFn, enabled: !!(nodeId && username), ...queryOptions } as UseQueryOptions<Awaited<ReturnType<typeof userOnlineStats>>, TError, TData> & {
+  return { queryKey, queryFn, enabled: !!(nodeId && userId), ...queryOptions } as UseQueryOptions<Awaited<ReturnType<typeof userOnlineStats>>, TError, TData> & {
     queryKey: DataTag<QueryKey, TData, TError>
   }
 }
@@ -9163,7 +9163,7 @@ export type UserOnlineStatsQueryError = ErrorType<Unauthorized | Forbidden | HTT
 
 export function useUserOnlineStats<TData = Awaited<ReturnType<typeof userOnlineStats>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
   nodeId: number,
-  username: string,
+  userId: number,
   options: {
     query: Partial<UseQueryOptions<Awaited<ReturnType<typeof userOnlineStats>>, TError, TData>> &
       Pick<DefinedInitialDataOptions<Awaited<ReturnType<typeof userOnlineStats>>, TError, TData>, 'initialData'>
@@ -9171,7 +9171,7 @@ export function useUserOnlineStats<TData = Awaited<ReturnType<typeof userOnlineS
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useUserOnlineStats<TData = Awaited<ReturnType<typeof userOnlineStats>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
   nodeId: number,
-  username: string,
+  userId: number,
   options?: {
     query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof userOnlineStats>>, TError, TData>> &
       Pick<UndefinedInitialDataOptions<Awaited<ReturnType<typeof userOnlineStats>>, TError, TData>, 'initialData'>
@@ -9179,7 +9179,7 @@ export function useUserOnlineStats<TData = Awaited<ReturnType<typeof userOnlineS
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useUserOnlineStats<TData = Awaited<ReturnType<typeof userOnlineStats>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
   nodeId: number,
-  username: string,
+  userId: number,
   options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof userOnlineStats>>, TError, TData>> },
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
@@ -9188,10 +9188,10 @@ export function useUserOnlineStats<TData = Awaited<ReturnType<typeof userOnlineS
 
 export function useUserOnlineStats<TData = Awaited<ReturnType<typeof userOnlineStats>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
   nodeId: number,
-  username: string,
+  userId: number,
   options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof userOnlineStats>>, TError, TData>> },
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getUserOnlineStatsQueryOptions(nodeId, username, options)
+  const queryOptions = getUserOnlineStatsQueryOptions(nodeId, userId, options)
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 
@@ -9204,26 +9204,26 @@ export function useUserOnlineStats<TData = Awaited<ReturnType<typeof userOnlineS
  * Retrieve user ips by node.
  * @summary User Online Ip List
  */
-export const userOnlineIpList = (nodeId: number, username: string, signal?: AbortSignal) => {
-  return orvalFetcher<UserIPList>({ url: `/api/node/${nodeId}/online_stats/${username}/ip`, method: 'GET', signal })
+export const userOnlineIpList = (nodeId: number, userId: number, signal?: AbortSignal) => {
+  return orvalFetcher<UserIPList>({ url: `/api/node/${nodeId}/online_stats/${userId}/ip`, method: 'GET', signal })
 }
 
-export const getUserOnlineIpListQueryKey = (nodeId: number, username: string) => {
-  return [`/api/node/${nodeId}/online_stats/${username}/ip`] as const
+export const getUserOnlineIpListQueryKey = (nodeId: number, userId: number) => {
+  return [`/api/node/${nodeId}/online_stats/${userId}/ip`] as const
 }
 
 export const getUserOnlineIpListQueryOptions = <TData = Awaited<ReturnType<typeof userOnlineIpList>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
   nodeId: number,
-  username: string,
+  userId: number,
   options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof userOnlineIpList>>, TError, TData>> },
 ) => {
   const { query: queryOptions } = options ?? {}
 
-  const queryKey = queryOptions?.queryKey ?? getUserOnlineIpListQueryKey(nodeId, username)
+  const queryKey = queryOptions?.queryKey ?? getUserOnlineIpListQueryKey(nodeId, userId)
 
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof userOnlineIpList>>> = ({ signal }) => userOnlineIpList(nodeId, username, signal)
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof userOnlineIpList>>> = ({ signal }) => userOnlineIpList(nodeId, userId, signal)
 
-  return { queryKey, queryFn, enabled: !!(nodeId && username), ...queryOptions } as UseQueryOptions<Awaited<ReturnType<typeof userOnlineIpList>>, TError, TData> & {
+  return { queryKey, queryFn, enabled: !!(nodeId && userId), ...queryOptions } as UseQueryOptions<Awaited<ReturnType<typeof userOnlineIpList>>, TError, TData> & {
     queryKey: DataTag<QueryKey, TData, TError>
   }
 }
@@ -9233,7 +9233,7 @@ export type UserOnlineIpListQueryError = ErrorType<Unauthorized | Forbidden | HT
 
 export function useUserOnlineIpList<TData = Awaited<ReturnType<typeof userOnlineIpList>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
   nodeId: number,
-  username: string,
+  userId: number,
   options: {
     query: Partial<UseQueryOptions<Awaited<ReturnType<typeof userOnlineIpList>>, TError, TData>> &
       Pick<DefinedInitialDataOptions<Awaited<ReturnType<typeof userOnlineIpList>>, TError, TData>, 'initialData'>
@@ -9241,7 +9241,7 @@ export function useUserOnlineIpList<TData = Awaited<ReturnType<typeof userOnline
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useUserOnlineIpList<TData = Awaited<ReturnType<typeof userOnlineIpList>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
   nodeId: number,
-  username: string,
+  userId: number,
   options?: {
     query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof userOnlineIpList>>, TError, TData>> &
       Pick<UndefinedInitialDataOptions<Awaited<ReturnType<typeof userOnlineIpList>>, TError, TData>, 'initialData'>
@@ -9249,7 +9249,7 @@ export function useUserOnlineIpList<TData = Awaited<ReturnType<typeof userOnline
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useUserOnlineIpList<TData = Awaited<ReturnType<typeof userOnlineIpList>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
   nodeId: number,
-  username: string,
+  userId: number,
   options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof userOnlineIpList>>, TError, TData>> },
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
@@ -9258,10 +9258,10 @@ export function useUserOnlineIpList<TData = Awaited<ReturnType<typeof userOnline
 
 export function useUserOnlineIpList<TData = Awaited<ReturnType<typeof userOnlineIpList>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
   nodeId: number,
-  username: string,
+  userId: number,
   options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof userOnlineIpList>>, TError, TData>> },
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getUserOnlineIpListQueryOptions(nodeId, username, options)
+  const queryOptions = getUserOnlineIpListQueryOptions(nodeId, userId, options)
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 

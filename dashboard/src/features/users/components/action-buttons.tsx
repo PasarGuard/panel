@@ -894,7 +894,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
             username={user.username}
           />
 
-          {canReadAllUsers && <UserAllIPsModal isOpen={isUserAllIPsModalOpen} onOpenChange={setUserAllIPsModalOpen} username={user.username} />}
+          {canReadAllUsers && <UserAllIPsModal isOpen={isUserAllIPsModalOpen} onOpenChange={setUserAllIPsModalOpen} userId={user.id} username={user.username} />}
         </div>
       )}
 
