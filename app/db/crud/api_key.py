@@ -42,22 +42,22 @@ async def get_api_key_by_id(db: AsyncSession, key_id: int) -> APIKey | None:
     return (await db.execute(stmt)).scalar_one_or_none()
 
 
-async def get_api_key_by_id_for_admin(db: AsyncSession, *, key_id: int, admin_id: int | None = None) -> APIKey | None:
-    stmt = select(APIKey).where(APIKey.id == key_id).options(selectinload(APIKey.admin), selectinload(APIKey.role))
-    if admin_id is not None:
-        stmt = stmt.where(APIKey.admin_id == admin_id)
-    return (await db.execute(stmt)).scalar_one_or_none()
-
-
-async def get_api_key_by_name(db: AsyncSession, *, admin_id: int, name: str) -> APIKey | None:
-    stmt = select(APIKey).where(APIKey.admin_id == admin_id, APIKey.name == name)
-    return (await db.execute(stmt)).scalar_one_or_none()
-
-
-async def get_api_keys(db: AsyncSession, *, admin_id: int | None, offset: int, limit: int) -> tuple[list[APIKey], int]:
+async def get_api_keys(
+    db: AsyncSession,
+    *,
+    admin_id: int | None,
+    offset: int,
+    limit: int,
+    key_id: int | None = None,
+    name: str | None = None,
+) -> tuple[list[APIKey], int]:
     stmt = select(APIKey).options(selectinload(APIKey.role))
     if admin_id is not None:
         stmt = stmt.where(APIKey.admin_id == admin_id)
+    if key_id is not None:
+        stmt = stmt.where(APIKey.id == key_id)
+    if name is not None:
+        stmt = stmt.where(APIKey.name == name)
 
     total = (await db.execute(select(func.count()).select_from(stmt.subquery()))).scalar() or 0
 

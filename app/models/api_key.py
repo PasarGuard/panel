@@ -44,3 +44,10 @@ class APIKeysResponse(BaseModel):
 
 Offset = Annotated[int, Field(default=0, ge=0)]
 Limit = Annotated[int, Field(default=50, ge=1, le=200)]
+
+
+class APIKeysQuery(BaseModel):
+    offset: Offset = 0
+    limit: Limit = 50
+    key_id: int | None = Field(default=None, ge=1)
+    name: str | None = Field(default=None, min_length=1, max_length=128)

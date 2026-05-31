@@ -1,12 +1,11 @@
-from typing import Annotated
-
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, status
 
 from app.db import AsyncSession, get_db
 from app.models.admin import AdminDetails
-from app.models.api_key import APIKeyCreate, APIKeyCreateResponse, APIKeyResponse, APIKeysResponse
+from app.models.api_key import APIKeyCreate, APIKeyCreateResponse, APIKeyResponse, APIKeysQuery, APIKeysResponse
 from app.operation import OperatorType
 from app.operation.api_key import APIKeyOperation
+from app.routers.dependencies import get_api_key_list_query
 from app.utils import responses
 
 from .authentication import require_permission
@@ -36,12 +35,11 @@ async def create_api_key(
 
 @router.get("s", response_model=APIKeysResponse)
 async def list_api_keys(
-    offset: Annotated[int, Query(ge=0)] = 0,
-    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    query: APIKeysQuery = Depends(get_api_key_list_query),
     db: AsyncSession = Depends(get_db),
     admin: AdminDetails = Depends(require_permission("api_keys", "read")),
 ):
-    return await api_key_operator.list_api_keys(db, admin=admin, offset=offset, limit=limit)
+    return await api_key_operator.list_api_keys(db, admin=admin, query=query)
 
 
 @router.get("/{key_id}", response_model=APIKeyResponse, responses={404: responses._404})

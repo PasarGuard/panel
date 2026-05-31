@@ -8,12 +8,10 @@ from app.db.crud.api_key import (
     create_api_key,
     delete_api_key,
     get_api_key_by_id,
-    get_api_key_by_id_for_admin,
-    get_api_key_by_name,
     get_api_keys,
 )
 from app.models.admin import AdminDetails
-from app.models.api_key import APIKeyCreate, APIKeyCreateResponse, APIKeyResponse, APIKeysResponse
+from app.models.api_key import APIKeyCreate, APIKeyCreateResponse, APIKeyResponse, APIKeysQuery, APIKeysResponse
 from app.operation import BaseOperation
 
 
@@ -31,8 +29,8 @@ class APIKeyOperation(BaseOperation):
         if not admin.is_owner and admin.role and role.id != admin.role.id:
             await self.raise_error(message="Only owner can create API keys with a different role", code=403)
 
-        duplicate = await get_api_key_by_name(db, admin_id=admin.id, name=model.name)
-        if duplicate is not None:
+        duplicates, _ = await get_api_keys(db, admin_id=admin.id, offset=0, limit=1, name=model.name)
+        if duplicates:
             await self.raise_error(message="API key name already exists", code=409)
 
         if model.expire_date is not None and model.expire_date <= dt.now(tz.utc):
@@ -59,20 +57,24 @@ class APIKeyOperation(BaseOperation):
             api_key=raw_key,
         )
 
-    async def list_api_keys(self, db: AsyncSession, *, admin: AdminDetails, offset: int, limit: int) -> APIKeysResponse:
+    async def list_api_keys(self, db: AsyncSession, *, admin: AdminDetails, query: APIKeysQuery) -> APIKeysResponse:
         scope_admin_id = None if admin.is_owner else admin.id
-        rows, total = await get_api_keys(db, admin_id=scope_admin_id, offset=offset, limit=limit)
+        rows, total = await get_api_keys(
+            db,
+            admin_id=scope_admin_id,
+            offset=query.offset,
+            limit=query.limit,
+            key_id=query.key_id,
+            name=query.name,
+        )
         return APIKeysResponse(api_keys=[APIKeyResponse.model_validate(row) for row in rows], total=total)
 
     async def get_api_key(self, db: AsyncSession, *, admin: AdminDetails, key_id: int) -> APIKeyResponse:
-        db_key = await get_api_key_by_id_for_admin(
-            db,
-            key_id=key_id,
-            admin_id=None if admin.is_owner else admin.id,
-        )
-        if db_key is None:
+        scope_admin_id = None if admin.is_owner else admin.id
+        rows, _ = await get_api_keys(db, admin_id=scope_admin_id, offset=0, limit=1, key_id=key_id)
+        if not rows:
             await self.raise_error(message="API key not found", code=404)
-        return APIKeyResponse.model_validate(db_key)
+        return APIKeyResponse.model_validate(rows[0])
 
     async def delete_api_key(self, db: AsyncSession, *, admin: AdminDetails, key_id: int) -> None:
         db_key = await get_api_key_by_id(db, key_id)
