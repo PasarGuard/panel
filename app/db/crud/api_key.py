@@ -10,9 +10,8 @@ from app.utils.crypto import hash_api_key
 
 async def create_api_key(
     db: AsyncSession,
-    *,
     admin_id: int,
-    model:APIKeyCreate,
+    model: APIKeyCreate,
 ) -> tuple[str, APIKey]:
     raw_key = str(uuid.uuid4())
     db_key = APIKey(

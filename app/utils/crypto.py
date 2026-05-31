@@ -100,6 +100,7 @@ def generate_wireguard_keypair() -> tuple[str, str]:
         base64.b64encode(public_key_bytes).decode("ascii"),
     )
 
+
 def hash_api_key(raw_api_key: str) -> str:
     iterations = 310000
     salt = os.urandom(16)

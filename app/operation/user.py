@@ -545,8 +545,10 @@ class UserOperation(BaseOperation):
                 await self.raise_error(
                     message=f"HWID limit cannot be less than {effective_hwid_conf.min_limit}", code=400, db=db
                 )
-            if effective_hwid_conf.max_limit is not None and effective_hwid_conf.max_limit > 0 and (
-                new_user.hwid_limit > effective_hwid_conf.max_limit or new_user.hwid_limit == 0
+            if (
+                effective_hwid_conf.max_limit is not None
+                and effective_hwid_conf.max_limit > 0
+                and (new_user.hwid_limit > effective_hwid_conf.max_limit or new_user.hwid_limit == 0)
             ):
                 await self.raise_error(
                     message=f"HWID limit cannot exceed {effective_hwid_conf.max_limit}", code=400, db=db
@@ -643,12 +645,17 @@ class UserOperation(BaseOperation):
                 admin.role.hwid if admin.role is not None else None,
             )
             if effective_hwid_conf is not None:
-                if effective_hwid_conf.min_limit is not None and modified_user.hwid_limit < effective_hwid_conf.min_limit:
+                if (
+                    effective_hwid_conf.min_limit is not None
+                    and modified_user.hwid_limit < effective_hwid_conf.min_limit
+                ):
                     await self.raise_error(
                         message=f"HWID limit cannot be less than {effective_hwid_conf.min_limit}", code=400, db=db
                     )
-                if effective_hwid_conf.max_limit is not None and effective_hwid_conf.max_limit > 0 and (
-                    modified_user.hwid_limit > effective_hwid_conf.max_limit or modified_user.hwid_limit == 0
+                if (
+                    effective_hwid_conf.max_limit is not None
+                    and effective_hwid_conf.max_limit > 0
+                    and (modified_user.hwid_limit > effective_hwid_conf.max_limit or modified_user.hwid_limit == 0)
                 ):
                     await self.raise_error(
                         message=f"HWID limit cannot exceed {effective_hwid_conf.max_limit}", code=400, db=db
