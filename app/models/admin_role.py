@@ -85,6 +85,7 @@ class APIKeysPermissions(_ResourcePermissions):
     create: RoleActionValue | None = None
     read: RoleActionValue | None = None
     read_simple: RoleActionValue | None = None
+    modify: RoleActionValue | None = None
     delete: RoleActionValue | None = None
 
 

@@ -3,7 +3,14 @@ from starlette.responses import Response
 
 from app.db import AsyncSession, get_db
 from app.models.admin import AdminDetails
-from app.models.api_key import APIKeyCreate, APIKeyCreateResponse, APIKeyResponse, APIKeysQuery, APIKeysResponse
+from app.models.api_key import (
+    APIKeyCreate,
+    APIKeyCreateResponse,
+    APIKeyResponse,
+    APIKeyUpdate,
+    APIKeysQuery,
+    APIKeysResponse,
+)
 from app.operation import OperatorType
 from app.operation.api_key import APIKeyOperation
 from app.routers.dependencies import get_api_key_list_query
@@ -41,6 +48,16 @@ async def list_api_keys(
     admin: AdminDetails = Depends(require_permission("api_keys", "read")),
 ):
     return await api_key_operator.list_api_keys(db, admin=admin, query=query)
+
+
+@router.patch("/{key_id}", response_model=APIKeyResponse, responses={404: responses._404, 409: responses._409})
+async def modify_api_key(
+    key_id: int,
+    model: APIKeyUpdate,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(require_permission("api_keys", "modify")),
+):
+    return await api_key_operator.modify_api_key(db, admin=admin, key_id=key_id, model=model)
 
 
 @router.get("/{key_id}", response_model=APIKeyResponse, responses={404: responses._404})

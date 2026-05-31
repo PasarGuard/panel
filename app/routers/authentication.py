@@ -6,7 +6,8 @@ from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy import func, select
 
-from app.db import AsyncSession, get_db
+from aiocache import cached
+from app.db import AsyncSession, GetDB, get_db
 from app.db.crud.admin import (
     find_admins_by_telegram_id,
     get_admin as get_admin_by_username,
@@ -109,6 +110,18 @@ async def _build_admin_metrics(db: AsyncSession, admin_id: int) -> tuple[int, in
 
 
 async def get_admin_from_api_key(db: AsyncSession, raw_key: str, *, with_metrics: bool = False) -> AdminDetails | None:
+    return await _get_admin_from_api_key_internal(db, raw_key, with_metrics=with_metrics)
+
+
+@cached(ttl=60)
+async def _get_admin_from_api_key_cached(raw_key: str, with_metrics: bool) -> AdminDetails | None:
+    async with GetDB() as db:
+        return await _get_admin_from_api_key_internal(db, raw_key, with_metrics=with_metrics)
+
+
+async def _get_admin_from_api_key_internal(
+    db: AsyncSession, raw_key: str, *, with_metrics: bool = False
+) -> AdminDetails | None:
     if not raw_key:
         return
 
@@ -225,7 +238,7 @@ async def _get_admin_from_request_credentials(
     if not admin:
         api_key = _extract_api_key(request)
         if api_key:
-            admin = await get_admin_from_api_key(db, api_key, with_metrics=with_metrics)
+            admin = await _get_admin_from_api_key_cached(api_key, with_metrics)
 
     return admin
 

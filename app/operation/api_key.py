@@ -9,9 +9,22 @@ from app.db.crud.api_key import (
     delete_api_key,
     get_api_key_by_id,
     get_api_keys,
+    update_api_key,
+)
+from app.notification import (
+    create_api_key as notify_create,
+    modify_api_key as notify_modify,
+    remove_api_key as notify_delete,
 )
 from app.models.admin import AdminDetails
-from app.models.api_key import APIKeyCreate, APIKeyCreateResponse, APIKeyResponse, APIKeysQuery, APIKeysResponse
+from app.models.api_key import (
+    APIKeyCreate,
+    APIKeyCreateResponse,
+    APIKeyResponse,
+    APIKeyUpdate,
+    APIKeysQuery,
+    APIKeysResponse,
+)
 from app.operation import BaseOperation
 
 
@@ -43,6 +56,7 @@ class APIKeyOperation(BaseOperation):
                 model=model,
             )
             await db.commit()
+            await notify_create(APIKeyResponse.model_validate(db_key), admin.username, admin.username)
         except IntegrityError:
             await self.raise_error(message="API key already exists", code=409, db=db)
 
@@ -70,6 +84,38 @@ class APIKeyOperation(BaseOperation):
         )
         return APIKeysResponse(api_keys=[APIKeyResponse.model_validate(row) for row in rows], total=total)
 
+    async def modify_api_key(
+        self, db: AsyncSession, *, admin: AdminDetails, key_id: int, model: APIKeyUpdate
+    ) -> APIKeyResponse:
+        db_key = await get_api_key_by_id(db, key_id)
+        if db_key is None:
+            await self.raise_error(message="API key not found", code=404)
+
+        if not admin.is_owner and db_key.admin_id != admin.id:
+            await self.raise_error(message="Permission denied", code=403)
+
+        if model.name is not None and model.name != db_key.name:
+            duplicates, _ = await get_api_keys(db, admin_id=db_key.admin_id, offset=0, limit=1, name=model.name)
+            if duplicates:
+                await self.raise_error(message="API key name already exists", code=409)
+
+        if model.role_id is not None and model.role_id != db_key.role_id:
+            role = await get_role(db, model.role_id)
+            if role is None:
+                await self.raise_error(message="Role not found", code=404)
+            if not admin.is_owner and admin.role and role.id != admin.role.id:
+                await self.raise_error(message="Only owner can assign a different role to API keys", code=403)
+
+        update_data = model.model_dump(exclude_unset=True)
+        db_key = await update_api_key(db, db_key, update_data)
+        await db.commit()
+
+        api_key_resp = APIKeyResponse.model_validate(db_key)
+        admin_username = db_key.admin.username if db_key.admin else "Unknown"
+        await notify_modify(api_key_resp, admin_username, admin.username)
+
+        return api_key_resp
+
     async def get_api_key(self, db: AsyncSession, *, admin: AdminDetails, key_id: int) -> APIKeyResponse:
         scope_admin_id = None if admin.is_owner else admin.id
         rows, _ = await get_api_keys(db, admin_id=scope_admin_id, offset=0, limit=1, key_id=key_id)
@@ -85,5 +131,9 @@ class APIKeyOperation(BaseOperation):
         if not admin.is_owner and db_key.admin_id != admin.id:
             await self.raise_error(message="Permission denied", code=403)
 
+        api_key_resp = APIKeyResponse.model_validate(db_key)
+        admin_username = db_key.admin.username if db_key.admin else "Unknown"
+
         await delete_api_key(db, db_key)
         await db.commit()
+        await notify_delete(api_key_resp, admin_username, admin.username)

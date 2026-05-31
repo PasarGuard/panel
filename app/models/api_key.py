@@ -28,6 +28,24 @@ class APIKeyCreate(APIKeyBase):
         return parsed
 
 
+class APIKeyUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=128)
+    note: str | None = Field(default=None, max_length=512)
+    role_id: int | None = Field(default=None, ge=1)
+    expire_date: dt | None = None
+    status: APIKeyStatus | None = None
+
+    @field_validator("expire_date", mode="before")
+    @classmethod
+    def validate_expire_date(cls, value):
+        if value is None:
+            return None
+        parsed = fix_datetime_timezone(value)
+        if parsed <= dt.now(tz.utc):
+            raise ValueError("expire_date must be in the future")
+        return parsed
+
+
 class APIKeyResponse(APIKeyBase):
     id: int
     admin_id: int
