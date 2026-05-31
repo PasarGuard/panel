@@ -1,24 +1,18 @@
-import hashlib
 import uuid
-from datetime import datetime as dt
-
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.db.models import Admin, APIKey
 from app.models.api_key import APIKeyCreate
-
-
-def hash_api_key(raw_api_key: str) -> str:
-    return hashlib.sha256(raw_api_key.encode("utf-8")).hexdigest()
+from app.utils.crypto import hash_api_key
 
 
 async def create_api_key(
     db: AsyncSession,
     *,
     admin_id: int,
-    mmodel:APIKeyCreate,
+    model:APIKeyCreate,
 ) -> tuple[str, APIKey]:
     raw_key = str(uuid.uuid4())
     db_key = APIKey(

@@ -1,4 +1,5 @@
 import base64
+import hashlib
 import binascii
 
 from cryptography import x509
@@ -97,3 +98,6 @@ def generate_wireguard_keypair() -> tuple[str, str]:
         base64.b64encode(private_key_bytes).decode("ascii"),
         base64.b64encode(public_key_bytes).decode("ascii"),
     )
+
+def hash_api_key(raw_api_key: str) -> str:
+    return hashlib.sha256(raw_api_key.encode("utf-8")).hexdigest()
