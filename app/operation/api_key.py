@@ -19,33 +19,30 @@ from app.operation import BaseOperation
 
 class APIKeyOperation(BaseOperation):
     async def create_api_key(
-        self, db: AsyncSession, *, admin: AdminDetails, data: APIKeyCreate
+        self, db: AsyncSession, *, admin: AdminDetails, model: APIKeyCreate
     ) -> APIKeyCreateResponse:
         if admin.id is None:
             await self.raise_error(message="API key creation is not available for env admins", code=403)
 
-        role = await get_role(db, data.role_id)
+        role = await get_role(db, model.role_id)
         if role is None:
             await self.raise_error(message="Role not found", code=404)
 
         if not admin.is_owner and admin.role and role.id != admin.role.id:
             await self.raise_error(message="Only owner can create API keys with a different role", code=403)
 
-        duplicate = await get_api_key_by_name(db, admin_id=admin.id, name=data.name)
+        duplicate = await get_api_key_by_name(db, admin_id=admin.id, name=model.name)
         if duplicate is not None:
             await self.raise_error(message="API key name already exists", code=409)
 
-        if data.expire_date is not None and data.expire_date <= dt.now(tz.utc):
+        if model.expire_date is not None and model.expire_date <= dt.now(tz.utc):
             await self.raise_error(message="expire_date must be in the future", code=422)
 
         try:
             raw_key, db_key = await create_api_key(
                 db,
                 admin_id=admin.id,
-                role_id=data.role_id,
-                name=data.name,
-                note=data.note,
-                expire_date=data.expire_date,
+                model=model,
             )
             await db.commit()
         except IntegrityError:

@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.db.models import Admin, APIKey
+from app.models.api_key import APIKeyCreate
 
 
 def hash_api_key(raw_api_key: str) -> str:
@@ -17,19 +18,16 @@ async def create_api_key(
     db: AsyncSession,
     *,
     admin_id: int,
-    role_id: int,
-    name: str,
-    note: str | None,
-    expire_date: dt | None,
+    mmodel:APIKeyCreate,
 ) -> tuple[str, APIKey]:
     raw_key = str(uuid.uuid4())
     db_key = APIKey(
         admin_id=admin_id,
-        role_id=role_id,
-        name=name,
-        note=note,
-        key_hash=hash_api_key(raw_key),
-        expire_date=expire_date,
+        role_id=model.role_id,
+        name=model.name,
+        note=model.note,
+        key_hash=hash_api_key(model.raw_key),
+        expire_date=model.expire_date,
     )
     db.add(db_key)
     await db.flush()

@@ -27,11 +27,11 @@ api_key_operator = APIKeyOperation(operator_type=OperatorType.API)
     responses={409: responses._409},
 )
 async def create_api_key(
-    data: APIKeyCreate,
+    model: APIKeyCreate,
     db: AsyncSession = Depends(get_db),
     admin: AdminDetails = Depends(require_permission("api_keys", "create")),
 ):
-    return await api_key_operator.create_api_key(db, admin=admin, data=data)
+    return await api_key_operator.create_api_key(db, admin=admin, model=model)
 
 
 @router.get("s", response_model=APIKeysResponse)
