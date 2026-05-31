@@ -60,7 +60,7 @@ def upgrade() -> None:
         sa.Column("expire_date", sa.DateTime(timezone=True), nullable=True),
         sa.Column(
             "status",
-            sa.Enum("active", "disabled", "expired", name="apikeystatus"),
+            sa.Enum("active", "disabled" , name="apikeystatus"),
             nullable=False,
             server_default="active",
         ),

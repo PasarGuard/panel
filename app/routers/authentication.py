@@ -1,4 +1,3 @@
-from datetime import datetime as dt, timezone as tz
 from uuid import UUID
 
 from aiogram.utils.web_app import WebAppInitData, safe_parse_webapp_init_data
@@ -110,36 +109,25 @@ async def _build_admin_metrics(db: AsyncSession, admin_id: int) -> tuple[int, in
 
 async def get_admin_from_api_key(db: AsyncSession, raw_key: str, *, with_metrics: bool = False) -> AdminDetails | None:
     if not raw_key:
-        return None
+        return
 
     try:
         parsed_key = UUID(raw_key)
     except ValueError:
-        return None
+        return
     if parsed_key.version != 4:
-        return None
+        return
 
     db_key = await get_api_key_by_hash(db, hash_api_key(str(parsed_key)))
     if db_key is None:
-        return None
+        return
 
     db_admin = db_key.admin
     if db_admin is None:
-        return None
+        return
 
-    # Reject if the key itself is manually disabled
-    if db_key.status == APIKeyStatus.disabled:
-        return None
-
-    # Reject if the owning admin is disabled — keys are not stored as disabled,
-    # we just block them at auth time
-    if db_admin.status == AdminStatus.disabled:
-        return None
-
-    if db_key.expire_date is not None:
-        expire_at = db_key.expire_date if db_key.expire_date.tzinfo else db_key.expire_date.replace(tzinfo=tz.utc)
-        if expire_at.astimezone(tz.utc) <= dt.now(tz.utc):
-            return None
+    if not db_key.is_usable:
+        return
 
     if with_metrics:
         total_users, reseted_usage = await _build_admin_metrics(db, db_admin.id)

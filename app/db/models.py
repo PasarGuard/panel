@@ -857,7 +857,6 @@ class AdminRole(Base, IdMixin, CreatedAtUTCMixin):
 class APIKeyStatus(str, Enum):
     active = "active"
     disabled = "disabled"
-    expired = "expired"
 
 
 class APIKey(Base, IdMixin, CreatedAtUTCMixin):
@@ -885,23 +884,25 @@ class APIKey(Base, IdMixin, CreatedAtUTCMixin):
     )
 
     @hybrid_property
-    def computed_status(self) -> "APIKeyStatus":
-        """Returns expired when past expire_date, otherwise the stored status."""
-        if self.expire_date is not None:
-            expire_at = self.expire_date if self.expire_date.tzinfo else self.expire_date.replace(tzinfo=tz.utc)
-            if expire_at <= dt.now(tz.utc):
-                return APIKeyStatus.expired
-        return self.status
+    def is_expired(self) -> bool:
+        """True when expire_date is set and is in the past."""
+        if self.expire_date is None:
+            return False
+        expire_at = self.expire_date if self.expire_date.tzinfo else self.expire_date.replace(tzinfo=tz.utc)
+        return expire_at <= dt.now(tz.utc)
 
-    @computed_status.expression
-    def computed_status(cls):
-        return case(
-            (
-                and_(cls.expire_date.isnot(None), cls.expire_date <= func.current_timestamp()),
-                APIKeyStatus.expired.value,
-            ),
-            else_=cls.status,
-        )
+    @is_expired.expression
+    def is_expired(cls):
+        return and_(cls.expire_date.isnot(None), cls.expire_date <= func.current_timestamp())
+
+    @property
+    def is_usable(self) -> bool:
+        """False if the key is disabled, its admin is missing/disabled, or it has expired."""
+        if self.status == APIKeyStatus.disabled:
+            return False
+        if self.admin is None or self.admin.status == AdminStatus.disabled:
+            return False
+        return not self.is_expired
 
 
 class TempKey(Base):

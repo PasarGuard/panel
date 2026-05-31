@@ -33,14 +33,7 @@ class APIKeyResponse(APIKeyBase):
     admin_id: int
     created_at: dt
     status: APIKeyStatus = APIKeyStatus.active
-
-    @classmethod
-    def model_validate(cls, obj, *args, **kwargs):
-        # Use computed_status (which accounts for expiry) when building the response
-        instance = super().model_validate(obj, *args, **kwargs)
-        if hasattr(obj, "computed_status"):
-            instance.status = obj.computed_status
-        return instance
+    is_expired: bool = False
 
 
 class APIKeyCreateResponse(APIKeyResponse):

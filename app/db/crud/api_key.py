@@ -1,5 +1,4 @@
 import uuid
-from datetime import datetime as dt, timezone as tz
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -71,16 +70,9 @@ async def get_api_keys(
     if name is not None:
         stmt = stmt.where(APIKey.name == name)
     if status is not None:
-        now = dt.now(tz.utc)
-        if status == APIKeyStatus.expired:
-            # expired = expire_date is set and in the past
-            stmt = stmt.where(APIKey.expire_date.isnot(None), APIKey.expire_date <= now)
-        elif status == APIKeyStatus.active:
+        if status == APIKeyStatus.active:
             # active = stored status is active AND not past expire_date
-            stmt = stmt.where(
-                APIKey.status == APIKeyStatus.active,
-                (APIKey.expire_date.is_(None)) | (APIKey.expire_date > now),
-            )
+            stmt = stmt.where(APIKey.status == APIKeyStatus.active, ~APIKey.is_expired)
         else:
             # disabled = stored status is disabled (expire_date irrelevant)
             stmt = stmt.where(APIKey.status == APIKeyStatus.disabled)
