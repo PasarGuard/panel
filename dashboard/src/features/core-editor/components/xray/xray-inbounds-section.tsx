@@ -760,11 +760,18 @@ function mergeTrojanInboundStreamFields(prev: Inbound, next: Inbound): Inbound {
   return merged as Inbound
 }
 
+function isDisallowedShadowsocksMethod(method: string): boolean {
+  return method.startsWith('x') || method === '2022-blake3-chacha20-poly1305'
+}
+
+const CORE_EDITOR_SHADOWSOCKS_ENCRYPTION_METHODS = SHADOWSOCKS_ENCRYPTION_METHODS.filter(method => !isDisallowedShadowsocksMethod(method.value))
+
 function shadowsocksMethodFormValue(row: Inbound): string {
-  if (row.protocol !== 'shadowsocks') return SHADOWSOCKS_ENCRYPTION_METHODS[0].value
+  if (row.protocol !== 'shadowsocks') return CORE_EDITOR_SHADOWSOCKS_ENCRYPTION_METHODS[0].value
   const m = 'method' in row ? row.method : undefined
-  if (m === undefined || String(m).trim() === '') return SHADOWSOCKS_ENCRYPTION_METHODS[0].value
-  return String(m)
+  if (m === undefined || String(m).trim() === '') return CORE_EDITOR_SHADOWSOCKS_ENCRYPTION_METHODS[0].value
+  const method = String(m)
+  return isDisallowedShadowsocksMethod(method) ? CORE_EDITOR_SHADOWSOCKS_ENCRYPTION_METHODS[0].value : method
 }
 
 function shadowsocksPasswordFormValue(row: Inbound): string {
@@ -931,7 +938,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
       encryption: 'none',
       decryption: '',
       vlessFlow: '',
-      shadowsocksMethod: SHADOWSOCKS_ENCRYPTION_METHODS[0].value,
+      shadowsocksMethod: CORE_EDITOR_SHADOWSOCKS_ENCRYPTION_METHODS[0].value,
       shadowsocksPassword: '',
       shadowsocksNetwork: 'tcp,udp',
       transport: 'tcp',
@@ -2637,8 +2644,8 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent dir="ltr">
-                              {!SHADOWSOCKS_ENCRYPTION_METHODS.some(m => m.value === field.value) ? <SelectItem value={field.value}>{field.value}</SelectItem> : null}
-                              {SHADOWSOCKS_ENCRYPTION_METHODS.map(method => (
+                              {!isDisallowedShadowsocksMethod(field.value) && !CORE_EDITOR_SHADOWSOCKS_ENCRYPTION_METHODS.some(m => m.value === field.value) ? <SelectItem value={field.value}>{field.value}</SelectItem> : null}
+                              {CORE_EDITOR_SHADOWSOCKS_ENCRYPTION_METHODS.map(method => (
                                 <SelectItem key={method.value} value={method.value}>
                                   {method.label}
                                 </SelectItem>
