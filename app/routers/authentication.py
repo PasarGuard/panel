@@ -1,3 +1,4 @@
+from datetime import timezone as tz
 from uuid import UUID
 
 from aiogram.utils.web_app import WebAppInitData, safe_parse_webapp_init_data
@@ -13,7 +14,7 @@ from app.db.crud.admin import (
     get_admin_by_telegram_id,
 )
 from app.db.crud.api_key import get_api_key_by_hash, hash_api_key
-from app.db.models import Admin, AdminUsageLogs, User, APIKeyStatus
+from app.db.models import Admin, AdminUsageLogs, User
 from app.models.admin import AdminDetails, AdminRoleData, AdminStatus, AdminValidationResult, verify_password
 from app.models.admin_role import RoleAccess, RoleFeatures, RoleLimits, RolePermissions
 from app.models.settings import Telegram
@@ -201,15 +202,36 @@ async def get_admin_with_metrics(db: AsyncSession, token: str) -> AdminDetails |
     return None
 
 
-async def get_current(request: Request, db: AsyncSession = Depends(get_db), token: str | None = Depends(oauth2_scheme)):
+async def _get_admin_from_request_credentials(
+    request: Request,
+    db: AsyncSession,
+    token: str | None,
+    *,
+    with_metrics: bool = False,
+) -> AdminDetails | None:
     admin: AdminDetails | None = None
 
     if token:
-        admin = await get_admin(db, token)
-    else:
+        try:
+            if with_metrics:
+                admin = await get_admin_with_metrics(db, token)
+            else:
+                admin = await get_admin(db, token)
+        except HTTPException as exc:
+            if exc.status_code not in (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN):
+                raise
+            admin = None
+
+    if not admin:
         api_key = _extract_api_key(request)
         if api_key:
-            admin = await get_admin_from_api_key(db, api_key)
+            admin = await get_admin_from_api_key(db, api_key, with_metrics=with_metrics)
+
+    return admin
+
+
+async def get_current(request: Request, db: AsyncSession = Depends(get_db), token: str | None = Depends(oauth2_scheme)):
+    admin = await _get_admin_from_request_credentials(request, db, token)
 
     if not admin:
         raise HTTPException(
@@ -231,14 +253,7 @@ async def get_current_with_metrics(
     db: AsyncSession = Depends(get_db),
     token: str | None = Depends(oauth2_scheme),
 ):
-    admin: AdminDetails | None = None
-
-    if token:
-        admin = await get_admin_with_metrics(db, token)
-    else:
-        api_key = _extract_api_key(request)
-        if api_key:
-            admin = await get_admin_from_api_key(db, api_key, with_metrics=True)
+    admin = await _get_admin_from_request_credentials(request, db, token, with_metrics=True)
 
     if not admin:
         raise HTTPException(
