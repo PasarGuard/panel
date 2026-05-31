@@ -146,7 +146,7 @@ def verify_api_key(raw_api_key: str, stored_hash: str) -> bool:
         iterations = int(iterations_raw)
         salt = base64.b64decode(salt_b64, validate=True)
         expected_key = base64.b64decode(dk_b64, validate=True)
-    except (ValueError, binascii.Error):
+    except ValueError, binascii.Error:
         return False
 
     derived_key = hashlib.pbkdf2_hmac("sha256", raw_api_key.encode("utf-8"), salt, iterations)
