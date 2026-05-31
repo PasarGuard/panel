@@ -38,7 +38,6 @@ def mock_lock(monkeypatch: pytest.MonkeyPatch):
 def mock_settings(monkeypatch: pytest.MonkeyPatch):
     settings = {
         "telegram": {"enable": False, "token": "", "webhook_url": "", "webhook_secret": None, "proxy_url": None},
-        "discord": None,
         "webhook": {
             "enable": False,
             "webhooks": [],

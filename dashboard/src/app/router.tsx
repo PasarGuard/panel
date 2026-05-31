@@ -29,7 +29,6 @@ const NodesPage = lazyWithChunkRecovery(() => import('../pages/_dashboard.nodes.
 const NodeLogs = lazyWithChunkRecovery(() => import('../pages/_dashboard.nodes.logs'))
 const Settings = lazyWithChunkRecovery(() => import('../pages/_dashboard.settings'))
 const CleanupSettings = lazyWithChunkRecovery(() => import('../pages/_dashboard.settings.cleanup'))
-const DiscordSettings = lazyWithChunkRecovery(() => import('../pages/_dashboard.settings.discord'))
 const GeneralSettings = lazyWithChunkRecovery(() => import('../pages/_dashboard.settings.general'))
 const HwidSettings = lazyWithChunkRecovery(() => import('../pages/_dashboard.settings.hwid'))
 const NotificationSettings = lazyWithChunkRecovery(() => import('../pages/_dashboard.settings.notifications'))
@@ -282,14 +281,6 @@ export const router = createHashRouter([
             element: (
               <Suspense fallback={<LoadingSpinner />}>
                 <TelegramSettings />
-              </Suspense>
-            ),
-          },
-          {
-            path: '/settings/discord',
-            element: (
-              <Suspense fallback={<LoadingSpinner />}>
-                <DiscordSettings />
               </Suspense>
             ),
           },

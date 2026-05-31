@@ -849,7 +849,6 @@ class NodeStat(Base, IdMixin, CreatedAtUTCMixin):
 class Settings(Base, IdMixin):
     __tablename__ = "settings"
     telegram: Mapped[dict] = mapped_column(JSON())
-    discord: Mapped[dict] = mapped_column(JSON())
     webhook: Mapped[dict] = mapped_column(JSON())
     notification_settings: Mapped[dict] = mapped_column(JSON())
     notification_enable: Mapped[dict] = mapped_column(JSON())

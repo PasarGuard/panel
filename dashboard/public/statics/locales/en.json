@@ -445,26 +445,6 @@
         "forAdminsOnlyDescription": "Restrict bot access to administrators only"
       }
     },
-    "discord": {
-      "title": "Discord",
-      "description": "Configure Discord bot integration and related settings for your system",
-      "loadError": "Failed to load Discord settings. Please try again.",
-      "saveSuccess": "Discord settings saved successfully",
-      "saveFailed": "Failed to save Discord settings",
-      "cancelSuccess": "Changes cancelled and original Discord settings restored",
-      "general": {
-        "title": "General Settings",
-        "description": "Basic Discord bot configuration and connection settings",
-        "enable": "Enable Discord Bot",
-        "enableDescription": "Enable or disable Discord bot functionality for your system",
-        "token": "Bot Token",
-        "tokenPlaceholder": "Enter your Discord bot token",
-        "tokenDescription": "Bot token obtained from Discord Developer Portal",
-        "proxyUrl": "Proxy URL",
-        "proxyUrlPlaceholder": "socks5://proxy.example.com:1080",
-        "proxyUrlDescription": "Proxy URL for Discord API connections (optional)"
-      }
-    },
     "webhook": {
       "title": "Webhook",
       "description": "Configure webhook notifications and endpoint settings for your system",

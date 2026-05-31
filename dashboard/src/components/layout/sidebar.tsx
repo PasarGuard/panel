@@ -40,7 +40,6 @@ import {
   ListTodo,
   Lock,
   Logs,
-  MessageCircle,
   Network,
   Palette,
   PieChart,
@@ -296,11 +295,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 title: 'settings.telegram.title',
                 url: '/settings/telegram',
                 icon: Send,
-              },
-              {
-                title: 'settings.discord.title',
-                url: '/settings/discord',
-                icon: MessageCircle,
               },
               {
                 title: 'settings.webhook.title',

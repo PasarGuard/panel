@@ -1481,13 +1481,10 @@ export type SettingsSchemaNotificationSettings = NotificationSettings | null
 
 export type SettingsSchemaWebhook = Webhook | null
 
-export type SettingsSchemaDiscord = Discord | null
-
 export type SettingsSchemaTelegram = Telegram | null
 
 export interface SettingsSchema {
   telegram?: SettingsSchemaTelegram
-  discord?: SettingsSchemaDiscord
   webhook?: SettingsSchemaWebhook
   notification_settings?: SettingsSchemaNotificationSettings
   notification_enable?: SettingsSchemaNotificationEnable
@@ -2449,16 +2446,6 @@ export interface DownloadLink {
   name: string
   url: string
   language: Language
-}
-
-export type DiscordProxyUrl = string | null
-
-export type DiscordToken = string | null
-
-export interface Discord {
-  enable?: boolean
-  token?: DiscordToken
-  proxy_url?: DiscordProxyUrl
 }
 
 export type DataLimitResetStrategy = (typeof DataLimitResetStrategy)[keyof typeof DataLimitResetStrategy]

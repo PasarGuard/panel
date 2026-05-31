@@ -15,15 +15,6 @@ async def telegram_settings() -> settings.Telegram:
 
 
 @cached()
-async def discord_settings() -> settings.Discord:
-    async with GetDB() as db:
-        db_settings = await get_settings(db)
-
-    validated_settings = settings.Discord.model_validate(db_settings.discord)
-    return validated_settings
-
-
-@cached()
 async def webhook_settings() -> settings.Webhook:
     async with GetDB() as db:
         db_settings = await get_settings(db)
@@ -79,7 +70,6 @@ async def general_settings() -> settings.General:
 
 async def refresh_caches() -> None:
     await telegram_settings.cache.clear()
-    await discord_settings.cache.clear()
     await webhook_settings.cache.clear()
     await notification_settings.cache.clear()
     await notification_enable.cache.clear()

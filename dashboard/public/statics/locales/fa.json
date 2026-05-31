@@ -330,26 +330,6 @@
         "forAdminsOnlyDescription": "دسترسی ربات فقط به مدیران محدود میشود."
       }
     },
-    "discord": {
-      "title": "Discord",
-      "description": "تنظیم یکپارچگی ربات Discord و تنظیمات مرتبط برای سیستم شما",
-      "loadError": "بارگذاری تنظیمات Discord ناموفق بود. لطفاً دوباره تلاش کنید.",
-      "saveSuccess": "تنظیمات Discord با موفقیت ذخیره شد",
-      "saveFailed": "ذخیره تنظیمات Discord ناموفق بود",
-      "cancelSuccess": "تغییرات لغو شد و تنظیمات اصلی Discord بازیابی شد",
-      "general": {
-        "title": "تنظیمات عمومی",
-        "description": "پیکربندی اولیه ربات Discord و تنظیمات اتصال",
-        "enable": "فعال‌سازی ربات Discord",
-        "enableDescription": "فعال یا غیرفعال کردن عملکرد ربات Discord برای سیستم شما",
-        "token": "توکن ربات",
-        "tokenPlaceholder": "توکن ربات Discord خود را وارد کنید",
-        "tokenDescription": "توکن ربات که از Discord Developer Portal دریافت شده",
-        "proxyUrl": "آدرس پروکسی",
-        "proxyUrlPlaceholder": "socks5://proxy.example.com:1080",
-        "proxyUrlDescription": "آدرس پروکسی برای اتصالات Discord API (اختیاری)"
-      }
-    },
     "webhook": {
       "title": "Webhook",
       "description": "پیکربندی اعلان‌های webhook و تنظیمات endpoint برای سیستم شما",

@@ -430,26 +430,6 @@
         "forAdminsOnlyDescription": "限制机器人访问仅限管理员"
       }
     },
-    "discord": {
-      "title": "Discord",
-      "description": "为您的系统配置 Discord 机器人集成和相关设置",
-      "loadError": "加载 Discord 设置失败。请重试。",
-      "saveSuccess": "Discord 设置保存成功",
-      "saveFailed": "保存 Discord 设置失败",
-      "cancelSuccess": "已取消更改并恢复原始 Discord 设置",
-      "general": {
-        "title": "基本设置",
-        "description": "基本 Discord 机器人配置和连接设置",
-        "enable": "启用 Discord 机器人",
-        "enableDescription": "启用或禁用系统的 Discord 机器人功能",
-        "token": "机器人令牌",
-        "tokenPlaceholder": "输入您的 Discord 机器人令牌",
-        "tokenDescription": "从 Discord 开发者门户获取的机器人令牌",
-        "proxyUrl": "代理 URL",
-        "proxyUrlPlaceholder": "socks5://proxy.example.com:1080",
-        "proxyUrlDescription": "Discord API 连接的代理 URL（可选）"
-      }
-    },
     "webhook": {
       "title": "Webhook",
       "description": "配置系统的Webhook通知和端点设置",

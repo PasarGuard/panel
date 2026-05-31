@@ -462,26 +462,6 @@
         "forAdminsOnlyDescription": "Ограничить доступ к боту только администраторами"
       }
     },
-    "discord": {
-      "title": "Discord",
-      "description": "Настройте интеграцию Discord бота и связанные параметры для вашей системы",
-      "loadError": "Не удалось загрузить настройки Discord. Попробуйте еще раз.",
-      "saveSuccess": "Настройки Discord успешно сохранены",
-      "saveFailed": "Не удалось сохранить настройки Discord",
-      "cancelSuccess": "Изменения отменены и восстановлены исходные настройки Discord",
-      "general": {
-        "title": "Основные настройки",
-        "description": "Базовая конфигурация Discord бота и настройки подключения",
-        "enable": "Включить Discord бота",
-        "enableDescription": "Включить или отключить функциональность Discord бота для вашей системы",
-        "token": "Токен бота",
-        "tokenPlaceholder": "Введите ваш токен Discord бота",
-        "tokenDescription": "Токен бота, полученный из Discord Developer Portal",
-        "proxyUrl": "URL прокси",
-        "proxyUrlPlaceholder": "socks5://proxy.example.com:1080",
-        "proxyUrlDescription": "URL прокси для подключений к Discord API (необязательно)"
-      }
-    },
     "webhook": {
       "title": "Веб-хуки",
       "description": "Настройка уведомлений веб-хуков и конечных точек для вашей системы",
