@@ -1,6 +1,7 @@
 import base64
 import hashlib
 import binascii
+import os
 
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
@@ -100,4 +101,14 @@ def generate_wireguard_keypair() -> tuple[str, str]:
     )
 
 def hash_api_key(raw_api_key: str) -> str:
-    return hashlib.sha256(raw_api_key.encode("utf-8")).hexdigest()
+    iterations = 310000
+    salt = os.urandom(16)
+    derived_key = hashlib.pbkdf2_hmac(
+        "sha256",
+        raw_api_key.encode("utf-8"),
+        salt,
+        iterations,
+    )
+    salt_b64 = base64.b64encode(salt).decode("ascii")
+    dk_b64 = base64.b64encode(derived_key).decode("ascii")
+    return f"pbkdf2_sha256${iterations}${salt_b64}${dk_b64}"
