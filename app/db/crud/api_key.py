@@ -6,7 +6,7 @@ from sqlalchemy.orm import selectinload
 
 from app.db.models import Admin, AdminStatus, APIKey, APIKeyStatus
 from app.models.api_key import APIKeyCreate
-from app.utils.crypto import hash_api_key
+from app.utils.crypto import API_KEY_HASH_VERSION, api_key_lookup_id, hash_api_key, verify_api_key
 
 
 async def create_api_key(
@@ -29,17 +29,19 @@ async def create_api_key(
     return raw_key, db_key
 
 
-async def get_api_key_by_hash(db: AsyncSession, key_hash: str) -> APIKey | None:
+async def get_api_key_by_raw_key(db: AsyncSession, raw_api_key: str) -> APIKey | None:
+    lookup_prefix = f"{API_KEY_HASH_VERSION}${api_key_lookup_id(raw_api_key)}$"
     stmt = (
         select(APIKey)
         .where(
-            APIKey.key_hash == key_hash,
+            APIKey.key_hash.startswith(lookup_prefix),
             APIKey.status != APIKeyStatus.disabled,
         )
         .options(selectinload(APIKey.admin).selectinload(Admin.role), selectinload(APIKey.role))
+        .limit(1)
     )
     db_key = (await db.execute(stmt)).scalar_one_or_none()
-    if db_key is None:
+    if db_key is None or not verify_api_key(raw_api_key, db_key.key_hash):
         return None
     # Reject if the owning admin is disabled
     if db_key.admin is not None and db_key.admin.status == AdminStatus.disabled:

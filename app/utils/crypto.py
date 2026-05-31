@@ -1,6 +1,7 @@
 import base64
 import hashlib
 import binascii
+import hmac
 import os
 
 from cryptography import x509
@@ -101,15 +102,52 @@ def generate_wireguard_keypair() -> tuple[str, str]:
     )
 
 
+API_KEY_HASH_VERSION = "v1"
+API_KEY_HASH_ALGORITHM = "pbkdf2_sha256"
+API_KEY_HASH_ITERATIONS = 310000
+API_KEY_LOOKUP_BYTES = 16
+
+
+def api_key_lookup_id(raw_api_key: str) -> str:
+    digest = hashlib.sha256(raw_api_key.encode("utf-8")).digest()[:API_KEY_LOOKUP_BYTES]
+    return base64.urlsafe_b64encode(digest).decode("ascii").rstrip("=")
+
+
 def hash_api_key(raw_api_key: str) -> str:
-    iterations = 310000
     salt = os.urandom(16)
     derived_key = hashlib.pbkdf2_hmac(
         "sha256",
         raw_api_key.encode("utf-8"),
         salt,
-        iterations,
+        API_KEY_HASH_ITERATIONS,
     )
     salt_b64 = base64.b64encode(salt).decode("ascii")
     dk_b64 = base64.b64encode(derived_key).decode("ascii")
-    return f"pbkdf2_sha256${iterations}${salt_b64}${dk_b64}"
+    lookup_id = api_key_lookup_id(raw_api_key)
+    return f"{API_KEY_HASH_VERSION}${lookup_id}${API_KEY_HASH_ALGORITHM}${API_KEY_HASH_ITERATIONS}${salt_b64}${dk_b64}"
+
+
+def verify_api_key(raw_api_key: str, stored_hash: str) -> bool:
+    parts = stored_hash.split("$")
+    lookup_id: str | None = None
+    if len(parts) == 6 and parts[0] == API_KEY_HASH_VERSION:
+        _, lookup_id, algorithm, iterations_raw, salt_b64, dk_b64 = parts
+    elif len(parts) == 4:
+        algorithm, iterations_raw, salt_b64, dk_b64 = parts
+    else:
+        return False
+
+    if algorithm != API_KEY_HASH_ALGORITHM:
+        return False
+    if lookup_id is not None and not hmac.compare_digest(lookup_id, api_key_lookup_id(raw_api_key)):
+        return False
+
+    try:
+        iterations = int(iterations_raw)
+        salt = base64.b64decode(salt_b64, validate=True)
+        expected_key = base64.b64decode(dk_b64, validate=True)
+    except (ValueError, binascii.Error):
+        return False
+
+    derived_key = hashlib.pbkdf2_hmac("sha256", raw_api_key.encode("utf-8"), salt, iterations)
+    return hmac.compare_digest(derived_key, expected_key)

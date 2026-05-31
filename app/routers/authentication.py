@@ -13,7 +13,7 @@ from app.db.crud.admin import (
     get_admin_by_id as get_admin_by_id_crud,
     get_admin_by_telegram_id,
 )
-from app.db.crud.api_key import get_api_key_by_hash, hash_api_key
+from app.db.crud.api_key import get_api_key_by_raw_key
 from app.db.models import Admin, AdminUsageLogs, User
 from app.models.admin import AdminDetails, AdminRoleData, AdminStatus, AdminValidationResult, verify_password
 from app.models.admin_role import RoleAccess, RoleFeatures, RoleLimits, RolePermissions
@@ -119,7 +119,7 @@ async def get_admin_from_api_key(db: AsyncSession, raw_key: str, *, with_metrics
     if parsed_key.version != 4:
         return
 
-    db_key = await get_api_key_by_hash(db, hash_api_key(str(parsed_key)))
+    db_key = await get_api_key_by_raw_key(db, str(parsed_key))
     if db_key is None:
         return
 
