@@ -132,7 +132,7 @@ async def process_data_limit(event: Message, state: FSMContext):
 
 
 @router.message(forms.CreateUser.expire)
-async def process_expire(event: Message, state: FSMContext, db: AsyncSession):
+async def process_expire(event: Message, state: FSMContext, db: AsyncSession, admin: AdminDetails):
     await delete_messages(event, state)
     await add_to_messages_to_delete(state, event)
 
@@ -153,13 +153,17 @@ async def process_expire(event: Message, state: FSMContext, db: AsyncSession):
     else:
         await state.update_data(status=UserStatus.active.value)
         await state.set_state(forms.CreateUser.group_ids)
-        groups = await group_operations.get_all_groups(db, GroupListQuery())
+        groups = await group_operations.get_all_groups(db, GroupListQuery(), admin)
         return await event.answer(Texts.select_groups, reply_markup=GroupsSelector(groups).as_markup())
 
 
 @router.callback_query(ChooseStatus.Callback.filter())
 async def process_status(
-    event: CallbackQuery, db: AsyncSession, state: FSMContext, callback_data: ChooseStatus.Callback
+    event: CallbackQuery,
+    db: AsyncSession,
+    state: FSMContext,
+    callback_data: ChooseStatus.Callback,
+    admin: AdminDetails,
 ):
     await state.update_data(status=callback_data.status)
 
@@ -172,12 +176,12 @@ async def process_status(
         await add_to_messages_to_delete(state, msg)
     else:
         await state.set_state(forms.CreateUser.group_ids)
-        groups = await group_operations.get_all_groups(db, GroupListQuery())
+        groups = await group_operations.get_all_groups(db, GroupListQuery(), admin)
         await event.message.answer(Texts.select_groups, reply_markup=GroupsSelector(groups).as_markup())
 
 
 @router.message(forms.CreateUser.on_hold_timeout)
-async def process_on_hold_timeout(event: Message, state: FSMContext, db: AsyncSession):
+async def process_on_hold_timeout(event: Message, state: FSMContext, db: AsyncSession, admin: AdminDetails):
     await delete_messages(event, state)
     await add_to_messages_to_delete(state, event)
 
@@ -191,7 +195,7 @@ async def process_on_hold_timeout(event: Message, state: FSMContext, db: AsyncSe
         return
 
     await state.update_data(on_hold_timeout=timeout)
-    groups = await group_operations.get_all_groups(db, GroupListQuery())
+    groups = await group_operations.get_all_groups(db, GroupListQuery(), admin)
 
     await add_to_messages_to_delete(state, event)
     await delete_messages(event, state)
@@ -201,7 +205,11 @@ async def process_on_hold_timeout(event: Message, state: FSMContext, db: AsyncSe
 
 @router.callback_query(GroupsSelector.Callback.filter(SelectGroupAction.select == F.action))
 async def select_groups(
-    event: CallbackQuery, db: AsyncSession, state: FSMContext, callback_data: GroupsSelector.Callback
+    event: CallbackQuery,
+    db: AsyncSession,
+    state: FSMContext,
+    callback_data: GroupsSelector.Callback,
+    admin: AdminDetails,
 ):
     group_ids = await state.get_value("group_ids")
     if isinstance(group_ids, list):
@@ -213,7 +221,7 @@ async def select_groups(
         group_ids = [callback_data.group_id]
 
     await state.update_data(group_ids=group_ids)
-    all_groups = await group_operations.get_all_groups(db, GroupListQuery())
+    all_groups = await group_operations.get_all_groups(db, GroupListQuery(), admin)
 
     await event.message.edit_reply_markup(
         reply_markup=GroupsSelector(
@@ -269,7 +277,7 @@ async def modify_groups(
         return await event.answer(Texts.user_not_found)
 
     groups = await user_operations.validate_all_groups(db, user)
-    all_groups = await group_operations.get_all_groups(db, GroupListQuery())
+    all_groups = await group_operations.get_all_groups(db, GroupListQuery(), admin)
     await state.clear()
     await state.update_data(user_id=user.id, group_ids=[group.id for group in groups])
     await event.message.edit_text(
