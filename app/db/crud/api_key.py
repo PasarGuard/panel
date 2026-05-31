@@ -1,9 +1,11 @@
 import uuid
+from datetime import datetime as dt, timezone as tz
+
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.db.models import Admin, APIKey
+from app.db.models import Admin, AdminStatus, APIKey, APIKeyStatus
 from app.models.api_key import APIKeyCreate
 from app.utils.crypto import hash_api_key
 
@@ -31,10 +33,19 @@ async def create_api_key(
 async def get_api_key_by_hash(db: AsyncSession, key_hash: str) -> APIKey | None:
     stmt = (
         select(APIKey)
-        .where(APIKey.key_hash == key_hash)
+        .where(
+            APIKey.key_hash == key_hash,
+            APIKey.status != APIKeyStatus.disabled,
+        )
         .options(selectinload(APIKey.admin).selectinload(Admin.role), selectinload(APIKey.role))
     )
-    return (await db.execute(stmt)).scalar_one_or_none()
+    db_key = (await db.execute(stmt)).scalar_one_or_none()
+    if db_key is None:
+        return None
+    # Reject if the owning admin is disabled
+    if db_key.admin is not None and db_key.admin.status == AdminStatus.disabled:
+        return None
+    return db_key
 
 
 async def get_api_key_by_id(db: AsyncSession, key_id: int) -> APIKey | None:
@@ -50,6 +61,7 @@ async def get_api_keys(
     limit: int,
     key_id: int | None = None,
     name: str | None = None,
+    status: APIKeyStatus | None = None,
 ) -> tuple[list[APIKey], int]:
     stmt = select(APIKey).options(selectinload(APIKey.role))
     if admin_id is not None:
@@ -58,6 +70,20 @@ async def get_api_keys(
         stmt = stmt.where(APIKey.id == key_id)
     if name is not None:
         stmt = stmt.where(APIKey.name == name)
+    if status is not None:
+        now = dt.now(tz.utc)
+        if status == APIKeyStatus.expired:
+            # expired = expire_date is set and in the past
+            stmt = stmt.where(APIKey.expire_date.isnot(None), APIKey.expire_date <= now)
+        elif status == APIKeyStatus.active:
+            # active = stored status is active AND not past expire_date
+            stmt = stmt.where(
+                APIKey.status == APIKeyStatus.active,
+                (APIKey.expire_date.is_(None)) | (APIKey.expire_date > now),
+            )
+        else:
+            # disabled = stored status is disabled (expire_date irrelevant)
+            stmt = stmt.where(APIKey.status == APIKeyStatus.disabled)
 
     total = (await db.execute(select(func.count()).select_from(stmt.subquery()))).scalar() or 0
 

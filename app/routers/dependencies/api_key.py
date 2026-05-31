@@ -11,5 +11,6 @@ get_api_key_list_query = make_query_dependency(
         "limit": Query(None),
         "key_id": Query(None),
         "name": Query(None),
+        "status": Query(None),
     },
 )

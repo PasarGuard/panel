@@ -854,6 +854,12 @@ class AdminRole(Base, IdMixin, CreatedAtUTCMixin):
         return cls.id <= 3
 
 
+class APIKeyStatus(str, Enum):
+    active = "active"
+    disabled = "disabled"
+    expired = "expired"
+
+
 class APIKey(Base, IdMixin, CreatedAtUTCMixin):
     __tablename__ = "api_keys"
     __table_args__ = (
@@ -872,6 +878,30 @@ class APIKey(Base, IdMixin, CreatedAtUTCMixin):
     role: Mapped["AdminRole"] = relationship(back_populates="api_keys", init=False, lazy="selectin")
     note: Mapped[Optional[str]] = mapped_column(String(512), default=None)
     expire_date: Mapped[Optional[dt]] = mapped_column(DateTime(timezone=True), default=None)
+    status: Mapped[APIKeyStatus] = mapped_column(
+        SQLEnum(APIKeyStatus, name="apikeystatus", create_constraint=True),
+        default=APIKeyStatus.active,
+        server_default="active",
+    )
+
+    @hybrid_property
+    def computed_status(self) -> "APIKeyStatus":
+        """Returns expired when past expire_date, otherwise the stored status."""
+        if self.expire_date is not None:
+            expire_at = self.expire_date if self.expire_date.tzinfo else self.expire_date.replace(tzinfo=tz.utc)
+            if expire_at <= dt.now(tz.utc):
+                return APIKeyStatus.expired
+        return self.status
+
+    @computed_status.expression
+    def computed_status(cls):
+        return case(
+            (
+                and_(cls.expire_date.isnot(None), cls.expire_date <= func.current_timestamp()),
+                APIKeyStatus.expired.value,
+            ),
+            else_=cls.status,
+        )
 
 
 class TempKey(Base):

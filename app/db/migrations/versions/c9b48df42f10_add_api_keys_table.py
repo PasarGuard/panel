@@ -58,6 +58,12 @@ def upgrade() -> None:
         sa.Column("role_id", app.db.compiles_types.SqliteCompatibleBigInteger(), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("expire_date", sa.DateTime(timezone=True), nullable=True),
+        sa.Column(
+            "status",
+            sa.Enum("active", "disabled", "expired", name="apikeystatus"),
+            nullable=False,
+            server_default="active",
+        ),
         sa.ForeignKeyConstraint(["admin_id"], ["admins.id"], name=op.f("fk_api_keys_admin_id_admins"), ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["role_id"], ["admin_roles.id"], name=op.f("fk_api_keys_role_id_admin_roles")),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_api_keys")),
@@ -113,3 +119,7 @@ def downgrade() -> None:
         batch_op.drop_index(batch_op.f("ix_api_keys_admin_id"))
 
     op.drop_table("api_keys")
+
+    # Drop the enum type for PostgreSQL
+    if conn.dialect.name == "postgresql":
+        op.execute("DROP TYPE IF EXISTS apikeystatus")

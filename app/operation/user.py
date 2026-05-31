@@ -55,7 +55,6 @@ from app.db.crud.user import (
 from app.db.models import User, UserStatus, UserTemplate
 from app.models.admin import AdminDetails
 from app.models.proxy import ProxyTable
-from app.models.settings import HWIDSettings
 from app.models.stats import (
     Period,
     UserCountMetric,

@@ -14,7 +14,7 @@ from app.db.crud.admin import (
     get_admin_by_telegram_id,
 )
 from app.db.crud.api_key import get_api_key_by_hash, hash_api_key
-from app.db.models import Admin, AdminUsageLogs, User
+from app.db.models import Admin, AdminUsageLogs, User, APIKeyStatus
 from app.models.admin import AdminDetails, AdminRoleData, AdminStatus, AdminValidationResult, verify_password
 from app.models.admin_role import RoleAccess, RoleFeatures, RoleLimits, RolePermissions
 from app.models.settings import Telegram
@@ -125,6 +125,15 @@ async def get_admin_from_api_key(db: AsyncSession, raw_key: str, *, with_metrics
 
     db_admin = db_key.admin
     if db_admin is None:
+        return None
+
+    # Reject if the key itself is manually disabled
+    if db_key.status == APIKeyStatus.disabled:
+        return None
+
+    # Reject if the owning admin is disabled — keys are not stored as disabled,
+    # we just block them at auth time
+    if db_admin.status == AdminStatus.disabled:
         return None
 
     if db_key.expire_date is not None:

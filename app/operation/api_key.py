@@ -13,6 +13,8 @@ from app.db.crud.api_key import (
 from app.models.admin import AdminDetails
 from app.models.api_key import APIKeyCreate, APIKeyCreateResponse, APIKeyResponse, APIKeysQuery, APIKeysResponse
 from app.operation import BaseOperation
+from app.operation.permissions import get_effective_limits
+from app.utils.system import readable_duration
 
 
 class APIKeyOperation(BaseOperation):
@@ -35,6 +37,22 @@ class APIKeyOperation(BaseOperation):
 
         if model.expire_date is not None and model.expire_date <= dt.now(tz.utc):
             await self.raise_error(message="expire_date must be in the future", code=422)
+
+        if not admin.is_owner:
+            limits = get_effective_limits(admin)
+            seconds = (model.expire_date - dt.now(tz.utc)).total_seconds() if model.expire_date is not None else None
+            if limits.expire_max is not None and (seconds is None or seconds > limits.expire_max):
+                await self.raise_error(
+                    message=f"expire_date cannot exceed {readable_duration(limits.expire_max)} from now",
+                    code=400,
+                    db=db,
+                )
+            if limits.expire_min is not None and (seconds is None or seconds < limits.expire_min):
+                await self.raise_error(
+                    message=f"expire_date must be at least {readable_duration(limits.expire_min)} from now",
+                    code=400,
+                    db=db,
+                )
 
         try:
             raw_key, db_key = await create_api_key(
@@ -66,6 +84,7 @@ class APIKeyOperation(BaseOperation):
             limit=query.limit,
             key_id=query.key_id,
             name=query.name,
+            status=query.status,
         )
         return APIKeysResponse(api_keys=[APIKeyResponse.model_validate(row) for row in rows], total=total)
 
