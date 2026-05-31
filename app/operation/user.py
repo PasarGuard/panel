@@ -1559,6 +1559,10 @@ class UserOperation(BaseOperation):
         created_users = await self._load_users_by_usernames(db, [user.username for user in users_to_create])
         await sync_users(created_users)
 
+        for db_user in created_users:
+            user = await self.validate_user(db_user)
+            asyncio.create_task(notification.create_user(user, admin))
+
         return BulkUsersCreateResponse(subscription_urls=subscription_urls, created=len(subscription_urls))
 
     async def bulk_apply_template_to_users(
