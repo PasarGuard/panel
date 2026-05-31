@@ -20,7 +20,7 @@ async def create_api_key(
         role_id=model.role_id,
         name=model.name,
         note=model.note,
-        key_hash=hash_api_key(model.raw_key),
+        key_hash=hash_api_key(raw_key),
         expire_date=model.expire_date,
     )
     db.add(db_key)
