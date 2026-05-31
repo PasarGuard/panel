@@ -867,10 +867,10 @@ class APIKey(Base, IdMixin, CreatedAtUTCMixin):
     admin_id: Mapped[int] = fk_id_column("admins.id", ondelete="CASCADE")
     admin: Mapped["Admin"] = relationship(back_populates="api_keys", init=False)
     name: Mapped[str] = mapped_column(String(128), nullable=False)
-    note: Mapped[Optional[str]] = mapped_column(String(512), default=None)
     key_hash: Mapped[str] = mapped_column(String(128), nullable=False)
     role_id: Mapped[int] = fk_id_column("admin_roles.id")
     role: Mapped["AdminRole"] = relationship(back_populates="api_keys", init=False, lazy="selectin")
+    note: Mapped[Optional[str]] = mapped_column(String(512), default=None)
     expire_date: Mapped[Optional[dt]] = mapped_column(DateTime(timezone=True), default=None)
 
 
