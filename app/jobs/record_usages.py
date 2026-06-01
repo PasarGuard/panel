@@ -9,16 +9,17 @@ from operator import attrgetter
 
 from PasarGuardNodeBridge import NodeAPIError, PasarGuardNode
 from PasarGuardNodeBridge.common.service_pb2 import StatType
-from sqlalchemy import and_, bindparam, insert, select, text, update
+from sqlalchemy import BigInteger, DateTime, and_, bindparam, func, insert, select, union_all, update
 from sqlalchemy.dialects.mysql import insert as mysql_insert
-from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.dialects.postgresql import ARRAY, insert as pg_insert
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.exc import DatabaseError, OperationalError
 from sqlalchemy.sql.expression import Insert
 
 from app import on_shutdown, scheduler
 from app.db import GetDB
 from app.db.base import engine
-from app.db.models import Admin, Node, NodeUsage, System, User
+from app.db.models import Admin, Node, NodeUsage, NodeUserUsage, System, User
 from app.node import node_manager
 from app.utils.logger import get_logger
 from config import job_settings, runtime_settings, usage_settings
@@ -104,6 +105,45 @@ def build_node_user_usage_upsert(dialect: str, upsert_params: list[dict]):
     Returns:
         list: One SQL statement and its bound parameters.
     """
+    if dialect == "postgresql":
+        source = func.unnest(
+            bindparam("uids", type_=ARRAY(BigInteger())),
+            bindparam("node_ids", type_=ARRAY(BigInteger())),
+            bindparam("created_ats", type_=ARRAY(DateTime(timezone=True))),
+            bindparam("traffic_values", type_=ARRAY(BigInteger())),
+        ).table_valued("uid", "node_id", "created_at", "value").render_derived(name="source")
+
+        select_stmt = (
+            select(
+                source.c.created_at,
+                source.c.uid,
+                source.c.node_id,
+                func.sum(source.c.value).label("used_traffic"),
+            )
+            .select_from(source.join(User, User.id == source.c.uid))
+            .group_by(source.c.created_at, source.c.uid, source.c.node_id)
+        )
+
+        stmt = pg_insert(NodeUserUsage).from_select(
+            ["created_at", "user_id", "node_id", "used_traffic"],
+            select_stmt,
+        )
+        stmt = stmt.on_conflict_do_update(
+            index_elements=["created_at", "user_id", "node_id"],
+            set_={"used_traffic": NodeUserUsage.used_traffic + stmt.excluded.used_traffic},
+        )
+        return [
+            (
+                stmt,
+                {
+                    "uids": [param["uid"] for param in upsert_params],
+                    "node_ids": [param["node_id"] for param in upsert_params],
+                    "created_ats": [param["created_at"] for param in upsert_params],
+                    "traffic_values": [param["value"] for param in upsert_params],
+                },
+            )
+        ]
+
     select_parts = []
     stmt_params = {}
     for index, param in enumerate(upsert_params):
@@ -111,52 +151,46 @@ def build_node_user_usage_upsert(dialect: str, upsert_params: list[dict]):
         node_id_key = f"node_id_{index}"
         created_at_key = f"created_at_{index}"
         value_key = f"value_{index}"
-        if dialect == "postgresql":
-            select_parts.append(
-                f"SELECT CAST(:{uid_key} AS BIGINT) AS uid, "
-                f"CAST(:{node_id_key} AS BIGINT) AS node_id, "
-                f"CAST(:{created_at_key} AS TIMESTAMP WITH TIME ZONE) AS created_at, "
-                f"CAST(:{value_key} AS BIGINT) AS value"
+        select_parts.append(
+            select(
+                bindparam(uid_key).label("uid"),
+                bindparam(node_id_key).label("node_id"),
+                bindparam(created_at_key).label("created_at"),
+                bindparam(value_key).label("value"),
             )
-        else:
-            select_parts.append(
-                f"SELECT :{uid_key} AS uid, :{node_id_key} AS node_id, "
-                f":{created_at_key} AS created_at, :{value_key} AS value"
-            )
+        )
         stmt_params[uid_key] = param["uid"]
         stmt_params[node_id_key] = param["node_id"]
         stmt_params[created_at_key] = param["created_at"]
         stmt_params[value_key] = param["value"]
 
-    values_source = "\nUNION ALL\n".join(select_parts)
-    conflict_clause = {
-        "postgresql": (
-            "ON CONFLICT (created_at, user_id, node_id) DO UPDATE "
-            "SET used_traffic = node_user_usages.used_traffic + EXCLUDED.used_traffic"
-        ),
-        "mysql": (
-            "ON DUPLICATE KEY UPDATE "
-            "used_traffic = node_user_usages.used_traffic + VALUES(used_traffic)"
-        ),
-    }.get(
-        dialect,
-        (
-            "ON CONFLICT(created_at, user_id, node_id) DO UPDATE "
-            "SET used_traffic = node_user_usages.used_traffic + excluded.used_traffic"
-        ),
+    source = union_all(*select_parts).subquery("source")
+    select_stmt = (
+        select(
+            source.c.created_at,
+            source.c.uid,
+            source.c.node_id,
+            func.sum(source.c.value).label("used_traffic"),
+        )
+        .select_from(source.join(User, User.id == source.c.uid))
+        .group_by(source.c.created_at, source.c.uid, source.c.node_id)
     )
 
-    stmt = text(
-        f"""
-        INSERT INTO node_user_usages (created_at, user_id, node_id, used_traffic)
-        SELECT source.created_at, source.uid, source.node_id, SUM(source.value)
-        FROM (
-            {values_source}
-        ) AS source
-        JOIN users ON users.id = source.uid
-        GROUP BY source.created_at, source.uid, source.node_id
-        {conflict_clause}
-        """
+    if dialect == "mysql":
+        stmt = mysql_insert(NodeUserUsage).from_select(
+            ["created_at", "user_id", "node_id", "used_traffic"],
+            select_stmt,
+        )
+        stmt = stmt.on_duplicate_key_update(used_traffic=NodeUserUsage.used_traffic + stmt.inserted.used_traffic)
+        return [(stmt, stmt_params)]
+
+    stmt = sqlite_insert(NodeUserUsage).from_select(
+        ["created_at", "user_id", "node_id", "used_traffic"],
+        select_stmt,
+    )
+    stmt = stmt.on_conflict_do_update(
+        index_elements=["created_at", "user_id", "node_id"],
+        set_={"used_traffic": NodeUserUsage.used_traffic + stmt.excluded.used_traffic},
     )
     return [(stmt, stmt_params)]
 
