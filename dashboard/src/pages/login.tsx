@@ -71,7 +71,27 @@ const ownerSetupSchema = z
 
 type OwnerSetupSchema = z.infer<typeof ownerSetupSchema>
 
-const getOwnerSetupErrorMessage = (error: any) => error?.data?.detail || error?.response?.data?.detail || error?.message || 'Request failed'
+const formatApiDetail = (detail: unknown): string | undefined => {
+  if (!detail) return undefined
+  if (typeof detail === 'string') return detail
+  if (Array.isArray(detail)) {
+    return detail.map(item => formatApiDetail(item)).filter(Boolean).join('\n')
+  }
+  if (typeof detail === 'object') {
+    return Object.entries(detail as Record<string, unknown>)
+      .map(([key, value]) => {
+        const message = formatApiDetail(value)
+        return message ? `${key}: ${message}` : key
+      })
+      .join('\n')
+  }
+  return String(detail)
+}
+
+const getOwnerSetupErrorMessage = (error: any) =>
+  formatApiDetail(error?.data?.detail ?? error?.response?._data?.detail ?? error?.response?.data?.detail) ||
+  error?.message ||
+  'Request failed'
 
 export const Login: FC = () => {
   const navigate = useNavigate()
@@ -191,12 +211,16 @@ export const Login: FC = () => {
   })
 
   const ownerSetupMode = watchOwner('mode')
+  const ownerSetupKey = watchOwner('key')
+  const ownerDeleteConfirm = watchOwner('deleteConfirm')
 
   const createOwner = useCreateOwner()
   const upgradeOwner = useUpgradeOwner()
   const resetOwner = useResetOwnerPassword()
   const deleteOwner = useDeleteOwner()
   const ownerSetupPending = createOwner.isPending || upgradeOwner.isPending || resetOwner.isPending || deleteOwner.isPending
+  const ownerSetupSubmitDisabled =
+    ownerSetupPending || (ownerSetupMode === 'delete' && (!ownerSetupKey.trim() || ownerDeleteConfirm !== 'DELETE'))
 
   const ownerSetupTitle = useMemo(() => {
     if (ownerSetupMode === 'upgrade') return t('setup.upgradeOwner', { defaultValue: 'Make admin owner' })
@@ -233,7 +257,7 @@ export const Login: FC = () => {
         await resetOwner.mutateAsync({ data: { key: values.key, password: values.password } })
         toast.success(t('setup.ownerReset', { defaultValue: 'Owner password reset successfully' }))
       } else {
-        await deleteOwner.mutateAsync({ data: { key: values.key } })
+        await deleteOwner.mutateAsync({ params: { key: values.key } })
         toast.success(t('setup.ownerDeleted', { defaultValue: 'Owner deleted successfully' }))
       }
 
@@ -347,7 +371,7 @@ export const Login: FC = () => {
                     {((error && error.data) || (miniAppError && miniAppError.data)) && (
                       <Alert className="mt-2" variant="destructive">
                         <CircleAlertIcon size="18px" />
-                        <AlertDescription>{String(error?.data?.detail || miniAppError?.data?.detail)}</AlertDescription>
+                        <AlertDescription>{getOwnerSetupErrorMessage(error || miniAppError)}</AlertDescription>
                       </Alert>
                     )}
                     <div className="mt-2 flex flex-col gap-2">
@@ -459,9 +483,9 @@ export const Login: FC = () => {
                         {...registerOwner('deleteConfirm')}
                         error={t(ownerErrors?.deleteConfirm?.message as string)}
                       />
-                      <Alert variant="destructive">
+                      <Alert variant="destructive" className="mt-2 py-5">
                         <CircleAlertIcon size="18px" />
-                        <AlertDescription>
+                        <AlertDescription className="leading-6">
                           {t('setup.deleteWarning', {
                             defaultValue: 'This action cannot be undone. The owner account will be permanently removed.',
                           })}
@@ -476,7 +500,7 @@ export const Login: FC = () => {
                       variant={ownerSetupMode === 'delete' ? 'destructive' : 'default'}
                       isLoading={ownerSetupPending}
                       loadingText={ownerSetupTitle}
-                      disabled={ownerSetupPending}
+                      disabled={ownerSetupSubmitDisabled}
                       className="w-full"
                     >
                       {ownerSetupTitle}
