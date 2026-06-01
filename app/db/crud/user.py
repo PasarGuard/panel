@@ -486,17 +486,12 @@ def _cleanup_target_user_conditions(
     expired_before: datetime | None = None,
     admin_id: int | None = None,
     target: Literal["expired", "limited"] = "expired",
-    now: datetime | None = None,
 ):
     if target == "limited":
-        conditions = [User.status == UserStatus.limited, User.is_limited]
+        conditions = [User.is_limited]
     else:
         # Time-expired users support expiration date range filtering.
-        conditions = [
-            User.status == UserStatus.expired,
-            User.expire.isnot(None),
-            User.expire <= now if now is not None else User.is_expired,
-        ]
+        conditions = [User.is_expired]
         if expired_after:
             conditions.append(User.expire >= expired_after)
         if expired_before:
@@ -515,8 +510,7 @@ async def remove_expired_users(
     admin_id: int | None = None,
     target: Literal["expired", "limited"] = "expired",
 ) -> list[str]:
-    now = datetime.now(timezone.utc) if target == "expired" else None
-    conditions = _cleanup_target_user_conditions(expired_after, expired_before, admin_id, target, now)
+    conditions = _cleanup_target_user_conditions(expired_after, expired_before, admin_id, target)
 
     rows = (await db.execute(select(User.id, User.username).where(*conditions))).all()
     if not rows:
