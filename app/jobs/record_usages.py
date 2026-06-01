@@ -9,16 +9,16 @@ from operator import attrgetter
 
 from PasarGuardNodeBridge import NodeAPIError, PasarGuardNode
 from PasarGuardNodeBridge.common.service_pb2 import StatType
-from sqlalchemy import and_, bindparam, insert, select, update
+from sqlalchemy import and_, bindparam, insert, select, text, update
 from sqlalchemy.dialects.mysql import insert as mysql_insert
 from sqlalchemy.dialects.postgresql import insert as pg_insert
-from sqlalchemy.exc import DatabaseError, IntegrityError, OperationalError
+from sqlalchemy.exc import DatabaseError, OperationalError
 from sqlalchemy.sql.expression import Insert
 
 from app import on_shutdown, scheduler
 from app.db import GetDB
 from app.db.base import engine
-from app.db.models import Admin, Node, NodeUsage, NodeUserUsage, System, User
+from app.db.models import Admin, Node, NodeUsage, System, User
 from app.node import node_manager
 from app.utils.logger import get_logger
 from config import job_settings, runtime_settings, usage_settings
@@ -102,69 +102,55 @@ def build_node_user_usage_upsert(dialect: str, upsert_params: list[dict]):
         upsert_params: List of parameter dicts with keys: uid, node_id, created_at, value
 
     Returns:
-        tuple: (statements_list, params_list) - For SQLite returns 2 statements, others return 1
+        list: One SQL statement and its bound parameters.
     """
-    if dialect == "postgresql":
-        stmt = pg_insert(NodeUserUsage).values(
-            user_id=bindparam("uid"),
-            node_id=bindparam("node_id"),
-            created_at=bindparam("created_at"),
-            used_traffic=bindparam("value"),
+    select_parts = []
+    stmt_params = {}
+    for index, param in enumerate(upsert_params):
+        uid_key = f"uid_{index}"
+        node_id_key = f"node_id_{index}"
+        created_at_key = f"created_at_{index}"
+        value_key = f"value_{index}"
+        select_parts.append(
+            f"SELECT :{uid_key} AS uid, :{node_id_key} AS node_id, "
+            f":{created_at_key} AS created_at, :{value_key} AS value"
         )
-        stmt = stmt.on_conflict_do_update(
-            index_elements=["created_at", "user_id", "node_id"],
-            set_={"used_traffic": NodeUserUsage.used_traffic + bindparam("value")},
-        )
-        return [(stmt, upsert_params)]
+        stmt_params[uid_key] = param["uid"]
+        stmt_params[node_id_key] = param["node_id"]
+        stmt_params[created_at_key] = param["created_at"]
+        stmt_params[value_key] = param["value"]
 
-    elif dialect == "mysql":
-        stmt = mysql_insert(NodeUserUsage).values(
-            user_id=bindparam("uid"),
-            node_id=bindparam("node_id"),
-            created_at=bindparam("created_at"),
-            used_traffic=bindparam("value"),
-        )
-        stmt = stmt.on_duplicate_key_update(used_traffic=NodeUserUsage.used_traffic + stmt.inserted.used_traffic)
-        return [(stmt, upsert_params)]
+    values_source = "\nUNION ALL\n".join(select_parts)
+    conflict_clause = {
+        "postgresql": (
+            "ON CONFLICT (created_at, user_id, node_id) DO UPDATE "
+            "SET used_traffic = node_user_usages.used_traffic + EXCLUDED.used_traffic"
+        ),
+        "mysql": (
+            "ON DUPLICATE KEY UPDATE "
+            "used_traffic = node_user_usages.used_traffic + VALUES(used_traffic)"
+        ),
+    }.get(
+        dialect,
+        (
+            "ON CONFLICT(created_at, user_id, node_id) DO UPDATE "
+            "SET used_traffic = node_user_usages.used_traffic + excluded.used_traffic"
+        ),
+    )
 
-    else:  # SQLite
-        # Insert with OR IGNORE
-        insert_stmt = (
-            insert(NodeUserUsage)
-            .values(
-                user_id=bindparam("uid"),
-                node_id=bindparam("node_id"),
-                created_at=bindparam("created_at"),
-                used_traffic=0,
-            )
-            .prefix_with("OR IGNORE")
-        )
-
-        # Update with renamed bindparams to avoid conflicts
-        update_stmt = (
-            update(NodeUserUsage)
-            .values(used_traffic=NodeUserUsage.used_traffic + bindparam("value"))
-            .where(
-                and_(
-                    NodeUserUsage.user_id == bindparam("b_uid"),
-                    NodeUserUsage.node_id == bindparam("b_node_id"),
-                    NodeUserUsage.created_at == bindparam("b_created_at"),
-                )
-            )
-        )
-
-        # Remap params for update statement
-        update_params = [
-            {
-                "value": p["value"],
-                "b_uid": p["uid"],
-                "b_node_id": p["node_id"],
-                "b_created_at": p["created_at"],
-            }
-            for p in upsert_params
-        ]
-
-        return [(insert_stmt, upsert_params), (update_stmt, update_params)]
+    stmt = text(
+        f"""
+        INSERT INTO node_user_usages (created_at, user_id, node_id, used_traffic)
+        SELECT source.created_at, source.uid, source.node_id, SUM(source.value)
+        FROM (
+            {values_source}
+        ) AS source
+        JOIN users ON users.id = source.uid
+        GROUP BY source.created_at, source.uid, source.node_id
+        {conflict_clause}
+        """
+    )
+    return [(stmt, stmt_params)]
 
 
 def build_node_usage_upsert(dialect: str, upsert_param: dict):
@@ -313,31 +299,6 @@ async def safe_execute(stmt, params=None, max_retries: int = 2):
             raise
 
 
-async def _filter_existing_user_usage_params(upsert_params: list[dict]) -> list[dict]:
-    """Drop chart usage rows for users that no longer exist."""
-    if not upsert_params:
-        return []
-
-    user_ids = {param["uid"] for param in upsert_params}
-
-    async with GetDB() as db:
-        result = await db.execute(select(User.id).where(User.id.in_(user_ids)))
-        existing_user_ids = set(result.scalars().all())
-
-    if len(existing_user_ids) == len(user_ids):
-        return upsert_params
-
-    filtered_params = [param for param in upsert_params if param["uid"] in existing_user_ids]
-    skipped = len(upsert_params) - len(filtered_params)
-    missing_users = len(user_ids) - len(existing_user_ids)
-    logger.warning(
-        "Skipped %s node user usage records for %s missing users",
-        skipped,
-        missing_users,
-    )
-    return filtered_params
-
-
 def _get_time_bucket(now: dt = None) -> dt:
     """
     Get 10-minute time bucket instead of hourly to reduce hot row contention.
@@ -390,28 +351,11 @@ async def record_user_stats_batched(all_node_params: dict, usage_coefficients: d
     if not upsert_params:
         return
 
-    upsert_params = await _filter_existing_user_usage_params(upsert_params)
-    if not upsert_params:
-        return
-
     # Execute single batched UPSERT with concurrency control
     async with JOB_SEM:
         queries = build_node_user_usage_upsert(dialect, upsert_params)
         for stmt, stmt_params in queries:
-            try:
-                await safe_execute(stmt, stmt_params)
-            except IntegrityError:
-                # A user can be deleted after the pre-insert filter but before
-                # the write reaches the database. Re-check once so one stale
-                # node stat does not drop the whole batch.
-                retry_params = await _filter_existing_user_usage_params(upsert_params)
-                if len(retry_params) == len(upsert_params):
-                    raise
-                if not retry_params:
-                    return
-                retry_queries = build_node_user_usage_upsert(dialect, retry_params)
-                for retry_stmt, retry_stmt_params in retry_queries:
-                    await safe_execute(retry_stmt, retry_stmt_params)
+            await safe_execute(stmt, stmt_params)
 
 
 async def record_node_stats_batched(all_node_params: dict):
