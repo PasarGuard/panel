@@ -646,7 +646,7 @@ async def get_user_by_sub(event: Message, db: AsyncSession, admin: AdminDetails)
             return await event.reply(Texts.user_not_found)
 
         scope_id = get_scope_admin_id(admin, "users", "read")
-        if scope_id is not None and user.admin.id != scope_id:
+        if scope_id is not None and (not user.admin or user.admin.id != scope_id):
             return await event.reply(Texts.user_not_found)
     except ValueError:
         return await event.reply(Texts.user_not_found)

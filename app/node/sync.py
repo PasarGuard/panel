@@ -32,7 +32,7 @@ else:
 
 
 async def sync_user(db_user: User) -> None:
-    if db_user.admin_id and db_user.admin.users_sync_blocked:
+    if db_user.admin_id and db_user.admin and db_user.admin.users_sync_blocked:
         return
 
     proto_user = await serialize_user(db_user)
@@ -54,6 +54,6 @@ async def remove_users(users: list[User]) -> None:
 
 async def sync_users(users: list[User]) -> None:
     """Sync users to nodes, excluding users whose admin has users_sync_blocked."""
-    filtered = [u for u in users if not (u.admin_id and u.admin.users_sync_blocked)]
+    filtered = [u for u in users if not (u.admin_id and u.admin and u.admin.users_sync_blocked)]
     proto_users = await serialize_users_for_node(filtered)
     asyncio.create_task(_dispatch_users_update(proto_users))
