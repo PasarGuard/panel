@@ -111,10 +111,18 @@ def build_node_user_usage_upsert(dialect: str, upsert_params: list[dict]):
         node_id_key = f"node_id_{index}"
         created_at_key = f"created_at_{index}"
         value_key = f"value_{index}"
-        select_parts.append(
-            f"SELECT :{uid_key} AS uid, :{node_id_key} AS node_id, "
-            f":{created_at_key} AS created_at, :{value_key} AS value"
-        )
+        if dialect == "postgresql":
+            select_parts.append(
+                f"SELECT CAST(:{uid_key} AS BIGINT) AS uid, "
+                f"CAST(:{node_id_key} AS BIGINT) AS node_id, "
+                f"CAST(:{created_at_key} AS TIMESTAMP WITH TIME ZONE) AS created_at, "
+                f"CAST(:{value_key} AS BIGINT) AS value"
+            )
+        else:
+            select_parts.append(
+                f"SELECT :{uid_key} AS uid, :{node_id_key} AS node_id, "
+                f":{created_at_key} AS created_at, :{value_key} AS value"
+            )
         stmt_params[uid_key] = param["uid"]
         stmt_params[node_id_key] = param["node_id"]
         stmt_params[created_at_key] = param["created_at"]
