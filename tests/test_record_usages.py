@@ -194,6 +194,46 @@ async def test_record_user_usages_updates_users_and_admins(monkeypatch: pytest.M
 
 
 @pytest.mark.asyncio
+async def test_record_user_stats_batched_skips_missing_users(session_factory):
+    async with session_factory() as session:
+        admin = Admin(username="admin", hashed_password="secret", role_id=3)
+        session.add(admin)
+        await session.flush()
+
+        user = User(username="user", admin_id=admin.id, proxy_settings=ProxyTable().dict(no_obj=True))
+        node = Node(
+            name="node-1",
+            address="10.0.0.1",
+            port=1000,
+            api_port=1001,
+            server_ca="ca1",
+            api_key="key1",
+            core_config_id=None,
+        )
+        session.add_all([user, node])
+        await session.flush()
+        user_id, node_id = user.id, node.id
+        missing_user_id = user_id + 10_000
+        await session.commit()
+
+    await record_usages.record_user_stats_batched(
+        {
+            node_id: [
+                {"uid": str(user_id), "value": 100},
+                {"uid": str(missing_user_id), "value": 200},
+            ]
+        },
+        {node_id: 1},
+    )
+
+    async with session_factory() as session:
+        rows = await session.execute(select(NodeUserUsage.user_id, NodeUserUsage.used_traffic))
+        records = rows.all()
+
+    assert records == [(user_id, 100)]
+
+
+@pytest.mark.asyncio
 async def test_record_user_usages_returns_when_no_usage(monkeypatch: pytest.MonkeyPatch, session_factory):
     async with session_factory() as session:
         admin = Admin(username="admin", hashed_password="secret", role_id=3)

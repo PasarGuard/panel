@@ -12,7 +12,7 @@ from PasarGuardNodeBridge.common.service_pb2 import StatType
 from sqlalchemy import and_, bindparam, insert, select, update
 from sqlalchemy.dialects.mysql import insert as mysql_insert
 from sqlalchemy.dialects.postgresql import insert as pg_insert
-from sqlalchemy.exc import DatabaseError, OperationalError
+from sqlalchemy.exc import DatabaseError, IntegrityError, OperationalError
 from sqlalchemy.sql.expression import Insert
 
 from app import on_shutdown, scheduler
@@ -313,6 +313,31 @@ async def safe_execute(stmt, params=None, max_retries: int = 2):
             raise
 
 
+async def _filter_existing_user_usage_params(upsert_params: list[dict]) -> list[dict]:
+    """Drop chart usage rows for users that no longer exist."""
+    if not upsert_params:
+        return []
+
+    user_ids = {param["uid"] for param in upsert_params}
+
+    async with GetDB() as db:
+        result = await db.execute(select(User.id).where(User.id.in_(user_ids)))
+        existing_user_ids = set(result.scalars().all())
+
+    if len(existing_user_ids) == len(user_ids):
+        return upsert_params
+
+    filtered_params = [param for param in upsert_params if param["uid"] in existing_user_ids]
+    skipped = len(upsert_params) - len(filtered_params)
+    missing_users = len(user_ids) - len(existing_user_ids)
+    logger.warning(
+        "Skipped %s node user usage records for %s missing users",
+        skipped,
+        missing_users,
+    )
+    return filtered_params
+
+
 def _get_time_bucket(now: dt = None) -> dt:
     """
     Get 10-minute time bucket instead of hourly to reduce hot row contention.
@@ -365,11 +390,28 @@ async def record_user_stats_batched(all_node_params: dict, usage_coefficients: d
     if not upsert_params:
         return
 
+    upsert_params = await _filter_existing_user_usage_params(upsert_params)
+    if not upsert_params:
+        return
+
     # Execute single batched UPSERT with concurrency control
     async with JOB_SEM:
         queries = build_node_user_usage_upsert(dialect, upsert_params)
         for stmt, stmt_params in queries:
-            await safe_execute(stmt, stmt_params)
+            try:
+                await safe_execute(stmt, stmt_params)
+            except IntegrityError:
+                # A user can be deleted after the pre-insert filter but before
+                # the write reaches the database. Re-check once so one stale
+                # node stat does not drop the whole batch.
+                retry_params = await _filter_existing_user_usage_params(upsert_params)
+                if len(retry_params) == len(upsert_params):
+                    raise
+                if not retry_params:
+                    return
+                retry_queries = build_node_user_usage_upsert(dialect, retry_params)
+                for retry_stmt, retry_stmt_params in retry_queries:
+                    await safe_execute(retry_stmt, retry_stmt_params)
 
 
 async def record_node_stats_batched(all_node_params: dict):
