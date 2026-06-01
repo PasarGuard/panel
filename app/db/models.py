@@ -69,11 +69,11 @@ class IdMixin:
     id: Mapped[int] = mapped_column(SqliteCompatibleBigInteger, primary_key=True, init=False, autoincrement=True)
 
 
-class CreatedAtUTCMixin:
+class CreatedAtUTCMixin(IdMixin):
     created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), default_factory=lambda: dt.now(tz.utc), init=False)
 
 
-class Admin(Base, IdMixin, CreatedAtUTCMixin):
+class Admin(Base, CreatedAtUTCMixin):
     __tablename__ = "admins"
     username: Mapped[str] = mapped_column(String(34), unique=True, index=True)
     hashed_password: Mapped[str] = mapped_column(String(128))
@@ -179,7 +179,7 @@ class DataLimitResetStrategy(str, Enum):
     year = "year"
 
 
-class User(Base, IdMixin, CreatedAtUTCMixin):
+class User(Base, CreatedAtUTCMixin):
     __tablename__ = "users"
     username: Mapped[str] = mapped_column(CaseSensitiveString(128), unique=True, index=True)
     node_usages: Mapped[List["NodeUserUsage"]] = relationship(
@@ -363,7 +363,7 @@ class User(Base, IdMixin, CreatedAtUTCMixin):
         return case((cls.expire.isnot(None), func.floor(DaysDiff())), else_=0)
 
 
-class UserSubscriptionUpdate(Base, IdMixin, CreatedAtUTCMixin):
+class UserSubscriptionUpdate(Base, CreatedAtUTCMixin):
     __tablename__ = "user_subscription_updates"
     user_id: Mapped[int] = fk_id_column("users.id", ondelete="CASCADE")
     user: Mapped["User"] = relationship(back_populates="subscription_updates", init=False)
@@ -372,7 +372,7 @@ class UserSubscriptionUpdate(Base, IdMixin, CreatedAtUTCMixin):
     hwid: Mapped[Optional[str]] = mapped_column(String(256), nullable=True, default=None)
 
 
-class UserHWID(Base, IdMixin, CreatedAtUTCMixin):
+class UserHWID(Base, CreatedAtUTCMixin):
     __tablename__ = "user_hwids"
     __table_args__ = (
         UniqueConstraint("user_id", "hwid"),
@@ -585,7 +585,7 @@ class NodeStatus(str, Enum):
     limited = "limited"
 
 
-class Node(Base, IdMixin, CreatedAtUTCMixin):
+class Node(Base, CreatedAtUTCMixin):
     __tablename__ = "nodes"
     name: Mapped[str] = mapped_column(CaseSensitiveString(256), unique=True)
     address: Mapped[str] = mapped_column(String(256), unique=False, nullable=False)
@@ -717,7 +717,7 @@ class NodeUsage(Base, IdMixin):
     downlink: Mapped[int] = mapped_column(BigInteger, default=0)
 
 
-class NodeUsageResetLogs(Base, IdMixin, CreatedAtUTCMixin):
+class NodeUsageResetLogs(Base, CreatedAtUTCMixin):
     __tablename__ = "node_usage_reset_logs"
     __table_args__ = (
         # Index for node-specific queries sorted by time
@@ -729,7 +729,7 @@ class NodeUsageResetLogs(Base, IdMixin, CreatedAtUTCMixin):
     downlink: Mapped[int] = mapped_column(BigInteger, nullable=False)
 
 
-class NotificationReminder(Base, IdMixin, CreatedAtUTCMixin):
+class NotificationReminder(Base, CreatedAtUTCMixin):
     __tablename__ = "notification_reminders"
     user_id: Mapped[int] = fk_id_column("users.id", ondelete="CASCADE")
     user: Mapped["User"] = relationship(back_populates="notification_reminders", init=False)
@@ -738,7 +738,7 @@ class NotificationReminder(Base, IdMixin, CreatedAtUTCMixin):
     expires_at: Mapped[Optional[dt]] = mapped_column(DateTime(timezone=True), default=None)
 
 
-class AdminNotificationReminder(Base, IdMixin, CreatedAtUTCMixin):
+class AdminNotificationReminder(Base, CreatedAtUTCMixin):
     __tablename__ = "admin_notification_reminders"
     __table_args__ = (Index("ix_admin_notification_reminders_admin_id_type", "admin_id", "type"),)
     admin_id: Mapped[int] = fk_id_column("admins.id", ondelete="CASCADE")
@@ -810,7 +810,7 @@ class CoreType(str, Enum):
     singbox = "singbox"
 
 
-class CoreConfig(Base, IdMixin, CreatedAtUTCMixin):
+class CoreConfig(Base, CreatedAtUTCMixin):
     __tablename__ = "core_configs"
     name: Mapped[str] = mapped_column(String(256))
     config: Mapped[Dict[str, Any]] = mapped_column(JSON(False))
@@ -833,7 +833,7 @@ class ClientTemplate(Base):
     is_system: Mapped[bool] = mapped_column(default=False, server_default="0")
 
 
-class NodeStat(Base, IdMixin, CreatedAtUTCMixin):
+class NodeStat(Base, CreatedAtUTCMixin):
     __tablename__ = "node_stats"
     node_id: Mapped[int] = fk_id_column("nodes.id")
     node: Mapped["Node"] = relationship(back_populates="stats", init=False)
@@ -856,7 +856,7 @@ class Settings(Base, IdMixin):
     general: Mapped[dict] = mapped_column(JSON())
 
 
-class AdminRole(Base, IdMixin, CreatedAtUTCMixin):
+class AdminRole(Base, CreatedAtUTCMixin):
     __tablename__ = "admin_roles"
     name: Mapped[str] = mapped_column(String(64), unique=True)
     is_owner: Mapped[bool] = mapped_column(default=False, server_default="0")
