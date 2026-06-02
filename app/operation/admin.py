@@ -50,7 +50,7 @@ logger = get_logger("admin-operation")
 class AdminOperation(BaseOperation):
     @staticmethod
     def _is_owner_admin(db_admin: Admin) -> bool:
-        return db_admin.role_id == 1 or bool(db_admin.role and db_admin.role.is_owner)
+        return db_admin.role_id == 1
 
     async def _ensure_owner_target_access(self, db_admin: Admin, current_admin: AdminDetails) -> None:
         if not current_admin.is_owner and self._is_owner_admin(db_admin):
@@ -144,7 +144,7 @@ class AdminOperation(BaseOperation):
             elif old_status == AdminStatus.limited and db_admin.status == AdminStatus.active:
                 # limited → active: re-sync all users to nodes
                 # Pass empty set — this admin is now active, no exclusion needed
-                users = await get_users(db, query=UserListQuery(), admin=db_admin)
+                users = await get_users(db, query=UserListQuery(), admin=db_admin, load_admin_role=True)
                 await sync_users(users)
 
         logger.info(f'Admin "{db_admin.username}" with id "{db_admin.id}" modified by admin "{current_admin.username}"')
@@ -224,7 +224,7 @@ class AdminOperation(BaseOperation):
     async def _disable_all_active_users_for_admin(self, db: AsyncSession, db_admin: Admin, admin: AdminDetails):
         """Disable all active users under a specific admin."""
         await disable_all_active_users(db=db, admin=db_admin)
-        users = await get_users(db, query=UserListQuery(), admin=db_admin)
+        users = await get_users(db, query=UserListQuery(), admin=db_admin, load_admin_role=True)
         await sync_users(users)
         logger.info(f'Admin "{db_admin.username}" users has been disabled by admin "{admin.username}"')
 
@@ -246,7 +246,7 @@ class AdminOperation(BaseOperation):
     async def _activate_all_disabled_users_for_admin(self, db: AsyncSession, db_admin: Admin, admin: AdminDetails):
         """Activate all disabled users under a specific admin."""
         await activate_all_disabled_users(db=db, admin=db_admin)
-        users = await get_users(db, query=UserListQuery(), admin=db_admin)
+        users = await get_users(db, query=UserListQuery(), admin=db_admin, load_admin_role=True)
         await sync_users(users)
         logger.info(f'Admin "{db_admin.username}" users has been activated by admin "{admin.username}"')
 
@@ -267,7 +267,7 @@ class AdminOperation(BaseOperation):
 
     async def _remove_all_users_for_admin(self, db: AsyncSession, db_admin: Admin, admin: AdminDetails) -> int:
         """Delete all users that belong to the specified admin."""
-        users = await get_users(db, query=UserListQuery(), admin=db_admin)
+        users = await get_users(db, query=UserListQuery(), admin=db_admin, load_admin_role=True)
         if not users:
             return 0
 
@@ -307,7 +307,7 @@ class AdminOperation(BaseOperation):
 
         # If admin was limited and is now active, re-sync all users to nodes
         if old_status == AdminStatus.limited and db_admin.status == AdminStatus.active:
-            users = await get_users(db, query=UserListQuery(), admin=db_admin)
+            users = await get_users(db, query=UserListQuery(), admin=db_admin, load_admin_role=True)
             await sync_users(users)
 
         logger.info(f'Admin "{db_admin.username}" usage has been reset by admin "{admin.username}"')
@@ -424,7 +424,7 @@ class AdminOperation(BaseOperation):
 
         ids_list = list(ids)
 
-        admins = await get_admins(db, AdminListQuery(ids=ids_list, limit=len(ids_list)))
+        admins = await get_admins(db, AdminListQuery(ids=ids_list, limit=len(ids_list)), load_role=False)
 
         # Verify every requested ID was found (mirrors the 404 in get_validated_admin_by_id)
         found_ids = {a.id for a in admins}

@@ -330,7 +330,7 @@ class SubscriptionOperation(BaseOperation):
         Provides a subscription link based on the user agent (Clash, V2Ray, etc.).
         """
         sub_settings: SubSettings = await subscription_settings()
-        db_user = await self.get_validated_sub(db, token)
+        db_user = await self.get_validated_sub(db, token, load_admin_role=True)
         user = await self.validated_user(db_user)
         is_browser_request = "text/html" in accept_header
         is_subscription_page_request = is_browser_request and not sub_settings.disable_sub_template
@@ -513,7 +513,7 @@ class SubscriptionOperation(BaseOperation):
 
     async def user_subscription_raw(self, db: AsyncSession, token: str, request_url: str = ""):
         sub_settings: SubSettings = await subscription_settings()
-        db_user = await self.get_validated_sub(db, token)
+        db_user = await self.get_validated_sub(db, token, load_admin_role=True)
         user = await self.validated_user(db_user)
 
         links = []

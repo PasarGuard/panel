@@ -86,6 +86,7 @@ class GroupOperation(BaseOperation):
         users = await get_users(
             db,
             query=UserListQuery(group_ids=[db_group.id], status=[UserStatus.active, UserStatus.on_hold]),
+            load_admin_role=True,
         )
         await sync_users(users)
 
@@ -104,7 +105,7 @@ class GroupOperation(BaseOperation):
 
         await remove_group(db, db_group)
 
-        users = await get_users(db, query=UserListQuery(username=username_list))
+        users = await get_users(db, query=UserListQuery(username=username_list), load_admin_role=True)
         await sync_users(users)
 
         logger.info(f'Group "{db_group.name}" deleted by admin "{admin.username}"')
@@ -162,7 +163,9 @@ class GroupOperation(BaseOperation):
         await remove_groups(db, group_ids)
 
         if all_affected_usernames:
-            users = await get_users(db, query=UserListQuery(username=list(all_affected_usernames)))
+            users = await get_users(
+                db, query=UserListQuery(username=list(all_affected_usernames)), load_admin_role=True
+            )
             await sync_users(users)
 
         for name, group_id in zip(group_names, group_ids):
@@ -210,6 +213,7 @@ class GroupOperation(BaseOperation):
                     group_ids=[group.id for group in groups_to_update],
                     status=[UserStatus.active, UserStatus.on_hold],
                 ),
+                load_admin_role=True,
             )
             await sync_users(users)
 

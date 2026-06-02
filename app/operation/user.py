@@ -330,7 +330,7 @@ class UserOperation(BaseOperation):
         db_users = await create_users_bulk(db, users_to_create, groups, db_admin, commit=commit)
         if not commit:
             for user in db_users:
-                await load_user_attrs(user)
+                await load_user_attrs(user, load_admin_role=True)
         if sync:
             await sync_users(db_users)
 
@@ -785,6 +785,7 @@ class UserOperation(BaseOperation):
         load_next_plan: bool = True,
         load_usage_logs: bool = True,
         load_groups: bool = True,
+        load_admin_role: bool = False,
         scope_action: str = "read",
     ) -> list[User]:
         if not user_ids:
@@ -799,7 +800,7 @@ class UserOperation(BaseOperation):
             admin_ids=[scope_admin_id] if scope_admin_id is not None else None,
             limit=len(ids_list),
         )
-        users = await get_users(db, query=query)
+        users = await get_users(db, query=query, load_admin_role=load_admin_role)
 
         # Verify every requested ID was found (mirrors the 404 in get_validated_user_by_id)
         found_ids = {user.id for user in users}
@@ -815,10 +816,10 @@ class UserOperation(BaseOperation):
         return BulkUsersActionResponse(users=usernames, count=len(usernames))
 
     async def _load_users_by_ids(self, db: AsyncSession, user_ids: list[int]) -> list[User]:
-        return await get_users_by_ids(db, user_ids)
+        return await get_users_by_ids(db, user_ids, load_admin_role=True)
 
     async def _load_users_by_usernames(self, db: AsyncSession, usernames: list[str]) -> list[User]:
-        return await get_users_by_usernames(db, usernames)
+        return await get_users_by_usernames(db, usernames, load_admin_role=True)
 
     async def bulk_remove_users(
         self, db: AsyncSession, bulk_users: BulkUsersSelection, admin: AdminDetails

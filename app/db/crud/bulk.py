@@ -191,7 +191,7 @@ async def add_groups_to_users(db: AsyncSession, bulk_model: BulkGroup) -> tuple[
     result = await db.execute(select(User).where(User.id.in_({r["user_id"] for r in new_rows})))
     users = result.scalars().all()
     for user in users:
-        await load_user_attrs(user)
+        await load_user_attrs(user, load_admin_role=True)
     return users, count_effctive_users
 
 
@@ -237,7 +237,7 @@ async def remove_groups_from_users(
     )
     await db.commit()
     for user in users:
-        await load_user_attrs(user)
+        await load_user_attrs(user, load_admin_role=True)
     return users, count_effctive_users
 
 
@@ -355,7 +355,7 @@ async def update_users_expire(db: AsyncSession, bulk_model: BulkUser) -> tuple[l
         result = await db.execute(select(User).where(User.id.in_(status_changed_user_ids)))
         users = result.scalars().all()
         for user in users:
-            await load_user_attrs(user)
+            await load_user_attrs(user, load_admin_role=True)
         return users, count_effctive_users
     return [], count_effctive_users
 
@@ -413,7 +413,7 @@ async def update_users_datalimit(db: AsyncSession, bulk_model: BulkUser) -> tupl
         result = await db.execute(select(User).where(User.id.in_(status_changed_user_ids)))
         users = result.scalars().all()
         for user in users:
-            await load_user_attrs(user)
+            await load_user_attrs(user, load_admin_role=True)
         return users, count_effctive_users
     return [], count_effctive_users
 
@@ -462,6 +462,6 @@ async def update_users_proxy_settings(
     # Refresh the user objects to get updated values
     for user in users_to_update:
         await db.refresh(user)
-        await load_user_attrs(user)
+        await load_user_attrs(user, load_admin_role=True)
 
     return users_to_update, count_effctive_users

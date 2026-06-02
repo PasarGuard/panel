@@ -64,6 +64,7 @@ _ONLINE_USERS_WINDOW = timedelta(minutes=2)
 def _build_user_select_stmt(
     *,
     load_admin: bool = True,
+    load_admin_role: bool = False,
     load_next_plan: bool = True,
     load_usage_logs: bool = True,
     load_groups: bool = True,
@@ -72,7 +73,10 @@ def _build_user_select_stmt(
     stmt = select(User)
     options = []
     if load_admin:
-        options.append(joinedload(User.admin))
+        admin_loader = joinedload(User.admin)
+        if load_admin_role:
+            admin_loader = admin_loader.selectinload(Admin.role)
+        options.append(admin_loader)
     if load_next_plan:
         options.append(joinedload(User.next_plan))
     if load_usage_logs:
@@ -88,12 +92,15 @@ async def load_user_attrs(
     user: User,
     *,
     load_admin: bool = True,
+    load_admin_role: bool = False,
     load_next_plan: bool = True,
     load_usage_logs: bool = True,
     load_groups: bool = True,
 ):
     if load_admin:
         await user.awaitable_attrs.admin
+        if load_admin_role and user.admin is not None:
+            await user.admin.awaitable_attrs.role
     if load_next_plan:
         await user.awaitable_attrs.next_plan
     if load_usage_logs:
@@ -107,6 +114,7 @@ async def refresh_and_load_user(
     user: User,
     *,
     load_admin: bool = True,
+    load_admin_role: bool = False,
     load_next_plan: bool = True,
     load_usage_logs: bool = True,
     load_groups: bool = True,
@@ -115,6 +123,7 @@ async def refresh_and_load_user(
     await load_user_attrs(
         user,
         load_admin=load_admin,
+        load_admin_role=load_admin_role,
         load_next_plan=load_next_plan,
         load_usage_logs=load_usage_logs,
         load_groups=load_groups,
@@ -126,6 +135,7 @@ async def get_user(
     username: str,
     *,
     load_admin: bool = True,
+    load_admin_role: bool = False,
     load_next_plan: bool = True,
     load_usage_logs: bool = True,
     load_groups: bool = True,
@@ -144,6 +154,7 @@ async def get_user(
     """
     stmt = _build_user_select_stmt(
         load_admin=load_admin,
+        load_admin_role=load_admin_role,
         load_next_plan=load_next_plan,
         load_usage_logs=load_usage_logs,
         load_groups=load_groups,
@@ -160,6 +171,7 @@ async def get_user_by_id(
     user_id: int,
     *,
     load_admin: bool = True,
+    load_admin_role: bool = False,
     load_next_plan: bool = True,
     load_usage_logs: bool = True,
     load_groups: bool = True,
@@ -178,6 +190,7 @@ async def get_user_by_id(
     """
     stmt = _build_user_select_stmt(
         load_admin=load_admin,
+        load_admin_role=load_admin_role,
         load_next_plan=load_next_plan,
         load_usage_logs=load_usage_logs,
         load_groups=load_groups,
@@ -297,6 +310,7 @@ async def get_users(
     query: UserListQuery,
     admin: Admin | None = None,
     return_with_count: bool = False,
+    load_admin_role: bool = False,
 ) -> list[User] | tuple[list[User], int]:
     """
     Retrieves users based on various filters.
@@ -310,8 +324,12 @@ async def get_users(
     Returns:
         List of users or tuple with (users, count) if return_with_count is True.
     """
+    admin_loader = selectinload(User.admin)
+    if load_admin_role:
+        admin_loader = admin_loader.selectinload(Admin.role)
+
     stmt = select(User).options(
-        selectinload(User.admin),
+        admin_loader,
         selectinload(User.next_plan),
         selectinload(User.usage_logs),
         selectinload(User.groups),
@@ -741,20 +759,32 @@ async def lock_admin_quota_row(db: AsyncSession, admin_id: int) -> None:
     await db.execute(select(Admin.id).where(Admin.id == admin_id).with_for_update())
 
 
-async def get_users_by_usernames(db: AsyncSession, usernames: Sequence[str]) -> list[User]:
+async def get_users_by_usernames(
+    db: AsyncSession,
+    usernames: Sequence[str],
+    *,
+    load_admin_role: bool = False,
+) -> list[User]:
     if not usernames:
         return []
 
-    result = await db.execute(_build_user_select_stmt().where(User.username.in_(usernames)))
+    result = await db.execute(
+        _build_user_select_stmt(load_admin_role=load_admin_role).where(User.username.in_(usernames))
+    )
     users_by_username = {user.username: user for user in result.unique().scalars().all()}
     return [users_by_username[username] for username in usernames if username in users_by_username]
 
 
-async def get_users_by_ids(db: AsyncSession, user_ids: Sequence[int]) -> list[User]:
+async def get_users_by_ids(
+    db: AsyncSession,
+    user_ids: Sequence[int],
+    *,
+    load_admin_role: bool = False,
+) -> list[User]:
     if not user_ids:
         return []
 
-    result = await db.execute(_build_user_select_stmt().where(User.id.in_(user_ids)))
+    result = await db.execute(_build_user_select_stmt(load_admin_role=load_admin_role).where(User.id.in_(user_ids)))
     users_by_id = {user.id: user for user in result.unique().scalars().all()}
     return [users_by_id[user_id] for user_id in user_ids if user_id in users_by_id]
 
@@ -1121,7 +1151,7 @@ async def bulk_reset_user_data_usage(
     if commit:
         await db.commit()
         for user in users:
-            await refresh_and_load_user(db, user)
+            await refresh_and_load_user(db, user, load_admin_role=True)
     return users
 
 
@@ -1228,7 +1258,7 @@ async def bulk_revoke_user_sub(db: AsyncSession, users: list[User]) -> list[User
 
     await db.commit()
     for user in users:
-        await refresh_and_load_user(db, user)
+        await refresh_and_load_user(db, user, load_admin_role=True)
     return users
 
 

@@ -138,15 +138,15 @@ class BaseOperation:
             await self.raise_error(message="Host not found", code=404)
         return db_host
 
-    async def get_validated_sub(self, db: AsyncSession, token: str) -> User:
+    async def get_validated_sub(self, db: AsyncSession, token: str, *, load_admin_role: bool = False) -> User:
         sub = await get_subscription_payload(token)
         if not sub:
             await self.raise_error(message="Not Found", code=404)
 
         if "user_id" in sub:
-            db_user = await get_user_by_id(db, sub["user_id"])
+            db_user = await get_user_by_id(db, sub["user_id"], load_admin_role=load_admin_role)
         elif "username" in sub:
-            db_user = await get_user(db, sub["username"])
+            db_user = await get_user(db, sub["username"], load_admin_role=load_admin_role)
         else:
             await self.raise_error(message="Not Found", code=404)
 
