@@ -97,9 +97,9 @@ def sample_node_response(**overrides) -> NodeResponse:
 
 @pytest.mark.asyncio
 async def test_sync_users_blocked_admin_lookup_is_batched():
-    blocking_username = unique_name("sync_blocking_admin")
-    nonblocking_username = unique_name("sync_nonblocking_admin")
-    active_username = unique_name("sync_active_admin")
+    blocking_username = unique_name("syba")
+    nonblocking_username = unique_name("synba")
+    active_username = unique_name("syaa")
     nonblocking_role_name = unique_name("sync_nonblocking_role")
     user_prefix = unique_name("sync_user")
 
@@ -174,8 +174,8 @@ async def test_sync_users_blocked_admin_lookup_is_batched():
 
 @pytest.mark.asyncio
 async def test_sync_users_blocked_admin_lookup_uses_preloaded_roles_without_fallback_query():
-    blocking_username = unique_name("sync_loaded_blocking_admin")
-    active_username = unique_name("sync_loaded_active_admin")
+    blocking_username = unique_name("sylba")
+    active_username = unique_name("sylaa")
     user_prefix = unique_name("sync_loaded_user")
 
     async with TestSession() as session:
