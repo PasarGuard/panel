@@ -177,11 +177,20 @@ def build_node_user_usage_upsert(dialect: str, upsert_params: list[dict]):
     )
 
     if dialect == "mysql":
+        insert_source = select_stmt.subquery("insert_source")
+        insert_select_stmt = select(
+            insert_source.c.created_at,
+            insert_source.c.uid,
+            insert_source.c.node_id,
+            insert_source.c.used_traffic,
+        )
         stmt = mysql_insert(NodeUserUsage).from_select(
             ["created_at", "user_id", "node_id", "used_traffic"],
-            select_stmt,
+            insert_select_stmt,
         )
-        stmt = stmt.on_duplicate_key_update(used_traffic=NodeUserUsage.used_traffic + stmt.inserted.used_traffic)
+        stmt = stmt.on_duplicate_key_update(
+            used_traffic=NodeUserUsage.used_traffic + insert_source.c.used_traffic
+        )
         return [(stmt, stmt_params)]
 
     stmt = sqlite_insert(NodeUserUsage).from_select(
