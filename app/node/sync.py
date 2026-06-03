@@ -25,7 +25,7 @@ async def _user_sync_blocked(db_user: User) -> bool:
     if admin is not None:
         try:
             return admin.users_sync_blocked
-        except (InvalidRequestError, MissingGreenlet):
+        except InvalidRequestError, MissingGreenlet:
             pass
 
         if admin.status != AdminStatus.limited:
@@ -62,7 +62,7 @@ async def _blocked_admin_ids_for_users(users: list[User]) -> set[int]:
                 for admin in loaded_admins_by_id.values()
                 if admin.status == AdminStatus.limited and admin.role.disable_users_when_limited
             }
-        except (InvalidRequestError, MissingGreenlet):
+        except InvalidRequestError, MissingGreenlet:
             pass
 
     session = next((async_object_session(user) for user in users if async_object_session(user) is not None), None)

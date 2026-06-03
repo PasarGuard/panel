@@ -15,13 +15,13 @@ from app.db.crud.user import get_user_usages, user_sub_update
 from app.db.models import User
 from app.models.admin import AdminDetails
 from app.models.settings import Application, ConfigFormat, HWIDSettings, SubRule, Subscription as SubSettings
-from app.utils.hwid import resolve_effective_hwid_settings
 from app.models.stats import UserUsageStatsList
 from app.models.subscription import SubscriptionUsageQuery
 from app.models.user import SubscriptionUserResponse, UsersResponseWithInbounds
 from app.settings import hwid_settings, subscription_settings
 from app.subscription.share import encode_title, generate_subscription, setup_format_variables
 from app.templates import render_template
+from app.utils.hwid import resolve_effective_hwid_settings
 from config import template_settings, wireguard_settings
 
 from . import BaseOperation
@@ -448,7 +448,7 @@ class SubscriptionOperation(BaseOperation):
 
         if client_type == ConfigFormat.block or not getattr(sub_settings.manual_sub_request, client_type):
             await self.raise_error(message="Client not supported", code=406)
-        db_user = await self.get_validated_sub(db, token=token)
+        db_user = await self.get_validated_sub(db, token=token, load_admin_role=True)
         user = await self.validated_user(db_user)
 
         await self.validate_and_register_hwid(

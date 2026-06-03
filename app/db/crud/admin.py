@@ -67,7 +67,7 @@ def build_admin_details(
     if "role" in getattr(db_admin, "__dict__", {}):
         try:
             role = AdminRoleData.model_validate(db_admin.role) if db_admin.role is not None else None
-        except (DetachedInstanceError, InvalidRequestError):
+        except DetachedInstanceError, InvalidRequestError:
             role = None
 
     return AdminDetails(

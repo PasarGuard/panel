@@ -106,12 +106,16 @@ def build_node_user_usage_upsert(dialect: str, upsert_params: list[dict]):
         list: One SQL statement and its bound parameters.
     """
     if dialect == "postgresql":
-        source = func.unnest(
-            bindparam("uids", type_=ARRAY(BigInteger())),
-            bindparam("node_ids", type_=ARRAY(BigInteger())),
-            bindparam("created_ats", type_=ARRAY(DateTime(timezone=True))),
-            bindparam("traffic_values", type_=ARRAY(BigInteger())),
-        ).table_valued("uid", "node_id", "created_at", "value").render_derived(name="source")
+        source = (
+            func.unnest(
+                bindparam("uids", type_=ARRAY(BigInteger())),
+                bindparam("node_ids", type_=ARRAY(BigInteger())),
+                bindparam("created_ats", type_=ARRAY(DateTime(timezone=True))),
+                bindparam("traffic_values", type_=ARRAY(BigInteger())),
+            )
+            .table_valued("uid", "node_id", "created_at", "value")
+            .render_derived(name="source")
+        )
 
         select_stmt = (
             select(
@@ -188,9 +192,7 @@ def build_node_user_usage_upsert(dialect: str, upsert_params: list[dict]):
             ["created_at", "user_id", "node_id", "used_traffic"],
             insert_select_stmt,
         )
-        stmt = stmt.on_duplicate_key_update(
-            used_traffic=NodeUserUsage.used_traffic + insert_source.c.used_traffic
-        )
+        stmt = stmt.on_duplicate_key_update(used_traffic=NodeUserUsage.used_traffic + insert_source.c.used_traffic)
         return [(stmt, stmt_params)]
 
     stmt = sqlite_insert(NodeUserUsage).from_select(

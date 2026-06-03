@@ -208,9 +208,7 @@ async def test_sync_users_blocked_admin_lookup_uses_preloaded_roles_without_fall
         loaded_users = list(
             (
                 await session.execute(
-                    select(User)
-                    .options(selectinload(User.admin).selectinload(Admin.role))
-                    .where(User.id.in_(user_ids))
+                    select(User).options(selectinload(User.admin).selectinload(Admin.role)).where(User.id.in_(user_ids))
                 )
             )
             .unique()
