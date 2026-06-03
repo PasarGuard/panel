@@ -18,7 +18,7 @@ async def create_admin(admin: AdminDetails, by: str):
         username=username,
         role=role,
         status=admin.status.value,
-        used_traffic=admin.used_traffic,
+        used_traffic=readable_size(admin.used_traffic),
         by=by,
     )
     settings: NotificationSettings = await notification_settings()
@@ -34,7 +34,7 @@ async def modify_admin(admin: AdminDetails, by: str):
         username=username,
         role=role,
         status=admin.status.value,
-        used_traffic=admin.used_traffic,
+        used_traffic=readable_size(admin.used_traffic),
         by=by,
     )
     settings: NotificationSettings = await notification_settings()
