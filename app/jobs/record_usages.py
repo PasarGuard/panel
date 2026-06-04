@@ -321,20 +321,22 @@ async def safe_execute(stmt, params=None, max_retries: int = 2):
             # Session auto-closed by context manager, locks released
 
             # Determine error type for retry logic
-            is_mysql_deadlock = (
-                hasattr(err, "orig")
-                and hasattr(err.orig, "args")
-                and len(err.orig.args) > 0
-                and err.orig.args[0] == 1213
+            mysql_errno = (
+                err.orig.args[0]
+                if hasattr(err, "orig") and hasattr(err.orig, "args") and len(err.orig.args) > 0
+                else None
             )
+            # 1213 = deadlock, 1205 = lock wait timeout
+            is_mysql_retriable = mysql_errno in (1213, 1205)
             is_pg_deadlock = hasattr(err, "orig") and hasattr(err.orig, "code") and err.orig.code == "40P01"
             is_sqlite_locked = "database is locked" in str(err)
 
             # Retry with exponential backoff if retriable error
             if attempt < max_retries - 1:
-                if is_mysql_deadlock or is_pg_deadlock:
+                if is_mysql_retriable or is_pg_deadlock:
                     # Exponential backoff with jitter: 50-75ms, 100-150ms
-                    base_delay = 0.05 * (2**attempt)
+                    # Use longer base delay for lock wait timeouts vs deadlocks
+                    base_delay = 0.1 * (2**attempt) if mysql_errno == 1205 else 0.05 * (2**attempt)
                     jitter = random.uniform(0, base_delay * 0.5)
                     await asyncio.sleep(base_delay + jitter)
                     continue
