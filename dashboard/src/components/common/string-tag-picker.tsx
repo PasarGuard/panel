@@ -105,11 +105,12 @@ export function StringTagPicker({
         <PopoverContent
           className="w-[var(--radix-popover-trigger-width)] min-w-[280px] max-w-[min(96vw,420px)] p-0"
           align="start"
+          collisionPadding={8}
           onWheel={e => e.stopPropagation()}
           onTouchMove={e => e.stopPropagation()}
         >
-          <div className="flex flex-col gap-0">
-            <div className="border-b p-2">
+          <div className="flex max-h-[min(60dvh,360px)] flex-col">
+            <div className="shrink-0 border-b p-2">
               <div className="relative">
                 <Search className="pointer-events-none absolute start-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
                 <Input
@@ -124,7 +125,7 @@ export function StringTagPicker({
               </div>
             </div>
 
-            <ScrollArea className="max-h-[min(50dvh,240px)]">
+            <ScrollArea className="min-h-0 flex-1">
               <div className="p-1.5" dir="ltr">
                 <button
                   type="button"
