@@ -123,6 +123,24 @@ def _create_limited_user_creator_role(access_token: str) -> dict:
     return response.json()
 
 
+def _create_template_required_user_role(access_token: str, *, template_ids: list[int] | None = None) -> dict:
+    response = client.post(
+        "/api/admin-role",
+        headers=auth_headers(access_token),
+        json={
+            "name": unique_name("template_required_user_role"),
+            "permissions": {"users": {"create": True, "read": True, "update": True, "delete": True}},
+            "access": {
+                "require_template": True,
+                "allowed_template_ids": template_ids,
+                "allowed_group_ids": None,
+            },
+        },
+    )
+    assert response.status_code == status.HTTP_201_CREATED
+    return response.json()
+
+
 def _delete_role(access_token: str, role_id: int) -> None:
     client.delete(f"/api/admin-role/{role_id}", headers=auth_headers(access_token))
 
@@ -2018,6 +2036,49 @@ def test_create_user_with_template(access_token):
         cleanup_groups(access_token, core, groups)
 
 
+def test_role_requiring_template_cannot_manually_create_user(access_token):
+    core, groups = setup_groups(access_token, 1)
+    template = create_user_template(access_token, group_ids=[groups[0]["id"]])
+    role = _create_template_required_user_role(access_token, template_ids=[template["id"]])
+    admin = create_admin(access_token, role_id=role["id"])
+    admin_token = _login(admin["username"], admin["password"])
+    manual_username = unique_name("manual_template_required")
+    template_username = unique_name("template_required")
+    template_user_created = False
+
+    try:
+        manual_response = client.post(
+            "/api/user",
+            headers=auth_headers(admin_token),
+            json={
+                "username": manual_username,
+                "proxy_settings": {},
+                "data_limit": 1024 * 1024,
+                "data_limit_reset_strategy": "no_reset",
+                "status": "active",
+                "group_ids": [groups[0]["id"]],
+            },
+        )
+        assert manual_response.status_code == status.HTTP_403_FORBIDDEN
+        assert manual_response.json()["detail"] == "Manual user create/modify is not allowed for your role"
+
+        template_response = client.post(
+            "/api/user/from_template",
+            headers=auth_headers(admin_token),
+            json={"username": template_username, "user_template_id": template["id"]},
+        )
+        assert template_response.status_code == status.HTTP_201_CREATED
+        assert template_response.json()["username"] == template_username
+        template_user_created = True
+    finally:
+        if template_user_created:
+            delete_user(access_token, template_username)
+        delete_admin(access_token, admin["username"])
+        _delete_role(access_token, role["id"])
+        delete_user_template(access_token, template["id"])
+        cleanup_groups(access_token, core, groups)
+
+
 def test_modify_user_with_template(access_token):
     core, groups = setup_groups(access_token, 1)
     template = create_user_template(access_token, group_ids=[groups[0]["id"]])
@@ -2039,6 +2100,39 @@ def test_modify_user_with_template(access_token):
         assert response.json()["status"] == template["status"]
     finally:
         delete_user(access_token, username)
+        delete_user_template(access_token, template["id"])
+        cleanup_groups(access_token, core, groups)
+
+
+def test_role_requiring_template_cannot_manually_modify_user(access_token):
+    core, groups = setup_groups(access_token, 1)
+    template = create_user_template(access_token, group_ids=[groups[0]["id"]])
+    role = _create_template_required_user_role(access_token, template_ids=[template["id"]])
+    admin = create_admin(access_token, role_id=role["id"])
+    admin_token = _login(admin["username"], admin["password"])
+    user = create_user(access_token, group_ids=[groups[0]["id"]], payload={"username": unique_name("tmpl_req_mod")})
+
+    try:
+        manual_response = client.put(
+            f"/api/user/{user['username']}",
+            headers=auth_headers(admin_token),
+            json={"data_limit": 2 * 1024 * 1024},
+        )
+        assert manual_response.status_code == status.HTTP_403_FORBIDDEN
+        assert manual_response.json()["detail"] == "Manual user create/modify is not allowed for your role"
+
+        template_response = client.put(
+            f"/api/user/from_template/{user['username']}",
+            headers=auth_headers(admin_token),
+            json={"user_template_id": template["id"]},
+        )
+        assert template_response.status_code == status.HTTP_200_OK
+        assert template_response.json()["data_limit"] == template["data_limit"]
+        assert template_response.json()["status"] == template["status"]
+    finally:
+        delete_user(access_token, user["username"])
+        delete_admin(access_token, admin["username"])
+        _delete_role(access_token, role["id"])
         delete_user_template(access_token, template["id"])
         cleanup_groups(access_token, core, groups)
 

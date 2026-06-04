@@ -513,9 +513,18 @@ class UserOperation(BaseOperation):
             if next_plan is not None and not features.can_use_next_plan:
                 await self.raise_error(message="Next plan is not allowed for your role", code=403, db=db)
 
+    async def _enforce_manual_user_write_access(self, admin: AdminDetails, db: AsyncSession) -> None:
+        if admin.is_owner or admin.role is None:
+            return
+        if admin.role.access.require_template:
+            await self.raise_error(message="Manual user create/modify is not allowed for your role", code=403, db=db)
+
     async def create_user(
         self, db: AsyncSession, new_user: UserCreate, admin: AdminDetails, *, skip_role_limits: bool = False
     ) -> UserResponse:
+        if not skip_role_limits:
+            await self._enforce_manual_user_write_access(admin, db)
+
         global_hwid_conf = await hwid_settings()
         effective_hwid_conf = resolve_effective_hwid_settings(
             global_hwid_conf,
@@ -728,6 +737,9 @@ class UserOperation(BaseOperation):
         *,
         skip_role_limits: bool = False,
     ) -> UserNotificationResponse:
+        if not skip_role_limits:
+            await self._enforce_manual_user_write_access(admin, db)
+
         validated_groups = await self._prepare_modified_user(
             db, db_user, modified_user, admin, skip_role_limits=skip_role_limits
         )
