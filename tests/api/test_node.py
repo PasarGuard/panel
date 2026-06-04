@@ -233,6 +233,58 @@ async def test_sync_users_blocked_admin_lookup_uses_preloaded_roles_without_fall
             event.remove(engine.sync_engine, "before_cursor_execute", count_admin_role_queries)
 
 
+@pytest.mark.asyncio
+async def test_sync_users_blocked_admin_lookup_falls_back_when_admin_role_is_not_loaded():
+    blocking_username = unique_name("sync_admin_no_role")
+    user_prefix = unique_name("sync_user_no_role")
+
+    async with TestSession() as session:
+        blocking_admin = Admin(
+            username=blocking_username,
+            hashed_password="secret",
+            role_id=3,
+            status=AdminStatus.limited,
+        )
+        session.add(blocking_admin)
+        await session.flush()
+
+        user = User(username=f"{user_prefix}_blocked", admin_id=blocking_admin.id)
+        session.add(user)
+        await session.commit()
+
+        user_id = user.id
+        blocking_admin_id = blocking_admin.id
+
+    async with TestSession() as session:
+        loaded_users = list(
+            (
+                await session.execute(select(User).options(selectinload(User.admin)).where(User.id == user_id))
+            )
+            .unique()
+            .scalars()
+            .all()
+        )
+
+        assert "admin" in loaded_users[0].__dict__
+        assert "role" not in loaded_users[0].admin.__dict__
+
+        query_count = 0
+
+        def count_admin_role_queries(_, __, statement, *args):
+            nonlocal query_count
+            if "admin_roles" in statement.lower():
+                query_count += 1
+
+        event.listen(engine.sync_engine, "before_cursor_execute", count_admin_role_queries)
+        try:
+            blocked_ids = await _blocked_admin_ids_for_users(loaded_users)
+
+            assert blocked_ids == {blocking_admin_id}
+            assert query_count == 1
+        finally:
+            event.remove(engine.sync_engine, "before_cursor_execute", count_admin_role_queries)
+
+
 def node_create_payload(**overrides) -> dict:
     payload = {
         "name": "new-node",

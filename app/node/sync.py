@@ -1,7 +1,6 @@
 import asyncio
 
 from sqlalchemy import select
-from sqlalchemy.exc import InvalidRequestError, MissingGreenlet
 from sqlalchemy.ext.asyncio import async_object_session
 
 from app.db.models import Admin, AdminRole, AdminStatus
@@ -17,19 +16,30 @@ from config import runtime_settings
 logger = get_logger("node-sync")
 
 
+def _loaded_admin_sync_blocked(admin: Admin) -> bool | None:
+    state = getattr(admin, "__dict__", {})
+    status = state.get("status")
+    if status is None:
+        return None
+    if status != AdminStatus.limited:
+        return False
+
+    role = state.get("role")
+    if role is None:
+        return None
+
+    return bool(role.disable_users_when_limited)
+
+
 async def _user_sync_blocked(db_user: User) -> bool:
     if not db_user.admin_id:
         return False
 
     admin = getattr(db_user, "__dict__", {}).get("admin")
     if admin is not None:
-        try:
-            return admin.users_sync_blocked
-        except InvalidRequestError, MissingGreenlet:
-            pass
-
-        if admin.status != AdminStatus.limited:
-            return False
+        loaded_result = _loaded_admin_sync_blocked(admin)
+        if loaded_result is not None:
+            return loaded_result
 
     session = async_object_session(db_user)
     if session is None:
@@ -56,14 +66,13 @@ async def _blocked_admin_ids_for_users(users: list[User]) -> set[int]:
         if user.admin_id is not None and (admin := getattr(user, "__dict__", {}).get("admin")) is not None
     }
     if set(loaded_admins_by_id) == admin_ids:
-        try:
-            return {
-                admin.id
-                for admin in loaded_admins_by_id.values()
-                if admin.status == AdminStatus.limited and admin.role.disable_users_when_limited
-            }
-        except InvalidRequestError, MissingGreenlet:
-            pass
+        loaded_results = {
+            admin.id: blocked
+            for admin in loaded_admins_by_id.values()
+            if (blocked := _loaded_admin_sync_blocked(admin)) is not None
+        }
+        if set(loaded_results) == admin_ids:
+            return {admin_id for admin_id, blocked in loaded_results.items() if blocked}
 
     session = next((async_object_session(user) for user in users if async_object_session(user) is not None), None)
     if session is None:
