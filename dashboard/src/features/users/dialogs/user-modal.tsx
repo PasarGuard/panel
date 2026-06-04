@@ -1188,6 +1188,25 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
     }
   }
 
+  const generateAllProxySettings = React.useCallback(() => {
+    const keyPair = generateWireGuardKeyPair()
+    const newSettings = {
+      vmess: { id: uuidv4() },
+      vless: { id: uuidv4() },
+      trojan: { password: generatePassword() },
+      shadowsocks: { password: generatePassword() },
+      hysteria: { auth: uuidv4() },
+      wireguard: {
+        private_key: keyPair.privateKey,
+        public_key: keyPair.publicKey,
+        peer_ips: form.getValues('proxy_settings.wireguard.peer_ips') ?? [],
+      },
+    }
+    form.setValue('proxy_settings', newSettings as any, { shouldDirty: true, shouldValidate: true })
+    handleFieldChange('proxy_settings', newSettings)
+    toast.success(t('userDialog.proxySettings.allGenerated', { defaultValue: 'All proxy credentials regenerated' }))
+  }, [form, handleFieldChange, t])
+
   const generateWireGuardProxySettings = React.useCallback(() => {
     const keyPair = generateWireGuardKeyPair()
     form.setValue('proxy_settings.wireguard.private_key', keyPair.privateKey, { shouldDirty: true, shouldValidate: true })
@@ -1287,18 +1306,14 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
     [hasMeaningfulProxyValue],
   )
 
-  // Add this button component after the username generate button
+  // Regenerate all proxy credentials (VMess, VLESS, Trojan, Shadowsocks, Hysteria, WireGuard)
   const GenerateProxySettingsButton = () => (
     <Button
       size="icon"
       type="button"
-      variant="ghost"
-      onClick={() => {
-        const newSettings = generateProxySettings()
-        form.setValue('proxy_settings', newSettings)
-        handleFieldChange('proxy_settings', newSettings)
-      }}
-      title="Generate proxy settings"
+      variant="outline"
+      onClick={generateAllProxySettings}
+      className="flex items-center gap-1.5 text-xs border-0"
     >
       <RefreshCcw className="h-3 w-3" />
     </Button>
