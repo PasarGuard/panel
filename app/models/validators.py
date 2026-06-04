@@ -289,7 +289,8 @@ class StringArrayValidator:
         else:
             array = set(array)
 
-        compiled_string = ",".join([str(v) for v in array])
+        array = {str(v) for v in array}
+        compiled_string = ",".join(array)
         if len(compiled_string) > max:
             raise ValueError(f"String can't be bigger that {max} charachter")
         return array

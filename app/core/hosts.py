@@ -33,6 +33,19 @@ from config import runtime_settings
 from role import Role
 
 
+def _string_list(value) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, dict):
+        value = value.keys()
+    try:
+        return [str(item) for item in value]
+    except TypeError:
+        return [str(value)]
+
+
 async def _prepare_subscription_inbound_data(
     host: BaseHost,
     down_settings: SubscriptionInboundData | None = None,
@@ -98,9 +111,9 @@ async def _prepare_subscription_inbound_data(
             else None,
         )
 
-    sni_list = list(host.sni) if host.sni else inbound_config.get("sni", [])
-    host_list = list(host.host) if host.host else inbound_config.get("host", [])
-    address_list = list(host.address) if host.address else []
+    sni_list = _string_list(host.sni) if host.sni else _string_list(inbound_config.get("sni", []))
+    host_list = _string_list(host.host) if host.host else _string_list(inbound_config.get("host", []))
+    address_list = _string_list(host.address) if host.address else []
 
     # Get Reality fields from inbound if applicable
     reality_pbk = inbound_config.get("pbk", "")
@@ -115,7 +128,7 @@ async def _prepare_subscription_inbound_data(
         tls_value = inbound_config.get("tls", "none")
 
     pinned_peer_cert_sha256 = host.pinned_peer_cert_sha256
-    verify_peer_cert_by_name = host.verify_peer_cert_by_name
+    verify_peer_cert_by_name = _string_list(host.verify_peer_cert_by_name) if host.verify_peer_cert_by_name else []
     ech_query_strategy = host.ech_query_strategy or inbound_config.get("echForceQuery")
     alpn_list = [alpn.value for alpn in host.alpn] if host.alpn else inbound_config.get("alpn", [])
     fp = host.fingerprint.value if host.fingerprint.value != "none" else inbound_config.get("fp")
