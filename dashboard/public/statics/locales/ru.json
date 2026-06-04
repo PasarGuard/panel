@@ -755,7 +755,7 @@
     "bulkDeletePartial": "{{count}} ролей не удалось удалить.",
     "bulkDeleteFailed": "Не удалось удалить выбранные роли.",
     "requireTemplateTitle": "Требовать шаблон",
-    "requireTemplateDescription": "Заставить админов с этой ролью создавать пользователей только из шаблона.",
+    "requireTemplateDescription": "Заставить админов с этой ролью создавать или изменять пользователей только из шаблона.",
     "allowedTemplates": "Разрешённые шаблоны",
     "allowedTemplatesDescription": "Ограничить шаблоны, доступные для роли. Оставьте пустым, чтобы разрешить все.",
     "allowedGroups": "Разрешённые группы",

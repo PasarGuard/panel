@@ -702,7 +702,7 @@ function AccessSection({
           >
             <div className="space-y-0.5">
               <FormLabel className="text-base">{t('adminRoles.requireTemplateTitle', { defaultValue: 'Require template' })}</FormLabel>
-              <p className="text-xs text-muted-foreground">{t('adminRoles.requireTemplateDescription', { defaultValue: 'Force admins with this role to create users only from a template.' })}</p>
+              <p className="text-xs text-muted-foreground">{t('adminRoles.requireTemplateDescription', { defaultValue: 'Force admins with this role to create or modify users only from a template.' })}</p>
             </div>
             <FormControl>
               <div onClick={e => e.stopPropagation()}>

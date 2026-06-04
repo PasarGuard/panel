@@ -636,7 +636,7 @@
     "bulkDeletePartial": "{{count}} نقش حذف نشد.",
     "bulkDeleteFailed": "حذف نقش‌های انتخاب‌شده ناموفق بود.",
     "requireTemplateTitle": "نیاز به قالب",
-    "requireTemplateDescription": "مدیران این نقش را مجبور کنید کاربران را فقط از روی یک قالب بسازند.",
+    "requireTemplateDescription": "مدیران این نقش را مجبور کنید کاربران را فقط از روی یک قالب بسازند یا ویرایش کنند.",
     "allowedTemplates": "قالب‌های مجاز",
     "allowedTemplatesDescription": "قالب‌های قابل استفاده توسط این نقش را محدود کنید. خالی بگذارید تا همه مجاز باشند.",
     "allowedGroups": "گروه‌های مجاز",

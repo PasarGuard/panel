@@ -769,7 +769,7 @@
     "bulkDeletePartial": "{{count}} 个角色无法删除。",
     "bulkDeleteFailed": "删除所选角色失败。",
     "requireTemplateTitle": "需要模板",
-    "requireTemplateDescription": "强制使用此角色的管理员只能从模板创建用户。",
+    "requireTemplateDescription": "强制使用此角色的管理员只能从模板创建或修改用户。",
     "allowedTemplates": "允许的模板",
     "allowedTemplatesDescription": "限制此角色可使用的模板。留空以允许全部。",
     "allowedGroups": "允许的分组",

@@ -769,7 +769,7 @@
     "bulkDeletePartial": "{{count}} roles could not be deleted.",
     "bulkDeleteFailed": "Failed to delete selected roles.",
     "requireTemplateTitle": "Require template",
-    "requireTemplateDescription": "Force admins with this role to create users only from a template.",
+    "requireTemplateDescription": "Force admins with this role to create or modify users only from a template.",
     "allowedTemplates": "Allowed templates",
     "allowedTemplatesDescription": "Restrict templates this role can use. Leave empty to allow all.",
     "allowedGroups": "Allowed groups",
