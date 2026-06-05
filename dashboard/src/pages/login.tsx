@@ -22,6 +22,7 @@ import { useLocation, useNavigate } from 'react-router'
 import { toast } from 'sonner'
 import { z } from 'zod'
 import useDirDetection from '@/hooks/use-dir-detection'
+import { passwordValidation } from '@/features/admins/forms/admin-form'
 
 const schema = z.object({
   username: z.string().min(1, 'login.fieldRequired'),
@@ -30,6 +31,19 @@ const schema = z.object({
 
 type LoginSchema = z.infer<typeof schema>
 type OwnerSetupMode = 'create' | 'upgrade' | 'reset' | 'delete'
+
+const validateOwnerPassword = (password: string, ctx: z.RefinementCtx) => {
+  const passwordResult = passwordValidation.safeParse(password)
+  if (!passwordResult.success) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['password'],
+      message: passwordResult.error.errors[0].message,
+    })
+    return false
+  }
+  return true
+}
 
 const ownerSetupSchema = z
   .object({
@@ -49,6 +63,8 @@ const ownerSetupSchema = z
     if (values.mode === 'create') {
       if (!values.password) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['password'], message: 'setup.passwordRequired' })
+      } else if (!validateOwnerPassword(values.password, ctx)) {
+        return
       }
       if (values.password && values.password !== values.passwordConfirm) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['passwordConfirm'], message: 'setup.passwordMismatch' })
@@ -57,6 +73,8 @@ const ownerSetupSchema = z
     if (values.mode === 'reset') {
       if (!values.password) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['password'], message: 'setup.passwordRequired' })
+      } else if (!validateOwnerPassword(values.password, ctx)) {
+        return
       }
       if (values.password && values.password !== values.passwordConfirm) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['passwordConfirm'], message: 'setup.passwordMismatch' })

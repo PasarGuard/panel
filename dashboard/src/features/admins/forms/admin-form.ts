@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 export const adminStatusEditEnum = z.enum(['active', 'disabled'])
 
-const passwordValidation = z.string().refine(
+export const passwordValidation = z.string().refine(
   value => {
     if (!value) return false // Don't allow empty passwords
 

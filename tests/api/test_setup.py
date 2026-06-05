@@ -150,6 +150,18 @@ def test_create_owner_already_exists_returns_409():
 # ---------------------------------------------------------------------------
 
 
+def test_create_owner_weak_password_returns_422():
+    """Weak owner password is rejected during request validation."""
+    key = _make_temp_key()
+    response = client.post(
+        "/api/setup/owner",
+        json={"key": key, "username": "owner_weak", "password": "2250Na@"},
+    )
+    assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    assert "Password must contain at least 2 uppercase letters" in response.text
+    assert not _owner_exists()
+
+
 def test_reset_owner_password_success():
     """Valid key resets owner password."""
     create_key = _make_temp_key()
@@ -189,6 +201,27 @@ def test_reset_owner_password_no_owner_returns_404():
 # ---------------------------------------------------------------------------
 # DELETE /api/setup/owner — delete owner
 # ---------------------------------------------------------------------------
+
+
+def test_reset_owner_weak_password_returns_422():
+    """Weak owner reset password is rejected during request validation."""
+    create_key = _make_temp_key()
+    reset_key = _make_temp_key()
+    try:
+        r1 = client.post(
+            "/api/setup/owner",
+            json={"key": create_key, "username": "owner_reset_weak", "password": "OwnerPass#12ab"},
+        )
+        assert r1.status_code == status.HTTP_201_CREATED
+
+        response = client.patch(
+            "/api/setup/owner",
+            json={"key": reset_key, "password": "2250Na@"},
+        )
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert "Password must contain at least 2 uppercase letters" in response.text
+    finally:
+        _delete_owner()
 
 
 def test_delete_owner_success():
