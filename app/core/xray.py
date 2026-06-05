@@ -365,6 +365,26 @@ class XRayConfig(dict):
         elif host and isinstance(host, list):
             settings["host"] = host[0]
 
+    @staticmethod
+    def _hysteria_finalmask_from_stream(stream: dict, net_settings: dict) -> dict | None:
+        """Normalize Hysteria Salamander masks into finalmask for client generation."""
+        finalmask = stream.get("finalmask") or stream.get("finalMask")
+        if isinstance(finalmask, dict):
+            finalmask = deepcopy(finalmask)
+        else:
+            finalmask = {}
+
+        udpmasks = None
+        if isinstance(net_settings, dict):
+            udpmasks = net_settings.get("udpmasks")
+        if not isinstance(udpmasks, list):
+            udpmasks = stream.get("udpmasks")
+
+        if isinstance(udpmasks, list) and udpmasks and not finalmask.get("udp"):
+            finalmask["udp"] = deepcopy(udpmasks)
+
+        return finalmask or None
+
     def _handle_shadowsocks_settings(self, inbound_settings: dict, settings: dict):
         """Handle shadowsocks special settings."""
         settings["method"] = inbound_settings.get("method", "")
@@ -449,6 +469,8 @@ class XRayConfig(dict):
             self._handle_network_settings(net, net_settings, settings, inbound["tag"])
 
             finalmask = stream.get("finalmask") or stream.get("finalMask")
+            if net == "hysteria":
+                finalmask = self._hysteria_finalmask_from_stream(stream, net_settings)
             if finalmask is not None:
                 settings["finalmask"] = finalmask
 

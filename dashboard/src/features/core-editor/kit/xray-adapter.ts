@@ -250,9 +250,20 @@ function normalizeHysteriaSettingsForCore(config: Record<string, unknown>): Reco
       delete hysteriaSettings.ignoreClientBandwidth
       inboundChanged = true
     }
+    let udpmasks = Array.isArray(hysteriaSettings.udpmasks) ? hysteriaSettings.udpmasks : undefined
+    if (udpmasks) {
+      delete hysteriaSettings.udpmasks
+      inboundChanged = true
+    }
     if (Array.isArray(streamSettings.udpmasks)) {
-      hysteriaSettings.udpmasks = streamSettings.udpmasks
+      udpmasks = streamSettings.udpmasks
       delete streamSettings.udpmasks
+      inboundChanged = true
+    }
+    if (udpmasks && udpmasks.length > 0) {
+      const finalmask = isRecord(streamSettings.finalmask) ? { ...streamSettings.finalmask } : {}
+      finalmask.udp = udpmasks
+      streamSettings.finalmask = finalmask
       inboundChanged = true
     }
 
@@ -277,9 +288,9 @@ function applyHysteriaTransportUdpmasksToCompiledConfig(profile: Profile, config
     if (!udpmasks || udpmasks.length === 0) return compiledInbound
 
     const streamSettings = isRecord(compiledInbound.streamSettings) ? { ...compiledInbound.streamSettings } : {}
-    const hysteriaSettings = isRecord(streamSettings.hysteriaSettings) ? { ...streamSettings.hysteriaSettings } : {}
-    hysteriaSettings.udpmasks = udpmasks
-    streamSettings.hysteriaSettings = hysteriaSettings
+    const finalmask = isRecord(streamSettings.finalmask) ? { ...streamSettings.finalmask } : {}
+    finalmask.udp = udpmasks
+    streamSettings.finalmask = finalmask
     changed = true
     return { ...compiledInbound, streamSettings }
   })
