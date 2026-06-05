@@ -991,6 +991,10 @@ export const UserStatus = {
   on_hold: 'on_hold',
 } as const
 
+export interface UserStatusToggle {
+  disabled: boolean
+}
+
 /**
  * Lightweight user model with only id and username for performance.
  */
@@ -9725,6 +9729,55 @@ export const useModifyUser = <
 }
 
 /**
+ * @summary Set User Disabled
+ */
+export const setUserDisabled = (username: string, userStatusToggle: BodyType<UserStatusToggle>) => {
+  return orvalFetcher<UserResponse>({ url: `/api/user/${username}/disabled`, method: 'PUT', headers: { 'Content-Type': 'application/json' }, data: userStatusToggle })
+}
+
+export const getSetUserDisabledMutationOptions = <
+  TData = Awaited<ReturnType<typeof setUserDisabled>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { username: string; data: BodyType<UserStatusToggle> }, TContext>
+}) => {
+  const mutationKey = ['setUserDisabled']
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } }
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof setUserDisabled>>, { username: string; data: BodyType<UserStatusToggle> }> = props => {
+    const { username, data } = props ?? {}
+
+    return setUserDisabled(username, data)
+  }
+
+  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { username: string; data: BodyType<UserStatusToggle> }, TContext>
+}
+
+export type SetUserDisabledMutationResult = NonNullable<Awaited<ReturnType<typeof setUserDisabled>>>
+export type SetUserDisabledMutationBody = BodyType<UserStatusToggle>
+export type SetUserDisabledMutationError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>
+
+/**
+ * @summary Set User Disabled
+ */
+export const useSetUserDisabled = <
+  TData = Awaited<ReturnType<typeof setUserDisabled>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { username: string; data: BodyType<UserStatusToggle> }, TContext>
+}): UseMutationResult<TData, TError, { username: string; data: BodyType<UserStatusToggle> }, TContext> => {
+  const mutationOptions = getSetUserDisabledMutationOptions(options)
+
+  return useMutation(mutationOptions)
+}
+
+/**
  * Remove a user
  * @summary Remove User
  */
@@ -9874,6 +9927,55 @@ export const useModifyUserByUsername = <
   mutation?: UseMutationOptions<TData, TError, { username: string; data: BodyType<UserModify> }, TContext>
 }): UseMutationResult<TData, TError, { username: string; data: BodyType<UserModify> }, TContext> => {
   const mutationOptions = getModifyUserByUsernameMutationOptions(options)
+
+  return useMutation(mutationOptions)
+}
+
+/**
+ * @summary Set User Disabled By Username
+ */
+export const setUserDisabledByUsername = (username: string, userStatusToggle: BodyType<UserStatusToggle>) => {
+  return orvalFetcher<UserResponse>({ url: `/api/user/by-username/${username}/disabled`, method: 'PUT', headers: { 'Content-Type': 'application/json' }, data: userStatusToggle })
+}
+
+export const getSetUserDisabledByUsernameMutationOptions = <
+  TData = Awaited<ReturnType<typeof setUserDisabledByUsername>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { username: string; data: BodyType<UserStatusToggle> }, TContext>
+}) => {
+  const mutationKey = ['setUserDisabledByUsername']
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } }
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof setUserDisabledByUsername>>, { username: string; data: BodyType<UserStatusToggle> }> = props => {
+    const { username, data } = props ?? {}
+
+    return setUserDisabledByUsername(username, data)
+  }
+
+  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { username: string; data: BodyType<UserStatusToggle> }, TContext>
+}
+
+export type SetUserDisabledByUsernameMutationResult = NonNullable<Awaited<ReturnType<typeof setUserDisabledByUsername>>>
+export type SetUserDisabledByUsernameMutationBody = BodyType<UserStatusToggle>
+export type SetUserDisabledByUsernameMutationError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>
+
+/**
+ * @summary Set User Disabled By Username
+ */
+export const useSetUserDisabledByUsername = <
+  TData = Awaited<ReturnType<typeof setUserDisabledByUsername>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { username: string; data: BodyType<UserStatusToggle> }, TContext>
+}): UseMutationResult<TData, TError, { username: string; data: BodyType<UserStatusToggle> }, TContext> => {
+  const mutationOptions = getSetUserDisabledByUsernameMutationOptions(options)
 
   return useMutation(mutationOptions)
 }
@@ -10034,6 +10136,55 @@ export const useModifyUserById = <
   mutation?: UseMutationOptions<TData, TError, { userId: number; data: BodyType<UserModify> }, TContext>
 }): UseMutationResult<TData, TError, { userId: number; data: BodyType<UserModify> }, TContext> => {
   const mutationOptions = getModifyUserByIdMutationOptions(options)
+
+  return useMutation(mutationOptions)
+}
+
+/**
+ * @summary Set User Disabled By Id
+ */
+export const setUserDisabledById = (userId: number, userStatusToggle: BodyType<UserStatusToggle>) => {
+  return orvalFetcher<UserResponse>({ url: `/api/user/by-id/${userId}/disabled`, method: 'PUT', headers: { 'Content-Type': 'application/json' }, data: userStatusToggle })
+}
+
+export const getSetUserDisabledByIdMutationOptions = <
+  TData = Awaited<ReturnType<typeof setUserDisabledById>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { userId: number; data: BodyType<UserStatusToggle> }, TContext>
+}) => {
+  const mutationKey = ['setUserDisabledById']
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } }
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof setUserDisabledById>>, { userId: number; data: BodyType<UserStatusToggle> }> = props => {
+    const { userId, data } = props ?? {}
+
+    return setUserDisabledById(userId, data)
+  }
+
+  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { userId: number; data: BodyType<UserStatusToggle> }, TContext>
+}
+
+export type SetUserDisabledByIdMutationResult = NonNullable<Awaited<ReturnType<typeof setUserDisabledById>>>
+export type SetUserDisabledByIdMutationBody = BodyType<UserStatusToggle>
+export type SetUserDisabledByIdMutationError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>
+
+/**
+ * @summary Set User Disabled By Id
+ */
+export const useSetUserDisabledById = <
+  TData = Awaited<ReturnType<typeof setUserDisabledById>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { userId: number; data: BodyType<UserStatusToggle> }, TContext>
+}): UseMutationResult<TData, TError, { userId: number; data: BodyType<UserStatusToggle> }, TContext> => {
+  const mutationOptions = getSetUserDisabledByIdMutationOptions(options)
 
   return useMutation(mutationOptions)
 }

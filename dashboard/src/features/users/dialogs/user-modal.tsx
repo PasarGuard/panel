@@ -27,6 +27,8 @@ import {
   getGeneralSettings,
   getGetGeneralSettingsQueryKey,
   getGetGroupsSimpleQueryKey,
+  modifyUserById,
+  setUserDisabledById,
   useCreateUser,
   useCreateUserFromTemplate,
   useGetGroupsSimple,
@@ -101,7 +103,6 @@ const ExpiryDateField = ({
 }) => {
   const { t } = useTranslation()
   const expireInfo = useRelativeExpiryDate(displayDate ? Math.floor(displayDate.getTime() / 1000) : null)
-  const dir = useDirDetection()
 
   const handleDateChange = React.useCallback(
     (date: Date | undefined) => {
@@ -1077,10 +1078,31 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
         // Make API calls to the backend
         if (editingUser && editingUserId) {
           try {
-            await modifyUserMutation.mutateAsync({
-              userId: editingUserId,
-              data: sendValues,
-            })
+            const originalStatus = editingUserData?.status
+            const requestedStatus = sendValues.status
+            const statusWasChanged = !!touchedFields.status && requestedStatus !== originalStatus
+            const disabledToggle =
+              statusWasChanged && requestedStatus === 'disabled'
+                ? true
+                : statusWasChanged && originalStatus === 'disabled' && requestedStatus === 'active'
+                  ? false
+                  : undefined
+
+            if (disabledToggle === undefined) {
+              if (!touchedFields.status) {
+                delete sendValues.status
+              }
+              await modifyUserMutation.mutateAsync({
+                userId: editingUserId,
+                data: sendValues,
+              })
+            } else {
+              const modifyPayload = { ...sendValues }
+              delete modifyPayload.status
+              await modifyUserById(editingUserId, modifyPayload)
+              const updatedUser = await setUserDisabledById(editingUserId, { disabled: disabledToggle })
+              syncUserCacheFromApiResponse(updatedUser, { allowInsert: true, notifySuccessCallback: true })
+            }
             toast.success(
               t('userDialog.userEdited', {
                 username: values.username,
@@ -1168,24 +1190,6 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
       ;[arr[i], arr[j]] = [arr[j], arr[i]]
     }
     return arr.join('')
-  }
-
-  // Add this function after the generatePassword function
-  function generateProxySettings() {
-    return {
-      vmess: {
-        id: uuidv4(),
-      },
-      vless: {
-        id: uuidv4(),
-      },
-      trojan: {
-        password: generatePassword(),
-      },
-      shadowsocks: {
-        password: generatePassword(),
-      },
-    }
   }
 
   const generateAllProxySettings = React.useCallback(() => {
