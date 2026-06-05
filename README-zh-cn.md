@@ -137,7 +137,7 @@ PasarGuard 是一个用户友好、功能丰富且可靠的代理管理工具。
 
 **TimescaleDB（推荐）：**
 ```bash
-sudo bash -c "$(curl -fsSL https://github.com/PasarGuard/scripts/raw/main/pasarguard.sh)" @ install --database timescaledb --pre-release
+sudo bash -c "$(curl -fsSL https://github.com/PasarGuard/scripts/raw/main/pasarguard.sh)" @ install --database timescaledb
 ```
 
 **SQLite：**

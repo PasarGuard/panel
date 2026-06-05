@@ -128,41 +128,30 @@ PasarGuard is a user-friendly, feature-rich, and reliable proxy management tool.
 
 ---
 
-- **Install pasarguard with SQLite**:
+**TimescaleDB (Recommended):**
+```bash
+sudo bash -c "$(curl -fsSL https://github.com/PasarGuard/scripts/raw/main/pasarguard.sh)" @ install --database timescaledb
+```
 
-  ```bash
-  sudo bash -c "$(curl -fsSL https://github.com/PasarGuard/scripts/raw/main/pasarguard.sh)" @ install
-  ```
+**SQLite:**
+```bash
+sudo bash -c "$(curl -fsSL https://github.com/PasarGuard/scripts/raw/main/pasarguard.sh)" @ install
+```
 
-- **Install pasarguard with MySQL**:
+**MySQL:**
+```bash
+sudo bash -c "$(curl -fsSL https://github.com/PasarGuard/scripts/raw/main/pasarguard.sh)" @ install --database mysql
+```
 
-  ```bash
-  sudo bash -c "$(curl -fsSL https://github.com/PasarGuard/scripts/raw/main/pasarguard.sh)" @ install --database mysql
-  ```
+**MariaDB:**
+```bash
+sudo bash -c "$(curl -fsSL https://github.com/PasarGuard/scripts/raw/main/pasarguard.sh)" @ install --database mariadb
+```
 
-- **Install pasarguard with PostgreSQL**:
-
-  ```bash
-  sudo bash -c "$(curl -fsSL https://github.com/PasarGuard/scripts/raw/main/pasarguard.sh)" @ install --database postgresql
-  ```
-
-- **Install pasarguard with TimescaleDB(v1+ only) and pre-release version**:
-
-  ```bash
-  sudo bash -c "$(curl -fsSL https://github.com/PasarGuard/scripts/raw/main/pasarguard.sh)" @ install --database timescaledb --pre-release
-  ```
-
-- **Install pasarguard with MariaDB and Dev branch**:
-
-  ```bash
-  sudo bash -c "$(curl -fsSL https://github.com/PasarGuard/scripts/raw/main/pasarguard.sh)" @ install --database mariadb --dev
-  ```
-
-- **Install pasarguard with MariaDB and Manual version**:
-
-  ```bash
-  sudo bash -c "$(curl -fsSL https://github.com/PasarGuard/scripts/raw/main/pasarguard.sh)" @ install --database mariadb --version v0.5.2
-  ```
+**PostgreSQL:**
+```bash
+sudo bash -c "$(curl -fsSL https://github.com/PasarGuard/scripts/raw/main/pasarguard.sh)" @ install --database postgresql
+```
 
 ### 📋 After installation:
 
