@@ -13,6 +13,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Input } from '@/components/ui/input'
 import { LoaderButton } from '@/components/ui/loader-button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 
@@ -849,28 +850,30 @@ function IdMultiSelect({ label, description, emptyText, options, value, onChange
                 {allFilteredSelected ? t('deselectAll', { defaultValue: 'Deselect all' }) : t('selectAll', { defaultValue: 'Select all' })}
               </Button>
             )}
-            <div className="max-h-56 space-y-1 overflow-y-auto rounded-md border bg-muted/20 p-1">
-              {isLoading ? (
-                <div className="px-2 py-3 text-xs text-muted-foreground">{t('loading', { defaultValue: 'Loading...' })}</div>
-              ) : filtered.length === 0 ? (
-                <div className="px-2 py-3 text-xs text-muted-foreground">{options.length === 0 ? emptyText : t('noResults', { defaultValue: 'No results' })}</div>
-              ) : (
-                filtered.map(option => {
-                  const isSelected = selected.has(option.id)
-                  return (
-                    <button
-                      type="button"
-                      key={option.id}
-                      onClick={() => toggle(option.id)}
-                      className={cn('flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent', isSelected && 'bg-accent/60')}
-                    >
-                      <SelectionCheckbox checked={isSelected} className="h-3.5 w-3.5" />
-                      <span className="min-w-0 truncate">{option.name}</span>
-                    </button>
-                  )
-                })
-              )}
-            </div>
+            <ScrollArea className="h-56 rounded-md border bg-muted/20">
+              <div className="space-y-1 p-1">
+                {isLoading ? (
+                  <div className="px-2 py-3 text-xs text-muted-foreground">{t('loading', { defaultValue: 'Loading...' })}</div>
+                ) : filtered.length === 0 ? (
+                  <div className="px-2 py-3 text-xs text-muted-foreground">{options.length === 0 ? emptyText : t('noResults', { defaultValue: 'No results' })}</div>
+                ) : (
+                  filtered.map(option => {
+                    const isSelected = selected.has(option.id)
+                    return (
+                      <button
+                        type="button"
+                        key={option.id}
+                        onClick={() => toggle(option.id)}
+                        className={cn('flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent', isSelected && 'bg-accent/60')}
+                      >
+                        <SelectionCheckbox checked={isSelected} className="h-3.5 w-3.5" />
+                        <span className="min-w-0 truncate">{option.name}</span>
+                      </button>
+                    )
+                  })
+                )}
+              </div>
+            </ScrollArea>
           </div>
         </PopoverContent>
       </Popover>
