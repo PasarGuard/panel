@@ -126,6 +126,8 @@ class XHttpSettings(BaseModel):
     )
     @classmethod
     def normalize_numeric_or_range_fields(cls, value):
+        if value == "":
+            return None
         if isinstance(value, int):
             return str(value)
         return value
