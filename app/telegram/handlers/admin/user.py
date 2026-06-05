@@ -41,6 +41,7 @@ from app.telegram.keyboards.group import GroupsSelector, SelectGroupAction
 from app.telegram.keyboards.user import ChooseStatus, ChooseTemplate, RandomUsername, UserPanel, UserPanelAction
 from app.telegram.utils import forms
 from app.telegram.utils.filters import HasPermission
+from app.telegram.utils.qr import subscription_qr_file
 from app.telegram.utils.shared import add_to_messages_to_delete, delete_messages
 from app.telegram.utils.texts import Message as Texts
 
@@ -653,6 +654,22 @@ async def get_user_by_sub(event: Message, db: AsyncSession, admin: AdminDetails)
 
     groups = await user_operations.validate_all_groups(db, user)
     await event.reply(Texts.user_details(user, groups), reply_markup=UserPanel(user, admin=admin).as_markup())
+
+
+@router.callback_query(
+    HasPermission("users", "read"), UserPanel.Callback.filter(UserPanelAction.subscription_qr == F.action)
+)
+async def get_subscription_qr(
+    event: CallbackQuery, db: AsyncSession, admin: AdminDetails, callback_data: UserPanel.Callback
+):
+    try:
+        db_user = await user_operations.get_validated_user_by_id(db, callback_data.user_id, admin)
+        user = await user_operations.validate_user(db_user)
+    except ValueError:
+        return await event.answer(Texts.user_not_found, show_alert=True)
+
+    await event.message.answer_photo(subscription_qr_file(user.subscription_url, user.username))
+    await event.answer()
 
 
 @router.callback_query(

@@ -39,6 +39,7 @@ class UserPanelAction(str, Enum):
     modify_expiry = "modify_expiry"
     modify_note = "modify_note"
     modify_groups = "modify_groups"
+    subscription_qr = "subscription_qr"
     v2ray_links = "v2ray_links"
 
 
@@ -128,6 +129,10 @@ class UserPanel(InlineKeyboardBuilder):
             )
 
         self.button(text=Texts.subscription_url, copy_text=CopyTextButton(text=user.subscription_url))
+        self.button(
+            text=Texts.subscription_qr,
+            callback_data=self.Callback(action=UserPanelAction.subscription_qr, user_id=user.id),
+        )
         self.button(
             text=Texts.v2ray_links,
             callback_data=self.Callback(action=UserPanelAction.v2ray_links, user_id=user.id),
