@@ -102,6 +102,7 @@ PasarGuard is a user-friendly, feature-rich, and reliable proxy management tool.
 - **Multi-inbound** on a **single port** (fallbacks support)
 - **Traffic** and **expiry date** limitations
 - **Periodic** traffic limit (daily, weekly, etc.)
+- **HWID/device limits** for hardware-bound access control
 
 **🔗 Subscriptions & Sharing**
 - **Subscription link** compatible with **V2ray**, **Clash** and **ClashMeta**
@@ -113,7 +114,7 @@ PasarGuard is a user-friendly, feature-rich, and reliable proxy management tool.
 - Integrated **Telegram Bot**
 - **Command Line Interface (CLI)**
 - **Multi-language** support
-- **Multi-admin** support (WIP)
+- **Multi-admin** support with **RBAC** for granular permissions and scoped access
 
 </div>
 
@@ -127,35 +128,41 @@ PasarGuard is a user-friendly, feature-rich, and reliable proxy management tool.
 
 ---
 
-**TimescaleDB (Recommended):**
-```bash
-curl -fsSL https://github.com/PasarGuard/scripts/raw/main/pasarguard.sh -o /tmp/pg.sh \
-  && sudo bash /tmp/pg.sh install --database timescaledb
-```
+- **Install pasarguard with SQLite**:
 
-**SQLite:**
-```bash
-curl -fsSL https://github.com/PasarGuard/scripts/raw/main/pasarguard.sh -o /tmp/pg.sh \
-  && sudo bash /tmp/pg.sh install
-```
+  ```bash
+  sudo bash -c "$(curl -fsSL https://github.com/PasarGuard/scripts/raw/main/pasarguard.sh)" @ install
+  ```
 
-**MySQL:**
-```bash
-curl -fsSL https://github.com/PasarGuard/scripts/raw/main/pasarguard.sh -o /tmp/pg.sh \
-  && sudo bash /tmp/pg.sh install --database mysql
-```
+- **Install pasarguard with MySQL**:
 
-**MariaDB:**
-```bash
-curl -fsSL https://github.com/PasarGuard/scripts/raw/main/pasarguard.sh -o /tmp/pg.sh \
-  && sudo bash /tmp/pg.sh install --database mariadb
-```
+  ```bash
+  sudo bash -c "$(curl -fsSL https://github.com/PasarGuard/scripts/raw/main/pasarguard.sh)" @ install --database mysql
+  ```
 
-**PostgreSQL:**
-```bash
-curl -fsSL https://github.com/PasarGuard/scripts/raw/main/pasarguard.sh -o /tmp/pg.sh \
-  && sudo bash /tmp/pg.sh install --database postgresql
-```
+- **Install pasarguard with PostgreSQL**:
+
+  ```bash
+  sudo bash -c "$(curl -fsSL https://github.com/PasarGuard/scripts/raw/main/pasarguard.sh)" @ install --database postgresql
+  ```
+
+- **Install pasarguard with TimescaleDB(v1+ only) and pre-release version**:
+
+  ```bash
+  sudo bash -c "$(curl -fsSL https://github.com/PasarGuard/scripts/raw/main/pasarguard.sh)" @ install --database timescaledb --pre-release
+  ```
+
+- **Install pasarguard with MariaDB and Dev branch**:
+
+  ```bash
+  sudo bash -c "$(curl -fsSL https://github.com/PasarGuard/scripts/raw/main/pasarguard.sh)" @ install --database mariadb --dev
+  ```
+
+- **Install pasarguard with MariaDB and Manual version**:
+
+  ```bash
+  sudo bash -c "$(curl -fsSL https://github.com/PasarGuard/scripts/raw/main/pasarguard.sh)" @ install --database mariadb --version v0.5.2
+  ```
 
 ### 📋 After installation:
 
@@ -190,8 +197,10 @@ Then access: `http://localhost:8000/dashboard/`
 ### 🔧 Next Steps:
 
 ```bash
-# Create admin account
-pasarguard cli admins --create <username>
+# Generate a one-time setup key for owner account setup
+pasarguard cli generate-temp-key
+
+# Use the key on the dashboard login page to create the owner account
 
 # Get help
 pasarguard --help
