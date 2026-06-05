@@ -1,6 +1,7 @@
 import asyncio
 from typing import AsyncIterator, Callable
 
+from fastapi import HTTPException
 from PasarGuardNodeBridge import NodeAPIError, PasarGuardNode
 from PasarGuardNodeBridge.common import service_pb2 as service
 from sqlalchemy.exc import IntegrityError
@@ -1104,8 +1105,22 @@ class NodeOperation(BaseOperation):
     ) -> BulkNodesActionResponse:
         db_nodes = await self._get_validated_nodes(db, bulk_nodes.ids)
 
+        updated_nodes = []
+        errors = []
         for db_node in db_nodes:
-            await self.update_node(db, db_node.id)
+            try:
+                await self.update_node(db, db_node.id)
+            except HTTPException as exc:
+                errors.append(exc)
+                logger.warning(
+                    f'Node "{db_node.name}" bulk update failed by admin "{admin.username}": {exc}'
+                )
+                continue
+
+            updated_nodes.append(db_node)
             logger.info(f'Node "{db_node.name}" updated by admin "{admin.username}"')
 
-        return self._build_bulk_action_response(db_nodes)
+        if not updated_nodes and errors:
+            raise errors[0]
+
+        return self._build_bulk_action_response(updated_nodes)
