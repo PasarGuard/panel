@@ -41,7 +41,7 @@ from app.telegram.keyboards.group import GroupsSelector, SelectGroupAction
 from app.telegram.keyboards.user import ChooseStatus, ChooseTemplate, RandomUsername, UserPanel, UserPanelAction
 from app.telegram.utils import forms
 from app.telegram.utils.filters import HasPermission
-from app.telegram.utils.qr import subscription_qr_file
+from app.telegram.utils.qr import send_subscription_qr
 from app.telegram.utils.shared import add_to_messages_to_delete, delete_messages
 from app.telegram.utils.texts import Message as Texts
 
@@ -668,7 +668,7 @@ async def get_subscription_qr(
     except ValueError:
         return await event.answer(Texts.user_not_found, show_alert=True)
 
-    await event.message.answer_photo(subscription_qr_file(user.subscription_url, user.username))
+    await send_subscription_qr(event.message, user.subscription_url, user.username)
     await event.answer()
 
 

@@ -4,7 +4,9 @@ import struct
 import zlib
 
 import qrcode
+from aiogram.exceptions import TelegramAPIError
 from aiogram.types import BufferedInputFile
+from aiogram.types import Message
 
 
 def _png_chunk(chunk_type: bytes, data: bytes) -> bytes:
@@ -36,3 +38,11 @@ def subscription_qr_file(subscription_url: str, username: str) -> BufferedInputF
     qr.add_data(subscription_url)
     qr.make(fit=True)
     return BufferedInputFile(_matrix_to_png(qr.get_matrix()), f"{username}-subscription-qr.png")
+
+
+async def send_subscription_qr(message: Message, subscription_url: str, username: str) -> None:
+    qr_file = subscription_qr_file(subscription_url, username)
+    try:
+        await message.answer_photo(qr_file)
+    except TelegramAPIError:
+        await message.answer_document(subscription_qr_file(subscription_url, username))
