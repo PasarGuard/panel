@@ -98,6 +98,10 @@ class UserModify(UserWithValidator):
         return ListValidator.nullable_list(v, "group")
 
 
+class UserStatusToggle(BaseModel):
+    disabled: bool
+
+
 class UserNotificationResponse(User):
     id: int
     username: str

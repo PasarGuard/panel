@@ -168,6 +168,8 @@ class BaseOperation:
         load_next_plan: bool = True,
         load_usage_logs: bool = True,
         load_groups: bool = True,
+        scope_resource: str = "users",
+        scope_action: str = "read",
     ) -> User:
         db_user = await get_user(
             db,
@@ -176,7 +178,7 @@ class BaseOperation:
             load_next_plan=load_next_plan,
             load_usage_logs=load_usage_logs,
             load_groups=load_groups,
-            admin_id=get_scope_admin_id(admin, "users", "read"),
+            admin_id=get_scope_admin_id(admin, scope_resource, scope_action),
         )
         if not db_user:
             await self.raise_error(message="User not found", code=404)

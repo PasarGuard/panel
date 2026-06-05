@@ -257,9 +257,7 @@ async def test_sync_users_blocked_admin_lookup_falls_back_when_admin_role_is_not
 
     async with TestSession() as session:
         loaded_users = list(
-            (
-                await session.execute(select(User).options(selectinload(User.admin)).where(User.id == user_id))
-            )
+            (await session.execute(select(User).options(selectinload(User.admin)).where(User.id == user_id)))
             .unique()
             .scalars()
             .all()

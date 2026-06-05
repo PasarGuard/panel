@@ -83,6 +83,7 @@ from app.models.user import (
     UsernameGenerationStrategy,
     UserNotificationResponse,
     UserResponse,
+    UserStatusToggle,
     UserSimple,
     UserSimpleListQuery,
     UsersResponse,
@@ -134,6 +135,18 @@ logger = get_logger("user-operation")
 
 _USER_AGENT_SPLIT_RE = re.compile(r"[;/\s\(\)]+")
 _VERSION_TOKEN_RE = re.compile(r"v?\d+(?:\.\d+)*", re.IGNORECASE)
+
+
+def _resolve_enabled_user_status(user: User) -> UserStatus:
+    now = dt.now(tz.utc)
+    expire = user.expire
+    if expire is not None and expire.replace(tzinfo=tz.utc) <= now:
+        return UserStatus.expired
+    if user.data_limit is not None and user.data_limit > 0 and user.used_traffic >= user.data_limit:
+        return UserStatus.limited
+    if user.on_hold_expire_duration is not None:
+        return UserStatus.on_hold
+    return UserStatus.active
 
 
 class UserOperation(BaseOperation):
@@ -728,6 +741,32 @@ class UserOperation(BaseOperation):
 
         return user
 
+    async def _set_user_disabled(
+        self,
+        db: AsyncSession,
+        db_user: User,
+        toggle: UserStatusToggle,
+        admin: AdminDetails,
+    ) -> UserResponse:
+        old_status = db_user.status
+        new_status = UserStatus.disabled if toggle.disabled else _resolve_enabled_user_status(db_user)
+
+        if db_user.status != new_status:
+            db_user.status = new_status
+            db_user.last_status_change = dt.now(tz.utc)
+            await db.commit()
+            await load_user_attrs(db_user, load_admin_role=True)
+
+        user = await self.update_user(db_user)
+
+        if user.status != old_status:
+            asyncio.create_task(notification.user_status_change(user, admin))
+            old_status_value = getattr(old_status, "value", old_status)
+            new_status_value = getattr(user.status, "value", user.status)
+            logger.info(f'User "{user.username}" status changed from "{old_status_value}" to "{new_status_value}"')
+
+        return user
+
     async def _modify_user(
         self,
         db: AsyncSession,
@@ -763,6 +802,24 @@ class UserOperation(BaseOperation):
     ) -> UserResponse:
         db_user = await self.get_validated_user_by_id(db, user_id, admin, scope_action="update")
         return await self._modify_user(db, db_user, modified_user, admin)
+
+    async def set_user_disabled(
+        self, db: AsyncSession, username: str, toggle: UserStatusToggle, admin: AdminDetails
+    ) -> UserResponse:
+        warnings.warn(
+            "set_user_disabled(username, ...) is deprecated and will be removed in v6.0.0. "
+            "Use set_user_disabled_by_id(user_id, ...).",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        db_user = await self.get_validated_user(db, username, admin, scope_action="update")
+        return await self._set_user_disabled(db, db_user, toggle, admin)
+
+    async def set_user_disabled_by_id(
+        self, db: AsyncSession, user_id: int, toggle: UserStatusToggle, admin: AdminDetails
+    ) -> UserResponse:
+        db_user = await self.get_validated_user_by_id(db, user_id, admin, scope_action="update")
+        return await self._set_user_disabled(db, db_user, toggle, admin)
 
     async def _remove_user(self, db: AsyncSession, db_user: User, admin: AdminDetails) -> dict:
         user = await self.validate_user(db_user, include_subscription_url=False)
@@ -1005,6 +1062,51 @@ class UserOperation(BaseOperation):
 
         return users
 
+    async def _bulk_set_users_disabled(
+        self, db: AsyncSession, db_users: list[User], disabled: bool, admin: AdminDetails
+    ) -> list[UserNotificationResponse]:
+        if not db_users:
+            return []
+
+        changed_user_ids: list[int] = []
+        original_statuses: dict[int, UserStatus] = {}
+        changed_at = dt.now(tz.utc)
+
+        try:
+            for db_user in db_users:
+                new_status = UserStatus.disabled if disabled else _resolve_enabled_user_status(db_user)
+                if db_user.status == new_status:
+                    continue
+                if db_user.id is None:
+                    continue
+                original_statuses[db_user.id] = db_user.status
+                db_user.status = new_status
+                db_user.last_status_change = changed_at
+                changed_user_ids.append(db_user.id)
+
+            await db.commit()
+        except Exception:
+            await db.rollback()
+            raise
+
+        if changed_user_ids:
+            changed_db_users = await self._load_users_by_ids(db, changed_user_ids)
+            await sync_users(changed_db_users)
+            users = [await self.validate_user(db_user) for db_user in changed_db_users]
+        else:
+            users = []
+
+        for user in users:
+            original_status = original_statuses.get(user.id)
+            if original_status is None or user.status == original_status:
+                continue
+            asyncio.create_task(notification.user_status_change(user, admin))
+            old_status_value = getattr(original_status, "value", original_status)
+            new_status_value = getattr(user.status, "value", user.status)
+            logger.info(f'User "{user.username}" status changed from "{old_status_value}" to "{new_status_value}"')
+
+        return users
+
     async def bulk_disable_users(
         self, db: AsyncSession, bulk_users: BulkUsersSelection, admin: AdminDetails
     ) -> BulkUsersActionResponse:
@@ -1013,7 +1115,7 @@ class UserOperation(BaseOperation):
         )
         users_to_disable = [db_user for db_user in db_users if db_user.status != UserStatus.disabled]
 
-        users = await self._bulk_set_user_status(db, users_to_disable, UserStatus.disabled, admin)
+        users = await self._bulk_set_users_disabled(db, users_to_disable, True, admin)
 
         return self._build_bulk_action_response(users)
 
@@ -1025,7 +1127,7 @@ class UserOperation(BaseOperation):
         )
         users_to_enable = [db_user for db_user in db_users if db_user.status == UserStatus.disabled]
 
-        users = await self._bulk_set_user_status(db, users_to_enable, UserStatus.active, admin)
+        users = await self._bulk_set_users_disabled(db, users_to_enable, False, admin)
 
         return self._build_bulk_action_response(users)
 

@@ -2137,6 +2137,119 @@ def test_role_requiring_template_cannot_manually_modify_user(access_token):
         cleanup_groups(access_token, core, groups)
 
 
+def test_template_required_admin_can_toggle_user_disabled_status(access_token):
+    core, groups = setup_groups(access_token, 1)
+    template = create_user_template(access_token, group_ids=[groups[0]["id"]])
+    role = _create_template_required_user_role(access_token, template_ids=[template["id"]])
+    admin = create_admin(access_token, role_id=role["id"])
+    admin_token = _login(admin["username"], admin["password"])
+    username = unique_name("tmpl_req_toggle")
+    user_created = False
+
+    try:
+        create_response = client.post(
+            "/api/user/from_template",
+            headers=auth_headers(admin_token),
+            json={"username": username, "user_template_id": template["id"]},
+        )
+        assert create_response.status_code == status.HTTP_201_CREATED
+        user_created = True
+
+        manual_response = client.put(
+            f"/api/user/{username}",
+            headers=auth_headers(admin_token),
+            json={"data_limit": 2 * 1024 * 1024},
+        )
+        assert manual_response.status_code == status.HTTP_403_FORBIDDEN
+
+        disable_response = client.put(
+            f"/api/user/by-id/{create_response.json()['id']}/disabled",
+            headers=auth_headers(admin_token),
+            json={"disabled": True},
+        )
+        assert disable_response.status_code == status.HTTP_200_OK
+        assert disable_response.json()["status"] == "disabled"
+
+        enable_response = client.put(
+            f"/api/user/by-id/{create_response.json()['id']}/disabled",
+            headers=auth_headers(admin_token),
+            json={"disabled": False},
+        )
+        assert enable_response.status_code == status.HTTP_200_OK
+        assert enable_response.json()["status"] == "active"
+    finally:
+        if user_created:
+            delete_user(access_token, username)
+        delete_admin(access_token, admin["username"])
+        _delete_role(access_token, role["id"])
+        delete_user_template(access_token, template["id"])
+        cleanup_groups(access_token, core, groups)
+
+
+def test_enable_disabled_user_resolves_expired_limited_on_hold_and_active_status(access_token):
+    core, groups = setup_groups(access_token, 1)
+    expired_user = create_user(
+        access_token,
+        group_ids=[groups[0]["id"]],
+        payload={
+            "username": unique_name("toggle_expired"),
+            "expire": (datetime.now(timezone.utc) - timedelta(days=1)).isoformat(),
+        },
+    )
+    limited_user = create_user(
+        access_token,
+        group_ids=[groups[0]["id"]],
+        payload={"username": unique_name("toggle_limited"), "data_limit": 100},
+    )
+    on_hold_user = create_user(
+        access_token,
+        group_ids=[groups[0]["id"]],
+        payload={"username": unique_name("toggle_on_hold"), "status": "on_hold", "on_hold_expire_duration": 3600},
+    )
+    active_user = create_user(
+        access_token,
+        group_ids=[groups[0]["id"]],
+        payload={"username": unique_name("toggle_active")},
+    )
+    users = [expired_user, limited_user, on_hold_user, active_user]
+
+    async def _seed_limited_usage():
+        async with TestSession() as session:
+            await session.execute(update(User).where(User.id == limited_user["id"]).values(used_traffic=100))
+            await session.commit()
+
+    try:
+        asyncio.run(_seed_limited_usage())
+
+        expected_statuses = {
+            expired_user["id"]: "expired",
+            limited_user["id"]: "limited",
+            on_hold_user["id"]: "on_hold",
+            active_user["id"]: "active",
+        }
+
+        for user in users:
+            disable_response = client.put(
+                f"/api/user/by-id/{user['id']}/disabled",
+                headers=auth_headers(access_token),
+                json={"disabled": True},
+            )
+            assert disable_response.status_code == status.HTTP_200_OK
+            assert disable_response.json()["status"] == "disabled"
+
+            enable_response = client.put(
+                f"/api/user/by-id/{user['id']}/disabled",
+                headers=auth_headers(access_token),
+                json={"disabled": False},
+            )
+            assert enable_response.status_code == status.HTTP_200_OK
+            assert enable_response.json()["status"] == expected_statuses[user["id"]]
+    finally:
+        for user in users:
+            delete_user(access_token, user["username"])
+        cleanup_groups(access_token, core, groups)
+
+
 def test_modify_user_with_template_does_not_reset_usage_when_hwid_limit_is_invalid(access_token):
     core, groups = setup_groups(access_token, 1)
     template = create_user_template(access_token, group_ids=[groups[0]["id"]], hwid_limit=2, reset_usages=True)
