@@ -143,7 +143,10 @@ class Admin(Base, CreatedAtUTCMixin):
     @property
     def users_sync_blocked(self) -> bool:
         """True when this admin's users should NOT be synced to nodes."""
-        return self.status == AdminStatus.limited and self.role.disable_users_when_limited
+        return (
+            (self.status == AdminStatus.limited and self.role.disable_users_when_limited)
+            or (self.status == AdminStatus.disabled and self.role.disable_users_when_disabled)
+        )
 
     @property
     def total_users(self) -> int:
@@ -867,6 +870,7 @@ class AdminRole(Base, CreatedAtUTCMixin):
     hwid: Mapped[Dict] = mapped_column(PostgresJSONB, default_factory=dict)
     disabled_when_limited: Mapped[bool] = mapped_column(default=False, server_default="0")
     disable_users_when_limited: Mapped[bool] = mapped_column(default=True, server_default="1")
+    disable_users_when_disabled: Mapped[bool] = mapped_column(default=True, server_default="1")
     admins: Mapped[List["Admin"]] = relationship(back_populates="role", init=False, viewonly=True, lazy="noload")
 
     @hybrid_property

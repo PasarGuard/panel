@@ -21,14 +21,16 @@ def _loaded_admin_sync_blocked(admin: Admin) -> bool | None:
     status = state.get("status")
     if status is None:
         return None
-    if status != AdminStatus.limited:
+    if status not in (AdminStatus.limited, AdminStatus.disabled):
         return False
 
     role = state.get("role")
     if role is None:
         return None
 
-    return bool(role.disable_users_when_limited)
+    if status == AdminStatus.limited:
+        return bool(role.disable_users_when_limited)
+    return bool(role.disable_users_when_disabled)
 
 
 async def _user_sync_blocked(db_user: User) -> bool:
@@ -46,13 +48,19 @@ async def _user_sync_blocked(db_user: User) -> bool:
         return False
 
     stmt = (
-        select(Admin.status, AdminRole.disable_users_when_limited)
+        select(Admin.status, AdminRole.disable_users_when_limited, AdminRole.disable_users_when_disabled)
         .select_from(Admin)
         .join(AdminRole, AdminRole.id == Admin.role_id)
         .where(Admin.id == db_user.admin_id)
     )
     row = (await session.execute(stmt)).one_or_none()
-    return bool(row and row[0] == AdminStatus.limited and row[1])
+    return bool(
+        row
+        and (
+            (row[0] == AdminStatus.limited and row[1])
+            or (row[0] == AdminStatus.disabled and row[2])
+        )
+    )
 
 
 async def _blocked_admin_ids_for_users(users: list[User]) -> set[int]:
@@ -83,8 +91,10 @@ async def _blocked_admin_ids_for_users(users: list[User]) -> set[int]:
         .join(AdminRole, AdminRole.id == Admin.role_id)
         .where(
             Admin.id.in_(admin_ids),
-            Admin.status == AdminStatus.limited,
-            AdminRole.disable_users_when_limited.is_(True),
+            (
+                ((Admin.status == AdminStatus.limited) & (AdminRole.disable_users_when_limited.is_(True)))
+                | ((Admin.status == AdminStatus.disabled) & (AdminRole.disable_users_when_disabled.is_(True)))
+            ),
         )
     )
     return set((await session.execute(stmt)).scalars().all())

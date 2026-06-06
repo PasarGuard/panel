@@ -62,6 +62,7 @@ class AdminRoleData(BaseModel):
     hwid: HWIDSettings = Field(default_factory=HWIDSettings)
     disabled_when_limited: bool = False
     disable_users_when_limited: bool = True
+    disable_users_when_disabled: bool = True
 
     model_config = ConfigDict(from_attributes=True)
 

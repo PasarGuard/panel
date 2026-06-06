@@ -124,11 +124,16 @@ async def core_users(
                 ProxyInbound.tag.in_(inbound_tags) if inbound_tags else True,
             ),
         )
-        # Exclude users whose admin is limited AND disable_users_when_limited=True
+        # Exclude users whose admin role blocks user sync for the admin's current status.
         .outerjoin(Admin, Admin.id == User.admin_id)
         .outerjoin(AdminRole, AdminRole.id == Admin.role_id)
         .where(User.status.in_([UserStatus.active, UserStatus.on_hold]))
-        .where(~((Admin.status == AdminStatus.limited) & (AdminRole.disable_users_when_limited.is_(True))))
+        .where(
+            ~(
+                ((Admin.status == AdminStatus.limited) & (AdminRole.disable_users_when_limited.is_(True)))
+                | ((Admin.status == AdminStatus.disabled) & (AdminRole.disable_users_when_disabled.is_(True)))
+            )
+        )
         .group_by(User.id)
     )
 

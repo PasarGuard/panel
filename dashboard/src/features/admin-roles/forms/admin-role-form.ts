@@ -238,6 +238,7 @@ export const adminRoleFormSchema = z.object({
   hwid: hwidPolicySchema,
   disabled_when_limited: z.boolean(),
   disable_users_when_limited: z.boolean(),
+  disable_users_when_disabled: z.boolean(),
 })
 
 export type AdminRoleFormValuesInput = z.input<typeof adminRoleFormSchema>
@@ -279,6 +280,7 @@ export const adminRoleFormDefaultValues: AdminRoleFormValuesInput = {
   hwid: defaultAdminRoleHwid(),
   disabled_when_limited: false,
   disable_users_when_limited: true,
+  disable_users_when_disabled: true,
 }
 
 export const adminRoleFormFromResponse = (role: AdminRoleResponse): AdminRoleFormValuesInput => ({
@@ -311,6 +313,7 @@ export const adminRoleFormFromResponse = (role: AdminRoleResponse): AdminRoleFor
   },
   disabled_when_limited: role.disabled_when_limited ?? false,
   disable_users_when_limited: role.disable_users_when_limited ?? true,
+  disable_users_when_disabled: role.disable_users_when_disabled ?? true,
 })
 
 export const adminRoleFormToPayload = (values: AdminRoleFormValues) => {
@@ -344,6 +347,7 @@ export const adminRoleFormToPayload = (values: AdminRoleFormValues) => {
     },
     disabled_when_limited: values.disabled_when_limited,
     disable_users_when_limited: values.disable_users_when_limited,
+    disable_users_when_disabled: values.disable_users_when_disabled,
   }
 }
 

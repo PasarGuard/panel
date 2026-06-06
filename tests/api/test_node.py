@@ -98,9 +98,12 @@ def sample_node_response(**overrides) -> NodeResponse:
 @pytest.mark.asyncio
 async def test_sync_users_blocked_admin_lookup_is_batched():
     blocking_username = unique_name("syba")
+    disabled_username = unique_name("sydba")
     nonblocking_username = unique_name("synba")
+    disabled_nonblocking_username = unique_name("syndba")
     active_username = unique_name("syaa")
     nonblocking_role_name = unique_name("sync_nonblocking_role")
+    disabled_nonblocking_role_name = unique_name("sync_disabled_nonblocking_role")
     user_prefix = unique_name("sync_user")
 
     async with TestSession() as session:
@@ -113,11 +116,26 @@ async def test_sync_users_blocked_admin_lookup_is_batched():
             access={},
             disable_users_when_limited=False,
         )
+        disabled_nonblocking_role = AdminRole(
+            name=disabled_nonblocking_role_name,
+            is_owner=False,
+            permissions={},
+            limits={},
+            features={},
+            access={},
+            disable_users_when_disabled=False,
+        )
         blocking_admin = Admin(
             username=blocking_username,
             hashed_password="secret",
             role_id=3,
             status=AdminStatus.limited,
+        )
+        disabled_admin = Admin(
+            username=disabled_username,
+            hashed_password="secret",
+            role_id=3,
+            status=AdminStatus.disabled,
         )
         active_admin = Admin(
             username=active_username,
@@ -125,7 +143,7 @@ async def test_sync_users_blocked_admin_lookup_is_batched():
             role_id=3,
             status=AdminStatus.active,
         )
-        session.add_all([nonblocking_role, blocking_admin, active_admin])
+        session.add_all([nonblocking_role, disabled_nonblocking_role, blocking_admin, disabled_admin, active_admin])
         await session.flush()
 
         nonblocking_admin = Admin(
@@ -134,13 +152,21 @@ async def test_sync_users_blocked_admin_lookup_is_batched():
             role_id=nonblocking_role.id,
             status=AdminStatus.limited,
         )
-        session.add(nonblocking_admin)
+        disabled_nonblocking_admin = Admin(
+            username=disabled_nonblocking_username,
+            hashed_password="secret",
+            role_id=disabled_nonblocking_role.id,
+            status=AdminStatus.disabled,
+        )
+        session.add_all([nonblocking_admin, disabled_nonblocking_admin])
         await session.flush()
 
         users = [
             User(username=f"{user_prefix}_blocked_a", admin_id=blocking_admin.id),
             User(username=f"{user_prefix}_blocked_b", admin_id=blocking_admin.id),
+            User(username=f"{user_prefix}_disabled_blocked", admin_id=disabled_admin.id),
             User(username=f"{user_prefix}_nonblocking", admin_id=nonblocking_admin.id),
+            User(username=f"{user_prefix}_disabled_nonblocking", admin_id=disabled_nonblocking_admin.id),
             User(username=f"{user_prefix}_active", admin_id=active_admin.id),
         ]
         session.add_all(users)
@@ -148,7 +174,9 @@ async def test_sync_users_blocked_admin_lookup_is_batched():
 
         user_ids = [user.id for user in users]
         blocking_admin_id = blocking_admin.id
+        disabled_admin_id = disabled_admin.id
         nonblocking_admin_id = nonblocking_admin.id
+        disabled_nonblocking_admin_id = disabled_nonblocking_admin.id
         active_admin_id = active_admin.id
 
     query_count = 0
@@ -164,8 +192,9 @@ async def test_sync_users_blocked_admin_lookup_is_batched():
             loaded_users = list((await session.execute(select(User).where(User.id.in_(user_ids)))).scalars().all())
             blocked_ids = await _blocked_admin_ids_for_users(loaded_users)
 
-        assert blocked_ids == {blocking_admin_id}
+        assert blocked_ids == {blocking_admin_id, disabled_admin_id}
         assert nonblocking_admin_id not in blocked_ids
+        assert disabled_nonblocking_admin_id not in blocked_ids
         assert active_admin_id not in blocked_ids
         assert query_count == 1
     finally:

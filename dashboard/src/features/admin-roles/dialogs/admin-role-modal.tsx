@@ -651,6 +651,29 @@ function FeaturesSection({ form }: { form: AdminRoleForm }) {
         )}
       />
 
+      <FormField
+        control={form.control}
+        name="disable_users_when_disabled"
+        render={({ field }) => (
+          <FormItem
+            className="flex cursor-pointer flex-row items-center justify-between space-y-0 rounded-lg border p-4"
+            onClick={() => field.onChange(!field.value)}
+          >
+            <div className="space-y-0.5">
+              <FormLabel className="text-base">{t('adminRoles.limitedBehavior.disableUsersWhenDisabled.title', { defaultValue: 'Disable users when disabled' })}</FormLabel>
+              <p className="text-xs text-muted-foreground">
+                {t('adminRoles.limitedBehavior.disableUsersWhenDisabled.description', { defaultValue: "Remove this admin's users from nodes while the admin is disabled." })}
+              </p>
+            </div>
+            <FormControl>
+              <div onClick={e => e.stopPropagation()}>
+                <Switch checked={!!field.value} onCheckedChange={field.onChange} />
+              </div>
+            </FormControl>
+          </FormItem>
+        )}
+      />
+
       {FEATURE_KEYS.map(key => (
         <FormField
           key={key}

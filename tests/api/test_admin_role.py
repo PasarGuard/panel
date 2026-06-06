@@ -263,6 +263,7 @@ def test_create_and_modify_role_limited_behavior_flags(access_token):
     payload = _role_payload()
     payload["disabled_when_limited"] = True
     payload["disable_users_when_limited"] = True
+    payload["disable_users_when_disabled"] = True
 
     response = client.post("/api/admin-role", headers=auth_headers(access_token), json=payload)
     assert response.status_code == status.HTTP_201_CREATED
@@ -271,16 +272,22 @@ def test_create_and_modify_role_limited_behavior_flags(access_token):
     try:
         assert role["disabled_when_limited"] is True
         assert role["disable_users_when_limited"] is True
+        assert role["disable_users_when_disabled"] is True
 
         update_response = client.put(
             f"/api/admin-role/{role['id']}",
             headers=auth_headers(access_token),
-            json={"disabled_when_limited": False, "disable_users_when_limited": False},
+            json={
+                "disabled_when_limited": False,
+                "disable_users_when_limited": False,
+                "disable_users_when_disabled": False,
+            },
         )
         assert update_response.status_code == status.HTTP_200_OK
         updated = update_response.json()
         assert updated["disabled_when_limited"] is False
         assert updated["disable_users_when_limited"] is False
+        assert updated["disable_users_when_disabled"] is False
     finally:
         _delete_role(access_token, role["id"])
 

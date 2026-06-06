@@ -130,20 +130,17 @@ class AdminOperation(BaseOperation):
             if existing_admins:
                 await self.raise_error(message="Telegram ID is already assigned to another admin.", code=409, db=db)
 
-        old_status = db_admin.status
+        old_users_sync_blocked = db_admin.users_sync_blocked
         db_admin = await update_admin(db, db_admin, modified_admin)
 
-        # Sync users to nodes if admin status changed due to data_limit change
-        if modified_admin.data_limit is not None:
-            if old_status != AdminStatus.limited and db_admin.status == AdminStatus.limited:
-                # active → limited: remove active/on_hold users from nodes
+        # Sync users to nodes if this admin's role/status starts or stops blocking user sync.
+        if old_users_sync_blocked != db_admin.users_sync_blocked:
+            if db_admin.users_sync_blocked:
                 users = await get_users(
                     db, query=UserListQuery(status=[UserStatus.active, UserStatus.on_hold]), admin=db_admin
                 )
                 await sync_remove_users(users)
-            elif old_status == AdminStatus.limited and db_admin.status == AdminStatus.active:
-                # limited → active: re-sync all users to nodes
-                # Pass empty set — this admin is now active, no exclusion needed
+            else:
                 users = await get_users(db, query=UserListQuery(), admin=db_admin, load_admin_role=True)
                 await sync_users(users)
 
