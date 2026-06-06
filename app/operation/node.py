@@ -1112,9 +1112,7 @@ class NodeOperation(BaseOperation):
                 await self.update_node(db, db_node.id)
             except HTTPException as exc:
                 errors.append(exc)
-                logger.warning(
-                    f'Node "{db_node.name}" bulk update failed by admin "{admin.username}": {exc}'
-                )
+                logger.warning(f'Node "{db_node.name}" bulk update failed by admin "{admin.username}": {exc}')
                 continue
 
             updated_nodes.append(db_node)

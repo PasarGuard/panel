@@ -54,13 +54,7 @@ async def _user_sync_blocked(db_user: User) -> bool:
         .where(Admin.id == db_user.admin_id)
     )
     row = (await session.execute(stmt)).one_or_none()
-    return bool(
-        row
-        and (
-            (row[0] == AdminStatus.limited and row[1])
-            or (row[0] == AdminStatus.disabled and row[2])
-        )
-    )
+    return bool(row and ((row[0] == AdminStatus.limited and row[1]) or (row[0] == AdminStatus.disabled and row[2])))
 
 
 async def _blocked_admin_ids_for_users(users: list[User]) -> set[int]:

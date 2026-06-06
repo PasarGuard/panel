@@ -143,9 +143,8 @@ class Admin(Base, CreatedAtUTCMixin):
     @property
     def users_sync_blocked(self) -> bool:
         """True when this admin's users should NOT be synced to nodes."""
-        return (
-            (self.status == AdminStatus.limited and self.role.disconnect_users_when_limited)
-            or (self.status == AdminStatus.disabled and self.role.disconnect_users_when_disabled)
+        return (self.status == AdminStatus.limited and self.role.disconnect_users_when_limited) or (
+            self.status == AdminStatus.disabled and self.role.disconnect_users_when_disabled
         )
 
     @property
