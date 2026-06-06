@@ -114,7 +114,7 @@ async def test_sync_users_blocked_admin_lookup_is_batched():
             limits={},
             features={},
             access={},
-            disable_users_when_limited=False,
+            disconnect_users_when_limited=False,
         )
         disabled_nonblocking_role = AdminRole(
             name=disabled_nonblocking_role_name,
@@ -123,7 +123,7 @@ async def test_sync_users_blocked_admin_lookup_is_batched():
             limits={},
             features={},
             access={},
-            disable_users_when_disabled=False,
+            disconnect_users_when_disabled=False,
         )
         blocking_admin = Admin(
             username=blocking_username,

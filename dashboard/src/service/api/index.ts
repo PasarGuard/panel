@@ -3155,8 +3155,8 @@ export interface AdminRoleResponse {
   access?: RoleAccess
   hwid?: HWIDSettings
   disabled_when_limited?: boolean
-  disable_users_when_limited?: boolean
-  disable_users_when_disabled?: boolean
+  disconnect_users_when_limited?: boolean
+  disconnect_users_when_disabled?: boolean
   id: number
   is_owner: boolean
   created_at: string
@@ -3167,9 +3167,9 @@ export interface AdminRolesResponse {
   total: number
 }
 
-export type AdminRoleModifyDisableUsersWhenLimited = boolean | null
+export type AdminRoleModifyDisconnectUsersWhenLimited = boolean | null
 
-export type AdminRoleModifyDisableUsersWhenDisabled = boolean | null
+export type AdminRoleModifyDisconnectUsersWhenDisabled = boolean | null
 
 export type AdminRoleModifyDisabledWhenLimited = boolean | null
 
@@ -3193,8 +3193,8 @@ export interface AdminRoleModify {
   access?: AdminRoleModifyAccess
   hwid?: AdminRoleModifyHwid
   disabled_when_limited?: AdminRoleModifyDisabledWhenLimited
-  disable_users_when_limited?: AdminRoleModifyDisableUsersWhenLimited
-  disable_users_when_disabled?: AdminRoleModifyDisableUsersWhenDisabled
+  disconnect_users_when_limited?: AdminRoleModifyDisconnectUsersWhenLimited
+  disconnect_users_when_disabled?: AdminRoleModifyDisconnectUsersWhenDisabled
 }
 
 export type AdminRoleDataId = number | null
@@ -3212,8 +3212,8 @@ export interface AdminRoleData {
   access?: RoleAccess
   hwid?: HWIDSettings
   disabled_when_limited?: boolean
-  disable_users_when_limited?: boolean
-  disable_users_when_disabled?: boolean
+  disconnect_users_when_limited?: boolean
+  disconnect_users_when_disabled?: boolean
 }
 
 export interface AdminRoleCreate {
@@ -3225,8 +3225,8 @@ export interface AdminRoleCreate {
   access?: RoleAccess
   hwid?: HWIDSettings
   disabled_when_limited?: boolean
-  disable_users_when_limited?: boolean
-  disable_users_when_disabled?: boolean
+  disconnect_users_when_limited?: boolean
+  disconnect_users_when_disabled?: boolean
 }
 
 export interface AdminNotificationEnable {

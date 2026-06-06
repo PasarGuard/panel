@@ -551,14 +551,14 @@ async def get_active_to_limited_admins(db: AsyncSession) -> list[Admin]:
 
 
 async def get_limited_admin_ids_with_user_sync(db: AsyncSession) -> set[int]:
-    """Return IDs of currently limited admins that have disable_users_when_limited=True.
+    """Return IDs of currently limited admins that have disconnect_users_when_limited=True.
     Used to exclude their users from node sync — avoids loading relationships."""
     stmt = (
         select(Admin.id)
         .join(AdminRole, Admin.role_id == AdminRole.id)
         .where(
             Admin.status == AdminStatus.limited,
-            AdminRole.disable_users_when_limited.is_(True),
+            AdminRole.disconnect_users_when_limited.is_(True),
         )
     )
     result = await db.execute(stmt)

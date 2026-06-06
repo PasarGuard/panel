@@ -630,16 +630,16 @@ function FeaturesSection({ form }: { form: AdminRoleForm }) {
 
       <FormField
         control={form.control}
-        name="disable_users_when_limited"
+        name="disconnect_users_when_limited"
         render={({ field }) => (
           <FormItem
             className="flex cursor-pointer flex-row items-center justify-between space-y-0 rounded-lg border p-4"
             onClick={() => field.onChange(!field.value)}
           >
             <div className="space-y-0.5">
-              <FormLabel className="text-base">{t('adminRoles.limitedBehavior.disableUsersWhenLimited.title', { defaultValue: 'Disable users when limited' })}</FormLabel>
+              <FormLabel className="text-base">{t('adminRoles.limitedBehavior.disconnectUsersWhenLimited.title', { defaultValue: 'Disconnect users when limited' })}</FormLabel>
               <p className="text-xs text-muted-foreground">
-                {t('adminRoles.limitedBehavior.disableUsersWhenLimited.description', { defaultValue: "Remove this admin's users from nodes while the admin is usage-limited." })}
+                {t('adminRoles.limitedBehavior.disconnectUsersWhenLimited.description', { defaultValue: "Remove this admin's users from nodes while the admin is usage-limited." })}
               </p>
             </div>
             <FormControl>
@@ -653,16 +653,16 @@ function FeaturesSection({ form }: { form: AdminRoleForm }) {
 
       <FormField
         control={form.control}
-        name="disable_users_when_disabled"
+        name="disconnect_users_when_disabled"
         render={({ field }) => (
           <FormItem
             className="flex cursor-pointer flex-row items-center justify-between space-y-0 rounded-lg border p-4"
             onClick={() => field.onChange(!field.value)}
           >
             <div className="space-y-0.5">
-              <FormLabel className="text-base">{t('adminRoles.limitedBehavior.disableUsersWhenDisabled.title', { defaultValue: 'Disable users when disabled' })}</FormLabel>
+              <FormLabel className="text-base">{t('adminRoles.limitedBehavior.disconnectUsersWhenDisabled.title', { defaultValue: 'Disconnect users when disabled' })}</FormLabel>
               <p className="text-xs text-muted-foreground">
-                {t('adminRoles.limitedBehavior.disableUsersWhenDisabled.description', { defaultValue: "Remove this admin's users from nodes while the admin is disabled." })}
+                {t('adminRoles.limitedBehavior.disconnectUsersWhenDisabled.description', { defaultValue: "Remove this admin's users from nodes while the admin is disabled." })}
               </p>
             </div>
             <FormControl>

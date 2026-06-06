@@ -142,8 +142,8 @@ class AdminRoleBase(BaseModel):
     access: RoleAccess = Field(default_factory=RoleAccess)
     hwid: HWIDSettings = Field(default_factory=HWIDSettings)
     disabled_when_limited: bool = False
-    disable_users_when_limited: bool = True
-    disable_users_when_disabled: bool = True
+    disconnect_users_when_limited: bool = True
+    disconnect_users_when_disabled: bool = True
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -160,8 +160,8 @@ class AdminRoleModify(BaseModel):
     access: RoleAccess | None = None
     hwid: HWIDSettings | None = None
     disabled_when_limited: bool | None = None
-    disable_users_when_limited: bool | None = None
-    disable_users_when_disabled: bool | None = None
+    disconnect_users_when_limited: bool | None = None
+    disconnect_users_when_disabled: bool | None = None
 
 
 class AdminRoleResponse(AdminRoleBase):

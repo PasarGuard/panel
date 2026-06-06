@@ -130,8 +130,8 @@ async def core_users(
         .where(User.status.in_([UserStatus.active, UserStatus.on_hold]))
         .where(
             ~(
-                ((Admin.status == AdminStatus.limited) & (AdminRole.disable_users_when_limited.is_(True)))
-                | ((Admin.status == AdminStatus.disabled) & (AdminRole.disable_users_when_disabled.is_(True)))
+                ((Admin.status == AdminStatus.limited) & (AdminRole.disconnect_users_when_limited.is_(True)))
+                | ((Admin.status == AdminStatus.disabled) & (AdminRole.disconnect_users_when_disabled.is_(True)))
             )
         )
         .group_by(User.id)

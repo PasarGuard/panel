@@ -29,8 +29,8 @@ def _loaded_admin_sync_blocked(admin: Admin) -> bool | None:
         return None
 
     if status == AdminStatus.limited:
-        return bool(role.disable_users_when_limited)
-    return bool(role.disable_users_when_disabled)
+        return bool(role.disconnect_users_when_limited)
+    return bool(role.disconnect_users_when_disabled)
 
 
 async def _user_sync_blocked(db_user: User) -> bool:
@@ -48,7 +48,7 @@ async def _user_sync_blocked(db_user: User) -> bool:
         return False
 
     stmt = (
-        select(Admin.status, AdminRole.disable_users_when_limited, AdminRole.disable_users_when_disabled)
+        select(Admin.status, AdminRole.disconnect_users_when_limited, AdminRole.disconnect_users_when_disabled)
         .select_from(Admin)
         .join(AdminRole, AdminRole.id == Admin.role_id)
         .where(Admin.id == db_user.admin_id)
@@ -92,8 +92,8 @@ async def _blocked_admin_ids_for_users(users: list[User]) -> set[int]:
         .where(
             Admin.id.in_(admin_ids),
             (
-                ((Admin.status == AdminStatus.limited) & (AdminRole.disable_users_when_limited.is_(True)))
-                | ((Admin.status == AdminStatus.disabled) & (AdminRole.disable_users_when_disabled.is_(True)))
+                ((Admin.status == AdminStatus.limited) & (AdminRole.disconnect_users_when_limited.is_(True)))
+                | ((Admin.status == AdminStatus.disabled) & (AdminRole.disconnect_users_when_disabled.is_(True)))
             ),
         )
     )

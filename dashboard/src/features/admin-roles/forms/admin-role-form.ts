@@ -237,8 +237,8 @@ export const adminRoleFormSchema = z.object({
   access: accessSchema,
   hwid: hwidPolicySchema,
   disabled_when_limited: z.boolean(),
-  disable_users_when_limited: z.boolean(),
-  disable_users_when_disabled: z.boolean(),
+  disconnect_users_when_limited: z.boolean(),
+  disconnect_users_when_disabled: z.boolean(),
 })
 
 export type AdminRoleFormValuesInput = z.input<typeof adminRoleFormSchema>
@@ -279,8 +279,8 @@ export const adminRoleFormDefaultValues: AdminRoleFormValuesInput = {
   access: defaultAdminRoleAccess(),
   hwid: defaultAdminRoleHwid(),
   disabled_when_limited: false,
-  disable_users_when_limited: true,
-  disable_users_when_disabled: true,
+  disconnect_users_when_limited: true,
+  disconnect_users_when_disabled: true,
 }
 
 export const adminRoleFormFromResponse = (role: AdminRoleResponse): AdminRoleFormValuesInput => ({
@@ -312,8 +312,8 @@ export const adminRoleFormFromResponse = (role: AdminRoleResponse): AdminRoleFor
     max_limit: role.hwid?.max_limit ?? null,
   },
   disabled_when_limited: role.disabled_when_limited ?? false,
-  disable_users_when_limited: role.disable_users_when_limited ?? true,
-  disable_users_when_disabled: role.disable_users_when_disabled ?? true,
+  disconnect_users_when_limited: role.disconnect_users_when_limited ?? true,
+  disconnect_users_when_disabled: role.disconnect_users_when_disabled ?? true,
 })
 
 export const adminRoleFormToPayload = (values: AdminRoleFormValues) => {
@@ -346,8 +346,8 @@ export const adminRoleFormToPayload = (values: AdminRoleFormValues) => {
       max_limit: values.hwid.max_limit ?? null,
     },
     disabled_when_limited: values.disabled_when_limited,
-    disable_users_when_limited: values.disable_users_when_limited,
-    disable_users_when_disabled: values.disable_users_when_disabled,
+    disconnect_users_when_limited: values.disconnect_users_when_limited,
+    disconnect_users_when_disabled: values.disconnect_users_when_disabled,
   }
 }
 

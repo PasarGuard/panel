@@ -869,9 +869,13 @@
         "title": "Block limited admins",
         "description": "Deny all dashboard and API access after an admin reaches their data limit."
       },
-      "disableUsersWhenLimited": {
-        "title": "Disable users when limited",
+      "disconnectUsersWhenLimited": {
+        "title": "Disconnect users when limited",
         "description": "Remove this admin's users from nodes while the admin is usage-limited."
+      },
+      "disconnectUsersWhenDisabled": {
+        "title": "Disconnect users when disabled",
+        "description": "Remove this admin's users from nodes while the admin is disabled."
       }
     },
     "featureFields": {

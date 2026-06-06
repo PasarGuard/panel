@@ -105,7 +105,7 @@ async def limit_admins_job():
             await update_admin_status(db, admin, AdminStatus.limited)
             logger.info(f'Admin "{admin.username}" status changed to limited')
 
-            if admin.role and admin.role.disable_users_when_limited:
+            if admin.role and admin.role.disconnect_users_when_limited:
                 users = await get_users(
                     db,
                     query=UserListQuery(status=[UserStatus.active, UserStatus.on_hold]),
