@@ -860,7 +860,7 @@ class NodeOperation(BaseOperation):
         if db_user is None:
             await self.raise_error(message="User not found", code=404)
 
-        email = f"{db_user.id}.{db_user.username}"
+        email = f"{db_user.id}"
         ips = await self._get_node_user_ip_list_safe(node_id, email)
 
         if ips is None:
