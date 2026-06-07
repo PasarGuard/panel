@@ -6,7 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from app.db.models import DataLimitResetStrategy, UserStatusCreate
 from app.models.proxy import ShadowsocksMethods
 
-from .validators import ListValidator, UserValidator
+from .validators import MAX_ON_HOLD_EXPIRE_DURATION_SECONDS, ListValidator, UserValidator
 
 
 class ExtraSettings(BaseModel):
@@ -23,7 +23,10 @@ class UserTemplate(BaseModel):
     data_limit: int | None = Field(ge=0, default=None, description="data_limit can be 0 or greater")
     hwid_limit: int | None = Field(default=None)
     expire_duration: int | None = Field(
-        ge=0, default=None, description="expire_duration can be 0 or greater in seconds"
+        ge=0,
+        le=MAX_ON_HOLD_EXPIRE_DURATION_SECONDS,
+        default=None,
+        description="expire_duration can be 0 or greater in seconds",
     )
     username_prefix: str | None = Field(max_length=20, default=None)
     username_suffix: str | None = Field(max_length=20, default=None)

@@ -45,6 +45,7 @@ from app.models.user import (
     UserSortField,
     UserSortOption,
 )
+from app.models.validators import MAX_ON_HOLD_EXPIRE_DURATION_SECONDS
 from config import user_cleanup_settings
 
 from .general import (
@@ -59,6 +60,12 @@ from .group import get_groups_by_ids
 _USER_AGENT_MAX_LEN = UserSubscriptionUpdate.__table__.columns.user_agent.type.length or 512
 _SUBSCRIPTION_UPDATE_IP_MAX_LEN = UserSubscriptionUpdate.__table__.columns.ip.type.length or 64
 _ONLINE_USERS_WINDOW = timedelta(minutes=2)
+
+
+def _safe_on_hold_expire_duration(duration: int | None) -> int | None:
+    if duration is None or duration <= 0:
+        return None
+    return min(duration, MAX_ON_HOLD_EXPIRE_DURATION_SECONDS)
 
 
 def _build_user_select_stmt(
@@ -1680,7 +1687,8 @@ async def start_users_expire(db: AsyncSession, users: list[User]) -> list[User]:
     """
     now = datetime.now(timezone.utc)
     for user in users:
-        expire_time = now + timedelta(seconds=user.on_hold_expire_duration)
+        duration = _safe_on_hold_expire_duration(user.on_hold_expire_duration)
+        expire_time = now + timedelta(seconds=duration) if duration is not None else None
         user.expire = expire_time
         user.on_hold_expire_duration = None
         user.on_hold_timeout = None

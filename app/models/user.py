@@ -10,7 +10,7 @@ from app.models.proxy import ProxyTable, ShadowsocksMethods
 from app.models.stats import Period
 from app.utils.helpers import fix_datetime_timezone
 
-from .validators import ListValidator, NumericValidatorMixin, UserValidator
+from .validators import MAX_ON_HOLD_EXPIRE_DURATION_SECONDS, ListValidator, NumericValidatorMixin, UserValidator
 
 
 class UserStatusModify(str, Enum):
@@ -33,7 +33,12 @@ class User(BaseModel):
     data_limit: int | None = Field(ge=0, default=None, description="data_limit can be 0 or greater")
     data_limit_reset_strategy: DataLimitResetStrategy | None = Field(default=None)
     note: str | None = Field(max_length=500, default=None)
-    on_hold_expire_duration: int | None = Field(default=None)
+    on_hold_expire_duration: int | None = Field(
+        ge=0,
+        le=MAX_ON_HOLD_EXPIRE_DURATION_SECONDS,
+        default=None,
+        description="on_hold_expire_duration can be 0 or greater in seconds",
+    )
     on_hold_timeout: dt | int | None = Field(default=None)
     group_ids: list[int] | None = Field(default_factory=list)
     auto_delete_in_days: int | None = Field(default=None)

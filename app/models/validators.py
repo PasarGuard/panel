@@ -6,6 +6,8 @@ from urllib.parse import urlparse
 
 from app.db.models import UserStatus, UserStatusCreate
 
+MAX_ON_HOLD_EXPIRE_DURATION_SECONDS = 2_147_483_647
+
 
 class NumericValidatorMixin:
     @staticmethod

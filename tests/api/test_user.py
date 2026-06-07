@@ -18,6 +18,7 @@ from app.db.crud.hwid import register_user_hwid
 from app.db.models import NodeUserUsage, User
 from app.models.settings import ConfigFormat, SubRule, Subscription
 from app.models.stats import Period, UserCountMetric, UserCountMetricStat, UserCountMetricStatsList
+from app.models.validators import MAX_ON_HOLD_EXPIRE_DURATION_SECONDS
 from app.operation.subscription import SubscriptionOperation
 from app.utils import jwt as jwt_utils
 from app.utils.crypto import generate_wireguard_keypair, get_wireguard_public_key
@@ -54,6 +55,24 @@ def cleanup_groups(access_token: str, core: dict, groups: list[dict]):
     for group in groups:
         delete_group(access_token, group["id"])
     delete_core(access_token, core["id"])
+
+
+def test_create_user_rejects_too_large_on_hold_expire_duration(access_token):
+    core, groups = setup_groups(access_token, 1)
+    try:
+        response = client.post(
+            "/api/user",
+            headers=auth_headers(access_token),
+            json={
+                "username": unique_name("too_large_on_hold"),
+                "status": "on_hold",
+                "group_ids": [groups[0]["id"]],
+                "on_hold_expire_duration": MAX_ON_HOLD_EXPIRE_DURATION_SECONDS + 1,
+            },
+        )
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    finally:
+        cleanup_groups(access_token, core, groups)
 
 
 def set_user_online_at(username: str, online_at: datetime) -> None:
