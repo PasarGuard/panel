@@ -183,6 +183,11 @@ class DataLimitResetStrategy(str, Enum):
 
 class User(Base, CreatedAtUTCMixin):
     __tablename__ = "users"
+    __table_args__ = (
+        Index("idx_users_admin_online", "admin_id", "online_at"),
+        Index("idx_users_admin_status", "admin_id", "status"),
+        Index("idx_users_admin_created", "admin_id", "created_at"),
+    )
     username: Mapped[str] = mapped_column(CaseSensitiveString(128), unique=True, index=True)
     node_usages: Mapped[List["NodeUserUsage"]] = relationship(
         back_populates="user",
@@ -367,6 +372,9 @@ class User(Base, CreatedAtUTCMixin):
 
 class UserSubscriptionUpdate(Base, CreatedAtUTCMixin):
     __tablename__ = "user_subscription_updates"
+    __table_args__ = (
+        Index("idx_user_subscription_updates_user_id", "user_id"),
+    )
     user_id: Mapped[int] = fk_id_column("users.id", ondelete="CASCADE")
     user: Mapped["User"] = relationship(back_populates="subscription_updates", init=False)
     user_agent: Mapped[str] = mapped_column(String(512))
