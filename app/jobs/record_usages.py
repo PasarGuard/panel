@@ -30,6 +30,11 @@ logger = get_logger("record-usages")
 # Start with 2-4, adjust based on DB performance
 JOB_SEM = asyncio.Semaphore(3)  # Max 3 concurrent DB write operations
 API_SEM = asyncio.Semaphore(10)  # Max 10
+NODE_USER_USAGE_BATCH_SIZE_BY_DIALECT = {
+    "mysql": 1_000,
+    "sqlite": 400,
+}
+USER_ADMIN_LOOKUP_BATCH_SIZE = 1_000
 
 # Thread pool executor for I/O-bound node API calls
 # Distributes workload across threads/cores for data collection
@@ -86,6 +91,11 @@ def _merge_usage_dicts(dicts: list[dict]) -> dict:
         for uid, value in d.items():
             merged[uid] += value
     return dict(merged)
+
+
+def _chunked(items: list, size: int):
+    for index in range(0, len(items), size):
+        yield items[index : index + size]
 
 
 async def get_dialect() -> str:
@@ -406,11 +416,22 @@ async def record_user_stats_batched(all_node_params: dict, usage_coefficients: d
     if not upsert_params:
         return
 
-    # Execute single batched UPSERT with concurrency control
+    batch_size = NODE_USER_USAGE_BATCH_SIZE_BY_DIALECT.get(dialect, len(upsert_params))
+    batches = list(_chunked(upsert_params, batch_size))
+    if len(batches) > 1:
+        logger.debug(
+            "Splitting %s node user usage rows into %s %s batches",
+            len(upsert_params),
+            len(batches),
+            dialect,
+        )
+
+    # Execute batched UPSERTs with concurrency control
     async with JOB_SEM:
-        queries = build_node_user_usage_upsert(dialect, upsert_params)
-        for stmt, stmt_params in queries:
-            await safe_execute(stmt, stmt_params)
+        for batch in batches:
+            queries = build_node_user_usage_upsert(dialect, batch)
+            for stmt, stmt_params in queries:
+                await safe_execute(stmt, stmt_params)
 
 
 async def record_node_stats_batched(all_node_params: dict):
@@ -554,9 +575,11 @@ async def calculate_admin_usage(users_usage: list) -> tuple[dict, set[int]]:
 
     async with GetDB() as db:
         # Query only relevant users' admin IDs
-        stmt = select(User.id, User.admin_id).where(User.id.in_(uids))
-        result = await db.execute(stmt)
-        user_admin_pairs = result.fetchall()
+        user_admin_pairs = []
+        for uid_batch in _chunked(list(uids), USER_ADMIN_LOOKUP_BATCH_SIZE):
+            stmt = select(User.id, User.admin_id).where(User.id.in_(uid_batch))
+            result = await db.execute(stmt)
+            user_admin_pairs.extend(result.fetchall())
 
     user_admin_map = {uid: admin_id for uid, admin_id in user_admin_pairs}
 

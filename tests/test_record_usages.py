@@ -234,6 +234,27 @@ async def test_record_user_stats_batched_skips_missing_users(session_factory):
 
 
 @pytest.mark.asyncio
+async def test_record_user_stats_batched_chunks_mysql_batches(monkeypatch: pytest.MonkeyPatch):
+    executed_param_sizes = []
+
+    async def fake_get_dialect():
+        return "mysql"
+
+    async def fake_safe_execute(stmt, params=None, max_retries=2):
+        executed_param_sizes.append(len(params))
+
+    monkeypatch.setattr(record_usages, "get_dialect", fake_get_dialect)
+    monkeypatch.setattr(record_usages, "safe_execute", fake_safe_execute)
+    monkeypatch.setattr(record_usages, "_get_time_bucket", lambda: None)
+
+    params = [{"uid": str(index + 1), "value": 1} for index in range(2_501)]
+
+    await record_usages.record_user_stats_batched({1: params}, {1: 1})
+
+    assert executed_param_sizes == [4_000, 4_000, 2_004]
+
+
+@pytest.mark.asyncio
 async def test_record_user_usages_returns_when_no_usage(monkeypatch: pytest.MonkeyPatch, session_factory):
     async with session_factory() as session:
         admin = Admin(username="admin", hashed_password="secret", role_id=3)
