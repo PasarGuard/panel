@@ -179,6 +179,8 @@ class XRayConfig(dict):
     def _handle_tls_settings(self, tls_settings: dict, settings: dict, inbound_tag: str):
         """Handle TLS security settings."""
         settings["tls"] = "tls"
+        if sni := tls_settings.get("serverName"):
+            settings["sni"].append(sni)
         for certificate in tls_settings.get("certificates", []):
             if certificate.get("serveOnNode", False):
                 # prevent error on parse by xray core
