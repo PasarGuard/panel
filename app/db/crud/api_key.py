@@ -1,13 +1,13 @@
 import uuid
+from datetime import datetime as dt, timezone as tz
 
-from aiocache import cached
 from sqlalchemy import func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.db.models import Admin, AdminStatus, APIKey, APIKeyStatus
 from app.models.api_key import APIKeyCreate
-from app.utils.crypto import API_KEY_HASH_VERSION, api_key_lookup_id, hash_api_key, verify_api_key
+from app.utils.crypto import api_key_lookup_id, hash_api_key, verify_api_key
 from app.utils.jwt import get_secret_key
 
 
@@ -100,6 +100,17 @@ async def get_api_keys(
 async def delete_api_key(db: AsyncSession, db_key: APIKey) -> None:
     await db.delete(db_key)
     await db.flush()
+
+
+async def revoke_api_key(db: AsyncSession, db_key: APIKey) -> tuple[str, APIKey]:
+    raw_key = str(uuid.uuid4())
+    pepper = await get_secret_key()
+    db_key.key_hash = hash_api_key(raw_key, pepper=pepper)
+    db_key.revoked_at = dt.now(tz.utc)
+    db_key.status = APIKeyStatus.active
+    await db.flush()
+    await db.refresh(db_key)
+    return raw_key, db_key
 
 
 async def update_api_key(db: AsyncSession, db_key: APIKey, update_data: dict) -> APIKey:

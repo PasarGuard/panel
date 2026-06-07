@@ -882,6 +882,7 @@ class APIKey(Base, IdMixin, CreatedAtUTCMixin):
     role: Mapped["AdminRole"] = relationship(back_populates="api_keys", init=False, lazy="selectin")
     note: Mapped[Optional[str]] = mapped_column(String(512), default=None)
     expire_date: Mapped[Optional[dt]] = mapped_column(DateTime(timezone=True), default=None)
+    revoked_at: Mapped[Optional[dt]] = mapped_column(DateTime(timezone=True), default=None)
     status: Mapped[APIKeyStatus] = mapped_column(
         SQLEnum(APIKeyStatus, name="apikeystatus", create_constraint=True),
         default=APIKeyStatus.active,

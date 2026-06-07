@@ -69,6 +69,15 @@ async def get_api_key(
     return await api_key_operator.get_api_key(db, admin=admin, key_id=key_id)
 
 
+@router.post("/{key_id}/revoke", response_model=APIKeyCreateResponse, responses={404: responses._404})
+async def revoke_api_key(
+    key_id: int,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(require_permission("api_keys", "delete")),
+):
+    return await api_key_operator.revoke_api_key(db, admin=admin, key_id=key_id)
+
+
 @router.delete("/{key_id}", status_code=status.HTTP_204_NO_CONTENT, responses={404: responses._404})
 async def remove_api_key(
     key_id: int,

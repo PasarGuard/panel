@@ -9,6 +9,7 @@ from app.db.crud.api_key import (
     delete_api_key,
     get_api_key_by_id,
     get_api_keys,
+    revoke_api_key as revoke_api_key_crud,
     update_api_key,
 )
 from app.notification import (
@@ -68,6 +69,9 @@ class APIKeyOperation(BaseOperation):
             role_id=db_key.role_id,
             created_at=db_key.created_at,
             expire_date=db_key.expire_date,
+            revoked_at=db_key.revoked_at,
+            status=db_key.status,
+            is_expired=db_key.is_expired,
             api_key=raw_key,
         )
 
@@ -115,6 +119,35 @@ class APIKeyOperation(BaseOperation):
         await notify_modify(api_key_resp, admin_username, admin.username)
 
         return api_key_resp
+
+    async def revoke_api_key(self, db: AsyncSession, *, admin: AdminDetails, key_id: int) -> APIKeyCreateResponse:
+        db_key = await get_api_key_by_id(db, key_id)
+        if db_key is None:
+            await self.raise_error(message="API key not found", code=404)
+
+        if not admin.is_owner and db_key.admin_id != admin.id:
+            await self.raise_error(message="Permission denied", code=403)
+
+        raw_key, db_key = await revoke_api_key_crud(db, db_key)
+        await db.commit()
+
+        api_key_resp = APIKeyResponse.model_validate(db_key)
+        admin_username = db_key.admin.username if db_key.admin else "Unknown"
+        await notify_modify(api_key_resp, admin_username, admin.username)
+
+        return APIKeyCreateResponse(
+            id=db_key.id,
+            admin_id=db_key.admin_id,
+            name=db_key.name,
+            note=db_key.note,
+            role_id=db_key.role_id,
+            created_at=db_key.created_at,
+            expire_date=db_key.expire_date,
+            revoked_at=db_key.revoked_at,
+            status=db_key.status,
+            is_expired=db_key.is_expired,
+            api_key=raw_key,
+        )
 
     async def get_api_key(self, db: AsyncSession, *, admin: AdminDetails, key_id: int) -> APIKeyResponse:
         scope_admin_id = None if admin.is_owner else admin.id
