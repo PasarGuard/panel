@@ -8,7 +8,14 @@ from fastapi.responses import JSONResponse
 from app.db import AsyncSession, get_db
 from app.models.admin import AdminDetails
 from app.models.settings import Telegram
-from app.models.system import InboundSummary, SystemResourceStats, SystemStats, SystemUsersStats, WorkerHealth, WorkersHealth
+from app.models.system import (
+    InboundSummary,
+    SystemResourceStats,
+    SystemStats,
+    SystemUsersStats,
+    WorkerHealth,
+    WorkersHealth,
+)
 from app.nats import is_nats_enabled
 from app.nats.node_rpc import node_nats_client
 from app.nats.scheduler_rpc import scheduler_nats_client

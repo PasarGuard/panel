@@ -372,9 +372,7 @@ class User(Base, CreatedAtUTCMixin):
 
 class UserSubscriptionUpdate(Base, CreatedAtUTCMixin):
     __tablename__ = "user_subscription_updates"
-    __table_args__ = (
-        Index("idx_user_subscription_updates_user_id", "user_id"),
-    )
+    __table_args__ = (Index("idx_user_subscription_updates_user_id", "user_id"),)
     user_id: Mapped[int] = fk_id_column("users.id", ondelete="CASCADE")
     user: Mapped["User"] = relationship(back_populates="subscription_updates", init=False)
     user_agent: Mapped[str] = mapped_column(String(512))

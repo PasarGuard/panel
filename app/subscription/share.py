@@ -243,6 +243,7 @@ async def process_host(
     if isinstance(inbound.tls_config.sni, list) and inbound.tls_config.sni:
         sni = random.choice(inbound.tls_config.sni)
     sni = sni.replace("*", salt)
+    print(sni)
 
     req_host = ""
     host_list = inbound.transport_config.host
