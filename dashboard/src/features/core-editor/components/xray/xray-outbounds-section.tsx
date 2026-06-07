@@ -189,32 +189,23 @@ function humanizeFieldName(raw: string): string {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function replaceOutbound(profile: Profile, index: number, ob: Outbound): Profile {
-  return updateOutboundsWithObservationSelectors(profile, outbounds => {
+  return updateOutbounds(profile, outbounds => {
     const list = [...outbounds]
     list[index] = ob
     return list
   })
 }
 
-function replaceOutboundForCommit(profile: Profile, index: number, ob: Outbound, original: Outbound | null): Profile {
-  let previousOutbounds: Outbound[] | undefined
-  if (original) {
-    previousOutbounds = [...(profile.outbounds ?? [])]
-    if (index >= 0 && index < previousOutbounds.length) previousOutbounds[index] = original
-  }
-  return updateOutboundsWithObservationSelectors(
-    profile,
-    outbounds => {
-      const list = [...outbounds]
-      list[index] = ob
-      return list
-    },
-    previousOutbounds,
-  )
+function replaceOutboundForCommit(profile: Profile, index: number, ob: Outbound): Profile {
+  return updateOutbounds(profile, outbounds => {
+    const list = [...outbounds]
+    list[index] = ob
+    return list
+  })
 }
 
 function removeOutbound(profile: Profile, index: number): Profile {
-  return updateOutboundsWithObservationSelectors(profile, outbounds => outbounds.filter((_: Outbound, i: number) => i !== index))
+  return updateOutbounds(profile, outbounds => outbounds.filter((_: Outbound, i: number) => i !== index))
 }
 
 function isJsonObject(value: unknown): value is JsonObject {
@@ -251,9 +242,15 @@ function readStringArray(value: unknown): string[] {
   return value.map(item => String(item).trim()).filter(Boolean)
 }
 
-function syncObservationSubjectSelectors(profile: Profile, previousOutbounds: Outbound[] | undefined): Profile {
+function sameStringSet(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false
+  const bs = new Set(b)
+  return a.every(item => bs.has(item))
+}
+
+function syncAutoManagedObservationSubjectSelectors(profile: Profile, previousOutbounds: Outbound[] | undefined): Profile {
+  const previousTags = uniqueObservableOutboundTags(previousOutbounds)
   const nextTags = uniqueObservableOutboundTags(profile.outbounds)
-  const previousTags = new Set(uniqueObservableOutboundTags(previousOutbounds))
   const topLevel = profile.raw?.topLevel
   let nextTopLevel: Record<string, JsonValue> | undefined
 
@@ -262,11 +259,10 @@ function syncObservationSubjectSelectors(profile: Profile, previousOutbounds: Ou
     if (!isJsonObject(source)) continue
 
     const current = readStringArray(source.subjectSelector)
-    const preservedCustom = current.filter(selector => !previousTags.has(selector) && !nextTags.includes(selector))
-    const subjectSelector = [...new Set([...current.filter(selector => nextTags.includes(selector)), ...preservedCustom, ...nextTags])]
+    if (!sameStringSet(current, previousTags) || sameStringSet(current, nextTags)) continue
 
     nextTopLevel ??= { ...(topLevel ?? {}) }
-    nextTopLevel[key] = { ...source, subjectSelector }
+    nextTopLevel[key] = { ...source, subjectSelector: nextTags }
   }
 
   if (!nextTopLevel) return profile
@@ -279,11 +275,12 @@ function syncObservationSubjectSelectors(profile: Profile, previousOutbounds: Ou
   } as Profile
 }
 
-function updateOutboundsWithObservationSelectors(profile: Profile, mutator: (outbounds: Outbound[]) => Outbound[], previousOutboundsOverride?: Outbound[]): Profile {
+function updateOutbounds(profile: Profile, mutator: (outbounds: Outbound[]) => Outbound[]): Profile {
   const currentOutbounds = profile.outbounds ?? []
-  const previousOutbounds = previousOutboundsOverride ?? currentOutbounds
-  const nextProfile = { ...profile, outbounds: mutator(currentOutbounds) }
-  return syncObservationSubjectSelectors(nextProfile, previousOutbounds)
+  return syncAutoManagedObservationSubjectSelectors(
+    { ...profile, outbounds: mutator(currentOutbounds) },
+    currentOutbounds,
+  )
 }
 
 function outboundSearchHaystack(ob: Outbound): string {
@@ -784,7 +781,7 @@ export function XrayOutboundsSection({ headerAddPulse, headerAddEpoch }: XrayOut
     }
 
     const insertAt = outbounds.length
-    updateXrayProfile(p => updateOutboundsWithObservationSelectors(p, current => [...current, row]))
+    updateXrayProfile(p => updateOutbounds(p, current => [...current, row]))
     setSelected(insertAt)
     finalizeDetailClose()
   }
@@ -827,7 +824,7 @@ export function XrayOutboundsSection({ headerAddPulse, headerAddEpoch }: XrayOut
       return
     }
 
-    updateXrayProfile(p => replaceOutboundForCommit(p, selected, toValidate, editOriginalOutbound))
+    updateXrayProfile(p => replaceOutboundForCommit(p, selected, toValidate))
     finalizeDetailClose()
   }
 
@@ -881,7 +878,7 @@ export function XrayOutboundsSection({ headerAddPulse, headerAddEpoch }: XrayOut
         }}
         onBulkRemove={indices => {
           const rm = new Set(indices)
-          updateXrayProfile(p => updateOutboundsWithObservationSelectors(p, current => current.filter((_, idx) => !rm.has(idx))))
+          updateXrayProfile(p => updateOutbounds(p, current => current.filter((_, idx) => !rm.has(idx))))
           setSelected(0)
         }}
         enableReorder
