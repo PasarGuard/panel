@@ -4,6 +4,8 @@ import type { TFunction } from 'i18next'
 import type { FieldError, FieldErrors, Resolver } from 'react-hook-form'
 import { z } from 'zod'
 
+const MAX_ON_HOLD_EXPIRE_DURATION_SECONDS = 2_147_483_647
+
 const userTemplateFormObjectSchema = z.object({
   name: z.string().min(1, 'validation.required'),
   status: z.enum([UserStatusCreate.active, UserStatusCreate.on_hold]).default(UserStatusCreate.active),
@@ -11,7 +13,7 @@ const userTemplateFormObjectSchema = z.object({
   username_suffix: z.string().optional(),
   data_limit: z.number().min(0).optional(),
   hwid_limit: z.number().min(0).nullable().optional(),
-  expire_duration: z.number().min(0).optional(),
+  expire_duration: z.number().min(0).max(MAX_ON_HOLD_EXPIRE_DURATION_SECONDS).optional(),
   on_hold_timeout: z.number().optional(),
   method: z
     .enum([ShadowsocksMethods['aes-128-gcm'], ShadowsocksMethods['aes-256-gcm'], ShadowsocksMethods['chacha20-ietf-poly1305'], ShadowsocksMethods['xchacha20-poly1305']])

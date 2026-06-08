@@ -839,7 +839,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
             }
             if (fieldName === 'group_ids') {
               message = t('validation.required', { field: t('groups', { defaultValue: 'Groups' }) })
-            } else if (fieldName === 'on_hold_expire_duration') {
+            } else if (fieldName === 'on_hold_expire_duration' && message === 'validation.required') {
               message = t('validation.required', { field: t('templates.expire') })
             }
             form.setError(fieldName as any, {
