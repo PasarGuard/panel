@@ -47,7 +47,7 @@ import { createDefaultInbound, createDefaultInboundForProtocol, getInboundFieldV
 import type { Fallback, Inbound, InboundPort, Profile, Security, ShadowsocksMethod, Transport, XrayGeneratedFormField } from '@pasarguard/xray-config-kit'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { cn } from '@/lib/utils'
-import { Cable, KeyRound, Pencil, Plus, RefreshCcw, RefreshCw, Shield, Trash2 } from 'lucide-react'
+import { Cable, KeyRound, Pencil, Plus, RefreshCcw, Shield, Trash2 } from 'lucide-react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { arrayMove } from '@dnd-kit/sortable'
 import type { ColumnDef } from '@tanstack/react-table'
@@ -467,9 +467,22 @@ function applyWireguardGeneratedSecretOnCreate(ib: Inbound): Inbound {
   return { ...ib, secretKey: keyPair.privateKey } as Inbound
 }
 
+function stripHysteriaInboundAuth(ib: Inbound): Inbound {
+  if (ib.protocol !== 'hysteria' || ib.transport.type !== 'hysteria') return ib
+  const nextTransport = { ...ib.transport } as Record<string, unknown>
+  delete nextTransport.auth
+  return {
+    ...ib,
+    clients: [],
+    transport: nextTransport as Transport,
+  } as Inbound
+}
+
 function applyInboundEditorCreationDefaults(ib: Inbound): Inbound {
-  return applyWireguardGeneratedSecretOnCreate(
-    applyWireguardEditorCreationDefaults(applyTunEditorCreationDefaults(applyHttpEditorCreationDefaults(applyMixedLikeEditorCreationDefaults(applyTunnelEditorCreationDefaults(ib))))),
+  return stripHysteriaInboundAuth(
+    applyWireguardGeneratedSecretOnCreate(
+      applyWireguardEditorCreationDefaults(applyTunEditorCreationDefaults(applyHttpEditorCreationDefaults(applyMixedLikeEditorCreationDefaults(applyTunnelEditorCreationDefaults(ib))))),
+    ),
   )
 }
 
@@ -1039,10 +1052,6 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
       shadowsocksMethod: shadowsocksMethodFormValue(row),
       shadowsocksPassword: shadowsocksPasswordFormValue(row),
       shadowsocksNetwork: shadowsocksNetworkFormValue(row),
-      hysteriaAuth:
-        row.protocol === 'hysteria'
-          ? (row.clients.find(client => client.protocol === 'hysteria')?.auth ?? (row.transport.type === 'hysteria' && typeof row.transport.auth === 'string' ? row.transport.auth : ''))
-          : '',
       hysteriaUdpIdleTimeout: row.protocol === 'hysteria' && row.transport.type === 'hysteria' && row.transport.udpIdleTimeout !== undefined ? String(row.transport.udpIdleTimeout) : '',
       hysteriaMasqueradeType: row.protocol === 'hysteria' && row.transport.type === 'hysteria' && row.transport.masquerade?.type ? String(row.transport.masquerade.type) : '__none',
       hysteriaMasqueradeDir: row.protocol === 'hysteria' && row.transport.type === 'hysteria' && typeof row.transport.masquerade?.dir === 'string' ? row.transport.masquerade.dir : '',
@@ -1877,16 +1886,11 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
   )
 
   const patchHysteriaServerSettings = useCallback(
-    (patch: { auth?: string; udpIdleTimeout?: number | undefined; masquerade?: Record<string, unknown> | undefined; obfsPassword?: string | undefined }) => {
+    (patch: { udpIdleTimeout?: number | undefined; masquerade?: Record<string, unknown> | undefined; obfsPassword?: string | undefined }) => {
       if (!inbound || inbound.protocol !== 'hysteria' || inbound.transport.type !== 'hysteria') return
-      // Peer auth belongs on hysteria transport (hysteriaSettings); keep settings.clients empty in exported Xray JSON.
-      const nextClients = inbound.clients.filter(client => client.protocol !== 'hysteria')
+      // Xray Hysteria inbound JSON must keep settings.clients empty and omit hysteriaSettings.auth.
       const nextTransport = { ...inbound.transport } as Record<string, unknown>
-      if ('auth' in patch) {
-        const auth = (patch.auth ?? '').trim()
-        if (auth === '') delete nextTransport.auth
-        else nextTransport.auth = auth
-      }
+      delete nextTransport.auth
       if ('udpIdleTimeout' in patch) {
         const timeout = patch.udpIdleTimeout
         if (timeout === undefined || Number.isNaN(timeout)) delete nextTransport.udpIdleTimeout
@@ -1910,17 +1914,12 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
         else nextTransport.udpmasks = udpmasks
       }
       patchInbound({
-        clients: nextClients,
+        clients: [],
         transport: nextTransport as Transport,
       } as Partial<Inbound>)
     },
     [inbound],
   )
-  const generateHysteriaAuth = useCallback(() => {
-    const generated = generatePassword()
-    form.setValue('hysteriaAuth', generated)
-    patchHysteriaServerSettings({ auth: generated })
-  }, [form, patchHysteriaServerSettings])
   const hysteriaMasqueradeType = form.watch('hysteriaMasqueradeType')
   const sniffingEnabledValue = form.watch('sniffingEnabled')
   const isSniffingEnabled = sniffingEnabledValue === 'true'
@@ -2859,43 +2858,6 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
 
                 {inbound.protocol === 'hysteria' && (
                   <>
-                    <FormField
-                      control={form.control}
-                      name="hysteriaAuth"
-                      render={({ field }) => (
-                        <FormItem className="sm:col-span-2">
-                          <FormLabel className="text-muted-foreground text-xs font-semibold tracking-wide">{t('coreEditor.inbound.hysteria.auth', { defaultValue: 'Auth' })}</FormLabel>
-                          <FormControl>
-                            <div className={cn('flex w-full min-w-0 items-center gap-2', dir === 'rtl' && 'flex-row-reverse')}>
-                              <div className="min-w-0 flex-1">
-                                <PasswordInput
-                                  dir="ltr"
-                                  autoComplete="new-password"
-                                  className="h-10 w-full"
-                                  value={field.value ?? ''}
-                                  onChange={e => {
-                                    const v = e.target.value
-                                    field.onChange(v)
-                                    patchHysteriaServerSettings({ auth: v })
-                                  }}
-                                />
-                              </div>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                onClick={generateHysteriaAuth}
-                                className="shrink-0"
-                                title={t('coreEditor.inbound.hysteria.generateAuth', { defaultValue: 'Generate auth key' })}
-                              >
-                                <RefreshCw className="h-3 w-3" aria-hidden />
-                              </Button>
-                            </div>
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
                     <FormField
                       control={form.control}
                       name="hysteriaUdpIdleTimeout"

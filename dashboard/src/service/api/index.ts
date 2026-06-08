@@ -1308,27 +1308,42 @@ export interface TcpSettings {
   response?: TcpSettingsResponse
 }
 
-export type SystemStatsCpuUsage = number | null
+export type SystemResourceStatsCpuUsage = number | null
 
-export type SystemStatsCpuCores = number | null
+export type SystemResourceStatsCpuCores = number | null
 
-export type SystemStatsDiskUsed = number | null
+export type SystemResourceStatsDiskUsed = number | null
 
-export type SystemStatsDiskTotal = number | null
+export type SystemResourceStatsDiskTotal = number | null
 
-export type SystemStatsMemUsed = number | null
+export type SystemResourceStatsMemUsed = number | null
 
-export type SystemStatsMemTotal = number | null
+export type SystemResourceStatsMemTotal = number | null
 
-export interface SystemStats {
+export interface SystemResourceStats {
   version: string
   uptime_seconds: number
-  mem_total?: SystemStatsMemTotal
-  mem_used?: SystemStatsMemUsed
-  disk_total?: SystemStatsDiskTotal
-  disk_used?: SystemStatsDiskUsed
-  cpu_cores?: SystemStatsCpuCores
-  cpu_usage?: SystemStatsCpuUsage
+  mem_total?: SystemResourceStatsMemTotal
+  mem_used?: SystemResourceStatsMemUsed
+  disk_total?: SystemResourceStatsDiskTotal
+  disk_used?: SystemResourceStatsDiskUsed
+  cpu_cores?: SystemResourceStatsCpuCores
+  cpu_usage?: SystemResourceStatsCpuUsage
+}
+
+export type SystemStatsCpuUsage = SystemResourceStatsCpuUsage
+
+export type SystemStatsCpuCores = SystemResourceStatsCpuCores
+
+export type SystemStatsDiskUsed = SystemResourceStatsDiskUsed
+
+export type SystemStatsDiskTotal = SystemResourceStatsDiskTotal
+
+export type SystemStatsMemUsed = SystemResourceStatsMemUsed
+
+export type SystemStatsMemTotal = SystemResourceStatsMemTotal
+
+export interface SystemUsersStats {
   total_user: number
   online_users: number
   active_users: number
@@ -1339,6 +1354,8 @@ export interface SystemStats {
   incoming_bandwidth: number
   outgoing_bandwidth: number
 }
+
+export interface SystemStats extends SystemResourceStats, SystemUsersStats {}
 
 export type SystemPermissionsReadAnyOf = { [key: string]: PermissionScope | number }
 
@@ -5811,6 +5828,123 @@ export function useGetSystemStats<TData = Awaited<ReturnType<typeof getSystemSta
   options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getSystemStats>>, TError, TData>> },
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getGetSystemStatsQueryOptions(params, options)
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+  query.queryKey = queryOptions.queryKey
+
+  return query
+}
+
+/**
+ * Fetch system resource stats without user metrics.
+ * @summary Get System Resource Stats
+ */
+export const getSystemResourceStats = (signal?: AbortSignal) => {
+  return orvalFetcher<SystemResourceStats>({ url: `/api/system/resources`, method: 'GET', signal })
+}
+
+export const getGetSystemResourceStatsQueryKey = () => {
+  return [`/api/system/resources`] as const
+}
+
+export const getGetSystemResourceStatsQueryOptions = <TData = Awaited<ReturnType<typeof getSystemResourceStats>>, TError = ErrorType<Unauthorized>>(options?: {
+  query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getSystemResourceStats>>, TError, TData>>
+}) => {
+  const { query: queryOptions } = options ?? {}
+
+  const queryKey = queryOptions?.queryKey ?? getGetSystemResourceStatsQueryKey()
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getSystemResourceStats>>> = ({ signal }) => getSystemResourceStats(signal)
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<Awaited<ReturnType<typeof getSystemResourceStats>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetSystemResourceStatsQueryResult = NonNullable<Awaited<ReturnType<typeof getSystemResourceStats>>>
+export type GetSystemResourceStatsQueryError = ErrorType<Unauthorized>
+
+export function useGetSystemResourceStats<TData = Awaited<ReturnType<typeof getSystemResourceStats>>, TError = ErrorType<Unauthorized>>(options: {
+  query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getSystemResourceStats>>, TError, TData>> &
+    Pick<DefinedInitialDataOptions<Awaited<ReturnType<typeof getSystemResourceStats>>, TError, TData>, 'initialData'>
+}): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetSystemResourceStats<TData = Awaited<ReturnType<typeof getSystemResourceStats>>, TError = ErrorType<Unauthorized>>(options?: {
+  query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getSystemResourceStats>>, TError, TData>> &
+    Pick<UndefinedInitialDataOptions<Awaited<ReturnType<typeof getSystemResourceStats>>, TError, TData>, 'initialData'>
+}): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetSystemResourceStats<TData = Awaited<ReturnType<typeof getSystemResourceStats>>, TError = ErrorType<Unauthorized>>(options?: {
+  query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getSystemResourceStats>>, TError, TData>>
+}): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get System Resource Stats
+ */
+
+export function useGetSystemResourceStats<TData = Awaited<ReturnType<typeof getSystemResourceStats>>, TError = ErrorType<Unauthorized>>(options?: {
+  query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getSystemResourceStats>>, TError, TData>>
+}): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetSystemResourceStatsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+  query.queryKey = queryOptions.queryKey
+
+  return query
+}
+
+/**
+ * Fetch user stats and traffic metrics without system resource stats.
+ * @summary Get System Users Stats
+ */
+export const getSystemUsersStats = (params?: GetSystemStatsParams, signal?: AbortSignal) => {
+  return orvalFetcher<SystemUsersStats>({ url: `/api/system/users`, method: 'GET', params, signal })
+}
+
+export const getGetSystemUsersStatsQueryKey = (params?: GetSystemStatsParams) => {
+  return [`/api/system/users`, ...(params ? [params] : [])] as const
+}
+
+export const getGetSystemUsersStatsQueryOptions = <TData = Awaited<ReturnType<typeof getSystemUsersStats>>, TError = ErrorType<Unauthorized | HTTPValidationError>>(
+  params?: GetSystemStatsParams,
+  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getSystemUsersStats>>, TError, TData>> },
+) => {
+  const { query: queryOptions } = options ?? {}
+
+  const queryKey = queryOptions?.queryKey ?? getGetSystemUsersStatsQueryKey(params)
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getSystemUsersStats>>> = ({ signal }) => getSystemUsersStats(params, signal)
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<Awaited<ReturnType<typeof getSystemUsersStats>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetSystemUsersStatsQueryResult = NonNullable<Awaited<ReturnType<typeof getSystemUsersStats>>>
+export type GetSystemUsersStatsQueryError = ErrorType<Unauthorized | HTTPValidationError>
+
+export function useGetSystemUsersStats<TData = Awaited<ReturnType<typeof getSystemUsersStats>>, TError = ErrorType<Unauthorized | HTTPValidationError>>(
+  params: undefined | GetSystemStatsParams,
+  options: {
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getSystemUsersStats>>, TError, TData>> &
+      Pick<DefinedInitialDataOptions<Awaited<ReturnType<typeof getSystemUsersStats>>, TError, TData>, 'initialData'>
+  },
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetSystemUsersStats<TData = Awaited<ReturnType<typeof getSystemUsersStats>>, TError = ErrorType<Unauthorized | HTTPValidationError>>(
+  params?: GetSystemStatsParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getSystemUsersStats>>, TError, TData>> &
+      Pick<UndefinedInitialDataOptions<Awaited<ReturnType<typeof getSystemUsersStats>>, TError, TData>, 'initialData'>
+  },
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetSystemUsersStats<TData = Awaited<ReturnType<typeof getSystemUsersStats>>, TError = ErrorType<Unauthorized | HTTPValidationError>>(
+  params?: GetSystemStatsParams,
+  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getSystemUsersStats>>, TError, TData>> },
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get System Users Stats
+ */
+
+export function useGetSystemUsersStats<TData = Awaited<ReturnType<typeof getSystemUsersStats>>, TError = ErrorType<Unauthorized | HTTPValidationError>>(
+  params?: GetSystemStatsParams,
+  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getSystemUsersStats>>, TError, TData>> },
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetSystemUsersStatsQueryOptions(params, options)
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 

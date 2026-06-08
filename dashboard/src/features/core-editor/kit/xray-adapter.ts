@@ -11,7 +11,7 @@ function isEmptyCompiledConfig(config: unknown): boolean {
 }
 
 function prepareProfileForKit(profile: Profile): Profile {
-  return stripRealityInboundXverForKit(sanitizeProfileInbounds(normalizeProfile(JSON.parse(JSON.stringify(profile)) as Profile)))
+  return stripHysteriaInboundAuth(stripRealityInboundXverForKit(sanitizeProfileInbounds(normalizeProfile(JSON.parse(JSON.stringify(profile)) as Profile))))
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -127,6 +127,31 @@ function stripRealityInboundXverForKit(profile: Profile): Profile {
   })
 
   return { ...profile, inbounds }
+}
+
+function stripHysteriaInboundAuth(profile: Profile): Profile {
+  let changed = false
+  const inbounds = profile.inbounds.map(inbound => {
+    if (inbound.protocol !== 'hysteria') return inbound
+
+    const transport = asRecord((inbound as { transport?: unknown }).transport)
+    const nextTransport = transport ? { ...transport } : undefined
+    const hadTransportAuth = Boolean(nextTransport && Object.prototype.hasOwnProperty.call(nextTransport, 'auth'))
+    if (nextTransport) delete nextTransport.auth
+
+    const clients = Array.isArray((inbound as { clients?: unknown }).clients) ? ((inbound as { clients?: unknown[] }).clients ?? []) : []
+    const hasClients = clients.length > 0
+    if (!hadTransportAuth && !hasClients) return inbound
+
+    changed = true
+    return {
+      ...inbound,
+      clients: [],
+      ...(nextTransport ? { transport: nextTransport } : {}),
+    } as typeof inbound
+  })
+
+  return changed ? { ...profile, inbounds } : profile
 }
 
 function applyVlessInboundEncryptionToCompiledConfig(profile: Profile, config: Record<string, unknown>): Record<string, unknown> {
@@ -246,6 +271,10 @@ function normalizeHysteriaSettingsForCore(config: Record<string, unknown>): Reco
 
     let inboundChanged = false
     const hysteriaSettings = isRecord(streamSettings.hysteriaSettings) ? { ...streamSettings.hysteriaSettings } : {}
+    if (Object.prototype.hasOwnProperty.call(hysteriaSettings, 'auth')) {
+      delete hysteriaSettings.auth
+      inboundChanged = true
+    }
     if (Object.prototype.hasOwnProperty.call(hysteriaSettings, 'ignoreClientBandwidth')) {
       delete hysteriaSettings.ignoreClientBandwidth
       inboundChanged = true
@@ -267,10 +296,20 @@ function normalizeHysteriaSettingsForCore(config: Record<string, unknown>): Reco
       inboundChanged = true
     }
 
+    const settings = isRecord(compiledInbound.settings) ? { ...compiledInbound.settings } : {}
+    if (Array.isArray(settings.clients) && settings.clients.length > 0) {
+      settings.clients = []
+      inboundChanged = true
+    }
+    if (Object.prototype.hasOwnProperty.call(settings, 'auth')) {
+      delete settings.auth
+      inboundChanged = true
+    }
+
     if (!inboundChanged) return compiledInbound
     streamSettings.hysteriaSettings = hysteriaSettings
     changed = true
-    return { ...compiledInbound, streamSettings }
+    return { ...compiledInbound, settings, streamSettings }
   })
 
   return changed ? { ...config, inbounds } : config
@@ -298,35 +337,6 @@ function applyHysteriaTransportUdpmasksToCompiledConfig(profile: Profile, config
   return changed ? { ...config, inbounds } : config
 }
 
-const OBSERVATION_EXCLUDED_OUTBOUND_PROTOCOLS = new Set(['blackhole', 'dns', 'loopback'])
-
-function observableOutboundTags(profile: Profile): string[] {
-  return [
-    ...new Set(
-      (profile.outbounds ?? [])
-        .filter(outbound => !OBSERVATION_EXCLUDED_OUTBOUND_PROTOCOLS.has(String(outbound.protocol)))
-        .map(outbound => String(outbound.tag ?? '').trim())
-        .filter(Boolean),
-    ),
-  ]
-}
-
-function applyObservationSubjectSelectorsToCompiledConfig(profile: Profile, config: Record<string, unknown>): Record<string, unknown> {
-  const subjectSelector = observableOutboundTags(profile)
-  if (subjectSelector.length === 0) return config
-
-  let changed = false
-  const next = { ...config }
-  for (const key of ['observatory', 'burstObservatory'] as const) {
-    const source = next[key]
-    if (!isRecord(source)) continue
-    next[key] = { ...source, subjectSelector }
-    changed = true
-  }
-
-  return changed ? next : config
-}
-
 /**
  * Issues from {@link buildXrayConfig} in strict mode when the profile does not compile (schema / semantic / unsafe patches, …).
  */
@@ -343,15 +353,17 @@ export type XrayPersistValidationResult =
 
 export function importRawToProfile(raw: unknown): { profile: Profile; issues: Issue[] } {
   const imported = importXrayConfig(raw)
-  const profile = preserveUnmodeledTopLevelSections(
-    preserveInboundStreamSettingsFromRaw(
-      patchRealityInboundXverFromRaw(
-        patchVlessInboundEncryptionFromRaw(sanitizeProfileInbounds(normalizeProfile(imported.profile)), raw),
+  const profile = stripHysteriaInboundAuth(
+    preserveUnmodeledTopLevelSections(
+      preserveInboundStreamSettingsFromRaw(
+        patchRealityInboundXverFromRaw(
+          patchVlessInboundEncryptionFromRaw(sanitizeProfileInbounds(normalizeProfile(imported.profile)), raw),
+          raw,
+        ),
         raw,
       ),
       raw,
     ),
-    raw,
   )
 
   return { profile, issues: [...imported.issues] }
@@ -360,17 +372,14 @@ export function importRawToProfile(raw: unknown): { profile: Profile; issues: Is
 export function profileToPersistedConfig(profile: Profile): Record<string, unknown> {
   const prepared = prepareProfileForKit(profile)
   const { config } = buildXrayConfig(prepared, { mode: 'permissive' })
-  const result = applyObservationSubjectSelectorsToCompiledConfig(
-    profile,
-    normalizeHysteriaSettingsForCore(
-      applyHysteriaTransportUdpmasksToCompiledConfig(
-        prepared,
-        applyRealityInboundExtrasToCompiledConfig(
-          profile,
-          applyVlessInboundEncryptionToCompiledConfig(
-            prepared,
-            applyInboundSockoptToCompiledConfig(prepared, config as Record<string, unknown>),
-          ),
+  const result = normalizeHysteriaSettingsForCore(
+    applyHysteriaTransportUdpmasksToCompiledConfig(
+      prepared,
+      applyRealityInboundExtrasToCompiledConfig(
+        profile,
+        applyVlessInboundEncryptionToCompiledConfig(
+          prepared,
+          applyInboundSockoptToCompiledConfig(prepared, config as Record<string, unknown>),
         ),
       ),
     ),
