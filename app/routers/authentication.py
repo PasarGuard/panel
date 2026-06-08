@@ -108,9 +108,9 @@ async def _get_admin_from_api_key_internal(
 
     if with_metrics:
         total_users, reseted_usage = await _build_admin_metrics(db, db_admin.id)
-        admin = _build_admin_details(db_admin, total_users=total_users, reseted_usage=reseted_usage)
+        admin = build_admin_details(db_admin, total_users=total_users, reseted_usage=reseted_usage)
     else:
-        admin = _build_admin_details(db_admin)
+        admin = build_admin_details(db_admin)
 
     if db_key.role is not None:
         admin.role = AdminRoleData.model_validate(db_key.role)

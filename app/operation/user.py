@@ -358,8 +358,7 @@ class UserOperation(BaseOperation):
             public_key, usernames = duplicate_key
             await self.raise_error(
                 message=(
-                    f"wireguard public_key {public_key} is assigned to multiple new users: "
-                    f"{', '.join(usernames[:2])}"
+                    f"wireguard public_key {public_key} is assigned to multiple new users: {', '.join(usernames[:2])}"
                 ),
                 code=400,
                 db=db,
