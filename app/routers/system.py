@@ -8,7 +8,14 @@ from fastapi.responses import JSONResponse
 from app.db import AsyncSession, get_db
 from app.models.admin import AdminDetails
 from app.models.settings import Telegram
-from app.models.system import InboundSummary, SystemStats, WorkerHealth, WorkersHealth
+from app.models.system import (
+    InboundSummary,
+    SystemResourceStats,
+    SystemStats,
+    SystemUsersStats,
+    WorkerHealth,
+    WorkersHealth,
+)
 from app.nats import is_nats_enabled
 from app.nats.node_rpc import node_nats_client
 from app.nats.scheduler_rpc import scheduler_nats_client
@@ -39,6 +46,24 @@ async def get_system_stats(
 ):
     """Fetch system stats including memory, CPU, disk, and user metrics."""
     return await system_operator.get_system_stats(db, admin=admin, admin_username=admin_username)
+
+
+@router.get("/system/resources", response_model=SystemResourceStats)
+async def get_system_resource_stats(
+    _: AdminDetails = Depends(require_permission("system", "read")),
+):
+    """Fetch system resource stats without user metrics."""
+    return await system_operator.get_system_resource_stats()
+
+
+@router.get("/system/users", response_model=SystemUsersStats)
+async def get_system_users_stats(
+    admin_username: str | None = None,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(require_permission("users", "read")),
+):
+    """Fetch user stats and traffic metrics without system resource stats."""
+    return await system_operator.get_system_users_stats(db, admin=admin, admin_username=admin_username)
 
 
 @router.get("/inbounds", response_model=list[str])

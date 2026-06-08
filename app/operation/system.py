@@ -4,12 +4,12 @@ from datetime import timedelta
 from app import __version__
 from app.core.manager import core_manager
 from app.db import AsyncSession
-from app.db.crud.admin import get_admin
+from app.db.crud.admin import build_admin_details, get_admin
 from app.db.crud.general import get_system_usage
 from app.db.crud.user import count_online_users, get_users_count_by_status
 from app.db.models import UserStatus
 from app.models.admin import AdminDetails
-from app.models.system import InboundSummary, SystemStats
+from app.models.system import InboundSummary, SystemResourceStats, SystemStats, SystemUsersStats
 from app.operation.permissions import PermissionDenied, enforce_permission, is_scope_all
 from app.utils.system import cpu_usage, disk_usage, get_uptime, memory_usage
 
@@ -18,14 +18,31 @@ from . import BaseOperation
 
 class SystemOperation(BaseOperation):
     @staticmethod
-    async def get_system_stats(db: AsyncSession, admin: AdminDetails, admin_username: str | None = None) -> SystemStats:
-        """Fetch system stats including memory, CPU, disk, and user metrics."""
-        # Run sync functions off the event loop
+    async def get_system_resource_stats() -> SystemResourceStats:
+        """Fetch system resource stats without user metrics."""
         mem_task = asyncio.create_task(asyncio.to_thread(memory_usage))
         cpu_task = asyncio.create_task(asyncio.to_thread(cpu_usage))
         disk_task = asyncio.create_task(asyncio.to_thread(disk_usage))
         uptime_task = asyncio.create_task(asyncio.to_thread(get_uptime))
 
+        mem, cpu, disk, uptime_seconds = await asyncio.gather(mem_task, cpu_task, disk_task, uptime_task)
+
+        return SystemResourceStats(
+            version=__version__,
+            uptime_seconds=uptime_seconds,
+            mem_total=mem.total,
+            mem_used=mem.used,
+            disk_total=disk.total,
+            disk_used=disk.used,
+            cpu_cores=cpu.cores,
+            cpu_usage=cpu.percent,
+        )
+
+    @staticmethod
+    async def get_system_users_stats(
+        db: AsyncSession, admin: AdminDetails, admin_username: str | None = None
+    ) -> SystemUsersStats:
+        """Fetch user counts and traffic metrics, scoped to the requesting admin."""
         # Determine which admin's stats to show:
         # - Owner with no admin_username: global system stats (all users)
         # - Owner with admin_username: that admin's stats
@@ -43,7 +60,7 @@ class SystemOperation(BaseOperation):
             if admin.is_owner or can_read_admins:
                 db_admin = await get_admin(db, admin_username, load_users=False, load_usage_logs=False)
                 if db_admin is not None:
-                    admin_param = AdminDetails.model_validate(db_admin)
+                    admin_param = build_admin_details(db_admin)
             else:
                 admin_param = admin
         elif not admin.is_owner:
@@ -65,8 +82,6 @@ class SystemOperation(BaseOperation):
         user_counts = await get_users_count_by_status(db, statuses, admin_id)
         online_users = await count_online_users(db, timedelta(minutes=2), admin_id)
 
-        mem, cpu, disk, uptime_seconds = await asyncio.gather(mem_task, cpu_task, disk_task, uptime_task)
-
         if system is not None:
             uplink = system.uplink
             downlink = system.downlink
@@ -74,15 +89,7 @@ class SystemOperation(BaseOperation):
             uplink = 0
             downlink = admin_param.used_traffic
 
-        return SystemStats(
-            version=__version__,
-            uptime_seconds=uptime_seconds,
-            mem_total=mem.total,
-            mem_used=mem.used,
-            disk_total=disk.total,
-            disk_used=disk.used,
-            cpu_cores=cpu.cores,
-            cpu_usage=cpu.percent,
+        return SystemUsersStats(
             total_user=user_counts["total"],
             online_users=online_users,
             active_users=user_counts[UserStatus.active.value],
@@ -93,6 +100,15 @@ class SystemOperation(BaseOperation):
             incoming_bandwidth=uplink,
             outgoing_bandwidth=downlink,
         )
+
+    @staticmethod
+    async def get_system_stats(db: AsyncSession, admin: AdminDetails, admin_username: str | None = None) -> SystemStats:
+        """Fetch system stats including memory, CPU, disk, and user metrics."""
+        resource_stats, users_stats = await asyncio.gather(
+            SystemOperation.get_system_resource_stats(),
+            SystemOperation.get_system_users_stats(db, admin=admin, admin_username=admin_username),
+        )
+        return SystemStats(**resource_stats.model_dump(), **users_stats.model_dump())
 
     @staticmethod
     async def get_inbounds() -> list[str]:

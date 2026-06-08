@@ -24,6 +24,7 @@ export default function AdminsPage() {
   const queryClient = useQueryClient()
   const { admin: currentAdmin } = useAdmin()
   const canCreateAdmins = hasPermission(currentAdmin, 'admins', 'create')
+  const canUpdateAdmins = hasPermission(currentAdmin, 'admins', 'update')
   const [editingAdmin, setEditingAdmin] = useState<Partial<AdminDetails> | null>(null)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [adminCounts, setAdminCounts] = useState<{ total: number; active: number; disabled: number; limited: number } | null>(null)
@@ -34,7 +35,7 @@ export default function AdminsPage() {
 
   const removeAdminMutation = useRemoveAdminById()
   const modifyAdminMutation = useModifyAdminById()
-  const rolesQuery = useGetRolesSimple()
+  const rolesQuery = useGetRolesSimple({ query: { enabled: canUpdateAdmins } })
   const modifyDisableAllAdminUsers = useDisableAllActiveUsersById()
   const modifyActivateAllAdminUsers = useActivateAllDisabledUsersById()
   const resetUsageMutation = useResetAdminUsageById()
@@ -109,7 +110,6 @@ export default function AdminsPage() {
           profile_title: admin.profile_title,
           sub_domain: admin.sub_domain,
           note: admin.note,
-          discord_id: admin.discord_id,
         },
       })
       upsertAdminInAdminsCache(queryClient, updatedAdmin, { allowInsert: true })
@@ -137,6 +137,8 @@ export default function AdminsPage() {
 
   const getRoleIdForAdmin = (admin: AdminDetails) => {
     const roleName = admin.role?.name
+    if (admin.role?.is_owner || roleName === 'owner') return 1
+    if (admin.role?.id != null) return admin.role.id
     const roleId = rolesQuery.data?.roles.find(role => role.name === roleName)?.id
     if (roleId != null) return roleId
     if (roleName === 'administrator') return 2
@@ -144,6 +146,8 @@ export default function AdminsPage() {
   }
 
   const handleEdit = (admin: AdminDetails) => {
+    if (!canUpdateAdmins) return
+
     const roleId = getRoleIdForAdmin(admin)
     setEditingAdmin(admin)
     form.reset({
@@ -159,7 +163,6 @@ export default function AdminsPage() {
       profile_title: admin.profile_title || '',
       sub_domain: admin.sub_domain || '',
       note: admin.note || '',
-      discord_id: admin.discord_id || undefined,
       password: undefined,
       permission_overrides: {
         ...adminPermissionOverridesDefaultValues,
@@ -243,19 +246,23 @@ export default function AdminsPage() {
           <AdminsTable onEdit={handleEdit} onDelete={handleDelete} onToggleStatus={handleToggleStatus} onResetUsage={resetUsage} onTotalAdminsChange={setAdminCounts} />
         </div>
 
-        <AdminModal
-          isDialogOpen={isDialogOpen}
-          onOpenChange={open => {
-            if (!open) {
-              setEditingAdmin(null)
-              form.reset(adminFormDefaultValues)
-            }
-            setIsDialogOpen(open)
-          }}
-          form={form}
-          editingAdmin={!!editingAdmin}
-          editingAdminId={editingAdmin?.id}
-        />
+        {(canCreateAdmins || canUpdateAdmins) && (
+          <AdminModal
+            isDialogOpen={isDialogOpen}
+            onOpenChange={open => {
+              if (open && editingAdmin && !canUpdateAdmins) return
+              if (open && !editingAdmin && !canCreateAdmins) return
+              if (!open) {
+                setEditingAdmin(null)
+                form.reset(adminFormDefaultValues)
+              }
+              setIsDialogOpen(open)
+            }}
+            form={form}
+            editingAdmin={!!editingAdmin}
+            editingAdminId={editingAdmin?.id}
+          />
+        )}
       </div>
     </div>
   )

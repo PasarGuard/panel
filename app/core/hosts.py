@@ -33,6 +33,19 @@ from config import runtime_settings
 from role import Role
 
 
+def _string_list(value) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, dict):
+        value = value.keys()
+    try:
+        return [str(item) for item in value]
+    except TypeError:
+        return [str(value)]
+
+
 async def _prepare_subscription_inbound_data(
     host: BaseHost,
     down_settings: SubscriptionInboundData | None = None,
@@ -98,9 +111,9 @@ async def _prepare_subscription_inbound_data(
             else None,
         )
 
-    sni_list = list(host.sni) if host.sni else inbound_config.get("sni", [])
-    host_list = list(host.host) if host.host else inbound_config.get("host", [])
-    address_list = list(host.address) if host.address else []
+    sni_list = _string_list(host.sni) if host.sni else _string_list(inbound_config.get("sni", []))
+    host_list = _string_list(host.host) if host.host else _string_list(inbound_config.get("host", []))
+    address_list = _string_list(host.address) if host.address else []
 
     # Get Reality fields from inbound if applicable
     reality_pbk = inbound_config.get("pbk", "")
@@ -115,7 +128,7 @@ async def _prepare_subscription_inbound_data(
         tls_value = inbound_config.get("tls", "none")
 
     pinned_peer_cert_sha256 = host.pinned_peer_cert_sha256
-    verify_peer_cert_by_name = host.verify_peer_cert_by_name
+    verify_peer_cert_by_name = _string_list(host.verify_peer_cert_by_name) if host.verify_peer_cert_by_name else []
     ech_query_strategy = host.ech_query_strategy or inbound_config.get("echForceQuery")
     alpn_list = [alpn.value for alpn in host.alpn] if host.alpn else inbound_config.get("alpn", [])
     fp = host.fingerprint.value if host.fingerprint.value != "none" else inbound_config.get("fp")
@@ -194,9 +207,19 @@ async def _prepare_subscription_inbound_data(
             path=path,
             host=host_list,
             mode=mode,
-            no_grpc_header=xs.no_grpc_header if xs else None,
-            sc_max_each_post_bytes=xs.sc_max_each_post_bytes if xs else None,
-            sc_min_posts_interval_ms=xs.sc_min_posts_interval_ms if xs else None,
+            no_grpc_header=xs.no_grpc_header
+            if xs and xs.no_grpc_header is not None
+            else inbound_config.get("no_grpc_header"),
+            sc_max_each_post_bytes=(
+                xs.sc_max_each_post_bytes
+                if xs and xs.sc_max_each_post_bytes is not None
+                else inbound_config.get("sc_max_each_post_bytes")
+            ),
+            sc_min_posts_interval_ms=(
+                xs.sc_min_posts_interval_ms
+                if xs and xs.sc_min_posts_interval_ms is not None
+                else inbound_config.get("sc_min_posts_interval_ms")
+            ),
             x_padding_bytes=xs.x_padding_bytes
             if xs and xs.x_padding_bytes is not None
             else inbound_config.get("x_padding_bytes"),
@@ -251,9 +274,9 @@ async def _prepare_subscription_inbound_data(
                 if xs and xs.uplink_chunk_size is not None
                 else inbound_config.get("uplink_chunk_size")
             ),
-            xmux=xs.xmux.model_dump(by_alias=True, exclude_none=True) if xs and xs.xmux else None,
-            download_settings=down_settings if xs and down_settings else None,
-            http_headers=host.http_headers,
+            xmux=xs.xmux.model_dump(by_alias=True, exclude_none=True) if xs and xs.xmux else inbound_config.get("xmux"),
+            download_settings=down_settings if xs and down_settings else inbound_config.get("download_settings"),
+            http_headers=host.http_headers if host.http_headers is not None else inbound_config.get("http_headers"),
             random_user_agent=host.random_user_agent,
         )
     elif network in ("grpc", "gun"):

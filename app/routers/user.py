@@ -29,6 +29,7 @@ from app.models.user import (
     UserModify,
     UserResponse,
     UserSimpleListQuery,
+    UserStatusToggle,
     UserUsageQuery,
     UsersResponse,
     UsersSimpleResponse,
@@ -145,6 +146,48 @@ async def modify_user_by_id(
     admin: AdminDetails = Depends(require_permission("users", "update")),
 ):
     return await user_operator.modify_user_by_id(db, user_id=user_id, modified_user=modified_user, admin=admin)
+
+
+@router.put(
+    "/{username}/disabled",
+    response_model=UserResponse,
+    responses={400: responses._400, 403: responses._403, 404: responses._404},
+)
+async def set_user_disabled(
+    username: str,
+    body: UserStatusToggle,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(require_permission("users", "update")),
+):
+    return await user_operator.set_user_disabled(db, username=username, toggle=body, admin=admin)
+
+
+@router.put(
+    "/by-username/{username}/disabled",
+    response_model=UserResponse,
+    responses={400: responses._400, 403: responses._403, 404: responses._404},
+)
+async def set_user_disabled_by_username(
+    username: str,
+    body: UserStatusToggle,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(require_permission("users", "update")),
+):
+    return await user_operator.set_user_disabled(db, username=username, toggle=body, admin=admin)
+
+
+@router.put(
+    "/by-id/{user_id}/disabled",
+    response_model=UserResponse,
+    responses={400: responses._400, 403: responses._403, 404: responses._404},
+)
+async def set_user_disabled_by_id(
+    user_id: int,
+    body: UserStatusToggle,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(require_permission("users", "update")),
+):
+    return await user_operator.set_user_disabled_by_id(db, user_id=user_id, toggle=body, admin=admin)
 
 
 @router.delete(

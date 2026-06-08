@@ -40,6 +40,7 @@ const ExpandedRowContent = memo(({ row }: { row: { original: UserResponse } }) =
           </span>
           <OnlineStatus lastOnline={row.original.online_at} />
         </div>
+        <span className="font-mono text-[10px] text-muted-foreground/70">#{row.original.id}</span>
       </div>
     </div>
   </div>

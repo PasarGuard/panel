@@ -11,12 +11,18 @@ const UserTemplate = ({
   template,
   onEdit,
   onToggleStatus,
+  canCreate = true,
+  canUpdate = true,
+  canDelete = true,
   selectionControl,
   selected = false,
 }: {
   template: UserTemplateResponse
   onEdit: (userTemplate: UserTemplateResponse) => void
   onToggleStatus: (template: UserTemplateResponse) => void
+  canCreate?: boolean
+  canUpdate?: boolean
+  canDelete?: boolean
   selectionControl?: ReactNode
   selected?: boolean
 }) => {
@@ -25,8 +31,10 @@ const UserTemplate = ({
 
   return (
     <Card
-      className={cn('group relative h-full cursor-pointer rounded-lg px-4 py-5 transition-colors hover:bg-accent', selected && 'border-primary/50 bg-accent/30')}
-      onClick={() => onEdit(template)}
+      className={cn('group relative h-full rounded-lg px-4 py-5 transition-colors', canUpdate && 'cursor-pointer hover:bg-accent', selected && 'border-primary/50 bg-accent/30')}
+      onClick={() => {
+        if (canUpdate) onEdit(template)
+      }}
     >
       <div className="flex items-start gap-3">
         {selectionControl ? <div className="pt-1">{selectionControl}</div> : null}
@@ -64,7 +72,7 @@ const UserTemplate = ({
             </div>
           </div>
           <div onClick={event => event.stopPropagation()}>
-            <UserTemplateActionsMenu template={template} onEdit={onEdit} onToggleStatus={onToggleStatus} />
+            <UserTemplateActionsMenu template={template} onEdit={onEdit} onToggleStatus={onToggleStatus} canCreate={canCreate} canUpdate={canUpdate} canDelete={canDelete} />
           </div>
         </div>
       </div>

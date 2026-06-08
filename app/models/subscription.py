@@ -98,13 +98,13 @@ class XHTTPTransportConfig(BaseTransportConfig):
 
     mode: str = Field("auto")
     no_grpc_header: bool | None = Field(None)
-    sc_max_each_post_bytes: str | int | None = Field(
+    sc_max_each_post_bytes: str | None = Field(
         None, serialization_alias="scMaxEachPostBytes", pattern=r"^\d{1,16}(?:-\d{1,16})?$"
     )
-    sc_min_posts_interval_ms: str | int | None = Field(
+    sc_min_posts_interval_ms: str | None = Field(
         None, serialization_alias="scMinPostsIntervalMs", pattern=r"^\d{1,16}(?:-\d{1,16})?$"
     )
-    x_padding_bytes: str | None = Field(None, serialization_alias="xPaddingBytes")
+    x_padding_bytes: str | None = Field(None, serialization_alias="xPaddingBytes", pattern=r"^\d{1,16}(?:-\d{1,16})?$")
     x_padding_obfs_mode: bool | None = Field(None, serialization_alias="xPaddingObfsMode")
     x_padding_key: str | None = Field(None, serialization_alias="xPaddingKey")
     x_padding_header: str | None = Field(None, serialization_alias="xPaddingHeader")
@@ -117,7 +117,7 @@ class XHTTPTransportConfig(BaseTransportConfig):
     seq_key: str | None = Field(None, serialization_alias="seqKey")
     uplink_data_placement: str | None = Field(None, serialization_alias="uplinkDataPlacement")
     uplink_data_key: str | None = Field(None, serialization_alias="uplinkDataKey")
-    uplink_chunk_size: str | int | None = Field(
+    uplink_chunk_size: str | None = Field(
         None, serialization_alias="uplinkChunkSize", pattern=r"^\d{1,16}(?:-\d{1,16})?$"
     )
     xmux: dict[str, Any] | None = Field(None)
@@ -128,11 +128,14 @@ class XHTTPTransportConfig(BaseTransportConfig):
     @field_validator(
         "sc_max_each_post_bytes",
         "sc_min_posts_interval_ms",
+        "x_padding_bytes",
         "uplink_chunk_size",
         mode="before",
     )
     @classmethod
     def normalize_numeric_or_range_fields(cls, value):
+        if value == "":
+            return None
         if isinstance(value, int):
             return str(value)
         return value

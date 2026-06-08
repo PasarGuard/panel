@@ -1,6 +1,6 @@
 [project]
 name = "PasarGuard"
-version = "4.0.2"
+version = "5.0.0"
 description = "Unified GUI Censorship Resistant Solution"
 readme = "README.md"
 requires-python = ">=3.14"
@@ -21,10 +21,10 @@ dependencies = [
     "pydantic>=2.13.4",
     "pydantic-settings>=2.14.1",
     "python-dateutil>=2.8.2",
-    "python-multipart>=0.0.29",
+    "python-multipart>=0.0.32",
     "qrcode>=8.1",
     "rich>=15.0.0",
-    "uvicorn==0.48.0",
+    "uvicorn==0.49.0",
     "sse-starlette>=3.4.4",
     "aiohttp>=3.13.5",
     "packaging>=26.2",
@@ -33,15 +33,14 @@ dependencies = [
     "asyncpg>=0.31.0",
     "asyncmy>=0.2.10; sys_platform != 'win32'",
     "aiocache>=0.12.3",
-    "textual>=8.2.6",
     "aiogram>=3.28.2",
     "aiohttp-socks>=0.10.1",
     "uvloop>=0.22.1; sys_platform != 'win32'",
     "aiorwlock>=1.5.0",
-    "typer>=0.25.1",
+    "typer>=0.26.7",
     "pasarguard-node-bridge>=0.8.1",
     "pip-system-certs>=5.3",
-    "nats-py>=2.12.0",
+    "nats-py>=2.15.0",
 ]
 
 [tool.ruff]
@@ -69,10 +68,9 @@ dev = [
     "psycopg[binary]>=3.3.4",
     "pymysql>=1.2.0",
     "pytest>=9.0.3",
-    "pytest-asyncio>=0.26.0",
+    "pytest-asyncio>=1.4.0",
     "pytest-watch>=4.2.0",
-    "ruff>=0.15.14",
+    "ruff>=0.15.16",
     "sqlalchemy-utils>=0.41.2",
-    "textual-dev>=1.8.0",
     "watchfiles>=1.2.0",
 ]

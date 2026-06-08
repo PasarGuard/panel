@@ -8,6 +8,8 @@ import { useTranslation } from 'react-i18next'
 
 interface StickySaveBarProps {
   dirty: boolean
+  canSave?: boolean
+  saveLabel?: string
   onSave: () => void
   onDiscard: () => void
   saving: boolean
@@ -19,6 +21,8 @@ interface StickySaveBarProps {
 
 export function StickySaveBar({
   dirty,
+  canSave = dirty,
+  saveLabel,
   onSave,
   onDiscard,
   saving,
@@ -73,8 +77,8 @@ export function StickySaveBar({
               {statusLabel}
             </TooltipContent>
           </Tooltip>
-          <LoaderButton type="button" size="sm" disabled={!dirty || saving} isLoading={saving} onClick={onSave}>
-            {t('save', { defaultValue: 'Save' })}
+          <LoaderButton type="button" size="sm" disabled={!canSave || saving} isLoading={saving} onClick={onSave}>
+            {saveLabel ?? t('save', { defaultValue: 'Save' })}
           </LoaderButton>
         </div>
       </TooltipProvider>

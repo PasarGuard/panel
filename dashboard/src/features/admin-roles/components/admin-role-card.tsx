@@ -13,6 +13,7 @@ import AdminRoleActionsMenu from './admin-role-actions-menu'
 interface AdminRoleCardProps {
   role: AdminRoleResponse
   onEdit: (role: AdminRoleResponse) => void
+  onDuplicate: (role: AdminRoleResponse) => void
   selectionControl?: ReactNode
   selected?: boolean
 }
@@ -27,7 +28,7 @@ const countResourcePermissions = (role: AdminRoleResponse) => {
   return total
 }
 
-export default function AdminRoleCard({ role, onEdit, selectionControl, selected = false }: AdminRoleCardProps) {
+export default function AdminRoleCard({ role, onEdit, onDuplicate, selectionControl, selected = false }: AdminRoleCardProps) {
   const { t } = useTranslation()
   const builtIn = BUILT_IN_ROLE_IDS.has(role.id) && !role.is_owner
   const RoleIcon = role.is_owner ? Crown : builtIn ? ShieldCheck : Shield
@@ -65,7 +66,7 @@ export default function AdminRoleCard({ role, onEdit, selectionControl, selected
             {t('adminRoles.id', { defaultValue: 'ID' })} {role.id}
           </div>
         </div>
-        <AdminRoleActionsMenu role={role} onEdit={onEdit} />
+        <AdminRoleActionsMenu role={role} onEdit={onEdit} onDuplicate={onDuplicate} />
       </div>
 
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">

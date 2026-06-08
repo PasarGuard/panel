@@ -61,7 +61,8 @@ class AdminRoleData(BaseModel):
     access: RoleAccess = Field(default_factory=RoleAccess)
     hwid: HWIDSettings = Field(default_factory=HWIDSettings)
     disabled_when_limited: bool = False
-    disable_users_when_limited: bool = True
+    disconnect_users_when_limited: bool = True
+    disconnect_users_when_disabled: bool = True
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -112,7 +113,6 @@ class AdminDetails(AdminContactInfo):
     used_traffic: int = 0
     data_limit: int | None = None
     status: AdminStatus = AdminStatus.active
-    discord_id: int | None = None
     sub_template: str | None = None
     lifetime_used_traffic: int | None = None
     note: str | None = None
@@ -144,7 +144,6 @@ class AdminModify(BaseModel):
     password: str | None = None
     telegram_id: int | None = None
     discord_webhook: str | None = None
-    discord_id: int | None = None
     status: AdminStatusModify | None = None
     data_limit: int | None = None
     sub_template: str | None = None

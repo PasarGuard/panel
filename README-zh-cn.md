@@ -109,6 +109,7 @@ PasarGuard 是一个用户友好、功能丰富且可靠的代理管理工具。
 - **单个端口** 上的 **多 inbound**（支持 fallbacks）
 - **流量** 和 **过期日期** 限制
 - **周期性** 流量限制（每日、每周等）
+- **HWID/设备限制**，用于基于硬件的访问控制
 
 **🔗 订阅和分享**
 - 与 **V2ray**、**Clash** 和 **ClashMeta** 兼容的 **订阅链接**
@@ -120,7 +121,7 @@ PasarGuard 是一个用户友好、功能丰富且可靠的代理管理工具。
 - 集成的 **Telegram Bot**
 - **命令行界面 (CLI)**
 - **多语言** 支持
-- **多管理员** 支持（开发中）
+- 支持带 **RBAC** 的 **多管理员**，可配置细粒度权限和访问范围
 
 </div>
 
@@ -136,32 +137,27 @@ PasarGuard 是一个用户友好、功能丰富且可靠的代理管理工具。
 
 **TimescaleDB（推荐）：**
 ```bash
-curl -fsSL https://github.com/PasarGuard/scripts/raw/main/pasarguard.sh -o /tmp/pg.sh \
-  && sudo bash /tmp/pg.sh install --database timescaledb
+sudo bash -c "$(curl -fsSL https://github.com/PasarGuard/scripts/raw/main/pasarguard.sh)" @ install --database timescaledb
 ```
 
 **SQLite：**
 ```bash
-curl -fsSL https://github.com/PasarGuard/scripts/raw/main/pasarguard.sh -o /tmp/pg.sh \
-  && sudo bash /tmp/pg.sh install
+sudo bash -c "$(curl -fsSL https://github.com/PasarGuard/scripts/raw/main/pasarguard.sh)" @ install
 ```
 
 **MySQL：**
 ```bash
-curl -fsSL https://github.com/PasarGuard/scripts/raw/main/pasarguard.sh -o /tmp/pg.sh \
-  && sudo bash /tmp/pg.sh install --database mysql
+sudo bash -c "$(curl -fsSL https://github.com/PasarGuard/scripts/raw/main/pasarguard.sh)" @ install --database mysql
 ```
 
 **MariaDB：**
 ```bash
-curl -fsSL https://github.com/PasarGuard/scripts/raw/main/pasarguard.sh -o /tmp/pg.sh \
-  && sudo bash /tmp/pg.sh install --database mariadb
+sudo bash -c "$(curl -fsSL https://github.com/PasarGuard/scripts/raw/main/pasarguard.sh)" @ install --database mariadb
 ```
 
 **PostgreSQL：**
 ```bash
-curl -fsSL https://github.com/PasarGuard/scripts/raw/main/pasarguard.sh -o /tmp/pg.sh \
-  && sudo bash /tmp/pg.sh install --database postgresql
+sudo bash -c "$(curl -fsSL https://github.com/PasarGuard/scripts/raw/main/pasarguard.sh)" @ install --database postgresql
 ```
 
 ### 📋 安装后：
@@ -197,8 +193,10 @@ ssh -L 8000:localhost:8000 user@serverip
 ### 🔧 下一步：
 
 ```bash
-# 创建管理员账户
-pasarguard cli admins --create <username>
+# 生成用于设置 owner 账户的一次性临时密钥
+pasarguard cli generate-temp-key
+
+# 在仪表板登录页使用该密钥创建 owner 账户
 
 # 获取帮助
 pasarguard --help

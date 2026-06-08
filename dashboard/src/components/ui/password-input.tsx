@@ -32,7 +32,7 @@ const PasswordInput = React.forwardRef<HTMLInputElement, PasswordInputProps>(({ 
           type="button"
           variant="ghost"
           size="sm"
-          className="absolute right-0 top-0 flex h-full items-center justify-center px-3 py-2 transition-opacity duration-200 hover:bg-transparent"
+          className="absolute right-0 top-0 flex h-9 items-center justify-center px-3 py-2 transition-opacity duration-200 hover:bg-transparent"
           onClick={togglePasswordVisibility}
           tabIndex={-1}
         >

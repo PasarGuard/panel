@@ -72,6 +72,25 @@ function compactSettingsUser(user: Record<string, unknown>): Record<string, unkn
   return out
 }
 
+function normalizeVlessReverseSetting(value: unknown): Record<string, unknown> | undefined {
+  if (value === undefined || value === null) return undefined
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (!trimmed) return undefined
+    try {
+      const parsed = JSON.parse(trimmed) as unknown
+      return normalizeVlessReverseSetting(parsed)
+    } catch {
+      return { tag: trimmed }
+    }
+  }
+  if (typeof value !== 'object' || Array.isArray(value)) return undefined
+
+  const pruned = deepPruneEmptyJsonObjects(value) as unknown
+  if (!pruned || typeof pruned !== 'object' || Array.isArray(pruned)) return undefined
+  return Object.keys(pruned as Record<string, unknown>).length > 0 ? (pruned as Record<string, unknown>) : undefined
+}
+
 function flattenVnextLike(
   settings: Record<string, unknown>,
   protocol: 'vless' | 'vmess',
@@ -232,22 +251,17 @@ export function outboundEditorBodyFromOutbound(ob: Outbound): Record<string, unk
 
 export function normalizeSettingsFromEditor(protocol: string, settings: Record<string, unknown>): Record<string, unknown> {
   if (protocol === 'vless') {
-    if (Array.isArray(settings.vnext) && settings.vnext.length > 0) return { ...settings }
-    const { address, port, id, flow, encryption, level, email, ...rest } = settings
-    if (address != null && port != null && id != null) {
-      const user = compactSettingsUser({
-        id,
-        encryption,
-        flow: typeof flow === 'string' && flow === '' ? undefined : flow,
-        level,
-        email,
-      })
-      return {
-        ...rest,
-        vnext: [{ address, port, users: [user] }],
-      }
+    const next = { ...settings }
+    const reverse = normalizeVlessReverseSetting(next.reverse)
+    if (reverse) return { reverse }
+
+    if (typeof next.flow === 'string' && next.flow === '') delete next.flow
+    if (Array.isArray(next.vnext) && next.vnext.length === 0) delete next.vnext
+    delete next.reverse
+    for (const key of ['address', 'port', 'id', 'encryption', 'level', 'email'] as const) {
+      if (next[key] === undefined || next[key] === null || next[key] === '') delete next[key]
     }
-    return { ...settings }
+    return next
   }
   if (protocol === 'vmess') {
     if (Array.isArray(settings.vnext) && settings.vnext.length > 0) return { ...settings }

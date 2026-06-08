@@ -5,7 +5,7 @@ from uuid import UUID, uuid4
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from app.utils.crypto import generate_wireguard_keypair, get_wireguard_public_key, validate_wireguard_key
+from app.utils.crypto import get_wireguard_public_key, validate_wireguard_key
 from app.utils.system import random_password
 
 
@@ -92,9 +92,7 @@ class WireGuardSettings(BaseModel):
 
     @model_validator(mode="after")
     def handle_keys(self):
-        if not self.private_key:
-            self.private_key, self.public_key = generate_wireguard_keypair()
-        elif not self.public_key:
+        if self.private_key and not self.public_key:
             self.public_key = get_wireguard_public_key(self.private_key)
         return self
 

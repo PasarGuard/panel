@@ -29,7 +29,6 @@ const NodesPage = lazyWithChunkRecovery(() => import('../pages/_dashboard.nodes.
 const NodeLogs = lazyWithChunkRecovery(() => import('../pages/_dashboard.nodes.logs'))
 const Settings = lazyWithChunkRecovery(() => import('../pages/_dashboard.settings'))
 const CleanupSettings = lazyWithChunkRecovery(() => import('../pages/_dashboard.settings.cleanup'))
-const DiscordSettings = lazyWithChunkRecovery(() => import('../pages/_dashboard.settings.discord'))
 const GeneralSettings = lazyWithChunkRecovery(() => import('../pages/_dashboard.settings.general'))
 const HwidSettings = lazyWithChunkRecovery(() => import('../pages/_dashboard.settings.hwid'))
 const NotificationSettings = lazyWithChunkRecovery(() => import('../pages/_dashboard.settings.notifications'))
@@ -49,6 +48,17 @@ function SettingsIndex() {
   const canUpdateSettings = hasPermission(admin, 'settings', 'update')
   const canSeeGeneral = hasPermission(admin, 'settings', 'read_general') && canUpdateSettings
   const defaultPath = canSeeGeneral ? '/settings/general' : '/settings/theme'
+
+  return <Navigate to={defaultPath} replace />
+}
+
+function TemplatesIndex() {
+  const { admin } = useAdmin()
+  const defaultPath = hasPermission(admin, 'templates', 'read')
+    ? '/templates/user'
+    : hasPermission(admin, 'client_templates', 'read')
+      ? '/templates/client'
+      : '/settings/theme'
 
   return <Navigate to={defaultPath} replace />
 }
@@ -181,7 +191,7 @@ export const router = createHashRouter([
         children: [
           {
             index: true,
-            element: <Navigate to="/templates/user" replace />,
+            element: <TemplatesIndex />,
           },
           {
             path: '/templates/user',
@@ -271,14 +281,6 @@ export const router = createHashRouter([
             element: (
               <Suspense fallback={<LoadingSpinner />}>
                 <TelegramSettings />
-              </Suspense>
-            ),
-          },
-          {
-            path: '/settings/discord',
-            element: (
-              <Suspense fallback={<LoadingSpinner />}>
-                <DiscordSettings />
               </Suspense>
             ),
           },

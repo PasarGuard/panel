@@ -20,8 +20,9 @@ from app.db.crud.admin import (
     update_admin_status,
 )
 from app.db.crud.user import get_users
-from app.db.models import AdminStatus, ReminderType, UserStatus
-from app.models.admin import AdminDetails
+from app.db.models import Admin, AdminStatus, ReminderType, UserStatus
+from app.models.admin import AdminDetails, AdminRoleData
+from app.models.admin_role import RoleLimits
 from app.models.user import UserListQuery
 from app.models.validators import ListValidator
 from app.node.sync import remove_users as sync_remove_users
@@ -30,6 +31,28 @@ from app.utils.logger import get_logger
 from config import job_settings, runtime_settings
 
 logger = get_logger("review-admins")
+
+
+def _admin_usage_warning_details(admin: Admin) -> AdminDetails:
+    return AdminDetails(
+        id=admin.id,
+        username=admin.username,
+        used_traffic=int(admin.used_traffic or 0),
+        data_limit=admin.data_limit,
+        status=admin.status,
+        telegram_id=admin.telegram_id,
+        discord_webhook=admin.discord_webhook,
+        sub_domain=admin.sub_domain,
+        profile_title=admin.profile_title,
+        support_url=admin.support_url,
+        notification_enable=admin.notification_enable,
+        sub_template=admin.sub_template,
+        note=admin.note,
+        role=AdminRoleData.model_validate(admin.role) if admin.role else None,
+        permission_overrides=RoleLimits.model_validate(admin.permission_overrides)
+        if admin.permission_overrides
+        else None,
+    )
 
 
 async def _send_usage_limit_warning_notifications(db):
@@ -55,7 +78,7 @@ async def _send_usage_limit_warning_notifications(db):
             if not admin.data_limit or admin.data_limit <= 0:
                 continue
             usage_percentage = int((admin.used_traffic * 100) / admin.data_limit)
-            admin_model = AdminDetails.model_validate(admin)
+            admin_model = _admin_usage_warning_details(admin)
             await notification.admin_usage_limit_reached(admin_model, usage_percentage, threshold)
             reminder_rows.append(
                 {
@@ -82,7 +105,7 @@ async def limit_admins_job():
             await update_admin_status(db, admin, AdminStatus.limited)
             logger.info(f'Admin "{admin.username}" status changed to limited')
 
-            if admin.role and admin.role.disable_users_when_limited:
+            if admin.role and admin.role.disconnect_users_when_limited:
                 users = await get_users(
                     db,
                     query=UserListQuery(status=[UserStatus.active, UserStatus.on_hold]),

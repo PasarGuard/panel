@@ -20,6 +20,11 @@ interface NodeActionsMenuProps {
   className?: string
   isModalHost?: boolean
   renderActions?: boolean
+  canUpdate?: boolean
+  canDelete?: boolean
+  canReconnect?: boolean
+  canUpdateCore?: boolean
+  canReadStats?: boolean
 }
 
 type NodeActionsMenuState = {
@@ -203,7 +208,20 @@ const ResetUsageAlertDialog = ({ node, isOpen, onClose, onConfirm, isLoading }: 
   )
 }
 
-export default function NodeActionsMenu({ node, onEdit, onToggleStatus, coresData, className, isModalHost = true, renderActions = true }: NodeActionsMenuProps) {
+export default function NodeActionsMenu({
+  node,
+  onEdit,
+  onToggleStatus,
+  coresData,
+  className,
+  isModalHost = true,
+  renderActions = true,
+  canUpdate = true,
+  canDelete = true,
+  canReconnect = true,
+  canUpdateCore = true,
+  canReadStats = true,
+}: NodeActionsMenuProps) {
   const { t } = useTranslation()
   const [syncing, setSyncing] = useState(false)
   const [reconnecting, setReconnecting] = useState(false)
@@ -243,14 +261,22 @@ export default function NodeActionsMenu({ node, onEdit, onToggleStatus, coresDat
   }, [node])
 
   const isWireGuard = coresData?.cores?.find(core => core.id === node.core_config_id)?.type === 'wg'
+  const hasRowActions = canUpdate || canDelete || canReconnect || canUpdateCore || canReadStats
+  const primaryActionCount = canUpdate ? 2 : 0
+  const secondaryActionCount = (canReadStats ? 1 : 0) + (canUpdate ? 2 : 0) + (canReconnect ? 1 : 0)
+  const coreActionCount = (canUpdateCore && !isWireGuard ? 2 : 0) + (canUpdateCore ? 1 : 0)
+  const destructiveActionCount = canDelete ? 1 : 0
 
   const handleDeleteClick = (event: Event) => {
     event.preventDefault()
     event.stopPropagation()
+    if (!canDelete) return
     setDeleteDialogOpen(true)
   }
 
   const handleConfirmDelete = async () => {
+    if (!canDelete) return
+
     try {
       await removeNodeMutation.mutateAsync({
         nodeId: node.id,
@@ -275,6 +301,8 @@ export default function NodeActionsMenu({ node, onEdit, onToggleStatus, coresDat
   }
 
   const handleSync = async () => {
+    if (!canUpdate) return
+
     setSyncing(true)
     try {
       await syncNodeMutation.mutateAsync({
@@ -296,6 +324,8 @@ export default function NodeActionsMenu({ node, onEdit, onToggleStatus, coresDat
   }
 
   const handleReconnect = async () => {
+    if (!canReconnect) return
+
     setReconnecting(true)
     try {
       await reconnectNodeMutation.mutateAsync({
@@ -316,10 +346,13 @@ export default function NodeActionsMenu({ node, onEdit, onToggleStatus, coresDat
   }
 
   const handleResetUsage = () => {
+    if (!canUpdate) return
     setResetUsageDialogOpen(true)
   }
 
   const confirmResetUsage = async () => {
+    if (!canUpdate) return
+
     setResettingUsage(true)
     try {
       await resetNodeUsageMutation.mutateAsync({
@@ -342,6 +375,8 @@ export default function NodeActionsMenu({ node, onEdit, onToggleStatus, coresDat
   }
 
   const handleUpdateNode = async () => {
+    if (!canUpdateCore) return
+
     setUpdatingNode(true)
     try {
       await updateNodeMutation.mutateAsync({
@@ -365,7 +400,7 @@ export default function NodeActionsMenu({ node, onEdit, onToggleStatus, coresDat
 
   return (
     <>
-      {renderActions && (
+      {renderActions && hasRowActions && (
         <div className={className} onClick={e => e.stopPropagation()}>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -374,67 +409,79 @@ export default function NodeActionsMenu({ node, onEdit, onToggleStatus, coresDat
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuItem
-                onSelect={e => {
-                  e.stopPropagation()
-                  onEdit(node)
-                }}
-              >
-                <Pencil className="mr-2 h-4 w-4 shrink-0" />
-                <span className="min-w-0 truncate">{t('edit')}</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onSelect={e => {
-                  e.stopPropagation()
-                  onToggleStatus(node)
-                }}
-              >
-                {node.status === 'disabled' ? <Power className="mr-2 h-4 w-4 shrink-0" /> : <PowerOff className="mr-2 h-4 w-4 shrink-0" />}
-                <span className="min-w-0 truncate">{node.status === 'disabled' ? t('enable') : t('disable')}</span>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onSelect={e => {
-                  e.stopPropagation()
-                  setShowOnlineStats(true)
-                }}
-                disabled={syncing || reconnecting || resettingUsage || updatingNode}
-              >
-                <Activity className="mr-2 h-4 w-4 shrink-0" />
-                <span className="min-w-0 truncate">{t('nodeModal.onlineStats.button', { defaultValue: 'Stats' })}</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onSelect={e => {
-                  e.stopPropagation()
-                  handleSync()
-                }}
-                disabled={syncing || reconnecting || resettingUsage || updatingNode}
-              >
-                {syncing ? <Loader2 className="mr-2 h-4 w-4 shrink-0 animate-spin" /> : <RotateCcw className="mr-2 h-4 w-4 shrink-0" />}
-                <span className="min-w-0 truncate">{syncing ? t('nodeModal.syncing') : t('nodeModal.sync')}</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onSelect={e => {
-                  e.stopPropagation()
-                  handleReconnect()
-                }}
-                disabled={reconnecting || syncing || resettingUsage}
-              >
-                {reconnecting ? <Loader2 className="mr-2 h-4 w-4 shrink-0 animate-spin" /> : <WifiSync className="mr-2 h-4 w-4 shrink-0" />}
-                <span className="min-w-0 truncate">{reconnecting ? t('nodeModal.reconnecting') : t('nodeModal.reconnect')}</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onSelect={e => {
-                  e.stopPropagation()
-                  handleResetUsage()
-                }}
-                disabled={resettingUsage || syncing || reconnecting}
-              >
-                <RefreshCcw className="mr-2 h-4 w-4 shrink-0" />
-                <span className="min-w-0 truncate">{t('nodeModal.resetUsage', { defaultValue: 'Reset' })}</span>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              {!isWireGuard && (
+              {canUpdate && (
+                <>
+                  <DropdownMenuItem
+                    onSelect={e => {
+                      e.stopPropagation()
+                      onEdit(node)
+                    }}
+                  >
+                    <Pencil className="mr-2 h-4 w-4 shrink-0" />
+                    <span className="min-w-0 truncate">{t('edit')}</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onSelect={e => {
+                      e.stopPropagation()
+                      onToggleStatus(node)
+                    }}
+                  >
+                    {node.status === 'disabled' ? <Power className="mr-2 h-4 w-4 shrink-0" /> : <PowerOff className="mr-2 h-4 w-4 shrink-0" />}
+                    <span className="min-w-0 truncate">{node.status === 'disabled' ? t('enable') : t('disable')}</span>
+                  </DropdownMenuItem>
+                </>
+              )}
+              {primaryActionCount > 0 && secondaryActionCount > 0 && <DropdownMenuSeparator />}
+              {canReadStats && (
+                <DropdownMenuItem
+                  onSelect={e => {
+                    e.stopPropagation()
+                    setShowOnlineStats(true)
+                  }}
+                  disabled={syncing || reconnecting || resettingUsage || updatingNode}
+                >
+                  <Activity className="mr-2 h-4 w-4 shrink-0" />
+                  <span className="min-w-0 truncate">{t('nodeModal.onlineStats.button', { defaultValue: 'Stats' })}</span>
+                </DropdownMenuItem>
+              )}
+              {canUpdate && (
+                <>
+                  <DropdownMenuItem
+                    onSelect={e => {
+                      e.stopPropagation()
+                      handleSync()
+                    }}
+                    disabled={syncing || reconnecting || resettingUsage || updatingNode}
+                  >
+                    {syncing ? <Loader2 className="mr-2 h-4 w-4 shrink-0 animate-spin" /> : <RotateCcw className="mr-2 h-4 w-4 shrink-0" />}
+                    <span className="min-w-0 truncate">{syncing ? t('nodeModal.syncing') : t('nodeModal.sync')}</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onSelect={e => {
+                      e.stopPropagation()
+                      handleResetUsage()
+                    }}
+                    disabled={resettingUsage || syncing || reconnecting}
+                  >
+                    <RefreshCcw className="mr-2 h-4 w-4 shrink-0" />
+                    <span className="min-w-0 truncate">{t('nodeModal.resetUsage', { defaultValue: 'Reset' })}</span>
+                  </DropdownMenuItem>
+                </>
+              )}
+              {canReconnect && (
+                <DropdownMenuItem
+                  onSelect={e => {
+                    e.stopPropagation()
+                    handleReconnect()
+                  }}
+                  disabled={reconnecting || syncing || resettingUsage}
+                >
+                  {reconnecting ? <Loader2 className="mr-2 h-4 w-4 shrink-0 animate-spin" /> : <WifiSync className="mr-2 h-4 w-4 shrink-0" />}
+                  <span className="min-w-0 truncate">{reconnecting ? t('nodeModal.reconnecting') : t('nodeModal.reconnect')}</span>
+                </DropdownMenuItem>
+              )}
+              {secondaryActionCount > 0 && coreActionCount > 0 && <DropdownMenuSeparator />}
+              {canUpdateCore && !isWireGuard && (
                 <>
                   <DropdownMenuItem
                     onSelect={e => {
@@ -458,23 +505,27 @@ export default function NodeActionsMenu({ node, onEdit, onToggleStatus, coresDat
                   </DropdownMenuItem>
                 </>
               )}
-              <DropdownMenuItem
-                onSelect={e => {
-                  e.stopPropagation()
-                  handleUpdateNode()
-                }}
-                disabled={syncing || reconnecting || resettingUsage || updatingNode}
-              >
-                {updatingNode ? <Loader2 className="mr-2 h-4 w-4 shrink-0 animate-spin" /> : <CircleFadingArrowUp className="mr-2 h-4 w-4 shrink-0" />}
-                <span className="min-w-0 truncate">
-                  {updatingNode ? t('nodeModal.updatingNode', { defaultValue: 'Updating Node...' }) : t('nodeModal.updateNode', { defaultValue: 'Update Node' })}
-                </span>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onSelect={handleDeleteClick} className="text-destructive focus:text-destructive">
-                <Trash2 className="mr-2 h-4 w-4 shrink-0" />
-                <span className="min-w-0 truncate">{t('delete')}</span>
-              </DropdownMenuItem>
+              {canUpdateCore && (
+                <DropdownMenuItem
+                  onSelect={e => {
+                    e.stopPropagation()
+                    handleUpdateNode()
+                  }}
+                  disabled={syncing || reconnecting || resettingUsage || updatingNode}
+                >
+                  {updatingNode ? <Loader2 className="mr-2 h-4 w-4 shrink-0 animate-spin" /> : <CircleFadingArrowUp className="mr-2 h-4 w-4 shrink-0" />}
+                  <span className="min-w-0 truncate">
+                    {updatingNode ? t('nodeModal.updatingNode', { defaultValue: 'Updating Node...' }) : t('nodeModal.updateNode', { defaultValue: 'Update Node' })}
+                  </span>
+                </DropdownMenuItem>
+              )}
+              {primaryActionCount + secondaryActionCount + coreActionCount > 0 && destructiveActionCount > 0 && <DropdownMenuSeparator />}
+              {canDelete && (
+                <DropdownMenuItem onSelect={handleDeleteClick} className="text-destructive focus:text-destructive">
+                  <Trash2 className="mr-2 h-4 w-4 shrink-0" />
+                  <span className="min-w-0 truncate">{t('delete')}</span>
+                </DropdownMenuItem>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -482,11 +533,11 @@ export default function NodeActionsMenu({ node, onEdit, onToggleStatus, coresDat
 
       {isModalHost && (
         <div className="contents" onClick={e => e.stopPropagation()}>
-          <DeleteAlertDialog node={node} isOpen={isDeleteDialogOpen} onClose={() => setDeleteDialogOpen(false)} onConfirm={handleConfirmDelete} />
-          <ResetUsageAlertDialog node={node} isOpen={isResetUsageDialogOpen} onClose={() => setResetUsageDialogOpen(false)} onConfirm={confirmResetUsage} isLoading={resettingUsage} />
-          <UserOnlineStatsDialog isOpen={showOnlineStats} onOpenChange={setShowOnlineStats} nodeId={node.id} nodeName={node.name} />
-          <UpdateCoreDialog node={node} isOpen={showUpdateCoreDialog} onOpenChange={setShowUpdateCoreDialog} />
-          <UpdateGeofilesDialog node={node} isOpen={showUpdateGeofilesDialog} onOpenChange={setShowUpdateGeofilesDialog} />
+          {canDelete && <DeleteAlertDialog node={node} isOpen={isDeleteDialogOpen} onClose={() => setDeleteDialogOpen(false)} onConfirm={handleConfirmDelete} />}
+          {canUpdate && <ResetUsageAlertDialog node={node} isOpen={isResetUsageDialogOpen} onClose={() => setResetUsageDialogOpen(false)} onConfirm={confirmResetUsage} isLoading={resettingUsage} />}
+          {canReadStats && <UserOnlineStatsDialog isOpen={showOnlineStats} onOpenChange={setShowOnlineStats} nodeId={node.id} nodeName={node.name} />}
+          {canUpdateCore && <UpdateCoreDialog node={node} isOpen={showUpdateCoreDialog} onOpenChange={setShowUpdateCoreDialog} />}
+          {canUpdateCore && <UpdateGeofilesDialog node={node} isOpen={showUpdateGeofilesDialog} onOpenChange={setShowUpdateGeofilesDialog} />}
         </div>
       )}
     </>

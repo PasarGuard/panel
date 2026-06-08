@@ -22,6 +22,8 @@ import { usePersistedViewMode } from '@/hooks/use-persisted-view-mode'
 import { bytesToFormGigabytes } from '@/utils/formatByte'
 import { BulkActionItem, BulkActionsBar } from '@/features/users/components/bulk-actions-bar'
 import { BulkActionAlertDialog } from '@/features/users/components/bulk-action-alert-dialog'
+import { useAdmin } from '@/hooks/use-admin'
+import { hasPermission } from '@/utils/rbac'
 
 type BulkUserTemplateActionType = 'delete' | 'disable' | 'enable'
 
@@ -35,6 +37,11 @@ interface BulkActionDialogConfig {
 }
 
 export default function UserTemplates() {
+  const { admin } = useAdmin()
+  const canCreateTemplates = hasPermission(admin, 'templates', 'create')
+  const canUpdateTemplates = hasPermission(admin, 'templates', 'update')
+  const canDeleteTemplates = hasPermission(admin, 'templates', 'delete')
+  const canUseBulkSelection = canUpdateTemplates || canDeleteTemplates
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingUserTemplate, setEditingUserTemplate] = useState<UserTemplateResponse | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
@@ -55,21 +62,24 @@ export default function UserTemplates() {
 
   useEffect(() => {
     const handleOpenDialog = () => {
+      if (!canCreateTemplates) return
       setEditingUserTemplate(null)
       form.reset(userTemplateFormDefaultValues)
       setIsDialogOpen(true)
     }
     window.addEventListener('openUserTemplateDialog', handleOpenDialog)
     return () => window.removeEventListener('openUserTemplateDialog', handleOpenDialog)
-  }, [form])
+  }, [canCreateTemplates, form])
 
   const handleEdit = (userTemplate: UserTemplateResponse) => {
+    if (!canUpdateTemplates) return
+
     setEditingUserTemplate(userTemplate)
     form.reset({
       name: userTemplate.name || undefined,
       status: userTemplate.status || undefined,
       data_limit: bytesToFormGigabytes(userTemplate.data_limit),
-      hwid_limit: userTemplate.hwid_limit ?? undefined,
+      hwid_limit: userTemplate.hwid_limit ?? null,
       expire_duration: userTemplate.expire_duration || undefined,
       method: userTemplate.extra_settings?.method || undefined,
       groups: userTemplate.group_ids || undefined,
@@ -84,6 +94,8 @@ export default function UserTemplates() {
   }
 
   const handleToggleStatus = async (template: UserTemplateResponse) => {
+    if (!canUpdateTemplates) return
+
     try {
       await modifyUserTemplateMutation.mutateAsync({
         templateId: template.id,
@@ -133,13 +145,19 @@ export default function UserTemplates() {
     )
   }, [userTemplates, searchQuery])
 
-  const listColumns = useUserTemplatesListColumns({ onEdit: handleEdit, onToggleStatus: handleToggleStatus })
+  const listColumns = useUserTemplatesListColumns({
+    onEdit: handleEdit,
+    onToggleStatus: handleToggleStatus,
+    canCreate: canCreateTemplates,
+    canUpdate: canUpdateTemplates,
+    canDelete: canDeleteTemplates,
+  })
   const clearSelection = () => {
     setSelectedTemplateIds([])
   }
 
   const handleBulkDelete = async () => {
-    if (!selectedTemplateIds.length) return
+    if (!canDeleteTemplates || !selectedTemplateIds.length) return
 
     try {
       const response = await bulkDeleteUserTemplatesMutation.mutateAsync({
@@ -171,7 +189,7 @@ export default function UserTemplates() {
   }
 
   const handleBulkDisable = async () => {
-    if (!selectedDisableEligibleIds.length) return
+    if (!canUpdateTemplates || !selectedDisableEligibleIds.length) return
 
     try {
       const response = await bulkDisableUserTemplatesMutation.mutateAsync({
@@ -198,7 +216,7 @@ export default function UserTemplates() {
   }
 
   const handleBulkEnable = async () => {
-    if (!selectedEnableEligibleIds.length) return
+    if (!canUpdateTemplates || !selectedEnableEligibleIds.length) return
 
     try {
       const response = await bulkEnableUserTemplatesMutation.mutateAsync({
@@ -235,6 +253,8 @@ export default function UserTemplates() {
   const disableEligibleCount = selectedDisableEligibleIds.length
   const bulkActions: BulkActionItem[] = selectedCount
     ? [
+        ...(canDeleteTemplates
+          ? [
         {
           key: 'delete',
           label: t('delete'),
@@ -242,19 +262,25 @@ export default function UserTemplates() {
           onClick: () => setBulkAction('delete'),
           direct: true,
           destructive: true,
-        },
-        {
-          key: 'enable',
-          label: t('enable'),
-          icon: Power,
-          onClick: () => setBulkAction('enable'),
-        },
-        {
-          key: 'disable',
-          label: t('disable'),
-          icon: PowerOff,
-          onClick: () => setBulkAction('disable'),
-        },
+        } as BulkActionItem,
+          ]
+          : []),
+        ...(canUpdateTemplates
+          ? [
+            {
+              key: 'enable',
+              label: t('enable'),
+              icon: Power,
+              onClick: () => setBulkAction('enable'),
+            } as BulkActionItem,
+            {
+              key: 'disable',
+              label: t('disable'),
+              icon: PowerOff,
+              onClick: () => setBulkAction('disable'),
+            } as BulkActionItem,
+          ]
+          : []),
       ]
     : []
   const bulkActionConfigs: Record<BulkUserTemplateActionType, BulkActionDialogConfig> = {
@@ -320,7 +346,7 @@ export default function UserTemplates() {
             <ViewToggle value={viewMode} onChange={setViewMode} />
           </div>
         </div>
-        <BulkActionsBar selectedCount={selectedCount} onClear={clearSelection} actions={bulkActions} />
+        {canUseBulkSelection && <BulkActionsBar selectedCount={selectedCount} onClear={clearSelection} actions={bulkActions} />}
 
         {(isCurrentlyLoading || (filteredTemplates && filteredTemplates.length > 0)) &&
           (viewMode === 'grid' ? (
@@ -332,12 +358,12 @@ export default function UserTemplates() {
               className="gap-4"
               gridClassName="transform-gpu animate-slide-up"
               gridStyle={{ animationDuration: '500ms', animationDelay: '100ms', animationFillMode: 'both' }}
-              enableSelection
-              injectSelectionProps
+              enableSelection={canUseBulkSelection}
+              injectSelectionProps={canUseBulkSelection}
               selectedRowIds={selectedTemplateIds}
               onSelectionChange={ids => setSelectedTemplateIds(ids.map(id => Number(id)))}
               showEmptyState={false}
-              renderItem={template => <UserTemplate onEdit={handleEdit} template={template} onToggleStatus={handleToggleStatus} />}
+              renderItem={template => <UserTemplate onEdit={handleEdit} template={template} onToggleStatus={handleToggleStatus} canCreate={canCreateTemplates} canUpdate={canUpdateTemplates} canDelete={canDeleteTemplates} />}
               renderSkeleton={i => (
                 <Card key={i} className="px-4 py-5 sm:px-5 sm:py-6">
                   <div className="flex items-start justify-between gap-2 sm:gap-3">
@@ -364,8 +390,8 @@ export default function UserTemplates() {
               isLoading={isCurrentlyLoading}
               loadingRows={6}
               className="gap-3"
-              onRowClick={handleEdit}
-              enableSelection
+              onRowClick={canUpdateTemplates ? handleEdit : undefined}
+              enableSelection={canUseBulkSelection}
               selectedRowIds={selectedTemplateIds}
               onSelectionChange={ids => setSelectedTemplateIds(ids.map(id => Number(id)))}
               showEmptyState={false}
@@ -393,19 +419,23 @@ export default function UserTemplates() {
         )}
       </div>
 
-      <UserTemplateModal
-        isDialogOpen={isDialogOpen}
-        onOpenChange={open => {
-          if (!open) {
-            setEditingUserTemplate(null)
-            form.reset(userTemplateFormDefaultValues)
-          }
-          setIsDialogOpen(open)
-        }}
-        form={form}
-        editingUserTemplate={!!editingUserTemplate}
-        editingUserTemplateId={editingUserTemplate?.id}
-      />
+      {(canCreateTemplates || canUpdateTemplates) && (
+        <UserTemplateModal
+          isDialogOpen={isDialogOpen}
+          onOpenChange={open => {
+            if (open && editingUserTemplate && !canUpdateTemplates) return
+            if (open && !editingUserTemplate && !canCreateTemplates) return
+            if (!open) {
+              setEditingUserTemplate(null)
+              form.reset(userTemplateFormDefaultValues)
+            }
+            setIsDialogOpen(open)
+          }}
+          form={form}
+          editingUserTemplate={!!editingUserTemplate}
+          editingUserTemplateId={editingUserTemplate?.id}
+        />
+      )}
       {activeBulkActionConfig && (
         <BulkActionAlertDialog
           open={!!bulkAction}

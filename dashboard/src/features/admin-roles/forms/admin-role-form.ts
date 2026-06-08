@@ -1,10 +1,12 @@
 import { z } from 'zod'
-import type { AdminRoleResponse, RoleAccess, RoleFeatures, RoleLimits, RolePermissions } from '@/service/api'
+import type { AdminRoleResponse, HWIDSettings, RoleAccess, RoleFeatures, RoleLimits, RolePermissions } from '@/service/api'
 
 export type RoleScope = 0 | 1 | 2
 type RolePermissionFormValue = boolean | { scope: RoleScope }
 type RolePermissionFormMap = Record<string, Record<string, RolePermissionFormValue>>
 type RolePermissionInput = object | null | undefined
+
+export type RoleHwidPolicy = HWIDSettings
 
 export type PermissionAction = {
   resource: string
@@ -193,6 +195,11 @@ const daysToSeconds = (value: number | null | undefined): number | null => {
   return Math.round(n * SECONDS_PER_DAY)
 }
 
+const hasValue = (_keyValue: [string, number | null | undefined]) => {
+  const [, value] = _keyValue
+  return value !== null && value !== undefined
+}
+
 const featuresSchema = z.object({
   can_use_reset_strategy: z.boolean(),
   can_use_next_plan: z.boolean(),
@@ -204,14 +211,34 @@ const accessSchema = z.object({
   allowed_group_ids: z.array(z.number().int().positive()).nullable(),
 })
 
+const hwidPolicySchema = z
+  .object({
+    enabled: z.boolean(),
+    forced: z.boolean(),
+    fallback_limit: optionalNullableNumber,
+    min_limit: optionalNullableNumber,
+    max_limit: optionalNullableNumber,
+  })
+  .superRefine((data, ctx) => {
+    if (data.min_limit != null && data.max_limit != null && data.max_limit > 0 && data.min_limit > data.max_limit) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'settings.hwid.validation.minMax',
+        path: ['min_limit'],
+      })
+    }
+  })
+
 export const adminRoleFormSchema = z.object({
   name: z.string().trim().min(1, 'Name is required').max(64),
   permissions: permissionsSchema,
   limits: limitsSchema,
   features: featuresSchema,
   access: accessSchema,
+  hwid: hwidPolicySchema,
   disabled_when_limited: z.boolean(),
-  disable_users_when_limited: z.boolean(),
+  disconnect_users_when_limited: z.boolean(),
+  disconnect_users_when_disabled: z.boolean(),
 })
 
 export type AdminRoleFormValuesInput = z.input<typeof adminRoleFormSchema>
@@ -228,6 +255,14 @@ export const defaultAdminRoleAccess = (): AdminRoleFormValues['access'] => ({
   allowed_group_ids: null,
 })
 
+export const defaultAdminRoleHwid = (): AdminRoleFormValues['hwid'] => ({
+  enabled: true,
+  forced: false,
+  fallback_limit: null,
+  min_limit: null,
+  max_limit: null,
+})
+
 export const adminRoleFormDefaultValues: AdminRoleFormValuesInput = {
   name: '',
   permissions: {},
@@ -242,8 +277,10 @@ export const adminRoleFormDefaultValues: AdminRoleFormValuesInput = {
   },
   features: defaultAdminRoleFeatures(),
   access: defaultAdminRoleAccess(),
+  hwid: defaultAdminRoleHwid(),
   disabled_when_limited: false,
-  disable_users_when_limited: true,
+  disconnect_users_when_limited: true,
+  disconnect_users_when_disabled: true,
 }
 
 export const adminRoleFormFromResponse = (role: AdminRoleResponse): AdminRoleFormValuesInput => ({
@@ -267,18 +304,26 @@ export const adminRoleFormFromResponse = (role: AdminRoleResponse): AdminRoleFor
     allowed_template_ids: role.access?.allowed_template_ids ?? null,
     allowed_group_ids: role.access?.allowed_group_ids ?? null,
   },
+  hwid: {
+    enabled: role.hwid?.enabled ?? true,
+    forced: role.hwid?.forced ?? false,
+    fallback_limit: role.hwid?.fallback_limit ?? null,
+    min_limit: role.hwid?.min_limit ?? null,
+    max_limit: role.hwid?.max_limit ?? null,
+  },
   disabled_when_limited: role.disabled_when_limited ?? false,
-  disable_users_when_limited: role.disable_users_when_limited ?? true,
+  disconnect_users_when_limited: role.disconnect_users_when_limited ?? true,
+  disconnect_users_when_disabled: role.disconnect_users_when_disabled ?? true,
 })
 
-export const adminRoleFormToPayload = (values: AdminRoleFormValuesInput) => {
+export const adminRoleFormToPayload = (values: AdminRoleFormValues) => {
   // Convert form's day-based fields back to seconds, then drop empty/null entries
   const limitsRaw = {
     max_users: values.limits.max_users,
     data_limit_min: values.limits.data_limit_min,
     data_limit_max: values.limits.data_limit_max,
-    expire_min: daysToSeconds(values.limits.expire_days_min as number | null | undefined),
-    expire_max: daysToSeconds(values.limits.expire_days_max as number | null | undefined),
+    expire_min: daysToSeconds(values.limits.expire_days_min),
+    expire_max: daysToSeconds(values.limits.expire_days_max),
     min_hwid_per_user: values.limits.min_hwid_per_user,
     max_hwid_per_user: values.limits.max_hwid_per_user,
   }
@@ -286,18 +331,28 @@ export const adminRoleFormToPayload = (values: AdminRoleFormValuesInput) => {
   return {
     name: values.name.trim(),
     permissions: sanitizeRolePermissions(values.permissions as RolePermissionInput) as RolePermissions,
-    limits: Object.fromEntries(Object.entries(limitsRaw).filter(([, v]) => v !== null && v !== undefined && v !== '')) as RoleLimits,
+    limits: Object.fromEntries(Object.entries(limitsRaw).filter(hasValue)) as RoleLimits,
     features: values.features as RoleFeatures,
     access: {
       require_template: values.access.require_template,
       allowed_template_ids: values.access.allowed_template_ids?.length ? values.access.allowed_template_ids : null,
       allowed_group_ids: values.access.allowed_group_ids?.length ? values.access.allowed_group_ids : null,
     } as RoleAccess,
+    hwid: {
+      enabled: values.hwid.enabled,
+      forced: values.hwid.enabled ? values.hwid.forced : false,
+      fallback_limit: values.hwid.fallback_limit ?? null,
+      min_limit: values.hwid.min_limit ?? null,
+      max_limit: values.hwid.max_limit ?? null,
+    },
     disabled_when_limited: values.disabled_when_limited,
-    disable_users_when_limited: values.disable_users_when_limited,
+    disconnect_users_when_limited: values.disconnect_users_when_limited,
+    disconnect_users_when_disabled: values.disconnect_users_when_disabled,
   }
 }
 
 export const BUILT_IN_ROLE_IDS = new Set([1, 2, 3])
 
 export const isProtectedRole = (role: AdminRoleResponse) => role.is_owner || BUILT_IN_ROLE_IDS.has(role.id)
+
+export const isReadOnlyRole = (role: AdminRoleResponse) => role.is_owner

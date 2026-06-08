@@ -2,9 +2,9 @@ import { UserCheck, UsersIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { SystemStats } from '@/service/api'
+import { SystemUsersStats } from '@/service/api'
 
-const UserStatisticsCard = ({ data }: { data: SystemStats | undefined }) => {
+const UserStatisticsCard = ({ data }: { data: SystemUsersStats | undefined }) => {
   const { t } = useTranslation()
   const totalUsers = data?.total_user ?? 0
   const activeUsers = data?.active_users ?? 0

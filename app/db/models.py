@@ -69,11 +69,11 @@ class IdMixin:
     id: Mapped[int] = mapped_column(SqliteCompatibleBigInteger, primary_key=True, init=False, autoincrement=True)
 
 
-class CreatedAtUTCMixin:
+class CreatedAtUTCMixin(IdMixin):
     created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), default_factory=lambda: dt.now(tz.utc), init=False)
 
 
-class Admin(Base, IdMixin, CreatedAtUTCMixin):
+class Admin(Base, CreatedAtUTCMixin):
     __tablename__ = "admins"
     username: Mapped[str] = mapped_column(String(34), unique=True, index=True)
     hashed_password: Mapped[str] = mapped_column(String(128))
@@ -91,7 +91,6 @@ class Admin(Base, IdMixin, CreatedAtUTCMixin):
     password_reset_at: Mapped[Optional[dt]] = mapped_column(DateTime(timezone=True), default=None)
     telegram_id: Mapped[Optional[int]] = mapped_column(BigInteger, default=None)
     discord_webhook: Mapped[Optional[str]] = mapped_column(String(1024), default=None)
-    discord_id: Mapped[Optional[int]] = mapped_column(BigInteger, default=None)
     used_traffic: Mapped[int] = mapped_column(BigInteger, default=0)
     data_limit: Mapped[Optional[int]] = mapped_column(BigInteger, default=None)
     status: Mapped[AdminStatus] = mapped_column(
@@ -107,7 +106,7 @@ class Admin(Base, IdMixin, CreatedAtUTCMixin):
     notification_enable: Mapped[Optional[Dict]] = mapped_column(PostgresJSONB, default=None)
     note: Mapped[Optional[str]] = mapped_column(String(500), default=None)
     role_id: Mapped[int] = fk_id_column("admin_roles.id", default=0)
-    role: Mapped[Optional[AdminRole]] = relationship(back_populates="admins", init=False, lazy="selectin")
+    role: Mapped[Optional[AdminRole]] = relationship(back_populates="admins", init=False, lazy="select")
     permission_overrides: Mapped[Optional[Dict]] = mapped_column(PostgresJSONB, default=None)
 
     @hybrid_property
@@ -147,7 +146,9 @@ class Admin(Base, IdMixin, CreatedAtUTCMixin):
     @property
     def users_sync_blocked(self) -> bool:
         """True when this admin's users should NOT be synced to nodes."""
-        return self.status == AdminStatus.limited and self.role.disable_users_when_limited
+        return (self.status == AdminStatus.limited and self.role.disconnect_users_when_limited) or (
+            self.status == AdminStatus.disabled and self.role.disconnect_users_when_disabled
+        )
 
     @property
     def total_users(self) -> int:
@@ -188,8 +189,13 @@ class DataLimitResetStrategy(str, Enum):
     year = "year"
 
 
-class User(Base, IdMixin, CreatedAtUTCMixin):
+class User(Base, CreatedAtUTCMixin):
     __tablename__ = "users"
+    __table_args__ = (
+        Index("idx_users_admin_online", "admin_id", "online_at"),
+        Index("idx_users_admin_status", "admin_id", "status"),
+        Index("idx_users_admin_created", "admin_id", "created_at"),
+    )
     username: Mapped[str] = mapped_column(CaseSensitiveString(128), unique=True, index=True)
     node_usages: Mapped[List["NodeUserUsage"]] = relationship(
         back_populates="user",
@@ -372,8 +378,9 @@ class User(Base, IdMixin, CreatedAtUTCMixin):
         return case((cls.expire.isnot(None), func.floor(DaysDiff())), else_=0)
 
 
-class UserSubscriptionUpdate(Base, IdMixin, CreatedAtUTCMixin):
+class UserSubscriptionUpdate(Base, CreatedAtUTCMixin):
     __tablename__ = "user_subscription_updates"
+    __table_args__ = (Index("idx_user_subscription_updates_user_id", "user_id"),)
     user_id: Mapped[int] = fk_id_column("users.id", ondelete="CASCADE")
     user: Mapped["User"] = relationship(back_populates="subscription_updates", init=False)
     user_agent: Mapped[str] = mapped_column(String(512))
@@ -381,7 +388,7 @@ class UserSubscriptionUpdate(Base, IdMixin, CreatedAtUTCMixin):
     hwid: Mapped[Optional[str]] = mapped_column(String(256), nullable=True, default=None)
 
 
-class UserHWID(Base, IdMixin, CreatedAtUTCMixin):
+class UserHWID(Base, CreatedAtUTCMixin):
     __tablename__ = "user_hwids"
     __table_args__ = (
         UniqueConstraint("user_id", "hwid"),
@@ -594,7 +601,7 @@ class NodeStatus(str, Enum):
     limited = "limited"
 
 
-class Node(Base, IdMixin, CreatedAtUTCMixin):
+class Node(Base, CreatedAtUTCMixin):
     __tablename__ = "nodes"
     name: Mapped[str] = mapped_column(CaseSensitiveString(256), unique=True)
     address: Mapped[str] = mapped_column(String(256), unique=False, nullable=False)
@@ -726,7 +733,7 @@ class NodeUsage(Base, IdMixin):
     downlink: Mapped[int] = mapped_column(BigInteger, default=0)
 
 
-class NodeUsageResetLogs(Base, IdMixin, CreatedAtUTCMixin):
+class NodeUsageResetLogs(Base, CreatedAtUTCMixin):
     __tablename__ = "node_usage_reset_logs"
     __table_args__ = (
         # Index for node-specific queries sorted by time
@@ -738,7 +745,7 @@ class NodeUsageResetLogs(Base, IdMixin, CreatedAtUTCMixin):
     downlink: Mapped[int] = mapped_column(BigInteger, nullable=False)
 
 
-class NotificationReminder(Base, IdMixin, CreatedAtUTCMixin):
+class NotificationReminder(Base, CreatedAtUTCMixin):
     __tablename__ = "notification_reminders"
     user_id: Mapped[int] = fk_id_column("users.id", ondelete="CASCADE")
     user: Mapped["User"] = relationship(back_populates="notification_reminders", init=False)
@@ -747,7 +754,7 @@ class NotificationReminder(Base, IdMixin, CreatedAtUTCMixin):
     expires_at: Mapped[Optional[dt]] = mapped_column(DateTime(timezone=True), default=None)
 
 
-class AdminNotificationReminder(Base, IdMixin, CreatedAtUTCMixin):
+class AdminNotificationReminder(Base, CreatedAtUTCMixin):
     __tablename__ = "admin_notification_reminders"
     __table_args__ = (Index("ix_admin_notification_reminders_admin_id_type", "admin_id", "type"),)
     admin_id: Mapped[int] = fk_id_column("admins.id", ondelete="CASCADE")
@@ -768,17 +775,48 @@ class Group(Base, IdMixin):
     )
     is_disabled: Mapped[bool] = mapped_column(server_default="0", default=False)
 
-    @property
-    def inbound_ids(self):
+    @hybrid_property
+    def inbound_ids(self) -> list[int]:
         return [inbound.id for inbound in self.inbounds]
 
-    @property
-    def inbound_tags(self):
+    @inbound_ids.expression
+    def inbound_ids(cls):
+        return (
+            select(func.aggregate_strings(ProxyInbound.id, ","))
+            .select_from(inbounds_groups_association)
+            .join(ProxyInbound, inbounds_groups_association.c.inbound_id == ProxyInbound.id)
+            .where(inbounds_groups_association.c.group_id == cls.id)
+            .scalar_subquery()
+            .label("inbound_ids")
+        )
+
+    @hybrid_property
+    def inbound_tags(self) -> list[str]:
         return [inbound.tag for inbound in self.inbounds]
 
-    @property
-    def total_users(self):
+    @inbound_tags.expression
+    def inbound_tags(cls):
+        return (
+            select(func.aggregate_strings(ProxyInbound.tag, ","))
+            .select_from(inbounds_groups_association)
+            .join(ProxyInbound, inbounds_groups_association.c.inbound_id == ProxyInbound.id)
+            .where(inbounds_groups_association.c.group_id == cls.id)
+            .scalar_subquery()
+            .label("inbound_tags")
+        )
+
+    @hybrid_property
+    def total_users(self) -> int:
         return len(self.users)
+
+    @total_users.expression
+    def total_users(cls):
+        return (
+            select(func.count(users_groups_association.c.user_id))
+            .where(users_groups_association.c.groups_id == cls.id)
+            .scalar_subquery()
+            .label("total_users")
+        )
 
 
 class CoreType(str, Enum):
@@ -788,7 +826,7 @@ class CoreType(str, Enum):
     singbox = "singbox"
 
 
-class CoreConfig(Base, IdMixin, CreatedAtUTCMixin):
+class CoreConfig(Base, CreatedAtUTCMixin):
     __tablename__ = "core_configs"
     name: Mapped[str] = mapped_column(String(256))
     config: Mapped[Dict[str, Any]] = mapped_column(JSON(False))
@@ -811,7 +849,7 @@ class ClientTemplate(Base):
     is_system: Mapped[bool] = mapped_column(default=False, server_default="0")
 
 
-class NodeStat(Base, IdMixin, CreatedAtUTCMixin):
+class NodeStat(Base, CreatedAtUTCMixin):
     __tablename__ = "node_stats"
     node_id: Mapped[int] = fk_id_column("nodes.id")
     node: Mapped["Node"] = relationship(back_populates="stats", init=False)
@@ -826,7 +864,6 @@ class NodeStat(Base, IdMixin, CreatedAtUTCMixin):
 class Settings(Base, IdMixin):
     __tablename__ = "settings"
     telegram: Mapped[dict] = mapped_column(JSON())
-    discord: Mapped[dict] = mapped_column(JSON())
     webhook: Mapped[dict] = mapped_column(JSON())
     notification_settings: Mapped[dict] = mapped_column(JSON())
     notification_enable: Mapped[dict] = mapped_column(JSON())
@@ -835,7 +872,7 @@ class Settings(Base, IdMixin):
     general: Mapped[dict] = mapped_column(JSON())
 
 
-class AdminRole(Base, IdMixin, CreatedAtUTCMixin):
+class AdminRole(Base, CreatedAtUTCMixin):
     __tablename__ = "admin_roles"
     name: Mapped[str] = mapped_column(String(64), unique=True)
     is_owner: Mapped[bool] = mapped_column(default=False, server_default="0")
@@ -845,7 +882,8 @@ class AdminRole(Base, IdMixin, CreatedAtUTCMixin):
     access: Mapped[Dict] = mapped_column(PostgresJSONB, default_factory=dict)
     hwid: Mapped[Dict] = mapped_column(PostgresJSONB, default_factory=dict)
     disabled_when_limited: Mapped[bool] = mapped_column(default=False, server_default="0")
-    disable_users_when_limited: Mapped[bool] = mapped_column(default=True, server_default="1")
+    disconnect_users_when_limited: Mapped[bool] = mapped_column(default=True, server_default="1")
+    disconnect_users_when_disabled: Mapped[bool] = mapped_column(default=True, server_default="1")
     admins: Mapped[List["Admin"]] = relationship(back_populates="role", init=False, viewonly=True, lazy="noload")
     api_keys: Mapped[List["APIKey"]] = relationship(back_populates="role", init=False, lazy="noload")
 

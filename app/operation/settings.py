@@ -18,8 +18,6 @@ class SettingsOperation(BaseOperation):
     async def reset_services(old_settings: SettingsSchema, new_settings: SettingsSchema):
         if new_settings.telegram != old_settings.telegram:
             await startup_telegram_bot()
-        if new_settings.discord != old_settings.discord:
-            pass
         # When webhooks are disabled, send_notifications() already returns early
         # Pending webhook notifications will be processed when webhooks are re-enabled
         if old_settings.notification_settings.proxy_url != new_settings.notification_settings.proxy_url:

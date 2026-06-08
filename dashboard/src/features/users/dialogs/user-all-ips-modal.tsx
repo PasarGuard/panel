@@ -18,6 +18,7 @@ import React from 'react'
 interface UserAllIPsModalProps {
   isOpen: boolean
   onOpenChange: (open: boolean) => void
+  userId: number
   username: string
 }
 
@@ -165,7 +166,7 @@ const EmptyState = React.memo(({ message }: { message: string }) => {
 
 EmptyState.displayName = 'EmptyState'
 
-export default function UserAllIPsModal({ isOpen, onOpenChange, username }: UserAllIPsModalProps) {
+export default function UserAllIPsModal({ isOpen, onOpenChange, userId, username }: UserAllIPsModalProps) {
   const { t } = useTranslation()
   const dir = useDirDetection()
   const [refreshing, setRefreshing] = useState(false)
@@ -197,7 +198,7 @@ export default function UserAllIPsModal({ isOpen, onOpenChange, username }: User
   const userIPsQueryOptions = useMemo(
     () => ({
       query: {
-        enabled: !!(isOpen && username),
+        enabled: !!(isOpen && userId),
         refetchInterval: (query: any) => {
           if (!isOpen || query.state.error) {
             return false
@@ -206,9 +207,9 @@ export default function UserAllIPsModal({ isOpen, onOpenChange, username }: User
         },
       },
     }),
-    [isOpen, username],
+    [isOpen, userId],
   )
-  const { data: userIPsData, isLoading, error, refetch: refetchIPs } = useUserOnlineIpListAllNodes(username, userIPsQueryOptions)
+  const { data: userIPsData, isLoading, error, refetch: refetchIPs } = useUserOnlineIpListAllNodes(userId, userIPsQueryOptions)
 
   const handleError = useCallback(
     (error: any) => {

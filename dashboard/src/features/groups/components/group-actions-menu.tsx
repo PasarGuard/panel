@@ -14,6 +14,8 @@ interface GroupActionsMenuProps {
   group: GroupResponse
   onEdit: (group: GroupResponse) => void
   onToggleStatus: (group: GroupResponse) => Promise<void>
+  canUpdate?: boolean
+  canDelete?: boolean
   className?: string
 }
 
@@ -41,7 +43,7 @@ const DeleteAlertDialog = ({ group, isOpen, onClose, onConfirm }: { group: Group
   )
 }
 
-export default function GroupActionsMenu({ group, onEdit, onToggleStatus, className }: GroupActionsMenuProps) {
+export default function GroupActionsMenu({ group, onEdit, onToggleStatus, canUpdate = true, canDelete = true, className }: GroupActionsMenuProps) {
   const { t } = useTranslation()
   const dir = useDirDetection()
   const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false)
@@ -53,6 +55,8 @@ export default function GroupActionsMenu({ group, onEdit, onToggleStatus, classN
   }
 
   const handleConfirmDelete = async () => {
+    if (!canDelete) return
+
     try {
       await removeGroupMutation.mutateAsync({
         groupId: group.id,
@@ -75,6 +79,8 @@ export default function GroupActionsMenu({ group, onEdit, onToggleStatus, classN
     }
   }
 
+  if (!canUpdate && !canDelete) return null
+
   return (
     <>
       <div className={className} onClick={e => e.stopPropagation()}>
@@ -85,34 +91,40 @@ export default function GroupActionsMenu({ group, onEdit, onToggleStatus, classN
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align={dir === 'rtl' ? 'start' : 'end'}>
-            <DropdownMenuItem
-              onSelect={e => {
-                e.stopPropagation()
-                onEdit(group)
-              }}
-            >
-              <Pencil className={cn('h-4 w-4 shrink-0', dir === 'rtl' ? 'ml-2' : 'mr-2')} />
-              <span className="min-w-0 truncate">{t('edit')}</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onSelect={e => {
-                e.stopPropagation()
-                onToggleStatus(group)
-              }}
-            >
-              {group.is_disabled ? <Power className={cn('h-4 w-4 shrink-0', dir === 'rtl' ? 'ml-2' : 'mr-2')} /> : <PowerOff className={cn('h-4 w-4 shrink-0', dir === 'rtl' ? 'ml-2' : 'mr-2')} />}
-              <span className="min-w-0 truncate">{group.is_disabled ? t('enable') : t('disable')}</span>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={handleDeleteClick} className="text-destructive">
-              <Trash2 className={cn('h-4 w-4 shrink-0', dir === 'rtl' ? 'ml-2' : 'mr-2')} />
-              <span className="min-w-0 truncate">{t('delete')}</span>
-            </DropdownMenuItem>
+            {canUpdate && (
+              <>
+                <DropdownMenuItem
+                  onSelect={e => {
+                    e.stopPropagation()
+                    onEdit(group)
+                  }}
+                >
+                  <Pencil className={cn('h-4 w-4 shrink-0', dir === 'rtl' ? 'ml-2' : 'mr-2')} />
+                  <span className="min-w-0 truncate">{t('edit')}</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={e => {
+                    e.stopPropagation()
+                    onToggleStatus(group)
+                  }}
+                >
+                  {group.is_disabled ? <Power className={cn('h-4 w-4 shrink-0', dir === 'rtl' ? 'ml-2' : 'mr-2')} /> : <PowerOff className={cn('h-4 w-4 shrink-0', dir === 'rtl' ? 'ml-2' : 'mr-2')} />}
+                  <span className="min-w-0 truncate">{group.is_disabled ? t('enable') : t('disable')}</span>
+                </DropdownMenuItem>
+              </>
+            )}
+            {canUpdate && canDelete && <DropdownMenuSeparator />}
+            {canDelete && (
+              <DropdownMenuItem onSelect={handleDeleteClick} className="text-destructive">
+                <Trash2 className={cn('h-4 w-4 shrink-0', dir === 'rtl' ? 'ml-2' : 'mr-2')} />
+                <span className="min-w-0 truncate">{t('delete')}</span>
+              </DropdownMenuItem>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
 
-      <DeleteAlertDialog group={group} isOpen={isDeleteDialogOpen} onClose={() => setDeleteDialogOpen(false)} onConfirm={handleConfirmDelete} />
+      {canDelete && <DeleteAlertDialog group={group} isOpen={isDeleteDialogOpen} onClose={() => setDeleteDialogOpen(false)} onConfirm={handleConfirmDelete} />}
     </>
   )
 }

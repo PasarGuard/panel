@@ -1,5 +1,6 @@
 from fastapi import status
 
+from app.models.validators import MAX_ON_HOLD_EXPIRE_DURATION_SECONDS
 from tests.api import client
 from tests.api.helpers import (
     create_core,
@@ -22,6 +23,24 @@ def cleanup_groups(access_token: str, core: dict, groups: list[dict]):
     for group in groups:
         delete_group(access_token, group["id"])
     delete_core(access_token, core["id"])
+
+
+def test_user_template_rejects_too_large_expire_duration(access_token):
+    core, groups = setup_groups(access_token, 1)
+    try:
+        response = client.post(
+            "/api/user_template",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={
+                "name": unique_name("template_too_large_duration"),
+                "group_ids": [groups[0]["id"]],
+                "status": "on_hold",
+                "expire_duration": MAX_ON_HOLD_EXPIRE_DURATION_SECONDS + 1,
+            },
+        )
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    finally:
+        cleanup_groups(access_token, core, groups)
 
 
 def test_user_template_create(access_token):

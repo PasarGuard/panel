@@ -4,6 +4,7 @@ from fastapi.responses import Response
 from app.db import AsyncSession, get_db
 from app.db.crud.admin import (
     OwnerUpgradeError,
+    build_admin_details,
     create_admin,
     get_owner,
     owner_exists,
@@ -53,7 +54,7 @@ async def create_owner(
         db,
         AdminCreate(username=body.username, password=body.password, role_id=1),
     )
-    return AdminDetails.model_validate(db_admin)
+    return build_admin_details(db_admin, include_loaded_metrics=True)
 
 
 @router.patch(
@@ -78,7 +79,7 @@ async def reset_owner_password(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="owner not found")
 
     owner = await update_owner_password(db, owner, body.password)
-    return AdminDetails.model_validate(owner)
+    return build_admin_details(owner, include_loaded_metrics=True)
 
 
 @router.delete(
@@ -134,4 +135,4 @@ async def upgrade_owner(
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=exc.detail) from exc
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=exc.detail) from exc
 
-    return upgraded_owner
+    return build_admin_details(upgraded_owner, include_loaded_metrics=True)

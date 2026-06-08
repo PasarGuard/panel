@@ -1,4 +1,4 @@
-import { AdminDetails, SystemStats, useGetSystemStats } from '@/service/api'
+import { AdminDetails, SystemUsersStats, useGetSystemUsersStats } from '@/service/api'
 import { UserCog, Users } from 'lucide-react'
 import { Suspense, lazy, useEffect, useState, type ComponentProps } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -42,7 +42,7 @@ const AdminStatisticsCard = ({
   showAdminInfo = true,
 }: {
   admin: AdminDetails | undefined
-  systemStats: SystemStats | undefined
+  systemStats: SystemUsersStats | undefined
   showAdminInfo?: boolean
   currentAdmin?: AdminDetails | undefined
 }) => {
@@ -53,7 +53,7 @@ const AdminStatisticsCard = ({
   const systemStatsParams = admin.username !== 'Total' ? { admin_username: admin.username } : undefined
 
   // Fetch system stats specific to this admin
-  const { data: adminSystemStats } = useGetSystemStats(systemStatsParams, {
+  const { data: adminSystemStats } = useGetSystemUsersStats(systemStatsParams, {
     query: {
       refetchInterval: 5000,
     },

@@ -19,11 +19,16 @@ interface NodeProps {
   onEdit: (node: NodeResponse) => void
   onToggleStatus: (node: NodeResponse) => Promise<void>
   coresData?: CoresSimpleResponse
+  canUpdate?: boolean
+  canDelete?: boolean
+  canReconnect?: boolean
+  canUpdateCore?: boolean
+  canReadStats?: boolean
   selectionControl?: ReactNode
   selected?: boolean
 }
 
-export default function Node({ node, onEdit, onToggleStatus, coresData, selectionControl, selected = false }: NodeProps) {
+export default function Node({ node, onEdit, onToggleStatus, coresData, canUpdate = true, canDelete = true, canReconnect = true, canUpdateCore = true, canReadStats = true, selectionControl, selected = false }: NodeProps) {
   const { t } = useTranslation()
   const dir = useDirDetection()
   const [showUpdateCoreDialog, setShowUpdateCoreDialog] = useState(false)
@@ -87,7 +92,7 @@ export default function Node({ node, onEdit, onToggleStatus, coresData, selectio
   const totalLifetime = lifetimeUplink + lifetimeDownlink
   const hasUsageDisplay = !(totalUsed === 0 && !node.data_limit && totalLifetime === 0)
   const handleCoreVersionClick = (event: MouseEvent<HTMLButtonElement>) => {
-    if (!hasCoreUpdate) return
+    if (!canUpdateCore || !hasCoreUpdate) return
     event.preventDefault()
     event.stopPropagation()
     setShowUpdateCoreDialog(true)
@@ -95,7 +100,12 @@ export default function Node({ node, onEdit, onToggleStatus, coresData, selectio
 
   return (
     <TooltipProvider>
-      <Card className={cn('group hover:bg-accent relative h-full cursor-pointer overflow-hidden border transition-colors', selected && 'border-primary/50 bg-accent/30')} onClick={() => onEdit(node)}>
+      <Card
+        className={cn('group relative h-full overflow-hidden border transition-colors', canUpdate && 'cursor-pointer hover:bg-accent', selected && 'border-primary/50 bg-accent/30')}
+        onClick={() => {
+          if (canUpdate) onEdit(node)
+        }}
+      >
         <div className="flex items-start gap-3 p-3">
           {selectionControl ? <div className="pt-1">{selectionControl}</div> : null}
           <div className="min-w-0 flex-1">
@@ -124,7 +134,18 @@ export default function Node({ node, onEdit, onToggleStatus, coresData, selectio
                   ) : null}
                 </div>
               </div>
-              <NodeActionsMenu node={node} onEdit={onEdit} onToggleStatus={onToggleStatus} coresData={coresData} isModalHost={false} />
+              <NodeActionsMenu
+                node={node}
+                onEdit={onEdit}
+                onToggleStatus={onToggleStatus}
+                coresData={coresData}
+                isModalHost={false}
+                canUpdate={canUpdate}
+                canDelete={canDelete}
+                canReconnect={canReconnect}
+                canUpdateCore={canUpdateCore}
+                canReadStats={canReadStats}
+              />
             </div>
 
             {/* Connection Info */}
@@ -147,8 +168,8 @@ export default function Node({ node, onEdit, onToggleStatus, coresData, selectio
                           onClick={handleCoreVersionClick}
                           className={cn(
                             'group/version inline-flex items-center rounded-sm bg-transparent p-0 text-left',
-                            hasCoreUpdate && 'focus-visible:ring-ring cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none',
-                            !hasCoreUpdate && 'cursor-default',
+                            canUpdateCore && hasCoreUpdate && 'focus-visible:ring-ring cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none',
+                            (!canUpdateCore || !hasCoreUpdate) && 'cursor-default',
                             dir === 'rtl' ? 'flex-row-reverse gap-1' : 'gap-1',
                           )}
                           aria-label={t('nodeModal.updateCore', { defaultValue: 'Update Core' })}
@@ -232,7 +253,7 @@ export default function Node({ node, onEdit, onToggleStatus, coresData, selectio
           </div>
         </div>
       </Card>
-      <UpdateCoreDialog node={node} isOpen={showUpdateCoreDialog} onOpenChange={setShowUpdateCoreDialog} />
+      {canUpdateCore && <UpdateCoreDialog node={node} isOpen={showUpdateCoreDialog} onOpenChange={setShowUpdateCoreDialog} />}
     </TooltipProvider>
   )
 }

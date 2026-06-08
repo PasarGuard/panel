@@ -68,23 +68,6 @@ class Telegram(BaseModel):
         return self
 
 
-class Discord(BaseModel):
-    enable: bool = Field(default=False)
-    token: str | None = Field(default=None)
-    proxy_url: str | None = Field(default=None)
-
-    @field_validator("proxy_url")
-    @classmethod
-    def validate_proxy_url(cls, v):
-        return ProxyValidator.validate_proxy_url(v)
-
-    @model_validator(mode="after")
-    def check_enable_requires_token(self):
-        if self.enable and not self.token:
-            raise ValueError("Discord bot cannot be enabled without token.")
-        return self
-
-
 class WebhookInfo(BaseModel):
     url: str
     secret: str
@@ -302,7 +285,6 @@ class General(BaseModel):
 
 class SettingsSchema(BaseModel):
     telegram: Telegram | None = Field(default=None)
-    discord: Discord | None = Field(default=None)
     webhook: Webhook | None = Field(default=None)
     notification_settings: NotificationSettings | None = Field(default=None)
     notification_enable: NotificationEnable | None = Field(default=None)

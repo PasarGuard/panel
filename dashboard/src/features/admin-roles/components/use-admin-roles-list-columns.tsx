@@ -12,6 +12,7 @@ import AdminRoleActionsMenu from '@/features/admin-roles/components/admin-role-a
 
 interface UseAdminRolesListColumnsProps {
   onEdit: (role: AdminRoleResponse) => void
+  onDuplicate: (role: AdminRoleResponse) => void
 }
 
 const countResourcePermissions = (role: AdminRoleResponse) => {
@@ -24,7 +25,7 @@ const countResourcePermissions = (role: AdminRoleResponse) => {
   return total
 }
 
-export const useAdminRolesListColumns = ({ onEdit }: UseAdminRolesListColumnsProps) => {
+export const useAdminRolesListColumns = ({ onEdit, onDuplicate }: UseAdminRolesListColumnsProps) => {
   const { t } = useTranslation()
 
   return useMemo<ListColumn<AdminRoleResponse>[]>(
@@ -76,9 +77,9 @@ export const useAdminRolesListColumns = ({ onEdit }: UseAdminRolesListColumnsPro
         width: '64px',
         align: 'end',
         hideOnMobile: true,
-        cell: role => <AdminRoleActionsMenu role={role} onEdit={onEdit} />,
+        cell: role => <AdminRoleActionsMenu role={role} onEdit={onEdit} onDuplicate={onDuplicate} />,
       },
     ],
-    [t, onEdit],
+    [t, onEdit, onDuplicate],
   )
 }

@@ -14,6 +14,8 @@ interface HostActionsMenuProps {
   onEdit: (host: BaseHost) => void
   onDuplicate: (host: BaseHost) => Promise<void>
   onDataChanged?: () => void
+  canUpdate?: boolean
+  canCreate?: boolean
   className?: string
 }
 
@@ -41,13 +43,13 @@ const DeleteAlertDialog = ({ host, isOpen, onClose, onConfirm }: { host: BaseHos
   )
 }
 
-export default function HostActionsMenu({ host, onEdit, onDuplicate, onDataChanged, className }: HostActionsMenuProps) {
+export default function HostActionsMenu({ host, onEdit, onDuplicate, onDataChanged, canUpdate = true, canCreate = true, className }: HostActionsMenuProps) {
   const [isDeleteDialogOpen, setDeleteDialogOpen] = useState<boolean>(false)
   const { t } = useTranslation()
   const dir = useDirDetection()
 
   const handleToggleStatus = async () => {
-    if (!host.id) return
+    if (!canUpdate || !host.id) return
 
     try {
       const { id, ...hostData } = host
@@ -117,7 +119,7 @@ export default function HostActionsMenu({ host, onEdit, onDuplicate, onDataChang
   }
 
   const handleConfirmDelete = async () => {
-    if (!host.id) return
+    if (!canUpdate || !host.id) return
 
     try {
       await removeHost(host.id)
@@ -144,6 +146,8 @@ export default function HostActionsMenu({ host, onEdit, onDuplicate, onDataChang
     }
   }
 
+  if (!canUpdate && !canCreate) return null
+
   return (
     <div className={cn(className)} onClick={e => e.stopPropagation()}>
       <DropdownMenu>
@@ -153,42 +157,50 @@ export default function HostActionsMenu({ host, onEdit, onDuplicate, onDataChang
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align={dir === 'rtl' ? 'start' : 'end'}>
-          <DropdownMenuItem
-            onSelect={e => {
-              e.stopPropagation()
-              onEdit(host)
-            }}
-          >
-            <Pencil className={cn('h-4 w-4', dir === 'rtl' ? 'ml-2' : 'mr-2')} />
-            {t('edit')}
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onSelect={e => {
-              e.stopPropagation()
-              handleToggleStatus()
-            }}
-          >
-            {host?.is_disabled ? <Power className={cn('h-4 w-4', dir === 'rtl' ? 'ml-2' : 'mr-2')} /> : <PowerOff className={cn('h-4 w-4', dir === 'rtl' ? 'ml-2' : 'mr-2')} />}
-            {host?.is_disabled ? t('enable') : t('disable')}
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onSelect={e => {
-              e.stopPropagation()
-              onDuplicate(host)
-            }}
-          >
-            <Copy className={cn('h-4 w-4', dir === 'rtl' ? 'ml-2' : 'mr-2')} />
-            {t('duplicate')}
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onSelect={handleDeleteClick} className="text-destructive">
-            <Trash2 className={cn('h-4 w-4', dir === 'rtl' ? 'ml-2' : 'mr-2')} />
-            {t('delete')}
-          </DropdownMenuItem>
+          {canUpdate && (
+            <>
+              <DropdownMenuItem
+                onSelect={e => {
+                  e.stopPropagation()
+                  onEdit(host)
+                }}
+              >
+                <Pencil className={cn('h-4 w-4', dir === 'rtl' ? 'ml-2' : 'mr-2')} />
+                {t('edit')}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={e => {
+                  e.stopPropagation()
+                  handleToggleStatus()
+                }}
+              >
+                {host?.is_disabled ? <Power className={cn('h-4 w-4', dir === 'rtl' ? 'ml-2' : 'mr-2')} /> : <PowerOff className={cn('h-4 w-4', dir === 'rtl' ? 'ml-2' : 'mr-2')} />}
+                {host?.is_disabled ? t('enable') : t('disable')}
+              </DropdownMenuItem>
+            </>
+          )}
+          {canCreate && (
+            <DropdownMenuItem
+              onSelect={e => {
+                e.stopPropagation()
+                onDuplicate(host)
+              }}
+            >
+              <Copy className={cn('h-4 w-4', dir === 'rtl' ? 'ml-2' : 'mr-2')} />
+              {t('duplicate')}
+            </DropdownMenuItem>
+          )}
+          {canUpdate && <DropdownMenuSeparator />}
+          {canUpdate && (
+            <DropdownMenuItem onSelect={handleDeleteClick} className="text-destructive">
+              <Trash2 className={cn('h-4 w-4', dir === 'rtl' ? 'ml-2' : 'mr-2')} />
+              {t('delete')}
+            </DropdownMenuItem>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <DeleteAlertDialog host={host} isOpen={isDeleteDialogOpen} onClose={() => setDeleteDialogOpen(false)} onConfirm={handleConfirmDelete} />
+      {canUpdate && <DeleteAlertDialog host={host} isOpen={isDeleteDialogOpen} onClose={() => setDeleteDialogOpen(false)} onConfirm={handleConfirmDelete} />}
     </div>
   )
 }

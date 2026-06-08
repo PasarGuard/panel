@@ -475,7 +475,7 @@ export const UserSubscriptionClientsModal: FC<UserSubscriptionClientsModalProps>
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[95vh] max-w-4xl flex-col sm:max-h-[600px]" dir={dir}>
+      <DialogContent className="flex h-[90vh] max-w-full flex-col sm:h-[620px] sm:max-w-4xl" dir={dir}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Users className="h-5 w-5 flex-shrink-0" />
@@ -489,7 +489,7 @@ export const UserSubscriptionClientsModal: FC<UserSubscriptionClientsModalProps>
         </DialogHeader>
 
         {/* Content Area */}
-        <div className="min-h-0 flex-1 overflow-hidden">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           {isLoading && (
             renderLoadingSkeleton()
           )}
@@ -498,7 +498,7 @@ export const UserSubscriptionClientsModal: FC<UserSubscriptionClientsModalProps>
 
           {!isLoading && !error && subUpdateList && (
             <>
-              <div className={`flex items-center justify-between py-4 ${dir === 'rtl' ? 'flex-row-reverse' : 'flex-row'}`}>
+              <div className={`flex flex-shrink-0 items-center justify-between py-4 ${dir === 'rtl' ? 'flex-row-reverse' : 'flex-row'}`}>
                 <span className="text-sm text-muted-foreground">
                   {t('subscriptionClients.total', {
                     defaultValue: 'Total: {{count}} clients',
@@ -514,7 +514,7 @@ export const UserSubscriptionClientsModal: FC<UserSubscriptionClientsModalProps>
                 </div>
               </div>
 
-              <div className="max-h-[300px] overflow-y-auto sm:max-h-[400px]">
+              <div className="min-h-0 flex-1 overflow-y-auto">
                 {subUpdateList.updates && subUpdateList.updates.length > 0 ? (
                   <div className="grid grid-cols-1 gap-4 p-1 sm:grid-cols-2 lg:grid-cols-3">{subUpdateList.updates.map((update, index) => renderClientCard(update, index))}</div>
                 ) : (

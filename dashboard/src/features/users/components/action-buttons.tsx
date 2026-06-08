@@ -5,7 +5,7 @@ import useDirDetection from '@/hooks/use-dir-detection'
 import { type UseEditFormValues } from '@/features/users/forms/user-form'
 import { useActiveNextPlanById, useGetCurrentAdmin, useRemoveUserById, useResetUserDataUsageById, useRevokeUserSubscriptionById, UserResponse, UsersResponse } from '@/service/api'
 import { useQueryClient } from '@tanstack/react-query'
-import { Cat, Check, Copy, Cpu, EllipsisVertical, Fingerprint, GlobeLock, Link2Off, ListStart, ListTree, Network, Pencil, PieChart, QrCode, RefreshCcw, Trash2, UserCog, Users } from 'lucide-react'
+import { Cat, Check, Copy, EllipsisVertical, Fingerprint, GlobeLock, Hash, Link2Off, ListStart, ListTree, Network, Pencil, PieChart, QrCode, RefreshCcw, Trash2, UserCog, Users } from 'lucide-react'
 import { WireguardIcon, XrayIcon, SingboxIcon, MihomoIcon } from '@/components/icons/format-icons'
 import { Code } from 'lucide-react'
 import { FC, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
@@ -198,7 +198,7 @@ const buildUserEditFormValues = (user: UserResponse): UseEditFormValues => ({
   username: user.username,
   status: user.status === 'active' || user.status === 'on_hold' || user.status === 'disabled' ? (user.status as UseEditFormValues['status']) : 'active',
   data_limit: user.data_limit ? bytesToFormGigabytes(Number(user.data_limit)) : 0,
-  hwid_limit: user.hwid_limit ?? undefined,
+  hwid_limit: user.hwid_limit ?? null,
   expire: normalizeDatePickerValueForEditForm(user.expire),
   note: user.note || '',
   data_limit_reset_strategy: user.data_limit_reset_strategy || undefined,
@@ -325,6 +325,9 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
   const canUpdateAllUsers = hasScopeAll(currentAdmin, 'users', 'update')
   const canReadAllUsers = hasScopeAll(currentAdmin, 'users', 'read')
   const canDeleteUsers = hasPermission(currentAdmin, 'users', 'delete')
+  const topDropdownActionCount = (canUpdateUsers ? 1 : 0) + (canUpdateAllUsers ? 1 : 0) + (canReadAllUsers ? 1 : 0)
+  const middleDropdownActionCount = (canUpdateUsers ? 2 : 0) + 3 + (canUpdateUsers && user.next_plan ? 1 : 0) + (canReadAllUsers ? 1 : 0)
+  const destructiveDropdownActionCount = canDeleteUsers ? 1 : 0
 
   // Create form for user editing
   const userForm = useForm<UseEditFormValues>({
@@ -438,9 +441,9 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
     setSetOwnerModalOpen(true)
   }
 
-  const handleCopyCoreUsername = async () => {
+  const handleCopyUserId = async () => {
     try {
-      await navigator.clipboard.writeText(`${user.id}.${user.username}`)
+      await navigator.clipboard.writeText(String(user.id))
       toast.success(t('usersTable.copied', { defaultValue: 'Copied to clipboard' }))
     } catch (error) {
       toast.error(t('copyFailed', { defaultValue: 'Failed to copy content' }))
@@ -719,13 +722,13 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
               )}
 
               {canReadAllUsers && (
-                <DropdownMenuItem onSelect={handleCopyCoreUsername}>
-                  <Cpu className="mr-2 h-4 w-4" />
-                  <span>{t('coreUsername')}</span>
+                <DropdownMenuItem onSelect={handleCopyUserId}>
+                  <Hash className="mr-2 h-4 w-4" />
+                  <span>{t('copyUserId')}</span>
                 </DropdownMenuItem>
               )}
 
-              <DropdownMenuSeparator />
+              {topDropdownActionCount > 0 && middleDropdownActionCount > 0 && <DropdownMenuSeparator />}
 
               {/* Revoke Sub */}
               {canUpdateUsers && <DropdownMenuItem onSelect={handleRevokeSubscription}>
@@ -770,7 +773,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
                 </DropdownMenuItem>
               )}
 
-              <DropdownMenuSeparator />
+              {middleDropdownActionCount > 0 && destructiveDropdownActionCount > 0 && <DropdownMenuSeparator />}
 
               {/* Trash */}
               {canDeleteUsers && <DropdownMenuItem onSelect={handleDelete} className="text-red-600">
@@ -891,7 +894,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
             username={user.username}
           />
 
-          {canReadAllUsers && <UserAllIPsModal isOpen={isUserAllIPsModalOpen} onOpenChange={setUserAllIPsModalOpen} username={user.username} />}
+          {canReadAllUsers && <UserAllIPsModal isOpen={isUserAllIPsModalOpen} onOpenChange={setUserAllIPsModalOpen} userId={user.id} username={user.username} />}
         </div>
       )}
 

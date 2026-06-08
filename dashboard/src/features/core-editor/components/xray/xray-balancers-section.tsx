@@ -110,6 +110,15 @@ function mutableJsonObject(value: JsonObject | undefined): Record<string, JsonVa
   return isRecord(value) ? { ...(value as Record<string, JsonValue | undefined>) } : {}
 }
 
+function mergeBalancerPatch(balancer: RoutingBalancer, patch: Partial<RoutingBalancer>): RoutingBalancer {
+  const next = { ...(balancer as unknown as Record<string, unknown>) }
+  for (const [key, value] of Object.entries(patch as Record<string, unknown>)) {
+    if (value === undefined) delete next[key]
+    else next[key] = value
+  }
+  return next as unknown as RoutingBalancer
+}
+
 function cloneJsonObject(value: JsonObject | undefined): JsonObject | undefined {
   return value === undefined ? undefined : JSON.parse(JSON.stringify(value)) as JsonObject
 }
@@ -482,10 +491,10 @@ export function XrayBalancersSection({ headerAddPulse, headerAddEpoch }: XrayBal
       if (sel.length > 0) setSelectorCommitError(null)
     }
     if (dialogMode === 'add' && draftBalancer !== null) {
-      setDraftBalancer({ ...draftBalancer, ...patch })
+      setDraftBalancer(mergeBalancerPatch(draftBalancer, patch))
       return
     }
-    updateXrayProfile(p => replaceBalancer(p, selected, { ...b, ...patch }))
+    updateXrayProfile(p => replaceBalancer(p, selected, mergeBalancerPatch(b, patch)))
   }
 
   const observatory = readTopLevelObject(profile, 'observatory')

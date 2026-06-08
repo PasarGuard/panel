@@ -10,9 +10,12 @@ import { cn } from '@/lib/utils'
 interface UseUserTemplatesListColumnsProps {
   onEdit: (template: UserTemplateResponse) => void
   onToggleStatus: (template: UserTemplateResponse) => void
+  canCreate?: boolean
+  canUpdate?: boolean
+  canDelete?: boolean
 }
 
-export const useUserTemplatesListColumns = ({ onEdit, onToggleStatus }: UseUserTemplatesListColumnsProps) => {
+export const useUserTemplatesListColumns = ({ onEdit, onToggleStatus, canCreate = true, canUpdate = true, canDelete = true }: UseUserTemplatesListColumnsProps) => {
   const { t } = useTranslation()
 
   return useMemo<ListColumn<UserTemplateResponse>[]>(
@@ -23,10 +26,10 @@ export const useUserTemplatesListColumns = ({ onEdit, onToggleStatus }: UseUserT
         width: '3fr',
         cell: template => (
           <div
-            className="flex min-w-0 cursor-pointer items-center gap-2"
+            className={cn('flex min-w-0 items-center gap-2', canUpdate && 'cursor-pointer')}
             onClick={event => {
               event.stopPropagation()
-              onEdit(template)
+              if (canUpdate) onEdit(template)
             }}
           >
             <span className={cn('h-2 w-2 shrink-0 rounded-full', template.is_disabled ? 'bg-red-500' : 'bg-green-500')} />
@@ -75,15 +78,19 @@ export const useUserTemplatesListColumns = ({ onEdit, onToggleStatus }: UseUserT
         ),
         hideOnMobile: true,
       },
-      {
-        id: 'actions',
-        header: '',
-        width: '64px',
-        align: 'end',
-        hideOnMobile: true,
-        cell: template => <UserTemplateActionsMenu template={template} onEdit={onEdit} onToggleStatus={onToggleStatus} />,
-      },
+      ...(canCreate || canUpdate || canDelete
+        ? [
+          {
+            id: 'actions',
+            header: '',
+            width: '64px',
+            align: 'end' as const,
+            hideOnMobile: true,
+            cell: (template: UserTemplateResponse) => <UserTemplateActionsMenu template={template} onEdit={onEdit} onToggleStatus={onToggleStatus} canCreate={canCreate} canUpdate={canUpdate} canDelete={canDelete} />,
+          },
+        ]
+        : []),
     ],
-    [t, onEdit, onToggleStatus],
+    [t, onEdit, onToggleStatus, canCreate, canUpdate, canDelete],
   )
 }

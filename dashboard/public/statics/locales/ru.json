@@ -3,6 +3,8 @@
   "dashboard": "Панель управления",
   "master": "Общее",
   "dashboardDescription": "Панель управления PasarGuard",
+  "default": "По умолчанию",
+  "unlimited": "Без ограничений",
   "active": "активный",
   "online": "В сети",
   "platform": "Платформа",
@@ -48,7 +50,7 @@
   "monitorUsers": "Мониторинг пользователей",
   "alltime": "Все время",
   "today": "Сегодня",
-  "coreUsername": "Основное имя пользователя",
+  "copyUserId": "Копировать ID",
   "create": "Создать",
   "nodes": {
     "title": "Узлы",
@@ -460,26 +462,6 @@
         "forAdminsOnlyDescription": "Ограничить доступ к боту только администраторами"
       }
     },
-    "discord": {
-      "title": "Discord",
-      "description": "Настройте интеграцию Discord бота и связанные параметры для вашей системы",
-      "loadError": "Не удалось загрузить настройки Discord. Попробуйте еще раз.",
-      "saveSuccess": "Настройки Discord успешно сохранены",
-      "saveFailed": "Не удалось сохранить настройки Discord",
-      "cancelSuccess": "Изменения отменены и восстановлены исходные настройки Discord",
-      "general": {
-        "title": "Основные настройки",
-        "description": "Базовая конфигурация Discord бота и настройки подключения",
-        "enable": "Включить Discord бота",
-        "enableDescription": "Включить или отключить функциональность Discord бота для вашей системы",
-        "token": "Токен бота",
-        "tokenPlaceholder": "Введите ваш токен Discord бота",
-        "tokenDescription": "Токен бота, полученный из Discord Developer Portal",
-        "proxyUrl": "URL прокси",
-        "proxyUrlPlaceholder": "socks5://proxy.example.com:1080",
-        "proxyUrlDescription": "URL прокси для подключений к Discord API (необязательно)"
-      }
-    },
     "webhook": {
       "title": "Веб-хуки",
       "description": "Настройка уведомлений веб-хуков и конечных точек для вашей системы",
@@ -647,6 +629,8 @@
     "createFailed": "Не удалось создать администратора «{{name}}»",
     "editSuccess": "Администратор «{{name}}» успешно обновлен",
     "editFailed": "Не удалось обновить администратора «{{name}}»",
+    "passwordChangedTitle": "Пароль изменен",
+    "passwordChangedLogout": "Войдите снова с новым паролем.",
     "deleteSuccess": "Администратор {{name}} успешно удалён",
     "deleteFailed": "Не удалось удалить администратора {{name}}",
     "bulkDeleteSuccess": "{{count}} администраторов успешно удалено.",
@@ -717,7 +701,6 @@
     "activateAllDisabledUsersSuccess": "Все отключенные пользователи под управлением администратора «{{name}}» были успешно активированы",
     "activateAllDisabledUsersFailed": "Не удалось активировать всех отключенных пользователей под управлением администратора «{{name}}»",
     "reset": "Сброс использования",
-    "discordId": "Discord ID",
     "used": {
       "traffic": "Использование"
     },
@@ -732,7 +715,7 @@
     "createRole": "Создать роль",
     "editRole": "Изменить роль",
     "viewRole": "Просмотр роли",
-    "readOnlyHint": "Это встроенная роль. Вы можете просмотреть её настройки, но не можете изменить.",
+    "readOnlyHint": "Это роль владельца. Вы можете просмотреть её настройки, но не можете изменить.",
     "modalDescription": "Настройте права, лимиты, функции и доступ для этой роли.",
     "currentRoleUnavailable": "Текущая роль недоступна",
     "loadFallback": "Используются встроенные роли",
@@ -753,6 +736,10 @@
     "permissionCount": "{{count}} прав",
     "limitFeatureCount": "{{limits}} лимитов, {{features}} флагов функций",
     "unlimited": "Без ограничений",
+    "inherit": "Наследовать",
+    "hwidPolicy": "Политика HWID",
+    "hwidPolicyHint": "Если включено, пустые лимиты наследуют глобальные настройки HWID. Отключите, чтобы выключить проверки HWID для администраторов с этой ролью.",
+    "hwidEnabledDescription": "Применять регистрацию HWID и лимиты к пользователям, созданным или измененным этой ролью.",
     "empty": "Ролей нет",
     "emptyDescription": "Создайте роль, чтобы назначать админам детальные права, лимиты, функции и ограничения доступа.",
     "noSearchResults": "Нет ролей по вашему запросу.",
@@ -768,7 +755,7 @@
     "bulkDeletePartial": "{{count}} ролей не удалось удалить.",
     "bulkDeleteFailed": "Не удалось удалить выбранные роли.",
     "requireTemplateTitle": "Требовать шаблон",
-    "requireTemplateDescription": "Заставить админов с этой ролью создавать пользователей только из шаблона.",
+    "requireTemplateDescription": "Заставить админов с этой ролью создавать или изменять пользователей только из шаблона.",
     "allowedTemplates": "Разрешённые шаблоны",
     "allowedTemplatesDescription": "Ограничить шаблоны, доступные для роли. Оставьте пустым, чтобы разрешить все.",
     "allowedGroups": "Разрешённые группы",
@@ -868,9 +855,13 @@
         "title": "Блокировать ограниченных администраторов",
         "description": "Запрещать весь доступ к панели и API после достижения администратором лимита трафика."
       },
-      "disableUsersWhenLimited": {
+      "disconnectUsersWhenLimited": {
         "title": "Отключать пользователей при ограничении",
-        "description": "Удалять пользователей этого администратора с узлов, пока администратор ограничен по использованию."
+        "description": "Удалять пользователей этого админа с узлов, пока админ ограничен по использованию."
+      },
+      "disconnectUsersWhenDisabled": {
+        "title": "Отключать пользователей при блокировке",
+        "description": "Удалять пользователей этого админа с узлов, пока админ отключен."
       }
     },
     "featureFields": {
@@ -886,13 +877,15 @@
   },
   "setup": {
     "createOwner": "Создать владельца",
+    "upgradeOwner": "Сделать администратора владельцем",
     "resetOwner": "Сбросить пароль владельца",
     "deleteOwner": "Удалить владельца",
     "createOwnerShort": "Создать",
+    "upgradeOwnerShort": "Владелец",
     "resetOwnerShort": "Сбросить",
     "deleteOwnerShort": "Удалить",
     "ownerAccess": "Доступ владельца",
-    "ownerAccessDescription": "Используйте временный ключ настройки, чтобы создать, сбросить или удалить учетную запись владельца.",
+    "ownerAccessDescription": "Используйте временный ключ настройки, чтобы создать, повысить, сбросить или удалить учетную запись владельца.",
     "tempKey": "Временный ключ",
     "deleteConfirm": "Введите DELETE для подтверждения",
     "keyRequired": "Требуется временный ключ",
@@ -901,6 +894,7 @@
     "passwordMismatch": "Пароли не совпадают",
     "deleteConfirmRequired": "Введите DELETE для подтверждения",
     "ownerCreated": "Владелец успешно создан",
+    "ownerUpgraded": "Администратор успешно стал владельцем",
     "ownerReset": "Пароль владельца успешно сброшен",
     "ownerDeleted": "Владелец успешно удален",
     "deleteWarning": "Это действие нельзя отменить. Учетная запись владельца будет удалена безвозвратно."
@@ -952,7 +946,7 @@
     "suffix": "Суффикс имени пользователя",
     "dataLimit": "Лимит данных",
     "hwidLimit": "Лимит HWID",
-    "hwidLimitPlaceholder": "По умолчанию, 0 = без лимита",
+    "hwidLimitPlaceholder": "Пусто = по умолчанию, 0 = без лимита",
     "expire": "Срок действия",
     "onHoldTimeout": "Тайм-аут при ожидании",
     "method": "Метод",
@@ -1248,7 +1242,7 @@
   "userDialog.custom": "Пользовательский",
   "userDialog.dataLimit": "Лимит трафика",
   "userDialog.hwidLimit": "Лимит HWID",
-  "userDialog.hwidLimitPlaceholder": "По умолчанию, 0 = без лимита",
+  "userDialog.hwidLimitPlaceholder": "Пусто = по умолчанию, 0 = без лимита",
   "userDialog.days": "Дни",
   "userDialog.editUser": "Редактировать",
   "userDialog.editUserTitle": "Редактировать пользователя",
@@ -2304,7 +2298,7 @@
       "transportSection": "Транспорт",
       "securitySection": "Безопасность",
       "vlessFlowDefault": "По умолчанию (нет)",
-      "vlessFlowVisionRequiresTls": "Потоки Vision требуют входящей безопасности TLS или REALITY (не «none»).",
+      "vlessFlowVisionRequiresTls": "Для XTLS Vision требуется TCP с TLS/REALITY, xHTTP с TLS или VLESS Encryption.",
       "transportAdvanced": {
         "title": "Параметры транспорта"
       },
@@ -2854,7 +2848,7 @@
     "revokeSubscription": "Отозвать подписку",
     "usage": "Использование",
     "hwidLimit": "Лимит HWID",
-    "hwidLimitPlaceholder": "По умолчанию, 0 = без лимита",
+    "hwidLimitPlaceholder": "Пусто = по умолчанию, 0 = без лимита",
     "deleteSuccess": "Пользователь «{{name}}» был успешно удалён.",
     "resetUsageSuccess": "Использование пользователя «{{name}}» было сброшено.",
     "revokeSubSuccess": "Подписка пользователя «{{name}}» была отозвана.",

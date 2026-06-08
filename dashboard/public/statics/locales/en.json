@@ -3,6 +3,8 @@
   "dashboard": "Dashboard",
   "master": "Overall",
   "dashboardDescription": "PasarGuard Management Dashboard",
+  "default": "Default",
+  "unlimited": "Unlimited",
   "active": "active",
   "online": "Online",
   "platform": "Platform",
@@ -22,7 +24,7 @@
   "monitorUsers": "Monitor Users",
   "alltime": "All time",
   "today": "Today",
-  "coreUsername": "Core Username",
+  "copyUserId": "Copy ID",
   "nodes": {
     "title": "Nodes",
     "description": "Manage your nodes",
@@ -443,26 +445,6 @@
         "forAdminsOnlyDescription": "Restrict bot access to administrators only"
       }
     },
-    "discord": {
-      "title": "Discord",
-      "description": "Configure Discord bot integration and related settings for your system",
-      "loadError": "Failed to load Discord settings. Please try again.",
-      "saveSuccess": "Discord settings saved successfully",
-      "saveFailed": "Failed to save Discord settings",
-      "cancelSuccess": "Changes cancelled and original Discord settings restored",
-      "general": {
-        "title": "General Settings",
-        "description": "Basic Discord bot configuration and connection settings",
-        "enable": "Enable Discord Bot",
-        "enableDescription": "Enable or disable Discord bot functionality for your system",
-        "token": "Bot Token",
-        "tokenPlaceholder": "Enter your Discord bot token",
-        "tokenDescription": "Bot token obtained from Discord Developer Portal",
-        "proxyUrl": "Proxy URL",
-        "proxyUrlPlaceholder": "socks5://proxy.example.com:1080",
-        "proxyUrlDescription": "Proxy URL for Discord API connections (optional)"
-      }
-    },
     "webhook": {
       "title": "Webhook",
       "description": "Configure webhook notifications and endpoint settings for your system",
@@ -661,6 +643,8 @@
     "createFailed": "Failed to create admin «{{name}}»",
     "editSuccess": "Admin «{{name}}» has been modified successfully",
     "editFailed": "Failed to modify admin «{{name}}»",
+    "passwordChangedTitle": "Password changed",
+    "passwordChangedLogout": "Please sign in again with your new password.",
     "deleteSuccess": "Admin {{name}} removed successfully",
     "deleteFailed": "Failed to remove admin {{name}}",
     "bulkDeleteSuccess": "{{count}} admins deleted successfully.",
@@ -731,7 +715,6 @@
     "activateAllDisabledUsersSuccess": "All disabled users under admin «{{name}}» have been activated successfully",
     "activateAllDisabledUsersFailed": "Failed to activate all disabled users under admin «{{name}}»",
     "reset": "Reset usage",
-    "discordId": "Discord ID",
     "used": {
       "traffic": "Usage"
     },
@@ -746,7 +729,7 @@
     "createRole": "Create role",
     "editRole": "Edit role",
     "viewRole": "View role",
-    "readOnlyHint": "This is a built-in role. You can review its configuration but cannot modify it.",
+    "readOnlyHint": "This is the owner role. You can review its configuration but cannot modify it.",
     "modalDescription": "Configure permissions, limits, features and access for this role.",
     "currentRoleUnavailable": "Current role unavailable",
     "loadFallback": "Using built-in roles",
@@ -767,6 +750,10 @@
     "permissionCount": "{{count}} permissions",
     "limitFeatureCount": "{{limits}} limits, {{features}} feature flags",
     "unlimited": "Unlimited",
+    "inherit": "Inherit",
+    "hwidPolicy": "HWID policy",
+    "hwidPolicyHint": "When enabled, empty limits inherit the global HWID settings. Turn it off to disable HWID checks for admins with this role.",
+    "hwidEnabledDescription": "Apply HWID registration and limits to users created or modified by this role.",
     "empty": "No roles",
     "emptyDescription": "Create a role to assign granular permissions, limits, features, and access restrictions to admins.",
     "noSearchResults": "No roles match your search.",
@@ -782,7 +769,7 @@
     "bulkDeletePartial": "{{count}} roles could not be deleted.",
     "bulkDeleteFailed": "Failed to delete selected roles.",
     "requireTemplateTitle": "Require template",
-    "requireTemplateDescription": "Force admins with this role to create users only from a template.",
+    "requireTemplateDescription": "Force admins with this role to create or modify users only from a template.",
     "allowedTemplates": "Allowed templates",
     "allowedTemplatesDescription": "Restrict templates this role can use. Leave empty to allow all.",
     "allowedGroups": "Allowed groups",
@@ -882,9 +869,13 @@
         "title": "Block limited admins",
         "description": "Deny all dashboard and API access after an admin reaches their data limit."
       },
-      "disableUsersWhenLimited": {
-        "title": "Disable users when limited",
+      "disconnectUsersWhenLimited": {
+        "title": "Disconnect users when limited",
         "description": "Remove this admin's users from nodes while the admin is usage-limited."
+      },
+      "disconnectUsersWhenDisabled": {
+        "title": "Disconnect users when disabled",
+        "description": "Remove this admin's users from nodes while the admin is disabled."
       }
     },
     "featureFields": {
@@ -900,13 +891,15 @@
   },
   "setup": {
     "createOwner": "Create owner",
+    "upgradeOwner": "Make admin owner",
     "resetOwner": "Reset owner password",
     "deleteOwner": "Delete owner",
     "createOwnerShort": "Create",
+    "upgradeOwnerShort": "Make owner",
     "resetOwnerShort": "Reset",
     "deleteOwnerShort": "Delete",
     "ownerAccess": "Owner access",
-    "ownerAccessDescription": "Use a temporary setup key to create, reset, or remove the owner account.",
+    "ownerAccessDescription": "Use a temporary setup key to create, promote, reset, or remove the owner account.",
     "tempKey": "Temp key",
     "deleteConfirm": "Type DELETE to confirm",
     "keyRequired": "Temp key is required",
@@ -915,6 +908,7 @@
     "passwordMismatch": "Passwords do not match",
     "deleteConfirmRequired": "Type DELETE to confirm",
     "ownerCreated": "Owner created successfully",
+    "ownerUpgraded": "Admin promoted to owner successfully",
     "ownerReset": "Owner password reset successfully",
     "ownerDeleted": "Owner deleted successfully",
     "deleteWarning": "This action cannot be undone. The owner account will be permanently removed."
@@ -966,7 +960,7 @@
     "suffix": "Username Suffix",
     "dataLimit": "Data Limit",
     "hwidLimit": "HWID Limit",
-    "hwidLimitPlaceholder": "Default, 0 = unlimited",
+    "hwidLimitPlaceholder": "Empty = default, 0 = unlimited",
     "expire": "Expire duration",
     "onHoldTimeout": "OnHold Timeout",
     "method": "Method",
@@ -1620,7 +1614,7 @@
     "custom": "Custom",
     "dataLimit": "Data Limit",
     "hwidLimit": "HWID Limit",
-    "hwidLimitPlaceholder": "Fallback, 0 = unlimited",
+    "hwidLimitPlaceholder": "Empty = default, 0 = unlimited",
     "days": "Days",
     "editUser": "Modify user",
     "editUserTitle": "Modify user",
@@ -2416,7 +2410,7 @@
       "transportSection": "Transport",
       "securitySection": "Security",
       "vlessFlowDefault": "Default (none)",
-      "vlessFlowVisionRequiresTls": "Vision flows require inbound security TLS or REALITY (not “none”).",
+      "vlessFlowVisionRequiresTls": "XTLS Vision requires TCP with TLS/REALITY, xHTTP with TLS, or VLESS Encryption.",
       "transportAdvanced": {
         "title": "Transport details"
       },

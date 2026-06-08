@@ -4,6 +4,8 @@
   "dashboard": "仪表板",
   "master": "总体",
   "dashboardDescription": "PasarGuard 管理仪表板",
+  "default": "默认",
+  "unlimited": "无限制",
   "allStatuses": "所有状态",
   "status": "状态",
   "statistics": "统计",
@@ -19,7 +21,7 @@
   "monitorUsers": "监控用户",
   "alltime": "全部时间",
   "today": "今天",
-  "coreUsername": "核心用户名",
+  "copyUserId": "复制 ID",
   "create": "创建",
   "nodes": {
     "title": "节点",
@@ -428,26 +430,6 @@
         "forAdminsOnlyDescription": "限制机器人访问仅限管理员"
       }
     },
-    "discord": {
-      "title": "Discord",
-      "description": "为您的系统配置 Discord 机器人集成和相关设置",
-      "loadError": "加载 Discord 设置失败。请重试。",
-      "saveSuccess": "Discord 设置保存成功",
-      "saveFailed": "保存 Discord 设置失败",
-      "cancelSuccess": "已取消更改并恢复原始 Discord 设置",
-      "general": {
-        "title": "基本设置",
-        "description": "基本 Discord 机器人配置和连接设置",
-        "enable": "启用 Discord 机器人",
-        "enableDescription": "启用或禁用系统的 Discord 机器人功能",
-        "token": "机器人令牌",
-        "tokenPlaceholder": "输入您的 Discord 机器人令牌",
-        "tokenDescription": "从 Discord 开发者门户获取的机器人令牌",
-        "proxyUrl": "代理 URL",
-        "proxyUrlPlaceholder": "socks5://proxy.example.com:1080",
-        "proxyUrlDescription": "Discord API 连接的代理 URL（可选）"
-      }
-    },
     "webhook": {
       "title": "Webhook",
       "description": "配置系统的Webhook通知和端点设置",
@@ -661,6 +643,8 @@
     "createFailed": "创建管理员「{{name}}」失败",
     "editSuccess": "管理员「{{name}}」更新成功",
     "editFailed": "更新管理员「{{name}}」失败",
+    "passwordChangedTitle": "密码已更改",
+    "passwordChangedLogout": "请使用新密码重新登录。",
     "deleteSuccess": "管理员{{name}}删除成功",
     "deleteFailed": "删除管理员{{name}}失败",
     "bulkDeleteSuccess": "已成功删除 {{count}} 个管理员。",
@@ -731,7 +715,6 @@
     "activateAllDisabledUsersSuccess": "管理员「{{name}}」下的所有已禁用用户已成功启用",
     "activateAllDisabledUsersFailed": "启用管理员「{{name}}」下的所有已禁用用户失败",
     "reset": "重置使用情况",
-    "discordId": "Discord ID",
     "used": {
       "traffic": "使用量"
     },
@@ -746,7 +729,7 @@
     "createRole": "创建角色",
     "editRole": "编辑角色",
     "viewRole": "查看角色",
-    "readOnlyHint": "这是内置角色。您可以查看其配置，但无法修改。",
+    "readOnlyHint": "这是所有者角色。您可以查看其配置，但无法修改。",
     "modalDescription": "为此角色配置权限、限制、功能和访问。",
     "currentRoleUnavailable": "当前角色不可用",
     "loadFallback": "使用内置角色",
@@ -767,6 +750,10 @@
     "permissionCount": "{{count}} 项权限",
     "limitFeatureCount": "{{limits}} 个限制，{{features}} 个功能标记",
     "unlimited": "无限制",
+    "inherit": "继承",
+    "hwidPolicy": "HWID 策略",
+    "hwidPolicyHint": "启用后，空限制会继承全局 HWID 设置。关闭后，此角色的管理员将不进行 HWID 检查。",
+    "hwidEnabledDescription": "将 HWID 注册和限制应用于由此角色创建或修改的用户。",
     "empty": "暂无角色",
     "emptyDescription": "创建角色以为管理员分配精细的权限、限制、功能和访问限制。",
     "noSearchResults": "没有匹配的角色。",
@@ -782,7 +769,7 @@
     "bulkDeletePartial": "{{count}} 个角色无法删除。",
     "bulkDeleteFailed": "删除所选角色失败。",
     "requireTemplateTitle": "需要模板",
-    "requireTemplateDescription": "强制使用此角色的管理员只能从模板创建用户。",
+    "requireTemplateDescription": "强制使用此角色的管理员只能从模板创建或修改用户。",
     "allowedTemplates": "允许的模板",
     "allowedTemplatesDescription": "限制此角色可使用的模板。留空以允许全部。",
     "allowedGroups": "允许的分组",
@@ -882,9 +869,13 @@
         "title": "阻止受限管理员",
         "description": "当管理员达到流量限制后，拒绝其所有仪表板和 API 访问。"
       },
-      "disableUsersWhenLimited": {
-        "title": "受限时禁用用户",
+      "disconnectUsersWhenLimited": {
+        "title": "受限时断开用户",
         "description": "当该管理员处于用量受限状态时，从节点中移除其用户。"
+      },
+      "disconnectUsersWhenDisabled": {
+        "title": "禁用时断开用户",
+        "description": "当该管理员被禁用时，从节点中移除其用户。"
       }
     },
     "featureFields": {
@@ -900,13 +891,15 @@
   },
   "setup": {
     "createOwner": "创建所有者",
+    "upgradeOwner": "将管理员设为所有者",
     "resetOwner": "重置所有者密码",
     "deleteOwner": "删除所有者",
     "createOwnerShort": "创建",
+    "upgradeOwnerShort": "设为所有者",
     "resetOwnerShort": "重置",
     "deleteOwnerShort": "删除",
     "ownerAccess": "所有者访问",
-    "ownerAccessDescription": "使用临时设置密钥创建、重置或删除所有者账户。",
+    "ownerAccessDescription": "使用临时设置密钥创建、提升、重置或删除所有者账户。",
     "tempKey": "临时密钥",
     "deleteConfirm": "输入 DELETE 以确认",
     "keyRequired": "临时密钥是必填项",
@@ -915,6 +908,7 @@
     "passwordMismatch": "密码不匹配",
     "deleteConfirmRequired": "输入 DELETE 以确认",
     "ownerCreated": "所有者创建成功",
+    "ownerUpgraded": "管理员已成功设为所有者",
     "ownerReset": "所有者密码重置成功",
     "ownerDeleted": "所有者删除成功",
     "deleteWarning": "此操作无法撤销。所有者账户将被永久删除。"
@@ -966,7 +960,7 @@
     "suffix": "用户名后缀",
     "dataLimit": "数据限制",
     "hwidLimit": "HWID 限制",
-    "hwidLimitPlaceholder": "默认，0 = 无限制",
+    "hwidLimitPlaceholder": "留空 = 默认，0 = 无限制",
     "expire": "过期时间",
     "onHoldTimeout": "挂起超时",
     "method": "方法",
@@ -1600,7 +1594,7 @@
   "userDialog.custom": "自定义",
   "userDialog.dataLimit": "流量限制",
   "userDialog.hwidLimit": "HWID 限制",
-  "userDialog.hwidLimitPlaceholder": "备用，0 = 无限制",
+  "userDialog.hwidLimitPlaceholder": "留空 = 默认，0 = 无限制",
   "userDialog.days": "天",
   "userDialog.editUser": "修改",
   "userDialog.editUserTitle": "用户编辑",
@@ -2375,7 +2369,7 @@
       "transportSection": "传输",
       "securitySection": "安全",
       "vlessFlowDefault": "默认（无）",
-      "vlessFlowVisionRequiresTls": "Vision 流需要入站安全为 TLS 或 REALITY（不能为 none）。",
+      "vlessFlowVisionRequiresTls": "XTLS Vision 需要 TCP + TLS/REALITY、xHTTP + TLS，或启用 VLESS Encryption。",
       "transportAdvanced": {
         "title": "传输详情"
       },
@@ -2924,7 +2918,7 @@
     "revokeSubscription": "吊销订阅",
     "usage": "用量",
     "hwidLimit": "HWID 限制",
-    "hwidLimitPlaceholder": "备用，0 = 无限制",
+    "hwidLimitPlaceholder": "留空 = 默认，0 = 无限制",
     "deleteSuccess": "用户「{{name}}」已成功删除。",
     "resetUsageSuccess": "用户「{{name}}」的用量已重置。",
     "revokeSubSuccess": "用户「{{name}}」的订阅已撤销。",

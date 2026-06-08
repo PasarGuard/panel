@@ -1,6 +1,8 @@
 import { DEFAULT_SHADOWSOCKS_METHOD } from '@/constants/Proxies'
 import { z } from 'zod'
 
+const MAX_ON_HOLD_EXPIRE_DURATION_SECONDS = 2_147_483_647
+
 export const userStatusEnum = z.enum(['active', 'disabled', 'limited', 'expired', 'on_hold'])
 export const userDataLimitResetStrategyEnum = z.enum(['no_reset', 'day', 'week', 'month', 'year'])
 export const shadowsocksMethodsEnum = z.enum(['aes-128-gcm', 'aes-256-gcm', 'chacha20-ietf-poly1305', 'xchacha20-poly1305'])
@@ -54,7 +56,7 @@ const userSharedSchemaShape = {
   note: z.string().optional(),
   proxy_settings: proxyTableInputSchema.optional(),
   data_limit_reset_strategy: userDataLimitResetStrategyEnum.optional(),
-  on_hold_expire_duration: z.number().nullable().optional(),
+  on_hold_expire_duration: z.number().max(MAX_ON_HOLD_EXPIRE_DURATION_SECONDS).nullable().optional(),
   on_hold_timeout: z.union([z.string(), z.number(), z.null()]).optional(),
   auto_delete_in_days: z.number().optional(),
   next_plan: nextPlanModelSchema.optional(),
@@ -98,7 +100,7 @@ export const getDefaultUserForm = async () => {
     username: '',
     status: 'active',
     data_limit: 0,
-    hwid_limit: undefined,
+    hwid_limit: null,
     expire: '',
     note: '',
     group_ids: [],

@@ -7,6 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from app import notification
 from app.db import AsyncSession
 from app.db.crud.admin import (
+    build_admin_details,
     create_admin,
     find_admins_by_telegram_id,
     get_admin_usages,
@@ -20,7 +21,6 @@ from app.db.crud.admin import (
 )
 from app.db.crud.bulk import activate_all_disabled_users, disable_all_active_users
 from app.db.crud.user import get_users, remove_users
-from app.models.user import UserListQuery
 from app.db.models import Admin, AdminStatus, UserStatus
 from app.models.admin import (
     AdminCreate,
@@ -32,14 +32,15 @@ from app.models.admin import (
     AdminsResponse,
     AdminsSimpleResponse,
     AdminUsageQuery,
-    BulkAdminSelection,
     BulkAdminsActionResponse,
+    BulkAdminSelection,
     RemoveAdminsResponse,
 )
 from app.models.stats import Period, UserUsageStatsList
+from app.models.user import UserListQuery
 from app.node.sync import remove_user as sync_remove_user, remove_users as sync_remove_users, sync_users
 from app.operation import BaseOperation
-from app.operation.permissions import enforce_permission, PermissionDenied
+from app.operation.permissions import PermissionDenied, enforce_permission
 from app.operation.user import UserOperation
 from app.utils.logger import get_logger
 
@@ -49,7 +50,7 @@ logger = get_logger("admin-operation")
 class AdminOperation(BaseOperation):
     @staticmethod
     def _is_owner_admin(db_admin: Admin) -> bool:
-        return db_admin.role_id == 1 or bool(db_admin.role and db_admin.role.is_owner)
+        return db_admin.role_id == 1
 
     async def _ensure_owner_target_access(self, db_admin: Admin, current_admin: AdminDetails) -> None:
         if not current_admin.is_owner and self._is_owner_admin(db_admin):
@@ -73,7 +74,7 @@ class AdminOperation(BaseOperation):
             await self.raise_error(message="Admin already exists", code=409, db=db)
 
         logger.info(f'New admin "{db_admin.username}" with id "{db_admin.id}" added by admin "{admin.username}"')
-        new_admin_details = AdminDetails.model_validate(db_admin)
+        new_admin_details = build_admin_details(db_admin, include_loaded_metrics=True)
         asyncio.create_task(notification.create_admin(new_admin_details, admin.username))
         return db_admin
 
@@ -93,51 +94,59 @@ class AdminOperation(BaseOperation):
         self, db: AsyncSession, db_admin: Admin, modified_admin: AdminModify, current_admin: AdminDetails
     ) -> AdminDetails:
         """Modify an existing admin's details."""
-        # Owner can only be modified by themselves — not by other admins via normal routes
-        if db_admin.role_id == 1 and (current_admin.id is None or db_admin.id != current_admin.id):
+        # Owner can only be modified by themselves via normal routes.
+        is_owner_target = self._is_owner_admin(db_admin)
+        is_self = current_admin.id is not None and db_admin.id == current_admin.id
+
+        if is_owner_target and not is_self:
             await self.raise_error(message="Owner cannot be modified via this endpoint. Use the setup flow.", code=403)
 
-        if modified_admin.role_id == 1:
+        if modified_admin.role_id == 1 and not (is_owner_target and is_self and db_admin.role_id == 1):
             await self.raise_error(
                 message="Owner role cannot be assigned via this endpoint. Use the setup flow.", code=403
             )
 
-        if not current_admin.is_owner and db_admin.id == current_admin.id:
+        if is_owner_target and modified_admin.role_id is not None and modified_admin.role_id != db_admin.role_id:
+            await self.raise_error(
+                message="Owner role cannot be changed via this endpoint. Use the setup flow.", code=403
+            )
+
+        if (
+            not current_admin.is_owner
+            and is_self
+            and modified_admin.role_id is not None
+            and modified_admin.role_id != db_admin.role_id
+        ):
+            await self.raise_error(message="You're not allowed to change your own role.", code=403)
+
+        if not current_admin.is_owner and is_self:
             if modified_admin.status is not None and modified_admin.status == AdminStatus.disabled:
                 await self.raise_error(message="You're not allowed to disable your own account.", code=403)
 
-        # Non-owner admins cannot modify other admins with equal or higher role level (role_id <= 2)
-        # Only the owner can modify administrators (role_id=2)
-        if not current_admin.is_owner and db_admin.id != current_admin.id and db_admin.role_id <= 2:
-            await self.raise_error(message="You're not allowed to modify an administrator account.", code=403)
-
-        if modified_admin.telegram_id is not None:
+        if modified_admin.telegram_id:
             existing_admins = await find_admins_by_telegram_id(
                 db, modified_admin.telegram_id, exclude_admin_id=db_admin.id, limit=1
             )
             if existing_admins:
                 await self.raise_error(message="Telegram ID is already assigned to another admin.", code=409, db=db)
 
-        old_status = db_admin.status
+        old_users_sync_blocked = db_admin.users_sync_blocked
         db_admin = await update_admin(db, db_admin, modified_admin)
 
-        # Sync users to nodes if admin status changed due to data_limit change
-        if modified_admin.data_limit is not None:
-            if old_status != AdminStatus.limited and db_admin.status == AdminStatus.limited:
-                # active → limited: remove active/on_hold users from nodes
+        # Sync users to nodes if this admin's role/status starts or stops blocking user sync.
+        if old_users_sync_blocked != db_admin.users_sync_blocked:
+            if db_admin.users_sync_blocked:
                 users = await get_users(
                     db, query=UserListQuery(status=[UserStatus.active, UserStatus.on_hold]), admin=db_admin
                 )
                 await sync_remove_users(users)
-            elif old_status == AdminStatus.limited and db_admin.status == AdminStatus.active:
-                # limited → active: re-sync all users to nodes
-                # Pass empty set — this admin is now active, no exclusion needed
-                users = await get_users(db, query=UserListQuery(), admin=db_admin)
+            else:
+                users = await get_users(db, query=UserListQuery(), admin=db_admin, load_admin_role=True)
                 await sync_users(users)
 
         logger.info(f'Admin "{db_admin.username}" with id "{db_admin.id}" modified by admin "{current_admin.username}"')
 
-        modified_admin_details = AdminDetails.model_validate(db_admin)
+        modified_admin_details = build_admin_details(db_admin, include_loaded_metrics=True)
         asyncio.create_task(notification.modify_admin(modified_admin_details, current_admin.username))
         return modified_admin_details
 
@@ -212,7 +221,7 @@ class AdminOperation(BaseOperation):
     async def _disable_all_active_users_for_admin(self, db: AsyncSession, db_admin: Admin, admin: AdminDetails):
         """Disable all active users under a specific admin."""
         await disable_all_active_users(db=db, admin=db_admin)
-        users = await get_users(db, query=UserListQuery(), admin=db_admin)
+        users = await get_users(db, query=UserListQuery(), admin=db_admin, load_admin_role=True)
         await sync_users(users)
         logger.info(f'Admin "{db_admin.username}" users has been disabled by admin "{admin.username}"')
 
@@ -234,7 +243,7 @@ class AdminOperation(BaseOperation):
     async def _activate_all_disabled_users_for_admin(self, db: AsyncSession, db_admin: Admin, admin: AdminDetails):
         """Activate all disabled users under a specific admin."""
         await activate_all_disabled_users(db=db, admin=db_admin)
-        users = await get_users(db, query=UserListQuery(), admin=db_admin)
+        users = await get_users(db, query=UserListQuery(), admin=db_admin, load_admin_role=True)
         await sync_users(users)
         logger.info(f'Admin "{db_admin.username}" users has been activated by admin "{admin.username}"')
 
@@ -255,7 +264,7 @@ class AdminOperation(BaseOperation):
 
     async def _remove_all_users_for_admin(self, db: AsyncSession, db_admin: Admin, admin: AdminDetails) -> int:
         """Delete all users that belong to the specified admin."""
-        users = await get_users(db, query=UserListQuery(), admin=db_admin)
+        users = await get_users(db, query=UserListQuery(), admin=db_admin, load_admin_role=True)
         if not users:
             return 0
 
@@ -295,11 +304,11 @@ class AdminOperation(BaseOperation):
 
         # If admin was limited and is now active, re-sync all users to nodes
         if old_status == AdminStatus.limited and db_admin.status == AdminStatus.active:
-            users = await get_users(db, query=UserListQuery(), admin=db_admin)
+            users = await get_users(db, query=UserListQuery(), admin=db_admin, load_admin_role=True)
             await sync_users(users)
 
         logger.info(f'Admin "{db_admin.username}" usage has been reset by admin "{admin.username}"')
-        reseted_admin_details = AdminDetails.model_validate(db_admin)
+        reseted_admin_details = build_admin_details(db_admin, include_loaded_metrics=True)
         asyncio.create_task(notification.admin_usage_reset(reseted_admin_details, admin.username))
         return reseted_admin_details
 
@@ -412,7 +421,7 @@ class AdminOperation(BaseOperation):
 
         ids_list = list(ids)
 
-        admins = await get_admins(db, AdminListQuery(ids=ids_list, limit=len(ids_list)))
+        admins = await get_admins(db, AdminListQuery(ids=ids_list, limit=len(ids_list)), load_role=False)
 
         # Verify every requested ID was found (mirrors the 404 in get_validated_admin_by_id)
         found_ids = {a.id for a in admins}
@@ -442,7 +451,7 @@ class AdminOperation(BaseOperation):
         await db.commit()
 
         for db_admin in admins_to_update:
-            modified_admin = AdminDetails.model_validate(db_admin)
+            modified_admin = build_admin_details(db_admin, include_loaded_metrics=True)
             asyncio.create_task(notification.modify_admin(modified_admin, current_admin.username))
             logger.info(
                 f'Admin "{db_admin.username}" bulk {"disabled" if is_disabled else "enabled"} by admin "{current_admin.username}"'
@@ -457,7 +466,7 @@ class AdminOperation(BaseOperation):
         db_admins = await self._get_validated_bulk_admins(db, bulk_admins.ids, admin)
         for db_admin in db_admins:
             db_admin = await reset_admin_usage(db, db_admin=db_admin)
-            reseted_admin = AdminDetails.model_validate(db_admin)
+            reseted_admin = build_admin_details(db_admin, include_loaded_metrics=True)
             asyncio.create_task(notification.admin_usage_reset(reseted_admin, admin.username))
             logger.info(f'Admin "{db_admin.username}" usage has been reset by admin "{admin.username}"')
         return self._build_bulk_action_response(db_admins)

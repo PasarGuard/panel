@@ -59,6 +59,15 @@ function routingRuleAsRecord(r: RoutingRule): Record<string, unknown> {
   return r as unknown as Record<string, unknown>
 }
 
+function mergeRoutingRulePatch(rule: RoutingRule, patch: Partial<RoutingRule>): RoutingRule {
+  const next = { ...routingRuleAsRecord(rule) }
+  for (const [key, value] of Object.entries(patch as Record<string, unknown>)) {
+    if (value === undefined) delete next[key]
+    else next[key] = value
+  }
+  return next as unknown as RoutingRule
+}
+
 function routingRuleDomainSummary(r: RoutingRule): string {
   const o = routingRuleAsRecord(r)
   const domains = o.domains
@@ -455,11 +464,11 @@ export function XrayRoutingSection({ headerAddPulse, headerAddEpoch }: XrayRouti
   const patchRule = (patch: Partial<RoutingRule>) => {
     setRuleDialogIssues([])
     if (dialogMode === 'add' && draftRule !== null) {
-      setDraftRule({ ...draftRule, ...patch })
+      setDraftRule(mergeRoutingRulePatch(draftRule, patch))
       return
     }
     if (!rule) return
-    updateXrayProfile(p => replaceRule(p, selected, { ...rule, ...patch }))
+    updateXrayProfile(p => replaceRule(p, selected, mergeRoutingRulePatch(rule, patch)))
   }
 
   /** Render a single parity field wrapped in FormField + FormItem. */

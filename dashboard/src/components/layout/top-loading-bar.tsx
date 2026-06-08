@@ -4,7 +4,7 @@ import { useTheme } from '@/app/providers/theme-provider'
 import LoadingBar from 'react-top-loading-bar'
 
 const shouldIgnoreRoute = (pathname: string): boolean => {
-  const IGNORED_ROUTE_PATTERNS = [/^\/settings\/(general|notifications|subscriptions|telegram|discord|webhook|cleanup|theme)$/, /^\/nodes\/(cores|logs)$/]
+  const IGNORED_ROUTE_PATTERNS = [/^\/settings\/(general|notifications|subscriptions|telegram|webhook|cleanup|theme)$/, /^\/nodes\/(cores|logs)$/]
 
   const shouldIgnore = IGNORED_ROUTE_PATTERNS.some(pattern => pattern.test(pathname))
 

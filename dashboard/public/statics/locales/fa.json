@@ -3,6 +3,8 @@
   "dashboard": "داشبورد",
   "master": "کلی",
   "dashboardDescription": "داشبورد مدیریت پاسارگارد",
+  "default": "پیش‌فرض",
+  "unlimited": "نامحدود",
   "active": "فعال",
   "online": "آنلاین",
   "platform": "پلتفرم",
@@ -26,7 +28,7 @@
   "monitorUsers": "مدیریت کاربران",
   "alltime": "همه زمان",
   "today": "امروز",
-  "coreUsername": "نام کاربری هسته",
+  "copyUserId": "کپی شناسه",
   "settings": {
     "title": "تنظیمات",
     "notifications": {
@@ -328,26 +330,6 @@
         "forAdminsOnlyDescription": "دسترسی ربات فقط به مدیران محدود میشود."
       }
     },
-    "discord": {
-      "title": "Discord",
-      "description": "تنظیم یکپارچگی ربات Discord و تنظیمات مرتبط برای سیستم شما",
-      "loadError": "بارگذاری تنظیمات Discord ناموفق بود. لطفاً دوباره تلاش کنید.",
-      "saveSuccess": "تنظیمات Discord با موفقیت ذخیره شد",
-      "saveFailed": "ذخیره تنظیمات Discord ناموفق بود",
-      "cancelSuccess": "تغییرات لغو شد و تنظیمات اصلی Discord بازیابی شد",
-      "general": {
-        "title": "تنظیمات عمومی",
-        "description": "پیکربندی اولیه ربات Discord و تنظیمات اتصال",
-        "enable": "فعال‌سازی ربات Discord",
-        "enableDescription": "فعال یا غیرفعال کردن عملکرد ربات Discord برای سیستم شما",
-        "token": "توکن ربات",
-        "tokenPlaceholder": "توکن ربات Discord خود را وارد کنید",
-        "tokenDescription": "توکن ربات که از Discord Developer Portal دریافت شده",
-        "proxyUrl": "آدرس پروکسی",
-        "proxyUrlPlaceholder": "socks5://proxy.example.com:1080",
-        "proxyUrlDescription": "آدرس پروکسی برای اتصالات Discord API (اختیاری)"
-      }
-    },
     "webhook": {
       "title": "Webhook",
       "description": "پیکربندی اعلان‌های webhook و تنظیمات endpoint برای سیستم شما",
@@ -526,6 +508,8 @@
     "createFailed": "ایجاد مدیر «{{name}}» ناموفق بود",
     "editSuccess": "مدیر «{{name}}» با موفقیت به‌روزرسانی شد",
     "editFailed": "به‌روزرسانی مدیر «{{name}}» ناموفق بود",
+    "passwordChangedTitle": "گذرواژه تغییر کرد",
+    "passwordChangedLogout": "لطفاً دوباره با گذرواژه جدید وارد شوید.",
     "deleteSuccess": "مدیر {{name}} با موفقیت حذف شد",
     "deleteFailed": "حذف مدیر {{name}} ناموفق بود",
     "bulkDeleteSuccess": "{{count}} مدیر با موفقیت حذف شد.",
@@ -598,7 +582,6 @@
     "activateAllDisabledUsersSuccess": "همه کاربران غیرفعال تحت مدیریت ادمین «{{name}}» با موفقیت فعال شدند",
     "activateAllDisabledUsersFailed": "فعال‌سازی همه کاربران غیرفعال تحت مدیریت ادمین «{{name}}» ناموفق بود",
     "reset": "بازنشانی مصرف",
-    "discordId": "شناسه دیسکورد",
     "used": {
       "traffic": "مصرف"
     },
@@ -613,7 +596,7 @@
     "createRole": "ایجاد نقش",
     "editRole": "ویرایش نقش",
     "viewRole": "مشاهده نقش",
-    "readOnlyHint": "این یک نقش داخلی است. می‌توانید پیکربندی آن را مشاهده کنید اما قابل ویرایش نیست.",
+    "readOnlyHint": "این نقش مالک است. می‌توانید پیکربندی آن را مشاهده کنید اما قابل ویرایش نیست.",
     "modalDescription": "مجوزها، محدودیت‌ها، قابلیت‌ها و دسترسی‌های این نقش را پیکربندی کنید.",
     "currentRoleUnavailable": "نقش فعلی در دسترس نیست",
     "loadFallback": "استفاده از نقش‌های داخلی",
@@ -634,6 +617,10 @@
     "permissionCount": "{{count}} مجوز",
     "limitFeatureCount": "{{limits}} محدودیت، {{features}} پرچم قابلیت",
     "unlimited": "نامحدود",
+    "inherit": "ارث‌بری",
+    "hwidPolicy": "سیاست HWID",
+    "hwidPolicyHint": "وقتی فعال باشد، محدودیت‌های خالی از تنظیمات سراسری HWID ارث‌بری می‌کنند. برای غیرفعال کردن بررسی HWID برای مدیران این نقش، آن را خاموش کنید.",
+    "hwidEnabledDescription": "ثبت HWID و محدودیت‌ها را برای کاربرانی که با این نقش ایجاد یا ویرایش می‌شوند اعمال می‌کند.",
     "empty": "نقشی وجود ندارد",
     "emptyDescription": "نقش جدیدی بسازید تا مجوزها، محدودیت‌ها، قابلیت‌ها و دسترسی‌های دقیق به مدیران اختصاص دهید.",
     "noSearchResults": "نقشی با جستجوی شما مطابقت ندارد.",
@@ -649,7 +636,7 @@
     "bulkDeletePartial": "{{count}} نقش حذف نشد.",
     "bulkDeleteFailed": "حذف نقش‌های انتخاب‌شده ناموفق بود.",
     "requireTemplateTitle": "نیاز به قالب",
-    "requireTemplateDescription": "مدیران این نقش را مجبور کنید کاربران را فقط از روی یک قالب بسازند.",
+    "requireTemplateDescription": "مدیران این نقش را مجبور کنید کاربران را فقط از روی یک قالب بسازند یا ویرایش کنند.",
     "allowedTemplates": "قالب‌های مجاز",
     "allowedTemplatesDescription": "قالب‌های قابل استفاده توسط این نقش را محدود کنید. خالی بگذارید تا همه مجاز باشند.",
     "allowedGroups": "گروه‌های مجاز",
@@ -749,9 +736,13 @@
         "title": "مسدود کردن مدیران محدودشده",
         "description": "پس از رسیدن مدیر به محدودیت داده، همه دسترسی‌های داشبورد و API را رد می‌کند."
       },
-      "disableUsersWhenLimited": {
-        "title": "غیرفعال کردن کاربران هنگام محدودیت",
+      "disconnectUsersWhenLimited": {
+        "title": "قطع اتصال کاربران هنگام محدودیت",
         "description": "تا زمانی که مدیر از نظر مصرف محدود است، کاربران این مدیر را از گره‌ها حذف می‌کند."
+      },
+      "disconnectUsersWhenDisabled": {
+        "title": "قطع اتصال کاربران هنگام غیرفعال بودن",
+        "description": "تا زمانی که مدیر غیرفعال است، کاربران این مدیر را از گره‌ها حذف می‌کند."
       }
     },
     "featureFields": {
@@ -767,13 +758,15 @@
   },
   "setup": {
     "createOwner": "ایجاد مالک",
+    "upgradeOwner": "مالک کردن مدیر",
     "resetOwner": "بازنشانی رمز مالک",
     "deleteOwner": "حذف مالک",
     "createOwnerShort": "ایجاد",
+    "upgradeOwnerShort": "مالک کردن",
     "resetOwnerShort": "بازنشانی",
     "deleteOwnerShort": "حذف",
     "ownerAccess": "دسترسی مالک",
-    "ownerAccessDescription": "با کلید موقت راه‌اندازی، حساب مالک را ایجاد، بازنشانی یا حذف کنید.",
+    "ownerAccessDescription": "با کلید موقت راه‌اندازی، حساب مالک را ایجاد، مالک‌سازی، بازنشانی یا حذف کنید.",
     "tempKey": "کلید موقت",
     "deleteConfirm": "برای تایید DELETE را وارد کنید",
     "keyRequired": "کلید موقت الزامی است",
@@ -782,6 +775,7 @@
     "passwordMismatch": "رمزهای عبور یکسان نیستند",
     "deleteConfirmRequired": "برای تایید DELETE را وارد کنید",
     "ownerCreated": "مالک با موفقیت ایجاد شد",
+    "ownerUpgraded": "مدیر با موفقیت مالک شد",
     "ownerReset": "رمز مالک با موفقیت بازنشانی شد",
     "ownerDeleted": "مالک با موفقیت حذف شد",
     "deleteWarning": "این عمل قابل بازگشت نیست. حساب مالک برای همیشه حذف خواهد شد."
@@ -831,7 +825,7 @@
     "suffix": "پسوند نام کاربری",
     "dataLimit": "محدودیت داده",
     "hwidLimit": "محدودیت شناسه سخت‌افزار",
-    "hwidLimitPlaceholder": "پیش‌فرض، ۰ = نامحدود",
+    "hwidLimitPlaceholder": "خالی = پیش‌فرض، ۰ = نامحدود",
     "expire": "مدت انقضا",
     "onHoldTimeout": "زمان انتظار توقف",
     "method": "روش",
@@ -1467,7 +1461,7 @@
   "userDialog.custom": "انتخابی",
   "userDialog.dataLimit": "حد مصرف داده",
   "userDialog.hwidLimit": "محدودیت شناسه سخت‌افزار",
-  "userDialog.hwidLimitPlaceholder": "پیش‌فرض، ۰ = نامحدود",
+  "userDialog.hwidLimitPlaceholder": "خالی = پیش‌فرض، ۰ = نامحدود",
   "userDialog.days": "روزها",
   "userDialog.editUser": "ویرایش کاربر",
   "userDialog.editUserTitle": "ویرایش کاربر",
@@ -2329,7 +2323,7 @@
       "transportSection": "حمل",
       "securitySection": "امنیت",
       "vlessFlowDefault": "پیش‌فرض (بدون)",
-      "vlessFlowVisionRequiresTls": "جریان‌های Vision به امنیت ورودی TLS یا REALITY نیاز دارند (نه «none»).",
+      "vlessFlowVisionRequiresTls": "XTLS Vision به TCP با TLS/REALITY، xHTTP با TLS، یا VLESS Encryption نیاز دارد.",
       "transportAdvanced": {
         "title": "جزئیات حمل"
       },
@@ -2911,7 +2905,7 @@
     "revokeSubscription": "بازنشانی اشتراک",
     "usage": "مصرف",
     "hwidLimit": "محدودیت شناسه سخت‌افزار",
-    "hwidLimitPlaceholder": "پیش‌فرض، ۰ = نامحدود",
+    "hwidLimitPlaceholder": "خالی = پیش‌فرض، ۰ = نامحدود",
     "deleteSuccess": "کاربر «{{name}}» با موفقیت حذف شد.",
     "resetUsageSuccess": "مصرف کاربر «{{name}}» بازنشانی شد.",
     "revokeSubSuccess": "اشتراک کاربر «{{name}}» بازنشانی شد.",

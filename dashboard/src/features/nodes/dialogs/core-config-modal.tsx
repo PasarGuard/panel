@@ -14,9 +14,10 @@ import useDirDetection from '@/hooks/use-dir-detection'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { DEFAULT_XRAY_CORE_CONFIG_JSON } from '@/lib/default-xray-core-config'
 import {
+  canGenerateShadowsocksPassword,
   createWireGuardCoreConfigJson,
   generateShadowsocksPassword as kitGenerateShadowsocksPassword,
-  SHADOWSOCKS_ENCRYPTION_METHODS,
+  SHADOWSOCKS_PASSWORD_GENERATION_METHODS,
   type VlessBuilderOptions,
 } from '@/lib/xray-generation'
 import { cn } from '@/lib/utils'
@@ -30,7 +31,7 @@ import { generateKeyPair } from '@stablelib/x25519'
 import { debounce } from 'es-toolkit'
 import { Sparkles, Pencil, Cpu } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
-import { UseFormReturn } from 'react-hook-form'
+import type { FieldErrors, UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import type { CoreBackendType, CoreConfigFormValues } from '@/features/nodes/forms/core-config-form'
@@ -74,7 +75,7 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
   const [inboundTags, setInboundTags] = useState<string[]>([])
   const [isGeneratingKeyPair, setIsGeneratingKeyPair] = useState(false)
   const [isGeneratingShortId, setIsGeneratingShortId] = useState(false)
-  const [selectedEncryptionMethod, setSelectedEncryptionMethod] = useState<string>(SHADOWSOCKS_ENCRYPTION_METHODS[0].value)
+  const [selectedEncryptionMethod, setSelectedEncryptionMethod] = useState<string>(SHADOWSOCKS_PASSWORD_GENERATION_METHODS[0])
   const [isGeneratingShadowsocksPassword, setIsGeneratingShadowsocksPassword] = useState(false)
   const [isGeneratingMldsa65, setIsGeneratingMldsa65] = useState(false)
   const [selectedVlessVariant, setSelectedVlessVariant] = useState<VlessKeyVariant>('x25519')
@@ -215,6 +216,10 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
     }
   }
   const generateShadowsocksPassword = async (value: string) => {
+    if (!canGenerateShadowsocksPassword(value)) {
+      toast.error(t('coreConfigModal.shadowsocksPasswordGenerationFailed'))
+      return
+    }
     try {
       setIsGeneratingShadowsocksPassword(true)
       const result = kitGenerateShadowsocksPassword(value)
@@ -308,6 +313,7 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
 
   const onSubmit = async (values: CoreConfigFormValues) => {
     try {
+      const coreName = values.name.trim()
       // Validate JSON first
       let configObj
       try {
@@ -331,7 +337,7 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
         await modifyCoreMutation.mutateAsync({
           coreId: editingCoreId,
           data: {
-            name: values.name,
+            name: coreName,
             type: backendType,
             config: configObj,
             fallbacks_inbound_tags: fallbackTags,
@@ -345,7 +351,7 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
         // Create new core
         await createCoreMutation.mutateAsync({
           data: {
-            name: values.name,
+            name: coreName,
             type: backendType,
             config: configObj,
             fallbacks_inbound_tags: fallbackTags,
@@ -356,14 +362,14 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
 
       toast.success(
         t(editingCore ? 'coreConfigModal.editSuccess' : 'coreConfigModal.createSuccess', {
-          name: values.name,
+          name: coreName,
         }),
       )
 
       // Invalidate core config queries after successful action
       queryClient.invalidateQueries({ queryKey: ['/api/cores'] })
       queryClient.invalidateQueries({ queryKey: ['/api/cores/simple'] })
-      form.reset(values)
+      form.reset({ ...values, name: coreName })
       closeModal()
     } catch (error: any) {
       console.error('Core config operation failed:', error)
@@ -452,6 +458,19 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
     }
   }
 
+  const onInvalidSubmit = useCallback(
+    (errors: FieldErrors<CoreConfigFormValues>) => {
+      const message =
+        typeof errors.name?.message === 'string'
+          ? errors.name.message
+          : typeof errors.config?.message === 'string'
+            ? errors.config.message
+          : t('coreConfigModal.nameRequired', { defaultValue: 'Core name is required' })
+      toast.error(message)
+    },
+    [t],
+  )
+
   // Initialize form fields when modal opens
   useEffect(() => {
     if (isDialogOpen) {
@@ -517,7 +536,7 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
   }
 
   const viewShadowsocksPassword = () => {
-    if (generatedShadowsocksPassword) {
+    if (generatedShadowsocksPassword && canGenerateShadowsocksPassword(selectedEncryptionMethod)) {
       showResultDialog('shadowsocksPassword', generatedShadowsocksPassword)
     } else {
       generateShadowsocksPassword(selectedEncryptionMethod)
@@ -820,7 +839,7 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
           </DialogHeader>
 
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <form onSubmit={form.handleSubmit(onSubmit, onInvalidSubmit)} className="space-y-4">
               <div className="-mr-4 max-h-[78dvh] space-y-4 overflow-y-auto px-2 pr-4 sm:max-h-[75dvh]">
                 <div className="grid grid-cols-1 gap-4 md:h-full md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] md:gap-6">
                   <div className="flex flex-col">
@@ -859,7 +878,15 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
                         <FormItem>
                           <FormLabel>{t('coreConfigModal.name')}</FormLabel>
                           <FormControl>
-                            <Input isError={!!form.formState.errors.name} placeholder={t('coreConfigModal.namePlaceholder')} {...field} />
+                            <Input
+                              isError={!!form.formState.errors.name}
+                              placeholder={
+                                form.formState.errors.name
+                                  ? t('coreConfigModal.nameRequired', { defaultValue: 'Core name is required' })
+                                  : t('coreConfigModal.namePlaceholder')
+                              }
+                              {...field}
+                            />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -1025,37 +1052,44 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
       ============================================ */}
                           <TabsContent value="shadowsocks" className="mt-3 space-y-3 duration-300 animate-in fade-in-50">
                             {/* Encryption Method Selector */}
-                            <div className="space-y-2">
+                            <div className="space-y-2.5">
                               <Label className="text-xs font-semibold tracking-wide text-muted-foreground">
                                 {t('coreConfigModal.shadowsocksEncryptionMethod', { defaultValue: 'Encryption Method' })}
                               </Label>
-                              <Select value={selectedEncryptionMethod} onValueChange={setSelectedEncryptionMethod}>
+                              <Select
+                                value={selectedEncryptionMethod}
+                                onValueChange={value => {
+                                  setSelectedEncryptionMethod(value)
+                                  setGeneratedShadowsocksPassword(null)
+                                }}
+                              >
                                 <SelectTrigger className="h-9">
                                   <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  {SHADOWSOCKS_ENCRYPTION_METHODS.map(method => (
-                                    <SelectItem key={method.value} value={method.value}>
-                                      {method.label}
+                                  {SHADOWSOCKS_PASSWORD_GENERATION_METHODS.map(method => (
+                                    <SelectItem key={method} value={method}>
+                                      {method}
                                     </SelectItem>
                                   ))}
                                 </SelectContent>
                               </Select>
                             </div>
 
-                            {/* Action Buttons */}
-                            <LoaderButton
-                              type="button"
-                              onClick={viewShadowsocksPassword}
-                              className="h-10 w-full text-sm font-medium transition-all hover:shadow-md sm:h-11"
-                              isLoading={isGeneratingShadowsocksPassword}
-                              loadingText={t('coreConfigModal.generatingShadowsocksPassword')}
-                            >
-                              <span className="flex items-center gap-2 truncate">
-                                {generatedShadowsocksPassword && <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-green-500 ring-2 ring-green-500/20" />}
-                                {t('coreConfigModal.generateShadowsocksPassword')}
-                              </span>
-                            </LoaderButton>
+                            {canGenerateShadowsocksPassword(selectedEncryptionMethod) && (
+                              <LoaderButton
+                                type="button"
+                                onClick={viewShadowsocksPassword}
+                                className="h-10 w-full text-sm font-medium transition-all hover:shadow-md sm:h-11"
+                                isLoading={isGeneratingShadowsocksPassword}
+                                loadingText={t('coreConfigModal.generatingShadowsocksPassword')}
+                              >
+                                <span className="flex items-center gap-2 truncate">
+                                  {generatedShadowsocksPassword && <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-green-500 ring-2 ring-green-500/20" />}
+                                  {t('coreConfigModal.generateShadowsocksPassword')}
+                                </span>
+                              </LoaderButton>
+                            )}
                           </TabsContent>
 
                           {/* ============================================

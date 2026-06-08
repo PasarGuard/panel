@@ -15,13 +15,13 @@ from app.db.crud.user import get_user_usages, user_sub_update
 from app.db.models import User
 from app.models.admin import AdminDetails
 from app.models.settings import Application, ConfigFormat, HWIDSettings, SubRule, Subscription as SubSettings
-from app.utils.hwid import resolve_effective_hwid_settings
 from app.models.stats import UserUsageStatsList
 from app.models.subscription import SubscriptionUsageQuery
 from app.models.user import SubscriptionUserResponse, UsersResponseWithInbounds
 from app.settings import hwid_settings, subscription_settings
 from app.subscription.share import encode_title, generate_subscription, setup_format_variables
 from app.templates import render_template
+from app.utils.hwid import resolve_effective_hwid_settings
 from config import template_settings, wireguard_settings
 
 from . import BaseOperation
@@ -306,9 +306,7 @@ class SubscriptionOperation(BaseOperation):
 
         # It's a new HWID, check limit
         limit = user_hwid_limit if user_hwid_limit is not None else effective_hwid_conf.fallback_limit
-        if limit == 0:
-            pass  # unlimited
-        else:
+        if limit is not None and limit > 0:
             current_count = await get_user_hwid_count(db, user_id)
             if current_count >= limit:
                 await self.raise_error(message="Device limit reached", code=403)
@@ -332,7 +330,7 @@ class SubscriptionOperation(BaseOperation):
         Provides a subscription link based on the user agent (Clash, V2Ray, etc.).
         """
         sub_settings: SubSettings = await subscription_settings()
-        db_user = await self.get_validated_sub(db, token)
+        db_user = await self.get_validated_sub(db, token, load_admin_role=True)
         user = await self.validated_user(db_user)
         is_browser_request = "text/html" in accept_header
         is_subscription_page_request = is_browser_request and not sub_settings.disable_sub_template
@@ -450,7 +448,7 @@ class SubscriptionOperation(BaseOperation):
 
         if client_type == ConfigFormat.block or not getattr(sub_settings.manual_sub_request, client_type):
             await self.raise_error(message="Client not supported", code=406)
-        db_user = await self.get_validated_sub(db, token=token)
+        db_user = await self.get_validated_sub(db, token=token, load_admin_role=True)
         user = await self.validated_user(db_user)
 
         await self.validate_and_register_hwid(
@@ -515,7 +513,7 @@ class SubscriptionOperation(BaseOperation):
 
     async def user_subscription_raw(self, db: AsyncSession, token: str, request_url: str = ""):
         sub_settings: SubSettings = await subscription_settings()
-        db_user = await self.get_validated_sub(db, token)
+        db_user = await self.get_validated_sub(db, token, load_admin_role=True)
         user = await self.validated_user(db_user)
 
         links = []

@@ -9,7 +9,8 @@ import { useCreateGroup, useModifyGroup, useGetInbounds } from '@/service/api'
 import { toast } from 'sonner'
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '@/components/ui/command'
 import { Badge } from '@/components/ui/badge'
-import { Pencil, Loader2, X, Group } from 'lucide-react'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Pencil, X, Group } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { queryClient } from '@/utils/query-client'
 import useDynamicErrorHandler from '@/hooks/use-dynamic-errors.ts'
@@ -133,12 +134,16 @@ export default function GroupModal({ isDialogOpen, onOpenChange, form, editingGr
                       )}
                       <Command className="mb-3 rounded-md border">
                         <CommandInput placeholder={t('searchInbounds')} disabled={isLoadingInbounds} />
-                        <CommandEmpty>{isLoadingInbounds ? t('loading', { defaultValue: 'Loading...' }) : t('noInboundsFound')}</CommandEmpty>
+                        {!isLoadingInbounds && <CommandEmpty>{t('noInboundsFound')}</CommandEmpty>}
                         <CommandGroup dir="ltr" className="max-h-40 overflow-auto">
                           {isLoadingInbounds ? (
-                            <div className="flex items-center justify-center gap-2 px-2 py-3 text-xs text-muted-foreground">
-                              <Loader2 className="h-3 w-3 animate-spin" />
-                              <span>{t('loading', { defaultValue: 'Loading...' })}</span>
+                            <div className="space-y-2 px-2 py-3">
+                              {Array.from({ length: 4 }).map((_, index) => (
+                                <div key={index} className="flex items-center gap-2">
+                                  <Skeleton className="h-4 w-4 rounded-sm" />
+                                  <Skeleton className="h-4 w-full max-w-[220px]" />
+                                </div>
+                              ))}
                             </div>
                           ) : (
                             inbounds?.map(inbound => (

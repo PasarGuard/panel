@@ -10,13 +10,21 @@ interface CoreProps {
   onToggleStatus: (core: CoreResponse) => Promise<void>
   onDuplicate?: () => void
   onDelete?: () => void
+  canUpdate?: boolean
+  canCreate?: boolean
+  canDelete?: boolean
   selectionControl?: ReactNode
   selected?: boolean
 }
 
-export default function Core({ core, onEdit, onDuplicate, onDelete, selectionControl, selected = false }: CoreProps) {
+export default function Core({ core, onEdit, onDuplicate, onDelete, canUpdate = true, canCreate = true, canDelete = true, selectionControl, selected = false }: CoreProps) {
   return (
-    <Card className={cn('group relative h-full cursor-pointer px-4 py-5 transition-colors hover:bg-accent', selected && 'border-primary/50 bg-accent/30')} onClick={() => onEdit(core)}>
+    <Card
+      className={cn('group relative h-full px-4 py-5 transition-colors', canUpdate && 'cursor-pointer hover:bg-accent', selected && 'border-primary/50 bg-accent/30')}
+      onClick={() => {
+        if (canUpdate) onEdit(core)
+      }}
+    >
       <div className="flex items-start gap-3">
         {selectionControl ? <div className="pt-1">{selectionControl}</div> : null}
         <div className="flex min-w-0 flex-1 items-start gap-3">
@@ -28,7 +36,7 @@ export default function Core({ core, onEdit, onDuplicate, onDelete, selectionCon
               </div>
             </div>
           </div>
-          <CoreActionsMenu core={core} onEdit={onEdit} onDuplicate={onDuplicate} onDelete={onDelete} />
+          <CoreActionsMenu core={core} onEdit={onEdit} onDuplicate={onDuplicate} onDelete={onDelete} canUpdate={canUpdate} canCreate={canCreate} canDelete={canDelete} />
         </div>
       </div>
     </Card>

@@ -353,34 +353,34 @@ async def realtime_nodes_stats(_: AdminDetails = Depends(require_permission("nod
     return await node_operator.get_nodes_system_stats()
 
 
-@router.get("/online_stats/{username}/ip", response_model=UserIPListAll)
+@router.get("/online_stats/{user_id}/ip", response_model=UserIPListAll)
 async def user_online_ip_list_all_nodes(
-    username: str, db: AsyncSession = Depends(get_db), _: AdminDetails = Depends(require_permission("nodes", "stats"))
+    user_id: int, db: AsyncSession = Depends(get_db), _: AdminDetails = Depends(require_permission("nodes", "stats"))
 ):
     """Retrieve user ips from all nodes."""
-    return await node_operator.get_user_ip_list_all_nodes(db=db, username=username)
+    return await node_operator.get_user_ip_list_all_nodes(db=db, user_id=user_id)
 
 
-@router.get("/{node_id}/online_stats/{username}", response_model=dict[int, int])
+@router.get("/{node_id}/online_stats/{user_id}", response_model=dict[int, int])
 async def user_online_stats(
     node_id: int,
-    username: str,
+    user_id: int,
     db: AsyncSession = Depends(get_db),
     _: AdminDetails = Depends(require_permission("nodes", "stats")),
 ):
     """Retrieve user online stats by node."""
-    return await node_operator.get_user_online_stats_by_node(db=db, node_id=node_id, username=username)
+    return await node_operator.get_user_online_stats_by_node(db=db, node_id=node_id, user_id=user_id)
 
 
-@router.get("/{node_id}/online_stats/{username}/ip", response_model=UserIPList)
+@router.get("/{node_id}/online_stats/{user_id}/ip", response_model=UserIPList)
 async def user_online_ip_list(
     node_id: int,
-    username: str,
+    user_id: int,
     db: AsyncSession = Depends(get_db),
     _: AdminDetails = Depends(require_permission("nodes", "stats")),
 ):
     """Retrieve user ips by node."""
-    return await node_operator.get_user_ip_list_by_node(db=db, node_id=node_id, username=username)
+    return await node_operator.get_user_ip_list_by_node(db=db, node_id=node_id, user_id=user_id)
 
 
 @router.delete(

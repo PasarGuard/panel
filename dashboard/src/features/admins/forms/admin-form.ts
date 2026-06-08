@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 export const adminStatusEditEnum = z.enum(['active', 'disabled'])
 
-const passwordValidation = z.string().refine(
+export const passwordValidation = z.string().refine(
   value => {
     if (!value) return false // Don't allow empty passwords
 
@@ -61,7 +61,6 @@ export const adminFormSchema = z
     telegram_id: z.number().optional(),
     profile_title: z.string().optional(),
     note: z.string().optional(),
-    discord_id: z.number().optional(),
     notification_enable: z
       .object({
         create: z.boolean().optional(),
@@ -147,7 +146,6 @@ export const adminFormDefaultValues: Partial<AdminFormValuesInput> = {
   telegram_id: undefined,
   profile_title: '',
   note: '',
-  discord_id: undefined,
   notification_enable: {
     create: true,
     modify: true,

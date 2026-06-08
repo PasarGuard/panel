@@ -189,7 +189,15 @@ function humanizeFieldName(raw: string): string {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function replaceOutbound(profile: Profile, index: number, ob: Outbound): Profile {
-  return updateOutboundsWithObservationSelectors(profile, outbounds => {
+  return updateOutbounds(profile, outbounds => {
+    const list = [...outbounds]
+    list[index] = ob
+    return list
+  })
+}
+
+function replaceOutboundForCommit(profile: Profile, index: number, ob: Outbound): Profile {
+  return updateOutbounds(profile, outbounds => {
     const list = [...outbounds]
     list[index] = ob
     return list
@@ -197,15 +205,36 @@ function replaceOutbound(profile: Profile, index: number, ob: Outbound): Profile
 }
 
 function removeOutbound(profile: Profile, index: number): Profile {
-  return updateOutboundsWithObservationSelectors(profile, outbounds => outbounds.filter((_: Outbound, i: number) => i !== index))
+  return updateOutbounds(profile, outbounds => outbounds.filter((_: Outbound, i: number) => i !== index))
 }
 
 function isJsonObject(value: unknown): value is JsonObject {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+function vlessReverseTagFromSettings(settings: Record<string, unknown>): string {
+  const reverse = settings.reverse
+  if (typeof reverse === 'string') return reverse.trim()
+  if (!reverse || typeof reverse !== 'object' || Array.isArray(reverse)) return ''
+  const tag = (reverse as Record<string, unknown>).tag
+  return typeof tag === 'string' ? tag.trim() : ''
+}
+
+function hasVlessReverseSettings(settings: Record<string, unknown>): boolean {
+  const reverse = settings.reverse
+  if (typeof reverse === 'string') return reverse.trim().length > 0
+  return !!reverse && typeof reverse === 'object' && !Array.isArray(reverse)
+}
+
 function uniqueOutboundTags(outbounds: Outbound[] | undefined): string[] {
   return [...new Set((outbounds ?? []).map(outbound => String(outbound.tag ?? '').trim()).filter(Boolean))]
+}
+
+/** Outbound protocols that should never be auto-included as observation subjects (no useful probe target). */
+const OBSERVATION_EXCLUDED_PROTOCOLS = new Set(['blackhole', 'dns', 'loopback'])
+
+function uniqueObservableOutboundTags(outbounds: Outbound[] | undefined): string[] {
+  return uniqueOutboundTags((outbounds ?? []).filter(outbound => !OBSERVATION_EXCLUDED_PROTOCOLS.has(outbound.protocol as string)))
 }
 
 function readStringArray(value: unknown): string[] {
@@ -213,9 +242,15 @@ function readStringArray(value: unknown): string[] {
   return value.map(item => String(item).trim()).filter(Boolean)
 }
 
-function syncObservationSubjectSelectors(profile: Profile, previousOutbounds: Outbound[] | undefined): Profile {
-  const nextTags = uniqueOutboundTags(profile.outbounds)
-  const previousTags = new Set(uniqueOutboundTags(previousOutbounds))
+function sameStringSet(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false
+  const bs = new Set(b)
+  return a.every(item => bs.has(item))
+}
+
+function syncAutoManagedObservationSubjectSelectors(profile: Profile, previousOutbounds: Outbound[] | undefined): Profile {
+  const previousTags = uniqueObservableOutboundTags(previousOutbounds)
+  const nextTags = uniqueObservableOutboundTags(profile.outbounds)
   const topLevel = profile.raw?.topLevel
   let nextTopLevel: Record<string, JsonValue> | undefined
 
@@ -224,11 +259,10 @@ function syncObservationSubjectSelectors(profile: Profile, previousOutbounds: Ou
     if (!isJsonObject(source)) continue
 
     const current = readStringArray(source.subjectSelector)
-    const preservedCustom = current.filter(selector => !previousTags.has(selector) && !nextTags.includes(selector))
-    const subjectSelector = [...new Set([...current.filter(selector => nextTags.includes(selector)), ...preservedCustom, ...nextTags])]
+    if (!sameStringSet(current, previousTags) || sameStringSet(current, nextTags)) continue
 
     nextTopLevel ??= { ...(topLevel ?? {}) }
-    nextTopLevel[key] = { ...source, subjectSelector }
+    nextTopLevel[key] = { ...source, subjectSelector: nextTags }
   }
 
   if (!nextTopLevel) return profile
@@ -241,10 +275,12 @@ function syncObservationSubjectSelectors(profile: Profile, previousOutbounds: Ou
   } as Profile
 }
 
-function updateOutboundsWithObservationSelectors(profile: Profile, mutator: (outbounds: Outbound[]) => Outbound[]): Profile {
-  const previousOutbounds = profile.outbounds ?? []
-  const nextProfile = { ...profile, outbounds: mutator(previousOutbounds) }
-  return syncObservationSubjectSelectors(nextProfile, previousOutbounds)
+function updateOutbounds(profile: Profile, mutator: (outbounds: Outbound[]) => Outbound[]): Profile {
+  const currentOutbounds = profile.outbounds ?? []
+  return syncAutoManagedObservationSubjectSelectors(
+    { ...profile, outbounds: mutator(currentOutbounds) },
+    currentOutbounds,
+  )
 }
 
 function outboundSearchHaystack(ob: Outbound): string {
@@ -253,6 +289,22 @@ function outboundSearchHaystack(ob: Outbound): string {
 
 function cloneOutbound(ob: Outbound): Outbound {
   return JSON.parse(JSON.stringify(ob)) as Outbound
+}
+
+function stripUndefinedPropertiesDeep(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(stripUndefinedPropertiesDeep)
+  if (!value || typeof value !== 'object') return value
+
+  const next: Record<string, unknown> = {}
+  for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+    if (child === undefined) continue
+    next[key] = stripUndefinedPropertiesDeep(child)
+  }
+  return next
+}
+
+function sanitizeOutboundForState(ob: Outbound): Outbound {
+  return stripSparseOutboundEnvelope(stripUndefinedPropertiesDeep(ob) as Record<string, unknown>) as Outbound
 }
 
 function getOutboundStreamSettingsRecord(ob: Outbound): Record<string, unknown> | null {
@@ -311,6 +363,19 @@ function collectOutboundRequiredIssues(ob: Outbound, t: (key: string, opts?: Rec
   const p = ob.protocol
   if (PROXY_ENDPOINT_PROTOCOLS.has(p)) {
     const s = flattenOutboundSettings(ob)
+
+    if (p === 'vless' && hasVlessReverseSettings(s)) {
+      if (!vlessReverseTagFromSettings(s)) {
+        issues.push({
+          field: 'reverse',
+          message: t('coreEditor.outbound.validation.reverseTagRequired', {
+            defaultValue: 'Reverse outbound tag is required.',
+          }),
+        })
+      }
+      return issues
+    }
+
     const address = String(s.address ?? '').trim()
     const portRaw = s.port
     const portNum = typeof portRaw === 'number' ? portRaw : Number(portRaw)
@@ -398,11 +463,20 @@ function collectOutboundRequiredIssues(ob: Outbound, t: (key: string, opts?: Rec
   return issues
 }
 
-function applyOutboundValidationIssuesToForm(issues: OutboundRequiredIssue[], form: ReturnType<typeof useForm<Record<string, string>>>, t: (key: string, opts?: Record<string, unknown>) => string) {
+function applyOutboundValidationIssuesToForm(
+  issues: OutboundRequiredIssue[],
+  form: ReturnType<typeof useForm<Record<string, string>>>,
+  t: (key: string, opts?: Record<string, unknown>) => string,
+  options?: { forceToast?: boolean },
+) {
   form.clearErrors(K_TAG)
   const tagIssue = issues.find(i => i.field === 'tag')
   if (tagIssue) {
     form.setError(K_TAG, { type: 'validate', message: tagIssue.message })
+  }
+  if (options?.forceToast) {
+    toast.error(t('coreEditor.outbound.validation.requiredFieldsTitle', { defaultValue: 'Required fields missing' }), { description: issues.map(i => i.message).join('\n') })
+    return
   }
   const rest = issues.filter(i => i.field !== 'tag')
   if (rest.length > 0) {
@@ -582,11 +656,12 @@ export function XrayOutboundsSection({ headerAddPulse, headerAddEpoch }: XrayOut
   }
 
   const patchOutbound = (next: Outbound) => {
+    const sanitized = sanitizeOutboundForState(next)
     if (dialogMode === 'add' && draftOutbound !== null) {
-      setDraftOutbound(next)
+      setDraftOutbound(sanitized)
       return
     }
-    updateXrayProfile(p => replaceOutbound(p, selected, next))
+    updateXrayProfile(p => replaceOutbound(p, selected, sanitized))
   }
 
   const isTagDuplicate = (candidateRaw: string): boolean => {
@@ -672,8 +747,6 @@ export function XrayOutboundsSection({ headerAddPulse, headerAddEpoch }: XrayOut
 
   const commitAddOutbound = () => {
     if (!draftOutbound || draftOutbound.protocol === 'unmanaged') return
-    if (!assertNoPersistBlockingErrors()) return
-    const tagTrim = (form.getValues(K_TAG) ?? '').trim()
 
     let row: Outbound = draftOutbound
     if (outboundDialogTab === 'json') {
@@ -684,6 +757,11 @@ export function XrayOutboundsSection({ headerAddPulse, headerAddEpoch }: XrayOut
         return
       }
     }
+    if (!assertNoPersistBlockingErrors()) return
+
+    const tagTrim = outboundDialogTab === 'json'
+      ? String(row.tag ?? '').trim()
+      : (form.getValues(K_TAG) ?? '').trim()
     row = stripEmptyStreamSettingsFromRecord({
       ...row,
       tag: tagTrim,
@@ -692,16 +770,18 @@ export function XrayOutboundsSection({ headerAddPulse, headerAddEpoch }: XrayOut
 
     const issues = collectOutboundRequiredIssues(row, t)
     if (issues.length > 0) {
-      applyOutboundValidationIssuesToForm(issues, form, t)
+      applyOutboundValidationIssuesToForm(issues, form, t, { forceToast: outboundDialogTab === 'json' })
       return
     }
     if (isTagDuplicate(tagTrim)) {
-      setDuplicateTagError(tagTrim)
+      const message = profileDuplicateTagMessage(t, tagTrim)
+      if (outboundDialogTab === 'json') toast.error(message)
+      else setDuplicateTagError(tagTrim)
       return
     }
 
     const insertAt = outbounds.length
-    updateXrayProfile(p => updateOutboundsWithObservationSelectors(p, current => [...current, row]))
+    updateXrayProfile(p => updateOutbounds(p, current => [...current, row]))
     setSelected(insertAt)
     finalizeDetailClose()
   }
@@ -710,7 +790,6 @@ export function XrayOutboundsSection({ headerAddPulse, headerAddEpoch }: XrayOut
 
   const commitEditOutbound = () => {
     if (dialogMode !== 'edit' || !ob) return
-    const tagTrim = (form.getValues(K_TAG) ?? '').trim()
 
     let toValidate: Outbound
     if (outboundDialogTab === 'json') {
@@ -721,24 +800,31 @@ export function XrayOutboundsSection({ headerAddPulse, headerAddEpoch }: XrayOut
         return
       }
     } else {
+      const formTagTrim = (form.getValues(K_TAG) ?? '').trim()
       toValidate = stripEmptyStreamSettingsFromRecord({
         ...ob,
-        tag: tagTrim,
+        tag: formTagTrim,
         settings: normalizeSettingsFromEditor(ob.protocol, flattenOutboundSettings(ob)),
       } as Record<string, unknown>) as Outbound
+    }
+    const tagTrim = String(toValidate.tag ?? '').trim()
+    if (tagTrim !== toValidate.tag) {
+      toValidate = { ...toValidate, tag: tagTrim } as Outbound
     }
 
     const issues = collectOutboundRequiredIssues(toValidate, t)
     if (issues.length > 0) {
-      applyOutboundValidationIssuesToForm(issues, form, t)
+      applyOutboundValidationIssuesToForm(issues, form, t, { forceToast: outboundDialogTab === 'json' })
       return
     }
     if (isTagDuplicate(tagTrim)) {
-      setDuplicateTagError(tagTrim)
+      const message = profileDuplicateTagMessage(t, tagTrim)
+      if (outboundDialogTab === 'json') toast.error(message)
+      else setDuplicateTagError(tagTrim)
       return
     }
 
-    updateXrayProfile(p => replaceOutbound(p, selected, toValidate))
+    updateXrayProfile(p => replaceOutboundForCommit(p, selected, toValidate))
     finalizeDetailClose()
   }
 
@@ -792,7 +878,7 @@ export function XrayOutboundsSection({ headerAddPulse, headerAddEpoch }: XrayOut
         }}
         onBulkRemove={indices => {
           const rm = new Set(indices)
-          updateXrayProfile(p => updateOutboundsWithObservationSelectors(p, current => current.filter((_, idx) => !rm.has(idx))))
+          updateXrayProfile(p => updateOutbounds(p, current => current.filter((_, idx) => !rm.has(idx))))
           setSelected(0)
         }}
         enableReorder
@@ -1193,6 +1279,23 @@ function OutboundProxyEndpointSection({ ob, patchOutbound, t }: OutboundProxyEnd
     if (!vlessVisionFlowIncompatibleWithStreamSecurity(streamSecForFlow, flowStr)) return
     patchOutboundWithSettingsMerge(ob, patchOutbound, s => ({ ...s, flow: '' }))
   }, [p, ob, flowStr, streamSecForFlow, patchOutbound])
+
+  if (p === 'vless' && hasVlessReverseSettings(flat)) {
+    const reverseTag = vlessReverseTagFromSettings(flat)
+    return (
+      <div className="rounded-md border p-4">
+        <p className="text-sm font-medium">{t('coreEditor.outbound.reverseSection', { defaultValue: 'Reverse proxy' })}</p>
+        <p className="mt-2 text-xs text-muted-foreground">
+          {t('coreEditor.outbound.reverseHint', {
+            defaultValue: reverseTag
+              ? `Traffic routed to this outbound is forwarded through reverse tag "${reverseTag}".`
+              : 'Set a reverse tag below. VLESS reverse mode does not use address, port, UUID, or encryption fields.',
+          })}
+        </p>
+      </div>
+    )
+  }
+
   const address = String(flat.address ?? '')
   const portStr = flat.port != null && flat.port !== '' ? String(flat.port) : ''
   const id = String(flat.id ?? '')

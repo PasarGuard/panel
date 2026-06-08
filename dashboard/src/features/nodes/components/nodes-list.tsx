@@ -34,6 +34,8 @@ import { usePersistedViewMode } from '@/hooks/use-persisted-view-mode'
 import { BulkActionItem, BulkActionsBar } from '@/features/users/components/bulk-actions-bar'
 import { BulkActionAlertDialog } from '@/features/users/components/bulk-action-alert-dialog'
 import { NodeActionsMenuModalHost } from '@/features/nodes/components/node-actions-menu'
+import { useAdmin } from '@/hooks/use-admin'
+import { hasPermission } from '@/utils/rbac'
 
 const NODES_PER_PAGE = 15
 
@@ -50,6 +52,15 @@ interface BulkActionDialogConfig {
 
 export default function NodesList() {
   const { t } = useTranslation()
+  const { admin } = useAdmin()
+  const canCreateNodes = hasPermission(admin, 'nodes', 'create')
+  const canUpdateNodes = hasPermission(admin, 'nodes', 'update')
+  const canDeleteNodes = hasPermission(admin, 'nodes', 'delete')
+  const canReconnectNodes = hasPermission(admin, 'nodes', 'reconnect')
+  const canUpdateNodeCore = hasPermission(admin, 'nodes', 'update_core')
+  const canReadNodeStats = hasPermission(admin, 'nodes', 'stats')
+  const canReadCoresSimple = hasPermission(admin, 'cores', 'read_simple')
+  const canUseBulkSelection = canUpdateNodes || canDeleteNodes || canReconnectNodes || canUpdateNodeCore
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingNode, setEditingNode] = useState<NodeResponse | null>(null)
   const [currentPage, setCurrentPage] = useState(0)
@@ -116,7 +127,7 @@ export default function NodesList() {
     },
   })
 
-  const { data: coresData } = useGetCoresSimple({ all: true })
+  const { data: coresData } = useGetCoresSimple({ all: true }, { query: { enabled: canReadCoresSimple } })
 
   const totalNodesFromResponse = nodesResponse?.total || 0
   const shouldUseLocalSearch = totalNodesFromResponse > 0 && totalNodesFromResponse <= NODES_PER_PAGE && !filters.search
@@ -147,10 +158,12 @@ export default function NodesList() {
   }, [isFetching, isChangingPage, nodesResponse])
 
   useEffect(() => {
-    const handleOpenDialog = () => setIsDialogOpen(true)
+    const handleOpenDialog = () => {
+      if (canCreateNodes) setIsDialogOpen(true)
+    }
     window.addEventListener('openNodeDialog', handleOpenDialog)
     return () => window.removeEventListener('openNodeDialog', handleOpenDialog)
-  }, [])
+  }, [canCreateNodes])
 
   const clearSelection = () => {
     setSelectedNodeIds([])
@@ -200,6 +213,8 @@ export default function NodesList() {
   }
 
   const handleEdit = (node: NodeResponse) => {
+    if (!canUpdateNodes) return
+
     setEditingNode(node)
     form.reset({
       name: node.name,
@@ -216,6 +231,8 @@ export default function NodesList() {
   }
 
   const handleToggleStatus = async (node: NodeResponse) => {
+    if (!canUpdateNodes) return
+
     try {
       const shouldEnable = node.status === 'disabled'
       const newStatus = shouldEnable ? 'connected' : 'disabled'
@@ -312,7 +329,16 @@ export default function NodesList() {
     }
   }, [calculatedTotalPages, currentPage])
 
-  const listColumns = useNodeListColumns({ onEdit: handleEdit, onToggleStatus: handleToggleStatus, coresData })
+  const listColumns = useNodeListColumns({
+    onEdit: handleEdit,
+    onToggleStatus: handleToggleStatus,
+    coresData,
+    canUpdate: canUpdateNodes,
+    canDelete: canDeleteNodes,
+    canReconnect: canReconnectNodes,
+    canUpdateCore: canUpdateNodeCore,
+    canReadStats: canReadNodeStats,
+  })
 
   const handleAdvanceSearchSubmit = (values: NodeAdvanceSearchFormValue) => {
     setFilters(prev => ({
@@ -351,7 +377,7 @@ export default function NodesList() {
   }
 
   const handleBulkDelete = async () => {
-    if (!selectedNodeIds.length) return
+    if (!canDeleteNodes || !selectedNodeIds.length) return
 
     try {
       const response = await bulkDeleteNodesMutation.mutateAsync({
@@ -381,7 +407,7 @@ export default function NodesList() {
   }
 
   const handleBulkDisable = async () => {
-    if (!selectedDisableEligibleIds.length) return
+    if (!canUpdateNodes || !selectedDisableEligibleIds.length) return
 
     try {
       const response = await bulkDisableNodesMutation.mutateAsync({
@@ -406,7 +432,7 @@ export default function NodesList() {
   }
 
   const handleBulkEnable = async () => {
-    if (!selectedEnableEligibleIds.length) return
+    if (!canUpdateNodes || !selectedEnableEligibleIds.length) return
 
     try {
       const response = await bulkEnableNodesMutation.mutateAsync({
@@ -431,7 +457,7 @@ export default function NodesList() {
   }
 
   const handleBulkResetUsage = async () => {
-    if (!selectedNodeIds.length) return
+    if (!canUpdateNodes || !selectedNodeIds.length) return
 
     try {
       const response = await bulkResetNodesUsageMutation.mutateAsync({
@@ -456,7 +482,7 @@ export default function NodesList() {
   }
 
   const handleBulkReconnect = async () => {
-    if (!selectedNodeIds.length) return
+    if (!canReconnectNodes || !selectedNodeIds.length) return
 
     try {
       const response = await bulkReconnectNodesMutation.mutateAsync({
@@ -481,7 +507,7 @@ export default function NodesList() {
   }
 
   const handleBulkUpdate = async () => {
-    if (!selectedNodeIds.length) return
+    if (!canUpdateNodeCore || !selectedNodeIds.length) return
 
     try {
       const response = await bulkUpdateNodesMutation.mutateAsync({
@@ -518,6 +544,8 @@ export default function NodesList() {
   const disableEligibleCount = selectedDisableEligibleIds.length
   const bulkActions: BulkActionItem[] = selectedCount
     ? [
+        ...(canDeleteNodes
+          ? [
         {
           key: 'delete',
           label: t('delete'),
@@ -525,8 +553,10 @@ export default function NodesList() {
           onClick: () => setBulkAction('delete'),
           direct: true,
           destructive: true,
-        },
-        ...(disableEligibleCount > 0
+        } as BulkActionItem,
+          ]
+          : []),
+        ...(canUpdateNodes && disableEligibleCount > 0
           ? [
               {
                 key: 'disable',
@@ -534,9 +564,9 @@ export default function NodesList() {
                 icon: PowerOff,
                 onClick: () => setBulkAction('disable'),
               } as BulkActionItem,
-            ]
+          ]
           : []),
-        ...(enableEligibleCount > 0
+        ...(canUpdateNodes && enableEligibleCount > 0
           ? [
               {
                 key: 'enable',
@@ -546,24 +576,36 @@ export default function NodesList() {
               } as BulkActionItem,
             ]
           : []),
-        {
-          key: 'reset',
-          label: t('nodeModal.resetUsage', { defaultValue: 'Reset Usage' }),
-          icon: RefreshCcw,
-          onClick: () => setBulkAction('reset'),
-        },
-        {
-          key: 'reconnect',
-          label: t('nodeModal.reconnect', { defaultValue: 'Reconnect' }),
-          icon: WifiSync,
-          onClick: () => setBulkAction('reconnect'),
-        },
-        {
-          key: 'update',
-          label: t('nodeModal.updateNode', { defaultValue: 'Update Node' }),
-          icon: CircleFadingArrowUp,
-          onClick: () => setBulkAction('update'),
-        },
+        ...(canUpdateNodes
+          ? [
+            {
+              key: 'reset',
+              label: t('nodeModal.resetUsage', { defaultValue: 'Reset Usage' }),
+              icon: RefreshCcw,
+              onClick: () => setBulkAction('reset'),
+            } as BulkActionItem,
+          ]
+          : []),
+        ...(canReconnectNodes
+          ? [
+            {
+              key: 'reconnect',
+              label: t('nodeModal.reconnect', { defaultValue: 'Reconnect' }),
+              icon: WifiSync,
+              onClick: () => setBulkAction('reconnect'),
+            } as BulkActionItem,
+          ]
+          : []),
+        ...(canUpdateNodeCore
+          ? [
+            {
+              key: 'update',
+              label: t('nodeModal.updateNode', { defaultValue: 'Update Node' }),
+              icon: CircleFadingArrowUp,
+              onClick: () => setBulkAction('update'),
+            } as BulkActionItem,
+          ]
+          : []),
       ]
     : []
 
@@ -645,7 +687,7 @@ export default function NodesList() {
           viewMode={viewMode}
           onViewModeChange={setViewMode}
         />
-        <BulkActionsBar selectedCount={selectedCount} onClear={clearSelection} actions={bulkActions} />
+        {canUseBulkSelection && <BulkActionsBar selectedCount={selectedCount} onClear={clearSelection} actions={bulkActions} />}
         <div className="min-h-[55dvh]">
           {(showLoadingSpinner || showPageLoadingSkeletons || nodesData.length > 0) &&
             (viewMode === 'grid' ? (
@@ -657,12 +699,24 @@ export default function NodesList() {
                 className="gap-4"
                 gridClassName="transform-gpu animate-slide-up"
                 gridStyle={{ animationDuration: '500ms', animationDelay: '100ms', animationFillMode: 'both' }}
-                enableSelection
-                injectSelectionProps
+                enableSelection={canUseBulkSelection}
+                injectSelectionProps={canUseBulkSelection}
                 selectedRowIds={selectedNodeIds}
                 onSelectionChange={ids => setSelectedNodeIds(ids.map(id => Number(id)))}
                 showEmptyState={false}
-                renderItem={node => <Node node={node} onEdit={handleEdit} onToggleStatus={handleToggleStatus} coresData={coresData} />}
+                renderItem={node => (
+                  <Node
+                    node={node}
+                    onEdit={handleEdit}
+                    onToggleStatus={handleToggleStatus}
+                    coresData={coresData}
+                    canUpdate={canUpdateNodes}
+                    canDelete={canDeleteNodes}
+                    canReconnect={canReconnectNodes}
+                    canUpdateCore={canUpdateNodeCore}
+                    canReadStats={canReadNodeStats}
+                  />
+                )}
                 renderSkeleton={i => (
                   <Card key={i} className="group relative h-full p-4">
                     <div className="flex items-center gap-3">
@@ -701,8 +755,8 @@ export default function NodesList() {
                 loadingRows={6}
                 className="gap-1.5"
                 rowClassName="py-2"
-                onRowClick={handleEdit}
-                enableSelection
+                onRowClick={canUpdateNodes ? handleEdit : undefined}
+                enableSelection={canUseBulkSelection}
                 selectedRowIds={selectedNodeIds}
                 onSelectionChange={ids => setSelectedNodeIds(ids.map(id => Number(id)))}
                 showEmptyState={false}
@@ -739,24 +793,28 @@ export default function NodesList() {
         </div>
         {totalPages > 1 && <NodePaginationControls currentPage={currentPage} totalPages={totalPages} isLoading={isPageLoading} onPageChange={handlePageChange} />}
 
-        <NodeModal
-          isDialogOpen={isDialogOpen}
-          onOpenChange={open => {
-            if (!open) {
-              setEditingNode(null)
-              form.reset(nodeFormDefaultValues)
-            }
-            setIsDialogOpen(open)
-          }}
-          form={form}
-          editingNode={!!editingNode}
-          editingNodeId={editingNode?.id}
-          initialNodeData={editingNode || undefined}
-          coresData={coresData}
-          onSuccess={() => {
-            setTimeout(() => refetch(), 2500)
-          }}
-        />
+        {(canCreateNodes || canUpdateNodes) && (
+          <NodeModal
+            isDialogOpen={isDialogOpen}
+            onOpenChange={open => {
+              if (open && editingNode && !canUpdateNodes) return
+              if (open && !editingNode && !canCreateNodes) return
+              if (!open) {
+                setEditingNode(null)
+                form.reset(nodeFormDefaultValues)
+              }
+              setIsDialogOpen(open)
+            }}
+            form={form}
+            editingNode={!!editingNode}
+            editingNodeId={editingNode?.id}
+            initialNodeData={editingNode || undefined}
+            coresData={coresData}
+            onSuccess={() => {
+              setTimeout(() => refetch(), 2500)
+            }}
+          />
+        )}
 
         <NodeAdvanceSearchModal isDialogOpen={isAdvanceSearchOpen} onOpenChange={setIsAdvanceSearchOpen} form={advanceSearchForm} onSubmit={handleAdvanceSearchSubmit} />
         {activeBulkActionConfig && (

@@ -6,6 +6,8 @@ from urllib.parse import urlparse
 
 from app.db.models import UserStatus, UserStatusCreate
 
+MAX_ON_HOLD_EXPIRE_DURATION_SECONDS = 2_147_483_647
+
 
 class NumericValidatorMixin:
     @staticmethod
@@ -289,7 +291,8 @@ class StringArrayValidator:
         else:
             array = set(array)
 
-        compiled_string = ",".join([str(v) for v in array])
+        array = {str(v) for v in array}
+        compiled_string = ",".join(array)
         if len(compiled_string) > max:
             raise ValueError(f"String can't be bigger that {max} charachter")
         return array

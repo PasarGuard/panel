@@ -16,11 +16,13 @@ interface SortableHostProps {
   onDuplicate: (host: BaseHost) => Promise<void>
   onDataChanged?: () => void // New callback for notifying parent about data changes
   disabled?: boolean // Disable drag and drop when updating priorities
+  canUpdate?: boolean
+  canCreate?: boolean
   selectionControl?: ReactNode
   selected?: boolean
 }
 
-export default function SortableHost({ host, onEdit, onDuplicate, onDataChanged, disabled = false, selectionControl, selected = false }: SortableHostProps) {
+export default function SortableHost({ host, onEdit, onDuplicate, onDataChanged, disabled = false, canUpdate = true, canCreate = true, selectionControl, selected = false }: SortableHostProps) {
   const { t } = useTranslation()
   const dir = useDirDetection()
   // Ensure host.id is not null before using it
@@ -30,7 +32,7 @@ export default function SortableHost({ host, onEdit, onDuplicate, onDataChanged,
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: host.id as UniqueIdentifier,
-    disabled: disabled,
+    disabled: disabled || !canUpdate,
   })
 
   const style = {
@@ -43,14 +45,19 @@ export default function SortableHost({ host, onEdit, onDuplicate, onDataChanged,
 
   return (
     <div ref={setNodeRef} className="cursor-default" style={style} {...attributes}>
-      <Card className={cn('group relative h-full cursor-pointer p-4 transition-colors hover:bg-accent', selected && 'border-primary/50 bg-accent/30')} onClick={() => onEdit(host)}>
+      <Card
+        className={cn('group relative h-full p-4 transition-colors', canUpdate && 'cursor-pointer hover:bg-accent', selected && 'border-primary/50 bg-accent/30')}
+        onClick={() => {
+          if (canUpdate) onEdit(host)
+        }}
+      >
         <div className="flex items-start gap-3">
           <button
             type="button"
-            style={{ cursor: disabled ? 'not-allowed' : cursor }}
-            className={cn('touch-none transition-opacity', disabled ? 'cursor-not-allowed opacity-30' : 'opacity-50 group-hover:opacity-100')}
-            {...(disabled ? {} : listeners)}
-            disabled={disabled}
+            style={{ cursor: disabled || !canUpdate ? 'not-allowed' : cursor }}
+            className={cn('touch-none transition-opacity', disabled || !canUpdate ? 'cursor-not-allowed opacity-30' : 'opacity-50 group-hover:opacity-100')}
+            {...(disabled || !canUpdate ? {} : listeners)}
+            disabled={disabled || !canUpdate}
           >
             <GripVertical className="h-5 w-5" />
             <span className="sr-only">Drag to reorder</span>
@@ -73,7 +80,7 @@ export default function SortableHost({ host, onEdit, onDuplicate, onDataChanged,
               <span dir="ltr">{host.inbound_tag ?? ''}</span>
             </div>
           </div>
-          <HostActionsMenu host={host} onEdit={onEdit} onDuplicate={onDuplicate} onDataChanged={onDataChanged} />
+          <HostActionsMenu host={host} onEdit={onEdit} onDuplicate={onDuplicate} onDataChanged={onDataChanged} canUpdate={canUpdate} canCreate={canCreate} />
         </div>
       </Card>
     </div>

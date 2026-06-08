@@ -8,9 +8,12 @@ interface UseCoresListColumnsProps {
   onEdit: (core: CoreResponse) => void
   onDuplicate?: (coreId: number | string) => void
   onDelete?: (coreName: string, coreId: number) => void
+  canUpdate?: boolean
+  canCreate?: boolean
+  canDelete?: boolean
 }
 
-export const useCoresListColumns = ({ onEdit, onDuplicate, onDelete }: UseCoresListColumnsProps) => {
+export const useCoresListColumns = ({ onEdit, onDuplicate, onDelete, canUpdate = true, canCreate = true, canDelete = true }: UseCoresListColumnsProps) => {
   const { t } = useTranslation()
 
   return useMemo<ListColumn<CoreResponse>[]>(
@@ -26,22 +29,29 @@ export const useCoresListColumns = ({ onEdit, onDuplicate, onDelete }: UseCoresL
           </div>
         ),
       },
-      {
-        id: 'actions',
-        header: '',
-        width: '24px',
-        align: 'end',
-        hideOnMobile: false,
-        cell: core => (
-          <CoreActionsMenu
-            core={core}
-            onEdit={onEdit}
-            onDuplicate={onDuplicate ? () => onDuplicate(core.id) : undefined}
-            onDelete={onDelete ? () => onDelete(core.name, core.id) : undefined}
-          />
-        ),
-      },
+      ...(canUpdate || canCreate || canDelete
+        ? [
+          {
+            id: 'actions',
+            header: '',
+            width: '24px',
+            align: 'end' as const,
+            hideOnMobile: false,
+            cell: (core: CoreResponse) => (
+              <CoreActionsMenu
+                core={core}
+                onEdit={onEdit}
+                onDuplicate={canCreate && onDuplicate ? () => onDuplicate(core.id) : undefined}
+                onDelete={canDelete && onDelete ? () => onDelete(core.name, core.id) : undefined}
+                canUpdate={canUpdate}
+                canCreate={canCreate}
+                canDelete={canDelete}
+              />
+            ),
+          },
+        ]
+        : []),
     ],
-    [t, onEdit, onDuplicate, onDelete],
+    [t, onEdit, onDuplicate, onDelete, canUpdate, canCreate, canDelete],
   )
 }

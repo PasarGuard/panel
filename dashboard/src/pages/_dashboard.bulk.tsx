@@ -6,7 +6,7 @@ import { ArrowUpDown, Calendar, Lock, Group, Network, UserPlus } from 'lucide-re
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Outlet, useLocation, useNavigate } from 'react-router'
-import { hasPermission, hasScopeAll } from '@/utils/rbac'
+import { canReadResourcePage, hasPermission, hasScopeAll } from '@/utils/rbac'
 
 const allTabs = [
   { id: 'create', label: 'bulk.createUsers', icon: UserPlus, url: '/bulk' },
@@ -21,8 +21,9 @@ const BulkPage = () => {
   const { t } = useTranslation()
   const { admin } = useAdmin()
   const canCreateUsers = hasPermission(admin, 'users', 'create')
+  const canReadUserTemplates = canReadResourcePage(admin, 'templates')
   const canBulkUpdate = hasScopeAll(admin, 'users', 'update')
-  const tabs = allTabs.filter(tab => tab.id === 'create' ? canCreateUsers : canBulkUpdate)
+  const tabs = allTabs.filter(tab => tab.id === 'create' ? canCreateUsers && canReadUserTemplates : canBulkUpdate)
   const navigate = useNavigate()
   const location = useLocation()
   const [activeTab, setActiveTab] = useState(allTabs[0].id)

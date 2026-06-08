@@ -83,6 +83,7 @@ from app.models.user import (
     UsernameGenerationStrategy,
     UserNotificationResponse,
     UserResponse,
+    UserStatusToggle,
     UserSimple,
     UserSimpleListQuery,
     UsersResponse,
@@ -113,6 +114,7 @@ from app.utils.system import readable_duration, readable_size
 from app.utils.wireguard import (
     build_wireguard_peer_ip_allocator,
     bulk_reallocate_wireguard_peer_ips as run_bulk_reallocate_wireguard_peer_ips,
+    ensure_unique_wireguard_public_key,
     get_wireguard_tags_from_groups,
     prepare_wireguard_keys_only,
     prepare_wireguard_proxy_settings,
@@ -134,6 +136,30 @@ logger = get_logger("user-operation")
 
 _USER_AGENT_SPLIT_RE = re.compile(r"[;/\s\(\)]+")
 _VERSION_TOKEN_RE = re.compile(r"v?\d+(?:\.\d+)*", re.IGNORECASE)
+
+
+def _duplicate_wireguard_public_key_usernames(users: list[UserCreate]) -> tuple[str, list[str]] | None:
+    owners: dict[str, list[str]] = {}
+    for user in users:
+        public_key = user.proxy_settings.wireguard.public_key
+        if public_key:
+            owners.setdefault(public_key, []).append(user.username)
+    for public_key, usernames in owners.items():
+        if len(usernames) > 1:
+            return public_key, usernames
+    return None
+
+
+def _resolve_enabled_user_status(user: User) -> UserStatus:
+    now = dt.now(tz.utc)
+    expire = user.expire
+    if expire is not None and expire.replace(tzinfo=tz.utc) <= now:
+        return UserStatus.expired
+    if user.data_limit is not None and user.data_limit > 0 and user.used_traffic >= user.data_limit:
+        return UserStatus.limited
+    if user.on_hold_expire_duration is not None:
+        return UserStatus.on_hold
+    return UserStatus.active
 
 
 class UserOperation(BaseOperation):
@@ -327,10 +353,27 @@ class UserOperation(BaseOperation):
                     user_to_create.proxy_settings,
                 )
 
+        duplicate_key = _duplicate_wireguard_public_key_usernames(users_to_create)
+        if duplicate_key is not None:
+            public_key, usernames = duplicate_key
+            await self.raise_error(
+                message=(
+                    f"wireguard public_key {public_key} is assigned to multiple new users: "
+                    f"{', '.join(usernames[:2])}"
+                ),
+                code=400,
+                db=db,
+            )
+        for user_to_create in users_to_create:
+            try:
+                await ensure_unique_wireguard_public_key(db, user_to_create.proxy_settings)
+            except ValueError as exc:
+                await self.raise_error(message=str(exc), code=400, db=db)
+
         db_users = await create_users_bulk(db, users_to_create, groups, db_admin, commit=commit)
         if not commit:
             for user in db_users:
-                await load_user_attrs(user)
+                await load_user_attrs(user, load_admin_role=True)
         if sync:
             await sync_users(db_users)
 
@@ -370,6 +413,7 @@ class UserOperation(BaseOperation):
                     db,
                     proxy_settings,
                     groups,
+                    exclude_user_id=exclude_user_id,
                 )
             else:
                 return await prepare_wireguard_proxy_settings(
@@ -513,9 +557,18 @@ class UserOperation(BaseOperation):
             if next_plan is not None and not features.can_use_next_plan:
                 await self.raise_error(message="Next plan is not allowed for your role", code=403, db=db)
 
+    async def _enforce_manual_user_write_access(self, admin: AdminDetails, db: AsyncSession) -> None:
+        if admin.is_owner or admin.role is None:
+            return
+        if admin.role.access.require_template:
+            await self.raise_error(message="Manual user create/modify is not allowed for your role", code=403, db=db)
+
     async def create_user(
         self, db: AsyncSession, new_user: UserCreate, admin: AdminDetails, *, skip_role_limits: bool = False
     ) -> UserResponse:
+        if not skip_role_limits:
+            await self._enforce_manual_user_write_access(admin, db)
+
         global_hwid_conf = await hwid_settings()
         effective_hwid_conf = resolve_effective_hwid_settings(
             global_hwid_conf,
@@ -719,6 +772,32 @@ class UserOperation(BaseOperation):
 
         return user
 
+    async def _set_user_disabled(
+        self,
+        db: AsyncSession,
+        db_user: User,
+        toggle: UserStatusToggle,
+        admin: AdminDetails,
+    ) -> UserResponse:
+        old_status = db_user.status
+        new_status = UserStatus.disabled if toggle.disabled else _resolve_enabled_user_status(db_user)
+
+        if db_user.status != new_status:
+            db_user.status = new_status
+            db_user.last_status_change = dt.now(tz.utc)
+            await db.commit()
+            await load_user_attrs(db_user, load_admin_role=True)
+
+        user = await self.update_user(db_user)
+
+        if user.status != old_status:
+            asyncio.create_task(notification.user_status_change(user, admin))
+            old_status_value = getattr(old_status, "value", old_status)
+            new_status_value = getattr(user.status, "value", user.status)
+            logger.info(f'User "{user.username}" status changed from "{old_status_value}" to "{new_status_value}"')
+
+        return user
+
     async def _modify_user(
         self,
         db: AsyncSession,
@@ -728,6 +807,9 @@ class UserOperation(BaseOperation):
         *,
         skip_role_limits: bool = False,
     ) -> UserNotificationResponse:
+        if not skip_role_limits:
+            await self._enforce_manual_user_write_access(admin, db)
+
         validated_groups = await self._prepare_modified_user(
             db, db_user, modified_user, admin, skip_role_limits=skip_role_limits
         )
@@ -749,8 +831,26 @@ class UserOperation(BaseOperation):
     async def modify_user_by_id(
         self, db: AsyncSession, user_id: int, modified_user: UserModify, admin: AdminDetails
     ) -> UserResponse:
-        db_user = await self.get_validated_user_by_id(db, user_id, admin)
+        db_user = await self.get_validated_user_by_id(db, user_id, admin, scope_action="update")
         return await self._modify_user(db, db_user, modified_user, admin)
+
+    async def set_user_disabled(
+        self, db: AsyncSession, username: str, toggle: UserStatusToggle, admin: AdminDetails
+    ) -> UserResponse:
+        warnings.warn(
+            "set_user_disabled(username, ...) is deprecated and will be removed in v6.0.0. "
+            "Use set_user_disabled_by_id(user_id, ...).",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        db_user = await self.get_validated_user(db, username, admin, scope_action="update")
+        return await self._set_user_disabled(db, db_user, toggle, admin)
+
+    async def set_user_disabled_by_id(
+        self, db: AsyncSession, user_id: int, toggle: UserStatusToggle, admin: AdminDetails
+    ) -> UserResponse:
+        db_user = await self.get_validated_user_by_id(db, user_id, admin, scope_action="update")
+        return await self._set_user_disabled(db, db_user, toggle, admin)
 
     async def _remove_user(self, db: AsyncSession, db_user: User, admin: AdminDetails) -> dict:
         user = await self.validate_user(db_user, include_subscription_url=False)
@@ -772,7 +872,7 @@ class UserOperation(BaseOperation):
         return await self._remove_user(db, db_user, admin)
 
     async def remove_user_by_id(self, db: AsyncSession, user_id: int, admin: AdminDetails):
-        db_user = await self.get_validated_user_by_id(db, user_id, admin)
+        db_user = await self.get_validated_user_by_id(db, user_id, admin, scope_action="delete")
         return await self._remove_user(db, db_user, admin)
 
     async def _get_validated_users_by_ids(
@@ -785,6 +885,7 @@ class UserOperation(BaseOperation):
         load_next_plan: bool = True,
         load_usage_logs: bool = True,
         load_groups: bool = True,
+        load_admin_role: bool = False,
         scope_action: str = "read",
     ) -> list[User]:
         if not user_ids:
@@ -799,7 +900,7 @@ class UserOperation(BaseOperation):
             admin_ids=[scope_admin_id] if scope_admin_id is not None else None,
             limit=len(ids_list),
         )
-        users = await get_users(db, query=query)
+        users = await get_users(db, query=query, load_admin_role=load_admin_role)
 
         # Verify every requested ID was found (mirrors the 404 in get_validated_user_by_id)
         found_ids = {user.id for user in users}
@@ -815,15 +916,15 @@ class UserOperation(BaseOperation):
         return BulkUsersActionResponse(users=usernames, count=len(usernames))
 
     async def _load_users_by_ids(self, db: AsyncSession, user_ids: list[int]) -> list[User]:
-        return await get_users_by_ids(db, user_ids)
+        return await get_users_by_ids(db, user_ids, load_admin_role=True)
 
     async def _load_users_by_usernames(self, db: AsyncSession, usernames: list[str]) -> list[User]:
-        return await get_users_by_usernames(db, usernames)
+        return await get_users_by_usernames(db, usernames, load_admin_role=True)
 
     async def bulk_remove_users(
         self, db: AsyncSession, bulk_users: BulkUsersSelection, admin: AdminDetails
     ) -> RemoveUsersResponse:
-        db_users = await self._get_validated_users_by_ids(db, bulk_users.ids, admin)
+        db_users = await self._get_validated_users_by_ids(db, bulk_users.ids, admin, scope_action="delete")
         users = [await self.validate_user(db_user, include_subscription_url=False) for db_user in db_users]
 
         await remove_users(db, db_users)
@@ -873,13 +974,15 @@ class UserOperation(BaseOperation):
         return await self._reset_user_data_usage(db, db_user, admin)
 
     async def reset_user_data_usage_by_id(self, db: AsyncSession, user_id: int, admin: AdminDetails):
-        db_user = await self.get_validated_user_by_id(db, user_id, admin)
+        db_user = await self.get_validated_user_by_id(db, user_id, admin, scope_action="update")
         return await self._reset_user_data_usage(db, db_user, admin)
 
     async def bulk_reset_user_data_usage(
         self, db: AsyncSession, bulk_users: BulkUsersSelection, admin: AdminDetails
     ) -> BulkUsersActionResponse:
-        db_users = await self._get_validated_users_by_ids(db, bulk_users.ids, admin, load_usage_logs=False)
+        db_users = await self._get_validated_users_by_ids(
+            db, bulk_users.ids, admin, load_usage_logs=False, scope_action="reset_usage"
+        )
         old_statuses = {user.id: user.status for user in db_users}
 
         db_users = await bulk_reset_user_data_usage(
@@ -918,7 +1021,9 @@ class UserOperation(BaseOperation):
         return await self._revoke_user_sub(db, db_user, admin)
 
     async def revoke_user_sub_by_id(self, db: AsyncSession, user_id: int, admin: AdminDetails) -> UserResponse:
-        db_user = await self.get_validated_user_by_id(db, user_id, admin, load_usage_logs=False)
+        db_user = await self.get_validated_user_by_id(
+            db, user_id, admin, load_usage_logs=False, scope_action="revoke_sub"
+        )
         return await self._revoke_user_sub(db, db_user, admin)
 
     async def bulk_revoke_user_sub(
@@ -988,6 +1093,51 @@ class UserOperation(BaseOperation):
 
         return users
 
+    async def _bulk_set_users_disabled(
+        self, db: AsyncSession, db_users: list[User], disabled: bool, admin: AdminDetails
+    ) -> list[UserNotificationResponse]:
+        if not db_users:
+            return []
+
+        changed_user_ids: list[int] = []
+        original_statuses: dict[int, UserStatus] = {}
+        changed_at = dt.now(tz.utc)
+
+        try:
+            for db_user in db_users:
+                new_status = UserStatus.disabled if disabled else _resolve_enabled_user_status(db_user)
+                if db_user.status == new_status:
+                    continue
+                if db_user.id is None:
+                    continue
+                original_statuses[db_user.id] = db_user.status
+                db_user.status = new_status
+                db_user.last_status_change = changed_at
+                changed_user_ids.append(db_user.id)
+
+            await db.commit()
+        except Exception:
+            await db.rollback()
+            raise
+
+        if changed_user_ids:
+            changed_db_users = await self._load_users_by_ids(db, changed_user_ids)
+            await sync_users(changed_db_users)
+            users = [await self.validate_user(db_user) for db_user in changed_db_users]
+        else:
+            users = []
+
+        for user in users:
+            original_status = original_statuses.get(user.id)
+            if original_status is None or user.status == original_status:
+                continue
+            asyncio.create_task(notification.user_status_change(user, admin))
+            old_status_value = getattr(original_status, "value", original_status)
+            new_status_value = getattr(user.status, "value", user.status)
+            logger.info(f'User "{user.username}" status changed from "{old_status_value}" to "{new_status_value}"')
+
+        return users
+
     async def bulk_disable_users(
         self, db: AsyncSession, bulk_users: BulkUsersSelection, admin: AdminDetails
     ) -> BulkUsersActionResponse:
@@ -996,7 +1146,7 @@ class UserOperation(BaseOperation):
         )
         users_to_disable = [db_user for db_user in db_users if db_user.status != UserStatus.disabled]
 
-        users = await self._bulk_set_user_status(db, users_to_disable, UserStatus.disabled, admin)
+        users = await self._bulk_set_users_disabled(db, users_to_disable, True, admin)
 
         return self._build_bulk_action_response(users)
 
@@ -1008,7 +1158,7 @@ class UserOperation(BaseOperation):
         )
         users_to_enable = [db_user for db_user in db_users if db_user.status == UserStatus.disabled]
 
-        users = await self._bulk_set_user_status(db, users_to_enable, UserStatus.active, admin)
+        users = await self._bulk_set_users_disabled(db, users_to_enable, False, admin)
 
         return self._build_bulk_action_response(users)
 
@@ -1051,7 +1201,7 @@ class UserOperation(BaseOperation):
         return await self._active_next_plan(db, db_user, admin)
 
     async def active_next_plan_by_id(self, db: AsyncSession, user_id: int, admin: AdminDetails) -> UserResponse:
-        db_user = await self.get_validated_user_by_id(db, user_id, admin)
+        db_user = await self.get_validated_user_by_id(db, user_id, admin, scope_action="update")
         return await self._active_next_plan(db, db_user, admin)
 
     async def _set_owner(self, db: AsyncSession, db_user: User, new_admin, admin: AdminDetails) -> UserResponse:
@@ -1079,14 +1229,16 @@ class UserOperation(BaseOperation):
         self, db: AsyncSession, user_id: int, admin_username: str, admin: AdminDetails
     ) -> UserResponse:
         new_admin = await self.get_validated_admin(db, username=admin_username)
-        db_user = await self.get_validated_user_by_id(db, user_id, admin)
+        db_user = await self.get_validated_user_by_id(db, user_id, admin, scope_action="update")
         return await self._set_owner(db, db_user, new_admin, admin)
 
     async def bulk_set_owner(
         self, db: AsyncSession, bulk_users: BulkUsersSetOwner, admin: AdminDetails
     ) -> BulkUsersActionResponse:
         new_admin = await self.get_validated_admin(db, username=bulk_users.admin_username)
-        db_users = await self._get_validated_users_by_ids(db, bulk_users.ids, admin, load_usage_logs=False)
+        db_users = await self._get_validated_users_by_ids(
+            db, bulk_users.ids, admin, load_usage_logs=False, scope_action="update"
+        )
 
         db_users = await bulk_set_owner(db, db_users, new_admin)
         users = [await self.validate_user(db_user) for db_user in db_users]
@@ -1491,7 +1643,7 @@ class UserOperation(BaseOperation):
     async def modify_user_with_template_by_id(
         self, db: AsyncSession, user_id: int, modified_template: ModifyUserByTemplate, admin: AdminDetails
     ) -> UserResponse:
-        db_user = await self.get_validated_user_by_id(db, user_id, admin)
+        db_user = await self.get_validated_user_by_id(db, user_id, admin, scope_action="update")
         return await self._modify_user_with_template(db, db_user, modified_template, admin)
 
     async def bulk_create_users_from_template(
@@ -1558,6 +1710,10 @@ class UserOperation(BaseOperation):
 
         created_users = await self._load_users_by_usernames(db, [user.username for user in users_to_create])
         await sync_users(created_users)
+
+        for db_user in created_users:
+            user = await self.validate_user(db_user)
+            asyncio.create_task(notification.create_user(user, admin))
 
         return BulkUsersCreateResponse(subscription_urls=subscription_urls, created=len(subscription_urls))
 

@@ -41,6 +41,7 @@ from app.telegram.keyboards.group import GroupsSelector, SelectGroupAction
 from app.telegram.keyboards.user import ChooseStatus, ChooseTemplate, RandomUsername, UserPanel, UserPanelAction
 from app.telegram.utils import forms
 from app.telegram.utils.filters import HasPermission
+from app.telegram.utils.qr import send_subscription_qr
 from app.telegram.utils.shared import add_to_messages_to_delete, delete_messages
 from app.telegram.utils.texts import Message as Texts
 
@@ -132,7 +133,7 @@ async def process_data_limit(event: Message, state: FSMContext):
 
 
 @router.message(forms.CreateUser.expire)
-async def process_expire(event: Message, state: FSMContext, db: AsyncSession):
+async def process_expire(event: Message, state: FSMContext, db: AsyncSession, admin: AdminDetails):
     await delete_messages(event, state)
     await add_to_messages_to_delete(state, event)
 
@@ -153,13 +154,17 @@ async def process_expire(event: Message, state: FSMContext, db: AsyncSession):
     else:
         await state.update_data(status=UserStatus.active.value)
         await state.set_state(forms.CreateUser.group_ids)
-        groups = await group_operations.get_all_groups(db, GroupListQuery())
+        groups = await group_operations.get_all_groups(db, GroupListQuery(), admin)
         return await event.answer(Texts.select_groups, reply_markup=GroupsSelector(groups).as_markup())
 
 
 @router.callback_query(ChooseStatus.Callback.filter())
 async def process_status(
-    event: CallbackQuery, db: AsyncSession, state: FSMContext, callback_data: ChooseStatus.Callback
+    event: CallbackQuery,
+    db: AsyncSession,
+    state: FSMContext,
+    callback_data: ChooseStatus.Callback,
+    admin: AdminDetails,
 ):
     await state.update_data(status=callback_data.status)
 
@@ -172,12 +177,12 @@ async def process_status(
         await add_to_messages_to_delete(state, msg)
     else:
         await state.set_state(forms.CreateUser.group_ids)
-        groups = await group_operations.get_all_groups(db, GroupListQuery())
+        groups = await group_operations.get_all_groups(db, GroupListQuery(), admin)
         await event.message.answer(Texts.select_groups, reply_markup=GroupsSelector(groups).as_markup())
 
 
 @router.message(forms.CreateUser.on_hold_timeout)
-async def process_on_hold_timeout(event: Message, state: FSMContext, db: AsyncSession):
+async def process_on_hold_timeout(event: Message, state: FSMContext, db: AsyncSession, admin: AdminDetails):
     await delete_messages(event, state)
     await add_to_messages_to_delete(state, event)
 
@@ -191,7 +196,7 @@ async def process_on_hold_timeout(event: Message, state: FSMContext, db: AsyncSe
         return
 
     await state.update_data(on_hold_timeout=timeout)
-    groups = await group_operations.get_all_groups(db, GroupListQuery())
+    groups = await group_operations.get_all_groups(db, GroupListQuery(), admin)
 
     await add_to_messages_to_delete(state, event)
     await delete_messages(event, state)
@@ -201,7 +206,11 @@ async def process_on_hold_timeout(event: Message, state: FSMContext, db: AsyncSe
 
 @router.callback_query(GroupsSelector.Callback.filter(SelectGroupAction.select == F.action))
 async def select_groups(
-    event: CallbackQuery, db: AsyncSession, state: FSMContext, callback_data: GroupsSelector.Callback
+    event: CallbackQuery,
+    db: AsyncSession,
+    state: FSMContext,
+    callback_data: GroupsSelector.Callback,
+    admin: AdminDetails,
 ):
     group_ids = await state.get_value("group_ids")
     if isinstance(group_ids, list):
@@ -213,7 +222,7 @@ async def select_groups(
         group_ids = [callback_data.group_id]
 
     await state.update_data(group_ids=group_ids)
-    all_groups = await group_operations.get_all_groups(db, GroupListQuery())
+    all_groups = await group_operations.get_all_groups(db, GroupListQuery(), admin)
 
     await event.message.edit_reply_markup(
         reply_markup=GroupsSelector(
@@ -269,7 +278,7 @@ async def modify_groups(
         return await event.answer(Texts.user_not_found)
 
     groups = await user_operations.validate_all_groups(db, user)
-    all_groups = await group_operations.get_all_groups(db, GroupListQuery())
+    all_groups = await group_operations.get_all_groups(db, GroupListQuery(), admin)
     await state.clear()
     await state.update_data(user_id=user.id, group_ids=[group.id for group in groups])
     await event.message.edit_text(
@@ -511,8 +520,10 @@ async def activate_next_plan(
 @router.callback_query(
     HasPermission("users", "update"), UserPanel.Callback.filter(UserPanelAction.modify_with_template == F.action)
 )
-async def modify_with_template(event: CallbackQuery, db: AsyncSession, callback_data: UserPanel.Callback):
-    templates = await user_templates.get_user_templates(db, UserTemplateListQuery())
+async def modify_with_template(
+    event: CallbackQuery, db: AsyncSession, admin: AdminDetails, callback_data: UserPanel.Callback
+):
+    templates = await user_templates.get_user_templates(db, UserTemplateListQuery(), admin)
     if not templates:
         return await event.answer(Texts.there_is_no_template)
 
@@ -542,8 +553,8 @@ async def modify_with_template_done(
     HasPermission("users", "create"),
     AdminPanel.Callback.filter(AdminPanelAction.create_user_from_template == F.action),
 )
-async def create_user_from_template(event: CallbackQuery, db: AsyncSession):
-    templates = await user_templates.get_user_templates(db, UserTemplateListQuery())
+async def create_user_from_template(event: CallbackQuery, db: AsyncSession, admin: AdminDetails):
+    templates = await user_templates.get_user_templates(db, UserTemplateListQuery(), admin)
     if not templates:
         return await event.answer(Texts.there_is_no_template)
     await event.message.edit_text(Texts.choose_a_template, reply_markup=ChooseTemplate(templates).as_markup())
@@ -636,13 +647,29 @@ async def get_user_by_sub(event: Message, db: AsyncSession, admin: AdminDetails)
             return await event.reply(Texts.user_not_found)
 
         scope_id = get_scope_admin_id(admin, "users", "read")
-        if scope_id is not None and user.admin.id != scope_id:
+        if scope_id is not None and (not user.admin or user.admin.id != scope_id):
             return await event.reply(Texts.user_not_found)
     except ValueError:
         return await event.reply(Texts.user_not_found)
 
     groups = await user_operations.validate_all_groups(db, user)
     await event.reply(Texts.user_details(user, groups), reply_markup=UserPanel(user, admin=admin).as_markup())
+
+
+@router.callback_query(
+    HasPermission("users", "read"), UserPanel.Callback.filter(UserPanelAction.subscription_qr == F.action)
+)
+async def get_subscription_qr(
+    event: CallbackQuery, db: AsyncSession, admin: AdminDetails, callback_data: UserPanel.Callback
+):
+    try:
+        db_user = await user_operations.get_validated_user_by_id(db, callback_data.user_id, admin)
+        user = await user_operations.validate_user(db_user)
+    except ValueError:
+        return await event.answer(Texts.user_not_found, show_alert=True)
+
+    await send_subscription_qr(event.message, user.subscription_url, user.username)
+    await event.answer()
 
 
 @router.callback_query(

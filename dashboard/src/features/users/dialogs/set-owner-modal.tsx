@@ -128,12 +128,7 @@ export default function SetOwnerModal({ open, onClose, userId, username, userIds
               </div>
             )}
             {isLoading ? (
-              <div className="space-y-2 p-2">
-                <Skeleton className="h-10 w-full" />
-                <div className="space-y-1 rounded-md border p-2">
-                  <Skeleton className="h-4 w-32" />
-                </div>
-              </div>
+              <Skeleton className="h-10 w-full rounded-md" />
             ) : isError ? (
               <div className="p-2 text-destructive">{t('setOwnerModal.loadError', { defaultValue: 'Failed to load admins.' })}</div>
             ) : admins.length > 0 ? (

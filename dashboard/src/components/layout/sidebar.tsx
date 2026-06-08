@@ -18,7 +18,7 @@ import useDirDetection from '@/hooks/use-dir-detection'
 import { useSystemVersion } from '@/hooks/use-system-version'
 import { useVersionCheck } from '@/hooks/use-version-check'
 import { cn } from '@/lib/utils'
-import { hasPermission, hasScopeAll, isOwner, canManageResource } from '@/utils/rbac'
+import { canReadResourcePage, hasPermission, hasScopeAll, isOwner } from '@/utils/rbac'
 import {
   ArrowUpDown,
   Bell,
@@ -40,7 +40,6 @@ import {
   ListTodo,
   Lock,
   Logs,
-  MessageCircle,
   Network,
   Palette,
   PieChart,
@@ -65,6 +64,46 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { t } = useTranslation()
   const { admin } = useAdmin()
   const canReadSystem = hasPermission(admin, 'system', 'read')
+  const canReadHosts = canReadResourcePage(admin, 'hosts')
+  const canReadGroups = canReadResourcePage(admin, 'groups')
+  const canReadAdmins = canReadResourcePage(admin, 'admins')
+  const canReadNodes = canReadResourcePage(admin, 'nodes')
+  const canReadCores = canReadResourcePage(admin, 'cores')
+  const canReadTemplates = canReadResourcePage(admin, 'templates')
+  const canReadClientTemplates = canReadResourcePage(admin, 'client_templates')
+  const canReadNodeLogs = hasPermission(admin, 'nodes', 'logs')
+  const canBulkCreateFromTemplate = hasPermission(admin, 'users', 'create') && canReadTemplates
+  const canBulkUpdateUsers = hasScopeAll(admin, 'users', 'update')
+  const nodeNavItems = [
+    ...(canReadNodes ? [{
+      title: 'nodes.title',
+      url: '/nodes',
+      icon: Share2Icon,
+    }] : []),
+    ...(canReadCores ? [{
+      title: 'settings.cores.title',
+      url: '/nodes/cores',
+      icon: Cpu,
+      matchPrefix: true,
+    }] : []),
+    ...(canReadNodeLogs ? [{
+      title: 'nodes.logs.title',
+      url: '/nodes/logs',
+      icon: Logs,
+    }] : []),
+  ]
+  const templateNavItems = [
+    ...(canReadTemplates ? [{
+      title: 'templates.userTemplates',
+      url: '/templates/user',
+      icon: FileUser,
+    }] : []),
+    ...(canReadClientTemplates ? [{
+      title: 'templates.clientTemplates',
+      url: '/templates/client',
+      icon: FileCode2,
+    }] : []),
+  ]
   const { currentVersion: systemVersion } = useSystemVersion({ enabled: canReadSystem })
   const { setOpenMobile, openMobile, state, isMobile, toggleSidebar } = useSidebar()
   const { resolvedTheme } = useTheme()
@@ -144,21 +183,21 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             icon: PieChart,
           }]
         : []),
-      ...(canManageResource(admin, 'hosts', ['create', 'update'])
+      ...(canReadHosts
         ? [{
             title: 'hosts',
             url: '/hosts',
             icon: ListTodo,
           }]
         : []),
-      ...(canManageResource(admin, 'groups')
+      ...(canReadGroups
         ? [{
             title: 'groups',
             url: '/groups',
             icon: Group,
           }]
         : []),
-      ...(canManageResource(admin, 'admins')
+      ...(canReadAdmins
         ? [{
             title: 'admins.title',
             url: '/admins',
@@ -172,62 +211,34 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             icon: UserKey,
           }]
         : []),
-      ...(canManageResource(admin, 'nodes', ['create', 'update', 'delete', 'reconnect', 'update_core']) || canManageResource(admin, 'cores') || hasPermission(admin, 'nodes', 'logs')
+      ...(nodeNavItems.length > 0
         ? [{
             title: 'nodes.title',
-            url: '/nodes',
+            url: nodeNavItems[0].url,
             icon: Share2Icon,
-            items: [
-              ...(canManageResource(admin, 'nodes', ['create', 'update', 'delete', 'reconnect', 'update_core']) ? [{
-                title: 'nodes.title',
-                url: '/nodes',
-                icon: Share2Icon,
-              }] : []),
-              ...(canManageResource(admin, 'cores') ? [{
-                title: 'settings.cores.title',
-                url: '/nodes/cores',
-                icon: Cpu,
-                matchPrefix: true,
-              }] : []),
-              ...(hasPermission(admin, 'nodes', 'logs') ? [{
-                title: 'nodes.logs.title',
-                url: '/nodes/logs',
-                icon: Logs,
-              }] : []),
-            ],
+            items: nodeNavItems,
           }]
         : []),
-      ...(canManageResource(admin, 'templates') || canManageResource(admin, 'client_templates')
+      ...(templateNavItems.length > 0
         ? [{
             title: 'templates.title',
-            url: '/templates/user',
+            url: templateNavItems[0].url,
             icon: LayoutTemplate,
-            items: [
-              ...(canManageResource(admin, 'templates') ? [{
-                title: 'templates.userTemplates',
-                url: '/templates/user',
-                icon: FileUser,
-              }] : []),
-              ...(canManageResource(admin, 'client_templates') ? [{
-                title: 'templates.clientTemplates',
-                url: '/templates/client',
-                icon: FileCode2,
-              }] : []),
-            ],
+            items: templateNavItems,
           }]
         : []),
-      ...(hasPermission(admin, 'users', 'create') || hasScopeAll(admin, 'users', 'update')
+      ...(canBulkCreateFromTemplate || canBulkUpdateUsers
         ? [{
             title: 'bulk.title',
             url: '/bulk',
             icon: Layers,
             items: [
-              ...(hasPermission(admin, 'users', 'create') ? [{
+              ...(canBulkCreateFromTemplate ? [{
                 title: 'bulk.createUsers',
                 url: '/bulk',
                 icon: UserPlus,
               }] : []),
-              ...(hasScopeAll(admin, 'users', 'update') ? [{
+              ...(canBulkUpdateUsers ? [{
                 title: 'bulk.groups',
                 url: '/bulk/groups',
                 icon: Group,
@@ -284,11 +295,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 title: 'settings.telegram.title',
                 url: '/settings/telegram',
                 icon: Send,
-              },
-              {
-                title: 'settings.discord.title',
-                url: '/settings/discord',
-                icon: MessageCircle,
               },
               {
                 title: 'settings.webhook.title',

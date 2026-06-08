@@ -9,19 +9,26 @@ interface CoreActionsMenuProps {
   onEdit: (core: CoreResponse) => void
   onDuplicate?: () => void
   onDelete?: () => void
+  canUpdate?: boolean
+  canCreate?: boolean
+  canDelete?: boolean
   className?: string
 }
 
-export default function CoreActionsMenu({ core, onEdit, onDuplicate, onDelete, className }: CoreActionsMenuProps) {
+export default function CoreActionsMenu({ core, onEdit, onDuplicate, onDelete, canUpdate = true, canCreate = true, canDelete = true, className }: CoreActionsMenuProps) {
   const { t } = useTranslation()
 
   const handleDeleteClick = (event: Event) => {
     event.preventDefault()
     event.stopPropagation()
+    if (!canDelete) return
     if (onDelete) {
       onDelete()
     }
   }
+
+  const hasActions = canUpdate || (canCreate && !!onDuplicate) || (canDelete && !!onDelete)
+  if (!hasActions) return null
 
   return (
     <div className={className} onClick={e => e.stopPropagation()}>
@@ -32,16 +39,18 @@ export default function CoreActionsMenu({ core, onEdit, onDuplicate, onDelete, c
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuItem
-            onSelect={e => {
-              e.stopPropagation()
-              onEdit(core)
-            }}
-          >
-            <Pencil className="mr-2 h-4 w-4" />
-            {t('edit')}
-          </DropdownMenuItem>
-          {onDuplicate && (
+          {canUpdate && (
+            <DropdownMenuItem
+              onSelect={e => {
+                e.stopPropagation()
+                onEdit(core)
+              }}
+            >
+              <Pencil className="mr-2 h-4 w-4" />
+              {t('edit')}
+            </DropdownMenuItem>
+          )}
+          {canCreate && onDuplicate && (
             <DropdownMenuItem
               onSelect={e => {
                 e.stopPropagation()
@@ -52,11 +61,13 @@ export default function CoreActionsMenu({ core, onEdit, onDuplicate, onDelete, c
               {t('duplicate')}
             </DropdownMenuItem>
           )}
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onSelect={handleDeleteClick} className="text-destructive">
-            <Trash2 className="mr-2 h-4 w-4" />
-            {t('delete')}
-          </DropdownMenuItem>
+          {(canUpdate || (canCreate && onDuplicate)) && canDelete && onDelete && <DropdownMenuSeparator />}
+          {canDelete && onDelete && (
+            <DropdownMenuItem onSelect={handleDeleteClick} className="text-destructive">
+              <Trash2 className="mr-2 h-4 w-4" />
+              {t('delete')}
+            </DropdownMenuItem>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
     </div>

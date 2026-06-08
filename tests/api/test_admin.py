@@ -522,8 +522,8 @@ def test_administrator_cannot_disable_self(access_token):
         delete_admin(access_token, administrator_admin["username"])
 
 
-def test_administrator_cannot_modify_other_administrator(access_token):
-    """An administrator cannot edit another administrator account."""
+def test_administrator_can_modify_other_non_owner_admin(access_token):
+    """An admin with admins.update can edit another non-owner admin, regardless of role id."""
     admin_a = create_admin(access_token)
     admin_b = create_admin(access_token)
     set_admin_role(admin_a["username"], 2)
@@ -544,15 +544,14 @@ def test_administrator_cannot_modify_other_administrator(access_token):
             url=f"/api/admin/{admin_b['username']}",
             json={
                 "status": "active",
-                "note": "should-fail",
+                "note": "updated-by-admin",
             },
             headers={"Authorization": f"Bearer {admin_a_token}"},
         )
 
-        assert response.status_code == status.HTTP_403_FORBIDDEN
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["note"] == "updated-by-admin"
     finally:
-        set_admin_role(admin_a["username"], 3)
-        set_admin_role(admin_b["username"], 3)
         delete_admin(access_token, admin_a["username"])
         delete_admin(access_token, admin_b["username"])
 
@@ -1234,6 +1233,48 @@ def test_create_admin_with_custom_role(access_token):
     finally:
         delete_admin(access_token, username)
         client.delete(f"/api/admin-role/{role['id']}", headers={"Authorization": f"Bearer {access_token}"})
+
+
+def test_custom_role_with_admin_update_can_modify_administrator(access_token):
+    """A custom role with admins.update can modify role_id=2 admins."""
+    role_response = client.post(
+        "/api/admin-role",
+        headers=auth_headers(access_token),
+        json={
+            "name": unique_name("admin_update_role"),
+            "permissions": {"admins": {"update": True}},
+            "limits": {
+                "max_users": None,
+                "data_limit_min": None,
+                "data_limit_max": None,
+                "expire_min": None,
+                "expire_max": None,
+                "max_hwid_per_user": None,
+            },
+            "features": {"can_use_reset_strategy": True, "can_use_next_plan": True},
+            "access": {"require_template": False, "allowed_template_ids": None, "allowed_group_ids": None},
+        },
+    )
+    assert role_response.status_code == status.HTTP_201_CREATED
+    role = role_response.json()
+
+    actor = create_admin(access_token, role_id=role["id"])
+    target = create_admin(access_token, role_id=2)
+    try:
+        actor_token = _login(actor["username"], actor["password"])
+
+        response = client.put(
+            f"/api/admin/{target['username']}",
+            json={"note": "custom-role-update"},
+            headers=auth_headers(actor_token),
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["note"] == "custom-role-update"
+    finally:
+        delete_admin(access_token, actor["username"])
+        delete_admin(access_token, target["username"])
+        client.delete(f"/api/admin-role/{role['id']}", headers=auth_headers(access_token))
 
 
 # ---------------------------------------------------------------------------

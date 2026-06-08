@@ -31,6 +31,7 @@ import { useCoreEditorStore } from '@/features/core-editor/state/core-editor-sto
 import { generateWireGuardKeyPair, getWireGuardPublicKey } from '@/utils/wireguard'
 import {
   buildVlessGenerationOptionsFromInboundForm,
+  canGenerateShadowsocksPassword,
   generateShadowsocksPassword,
   generateRealityKeyPair,
   generateRealityShortId,
@@ -46,7 +47,7 @@ import { createDefaultInbound, createDefaultInboundForProtocol, getInboundFieldV
 import type { Fallback, Inbound, InboundPort, Profile, Security, ShadowsocksMethod, Transport, XrayGeneratedFormField } from '@pasarguard/xray-config-kit'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { cn } from '@/lib/utils'
-import { Cable, KeyRound, Pencil, Plus, RefreshCcw, RefreshCw, Shield, Trash2 } from 'lucide-react'
+import { Cable, KeyRound, Pencil, Plus, RefreshCcw, Shield, Trash2 } from 'lucide-react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { arrayMove } from '@dnd-kit/sortable'
 import type { ColumnDef } from '@tanstack/react-table'
@@ -251,9 +252,11 @@ function effectiveSecurityTypeForVlessInboundFlow(inbound: Inbound | undefined, 
 
 function effectiveTransportTypeForVlessInboundFlow(inbound: Inbound | undefined): string {
   if (!inbound || !('transport' in inbound) || !inbound.transport) return 'tcp'
-  return String((inbound.transport as { type?: unknown }).type ?? 'tcp')
-    .trim()
-    .toLowerCase() || 'tcp'
+  return (
+    String((inbound.transport as { type?: unknown }).type ?? 'tcp')
+      .trim()
+      .toLowerCase() || 'tcp'
+  )
 }
 
 function vlessInboundEncryptionEnabled(raw: unknown): boolean {
@@ -264,9 +267,15 @@ function vlessInboundEncryptionEnabled(raw: unknown): boolean {
 
 function vlessInboundFlowAllowed(input: { securityType: string | undefined; transportType: string | undefined; encryption: unknown }): boolean {
   if (vlessInboundEncryptionEnabled(input.encryption)) return true
-  const security = String(input.securityType ?? 'none').trim().toLowerCase()
-  const transport = String(input.transportType ?? 'tcp').trim().toLowerCase() || 'tcp'
-  return transport === 'tcp' && (security === 'tls' || security === 'reality')
+  const security = String(input.securityType ?? 'none')
+    .trim()
+    .toLowerCase()
+  const transport =
+    String(input.transportType ?? 'tcp')
+      .trim()
+      .toLowerCase() || 'tcp'
+  if (transport === 'tcp') return security === 'tls' || security === 'reality'
+  return transport === 'xhttp' && security === 'tls'
 }
 
 function vlessInboundFlowIncompatible(input: { securityType: string | undefined; transportType: string | undefined; encryption: unknown; flow: string | undefined }): boolean {
@@ -353,6 +362,34 @@ function kitArgsPreservingListenPort(inbound: Inbound): { tag: string; listen?: 
   return args
 }
 
+function hysteriaSalamanderPasswordForForm(inbound: Inbound): string {
+  if (inbound.protocol !== 'hysteria' || inbound.transport.type !== 'hysteria') return ''
+  const udpmasks = (inbound.transport as unknown as { udpmasks?: unknown }).udpmasks
+  if (!Array.isArray(udpmasks)) return ''
+  const salamander = udpmasks.find(mask => {
+    if (!mask || typeof mask !== 'object' || Array.isArray(mask)) return false
+    return (mask as { type?: unknown }).type === 'salamander'
+  })
+  if (!salamander || typeof salamander !== 'object' || Array.isArray(salamander)) return ''
+  const settings = (salamander as { settings?: unknown }).settings
+  if (!settings || typeof settings !== 'object' || Array.isArray(settings)) return ''
+  const password = (settings as { password?: unknown }).password
+  return typeof password === 'string' ? password : ''
+}
+
+function hysteriaUdpmasksWithSalamanderPassword(current: unknown, password: string | undefined): Array<{ type: string; settings?: Record<string, unknown> }> | undefined {
+  const existing = Array.isArray(current)
+    ? current.filter((mask): mask is Record<string, unknown> => Boolean(mask) && typeof mask === 'object' && !Array.isArray(mask))
+    : []
+  const withoutSalamander = existing.filter(mask => mask.type !== 'salamander')
+  const normalized = password?.trim() ?? ''
+  if (normalized === '') return withoutSalamander.length > 0 ? withoutSalamander.map(mask => ({ ...mask } as { type: string; settings?: Record<string, unknown> })) : undefined
+  return [
+    ...withoutSalamander.map(mask => ({ ...mask } as { type: string; settings?: Record<string, unknown> })),
+    { type: 'salamander', settings: { password: normalized } },
+  ]
+}
+
 /** xray-config-kit factory defaults tunnel/dokodemo `network` to tcp; editor default is tcp,udp. */
 function applyTunnelEditorCreationDefaults(ib: Inbound): Inbound {
   if (ib.protocol !== 'tunnel' && ib.protocol !== 'dokodemo-door') return ib
@@ -430,9 +467,22 @@ function applyWireguardGeneratedSecretOnCreate(ib: Inbound): Inbound {
   return { ...ib, secretKey: keyPair.privateKey } as Inbound
 }
 
+function stripHysteriaInboundAuth(ib: Inbound): Inbound {
+  if (ib.protocol !== 'hysteria' || ib.transport.type !== 'hysteria') return ib
+  const nextTransport = { ...ib.transport } as Record<string, unknown>
+  delete nextTransport.auth
+  return {
+    ...ib,
+    clients: [],
+    transport: nextTransport as Transport,
+  } as Inbound
+}
+
 function applyInboundEditorCreationDefaults(ib: Inbound): Inbound {
-  return applyWireguardGeneratedSecretOnCreate(
-    applyWireguardEditorCreationDefaults(applyTunEditorCreationDefaults(applyHttpEditorCreationDefaults(applyMixedLikeEditorCreationDefaults(applyTunnelEditorCreationDefaults(ib))))),
+  return stripHysteriaInboundAuth(
+    applyWireguardGeneratedSecretOnCreate(
+      applyWireguardEditorCreationDefaults(applyTunEditorCreationDefaults(applyHttpEditorCreationDefaults(applyMixedLikeEditorCreationDefaults(applyTunnelEditorCreationDefaults(ib))))),
+    ),
   )
 }
 
@@ -637,6 +687,24 @@ function getRandomInt(max: number): number {
   return array[0] % max
 }
 
+const RANDOM_INBOUND_PORT_MIN = 10000
+const RANDOM_INBOUND_PORT_MAX = 65535
+
+function randomInboundPort(profile: Profile | null): number {
+  const usedPorts = new Set<number>()
+  for (const inbound of profile?.inbounds ?? []) {
+    if (!('port' in inbound) || typeof inbound.port !== 'number') continue
+    usedPorts.add(inbound.port)
+  }
+
+  const range = RANDOM_INBOUND_PORT_MAX - RANDOM_INBOUND_PORT_MIN + 1
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    const port = RANDOM_INBOUND_PORT_MIN + getRandomInt(range)
+    if (!usedPorts.has(port)) return port
+  }
+  return RANDOM_INBOUND_PORT_MIN + getRandomInt(range)
+}
+
 function generatePassword(length: number = 24): string {
   const letters = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
   const numbers = '0123456789'
@@ -705,15 +773,23 @@ function mergeTrojanInboundStreamFields(prev: Inbound, next: Inbound): Inbound {
   return merged as Inbound
 }
 
+function isDisallowedShadowsocksMethod(method: string): boolean {
+  return method.startsWith('x') || method === '2022-blake3-chacha20-poly1305'
+}
+
+const CORE_EDITOR_SHADOWSOCKS_ENCRYPTION_METHODS = SHADOWSOCKS_ENCRYPTION_METHODS.filter(method => !isDisallowedShadowsocksMethod(method.value))
+
 function shadowsocksMethodFormValue(row: Inbound): string {
-  if (row.protocol !== 'shadowsocks') return SHADOWSOCKS_ENCRYPTION_METHODS[0].value
+  if (row.protocol !== 'shadowsocks') return CORE_EDITOR_SHADOWSOCKS_ENCRYPTION_METHODS[0].value
   const m = 'method' in row ? row.method : undefined
-  if (m === undefined || String(m).trim() === '') return SHADOWSOCKS_ENCRYPTION_METHODS[0].value
-  return String(m)
+  if (m === undefined || String(m).trim() === '') return CORE_EDITOR_SHADOWSOCKS_ENCRYPTION_METHODS[0].value
+  const method = String(m)
+  return isDisallowedShadowsocksMethod(method) ? CORE_EDITOR_SHADOWSOCKS_ENCRYPTION_METHODS[0].value : method
 }
 
 function shadowsocksPasswordFormValue(row: Inbound): string {
   if (row.protocol !== 'shadowsocks') return ''
+  if (!canGenerateShadowsocksPassword(shadowsocksMethodFormValue(row))) return ''
   const p = 'password' in row ? row.password : undefined
   return p === undefined || p === null ? '' : String(p)
 }
@@ -738,7 +814,7 @@ function mergeShadowsocksInboundStreamFields(prev: Inbound, next: Inbound): Inbo
   const p = prev as { method?: string; password?: string; network?: string | string[] }
   const merged = { ...next } as { method?: string; password?: string; network?: string | string[] }
   if (p.method !== undefined) merged.method = p.method
-  if (p.password !== undefined) merged.password = p.password
+  if (p.password !== undefined && canGenerateShadowsocksPassword(merged.method ?? '')) merged.password = p.password
   if (p.network !== undefined) merged.network = p.network
   return merged as Inbound
 }
@@ -875,7 +951,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
       encryption: 'none',
       decryption: '',
       vlessFlow: '',
-      shadowsocksMethod: SHADOWSOCKS_ENCRYPTION_METHODS[0].value,
+      shadowsocksMethod: CORE_EDITOR_SHADOWSOCKS_ENCRYPTION_METHODS[0].value,
       shadowsocksPassword: '',
       shadowsocksNetwork: 'tcp,udp',
       transport: 'tcp',
@@ -888,6 +964,8 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
       tunMtu: '',
       wgSecretKey: '',
       wgMtu: '',
+      hysteriaObfsEnabled: 'false',
+      hysteriaObfsPassword: '',
     },
     // `onSubmit`: REALITY rules use `superRefine` on the whole form — with `onTouched`, focusing
     // e.g. Security runs the resolver once and surfaces every REALITY field error at once. With
@@ -974,10 +1052,6 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
       shadowsocksMethod: shadowsocksMethodFormValue(row),
       shadowsocksPassword: shadowsocksPasswordFormValue(row),
       shadowsocksNetwork: shadowsocksNetworkFormValue(row),
-      hysteriaAuth:
-        row.protocol === 'hysteria'
-          ? (row.clients.find(client => client.protocol === 'hysteria')?.auth ?? (row.transport.type === 'hysteria' && typeof row.transport.auth === 'string' ? row.transport.auth : ''))
-          : '',
       hysteriaUdpIdleTimeout: row.protocol === 'hysteria' && row.transport.type === 'hysteria' && row.transport.udpIdleTimeout !== undefined ? String(row.transport.udpIdleTimeout) : '',
       hysteriaMasqueradeType: row.protocol === 'hysteria' && row.transport.type === 'hysteria' && row.transport.masquerade?.type ? String(row.transport.masquerade.type) : '__none',
       hysteriaMasqueradeDir: row.protocol === 'hysteria' && row.transport.type === 'hysteria' && typeof row.transport.masquerade?.dir === 'string' ? row.transport.masquerade.dir : '',
@@ -991,6 +1065,8 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
           : '',
       hysteriaMasqueradeStatusCode:
         row.protocol === 'hysteria' && row.transport.type === 'hysteria' && typeof row.transport.masquerade?.statusCode === 'number' ? String(row.transport.masquerade.statusCode) : '',
+      hysteriaObfsEnabled: hysteriaSalamanderPasswordForForm(row) ? 'true' : 'false',
+      hysteriaObfsPassword: hysteriaSalamanderPasswordForForm(row),
       sniffingEnabled: sniffing?.enabled ? 'true' : 'false',
       sniffingDestOverride: JSON.stringify(parseSniffingDestOverride(sniffing?.destOverride)),
       sniffingMetadataOnly: sniffing?.metadataOnly ? 'true' : 'false',
@@ -1115,6 +1191,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
       protocol: 'vless',
       transport: 'tcp',
       security: 'none',
+      port: randomInboundPort(profile),
       clientDefaults: 'empty',
     })
     setDraftInbound(created)
@@ -1660,7 +1737,8 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
       if (key === 'encryption' || key === 'decryption') continue
       if (key === 'flow') continue
       if (key === 'fallbacks') continue
-      if (val !== undefined) base[key] = val
+      if (val === undefined) delete base[key]
+      else base[key] = val
     }
     if ('encryption' in patch) {
       const v = patch.encryption
@@ -1680,13 +1758,6 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
     if ('listen' in patch) {
       if (!shouldPersistInboundListen(patch.listen as string | undefined)) delete base.listen
     }
-    if ('sniffing' in patch && patch.sniffing === undefined) delete base.sniffing
-    if ('port' in patch && patch.port === undefined) delete base.port
-    if ('address' in patch && patch.address === undefined) delete base.address
-    if ('targetPort' in patch && patch.targetPort === undefined) delete base.targetPort
-    if ('network' in patch && patch.network === undefined) delete base.network
-    if ('raw' in patch && patch.raw === undefined) delete base.raw
-    if ('portMap' in patch && patch.portMap === undefined) delete base.portMap
     if ('fallbacks' in patch) {
       const fb = patch.fallbacks as Fallback[] | undefined
       if (fb === undefined || (Array.isArray(fb) && fb.length === 0)) delete base.fallbacks
@@ -1815,16 +1886,11 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
   )
 
   const patchHysteriaServerSettings = useCallback(
-    (patch: { auth?: string; udpIdleTimeout?: number | undefined; masquerade?: Record<string, unknown> | undefined }) => {
+    (patch: { udpIdleTimeout?: number | undefined; masquerade?: Record<string, unknown> | undefined; obfsPassword?: string | undefined }) => {
       if (!inbound || inbound.protocol !== 'hysteria' || inbound.transport.type !== 'hysteria') return
-      // Peer auth belongs on hysteria transport (hysteriaSettings); keep settings.clients empty in exported Xray JSON.
-      const nextClients = inbound.clients.filter(client => client.protocol !== 'hysteria')
-      const nextTransport = { ...inbound.transport }
-      if ('auth' in patch) {
-        const auth = (patch.auth ?? '').trim()
-        if (auth === '') delete nextTransport.auth
-        else nextTransport.auth = auth
-      }
+      // Xray Hysteria inbound JSON must keep settings.clients empty and omit hysteriaSettings.auth.
+      const nextTransport = { ...inbound.transport } as Record<string, unknown>
+      delete nextTransport.auth
       if ('udpIdleTimeout' in patch) {
         const timeout = patch.udpIdleTimeout
         if (timeout === undefined || Number.isNaN(timeout)) delete nextTransport.udpIdleTimeout
@@ -1842,18 +1908,18 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
           else nextTransport.masquerade = mergedMasquerade as NonNullable<typeof nextTransport.masquerade>
         }
       }
+      if ('obfsPassword' in patch) {
+        const udpmasks = hysteriaUdpmasksWithSalamanderPassword(nextTransport.udpmasks, patch.obfsPassword)
+        if (udpmasks === undefined) delete nextTransport.udpmasks
+        else nextTransport.udpmasks = udpmasks
+      }
       patchInbound({
-        clients: nextClients,
+        clients: [],
         transport: nextTransport as Transport,
       } as Partial<Inbound>)
     },
     [inbound],
   )
-  const generateHysteriaAuth = useCallback(() => {
-    const generated = generatePassword()
-    form.setValue('hysteriaAuth', generated)
-    patchHysteriaServerSettings({ auth: generated })
-  }, [form, patchHysteriaServerSettings])
   const hysteriaMasqueradeType = form.watch('hysteriaMasqueradeType')
   const sniffingEnabledValue = form.watch('sniffingEnabled')
   const isSniffingEnabled = sniffingEnabledValue === 'true'
@@ -1997,6 +2063,10 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
 
   const generateInboundShadowsocksPassword = () => {
     const methodValue = form.getValues('shadowsocksMethod')
+    if (!canGenerateShadowsocksPassword(methodValue)) {
+      toast.error(t('coreConfigModal.shadowsocksPasswordGenerationFailed'))
+      return
+    }
     setIsGeneratingShadowsocksPassword(true)
     try {
       const result = generateShadowsocksPassword(methodValue)
@@ -2559,7 +2629,12 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                             onValueChange={v => {
                               field.onChange(v)
                               setShadowsocksPasswordJustGenerated(false)
-                              patchInbound({ method: v as ShadowsocksMethod } as Partial<Inbound>)
+                              if (canGenerateShadowsocksPassword(v)) {
+                                patchInbound({ method: v as ShadowsocksMethod } as Partial<Inbound>)
+                              } else {
+                                form.setValue('shadowsocksPassword', '')
+                                patchInbound({ method: v as ShadowsocksMethod, password: undefined } as Partial<Inbound>)
+                              }
                             }}
                           >
                             <FormControl>
@@ -2568,8 +2643,8 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent dir="ltr">
-                              {!SHADOWSOCKS_ENCRYPTION_METHODS.some(m => m.value === field.value) ? <SelectItem value={field.value}>{field.value}</SelectItem> : null}
-                              {SHADOWSOCKS_ENCRYPTION_METHODS.map(method => (
+                              {!isDisallowedShadowsocksMethod(field.value) && !CORE_EDITOR_SHADOWSOCKS_ENCRYPTION_METHODS.some(m => m.value === field.value) ? <SelectItem value={field.value}>{field.value}</SelectItem> : null}
+                              {CORE_EDITOR_SHADOWSOCKS_ENCRYPTION_METHODS.map(method => (
                                 <SelectItem key={method.value} value={method.value}>
                                   {method.label}
                                 </SelectItem>
@@ -2612,45 +2687,48 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                       )}
                     />
 
-                    <FormField
-                      control={form.control}
-                      name="shadowsocksPassword"
-                      render={({ field }) => (
-                        <FormItem className="w-full min-w-0 sm:col-span-2">
-                          <FormLabel className="text-muted-foreground text-xs font-semibold tracking-wide">{t('coreConfigModal.shadowsocksPassword')}</FormLabel>
-                          <FormControl>
-                            <PasswordInput
-                              dir="ltr"
-                              autoComplete="new-password"
-                              className="h-10 w-full"
-                              value={field.value}
-                              onChange={e => {
-                                const v = e.target.value
-                                field.onChange(v)
-                                setShadowsocksPasswordJustGenerated(false)
-                                patchInbound({ password: v } as Partial<Inbound>)
-                              }}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <div className="sm:col-span-2">
-                      <LoaderButton
-                        type="button"
-                        onClick={generateInboundShadowsocksPassword}
-                        className="h-10 w-full text-sm font-medium transition-all hover:shadow-md sm:h-11"
-                        isLoading={isGeneratingShadowsocksPassword}
-                        loadingText={t('coreConfigModal.generatingShadowsocksPassword')}
-                      >
-                        <span className="flex items-center gap-2 truncate">
-                          {shadowsocksPasswordJustGenerated && <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-green-500 ring-2 ring-green-500/20" />}
-                          {t('coreConfigModal.generateShadowsocksPassword')}
-                        </span>
-                      </LoaderButton>
-                    </div>
+                    {canGenerateShadowsocksPassword(form.watch('shadowsocksMethod')) && (
+                      <>
+                        <FormField
+                          control={form.control}
+                          name="shadowsocksPassword"
+                          render={({ field }) => (
+                            <FormItem className="w-full min-w-0 sm:col-span-2">
+                              <FormLabel className="text-muted-foreground text-xs font-semibold tracking-wide">{t('coreConfigModal.shadowsocksPassword')}</FormLabel>
+                              <FormControl>
+                                <PasswordInput
+                                  dir="ltr"
+                                  autoComplete="new-password"
+                                  className="h-10 w-full"
+                                  value={field.value}
+                                  onChange={e => {
+                                    const v = e.target.value
+                                    field.onChange(v)
+                                    setShadowsocksPasswordJustGenerated(false)
+                                    patchInbound({ password: v } as Partial<Inbound>)
+                                  }}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <div className="sm:col-span-2">
+                          <LoaderButton
+                            type="button"
+                            onClick={generateInboundShadowsocksPassword}
+                            className="h-10 w-full text-sm font-medium transition-all hover:shadow-md sm:h-11"
+                            isLoading={isGeneratingShadowsocksPassword}
+                            loadingText={t('coreConfigModal.generatingShadowsocksPassword')}
+                          >
+                            <span className="flex items-center gap-2 truncate">
+                              {shadowsocksPasswordJustGenerated && <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-green-500 ring-2 ring-green-500/20" />}
+                              {t('coreConfigModal.generateShadowsocksPassword')}
+                            </span>
+                          </LoaderButton>
+                        </div>
+                      </>
+                    )}
                   </>
                 )}
 
@@ -2782,43 +2860,6 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                   <>
                     <FormField
                       control={form.control}
-                      name="hysteriaAuth"
-                      render={({ field }) => (
-                        <FormItem className="sm:col-span-2">
-                          <FormLabel className="text-muted-foreground text-xs font-semibold tracking-wide">{t('coreEditor.inbound.hysteria.auth', { defaultValue: 'Auth' })}</FormLabel>
-                          <FormControl>
-                            <div className={cn('flex w-full min-w-0 items-center gap-2', dir === 'rtl' && 'flex-row-reverse')}>
-                              <div className="min-w-0 flex-1">
-                                <PasswordInput
-                                  dir="ltr"
-                                  autoComplete="new-password"
-                                  className="h-10 w-full"
-                                  value={field.value ?? ''}
-                                  onChange={e => {
-                                    const v = e.target.value
-                                    field.onChange(v)
-                                    patchHysteriaServerSettings({ auth: v })
-                                  }}
-                                />
-                              </div>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                onClick={generateHysteriaAuth}
-                                className="shrink-0"
-                                title={t('coreEditor.inbound.hysteria.generateAuth', { defaultValue: 'Generate auth key' })}
-                              >
-                                <RefreshCw className="h-3 w-3" aria-hidden />
-                              </Button>
-                            </div>
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
                       name="hysteriaUdpIdleTimeout"
                       render={({ field, fieldState }) => (
                         <FormItem>
@@ -2848,6 +2889,60 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                         </FormItem>
                       )}
                     />
+                    <FormField
+                      control={form.control}
+                      name="hysteriaObfsEnabled"
+                      render={({ field }) => (
+                        <FormItem className="flex min-h-10 flex-row items-center justify-between gap-3 space-y-0 rounded-md border px-3 py-2">
+                          <FormLabel className="cursor-pointer text-sm font-medium">
+                            {t('coreEditor.inbound.hysteria.obfs', { defaultValue: 'Salamander obfuscation' })}
+                          </FormLabel>
+                          <FormControl>
+                            <Switch
+                              checked={field.value === 'true'}
+                              onCheckedChange={checked => {
+                                field.onChange(checked ? 'true' : 'false')
+                                if (!checked) {
+                                  form.setValue('hysteriaObfsPassword', '')
+                                  patchHysteriaServerSettings({ obfsPassword: undefined })
+                                } else {
+                                  const current = form.getValues('hysteriaObfsPassword') || generatePassword()
+                                  form.setValue('hysteriaObfsPassword', current)
+                                  patchHysteriaServerSettings({ obfsPassword: current })
+                                }
+                              }}
+                            />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                    {form.watch('hysteriaObfsEnabled') === 'true' && (
+                      <FormField
+                        control={form.control}
+                        name="hysteriaObfsPassword"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-muted-foreground text-xs font-semibold tracking-wide">
+                              {t('coreEditor.inbound.hysteria.obfsPassword', { defaultValue: 'Obfs password' })}
+                            </FormLabel>
+                            <FormControl>
+                              <PasswordInput
+                                dir="ltr"
+                                autoComplete="new-password"
+                                className="h-10"
+                                value={field.value ?? ''}
+                                onChange={e => {
+                                  const v = e.target.value
+                                  field.onChange(v)
+                                  patchHysteriaServerSettings({ obfsPassword: v })
+                                }}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    )}
                     <FormField
                       control={form.control}
                       name="hysteriaMasqueradeType"
@@ -3382,7 +3477,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                           {!vlessInboundFlowsOk ? (
                             <p className="text-muted-foreground text-xs">
                               {t('coreEditor.inbound.vlessFlowVisionRequiresTls', {
-                                defaultValue: 'XTLS Vision requires TCP with TLS/REALITY, or VLESS Encryption.',
+                                defaultValue: 'XTLS Vision requires TCP with TLS/REALITY, xHTTP with TLS, or VLESS Encryption.',
                               })}
                             </p>
                           ) : null}
@@ -4628,7 +4723,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                           patchInbound({ address: nextAddresses.length > 0 ? nextAddresses : undefined } as Partial<Inbound>)
                         }}
                         placeholder={t('coreEditor.inbound.wireguard.addressHint', {
-                            defaultValue: 'Example: 10.0.0.1/32',
+                          defaultValue: 'Example: 10.0.0.1/32',
                         })}
                         addPlaceholder={t('coreEditor.inbound.wireguard.addressAddPlaceholder', {
                           defaultValue: 'Add address',
