@@ -902,7 +902,7 @@ class APIKeyStatus(str, Enum):
     disabled = "disabled"
 
 
-class APIKey(Base, IdMixin, CreatedAtUTCMixin):
+class APIKey(Base, CreatedAtUTCMixin):
     __tablename__ = "api_keys"
     __table_args__ = (
         UniqueConstraint("key_hash"),
