@@ -30,7 +30,7 @@ const SINCE_DURATION_MS: Record<Exclude<TimeFilter, 'all'>, number> = {
   '12h': 12 * 60 * 60 * 1000,
   '24h': 24 * 60 * 60 * 1000,
 }
-import { parseLogs, getLogType, type LogLine } from '@/utils/logsUtils'
+import { parseLogs, type LogLine } from '@/utils/logsUtils'
 import { EventSource } from 'eventsource'
 
 export const priorities = [
@@ -246,7 +246,7 @@ export default function NodeLogs() {
 
     return sortedLogs
       .filter(log => {
-        if (typeFilter.length > 0 && !typeFilter.includes(getLogType(log.message).type)) {
+        if (typeFilter.length > 0 && !typeFilter.includes(log.type)) {
           return false
         }
         if (search && !log.message.toLowerCase().includes(search.toLowerCase())) {

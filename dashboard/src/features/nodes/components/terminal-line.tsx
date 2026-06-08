@@ -5,7 +5,7 @@ import { Tooltip, TooltipContent, TooltipPortal, TooltipProvider, TooltipTrigger
 import { cn } from '@/lib/utils'
 import dayjs from '@/lib/dayjs'
 import type { Dayjs } from 'dayjs'
-import { getLogType, type LogLine } from '@/utils/logsUtils'
+import { getLogStyle, type LogLine } from '@/utils/logsUtils'
 import { useTranslation } from 'react-i18next'
 
 interface LogLineProps {
@@ -18,7 +18,7 @@ const fancyAnsi = new FancyAnsi()
 
 export function TerminalLine({ log, noTimestamp, searchTerm }: LogLineProps) {
   const { timestamp, message, rawTimestamp } = log
-  const { type, variant, color } = getLogType(message)
+  const { type, variant, color } = getLogStyle(log.type)
   const { t, i18n } = useTranslation()
   const locale = i18n.language
 
