@@ -1,7 +1,7 @@
 """add api keys table
 
 Revision ID: c9b48df42f10
-Revises: 2c6e9d34a1f0
+Revises: f9c69a49f544
 Create Date: 2026-05-25 00:00:00.000000
 
 """
@@ -15,7 +15,7 @@ import app.db.compiles_types
 
 # revision identifiers, used by Alembic.
 revision = "c9b48df42f10"
-down_revision = "2c6e9d34a1f0"
+down_revision = "f9c69a49f544"
 branch_labels = None
 depends_on = None
 
