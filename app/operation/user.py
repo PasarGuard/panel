@@ -114,6 +114,7 @@ from app.utils.system import readable_duration, readable_size
 from app.utils.wireguard import (
     build_wireguard_peer_ip_allocator,
     bulk_reallocate_wireguard_peer_ips as run_bulk_reallocate_wireguard_peer_ips,
+    ensure_unique_wireguard_public_key,
     get_wireguard_tags_from_groups,
     prepare_wireguard_keys_only,
     prepare_wireguard_proxy_settings,
@@ -135,6 +136,18 @@ logger = get_logger("user-operation")
 
 _USER_AGENT_SPLIT_RE = re.compile(r"[;/\s\(\)]+")
 _VERSION_TOKEN_RE = re.compile(r"v?\d+(?:\.\d+)*", re.IGNORECASE)
+
+
+def _duplicate_wireguard_public_key_usernames(users: list[UserCreate]) -> tuple[str, list[str]] | None:
+    owners: dict[str, list[str]] = {}
+    for user in users:
+        public_key = user.proxy_settings.wireguard.public_key
+        if public_key:
+            owners.setdefault(public_key, []).append(user.username)
+    for public_key, usernames in owners.items():
+        if len(usernames) > 1:
+            return public_key, usernames
+    return None
 
 
 def _resolve_enabled_user_status(user: User) -> UserStatus:
@@ -340,6 +353,23 @@ class UserOperation(BaseOperation):
                     user_to_create.proxy_settings,
                 )
 
+        duplicate_key = _duplicate_wireguard_public_key_usernames(users_to_create)
+        if duplicate_key is not None:
+            public_key, usernames = duplicate_key
+            await self.raise_error(
+                message=(
+                    f"wireguard public_key {public_key} is assigned to multiple new users: "
+                    f"{', '.join(usernames[:2])}"
+                ),
+                code=400,
+                db=db,
+            )
+        for user_to_create in users_to_create:
+            try:
+                await ensure_unique_wireguard_public_key(db, user_to_create.proxy_settings)
+            except ValueError as exc:
+                await self.raise_error(message=str(exc), code=400, db=db)
+
         db_users = await create_users_bulk(db, users_to_create, groups, db_admin, commit=commit)
         if not commit:
             for user in db_users:
@@ -383,6 +413,7 @@ class UserOperation(BaseOperation):
                     db,
                     proxy_settings,
                     groups,
+                    exclude_user_id=exclude_user_id,
                 )
             else:
                 return await prepare_wireguard_proxy_settings(

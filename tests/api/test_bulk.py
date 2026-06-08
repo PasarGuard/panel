@@ -61,6 +61,22 @@ def set_user_wireguard_peer_ips(username: str, peer_ips: list[str]) -> None:
     asyncio.run(_set_peer_ips())
 
 
+def set_user_wireguard_keys(username: str, private_key: str, public_key: str) -> None:
+    async def _set_keys():
+        async with TestSession() as session:
+            result = await session.execute(select(User).where(User.username == username))
+            db_user = result.scalar_one()
+            proxy_settings = dict(db_user.proxy_settings or {})
+            wireguard_settings = dict(proxy_settings.get("wireguard") or {})
+            wireguard_settings["private_key"] = private_key
+            wireguard_settings["public_key"] = public_key
+            proxy_settings["wireguard"] = wireguard_settings
+            db_user.proxy_settings = proxy_settings
+            await session.commit()
+
+    asyncio.run(_set_keys())
+
+
 def get_user_sub_revoked_at(username: str):
     async def _get_revoked_at():
         async with TestSession() as session:
@@ -657,5 +673,75 @@ def test_bulk_wireguard_reallocate_peer_ips_repairs_duplicates(access_token):
         assert second_peer_ips[0] != duplicate_peer_ip
         assert second_peer_ips[0].startswith("10.")
         assert second_peer_ips[0].endswith("/32")
+    finally:
+        cleanup(access_token, core, [group], users)
+
+
+def test_bulk_wireguard_reallocate_peer_ips_repairs_duplicate_keys(access_token):
+    interface_private_key, _ = generate_wireguard_keypair()
+    duplicate_private_key, duplicate_public_key = generate_wireguard_keypair()
+    interface_name = unique_name("wg_bulk_key_dup")
+    core = create_core(
+        access_token,
+        name=unique_name("wireguard_bulk_key_dup_core"),
+        config={
+            "interface_name": interface_name,
+            "private_key": interface_private_key,
+            "listen_port": 51820,
+            "address": [],
+        },
+        type="wg",
+        fallbacks=[],
+    )
+    group = create_group(access_token, name=unique_name("wg_bulk_key_dup_group"), inbound_tags=[interface_name])
+
+    users: list[dict] = []
+    try:
+        first_user = create_user(
+            access_token,
+            group_ids=[group["id"]],
+            payload={"username": unique_name("wg_key_dup_keep")},
+        )
+        second_user = create_user(
+            access_token,
+            group_ids=[group["id"]],
+            payload={"username": unique_name("wg_key_dup_rekey")},
+        )
+        users = [first_user, second_user]
+        set_user_wireguard_keys(first_user["username"], duplicate_private_key, duplicate_public_key)
+        set_user_wireguard_keys(second_user["username"], duplicate_private_key, duplicate_public_key)
+
+        dry_run_response = client.post(
+            "/api/users/bulk/wireguard/reallocate-peer-ips",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={"dry_run": True, "confirm": False, "users": [second_user["id"]]},
+        )
+        assert dry_run_response.status_code == status.HTTP_200_OK
+        assert dry_run_response.json()["candidates"] == 1
+
+        response = client.post(
+            "/api/users/bulk/wireguard/reallocate-peer-ips",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={"confirm": True, "users": [second_user["id"]]},
+        )
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["updated"] == 1
+
+        first_response = client.get(
+            f"/api/user/{first_user['username']}",
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+        second_response = client.get(
+            f"/api/user/{second_user['username']}",
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+        assert first_response.status_code == status.HTTP_200_OK
+        assert second_response.status_code == status.HTTP_200_OK
+
+        first_wireguard = first_response.json()["proxy_settings"]["wireguard"]
+        second_wireguard = second_response.json()["proxy_settings"]["wireguard"]
+        assert first_wireguard["public_key"] == duplicate_public_key
+        assert second_wireguard["public_key"] != duplicate_public_key
+        assert second_wireguard["private_key"] != duplicate_private_key
     finally:
         cleanup(access_token, core, [group], users)
