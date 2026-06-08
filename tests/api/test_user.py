@@ -1182,8 +1182,8 @@ def test_wireguard_disabled_skips_peer_ip_allocation_and_subscription_outputs(ac
     user = create_user(access_token, group_ids=[group["id"]], payload={"username": unique_name("wg_disabled_user")})
 
     try:
-        assert user["proxy_settings"]["wireguard"]["private_key"]
-        assert user["proxy_settings"]["wireguard"]["public_key"]
+        assert user["proxy_settings"]["wireguard"]["private_key"] is None
+        assert user["proxy_settings"]["wireguard"]["public_key"] is None
         assert user["proxy_settings"]["wireguard"]["peer_ips"] == []
 
         links_response = client.get(f"{user['subscription_url']}/links")
