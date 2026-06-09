@@ -928,6 +928,8 @@
   "removeAllUsers.prompt": "Are you sure you want to remove all users under admin <b>{{name}}</b>? This action cannot be undone.",
   "admin.disable": "Disable Admin",
   "admin.enable": "Enable Admin",
+  "admin.disablePrompt": "Are you sure you want to disable admin <b>{{name}}</b>?",
+  "admin.enablePrompt": "Are you sure you want to enable admin <b>{{name}}</b>?",
   "deleteAdmin.prompt": "Are you sure you want to remove the <b>{{name}}</b> admin?",
   "activeUsers.prompt": "Do you want to activate all users under {{name}}?",
   "disableUsers.prompt": "Do you want to disable all users under {{name}}?",

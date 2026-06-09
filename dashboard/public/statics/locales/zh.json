@@ -928,6 +928,8 @@
   "removeAllUsers.prompt": "你确定要删除管理员<b>{{name}}</b>下的所有用户吗？此操作无法撤销。",
   "admin.disable": "禁用管理员",
   "admin.enable": "启用管理员",
+  "admin.disablePrompt": "你确定要禁用管理员 <b>{{name}}</b> 吗？",
+  "admin.enablePrompt": "你确定要启用管理员 <b>{{name}}</b> 吗？",
   "deleteAdmin.prompt": "您确定要删除管理员<b>{{name}}</b>吗？",
   "activeUsers.prompt": "您是否要激活此 {{name}} 下的所有用户？",
   "disableUsers.prompt": "您是否要禁用此 {{name}} 下的所有用户？",
