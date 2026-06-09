@@ -136,7 +136,7 @@ export const setupColumns = ({
                 <div className="flex items-center gap-x-1.5 overflow-hidden">
                   <span className="overflow-hidden text-ellipsis whitespace-nowrap text-sm font-medium">{row.getValue('username')}</span>
                   <span className="hidden shrink-0 font-mono text-[10px] text-muted-foreground/70 md:inline">#{row.original.id}</span>
-                  {onlineTimeText && <span className="hidden shrink-0 font-normal text-muted-foreground md:inline">{onlineTimeText}</span>}
+                  {onlineTimeText && <span className="hidden shrink-0 text-[10px] font-normal text-muted-foreground md:inline">{onlineTimeText}</span>}
                 </div>
                 {showCreatedBy && row.original.admin?.username && (
                   <span className="flex items-center gap-x-0.5 overflow-hidden text-xs font-normal text-muted-foreground">
