@@ -26,7 +26,7 @@ const ClientTemplate = ({
 
   return (
     <Card
-      className={cn('group relative h-full px-4 py-5 transition-colors', canUpdate && 'cursor-pointer hover:bg-accent', selected && 'border-primary/50 bg-accent/30')}
+      className={cn('group relative h-full px-4 py-5 transition-colors', canUpdate && 'hover:bg-accent cursor-pointer', selected && 'border-primary/50 bg-accent/30')}
       onClick={() => {
         if (canUpdate) onEdit(template)
       }}
@@ -39,7 +39,7 @@ const ClientTemplate = ({
               <div className="min-w-0 truncate font-medium">{template.name}</div>
               <ClientTemplateMarkers isDefault={template.is_default} isSystem={template.is_system} />
             </div>
-            <div className="min-w-0 truncate text-sm capitalize text-muted-foreground">{templateTypeLabel}</div>
+            <div className="text-muted-foreground min-w-0 truncate text-sm capitalize">{templateTypeLabel}</div>
           </div>
           <div onClick={event => event.stopPropagation()}>
             <ClientTemplateActionsMenu template={template} onEdit={onEdit} canCreate={canCreate} canUpdate={canUpdate} canDelete={canDelete} />

@@ -21,7 +21,7 @@ export function useDebouncedSearch(initialValue: string = '', delay: number = 30
   useEffect(() => {
     debouncedSearchRef.current.cancel()
     setSearch(prev => (prev === normalizedInitialValue ? prev : normalizedInitialValue))
-    setDebouncedSearch(prev => (prev === (normalizedInitialValue || undefined) ? prev : (normalizedInitialValue || undefined)))
+    setDebouncedSearch(prev => (prev === (normalizedInitialValue || undefined) ? prev : normalizedInitialValue || undefined))
   }, [normalizedInitialValue])
 
   const handleSearchChange = useCallback((value: string) => {
@@ -35,4 +35,3 @@ export function useDebouncedSearch(initialValue: string = '', delay: number = 30
     setSearch: handleSearchChange,
   }
 }
-

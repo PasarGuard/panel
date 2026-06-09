@@ -150,8 +150,7 @@ export function ListGenerator<T>({
       }) as React.CSSProperties,
     [listTemplateColumnsMobile, listTemplateColumnsDesktop],
   )
-  const listTemplateClassName =
-    'grid items-center [grid-template-columns:var(--list-cols-mobile)] md:[grid-template-columns:var(--list-cols-desktop)]'
+  const listTemplateClassName = 'grid items-center [grid-template-columns:var(--list-cols-mobile)] md:[grid-template-columns:var(--list-cols-desktop)]'
   const dir = useDirDetection()
   const headerSelectionCheckboxClassName = 'h-3.5 w-3.5 rounded-[3px] border-muted-foreground/40 data-[state=checked]:border-primary'
   const selectionCheckboxClassName =
@@ -269,7 +268,7 @@ export function ListGenerator<T>({
                 <button
                   type="button"
                   className={cn(
-                    'text-muted-foreground flex size-full max-h-9 touch-none items-center justify-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+                    'text-muted-foreground focus-visible:ring-ring focus-visible:ring-offset-background flex size-full max-h-9 touch-none items-center justify-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-offset-2',
                     sortingDisabled ? 'cursor-not-allowed opacity-40' : 'z-50 cursor-grab active:cursor-grabbing',
                   )}
                   onClick={event => event.stopPropagation()}
@@ -297,7 +296,10 @@ export function ListGenerator<T>({
                 </div>
               )}
               {columns.map(column => (
-                <div key={`${column.id}-${rowId}`} className={cn('flex min-w-0 items-center overflow-x-hidden', getAlignClass(column.align), column.hideOnMobile && 'hidden md:flex', column.className)}>
+                <div
+                  key={`${column.id}-${rowId}`}
+                  className={cn('flex min-w-0 items-center overflow-x-hidden', getAlignClass(column.align), column.hideOnMobile && 'hidden md:flex', column.className)}
+                >
                   {column.cell(item)}
                 </div>
               ))}
@@ -349,15 +351,7 @@ export function ListGenerator<T>({
             return renderRowContent()
           }
 
-          return (
-            <SortableListRow
-              key={rowId}
-              rowId={rowId}
-              sortingDisabled={sortingDisabled}
-              instantSortReorder={instantSortReorder}
-              renderRow={props => renderRowContent(props)}
-            />
-          )
+          return <SortableListRow key={rowId} rowId={rowId} sortingDisabled={sortingDisabled} instantSortReorder={instantSortReorder} renderRow={props => renderRowContent(props)} />
         })}
 
       {shouldShowEmptyState && (emptyState ?? <div className="bg-background text-muted-foreground rounded-md border px-3 py-6 text-center text-sm">No results.</div>)}

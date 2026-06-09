@@ -78,12 +78,15 @@ export default function CoresIndexPage() {
     [canCreateCores, coresData?.cores, createCoreMutation, queryClient, t],
   )
 
-  const handleDeleteCore = useCallback((coreName: string, coreId: number) => {
-    if (!canDeleteCores) return
-    setCoreToDelete(coreName)
-    setCoreIdToDelete(coreId)
-    setDeleteDialogOpen(true)
-  }, [canDeleteCores])
+  const handleDeleteCore = useCallback(
+    (coreName: string, coreId: number) => {
+      if (!canDeleteCores) return
+      setCoreToDelete(coreName)
+      setCoreIdToDelete(coreId)
+      setDeleteDialogOpen(true)
+    },
+    [canDeleteCores],
+  )
 
   const confirmDeleteCore = useCallback(() => {
     if (!canDeleteCores || !coreToDelete || coreIdToDelete === null) return
@@ -139,13 +142,20 @@ export default function CoresIndexPage() {
 
   return (
     <div className="flex flex-col px-4">
-      <Cores cores={cores} onDuplicateCore={canCreateCores ? handleDuplicateCore : undefined} onDeleteCore={canDeleteCores ? handleDeleteCore : undefined} canCreate={canCreateCores} canUpdate={canUpdateCores} canDelete={canDeleteCores} />
+      <Cores
+        cores={cores}
+        onDuplicateCore={canCreateCores ? handleDuplicateCore : undefined}
+        onDeleteCore={canDeleteCores ? handleDeleteCore : undefined}
+        canCreate={canCreateCores}
+        canUpdate={canUpdateCores}
+        canDelete={canDeleteCores}
+      />
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={handleDeleteDialogClose}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-destructive" />
+              <AlertTriangle className="text-destructive h-5 w-5" />
               {t('settings.cores.delete')}
             </AlertDialogTitle>
             <AlertDialogDescription>

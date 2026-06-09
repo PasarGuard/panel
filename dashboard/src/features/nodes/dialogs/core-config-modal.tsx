@@ -35,10 +35,7 @@ import type { FieldErrors, UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import type { CoreBackendType, CoreConfigFormValues } from '@/features/nodes/forms/core-config-form'
-import {
-  VlessAdvancedGenerationModal,
-  type VlessKeyVariant,
-} from '@/features/core-editor/components/shared/vless-advanced-generation-modal'
+import { VlessAdvancedGenerationModal, type VlessKeyVariant } from '@/features/core-editor/components/shared/vless-advanced-generation-modal'
 import { XrayInboundTagPicker } from '@/features/core-editor/components/shared/xray-inbound-tag-selectors'
 
 interface CoreConfigModalProps {
@@ -465,7 +462,7 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
           ? errors.name.message
           : typeof errors.config?.message === 'string'
             ? errors.config.message
-          : t('coreConfigModal.nameRequired', { defaultValue: 'Core name is required' })
+            : t('coreConfigModal.nameRequired', { defaultValue: 'Core name is required' })
       toast.error(message)
     },
     [t],
@@ -619,11 +616,11 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
   // Reusable components for cleaner code
   const StatusIndicator = ({ color }: { color: string }) => <div className={`h-1.5 w-1.5 shrink-0 rounded-full ${color}`} aria-hidden="true" />
 
-  const SectionLabel = ({ children }: { children: React.ReactNode }) => <p className="truncate text-[10px] font-semibold tracking-wide text-muted-foreground sm:text-xs">{children}</p>
+  const SectionLabel = ({ children }: { children: React.ReactNode }) => <p className="text-muted-foreground truncate text-[10px] font-semibold tracking-wide sm:text-xs">{children}</p>
 
   const CodeBlock = ({ value }: { value: string }) => (
-    <div dir="ltr" className="group relative min-w-0 flex-1 rounded-md border bg-background/80 backdrop-blur-sm">
-      <code className="block w-full min-w-0 overflow-x-auto whitespace-nowrap px-3 py-2.5 font-mono text-xs leading-relaxed">{value}</code>
+    <div dir="ltr" className="group bg-background/80 relative min-w-0 flex-1 rounded-md border backdrop-blur-sm">
+      <code className="block w-full min-w-0 overflow-x-auto px-3 py-2.5 font-mono text-xs leading-relaxed whitespace-nowrap">{value}</code>
     </div>
   )
 
@@ -762,14 +759,14 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
 
     return (
       <Dialog open={isResultsDialogOpen} onOpenChange={setIsResultsDialogOpen}>
-        <DialogContent className="max-h-[95vh] w-[95vw] min-w-0 max-w-2xl overflow-y-auto overflow-x-hidden">
+        <DialogContent className="max-h-[95vh] w-[95vw] max-w-2xl min-w-0 overflow-x-hidden overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Sparkles className="h-3.5 w-3.5 shrink-0 sm:h-5 sm:w-5" />
               <span className="truncate">{t('coreConfigModal.result', { defaultValue: 'Result' })}</span>
             </DialogTitle>
           </DialogHeader>
-          <div className="max-h-[70vh] min-w-0 space-y-3 overflow-y-auto overflow-x-hidden pr-1 sm:space-y-4">{renderContent()}</div>
+          <div className="max-h-[70vh] min-w-0 space-y-3 overflow-x-hidden overflow-y-auto pr-1 sm:space-y-4">{renderContent()}</div>
           <DialogFooter>
             <div className="flex w-full gap-2 sm:w-auto">
               <Button
@@ -880,11 +877,7 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
                           <FormControl>
                             <Input
                               isError={!!form.formState.errors.name}
-                              placeholder={
-                                form.formState.errors.name
-                                  ? t('coreConfigModal.nameRequired', { defaultValue: 'Core name is required' })
-                                  : t('coreConfigModal.namePlaceholder')
-                              }
+                              placeholder={form.formState.errors.name ? t('coreConfigModal.nameRequired', { defaultValue: 'Core name is required' }) : t('coreConfigModal.namePlaceholder')}
                               {...field}
                             />
                           </FormControl>
@@ -977,24 +970,24 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
 
                         <Tabs dir={dir} defaultValue="reality" className="w-full pb-6">
                           {/* Enhanced TabsList with Text Overflow */}
-                          <TabsList dir="ltr" className="grid h-auto w-full grid-cols-3 gap-1 bg-muted/50 p-1">
+                          <TabsList dir="ltr" className="bg-muted/50 grid h-auto w-full grid-cols-3 gap-1 p-1">
                             <TabsTrigger
                               value="reality"
-                              className="min-w-0 truncate px-2 py-2.5 text-xs font-medium transition-all data-[state=active]:bg-background data-[state=active]:shadow-sm sm:text-sm"
+                              className="data-[state=active]:bg-background min-w-0 truncate px-2 py-2.5 text-xs font-medium transition-all data-[state=active]:shadow-sm sm:text-sm"
                             >
                               Reality
                             </TabsTrigger>
 
                             <TabsTrigger
                               value="shadowsocks"
-                              className="min-w-0 truncate px-2 py-2.5 text-xs font-medium transition-all data-[state=active]:bg-background data-[state=active]:shadow-sm sm:text-sm"
+                              className="data-[state=active]:bg-background min-w-0 truncate px-2 py-2.5 text-xs font-medium transition-all data-[state=active]:shadow-sm sm:text-sm"
                             >
                               ShadowSocks
                             </TabsTrigger>
 
                             <TabsTrigger
                               value="vless"
-                              className="min-w-0 truncate px-2 py-2.5 text-xs font-medium transition-all data-[state=active]:bg-background data-[state=active]:shadow-sm sm:text-sm"
+                              className="data-[state=active]:bg-background min-w-0 truncate px-2 py-2.5 text-xs font-medium transition-all data-[state=active]:shadow-sm sm:text-sm"
                             >
                               VLESS
                             </TabsTrigger>
@@ -1003,7 +996,7 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
                           {/* ============================================
           Reality TAB
       ============================================ */}
-                          <TabsContent value="reality" className="mt-3 space-y-3 duration-300 animate-in fade-in-50">
+                          <TabsContent value="reality" className="animate-in fade-in-50 mt-3 space-y-3 duration-300">
                             {/* Action Buttons */}
                             <div className="grid gap-2 sm:grid-cols-2 sm:gap-3">
                               <LoaderButton
@@ -1050,10 +1043,10 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
                           {/* ============================================
           Shadowsocks TAB
       ============================================ */}
-                          <TabsContent value="shadowsocks" className="mt-3 space-y-3 duration-300 animate-in fade-in-50">
+                          <TabsContent value="shadowsocks" className="animate-in fade-in-50 mt-3 space-y-3 duration-300">
                             {/* Encryption Method Selector */}
                             <div className="space-y-2.5">
-                              <Label className="text-xs font-semibold tracking-wide text-muted-foreground">
+                              <Label className="text-muted-foreground text-xs font-semibold tracking-wide">
                                 {t('coreConfigModal.shadowsocksEncryptionMethod', { defaultValue: 'Encryption Method' })}
                               </Label>
                               <Select
@@ -1095,7 +1088,7 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
                           {/* ============================================
           VLESS TAB
       ============================================ */}
-                          <TabsContent value="vless" className="mt-3 space-y-3 duration-300 animate-in fade-in-50">
+                          <TabsContent value="vless" className="animate-in fade-in-50 mt-3 space-y-3 duration-300">
                             {/* VLESS Buttons */}
                             <LoaderButton type="button" onClick={viewVLESS} className="h-10 w-full text-sm font-medium transition-all hover:shadow-md sm:h-11" isLoading={false}>
                               <span className="flex items-center gap-2 truncate">

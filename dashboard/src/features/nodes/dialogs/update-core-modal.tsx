@@ -137,7 +137,7 @@ export default function UpdateCoreDialog({ node, isOpen, onOpenChange }: UpdateC
 
         <div className="space-y-4 py-4">
           {/* Version Info Section */}
-          <div className="space-y-3 rounded-lg border bg-muted/30 p-4">
+          <div className="bg-muted/30 space-y-3 rounded-lg border p-4">
             {currentVersion && (
               <div className="flex items-center justify-between">
                 <span className={cn('text-sm font-medium', dir === 'rtl' && 'text-right')}>{t('version.currentVersion', { defaultValue: 'Current Version' })}</span>
@@ -157,7 +157,7 @@ export default function UpdateCoreDialog({ node, isOpen, onOpenChange }: UpdateC
                 <div className={cn('flex items-center gap-2', dir === 'rtl' && 'flex-row-reverse')}>
                   <span className="font-mono text-sm font-semibold">{latestVersion}</span>
                   {releaseUrl && (
-                    <a href={releaseUrl} target="_blank" rel="no-referrer" className="text-muted-foreground transition-colors hover:text-foreground" onClick={e => e.stopPropagation()}>
+                    <a href={releaseUrl} target="_blank" rel="no-referrer" className="text-muted-foreground hover:text-foreground transition-colors" onClick={e => e.stopPropagation()}>
                       <ExternalLink className="h-3.5 w-3.5" />
                     </a>
                   )}
@@ -181,7 +181,7 @@ export default function UpdateCoreDialog({ node, isOpen, onOpenChange }: UpdateC
               <TabsContent value="list" className="mt-3">
                 {isLoadingReleases ? (
                   <div className={cn('rounded-md border p-8 text-center', dir === 'rtl' && 'text-right')}>
-                    <div className="text-sm text-muted-foreground">{t('nodeModal.loadingReleases', { defaultValue: 'Loading releases...' })}</div>
+                    <div className="text-muted-foreground text-sm">{t('nodeModal.loadingReleases', { defaultValue: 'Loading releases...' })}</div>
                   </div>
                 ) : (
                   <ScrollArea className="h-[200px] rounded-md border sm:h-[280px]">
@@ -205,7 +205,7 @@ export default function UpdateCoreDialog({ node, isOpen, onOpenChange }: UpdateC
                                 {latestVersion}
                               </Badge>
                             </div>
-                            {selectedVersion === 'latest' && <div className="h-2 w-2 rounded-full bg-primary" />}
+                            {selectedVersion === 'latest' && <div className="bg-primary h-2 w-2 rounded-full" />}
                           </div>
                         </button>
                       )}
@@ -233,7 +233,7 @@ export default function UpdateCoreDialog({ node, isOpen, onOpenChange }: UpdateC
                                   </Badge>
                                 )}
                               </div>
-                              {selectedVersion === release.version && <div className="h-2 w-2 rounded-full bg-primary" />}
+                              {selectedVersion === release.version && <div className="bg-primary h-2 w-2 rounded-full" />}
                             </div>
                           </button>
                         ))}
@@ -262,7 +262,7 @@ export default function UpdateCoreDialog({ node, isOpen, onOpenChange }: UpdateC
                     isError={!!customVersionError}
                     className="font-mono"
                   />
-                  <p dir={dir} className={cn('text-xs text-muted-foreground', dir === 'rtl' && 'text-right')}>
+                  <p dir={dir} className={cn('text-muted-foreground text-xs', dir === 'rtl' && 'text-right')}>
                     {t('nodeModal.versionHint', { defaultValue: 'Enter a version in the format vX.X.X or X.X.X (e.g., v1.8.0)' })}
                   </p>
                 </div>

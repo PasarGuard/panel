@@ -41,12 +41,10 @@ export const StatusBadge: FC<UserStatusProps> = ({ expiryDate = null, status: us
       <div className={cn('flex flex-wrap justify-start gap-x-2')}>
         <div className={cn(!dateInfo.time && !dateInfo.status && 'hidden', showExpiry ? 'block' : 'hidden md:block')}>
           <div>
-            <div className="flex items-center gap-x-1 text-muted-foreground">
+            <div className="text-muted-foreground flex items-center gap-x-1">
               <Clock className="h-3 w-3" />
               <span className="text-sm">:</span>
-              <span className={cn('text-xs font-medium', dir === 'rtl' ? 'mr-0.5 md:mr-2' : 'ml-0.5 md:ml-2', 'text-gray-600 dark:text-gray-400')}>
-                {t(dateInfo.status, { time: dateInfo.time })}
-              </span>
+              <span className={cn('text-xs font-medium', dir === 'rtl' ? 'mr-0.5 md:mr-2' : 'ml-0.5 md:ml-2', 'text-gray-600 dark:text-gray-400')}>{t(dateInfo.status, { time: dateInfo.time })}</span>
             </div>
           </div>
         </div>
@@ -65,12 +63,12 @@ export const StatusBadge: FC<UserStatusProps> = ({ expiryDate = null, status: us
       >
         <div className={cn('flex items-center gap-1 sm:px-1', showExpiry && 'px-1')}>
           {StatusIcon && <StatusIcon className="h-4 w-4 sm:h-3 sm:w-3" />}
-          <span className={cn('hidden text-nowrap text-xs font-medium capitalize sm:block', showExpiry && 'block')}>{userStatus && t(`status.${userStatus}`)}</span>
+          <span className={cn('hidden text-xs font-medium text-nowrap capitalize sm:block', showExpiry && 'block')}>{userStatus && t(`status.${userStatus}`)}</span>
         </div>
       </Badge>
       <div className={cn(!dateInfo.time && !dateInfo.status && 'hidden', showExpiry ? 'block' : 'hidden md:block')}>
         <div>
-          <span className={cn('inline-block text-[11.5px] font-normal text-muted-foreground dark:text-muted-foreground sm:text-xs', dir === 'rtl' && 'ml-0 mr-1')}>
+          <span className={cn('text-muted-foreground dark:text-muted-foreground inline-block text-[11.5px] font-normal sm:text-xs', dir === 'rtl' && 'mr-1 ml-0')}>
             {t(dateInfo.status, { time: dateInfo.time })}
           </span>
         </div>

@@ -12,7 +12,7 @@ export function LoadingSpinner({ text = 'loading', size = 'medium', className = 
   return (
     <div className={`flex min-h-screen flex-col items-center justify-center ${className}`}>
       <Spinner size={size} />
-      {text && <p className="mt-4 text-sm text-muted-foreground">{t(text)}</p>}
+      {text && <p className="text-muted-foreground mt-4 text-sm">{t(text)}</p>}
     </div>
   )
 }

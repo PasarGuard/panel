@@ -76,10 +76,10 @@ const NoiseItem = memo<NoiseItemProps>(({ index, form, onRemove, onDuplicate, t 
   }, [index, onDuplicate])
 
   return (
-    <div className="rounded-md border p-2 space-y-2">
+    <div className="space-y-2 rounded-md border p-2">
       {/* Row 1: type, apply_to, actions */}
       <div className="flex items-center gap-2">
-        <span className="text-xs text-muted-foreground w-5 shrink-0 text-center">{index + 1}</span>
+        <span className="text-muted-foreground w-5 shrink-0 text-center text-xs">{index + 1}</span>
         <FormField
           control={form.control}
           name={`noise_settings.xray.${index}.type`}
@@ -124,7 +124,7 @@ const NoiseItem = memo<NoiseItemProps>(({ index, form, onRemove, onDuplicate, t 
           )}
         />
         <div className="ml-auto flex items-center gap-1">
-          <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0 transition-colors hover:bg-muted/70" onClick={handleDuplicate} title={t('hostsDialog.noise.duplicateNoise')}>
+          <Button type="button" variant="ghost" size="icon" className="hover:bg-muted/70 h-8 w-8 shrink-0 transition-colors" onClick={handleDuplicate} title={t('hostsDialog.noise.duplicateNoise')}>
             <Copy className="h-4 w-4" />
           </Button>
           <Button
@@ -205,7 +205,7 @@ const ArrayInput = memo<ArrayInputProps>(({ field, placeholder, label, infoConte
           <Popover>
             <PopoverTrigger asChild>
               <Button type="button" variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent">
-                <Info className="h-4 w-4 text-muted-foreground" />
+                <Info className="text-muted-foreground h-4 w-4" />
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={isMobile ? 'bottom' : 'top'} align={dir === 'rtl' ? 'end' : 'start'} sideOffset={5}>
@@ -395,14 +395,9 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
     { template_type: ClientTemplateType.xray_subscription, all: true },
     { query: { enabled: isDialogOpen } },
   )
-  const xrayTemplates = useMemo(
-    () => (xrayTemplateData?.templates ?? []).filter(template => !template.is_default),
-    [xrayTemplateData?.templates],
-  )
+  const xrayTemplates = useMemo(() => (xrayTemplateData?.templates ?? []).filter(template => !template.is_default), [xrayTemplateData?.templates])
   const isXrayTemplateSelectDisabled = isLoadingXrayTemplates
-  const xrayTemplatePlaceholder = isLoadingXrayTemplates
-    ? t('loading', { defaultValue: 'Loading...' })
-    : t('hostsDialog.selectXrayTemplate')
+  const xrayTemplatePlaceholder = isLoadingXrayTemplates ? t('loading', { defaultValue: 'Loading...' }) : t('hostsDialog.selectXrayTemplate')
 
   // No automatic refresh when dialog opens - only fetch on specific actions
 
@@ -495,11 +490,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
 
     const wg = form.getValues('wireguard_overrides')
     if (wg == null) {
-      form.setValue(
-        'wireguard_overrides',
-        { allowed_ips: [], reserved: '', mtu: undefined, keepalive_seconds: undefined, dns: [] },
-        { shouldDirty: false },
-      )
+      form.setValue('wireguard_overrides', { allowed_ips: [], reserved: '', mtu: undefined, keepalive_seconds: undefined, dns: [] }, { shouldDirty: false })
     }
   }, [form, isWireGuardInbound, selectedInboundTag, editingHost])
 
@@ -548,8 +539,8 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
       // If SingBox fragment is disabled, clear related fields
       if (!payload.fragment_settings?.sing_box?.fragment && payload.fragment_settings?.sing_box) {
         const singBox = payload.fragment_settings.sing_box!
-          ; (singBox as any).fragment_fallback_delay = undefined
-          ; (singBox as any).record_fragment = undefined
+        ;(singBox as any).fragment_fallback_delay = undefined
+        ;(singBox as any).record_fragment = undefined
       }
 
       // Convert fragment_fallback_delay number to ms format
@@ -636,9 +627,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                           return Number.isFinite(n) && n > 0 ? n : null
                         })()
 
-                  const hasSelectedTemplate =
-                    parsedXrayTemplateId != null &&
-                    xrayTemplates.some(template => Number(template.id) === parsedXrayTemplateId)
+                  const hasSelectedTemplate = parsedXrayTemplateId != null && xrayTemplates.some(template => Number(template.id) === parsedXrayTemplateId)
 
                   return (
                     <FormItem>
@@ -647,11 +636,11 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                         <Popover>
                           <PopoverTrigger asChild>
                             <Button type="button" variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent">
-                              <Info className="h-4 w-4 text-muted-foreground" />
+                              <Info className="text-muted-foreground h-4 w-4" />
                             </Button>
                           </PopoverTrigger>
                           <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
-                            <p className="text-[11px] text-muted-foreground">{t('hostsDialog.xrayTemplateInfo')}</p>
+                            <p className="text-muted-foreground text-[11px]">{t('hostsDialog.xrayTemplateInfo')}</p>
                           </PopoverContent>
                         </Popover>
                       </div>
@@ -673,11 +662,15 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                           if (!Number.isFinite(n)) {
                             return
                           }
-                          form.setValue('subscription_templates', { xray: n }, {
-                            shouldDirty: true,
-                            shouldTouch: true,
-                            shouldValidate: true,
-                          })
+                          form.setValue(
+                            'subscription_templates',
+                            { xray: n },
+                            {
+                              shouldDirty: true,
+                              shouldTouch: true,
+                              shouldValidate: true,
+                            },
+                          )
                         }}
                         disabled={isXrayTemplateSelectDisabled}
                       >
@@ -730,7 +723,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                             const option = statusOptions.find(opt => opt.value === status)
                             if (!option) return null
                             return (
-                              <span key={status} className="flex items-center gap-2 rounded-md bg-muted/80 px-2 py-1 text-sm">
+                              <span key={status} className="bg-muted/80 flex items-center gap-2 rounded-md px-2 py-1 text-sm">
                                 {t(option.label)}
                                 <button
                                   type="button"
@@ -745,7 +738,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                             )
                           })
                         ) : (
-                          <span className="text-sm text-muted-foreground">{t('hostsDialog.noStatus')}</span>
+                          <span className="text-muted-foreground text-sm">{t('hostsDialog.noStatus')}</span>
                         )}
                       </div>
                       <Select
@@ -768,7 +761,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                             <SelectItem
                               key={option.value}
                               value={option.value}
-                              className="flex cursor-pointer items-center gap-2 px-4 py-2 focus:bg-accent"
+                              className="focus:bg-accent flex cursor-pointer items-center gap-2 px-4 py-2"
                               disabled={field.value?.includes(option.value)}
                             >
                               <div className="flex w-full items-center gap-3">
@@ -830,11 +823,11 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                           <Popover>
                             <PopoverTrigger asChild>
                               <Button type="button" variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent">
-                                <Info className="h-4 w-4 text-muted-foreground" />
+                                <Info className="text-muted-foreground h-4 w-4" />
                               </Button>
                             </PopoverTrigger>
                             <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
-                              <p className="text-[11px] text-muted-foreground">{t('hostsDialog.port.info')}</p>
+                              <p className="text-muted-foreground text-[11px]">{t('hostsDialog.port.info')}</p>
                             </PopoverContent>
                           </Popover>
                         </div>
@@ -861,19 +854,13 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
 
               {!isInboundModeResolved ? (
                 <div className="mb-6 rounded-sm border px-4 py-6">
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <div className="text-muted-foreground flex items-center gap-2 text-sm">
                     <Loader2 className="h-4 w-4 animate-spin" />
                     <span>{t('loading', { defaultValue: 'Loading...' })}</span>
                   </div>
                 </div>
               ) : shouldRenderWireGuardLayout ? (
-                <Accordion
-                  type="single"
-                  collapsible
-                  value={wireguardOpenSection}
-                  onValueChange={handleWireguardAccordionChange}
-                  className="!mt-0 mb-6 flex w-full flex-col gap-y-6"
-                >
+                <Accordion type="single" collapsible value={wireguardOpenSection} onValueChange={handleWireguardAccordionChange} className="!mt-0 mb-6 flex w-full flex-col gap-y-6">
                   <AccordionItem className="rounded-sm border px-4 [&_[data-state=closed]]:no-underline [&_[data-state=open]]:no-underline" value="wg_subscription_network">
                     <AccordionTrigger>
                       <div className="flex items-center gap-2">
@@ -891,7 +878,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                               field={{ ...field, value: field.value ?? [] }}
                               placeholder="0.0.0.0/0"
                               label={t('hostsDialog.wireguard.allowedIps')}
-                              infoContent={<p className="text-[11px] text-muted-foreground">{t('hostsDialog.wireguard.allowedIpsHint')}</p>}
+                              infoContent={<p className="text-muted-foreground text-[11px]">{t('hostsDialog.wireguard.allowedIpsHint')}</p>}
                             />
                           )}
                         />
@@ -966,7 +953,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                               field={{ ...field, value: field.value ?? [] }}
                               placeholder="1.1.1.1"
                               label={t('hostsDialog.wireguard.dns')}
-                              infoContent={<p className="text-[11px] text-muted-foreground">{t('hostsDialog.wireguard.dnsHint')}</p>}
+                              infoContent={<p className="text-muted-foreground text-[11px]">{t('hostsDialog.wireguard.dnsHint')}</p>}
                             />
                           )}
                         />
@@ -992,9 +979,9 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                             render={({ field }) => {
                               const infoContent = (
                                 <div className="space-y-1.5">
-                                  <p className="text-[11px] text-muted-foreground">{t('hostsDialog.host.info')}</p>
-                                  <p className="text-[11px] text-muted-foreground">{t('hostsDialog.host.multiHost')}</p>
-                                  <p className="text-[11px] text-muted-foreground">{t('hostsDialog.host.wildcard')}</p>
+                                  <p className="text-muted-foreground text-[11px]">{t('hostsDialog.host.info')}</p>
+                                  <p className="text-muted-foreground text-[11px]">{t('hostsDialog.host.multiHost')}</p>
+                                  <p className="text-muted-foreground text-[11px]">{t('hostsDialog.host.wildcard')}</p>
                                 </div>
                               )
 
@@ -1011,11 +998,11 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                   <Popover>
                                     <PopoverTrigger asChild>
                                       <Button type="button" variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent">
-                                        <Info className="h-4 w-4 text-muted-foreground" />
+                                        <Info className="text-muted-foreground h-4 w-4" />
                                       </Button>
                                     </PopoverTrigger>
                                     <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
-                                      <p className="text-[11px] text-muted-foreground">{t('hostsDialog.path.info')}</p>
+                                      <p className="text-muted-foreground text-[11px]">{t('hostsDialog.path.info')}</p>
                                     </PopoverContent>
                                   </Popover>
                                 </div>
@@ -1075,10 +1062,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                           </div>
                           <div className="space-y-2">
                             {Object.entries(form.watch('http_headers') || {}).map(([key, value]) => (
-                              <div
-                                key={key}
-                                className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:flex-nowrap"
-                              >
+                              <div key={key} className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:flex-nowrap">
                                 <Input
                                   placeholder={t('hostsDialog.headersName')}
                                   className="min-h-9 min-w-[7rem] flex-1 sm:min-w-[8rem]"
@@ -1154,11 +1138,11 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                   <Popover>
                                     <PopoverTrigger asChild>
                                       <Button type="button" variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent">
-                                        <Info className="h-4 w-4 text-muted-foreground" />
+                                        <Info className="text-muted-foreground h-4 w-4" />
                                       </Button>
                                     </PopoverTrigger>
                                     <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
-                                      <p className="text-[11px] text-muted-foreground">{t('hostsDialog.security.info')}</p>
+                                      <p className="text-muted-foreground text-[11px]">{t('hostsDialog.security.info')}</p>
                                     </PopoverContent>
                                   </Popover>
                                 </div>
@@ -1185,7 +1169,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                             render={({ field }) => {
                               const infoContent = (
                                 <div className="space-y-1.5">
-                                  <p className="text-[11px] text-muted-foreground">{t('hostsDialog.sni.info')}</p>
+                                  <p className="text-muted-foreground text-[11px]">{t('hostsDialog.sni.info')}</p>
                                 </div>
                               )
 
@@ -1210,7 +1194,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                             <Badge key={protocol} variant="secondary" className="flex items-center gap-1">
                                               {protocol}
                                               <X
-                                                className="h-3 w-3 cursor-pointer hover:text-destructive"
+                                                className="hover:text-destructive h-3 w-3 cursor-pointer"
                                                 onClick={e => {
                                                   e.stopPropagation()
                                                   const newValue = (field.value || []).filter((p: string) => p !== protocol)
@@ -1220,7 +1204,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                             </Badge>
                                           ))
                                         ) : (
-                                          <span className="text-sm text-muted-foreground">{t('hostsDialog.selectAlpn', 'Select ALPN protocols')}</span>
+                                          <span className="text-muted-foreground text-sm">{t('hostsDialog.selectAlpn', 'Select ALPN protocols')}</span>
                                         )}
                                       </div>
                                     </Button>
@@ -1237,10 +1221,10 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                               const newValue = isSelected ? currentValue.filter((p: string) => p !== protocol) : [...currentValue, protocol]
                                               field.onChange(newValue)
                                             }}
-                                            className="flex cursor-pointer items-center gap-2 rounded-sm p-2 hover:bg-accent"
+                                            className="hover:bg-accent flex cursor-pointer items-center gap-2 rounded-sm p-2"
                                           >
                                             <div className={cn('mr-2 flex h-4 w-4 items-center justify-center rounded-sm border', isSelected ? 'border-primary bg-primary' : 'border-muted')}>
-                                              {isSelected && <X className="h-3 w-3 text-primary-foreground" />}
+                                              {isSelected && <X className="text-primary-foreground h-3 w-3" />}
                                             </div>
                                             {protocol}
                                           </div>
@@ -1332,11 +1316,11 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                 <Popover>
                                   <PopoverTrigger asChild>
                                     <Button type="button" variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent">
-                                      <Info className="h-4 w-4 text-muted-foreground" />
+                                      <Info className="text-muted-foreground h-4 w-4" />
                                     </Button>
                                   </PopoverTrigger>
                                   <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
-                                    <p className="text-[11px] text-muted-foreground">{t('hostsDialog.echConfigList.info')}</p>
+                                    <p className="text-muted-foreground text-[11px]">{t('hostsDialog.echConfigList.info')}</p>
                                   </PopoverContent>
                                 </Popover>
                               </div>
@@ -1358,11 +1342,11 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                 <Popover>
                                   <PopoverTrigger asChild>
                                     <Button type="button" variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent">
-                                      <Info className="h-4 w-4 text-muted-foreground" />
+                                      <Info className="text-muted-foreground h-4 w-4" />
                                     </Button>
                                   </PopoverTrigger>
                                   <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
-                                    <p className="text-[11px] text-muted-foreground">
+                                    <p className="text-muted-foreground text-[11px]">
                                       {t('hostsDialog.echQueryStrategy.info', {
                                         defaultValue: 'ECH query strategy. Available values: none, half, full.',
                                       })}
@@ -1398,11 +1382,11 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                 <Popover>
                                   <PopoverTrigger asChild>
                                     <Button type="button" variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent">
-                                      <Info className="h-4 w-4 text-muted-foreground" />
+                                      <Info className="text-muted-foreground h-4 w-4" />
                                     </Button>
                                   </PopoverTrigger>
                                   <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
-                                    <p className="text-[11px] text-muted-foreground">
+                                    <p className="text-muted-foreground text-[11px]">
                                       {t('hostsDialog.pinnedPeerCertSha256.info', {
                                         defaultValue: 'Optional certificate public key pin (SHA-256) used for TLS peer pinning.',
                                       })}
@@ -1424,7 +1408,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                           render={({ field }) => {
                             const infoContent = (
                               <div className="space-y-1.5">
-                                <p className="text-[11px] text-muted-foreground">
+                                <p className="text-muted-foreground text-[11px]">
                                   {t('hostsDialog.verifyPeerCertByName.info', {
                                     defaultValue: 'Optional names that must match the peer certificate during TLS verification.',
                                   })}
@@ -1594,7 +1578,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                               <div className="space-y-4 rounded-lg border border-dashed p-4">
                                 <div className="space-y-1">
                                   <h4 className="text-sm font-medium">{t('hostsDialog.xhttp.xPaddingAdvanced')}</h4>
-                                  <p className="text-xs text-muted-foreground">{t('hostsDialog.xhttp.xPaddingAdvancedHint', { defaultValue: 'Shown only when X-Padding Obfs Mode is enabled.' })}</p>
+                                  <p className="text-muted-foreground text-xs">{t('hostsDialog.xhttp.xPaddingAdvancedHint', { defaultValue: 'Shown only when X-Padding Obfs Mode is enabled.' })}</p>
                                 </div>
                                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                                   <FormField
@@ -1942,11 +1926,11 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                         <Popover>
                                           <PopoverTrigger asChild>
                                             <Button type="button" variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent">
-                                              <Info className="h-4 w-4 text-muted-foreground" />
+                                              <Info className="text-muted-foreground h-4 w-4" />
                                             </Button>
                                           </PopoverTrigger>
                                           <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
-                                            <p className="text-[11px] text-muted-foreground">{t('hostsDialog.xhttp.downloadSettingsInfo')}</p>
+                                            <p className="text-muted-foreground text-[11px]">{t('hostsDialog.xhttp.downloadSettingsInfo')}</p>
                                           </PopoverContent>
                                         </Popover>
                                       </div>
@@ -2292,10 +2276,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
 
                                     {/* Render request headers */}
                                     {Object.entries(form.watch('transport_settings.tcp_settings.request.headers') || {}).map(([key, values]) => (
-                                      <div
-                                        key={key}
-                                        className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:flex-nowrap"
-                                      >
+                                      <div key={key} className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:flex-nowrap">
                                         <Input
                                           placeholder={t('hostsDialog.tcp.headerName')}
                                           className="min-h-9 min-w-[7rem] flex-1 sm:min-w-[8rem]"
@@ -2517,10 +2498,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
 
                                     {/* Render response headers */}
                                     {Object.entries(form.watch('transport_settings.tcp_settings.response.headers') || {}).map(([key, values]) => (
-                                      <div
-                                        key={key}
-                                        className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:flex-nowrap"
-                                      >
+                                      <div key={key} className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:flex-nowrap">
                                         <Input
                                           placeholder={t('hostsDialog.tcp.headerName')}
                                           className="min-h-9 min-w-[7rem] flex-1 sm:min-w-[8rem]"
@@ -2621,15 +2599,15 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                   <Popover>
                                     <PopoverTrigger asChild>
                                       <Button type="button" variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent">
-                                        <Info className="h-4 w-4 text-muted-foreground" />
+                                        <Info className="text-muted-foreground h-4 w-4" />
                                       </Button>
                                     </PopoverTrigger>
                                     <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
                                       <div className="space-y-1.5">
-                                        <p className="text-[11px] text-muted-foreground">{t('hostsDialog.fragment.info')}</p>
-                                        <p className="text-[11px] text-muted-foreground">{t('hostsDialog.fragment.info.attention')}</p>
-                                        <p className="text-[11px] text-muted-foreground">{t('hostsDialog.fragment.info.examples')}</p>
-                                        <p className="overflow-hidden text-[11px] text-muted-foreground">100-200,10-20,tlshello 100-200,10-20,1-3</p>
+                                        <p className="text-muted-foreground text-[11px]">{t('hostsDialog.fragment.info')}</p>
+                                        <p className="text-muted-foreground text-[11px]">{t('hostsDialog.fragment.info.attention')}</p>
+                                        <p className="text-muted-foreground text-[11px]">{t('hostsDialog.fragment.info.examples')}</p>
+                                        <p className="text-muted-foreground overflow-hidden text-[11px]">100-200,10-20,tlshello 100-200,10-20,1-3</p>
                                       </div>
                                     </PopoverContent>
                                   </Popover>
@@ -2686,15 +2664,15 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                   <Popover>
                                     <PopoverTrigger asChild>
                                       <Button type="button" variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent">
-                                        <Info className="h-4 w-4 text-muted-foreground" />
+                                        <Info className="text-muted-foreground h-4 w-4" />
                                       </Button>
                                     </PopoverTrigger>
                                     <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
                                       <div className="space-y-1.5">
-                                        <p className="text-[11px] text-muted-foreground">{t('hostsDialog.noise.info')}</p>
-                                        <p className="text-[11px] text-muted-foreground">{t('hostsDialog.noise.info.attention')}</p>
-                                        <p className="text-[11px] text-muted-foreground">{t('hostsDialog.noise.info.examples')}</p>
-                                        <p className="overflow-hidden text-[11px] text-muted-foreground">
+                                        <p className="text-muted-foreground text-[11px]">{t('hostsDialog.noise.info')}</p>
+                                        <p className="text-muted-foreground text-[11px]">{t('hostsDialog.noise.info.attention')}</p>
+                                        <p className="text-muted-foreground text-[11px]">{t('hostsDialog.noise.info.examples')}</p>
+                                        <p className="text-muted-foreground overflow-hidden text-[11px]">
                                           rand:10-20,10-20 rand:10-20,10-20 &base64:7nQBAAABAAAAAAAABnQtcmluZwZtc2VkZ2UDbmV0AAABAAE=,10-25
                                         </p>
                                       </div>
@@ -2709,7 +2687,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                 {(selectedNoiseSettings || []).map((_, index) => (
                                   <NoiseItem key={index} index={index} form={form} onRemove={removeNoiseSetting} onDuplicate={duplicateNoiseSetting} t={t} />
                                 ))}
-                                {(selectedNoiseSettings || []).length === 0 && <div className="py-8 text-center text-sm text-muted-foreground">{t('hostsDialog.noise.noNoiseSettings')}</div>}
+                                {(selectedNoiseSettings || []).length === 0 && <div className="text-muted-foreground py-8 text-center text-sm">{t('hostsDialog.noise.noNoiseSettings')}</div>}
                               </div>
                             </div>
                           </div>
@@ -3286,11 +3264,11 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                               <Popover>
                                 <PopoverTrigger asChild>
                                   <Button type="button" variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent">
-                                    <Info className="h-4 w-4 text-muted-foreground" />
+                                    <Info className="text-muted-foreground h-4 w-4" />
                                   </Button>
                                 </PopoverTrigger>
                                 <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
-                                  <p className="text-[11px] text-muted-foreground">{t('hostsDialog.vlessRoute.info')}</p>
+                                  <p className="text-muted-foreground text-[11px]">{t('hostsDialog.vlessRoute.info')}</p>
                                 </PopoverContent>
                               </Popover>
                             </div>
@@ -3311,8 +3289,6 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                       />
                     </AccordionContent>
                   </AccordionItem>
-
-
                 </Accordion>
               )}
             </div>

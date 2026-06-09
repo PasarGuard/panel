@@ -45,14 +45,14 @@ function NodeTrafficTooltip({ active, payload }: NodeTrafficTooltipProps) {
   const point = payload[0].payload
 
   return (
-    <div className="rounded-lg border bg-background/95 p-2 shadow-sm backdrop-blur-sm">
+    <div className="bg-background/95 rounded-lg border p-2 shadow-sm backdrop-blur-sm">
       <div className="flex items-center gap-2">
-        <div className="h-2.5 w-2.5 rounded-full border border-border/20" style={{ backgroundColor: point.fill }} />
-        <span className="text-xs font-medium text-foreground">{point.name}</span>
+        <div className="border-border/20 h-2.5 w-2.5 rounded-full border" style={{ backgroundColor: point.fill }} />
+        <span className="text-foreground text-xs font-medium">{point.name}</span>
       </div>
       <div className="mt-1 flex items-center justify-between gap-3 text-xs">
         <span className="text-muted-foreground">{t('statistics.totalUsage', { defaultValue: 'Total Usage' })}</span>
-        <span dir="ltr" className="font-mono font-semibold text-foreground">
+        <span dir="ltr" className="text-foreground font-mono font-semibold">
           {formatBytes(point.bytes)}
         </span>
       </div>
@@ -152,7 +152,7 @@ const NodeStatsModal = ({ open, onClose, data, chartConfig, period, allChartData
                 <Button variant="outline" size="sm" onClick={handleLeftButton} disabled={!canGoLeft} className="h-8 w-8 p-0">
                   <ChevronLeft className={`h-4 w-4 ${isRTL ? 'rotate-180' : ''}`} />
                 </Button>
-                <span dir="ltr" className="min-w-[60px] text-center text-sm font-medium text-muted-foreground">
+                <span dir="ltr" className="text-muted-foreground min-w-[60px] text-center text-sm font-medium">
                   {currentIndex + 1} / {allChartData.length}
                 </span>
                 <Button variant="outline" size="sm" onClick={handleRightButton} disabled={!canGoRight} className="h-8 w-8 p-0">
@@ -168,7 +168,7 @@ const NodeStatsModal = ({ open, onClose, data, chartConfig, period, allChartData
             {/* Date and Total Usage */}
             <div className={`flex items-center justify-between ${isRTL ? 'flex-row-reverse' : 'flex-row'}`}>
               <div className={`flex items-center gap-2 ${isRTL ? 'flex-row-reverse' : 'flex-row'}`}>
-                <Calendar className="h-3 w-3 text-muted-foreground sm:h-4 sm:w-4" />
+                <Calendar className="text-muted-foreground h-3 w-3 sm:h-4 sm:w-4" />
                 <span className="max-w-[150px] truncate text-xs font-medium sm:max-w-none sm:text-sm" dir="ltr">
                   {formattedDate}
                 </span>
@@ -183,13 +183,13 @@ const NodeStatsModal = ({ open, onClose, data, chartConfig, period, allChartData
               <div className={`flex items-center gap-2 text-xs sm:gap-3 ${isRTL ? 'flex-row-reverse justify-end' : 'flex-row justify-start'}`}>
                 <div className={`flex items-center gap-1`}>
                   <Upload className="h-3 w-3 text-green-500" />
-                  <span dir="ltr" className="font-mono text-muted-foreground">
+                  <span dir="ltr" className="text-muted-foreground font-mono">
                     {formatBytes(totalUplink)}
                   </span>
                 </div>
                 <div className={`flex items-center gap-1`}>
                   <Download className="h-3 w-3 text-blue-500" />
-                  <span dir="ltr" className="font-mono text-muted-foreground">
+                  <span dir="ltr" className="text-muted-foreground font-mono">
                     {formatBytes(totalDownlink)}
                   </span>
                 </div>
@@ -198,7 +198,7 @@ const NodeStatsModal = ({ open, onClose, data, chartConfig, period, allChartData
 
             {/* Node Statistics */}
             <div className="space-y-2 sm:space-y-3">
-              <h4 className={`text-xs font-semibold text-foreground sm:text-sm`}>{t('statistics.nodeTrafficDistribution', { defaultValue: 'Node Traffic Distribution' })}</h4>
+              <h4 className={`text-foreground text-xs font-semibold sm:text-sm`}>{t('statistics.nodeTrafficDistribution', { defaultValue: 'Node Traffic Distribution' })}</h4>
 
               {pieData.length > 0 ? (
                 <div className="flex flex-col gap-3 md:flex-row md:items-start">
@@ -222,12 +222,12 @@ const NodeStatsModal = ({ open, onClose, data, chartConfig, period, allChartData
                           <div className="h-2 w-2 flex-shrink-0 rounded-full sm:h-3 sm:w-3" style={{ backgroundColor: node.color }} />
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-1.5">
-                              <span dir="ltr" className="text-[10px] font-mono font-bold text-foreground sm:text-xs">
+                              <span dir="ltr" className="text-foreground font-mono text-[10px] font-bold sm:text-xs">
                                 {node.percentage.toFixed(1)}%
                               </span>
-                              <div className={`truncate break-all text-xs font-medium sm:text-sm`}>{node.name}</div>
+                              <div className={`truncate text-xs font-medium break-all sm:text-sm`}>{node.name}</div>
                             </div>
-                            <div className={`text-xs text-muted-foreground`}>{formatBytes(node.bytes)}</div>
+                            <div className={`text-muted-foreground text-xs`}>{formatBytes(node.bytes)}</div>
                           </div>
                         </div>
 
@@ -252,14 +252,12 @@ const NodeStatsModal = ({ open, onClose, data, chartConfig, period, allChartData
                   </div>
                 </div>
               ) : (
-                <div className="rounded-md border border-dashed p-3 text-center text-xs text-muted-foreground">
-                  {t('statistics.noDataInRange', { defaultValue: 'No data in selected range' })}
-                </div>
+                <div className="text-muted-foreground rounded-md border border-dashed p-3 text-center text-xs">{t('statistics.noDataInRange', { defaultValue: 'No data in selected range' })}</div>
               )}
             </div>
 
             {/* Summary */}
-            <div className={`hidden text-xs leading-tight text-muted-foreground sm:block ${isRTL ? 'text-right' : 'text-left'}`}>
+            <div className={`text-muted-foreground hidden text-xs leading-tight sm:block ${isRTL ? 'text-right' : 'text-left'}`}>
               {t('statistics.nodeStatsDescription', {
                 defaultValue: 'Detailed traffic statistics for each node at this time period. Click on bars in the chart to view more details.',
               })}

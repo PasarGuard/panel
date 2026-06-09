@@ -25,12 +25,12 @@ const UserStatisticsCard = ({ data }: { data: SystemUsersStats | undefined }) =>
       </CardHeader>
       <CardContent className="flex flex-col gap-2">
         <div className="flex min-w-0 flex-row items-center gap-2 rounded-lg border p-3 shadow-sm md:gap-3 md:p-4">
-          <UsersIcon className="size-5 text-muted-foreground md:size-6" />
+          <UsersIcon className="text-muted-foreground size-5 md:size-6" />
           <span className="truncate text-sm md:text-base">{t('statistics.users')}</span>
-          <span className="ms-auto font-bold text-sm md:text-base">{totalUsers}</span>
+          <span className="ms-auto text-sm font-bold md:text-base">{totalUsers}</span>
         </div>
         <div className="flex min-w-0 flex-row items-center gap-2 rounded-lg border p-3 shadow-sm md:gap-3 md:p-4">
-          <UserCheck className="size-5 text-muted-foreground md:size-6" />
+          <UserCheck className="text-muted-foreground size-5 md:size-6" />
           <span className="truncate text-sm md:text-base">{t('statistics.activeUsers')}</span>
           <div className="ms-auto flex items-center gap-2">
             {percentOfTotal(data?.active_users) !== null && (
@@ -38,7 +38,7 @@ const UserStatisticsCard = ({ data }: { data: SystemUsersStats | undefined }) =>
                 {percentOfTotal(data?.active_users)}%
               </Badge>
             )}
-            <span className="font-bold text-sm md:text-base">{data?.active_users || 0}</span>
+            <span className="text-sm font-bold md:text-base">{data?.active_users || 0}</span>
           </div>
         </div>
         <div className="flex min-w-0 flex-row items-center gap-2 rounded-lg border p-3 shadow-sm md:gap-3 md:p-4">
@@ -50,7 +50,7 @@ const UserStatisticsCard = ({ data }: { data: SystemUsersStats | undefined }) =>
                 {percentOfActive(data?.online_users)}%
               </Badge>
             )}
-            <span className="font-bold text-sm md:text-base">{data?.online_users || 0}</span>
+            <span className="text-sm font-bold md:text-base">{data?.online_users || 0}</span>
           </div>
         </div>
         <div className="flex min-w-0 flex-row items-center gap-2 rounded-lg border p-3 shadow-sm md:gap-3 md:p-4">
@@ -62,7 +62,7 @@ const UserStatisticsCard = ({ data }: { data: SystemUsersStats | undefined }) =>
                 {percentOfTotal(data?.expired_users)}%
               </Badge>
             )}
-            <span className="font-bold text-sm md:text-base">{data?.expired_users || 0}</span>
+            <span className="text-sm font-bold md:text-base">{data?.expired_users || 0}</span>
           </div>
         </div>
         <div className="flex min-w-0 flex-row items-center gap-2 rounded-lg border p-3 shadow-sm md:gap-3 md:p-4">
@@ -74,7 +74,7 @@ const UserStatisticsCard = ({ data }: { data: SystemUsersStats | undefined }) =>
                 {percentOfTotal(data?.limited_users)}%
               </Badge>
             )}
-            <span className="font-bold text-sm md:text-base">{data?.limited_users || 0}</span>
+            <span className="text-sm font-bold md:text-base">{data?.limited_users || 0}</span>
           </div>
         </div>
         <div className="flex min-w-0 flex-row items-center gap-2 rounded-lg border p-3 shadow-sm md:gap-3 md:p-4">
@@ -86,7 +86,7 @@ const UserStatisticsCard = ({ data }: { data: SystemUsersStats | undefined }) =>
                 {percentOfTotal(data?.on_hold_users)}%
               </Badge>
             )}
-            <span className="font-bold text-sm md:text-base">{data?.on_hold_users || 0}</span>
+            <span className="text-sm font-bold md:text-base">{data?.on_hold_users || 0}</span>
           </div>
         </div>
         <div className="flex min-w-0 flex-row items-center gap-2 rounded-lg border p-3 shadow-sm md:gap-3 md:p-4">
@@ -98,7 +98,7 @@ const UserStatisticsCard = ({ data }: { data: SystemUsersStats | undefined }) =>
                 {percentOfTotal(data?.disabled_users)}%
               </Badge>
             )}
-            <span className="font-bold text-sm md:text-base">{data?.disabled_users || 0}</span>
+            <span className="text-sm font-bold md:text-base">{data?.disabled_users || 0}</span>
           </div>
         </div>
       </CardContent>

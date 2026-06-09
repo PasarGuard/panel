@@ -30,15 +30,18 @@ export default function GroupsSelector<T extends FieldValues>({ control, name, o
     name,
   })
 
-  const { data: groupsData, isLoading: groupsLoading } = useGetGroupsSimple({ all: true }, {
-    query: {
-      staleTime: 5 * 60 * 1000, // 5 minutes
-      gcTime: 10 * 60 * 1000, // 10 minutes
-      refetchOnWindowFocus: true,
-      refetchOnMount: true,
-      refetchOnReconnect: true,
+  const { data: groupsData, isLoading: groupsLoading } = useGetGroupsSimple(
+    { all: true },
+    {
+      query: {
+        staleTime: 5 * 60 * 1000, // 5 minutes
+        gcTime: 10 * 60 * 1000, // 10 minutes
+        refetchOnWindowFocus: true,
+        refetchOnMount: true,
+        refetchOnReconnect: true,
+      },
     },
-  })
+  )
 
   const selectedGroups = (field.value as number[]) || []
   const filteredGroups = (groupsData?.groups || []).filter((group: any) => group.name.toLowerCase().includes(searchQuery.toLowerCase()))
@@ -61,7 +64,7 @@ export default function GroupsSelector<T extends FieldValues>({ control, name, o
       <FormItem>
         <div className="space-y-4 pt-4">
           <div className="relative">
-            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Search className="text-muted-foreground absolute top-2.5 left-2 h-4 w-4" />
             <Skeleton className="h-10 w-full pl-8" />
           </div>
           <Skeleton className="h-12 w-full" />
@@ -82,7 +85,7 @@ export default function GroupsSelector<T extends FieldValues>({ control, name, o
     <FormItem>
       <div className="space-y-4 pt-4">
         <div className="relative">
-          <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Search className="text-muted-foreground absolute top-2.5 left-2 h-4 w-4" />
           <Input
             placeholder={t('search', { defaultValue: 'Search' }) + ' ' + t('groups', { defaultValue: 'groups' })}
             value={searchQuery}
@@ -91,7 +94,7 @@ export default function GroupsSelector<T extends FieldValues>({ control, name, o
             disabled={disabled}
           />
         </div>
-        <label className="flex cursor-pointer items-center gap-2 rounded-md border border-border p-3 hover:bg-accent">
+        <label className="border-border hover:bg-accent flex cursor-pointer items-center gap-2 rounded-md border p-3">
           <Checkbox checked={filteredGroups.length > 0 && selectedGroups.length === filteredGroups.length} onCheckedChange={handleSelectAll} disabled={disabled} />
           <span className="text-sm font-medium">{t('selectAll', { defaultValue: 'Select All' })}</span>
         </label>
@@ -99,7 +102,7 @@ export default function GroupsSelector<T extends FieldValues>({ control, name, o
           {filteredGroups.length === 0 ? (
             <div className="flex w-full flex-col gap-4 rounded-md border border-yellow-500 p-4">
               <span className="text-sm font-bold text-yellow-500">{t('warning')}</span>
-              <span className="text-sm font-medium text-foreground">
+              <span className="text-foreground text-sm font-medium">
                 {canManageGroups ? (
                   <Trans
                     i18nKey={'templates.groupsExistingWarning'}
@@ -107,7 +110,7 @@ export default function GroupsSelector<T extends FieldValues>({ control, name, o
                       a: (
                         <a
                           href="/groups"
-                          className="font-bold text-primary hover:underline"
+                          className="text-primary font-bold hover:underline"
                           onClick={e => {
                             e.preventDefault()
                             navigate('/groups')
@@ -123,7 +126,7 @@ export default function GroupsSelector<T extends FieldValues>({ control, name, o
             </div>
           ) : (
             filteredGroups.map((group: any) => (
-              <label key={group.id} className="flex cursor-pointer items-center gap-2 rounded-md p-2 hover:bg-accent">
+              <label key={group.id} className="hover:bg-accent flex cursor-pointer items-center gap-2 rounded-md p-2">
                 <Checkbox checked={selectedGroups.includes(group.id)} onCheckedChange={checked => handleGroupChange(!!checked, group.id)} disabled={disabled} />
                 <span className="text-sm">{group.name}</span>
               </label>
@@ -131,7 +134,7 @@ export default function GroupsSelector<T extends FieldValues>({ control, name, o
           )}
         </div>
         {selectedGroups.length > 0 && (
-          <div className="text-sm text-muted-foreground">
+          <div className="text-muted-foreground text-sm">
             {t('userDialog.selectedGroups', {
               count: selectedGroups.length,
               defaultValue: '{{count}} groups selected',

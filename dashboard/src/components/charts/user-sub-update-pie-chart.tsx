@@ -106,23 +106,23 @@ function CustomTooltip({ active, payload }: CustomTooltipProps) {
   const { agent, updates, percentage, fill } = data
 
   return (
-    <div className="rounded-lg border bg-background/95 p-3 shadow-lg backdrop-blur-sm">
+    <div className="bg-background/95 rounded-lg border p-3 shadow-lg backdrop-blur-sm">
       <div className="flex items-center gap-2">
-        <div className="h-3 w-3 rounded-full border border-border/20" style={{ backgroundColor: fill }} />
-        <span className="text-sm font-medium text-foreground">{agent}</span>
+        <div className="border-border/20 h-3 w-3 rounded-full border" style={{ backgroundColor: fill }} />
+        <span className="text-foreground text-sm font-medium">{agent}</span>
       </div>
 
       <div className="mt-2 space-y-1">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-1.5">
-            <Users className="h-3 w-3 text-muted-foreground" />
-            <span className="text-xs text-muted-foreground">{t('statistics.subscriptions')}</span>
+            <Users className="text-muted-foreground h-3 w-3" />
+            <span className="text-muted-foreground text-xs">{t('statistics.subscriptions')}</span>
           </div>
-          <span className="font-mono text-sm font-semibold text-foreground">{numberWithCommas(updates)}</span>
+          <span className="text-foreground font-mono text-sm font-semibold">{numberWithCommas(updates)}</span>
         </div>
 
         <div className="flex items-center justify-between gap-3">
-          <span className="text-xs text-muted-foreground">{t('statistics.percentage')}</span>
+          <span className="text-muted-foreground text-xs">{t('statistics.percentage')}</span>
           <Badge variant="secondary" className="text-xs font-medium">
             {formatPercentage(percentage)}
           </Badge>
@@ -144,12 +144,15 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
     }
   }, [adminId])
 
-  const { data: admins, isLoading: isLoadingAdmins } = useGetAdminsSimple({ all: true }, {
-    query: {
-      enabled: true,
-      staleTime: 5 * 60 * 1000,
+  const { data: admins, isLoading: isLoadingAdmins } = useGetAdminsSimple(
+    { all: true },
+    {
+      query: {
+        enabled: true,
+        staleTime: 5 * 60 * 1000,
+      },
     },
-  })
+  )
 
   const params = useMemo(() => {
     const payload: GetUsersSubUpdateChartParams = {}
@@ -266,7 +269,7 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
 
   return (
     <Card>
-      <CardHeader className="flex flex-col gap-4 px-4 py-6 xl:px-6 lg:flex-row lg:items-start lg:justify-between">
+      <CardHeader className="flex flex-col gap-4 px-4 py-6 lg:flex-row lg:items-start lg:justify-between xl:px-6">
         <div>
           <CardTitle className="mb-1 flex items-center gap-2">
             <Users className="text-muted-foreground h-4 w-4 shrink-0" />
@@ -275,7 +278,7 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
           <CardDescription>{t('statistics.subscriptionDistributionDescription')}</CardDescription>
         </div>
         <div className="flex w-full flex-col gap-2 lg:max-w-xs">
-          <span className="text-xs font-medium text-muted-foreground">{t('statistics.adminFilterLabel')}</span>
+          <span className="text-muted-foreground text-xs font-medium">{t('statistics.adminFilterLabel')}</span>
           <Select value={selectedAdmin} onValueChange={setSelectedAdmin} disabled={isLoadingAdmins}>
             <SelectTrigger className="h-9">
               <SelectValue placeholder={t('statistics.adminFilterPlaceholder')} />
@@ -303,7 +306,10 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
         ) : (
           <div className="flex flex-col items-center gap-6 lg:flex-row">
             <div className="w-full lg:w-1/2">
-              <ChartContainer config={chartConfig} className="mx-auto h-[220px] w-[220px] max-h-[320px] max-w-[320px] sm:h-[280px] sm:w-[280px] lg:h-[320px] lg:w-[320px] [&_.recharts-text]:fill-transparent">
+              <ChartContainer
+                config={chartConfig}
+                className="mx-auto h-[220px] max-h-[320px] w-[220px] max-w-[320px] sm:h-[280px] sm:w-[280px] lg:h-[320px] lg:w-[320px] [&_.recharts-text]:fill-transparent"
+              >
                 <PieChart>
                   <ChartTooltip content={<CustomTooltip />} />
                   <Pie data={chartData} dataKey="updates" nameKey="agent" innerRadius="55%" outerRadius="95%" paddingAngle={piePaddingAngle} strokeWidth={pieStrokeWidth} isAnimationActive>
@@ -315,25 +321,25 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
               </ChartContainer>
             </div>
             <div className={`flex w-full flex-1 flex-col gap-4 lg:w-1/2 ${dir === 'rtl' ? 'items-end' : 'items-start'}`}>
-              <div className="w-full max-w-xs rounded-lg border border-border/60 bg-muted/30 p-4">
-                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t('statistics.totalSubscriptions')}</p>
-                <p dir="ltr" className="mt-2 text-3xl font-semibold text-foreground">
+              <div className="border-border/60 bg-muted/30 w-full max-w-xs rounded-lg border p-4">
+                <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">{t('statistics.totalSubscriptions')}</p>
+                <p dir="ltr" className="text-foreground mt-2 text-3xl font-semibold">
                   {numberWithCommas(total)}
                 </p>
               </div>
               <div className="max-h-64 w-full overflow-y-auto">
                 <ul className="w-full space-y-3">
                   {segments.map(segment => (
-                    <li key={segment.key} className={`flex items-center justify-between gap-4 rounded-md border border-border/40 px-3 py-2 max-w-full ${dir === 'rtl' ? 'flex-row-reverse' : ''}`}>
+                    <li key={segment.key} className={`border-border/40 flex max-w-full items-center justify-between gap-4 rounded-md border px-3 py-2 ${dir === 'rtl' ? 'flex-row-reverse' : ''}`}>
                       <div className={`flex items-center gap-2 overflow-hidden ${dir === 'rtl' ? 'flex-row-reverse' : ''}`}>
                         <span className="h-3 w-3 rounded-full" style={{ backgroundColor: segment.color }} />
-                        <span className="text-sm font-medium text-foreground flex-1 truncate">{segment.name}</span>
+                        <span className="text-foreground flex-1 truncate text-sm font-medium">{segment.name}</span>
                       </div>
-                      <div className={`flex items-baseline gap-3 text-sm font-semibold text-foreground ${dir === 'rtl' ? 'flex-row-reverse' : ''}`}>
+                      <div className={`text-foreground flex items-baseline gap-3 text-sm font-semibold ${dir === 'rtl' ? 'flex-row-reverse' : ''}`}>
                         <span dir="ltr" className="font-mono">
                           {numberWithCommas(segment.count)}
                         </span>
-                        <span className="text-xs font-normal text-muted-foreground">{formatPercentage(segment.percentage)}</span>
+                        <span className="text-muted-foreground text-xs font-normal">{formatPercentage(segment.percentage)}</span>
                       </div>
                     </li>
                   ))}
@@ -345,8 +351,8 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
       </CardContent>
       {leadingSegment && (
         <CardFooter className="flex-col gap-1.5 pt-4">
-          <div className="flex items-center gap-2 rounded-lg border border-primary/20 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent px-3 py-2 text-xs">
-            <div className="flex items-center gap-1.5 font-semibold text-primary">
+          <div className="border-primary/20 from-primary/10 via-primary/5 flex items-center gap-2 rounded-lg border bg-gradient-to-r to-transparent px-3 py-2 text-xs">
+            <div className="text-primary flex items-center gap-1.5 font-semibold">
               <TrendingUp className="h-3.5 w-3.5" />
               <span>
                 {t('statistics.leadingClientMessage', {
@@ -355,7 +361,7 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
                 })}
               </span>
             </div>
-            <div className="ml-auto h-2.5 w-2.5 rounded-full border-2 border-primary/30 shadow-sm" style={{ backgroundColor: leadingSegment.color }} />
+            <div className="border-primary/30 ml-auto h-2.5 w-2.5 rounded-full border-2 shadow-sm" style={{ backgroundColor: leadingSegment.color }} />
           </div>
         </CardFooter>
       )}

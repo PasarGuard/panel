@@ -546,15 +546,15 @@ export default function NodesList() {
     ? [
         ...(canDeleteNodes
           ? [
-        {
-          key: 'delete',
-          label: t('delete'),
-          icon: Trash2,
-          onClick: () => setBulkAction('delete'),
-          direct: true,
-          destructive: true,
-        } as BulkActionItem,
-          ]
+              {
+                key: 'delete',
+                label: t('delete'),
+                icon: Trash2,
+                onClick: () => setBulkAction('delete'),
+                direct: true,
+                destructive: true,
+              } as BulkActionItem,
+            ]
           : []),
         ...(canUpdateNodes && disableEligibleCount > 0
           ? [
@@ -564,7 +564,7 @@ export default function NodesList() {
                 icon: PowerOff,
                 onClick: () => setBulkAction('disable'),
               } as BulkActionItem,
-          ]
+            ]
           : []),
         ...(canUpdateNodes && enableEligibleCount > 0
           ? [
@@ -578,33 +578,33 @@ export default function NodesList() {
           : []),
         ...(canUpdateNodes
           ? [
-            {
-              key: 'reset',
-              label: t('nodeModal.resetUsage', { defaultValue: 'Reset Usage' }),
-              icon: RefreshCcw,
-              onClick: () => setBulkAction('reset'),
-            } as BulkActionItem,
-          ]
+              {
+                key: 'reset',
+                label: t('nodeModal.resetUsage', { defaultValue: 'Reset Usage' }),
+                icon: RefreshCcw,
+                onClick: () => setBulkAction('reset'),
+              } as BulkActionItem,
+            ]
           : []),
         ...(canReconnectNodes
           ? [
-            {
-              key: 'reconnect',
-              label: t('nodeModal.reconnect', { defaultValue: 'Reconnect' }),
-              icon: WifiSync,
-              onClick: () => setBulkAction('reconnect'),
-            } as BulkActionItem,
-          ]
+              {
+                key: 'reconnect',
+                label: t('nodeModal.reconnect', { defaultValue: 'Reconnect' }),
+                icon: WifiSync,
+                onClick: () => setBulkAction('reconnect'),
+              } as BulkActionItem,
+            ]
           : []),
         ...(canUpdateNodeCore
           ? [
-            {
-              key: 'update',
-              label: t('nodeModal.updateNode', { defaultValue: 'Update Node' }),
-              icon: CircleFadingArrowUp,
-              onClick: () => setBulkAction('update'),
-            } as BulkActionItem,
-          ]
+              {
+                key: 'update',
+                label: t('nodeModal.updateNode', { defaultValue: 'Update Node' }),
+                icon: CircleFadingArrowUp,
+                onClick: () => setBulkAction('update'),
+              } as BulkActionItem,
+            ]
           : []),
       ]
     : []

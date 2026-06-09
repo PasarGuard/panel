@@ -23,7 +23,7 @@ const BulkPage = () => {
   const canCreateUsers = hasPermission(admin, 'users', 'create')
   const canReadUserTemplates = canReadResourcePage(admin, 'templates')
   const canBulkUpdate = hasScopeAll(admin, 'users', 'update')
-  const tabs = allTabs.filter(tab => tab.id === 'create' ? canCreateUsers && canReadUserTemplates : canBulkUpdate)
+  const tabs = allTabs.filter(tab => (tab.id === 'create' ? canCreateUsers && canReadUserTemplates : canBulkUpdate))
   const navigate = useNavigate()
   const location = useLocation()
   const [activeTab, setActiveTab] = useState(allTabs[0].id)
@@ -80,7 +80,7 @@ const BulkPage = () => {
             <button
               key={tab.id}
               onClick={() => navigate(tab.url)}
-              className={`relative flex-shrink-0 whitespace-nowrap px-3 py-2 text-sm font-medium transition-colors ${activeTab === tab.id ? 'border-b-2 border-primary text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+              className={`relative flex-shrink-0 px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors ${activeTab === tab.id ? 'border-primary text-foreground border-b-2' : 'text-muted-foreground hover:text-foreground'}`}
             >
               <div className="flex items-center gap-1.5">
                 <tab.icon className="h-4 w-4" />

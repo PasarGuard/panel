@@ -6,10 +6,7 @@ import type { WireGuardValidationIssue } from '@pasarguard/wireguard-config-kit'
 import { useTranslation } from 'react-i18next'
 import { useCoreEditorStore } from '@/features/core-editor/state/core-editor-store'
 
-export type ValidationListItem =
-  | { source: 'core-kit'; issue: CoreKitValidationIssue }
-  | { source: 'xray'; issue: Issue }
-  | { source: 'wireguard'; issue: WireGuardValidationIssue }
+export type ValidationListItem = { source: 'core-kit'; issue: CoreKitValidationIssue } | { source: 'xray'; issue: Issue } | { source: 'wireguard'; issue: WireGuardValidationIssue }
 
 export function validationListItemPath(item: ValidationListItem): string {
   const p = item.issue.path
@@ -65,10 +62,7 @@ export function formatValidationListItemsToastLines(items: ValidationListItem[],
 }
 
 /** Keep only issues under a JSON-pointer prefix (e.g. `/inbounds/3` for the third inbound; kit paths are 1-based). */
-export function filterValidationListItemsByPathPrefix(
-  items: ValidationListItem[],
-  prefix: string | undefined,
-): ValidationListItem[] {
+export function filterValidationListItemsByPathPrefix(items: ValidationListItem[], prefix: string | undefined): ValidationListItem[] {
   if (prefix == null || prefix.trim() === '') return items
   const base = prefix.replace(/\/$/, '')
   return items.filter(item => {
@@ -98,11 +92,7 @@ export function ValidationSummary({ items, className }: ValidationSummaryProps) 
 
   return (
     <Alert variant={tone === 'destructive' ? 'destructive' : 'default'} className={cn(className)}>
-      <AlertTitle>
-        {errors.length > 0
-          ? t('coreEditor.validationErrors', { defaultValue: 'Validation errors' })
-          : t('coreEditor.validationWarnings', { defaultValue: 'Warnings' })}
-      </AlertTitle>
+      <AlertTitle>{errors.length > 0 ? t('coreEditor.validationErrors', { defaultValue: 'Validation errors' }) : t('coreEditor.validationWarnings', { defaultValue: 'Warnings' })}</AlertTitle>
       <AlertDescription className="space-y-2">
         <ul className="mt-1 list-inside list-disc space-y-1 text-sm">
           {displayed.map((row, idx) => (
@@ -115,9 +105,7 @@ export function ValidationSummary({ items, className }: ValidationSummaryProps) 
               {row.source === 'xray' && (
                 <>
                   {formatXrayProfilePath(row.issue.path, profile)}: {row.issue.message}
-                  {row.issue.code ? (
-                    <span className="ml-1 text-[0.8em] opacity-80">[{row.issue.code}]</span>
-                  ) : null}
+                  {row.issue.code ? <span className="ml-1 text-[0.8em] opacity-80">[{row.issue.code}]</span> : null}
                   {row.issue.suggestion ? <span className="block pl-4 text-xs opacity-90">→ {row.issue.suggestion}</span> : null}
                 </>
               )}
@@ -129,11 +117,7 @@ export function ValidationSummary({ items, className }: ValidationSummaryProps) 
             </li>
           ))}
         </ul>
-        {rest > 0 ? (
-          <p className="text-xs opacity-90">
-            {t('coreEditor.validationMore', { count: rest, defaultValue: `…and ${rest} more` })}
-          </p>
-        ) : null}
+        {rest > 0 ? <p className="text-xs opacity-90">{t('coreEditor.validationMore', { count: rest, defaultValue: `…and ${rest} more` })}</p> : null}
       </AlertDescription>
     </Alert>
   )

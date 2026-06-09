@@ -18,14 +18,7 @@ import useDirDetection from '@/hooks/use-dir-detection'
 import { usePersistedViewMode } from '@/hooks/use-persisted-view-mode'
 import { cn } from '@/lib/utils'
 import { queryClient } from '@/utils/query-client'
-import {
-  AdminRoleResponse,
-  getGetRolesQueryKey,
-  getGetRolesSimpleQueryKey,
-  useCreateRole,
-  useDeleteRole,
-  useGetRoles,
-} from '@/service/api'
+import { AdminRoleResponse, getGetRolesQueryKey, getGetRolesSimpleQueryKey, useCreateRole, useDeleteRole, useGetRoles } from '@/service/api'
 
 import { BulkActionAlertDialog } from '@/features/users/components/bulk-action-alert-dialog'
 import { BulkActionItem, BulkActionsBar } from '@/features/users/components/bulk-actions-bar'
@@ -103,10 +96,7 @@ export default function AdminRolesList({ isDialogOpen, onOpenChange }: AdminRole
           defaultValue: 'Role "{{name}}" has been duplicated successfully.',
         }),
       })
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: getGetRolesQueryKey() }),
-        queryClient.invalidateQueries({ queryKey: getGetRolesSimpleQueryKey() }),
-      ])
+      await Promise.all([queryClient.invalidateQueries({ queryKey: getGetRolesQueryKey() }), queryClient.invalidateQueries({ queryKey: getGetRolesSimpleQueryKey() })])
     } catch (error: any) {
       toast.error(t('error', { defaultValue: 'Error' }), {
         description: error?.data?.detail || error?.message || t('adminRoles.duplicateFailed', { name: role.name, defaultValue: 'Failed to duplicate role "{{name}}".' }),
@@ -175,10 +165,7 @@ export default function AdminRolesList({ isDialogOpen, onOpenChange }: AdminRole
       }
       clearSelection()
       setConfirmBulkDelete(false)
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: getGetRolesQueryKey() }),
-        queryClient.invalidateQueries({ queryKey: getGetRolesSimpleQueryKey() }),
-      ])
+      await Promise.all([queryClient.invalidateQueries({ queryKey: getGetRolesQueryKey() }), queryClient.invalidateQueries({ queryKey: getGetRolesSimpleQueryKey() })])
     } catch (error: any) {
       toast.error(t('error', { defaultValue: 'Error' }), {
         description: error?.data?.detail || error?.message || t('adminRoles.bulkDeleteFailed', { defaultValue: 'Failed to delete selected roles.' }),
@@ -204,18 +191,13 @@ export default function AdminRolesList({ isDialogOpen, onOpenChange }: AdminRole
     <div className={cn('w-full flex-1 space-y-4', dir === 'rtl' && 'rtl')}>
       <div dir={dir} className="flex items-center gap-2 md:gap-4">
         <div className="relative min-w-0 flex-1 md:w-[calc(100%/3-10px)] md:flex-none">
-          <Search className={cn('absolute', dir === 'rtl' ? 'right-2' : 'left-2', 'top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground')} />
-          <Input
-            placeholder={t('search', { defaultValue: 'Search' })}
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            className={cn('pl-8 pr-10', dir === 'rtl' && 'pl-10 pr-8')}
-          />
+          <Search className={cn('absolute', dir === 'rtl' ? 'right-2' : 'left-2', 'text-muted-foreground top-1/2 h-4 w-4 -translate-y-1/2')} />
+          <Input placeholder={t('search', { defaultValue: 'Search' })} value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className={cn('pr-10 pl-8', dir === 'rtl' && 'pr-8 pl-10')} />
           {searchQuery && (
             <button
               type="button"
               onClick={() => setSearchQuery('')}
-              className={cn('absolute', dir === 'rtl' ? 'left-2' : 'right-2', 'top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground')}
+              className={cn('absolute', dir === 'rtl' ? 'left-2' : 'right-2', 'text-muted-foreground hover:text-foreground top-1/2 -translate-y-1/2')}
             >
               <X className="h-4 w-4" />
             </button>
@@ -244,7 +226,9 @@ export default function AdminRolesList({ isDialogOpen, onOpenChange }: AdminRole
           <CardContent className="p-8 text-center">
             <div className="space-y-4">
               <h3 className="text-lg font-semibold">{t('adminRoles.empty', { defaultValue: 'No roles' })}</h3>
-              <p className="mx-auto max-w-2xl text-muted-foreground">{t('adminRoles.emptyDescription', { defaultValue: 'Create a role to assign granular permissions, limits, features, and access restrictions to admins.' })}</p>
+              <p className="text-muted-foreground mx-auto max-w-2xl">
+                {t('adminRoles.emptyDescription', { defaultValue: 'Create a role to assign granular permissions, limits, features, and access restrictions to admins.' })}
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -255,7 +239,7 @@ export default function AdminRolesList({ isDialogOpen, onOpenChange }: AdminRole
           <CardContent className="p-8 text-center">
             <div className="space-y-4">
               <h3 className="text-lg font-semibold">{t('noResults', { defaultValue: 'No results' })}</h3>
-              <p className="mx-auto max-w-2xl text-muted-foreground">{t('adminRoles.noSearchResults', { defaultValue: 'No roles match your search.' })}</p>
+              <p className="text-muted-foreground mx-auto max-w-2xl">{t('adminRoles.noSearchResults', { defaultValue: 'No roles match your search.' })}</p>
             </div>
           </CardContent>
         </Card>
@@ -306,14 +290,7 @@ export default function AdminRolesList({ isDialogOpen, onOpenChange }: AdminRole
           />
         ))}
 
-      <AdminRoleModal
-        isDialogOpen={isDialogOpen}
-        onOpenChange={handleDialogChange}
-        form={form}
-        editingRole={!!editingRole}
-        editingRoleId={editingRole?.id}
-        readOnly={isReadOnly}
-      />
+      <AdminRoleModal isDialogOpen={isDialogOpen} onOpenChange={handleDialogChange} form={form} editingRole={!!editingRole} editingRoleId={editingRole?.id} readOnly={isReadOnly} />
 
       <BulkActionAlertDialog
         open={confirmBulkDelete}

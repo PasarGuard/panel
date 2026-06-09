@@ -60,8 +60,8 @@ export default function TemplatesLayout() {
         buttonText: canCreateClientTemplates ? 'clientTemplates.addTemplate' : undefined,
         onButtonClick: canCreateClientTemplates
           ? () => {
-            window.dispatchEvent(new CustomEvent('openClientTemplateDialog'))
-          }
+              window.dispatchEvent(new CustomEvent('openClientTemplateDialog'))
+            }
           : undefined,
       }
     }
@@ -72,8 +72,8 @@ export default function TemplatesLayout() {
       buttonText: canCreateUserTemplates ? 'templates.addTemplate' : undefined,
       onButtonClick: canCreateUserTemplates
         ? () => {
-          window.dispatchEvent(new CustomEvent('openUserTemplateDialog'))
-        }
+            window.dispatchEvent(new CustomEvent('openUserTemplateDialog'))
+          }
         : undefined,
     }
   }
@@ -90,7 +90,7 @@ export default function TemplatesLayout() {
               key={tab.id}
               onClick={() => navigate(tab.url)}
               className={`relative px-3 py-2 text-sm font-medium transition-colors ${
-                activeTab === tab.id ? 'border-b-2 border-primary text-foreground' : 'text-muted-foreground hover:text-foreground'
+                activeTab === tab.id ? 'border-primary text-foreground border-b-2' : 'text-muted-foreground hover:text-foreground'
               }`}
             >
               <div className="flex items-center gap-1.5">

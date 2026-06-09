@@ -40,7 +40,7 @@ export async function clearBrowserBuildCaches(): Promise<void> {
     deletions.push(
       window.caches
         .keys()
-        .then((keys) => Promise.all(keys.map((key) => window.caches.delete(key))))
+        .then(keys => Promise.all(keys.map(key => window.caches.delete(key))))
         .catch(() => undefined),
     )
   }
@@ -49,7 +49,7 @@ export async function clearBrowserBuildCaches(): Promise<void> {
     deletions.push(
       navigator.serviceWorker
         .getRegistrations()
-        .then((registrations) => Promise.all(registrations.map((registration) => registration.unregister())))
+        .then(registrations => Promise.all(registrations.map(registration => registration.unregister())))
         .catch(() => undefined),
     )
   }
@@ -89,23 +89,20 @@ export function recoverFromChunkLoadError(error: unknown): boolean {
 }
 
 export function installChunkLoadRecovery(): void {
-  window.addEventListener('vite:preloadError', (event) => {
+  window.addEventListener('vite:preloadError', event => {
     event.preventDefault()
-    const preloadError =
-      'payload' in event ? (event as Event & { payload: unknown }).payload : (event as CustomEvent<unknown>).detail
+    const preloadError = 'payload' in event ? (event as Event & { payload: unknown }).payload : (event as CustomEvent<unknown>).detail
     recoverFromChunkLoadError(preloadError ?? event)
   })
 
-  window.addEventListener('unhandledrejection', (event) => {
+  window.addEventListener('unhandledrejection', event => {
     if (recoverFromChunkLoadError(event.reason)) {
       event.preventDefault()
     }
   })
 }
 
-export function lazyWithChunkRecovery<T extends ComponentType<any>>(
-  importer: () => Promise<{ default: T }>,
-) {
+export function lazyWithChunkRecovery<T extends ComponentType<any>>(importer: () => Promise<{ default: T }>) {
   return lazy(async () => {
     try {
       return await importer()

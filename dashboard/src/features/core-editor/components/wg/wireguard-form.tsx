@@ -35,14 +35,7 @@ function wireGuardFieldLabel(key: string, fallback: string, t: (key: string, o?:
   return t(`coreEditor.wg.fields.${key}`, { defaultValue: fallback })
 }
 
-const WIREGUARD_FIELD_ORDER = [
-  'interfaceName',
-  'listenPort',
-  'privateKey',
-  'publicKey',
-  'preSharedKey',
-  'address',
-] as const satisfies readonly WireGuardCoreFieldKey[]
+const WIREGUARD_FIELD_ORDER = ['interfaceName', 'listenPort', 'privateKey', 'publicKey', 'preSharedKey', 'address'] as const satisfies readonly WireGuardCoreFieldKey[]
 
 function orderedWireGuardFieldKeys(fieldOrder: readonly WireGuardCoreFieldKey[]): WireGuardCoreFieldKey[] {
   const available = new Set(fieldOrder)
@@ -66,10 +59,7 @@ export function WireGuardCoreForm({ className }: { className?: string }) {
   const updateWgDraft = useCoreEditorStore(s => s.updateWgDraft)
   const caps = useMemo(() => getWireGuardCoreFormCapabilities(), [])
 
-  const values = useMemo(
-    () => (draft ? draftToFormValues(draft, caps.fieldOrder) : {}),
-    [draft, caps.fieldOrder],
-  )
+  const values = useMemo(() => (draft ? draftToFormValues(draft, caps.fieldOrder) : {}), [draft, caps.fieldOrder])
 
   const form = useForm<Record<string, string>>({ values })
   const formFieldOrder = useMemo(() => orderedWireGuardFieldKeys(caps.fieldOrder), [caps.fieldOrder])
@@ -123,13 +113,7 @@ export function WireGuardCoreForm({ className }: { className?: string }) {
                     <FormItem className={fieldClassName}>
                       <FormLabel>{label}</FormLabel>
                       <FormControl>
-                        <Input
-                          readOnly={!isPublicKey}
-                          disabled={isPublicKey}
-                          className="text-xs"
-                          dir="ltr"
-                          {...f}
-                        />
+                        <Input readOnly={!isPublicKey} disabled={isPublicKey} className="text-xs" dir="ltr" {...f} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -168,13 +152,7 @@ export function WireGuardCoreForm({ className }: { className?: string }) {
                       <FormLabel>{label}</FormLabel>
                       <FormControl>
                         {showKeygen || showPreSharedKeygen ? (
-                          <div
-                            dir="ltr"
-                            className={cn(
-                              'flex items-center gap-2',
-                              dir === 'rtl' ? 'flex-row-reverse' : 'flex-row',
-                            )}
-                          >
+                          <div dir="ltr" className={cn('flex items-center gap-2', dir === 'rtl' ? 'flex-row-reverse' : 'flex-row')}>
                             <Input
                               type={field.input === 'secret' ? 'password' : 'text'}
                               placeholder={field.placeholder}

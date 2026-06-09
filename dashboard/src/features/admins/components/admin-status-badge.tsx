@@ -48,7 +48,7 @@ export const AdminStatusBadge: FC<AdminStatusProps> = ({ isSudo: _isSudo, status
     >
       <div className={cn('flex items-center gap-1 sm:px-1', !compact && 'px-1')}>
         {StatusIcon && <StatusIcon className="h-4 w-4 sm:h-3 sm:w-3" />}
-        <span className={cn('text-nowrap text-xs font-medium capitalize', compact ? 'hidden sm:block' : 'block')}>{statusInfo.text}</span>
+        <span className={cn('text-xs font-medium text-nowrap capitalize', compact ? 'hidden sm:block' : 'block')}>{statusInfo.text}</span>
       </div>
     </Badge>
   )

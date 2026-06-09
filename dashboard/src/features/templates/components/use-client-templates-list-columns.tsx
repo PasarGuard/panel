@@ -57,15 +57,15 @@ export const useClientTemplatesListColumns = ({ onEdit, canCreate = true, canUpd
       },
       ...(canCreate || canUpdate || canDelete
         ? [
-          {
-            id: 'actions',
-            header: '',
-            width: '24px',
-            align: 'end' as const,
-            hideOnMobile: false,
-            cell: (template: ClientTemplateResponse) => <ClientTemplateActionsMenu template={template} onEdit={onEdit} canCreate={canCreate} canUpdate={canUpdate} canDelete={canDelete} />,
-          },
-        ]
+            {
+              id: 'actions',
+              header: '',
+              width: '24px',
+              align: 'end' as const,
+              hideOnMobile: false,
+              cell: (template: ClientTemplateResponse) => <ClientTemplateActionsMenu template={template} onEdit={onEdit} canCreate={canCreate} canUpdate={canUpdate} canDelete={canDelete} />,
+            },
+          ]
         : []),
     ],
     [compactBadgeClassName, t, onEdit, canCreate, canUpdate, canDelete],

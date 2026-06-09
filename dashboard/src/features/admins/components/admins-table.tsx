@@ -421,10 +421,7 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
       toast.error(t('error', { defaultValue: 'Error' }), {
         description: t(actionType === 'disable' ? 'admins.disableAllActiveUsersFailed' : 'admins.activateAllDisabledUsersFailed', {
           name: admin.username,
-          defaultValue:
-            actionType === 'disable'
-              ? `Failed to disable all active users under admin "${admin.username}"`
-              : `Failed to activate all disabled users under admin "${admin.username}"`,
+          defaultValue: actionType === 'disable' ? `Failed to disable all active users under admin "${admin.username}"` : `Failed to activate all disabled users under admin "${admin.username}"`,
         }),
       })
     }
@@ -706,76 +703,76 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
   const disableEligibleCount = selectedDisableEligibleAdmins.length
   const bulkActions: BulkActionItem[] = selectedCount
     ? [
-      ...(canDeleteAdmins
-        ? [
-      {
-        key: 'delete',
-        label: t('delete'),
-        icon: Trash2,
-        onClick: () => setBulkAction('delete'),
-        direct: true,
-        destructive: true,
-      } as BulkActionItem,
-        ]
-        : []),
-      ...(canResetAdmins
-        ? [
-      {
-        key: 'reset',
-        label: t('admins.reset'),
-        icon: RefreshCw,
-        onClick: () => setBulkAction('reset'),
-      } as BulkActionItem,
-        ]
-        : []),
-      ...(canUpdateAdmins && disableEligibleCount > 0
-        ? [
-          {
-            key: 'disable',
-            label: t('disable'),
-            icon: PowerOff,
-            onClick: () => setBulkAction('disable'),
-          } as BulkActionItem,
-        ]
-        : []),
-      ...(canUpdateAdmins && enableEligibleCount > 0
-        ? [
-          {
-            key: 'enable',
-            label: t('enable'),
-            icon: Power,
-            onClick: () => setBulkAction('enable'),
-          } as BulkActionItem,
-        ]
-        : []),
-      ...(canUpdateAllUsers
-        ? [
-      {
-        key: 'disableUsers',
-        label: t('admins.disableAllActiveUsers'),
-        icon: UserMinus,
-        onClick: () => setBulkAction('disableUsers'),
-      } as BulkActionItem,
-      {
-        key: 'activateUsers',
-        label: t('admins.activateAllDisabledUsers'),
-        icon: UserCheck,
-        onClick: () => setBulkAction('activateUsers'),
-      } as BulkActionItem,
-        ]
-        : []),
-      ...(canDeleteAllUsers
-        ? [
-      {
-        key: 'removeUsers',
-        label: t('admins.removeAllUsers'),
-        icon: UserX,
-        onClick: () => setBulkAction('removeUsers'),
-        destructive: true,
-      } as BulkActionItem,
-        ]
-        : []),
-    ]
+        ...(canDeleteAdmins
+          ? [
+              {
+                key: 'delete',
+                label: t('delete'),
+                icon: Trash2,
+                onClick: () => setBulkAction('delete'),
+                direct: true,
+                destructive: true,
+              } as BulkActionItem,
+            ]
+          : []),
+        ...(canResetAdmins
+          ? [
+              {
+                key: 'reset',
+                label: t('admins.reset'),
+                icon: RefreshCw,
+                onClick: () => setBulkAction('reset'),
+              } as BulkActionItem,
+            ]
+          : []),
+        ...(canUpdateAdmins && disableEligibleCount > 0
+          ? [
+              {
+                key: 'disable',
+                label: t('disable'),
+                icon: PowerOff,
+                onClick: () => setBulkAction('disable'),
+              } as BulkActionItem,
+            ]
+          : []),
+        ...(canUpdateAdmins && enableEligibleCount > 0
+          ? [
+              {
+                key: 'enable',
+                label: t('enable'),
+                icon: Power,
+                onClick: () => setBulkAction('enable'),
+              } as BulkActionItem,
+            ]
+          : []),
+        ...(canUpdateAllUsers
+          ? [
+              {
+                key: 'disableUsers',
+                label: t('admins.disableAllActiveUsers'),
+                icon: UserMinus,
+                onClick: () => setBulkAction('disableUsers'),
+              } as BulkActionItem,
+              {
+                key: 'activateUsers',
+                label: t('admins.activateAllDisabledUsers'),
+                icon: UserCheck,
+                onClick: () => setBulkAction('activateUsers'),
+              } as BulkActionItem,
+            ]
+          : []),
+        ...(canDeleteAllUsers
+          ? [
+              {
+                key: 'removeUsers',
+                label: t('admins.removeAllUsers'),
+                icon: UserX,
+                onClick: () => setBulkAction('removeUsers'),
+                destructive: true,
+              } as BulkActionItem,
+            ]
+          : []),
+      ]
     : []
   const bulkActionConfigs: Record<BulkAdminActionType, BulkActionDialogConfig> = {
     delete: {

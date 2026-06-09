@@ -35,7 +35,7 @@ export const useHostsListColumns = ({ onEdit, onDuplicate, onDataChanged, canUpd
         header: t('address'),
         width: '1fr',
         cell: host => (
-          <span dir="ltr" className="truncate font-mono text-xs text-muted-foreground">
+          <span dir="ltr" className="text-muted-foreground truncate font-mono text-xs">
             {Array.isArray(host.address) ? host.address[0] || '' : (host.address ?? '')}:{host.port === null ? <Settings className="inline h-3 w-3" /> : host.port}
           </span>
         ),
@@ -45,20 +45,20 @@ export const useHostsListColumns = ({ onEdit, onDuplicate, onDataChanged, canUpd
         id: 'inbound',
         header: t('inbound'),
         width: '1fr',
-        cell: host => <span className="truncate text-xs text-muted-foreground">{host.inbound_tag ?? ''}</span>,
+        cell: host => <span className="text-muted-foreground truncate text-xs">{host.inbound_tag ?? ''}</span>,
         hideOnMobile: true,
       },
       ...(canUpdate || canCreate
         ? [
-          {
-            id: 'actions',
-            header: '',
-            width: '64px',
-            align: 'end' as const,
-            hideOnMobile: true,
-            cell: (host: BaseHost) => <HostActionsMenu host={host} onEdit={onEdit} onDuplicate={onDuplicate} onDataChanged={onDataChanged} canUpdate={canUpdate} canCreate={canCreate} />,
-          },
-        ]
+            {
+              id: 'actions',
+              header: '',
+              width: '64px',
+              align: 'end' as const,
+              hideOnMobile: true,
+              cell: (host: BaseHost) => <HostActionsMenu host={host} onEdit={onEdit} onDuplicate={onDuplicate} onDataChanged={onDataChanged} canUpdate={canUpdate} canCreate={canCreate} />,
+            },
+          ]
         : []),
     ],
     [t, onEdit, onDuplicate, onDataChanged, canUpdate, canCreate],

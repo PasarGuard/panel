@@ -38,9 +38,7 @@ export function SubscriptionResponseHeadersSection({ form }: SubscriptionRespons
   }
 
   const updateResponseHeaderName = (currentKey: string, nextKey: string) => {
-    const updatedHeaders = Object.fromEntries(
-      responseHeaderEntries.map(([headerKey, headerValue]) => [headerKey === currentKey ? nextKey : headerKey, headerValue]),
-    )
+    const updatedHeaders = Object.fromEntries(responseHeaderEntries.map(([headerKey, headerValue]) => [headerKey === currentKey ? nextKey : headerKey, headerValue]))
     form.setValue('response_headers', updatedHeaders, { shouldDirty: true })
   }
 
@@ -66,12 +64,12 @@ export function SubscriptionResponseHeadersSection({ form }: SubscriptionRespons
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1 space-y-2">
           <h3 className="text-base font-semibold sm:text-lg">{t('settings.subscriptions.responseHeaders.title')}</h3>
-          <p className="text-xs text-muted-foreground sm:text-sm">{t('settings.subscriptions.responseHeaders.description')}</p>
+          <p className="text-muted-foreground text-xs sm:text-sm">{t('settings.subscriptions.responseHeaders.description')}</p>
         </div>
         <Popover>
           <PopoverTrigger asChild>
             <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0">
-              <Info className="h-4 w-4 text-muted-foreground" />
+              <Info className="text-muted-foreground h-4 w-4" />
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
@@ -95,7 +93,7 @@ export function SubscriptionResponseHeadersSection({ form }: SubscriptionRespons
       <div className="space-y-3">
         {responseHeaderCount > 0 ? (
           responseHeaderEntries.map(([headerKey, headerValue], index) => (
-            <div key={`sub-header-${index}`} className="space-y-2 rounded-lg border bg-card/50 p-3">
+            <div key={`sub-header-${index}`} className="bg-card/50 space-y-2 rounded-lg border p-3">
               <div className="flex items-start gap-2">
                 <Input
                   value={headerKey}
@@ -103,13 +101,7 @@ export function SubscriptionResponseHeadersSection({ form }: SubscriptionRespons
                   placeholder={t('settings.subscriptions.responseHeaders.headerName')}
                   className="font-mono text-xs"
                 />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 shrink-0 text-destructive hover:bg-destructive/10"
-                  onClick={() => removeResponseHeader(headerKey)}
-                >
+                <Button type="button" variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10 h-8 w-8 shrink-0" onClick={() => removeResponseHeader(headerKey)}>
                   <Trash2 className="h-4 w-4" />
                 </Button>
               </div>
@@ -123,8 +115,8 @@ export function SubscriptionResponseHeadersSection({ form }: SubscriptionRespons
             </div>
           ))
         ) : (
-          <div className="rounded-lg border border-dashed border-border/70 px-4 py-8 text-center">
-            <p className="text-sm text-muted-foreground">{t('settings.subscriptions.responseHeaders.noHeaders')}</p>
+          <div className="border-border/70 rounded-lg border border-dashed px-4 py-8 text-center">
+            <p className="text-muted-foreground text-sm">{t('settings.subscriptions.responseHeaders.noHeaders')}</p>
           </div>
         )}
       </div>

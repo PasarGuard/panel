@@ -64,11 +64,7 @@ export function CoreEditorRowActionsMenu({ onEdit, onRemove, extraActions = [], 
             </DropdownMenuItem>
           ))}
           <DropdownMenuSeparator />
-          <DropdownMenuItem
-            disabled={removeDisabled}
-            onSelect={handleRemoveSelect}
-            className="gap-2 text-destructive focus:text-destructive data-[disabled]:opacity-50"
-          >
+          <DropdownMenuItem disabled={removeDisabled} onSelect={handleRemoveSelect} className="text-destructive focus:text-destructive gap-2 data-[disabled]:opacity-50">
             <Trash2 className="size-4 shrink-0" />
             {t('delete')}
           </DropdownMenuItem>

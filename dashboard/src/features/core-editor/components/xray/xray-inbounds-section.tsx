@@ -378,16 +378,11 @@ function hysteriaSalamanderPasswordForForm(inbound: Inbound): string {
 }
 
 function hysteriaUdpmasksWithSalamanderPassword(current: unknown, password: string | undefined): Array<{ type: string; settings?: Record<string, unknown> }> | undefined {
-  const existing = Array.isArray(current)
-    ? current.filter((mask): mask is Record<string, unknown> => Boolean(mask) && typeof mask === 'object' && !Array.isArray(mask))
-    : []
+  const existing = Array.isArray(current) ? current.filter((mask): mask is Record<string, unknown> => Boolean(mask) && typeof mask === 'object' && !Array.isArray(mask)) : []
   const withoutSalamander = existing.filter(mask => mask.type !== 'salamander')
   const normalized = password?.trim() ?? ''
-  if (normalized === '') return withoutSalamander.length > 0 ? withoutSalamander.map(mask => ({ ...mask } as { type: string; settings?: Record<string, unknown> })) : undefined
-  return [
-    ...withoutSalamander.map(mask => ({ ...mask } as { type: string; settings?: Record<string, unknown> })),
-    { type: 'salamander', settings: { password: normalized } },
-  ]
+  if (normalized === '') return withoutSalamander.length > 0 ? withoutSalamander.map(mask => ({ ...mask }) as { type: string; settings?: Record<string, unknown> }) : undefined
+  return [...withoutSalamander.map(mask => ({ ...mask }) as { type: string; settings?: Record<string, unknown> }), { type: 'salamander', settings: { password: normalized } }]
 }
 
 /** xray-config-kit factory defaults tunnel/dokodemo `network` to tcp; editor default is tcp,udp. */
@@ -2643,7 +2638,9 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent dir="ltr">
-                              {!isDisallowedShadowsocksMethod(field.value) && !CORE_EDITOR_SHADOWSOCKS_ENCRYPTION_METHODS.some(m => m.value === field.value) ? <SelectItem value={field.value}>{field.value}</SelectItem> : null}
+                              {!isDisallowedShadowsocksMethod(field.value) && !CORE_EDITOR_SHADOWSOCKS_ENCRYPTION_METHODS.some(m => m.value === field.value) ? (
+                                <SelectItem value={field.value}>{field.value}</SelectItem>
+                              ) : null}
                               {CORE_EDITOR_SHADOWSOCKS_ENCRYPTION_METHODS.map(method => (
                                 <SelectItem key={method.value} value={method.value}>
                                   {method.label}
@@ -2894,9 +2891,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                       name="hysteriaObfsEnabled"
                       render={({ field }) => (
                         <FormItem className="flex min-h-10 flex-row items-center justify-between gap-3 space-y-0 rounded-md border px-3 py-2">
-                          <FormLabel className="cursor-pointer text-sm font-medium">
-                            {t('coreEditor.inbound.hysteria.obfs', { defaultValue: 'Salamander obfuscation' })}
-                          </FormLabel>
+                          <FormLabel className="cursor-pointer text-sm font-medium">{t('coreEditor.inbound.hysteria.obfs', { defaultValue: 'Salamander obfuscation' })}</FormLabel>
                           <FormControl>
                             <Switch
                               checked={field.value === 'true'}

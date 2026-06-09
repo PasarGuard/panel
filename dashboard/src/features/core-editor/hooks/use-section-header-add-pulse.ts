@@ -8,12 +8,7 @@ export type SectionHeaderAddPulse = { target: string; n: number }
  * Bumps to {@link epoch} when the user changes core section/kind so a stale pulse cannot
  * fire after switching tabs (child useEffects run before a token reset would apply).
  */
-export function useSectionHeaderAddPulseEffect(
-  pulse: SectionHeaderAddPulse | undefined,
-  epoch: number | undefined,
-  sectionTarget: string,
-  onPulse: () => void,
-) {
+export function useSectionHeaderAddPulseEffect(pulse: SectionHeaderAddPulse | undefined, epoch: number | undefined, sectionTarget: string, onPulse: () => void) {
   const epochRef = useRef(-1)
   const lastNRef = useRef(0)
 

@@ -31,25 +31,25 @@ export const useCoresListColumns = ({ onEdit, onDuplicate, onDelete, canUpdate =
       },
       ...(canUpdate || canCreate || canDelete
         ? [
-          {
-            id: 'actions',
-            header: '',
-            width: '24px',
-            align: 'end' as const,
-            hideOnMobile: false,
-            cell: (core: CoreResponse) => (
-              <CoreActionsMenu
-                core={core}
-                onEdit={onEdit}
-                onDuplicate={canCreate && onDuplicate ? () => onDuplicate(core.id) : undefined}
-                onDelete={canDelete && onDelete ? () => onDelete(core.name, core.id) : undefined}
-                canUpdate={canUpdate}
-                canCreate={canCreate}
-                canDelete={canDelete}
-              />
-            ),
-          },
-        ]
+            {
+              id: 'actions',
+              header: '',
+              width: '24px',
+              align: 'end' as const,
+              hideOnMobile: false,
+              cell: (core: CoreResponse) => (
+                <CoreActionsMenu
+                  core={core}
+                  onEdit={onEdit}
+                  onDuplicate={canCreate && onDuplicate ? () => onDuplicate(core.id) : undefined}
+                  onDelete={canDelete && onDelete ? () => onDelete(core.name, core.id) : undefined}
+                  canUpdate={canUpdate}
+                  canCreate={canCreate}
+                  canDelete={canDelete}
+                />
+              ),
+            },
+          ]
         : []),
     ],
     [t, onEdit, onDuplicate, onDelete, canUpdate, canCreate, canDelete],

@@ -31,7 +31,7 @@ export function SubscriptionSettingsSkeleton() {
           </div>
           <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
             {[...Array(2)].map((_, i) => (
-              <div key={i} className="rounded-md border bg-card p-3">
+              <div key={i} className="bg-card rounded-md border p-3">
                 <div className="mb-2 flex items-center justify-between">
                   <Skeleton className="h-4 w-4" />
                   <Skeleton className="h-6 w-6" />

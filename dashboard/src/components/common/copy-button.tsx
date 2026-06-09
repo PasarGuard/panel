@@ -18,7 +18,17 @@ interface CopyButtonProps {
   toastErrorMessage?: string
 }
 
-export function CopyButton({ value, className, copiedMessage = 'Copied!', defaultMessage = 'Click to copy', icon = 'copy', onClick, showToast = false, toastSuccessMessage, toastErrorMessage }: CopyButtonProps) {
+export function CopyButton({
+  value,
+  className,
+  copiedMessage = 'Copied!',
+  defaultMessage = 'Click to copy',
+  icon = 'copy',
+  onClick,
+  showToast = false,
+  toastSuccessMessage,
+  toastErrorMessage,
+}: CopyButtonProps) {
   const { t } = useTranslation()
 
   const { copy, copied, error } = useClipboard({ timeout: 1500 })

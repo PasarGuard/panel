@@ -20,13 +20,7 @@ export interface SubscriptionRuleAdvancedSheetProps {
   onOpenChange: (open: boolean) => void
 }
 
-export function SubscriptionRuleAdvancedSheet({
-  form,
-  ruleIndex,
-  rowId,
-  open,
-  onOpenChange,
-}: SubscriptionRuleAdvancedSheetProps) {
+export function SubscriptionRuleAdvancedSheet({ form, ruleIndex, rowId, open, onOpenChange }: SubscriptionRuleAdvancedSheetProps) {
   const { t } = useTranslation()
   const dir = useDirDetection()
   const isMobile = useIsMobile()
@@ -50,9 +44,7 @@ export function SubscriptionRuleAdvancedSheet({
   }
 
   const updateResponseHeaderName = (currentKey: string, nextKey: string) => {
-    const updatedHeaders = Object.fromEntries(
-      responseHeaderEntries.map(([headerKey, headerValue]) => [headerKey === currentKey ? nextKey : headerKey, headerValue]),
-    )
+    const updatedHeaders = Object.fromEntries(responseHeaderEntries.map(([headerKey, headerValue]) => [headerKey === currentKey ? nextKey : headerKey, headerValue]))
     form.setValue(`rules.${ruleIndex}.response_headers`, updatedHeaders, { shouldDirty: true })
   }
 
@@ -75,12 +67,8 @@ export function SubscriptionRuleAdvancedSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        side={dir === 'rtl' ? 'left' : 'right'}
-        className={cn('flex h-full max-h-screen w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-lg')}
-        onOpenAutoFocus={e => e.preventDefault()}
-      >
-        <SheetHeader className="flex flex-col flex-shrink-0 space-y-1 border-b px-6 pb-4 pt-6 pe-14 text-start">
+      <SheetContent side={dir === 'rtl' ? 'left' : 'right'} className={cn('flex h-full max-h-screen w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-lg')} onOpenAutoFocus={e => e.preventDefault()}>
+        <SheetHeader className="flex flex-shrink-0 flex-col space-y-1 border-b px-6 pe-14 pt-6 pb-4 text-start">
           <SheetTitle>{t('settings.subscriptions.rules.advancedTitle')}</SheetTitle>
           <SheetDescription>{t('settings.subscriptions.rules.advancedDescription')}</SheetDescription>
         </SheetHeader>
@@ -89,13 +77,13 @@ export function SubscriptionRuleAdvancedSheet({
           <div className="space-y-4">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-foreground">{t('settings.subscriptions.rules.responseHeaders')}</p>
-                <p className="mt-0.5 text-sm text-muted-foreground">{t('settings.subscriptions.rules.responseHeadersDescription')}</p>
+                <p className="text-foreground text-sm font-medium">{t('settings.subscriptions.rules.responseHeaders')}</p>
+                <p className="text-muted-foreground mt-0.5 text-sm">{t('settings.subscriptions.rules.responseHeadersDescription')}</p>
               </div>
               <Popover>
                 <PopoverTrigger asChild>
                   <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0">
-                    <Info className="h-4 w-4 text-muted-foreground" />
+                    <Info className="text-muted-foreground h-4 w-4" />
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
@@ -119,7 +107,7 @@ export function SubscriptionRuleAdvancedSheet({
             <div className="max-h-[min(50dvh,24rem)] space-y-3 overflow-y-auto p-px">
               {responseHeaderCount > 0 ? (
                 responseHeaderEntries.map(([headerKey, headerValue], index) => (
-                  <div key={`${rowId}-header-${index}`} className="space-y-2 rounded-lg border bg-card/50 p-3">
+                  <div key={`${rowId}-header-${index}`} className="bg-card/50 space-y-2 rounded-lg border p-3">
                     <div className="flex items-start gap-2">
                       <Input
                         value={headerKey}
@@ -127,13 +115,7 @@ export function SubscriptionRuleAdvancedSheet({
                         placeholder={t('settings.subscriptions.rules.headerName')}
                         className="font-mono text-xs"
                       />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 shrink-0 text-destructive hover:bg-destructive/10"
-                        onClick={() => removeResponseHeader(headerKey)}
-                      >
+                      <Button type="button" variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10 h-8 w-8 shrink-0" onClick={() => removeResponseHeader(headerKey)}>
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
@@ -147,9 +129,9 @@ export function SubscriptionRuleAdvancedSheet({
                   </div>
                 ))
               ) : (
-                <div className="rounded-lg border border-dashed border-border/70 px-4 py-8 text-center">
-                  <p className="text-sm font-medium text-foreground">{t('settings.subscriptions.rules.responseHeaders')}</p>
-                  <p className="mt-1 text-sm text-muted-foreground">{t('settings.subscriptions.rules.responseHeadersDescription')}</p>
+                <div className="border-border/70 rounded-lg border border-dashed px-4 py-8 text-center">
+                  <p className="text-foreground text-sm font-medium">{t('settings.subscriptions.rules.responseHeaders')}</p>
+                  <p className="text-muted-foreground mt-1 text-sm">{t('settings.subscriptions.rules.responseHeadersDescription')}</p>
                 </div>
               )}
             </div>

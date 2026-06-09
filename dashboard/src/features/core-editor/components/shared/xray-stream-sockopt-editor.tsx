@@ -480,7 +480,13 @@ export function XrayStreamSockoptFields({ variant, value, onChange, t, dialerPro
           <div className="space-y-3 rounded-md border p-3 sm:col-span-2">
             <div className="flex items-center justify-between gap-3">
               <Label>{t('coreEditor.sockopt.customSockopt')}</Label>
-              <Button type="button" size="sm" variant="secondary" className="h-8 gap-1.5" onClick={() => patchCustomSockopt([...customSockoptRows, { system: 'any', type: 'int', level: '6', opt: '', value: '' }])}>
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                className="h-8 gap-1.5"
+                onClick={() => patchCustomSockopt([...customSockoptRows, { system: 'any', type: 'int', level: '6', opt: '', value: '' }])}
+              >
                 <Plus className="h-3.5 w-3.5" />
                 {t('coreEditor.sockopt.addCustomSockopt')}
               </Button>
@@ -517,10 +523,34 @@ export function XrayStreamSockoptFields({ variant, value, onChange, t, dialerPro
                           ))}
                         </SelectContent>
                       </Select>
-                      <Input dir="ltr" className="h-9 font-mono text-xs" placeholder="6" value={row.level != null ? String(row.level) : ''} onChange={e => updateRow({ level: e.target.value.trim() || undefined })} />
-                      <Input dir="ltr" className="h-9 font-mono text-xs" placeholder="13" value={row.opt != null ? String(row.opt) : ''} onChange={e => updateRow({ opt: e.target.value.trim() || undefined })} />
-                      <Input dir="ltr" className="h-9 font-mono text-xs" placeholder="bbr" value={row.value != null ? String(row.value) : ''} onChange={e => updateRow({ value: e.target.value.trim() || undefined })} />
-                      <Button type="button" variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hover:text-destructive" onClick={() => patchCustomSockopt(customSockoptRows.filter((_, i) => i !== index))}>
+                      <Input
+                        dir="ltr"
+                        className="h-9 font-mono text-xs"
+                        placeholder="6"
+                        value={row.level != null ? String(row.level) : ''}
+                        onChange={e => updateRow({ level: e.target.value.trim() || undefined })}
+                      />
+                      <Input
+                        dir="ltr"
+                        className="h-9 font-mono text-xs"
+                        placeholder="13"
+                        value={row.opt != null ? String(row.opt) : ''}
+                        onChange={e => updateRow({ opt: e.target.value.trim() || undefined })}
+                      />
+                      <Input
+                        dir="ltr"
+                        className="h-9 font-mono text-xs"
+                        placeholder="bbr"
+                        value={row.value != null ? String(row.value) : ''}
+                        onChange={e => updateRow({ value: e.target.value.trim() || undefined })}
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="text-muted-foreground hover:text-destructive h-9 w-9"
+                        onClick={() => patchCustomSockopt(customSockoptRows.filter((_, i) => i !== index))}
+                      >
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>

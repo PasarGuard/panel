@@ -115,15 +115,7 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
   },
 ]
 
-export const LIMIT_KEYS = [
-  'max_users',
-  'data_limit_min',
-  'data_limit_max',
-  'expire_days_min',
-  'expire_days_max',
-  'min_hwid_per_user',
-  'max_hwid_per_user',
-] as const
+export const LIMIT_KEYS = ['max_users', 'data_limit_min', 'data_limit_max', 'expire_days_min', 'expire_days_max', 'min_hwid_per_user', 'max_hwid_per_user'] as const
 
 export const FEATURE_KEYS: Array<keyof RoleFeatures> = ['can_use_reset_strategy', 'can_use_next_plan']
 

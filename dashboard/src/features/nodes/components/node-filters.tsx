@@ -6,12 +6,12 @@ import useDirDetection from '@/hooks/use-dir-detection'
 import { cn } from '@/lib/utils'
 import { useDebouncedSearch } from '@/hooks/use-debounced-search'
 import { SearchIcon, X, RefreshCw, Filter } from 'lucide-react'
-import {useEffect} from 'react'
+import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { RefetchOptions } from '@tanstack/react-query'
 import { LoaderCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import {NodeStatus} from "@/service/api";
+import { NodeStatus } from '@/service/api'
 import ViewToggle, { ViewMode } from '@/components/common/view-toggle'
 
 interface NodeFiltersProps {
@@ -87,8 +87,8 @@ export const NodeFilters = ({ filters, onFilterChange, refetch, isFetching, adva
     <div dir={dir} className="flex items-center gap-2 md:gap-4">
       {/* Search Input */}
       <div className="relative min-w-0 flex-1 md:w-[calc(100%/3-10px)] md:flex-none">
-        <SearchIcon className={cn('absolute', dir === 'rtl' ? 'right-2' : 'left-2', 'top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 text-input-placeholder')} />
-        <Input placeholder={t('search')} value={search} onChange={handleSearchChange} className="pl-8 pr-10" />
+        <SearchIcon className={cn('absolute', dir === 'rtl' ? 'right-2' : 'left-2', 'text-input-placeholder top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400')} />
+        <Input placeholder={t('search')} value={search} onChange={handleSearchChange} className="pr-10 pl-8" />
         {search && (
           <button type="button" onClick={clearSearch} className={cn('absolute', dir === 'rtl' ? 'left-2' : 'right-2', 'top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600')}>
             <X className="h-4 w-4" />
@@ -102,7 +102,7 @@ export const NodeFilters = ({ filters, onFilterChange, refetch, isFetching, adva
           <Button type="button" size="icon-md" variant="ghost" className="relative flex h-9 w-9 items-center justify-center rounded-lg border" onClick={handleOpenAdvanceSearch}>
             <Filter className="h-4 w-4" />
             {hasActiveAdvanceFilters() && (
-              <Badge variant="default" className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary p-0 text-[10.5px] text-primary-foreground">
+              <Badge variant="default" className="bg-primary text-primary-foreground absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full p-0 text-[10.5px]">
                 {getActiveFiltersCount()}
               </Badge>
             )}
@@ -110,7 +110,13 @@ export const NodeFilters = ({ filters, onFilterChange, refetch, isFetching, adva
           {hasActiveAdvanceFilters() && onClearAdvanceSearch && (
             <Popover>
               <PopoverTrigger asChild>
-                <Button type="button" size="sm" variant="outline" className={cn('h-9 w-9 p-0', dir === 'rtl' ? 'rounded-r-none border-r-0' : 'rounded-l-none border-l-0')} onClick={onClearAdvanceSearch}>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className={cn('h-9 w-9 p-0', dir === 'rtl' ? 'rounded-r-none border-r-0' : 'rounded-l-none border-l-0')}
+                  onClick={onClearAdvanceSearch}
+                >
                   <X className="h-3 w-3" />
                 </Button>
               </PopoverTrigger>
@@ -146,12 +152,7 @@ interface NodePaginationControlsProps {
   onPageChange: (page: number) => void
 }
 
-export const NodePaginationControls = ({
-                                         currentPage,
-                                         totalPages,
-                                         isLoading,
-                                         onPageChange
-                                       }: NodePaginationControlsProps) => {
+export const NodePaginationControls = ({ currentPage, totalPages, isLoading, onPageChange }: NodePaginationControlsProps) => {
   const dir = useDirDetection()
 
   const getPaginationRange = (currentPage: number, totalPages: number) => {
@@ -199,45 +200,42 @@ export const NodePaginationControls = ({
   const paginationRange = getPaginationRange(currentPage, totalPages)
 
   return (
-      <div className="mt-4 flex flex-col-reverse items-center justify-between gap-4 md:flex-row">
-        <Pagination dir="ltr" className={`${dir === 'rtl' ? 'flex-row-reverse' : ''}`}>
-          <PaginationContent
-              className={cn('w-full justify-center overflow-x-auto', dir === 'rtl' ? 'md:justify-start' : 'md:justify-end')}>
-            <PaginationItem>
-              <PaginationPrevious onClick={() => onPageChange(currentPage - 1)}
-                                  disabled={currentPage === 0 || isLoading}/>
-            </PaginationItem>
-            {paginationRange.map((pageNumber, i) =>
-                pageNumber === -1 ? (
-                    <PaginationItem key={`ellipsis-${i}`}>
-                      <PaginationEllipsis/>
-                    </PaginationItem>
-                ) : (
-                    <PaginationItem key={pageNumber}>
-                      <PaginationLink
-                          isActive={currentPage === pageNumber}
-                          onClick={() => onPageChange(pageNumber as number)}
-                          disabled={isLoading}
-                          className={isLoading && currentPage === pageNumber ? 'opacity-70' : ''}
-                      >
-                        {isLoading && currentPage === pageNumber ? (
-                            <div className="flex items-center">
-                              <LoaderCircle className="mr-1 h-3 w-3 animate-spin"/>
-                              {(pageNumber as number) + 1}
-                            </div>
-                        ) : (
-                            (pageNumber as number) + 1
-                        )}
-                      </PaginationLink>
-                    </PaginationItem>
-                ),
-            )}
-            <PaginationItem>
-              <PaginationNext onClick={() => onPageChange(currentPage + 1)}
-                              disabled={currentPage === totalPages - 1 || totalPages === 0 || isLoading}/>
-            </PaginationItem>
-          </PaginationContent>
-        </Pagination>
-      </div>
+    <div className="mt-4 flex flex-col-reverse items-center justify-between gap-4 md:flex-row">
+      <Pagination dir="ltr" className={`${dir === 'rtl' ? 'flex-row-reverse' : ''}`}>
+        <PaginationContent className={cn('w-full justify-center overflow-x-auto', dir === 'rtl' ? 'md:justify-start' : 'md:justify-end')}>
+          <PaginationItem>
+            <PaginationPrevious onClick={() => onPageChange(currentPage - 1)} disabled={currentPage === 0 || isLoading} />
+          </PaginationItem>
+          {paginationRange.map((pageNumber, i) =>
+            pageNumber === -1 ? (
+              <PaginationItem key={`ellipsis-${i}`}>
+                <PaginationEllipsis />
+              </PaginationItem>
+            ) : (
+              <PaginationItem key={pageNumber}>
+                <PaginationLink
+                  isActive={currentPage === pageNumber}
+                  onClick={() => onPageChange(pageNumber as number)}
+                  disabled={isLoading}
+                  className={isLoading && currentPage === pageNumber ? 'opacity-70' : ''}
+                >
+                  {isLoading && currentPage === pageNumber ? (
+                    <div className="flex items-center">
+                      <LoaderCircle className="mr-1 h-3 w-3 animate-spin" />
+                      {(pageNumber as number) + 1}
+                    </div>
+                  ) : (
+                    (pageNumber as number) + 1
+                  )}
+                </PaginationLink>
+              </PaginationItem>
+            ),
+          )}
+          <PaginationItem>
+            <PaginationNext onClick={() => onPageChange(currentPage + 1)} disabled={currentPage === totalPages - 1 || totalPages === 0 || isLoading} />
+          </PaginationItem>
+        </PaginationContent>
+      </Pagination>
+    </div>
   )
 }

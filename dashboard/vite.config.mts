@@ -89,10 +89,7 @@ export default defineConfig({
             return 'radix-layout'
           }
 
-          if (
-            normalizedId.includes('/node_modules/@radix-ui/react-toggle/') ||
-            normalizedId.includes('/node_modules/@radix-ui/react-toggle-group/')
-          ) {
+          if (normalizedId.includes('/node_modules/@radix-ui/react-toggle/') || normalizedId.includes('/node_modules/@radix-ui/react-toggle-group/')) {
             return 'radix-toggle'
           }
 

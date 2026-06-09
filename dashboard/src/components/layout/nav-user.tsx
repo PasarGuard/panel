@@ -85,13 +85,13 @@ export function NavUser({
           <Popover>
             <PopoverTrigger asChild>
               <Button variant="ghost" size="icon" className="h-8 w-8 rounded-md">
-                <UserCircle className="h-4 w-4 text-sidebar-foreground" />
+                <UserCircle className="text-sidebar-foreground h-4 w-4" />
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-64 p-3" side="right" align="start">
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <UserCircle className="h-4 w-4 text-primary" />
+                  <UserCircle className="text-primary h-4 w-4" />
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-semibold">{username.name}</span>
                     {admin && (
@@ -164,7 +164,7 @@ export function NavUser({
       <SidebarMenuItem>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <SidebarMenuButton size="lg" className="pl-3 data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground">
+            <SidebarMenuButton size="lg" className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground pl-3">
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <div className="flex items-center gap-2">
                   <span className="truncate font-semibold">{username.name}</span>
@@ -176,7 +176,7 @@ export function NavUser({
                   )}
                 </div>
                 {admin && (
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <div className="text-muted-foreground flex items-center gap-2 text-xs">
                     <ChartPie className="size-3" />
                     <span dir="ltr" style={{ unicodeBidi: 'isolate' }}>
                       {formatBytes(usedTraffic)}
@@ -203,7 +203,7 @@ export function NavUser({
                   </div>
                 </div>
                 {admin && (
-                  <div className="flex flex-col gap-1 text-xs text-muted-foreground">
+                  <div className="text-muted-foreground flex flex-col gap-1 text-xs">
                     <div className="flex flex-col gap-1">
                       <div className="flex items-center gap-2">
                         <ChartPie className="size-3" />
@@ -244,7 +244,7 @@ export function NavUser({
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-destructive focus:text-destructive">
+            <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:text-destructive cursor-pointer">
               <LogOut className="mr-2 size-4" />
               {t('header.logout')}
             </DropdownMenuItem>

@@ -83,11 +83,11 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
   const roleOptions = useMemo(() => {
     const rolesById = new Map<number, { id: number; name: string; is_owner: boolean }>()
     BUILTIN_ADMIN_ROLES.forEach(role => rolesById.set(role.id, role))
-      ; (rolesQuery.data?.roles || []).forEach(role => {
-        if (!role.is_owner && role.id !== 1) {
-          rolesById.set(role.id, role)
-        }
-      })
+    ;(rolesQuery.data?.roles || []).forEach(role => {
+      if (!role.is_owner && role.id !== 1) {
+        rolesById.set(role.id, role)
+      }
+    })
 
     return Array.from(rolesById.values()).sort((a, b) => a.id - b.id)
   }, [rolesQuery.data?.roles])
@@ -105,19 +105,8 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
   // Watch notification enable fields
   const watchedNotificationEnable = useWatch({ control: form.control, name: 'notification_enable' })
   const watchedPermissionOverrides = useWatch({ control: form.control, name: 'permission_overrides' })
-  const NOTIFICATION_KEYS = [
-    'create',
-    'modify',
-    'delete',
-    'status_change',
-    'reset_data_usage',
-    'data_reset_by_next',
-    'subscription_revoked',
-  ] as const
-  const notificationEnabledCount = useMemo(
-    () => NOTIFICATION_KEYS.reduce((sum, key) => sum + ((watchedNotificationEnable as any)?.[key] ? 1 : 0), 0),
-    [watchedNotificationEnable],
-  )
+  const NOTIFICATION_KEYS = ['create', 'modify', 'delete', 'status_change', 'reset_data_usage', 'data_reset_by_next', 'subscription_revoked'] as const
+  const notificationEnabledCount = useMemo(() => NOTIFICATION_KEYS.reduce((sum, key) => sum + ((watchedNotificationEnable as any)?.[key] ? 1 : 0), 0), [watchedNotificationEnable])
   const allNotificationsEnabled = notificationEnabledCount === NOTIFICATION_KEYS.length
   const permissionOverridesCount = useMemo(
     () => Object.values(watchedPermissionOverrides || {}).filter(value => value !== null && value !== undefined && value !== '').length,
@@ -139,8 +128,7 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
   const onSubmit = async (values: AdminFormValuesInput) => {
     try {
       const passwordChanged = typeof values.password === 'string' && values.password.length > 0
-      const isEditingCurrentAdmin =
-        editingAdmin && currentAdmin != null && ((currentAdmin.id != null && editingAdminId === currentAdmin.id) || values.username === currentAdmin.username)
+      const isEditingCurrentAdmin = editingAdmin && currentAdmin != null && ((currentAdmin.id != null && editingAdminId === currentAdmin.id) || values.username === currentAdmin.username)
       const dataLimitChanged = !!form.formState.dirtyFields.data_limit
       const dataLimitHasValue = values.data_limit !== null && values.data_limit !== undefined && values.data_limit !== ''
       const dataLimitPayload = editingAdmin
@@ -302,8 +290,16 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
                                 {t(`adminRoles.names.${role.name}`, { defaultValue: role.name })}
                               </SelectItem>
                             ))}
-                            {rolesQuery.isLoading && <SelectItem value="loading" disabled>{t('loading', { defaultValue: 'Loading...' })}</SelectItem>}
-                            {rolesQuery.isError && <SelectItem value="roles-error" disabled>{t('adminRoles.loadFallback', { defaultValue: 'Using built-in roles' })}</SelectItem>}
+                            {rolesQuery.isLoading && (
+                              <SelectItem value="loading" disabled>
+                                {t('loading', { defaultValue: 'Loading...' })}
+                              </SelectItem>
+                            )}
+                            {rolesQuery.isError && (
+                              <SelectItem value="roles-error" disabled>
+                                {t('adminRoles.loadFallback', { defaultValue: 'Using built-in roles' })}
+                              </SelectItem>
+                            )}
                           </SelectContent>
                         </Select>
                         <FormMessage />
@@ -368,13 +364,7 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
               </div>
 
               {/* Advanced settings: collapsed by default */}
-              <Accordion
-                type="single"
-                collapsible
-                value={openSection}
-                onValueChange={handleAccordionChange}
-                className="!mt-0 flex w-full flex-col gap-y-3"
-              >
+              <Accordion type="single" collapsible value={openSection} onValueChange={handleAccordionChange} className="!mt-0 flex w-full flex-col gap-y-3">
                 <AccordionItem className="rounded-md border px-4 [&_[data-state=closed]]:no-underline [&_[data-state=open]]:no-underline" value="profile">
                   <AccordionTrigger>
                     <div className="flex items-center gap-2">
@@ -496,16 +486,12 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
                     <div className="flex items-center gap-2">
                       <Bell className="h-4 w-4" />
                       <span>{t('settings.notifications.filterTitle')}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {notificationEnabledCount}/7
-                      </span>
+                      <span className="text-muted-foreground text-xs">{notificationEnabledCount}/7</span>
                     </div>
                   </AccordionTrigger>
                   <AccordionContent className="px-1 pt-1">
-                    <div className="flex items-center justify-between gap-3 rounded-md bg-muted/30 px-3 py-2">
-                      <span className="text-xs text-muted-foreground">
-                        {t('settings.notifications.toggleAll', { defaultValue: 'Toggle all notifications' })}
-                      </span>
+                    <div className="bg-muted/30 flex items-center justify-between gap-3 rounded-md px-3 py-2">
+                      <span className="text-muted-foreground text-xs">{t('settings.notifications.toggleAll', { defaultValue: 'Toggle all notifications' })}</span>
                       <Switch
                         checked={allNotificationsEnabled}
                         onCheckedChange={checked => {
@@ -531,11 +517,11 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
                         control={form.control}
                         name="notification_enable.create"
                         render={({ field }) => (
-                          <FormItem className="flex items-center gap-x-2 space-y-0 rounded-sm px-2 py-1.5 transition-colors hover:bg-muted/40">
+                          <FormItem className="hover:bg-muted/40 flex items-center space-y-0 gap-x-2 rounded-sm px-2 py-1.5 transition-colors">
                             <FormControl>
                               <Checkbox checked={field.value || false} onCheckedChange={field.onChange} className="h-4 w-4" />
                             </FormControl>
-                            <FormLabel className="cursor-pointer text-xs font-normal leading-none">{t('settings.notifications.subPermissions.create')}</FormLabel>
+                            <FormLabel className="cursor-pointer text-xs leading-none font-normal">{t('settings.notifications.subPermissions.create')}</FormLabel>
                           </FormItem>
                         )}
                       />
@@ -543,11 +529,11 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
                         control={form.control}
                         name="notification_enable.modify"
                         render={({ field }) => (
-                          <FormItem className="flex items-center gap-x-2 space-y-0 rounded-sm px-2 py-1.5 transition-colors hover:bg-muted/40">
+                          <FormItem className="hover:bg-muted/40 flex items-center space-y-0 gap-x-2 rounded-sm px-2 py-1.5 transition-colors">
                             <FormControl>
                               <Checkbox checked={field.value || false} onCheckedChange={field.onChange} className="h-4 w-4" />
                             </FormControl>
-                            <FormLabel className="cursor-pointer text-xs font-normal leading-none">{t('settings.notifications.subPermissions.modify')}</FormLabel>
+                            <FormLabel className="cursor-pointer text-xs leading-none font-normal">{t('settings.notifications.subPermissions.modify')}</FormLabel>
                           </FormItem>
                         )}
                       />
@@ -555,11 +541,11 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
                         control={form.control}
                         name="notification_enable.delete"
                         render={({ field }) => (
-                          <FormItem className="flex items-center gap-x-2 space-y-0 rounded-sm px-2 py-1.5 transition-colors hover:bg-muted/40">
+                          <FormItem className="hover:bg-muted/40 flex items-center space-y-0 gap-x-2 rounded-sm px-2 py-1.5 transition-colors">
                             <FormControl>
                               <Checkbox checked={field.value || false} onCheckedChange={field.onChange} className="h-4 w-4" />
                             </FormControl>
-                            <FormLabel className="cursor-pointer text-xs font-normal leading-none">{t('settings.notifications.subPermissions.delete')}</FormLabel>
+                            <FormLabel className="cursor-pointer text-xs leading-none font-normal">{t('settings.notifications.subPermissions.delete')}</FormLabel>
                           </FormItem>
                         )}
                       />
@@ -567,11 +553,11 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
                         control={form.control}
                         name="notification_enable.status_change"
                         render={({ field }) => (
-                          <FormItem className="flex items-center gap-x-2 space-y-0 rounded-sm px-2 py-1.5 transition-colors hover:bg-muted/40">
+                          <FormItem className="hover:bg-muted/40 flex items-center space-y-0 gap-x-2 rounded-sm px-2 py-1.5 transition-colors">
                             <FormControl>
                               <Checkbox checked={field.value || false} onCheckedChange={field.onChange} className="h-4 w-4" />
                             </FormControl>
-                            <FormLabel className="cursor-pointer text-xs font-normal leading-none">{t('settings.notifications.subPermissions.statusChange')}</FormLabel>
+                            <FormLabel className="cursor-pointer text-xs leading-none font-normal">{t('settings.notifications.subPermissions.statusChange')}</FormLabel>
                           </FormItem>
                         )}
                       />
@@ -579,11 +565,11 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
                         control={form.control}
                         name="notification_enable.reset_data_usage"
                         render={({ field }) => (
-                          <FormItem className="flex items-center gap-x-2 space-y-0 rounded-sm px-2 py-1.5 transition-colors hover:bg-muted/40">
+                          <FormItem className="hover:bg-muted/40 flex items-center space-y-0 gap-x-2 rounded-sm px-2 py-1.5 transition-colors">
                             <FormControl>
                               <Checkbox checked={field.value || false} onCheckedChange={field.onChange} className="h-4 w-4" />
                             </FormControl>
-                            <FormLabel className="cursor-pointer text-xs font-normal leading-none">{t('settings.notifications.subPermissions.resetDataUsage')}</FormLabel>
+                            <FormLabel className="cursor-pointer text-xs leading-none font-normal">{t('settings.notifications.subPermissions.resetDataUsage')}</FormLabel>
                           </FormItem>
                         )}
                       />
@@ -591,11 +577,11 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
                         control={form.control}
                         name="notification_enable.data_reset_by_next"
                         render={({ field }) => (
-                          <FormItem className="flex items-center gap-x-2 space-y-0 rounded-sm px-2 py-1.5 transition-colors hover:bg-muted/40">
+                          <FormItem className="hover:bg-muted/40 flex items-center space-y-0 gap-x-2 rounded-sm px-2 py-1.5 transition-colors">
                             <FormControl>
                               <Checkbox checked={field.value || false} onCheckedChange={field.onChange} className="h-4 w-4" />
                             </FormControl>
-                            <FormLabel className="cursor-pointer text-xs font-normal leading-none">{t('settings.notifications.subPermissions.dataResetByNext')}</FormLabel>
+                            <FormLabel className="cursor-pointer text-xs leading-none font-normal">{t('settings.notifications.subPermissions.dataResetByNext')}</FormLabel>
                           </FormItem>
                         )}
                       />
@@ -603,11 +589,11 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
                         control={form.control}
                         name="notification_enable.subscription_revoked"
                         render={({ field }) => (
-                          <FormItem className="flex items-center gap-x-2 space-y-0 rounded-sm px-2 py-1.5 transition-colors hover:bg-muted/40">
+                          <FormItem className="hover:bg-muted/40 flex items-center space-y-0 gap-x-2 rounded-sm px-2 py-1.5 transition-colors">
                             <FormControl>
                               <Checkbox checked={field.value || false} onCheckedChange={field.onChange} className="h-4 w-4" />
                             </FormControl>
-                            <FormLabel className="cursor-pointer text-xs font-normal leading-none">{t('settings.notifications.subPermissions.subscriptionRevoked')}</FormLabel>
+                            <FormLabel className="cursor-pointer text-xs leading-none font-normal">{t('settings.notifications.subPermissions.subscriptionRevoked')}</FormLabel>
                           </FormItem>
                         )}
                       />
@@ -620,13 +606,11 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
                     <div className="flex items-center gap-2">
                       <Sliders className="h-4 w-4" />
                       <span>{t('admins.permissionOverrides', { defaultValue: 'Permission overrides' })}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {permissionOverridesCount}/7
-                      </span>
+                      <span className="text-muted-foreground text-xs">{permissionOverridesCount}/7</span>
                     </div>
                   </AccordionTrigger>
                   <AccordionContent className="px-1 pt-1">
-                    <p className="mb-3 text-xs text-muted-foreground">
+                    <p className="text-muted-foreground mb-3 text-xs">
                       {t('admins.permissionOverridesHint', { defaultValue: 'Leave empty to inherit limits from the selected role. Set to 0 to disable.' })}
                     </p>
                     <PermissionOverridesFields form={form} />
@@ -721,13 +705,11 @@ function AdminDataLimitField({ form }: { form: AdminForm }) {
                   emptyValue={undefined}
                   className="pr-10"
                 />
-                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-muted-foreground">
-                  {t('userDialog.gb', { defaultValue: 'GB' })}
-                </span>
+                <span className="text-muted-foreground pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-xs font-medium">{t('userDialog.gb', { defaultValue: 'GB' })}</span>
               </div>
             </FormControl>
             {numericValue != null && numericValue > 0 && numericValue < ONE_GB_IN_BYTES && (
-              <p dir="ltr" className="mt-1 w-full text-end text-[11px] text-muted-foreground">
+              <p dir="ltr" className="text-muted-foreground mt-1 w-full text-end text-[11px]">
                 {formatBytes(numericValue)}
               </p>
             )}
@@ -790,13 +772,11 @@ function BytesLimitField({ form, name, labelKey }: { form: AdminForm; name: any;
                   emptyValue={undefined}
                   className="pr-10"
                 />
-                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-muted-foreground">
-                  {t('userDialog.gb', { defaultValue: 'GB' })}
-                </span>
+                <span className="text-muted-foreground pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-xs font-medium">{t('userDialog.gb', { defaultValue: 'GB' })}</span>
               </div>
             </FormControl>
             {numericValue != null && numericValue > 0 && numericValue < ONE_GB_IN_BYTES && (
-              <p dir="ltr" className="mt-1 w-full text-end text-[11px] text-muted-foreground">
+              <p dir="ltr" className="text-muted-foreground mt-1 w-full text-end text-[11px]">
                 {formatBytes(numericValue)}
               </p>
             )}

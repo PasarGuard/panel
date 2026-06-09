@@ -49,13 +49,7 @@ export interface VlessAdvancedGenerationModalProps {
   onSuccess: (payload: { result: VlessEncryptionResult; variant: VlessKeyVariant }) => void
 }
 
-export function VlessAdvancedGenerationModal({
-  open,
-  onOpenChange,
-  seedOptions,
-  seedVariant = 'x25519',
-  onSuccess,
-}: VlessAdvancedGenerationModalProps) {
+export function VlessAdvancedGenerationModal({ open, onOpenChange, seedOptions, seedVariant = 'x25519', onSuccess }: VlessAdvancedGenerationModalProps) {
   const { t } = useTranslation()
   const uid = useId()
   const serverPadId = `vless-srv-pad-${uid}`
@@ -161,12 +155,7 @@ export function VlessAdvancedGenerationModal({
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="flex flex-col gap-3">
               <Label>{t('coreConfigModal.vlessServerTicket')}</Label>
-              <Input
-                value={vlessOptions.serverTicket}
-                placeholder="600s or 100-500s"
-                className="h-9"
-                onChange={event => setVlessOptions(prev => ({ ...prev, serverTicket: event.target.value }))}
-              />
+              <Input value={vlessOptions.serverTicket} placeholder="600s or 100-500s" className="h-9" onChange={event => setVlessOptions(prev => ({ ...prev, serverTicket: event.target.value }))} />
             </div>
 
             <div className="flex flex-col gap-3">
@@ -204,12 +193,12 @@ export function VlessAdvancedGenerationModal({
                   <Popover>
                     <PopoverTrigger asChild>
                       <Button type="button" variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent">
-                        <Info className="h-3.5 w-3.5 text-muted-foreground" />
+                        <Info className="text-muted-foreground h-3.5 w-3.5" />
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-[280px] p-3 sm:w-[340px]" side="top" align="start" sideOffset={5}>
                       <div className="space-y-1.5">
-                        <p className="text-[11px] text-muted-foreground">{t('coreConfigModal.vlessPaddingHint')}</p>
+                        <p className="text-muted-foreground text-[11px]">{t('coreConfigModal.vlessPaddingHint')}</p>
                       </div>
                     </PopoverContent>
                   </Popover>
@@ -237,13 +226,13 @@ export function VlessAdvancedGenerationModal({
                   <Popover>
                     <PopoverTrigger asChild>
                       <Button type="button" variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent">
-                        <Info className="h-3.5 w-3.5 text-muted-foreground" />
+                        <Info className="text-muted-foreground h-3.5 w-3.5" />
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-[280px] p-3 sm:w-[340px]" side="top" align="start" sideOffset={5}>
                       <div className="space-y-1.5">
-                        <p className="text-[11px] text-muted-foreground">{t('coreConfigModal.vlessPaddingHint')}</p>
-                        <p className="text-[11px] text-muted-foreground">{t('coreConfigModal.vlessClientPaddingHint')}</p>
+                        <p className="text-muted-foreground text-[11px]">{t('coreConfigModal.vlessPaddingHint')}</p>
+                        <p className="text-muted-foreground text-[11px]">{t('coreConfigModal.vlessClientPaddingHint')}</p>
                       </div>
                     </PopoverContent>
                   </Popover>

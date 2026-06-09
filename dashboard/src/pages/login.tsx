@@ -93,7 +93,10 @@ const formatApiDetail = (detail: unknown): string | undefined => {
   if (!detail) return undefined
   if (typeof detail === 'string') return detail
   if (Array.isArray(detail)) {
-    return detail.map(item => formatApiDetail(item)).filter(Boolean).join('\n')
+    return detail
+      .map(item => formatApiDetail(item))
+      .filter(Boolean)
+      .join('\n')
   }
   if (typeof detail === 'object') {
     return Object.entries(detail as Record<string, unknown>)
@@ -106,10 +109,7 @@ const formatApiDetail = (detail: unknown): string | undefined => {
   return String(detail)
 }
 
-const getOwnerSetupErrorMessage = (error: any) =>
-  formatApiDetail(error?.data?.detail ?? error?.response?._data?.detail ?? error?.response?.data?.detail) ||
-  error?.message ||
-  'Request failed'
+const getOwnerSetupErrorMessage = (error: any) => formatApiDetail(error?.data?.detail ?? error?.response?._data?.detail ?? error?.response?.data?.detail) || error?.message || 'Request failed'
 
 export const Login: FC = () => {
   const navigate = useNavigate()
@@ -237,8 +237,7 @@ export const Login: FC = () => {
   const resetOwner = useResetOwnerPassword()
   const deleteOwner = useDeleteOwner()
   const ownerSetupPending = createOwner.isPending || upgradeOwner.isPending || resetOwner.isPending || deleteOwner.isPending
-  const ownerSetupSubmitDisabled =
-    ownerSetupPending || (ownerSetupMode === 'delete' && (!ownerSetupKey.trim() || ownerDeleteConfirm !== 'DELETE'))
+  const ownerSetupSubmitDisabled = ownerSetupPending || (ownerSetupMode === 'delete' && (!ownerSetupKey.trim() || ownerDeleteConfirm !== 'DELETE'))
 
   const ownerSetupTitle = useMemo(() => {
     if (ownerSetupMode === 'upgrade') return t('setup.upgradeOwner', { defaultValue: 'Make admin owner' })
@@ -351,14 +350,8 @@ export const Login: FC = () => {
         <div className="flex w-full items-center justify-center">
           <div className="mt-6 w-full max-w-[340px]">
             <div className="flex flex-col items-center gap-2">
-              <img
-                src={resolvedTheme === 'dark' ? '/statics/favicon/logo.png' : '/statics/favicon/logo-dark.png'}
-                alt="PasarGuard Logo"
-                className="h-20 w-20 object-contain"
-              />
-              <span className="text-2xl font-semibold">
-                {view === 'login' ? t('login.loginYourAccount') : t('setup.ownerAccess', { defaultValue: 'Owner access' })}
-              </span>
+              <img src={resolvedTheme === 'dark' ? '/statics/favicon/logo.png' : '/statics/favicon/logo-dark.png'} alt="PasarGuard Logo" className="h-20 w-20 object-contain" />
+              <span className="text-2xl font-semibold">{view === 'login' ? t('login.loginYourAccount') : t('setup.ownerAccess', { defaultValue: 'Owner access' })}</span>
               <span className="text-center text-gray-600 dark:text-gray-400">
                 {view === 'login'
                   ? t('login.welcomeBack')
@@ -372,20 +365,8 @@ export const Login: FC = () => {
               {view === 'login' ? (
                 <form onSubmit={handleSubmit(handleLogin)} autoComplete="on">
                   <div className="mt-4 flex flex-col gap-y-2">
-                    <Input
-                      className="py-5"
-                      placeholder={t('username')}
-                      autoComplete="username"
-                      {...register('username')}
-                      error={t(errors?.username?.message as string)}
-                    />
-                    <PasswordInput
-                      className="py-5"
-                      placeholder={t('password')}
-                      allowBrowserSave
-                      {...register('password')}
-                      error={t(errors?.password?.message as string)}
-                    />
+                    <Input className="py-5" placeholder={t('username')} autoComplete="username" {...register('username')} error={t(errors?.username?.message as string)} />
+                    <PasswordInput className="py-5" placeholder={t('password')} allowBrowserSave {...register('password')} error={t(errors?.password?.message as string)} />
                     {((error && error.data) || (miniAppError && miniAppError.data)) && (
                       <Alert className="mt-2" variant="destructive">
                         <CircleAlertIcon size="18px" />
@@ -393,20 +374,11 @@ export const Login: FC = () => {
                       </Alert>
                     )}
                     <div className="mt-2 flex flex-col gap-2">
-                      <LoaderButton
-                        isLoading={loading || miniAppLoading || telegramLoading}
-                        type="submit"
-                        className="flex w-full items-center gap-2"
-                      >
+                      <LoaderButton isLoading={loading || miniAppLoading || telegramLoading} type="submit" className="flex w-full items-center gap-2">
                         <LogInIcon size="18px" />
                         <span>{t('login')}</span>
                       </LoaderButton>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="flex w-full items-center gap-2"
-                        onClick={switchToSetup}
-                      >
+                      <Button type="button" variant="outline" className="flex w-full items-center gap-2" onClick={switchToSetup}>
                         <KeyRound className="h-4 w-4" />
                         <span>{t('setup.ownerAccess', { defaultValue: 'Owner access' })}</span>
                       </Button>
@@ -523,12 +495,7 @@ export const Login: FC = () => {
                     >
                       {ownerSetupTitle}
                     </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      className="flex w-full items-center gap-2"
-                      onClick={switchToLogin}
-                    >
+                    <Button type="button" variant="ghost" className="flex w-full items-center gap-2" onClick={switchToLogin}>
                       <ArrowLeft className={dir === 'rtl' ? 'h-4 w-4 scale-x-[-1]' : 'h-4 w-4'} />
                       <span>{t('login.backToLogin', { defaultValue: 'Back to login' })}</span>
                     </Button>

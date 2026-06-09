@@ -29,9 +29,7 @@ const getLatencyHealth = (item: NodeOutboundLatency): LatencyHealth => {
 }
 
 const getLatencyClassName = (health: LatencyHealth) => {
-  return health === 'ok'
-    ? 'border-green-500/30 bg-green-500/10 text-green-700 dark:text-green-300'
-    : 'border-destructive/30 bg-destructive/10 text-destructive'
+  return health === 'ok' ? 'border-green-500/30 bg-green-500/10 text-green-700 dark:text-green-300' : 'border-destructive/30 bg-destructive/10 text-destructive'
 }
 
 const formatTimestamp = (timestamp: number, t: (key: string, options?: Record<string, unknown>) => string) => {
@@ -159,22 +157,16 @@ export function OutboundLatencyTestDialog({ open, onOpenChange, scope, coreId }:
       footerExtra={
         <Button type="submit" form="outbound-latency-test-form" disabled={!canTest}>
           {isTesting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Gauge className="h-4 w-4" />}
-          <span>
-            {isSingleMode
-              ? t('coreEditor.outbound.latency.test', { defaultValue: 'Test' })
-              : t('coreEditor.outbound.latency.testAll', { defaultValue: 'Test all' })}
-          </span>
+          <span>{isSingleMode ? t('coreEditor.outbound.latency.test', { defaultValue: 'Test' }) : t('coreEditor.outbound.latency.testAll', { defaultValue: 'Test all' })}</span>
         </Button>
       }
     >
       <div className="space-y-4">
         {!isSingleMode ? (
-          <div className="rounded-md border bg-muted/20 px-3 py-2 text-sm">
-          <span className="text-muted-foreground">{t('coreEditor.outbound.latency.outbound', { defaultValue: 'Outbound' })}</span>
-          <span className="mx-2 text-muted-foreground">/</span>
-          <span dir="ltr">
-            {scopeLabel}
-          </span>
+          <div className="bg-muted/20 rounded-md border px-3 py-2 text-sm">
+            <span className="text-muted-foreground">{t('coreEditor.outbound.latency.outbound', { defaultValue: 'Outbound' })}</span>
+            <span className="text-muted-foreground mx-2">/</span>
+            <span dir="ltr">{scopeLabel}</span>
           </div>
         ) : null}
 
@@ -212,20 +204,22 @@ export function OutboundLatencyTestDialog({ open, onOpenChange, scope, coreId }:
 
         {!isSingleMode ? (
           <div className="grid overflow-hidden rounded-md border sm:grid-cols-3">
-          <div className="border-b p-3 sm:border-e sm:border-b-0">
-            <div className="text-muted-foreground text-[11px] font-medium tracking-wide uppercase">{t('coreEditor.outbound.latency.total', { defaultValue: 'Total' })}</div>
-            <div className="mt-1 text-lg font-semibold tabular-nums">{sortedLatencies.length}</div>
-          </div>
-          <div className="border-b p-3 sm:border-e sm:border-b-0">
-            <div className="text-muted-foreground text-[11px] font-medium tracking-wide uppercase">{t('coreEditor.outbound.latency.alive', { defaultValue: 'Alive' })}</div>
-            <div className="mt-1 text-lg font-semibold tabular-nums">
-              {aliveCount}/{sortedLatencies.length || 0}
+            <div className="border-b p-3 sm:border-e sm:border-b-0">
+              <div className="text-muted-foreground text-[11px] font-medium tracking-wide uppercase">{t('coreEditor.outbound.latency.total', { defaultValue: 'Total' })}</div>
+              <div className="mt-1 text-lg font-semibold tabular-nums">{sortedLatencies.length}</div>
             </div>
-          </div>
-          <div className="p-3">
-            <div className="text-muted-foreground text-[11px] font-medium tracking-wide uppercase">{t('coreEditor.outbound.latency.average', { defaultValue: 'Average delay' })}</div>
-            <div dir="ltr" className="mt-1 text-lg font-semibold tabular-nums">{averageDelay === null ? '-' : `${averageDelay} ms`}</div>
-          </div>
+            <div className="border-b p-3 sm:border-e sm:border-b-0">
+              <div className="text-muted-foreground text-[11px] font-medium tracking-wide uppercase">{t('coreEditor.outbound.latency.alive', { defaultValue: 'Alive' })}</div>
+              <div className="mt-1 text-lg font-semibold tabular-nums">
+                {aliveCount}/{sortedLatencies.length || 0}
+              </div>
+            </div>
+            <div className="p-3">
+              <div className="text-muted-foreground text-[11px] font-medium tracking-wide uppercase">{t('coreEditor.outbound.latency.average', { defaultValue: 'Average delay' })}</div>
+              <div dir="ltr" className="mt-1 text-lg font-semibold tabular-nums">
+                {averageDelay === null ? '-' : `${averageDelay} ms`}
+              </div>
+            </div>
           </div>
         ) : null}
 
@@ -260,7 +254,7 @@ export function OutboundLatencyTestDialog({ open, onOpenChange, scope, coreId }:
                           </span>
                         </div>
                         {item.link && item.link !== item.name ? (
-                          <div className="text-muted-foreground line-clamp-2 break-all font-mono text-xs" dir="ltr">
+                          <div className="text-muted-foreground line-clamp-2 font-mono text-xs break-all" dir="ltr">
                             {item.link}
                           </div>
                         ) : null}
@@ -272,7 +266,7 @@ export function OutboundLatencyTestDialog({ open, onOpenChange, scope, coreId }:
 
                     <Separator className="my-3" />
 
-                    <div className="grid gap-2 text-xs text-muted-foreground sm:grid-cols-2">
+                    <div className="text-muted-foreground grid gap-2 text-xs sm:grid-cols-2">
                       <div className="min-w-0">
                         <span>{t('coreEditor.outbound.latency.lastTry', { defaultValue: 'Last try' })}: </span>
                         <span className="text-foreground" dir="ltr">

@@ -4,12 +4,7 @@ import type { LucideIcon } from 'lucide-react'
 import { Link2Off, MoreHorizontal, RefreshCcw, Settings, Trash2, UserCog, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
 
 export interface BulkActionItem {
@@ -79,9 +74,7 @@ export const BulkActionsBar = memo(({ selectedCount, onClear, actions, onDelete,
         }
       : null,
   ]
-  const resolvedActions =
-    actions ??
-    defaultActions.filter((action): action is BulkActionItem => action !== null)
+  const resolvedActions = actions ?? defaultActions.filter((action): action is BulkActionItem => action !== null)
   const directActions = resolvedActions.filter(action => action.direct)
   const menuActions = resolvedActions.filter(action => !action.direct)
 
@@ -94,29 +87,24 @@ export const BulkActionsBar = memo(({ selectedCount, onClear, actions, onDelete,
       <div
         className={cn(
           'flex -translate-x-1/2 items-center gap-1.5 sm:gap-2',
-          'rounded-full border bg-background/95 px-2.5 py-1.5 shadow-lg backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:px-4 sm:py-2',
+          'bg-background/95 supports-[backdrop-filter]:bg-background/80 rounded-full border px-2.5 py-1.5 shadow-lg backdrop-blur sm:px-4 sm:py-2',
           'pointer-events-auto transition-all duration-200 ease-out',
-          selectedCount > 0
-            ? 'translate-y-0 scale-100 opacity-100'
-            : 'pointer-events-none -translate-y-2 scale-95 opacity-0',
+          selectedCount > 0 ? 'translate-y-0 scale-100 opacity-100' : 'pointer-events-none -translate-y-2 scale-95 opacity-0',
         )}
       >
-        <span className="whitespace-nowrap text-xs font-medium sm:text-sm">
+        <span className="text-xs font-medium whitespace-nowrap sm:text-sm">
           {selectedCount} {t('bulk.targets')}
         </span>
         {directActions.map(action => (
           <div key={action.key} className="contents">
-            <div className="h-3 w-px bg-border sm:h-4" />
+            <div className="bg-border h-3 w-px sm:h-4" />
             <Button
               type="button"
               variant="ghost"
               size="icon"
               onClick={action.onClick}
               disabled={action.disabled}
-              className={cn(
-                'h-7 w-7 sm:h-8 sm:w-8',
-                action.destructive && 'text-destructive hover:bg-destructive/10 hover:text-destructive',
-              )}
+              className={cn('h-7 w-7 sm:h-8 sm:w-8', action.destructive && 'text-destructive hover:bg-destructive/10 hover:text-destructive')}
               aria-label={action.label}
             >
               <action.icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
@@ -132,12 +120,7 @@ export const BulkActionsBar = memo(({ selectedCount, onClear, actions, onDelete,
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" side="bottom" className="z-[60]">
               {menuActions.map(action => (
-                <DropdownMenuItem
-                  key={action.key}
-                  onClick={action.onClick}
-                  disabled={action.disabled}
-                  className={cn('gap-2 text-sm', action.destructive && 'text-destructive focus:text-destructive')}
-                >
+                <DropdownMenuItem key={action.key} onClick={action.onClick} disabled={action.disabled} className={cn('gap-2 text-sm', action.destructive && 'text-destructive focus:text-destructive')}>
                   <action.icon className="h-4 w-4" />
                   {action.label}
                 </DropdownMenuItem>
@@ -145,15 +128,8 @@ export const BulkActionsBar = memo(({ selectedCount, onClear, actions, onDelete,
             </DropdownMenuContent>
           </DropdownMenu>
         )}
-        <div className="h-3 w-px bg-border sm:h-4" />
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          onClick={onClear}
-          className="h-7 w-7 sm:h-8 sm:w-8"
-          aria-label={t('clear')}
-        >
+        <div className="bg-border h-3 w-px sm:h-4" />
+        <Button type="button" variant="ghost" size="icon" onClick={onClear} className="h-7 w-7 sm:h-8 sm:w-8" aria-label={t('clear')}>
           <X className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
         </Button>
       </div>

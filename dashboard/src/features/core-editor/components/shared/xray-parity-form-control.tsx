@@ -10,12 +10,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { TcpHeaderObfuscationForm } from '@/features/core-editor/components/shared/tcp-header-obfuscation-form'
 import type { XrayGeneratedFormField } from '@pasarguard/xray-config-kit'
-import {
-  inferParityFieldMode,
-  stringifyJsonFormRecord,
-  TLS_CURVE_PREFERENCE_OPTIONS,
-  type ParityFieldMode,
-} from '@/features/core-editor/kit/xray-parity-value'
+import { inferParityFieldMode, stringifyJsonFormRecord, TLS_CURVE_PREFERENCE_OPTIONS, type ParityFieldMode } from '@/features/core-editor/kit/xray-parity-value'
 import { cn } from '@/lib/utils'
 import { Plus, Trash2, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -124,20 +119,7 @@ function selectOptionsForField(field: XrayGeneratedFormField): string[] | null {
   }
 
   if (key.includes('fingerprint')) {
-    return [
-      'chrome',
-      'firefox',
-      'safari',
-      'ios',
-      'android',
-      'edge',
-      '360',
-      'qq',
-      'random',
-      'randomized',
-      'randomizednoalpn',
-      'unsafe',
-    ]
+    return ['chrome', 'firefox', 'safari', 'ios', 'android', 'edge', '360', 'qq', 'random', 'randomized', 'randomizednoalpn', 'unsafe']
   }
 
   if (key === 'uplinkhttpmethod') {
@@ -225,11 +207,7 @@ function parsePrimitive(raw: string): unknown {
   return raw
 }
 
-function tagPickerSpec(
-  normalizedKey: string,
-  mode: ParityFieldMode,
-  o: XrayProfileTagOptions | undefined,
-): { kind: 'single' | 'multi'; options: readonly string[] } | null {
+function tagPickerSpec(normalizedKey: string, mode: ParityFieldMode, o: XrayProfileTagOptions | undefined): { kind: 'single' | 'multi'; options: readonly string[] } | null {
   if (!o) return null
   if (normalizedKey === 'outboundtag' && mode === 'scalar') {
     return { kind: 'single', options: o.outboundTags }
@@ -254,16 +232,7 @@ const TLS_CIPHER_SUITES_RECOMMENDED =
   'TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256:TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256:TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384:TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384:TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256:TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256'
 
 /** Renders a single parity metadata field (scalar input, multiline list, or JSON). */
-export function XrayParityFormControl({
-  field,
-  value,
-  onChange,
-  disabled,
-  className,
-  renderBooleanAsToggleRow = false,
-  profileTagOptions,
-  placeholder,
-}: XrayParityFormControlProps) {
+export function XrayParityFormControl({ field, value, onChange, disabled, className, renderBooleanAsToggleRow = false, profileTagOptions, placeholder }: XrayParityFormControlProps) {
   const { t } = useTranslation()
   const key = normalizeFieldName(field)
 
@@ -299,7 +268,7 @@ export function XrayParityFormControl({
     const { min, max } = parseRangeValue(value)
     return (
       <FormControl>
-        <div className={cn('grid min-w-0 w-full grid-cols-2 gap-2', className)}>
+        <div className={cn('grid w-full min-w-0 grid-cols-2 gap-2', className)}>
           <Input
             type="number"
             dir="ltr"
@@ -308,7 +277,7 @@ export function XrayParityFormControl({
             value={min}
             onChange={e => onChange(buildRangeValue(e.target.value, max))}
             disabled={disabled}
-            className="min-w-0 w-full text-xs"
+            className="w-full min-w-0 text-xs"
           />
           <Input
             type="number"
@@ -318,7 +287,7 @@ export function XrayParityFormControl({
             value={max}
             onChange={e => onChange(buildRangeValue(min, e.target.value))}
             disabled={disabled}
-            className="min-w-0 w-full text-xs"
+            className="w-full min-w-0 text-xs"
           />
         </div>
       </FormControl>
@@ -332,9 +301,7 @@ export function XrayParityFormControl({
       <FormControl>
         <Select value={value || '__empty__'} onValueChange={next => onChange(next === '__empty__' ? '' : next)} disabled={disabled}>
           <SelectTrigger className={cn('h-10 w-full min-w-0', className)}>
-            <SelectValue
-              placeholder={placeholder ?? t('coreEditor.parityUi.selectValuePlaceholder', { defaultValue: 'Select value' })}
-            />
+            <SelectValue placeholder={placeholder ?? t('coreEditor.parityUi.selectValuePlaceholder', { defaultValue: 'Select value' })} />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="__empty__">{t('coreEditor.parityUi.selectDefault', { defaultValue: 'Default' })}</SelectItem>
@@ -361,8 +328,7 @@ export function XrayParityFormControl({
               currentValue={parsed}
               onValueChange={next => {
                 if (next == null) onChange('')
-                else if (typeof next === 'object' && !Array.isArray(next))
-                  onChange(stringifyJsonFormRecord(next as Record<string, unknown>))
+                else if (typeof next === 'object' && !Array.isArray(next)) onChange(stringifyJsonFormRecord(next as Record<string, unknown>))
                 else onChange(JSON.stringify(next, null, 2))
               }}
             />
@@ -399,17 +365,14 @@ export function XrayParityFormControl({
             </div>
             <div className="flex flex-col gap-2">
               {entries.length === 0 ? (
-                <div className="rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground">
+                <div className="text-muted-foreground rounded-md border border-dashed px-3 py-2 text-xs">
                   {t('coreEditor.inbound.tcp.stringMapNoHeaders', {
                     defaultValue: 'No headers yet. Click + to add one.',
                   })}
                 </div>
               ) : (
                 entries.map((entry, index) => (
-                  <div
-                    key={`${entry.key}-${index}`}
-                    className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:flex-nowrap"
-                  >
+                  <div key={`${entry.key}-${index}`} className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:flex-nowrap">
                     <Input
                       dir="ltr"
                       className="min-h-9 min-w-[7rem] flex-1 text-xs sm:min-w-[8rem]"
@@ -465,14 +428,10 @@ export function XrayParityFormControl({
               <div className="flex flex-1 flex-wrap gap-2">
                 {display.length > 0 ? (
                   display.map(curve => (
-                    <Badge
-                      key={curve}
-                      variant={allowed.has(curve) ? 'secondary' : 'outline'}
-                      className="flex items-center gap-1"
-                    >
+                    <Badge key={curve} variant={allowed.has(curve) ? 'secondary' : 'outline'} className="flex items-center gap-1">
                       {curve}
                       <X
-                        className="h-3 w-3 cursor-pointer hover:text-destructive"
+                        className="hover:text-destructive h-3 w-3 cursor-pointer"
                         onClick={e => {
                           e.stopPropagation()
                           onChange(stringifyStringListValue(selected.filter(p => p !== curve)))
@@ -481,7 +440,7 @@ export function XrayParityFormControl({
                     </Badge>
                   ))
                 ) : (
-                  <span className="text-sm text-muted-foreground">
+                  <span className="text-muted-foreground text-sm">
                     {t('coreEditor.field.curvePreferencesPlaceholder', {
                       defaultValue: 'Select TLS curves (ECDHE)',
                     })}
@@ -491,7 +450,7 @@ export function XrayParityFormControl({
             </Button>
           </PopoverTrigger>
           <PopoverContent className="min-w-56 p-1 sm:min-w-72" align="start">
-            <p className="px-2 pb-1 pt-1 text-[11px] leading-snug text-muted-foreground">
+            <p className="text-muted-foreground px-2 pt-1 pb-1 text-[11px] leading-snug">
               {t('coreEditor.field.curvePreferencesHint', {
                 defaultValue: 'Only documented Xray curve names can be added. Unsupported values from JSON are shown above and can be removed.',
               })}
@@ -507,15 +466,10 @@ export function XrayParityFormControl({
                       const next = isSelected ? selected.filter(p => p !== curve) : [...selected, curve]
                       onChange(stringifyStringListValue(next))
                     }}
-                    className="flex cursor-pointer items-center gap-2 rounded-sm p-2 hover:bg-accent"
+                    className="hover:bg-accent flex cursor-pointer items-center gap-2 rounded-sm p-2"
                   >
-                    <div
-                      className={cn(
-                        'flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border',
-                        isSelected ? 'border-primary bg-primary' : 'border-muted',
-                      )}
-                    >
-                      {isSelected && <X className="h-3 w-3 text-primary-foreground" />}
+                    <div className={cn('flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border', isSelected ? 'border-primary bg-primary' : 'border-muted')}>
+                      {isSelected && <X className="text-primary-foreground h-3 w-3" />}
                     </div>
                     <span className="text-sm">{curve}</span>
                   </div>
@@ -541,7 +495,7 @@ export function XrayParityFormControl({
                     <Badge key={protocol} variant="secondary" className="flex items-center gap-1">
                       {protocol}
                       <X
-                        className="h-3 w-3 cursor-pointer hover:text-destructive"
+                        className="hover:text-destructive h-3 w-3 cursor-pointer"
                         onClick={e => {
                           e.stopPropagation()
                           onChange(stringifyStringListValue(selected.filter(p => p !== protocol)))
@@ -550,9 +504,7 @@ export function XrayParityFormControl({
                     </Badge>
                   ))
                 ) : (
-                  <span className="text-sm text-muted-foreground">
-                    {t('coreEditor.field.selectAlpnProtocols', { defaultValue: 'Select ALPN protocols' })}
-                  </span>
+                  <span className="text-muted-foreground text-sm">{t('coreEditor.field.selectAlpnProtocols', { defaultValue: 'Select ALPN protocols' })}</span>
                 )}
               </div>
             </Button>
@@ -569,10 +521,10 @@ export function XrayParityFormControl({
                       const next = isSelected ? selected.filter(p => p !== protocol) : [...selected, protocol]
                       onChange(stringifyStringListValue(next))
                     }}
-                    className="flex cursor-pointer items-center gap-2 rounded-sm p-2 hover:bg-accent"
+                    className="hover:bg-accent flex cursor-pointer items-center gap-2 rounded-sm p-2"
                   >
                     <div className={cn('mr-2 flex h-4 w-4 items-center justify-center rounded-sm border', isSelected ? 'border-primary bg-primary' : 'border-muted')}>
-                      {isSelected && <X className="h-3 w-3 text-primary-foreground" />}
+                      {isSelected && <X className="text-primary-foreground h-3 w-3" />}
                     </div>
                     {protocol}
                   </div>
@@ -604,9 +556,7 @@ export function XrayParityFormControl({
           <SelectContent>
             <SelectItem value="__auto__">{t('coreEditor.parityUi.selectAuto', { defaultValue: 'Auto' })}</SelectItem>
             <SelectItem value="__recommended__">{t('coreEditor.parityUi.selectRecommended', { defaultValue: 'Recommended' })}</SelectItem>
-            {resolvedValue === '__custom__' && (
-              <SelectItem value="__custom__">{t('coreEditor.parityUi.selectCustomFromJson', { defaultValue: 'Custom (from JSON)' })}</SelectItem>
-            )}
+            {resolvedValue === '__custom__' && <SelectItem value="__custom__">{t('coreEditor.parityUi.selectCustomFromJson', { defaultValue: 'Custom (from JSON)' })}</SelectItem>}
           </SelectContent>
         </Select>
       </FormControl>
@@ -633,11 +583,7 @@ export function XrayParityFormControl({
   if (field.type.includes('NetworkList')) {
     return (
       <FormControl>
-        <Select
-          value={value || '__empty__'}
-          onValueChange={next => onChange(next === '__empty__' ? '' : next)}
-          disabled={disabled}
-        >
+        <Select value={value || '__empty__'} onValueChange={next => onChange(next === '__empty__' ? '' : next)} disabled={disabled}>
           <SelectTrigger className={cn('h-10 w-full min-w-0', className)}>
             <SelectValue placeholder={t('coreEditor.parityUi.networkAny', { defaultValue: 'Any' })} />
           </SelectTrigger>
@@ -660,19 +606,14 @@ export function XrayParityFormControl({
       <FormControl>
         <Popover>
           <PopoverTrigger asChild>
-            <Button
-              variant="outline"
-              role="combobox"
-              className={cn('h-auto min-h-[40px] w-full justify-between p-2', className)}
-              disabled={disabled}
-            >
+            <Button variant="outline" role="combobox" className={cn('h-auto min-h-[40px] w-full justify-between p-2', className)} disabled={disabled}>
               <div className="flex flex-1 flex-wrap gap-1.5">
                 {selected.length > 0 ? (
                   selected.map(p => (
                     <Badge key={p} variant="secondary" className="flex items-center gap-1">
                       {p}
                       <X
-                        className="h-3 w-3 cursor-pointer hover:text-destructive"
+                        className="hover:text-destructive h-3 w-3 cursor-pointer"
                         onClick={e => {
                           e.stopPropagation()
                           onChange(stringifyStringListValue(selected.filter(x => x !== p)))
@@ -681,7 +622,7 @@ export function XrayParityFormControl({
                     </Badge>
                   ))
                 ) : (
-                  <span className="text-sm text-muted-foreground">{t('coreEditor.parityUi.protocolAny', { defaultValue: 'Any protocol' })}</span>
+                  <span className="text-muted-foreground text-sm">{t('coreEditor.parityUi.protocolAny', { defaultValue: 'Any protocol' })}</span>
                 )}
               </div>
             </Button>
@@ -698,15 +639,10 @@ export function XrayParityFormControl({
                       const next = isSelected ? selected.filter(x => x !== p) : [...selected, p]
                       onChange(stringifyStringListValue(next))
                     }}
-                    className="flex cursor-pointer items-center gap-2 rounded-sm p-2 hover:bg-accent"
+                    className="hover:bg-accent flex cursor-pointer items-center gap-2 rounded-sm p-2"
                   >
-                    <div
-                      className={cn(
-                        'flex h-4 w-4 items-center justify-center rounded-sm border',
-                        isSelected ? 'border-primary bg-primary' : 'border-muted',
-                      )}
-                    >
-                      {isSelected && <X className="h-3 w-3 text-primary-foreground" />}
+                    <div className={cn('flex h-4 w-4 items-center justify-center rounded-sm border', isSelected ? 'border-primary bg-primary' : 'border-muted')}>
+                      {isSelected && <X className="text-primary-foreground h-3 w-3" />}
                     </div>
                     <span className="text-sm">{p}</span>
                   </div>
@@ -767,19 +703,9 @@ export function XrayParityFormControl({
     const parsed = parseJsonObject(value) ?? {}
     const url = typeof parsed.url === 'string' ? parsed.url : ''
     const deduplicationRaw = parsed.deduplication
-    const deduplication =
-      typeof deduplicationRaw === 'number' && Number.isFinite(deduplicationRaw)
-        ? String(deduplicationRaw)
-        : typeof deduplicationRaw === 'string'
-          ? deduplicationRaw
-          : ''
-    const headersObj =
-      parsed.headers && typeof parsed.headers === 'object' && !Array.isArray(parsed.headers)
-        ? (parsed.headers as Record<string, unknown>)
-        : null
-    const headerEntries: Array<{ key: string; value: string }> = headersObj
-      ? Object.entries(headersObj).map(([k, v]) => ({ key: String(k), value: v == null ? '' : String(v) }))
-      : []
+    const deduplication = typeof deduplicationRaw === 'number' && Number.isFinite(deduplicationRaw) ? String(deduplicationRaw) : typeof deduplicationRaw === 'string' ? deduplicationRaw : ''
+    const headersObj = parsed.headers && typeof parsed.headers === 'object' && !Array.isArray(parsed.headers) ? (parsed.headers as Record<string, unknown>) : null
+    const headerEntries: Array<{ key: string; value: string }> = headersObj ? Object.entries(headersObj).map(([k, v]) => ({ key: String(k), value: v == null ? '' : String(v) })) : []
 
     const writeNext = (next: Record<string, unknown>) => {
       const cleaned: Record<string, unknown> = {}
@@ -835,11 +761,9 @@ export function XrayParityFormControl({
 
     return (
       <FormControl>
-        <div className={cn('flex flex-col gap-3 rounded-md border bg-muted/20 p-3', className)}>
+        <div className={cn('bg-muted/20 flex flex-col gap-3 rounded-md border p-3', className)}>
           <div className="flex flex-col gap-1.5">
-            <span className="text-xs font-medium">
-              {t('coreEditor.routing.webhook.url', { defaultValue: 'URL' })}
-            </span>
+            <span className="text-xs font-medium">{t('coreEditor.routing.webhook.url', { defaultValue: 'URL' })}</span>
             <Input
               dir="ltr"
               className="h-9 min-w-0 text-xs"
@@ -850,7 +774,7 @@ export function XrayParityFormControl({
               onChange={e => setUrl(e.target.value)}
               disabled={disabled}
             />
-            <span className="text-[11px] leading-snug text-muted-foreground">
+            <span className="text-muted-foreground text-[11px] leading-snug">
               {t('coreEditor.routing.webhook.urlHint', {
                 defaultValue: 'HTTP(S) URL or a Unix socket path. Use sock:/path for the root, sock:/path:/endpoint to target a specific endpoint.',
               })}
@@ -858,9 +782,7 @@ export function XrayParityFormControl({
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <span className="text-xs font-medium">
-              {t('coreEditor.routing.webhook.deduplication', { defaultValue: 'Deduplication (seconds)' })}
-            </span>
+            <span className="text-xs font-medium">{t('coreEditor.routing.webhook.deduplication', { defaultValue: 'Deduplication (seconds)' })}</span>
             <Input
               type="number"
               dir="ltr"
@@ -871,7 +793,7 @@ export function XrayParityFormControl({
               onChange={e => setDeduplication(e.target.value)}
               disabled={disabled}
             />
-            <span className="text-[11px] leading-snug text-muted-foreground">
+            <span className="text-muted-foreground text-[11px] leading-snug">
               {t('coreEditor.routing.webhook.deduplicationHint', {
                 defaultValue: 'Time window for ignoring duplicate events. Leave empty to disable.',
               })}
@@ -880,24 +802,19 @@ export function XrayParityFormControl({
 
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-medium">
-                {t('coreEditor.routing.webhook.headers', { defaultValue: 'Headers' })}
-              </span>
+              <span className="text-xs font-medium">{t('coreEditor.routing.webhook.headers', { defaultValue: 'Headers' })}</span>
               <Button type="button" variant="outline" size="icon" className="size-7" onClick={addHeader} disabled={disabled}>
                 <Plus />
               </Button>
             </div>
             {headerEntries.length === 0 ? (
-              <div className="rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground">
+              <div className="text-muted-foreground rounded-md border border-dashed px-3 py-2 text-xs">
                 {t('coreEditor.routing.webhook.headersEmpty', { defaultValue: 'No headers. Click + to add one.' })}
               </div>
             ) : (
               <div className="flex flex-col gap-2">
                 {headerEntries.map((entry, index) => (
-                  <div
-                    key={`${entry.key}-${index}`}
-                    className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:flex-nowrap"
-                  >
+                  <div key={`${entry.key}-${index}`} className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:flex-nowrap">
                     <Input
                       dir="ltr"
                       className="min-h-9 min-w-[7rem] flex-1 text-xs sm:min-w-[8rem]"
@@ -997,15 +914,12 @@ export function XrayParityFormControl({
             </div>
             <div className="flex flex-col gap-2">
               {entries.length === 0 ? (
-                <div className="rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground">
+                <div className="text-muted-foreground rounded-md border border-dashed px-3 py-2 text-xs">
                   {t('coreEditor.parityUi.jsonMapEmpty', { defaultValue: 'No fields yet. Click + to add one.' })}
                 </div>
               ) : (
                 entries.map(([entryKey, entryValue]) => (
-                  <div
-                    key={entryKey}
-                    className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:flex-nowrap"
-                  >
+                  <div key={entryKey} className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:flex-nowrap">
                     <Input
                       dir="ltr"
                       className="min-h-9 min-w-[7rem] flex-1 text-xs sm:min-w-[8rem]"
@@ -1050,7 +964,7 @@ export function XrayParityFormControl({
       <FormControl>
         <Textarea
           rows={8}
-          className={cn('min-w-0 w-full text-xs', className)}
+          className={cn('w-full min-w-0 text-xs', className)}
           dir="ltr"
           value={value}
           onChange={e => onChange(e.target.value)}
@@ -1079,14 +993,7 @@ export function XrayParityFormControl({
   }
   return (
     <FormControl>
-      <Input
-        className={cn('h-10 w-full min-w-0 text-xs', className)}
-        dir="ltr"
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        disabled={disabled}
-        placeholder={placeholder}
-      />
+      <Input className={cn('h-10 w-full min-w-0 text-xs', className)} dir="ltr" value={value} onChange={e => onChange(e.target.value)} disabled={disabled} placeholder={placeholder} />
     </FormControl>
   )
 }

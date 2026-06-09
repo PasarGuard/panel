@@ -2,10 +2,7 @@
  * Single import path for Xray template generators used by core-config UI and the core editor.
  * All logic lives in `@pasarguard/xray-config-kit`.
  */
-import {
-  createDefaultVlessOptions,
-  VLESS_ENCRYPTION_METHODS,
-} from '@pasarguard/xray-config-kit'
+import { createDefaultVlessOptions, VLESS_ENCRYPTION_METHODS } from '@pasarguard/xray-config-kit'
 import type { VlessBuilderOptions } from '@pasarguard/xray-config-kit'
 import { encodeURLSafe } from '@stablelib/base64'
 import { generateKeyPair } from '@stablelib/x25519'
@@ -32,10 +29,7 @@ export type { ShadowsocksPasswordResult, VlessEncryptionResult, VlessBuilderOpti
 
 export type VlessEncryptionMethodSelect = 'none' | (typeof VLESS_ENCRYPTION_METHODS)[number]['value']
 
-export const SHADOWSOCKS_PASSWORD_GENERATION_METHODS = [
-  '2022-blake3-aes-128-gcm',
-  '2022-blake3-aes-256-gcm',
-] as const
+export const SHADOWSOCKS_PASSWORD_GENERATION_METHODS = ['2022-blake3-aes-128-gcm', '2022-blake3-aes-256-gcm'] as const
 
 export function canGenerateShadowsocksPassword(method: string): boolean {
   return SHADOWSOCKS_PASSWORD_GENERATION_METHODS.some(candidate => candidate === method)

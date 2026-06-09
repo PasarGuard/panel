@@ -205,7 +205,7 @@ export default function AdminsPage() {
 
   return (
     <div className="flex w-full flex-col items-start gap-2">
-      <div className="w-full transform-gpu animate-fade-in" style={{ animationDuration: '400ms' }}>
+      <div className="animate-fade-in w-full transform-gpu" style={{ animationDuration: '400ms' }}>
         <PageHeader
           title="admins.title"
           description="admins.description"
@@ -214,10 +214,10 @@ export default function AdminsPage() {
           onButtonClick={
             canCreateAdmins
               ? () => {
-                setEditingAdmin(null)
-                form.reset(adminFormDefaultValues)
-                setIsDialogOpen(true)
-              }
+                  setEditingAdmin(null)
+                  form.reset(adminFormDefaultValues)
+                  setIsDialogOpen(true)
+                }
               : undefined
           }
         />
@@ -225,11 +225,11 @@ export default function AdminsPage() {
       </div>
 
       <div className="w-full px-4 pt-2">
-        <div className="transform-gpu animate-slide-up" style={{ animationDuration: '500ms', animationDelay: '100ms', animationFillMode: 'both' }}>
+        <div className="animate-slide-up transform-gpu" style={{ animationDuration: '500ms', animationDelay: '100ms', animationFillMode: 'both' }}>
           <AdminsStatistics counts={adminCounts} />
         </div>
 
-        <div className="transform-gpu animate-slide-up" style={{ animationDuration: '500ms', animationDelay: '250ms', animationFillMode: 'both' }}>
+        <div className="animate-slide-up transform-gpu" style={{ animationDuration: '500ms', animationDelay: '250ms', animationFillMode: 'both' }}>
           <AdminsTable onEdit={handleEdit} onDelete={handleDelete} onToggleStatus={handleToggleStatus} onResetUsage={resetUsage} onTotalAdminsChange={setAdminCounts} />
         </div>
 

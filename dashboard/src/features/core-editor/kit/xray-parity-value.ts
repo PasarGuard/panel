@@ -62,12 +62,7 @@ export function inferParityFieldMode(field: XrayGeneratedFormField): ParityField
   ) {
     return 'json'
   }
-  if (
-    t.includes('StringList') ||
-    t.includes('[]string') ||
-    t.includes('PortList') ||
-    t.includes('NetworkList')
-  ) {
+  if (t.includes('StringList') || t.includes('[]string') || t.includes('PortList') || t.includes('NetworkList')) {
     return 'stringList'
   }
   return 'scalar'
@@ -119,11 +114,7 @@ export function routingRuleFieldToString(rule: RoutingRule, jsonKey: string, fie
   return String(v)
 }
 
-export function parseRoutingRuleFieldValue(
-  jsonKey: string,
-  field: XrayGeneratedFormField,
-  raw: string,
-): { value: unknown; clearDomains?: boolean; clearDomain?: boolean } {
+export function parseRoutingRuleFieldValue(jsonKey: string, field: XrayGeneratedFormField, raw: string): { value: unknown; clearDomains?: boolean; clearDomain?: boolean } {
   const mode = inferParityFieldMode(field)
   const t = raw.trim()
   if (mode === 'json') {
@@ -147,12 +138,7 @@ export function parseRoutingRuleFieldValue(
   }
   if (!t) return { value: undefined }
   if (field.type === 'bool') return { value: t === 'true' || t === '1' }
-  if (
-    field.type.includes('int') ||
-    field.type === 'uint16' ||
-    field.type === 'byte' ||
-    field.type === 'uint64'
-  ) {
+  if (field.type.includes('int') || field.type === 'uint16' || field.type === 'byte' || field.type === 'uint64') {
     const n = Number(t)
     return { value: Number.isFinite(n) ? n : t }
   }
@@ -178,15 +164,7 @@ export function routingBalancerFieldToString(b: RoutingBalancer, jsonKey: string
 }
 
 /** TLS `curvePreferences` / ECDHE — only these values are valid in Xray JSON (see Xray TLS docs). */
-export const TLS_CURVE_PREFERENCE_OPTIONS = [
-  'CurveP256',
-  'CurveP384',
-  'CurveP521',
-  'X25519',
-  'X25519MLKEM768',
-  'SecP256r1MLKEM768',
-  'SecP384r1MLKEM1024',
-] as const
+export const TLS_CURVE_PREFERENCE_OPTIONS = ['CurveP256', 'CurveP384', 'CurveP521', 'X25519', 'X25519MLKEM768', 'SecP256r1MLKEM768', 'SecP384r1MLKEM1024'] as const
 
 function normParityFieldKey(field: XrayGeneratedFormField): string {
   return String(field.json ?? field.go ?? '')

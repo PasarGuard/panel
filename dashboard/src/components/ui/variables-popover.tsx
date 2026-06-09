@@ -20,14 +20,7 @@ interface VariablesPopoverProps {
   sideOffset?: number
 }
 
-export function VariablesPopover({
-  includeProtocolTransport = false,
-  includeProfileTitle = false,
-  includeFormat = false,
-  side = 'bottom',
-  align = 'start',
-  sideOffset = 0,
-}: VariablesPopoverProps) {
+export function VariablesPopover({ includeProtocolTransport = false, includeProfileTitle = false, includeFormat = false, side = 'bottom', align = 'start', sideOffset = 0 }: VariablesPopoverProps) {
   const { t } = useTranslation()
   const { copy } = useClipboard()
 
@@ -38,10 +31,10 @@ export function VariablesPopover({
 
   const VariableItem = ({ variable, translationKey }: { variable: string; translationKey: string }) => (
     <div className="flex min-w-0 items-center gap-1.5">
-      <code className="shrink-0 cursor-pointer rounded-sm bg-muted/50 px-1.5 py-0.5 text-[11px] transition-colors hover:bg-muted" onClick={() => handleCopy(variable)} title={t('copy')}>
+      <code className="bg-muted/50 hover:bg-muted shrink-0 cursor-pointer rounded-sm px-1.5 py-0.5 text-[11px] transition-colors" onClick={() => handleCopy(variable)} title={t('copy')}>
         {variable}
       </code>
-      <span className="min-w-0 truncate text-[11px] text-muted-foreground" title={t(translationKey)}>
+      <span className="text-muted-foreground min-w-0 truncate text-[11px]" title={t(translationKey)}>
         {t(translationKey)}
       </span>
     </div>
@@ -80,7 +73,7 @@ export function VariablesPopover({
     <Popover>
       <PopoverTrigger asChild>
         <Button type="button" variant="ghost" size="icon" className="h-auto w-auto p-0 hover:bg-transparent">
-          <Info className="h-3.5 w-3.5 text-muted-foreground" />
+          <Info className="text-muted-foreground h-3.5 w-3.5" />
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[280px] p-3 sm:w-[320px]" side={side} align={align} sideOffset={sideOffset}>
@@ -113,10 +106,10 @@ export function VariablesList({
 
   const VariableItem = ({ variable, translationKey }: { variable: string; translationKey: string }) => (
     <div className="flex min-w-0 items-center gap-1.5">
-      <code className="shrink-0 cursor-pointer rounded-sm bg-muted/50 px-1.5 py-0.5 text-[11px] transition-colors hover:bg-muted" onClick={() => handleCopy(variable)} title={t('copy')}>
+      <code className="bg-muted/50 hover:bg-muted shrink-0 cursor-pointer rounded-sm px-1.5 py-0.5 text-[11px] transition-colors" onClick={() => handleCopy(variable)} title={t('copy')}>
         {variable}
       </code>
-      <span className="min-w-0 truncate text-[11px] text-muted-foreground" title={t(translationKey)}>
+      <span className="text-muted-foreground min-w-0 truncate text-[11px]" title={t(translationKey)}>
         {t(translationKey)}
       </span>
     </div>

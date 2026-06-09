@@ -4,12 +4,7 @@ import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useNavigate } from 'react-router'
-import { 
-  useBulkCreateUsersFromTemplate, 
-  useGetUserTemplates,
-  UsernameGenerationStrategy,
-  BulkUsersCreateResponse
-} from '@/service/api'
+import { useBulkCreateUsersFromTemplate, useGetUserTemplates, UsernameGenerationStrategy, BulkUsersCreateResponse } from '@/service/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -20,21 +15,7 @@ import { CopyButton } from '@/components/common/copy-button'
 import QRCodeModal from '@/features/bulk/dialogs/qrcode-modal'
 import { useClipboard } from '@/hooks/use-clipboard'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { 
-  UserPlus, 
-  Users, 
-  FileUser, 
-  Hash,
-  Sparkles,
-  CheckCircle2,
-  AlertTriangle,
-  FileQuestion,
-  Copy,
-  ArrowLeft,
-  QrCode,
-  Check,
-  Infinity
-} from 'lucide-react'
+import { UserPlus, Users, FileUser, Hash, Sparkles, CheckCircle2, AlertTriangle, FileQuestion, Copy, ArrowLeft, QrCode, Check, Infinity } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
@@ -64,13 +45,11 @@ export default function BulkCreateUsersPage() {
   const [selectedTemplateId, setSelectedTemplateId] = useState<number | undefined>()
   const [baseUsername, setBaseUsername] = useState('')
   const [userCount, setUserCount] = useState<string>('1')
-  const [strategy, setStrategy] = useState<UsernameGenerationStrategy>(
-    UsernameGenerationStrategy.sequence
-  )
+  const [strategy, setStrategy] = useState<UsernameGenerationStrategy>(UsernameGenerationStrategy.sequence)
   const [startNumber, setStartNumber] = useState<string>('1')
   const [note, setNote] = useState('')
   const [touchedFields, setTouchedFields] = useState<Set<string>>(new Set())
-  
+
   const [createdUrls, setCreatedUrls] = useState<string[]>([])
   const [showSuccess, setShowSuccess] = useState(false)
   const [selectedQRUrl, setSelectedQRUrl] = useState<string | null>(null)
@@ -93,7 +72,7 @@ export default function BulkCreateUsersPage() {
   const handleCreate = () => {
     // Mark all fields as touched when user tries to submit
     setTouchedFields(new Set(['userCount', 'baseUsername', 'startNumber']))
-    
+
     if (!selectedTemplateId) {
       toast.error(t('error'), { description: t('bulk.create.selectTemplateError') })
       return
@@ -117,7 +96,7 @@ export default function BulkCreateUsersPage() {
       user_template_id: selectedTemplateId,
       count: parsedUserCount,
       // When strategy is 'random', username must be null
-      username: strategy === UsernameGenerationStrategy.random ? null : (baseUsername || undefined),
+      username: strategy === UsernameGenerationStrategy.random ? null : baseUsername || undefined,
       strategy: strategy,
       start_number: strategy === UsernameGenerationStrategy.sequence && parsedStartNumber > 1 ? parsedStartNumber : undefined,
       note: note || undefined,
@@ -129,27 +108,21 @@ export default function BulkCreateUsersPage() {
         onSuccess: (response: BulkUsersCreateResponse) => {
           const urls = response.subscription_urls || []
           const createdCount = response.created || 0
-          
+
           // If no users were created, it means all users already exist
           if (createdCount === 0) {
-            toast.error(
-              t('bulk.create.failed'),
-              { description: t('bulk.create.allUsersExist') }
-            )
+            toast.error(t('bulk.create.failed'), { description: t('bulk.create.allUsersExist') })
             return
           }
-          
+
           setCreatedUrls(urls)
           setShowSuccess(true)
-          
-          toast.success(
-            t('bulk.create.success'), 
-            { 
-              description: t('bulk.create.created', { 
-                count: createdCount
-              })
-            }
-          )
+
+          toast.success(t('bulk.create.success'), {
+            description: t('bulk.create.created', {
+              count: createdCount,
+            }),
+          })
 
           // Reset form
           setBaseUsername('')
@@ -158,17 +131,14 @@ export default function BulkCreateUsersPage() {
           setNote('')
         },
         onError: (error: any) => {
-          toast.error(
-            t('bulk.create.failed'), 
-            { description: error?.message || JSON.stringify(error) }
-          )
+          toast.error(t('bulk.create.failed'), { description: error?.message || JSON.stringify(error) })
         },
-      }
+      },
     )
   }
 
   const { copy: copyAll, copied: allCopied } = useClipboard({ timeout: 2000 })
-  
+
   const copyAllUrls = async () => {
     const text = createdUrls.join('\n')
     await copyAll(text)
@@ -190,10 +160,10 @@ export default function BulkCreateUsersPage() {
     const previews: string[] = []
     const parsedUserCount = parseInt(userCount) || 0
     const parsedStartNumber = parseInt(startNumber) || 1
-    
+
     const prefix = selectedTemplate?.username_prefix || ''
     const suffix = selectedTemplate?.username_suffix || ''
-    
+
     if (strategy === UsernameGenerationStrategy.sequence) {
       if (!baseUsername || parsedUserCount === 0) {
         setPreviewUsernames([])
@@ -213,7 +183,7 @@ export default function BulkCreateUsersPage() {
         previews.push(username)
       }
     }
-    
+
     setPreviewUsernames(previews)
   }, [baseUsername, userCount, strategy, startNumber, selectedTemplate])
 
@@ -223,19 +193,15 @@ export default function BulkCreateUsersPage() {
       <div className="flex w-full flex-1 items-center justify-center">
         <Card className="w-full max-w-md">
           <CardContent className="flex flex-col items-center justify-center space-y-4 py-10 text-center">
-            <div className="rounded-full bg-muted p-6">
-              <FileQuestion className="h-10 w-10 text-muted-foreground" />
+            <div className="bg-muted rounded-full p-6">
+              <FileQuestion className="text-muted-foreground h-10 w-10" />
             </div>
             <div className="space-y-2">
-              <h3 className="text-lg font-semibold">
-                {t('bulk.create.noTemplates')}
-              </h3>
-              <p className="text-sm text-muted-foreground">
-                {t('bulk.create.noTemplatesDesc')}
-              </p>
+              <h3 className="text-lg font-semibold">{t('bulk.create.noTemplates')}</h3>
+              <p className="text-muted-foreground text-sm">{t('bulk.create.noTemplatesDesc')}</p>
             </div>
             <Button onClick={() => navigate('/templates/user')} size="lg">
-              <FileUser className={cn("h-4 w-4", isRTL ? "ml-2" : "mr-2")} />
+              <FileUser className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
               {t('bulk.create.createTemplate')}
             </Button>
           </CardContent>
@@ -247,23 +213,24 @@ export default function BulkCreateUsersPage() {
   if (showSuccess && createdUrls.length > 0) {
     return (
       <div className="w-full space-y-4">
-        <Button 
-          variant="ghost" 
-          onClick={() => { setShowSuccess(false); setCreatedUrls([]) }}
+        <Button
+          variant="ghost"
+          onClick={() => {
+            setShowSuccess(false)
+            setCreatedUrls([])
+          }}
           className="mb-2"
         >
-          <ArrowLeft className={cn("h-4 w-4", isRTL ? "ml-2 rotate-180" : "mr-2")} />
+          <ArrowLeft className={cn('h-4 w-4', isRTL ? 'ml-2 rotate-180' : 'mr-2')} />
           {t('back')}
         </Button>
 
         <Alert className="border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950/20">
           <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
-          <AlertTitle className="text-green-800 dark:text-green-200">
-            {t('bulk.create.successTitle')}
-          </AlertTitle>
+          <AlertTitle className="text-green-800 dark:text-green-200">{t('bulk.create.successTitle')}</AlertTitle>
           <AlertDescription className="text-green-700 dark:text-green-300">
-            {t('bulk.create.successDescription', { 
-              count: createdUrls.length
+            {t('bulk.create.successDescription', {
+              count: createdUrls.length,
             })}
           </AlertDescription>
         </Alert>
@@ -272,24 +239,20 @@ export default function BulkCreateUsersPage() {
           <CardHeader>
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <CardTitle className="text-base sm:text-lg">
-                  {t('bulk.create.subscriptionUrls')}
-                </CardTitle>
-                <CardDescription className="text-xs sm:text-sm">
-                  {t('bulk.create.subscriptionUrlsDesc')}
-                </CardDescription>
+                <CardTitle className="text-base sm:text-lg">{t('bulk.create.subscriptionUrls')}</CardTitle>
+                <CardDescription className="text-xs sm:text-sm">{t('bulk.create.subscriptionUrlsDesc')}</CardDescription>
               </div>
               <Tooltip open={allCopied ? true : undefined}>
                 <TooltipTrigger asChild>
                   <Button onClick={copyAllUrls} variant="outline" size="sm" className="w-full sm:w-auto">
                     {allCopied ? (
                       <>
-                        <Check className={cn("h-4 w-4", isRTL ? "ml-2" : "mr-2")} />
+                        <Check className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
                         {t('copied')}
                       </>
                     ) : (
                       <>
-                        <Copy className={cn("h-4 w-4", isRTL ? "ml-2" : "mr-2")} />
+                        <Copy className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
                         {t('copyAll')}
                       </>
                     )}
@@ -302,21 +265,11 @@ export default function BulkCreateUsersPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <div dir='ltr' className="max-h-[60vh] space-y-2 overflow-y-auto rounded-md border p-3">
+            <div dir="ltr" className="max-h-[60vh] space-y-2 overflow-y-auto rounded-md border p-3">
               {createdUrls.map((url, index) => (
-                <div 
-                  key={index} 
-                  className="group flex items-center gap-2 rounded-md border bg-muted/50 p-2 transition-colors hover:bg-muted"
-                >
-                  <code className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-xs">
-                    {url}
-                  </code>
-                  <CopyButton
-                    value={url}
-                    className="h-8 w-8 shrink-0"
-                    copiedMessage="copied"
-                    defaultMessage="clickToCopy"
-                  />
+                <div key={index} className="group bg-muted/50 hover:bg-muted flex items-center gap-2 rounded-md border p-2 transition-colors">
+                  <code className="flex-1 overflow-hidden text-xs text-ellipsis whitespace-nowrap">{url}</code>
+                  <CopyButton value={url} className="h-8 w-8 shrink-0" copiedMessage="copied" defaultMessage="clickToCopy" />
                   <Button
                     variant="ghost"
                     size="icon"
@@ -337,13 +290,13 @@ export default function BulkCreateUsersPage() {
 
         {/* QR Code Modal */}
         {selectedQRUrl && (
-          <QRCodeModal 
-            subscribeUrl={selectedQRUrl} 
+          <QRCodeModal
+            subscribeUrl={selectedQRUrl}
             username={selectedQRUsername}
             onCloseModal={() => {
               setSelectedQRUrl(null)
               setSelectedQRUsername('')
-            }} 
+            }}
           />
         )}
       </div>
@@ -355,26 +308,22 @@ export default function BulkCreateUsersPage() {
       <Card>
         <CardHeader>
           <div className="flex items-start gap-3">
-            <div className="rounded-lg bg-primary/10 p-2">
-              <UserPlus className="h-5 w-5 text-primary" />
+            <div className="bg-primary/10 rounded-lg p-2">
+              <UserPlus className="text-primary h-5 w-5" />
             </div>
             <div className="flex-1">
-              <CardTitle className="text-base sm:text-lg">
-                {t('bulk.create.title')}
-              </CardTitle>
-              <CardDescription className="text-xs sm:text-sm">
-                {t('bulk.create.description')}
-              </CardDescription>
+              <CardTitle className="text-base sm:text-lg">{t('bulk.create.title')}</CardTitle>
+              <CardDescription className="text-xs sm:text-sm">{t('bulk.create.description')}</CardDescription>
             </div>
           </div>
         </CardHeader>
-        <CardContent className="space-y-6 relative">
+        <CardContent className="relative space-y-6">
           {/* Loading Overlay */}
           {createMutation.isPending && (
-            <div className="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-background/80 backdrop-blur-sm">
+            <div className="bg-background/80 absolute inset-0 z-10 flex items-center justify-center rounded-lg backdrop-blur-sm">
               <div className="flex flex-col items-center gap-2">
-                <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                <span className="text-sm text-muted-foreground">{t('bulk.create.creating')}</span>
+                <div className="border-primary h-6 w-6 animate-spin rounded-full border-2 border-t-transparent" />
+                <span className="text-muted-foreground text-sm">{t('bulk.create.creating')}</span>
               </div>
             </div>
           )}
@@ -382,22 +331,18 @@ export default function BulkCreateUsersPage() {
           {/* Template Selection */}
           <div className="space-y-3">
             <Label htmlFor="template" className="flex items-center gap-2 text-sm font-medium">
-              <FileUser className="h-4 w-4 text-muted-foreground" />
+              <FileUser className="text-muted-foreground h-4 w-4" />
               {t('bulk.create.selectTemplate')}
             </Label>
             {templatesLoading ? (
               <Skeleton className="h-10 w-full" />
             ) : (
-              <Select 
-                value={selectedTemplateId?.toString()} 
-                onValueChange={(value) => setSelectedTemplateId(Number(value))}
-                disabled={createMutation.isPending}
-              >
+              <Select value={selectedTemplateId?.toString()} onValueChange={value => setSelectedTemplateId(Number(value))} disabled={createMutation.isPending}>
                 <SelectTrigger className="h-10">
                   <SelectValue placeholder={t('bulk.create.selectTemplatePlaceholder')} />
                 </SelectTrigger>
                 <SelectContent>
-                  {templates.map((template) => (
+                  {templates.map(template => (
                     <SelectItem key={template.id} value={template.id.toString()}>
                       <div className="flex items-center gap-2">
                         <span>{template.name || t('unnamed')}</span>
@@ -412,37 +357,33 @@ export default function BulkCreateUsersPage() {
                 </SelectContent>
               </Select>
             )}
-            
+
             {templatesLoading ? (
-              <div className="rounded-lg border bg-muted/50 p-3 space-y-2">
+              <div className="bg-muted/50 space-y-2 rounded-lg border p-3">
                 <Skeleton className="h-4 w-full" />
                 <Skeleton className="h-4 w-3/4" />
                 <Skeleton className="h-4 w-1/2" />
               </div>
             ) : selectedTemplate ? (
-              <div className="rounded-lg border bg-muted/50 p-3 text-xs sm:text-sm">
+              <div className="bg-muted/50 rounded-lg border p-3 text-xs sm:text-sm">
                 <div className="space-y-1.5">
                   {selectedTemplate.username_prefix && (
                     <div className="flex items-center justify-between">
                       <span className="text-muted-foreground">{t('templates.prefix')}:</span>
-                      <span className="font-medium font-mono">{selectedTemplate.username_prefix}</span>
+                      <span className="font-mono font-medium">{selectedTemplate.username_prefix}</span>
                     </div>
                   )}
                   {selectedTemplate.username_suffix && (
                     <div className="flex items-center justify-between">
                       <span className="text-muted-foreground">{t('templates.suffix')}:</span>
-                      <span className="font-medium font-mono">{selectedTemplate.username_suffix}</span>
+                      <span className="font-mono font-medium">{selectedTemplate.username_suffix}</span>
                     </div>
                   )}
                   {selectedTemplate.data_limit !== null && selectedTemplate.data_limit !== undefined && (
                     <div className="flex items-center justify-between">
                       <span className="text-muted-foreground">{t('userDialog.dataLimit')}:</span>
                       <span className="font-medium" dir="ltr">
-                        {selectedTemplate.data_limit === 0 ? (
-                          <Infinity className="inline h-4 w-4" aria-label={unlimitedLabel} />
-                        ) : (
-                          formatBytes(selectedTemplate.data_limit)
-                        )}
+                        {selectedTemplate.data_limit === 0 ? <Infinity className="inline h-4 w-4" aria-label={unlimitedLabel} /> : formatBytes(selectedTemplate.data_limit)}
                       </span>
                     </div>
                   )}
@@ -450,11 +391,13 @@ export default function BulkCreateUsersPage() {
                     <div className="flex items-center justify-between">
                       <span className="text-muted-foreground">{t('templates.hwidLimit', { defaultValue: 'HWID Limit' })}:</span>
                       <span className="font-medium" dir="ltr">
-                        {selectedTemplate.hwid_limit === null
-                          ? t('default', { defaultValue: 'Default' })
-                          : selectedTemplate.hwid_limit === 0
-                            ? <Infinity className="inline h-4 w-4" aria-label={unlimitedLabel} />
-                            : selectedTemplate.hwid_limit}
+                        {selectedTemplate.hwid_limit === null ? (
+                          t('default', { defaultValue: 'Default' })
+                        ) : selectedTemplate.hwid_limit === 0 ? (
+                          <Infinity className="inline h-4 w-4" aria-label={unlimitedLabel} />
+                        ) : (
+                          selectedTemplate.hwid_limit
+                        )}
                       </span>
                     </div>
                   )}
@@ -473,9 +416,7 @@ export default function BulkCreateUsersPage() {
                   {selectedTemplate.group_ids && selectedTemplate.group_ids.length > 0 && (
                     <div className="flex items-center justify-between">
                       <span className="text-muted-foreground">{t('groups')}:</span>
-                      <span className="font-medium">
-                        {t('bulk.groupsCount', { count: selectedTemplate.group_ids.length, defaultValue: '{{count}} groups' })}
-                      </span>
+                      <span className="font-medium">{t('bulk.groupsCount', { count: selectedTemplate.group_ids.length, defaultValue: '{{count}} groups' })}</span>
                     </div>
                   )}
                 </div>
@@ -488,7 +429,7 @@ export default function BulkCreateUsersPage() {
           {/* Username Configuration */}
           <div className="space-y-4">
             <Label className="flex items-center gap-2 text-sm font-medium">
-              <Users className="h-4 w-4 text-muted-foreground" />
+              <Users className="text-muted-foreground h-4 w-4" />
               {t('bulk.create.userConfiguration')}
             </Label>
 
@@ -507,7 +448,7 @@ export default function BulkCreateUsersPage() {
                       min="1"
                       max="500"
                       value={userCount}
-                      onChange={(e) => {
+                      onChange={e => {
                         const value = e.target.value
                         if (value === '') {
                           setUserCount('')
@@ -520,17 +461,13 @@ export default function BulkCreateUsersPage() {
                         setTouchedFields(prev => new Set(prev).add('userCount'))
                       }}
                       onBlur={() => setTouchedFields(prev => new Set(prev).add('userCount'))}
-                      className={cn("h-10", !userCount && touchedFields.has('userCount') && "border-destructive")}
+                      className={cn('h-10', !userCount && touchedFields.has('userCount') && 'border-destructive')}
                       disabled={createMutation.isPending}
                     />
                     {!userCount && touchedFields.has('userCount') ? (
-                      <p className="text-xs text-destructive">
-                        {t('validation.required', { field: t('bulk.create.userCount'), defaultValue: 'User count is required' })}
-                      </p>
+                      <p className="text-destructive text-xs">{t('validation.required', { field: t('bulk.create.userCount'), defaultValue: 'User count is required' })}</p>
                     ) : (
-                      <p className="text-xs text-muted-foreground">
-                        {t('bulk.create.maxUsers')}
-                      </p>
+                      <p className="text-muted-foreground text-xs">{t('bulk.create.maxUsers')}</p>
                     )}
                   </>
                 )}
@@ -543,9 +480,9 @@ export default function BulkCreateUsersPage() {
                 {templatesLoading ? (
                   <Skeleton className="h-10 w-full" />
                 ) : (
-                  <Select 
-                    value={strategy} 
-                    onValueChange={(value) => {
+                  <Select
+                    value={strategy}
+                    onValueChange={value => {
                       setStrategy(value as UsernameGenerationStrategy)
                       // Clear username when switching to random strategy
                       if (value === UsernameGenerationStrategy.random) {
@@ -558,7 +495,7 @@ export default function BulkCreateUsersPage() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {Object.values(UsernameGenerationStrategy).map((strat) => (
+                      {Object.values(UsernameGenerationStrategy).map(strat => (
                         <SelectItem key={strat} value={strat}>
                           {getStrategyLabel(strat)}
                         </SelectItem>
@@ -581,23 +518,19 @@ export default function BulkCreateUsersPage() {
                     <Input
                       id="baseUsername"
                       value={baseUsername}
-                      onChange={(e) => {
+                      onChange={e => {
                         setBaseUsername(e.target.value)
                         setTouchedFields(prev => new Set(prev).add('baseUsername'))
                       }}
                       onBlur={() => setTouchedFields(prev => new Set(prev).add('baseUsername'))}
                       placeholder={t('bulk.create.baseUsernamePlaceholder')}
-                      className={cn("h-10", !baseUsername && touchedFields.has('baseUsername') && "border-destructive")}
+                      className={cn('h-10', !baseUsername && touchedFields.has('baseUsername') && 'border-destructive')}
                       disabled={createMutation.isPending}
                     />
                     {!baseUsername && touchedFields.has('baseUsername') ? (
-                      <p className="text-xs text-destructive">
-                        {t('validation.required', { field: t('bulk.create.baseUsername'), defaultValue: 'Base username is required' })}
-                      </p>
+                      <p className="text-destructive text-xs">{t('validation.required', { field: t('bulk.create.baseUsername'), defaultValue: 'Base username is required' })}</p>
                     ) : (
-                      <p className="text-xs text-muted-foreground">
-                        {t('bulk.create.baseUsernameHelp')}
-                      </p>
+                      <p className="text-muted-foreground text-xs">{t('bulk.create.baseUsernameHelp')}</p>
                     )}
                   </>
                 )}
@@ -619,7 +552,7 @@ export default function BulkCreateUsersPage() {
                       type="number"
                       min="1"
                       value={startNumber}
-                      onChange={(e) => {
+                      onChange={e => {
                         const value = e.target.value
                         if (value === '') {
                           setStartNumber('')
@@ -632,17 +565,13 @@ export default function BulkCreateUsersPage() {
                         setTouchedFields(prev => new Set(prev).add('startNumber'))
                       }}
                       onBlur={() => setTouchedFields(prev => new Set(prev).add('startNumber'))}
-                      className={cn("h-10", !startNumber && touchedFields.has('startNumber') && "border-destructive")}
+                      className={cn('h-10', !startNumber && touchedFields.has('startNumber') && 'border-destructive')}
                       disabled={createMutation.isPending}
                     />
                     {!startNumber && touchedFields.has('startNumber') ? (
-                      <p className="text-xs text-destructive">
-                        {t('validation.required', { field: t('bulk.create.startNumber'), defaultValue: 'Start number is required' })}
-                      </p>
+                      <p className="text-destructive text-xs">{t('validation.required', { field: t('bulk.create.startNumber'), defaultValue: 'Start number is required' })}</p>
                     ) : (
-                      <p className="text-xs text-muted-foreground">
-                        {t('bulk.create.startNumberHelp')}
-                      </p>
+                      <p className="text-muted-foreground text-xs">{t('bulk.create.startNumberHelp')}</p>
                     )}
                   </>
                 )}
@@ -651,12 +580,10 @@ export default function BulkCreateUsersPage() {
 
             {/* Preview */}
             {previewUsernames.length > 0 && (
-              <div className="rounded-lg border bg-primary/5 p-4">
+              <div className="bg-primary/5 rounded-lg border p-4">
                 <div className="mb-2 flex items-center gap-2">
-                  <Sparkles className="h-4 w-4 text-primary" />
-                  <span className="text-sm font-medium">
-                    {t('bulk.create.preview')}
-                  </span>
+                  <Sparkles className="text-primary h-4 w-4" />
+                  <span className="text-sm font-medium">{t('bulk.create.preview')}</span>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {previewUsernames.map((username, index) => (
@@ -687,7 +614,7 @@ export default function BulkCreateUsersPage() {
               <Textarea
                 id="note"
                 value={note}
-                onChange={(e) => setNote(e.target.value)}
+                onChange={e => setNote(e.target.value)}
                 placeholder={t('bulk.create.notePlaceholder')}
                 rows={3}
                 className="resize-none"
@@ -701,9 +628,7 @@ export default function BulkCreateUsersPage() {
             <Alert variant="destructive">
               <AlertTriangle className="h-4 w-4" />
               <AlertTitle className="text-sm">{t('error')}</AlertTitle>
-              <AlertDescription className="text-xs">
-                {t('bulk.create.baseUsernameRequired')}
-              </AlertDescription>
+              <AlertDescription className="text-xs">{t('bulk.create.baseUsernameRequired')}</AlertDescription>
             </Alert>
           )}
         </CardContent>
@@ -714,27 +639,19 @@ export default function BulkCreateUsersPage() {
         <Button
           onClick={handleCreate}
           disabled={
-            createMutation.isPending || 
-            !selectedTemplateId || 
-            !userCount ||
-            parseInt(userCount) < 1 || 
-            parseInt(userCount) > 500 ||
-            (strategy === UsernameGenerationStrategy.sequence && !baseUsername)
+            createMutation.isPending || !selectedTemplateId || !userCount || parseInt(userCount) < 1 || parseInt(userCount) > 500 || (strategy === UsernameGenerationStrategy.sequence && !baseUsername)
           }
           size="lg"
-          className={cn(
-            "w-full sm:w-auto sm:min-w-[200px]",
-            createMutation.isPending && "animate-pulse"
-          )}
+          className={cn('w-full sm:w-auto sm:min-w-[200px]', createMutation.isPending && 'animate-pulse')}
         >
           {createMutation.isPending ? (
             <>
-              <div className={cn("h-4 w-4 animate-spin rounded-full border-2 border-background border-t-transparent", isRTL ? "ml-2" : "mr-2")} />
+              <div className={cn('border-background h-4 w-4 animate-spin rounded-full border-2 border-t-transparent', isRTL ? 'ml-2' : 'mr-2')} />
               {t('bulk.create.creating')}
             </>
           ) : (
             <>
-              <UserPlus className={cn("h-4 w-4", isRTL ? "ml-2" : "mr-2")} />
+              <UserPlus className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
               {t('bulk.create.createUsers', { count: parseInt(userCount) || 0 })}
             </>
           )}

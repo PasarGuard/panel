@@ -10,19 +10,13 @@ export default function AdminRolesPage() {
 
   return (
     <div className="flex w-full flex-col items-start gap-2">
-      <div className="w-full transform-gpu animate-fade-in" style={{ animationDuration: '400ms' }}>
-        <PageHeader
-          title="adminRoles.title"
-          description="adminRoles.description"
-          buttonIcon={Plus}
-          buttonText="adminRoles.createRole"
-          onButtonClick={() => setIsDialogOpen(true)}
-        />
+      <div className="animate-fade-in w-full transform-gpu" style={{ animationDuration: '400ms' }}>
+        <PageHeader title="adminRoles.title" description="adminRoles.description" buttonIcon={Plus} buttonText="adminRoles.createRole" onButtonClick={() => setIsDialogOpen(true)} />
         <Separator />
       </div>
 
       <div className="w-full p-4">
-        <div className="transform-gpu animate-slide-up" style={{ animationDuration: '500ms', animationDelay: '100ms', animationFillMode: 'both' }}>
+        <div className="animate-slide-up transform-gpu" style={{ animationDuration: '500ms', animationDelay: '100ms', animationFillMode: 'both' }}>
           <AdminRolesList isDialogOpen={isDialogOpen} onOpenChange={setIsDialogOpen} />
         </div>
       </div>

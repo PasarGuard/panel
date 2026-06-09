@@ -199,4 +199,3 @@ export default function GroupModal({ isDialogOpen, onOpenChange, form, editingGr
     </Dialog>
   )
 }
-

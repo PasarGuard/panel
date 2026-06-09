@@ -316,7 +316,28 @@ const UsersTable = memo(() => {
       searchParams.set('no_expire', 'true')
     }
     updateURLParams(searchParams)
-  }, [currentPage, itemsPerPage, filters.sort, filters.search, filters.proxy_id, filters.is_protocol, filters.is_id, filters.ids, filters.status, filters.admin, filters.group, filters.data_limit_min, filters.data_limit_max, filters.expire_after, filters.expire_before, filters.online_after, filters.online_before, filters.online, filters.no_data_limit, filters.no_expire])
+  }, [
+    currentPage,
+    itemsPerPage,
+    filters.sort,
+    filters.search,
+    filters.proxy_id,
+    filters.is_protocol,
+    filters.is_id,
+    filters.ids,
+    filters.status,
+    filters.admin,
+    filters.group,
+    filters.data_limit_min,
+    filters.data_limit_max,
+    filters.expire_after,
+    filters.expire_before,
+    filters.online_after,
+    filters.online_before,
+    filters.online,
+    filters.no_data_limit,
+    filters.no_expire,
+  ])
 
   // Initialize advance search form from URL params
   const getInitialAdvanceSearchValues = (): AdvanceSearchFormValue => {
@@ -363,11 +384,11 @@ const UsersTable = memo(() => {
       proxy_settings: selectedUser?.proxy_settings || undefined,
       next_plan: selectedUser?.next_plan
         ? {
-          user_template_id: selectedUser?.next_plan.user_template_id ? Number(selectedUser?.next_plan.user_template_id) : undefined,
-          data_limit: selectedUser?.next_plan.data_limit ? Math.round(Number(selectedUser?.next_plan.data_limit)) : undefined,
-          expire: selectedUser?.next_plan.expire ? Math.round(Number(selectedUser?.next_plan.expire)) : undefined,
-          add_remaining_traffic: selectedUser?.next_plan.add_remaining_traffic || false,
-        }
+            user_template_id: selectedUser?.next_plan.user_template_id ? Number(selectedUser?.next_plan.user_template_id) : undefined,
+            data_limit: selectedUser?.next_plan.data_limit ? Math.round(Number(selectedUser?.next_plan.data_limit)) : undefined,
+            expire: selectedUser?.next_plan.expire ? Math.round(Number(selectedUser?.next_plan.expire)) : undefined,
+            add_remaining_traffic: selectedUser?.next_plan.add_remaining_traffic || false,
+          }
         : undefined,
     },
   })
@@ -388,11 +409,11 @@ const UsersTable = memo(() => {
         proxy_settings: selectedUser.proxy_settings || undefined,
         next_plan: selectedUser.next_plan
           ? {
-            user_template_id: selectedUser.next_plan.user_template_id ? Number(selectedUser.next_plan.user_template_id) : undefined,
-            data_limit: selectedUser.next_plan.data_limit ? Math.round(Number(selectedUser.next_plan.data_limit)) : undefined,
-            expire: selectedUser.next_plan.expire ? Math.round(Number(selectedUser.next_plan.expire)) : undefined,
-            add_remaining_traffic: selectedUser.next_plan.add_remaining_traffic || false,
-          }
+              user_template_id: selectedUser.next_plan.user_template_id ? Number(selectedUser.next_plan.user_template_id) : undefined,
+              data_limit: selectedUser.next_plan.data_limit ? Math.round(Number(selectedUser.next_plan.data_limit)) : undefined,
+              expire: selectedUser.next_plan.expire ? Math.round(Number(selectedUser.next_plan.expire)) : undefined,
+              add_remaining_traffic: selectedUser.next_plan.add_remaining_traffic || false,
+            }
           : undefined,
       }
       userForm.reset(values)
@@ -431,7 +452,28 @@ const UsersTable = memo(() => {
       advanceSearchForm.setValue('online_before', filters.online_before ? new Date(filters.online_before) : undefined)
       advanceSearchForm.setValue('online', Boolean(filters.online))
     }
-  }, [isAdvanceSearchOpen, filters.status, filters.ids, filters.admin, filters.group, filters.proxy_id, filters.is_protocol, filters.is_id, filters.data_limit_min, filters.data_limit_max, filters.expire_after, filters.expire_before, filters.online_after, filters.online_before, filters.online, filters.no_data_limit, filters.no_expire, showCreatedBy, showSelectionCheckbox, advanceSearchForm])
+  }, [
+    isAdvanceSearchOpen,
+    filters.status,
+    filters.ids,
+    filters.admin,
+    filters.group,
+    filters.proxy_id,
+    filters.is_protocol,
+    filters.is_id,
+    filters.data_limit_min,
+    filters.data_limit_max,
+    filters.expire_after,
+    filters.expire_before,
+    filters.online_after,
+    filters.online_before,
+    filters.online,
+    filters.no_data_limit,
+    filters.no_expire,
+    showCreatedBy,
+    showSelectionCheckbox,
+    advanceSearchForm,
+  ])
 
   const {
     data: usersData,
@@ -526,7 +568,28 @@ const UsersTable = memo(() => {
 
     window.addEventListener('hashchange', handleHashChange)
     return () => window.removeEventListener('hashchange', handleHashChange)
-  }, [currentPage, itemsPerPage, filters.sort, filters.search, filters.proxy_id, filters.is_protocol, filters.is_id, filters.ids, filters.status, filters.admin, filters.group, filters.data_limit_min, filters.data_limit_max, filters.expire_after, filters.expire_before, filters.online_after, filters.online_before, filters.online, filters.no_data_limit, filters.no_expire])
+  }, [
+    currentPage,
+    itemsPerPage,
+    filters.sort,
+    filters.search,
+    filters.proxy_id,
+    filters.is_protocol,
+    filters.is_id,
+    filters.ids,
+    filters.status,
+    filters.admin,
+    filters.group,
+    filters.data_limit_min,
+    filters.data_limit_max,
+    filters.expire_after,
+    filters.expire_before,
+    filters.online_after,
+    filters.online_before,
+    filters.online,
+    filters.no_data_limit,
+    filters.no_expire,
+  ])
 
   useEffect(() => {
     if (usersData && isFirstLoadRef.current) {
@@ -683,7 +746,10 @@ const UsersTable = memo(() => {
   const deleteMutation = useMutation({
     mutationFn: (ids: number[]) => bulkDeleteUsers({ ids }),
     onSuccess: (response, ids) => {
-      removeUsersFromUsersCache(queryClient, selectedUsers.filter(user => ids.includes(user.id)))
+      removeUsersFromUsersCache(
+        queryClient,
+        selectedUsers.filter(user => ids.includes(user.id)),
+      )
       clearSelection()
       toast.success(t('bulkUserActions.deleteSuccess', { count: response.count }))
     },
@@ -777,75 +843,75 @@ const UsersTable = memo(() => {
 
   const bulkActions: BulkActionItem[] = selectedCount
     ? [
-      ...(canDeleteUsers
-        ? [
-      {
-        key: 'delete',
-        label: t('usersTable.delete'),
-        icon: Trash2,
-        onClick: () => setBulkAction('delete'),
-        direct: true,
-        destructive: true,
-      } as BulkActionItem,
-        ]
-        : []),
-      ...(canUpdateUsers
-        ? [
-      {
-        key: 'reset',
-        label: t('userDialog.resetUsage'),
-        icon: RefreshCcw,
-        onClick: () => setBulkAction('reset'),
-      } as BulkActionItem,
-      {
-        key: 'revoke',
-        label: t('userDialog.revokeSubscription'),
-        icon: Link2Off,
-        onClick: () => setBulkAction('revoke'),
-      } as BulkActionItem,
-        ]
-        : []),
-      ...(canUpdateAllUsers
-        ? [
-          {
-            key: 'owner',
-            label: t('setOwnerModal.title'),
-            icon: UserCog,
-            onClick: () => setIsBulkSetOwnerModalOpen(true),
-          } as BulkActionItem,
-        ]
-        : []),
-      ...(canUpdateUsers
-        ? [
-      {
-        key: 'apply_template',
-        label: t('bulk.applyTemplate'),
-        icon: Layers,
-        onClick: () => setIsBulkApplyTemplateModalOpen(true),
-      } as BulkActionItem,
-        ]
-        : []),
-      ...(canUpdateUsers && disableEligibleCount > 0
-        ? [
-          {
-            key: 'disable',
-            label: t('disable'),
-            icon: PowerOff,
-            onClick: () => setBulkAction('disable'),
-          } as BulkActionItem,
-        ]
-        : []),
-      ...(canUpdateUsers && enableEligibleCount > 0
-        ? [
-          {
-            key: 'enable',
-            label: t('enable'),
-            icon: Power,
-            onClick: () => setBulkAction('enable'),
-          } as BulkActionItem,
-        ]
-        : []),
-    ]
+        ...(canDeleteUsers
+          ? [
+              {
+                key: 'delete',
+                label: t('usersTable.delete'),
+                icon: Trash2,
+                onClick: () => setBulkAction('delete'),
+                direct: true,
+                destructive: true,
+              } as BulkActionItem,
+            ]
+          : []),
+        ...(canUpdateUsers
+          ? [
+              {
+                key: 'reset',
+                label: t('userDialog.resetUsage'),
+                icon: RefreshCcw,
+                onClick: () => setBulkAction('reset'),
+              } as BulkActionItem,
+              {
+                key: 'revoke',
+                label: t('userDialog.revokeSubscription'),
+                icon: Link2Off,
+                onClick: () => setBulkAction('revoke'),
+              } as BulkActionItem,
+            ]
+          : []),
+        ...(canUpdateAllUsers
+          ? [
+              {
+                key: 'owner',
+                label: t('setOwnerModal.title'),
+                icon: UserCog,
+                onClick: () => setIsBulkSetOwnerModalOpen(true),
+              } as BulkActionItem,
+            ]
+          : []),
+        ...(canUpdateUsers
+          ? [
+              {
+                key: 'apply_template',
+                label: t('bulk.applyTemplate'),
+                icon: Layers,
+                onClick: () => setIsBulkApplyTemplateModalOpen(true),
+              } as BulkActionItem,
+            ]
+          : []),
+        ...(canUpdateUsers && disableEligibleCount > 0
+          ? [
+              {
+                key: 'disable',
+                label: t('disable'),
+                icon: PowerOff,
+                onClick: () => setBulkAction('disable'),
+              } as BulkActionItem,
+            ]
+          : []),
+        ...(canUpdateUsers && enableEligibleCount > 0
+          ? [
+              {
+                key: 'enable',
+                label: t('enable'),
+                icon: Power,
+                onClick: () => setBulkAction('enable'),
+              } as BulkActionItem,
+            ]
+          : []),
+      ]
     : []
 
   const handlePageChange = (newPage: number) => {
@@ -1105,19 +1171,13 @@ const UsersTable = memo(() => {
         handleSort={handleSort}
         onClearAdvanceSearch={handleClearAdvanceSearch}
       />
-      {canBulkMutateUsers && (
-        <BulkActionsBar
-          selectedCount={selectedCount}
-          onClear={clearSelection}
-          actions={bulkActions}
-        />
-      )}
+      {canBulkMutateUsers && <BulkActionsBar selectedCount={selectedCount} onClear={clearSelection} actions={bulkActions} />}
       {isEmpty && (
         <Card className="mb-12">
           <CardContent className="p-8 text-center">
             <div className="space-y-4">
               <h3 className="text-lg font-semibold">{t('users.noUsers')}</h3>
-              <p className="mx-auto max-w-2xl text-muted-foreground">{t('users.noUsersDescription')}</p>
+              <p className="text-muted-foreground mx-auto max-w-2xl">{t('users.noUsersDescription')}</p>
             </div>
           </CardContent>
         </Card>
@@ -1127,13 +1187,21 @@ const UsersTable = memo(() => {
           <CardContent className="p-8 text-center">
             <div className="space-y-4">
               <h3 className="text-lg font-semibold">{t('noResults')}</h3>
-              <p className="mx-auto max-w-2xl text-muted-foreground">{t('users.noSearchResults')}</p>
+              <p className="text-muted-foreground mx-auto max-w-2xl">{t('users.noSearchResults')}</p>
             </div>
           </CardContent>
         </Card>
       )}
       {isCurrentlyLoading && !isSearchEmpty && (
-        <DataTable columns={columns} data={[]} isLoading={true} isFetching={false} onEdit={canUpdateUsers ? handleEdit : undefined} onSelectionChange={setSelectedUserIds} resetSelectionKey={resetSelectionKey} />
+        <DataTable
+          columns={columns}
+          data={[]}
+          isLoading={true}
+          isFetching={false}
+          onEdit={canUpdateUsers ? handleEdit : undefined}
+          onSelectionChange={setSelectedUserIds}
+          resetSelectionKey={resetSelectionKey}
+        />
       )}
       {!isEmpty && !isSearchEmpty && !isCurrentlyLoading && (
         <DataTable

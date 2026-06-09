@@ -16,15 +16,7 @@ export interface XrayInboundTagPickerProps {
 }
 
 /** Chips + select + clear — matches core config modal inbound tag fields (without outer label). */
-export function XrayInboundTagPicker({
-  inboundTags,
-  value,
-  onChange,
-  emptyHint,
-  placeholder,
-  clearAllLabel,
-  className,
-}: XrayInboundTagPickerProps) {
+export function XrayInboundTagPicker({ inboundTags, value, onChange, emptyHint, placeholder, clearAllLabel, className }: XrayInboundTagPickerProps) {
   return (
     <StringTagPicker
       mode="multi"
@@ -50,14 +42,7 @@ export interface XrayInboundTagSelectorsProps {
 }
 
 /** Fallback + excluded inbound tags with labels — core editor bindings tab. */
-export function XrayInboundTagSelectors({
-  inboundTags,
-  fallbackTags,
-  excludedTags,
-  onFallbackChange,
-  onExcludedChange,
-  className,
-}: XrayInboundTagSelectorsProps) {
+export function XrayInboundTagSelectors({ inboundTags, fallbackTags, excludedTags, onFallbackChange, onExcludedChange, className }: XrayInboundTagSelectorsProps) {
   const { t } = useTranslation()
 
   return (

@@ -14,20 +14,7 @@ type CircularProgressProps = React.HTMLAttributes<HTMLDivElement> & {
 const clamp = (value: number) => Math.min(100, Math.max(0, value))
 
 const CircularProgress = React.forwardRef<HTMLDivElement, CircularProgressProps>(
-  (
-    {
-      className,
-      value,
-      size = 120,
-      strokeWidth = 8,
-      showValue = true,
-      valueFormatter,
-      trackClassName,
-      indicatorClassName,
-      ...props
-    },
-    ref,
-  ) => {
+  ({ className, value, size = 120, strokeWidth = 8, showValue = true, valueFormatter, trackClassName, indicatorClassName, ...props }, ref) => {
     const normalizedValue = clamp(value)
     const radius = (size - strokeWidth) / 2
     const circumference = 2 * Math.PI * radius
@@ -35,20 +22,8 @@ const CircularProgress = React.forwardRef<HTMLDivElement, CircularProgressProps>
     const valueText = valueFormatter ? valueFormatter(normalizedValue) : `${normalizedValue.toFixed(2)}%`
 
     return (
-      <div
-        ref={ref}
-        className={cn('relative inline-flex items-center justify-center', className)}
-        style={{ width: size, height: size }}
-        {...props}
-      >
-        <svg
-          width={size}
-          height={size}
-          viewBox={`0 0 ${size} ${size}`}
-          className="-rotate-90"
-          role="img"
-          aria-label={`Progress ${valueText}`}
-        >
+      <div ref={ref} className={cn('relative inline-flex items-center justify-center', className)} style={{ width: size, height: size }} {...props}>
+        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="-rotate-90" role="img" aria-label={`Progress ${valueText}`}>
           <circle
             cx={size / 2}
             cy={size / 2}
@@ -70,7 +45,7 @@ const CircularProgress = React.forwardRef<HTMLDivElement, CircularProgressProps>
             strokeLinecap="round"
           />
         </svg>
-        {showValue && <span className="pointer-events-none absolute text-sm font-medium text-foreground/90">{valueText}</span>}
+        {showValue && <span className="text-foreground/90 pointer-events-none absolute text-sm font-medium">{valueText}</span>}
       </div>
     )
   },

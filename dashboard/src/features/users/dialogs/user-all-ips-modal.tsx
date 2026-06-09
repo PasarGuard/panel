@@ -63,11 +63,11 @@ const NodeIPCard = React.memo(({ nodeId, nodeName, ips }: NodeIPCardProps) => {
   }, [ips])
 
   return (
-    <Card className="transition-colors hover:bg-accent/50">
+    <Card className="hover:bg-accent/50 transition-colors">
       <CardHeader className="pb-3">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <CardTitle className="flex items-center gap-2 text-sm font-medium">
-            <Server className="h-4 w-4 text-primary" />
+            <Server className="text-primary h-4 w-4" />
             <span className="break-all" dir="ltr">
               {nodeName || t('userAllIPs.nodeId', { defaultValue: 'Node #{{nodeId}}', nodeId })}
             </span>
@@ -84,10 +84,10 @@ const NodeIPCard = React.memo(({ nodeId, nodeName, ips }: NodeIPCardProps) => {
         <div className="space-y-2">
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             {ipEntries.map(({ ip, timeString }) => (
-              <div key={ip} className="rounded bg-accent/40 p-2 transition-colors hover:bg-accent/60">
+              <div key={ip} className="bg-accent/40 hover:bg-accent/60 rounded p-2 transition-colors">
                 <div className="flex flex-col gap-1">
                   <span
-                    className="cursor-pointer break-all font-mono text-sm font-medium transition-colors hover:text-primary"
+                    className="hover:text-primary cursor-pointer font-mono text-sm font-medium break-all transition-colors"
                     dir="ltr"
                     onClick={() => handleCopyIP(ip)}
                     title={t('userAllIPs.clickToCopy', { defaultValue: 'Click to copy IP address' })}
@@ -95,8 +95,8 @@ const NodeIPCard = React.memo(({ nodeId, nodeName, ips }: NodeIPCardProps) => {
                     {ip}
                   </span>
                   <div dir={dir} className="flex items-center gap-1">
-                    <span className="text-xs text-muted-foreground">{t('userAllIPs.lastSeen', { defaultValue: 'Last seen' })}:</span>
-                    <span className="font-mono text-xs text-muted-foreground" dir="ltr">
+                    <span className="text-muted-foreground text-xs">{t('userAllIPs.lastSeen', { defaultValue: 'Last seen' })}:</span>
+                    <span className="text-muted-foreground font-mono text-xs" dir="ltr">
                       {timeString}
                     </span>
                   </div>
@@ -116,7 +116,7 @@ const LoadingState = React.memo(() => {
   return (
     <div className="space-y-3">
       {Array.from({ length: 2 }).map((_, index) => (
-        <div key={index} className="rounded-lg border bg-card p-4">
+        <div key={index} className="bg-card rounded-lg border p-4">
           <div className="mb-3 flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <Skeleton className="h-4 w-4 rounded-full" />
@@ -140,7 +140,7 @@ const ErrorState = React.memo(({ message }: { message: string }) => {
   const dir = useDirDetection()
 
   return (
-    <div className="flex h-32 flex-col items-center justify-center gap-2 px-4 text-center text-muted-foreground">
+    <div className="text-muted-foreground flex h-32 flex-col items-center justify-center gap-2 px-4 text-center">
       <AlertCircle className="h-5 w-5" />
       <span className="text-sm" dir={dir}>
         {message}
@@ -155,7 +155,7 @@ const EmptyState = React.memo(({ message }: { message: string }) => {
   const dir = useDirDetection()
 
   return (
-    <div className="flex h-32 flex-col items-center justify-center gap-2 px-4 text-center text-muted-foreground">
+    <div className="text-muted-foreground flex h-32 flex-col items-center justify-center gap-2 px-4 text-center">
       <Network className="h-5 w-5" />
       <span className="text-sm" dir={dir}>
         {message}
@@ -178,12 +178,15 @@ export default function UserAllIPsModal({ isOpen, onOpenChange, userId, username
     }
   }, [isOpen])
 
-  const { data: nodesResponse } = useGetNodesSimple({ all: true }, {
-    query: {
-      enabled: isOpen,
-      staleTime: 5 * 60 * 1000,
+  const { data: nodesResponse } = useGetNodesSimple(
+    { all: true },
+    {
+      query: {
+        enabled: isOpen,
+        staleTime: 5 * 60 * 1000,
+      },
     },
-  })
+  )
   const nodeNameMap = useMemo(() => {
     const map: { [nodeId: string]: string } = {}
     const nodesData = nodesResponse?.nodes || []
@@ -368,7 +371,7 @@ export default function UserAllIPsModal({ isOpen, onOpenChange, userId, username
         </div>
 
         {isOpen && (
-          <div className="flex items-center justify-center gap-2 border-t py-2 text-center text-xs text-muted-foreground">
+          <div className="text-muted-foreground flex items-center justify-center gap-2 border-t py-2 text-center text-xs">
             <Network className="inline h-3 w-3" />
             <span dir={dir}>
               {t('userAllIPs.autoRefresh', {

@@ -101,7 +101,12 @@ export default function HostAdvanceSearchModal({ isDialogOpen, onOpenChange, for
                             </SelectTrigger>
                             <SelectContent dir={dir} className="bg-background">
                               {statusOptions.map(option => (
-                                <SelectItem key={option.value} value={option.value} className="flex cursor-pointer items-center gap-2 px-4 py-2 focus:bg-accent" disabled={field.value?.includes(option.value)}>
+                                <SelectItem
+                                  key={option.value}
+                                  value={option.value}
+                                  className="focus:bg-accent flex cursor-pointer items-center gap-2 px-4 py-2"
+                                  disabled={field.value?.includes(option.value)}
+                                >
                                   <div className="flex w-full items-center gap-3">
                                     <Checkbox checked={field.value?.includes(option.value)} className="h-4 w-4" />
                                     <span className="text-sm font-normal">{t(option.label)}</span>

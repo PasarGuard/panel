@@ -279,7 +279,7 @@
 
   /* Enhanced styling for collapsed sidebar icons */
   [data-sidebar='sidebar'][data-collapsible='icon'] .sidebar-icon-button {
-    @apply h-8 w-8 rounded-md border border-sidebar-border bg-sidebar-accent/50 transition-all duration-200 hover:border-sidebar-accent-foreground/20 hover:bg-sidebar-accent;
+    @apply border-sidebar-border bg-sidebar-accent/50 hover:border-sidebar-accent-foreground/20 hover:bg-sidebar-accent h-8 w-8 rounded-md border transition-all duration-200;
   }
 
   /* Popover styling for collapsed sidebar */

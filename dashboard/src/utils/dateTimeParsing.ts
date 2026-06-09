@@ -19,7 +19,10 @@ const parseOffsetMinutes = (value: string): number | undefined => {
   if (rawOffset === 'Z') return 0
 
   const sign = rawOffset.startsWith('-') ? -1 : 1
-  const [hours, minutes] = rawOffset.slice(1).split(':').map(part => Number.parseInt(part, 10))
+  const [hours, minutes] = rawOffset
+    .slice(1)
+    .split(':')
+    .map(part => Number.parseInt(part, 10))
 
   if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return undefined
 

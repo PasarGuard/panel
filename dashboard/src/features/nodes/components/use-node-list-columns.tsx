@@ -37,7 +37,16 @@ const getNodeStatusDotColor = (status: NodeStatus) => {
   }
 }
 
-export const useNodeListColumns = ({ onEdit, onToggleStatus, coresData, canUpdate = true, canDelete = true, canReconnect = true, canUpdateCore = true, canReadStats = true }: UseNodeListColumnsProps) => {
+export const useNodeListColumns = ({
+  onEdit,
+  onToggleStatus,
+  coresData,
+  canUpdate = true,
+  canDelete = true,
+  canReconnect = true,
+  canUpdateCore = true,
+  canReadStats = true,
+}: UseNodeListColumnsProps) => {
   const { t } = useTranslation()
   const { latestVersion: latestXrayVersion, hasUpdate: hasXrayUpdate } = useXrayReleases()
   const { latestVersion: latestNodeVersion, hasUpdate: hasNodeUpdate } = useNodeReleases()
@@ -167,28 +176,28 @@ export const useNodeListColumns = ({ onEdit, onToggleStatus, coresData, canUpdat
       },
       ...(canUpdate || canDelete || canReconnect || canUpdateCore || canReadStats
         ? [
-          {
-            id: 'actions',
-            header: '',
-            width: '64px',
-            align: 'end' as const,
-            hideOnMobile: true,
-            cell: (node: NodeResponse) => (
-              <NodeActionsMenu
-                node={node}
-                onEdit={onEdit}
-                onToggleStatus={onToggleStatus}
-                coresData={coresData}
-                isModalHost={false}
-                canUpdate={canUpdate}
-                canDelete={canDelete}
-                canReconnect={canReconnect}
-                canUpdateCore={canUpdateCore}
-                canReadStats={canReadStats}
-              />
-            ),
-          },
-        ]
+            {
+              id: 'actions',
+              header: '',
+              width: '64px',
+              align: 'end' as const,
+              hideOnMobile: true,
+              cell: (node: NodeResponse) => (
+                <NodeActionsMenu
+                  node={node}
+                  onEdit={onEdit}
+                  onToggleStatus={onToggleStatus}
+                  coresData={coresData}
+                  isModalHost={false}
+                  canUpdate={canUpdate}
+                  canDelete={canDelete}
+                  canReconnect={canReconnect}
+                  canUpdateCore={canUpdateCore}
+                  canReadStats={canReadStats}
+                />
+              ),
+            },
+          ]
         : []),
     ],
     [t, onEdit, onToggleStatus, coresData, canUpdate, canDelete, canReconnect, canUpdateCore, canReadStats, latestXrayVersion, hasXrayUpdate, latestNodeVersion, hasNodeUpdate],

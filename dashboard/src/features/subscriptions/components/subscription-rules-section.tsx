@@ -27,16 +27,7 @@ export interface SubscriptionRulesSectionProps {
   isSaving: boolean
 }
 
-export function SubscriptionRulesSection({
-  form,
-  ruleFields,
-  sensors,
-  onDragEnd,
-  onResetToDefault,
-  onAddRule,
-  onRemoveRule,
-  isSaving,
-}: SubscriptionRulesSectionProps) {
+export function SubscriptionRulesSection({ form, ruleFields, sensors, onDragEnd, onResetToDefault, onAddRule, onRemoveRule, isSaving }: SubscriptionRulesSectionProps) {
   const { t } = useTranslation()
   const rulesListRef = useRef<HTMLDivElement>(null)
   const rulesModifiers = useMemo<Modifier[]>(
@@ -60,7 +51,7 @@ export function SubscriptionRulesSection({
 
   return (
     <div className="min-w-0 space-y-3 overflow-hidden">
-      <div className="rounded-lg border bg-card p-3 shadow-sm sm:p-4">
+      <div className="bg-card rounded-lg border p-3 shadow-sm sm:p-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
           <div className="min-w-0 flex-1 space-y-1">
             <h3 className="flex flex-wrap items-center gap-2 text-base font-semibold sm:text-lg">
@@ -71,7 +62,7 @@ export function SubscriptionRulesSection({
                 </Badge>
               )}
             </h3>
-            <p className="text-xs text-muted-foreground sm:text-sm">{t('settings.subscriptions.rules.description')}</p>
+            <p className="text-muted-foreground text-xs sm:text-sm">{t('settings.subscriptions.rules.description')}</p>
           </div>
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:gap-2">
             <Button type="button" variant="outline" size="sm" onClick={onResetToDefault} className="flex w-full items-center justify-center gap-2 sm:w-auto" disabled={isSaving}>
@@ -88,7 +79,7 @@ export function SubscriptionRulesSection({
       </div>
 
       {ruleFields.length === 0 ? (
-        <div className="py-8 text-center text-muted-foreground">
+        <div className="text-muted-foreground py-8 text-center">
           <FileText className="mx-auto mb-3 h-8 w-8 opacity-30" />
           <p className="mb-1 text-xs font-medium sm:text-sm">{t('settings.subscriptions.rules.noRules')}</p>
         </div>

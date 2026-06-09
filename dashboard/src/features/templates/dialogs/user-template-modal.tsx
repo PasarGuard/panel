@@ -197,12 +197,11 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
         on_hold_timeout: status === UserStatusCreate.on_hold ? values.on_hold_timeout : undefined,
         data_limit_reset_strategy: canUseResetStrategy && hasDataLimit ? values.data_limit_reset_strategy : DataLimitResetStrategy.no_reset,
         reset_usages: values.reset_usages,
-        extra_settings:
-          values.method
-            ? {
+        extra_settings: values.method
+          ? {
               method: values.method,
             }
-            : undefined,
+          : undefined,
       }
 
       if (editingUserTemplate && editingUserTemplateId) {

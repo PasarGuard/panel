@@ -124,8 +124,8 @@ export function Filters<T extends BaseFilters>({ filters, onFilterChange, handle
     <div dir={dir} className="flex items-center gap-2 py-4 md:gap-4">
       {/* Search Input */}
       <div className="relative min-w-0 flex-1 md:w-[calc(100%/3-10px)] md:flex-none">
-        <SearchIcon className={cn('absolute', dir === 'rtl' ? 'right-2' : 'left-2', 'top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 text-input-placeholder')} />
-        <Input placeholder={t('search')} value={search} onChange={handleSearchChange} className="pl-8 pr-10" />
+        <SearchIcon className={cn('absolute', dir === 'rtl' ? 'right-2' : 'left-2', 'text-input-placeholder top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400')} />
+        <Input placeholder={t('search')} value={search} onChange={handleSearchChange} className="pr-10 pl-8" />
         {search && (
           <button type="button" onClick={clearSearch} className={cn('absolute', dir === 'rtl' ? 'left-2' : 'right-2', 'top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600')}>
             <X className="h-4 w-4" />
@@ -137,37 +137,23 @@ export function Filters<T extends BaseFilters>({ filters, onFilterChange, handle
         <div className="flex h-full flex-shrink-0 items-center gap-1">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button
-                type="button"
-                size="icon-md"
-                variant="ghost"
-                className={compactActionButtonClass}
-                aria-label={t('sortOptions', { defaultValue: 'Sort Options' })}
-              >
+              <Button type="button" size="icon-md" variant="ghost" className={compactActionButtonClass} aria-label={t('sortOptions', { defaultValue: 'Sort Options' })}>
                 <ArrowUpDown className="h-4 w-4" />
-                {filters.sort && filters.sort !== '-created_at' && <div className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-primary" />}
+                {filters.sort && filters.sort !== '-created_at' && <div className="bg-primary absolute -top-1 -right-1 h-2 w-2 rounded-full" />}
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-52 max-h-72 overflow-y-auto">
-              <DropdownMenuLabel className="px-2 py-1 text-[10px] text-muted-foreground">
-                {t('sortOptions', { defaultValue: 'Sort Options' })}
-              </DropdownMenuLabel>
+            <DropdownMenuContent align="end" className="max-h-72 w-52 overflow-y-auto">
+              <DropdownMenuLabel className="text-muted-foreground px-2 py-1 text-[10px]">{t('sortOptions', { defaultValue: 'Sort Options' })}</DropdownMenuLabel>
               <DropdownMenuSeparator />
               {sortSections.map(section => {
                 const state = getSortState(section)
                 return (
-                  <DropdownMenuItem
-                    key={section.key}
-                    onClick={() => handleCompactSort(section)}
-                    className={cn('flex items-center gap-1.5 px-2 py-1.5 text-[11px]', state !== 'none' && 'bg-accent')}
-                  >
-                    <section.icon className="h-3 w-3 text-muted-foreground" />
+                  <DropdownMenuItem key={section.key} onClick={() => handleCompactSort(section)} className={cn('flex items-center gap-1.5 px-2 py-1.5 text-[11px]', state !== 'none' && 'bg-accent')}>
+                    <section.icon className="text-muted-foreground h-3 w-3" />
                     <span className="truncate">{t(section.label)}</span>
                     {state !== 'none' && (
                       <>
-                        <span className="ml-auto text-[10px] text-muted-foreground">
-                          {t(state === 'desc' ? section.descHintKey : section.ascHintKey)}
-                        </span>
+                        <span className="text-muted-foreground ml-auto text-[10px]">{t(state === 'desc' ? section.descHintKey : section.ascHintKey)}</span>
                         <ChevronDown className={cn('h-2.5 w-2.5 flex-shrink-0', state === 'asc' && 'rotate-180')} />
                       </>
                     )}
@@ -274,7 +260,7 @@ export const PaginationControls = ({ currentPage, totalPages, itemsPerPage, isLo
             </SelectGroup>
           </SelectContent>
         </Select>
-        <span className="whitespace-nowrap text-sm text-muted-foreground">{t('itemsPerPage')}</span>
+        <span className="text-muted-foreground text-sm whitespace-nowrap">{t('itemsPerPage')}</span>
       </div>
 
       <Pagination dir="ltr" className={`md:justify-end ${dir === 'rtl' ? 'flex-row-reverse' : ''}`}>

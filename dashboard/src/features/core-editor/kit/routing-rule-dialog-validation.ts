@@ -68,11 +68,7 @@ export function collectRoutingRuleDialogIssues(
   const balancer = String(rule.balancerTag ?? '').trim()
 
   if (!outbound && !balancer) {
-    const dup = issues.some(
-      i =>
-        i.severity === 'error' &&
-        (i.path === '/outboundTag' || i.path === '/balancerTag' || /outboundTag|balancerTag/i.test(i.path)),
-    )
+    const dup = issues.some(i => i.severity === 'error' && (i.path === '/outboundTag' || i.path === '/balancerTag' || /outboundTag|balancerTag/i.test(i.path)))
     if (!dup) {
       issues.push({
         code: 'routing.target.required',

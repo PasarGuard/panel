@@ -39,10 +39,7 @@ export default function AdminRoleCard({ role, onEdit, onDuplicate, selectionCont
   const localizedName = t(`adminRoles.names.${role.name}`, { defaultValue: role.name })
 
   return (
-    <Card
-      className={cn('group relative flex cursor-pointer flex-col gap-3 px-4 py-4 transition-colors hover:bg-accent', selected && 'border-primary/50 bg-accent/30')}
-      onClick={() => onEdit(role)}
-    >
+    <Card className={cn('group hover:bg-accent relative flex cursor-pointer flex-col gap-3 px-4 py-4 transition-colors', selected && 'border-primary/50 bg-accent/30')} onClick={() => onEdit(role)}>
       <div className="flex items-start gap-3">
         {selectionControl ? <div className="pt-1">{selectionControl}</div> : null}
         <div className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-full', role.is_owner ? 'bg-violet-500/10 text-violet-500' : 'bg-primary/10 text-primary')}>
@@ -62,14 +59,14 @@ export default function AdminRoleCard({ role, onEdit, onDuplicate, selectionCont
               </Badge>
             )}
           </div>
-          <div className="mt-0.5 truncate text-xs text-muted-foreground">
+          <div className="text-muted-foreground mt-0.5 truncate text-xs">
             {t('adminRoles.id', { defaultValue: 'ID' })} {role.id}
           </div>
         </div>
         <AdminRoleActionsMenu role={role} onEdit={onEdit} onDuplicate={onDuplicate} />
       </div>
 
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+      <div className="text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
         <span>{t('adminRoles.permissionCount', { count: permissionCount, defaultValue: '{{count}} permissions' })}</span>
         <span aria-hidden>·</span>
         <span>{t('adminRoles.limitFeatureCount', { limits: limitsCount, features: featureCount, defaultValue: '{{limits}} limits, {{features}} feature flags' })}</span>

@@ -130,15 +130,10 @@ export default function CleanupSettings() {
       {
         onSuccess: response => {
           const count = response?.count || 0
-          toast.success(
-            target === 'limited'
-              ? t('settings.cleanup.expiredUsers.deleteLimitedSuccess', { count })
-              : t('settings.cleanup.expiredUsers.deleteSuccess', { count }),
-          )
+          toast.success(target === 'limited' ? t('settings.cleanup.expiredUsers.deleteLimitedSuccess', { count }) : t('settings.cleanup.expiredUsers.deleteSuccess', { count }))
         },
         onError: (error: any) => {
-          const failureMessageKey =
-            target === 'limited' ? 'settings.cleanup.expiredUsers.deleteLimitedFailed' : 'settings.cleanup.expiredUsers.deleteFailed'
+          const failureMessageKey = target === 'limited' ? 'settings.cleanup.expiredUsers.deleteLimitedFailed' : 'settings.cleanup.expiredUsers.deleteFailed'
 
           // Extract detailed error message
           let errorMessage = t(failureMessageKey)
@@ -291,7 +286,7 @@ export default function CleanupSettings() {
           <div className="relative mb-3 w-full max-w-xs sm:mb-4 sm:max-w-sm lg:max-w-md" dir={dir}>
             <Popover open={dropdownOpen} onOpenChange={setDropdownOpen}>
               <PopoverTrigger asChild>
-                <Button variant="outline" className={cn('h-8 w-full justify-between px-2 transition-colors hover:bg-muted/50 sm:h-9 sm:px-3', 'min-w-0 text-xs font-medium sm:text-sm')}>
+                <Button variant="outline" className={cn('hover:bg-muted/50 h-8 w-full justify-between px-2 transition-colors sm:h-9 sm:px-3', 'min-w-0 text-xs font-medium sm:text-sm')}>
                   <div className={cn('flex min-w-0 flex-1 items-center gap-1 sm:gap-2', dir === 'rtl' ? 'flex-row-reverse' : 'flex-row')}>
                     <Avatar className="h-4 w-4 flex-shrink-0 sm:h-5 sm:w-5">
                       <AvatarFallback className="bg-muted text-xs font-medium">{selectedAdmin?.username?.charAt(0).toUpperCase() || '?'}</AvatarFallback>
@@ -299,11 +294,11 @@ export default function CleanupSettings() {
                     <span className="truncate text-xs sm:text-sm">{selectedAdmin?.username || t('advanceSearch.selectAdmin')}</span>
                     {selectedAdmin && (
                       <div className="flex-shrink-0" title={roleLabel(selectedAdmin)}>
-                        {isOwner(selectedAdmin) ? <UserCog className="h-3 w-3 text-primary" /> : <UserRound className="h-3 w-3 text-primary" />}
+                        {isOwner(selectedAdmin) ? <UserCog className="text-primary h-3 w-3" /> : <UserRound className="text-primary h-3 w-3" />}
                       </div>
                     )}
                   </div>
-                  <ChevronDown className="ml-1 h-3 w-3 flex-shrink-0 text-muted-foreground" />
+                  <ChevronDown className="text-muted-foreground ml-1 h-3 w-3 flex-shrink-0" />
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-64 p-1 sm:w-72 lg:w-80" sideOffset={4} align={dir === 'rtl' ? 'end' : 'start'}>
@@ -311,7 +306,7 @@ export default function CleanupSettings() {
                   <CommandInput placeholder={t('search')} onValueChange={setAdminSearchInput} className="mb-1 h-7 text-xs sm:h-8 sm:text-sm" />
                   <CommandList ref={listRef}>
                     <CommandEmpty>
-                      <div className="py-3 text-center text-xs text-muted-foreground sm:py-4 sm:text-sm">{t('noAdminsFound') || 'No admins found'}</div>
+                      <div className="text-muted-foreground py-3 text-center text-xs sm:py-4 sm:text-sm">{t('noAdminsFound') || 'No admins found'}</div>
                     </CommandEmpty>
 
                     <CommandItem
@@ -325,7 +320,7 @@ export default function CleanupSettings() {
                         <AvatarFallback className="bg-primary/10 text-xs font-medium">N</AvatarFallback>
                       </Avatar>
                       <span className="flex-1 truncate">All</span>
-                      <div className="flex flex-shrink-0 items-center gap-1">{!selectedAdmin && <Check className="h-3 w-3 text-primary" />}</div>
+                      <div className="flex flex-shrink-0 items-center gap-1">{!selectedAdmin && <Check className="text-primary h-3 w-3" />}</div>
                     </CommandItem>
 
                     {filteredAdmins.map(admin => (
@@ -342,15 +337,15 @@ export default function CleanupSettings() {
                         </Avatar>
                         <span className="flex-1 truncate">{admin.username}</span>
                         <div className="flex flex-shrink-0 items-center gap-1">
-                          <span title={roleLabel(admin)}>{isOwner(admin) ? <UserCog className="h-3 w-3 text-primary" /> : <UserRound className="h-3 w-3 text-primary" />}</span>
-                          {selectedAdmin?.username === admin.username && <Check className="h-3 w-3 text-primary" />}
+                          <span title={roleLabel(admin)}>{isOwner(admin) ? <UserCog className="text-primary h-3 w-3" /> : <UserRound className="text-primary h-3 w-3" />}</span>
+                          {selectedAdmin?.username === admin.username && <Check className="text-primary h-3 w-3" />}
                         </div>
                       </CommandItem>
                     ))}
 
                     {isLoading && (
                       <div className="flex justify-center py-2">
-                        <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+                        <Loader2 className="text-muted-foreground h-3 w-3 animate-spin" />
                       </div>
                     )}
                   </CommandList>
@@ -359,15 +354,19 @@ export default function CleanupSettings() {
             </Popover>
           </div>
 
-          <div className="gap-y-2 flex flex-col">
+          <div className="flex flex-col gap-y-2">
             <label className="text-xs font-medium sm:text-sm">{t('settings.cleanup.expiredUsers.target')}</label>
             <Select value={deleteTarget} onValueChange={value => setDeleteTarget(value as CleanupDeleteTarget)}>
               <SelectTrigger className="w-full text-xs sm:text-sm">
                 <SelectValue placeholder={t('settings.cleanup.expiredUsers.targetPlaceholder')} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="expired" className="text-xs sm:text-sm">{t('settings.cleanup.expiredUsers.targets.expired')}</SelectItem>
-                <SelectItem value="limited" className="text-xs sm:text-sm">{t('settings.cleanup.expiredUsers.targets.limited')}</SelectItem>
+                <SelectItem value="expired" className="text-xs sm:text-sm">
+                  {t('settings.cleanup.expiredUsers.targets.expired')}
+                </SelectItem>
+                <SelectItem value="limited" className="text-xs sm:text-sm">
+                  {t('settings.cleanup.expiredUsers.targets.limited')}
+                </SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -385,9 +384,9 @@ export default function CleanupSettings() {
                     minDate={new Date('1900-01-01')}
                     maxDate={new Date()}
                     formatDate={formatDate}
-                    side={"bottom"}
-                    align={"center"}
-                    className="[&_label]:text-xs sm:[&_label]:text-sm [&_button]:text-xs sm:[&_button]:text-sm"
+                    side={'bottom'}
+                    align={'center'}
+                    className="[&_button]:text-xs sm:[&_button]:text-sm [&_label]:text-xs sm:[&_label]:text-sm"
                   />
                 </div>
 
@@ -401,17 +400,17 @@ export default function CleanupSettings() {
                     minDate={new Date('1900-01-01')}
                     maxDate={new Date()}
                     formatDate={formatDate}
-                    side={"bottom"}
-                    align={"center"}
-                    className="[&_label]:text-xs sm:[&_label]:text-sm [&_button]:text-xs sm:[&_button]:text-sm"
+                    side={'bottom'}
+                    align={'center'}
+                    className="[&_button]:text-xs sm:[&_button]:text-sm [&_label]:text-xs sm:[&_label]:text-sm"
                   />
                 </div>
               </div>
 
-              <div className="text-xs text-muted-foreground sm:text-sm">{t('settings.cleanup.expiredUsers.selectDateRange')}</div>
+              <div className="text-muted-foreground text-xs sm:text-sm">{t('settings.cleanup.expiredUsers.selectDateRange')}</div>
             </>
           ) : (
-            <div className="text-xs text-muted-foreground sm:text-sm">{t('settings.cleanup.expiredUsers.selectLimitedInfo')}</div>
+            <div className="text-muted-foreground text-xs sm:text-sm">{t('settings.cleanup.expiredUsers.selectLimitedInfo')}</div>
           )}
 
           <AlertDialog>
@@ -428,23 +427,17 @@ export default function CleanupSettings() {
             <AlertDialogContent>
               <AlertDialogHeader>
                 <AlertDialogTitle className="flex items-center gap-2">
-                  <AlertTriangle className="h-5 w-5 text-destructive" />
-                  {deleteTarget === 'limited'
-                    ? t('settings.cleanup.expiredUsers.confirmDeleteLimited')
-                    : t('settings.cleanup.expiredUsers.confirmDelete')}
+                  <AlertTriangle className="text-destructive h-5 w-5" />
+                  {deleteTarget === 'limited' ? t('settings.cleanup.expiredUsers.confirmDeleteLimited') : t('settings.cleanup.expiredUsers.confirmDelete')}
                 </AlertDialogTitle>
                 <AlertDialogDescription className={cn(dir === 'rtl' ? 'text-right' : 'text-left', 'text-xs sm:text-sm')}>
-                  {deleteTarget === 'limited'
-                    ? t('settings.cleanup.expiredUsers.confirmDeleteLimitedMessage')
-                    : t('settings.cleanup.expiredUsers.confirmDeleteMessage')}
+                  {deleteTarget === 'limited' ? t('settings.cleanup.expiredUsers.confirmDeleteLimitedMessage') : t('settings.cleanup.expiredUsers.confirmDeleteMessage')}
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
-                <AlertDialogAction onClick={handleDeleteExpired} disabled={deleteExpiredUsersMutation.isPending} className="!m-0 bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                  {deleteTarget === 'limited'
-                    ? t('settings.cleanup.expiredUsers.deleteLimited')
-                    : t('settings.cleanup.expiredUsers.deleteExpired')}
+                <AlertDialogAction onClick={handleDeleteExpired} disabled={deleteExpiredUsersMutation.isPending} className="bg-destructive text-destructive-foreground hover:bg-destructive/90 !m-0">
+                  {deleteTarget === 'limited' ? t('settings.cleanup.expiredUsers.deleteLimited') : t('settings.cleanup.expiredUsers.deleteExpired')}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
@@ -462,7 +455,7 @@ export default function CleanupSettings() {
           <CardDescription className="text-xs sm:text-sm">{t('settings.cleanup.clearUsageData.description')}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3 p-4 pt-0 sm:space-y-4 sm:px-6">
-          <div className="gap-y-2 flex flex-col">
+          <div className="flex flex-col gap-y-2">
             <label className="text-xs font-medium sm:text-sm">{t('settings.cleanup.clearUsageData.selectTable')}</label>
             <Select value={selectedTable} onValueChange={setSelectedTable}>
               <SelectTrigger className="w-full text-xs sm:text-sm">
@@ -489,7 +482,7 @@ export default function CleanupSettings() {
                 minDate={new Date('1900-01-01')}
                 maxDate={new Date()}
                 formatDate={formatDate}
-                className="[&_label]:text-xs sm:[&_label]:text-sm [&_button]:text-xs sm:[&_button]:text-sm"
+                className="[&_button]:text-xs sm:[&_button]:text-sm [&_label]:text-xs sm:[&_label]:text-sm"
               />
             </div>
 
@@ -503,12 +496,12 @@ export default function CleanupSettings() {
                 minDate={new Date('1900-01-01')}
                 maxDate={new Date()}
                 formatDate={formatDate}
-                className="[&_label]:text-xs sm:[&_label]:text-sm [&_button]:text-xs sm:[&_button]:text-sm"
+                className="[&_button]:text-xs sm:[&_button]:text-sm [&_label]:text-xs sm:[&_label]:text-sm"
               />
             </div>
           </div>
 
-          <div className="text-xs text-muted-foreground sm:text-sm">{t('settings.cleanup.clearUsageData.selectDateRange')}</div>
+          <div className="text-muted-foreground text-xs sm:text-sm">{t('settings.cleanup.clearUsageData.selectDateRange')}</div>
 
           <Alert className="p-3 sm:p-4">
             <AlertTriangle className="h-4 w-4" />
@@ -525,7 +518,7 @@ export default function CleanupSettings() {
             <AlertDialogContent dir={dir}>
               <AlertDialogHeader>
                 <AlertDialogTitle className="flex items-center gap-2">
-                  <AlertTriangle className="h-5 w-5 text-destructive" />
+                  <AlertTriangle className="text-destructive h-5 w-5" />
                   {t('settings.cleanup.clearUsageData.confirmClear')}
                 </AlertDialogTitle>
                 <AlertDialogDescription className={cn(dir === 'rtl' ? 'text-right' : 'text-left', 'text-xs sm:text-sm')}>
@@ -534,7 +527,7 @@ export default function CleanupSettings() {
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
-                <AlertDialogAction onClick={handleClearUsageData} disabled={clearUsageDataMutation.isPending} className="!m-0 bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                <AlertDialogAction onClick={handleClearUsageData} disabled={clearUsageDataMutation.isPending} className="bg-destructive text-destructive-foreground hover:bg-destructive/90 !m-0">
                   {t('settings.cleanup.clearUsageData.clearData')}
                 </AlertDialogAction>
               </AlertDialogFooter>
@@ -568,16 +561,14 @@ export default function CleanupSettings() {
             <AlertDialogContent dir={dir}>
               <AlertDialogHeader>
                 <AlertDialogTitle className="flex items-center gap-2">
-                  <AlertTriangle className="h-5 w-5 text-destructive" />
+                  <AlertTriangle className="text-destructive h-5 w-5" />
                   {t('settings.cleanup.resetUsage.confirmReset')}
                 </AlertDialogTitle>
-                <AlertDialogDescription className={cn(dir === 'rtl' ? 'text-right' : 'text-left', 'text-xs sm:text-sm')}>
-                  {t('settings.cleanup.resetUsage.confirmResetMessage')}
-                </AlertDialogDescription>
+                <AlertDialogDescription className={cn(dir === 'rtl' ? 'text-right' : 'text-left', 'text-xs sm:text-sm')}>{t('settings.cleanup.resetUsage.confirmResetMessage')}</AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
-                <AlertDialogAction onClick={handleResetUsage} disabled={resetUsersDataUsageMutation.isPending} className="!m-0 bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                <AlertDialogAction onClick={handleResetUsage} disabled={resetUsersDataUsageMutation.isPending} className="bg-destructive text-destructive-foreground hover:bg-destructive/90 !m-0">
                   {t('settings.cleanup.resetUsage.resetAll')}
                 </AlertDialogAction>
               </AlertDialogFooter>

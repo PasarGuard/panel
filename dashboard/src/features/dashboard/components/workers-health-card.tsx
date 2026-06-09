@@ -67,7 +67,8 @@ const WorkersHealthCard = () => {
   }, [i18n.language, i18n.resolvedLanguage])
   const summaryStatus = useMemo(() => {
     if (!scheduler && !node) return { label: t('workersHealth.status.unknown', { defaultValue: 'Unknown' }), variant: 'blank' as WorkerStatusVariant }
-    if (schedulerStatus === 'unavailable' || nodeStatus === 'unavailable') return { label: t('workersHealth.status.unavailable', { defaultValue: 'Unavailable' }), variant: 'red' as WorkerStatusVariant }
+    if (schedulerStatus === 'unavailable' || nodeStatus === 'unavailable')
+      return { label: t('workersHealth.status.unavailable', { defaultValue: 'Unavailable' }), variant: 'red' as WorkerStatusVariant }
     if (schedulerStatus === 'degraded' || nodeStatus === 'degraded' || schedulerStatus === 'warning' || nodeStatus === 'warning') {
       return { label: t('workersHealth.status.degraded', { defaultValue: 'Degraded' }), variant: 'yellow' as WorkerStatusVariant }
     }
@@ -89,12 +90,12 @@ const WorkersHealthCard = () => {
   if (!isLoading && !isError && workersDisabled) return null
 
   return (
-    <Card className="border bg-card/80" dir={dir}>
+    <Card className="bg-card/80 border" dir={dir}>
       <CardHeader className="p-2">
         <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex min-w-0 items-start gap-2 text-left sm:items-center p-2">
-            <div className="rounded-md bg-primary/10 p-1.5">
-              <ServerCog className="h-4 w-4 text-primary" />
+          <div className="flex min-w-0 items-start gap-2 p-2 text-left sm:items-center">
+            <div className="bg-primary/10 rounded-md p-1.5">
+              <ServerCog className="text-primary h-4 w-4" />
             </div>
             <div className="min-w-0">
               <div className={cn('flex items-center gap-1', dir === 'rtl' && 'justify-end')}>
@@ -106,7 +107,7 @@ const WorkersHealthCard = () => {
                         href={workerHealthDocsUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex h-7 w-7 items-center justify-center rounded-md border-0 text-primary transition-colors hover:border-2 hover:border-primary/40 hover:bg-primary/5 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                        className="text-primary hover:border-primary/40 hover:bg-primary/5 hover:text-primary focus-visible:ring-ring inline-flex h-7 w-7 items-center justify-center rounded-md border-0 transition-colors hover:border-2 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
                         aria-label={t('tutorial', { defaultValue: 'View tutorial' })}
                       >
                         <HelpCircle className="h-4 w-4" />
@@ -118,7 +119,7 @@ const WorkersHealthCard = () => {
                   </Tooltip>
                 </TooltipProvider>
               </div>
-              <p className="truncate text-xs text-muted-foreground">{t('workersHealth.subtitle', { defaultValue: 'Scheduler and node worker status' })}</p>
+              <p className="text-muted-foreground truncate text-xs">{t('workersHealth.subtitle', { defaultValue: 'Scheduler and node worker status' })}</p>
             </div>
           </div>
           <Button
@@ -127,7 +128,7 @@ const WorkersHealthCard = () => {
             onClick={() => setIsCollapsed(prev => !prev)}
             aria-label={t('workersHealth.toggle', { defaultValue: 'Toggle details' })}
           >
-            <div className="flex w-full items-center justify-between gap-2 text-xs text-muted-foreground sm:justify-end">
+            <div className="text-muted-foreground flex w-full items-center justify-between gap-2 text-xs sm:justify-end">
               <div className="flex items-center gap-2">
                 <Badge variant={summaryStatus.variant}>{summaryStatus.label}</Badge>
                 <div className="flex items-center gap-1">
@@ -147,13 +148,13 @@ const WorkersHealthCard = () => {
             {!isCollapsed && <Skeleton className="h-8 w-full" />}
           </div>
         ) : isError ? (
-          <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+          <div className="border-destructive/30 bg-destructive/10 text-destructive rounded-md border px-3 py-2 text-xs">
             {t('workersHealth.error', { defaultValue: 'Unable to load worker health.' })}
           </div>
         ) : (
           <div className="space-y-2">
             {isCollapsed ? (
-              <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted/30 px-3 py-2 text-xs">
+              <div className="bg-muted/30 flex flex-wrap items-center justify-between gap-2 rounded-md border px-3 py-2 text-xs">
                 <div className="flex flex-wrap items-center gap-3">
                   <div className="flex items-center gap-1">
                     <span className={cn('h-2 w-2 rounded-full', dotClassMap[schedulerMeta.variant])} />
@@ -169,29 +170,29 @@ const WorkersHealthCard = () => {
               <div className="space-y-2">
                 <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border px-3 py-2 text-xs">
                   <div className="flex items-center gap-2">
-                    <ServerCog className="h-3.5 w-3.5 text-muted-foreground" />
+                    <ServerCog className="text-muted-foreground h-3.5 w-3.5" />
                     <span className="font-medium">{t('workersHealth.scheduler', { defaultValue: 'Scheduler' })}</span>
                     <Badge variant={schedulerMeta.variant}>{t(`workersHealth.status.${schedulerStatus}`, { defaultValue: schedulerMeta.label })}</Badge>
                   </div>
-                  <div className="flex items-center gap-1 text-muted-foreground">
+                  <div className="text-muted-foreground flex items-center gap-1">
                     <Clock className="h-3.5 w-3.5" />
                     <span dir="ltr">{formatResponseTime(scheduler?.response_time_ms)}</span>
                   </div>
                 </div>
-                {scheduler?.error && <div className="px-1 text-xs text-muted-foreground">{scheduler.error}</div>}
+                {scheduler?.error && <div className="text-muted-foreground px-1 text-xs">{scheduler.error}</div>}
 
                 <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border px-3 py-2 text-xs">
                   <div className="flex items-center gap-2">
-                    <Server className="h-3.5 w-3.5 text-muted-foreground" />
+                    <Server className="text-muted-foreground h-3.5 w-3.5" />
                     <span className="font-medium">{t('workersHealth.node', { defaultValue: 'Node Worker' })}</span>
                     <Badge variant={nodeMeta.variant}>{t(`workersHealth.status.${nodeStatus}`, { defaultValue: nodeMeta.label })}</Badge>
                   </div>
-                  <div className="flex items-center gap-1 text-muted-foreground">
+                  <div className="text-muted-foreground flex items-center gap-1">
                     <Clock className="h-3.5 w-3.5" />
                     <span dir="ltr">{formatResponseTime(node?.response_time_ms)}</span>
                   </div>
                 </div>
-                {node?.error && <div className="px-1 text-xs text-muted-foreground">{node.error}</div>}
+                {node?.error && <div className="text-muted-foreground px-1 text-xs">{node.error}</div>}
               </div>
             )}
           </div>

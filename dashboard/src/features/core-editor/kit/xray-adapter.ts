@@ -209,19 +209,7 @@ function applyRealityInboundExtrasToCompiledConfig(profile: Profile, config: Rec
   return changed ? { ...config, inbounds } : config
 }
 
-const UNMODELED_TOP_LEVEL_KEYS_TO_PRESERVE = [
-  'policy',
-  'api',
-  'stats',
-  'metrics',
-  'fakeDns',
-  'observatory',
-  'burstObservatory',
-  'reverse',
-  'transport',
-  'geodata',
-  'version',
-] as const
+const UNMODELED_TOP_LEVEL_KEYS_TO_PRESERVE = ['policy', 'api', 'stats', 'metrics', 'fakeDns', 'observatory', 'burstObservatory', 'reverse', 'transport', 'geodata', 'version'] as const
 
 function preserveUnmodeledTopLevelSections(profile: Profile, raw: unknown): Profile {
   if (!isRecord(raw)) return profile
@@ -347,21 +335,13 @@ export function getXrayStrictCompileBlockers(profile: Profile): Issue[] {
   return errors.length > 0 ? errors : issues
 }
 
-export type XrayPersistValidationResult =
-  | { ok: true; config: Record<string, unknown> }
-  | { ok: false; strictBlockers: Issue[]; coreKitIssues: CoreKitValidationIssue[] }
+export type XrayPersistValidationResult = { ok: true; config: Record<string, unknown> } | { ok: false; strictBlockers: Issue[]; coreKitIssues: CoreKitValidationIssue[] }
 
 export function importRawToProfile(raw: unknown): { profile: Profile; issues: Issue[] } {
   const imported = importXrayConfig(raw)
   const profile = stripHysteriaInboundAuth(
     preserveUnmodeledTopLevelSections(
-      preserveInboundStreamSettingsFromRaw(
-        patchRealityInboundXverFromRaw(
-          patchVlessInboundEncryptionFromRaw(sanitizeProfileInbounds(normalizeProfile(imported.profile)), raw),
-          raw,
-        ),
-        raw,
-      ),
+      preserveInboundStreamSettingsFromRaw(patchRealityInboundXverFromRaw(patchVlessInboundEncryptionFromRaw(sanitizeProfileInbounds(normalizeProfile(imported.profile)), raw), raw), raw),
       raw,
     ),
   )
@@ -375,13 +355,7 @@ export function profileToPersistedConfig(profile: Profile): Record<string, unkno
   const result = normalizeHysteriaSettingsForCore(
     applyHysteriaTransportUdpmasksToCompiledConfig(
       prepared,
-      applyRealityInboundExtrasToCompiledConfig(
-        profile,
-        applyVlessInboundEncryptionToCompiledConfig(
-          prepared,
-          applyInboundSockoptToCompiledConfig(prepared, config as Record<string, unknown>),
-        ),
-      ),
+      applyRealityInboundExtrasToCompiledConfig(profile, applyVlessInboundEncryptionToCompiledConfig(prepared, applyInboundSockoptToCompiledConfig(prepared, config as Record<string, unknown>))),
     ),
   )
 

@@ -31,7 +31,7 @@ const UserTemplate = ({
 
   return (
     <Card
-      className={cn('group relative h-full rounded-lg px-4 py-5 transition-colors', canUpdate && 'cursor-pointer hover:bg-accent', selected && 'border-primary/50 bg-accent/30')}
+      className={cn('group relative h-full rounded-lg px-4 py-5 transition-colors', canUpdate && 'hover:bg-accent cursor-pointer', selected && 'border-primary/50 bg-accent/30')}
       onClick={() => {
         if (canUpdate) onEdit(template)
       }}
@@ -44,7 +44,7 @@ const UserTemplate = ({
               <div className={cn('min-h-2 min-w-2 shrink-0 rounded-full', template.is_disabled ? 'bg-red-500' : 'bg-green-500')} />
               <span className="truncate font-medium">{template.name}</span>
             </div>
-            <div className="mt-2 flex flex-col gap-y-1 text-sm text-muted-foreground">
+            <div className="text-muted-foreground mt-2 flex flex-col gap-y-1 text-sm">
               <p className="flex items-center gap-x-1">
                 {t('userDialog.dataLimit')}:{' '}
                 <span dir="ltr">{!template.data_limit || template.data_limit === 0 ? <Infinity className="h-4 w-4" /> : formatBytes(template.data_limit ? template.data_limit : 0)}</span>
@@ -52,22 +52,17 @@ const UserTemplate = ({
               <p className="flex items-center gap-x-1">
                 {t('templates.hwidLimit', { defaultValue: 'HWID Limit' })}:{' '}
                 <span dir="ltr">
-                  {template.hwid_limit === null || template.hwid_limit === undefined
-                    ? t('default', { defaultValue: 'Default' })
-                    : template.hwid_limit === 0
-                      ? <Infinity className="h-4 w-4" />
-                      : template.hwid_limit}
+                  {template.hwid_limit === null || template.hwid_limit === undefined ? (
+                    t('default', { defaultValue: 'Default' })
+                  ) : template.hwid_limit === 0 ? (
+                    <Infinity className="h-4 w-4" />
+                  ) : (
+                    template.hwid_limit
+                  )}
                 </span>
               </p>
               <p className="flex items-center gap-x-1">
-                {t('expire')}:
-                <span>
-                  {!template.expire_duration || template.expire_duration === 0 ? (
-                    <Infinity className="h-4 w-4" />
-                  ) : (
-                    `${template.expire_duration / 60 / 60 / 24} ${daysUnit}`
-                  )}
-                </span>
+                {t('expire')}:<span>{!template.expire_duration || template.expire_duration === 0 ? <Infinity className="h-4 w-4" /> : `${template.expire_duration / 60 / 60 / 24} ${daysUnit}`}</span>
               </p>
             </div>
           </div>

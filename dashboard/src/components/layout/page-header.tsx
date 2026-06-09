@@ -19,16 +19,7 @@ interface PageHeaderProps {
   className?: string
 }
 
-export default function PageHeader({
-  title,
-  description,
-  buttonText,
-  onButtonClick,
-  buttonIcon: Icon = Plus,
-  buttonTooltip,
-  tutorialUrl,
-  className,
-}: PageHeaderProps) {
+export default function PageHeader({ title, description, buttonText, onButtonClick, buttonIcon: Icon = Plus, buttonTooltip, tutorialUrl, className }: PageHeaderProps) {
   const { t } = useTranslation()
   const dir = useDirDetection()
   const location = useLocation()
@@ -37,10 +28,7 @@ export default function PageHeader({
   const docsUrl = tutorialUrl || getDocsUrl(location.pathname)
 
   return (
-    <div
-      dir={dir}
-      className={cn('relative mx-auto flex w-full flex-row items-start justify-between gap-4 overflow-hidden px-4 py-4 md:pt-6', className)}
-    >
+    <div dir={dir} className={cn('relative mx-auto flex w-full flex-row items-start justify-between gap-4 overflow-hidden px-4 py-4 md:pt-6', className)}>
       <Snowfall className="snowfall--header" />
       <div className="relative z-10 flex min-w-0 flex-1 flex-col gap-y-1">
         <div className="flex min-w-0 items-center gap-2.5">
@@ -52,7 +40,7 @@ export default function PageHeader({
                   href={docsUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex h-7 w-7 items-center justify-center rounded-md border-0 text-primary transition-colors hover:border-2 hover:border-primary/40 hover:bg-primary/5 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  className="text-primary hover:border-primary/40 hover:bg-primary/5 hover:text-primary focus-visible:ring-ring inline-flex h-7 w-7 items-center justify-center rounded-md border-0 transition-colors hover:border-2 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
                   aria-label={t('tutorial', { defaultValue: 'View tutorial' })}
                 >
                   <HelpCircle className="h-4 w-4" />
@@ -64,7 +52,7 @@ export default function PageHeader({
             </Tooltip>
           </TooltipProvider>
         </div>
-        {description && <span className="whitespace-normal text-xs text-muted-foreground sm:text-sm">{t(description)}</span>}
+        {description && <span className="text-muted-foreground text-xs whitespace-normal sm:text-sm">{t(description)}</span>}
       </div>
       {buttonText && onButtonClick && (
         <div className="relative z-10 shrink-0">

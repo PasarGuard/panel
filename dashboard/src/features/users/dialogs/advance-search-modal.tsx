@@ -255,7 +255,7 @@ export default function AdvanceSearchModal({ isDialogOpen, onOpenChange, form, o
                       control={form.control}
                       name="no_data_limit"
                       render={({ field }) => (
-                        <FormItem className="flex w-full items-start justify-between gap-4 rounded-md border p-4 space-y-0">
+                        <FormItem className="flex w-full items-start justify-between gap-4 space-y-0 rounded-md border p-4">
                           <div className="space-y-1">
                             <FormLabel>{t('advanceSearch.noDataLimit', { defaultValue: 'Only users with no data limit' })}</FormLabel>
                             <FormDescription>{t('advanceSearch.noDataLimitDescription', { defaultValue: 'Shows users whose data limit is unlimited.' })}</FormDescription>
@@ -330,7 +330,7 @@ export default function AdvanceSearchModal({ isDialogOpen, onOpenChange, form, o
                       control={form.control}
                       name="no_expire"
                       render={({ field }) => (
-                        <FormItem className="flex w-full items-start justify-between gap-4 rounded-md border p-4 space-y-0">
+                        <FormItem className="flex w-full items-start justify-between gap-4 space-y-0 rounded-md border p-4">
                           <div className="space-y-1">
                             <FormLabel>{t('advanceSearch.noExpire', { defaultValue: 'Only users with no expire date' })}</FormLabel>
                             <FormDescription>{t('advanceSearch.noExpireDescription', { defaultValue: 'Shows users whose account has no expire date.' })}</FormDescription>
@@ -405,7 +405,7 @@ export default function AdvanceSearchModal({ isDialogOpen, onOpenChange, form, o
                       control={form.control}
                       name="online"
                       render={({ field }) => (
-                        <FormItem className="flex w-full items-start justify-between gap-4 rounded-md border p-4 space-y-0">
+                        <FormItem className="flex w-full items-start justify-between gap-4 space-y-0 rounded-md border p-4">
                           <div className="space-y-1">
                             <FormLabel>{t('advanceSearch.online', { defaultValue: 'Only online users' })}</FormLabel>
                             <FormDescription>{t('advanceSearch.onlineDescription', { defaultValue: 'Shows users active in the current online window.' })}</FormDescription>

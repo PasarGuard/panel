@@ -11,7 +11,10 @@ export const VLESS_VISION_FLOW_VALUES = ['xtls-rprx-vision', 'xtls-rprx-vision-u
  * REALITY is only valid with the same transports as inbound VLESS/TROJAN (see `transportCompatibleWithReality`).
  */
 export function outboundStreamNetworkCompatibleWithReality(network: string | undefined): boolean {
-  const raw = String(network ?? 'tcp').trim().toLowerCase() || 'tcp'
+  const raw =
+    String(network ?? 'tcp')
+      .trim()
+      .toLowerCase() || 'tcp'
   const mapped = canonicalizeInboundTransportType(raw)
   if (mapped) return transportCompatibleWithReality(mapped)
   return false
@@ -19,14 +22,13 @@ export function outboundStreamNetworkCompatibleWithReality(network: string | und
 
 /** Vision / XTLS-rprx flows need a TLS or REALITY stream — not `security: none`. */
 export function outboundVlessVisionFlowAllowed(streamSecurity: string | undefined): boolean {
-  const s = String(streamSecurity ?? 'none').trim().toLowerCase()
+  const s = String(streamSecurity ?? 'none')
+    .trim()
+    .toLowerCase()
   return s === 'tls' || s === 'reality'
 }
 
-export function vlessVisionFlowIncompatibleWithStreamSecurity(
-  streamSecurity: string | undefined,
-  flow: string | undefined,
-): boolean {
+export function vlessVisionFlowIncompatibleWithStreamSecurity(streamSecurity: string | undefined, flow: string | undefined): boolean {
   const f = String(flow ?? '').trim()
   if (!f) return false
   if (!(VLESS_VISION_FLOW_VALUES as readonly string[]).includes(f)) return false
@@ -38,7 +40,10 @@ export function vlessVisionFlowIncompatibleWithStreamSecurity(
  * If the current network is invalid but still present in config, keep it first so the Select stays controlled until the user fixes it.
  */
 export function getOutboundStreamNetworkSelectValues(streamSecurity: string, currentNetwork: string): string[] {
-  const cur = String(currentNetwork || 'tcp').trim().toLowerCase() || 'tcp'
+  const cur =
+    String(currentNetwork || 'tcp')
+      .trim()
+      .toLowerCase() || 'tcp'
   const all: string[] = [...OUTBOUND_STREAM_ALL_NETWORKS]
   if (String(streamSecurity).trim().toLowerCase() !== 'reality') return all
   const ok: string[] = all.filter(n => outboundStreamNetworkCompatibleWithReality(n))

@@ -72,8 +72,8 @@ export function HostFilters({ filters, onFilterChange, onRefresh, isRefreshing, 
   return (
     <div dir={dir} className="flex items-center gap-2 md:gap-4">
       <div className="relative min-w-0 flex-1 md:w-[calc(100%/3-10px)] md:flex-none">
-        <SearchIcon className={cn('absolute', dir === 'rtl' ? 'right-2' : 'left-2', 'top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 text-input-placeholder')} />
-        <Input placeholder={t('search')} value={search} onChange={handleSearchChange} className="pl-8 pr-10" />
+        <SearchIcon className={cn('absolute', dir === 'rtl' ? 'right-2' : 'left-2', 'text-input-placeholder top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400')} />
+        <Input placeholder={t('search')} value={search} onChange={handleSearchChange} className="pr-10 pl-8" />
         {search && (
           <button type="button" onClick={clearSearch} className={cn('absolute', dir === 'rtl' ? 'left-2' : 'right-2', 'top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600')}>
             <X className="h-4 w-4" />
@@ -86,7 +86,7 @@ export function HostFilters({ filters, onFilterChange, onRefresh, isRefreshing, 
           <Button type="button" size="icon-md" variant="ghost" className="relative flex h-9 w-9 items-center justify-center rounded-lg border" onClick={handleOpenAdvanceSearch}>
             <Filter className="h-4 w-4" />
             {hasActiveAdvanceFilters() && (
-              <Badge variant="default" className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary p-0 text-[10.5px] text-primary-foreground">
+              <Badge variant="default" className="bg-primary text-primary-foreground absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full p-0 text-[10.5px]">
                 {getActiveFiltersCount()}
               </Badge>
             )}
@@ -94,7 +94,13 @@ export function HostFilters({ filters, onFilterChange, onRefresh, isRefreshing, 
           {hasActiveAdvanceFilters() && onClearAdvanceSearch && (
             <Popover>
               <PopoverTrigger asChild>
-                <Button type="button" size="sm" variant="outline" className={cn('h-9 w-9 p-0', dir === 'rtl' ? 'rounded-r-none border-r-0' : 'rounded-l-none border-l-0')} onClick={onClearAdvanceSearch}>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className={cn('h-9 w-9 p-0', dir === 'rtl' ? 'rounded-r-none border-r-0' : 'rounded-l-none border-l-0')}
+                  onClick={onClearAdvanceSearch}
+                >
                   <X className="h-3 w-3" />
                 </Button>
               </PopoverTrigger>

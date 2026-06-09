@@ -84,7 +84,7 @@ export default function Group({ group, onEdit, onToggleStatus, canUpdate = true,
   return (
     <>
       <Card
-        className={cn('group relative px-4 py-5 transition-colors', canUpdate && 'cursor-pointer hover:bg-accent', selected && 'border-primary/50 bg-accent/30')}
+        className={cn('group relative px-4 py-5 transition-colors', canUpdate && 'hover:bg-accent cursor-pointer', selected && 'border-primary/50 bg-accent/30')}
         onClick={() => {
           if (canUpdate) onEdit(group)
         }}
@@ -97,10 +97,10 @@ export default function Group({ group, onEdit, onToggleStatus, canUpdate = true,
                 <div className={cn('min-h-2 min-w-2 flex-shrink-0 rounded-full', group.is_disabled ? 'bg-red-500' : 'bg-green-500')} />
                 <div className="flex min-w-0 flex-1 items-center gap-2">
                   <div className="min-w-0 truncate font-medium">{group.name}</div>
-                  <div className="flex-shrink-0 font-mono text-xs text-muted-foreground">({group.inbound_tags?.length || 0})</div>
+                  <div className="text-muted-foreground flex-shrink-0 font-mono text-xs">({group.inbound_tags?.length || 0})</div>
                 </div>
               </div>
-              <div className="min-w-0 truncate text-sm text-muted-foreground">
+              <div className="text-muted-foreground min-w-0 truncate text-sm">
                 {t('admins.total.users')}: {group.total_users || 0}
               </div>
             </div>
