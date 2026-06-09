@@ -135,7 +135,7 @@ class StandardLinks(BaseSubscription):
 
         extra = self._normalize_and_remove_none_values(extra)
         if extra:
-            payload["extra"] = json.dumps(extra).replace(" ", "")
+            payload["extra"] = json.dumps(extra, separators=(",", ":"))
 
     def _transport_ws(self, payload: dict, protocol: str, config: WebSocketTransportConfig, path: str):
         """Handle websocket transport - only gets WS config"""
