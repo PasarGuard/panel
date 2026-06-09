@@ -9,7 +9,7 @@ const DataUsageChart = lazy(() => import('./data-usage-chart'))
 
 function DataUsageChartSkeleton() {
   return (
-    <div className="rounded-lg border bg-card/80 p-4">
+    <div className="bg-card/80 rounded-lg border p-4">
       <div className="flex items-center justify-between gap-2">
         <Skeleton className="h-4 w-32" />
         <Skeleton className="h-4 w-20" />
@@ -40,27 +40,31 @@ const AdminStatisticsCard = ({
   admin,
   systemStats,
   showAdminInfo = true,
+  skipStatsFetch = false,
 }: {
   admin: AdminDetails | undefined
   systemStats: SystemUsersStats | undefined
   showAdminInfo?: boolean
   currentAdmin?: AdminDetails | undefined
+  skipStatsFetch?: boolean
 }) => {
   const { t } = useTranslation()
   if (!admin) return null
 
   // Send admin_username for specific admin stats, except for 'Total' which shows global stats
   const systemStatsParams = admin.username !== 'Total' ? { admin_username: admin.username } : undefined
+  const shouldFetchStats = !skipStatsFetch
 
   // Fetch system stats specific to this admin
   const { data: adminSystemStats } = useGetSystemUsersStats(systemStatsParams, {
     query: {
+      enabled: shouldFetchStats,
       refetchInterval: 5000,
     },
   })
 
   // Use admin-specific stats if available, otherwise fall back to global stats
-  const statsToUse = adminSystemStats || systemStats
+  const statsToUse = skipStatsFetch ? systemStats : adminSystemStats || systemStats
 
   // For DataUsageChart: prefer admin id for specific admin data, except for 'Total' which shows global data.
   const shouldScopeAdminData = admin.username !== 'Total'
@@ -70,19 +74,13 @@ const AdminStatisticsCard = ({
       <div className="flex flex-col gap-6 rounded-lg py-4">
         <div className="flex flex-row items-center justify-between">
           <div className="flex min-w-0 flex-row items-center gap-2">
-            {admin.username === 'Total' ? (
-              <Users className="size-6 text-muted-foreground md:size-7" />
-            ) : (
-              <UserCog className="size-6 text-muted-foreground md:size-7" />
-            )}
-            <span className="truncate text-lg font-bold md:text-xl">
-              {admin.username === 'Total' ? t('admins.total') : admin.username}
-            </span>
+            {admin.username === 'Total' ? <Users className="text-muted-foreground size-6 md:size-7" /> : <UserCog className="text-muted-foreground size-6 md:size-7" />}
+            <span className="truncate text-lg font-bold md:text-xl">{admin.username === 'Total' ? t('admins.total') : admin.username}</span>
           </div>
         </div>
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
           <UserStatisticsCard data={statsToUse} />
-          <DeferredDataUsageChart adminId={shouldScopeAdminData ? admin.id ?? undefined : undefined} adminUsername={shouldScopeAdminData ? admin.username : undefined} />
+          <DeferredDataUsageChart adminId={shouldScopeAdminData ? (admin.id ?? undefined) : undefined} adminUsername={shouldScopeAdminData ? admin.username : undefined} />
         </div>
       </div>
     )
@@ -90,7 +88,7 @@ const AdminStatisticsCard = ({
   return (
     <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
       <UserStatisticsCard data={statsToUse} />
-      <DeferredDataUsageChart adminId={shouldScopeAdminData ? admin.id ?? undefined : undefined} adminUsername={shouldScopeAdminData ? admin.username : undefined} />
+      <DeferredDataUsageChart adminId={shouldScopeAdminData ? (admin.id ?? undefined) : undefined} adminUsername={shouldScopeAdminData ? admin.username : undefined} />
     </div>
   )
 }
