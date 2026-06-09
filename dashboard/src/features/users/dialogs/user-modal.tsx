@@ -1081,6 +1081,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
             const originalStatus = editingUserData?.status
             const requestedStatus = sendValues.status
             const statusWasChanged = !!touchedFields.status && requestedStatus !== originalStatus
+            const onlyStatusWasTouched = Object.entries(touchedFields).every(([field, touched]) => !touched || field === 'status')
             const disabledToggle =
               statusWasChanged && requestedStatus === 'disabled'
                 ? true
@@ -1099,7 +1100,9 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
             } else {
               const modifyPayload = { ...sendValues }
               delete modifyPayload.status
-              await modifyUserById(editingUserId, modifyPayload)
+              if (!onlyStatusWasTouched) {
+                await modifyUserById(editingUserId, modifyPayload)
+              }
               const updatedUser = await setUserDisabledById(editingUserId, { disabled: disabledToggle })
               syncUserCacheFromApiResponse(updatedUser, { allowInsert: true, notifySuccessCallback: true })
             }
