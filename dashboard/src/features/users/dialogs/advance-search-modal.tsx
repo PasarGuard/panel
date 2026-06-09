@@ -41,7 +41,7 @@ export default function AdvanceSearchModal({ isDialogOpen, onOpenChange, form, o
 
   return (
     <Dialog open={isDialogOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="flex h-full max-w-[650px] flex-col justify-start sm:h-auto" onOpenAutoFocus={e => e.preventDefault()}>
+      <DialogContent className="flex h-full max-w-[720px] flex-col justify-start sm:h-auto" onOpenAutoFocus={e => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Search className="h-5 w-5" />
@@ -59,7 +59,7 @@ export default function AdvanceSearchModal({ isDialogOpen, onOpenChange, form, o
                     <p className="text-muted-foreground text-xs">{t('advanceSearch.searchModeDescription', { defaultValue: 'Choose how the main search field should be interpreted.' })}</p>
                   </div>
 
-                  <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="grid gap-3 sm:grid-cols-3">
                     <FormField
                       control={form.control}
                       name="is_username"
@@ -73,6 +73,7 @@ export default function AdvanceSearchModal({ isDialogOpen, onOpenChange, form, o
                               onClick={() => {
                                 field.onChange(true)
                                 form.setValue('is_protocol', false, { shouldDirty: true })
+                                form.setValue('is_id', false, { shouldDirty: true })
                               }}
                               className={cn(
                                 'flex h-full w-full flex-col items-start justify-between rounded-md border px-4 py-3 text-left transition-colors',
@@ -105,6 +106,7 @@ export default function AdvanceSearchModal({ isDialogOpen, onOpenChange, form, o
                               onClick={() => {
                                 field.onChange(true)
                                 form.setValue('is_username', false, { shouldDirty: true })
+                                form.setValue('is_id', false, { shouldDirty: true })
                               }}
                               className={cn(
                                 'flex h-full w-full flex-col items-start justify-between rounded-md border px-4 py-3 text-left transition-colors',
@@ -119,6 +121,39 @@ export default function AdvanceSearchModal({ isDialogOpen, onOpenChange, form, o
                               <p className="text-muted-foreground text-start text-xs">
                                 {t('advanceSearch.byProtocolDescription', { defaultValue: 'Search protocol details and configuration data.' })}
                               </p>
+                            </button>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="is_id"
+                      render={({ field }) => (
+                        <FormItem className="space-y-0">
+                          <FormControl>
+                            <button
+                              type="button"
+                              aria-pressed={field.value}
+                              disabled={isApplying}
+                              onClick={() => {
+                                field.onChange(true)
+                                form.setValue('is_username', false, { shouldDirty: true })
+                                form.setValue('is_protocol', false, { shouldDirty: true })
+                              }}
+                              className={cn(
+                                'flex h-full w-full flex-col items-start justify-between rounded-md border px-4 py-3 text-left transition-colors',
+                                field.value ? 'border-primary bg-primary/5 shadow-sm' : 'border-border bg-background hover:border-primary/40 hover:bg-accent/30',
+                                isApplying && 'cursor-not-allowed opacity-60',
+                              )}
+                            >
+                              <div className="flex w-full items-start justify-between gap-3">
+                                <span className="text-sm font-medium">{t('advanceSearch.byUserId', { defaultValue: 'User ID' })}</span>
+                                <span className={cn('mt-1 h-2.5 w-2.5 rounded-full', field.value ? 'bg-primary' : 'bg-muted-foreground/25')} />
+                              </div>
+                              <p className="text-muted-foreground text-start text-xs">{t('advanceSearch.byUserIdDescription', { defaultValue: 'Search exact user IDs.' })}</p>
                             </button>
                           </FormControl>
                           <FormMessage />

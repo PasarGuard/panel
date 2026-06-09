@@ -3275,6 +3275,8 @@
     "byUsernameDescription": "در نام کاربری و یادداشت‌ها جست‌وجو می‌کند.",
     "byProtocol": "داده‌های پروتکل",
     "byProtocolDescription": "در جزئیات پروتکل و داده‌های پیکربندی جست‌وجو می‌کند.",
+    "byUserId": "شناسه کاربر",
+    "byUserIdDescription": "شناسه دقیق کاربران را جست‌وجو می‌کند؛ با کاما جدا کنید.",
     "filtersSection": "محدود کردن نتایج",
     "filtersSectionDescription": "برای محدود کردن فهرست، یک یا چند فیلتر انتخاب کنید.",
     "showCreatedBy": "نمایش ایجاد شده توسط",

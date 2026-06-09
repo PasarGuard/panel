@@ -3242,6 +3242,8 @@
     "byUsernameDescription": "Ищет по имени пользователя и заметкам.",
     "byProtocol": "Данные протокола",
     "byProtocolDescription": "Ищет по данным протокола и конфигурации.",
+    "byUserId": "ID пользователя",
+    "byUserIdDescription": "Ищет точные ID пользователей через запятую.",
     "filtersSection": "Уточнение результатов",
     "filtersSectionDescription": "Используйте один или несколько фильтров, чтобы сузить список.",
     "showCreatedBy": "Показать создателя",

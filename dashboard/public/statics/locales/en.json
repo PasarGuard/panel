@@ -3302,6 +3302,8 @@
     "byUsernameDescription": "Search usernames and notes.",
     "byProtocol": "Protocol Data",
     "byProtocolDescription": "Search protocol details and configuration data.",
+    "byUserId": "User ID",
+    "byUserIdDescription": "Search exact user IDs, comma-separated.",
     "filtersSection": "Refine results",
     "filtersSectionDescription": "Use one or more filters to narrow the list.",
     "showCreatedBy": "Show created by",

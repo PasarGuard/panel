@@ -3299,6 +3299,8 @@
     "byUsernameDescription": "按用户名和备注搜索。",
     "byProtocol": "协议数据",
     "byProtocolDescription": "按协议详情和配置数据搜索。",
+    "byUserId": "用户 ID",
+    "byUserIdDescription": "搜索精确的用户 ID，可用逗号分隔。",
     "filtersSection": "细化结果",
     "filtersSectionDescription": "使用一个或多个筛选条件缩小列表范围。",
     "showCreatedBy": "显示创建者",

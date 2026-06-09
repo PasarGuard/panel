@@ -89,11 +89,13 @@ interface FiltersProps {
     search?: string
     proxy_id?: string
     is_protocol?: boolean
+    is_id?: boolean
     limit?: number
     offset?: number
     sort: string
     status?: UserStatus | null
     load_sub: boolean
+    ids?: number[] | null
     admin?: string[]
     group?: number[]
     data_limit_min?: number | null
@@ -143,7 +145,7 @@ export const Filters = ({ filters, onFilterChange, refetch, autoRefetch, advance
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [autoRefreshInterval, setAutoRefreshInterval] = useState<number>(() => getUsersAutoRefreshIntervalSeconds())
   const { refetch: queryRefetch, isFetching } = useGetUsers(filters)
-  const activeSearchValue = filters.search || filters.proxy_id || ''
+  const activeSearchValue = filters.ids?.join(', ') || filters.search || filters.proxy_id || ''
   const { search, debouncedSearch, setSearch } = useDebouncedSearch(activeSearchValue, 300)
   const prevDebouncedSearchRef = useRef<string | undefined>(activeSearchValue || undefined)
   const searchResolveIdRef = useRef(0)
@@ -152,7 +154,7 @@ export const Filters = ({ filters, onFilterChange, refetch, autoRefetch, advance
   useEffect(() => {
     prevDebouncedSearchRef.current = activeSearchValue || undefined
   }, [activeSearchValue])
-  
+
   const refetchUsers = useCallback(
     async (showLoading = false, isAutoRefresh = false) => {
       if (showLoading) {
@@ -220,7 +222,9 @@ export const Filters = ({ filters, onFilterChange, refetch, autoRefetch, advance
       if (!trimmedSearch) {
         onFilterChange({
           search: '',
+          ids: undefined,
           proxy_id: undefined,
+          is_id: false,
           is_protocol: false,
           offset: 0,
         })
@@ -242,7 +246,9 @@ export const Filters = ({ filters, onFilterChange, refetch, autoRefetch, advance
             setSearch(username)
             onFilterChange({
               search: username,
+              ids: undefined,
               proxy_id: undefined,
+              is_id: false,
               is_protocol: false,
               offset: 0,
             })
@@ -250,6 +256,9 @@ export const Filters = ({ filters, onFilterChange, refetch, autoRefetch, advance
             if (searchResolveIdRef.current !== resolveId) return
             onFilterChange({
               search: debouncedSearch || '',
+              ids: undefined,
+              is_id: false,
+              is_protocol: false,
               offset: 0,
             })
           }
@@ -280,7 +289,9 @@ export const Filters = ({ filters, onFilterChange, refetch, autoRefetch, advance
     setSearch('')
     onFilterChange({
       search: '',
+      ids: undefined,
       proxy_id: undefined,
+      is_id: false,
       is_protocol: false,
       offset: 0,
     })
@@ -305,6 +316,7 @@ export const Filters = ({ filters, onFilterChange, refetch, autoRefetch, advance
   const hasActiveAdvanceFilters = () => {
     const admin = filters.admin
     const group = filters.group
+    const ids = filters.ids
     const status = filters.status
     const hasDataLimit = (
       (filters.data_limit_min !== undefined && filters.data_limit_min !== null) ||
@@ -313,7 +325,7 @@ export const Filters = ({ filters, onFilterChange, refetch, autoRefetch, advance
     )
     const hasExpireDate = Boolean(filters.expire_after || filters.expire_before || filters.no_expire)
     const hasOnlineDate = Boolean(filters.online_after || filters.online_before || filters.online)
-    return (admin && admin.length > 0) || (group && group.length > 0) || (status !== undefined && status !== null) || hasDataLimit || hasExpireDate || hasOnlineDate
+    return (ids && ids.length > 0) || (admin && admin.length > 0) || (group && group.length > 0) || (status !== undefined && status !== null) || hasDataLimit || hasExpireDate || hasOnlineDate
   }
 
   // Get the count of active advance filters
@@ -321,6 +333,7 @@ export const Filters = ({ filters, onFilterChange, refetch, autoRefetch, advance
   const getActiveFiltersCount = () => {
     const admin = filters.admin
     const group = filters.group
+    const ids = filters.ids
     const status = filters.status
     const hasDataLimit = (
       (filters.data_limit_min !== undefined && filters.data_limit_min !== null) ||
@@ -330,6 +343,7 @@ export const Filters = ({ filters, onFilterChange, refetch, autoRefetch, advance
     const hasExpireDate = Boolean(filters.expire_after || filters.expire_before || filters.no_expire)
     const hasOnlineDate = Boolean(filters.online_after || filters.online_before || filters.online)
     let count = 0
+    if (ids && ids.length > 0) count++
     if (admin && admin.length > 0) count++
     if (group && group.length > 0) count++
     if (status !== undefined && status !== null) count++
