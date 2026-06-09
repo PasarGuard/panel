@@ -3,7 +3,7 @@
  * Do not edit manually.
  * PasarGuardAPI
  * Unified GUI Censorship Resistant Solution
- * OpenAPI spec version: 5.0.0
+ * OpenAPI spec version: 5.0.1
  */
 import { useMutation, useQuery } from '@tanstack/react-query'
 import type {
@@ -307,6 +307,10 @@ export type GetAllGroupsParams = {
   limit?: number | null
 }
 
+export type GetSystemUsersStatsParams = {
+  admin_username?: string | null
+}
+
 export type GetSystemStatsParams = {
   admin_username?: string | null
 }
@@ -398,13 +402,6 @@ export type XrayMuxSettingsInputXudpConcurrency = number | null
 
 export type XrayMuxSettingsInputConcurrency = number | null
 
-export interface XrayMuxSettingsInput {
-  enabled?: boolean
-  concurrency?: XrayMuxSettingsInputConcurrency
-  xudp_concurrency?: XrayMuxSettingsInputXudpConcurrency
-  xudp_proxy_udp_443?: Xudp
-}
-
 export interface XrayFragmentSettings {
   /** @pattern ^(:?tlshello|[\d-]{1,16})$ */
   packets: string
@@ -422,6 +419,13 @@ export const Xudp = {
   allow: 'allow',
   skip: 'skip',
 } as const
+
+export interface XrayMuxSettingsInput {
+  enabled?: boolean
+  concurrency?: XrayMuxSettingsInputConcurrency
+  xudp_concurrency?: XrayMuxSettingsInputXudpConcurrency
+  xudp_proxy_udp_443?: Xudp
+}
 
 export type XMuxSettingsOutputHKeepAlivePeriod = number | null
 
@@ -566,6 +570,18 @@ export type XHttpSettingsInputXPaddingBytes = string | null
 
 export type XHttpSettingsInputNoGrpcHeader = boolean | null
 
+export type XHttpModes = (typeof XHttpModes)[keyof typeof XHttpModes]
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const XHttpModes = {
+  auto: 'auto',
+  'packet-up': 'packet-up',
+  'stream-up': 'stream-up',
+  'stream-one': 'stream-one',
+} as const
+
+export type XHttpSettingsInputMode = XHttpModes | null
+
 export interface XHttpSettingsInput {
   mode?: XHttpSettingsInputMode
   no_grpc_header?: XHttpSettingsInputNoGrpcHeader
@@ -588,18 +604,6 @@ export interface XHttpSettingsInput {
   xmux?: XHttpSettingsInputXmux
   download_settings?: XHttpSettingsInputDownloadSettings
 }
-
-export type XHttpModes = (typeof XHttpModes)[keyof typeof XHttpModes]
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
-export const XHttpModes = {
-  auto: 'auto',
-  'packet-up': 'packet-up',
-  'stream-up': 'stream-up',
-  'stream-one': 'stream-one',
-} as const
-
-export type XHttpSettingsInputMode = XHttpModes | null
 
 export type WorkerHealthError = string | null
 
@@ -972,6 +976,10 @@ export interface UserSubscriptionUpdateChart {
   segments?: UserSubscriptionUpdateChartSegment[]
 }
 
+export interface UserStatusToggle {
+  disabled: boolean
+}
+
 export type UserStatusCreate = (typeof UserStatusCreate)[keyof typeof UserStatusCreate]
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
@@ -990,10 +998,6 @@ export const UserStatus = {
   expired: 'expired',
   on_hold: 'on_hold',
 } as const
-
-export interface UserStatusToggle {
-  disabled: boolean
-}
 
 /**
  * Lightweight user model with only id and username for performance.
@@ -1019,6 +1023,9 @@ export type UserResponseGroupIds = number[] | null
 
 export type UserResponseOnHoldTimeout = string | number | null
 
+/**
+ * on_hold_expire_duration can be 0 or greater in seconds
+ */
 export type UserResponseOnHoldExpireDuration = number | null
 
 export type UserResponseNote = string | null
@@ -1039,6 +1046,7 @@ export interface UserResponse {
   data_limit?: UserResponseDataLimit
   data_limit_reset_strategy?: UserResponseDataLimitResetStrategy
   note?: UserResponseNote
+  /** on_hold_expire_duration can be 0 or greater in seconds */
   on_hold_expire_duration?: UserResponseOnHoldExpireDuration
   on_hold_timeout?: UserResponseOnHoldTimeout
   group_ids?: UserResponseGroupIds
@@ -1079,6 +1087,9 @@ export type UserModifyGroupIds = number[] | null
 
 export type UserModifyOnHoldTimeout = string | number | null
 
+/**
+ * on_hold_expire_duration can be 0 or greater in seconds
+ */
 export type UserModifyOnHoldExpireDuration = number | null
 
 export type UserModifyNote = string | null
@@ -1101,6 +1112,7 @@ export interface UserModify {
   data_limit?: UserModifyDataLimit
   data_limit_reset_strategy?: UserModifyDataLimitResetStrategy
   note?: UserModifyNote
+  /** on_hold_expire_duration can be 0 or greater in seconds */
   on_hold_expire_duration?: UserModifyOnHoldExpireDuration
   on_hold_timeout?: UserModifyOnHoldTimeout
   group_ids?: UserModifyGroupIds
@@ -1161,6 +1173,9 @@ export type UserCreateGroupIds = number[] | null
 
 export type UserCreateOnHoldTimeout = string | number | null
 
+/**
+ * on_hold_expire_duration can be 0 or greater in seconds
+ */
 export type UserCreateOnHoldExpireDuration = number | null
 
 export type UserCreateNote = string | null
@@ -1181,6 +1196,7 @@ export interface UserCreate {
   data_limit?: UserCreateDataLimit
   data_limit_reset_strategy?: UserCreateDataLimitResetStrategy
   note?: UserCreateNote
+  /** on_hold_expire_duration can be 0 or greater in seconds */
   on_hold_expire_duration?: UserCreateOnHoldExpireDuration
   on_hold_timeout?: UserCreateOnHoldTimeout
   group_ids?: UserCreateGroupIds
@@ -1308,6 +1324,50 @@ export interface TcpSettings {
   response?: TcpSettingsResponse
 }
 
+export interface SystemUsersStats {
+  total_user: number
+  online_users: number
+  active_users: number
+  on_hold_users: number
+  disabled_users: number
+  expired_users: number
+  limited_users: number
+  incoming_bandwidth: number
+  outgoing_bandwidth: number
+}
+
+export type SystemStatsCpuUsage = number | null
+
+export type SystemStatsCpuCores = number | null
+
+export type SystemStatsDiskUsed = number | null
+
+export type SystemStatsDiskTotal = number | null
+
+export type SystemStatsMemUsed = number | null
+
+export type SystemStatsMemTotal = number | null
+
+export interface SystemStats {
+  total_user: number
+  online_users: number
+  active_users: number
+  on_hold_users: number
+  disabled_users: number
+  expired_users: number
+  limited_users: number
+  incoming_bandwidth: number
+  outgoing_bandwidth: number
+  version: string
+  uptime_seconds: number
+  mem_total?: SystemStatsMemTotal
+  mem_used?: SystemStatsMemUsed
+  disk_total?: SystemStatsDiskTotal
+  disk_used?: SystemStatsDiskUsed
+  cpu_cores?: SystemStatsCpuCores
+  cpu_usage?: SystemStatsCpuUsage
+}
+
 export type SystemResourceStatsCpuUsage = number | null
 
 export type SystemResourceStatsCpuCores = number | null
@@ -1331,32 +1391,6 @@ export interface SystemResourceStats {
   cpu_usage?: SystemResourceStatsCpuUsage
 }
 
-export type SystemStatsCpuUsage = SystemResourceStatsCpuUsage
-
-export type SystemStatsCpuCores = SystemResourceStatsCpuCores
-
-export type SystemStatsDiskUsed = SystemResourceStatsDiskUsed
-
-export type SystemStatsDiskTotal = SystemResourceStatsDiskTotal
-
-export type SystemStatsMemUsed = SystemResourceStatsMemUsed
-
-export type SystemStatsMemTotal = SystemResourceStatsMemTotal
-
-export interface SystemUsersStats {
-  total_user: number
-  online_users: number
-  active_users: number
-  on_hold_users: number
-  disabled_users: number
-  expired_users: number
-  limited_users: number
-  incoming_bandwidth: number
-  outgoing_bandwidth: number
-}
-
-export interface SystemStats extends SystemResourceStats, SystemUsersStats {}
-
 export type SystemPermissionsReadAnyOf = { [key: string]: PermissionScope | number }
 
 export type SystemPermissionsRead = boolean | SystemPermissionsReadAnyOf | null
@@ -1379,6 +1413,9 @@ export type SubscriptionUserResponseGroupIds = number[] | null
 
 export type SubscriptionUserResponseOnHoldTimeout = string | number | null
 
+/**
+ * on_hold_expire_duration can be 0 or greater in seconds
+ */
 export type SubscriptionUserResponseOnHoldExpireDuration = number | null
 
 export type SubscriptionUserResponseDataLimitResetStrategy = DataLimitResetStrategy | null
@@ -1396,6 +1433,7 @@ export interface SubscriptionUserResponse {
   /** data_limit can be 0 or greater */
   data_limit?: SubscriptionUserResponseDataLimit
   data_limit_reset_strategy?: SubscriptionUserResponseDataLimitResetStrategy
+  /** on_hold_expire_duration can be 0 or greater in seconds */
   on_hold_expire_duration?: SubscriptionUserResponseOnHoldExpireDuration
   on_hold_timeout?: SubscriptionUserResponseOnHoldTimeout
   group_ids?: SubscriptionUserResponseGroupIds
@@ -1419,14 +1457,6 @@ export interface SubscriptionTemplates {
 }
 
 export type SubscriptionResponseHeaders = { [key: string]: unknown }
-
-export type SubRuleResponseHeaders = { [key: string]: unknown }
-
-export interface SubRule {
-  pattern: string
-  target: ConfigFormat
-  response_headers?: SubRuleResponseHeaders
-}
 
 export interface SubFormatEnable {
   links?: boolean
@@ -1454,6 +1484,14 @@ export interface Subscription {
   allow_browser_config?: boolean
   disable_sub_template?: boolean
   randomize_order?: boolean
+}
+
+export type SubRuleResponseHeaders = { [key: string]: unknown }
+
+export interface SubRule {
+  pattern: string
+  target: ConfigFormat
+  response_headers?: SubRuleResponseHeaders
 }
 
 export type SingBoxMuxSettingsBrutal = Brutal | null
@@ -1525,12 +1563,6 @@ export type SettingsPermissionsUpdateAnyOf = { [key: string]: PermissionScope | 
 
 export type SettingsPermissionsUpdate = boolean | SettingsPermissionsUpdateAnyOf | null
 
-export interface SettingsPermissions {
-  read?: SettingsPermissionsRead
-  read_general?: SettingsPermissionsReadGeneral
-  update?: SettingsPermissionsUpdate
-}
-
 export type SettingsPermissionsReadGeneralAnyOf = { [key: string]: PermissionScope | number }
 
 export type SettingsPermissionsReadGeneral = boolean | SettingsPermissionsReadGeneralAnyOf | null
@@ -1538,6 +1570,12 @@ export type SettingsPermissionsReadGeneral = boolean | SettingsPermissionsReadGe
 export type SettingsPermissionsReadAnyOf = { [key: string]: PermissionScope | number }
 
 export type SettingsPermissionsRead = boolean | SettingsPermissionsReadAnyOf | null
+
+export interface SettingsPermissions {
+  read?: SettingsPermissionsRead
+  read_general?: SettingsPermissionsReadGeneral
+  update?: SettingsPermissionsUpdate
+}
 
 export type RunMethod = (typeof RunMethod)[keyof typeof RunMethod]
 
@@ -1823,6 +1861,20 @@ export interface NotificationEnable {
   percentage_reached?: boolean
 }
 
+/**
+ * Per-object notification channels
+ */
+export interface NotificationChannels {
+  admin?: NotificationChannel
+  admin_role?: NotificationChannel
+  core?: NotificationChannel
+  group?: NotificationChannel
+  host?: NotificationChannel
+  node?: NotificationChannel
+  user?: NotificationChannel
+  user_template?: NotificationChannel
+}
+
 export type NotificationChannelDiscordWebhookUrl = string | null
 
 export type NotificationChannelTelegramTopicId = number | null
@@ -1836,20 +1888,6 @@ export interface NotificationChannel {
   telegram_chat_id?: NotificationChannelTelegramChatId
   telegram_topic_id?: NotificationChannelTelegramTopicId
   discord_webhook_url?: NotificationChannelDiscordWebhookUrl
-}
-
-/**
- * Per-object notification channels
- */
-export interface NotificationChannels {
-  admin?: NotificationChannel
-  admin_role?: NotificationChannel
-  core?: NotificationChannel
-  group?: NotificationChannel
-  host?: NotificationChannel
-  node?: NotificationChannel
-  user?: NotificationChannel
-  user_template?: NotificationChannel
 }
 
 export interface NotFound {
@@ -1887,18 +1925,6 @@ export type NodesPermissionsUpdateCoreAnyOf = { [key: string]: PermissionScope |
 
 export type NodesPermissionsUpdateCore = boolean | NodesPermissionsUpdateCoreAnyOf | null
 
-export type NodesPermissionsReconnectAnyOf = { [key: string]: PermissionScope | number }
-
-export type NodesPermissionsReconnect = boolean | NodesPermissionsReconnectAnyOf | null
-
-export type NodesPermissionsDeleteAnyOf = { [key: string]: PermissionScope | number }
-
-export type NodesPermissionsDelete = boolean | NodesPermissionsDeleteAnyOf | null
-
-export type NodesPermissionsUpdateAnyOf = { [key: string]: PermissionScope | number }
-
-export type NodesPermissionsUpdate = boolean | NodesPermissionsUpdateAnyOf | null
-
 export interface NodesPermissions {
   create?: NodesPermissionsCreate
   read?: NodesPermissionsRead
@@ -1910,6 +1936,18 @@ export interface NodesPermissions {
   logs?: NodesPermissionsLogs
   stats?: NodesPermissionsStats
 }
+
+export type NodesPermissionsReconnectAnyOf = { [key: string]: PermissionScope | number }
+
+export type NodesPermissionsReconnect = boolean | NodesPermissionsReconnectAnyOf | null
+
+export type NodesPermissionsDeleteAnyOf = { [key: string]: PermissionScope | number }
+
+export type NodesPermissionsDelete = boolean | NodesPermissionsDeleteAnyOf | null
+
+export type NodesPermissionsUpdateAnyOf = { [key: string]: PermissionScope | number }
+
+export type NodesPermissionsUpdate = boolean | NodesPermissionsUpdateAnyOf | null
 
 export type NodesPermissionsReadSimpleAnyOf = { [key: string]: PermissionScope | number }
 
@@ -2129,19 +2167,6 @@ export interface NodeGeoFilesUpdate {
 
 export type NodeCreateProxyUrl = string | null
 
-export interface NodeCoreUpdate {
-  /** @pattern ^(latest|v?\d+\.\d+\.\d+)$ */
-  core_version?: string
-}
-
-export type NodeConnectionType = (typeof NodeConnectionType)[keyof typeof NodeConnectionType]
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
-export const NodeConnectionType = {
-  grpc: 'grpc',
-  rest: 'rest',
-} as const
-
 export interface NodeCreate {
   name: string
   address: string
@@ -2169,6 +2194,19 @@ export interface NodeCreate {
   internal_timeout?: number
   proxy_url?: NodeCreateProxyUrl
 }
+
+export interface NodeCoreUpdate {
+  /** @pattern ^(latest|v?\d+\.\d+\.\d+)$ */
+  core_version?: string
+}
+
+export type NodeConnectionType = (typeof NodeConnectionType)[keyof typeof NodeConnectionType]
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const NodeConnectionType = {
+  grpc: 'grpc',
+  rest: 'rest',
+} as const
 
 export type NextPlanModelExpire = number | null
 
@@ -2287,12 +2325,6 @@ export type HostsPermissionsUpdateAnyOf = { [key: string]: PermissionScope | num
 
 export type HostsPermissionsUpdate = boolean | HostsPermissionsUpdateAnyOf | null
 
-export interface HostsPermissions {
-  create?: HostsPermissionsCreate
-  read?: HostsPermissionsRead
-  update?: HostsPermissionsUpdate
-}
-
 export type HostsPermissionsReadAnyOf = { [key: string]: PermissionScope | number }
 
 export type HostsPermissionsRead = boolean | HostsPermissionsReadAnyOf | null
@@ -2300,6 +2332,12 @@ export type HostsPermissionsRead = boolean | HostsPermissionsReadAnyOf | null
 export type HostsPermissionsCreateAnyOf = { [key: string]: PermissionScope | number }
 
 export type HostsPermissionsCreate = boolean | HostsPermissionsCreateAnyOf | null
+
+export interface HostsPermissions {
+  create?: HostsPermissionsCreate
+  read?: HostsPermissionsRead
+  update?: HostsPermissionsUpdate
+}
 
 export interface HostNotificationEnable {
   create?: boolean
@@ -2326,10 +2364,6 @@ export interface HTTPValidationError {
   detail?: ValidationError[]
 }
 
-export type HTTPResponseHeadersAnyOf = { [key: string]: string[] }
-
-export type HTTPResponseHeaders = HTTPResponseHeadersAnyOf | null
-
 export interface HTTPResponse {
   /** @pattern ^(1(?:\.0|\.1)|2\.0|3\.0)$ */
   version?: string
@@ -2339,6 +2373,10 @@ export interface HTTPResponse {
   /** @pattern ^(?i)(?:OK|Created|Accepted|Non-Authoritative Information|No Content|Reset Content|Partial Content|Multiple Choices|Moved Permanently|Found|See Other|Not Modified|Use Proxy|Temporary Redirect|Permanent Redirect|Bad Request|Unauthorized|Payment Required|Forbidden|Not Found|Method Not Allowed|Not Acceptable|Proxy Authentication Required|Request Timeout|Conflict|Gone|Length Required|Precondition Failed|Payload Too Large|URI Too Long|Unsupported Media Type|Range Not Satisfiable|Expectation Failed|I'm a teapot|Misdirected Request|Unprocessable Entity|Locked|Failed Dependency|Too Early|Upgrade Required|Precondition Required|Too Many Requests|Request Header Fields Too Large|Unavailable For Legal Reasons|Internal Server Error|Not Implemented|Bad Gateway|Service Unavailable|Gateway Timeout|HTTP Version Not Supported)$ */
   reason?: string
 }
+
+export type HTTPResponseHeadersAnyOf = { [key: string]: string[] }
+
+export type HTTPResponseHeaders = HTTPResponseHeadersAnyOf | null
 
 export type HTTPRequestHeadersAnyOf = { [key: string]: string[] }
 
@@ -2744,14 +2782,6 @@ export type CRUDPermissionsReadSimpleAnyOf = { [key: string]: PermissionScope | 
 
 export type CRUDPermissionsReadSimple = boolean | CRUDPermissionsReadSimpleAnyOf | null
 
-export type CRUDPermissionsReadAnyOf = { [key: string]: PermissionScope | number }
-
-export type CRUDPermissionsRead = boolean | CRUDPermissionsReadAnyOf | null
-
-export type CRUDPermissionsCreateAnyOf = { [key: string]: PermissionScope | number }
-
-export type CRUDPermissionsCreate = boolean | CRUDPermissionsCreateAnyOf | null
-
 /**
  * Standard create/read/read_simple/update/delete permissions.
 Used directly by: groups, templates, client_templates, cores, admin_roles.
@@ -2764,6 +2794,14 @@ export interface CRUDPermissions {
   update?: CRUDPermissionsUpdate
   delete?: CRUDPermissionsDelete
 }
+
+export type CRUDPermissionsReadAnyOf = { [key: string]: PermissionScope | number }
+
+export type CRUDPermissionsRead = boolean | CRUDPermissionsReadAnyOf | null
+
+export type CRUDPermissionsCreateAnyOf = { [key: string]: PermissionScope | number }
+
+export type CRUDPermissionsCreate = boolean | CRUDPermissionsCreateAnyOf | null
 
 export type BulkWireGuardPeerIPsExpireBefore = string | null
 
@@ -3184,9 +3222,9 @@ export interface AdminRolesResponse {
   total: number
 }
 
-export type AdminRoleModifyDisconnectUsersWhenLimited = boolean | null
-
 export type AdminRoleModifyDisconnectUsersWhenDisabled = boolean | null
+
+export type AdminRoleModifyDisconnectUsersWhenLimited = boolean | null
 
 export type AdminRoleModifyDisabledWhenLimited = boolean | null
 
@@ -5894,16 +5932,16 @@ export function useGetSystemResourceStats<TData = Awaited<ReturnType<typeof getS
  * Fetch user stats and traffic metrics without system resource stats.
  * @summary Get System Users Stats
  */
-export const getSystemUsersStats = (params?: GetSystemStatsParams, signal?: AbortSignal) => {
+export const getSystemUsersStats = (params?: GetSystemUsersStatsParams, signal?: AbortSignal) => {
   return orvalFetcher<SystemUsersStats>({ url: `/api/system/users`, method: 'GET', params, signal })
 }
 
-export const getGetSystemUsersStatsQueryKey = (params?: GetSystemStatsParams) => {
+export const getGetSystemUsersStatsQueryKey = (params?: GetSystemUsersStatsParams) => {
   return [`/api/system/users`, ...(params ? [params] : [])] as const
 }
 
 export const getGetSystemUsersStatsQueryOptions = <TData = Awaited<ReturnType<typeof getSystemUsersStats>>, TError = ErrorType<Unauthorized | HTTPValidationError>>(
-  params?: GetSystemStatsParams,
+  params?: GetSystemUsersStatsParams,
   options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getSystemUsersStats>>, TError, TData>> },
 ) => {
   const { query: queryOptions } = options ?? {}
@@ -5919,21 +5957,21 @@ export type GetSystemUsersStatsQueryResult = NonNullable<Awaited<ReturnType<type
 export type GetSystemUsersStatsQueryError = ErrorType<Unauthorized | HTTPValidationError>
 
 export function useGetSystemUsersStats<TData = Awaited<ReturnType<typeof getSystemUsersStats>>, TError = ErrorType<Unauthorized | HTTPValidationError>>(
-  params: undefined | GetSystemStatsParams,
+  params: undefined | GetSystemUsersStatsParams,
   options: {
     query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getSystemUsersStats>>, TError, TData>> &
       Pick<DefinedInitialDataOptions<Awaited<ReturnType<typeof getSystemUsersStats>>, TError, TData>, 'initialData'>
   },
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetSystemUsersStats<TData = Awaited<ReturnType<typeof getSystemUsersStats>>, TError = ErrorType<Unauthorized | HTTPValidationError>>(
-  params?: GetSystemStatsParams,
+  params?: GetSystemUsersStatsParams,
   options?: {
     query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getSystemUsersStats>>, TError, TData>> &
       Pick<UndefinedInitialDataOptions<Awaited<ReturnType<typeof getSystemUsersStats>>, TError, TData>, 'initialData'>
   },
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetSystemUsersStats<TData = Awaited<ReturnType<typeof getSystemUsersStats>>, TError = ErrorType<Unauthorized | HTTPValidationError>>(
-  params?: GetSystemStatsParams,
+  params?: GetSystemUsersStatsParams,
   options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getSystemUsersStats>>, TError, TData>> },
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
@@ -5941,7 +5979,7 @@ export function useGetSystemUsersStats<TData = Awaited<ReturnType<typeof getSyst
  */
 
 export function useGetSystemUsersStats<TData = Awaited<ReturnType<typeof getSystemUsersStats>>, TError = ErrorType<Unauthorized | HTTPValidationError>>(
-  params?: GetSystemStatsParams,
+  params?: GetSystemUsersStatsParams,
   options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getSystemUsersStats>>, TError, TData>> },
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getGetSystemUsersStatsQueryOptions(params, options)
@@ -9869,55 +9907,6 @@ export const useModifyUser = <
 }
 
 /**
- * @summary Set User Disabled
- */
-export const setUserDisabled = (username: string, userStatusToggle: BodyType<UserStatusToggle>) => {
-  return orvalFetcher<UserResponse>({ url: `/api/user/${username}/disabled`, method: 'PUT', headers: { 'Content-Type': 'application/json' }, data: userStatusToggle })
-}
-
-export const getSetUserDisabledMutationOptions = <
-  TData = Awaited<ReturnType<typeof setUserDisabled>>,
-  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<TData, TError, { username: string; data: BodyType<UserStatusToggle> }, TContext>
-}) => {
-  const mutationKey = ['setUserDisabled']
-  const { mutation: mutationOptions } = options
-    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey } }
-
-  const mutationFn: MutationFunction<Awaited<ReturnType<typeof setUserDisabled>>, { username: string; data: BodyType<UserStatusToggle> }> = props => {
-    const { username, data } = props ?? {}
-
-    return setUserDisabled(username, data)
-  }
-
-  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { username: string; data: BodyType<UserStatusToggle> }, TContext>
-}
-
-export type SetUserDisabledMutationResult = NonNullable<Awaited<ReturnType<typeof setUserDisabled>>>
-export type SetUserDisabledMutationBody = BodyType<UserStatusToggle>
-export type SetUserDisabledMutationError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>
-
-/**
- * @summary Set User Disabled
- */
-export const useSetUserDisabled = <
-  TData = Awaited<ReturnType<typeof setUserDisabled>>,
-  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<TData, TError, { username: string; data: BodyType<UserStatusToggle> }, TContext>
-}): UseMutationResult<TData, TError, { username: string; data: BodyType<UserStatusToggle> }, TContext> => {
-  const mutationOptions = getSetUserDisabledMutationOptions(options)
-
-  return useMutation(mutationOptions)
-}
-
-/**
  * Remove a user
  * @summary Remove User
  */
@@ -10067,55 +10056,6 @@ export const useModifyUserByUsername = <
   mutation?: UseMutationOptions<TData, TError, { username: string; data: BodyType<UserModify> }, TContext>
 }): UseMutationResult<TData, TError, { username: string; data: BodyType<UserModify> }, TContext> => {
   const mutationOptions = getModifyUserByUsernameMutationOptions(options)
-
-  return useMutation(mutationOptions)
-}
-
-/**
- * @summary Set User Disabled By Username
- */
-export const setUserDisabledByUsername = (username: string, userStatusToggle: BodyType<UserStatusToggle>) => {
-  return orvalFetcher<UserResponse>({ url: `/api/user/by-username/${username}/disabled`, method: 'PUT', headers: { 'Content-Type': 'application/json' }, data: userStatusToggle })
-}
-
-export const getSetUserDisabledByUsernameMutationOptions = <
-  TData = Awaited<ReturnType<typeof setUserDisabledByUsername>>,
-  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<TData, TError, { username: string; data: BodyType<UserStatusToggle> }, TContext>
-}) => {
-  const mutationKey = ['setUserDisabledByUsername']
-  const { mutation: mutationOptions } = options
-    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey } }
-
-  const mutationFn: MutationFunction<Awaited<ReturnType<typeof setUserDisabledByUsername>>, { username: string; data: BodyType<UserStatusToggle> }> = props => {
-    const { username, data } = props ?? {}
-
-    return setUserDisabledByUsername(username, data)
-  }
-
-  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { username: string; data: BodyType<UserStatusToggle> }, TContext>
-}
-
-export type SetUserDisabledByUsernameMutationResult = NonNullable<Awaited<ReturnType<typeof setUserDisabledByUsername>>>
-export type SetUserDisabledByUsernameMutationBody = BodyType<UserStatusToggle>
-export type SetUserDisabledByUsernameMutationError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>
-
-/**
- * @summary Set User Disabled By Username
- */
-export const useSetUserDisabledByUsername = <
-  TData = Awaited<ReturnType<typeof setUserDisabledByUsername>>,
-  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<TData, TError, { username: string; data: BodyType<UserStatusToggle> }, TContext>
-}): UseMutationResult<TData, TError, { username: string; data: BodyType<UserStatusToggle> }, TContext> => {
-  const mutationOptions = getSetUserDisabledByUsernameMutationOptions(options)
 
   return useMutation(mutationOptions)
 }
@@ -10281,55 +10221,6 @@ export const useModifyUserById = <
 }
 
 /**
- * @summary Set User Disabled By Id
- */
-export const setUserDisabledById = (userId: number, userStatusToggle: BodyType<UserStatusToggle>) => {
-  return orvalFetcher<UserResponse>({ url: `/api/user/by-id/${userId}/disabled`, method: 'PUT', headers: { 'Content-Type': 'application/json' }, data: userStatusToggle })
-}
-
-export const getSetUserDisabledByIdMutationOptions = <
-  TData = Awaited<ReturnType<typeof setUserDisabledById>>,
-  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<TData, TError, { userId: number; data: BodyType<UserStatusToggle> }, TContext>
-}) => {
-  const mutationKey = ['setUserDisabledById']
-  const { mutation: mutationOptions } = options
-    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey } }
-
-  const mutationFn: MutationFunction<Awaited<ReturnType<typeof setUserDisabledById>>, { userId: number; data: BodyType<UserStatusToggle> }> = props => {
-    const { userId, data } = props ?? {}
-
-    return setUserDisabledById(userId, data)
-  }
-
-  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { userId: number; data: BodyType<UserStatusToggle> }, TContext>
-}
-
-export type SetUserDisabledByIdMutationResult = NonNullable<Awaited<ReturnType<typeof setUserDisabledById>>>
-export type SetUserDisabledByIdMutationBody = BodyType<UserStatusToggle>
-export type SetUserDisabledByIdMutationError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>
-
-/**
- * @summary Set User Disabled By Id
- */
-export const useSetUserDisabledById = <
-  TData = Awaited<ReturnType<typeof setUserDisabledById>>,
-  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<TData, TError, { userId: number; data: BodyType<UserStatusToggle> }, TContext>
-}): UseMutationResult<TData, TError, { userId: number; data: BodyType<UserStatusToggle> }, TContext> => {
-  const mutationOptions = getSetUserDisabledByIdMutationOptions(options)
-
-  return useMutation(mutationOptions)
-}
-
-/**
  * @summary Remove User By Id
  */
 export const removeUserById = (userId: number) => {
@@ -10432,6 +10323,153 @@ export function useGetUserById<TData = Awaited<ReturnType<typeof getUserById>>, 
   query.queryKey = queryOptions.queryKey
 
   return query
+}
+
+/**
+ * @summary Set User Disabled
+ */
+export const setUserDisabled = (username: string, userStatusToggle: BodyType<UserStatusToggle>) => {
+  return orvalFetcher<UserResponse>({ url: `/api/user/${username}/disabled`, method: 'PUT', headers: { 'Content-Type': 'application/json' }, data: userStatusToggle })
+}
+
+export const getSetUserDisabledMutationOptions = <
+  TData = Awaited<ReturnType<typeof setUserDisabled>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { username: string; data: BodyType<UserStatusToggle> }, TContext>
+}) => {
+  const mutationKey = ['setUserDisabled']
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } }
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof setUserDisabled>>, { username: string; data: BodyType<UserStatusToggle> }> = props => {
+    const { username, data } = props ?? {}
+
+    return setUserDisabled(username, data)
+  }
+
+  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { username: string; data: BodyType<UserStatusToggle> }, TContext>
+}
+
+export type SetUserDisabledMutationResult = NonNullable<Awaited<ReturnType<typeof setUserDisabled>>>
+export type SetUserDisabledMutationBody = BodyType<UserStatusToggle>
+export type SetUserDisabledMutationError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>
+
+/**
+ * @summary Set User Disabled
+ */
+export const useSetUserDisabled = <
+  TData = Awaited<ReturnType<typeof setUserDisabled>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { username: string; data: BodyType<UserStatusToggle> }, TContext>
+}): UseMutationResult<TData, TError, { username: string; data: BodyType<UserStatusToggle> }, TContext> => {
+  const mutationOptions = getSetUserDisabledMutationOptions(options)
+
+  return useMutation(mutationOptions)
+}
+
+/**
+ * @summary Set User Disabled By Username
+ */
+export const setUserDisabledByUsername = (username: string, userStatusToggle: BodyType<UserStatusToggle>) => {
+  return orvalFetcher<UserResponse>({ url: `/api/user/by-username/${username}/disabled`, method: 'PUT', headers: { 'Content-Type': 'application/json' }, data: userStatusToggle })
+}
+
+export const getSetUserDisabledByUsernameMutationOptions = <
+  TData = Awaited<ReturnType<typeof setUserDisabledByUsername>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { username: string; data: BodyType<UserStatusToggle> }, TContext>
+}) => {
+  const mutationKey = ['setUserDisabledByUsername']
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } }
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof setUserDisabledByUsername>>, { username: string; data: BodyType<UserStatusToggle> }> = props => {
+    const { username, data } = props ?? {}
+
+    return setUserDisabledByUsername(username, data)
+  }
+
+  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { username: string; data: BodyType<UserStatusToggle> }, TContext>
+}
+
+export type SetUserDisabledByUsernameMutationResult = NonNullable<Awaited<ReturnType<typeof setUserDisabledByUsername>>>
+export type SetUserDisabledByUsernameMutationBody = BodyType<UserStatusToggle>
+export type SetUserDisabledByUsernameMutationError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>
+
+/**
+ * @summary Set User Disabled By Username
+ */
+export const useSetUserDisabledByUsername = <
+  TData = Awaited<ReturnType<typeof setUserDisabledByUsername>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { username: string; data: BodyType<UserStatusToggle> }, TContext>
+}): UseMutationResult<TData, TError, { username: string; data: BodyType<UserStatusToggle> }, TContext> => {
+  const mutationOptions = getSetUserDisabledByUsernameMutationOptions(options)
+
+  return useMutation(mutationOptions)
+}
+
+/**
+ * @summary Set User Disabled By Id
+ */
+export const setUserDisabledById = (userId: number, userStatusToggle: BodyType<UserStatusToggle>) => {
+  return orvalFetcher<UserResponse>({ url: `/api/user/by-id/${userId}/disabled`, method: 'PUT', headers: { 'Content-Type': 'application/json' }, data: userStatusToggle })
+}
+
+export const getSetUserDisabledByIdMutationOptions = <
+  TData = Awaited<ReturnType<typeof setUserDisabledById>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { userId: number; data: BodyType<UserStatusToggle> }, TContext>
+}) => {
+  const mutationKey = ['setUserDisabledById']
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } }
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof setUserDisabledById>>, { userId: number; data: BodyType<UserStatusToggle> }> = props => {
+    const { userId, data } = props ?? {}
+
+    return setUserDisabledById(userId, data)
+  }
+
+  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { userId: number; data: BodyType<UserStatusToggle> }, TContext>
+}
+
+export type SetUserDisabledByIdMutationResult = NonNullable<Awaited<ReturnType<typeof setUserDisabledById>>>
+export type SetUserDisabledByIdMutationBody = BodyType<UserStatusToggle>
+export type SetUserDisabledByIdMutationError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>
+
+/**
+ * @summary Set User Disabled By Id
+ */
+export const useSetUserDisabledById = <
+  TData = Awaited<ReturnType<typeof setUserDisabledById>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { userId: number; data: BodyType<UserStatusToggle> }, TContext>
+}): UseMutationResult<TData, TError, { userId: number; data: BodyType<UserStatusToggle> }, TContext> => {
+  const mutationOptions = getSetUserDisabledByIdMutationOptions(options)
+
+  return useMutation(mutationOptions)
 }
 
 /**
