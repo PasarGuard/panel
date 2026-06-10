@@ -228,6 +228,6 @@ class BaseSubscription:
             "payload": payload,
             "uri": (
                 f"wireguard://{quote(private_key, safe='')}@{address}:{inbound.port}/"
-                f"?{urlencode(uri_payload)}#{quote(validated_remark)}"
+                f"?{urlencode(uri_payload, quote_via=quote)}#{quote(validated_remark)}"
             ),
         }
