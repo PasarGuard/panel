@@ -709,8 +709,6 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
         payload.ech_query_strategy = undefined
         payload.pinned_peer_cert_sha256 = undefined
         payload.verify_peer_cert_by_name = []
-        payload.fragment_settings = undefined
-        payload.noise_settings = undefined
         payload.mux_settings = undefined
         payload.transport_settings = undefined
         if (payload.wireguard_overrides) {
