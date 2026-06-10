@@ -216,7 +216,7 @@ class StandardLinks(BaseSubscription):
                 payload["pqv"] = tls_config.mldsa65_verify
 
         if tls_config.allowinsecure:
-            payload["allowInsecure"] = 1
+            payload["insecure"] = 1
 
     # ========== Protocol Builders ==========
 
@@ -327,9 +327,20 @@ class StandardLinks(BaseSubscription):
         payload["mports"] = quic_params.get("udpHop", {}).get("ports", "")
 
         self._apply_finalmask(payload, "hysteria", inbound)
+        # Remove 'fm' shorthand — obfs/obfs-password already encode Salamander,
+        # and some clients (e.g. v2rayTun) don't parse the 'fm' parameter
+        payload.pop("fm", None)
         if inbound.tls_config.tls in ("tls", "reality"):
             # Use stored TLS config instance
             self._apply_tls_settings(payload, inbound.tls_config, inbound.fragment_settings)
+
+        # Hysteria2 cleanup: when 'insecure' is set, remove pinSHA256/pcs
+        # (clients break when both are present). Also remove 'fp' — QUIC
+        # transport doesn't use TLS fingerprinting.
+        if payload.get("insecure"):
+            payload.pop("pcs", None)
+            payload.pop("pinSHA256", None)
+        payload.pop("fp", None)
 
         payload = self._normalize_and_remove_none_values(payload)
         return f"hysteria2://{settings['auth']}@{address}:{inbound.port}?{urlparse.urlencode(payload)}#{urlparse.quote(remark)}"

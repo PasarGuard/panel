@@ -599,6 +599,12 @@ class XrayConfiguration(BaseSubscription):
         security = inbound.tls_config.tls if inbound.tls_config.tls != "none" else None
         tls_settings = self._apply_tls(inbound.tls_config, security) if security else None
 
+        # Hysteria2: remove allowInsecure (Xray v26+ dropped support) and
+        # fingerprint (QUIC transport doesn't use TLS fingerprinting)
+        if protocol_type == "hysteria" and tls_settings:
+            tls_settings.pop("allowInsecure", None)
+            tls_settings.pop("fingerprint", None)
+
         # Handle fragment/noise - create dialer outbound
         extra_outbounds = []
         sockopt = None
