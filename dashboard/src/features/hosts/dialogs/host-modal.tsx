@@ -254,6 +254,199 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
   const infoPopoverSide = isMobile ? 'bottom' : dir === 'rtl' ? 'left' : 'right'
   const infoPopoverAlign = isMobile ? 'center' : 'start'
 
+  const renderCamouflageSection = () => {
+    return (
+      <AccordionItem className="rounded-sm border px-4 [&_[data-state=closed]]:no-underline [&_[data-state=open]]:no-underline" value="camouflag">
+        <AccordionTrigger>
+          <div className="flex items-center gap-2">
+            <ChevronsLeftRightEllipsis className="h-4 w-4" />
+            <span>{t('hostsDialog.camouflagSettings')}</span>
+          </div>
+        </AccordionTrigger>
+        <AccordionContent className="px-2">
+          <Tabs dir={dir} defaultValue="xray" className="w-full">
+            <TabsList className="mb-4 grid w-full grid-cols-2">
+              <TabsTrigger value="xray">Xray</TabsTrigger>
+              <TabsTrigger value="singbox">SingBox</TabsTrigger>
+            </TabsList>
+            <TabsContent dir={dir} value="xray">
+              <div className="space-y-6">
+                {/* Fragment Settings */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="flex items-center gap-2 text-sm font-medium">
+                      {t('hostsDialog.fragment.title')}
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button type="button" variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent">
+                            <Info className="text-muted-foreground h-4 w-4" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
+                          <div className="space-y-1.5">
+                            <p className="text-muted-foreground text-[11px]">{t('hostsDialog.fragment.info')}</p>
+                            <p className="text-muted-foreground text-[11px]">{t('hostsDialog.fragment.info.attention')}</p>
+                            <p className="text-muted-foreground text-[11px]">{t('hostsDialog.fragment.info.examples')}</p>
+                            <p className="text-muted-foreground overflow-hidden text-[11px]">100-200,10-20,tlshello 100-200,10-20,1-3</p>
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                    </h4>
+                  </div>
+                  <div className="grid grid-cols-3 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="fragment_settings.xray.packets"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t('hostsDialog.fragment.packets')}</FormLabel>
+                          <FormControl>
+                            <Input placeholder={t('hostsDialog.fragment.packetsPlaceholder')} {...field} value={field.value || ''} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="fragment_settings.xray.length"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t('hostsDialog.fragment.length')}</FormLabel>
+                          <FormControl>
+                            <Input placeholder={t('hostsDialog.fragment.lengthPlaceholder')} {...field} value={field.value || ''} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="fragment_settings.xray.interval"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t('hostsDialog.fragment.interval')}</FormLabel>
+                          <FormControl>
+                            <Input placeholder={t('hostsDialog.fragment.intervalPlaceholder')} {...field} value={field.value || ''} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
+
+                {/* Noise Settings */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-sm font-medium">{t('hostsDialog.noise.title')}</h4>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button type="button" variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent">
+                            <Info className="text-muted-foreground h-4 w-4" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
+                          <div className="space-y-1.5">
+                            <p className="text-muted-foreground text-[11px]">{t('hostsDialog.noise.info')}</p>
+                            <p className="text-muted-foreground text-[11px]">{t('hostsDialog.noise.info.attention')}</p>
+                            <p className="text-muted-foreground text-[11px]">{t('hostsDialog.noise.info.examples')}</p>
+                            <p className="text-muted-foreground overflow-hidden text-[11px]">
+                              rand:10-20,10-20 rand:10-20,10-20 &base64:7nQBAAABAAAAAAAABnQtcmluZwZtc2VkZ2UDbmV0AAABAAE=,10-25
+                            </p>
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                    <Button type="button" variant="outline" size="icon" className="h-6 w-6" onClick={addNoiseSetting} title={t('hostsDialog.noise.addNoise')}>
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <div className="space-y-2">
+                    {(selectedNoiseSettings || []).map((_, index) => (
+                      <NoiseItem key={index} index={index} form={form} onRemove={removeNoiseSetting} onDuplicate={duplicateNoiseSetting} t={t} />
+                    ))}
+                    {(selectedNoiseSettings || []).length === 0 && <div className="text-muted-foreground py-8 text-center text-sm">{t('hostsDialog.noise.noNoiseSettings')}</div>}
+                  </div>
+                </div>
+              </div>
+            </TabsContent>
+            <TabsContent dir={dir} value="singbox">
+              <div className="space-y-6">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="flex items-center gap-2 text-sm font-medium">{t('hostsDialog.fragment.title')}</h4>
+                  </div>
+                  <div className="grid grid-cols-1 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="fragment_settings.sing_box.fragment"
+                      render={({ field }) => (
+                        <FormItem className="flex cursor-pointer flex-row items-center justify-between space-y-0 rounded-lg border p-4" onClick={() => field.onChange(!field.value)}>
+                          <div className="space-y-0.5">
+                            <FormLabel className="text-base">{t('hostsDialog.fragment.fragment')}</FormLabel>
+                          </div>
+                          <FormControl>
+                            <div onClick={e => e.stopPropagation()}>
+                              <Switch checked={field.value} onCheckedChange={field.onChange} />
+                            </div>
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                    {form.watch('fragment_settings.sing_box.fragment') && (
+                      <>
+                        <FormField
+                          control={form.control}
+                          name="fragment_settings.sing_box.fragment_fallback_delay"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>{t('hostsDialog.fragment.fallbackDelay')}</FormLabel>
+                              <FormControl>
+                                <Input
+                                  placeholder="e.g. 100"
+                                  {...field}
+                                  value={field.value ? field.value.replace('ms', '') : ''}
+                                  onChange={e => {
+                                    const value = e.target.value
+                                    field.onChange(value)
+                                  }}
+                                  title="Enter a number (e.g., 100)"
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="fragment_settings.sing_box.record_fragment"
+                          render={({ field }) => (
+                            <FormItem className="flex cursor-pointer flex-row items-center justify-between space-y-0 rounded-lg border p-4" onClick={() => field.onChange(!field.value)}>
+                              <div className="space-y-0.5">
+                                <FormLabel className="text-base">{t('hostsDialog.fragment.recordFragment')}</FormLabel>
+                              </div>
+                              <FormControl>
+                                <div onClick={e => e.stopPropagation()}>
+                                  <Switch checked={field.value} onCheckedChange={field.onChange} />
+                                </div>
+                              </FormControl>
+                            </FormItem>
+                          )}
+                        />
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </TabsContent>
+          </Tabs>
+        </AccordionContent>
+      </AccordionItem>
+    )
+  }
+
   const resetFormToDefaults = useCallback(() => {
     form.reset(createHostFormDefaults())
     form.setValue('port', undefined, { shouldDirty: false, shouldTouch: false, shouldValidate: false })
@@ -960,6 +1153,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                       </div>
                     </AccordionContent>
                   </AccordionItem>
+                  {renderCamouflageSection()}
                 </Accordion>
               ) : (
                 <Accordion type="single" collapsible value={openSection} onValueChange={handleAccordionChange} className="!mt-0 mb-6 flex w-full flex-col gap-y-6">
@@ -2575,195 +2769,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                       </div>
                     </AccordionContent>
                   </AccordionItem>
-
-                  <AccordionItem className="rounded-sm border px-4 [&_[data-state=closed]]:no-underline [&_[data-state=open]]:no-underline" value="camouflag">
-                    <AccordionTrigger>
-                      <div className="flex items-center gap-2">
-                        <ChevronsLeftRightEllipsis className="h-4 w-4" />
-                        <span>{t('hostsDialog.camouflagSettings')}</span>
-                      </div>
-                    </AccordionTrigger>
-                    <AccordionContent className="px-2">
-                      <Tabs dir={dir} defaultValue="xray" className="w-full">
-                        <TabsList className="mb-4 grid w-full grid-cols-2">
-                          <TabsTrigger value="xray">Xray</TabsTrigger>
-                          <TabsTrigger value="singbox">SingBox</TabsTrigger>
-                        </TabsList>
-                        <TabsContent dir={dir} value="xray">
-                          <div className="space-y-6">
-                            {/* Fragment Settings */}
-                            <div className="space-y-4">
-                              <div className="flex items-center justify-between">
-                                <h4 className="flex items-center gap-2 text-sm font-medium">
-                                  {t('hostsDialog.fragment.title')}
-                                  <Popover>
-                                    <PopoverTrigger asChild>
-                                      <Button type="button" variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent">
-                                        <Info className="text-muted-foreground h-4 w-4" />
-                                      </Button>
-                                    </PopoverTrigger>
-                                    <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
-                                      <div className="space-y-1.5">
-                                        <p className="text-muted-foreground text-[11px]">{t('hostsDialog.fragment.info')}</p>
-                                        <p className="text-muted-foreground text-[11px]">{t('hostsDialog.fragment.info.attention')}</p>
-                                        <p className="text-muted-foreground text-[11px]">{t('hostsDialog.fragment.info.examples')}</p>
-                                        <p className="text-muted-foreground overflow-hidden text-[11px]">100-200,10-20,tlshello 100-200,10-20,1-3</p>
-                                      </div>
-                                    </PopoverContent>
-                                  </Popover>
-                                </h4>
-                              </div>
-                              <div className="grid grid-cols-3 gap-4">
-                                <FormField
-                                  control={form.control}
-                                  name="fragment_settings.xray.packets"
-                                  render={({ field }) => (
-                                    <FormItem>
-                                      <FormLabel>{t('hostsDialog.fragment.packets')}</FormLabel>
-                                      <FormControl>
-                                        <Input placeholder={t('hostsDialog.fragment.packetsPlaceholder')} {...field} value={field.value || ''} />
-                                      </FormControl>
-                                      <FormMessage />
-                                    </FormItem>
-                                  )}
-                                />
-                                <FormField
-                                  control={form.control}
-                                  name="fragment_settings.xray.length"
-                                  render={({ field }) => (
-                                    <FormItem>
-                                      <FormLabel>{t('hostsDialog.fragment.length')}</FormLabel>
-                                      <FormControl>
-                                        <Input placeholder={t('hostsDialog.fragment.lengthPlaceholder')} {...field} value={field.value || ''} />
-                                      </FormControl>
-                                      <FormMessage />
-                                    </FormItem>
-                                  )}
-                                />
-                                <FormField
-                                  control={form.control}
-                                  name="fragment_settings.xray.interval"
-                                  render={({ field }) => (
-                                    <FormItem>
-                                      <FormLabel>{t('hostsDialog.fragment.interval')}</FormLabel>
-                                      <FormControl>
-                                        <Input placeholder={t('hostsDialog.fragment.intervalPlaceholder')} {...field} value={field.value || ''} />
-                                      </FormControl>
-                                      <FormMessage />
-                                    </FormItem>
-                                  )}
-                                />
-                              </div>
-                            </div>
-
-                            {/* Noise Settings */}
-                            <div className="space-y-2">
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                  <h4 className="text-sm font-medium">{t('hostsDialog.noise.title')}</h4>
-                                  <Popover>
-                                    <PopoverTrigger asChild>
-                                      <Button type="button" variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent">
-                                        <Info className="text-muted-foreground h-4 w-4" />
-                                      </Button>
-                                    </PopoverTrigger>
-                                    <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
-                                      <div className="space-y-1.5">
-                                        <p className="text-muted-foreground text-[11px]">{t('hostsDialog.noise.info')}</p>
-                                        <p className="text-muted-foreground text-[11px]">{t('hostsDialog.noise.info.attention')}</p>
-                                        <p className="text-muted-foreground text-[11px]">{t('hostsDialog.noise.info.examples')}</p>
-                                        <p className="text-muted-foreground overflow-hidden text-[11px]">
-                                          rand:10-20,10-20 rand:10-20,10-20 &base64:7nQBAAABAAAAAAAABnQtcmluZwZtc2VkZ2UDbmV0AAABAAE=,10-25
-                                        </p>
-                                      </div>
-                                    </PopoverContent>
-                                  </Popover>
-                                </div>
-                                <Button type="button" variant="outline" size="icon" className="h-6 w-6" onClick={addNoiseSetting} title={t('hostsDialog.noise.addNoise')}>
-                                  <Plus className="h-4 w-4" />
-                                </Button>
-                              </div>
-                              <div className="space-y-2">
-                                {(selectedNoiseSettings || []).map((_, index) => (
-                                  <NoiseItem key={index} index={index} form={form} onRemove={removeNoiseSetting} onDuplicate={duplicateNoiseSetting} t={t} />
-                                ))}
-                                {(selectedNoiseSettings || []).length === 0 && <div className="text-muted-foreground py-8 text-center text-sm">{t('hostsDialog.noise.noNoiseSettings')}</div>}
-                              </div>
-                            </div>
-                          </div>
-                        </TabsContent>
-                        <TabsContent dir={dir} value="singbox">
-                          <div className="space-y-6">
-                            <div className="space-y-4">
-                              <div className="flex items-center justify-between">
-                                <h4 className="flex items-center gap-2 text-sm font-medium">{t('hostsDialog.fragment.title')}</h4>
-                              </div>
-                              <div className="grid grid-cols-1 gap-4">
-                                <FormField
-                                  control={form.control}
-                                  name="fragment_settings.sing_box.fragment"
-                                  render={({ field }) => (
-                                    <FormItem className="flex cursor-pointer flex-row items-center justify-between space-y-0 rounded-lg border p-4" onClick={() => field.onChange(!field.value)}>
-                                      <div className="space-y-0.5">
-                                        <FormLabel className="text-base">{t('hostsDialog.fragment.fragment')}</FormLabel>
-                                      </div>
-                                      <FormControl>
-                                        <div onClick={e => e.stopPropagation()}>
-                                          <Switch checked={field.value} onCheckedChange={field.onChange} />
-                                        </div>
-                                      </FormControl>
-                                    </FormItem>
-                                  )}
-                                />
-                                {form.watch('fragment_settings.sing_box.fragment') && (
-                                  <>
-                                    <FormField
-                                      control={form.control}
-                                      name="fragment_settings.sing_box.fragment_fallback_delay"
-                                      render={({ field }) => (
-                                        <FormItem>
-                                          <FormLabel>{t('hostsDialog.fragment.fallbackDelay')}</FormLabel>
-                                          <FormControl>
-                                            <Input
-                                              placeholder="e.g. 100"
-                                              {...field}
-                                              value={field.value ? field.value.replace('ms', '') : ''}
-                                              onChange={e => {
-                                                const value = e.target.value
-                                                field.onChange(value)
-                                              }}
-                                              title="Enter a number (e.g., 100)"
-                                            />
-                                          </FormControl>
-                                          <FormMessage />
-                                        </FormItem>
-                                      )}
-                                    />
-                                    <FormField
-                                      control={form.control}
-                                      name="fragment_settings.sing_box.record_fragment"
-                                      render={({ field }) => (
-                                        <FormItem className="flex cursor-pointer flex-row items-center justify-between space-y-0 rounded-lg border p-4" onClick={() => field.onChange(!field.value)}>
-                                          <div className="space-y-0.5">
-                                            <FormLabel className="text-base">{t('hostsDialog.fragment.recordFragment')}</FormLabel>
-                                          </div>
-                                          <FormControl>
-                                            <div onClick={e => e.stopPropagation()}>
-                                              <Switch checked={field.value} onCheckedChange={field.onChange} />
-                                            </div>
-                                          </FormControl>
-                                        </FormItem>
-                                      )}
-                                    />
-                                  </>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        </TabsContent>
-                      </Tabs>
-                    </AccordionContent>
-                  </AccordionItem>
+                  {renderCamouflageSection()}
                   <AccordionItem className="rounded-sm border px-4 [&_[data-state=closed]]:no-underline [&_[data-state=open]]:no-underline" value="mux">
                     <AccordionTrigger>
                       <div className="flex items-center gap-2">
