@@ -104,6 +104,8 @@ async def _prepare_subscription_inbound_data(
             wireguard_mtu=wg_over.mtu,
             wireguard_reserved=reserved,
             wireguard_dns=dns,
+            fragment_settings=host.fragment_settings.model_dump() if host.fragment_settings else None,
+            noise_settings=host.noise_settings.model_dump() if host.noise_settings else None,
             priority=host.priority,
             status=list(host.status) if host.status else None,
             subscription_templates=host.subscription_templates.model_dump(exclude_none=True)

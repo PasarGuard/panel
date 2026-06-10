@@ -86,11 +86,10 @@ class XrayConfiguration(BaseSubscription):
 
         # Handle different return types
         if isinstance(result, tuple):
-            # VMess, VLESS, Trojan return (main_outbound, extra_outbounds_list)
+            # VMess, VLESS, Trojan, Shadowsocks, WireGuard return (main_outbound, extra_outbounds_list)
             main_outbound, extra_outbounds = result
             all_outbounds = [main_outbound] + extra_outbounds
         else:
-            # Shadowsocks returns just a dict
             all_outbounds = [result]
 
         self.add_config(remarks=remark, outbounds=all_outbounds, template_content=template_content)
@@ -445,7 +444,7 @@ class XrayConfiguration(BaseSubscription):
             user_settings=user_settings,
         )
 
-    def _build_shadowsocks(self, address: str, inbound: SubscriptionInboundData, settings: dict) -> dict:
+    def _build_shadowsocks(self, address: str, inbound: SubscriptionInboundData, settings: dict) -> tuple:
         """Build Shadowsocks outbound"""
         method, password = self.detect_shadowsocks_2022(
             inbound.is_2022,
@@ -470,12 +469,23 @@ class XrayConfiguration(BaseSubscription):
             },
         }
 
-        if inbound.finalmask is not None:
+        # Handle fragment/noise - create dialer outbound
+        extra_outbounds = []
+        sockopt = None
+        if inbound.fragment_settings or inbound.noise_settings:
+            dialer_outbound = self.make_dialer_outbound(inbound.fragment_settings, inbound.noise_settings, "dialer")
+            if dialer_outbound:
+                extra_outbounds.append(dialer_outbound)
+                sockopt = {"dialerProxy": "dialer"}
+
+        if sockopt or inbound.finalmask:
             outbound["streamSettings"] = self._stream_setting_config(
-                network=inbound.network, finalmask=inbound.finalmask
+                network=inbound.network,
+                sockopt=sockopt,
+                finalmask=inbound.finalmask,
             )
 
-        return self._normalize_and_remove_none_values(outbound)
+        return self._normalize_and_remove_none_values(outbound), extra_outbounds
 
     def _build_hysteria(self, address: str, inbound: SubscriptionInboundData, settings: dict) -> tuple:
         """Build Hysteria outbound - returns (main_outbound, extra_outbounds_list)"""
@@ -486,7 +496,7 @@ class XrayConfiguration(BaseSubscription):
             user_settings={"auth": str(settings["auth"])},
         )
 
-    def _build_wireguard(self, address: str, inbound: SubscriptionInboundData, settings: dict) -> dict:
+    def _build_wireguard(self, address: str, inbound: SubscriptionInboundData, settings: dict) -> tuple:
         """Build WireGuard outbound for Xray subscriptions."""
         private_key = settings.get("private_key", "")
         peer_ips = list(settings.get("peer_ips") or [])
@@ -515,7 +525,23 @@ class XrayConfiguration(BaseSubscription):
             },
         }
 
-        return self._normalize_and_remove_none_values(outbound)
+        # Handle fragment/noise - create dialer outbound
+        extra_outbounds = []
+        sockopt = None
+        if inbound.fragment_settings or inbound.noise_settings:
+            dialer_outbound = self.make_dialer_outbound(inbound.fragment_settings, inbound.noise_settings, "dialer")
+            if dialer_outbound:
+                extra_outbounds.append(dialer_outbound)
+                sockopt = {"dialerProxy": "dialer"}
+
+        # Use streamSettings for sockopt and finalmask
+        if sockopt or inbound.finalmask:
+            outbound["streamSettings"] = self._stream_setting_config(
+                sockopt=sockopt,
+                finalmask=inbound.finalmask,
+            )
+
+        return self._normalize_and_remove_none_values(outbound), extra_outbounds
 
     def _build_outbound(
         self,
