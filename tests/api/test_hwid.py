@@ -169,7 +169,9 @@ def test_hwid_respects_admin_role_policy(access_token):
         assert use_global_sub_response.status_code == status.HTTP_200_OK
 
         disabled_hwids = client.get(f"/api/user/{user_disabled['id']}/hwids", headers=auth_headers(access_token)).json()
-        use_global_hwids = client.get(f"/api/user/{user_use_global['id']}/hwids", headers=auth_headers(access_token)).json()
+        use_global_hwids = client.get(
+            f"/api/user/{user_use_global['id']}/hwids", headers=auth_headers(access_token)
+        ).json()
 
         assert disabled_hwids["count"] == 0
         assert use_global_hwids["count"] == 1

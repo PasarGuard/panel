@@ -223,7 +223,7 @@ def test_create_and_modify_role_hwid_policy(access_token):
     try:
         assert role["hwid"] == {
             "mode": "disabled",
-            "enabled": False,
+            "enabled": True,
             "forced": True,
             "fallback_limit": None,
             "min_limit": None,

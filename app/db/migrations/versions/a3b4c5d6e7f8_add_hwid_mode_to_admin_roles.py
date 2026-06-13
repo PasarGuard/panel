@@ -56,11 +56,16 @@ def _upgrade_sqlite():
 
 
 def _upgrade_postgresql():
-    """PostgreSQL: use JSONB merge operator."""
+    """PostgreSQL: use jsonb_set to safely add mode field."""
     op.execute(
         sa.text(
-            "UPDATE admin_roles SET hwid = hwid || '{\"mode\": \"use_global\"}'::jsonb "
-            "WHERE hwid->>'mode' IS NULL"
+            "UPDATE admin_roles "
+            "SET hwid = jsonb_set("
+            "  COALESCE(hwid::jsonb, '{}'::jsonb), "
+            "  '{mode}', "
+            "  '\"use_global\"'::jsonb"
+            ") "
+            "WHERE (hwid->>'mode') IS NULL"
         )
     )
 
@@ -89,7 +94,11 @@ def _downgrade_sqlite():
 
 def _downgrade_postgresql():
     op.execute(
-        sa.text("UPDATE admin_roles SET hwid = hwid - 'mode'")
+        sa.text(
+            "UPDATE admin_roles "
+            "SET hwid = COALESCE(hwid::jsonb, '{}'::jsonb) - 'mode' "
+            "WHERE (hwid->>'mode') IS NOT NULL"
+        )
     )
 
 

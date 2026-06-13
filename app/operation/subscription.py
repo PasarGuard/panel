@@ -282,7 +282,7 @@ class SubscriptionOperation(BaseOperation):
         db: AsyncSession,
         user_id: int,
         user_hwid_limit: int | None,
-        role_hwid_settings: HWIDSettings | None,
+        role_hwid_settings: HWIDSettings | dict | None,
         x_hwid: str | None,
         x_device_os: str | None,
         x_ver_os: str | None,
