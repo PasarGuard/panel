@@ -92,7 +92,7 @@ export function useVersionCheck(currentVersion: string | null, options: UseVersi
     gcTime: CACHE_DURATION * 2,
     refetchOnWindowFocus: false,
     refetchOnMount: false,
-    refetchInterval: CACHE_DURATION,
+    refetchInterval: false,
     retry: 1,
   })
 

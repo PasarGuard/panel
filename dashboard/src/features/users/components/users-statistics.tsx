@@ -1,4 +1,5 @@
 import useDirDetection from '@/hooks/use-dir-detection'
+import { useDocumentVisibility } from '@/hooks/use-document-visibility'
 import { cn } from '@/lib/utils'
 import { type SystemUsersStats, useGetSystemUsersStats } from '@/service/api'
 import { UserCheck, Users } from 'lucide-react'
@@ -10,12 +11,13 @@ import { CountUp } from '@/components/ui/count-up'
 const UsersStatistics = () => {
   const { t } = useTranslation()
   const dir = useDirDetection()
+  const isTabVisible = useDocumentVisibility()
   const [prevData, setPrevData] = useState<SystemUsersStats | null>(null)
   const [isIncreased, setIsIncreased] = useState<Record<string, boolean>>({})
 
   const { data } = useGetSystemUsersStats(undefined, {
     query: {
-      refetchInterval: 5000,
+      refetchInterval: isTabVisible ? 5000 : 60000,
     },
   })
 

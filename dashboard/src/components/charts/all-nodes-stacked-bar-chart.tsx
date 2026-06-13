@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { type ChartConfig, ChartContainer, ChartTooltip } from '@/components/ui/chart'
 import { useTranslation } from 'react-i18next'
 import useDirDetection from '@/hooks/use-dir-detection'
+import { useDocumentVisibility } from '@/hooks/use-document-visibility'
 import { useChartViewType } from '@/hooks/use-chart-view-type'
 import { Period, type NodeUsageStat, type UserUsageStat, useGetAdminUsageById, useGetAdminUsageByUsername, useGetNodesSimple, type NodeSimple, useGetUsage } from '@/service/api'
 import { formatBytes, formatGigabytes } from '@/utils/formatByte'
@@ -84,8 +85,15 @@ const getStackedNodeRadius = (row: NodeChartDataPoint, nodeName: string, nodeLis
   return [isTopSegment ? STACKED_BAR_RADIUS : 0, isTopSegment ? STACKED_BAR_RADIUS : 0, isBottomSegment ? STACKED_BAR_RADIUS : 0, isBottomSegment ? STACKED_BAR_RADIUS : 0]
 }
 
-function CustomTooltip({ active, payload, chartConfig, dir, period }: TooltipProps<number, string> & { chartConfig?: ChartConfig; dir: string; period: Period }) {
-  const { t, i18n } = useTranslation()
+function CustomTooltip(
+  { active, payload, chartConfig, dir, period, t, locale }: TooltipProps<number, string> & {
+    chartConfig?: ChartConfig
+    dir: string
+    period: Period
+    t: (key: string, options?: Record<string, unknown>) => string
+    locale: string
+  },
+) {
   const [isMobile, setIsMobile] = useState(false)
 
   useEffect(() => {
@@ -100,7 +108,7 @@ function CustomTooltip({ active, payload, chartConfig, dir, period }: TooltipPro
   if (!active || !payload || !payload.length) return null
 
   const data = payload[0].payload as NodeChartDataPoint
-  const formattedDate = data._period_start ? formatTooltipDate(data._period_start, period, i18n.language) : String(data.time || '')
+  const formattedDate = data._period_start ? formatTooltipDate(data._period_start, period, locale) : String(data.time || '')
 
   const getNodeColor = (nodeName: string) => chartConfig?.[nodeName]?.color || 'hsl(var(--chart-1))'
   const isRTL = dir === 'rtl'
@@ -217,9 +225,11 @@ export function AllNodesStackedBarChart() {
   const { t, i18n } = useTranslation()
   const dir = useDirDetection()
   const chartViewType = useChartViewType()
+  const isTabVisible = useDocumentVisibility()
   const { data: nodesResponse } = useGetNodesSimple({ all: true }, { query: { enabled: true } })
   const { resolvedTheme } = useTheme()
   const shouldUseNodeUsage = selectedAdmin === 'all'
+  const pollingInterval = isTabVisible ? 1000 * 60 * 15 : 1000 * 60 * 60
 
   const handleModalNavigate = (index: number) => {
     if (!chartData[index]) return
@@ -285,7 +295,7 @@ export function AllNodesStackedBarChart() {
   } = useGetUsage(usageParams, {
     query: {
       enabled: shouldUseNodeUsage,
-      refetchInterval: 1000 * 60 * 5,
+      refetchInterval: pollingInterval,
     },
   })
 
@@ -296,7 +306,7 @@ export function AllNodesStackedBarChart() {
   } = useGetAdminUsageById(selectedAdminId ?? 0, usageParams, {
     query: {
       enabled: !shouldUseNodeUsage && selectedAdmin !== 'all' && selectedAdminId != null,
-      refetchInterval: 1000 * 60 * 5,
+      refetchInterval: pollingInterval,
     },
   })
 
@@ -307,7 +317,7 @@ export function AllNodesStackedBarChart() {
   } = useGetAdminUsageByUsername(selectedAdmin, usageParams, {
     query: {
       enabled: !shouldUseNodeUsage && selectedAdmin !== 'all' && selectedAdminId == null,
-      refetchInterval: 1000 * 60 * 5,
+      refetchInterval: pollingInterval,
     },
   })
 
@@ -623,7 +633,7 @@ export function AllNodesStackedBarChart() {
                         width={32}
                         tickMargin={2}
                       />
-                      <ChartTooltip cursor={false} content={props => <CustomTooltip {...(props as TooltipProps<number, string>)} chartConfig={chartConfig} dir={dir} period={activePeriod} />} />
+                      <ChartTooltip cursor={false} content={props => <CustomTooltip {...(props as TooltipProps<number, string>)} chartConfig={chartConfig} dir={dir} period={activePeriod} t={t} locale={i18n.language} />} />
                       {nodeList.map((node, index) => (
                         <Area
                           key={node.id}
@@ -656,7 +666,7 @@ export function AllNodesStackedBarChart() {
                         width={32}
                         tickMargin={2}
                       />
-                      <ChartTooltip cursor={false} content={props => <CustomTooltip {...(props as TooltipProps<number, string>)} chartConfig={chartConfig} dir={dir} period={activePeriod} />} />
+                      <ChartTooltip cursor={false} content={props => <CustomTooltip {...(props as TooltipProps<number, string>)} chartConfig={chartConfig} dir={dir} period={activePeriod} t={t} locale={i18n.language} />} />
                       {nodeList.map((node, index) => (
                         <Bar key={node.id} dataKey={node.name} stackId="a" fill={chartConfig[node.name]?.color || `hsl(var(--chart-${(index % 5) + 1}))`} radius={SQUARE_STACK_RADIUS} cursor="pointer">
                           {chartData.map(row => (
