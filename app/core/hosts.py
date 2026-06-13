@@ -418,7 +418,7 @@ class HostManager:
 
     async def _snapshot_state(self) -> dict[int, dict]:
         async with self._lock:
-            return deepcopy(self._hosts)
+            return dict(self._hosts)
 
     async def _persist_state(self):
         if not self._kv:
@@ -448,7 +448,7 @@ class HostManager:
             # Deserialize state using JSON
             try:
                 cached_state = json.loads(value.decode("utf-8"))
-            except (json.JSONDecodeError, UnicodeDecodeError):
+            except json.JSONDecodeError, UnicodeDecodeError:
                 self._logger.warning("Failed to decode HostManager state as JSON, ignoring...")
                 return False
 
@@ -461,7 +461,7 @@ class HostManager:
                         converted_state[host_id] = SubscriptionInboundData.model_validate(host_data)
                     else:
                         converted_state[host_id] = host_data
-                except (ValueError, TypeError):
+                except ValueError, TypeError:
                     self._logger.warning(f"Failed to convert host data for host ID {host_id_str}: {host_data}")
                     continue
 

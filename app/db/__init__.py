@@ -9,11 +9,14 @@ from .models import JWT, System, User  # noqa
 _INDEXES = [
     "CREATE INDEX IF NOT EXISTS ix_users_status ON users (status)",
     "CREATE INDEX IF NOT EXISTS ix_users_admin_id ON users (admin_id)",
+    "CREATE INDEX IF NOT EXISTS ix_users_status_expire ON users (status, expire)",
+    "CREATE INDEX IF NOT EXISTS ix_users_status_used_traffic ON users (status, used_traffic)",
     "CREATE INDEX IF NOT EXISTS ix_nodes_status ON nodes (status)",
     "CREATE INDEX IF NOT EXISTS ix_notification_reminders_user_id ON notification_reminders (user_id)",
     "CREATE INDEX IF NOT EXISTS ix_hosts_inbound_tag ON hosts (inbound_tag)",
     "CREATE INDEX IF NOT EXISTS ix_hosts_is_disabled ON hosts (is_disabled)",
     "CREATE INDEX IF NOT EXISTS ix_temp_keys_action ON temp_keys (action)",
+    "CREATE INDEX IF NOT EXISTS ix_node_stats_node_id_created_at ON node_stats (node_id, created_at)",
 ]
 
 

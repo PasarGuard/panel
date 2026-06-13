@@ -2,7 +2,6 @@ import base64
 import random
 import secrets
 from collections import defaultdict
-from copy import deepcopy
 from datetime import datetime as dt, timedelta, timezone
 
 from jdatetime import date as jd
@@ -270,8 +269,8 @@ async def process_host(
     if inbound.use_sni_as_host and sni:
         req_host = sni
 
-    # Create a copy of the inbound data with selected random values
-    inbound_copy = deepcopy(inbound)
+    # Create a shallow copy of the inbound data with selected random values
+    inbound_copy = inbound.model_copy()
 
     # Update TLS config with selected values
     inbound_copy.tls_config.sni = sni

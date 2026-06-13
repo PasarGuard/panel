@@ -1,5 +1,3 @@
-import copy
-
 from app.notification.client import send_discord_webhook
 from app.notification.helpers import get_discord_webhook
 from app.models.core import CoreResponse
@@ -15,7 +13,7 @@ ENTITY = "core"
 
 async def create_core(core: CoreResponse, by: str):
     name, exclude_inbound_tags, fallbacks_inbound_tags, by = escape_md_core(core, by)
-    message = copy.deepcopy(messages.CREATE_CORE)
+    message = {**messages.CREATE_CORE, "footer": dict(messages.CREATE_CORE["footer"])}
     message["description"] = message["description"].format(
         name=name,
         exclude_inbound_tags=exclude_inbound_tags,
@@ -35,7 +33,7 @@ async def create_core(core: CoreResponse, by: str):
 
 async def modify_core(core: CoreResponse, by: str):
     name, exclude_inbound_tags, fallbacks_inbound_tags, by = escape_md_core(core, by)
-    message = copy.deepcopy(messages.MODIFY_CORE)
+    message = {**messages.MODIFY_CORE, "footer": dict(messages.MODIFY_CORE["footer"])}
     message["description"] = message["description"].format(
         name=name,
         exclude_inbound_tags=exclude_inbound_tags,
@@ -55,7 +53,7 @@ async def modify_core(core: CoreResponse, by: str):
 
 async def remove_core(core_id: int, by: str):
     by = escape_ds_markdown(by)
-    message = copy.deepcopy(messages.REMOVE_CORE)
+    message = {**messages.REMOVE_CORE, "footer": dict(messages.REMOVE_CORE["footer"])}
     message["description"] = message["description"].format(id=core_id)
     message["footer"]["text"] = message["footer"]["text"].format(by=by)
     data = {
