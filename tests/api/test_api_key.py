@@ -28,6 +28,72 @@ def _api_key_state(key_id: int) -> tuple[str | None, str]:
     return asyncio.run(_get_state())
 
 
+def test_api_key_authenticates_protected_requests(access_token):
+    admin = create_admin(access_token, role_id=2)
+    admin_token = _login(admin["username"], admin["password"])
+
+    try:
+        create_response = client.post(
+            "/api/api_key",
+            headers=auth_headers(admin_token),
+            json={"name": unique_name("api_key"), "role_id": 2},
+        )
+        assert create_response.status_code == status.HTTP_201_CREATED
+        created = create_response.json()
+        raw_api_key = created["api_key"]
+
+        current_admin_response = client.get("/api/admin", headers={"X-Api-Key": raw_api_key})
+        assert current_admin_response.status_code == status.HTTP_200_OK
+        assert current_admin_response.json()["username"] == admin["username"]
+
+        list_response = client.get("/api/api_keys", headers={"X-Api-Key": raw_api_key})
+        assert list_response.status_code == status.HTTP_200_OK
+        listed = list_response.json()
+        assert listed["total"] >= 1
+        assert any(api_key["id"] == created["id"] for api_key in listed["api_keys"])
+
+        detail_response = client.get(
+            f"/api/api_key/{created['id']}",
+            headers={"Authorization": f"ApiKey {raw_api_key}"},
+        )
+        assert detail_response.status_code == status.HTTP_200_OK
+        detail = detail_response.json()
+        assert detail["id"] == created["id"]
+        assert detail["admin_id"] == admin["id"]
+        assert "api_key" not in detail
+
+        username = unique_name("api_key_user")
+        create_user_response = client.post(
+            "/api/user",
+            headers={"X-Api-Key": raw_api_key},
+            json={
+                "username": username,
+                "proxy_settings": {},
+                "data_limit": 1024 * 1024,
+                "data_limit_reset_strategy": "no_reset",
+                "status": "active",
+            },
+        )
+        assert create_user_response.status_code == status.HTTP_201_CREATED
+        user = create_user_response.json()
+        assert user["username"] == username
+        assert user["admin"]["username"] == admin["username"]
+
+        delete_user_response = client.delete(
+            f"/api/user/{username}",
+            headers={"Authorization": f"ApiKey {raw_api_key}"},
+        )
+        assert delete_user_response.status_code == status.HTTP_204_NO_CONTENT
+
+        delete_again_response = client.delete(
+            f"/api/user/{username}",
+            headers={"Authorization": f"ApiKey {raw_api_key}"},
+        )
+        assert delete_again_response.status_code == status.HTTP_404_NOT_FOUND
+    finally:
+        delete_admin(access_token, admin["username"])
+
+
 def test_revoke_api_key_rotates_secret_and_blocks_old_key(access_token):
     admin = create_admin(access_token, role_id=2)
     admin_token = _login(admin["username"], admin["password"])

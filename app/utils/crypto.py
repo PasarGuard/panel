@@ -1,8 +1,7 @@
 import base64
-import hashlib
 import binascii
+import hashlib
 import hmac
-import os
 
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
@@ -103,9 +102,7 @@ def generate_wireguard_keypair() -> tuple[str, str]:
 
 
 API_KEY_HASH_VERSION = "v1"
-API_KEY_HMAC_ALGORITHM = "hmac_sha256"
-API_KEY_PBKDF2_ALGORITHM = "pbkdf2_sha256"
-API_KEY_HASH_ITERATIONS = 310000
+API_KEY_SHA256_ALGORITHM = "sha256"
 API_KEY_LOOKUP_BYTES = 16
 
 
@@ -114,55 +111,27 @@ def api_key_lookup_id(raw_api_key: str) -> str:
     return base64.urlsafe_b64encode(digest).decode("ascii").rstrip("=")
 
 
-def hash_api_key(raw_api_key: str, pepper: str = "") -> str:
-    salt = os.urandom(16)
-    salt_b64 = base64.b64encode(salt).decode("ascii")
+def hash_api_key(raw_api_key: str) -> str:
     lookup_id = api_key_lookup_id(raw_api_key)
 
-    # Use HMAC-SHA256
-    key = pepper.encode("utf-8") + salt
-    h = hmac.new(key, raw_api_key.encode("utf-8"), hashlib.sha256)
-    hash_hex = h.hexdigest()
-    return f"{API_KEY_HASH_VERSION}${lookup_id}${API_KEY_HMAC_ALGORITHM}${salt_b64}${hash_hex}"
+    hash_hex = _sha256_api_key_digest(raw_api_key)
+    return f"{API_KEY_HASH_VERSION}${lookup_id}${API_KEY_SHA256_ALGORITHM}${hash_hex}"
 
 
-def verify_api_key(raw_api_key: str, stored_hash: str, pepper: str = "") -> bool:
+def _sha256_api_key_digest(raw_api_key: str) -> str:
+    return hashlib.sha256(raw_api_key.encode("utf-8")).hexdigest()
+
+
+def verify_api_key(raw_api_key: str, stored_hash: str) -> bool:
     parts = stored_hash.split("$")
 
-    # Handle HMAC-SHA256 (regardless of v1/v2 prefix as long as algorithm matches)
-    if len(parts) == 5 and parts[2] == API_KEY_HMAC_ALGORITHM:
-        _, lookup_id, algorithm, salt_b64, hash_hex = parts
-        if not hmac.compare_digest(lookup_id, api_key_lookup_id(raw_api_key)):
-            return False
-        try:
-            salt = base64.b64decode(salt_b64, validate=True)
-        except ValueError, binascii.Error:
-            return False
-
-        key = pepper.encode("utf-8") + salt
-        h = hmac.new(key, raw_api_key.encode("utf-8"), hashlib.sha256)
-        return hmac.compare_digest(h.hexdigest(), hash_hex)
-
-    # Handle PBKDF2-SHA256 (Legacy)
-    lookup_id: str | None = None
-    if len(parts) == 6:
-        _, lookup_id, algorithm, iterations_raw, salt_b64, dk_b64 = parts
-    elif len(parts) == 4:
-        algorithm, iterations_raw, salt_b64, dk_b64 = parts
-    else:
+    if len(parts) != 4:
         return False
 
-    if algorithm != API_KEY_PBKDF2_ALGORITHM:
+    version, lookup_id, algorithm, hash_hex = parts
+    if version != API_KEY_HASH_VERSION or algorithm != API_KEY_SHA256_ALGORITHM:
         return False
-    if lookup_id is not None and not hmac.compare_digest(lookup_id, api_key_lookup_id(raw_api_key)):
-        return False
-
-    try:
-        iterations = int(iterations_raw)
-        salt = base64.b64decode(salt_b64, validate=True)
-        expected_key = base64.b64decode(dk_b64, validate=True)
-    except ValueError, binascii.Error:
+    if not hmac.compare_digest(lookup_id, api_key_lookup_id(raw_api_key)):
         return False
 
-    derived_key = hashlib.pbkdf2_hmac("sha256", raw_api_key.encode("utf-8"), salt, iterations)
-    return hmac.compare_digest(derived_key, expected_key)
+    return hmac.compare_digest(_sha256_api_key_digest(raw_api_key), hash_hex)

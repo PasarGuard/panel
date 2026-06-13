@@ -1,14 +1,13 @@
 import uuid
 from datetime import datetime as dt, timezone as tz
 
-from sqlalchemy import func, or_, select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.db.models import Admin, AdminStatus, APIKey, APIKeyStatus
 from app.models.api_key import APIKeyCreate
 from app.utils.crypto import api_key_lookup_id, hash_api_key, verify_api_key
-from app.utils.jwt import get_secret_key
 
 
 async def create_api_key(
@@ -17,13 +16,12 @@ async def create_api_key(
     model: APIKeyCreate,
 ) -> tuple[str, APIKey]:
     raw_key = str(uuid.uuid4())
-    pepper = await get_secret_key()
     db_key = APIKey(
         admin_id=admin_id,
         role_id=model.role_id,
         name=model.name,
         note=model.note,
-        key_hash=hash_api_key(raw_key, pepper=pepper),
+        key_hash=hash_api_key(raw_key),
         expire_date=model.expire_date,
     )
     db.add(db_key)
@@ -33,18 +31,12 @@ async def create_api_key(
 
 
 async def get_api_key_by_raw_key(db: AsyncSession, raw_api_key: str) -> APIKey | None:
-    pepper = await get_secret_key()
     lookup_id = api_key_lookup_id(raw_api_key)
 
     stmt = (
         select(APIKey)
         .where(
-            or_(
-                APIKey.key_hash.startswith(f"v2${lookup_id}$"),
-                APIKey.key_hash.startswith(f"v1${lookup_id}$"),
-                # Handle cases where version prefix might be missing in some older implementations
-                APIKey.key_hash.startswith(f"{lookup_id}$"),
-            ),
+            APIKey.key_hash.startswith(f"v1${lookup_id}$"),
             APIKey.status != APIKeyStatus.disabled,
         )
         .options(selectinload(APIKey.admin).selectinload(Admin.role), selectinload(APIKey.role))
@@ -52,7 +44,7 @@ async def get_api_key_by_raw_key(db: AsyncSession, raw_api_key: str) -> APIKey |
     )
     db_key = (await db.execute(stmt)).scalar_one_or_none()
 
-    if db_key is None or not verify_api_key(raw_api_key, db_key.key_hash, pepper=pepper):
+    if db_key is None or not verify_api_key(raw_api_key, db_key.key_hash):
         return None
     # Reject if the owning admin is disabled
     if db_key.admin is not None and db_key.admin.status == AdminStatus.disabled:
@@ -104,8 +96,7 @@ async def delete_api_key(db: AsyncSession, db_key: APIKey) -> None:
 
 async def revoke_api_key(db: AsyncSession, db_key: APIKey) -> tuple[str, APIKey]:
     raw_key = str(uuid.uuid4())
-    pepper = await get_secret_key()
-    db_key.key_hash = hash_api_key(raw_key, pepper=pepper)
+    db_key.key_hash = hash_api_key(raw_key)
     db_key.revoked_at = dt.now(tz.utc)
     db_key.status = APIKeyStatus.active
     await db.flush()
