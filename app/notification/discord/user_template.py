@@ -1,5 +1,3 @@
-import copy
-
 from app.notification.client import send_discord_webhook
 from app.notification.helpers import get_discord_webhook
 from app.models.user_template import UserTemplateResponse
@@ -15,7 +13,7 @@ ENTITY = "user_template"
 
 async def create_user_template(user_tempelate: UserTemplateResponse, by: str):
     name, username_prefix, username_suffix, by = escape_md_template(user_tempelate, by)
-    message = copy.deepcopy(messages.CREATE_USER_TEMPLATE)
+    message = {**messages.CREATE_USER_TEMPLATE, "footer": dict(messages.CREATE_USER_TEMPLATE["footer"])}
     message["description"] = message["description"].format(
         name=name,
         data_limit=user_tempelate.data_limit,
@@ -37,7 +35,7 @@ async def create_user_template(user_tempelate: UserTemplateResponse, by: str):
 
 async def modify_user_template(user_template: UserTemplateResponse, by: str):
     name, username_prefix, username_suffix, by = escape_md_template(user_template, by)
-    message = copy.deepcopy(messages.MODIFY_USER_TEMPLATE)
+    message = {**messages.MODIFY_USER_TEMPLATE, "footer": dict(messages.MODIFY_USER_TEMPLATE["footer"])}
     message["description"] = message["description"].format(
         name=name,
         data_limit=user_template.data_limit,
@@ -59,7 +57,7 @@ async def modify_user_template(user_template: UserTemplateResponse, by: str):
 
 async def remove_user_template(name: str, by: str):
     name, by = escape_ds_markdown_list((name, by))
-    message = copy.deepcopy(messages.REMOVE_USER_TEMPLATE)
+    message = {**messages.REMOVE_USER_TEMPLATE, "footer": dict(messages.REMOVE_USER_TEMPLATE["footer"])}
     message["description"] = message["description"].format(name=name)
     message["footer"]["text"] = message["footer"]["text"].format(by=by)
     data = {

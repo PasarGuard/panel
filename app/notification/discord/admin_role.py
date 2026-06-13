@@ -1,5 +1,3 @@
-import copy
-
 from app.notification.client import send_discord_webhook
 from app.notification.helpers import get_discord_webhook
 from app.models.admin_role import AdminRoleResponse
@@ -14,7 +12,7 @@ ENTITY = "admin_role"
 
 async def create_admin_role(role: AdminRoleResponse, by: str):
     name, by = escape_ds_markdown_list((role.name, by))
-    message = copy.deepcopy(messages.CREATE_ADMIN_ROLE)
+    message = {**messages.CREATE_ADMIN_ROLE, "footer": dict(messages.CREATE_ADMIN_ROLE["footer"])}
     message["description"] = message["description"].format(name=name, is_owner=role.is_owner)
     message["footer"]["text"] = message["footer"]["text"].format(id=role.id, by=by)
     data = {"content": "", "embeds": [message]}
@@ -27,7 +25,7 @@ async def create_admin_role(role: AdminRoleResponse, by: str):
 
 async def modify_admin_role(role: AdminRoleResponse, by: str):
     name, by = escape_ds_markdown_list((role.name, by))
-    message = copy.deepcopy(messages.MODIFY_ADMIN_ROLE)
+    message = {**messages.MODIFY_ADMIN_ROLE, "footer": dict(messages.MODIFY_ADMIN_ROLE["footer"])}
     message["description"] = message["description"].format(name=name, is_owner=role.is_owner)
     message["footer"]["text"] = message["footer"]["text"].format(id=role.id, by=by)
     data = {"content": "", "embeds": [message]}
@@ -40,7 +38,7 @@ async def modify_admin_role(role: AdminRoleResponse, by: str):
 
 async def remove_admin_role(role: AdminRoleResponse, by: str):
     name, by = escape_ds_markdown_list((role.name, by))
-    message = copy.deepcopy(messages.REMOVE_ADMIN_ROLE)
+    message = {**messages.REMOVE_ADMIN_ROLE, "footer": dict(messages.REMOVE_ADMIN_ROLE["footer"])}
     message["description"] = message["description"].format(name=name)
     message["footer"]["text"] = message["footer"]["text"].format(id=role.id, by=by)
     data = {"content": "", "embeds": [message]}

@@ -1,5 +1,3 @@
-import copy
-
 from app.notification.client import send_discord_webhook
 from app.notification.helpers import get_discord_webhook
 from app.models.host import BaseHost
@@ -15,7 +13,7 @@ ENTITY = "host"
 
 async def create_host(host: BaseHost, by: str):
     remark, address, inbound_tag, by = escape_md_host(host, by)
-    message = copy.deepcopy(messages.CREATE_HOST)
+    message = {**messages.CREATE_HOST, "footer": dict(messages.CREATE_HOST["footer"])}
     message["description"] = message["description"].format(
         remark=remark, address=address, inbound_tag=inbound_tag, port=host.port
     )
@@ -33,7 +31,7 @@ async def create_host(host: BaseHost, by: str):
 
 async def modify_host(host: BaseHost, by: str):
     remark, address, inbound_tag, by = escape_md_host(host, by)
-    message = copy.deepcopy(messages.MODIFY_HOST)
+    message = {**messages.MODIFY_HOST, "footer": dict(messages.MODIFY_HOST["footer"])}
     message["description"] = message["description"].format(
         remark=remark, address=address, inbound_tag=inbound_tag, port=host.port
     )
@@ -51,7 +49,7 @@ async def modify_host(host: BaseHost, by: str):
 
 async def remove_host(host: BaseHost, by: str):
     remark, by = escape_ds_markdown_list((host.remark, by))
-    message = copy.deepcopy(messages.REMOVE_HOST)
+    message = {**messages.REMOVE_HOST, "footer": dict(messages.REMOVE_HOST["footer"])}
     message["description"] = message["description"].format(remark=remark)
     message["footer"]["text"] = message["footer"]["text"].format(id=host.id, by=by)
     data = {
@@ -67,7 +65,7 @@ async def remove_host(host: BaseHost, by: str):
 
 async def modify_hosts(by: str):
     by = escape_ds_markdown(by)
-    message = copy.deepcopy(messages.MODIFY_HOSTS)
+    message = {**messages.MODIFY_HOSTS}
     message["description"] = message["description"].format(by=by)
     data = {
         "content": "",
