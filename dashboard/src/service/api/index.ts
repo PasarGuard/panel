@@ -2353,6 +2353,7 @@ export type HWIDSettingsMinLimit = number | null
 export type HWIDSettingsFallbackLimit = number | null
 
 export interface HWIDSettings {
+  mode?: 'disabled' | 'use_global' | 'override'
   enabled?: boolean
   forced?: boolean
   fallback_limit?: HWIDSettingsFallbackLimit

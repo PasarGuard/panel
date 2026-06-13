@@ -1,25 +1,31 @@
+from app.models.admin_role import HWIDMode, RoleHWIDSettings
 from app.models.settings import HWIDSettings
 
 
 def resolve_effective_hwid_settings(
-    global_hwid: HWIDSettings, role_hwid: HWIDSettings | dict | None
+    global_hwid: HWIDSettings, role_hwid: RoleHWIDSettings | dict | None
 ) -> HWIDSettings | None:
     if isinstance(role_hwid, dict):
         if not role_hwid:
             role_hwid = None
         else:
             try:
-                role_hwid = HWIDSettings.model_validate(role_hwid)
+                role_hwid = RoleHWIDSettings.model_validate(role_hwid)
             except Exception:
                 role_hwid = None
 
     if role_hwid is None:
         return global_hwid
 
-    if not role_hwid.enabled:
+    mode = getattr(role_hwid, "mode", HWIDMode.USE_GLOBAL)
+
+    if mode == HWIDMode.DISABLED:
         return None
 
-    # enabled=True: None fields inherit from global, explicit values (including 0) override
+    if mode == HWIDMode.USE_GLOBAL:
+        return global_hwid
+
+    # mode == override: merge role values with global fallback
     return HWIDSettings(
         enabled=True,
         forced=role_hwid.forced,

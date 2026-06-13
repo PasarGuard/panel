@@ -436,57 +436,65 @@ function LimitsSection({ form }: { form: AdminRoleForm }) {
 
 function HwidPolicySection({ form }: { form: AdminRoleForm }) {
   const { t } = useTranslation()
-  const enabled = useWatch({ control: form.control, name: 'hwid.enabled' })
+  const mode = useWatch({ control: form.control, name: 'hwid.mode' })
+  const isOverride = mode === 'override'
 
   return (
     <div className="space-y-3">
       <p className="text-muted-foreground text-xs">
-        {t('adminRoles.hwidPolicyHint', { defaultValue: 'When enabled, empty limits inherit the global HWID settings. Turn it off to disable HWID checks for admins with this role.' })}
+        {t('adminRoles.hwidPolicyHint', { defaultValue: 'Choose how HWID policy is applied. Use "Override" to customize limits for this role.' })}
       </p>
 
       <FormField
         control={form.control}
-        name="hwid.enabled"
+        name="hwid.mode"
         render={({ field }) => (
-          <FormItem className="flex cursor-pointer flex-row items-center justify-between space-y-0 rounded-lg border p-4" onClick={() => field.onChange(!field.value)}>
-            <div className="space-y-0.5">
-              <FormLabel className="text-base">{t('settings.hwid.enabled.title', { defaultValue: 'Enable HWID checks' })}</FormLabel>
-              <p className="text-muted-foreground text-xs">
-                {t('adminRoles.hwidEnabledDescription', { defaultValue: 'Apply HWID registration and limits to users created or modified by this role.' })}
-              </p>
-            </div>
+          <FormItem>
+            <FormLabel className="text-sm font-medium">{t('adminRoles.hwidMode', { defaultValue: 'HWID Mode' })}</FormLabel>
             <FormControl>
-              <div onClick={e => e.stopPropagation()}>
-                <Switch checked={!!field.value} onCheckedChange={field.onChange} />
-              </div>
+              <Select value={field.value} onValueChange={field.onChange}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="disabled">{t('adminRoles.hwidModeDisabled', { defaultValue: 'Disabled' })}</SelectItem>
+                  <SelectItem value="use_global">{t('adminRoles.hwidModeUseGlobal', { defaultValue: 'Use Global Settings' })}</SelectItem>
+                  <SelectItem value="override">{t('adminRoles.hwidModeOverride', { defaultValue: 'Override Settings' })}</SelectItem>
+                </SelectContent>
+              </Select>
             </FormControl>
+            <FormMessage />
           </FormItem>
         )}
       />
 
-      <FormField
-        control={form.control}
-        name="hwid.forced"
-        render={({ field }) => (
-          <FormItem className="flex cursor-pointer flex-row items-center justify-between space-y-0 rounded-lg border p-4" onClick={() => enabled && field.onChange(!field.value)}>
-            <div className="space-y-0.5">
-              <FormLabel className="text-base">{t('settings.hwid.forced.title', { defaultValue: 'Require HWID header' })}</FormLabel>
-              <p className="text-muted-foreground text-xs">{t('settings.hwid.forced.description', { defaultValue: 'Reject subscription requests that do not send X-HWID.' })}</p>
-            </div>
-            <FormControl>
-              <div onClick={e => e.stopPropagation()}>
-                <Switch checked={!!field.value} onCheckedChange={field.onChange} disabled={!enabled} />
-              </div>
-            </FormControl>
-          </FormItem>
-        )}
-      />
+      {isOverride && (
+        <>
+          <FormField
+            control={form.control}
+            name="hwid.forced"
+            render={({ field }) => (
+              <FormItem className="flex cursor-pointer flex-row items-center justify-between space-y-0 rounded-lg border p-4" onClick={() => field.onChange(!field.value)}>
+                <div className="space-y-0.5">
+                  <FormLabel className="text-base">{t('settings.hwid.forced.title', { defaultValue: 'Require HWID header' })}</FormLabel>
+                  <p className="text-muted-foreground text-xs">{t('settings.hwid.forced.description', { defaultValue: 'Reject subscription requests that do not send X-HWID.' })}</p>
+                </div>
+                <FormControl>
+                  <div onClick={e => e.stopPropagation()}>
+                    <Switch checked={!!field.value} onCheckedChange={field.onChange} />
+                  </div>
+                </FormControl>
+              </FormItem>
+            )}
+          />
 
-      <div className="grid gap-3 sm:grid-cols-3">
-        <NumberLimitField form={form} name="hwid.fallback_limit" labelKey="settings.hwid.fallbackLimit.title" disabled={!enabled} />
-        <NumberLimitField form={form} name="hwid.min_limit" labelKey="settings.hwid.minLimit.title" disabled={!enabled} />
-        <NumberLimitField form={form} name="hwid.max_limit" labelKey="settings.hwid.maxLimit.title" disabled={!enabled} />
-      </div>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <NumberLimitField form={form} name="hwid.fallback_limit" labelKey="settings.hwid.fallbackLimit.title" />
+            <NumberLimitField form={form} name="hwid.min_limit" labelKey="settings.hwid.minLimit.title" />
+            <NumberLimitField form={form} name="hwid.max_limit" labelKey="settings.hwid.maxLimit.title" />
+          </div>
+        </>
+      )}
     </div>
   )
 }
