@@ -1,3 +1,4 @@
+import hmac
 import time
 import jwt
 from base64 import b64decode, b64encode
@@ -16,6 +17,11 @@ async def get_secret_key():
     async with GetDB() as db:
         key = await get_jwt_secret_key(db=db)
         return key
+
+
+async def invalidate_secret_key_cache():
+    """Invalidate the JWT secret key cache. Call this after rotating the secret."""
+    await get_secret_key.cache.clear()
 
 
 async def create_admin_token(admin_id: int | None, username: str) -> str:
@@ -97,7 +103,7 @@ async def get_subscription_payload(token: str) -> dict | None:
                 sha256((u_token + await get_secret_key()).encode("utf-8")).digest(), altchars=b"-_"
             ).decode("utf-8")[:10]
             u_token_hex_resign = sha256((u_token + await get_secret_key()).encode("utf-8")).hexdigest()[:10]
-            if u_signature in (u_token_resign, u_token_hex_resign):
+            if hmac.compare_digest(u_signature, u_token_resign) or hmac.compare_digest(u_signature, u_token_hex_resign):
                 parts = u_token_dec_str.split(",")
                 if len(parts) == 3 and parts[0] in ("v2", "v3"):
                     _, u_user_id_str, u_created_at_str = parts
