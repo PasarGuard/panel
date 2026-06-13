@@ -1,4 +1,5 @@
 import { AdminDetails, SystemUsersStats, useGetSystemUsersStats } from '@/service/api'
+import { useDocumentVisibility } from '@/hooks/use-document-visibility'
 import { UserCog, Users } from 'lucide-react'
 import { Suspense, lazy, useEffect, useState, type ComponentProps } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -49,6 +50,7 @@ const AdminStatisticsCard = ({
   skipStatsFetch?: boolean
 }) => {
   const { t } = useTranslation()
+  const isTabVisible = useDocumentVisibility()
   if (!admin) return null
 
   // Send admin_username for specific admin stats, except for 'Total' which shows global stats
@@ -59,7 +61,7 @@ const AdminStatisticsCard = ({
   const { data: adminSystemStats } = useGetSystemUsersStats(systemStatsParams, {
     query: {
       enabled: shouldFetchStats,
-      refetchInterval: 5000,
+      refetchInterval: isTabVisible ? 5000 : 60000,
     },
   })
 
