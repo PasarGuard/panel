@@ -1,0 +1,661 @@
+---
+title: Core Configuration
+description: XRay configuration validation, default values
+icon: Server
+---
+
+# XRay Configuration Documentation
+
+This document explains how PasarGuard validates and processes XRay configuration files, including the validation process, default values, and API limitations.
+
+## Table of Contents
+
+1. [Overview](#overview)
+2. [Configuration Validation](#configuration-validation)
+3. [Default Values](#default-values)
+4. [Supported Protocols](#supported-protocols)
+5. [Network Types](#network-types)
+6. [Security Settings](#security-settings)
+7. [Viewing Connected IPs](#viewing-connected-ips)
+9. [Common Validation Errors](#common-validation-errors)
+
+---
+
+## Overview
+
+The `XRayConfig` class is responsible for:
+- **Validating** XRay configuration JSON files
+- **Extracting** default values from configuration
+- **Processing** inbound and outbound settings
+- **Handling** special configurations like fallbacks and TLS/Reality
+
+<Callout type="info">
+When you create or modify a core configuration through the API, PasarGuard automatically validates your XRay config using this class.
+</Callout>
+
+---
+
+## Configuration Validation
+
+### Required Fields
+
+Your XRay configuration **must** include:
+
+1. **`inbounds`** - Array of inbound configurations
+   - Cannot be empty or missing
+   - Each inbound must have a unique `tag`
+   - Each inbound must have a `protocol` field
+
+2. **`outbounds`** - Array of outbound configurations
+   - Cannot be empty or missing
+   - Each outbound must have a unique `tag`
+
+### Inbound Tag Rules
+
+Inbound tags have strict rules:
+
+- ✅ **Must be unique** - No two inbounds can have the same tag
+- ✅ **Must be present** - Every inbound requires a tag
+- ❌ **Cannot contain comma (`,`)** - The character `,` is not allowed
+- ❌ **Cannot contain `<=>`** - This sequence is reserved for fallback handling
+
+<Tabs items={['Valid Tags', 'Invalid Tags']}>
+  <Tab value="Valid Tags">
+    ```json
+    {
+      "inbounds": [
+        {
+          "tag": "vless-ws-443",
+          "port": 443,
+          "protocol": "vless"
+        },
+        {
+          "tag": "trojan-tls-8443",
+          "port": 8443,
+          "protocol": "trojan"
+        },
+        {
+          "tag": "vmess-grpc",
+          "port": 443,
+          "protocol": "vmess"
+        }
+      ]
+    }
+    ```
+  </Tab>
+  <Tab value="Invalid Tags">
+    ```json
+    {
+      "inbounds": [
+        {
+          "tag": "inbound,fallback",  // ❌ Contains comma
+          "port": 443,
+          "protocol": "vless"
+        },
+        {
+          "tag": "inbound<=>fallback",  // ❌ Contains <=>
+          "port": 8443,
+          "protocol": "trojan"
+        }
+      ]
+    }
+    ```
+  </Tab>
+</Tabs>
+
+### Port Requirements
+
+Most inbounds **must** have a `port` field. The only exception is when:
+- The inbound is used as a fallback destination (referenced by another inbound's fallback settings)
+- The inbound has its own `fallbacks` array in settings
+
+<Callout type="warning" title="Port Requirement">
+Most inbounds require a `port` field. Only fallback inbounds (those referenced by other inbounds or with their own fallbacks array) can omit the port.
+</Callout>
+
+**Example:**
+```json
+{
+  "tag": "main-inbound",
+  "port": 443,  // ✅ Required for most inbounds
+  "protocol": "vless"
+}
+```
+
+---
+
+## Default Values
+
+When processing your configuration, PasarGuard extracts and sets default values for various settings. Here's what gets set automatically:
+
+### Base Settings (All Inbounds)
+
+These defaults are applied to every inbound:
+
+| Field | Default Value | Description |
+|-------|--------------|-------------|
+| `network` | `"tcp"` | Transport network type |
+| `tls` | `"none"` | Security/encryption type |
+| `sni` | `[]` | Server Name Indication list (empty array) |
+| `host` | `[]` | Host header list (empty array) |
+| `path` | `""` | Path string (empty) |
+| `header_type` | `""` | Header type (empty string) |
+| `is_fallback` | `false` | Whether this is a fallback inbound |
+| `fallbacks` | `[]` | Fallback configurations (empty array) |
+| `port` | `None` | Port number (must be provided in config) |
+
+### Protocol-Specific Defaults
+
+<Tabs items={['VLESS', 'Shadowsocks', 'Reality']}>
+  <Tab value="VLESS">
+    **VLESS Protocol Defaults:**
+    
+    - `flow`: `""` (empty string) - Flow control setting
+    - `encryption`: `"none"` - Encryption method
+    - `decryption`: `"none"` - Decryption method
+
+    <Callout type="info">
+    If `decryption` is not `"none"`, then `encryption` must also be provided.
+    </Callout>
+  </Tab>
+  <Tab value="Shadowsocks">
+    **Shadowsocks Protocol Defaults:**
+    
+    - `method`: `""` - Encryption method (must be specified)
+    - `is_2022`: `false` - Whether using 2022-blake3 methods
+    - `password`: Must be valid base64 string (for 2022-blake3 methods)
+
+    <Callout type="warning" title="Shadowsocks Restrictions">
+    - ❌ `2022-blake3-chacha20-poly1305` method is **not supported**
+    - ✅ Only `2022-blake3-aes-*-gcm` methods are supported
+    </Callout>
+  </Tab>
+  <Tab value="Reality">
+    **Reality Security Defaults:**
+    
+    | Field | Default Value | Description |
+    |-------|--------------|-------------|
+    | `fp` | `"chrome"` | Fingerprint type |
+    | `tls` | `"reality"` | Security type |
+    | `sni` | From `serverNames` in realitySettings | Server names |
+    | `pbk` | Calculated from `privateKey` | Public key (auto-generated) |
+    | `sids` | From `shortIds` in realitySettings | Short IDs (required) |
+    | `spx` | `""` | SpiderX setting (optional) |
+    | `mldsa65Verify` | From realitySettings | MLDSA65 verification |
+
+    **Required Reality Settings:**
+    - ✅ `privateKey` - Must be provided
+    - ✅ `shortIds` - At least one short ID must be defined
+    - ✅ `serverNames` - Used for SNI
+  </Tab>
+</Tabs>
+
+---
+
+## Supported Protocols
+
+PasarGuard processes and validates these protocols:
+
+1. **Vmess**
+2. **Vless**
+3. **Trojan**
+4. **Shadowsocks**
+
+<Callout type="info">
+Other protocols in your config (like `socks`, `http`) will be ignored during processing but won't cause errors.
+</Callout>
+
+---
+
+## Network Types
+
+The following network/transport types are supported:
+
+| Network Type | Description | Special Handling |
+|--------------|-------------|------------------|
+| `tcp` | TCP transport | Default network type |
+| `raw` | Raw TCP | Same handling as TCP |
+| `ws` | WebSocket | Path and host must be strings |
+| `grpc` | gRPC | Uses `serviceName` as path |
+| `gun` | gUN | Same as gRPC |
+| `quic` | QUIC | Uses `key` as path |
+| `httpupgrade` | HTTP Upgrade | Standard path/host handling |
+| `splithttp` | Split HTTP | Includes `mode` setting |
+| `xhttp` | XHTTP | Includes `mode` setting |
+| `kcp` | KCP | Uses `seed` as path |
+| `http` | HTTP/1.1 | Standard HTTP |
+| `h2` | HTTP/2 | Standard HTTP |
+| `h3` | HTTP/3 | Standard HTTP |
+
+### Network-Specific Rules
+
+<Tabs items={['TCP/Raw', 'WebSocket', 'gRPC']}>
+  <Tab value="TCP/Raw">
+    **TCP/Raw Networks:**
+    
+    - `path` and `host` in headers **must be arrays** (not strings)
+    - If `path` is an array, only the first element is used
+    - `host` can be an array of host values
+
+    **Example:**
+    ```json
+    {
+      "streamSettings": {
+        "network": "tcp",
+        "tcpSettings": {
+          "header": {
+            "type": "http",
+            "request": {
+              "path": ["/path"],  // ✅ Array
+              "headers": {
+                "Host": ["example.com"]  // ✅ Array
+              }
+            }
+          }
+        }
+      }
+    }
+    ```
+  </Tab>
+  <Tab value="WebSocket">
+    **WebSocket (WS):**
+    
+    - `path` and `host` **must be strings** (not arrays)
+    - `host` is converted to a single-element array internally
+
+    **Example:**
+    ```json
+    {
+      "streamSettings": {
+        "network": "ws",
+        "wsSettings": {
+          "path": "/path",  // ✅ String
+          "host": "example.com"  // ✅ String
+        }
+      }
+    }
+    ```
+  </Tab>
+  <Tab value="gRPC">
+    **gRPC:**
+    
+    - `path` is extracted from `serviceName`
+    - `host` is extracted from `authority`
+
+    **Example:**
+    ```json
+    {
+      "streamSettings": {
+        "network": "grpc",
+        "grpcSettings": {
+          "serviceName": "my-service",  // Used as path
+          "authority": "example.com"     // Used as host
+        }
+      }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+## Security Settings
+
+<Tabs items={['None', 'TLS', 'Reality']}>
+  <Tab value="None">
+    **None (No Security)**
+    
+    - Default security type
+    - No encryption or TLS
+    - Used for plain connections or when encryption is handled at application level
+  </Tab>
+  <Tab value="TLS">
+    **TLS Security**
+    
+    When using TLS security:
+
+    **Certificate Handling:**
+    - Certificates can be provided via:
+      - `certificateFile` - Path to certificate file (requires `keyFile`)
+      - `certificate` - Direct certificate content (string or array)
+    - If using `certificateFile`, you **must** also provide `keyFile`
+    - SNI (Server Name Indication) is automatically extracted from certificates
+
+    <Callout type="warning" title="Certificate Requirements">
+    If using `certificateFile`, you **must** also provide `keyFile`. Both files are required.
+    </Callout>
+
+    **Example:**
+    ```json
+    {
+      "streamSettings": {
+        "security": "tls",
+        "tlsSettings": {
+          "certificates": [{
+            "certificateFile": "/path/to/cert.pem",
+            "keyFile": "/path/to/key.pem"
+          }]
+        }
+      }
+    }
+    ```
+  </Tab>
+  <Tab value="Reality">
+    **Reality Security**
+    
+    When using Reality security:
+
+    **Required Fields:**
+    - `privateKey` - Private key for X25519
+    - `shortIds` - Array with at least one short ID (can be empty string `""`)
+    - `serverNames` - Array of server names for SNI
+
+    **Optional Fields:**
+    - `SpiderX` - SpiderX configuration
+    - `mldsa65Verify` - MLDSA65 verification setting
+
+    <Callout type="warning" title="Required Reality Settings">
+    - ✅ `privateKey` - Must be provided
+    - ✅ `shortIds` - At least one short ID must be defined (can be empty string)
+    - ✅ `serverNames` - Used for SNI
+    </Callout>
+
+    **Example:**
+    ```json
+    {
+      "streamSettings": {
+        "security": "reality",
+        "realitySettings": {
+          "serverNames": ["example.com"],
+          "privateKey": "your-private-key-here",
+          "shortIds": [""]
+        }
+      }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+## Viewing Connected IPs
+
+You can enable tracking of user online statistics to see the latest IP addresses connected to your core. This feature allows you to monitor which IPs are currently connected to your XRay core.
+
+### Enabling User Online Statistics
+
+To enable this feature, you need to add a `policy` section to the root of your XRay configuration JSON file. Add the following configuration:
+
+```json
+{
+  "policy": {
+    "levels": {
+      "0": {
+        "statsUserOnline": true
+      }
+    }
+  },
+  "inbounds": [
+    // ... your inbound configurations
+  ],
+  "outbounds": [
+    // ... your outbound configurations
+  ]
+}
+```
+
+<Callout type="info" title="Policy Configuration">
+The `policy` section should be added at the root level of your JSON configuration file, alongside `inbounds` and `outbounds`. The `statsUserOnline: true` setting enables tracking of user connection statistics.
+</Callout>
+
+### Viewing Connected IPs
+
+After enabling the `statsUserOnline` policy and restarting your node:
+
+1. **First Connection Required**: The IP tracking will start working after the first user connection is established
+2. **Access Statistics**: Once enabled and after the first connection, you can view the latest connected IPs through your panel's statistics interface
+
+<Callout type="warning" title="Restart Required">
+After adding the policy configuration, you must restart your core for the changes to take effect.
+</Callout>
+
+### Complete Example
+
+Here's a complete example configuration with the policy section enabled:
+
+```json
+{
+  "policy": {
+    "levels": {
+      "0": {
+        "statsUserOnline": true
+      }
+    }
+  },
+  "inbounds": [
+    {
+      "tag": "vless-ws-443",
+      "port": 443,
+      "protocol": "vless",
+      "settings": {
+        "clients": []
+      },
+      "streamSettings": {
+        "network": "ws",
+        "wsSettings": {
+          "path": "/path"
+        }
+      }
+    }
+  ],
+  "outbounds": [
+    {
+      "tag": "direct",
+      "protocol": "freedom"
+    }
+  ]
+}
+```
+
+---
+
+## Common Validation Errors
+
+Here are common errors you might encounter and how to fix them:
+
+<Tabs items={['Missing Inbounds', 'Duplicate Tags', 'Invalid Tag Characters', 'Missing Port', 'Shadowsocks Errors', 'Reality Errors', 'Network Type Errors']}>
+  <Tab value="Missing Inbounds">
+    ### Error: "config doesn't have inbounds"
+    
+    **Problem:** Your configuration is missing the `inbounds` array.
+
+    **Solution:**
+    ```json
+    {
+      "inbounds": [
+        {
+          "tag": "my-inbound",
+          "port": 443,
+          "protocol": "vless"
+        }
+      ],
+      "outbounds": []
+    }
+    ```
+  </Tab>
+  <Tab value="Duplicate Tags">
+    ### Error: "all inbounds must have a unique tag"
+    
+    **Problem:** Two or more inbounds have the same tag value.
+
+    **Solution:** Ensure each inbound has a unique tag:
+    ```json
+    {
+      "inbounds": [
+        {"tag": "inbound-1", "port": 443, "protocol": "vless"},
+        {"tag": "inbound-2", "port": 8443, "protocol": "trojan"}  // ✅ Different tag
+      ]
+    }
+    ```
+  </Tab>
+  <Tab value="Invalid Tag Characters">
+    ### Error: "character «,» is not allowed in inbound tag"
+    
+    **Problem:** Your inbound tag contains a comma or `<=>`.
+
+    **Solution:** Remove commas and `<=>` from tags:
+    ```json
+    {
+      "inbounds": [
+        {
+          "tag": "inbound,fallback",  // ❌ Invalid
+          "port": 443,
+          "protocol": "vless"
+        },
+        {
+          "tag": "inbound-fallback",  // ✅ Valid
+          "port": 443,
+          "protocol": "vless"
+        }
+      ]
+    }
+    ```
+  </Tab>
+  <Tab value="Missing Port">
+    ### Error: "&#123;tag&#125; inbound doesn't have port"
+    
+    **Problem:** An inbound is missing the required `port` field.
+
+    **Solution:** Add a port number:
+    ```json
+    {
+      "tag": "my-inbound",
+      "port": 443,  // ✅ Add this
+      "protocol": "vless"
+    }
+    ```
+  </Tab>
+  <Tab value="Shadowsocks Errors">
+    ### Error: "only 2022-blake3-aes-*-gcm methods are supported"
+    
+    **Problem:** You're using an unsupported Shadowsocks method.
+
+    **Solution:** Use a supported method:
+    ```json
+    {
+      "protocol": "shadowsocks",
+      "settings": {
+        "method": "2022-blake3-aes-128-gcm"  // ✅ Supported
+        // "method": "2022-blake3-chacha20-poly1305"  // ❌ Not supported
+      }
+    }
+    ```
+
+    ### Error: "Shadowsocks password must be a valid base64 string"
+    
+    **Problem:** For 2022-blake3 methods, password must be base64 encoded.
+
+    **Solution:** Ensure password is valid base64:
+    ```json
+    {
+      "settings": {
+        "method": "2022-blake3-aes-128-gcm",
+        "password": "base64-encoded-password-here"  // ✅ Must be base64
+      }
+    }
+    ```
+  </Tab>
+  <Tab value="Reality Errors">
+    ### Error: "You need to provide privateKey in realitySettings"
+    
+    **Problem:** Reality configuration is missing the private key.
+
+    **Solution:**
+    ```json
+    {
+      "streamSettings": {
+        "security": "reality",
+        "realitySettings": {
+          "privateKey": "your-private-key-here",  // ✅ Required
+          "shortIds": [""],
+          "serverNames": ["example.com"]
+        }
+      }
+    }
+    ```
+
+    ### Error: "You need to define at least one shortID in realitySettings"
+    
+    **Problem:** Reality settings have empty or missing `shortIds` array.
+
+    **Solution:**
+    ```json
+    {
+      "realitySettings": {
+        "shortIds": [""],  // ✅ At least one element (can be empty string)
+        // "shortIds": []  // ❌ Empty array not allowed
+      }
+    }
+    ```
+  </Tab>
+  <Tab value="Network Type Errors">
+    ### Error: "Settings of &#123;tag&#125; for path and host must be list, not str"
+    
+    **Problem:** For TCP/raw networks, path and host in headers must be arrays.
+
+    **Solution:**
+    ```json
+    {
+      "streamSettings": {
+        "network": "tcp",
+        "tcpSettings": {
+          "header": {
+            "type": "http",
+            "request": {
+              "path": ["/path"],  // ✅ Array, not string
+              "headers": {
+                "Host": ["example.com"]  // ✅ Array, not string
+              }
+            }
+          }
+        }
+      }
+    }
+    ```
+
+    ### Error: "Settings for path and host must be str, not list"
+    
+    **Problem:** For WebSocket, path and host must be strings.
+
+    **Solution:**
+    ```json
+    {
+      "streamSettings": {
+        "network": "ws",
+        "wsSettings": {
+          "path": "/path",  // ✅ String, not array
+          "host": "example.com"  // ✅ String, not array
+        }
+      }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+## Summary
+
+<Callout type="tip" title="Best Practices">
+- ✅ Always include `inbounds` and `outbounds` arrays
+- ✅ Ensure all inbounds and outbounds have unique tags
+- ✅ Avoid commas and `<=>` in inbound tags
+- ✅ Provide port numbers for inbounds (unless using fallbacks)
+- ✅ Use supported protocols: vmess, vless, trojan, shadowsocks
+- ✅ Follow network-specific rules for path/host formats
+- ✅ Provide required fields for TLS and Reality security
+- ✅ Keep tag strings under 2048 characters total
+- ✅ The default core (id=1) can't be deleted
+</Callout>
+
+For more information about XRay configuration format, refer to the [official XRay documentation](https://xtls.github.io/config/).

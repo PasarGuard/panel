@@ -1,0 +1,47 @@
+---
+title: Client Templates
+description: Subscription output templates for client apps and formats
+icon: FileCode2
+---
+
+Client templates control how subscription output is formatted for client applications. They are separate from [User Templates](./user_template), which define default user settings.
+
+## What Client Templates Affect
+
+- Subscription output format.
+- Client-specific config rendering.
+- Default template selection for a format.
+- System or custom templates shown in the templates list.
+
+Common template types include Xray, Clash, and Sing-box subscription formats.
+
+## Create A Template
+
+1. Open **Templates**.
+2. Switch to **Client Templates**.
+3. Click **Add Template**.
+4. Set a descriptive name.
+5. Choose the template type.
+6. Add or edit the template content.
+7. Mark it as default only if it should be used automatically for that output type.
+8. Save and test with one user subscription.
+
+## System, Default, And Custom Templates
+
+- **System** templates are built in and may be protected.
+- **Default** templates are used automatically for matching output types.
+- **Custom** templates are created by admins and can be edited, duplicated, or deleted depending on permissions.
+
+Duplicate a system template before editing when you want a customized version.
+
+## Testing
+
+After changing a client template:
+
+1. Open a test user's subscription.
+2. Generate the target output format.
+3. Import it into the intended client app.
+4. Check that names, hosts, ports, and protocol fields are correct.
+5. Only then make it the default or use it broadly.
+
+If a client app cannot import the subscription, check the template type, required fields, and whether the output format matches that client.

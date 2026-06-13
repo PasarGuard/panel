@@ -1,0 +1,51 @@
+---
+title: Admins
+description: Create admin accounts and manage owner access
+icon: ShieldCheck
+---
+
+Admins are panel operators. They can manage users, groups, nodes, settings, or templates depending on the role and permission overrides attached to their account.
+
+## Create An Admin
+
+1. Open **Admins**.
+2. Click **Create Admin**.
+3. Set username, password, status, and role.
+4. Add optional profile title, subscription domain, support URL, Telegram ID, Discord webhook, and notes.
+5. Review permission overrides only when this admin needs limits different from the role.
+6. Save the admin.
+
+Create or adjust the role in [Admin Roles](./admin_roles) before assigning it to the admin.
+
+## Owner Access
+
+The first owner is created from the login page with a temporary key:
+
+```bash
+pasarguard cli generate-temp-key
+```
+
+1. Run the command on the server and copy the temporary key.
+2. Open the panel login page.
+3. Open **Owner Access**.
+4. Choose **Create Owner** and enter the temporary key.
+
+To make an existing admin an owner, open **Owner Access**, choose **Make Admin Owner**, then enter the temporary key and the admin account.
+
+## Admin Table Actions
+
+- **Edit**: change profile fields, role, status, limits, and notification settings.
+- **Disable / Enable**: block or restore the admin account.
+- **Reset usage**: reset usage for users managed by that admin.
+- **Disable active users**: disable all active users under that admin.
+- **Activate disabled users**: enable users that were disabled under that admin.
+
+Use these actions carefully because they can affect many users through the selected admin.
+
+## Permission Overrides
+
+Permission overrides let one admin differ from the assigned role. Leave override fields empty to inherit from the role. Use overrides for exceptions, not as the normal way to manage access.
+
+## Verification
+
+After creating or changing an admin, sign in with that account once. Confirm it can access the expected pages and cannot access owner-only or unrelated pages.

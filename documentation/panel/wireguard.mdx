@@ -1,0 +1,53 @@
+---
+title: WireGuard Setup
+description: WireGuard cores, peer IPs, and user access in the panel
+icon: Network
+---
+
+WireGuard in PasarGuard is configured in two places: the node core defines the server side, and each user receives peer data for the client side.
+
+## Before You Start
+
+- A panel is installed and you can log in as an owner or an admin with node and user permissions.
+- At least one node is connected.
+- A UDP port is open on the server firewall.
+- You know the private IP range you want to use for WireGuard peers, for example `10.66.66.0/24`.
+
+## Create The Core
+
+1. Open the panel and go to **Nodes**.
+2. Open **Cores** for the node that should run WireGuard.
+3. Create or edit a core and choose **WireGuard**.
+4. Fill the basic fields:
+   - **Interface Name**: the WireGuard interface name.
+   - **Listen Port**: the UDP port clients connect to.
+   - **Private Key**: generate a new keypair from the panel unless you already have one.
+   - **Public Key**: this is generated from the private key.
+   - **Pre-shared Key**: optional, but recommended when you want an extra shared secret.
+   - **Address**: the server address inside the WireGuard network.
+5. Save the core and sync or restart the node if the panel asks for it.
+
+## Give Users WireGuard Access
+
+Each WireGuard user needs unique peer IPs. If two users get the same peer IP, one of them can stop working.
+
+For one user, open the user form and check the proxy settings. Use **Generate WireGuard Key Pair** when the user does not already have keys, then assign a peer IP from your WireGuard range.
+
+For many users, use [Bulk Operations](./bulk) and open **WireGuard Peer IPs**. That page can repair missing or invalid peer IPs, or replace all peer IPs for the selected users.
+
+## Connect It To Hosts And Groups
+
+WireGuard is still controlled by the normal access model:
+
+- **Groups** decide which users can use which hosts.
+- **Hosts** decide what connection information appears in the subscription.
+- **User Templates** help you create users with the right default groups and limits.
+
+After creating the core, make sure the users are in a group that can reach the WireGuard host or inbound.
+
+## Common Problems
+
+- **The user has no WireGuard config**: check the user's groups, host access, and subscription template.
+- **The app imports the config but no traffic passes**: check UDP firewall rules, the listen port, and node logs.
+- **Only some users work**: check for duplicate peer IPs and run the bulk WireGuard peer IP operation.
+- **The public key looks wrong**: regenerate the WireGuard keypair from the panel and save again.

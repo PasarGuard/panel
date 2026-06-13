@@ -1,0 +1,45 @@
+---
+title: Bulk Operations
+description: Change many users safely, including WireGuard peer IPs
+icon: ListChecks
+---
+
+Bulk Operations lets you change many users at once. It is useful after importing users, moving users between groups, changing limits, or fixing WireGuard peer IPs.
+
+## Available Operations
+
+- **Create Users**: create many users from a user template.
+- **Groups**: add or remove groups for selected users.
+- **Expire Date**: add or subtract time from selected users.
+- **Data Limit**: add or subtract traffic limit from selected users.
+- **Proxy Settings**: update proxy settings for selected users.
+- **WireGuard Peer IPs**: allocate or repair WireGuard peer IPs.
+
+## Safe Workflow
+
+1. Choose the operation tab.
+2. Configure the operation.
+3. Select the target users, admins, groups, or status filters.
+4. Use **Preview** first.
+5. Read the summary.
+6. Apply the operation only when the target count is correct.
+
+If you select no target on some bulk pages, the operation can apply to all matching users. Read the warning before applying.
+
+## WireGuard Peer IPs
+
+Use **Bulk > WireGuard Peer IPs** when users need WireGuard peer IPs.
+
+- Keep **Replace all IPs** off when you only want to fix missing or invalid peer IPs.
+- Turn **Replace all IPs** on when you want every affected user to receive a fresh peer IP.
+- Filter by status or select smaller groups when you are testing.
+- Preview before applying so you can see how many users and WireGuard inbounds will be affected.
+
+Run this after adding a WireGuard core, importing users, or changing the WireGuard address pool.
+
+## Good Habits
+
+- Start with a small group before changing every user.
+- Avoid changing data limit, expire date, and groups at the same time.
+- Keep notes about the filters you used.
+- Check [Statistics](./statistics) and node logs after large changes.

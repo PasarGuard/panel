@@ -1,0 +1,250 @@
+---
+title: CloudFlare Warp Activation
+navigation: CloudFlare Warp
+icon: Cloud
+---
+
+# CloudFlare Warp Activation
+
+Using this tutorial, you can bypass certain restrictions imposed by large companies like Google and Spotify on your IP and use their services without issues.
+
+<Callout type="warn">
+Note that Warp configs have a maximum connection limit of 5 simultaneous devices. To solve this issue, you can use multiple configs.
+</Callout>
+
+## Step 1: Creating Wireguard Config
+
+### Method 1: Using Windows
+
+1. First, download the required `Asset` from the [releases](https://github.com/ViRb3/wgcf/releases) section. This file varies depending on your processor.
+2. Rename the `Asset` file to `wgcf`.
+3. Now enter `cmd.exe` in the File Explorer address bar.
+
+<ImageZoom
+  src="/images/learn/warp-cmd-terminal.png"
+  alt="Opening command terminal in File Explorer"
+  width={800}
+  height={400}
+/>
+
+4. In the opened terminal, enter `wgcf.exe`.
+5. Execute `wgcf.exe register` once, then `wgcf.exe generate`.
+6. A new file named `wgcf-profile.conf` will be created - this is the `Wireguard` config we need.
+7. Your config is ready and you can use it.
+
+### Method 2: Using Linux
+
+First, download the required `Asset` from the [releases](https://github.com/ViRb3/wgcf/releases) section. This file varies depending on your processor.
+
+You can do this using the `wget` command.
+
+#### For AMD64 architecture processors:
+
+```bash
+wget https://github.com/ViRb3/wgcf/releases/download/v2.2.22/wgcf_2.2.22_linux_amd64
+```
+
+#### For ARM64 architecture processors:
+
+```bash
+wget https://github.com/ViRb3/wgcf/releases/download/v2.2.22/wgcf_2.2.22_linux_arm64
+```
+
+Move the file to `/usr/bin/` and rename it to `wgcf`.
+
+#### For AMD64 architecture processors:
+
+```bash
+mv wgcf_2.2.22_linux_amd64 /usr/bin/wgcf
+chmod +x /usr/bin/wgcf
+```
+
+#### For ARM64 architecture processors:
+
+```bash
+mv wgcf_2.2.22_linux_arm64 /usr/bin/wgcf
+chmod +x /usr/bin/wgcf
+```
+
+Then create the config using these 2 commands:
+
+```bash
+wgcf register
+wgcf generate
+```
+
+A file named `wgcf-profile.conf` will be created - this is the config we need.
+
+## Step 2: Using Warp+ (Optional)
+
+To obtain a license and use Warp+, you can get a `license_key` through [this](https://t.me/generatewarpplusbot) Telegram bot.
+
+After obtaining the `license_key`, you need to replace it in the `wgcf-account.toml` file.
+
+<Callout type="info">
+You can make this change in Linux with `nano` and in Windows with `Notepad` or any other software.
+</Callout>
+
+<Callout type="info" title="Windows">
+To use commands on Windows, you need to use `wgcf.exe` instead of `wgcf`.
+</Callout>
+
+Then update the config information:
+
+```bash
+wgcf update
+```
+
+Then create a new config file:
+
+```bash
+wgcf generate
+```
+
+## Step 3: Activating Warp on PasarGuard
+
+### Method 1: Using Xray Core
+
+<Callout type="warn">
+- This method is only recommended for Xray version 1.8.3 or higher. In older versions, you may encounter Memory Leak issues.
+- If your `Xray` version is lower than this, you can upgrade your `Xray` version using the Xray-core version change tutorial.
+</Callout>
+
+Go to Core Setting in the PasarGuard panel.
+
+First, add an outbound like the example and place the `wgcf-profile.conf` file information in it.
+
+```json
+{
+  "tag": "warp",
+  "protocol": "wireguard",
+  "settings": {
+    "secretKey": "Your_Secret_Key",
+    "DNS": "1.1.1.1",
+    "address": ["172.16.0.2/32", "2606:4700:110:8756:9135:af04:3778:40d9/128"],
+    "peers": [
+      {
+        "publicKey": "bmXOC+F1FxEMF9dyiK2H5/1SUtzH0JuVo51h2wPfgyo=",
+        "endpoint": "engage.cloudflareclient.com:2408"
+      }
+    ],
+    "kernelMode": false
+  }
+}
+```
+
+<Callout type="info">
+If you want all traffic to pass through Warp by default, place this Outbound first and you don't need to perform the next step.
+</Callout>
+
+### Method 2: Using Wireguard Core
+
+First, install the Wireguard prerequisites on the server:
+
+```bash
+sudo apt install wireguard-dkms wireguard-tools resolvconf
+```
+
+If you're using Ubuntu 24, use the following command to install Wireguard:
+
+```bash
+sudo apt install wireguard
+```
+
+Then add `Table = off` to the Wireguard file as shown in the example:
+
+```ini
+[Interface]
+PrivateKey = Your_Private_Key
+Address = 172.16.0.2/32
+Address = 2606:4700:110:8a1a:85ef:da37:b891:8d01/128
+DNS = 1.1.1.1
+MTU = 1280
+Table = off
+[Peer]
+PublicKey = bmXOC+F1FxEMF9dyiK2H5/1SUtzH0JuVo51h2wPfgyo=
+AllowedIPs = 0.0.0.0/0
+AllowedIPs = ::/0
+Endpoint = engage.cloudflareclient.com:2408
+```
+
+<Callout type="warn">
+If you don't add `Table = off`, your server access will be cut off and you won't be able to connect to the server. You'll need to access the server through your datacenter's website and disconnect from `Warp` to be able to establish a normal connection again.
+</Callout>
+
+Then rename the file from `wgcf-profile.conf` to `warp.conf`.
+
+Place the file in the `/etc/wireguard` folder on the server:
+
+```bash
+sudo mv wgcf-profile.conf /etc/wireguard/warp.conf
+```
+
+Enable Wireguard with the following command:
+
+```bash
+sudo systemctl enable --now wg-quick@warp
+```
+
+You can also disable `Warp` with this command:
+
+```bash
+sudo systemctl disable --now wg-quick@warp
+```
+
+Go to Core Setting in the PasarGuard panel.
+
+First, add an outbound like the example:
+
+```json
+{
+  "tag": "warp",
+  "protocol": "freedom",
+  "streamSettings": {
+    "sockopt": {
+      "tcpFastOpen": true,
+      "interface": "warp"
+    }
+  }
+}
+```
+
+<Callout type="info">
+If you want all traffic to pass through Warp by default, place this Outbound first and you don't need to perform the next step.
+</Callout>
+
+## Step 4: Routing Configuration
+
+First, add a `rule` in the `routing` section like the example:
+
+```json
+{
+  "outboundTag": "warp",
+  "domain": [],
+  "type": "field"
+}
+```
+
+Now add your desired websites like the example:
+
+```json
+{
+    "outboundTag": "warp",
+    "domain": [
+        "geosite:google",
+        "openai.com",
+        "ai.com",
+        "ipinfo.io",
+        "iplocation.net",
+        "spotify.com"
+    ],
+    "type": "field"
+}
+```
+
+Save the changes - you can now use `Warp`.
+
+### PasarGuard Node
+
+- If you're using `Warp` with the xray core, you don't need to make changes to the node - it will be applied automatically.
+- If you're using the `Wireguard` core, you need to perform step three, method two on the node as well.

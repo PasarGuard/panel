@@ -494,7 +494,7 @@ def _process_users_stats_response(stats_response):
     for uid, value in params.items():
         try:
             validated_params.append({"uid": int(uid), "value": value})
-        except ValueError, TypeError:
+        except (ValueError, TypeError):
             invalid_uids.append(uid)
 
     return validated_params, invalid_uids

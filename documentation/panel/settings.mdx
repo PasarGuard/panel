@@ -1,0 +1,1270 @@
+---
+title: Settings Guide
+description: Comprehensive documentation for configuring PasarGuard system settings
+icon: Settings
+---
+
+## Table of Contents
+
+1. [Telegram Bot Settings](#1-telegram-bot-settings)
+2. [Webhook Settings](#2-webhook-settings)
+3. [Notification Settings](#3-notification-settings)
+4. [Notification Enable (Granular Controls)](#4-notification-enable-granular-controls)
+5. [Subscription Settings](#5-subscription-settings) (Most Important)
+6. [General Settings](#6-general-settings)
+7. [Complete Example Configuration](#complete-example-configuration)
+
+---
+
+## 1. Telegram Bot Settings
+
+Configure Telegram bot for admin panel management and user interactions.
+
+### Fields
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `enable` | boolean | Yes | `false` | Enable/disable Telegram bot functionality |
+| `token` | string | When enabled | `null` | Bot token from [@BotFather](https://t.me/botfather) |
+| `webhook_url` | string | For webhook method | `null` | Public HTTPS URL for webhook endpoint |
+| `webhook_secret` | string | For webhook method | `null` | Secret token for webhook security |
+| `proxy_url` | string | No | `null` | SOCKS5/HTTP proxy URL (format: `protocol://host:port`) |
+| `method` | string | No | `"webhook"` | Connection method: `"webhook"` or `"long-polling"` |
+| `mini_app_login` | boolean | No | `true` | Enable Telegram Mini App login feature |
+| `mini_app_web_url` | string | No | `""` | URL for Mini App web interface |
+| `for_admins_only` | boolean | No | `true` | Restrict bot access to admin users only |
+
+### Important Notes
+
+<Callout type="warning" title="Inline Mode Required">
+To enable **real-time user search** functionality in the bot, you must enable **Inline Mode** in @BotFather:
+1. Send `/setinline` to @BotFather
+2. Select your bot
+3. Enter a placeholder text (e.g., "Search users...")
+</Callout>
+
+<Callout type="info" title="Webhook vs Long Polling">
+**Webhook (Recommended for Production)**
+- ✅ Instant message delivery
+- ✅ Lower server load
+- ✅ More reliable
+- ❌ Requires public HTTPS URL
+- ❌ More complex setup
+
+**Long Polling (Good for Development)**
+- ✅ Easy setup, no public URL needed
+- ✅ Works behind firewall
+- ❌ Higher latency
+- ❌ More server resources
+</Callout>
+
+### Use Cases
+
+<Tabs items={['Production (Webhook)', 'Development (Long Polling)', 'Behind Firewall (Proxy)']}>
+  <Tab value="Production (Webhook)">
+    ```json
+    {
+      "telegram": {
+        "enable": true,
+        "token": "123456789:ABCdefGHIjklMNOpqrsTUVwxyz",
+        "method": "webhook",
+        "webhook_url": "https://panel.example.com/api/telegram/webhook",
+        "webhook_secret": "your_random_secret_here",
+        "mini_app_login": true,
+        "mini_app_web_url": "https://panel.example.com",
+        "for_admins_only": true
+      }
+    }
+    ```
+  </Tab>
+  <Tab value="Development (Long Polling)">
+    ```json
+    {
+      "telegram": {
+        "enable": true,
+        "token": "123456789:ABCdefGHIjklMNOpqrsTUVwxyz",
+        "method": "long-polling",
+        "mini_app_login": false,
+        "for_admins_only": false
+      }
+    }
+    ```
+  </Tab>
+  <Tab value="Behind Firewall (Proxy)">
+    ```json
+    {
+      "telegram": {
+        "enable": true,
+        "token": "123456789:ABCdefGHIjklMNOpqrsTUVwxyz",
+        "method": "long-polling",
+        "proxy_url": "socks5://proxy.example.com:1080",
+        "for_admins_only": true
+      }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+## 2. Webhook Settings
+
+Configure external webhooks for third-party integrations (e.g., custom monitoring systems).
+
+### Fields
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `enable` | boolean | Yes | `false` | Enable/disable webhook notifications |
+| `webhooks` | array | When enabled | `[]` | Array of webhook configurations (each with `url` and `secret`) |
+| `days_left` | array | No | `[]` | Day thresholds for expiration alerts (e.g., `[3, 7, 14]`) |
+| `usage_percent` | array | No | `[]` | Usage percentage thresholds (e.g., `[80, 90, 100]`) |
+| `timeout` | integer | No | `10` | HTTP request timeout in seconds (must be >0) |
+| `recurrent` | integer | No | `3600` | Interval for recurring checks in seconds (must be >0) |
+| `proxy_url` | string | No | `null` | Proxy URL for webhook requests |
+
+### Use Cases
+
+<Tabs items={['Multi-Webhook Setup', 'Critical Alerts Only']}>
+  <Tab value="Multi-Webhook Setup">
+    ```json
+    {
+      "webhook": {
+        "enable": true,
+        "webhooks": [
+          {
+            "url": "https://monitoring1.example.com/webhook",
+            "secret": "secret1"
+          },
+          {
+            "url": "https://monitoring2.example.com/webhook",
+            "secret": "secret2"
+          }
+        ],
+        "days_left": [1, 3, 7],
+        "usage_percent": [90, 100],
+        "timeout": 15,
+        "recurrent": 1800
+      }
+    }
+    ```
+  </Tab>
+  <Tab value="Critical Alerts Only">
+    ```json
+    {
+      "webhook": {
+        "enable": true,
+        "webhooks": [
+          {"url": "https://alerts.example.com/critical", "secret": "secret"}
+        ],
+        "days_left": [1, 3],
+        "usage_percent": [95, 100],
+        "timeout": 5,
+        "recurrent": 7200
+      }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+## 3. Notification Settings
+
+Configure Telegram/Discord notifications for system events using a queue-based delivery system.
+
+### Basic Configuration
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `notify_telegram` | boolean | Yes | `false` | Enable Telegram notifications |
+| `notify_discord` | boolean | Yes | `false` | Enable Discord notifications |
+| `telegram_api_token` | string | If notify_telegram | `null` | Telegram bot API token |
+| `telegram_chat_id` | integer | If notify_telegram | `null` | Fallback Telegram channel/chat ID |
+| `telegram_topic_id` | integer | No | `null` | Fallback Telegram topic/thread ID (for forum channels) |
+| `discord_webhook_url` | string | If notify_discord | `null` | Fallback Discord webhook URL |
+| `proxy_url` | string | No | `null` | Proxy for notification API requests |
+| `max_retries` | integer | No | `3` | Maximum retry attempts for failed notifications (must be >1) |
+
+### Per-Entity Notification Channels
+
+You can configure separate Telegram/Discord channels for different entity types. If not configured, notifications fall back to the main channel.
+
+| Entity | Description | Notification Types |
+|--------|-------------|-------------------|
+| `channels.admin` | Admin account events | create, modify, delete, reset_usage, login |
+| `channels.core` | Core configuration events | create, modify, delete |
+| `channels.group` | Group/inbound group events | create, modify, delete |
+| `channels.host` | Host/inbound configuration | create, modify, delete, modify_hosts |
+| `channels.node` | Node server events | create, modify, delete, connect, error |
+| `channels.user` | User account events | create, modify, delete, status_change, reset_data_usage, data_reset_by_next, subscription_revoked |
+| `channels.user_template` | User template events | create, modify, delete |
+
+Each entity channel supports:
+```json
+{
+  "telegram_chat_id": -1001234567890,  // Optional: entity-specific channel
+  "telegram_topic_id": 5,               // Optional: topic ID in forum channel
+  "discord_webhook_url": "https://..."  // Optional: entity-specific Discord webhook
+}
+```
+
+<Callout type="info" title="Queue-Based Notification System">
+**How it works:**
+1. Notifications are added to an in-memory queue
+2. A background worker processes the queue sequentially (one-by-one)
+3. Rate limits from Telegram/Discord APIs are automatically respected
+4. Failed notifications retry with exponential backoff (up to `max_retries`)
+5. The system extracts `retry_after` from API 429 responses (not hardcoded delays)
+
+**Benefits:**
+- ✅ No notification loss during rate limiting
+- ✅ Automatic retry on temporary failures
+- ✅ Sequential delivery maintains message order
+- ✅ Respects API rate limits dynamically
+</Callout>
+
+### Use Cases
+
+<Tabs items={['Single Channel', 'Multi-Channel', 'Telegram + Discord', 'With Proxy']}>
+  <Tab value="Single Channel">
+    ```json
+    {
+      "notification_settings": {
+        "notify_telegram": true,
+        "notify_discord": false,
+        "telegram_api_token": "987654321:XYZabcDEFghiJKLmno",
+        "telegram_chat_id": -1001234567890,
+        "max_retries": 3
+      }
+    }
+    ```
+  </Tab>
+  <Tab value="Multi-Channel">
+    ```json
+    {
+      "notification_settings": {
+        "notify_telegram": true,
+        "telegram_api_token": "987654321:XYZabcDEFghiJKLmno",
+        "telegram_chat_id": -1001111111111,  // Fallback/default channel
+        "max_retries": 3,
+        "channels": {
+          "admin": {
+            "telegram_chat_id": -1002222222222,
+            "telegram_topic_id": 10
+          },
+          "user": {
+            "telegram_chat_id": -1003333333333,
+            "telegram_topic_id": 20
+          },
+          "node": {
+            "telegram_chat_id": -1004444444444
+          }
+        }
+      }
+    }
+    ```
+  </Tab>
+  <Tab value="Telegram + Discord">
+    ```json
+    {
+      "notification_settings": {
+        "notify_telegram": true,
+        "notify_discord": true,
+        "telegram_api_token": "987654321:XYZabcDEFghiJKLmno",
+        "telegram_chat_id": -1001234567890,
+        "discord_webhook_url": "https://discord.com/api/webhooks/123/abc",
+        "max_retries": 5,
+        "channels": {
+          "admin": {
+            "telegram_chat_id": -1005555555555  // Critical events on Telegram
+          },
+          "user": {
+            "discord_webhook_url": "https://discord.com/api/webhooks/456/def"  // User events on Discord
+          }
+        }
+      }
+    }
+    ```
+  </Tab>
+  <Tab value="With Proxy">
+    ```json
+    {
+      "notification_settings": {
+        "notify_telegram": true,
+        "telegram_api_token": "987654321:XYZabcDEFghiJKLmno",
+        "telegram_chat_id": -1001234567890,
+        "proxy_url": "socks5://proxy.internal:1080",
+        "max_retries": 3
+      }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+## 4. Notification Enable (Granular Controls)
+
+Control exactly which notification types are sent for each entity. This allows you to reduce noise by disabling unnecessary notifications.
+
+### Structure Overview
+
+```json
+{
+  "notification_enable": {
+    "admin": { /* AdminNotificationEnable */ },
+    "core": { /* BaseNotificationEnable */ },
+    "group": { /* BaseNotificationEnable */ },
+    "host": { /* HostNotificationEnable */ },
+    "node": { /* NodeNotificationEnable */ },
+    "user": { /* UserNotificationEnable */ },
+    "user_template": { /* BaseNotificationEnable */ }
+  }
+}
+```
+
+### Notification Types by Entity
+
+<Tabs items={['Admin', 'Core', 'Group', 'Host', 'Node', 'User', 'User Template']}>
+  <Tab value="Admin">
+    **AdminNotificationEnable**
+
+    ```json
+    {
+      "admin": {
+        "create": true,       // New admin account created
+        "modify": true,       // Admin account modified
+        "delete": true,       // Admin account deleted
+        "reset_usage": true,  // Admin usage reset
+        "login": true         // Admin login attempts (success/failure)
+      }
+    }
+    ```
+  </Tab>
+  <Tab value="Core">
+    **BaseNotificationEnable**
+
+    ```json
+    {
+      "core": {
+        "create": true,   // New core config created
+        "modify": true,   // Core config modified
+        "delete": true    // Core config deleted
+      }
+    }
+    ```
+  </Tab>
+  <Tab value="Group">
+    **BaseNotificationEnable**
+
+    ```json
+    {
+      "group": {
+        "create": true,   // New group created
+        "modify": true,   // Group modified
+        "delete": true    // Group deleted
+      }
+    }
+    ```
+  </Tab>
+  <Tab value="Host">
+    **HostNotificationEnable**
+
+    ```json
+    {
+      "host": {
+        "create": true,       // New host/inbound created
+        "modify": true,       // Host modified
+        "delete": true,       // Host deleted
+        "modify_hosts": true  // Bulk host modification
+      }
+    }
+    ```
+  </Tab>
+  <Tab value="Node">
+    **NodeNotificationEnable**
+
+    ```json
+    {
+      "node": {
+        "create": true,   // New node added
+        "modify": true,   // Node configuration modified
+        "delete": true,   // Node removed
+        "connect": true,  // Node connected successfully
+        "error": true     // Node connection error
+      }
+    }
+    ```
+  </Tab>
+  <Tab value="User">
+    **UserNotificationEnable**
+
+    ```json
+    {
+      "user": {
+        "create": true,               // New user created
+        "modify": true,               // User modified
+        "delete": true,               // User deleted
+        "status_change": true,        // User status changed (active/expired/limited/disabled)
+        "reset_data_usage": true,     // User data usage reset manually
+        "data_reset_by_next": true,   // Data usage reset by next plan
+        "subscription_revoked": true  // User subscription access revoked
+      }
+    }
+    ```
+  </Tab>
+  <Tab value="User Template">
+    **BaseNotificationEnable**
+
+    ```json
+    {
+      "user_template": {
+        "create": true,   // New template created
+        "modify": true,   // Template modified
+        "delete": true    // Template deleted
+      }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+### Use Cases
+
+<Tabs items={['Critical Events Only', 'User Events Only', 'Silent Mode']}>
+  <Tab value="Critical Events Only">
+    ```json
+    {
+      "notification_enable": {
+        "admin": {
+          "create": false,
+          "modify": false,
+          "delete": true,
+          "reset_usage": false,
+          "login": true
+        },
+        "core": {"create": false, "modify": false, "delete": true},
+        "group": {"create": false, "modify": false, "delete": false},
+        "host": {"create": false, "modify": false, "delete": true, "modify_hosts": false},
+        "node": {"create": false, "modify": false, "delete": false, "connect": false, "error": true},
+        "user": {
+          "create": false,
+          "modify": false,
+          "delete": true,
+          "status_change": true,
+          "reset_data_usage": false,
+          "data_reset_by_next": false,
+          "subscription_revoked": true
+        },
+        "user_template": {"create": false, "modify": false, "delete": false}
+      }
+    }
+    ```
+  </Tab>
+  <Tab value="User Events Only">
+    ```json
+    {
+      "notification_enable": {
+        "admin": {"create": false, "modify": false, "delete": false, "reset_usage": false, "login": false},
+        "core": {"create": false, "modify": false, "delete": false},
+        "group": {"create": false, "modify": false, "delete": false},
+        "host": {"create": false, "modify": false, "delete": false, "modify_hosts": false},
+        "node": {"create": false, "modify": false, "delete": false, "connect": false, "error": false},
+        "user": {
+          "create": true,
+          "modify": true,
+          "delete": true,
+          "status_change": true,
+          "reset_data_usage": true,
+          "data_reset_by_next": true,
+          "subscription_revoked": true
+        },
+        "user_template": {"create": false, "modify": false, "delete": false}
+      }
+    }
+    ```
+  </Tab>
+  <Tab value="Silent Mode">
+    ```json
+    {
+      "notification_enable": {
+        "admin": {"create": false, "modify": false, "delete": false, "reset_usage": false, "login": false},
+        "core": {"create": false, "modify": false, "delete": false},
+        "group": {"create": false, "modify": false, "delete": false},
+        "host": {"create": false, "modify": false, "delete": false, "modify_hosts": false},
+        "node": {"create": false, "modify": false, "delete": false, "connect": false, "error": false},
+        "user": {
+          "create": false,
+          "modify": false,
+          "delete": false,
+          "status_change": false,
+          "reset_data_usage": false,
+          "data_reset_by_next": false,
+          "subscription_revoked": false
+        },
+        "user_template": {"create": false, "modify": false, "delete": false}
+      }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+## 5. Subscription Settings
+
+<Callout type="tip" title="Most Important Section">
+Configure how users access and receive their subscription configurations. This section is crucial for proper client operation.
+</Callout>
+
+### Core Fields
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `url_prefix` | string | Recommended | `""` | Base URL for subscription links (e.g., `"https://sub.example.com"`) |
+| `update_interval` | integer | No | `12` | Update interval in hours shown to clients |
+| `support_url` | string | No | `"https://t.me/"` | Support/contact URL shown in client apps |
+| `profile_title` | string | No | `"Subscription"` | Subscription profile title (supports variables) |
+| `announce` | string | No | `""` | Announcement text (max 128 chars, v2RayTun & Happ only) |
+| `announce_url` | string | No | `""` | URL for more announcement information |
+| `host_status_filter` | boolean | Yes | - | Filter hosts based on user status |
+| `rules` | array | Yes | - | User-agent detection rules for auto-config |
+| `manual_sub_request` | object | No | all true | Enable/disable manual format requests |
+| `applications` | array | No | `[]` | Client application configurations with import URLs |
+
+### Profile Title Variables
+
+The `profile_title` field supports dynamic variables:
+
+| Variable | Description | Example Output |
+|----------|-------------|----------------|
+| `{username}` | User's username | `john_doe` |
+| `{used_traffic}` | Used traffic (formatted) | `5.2 GB` |
+| `{data_limit}` | Data limit (formatted) | `50 GB` |
+| `{data_left}` | Remaining data (formatted) | `44.8 GB` |
+| `{expire_date}` | Expiration date | `2024-12-31` |
+| `{expire_days}` | Days until expiration | `45` |
+| `{status}` | User status | `active` |
+| `{admin_username}` | Admin's username | `admin1` |
+
+**Example:**
+```json
+{
+  "profile_title": "{username} | {data_limit} | Expires: {expire_days} days"
+}
+```
+Output: `john_doe | 50 GB | Expires: 45 days`
+
+### Host Status Filter
+
+Controls whether hosts are filtered based on user status.
+
+```json
+{
+  "host_status_filter": true  // or false
+}
+```
+
+**When `true`:**
+- Users only see hosts that match their current status
+- Allows you to create separate host groups for different user statuses
+- Example use case: Premium hosts for active users, limited hosts for on-hold users
+
+**When `false`:**
+- Users see all enabled hosts regardless of their status
+- Simpler configuration, less granular control
+
+<Callout type="warning" title="Important">
+When a host's status field is **empty** (not configured), that host will be shown to **all users** regardless of the `host_status_filter` setting.
+</Callout>
+
+**Example Scenario:**
+```
+Host A: status = [active, limited]
+Host B: status = [active]
+Host C: status = [on_hold]
+
+User with status = "active":
+  - host_status_filter=true  → sees Host A, Host B
+  - host_status_filter=false → sees Host A, Host B, Host C
+
+User with status = "on_hold":
+  - host_status_filter=true  → sees Host C only
+  - host_status_filter=false → sees Host A, Host B, Host C
+```
+
+### Client Detection Rules
+
+The `rules` array defines how to detect client types based on User-Agent header and which config format to return.
+
+```json
+{
+  "rules": [
+    {
+      "pattern": "regex_pattern",
+      "target": "config_format"
+    }
+  ]
+}
+```
+
+**Available Config Formats (`target`):**
+- `links` - Plain subscription links
+- `links_base64` - Base64-encoded subscription links
+- `xray` - Xray-core JSON configuration
+- `sing_box` - sing-box JSON configuration
+- `clash` - Clash YAML configuration
+- `clash_meta` - Clash Meta YAML configuration
+- `outline` - Outline JSON configuration
+- `block` - Special target to deny access (returns HTTP 406)
+
+**How It Works:**
+1. Client requests subscription with User-Agent header
+2. System checks User-Agent against patterns in order
+3. First matching pattern determines config format
+4. If no match and format not enabled in `manual_sub_request`, returns 406
+5. Config is generated and returned with appropriate headers
+
+**Production-Ready Patterns:**
+```json
+{
+  "rules": [
+    {
+      "pattern": "^(Telegram|WhatsApp|TelegramBot|WhatsAppBot)",
+      "target": "block"
+    },
+    {
+      "pattern": "^([Cc]lash[\\-\\.]?[Vv]erge|[Cc]lash[\\-\\.]?[Mm]eta|[Ff][Ll][Cc]lash|[Mm]ihomo)",
+      "target": "clash_meta"
+    },
+    {
+      "pattern": "^([Cc]lash|[Ss]tash)",
+      "target": "clash"
+    },
+    {
+      "pattern": "^(SFA|SFI|SFM|SFT|[Kk]aring|[Hh]iddify[Nn]ext)|.*[Ss]ing[\\-b]?ox.*",
+      "target": "sing_box"
+    },
+    {
+      "pattern": "^(SS|SSR|SSD|SSS|Outline|Shadowsocks|SSconf)",
+      "target": "outline"
+    },
+    {
+      "pattern": "^.*",
+      "target": "links_base64"
+    }
+  ]
+}
+```
+
+**What Each Pattern Catches:**
+1. **Blocked Clients** → `block`
+   - Telegram (prevents subscription access from Telegram app)
+   - WhatsApp (prevents subscription access from WhatsApp)
+   - TelegramBot (blocks automated bot requests)
+   - WhatsAppBot (blocks automated bot requests)
+
+2. **Clash Meta variants** → `clash_meta`
+   - Clash-Verge, Clash.Verge, ClashVerge
+   - Clash-Meta, Clash.Meta, ClashMeta
+   - FLClash, Mihomo
+
+3. **Clash variants** → `clash`
+   - Clash (original)
+   - Stash (iOS client)
+
+4. **sing-box variants** → `sing_box`
+   - SFA (sing-box for Android)
+   - SFI (sing-box for iOS)
+   - SFM (sing-box for macOS)
+   - SFT (sing-box terminal)
+   - Karing
+   - HiddifyNext
+   - Any client with "sing-box" or "sing box" in User-Agent
+
+5. **Shadowsocks/Outline variants** → `outline`
+   - SS, SSR, SSD, SSS
+   - Outline
+   - Shadowsocks
+   - SSconf
+
+6. **Fallback** → `links_base64`
+   - Matches everything else (^.*)
+   - Returns base64-encoded subscription links
+   - Useful for unknown or custom clients
+
+**Block Unwanted Clients:**
+```json
+{
+  "rules": [
+    {"pattern": "^(Telegram|WhatsApp|TelegramBot|WhatsAppBot)", "target": "block"},
+    {"pattern": "BadClient|SpamBot|Scraper", "target": "block"},
+    {"pattern": "Clash", "target": "clash"}
+  ]
+}
+```
+
+<Callout type="info" title="Why Block Telegram/WhatsApp?">
+Blocking these user agents prevents users from opening subscription links directly in messaging apps, which could:
+- Expose subscription URLs to app caches
+- Allow unintended sharing via app features
+- Bypass intended client applications
+- Create security/privacy concerns
+</Callout>
+
+### Manual Subscription Request
+
+Controls which config formats can be manually requested (when user-agent doesn't match any rule).
+
+```json
+{
+  "manual_sub_request": {
+    "links": true,
+    "links_base64": true,
+    "xray": true,
+    "sing_box": true,
+    "clash": true,
+    "clash_meta": true,
+    "outline": true
+  }
+}
+```
+
+**Use Cases:**
+- Enable only formats you actively support
+- Disable unused formats to reduce attack surface
+- Force specific clients through user-agent detection
+
+### Applications Configuration
+
+Define client applications with deep link import URLs for easy one-click subscription setup.
+
+```json
+{
+  "applications": [
+    {
+      "name": "v2rayNG",
+      "platform": "android",
+      "icon_url": "https://cdn.example.com/icons/v2rayng.png",
+      "import_url": "v2rayng://install-config?url={url}",
+      "description": {
+        "en": "Fast and lightweight VPN client for Android",
+        "fa": "کلاینت سریع و سبک برای اندروید",
+        "ru": "Быстрый VPN-клиент для Android",
+        "zh": "适用于Android的快速VPN客户端"
+      },
+      "recommended": true,
+      "download_links": [
+        {
+          "name": "Google Play",
+          "url": "https://play.google.com/store/apps/details?id=com.v2ray.ang",
+          "language": "en"
+        },
+        {
+          "name": "GitHub Release",
+          "url": "https://github.com/2dust/v2rayNG/releases",
+          "language": "en"
+        }
+      ]
+    }
+  ]
+}
+```
+
+**Field Descriptions:**
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `name` | Yes | Application name (max 32 chars) |
+| `platform` | Yes | Platform: `android`, `ios`, `windows`, `macos`, `linux`, `appletv`, `androidtv` |
+| `icon_url` | No | Icon image URL (max 512 chars) |
+| `import_url` | No | Deep link URL template (must contain `{url}` placeholder) |
+| `description` | No | Multi-language descriptions (`en`, `fa`, `ru`, `zh`) |
+| `recommended` | No | Mark as recommended (only one per platform allowed) |
+| `download_links` | No | Array of download links with name, url, and language |
+
+**Import URL Placeholder:**
+- MUST contain `{url}` placeholder
+- System automatically replaces `{url}` with actual subscription URL
+- Examples:
+  - `v2rayng://install-config?url={url}`
+  - `clash://install-config?url={url}`
+  - `sing-box://import-remote-profile?url={url}`
+
+**Validation Rules:**
+- Only one `recommended: true` app per platform
+- `import_url` must contain `{url}` if provided
+- `platform` must be one of the defined platforms
+
+### How Subscription System Works
+
+#### 1. User Accesses Subscription URL
+
+```
+Format: /sub/{token}
+Example: https://panel.example.com/sub/abc123def456
+```
+
+The token uniquely identifies the user.
+
+#### 2. Request Type Detection
+
+**HTML Request (Browser):**
+- Accept header: `text/html`
+- Returns: HTML subscription page
+- Shows: Links, QR codes, app import buttons
+- Uses: Admin's `sub_template` or default template
+
+**API Request (Client App):**
+- Accept header: other (e.g., `*/*`, `application/json`)
+- Returns: Config file (YAML/JSON/plain text)
+- Format determined by: User-Agent detection or manual format parameter
+
+#### 3. User-Agent Detection
+
+```
+Client sends: User-Agent: v2rayNG/1.8.5
+
+System checks rules:
+1. Pattern: "^(Clash|ClashForAndroid)" → No match
+2. Pattern: "v2rayN" → Match! → Target: "xray"
+
+Returns: Xray JSON configuration
+```
+
+#### 4. Config Generation
+
+1. **Load User Data**: Fetch user info, inbounds, groups, quotas
+2. **Apply Filters**:
+   - Filter inbounds by user's group membership
+   - Apply `host_status_filter` if enabled
+3. **Generate Config**: Create appropriate format (Clash YAML, Xray JSON, etc.)
+4. **Encode**: Base64 encode if required (e.g., `links_base64`)
+5. **Set Headers**: Add subscription headers
+6. **Return**: Send config to client
+
+#### 5. Response Headers
+
+```http
+Content-Disposition: attachment; filename="john_doe"
+Profile-Web-Page-URL: https://panel.example.com/sub/abc123
+Support-URL: https://t.me/support
+Profile-Title: john_doe%20%7C%2050%20GB
+Profile-Update-Interval: 12
+Subscription-Userinfo: upload=0; download=5589934592; total=53687091200; expire=1735689599
+```
+
+### Complete Use Cases
+
+<Tabs items={['Basic Setup', 'Block & Allow Lists', 'Rich Application Directory', 'Dynamic Titles']}>
+  <Tab value="Basic Setup">
+    ```json
+    {
+      "subscription": {
+        "url_prefix": "https://sub.example.com",
+        "update_interval": 12,
+        "support_url": "https://t.me/support",
+        "profile_title": "{username} - {data_limit}",
+        "host_status_filter": false,
+        "rules": [
+          {"pattern": "Clash", "target": "clash"},
+          {"pattern": "v2ray", "target": "xray"},
+          {"pattern": "Hiddify", "target": "sing_box"}
+        ],
+        "manual_sub_request": {
+          "links": true,
+          "xray": true,
+          "clash": true,
+          "sing_box": true
+        }
+      }
+    }
+    ```
+  </Tab>
+  <Tab value="Block & Allow Lists">
+    ```json
+    {
+      "subscription": {
+        "url_prefix": "https://sub.example.com",
+        "update_interval": 24,
+        "profile_title": "Secure Subscription",
+        "host_status_filter": false,
+        "rules": [
+          {"pattern": "BadClient|Scraper|Bot", "target": "block"},  // Block these
+          {"pattern": "Clash", "target": "clash"},
+          {"pattern": "v2ray", "target": "xray"}
+        ],
+        "manual_sub_request": {
+          "links": false,
+          "links_base64": false,
+          "xray": true,
+          "clash": true
+        }
+      }
+    }
+    ```
+  </Tab>
+  <Tab value="Rich Application Directory">
+    ```json
+    {
+      "subscription": {
+        "url_prefix": "https://sub.example.com",
+        "update_interval": 12,
+        "profile_title": "{username}",
+        "host_status_filter": false,
+        "rules": [
+          {"pattern": "Clash", "target": "clash"},
+          {"pattern": "v2ray", "target": "xray"}
+        ],
+        "applications": [
+          {
+            "name": "v2rayNG",
+            "platform": "android",
+            "icon_url": "https://cdn.example.com/v2rayng.png",
+            "import_url": "v2rayng://install-config?url={url}",
+            "description": {
+              "en": "Best Android VPN client",
+              "fa": "بهترین کلاینت اندروید"
+            },
+            "recommended": true,
+            "download_links": [
+              {"name": "Play Store", "url": "https://play.google.com/...", "language": "en"},
+              {"name": "Direct APK", "url": "https://github.com/.../v2rayNG.apk", "language": "en"}
+            ]
+          },
+          {
+            "name": "Hiddify",
+            "platform": "ios",
+            "icon_url": "https://cdn.example.com/hiddify.png",
+            "import_url": "hiddify://import-remote-profile?url={url}",
+            "description": {
+              "en": "Best iOS VPN client"
+            },
+            "recommended": true,
+            "download_links": [
+              {"name": "App Store", "url": "https://apps.apple.com/...", "language": "en"}
+            ]
+          },
+          {
+            "name": "Clash Verge",
+            "platform": "windows",
+            "icon_url": "https://cdn.example.com/clash.png",
+            "import_url": "clash://install-config?url={url}",
+            "description": {
+              "en": "Modern Clash GUI for Windows"
+            },
+            "recommended": true,
+            "download_links": [
+              {"name": "GitHub", "url": "https://github.com/.../releases", "language": "en"}
+            ]
+          }
+        ]
+      }
+    }
+    ```
+  </Tab>
+  <Tab value="Dynamic Titles">
+    ```json
+    {
+      "subscription": {
+        "url_prefix": "https://sub.example.com",
+        "update_interval": 6,
+        "support_url": "https://t.me/support",
+        "profile_title": "⚡ {username} | 📊 {data_left}/{data_limit} | ⏰ {expire_days}d",
+        "announce": "🎉 New servers added! Update your subscription.",
+        "announce_url": "https://example.com/news/new-servers",
+        "host_status_filter": false,
+        "rules": [
+          {"pattern": "v2ray", "target": "xray"}
+        ]
+      }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+### Best Practices
+
+<Callout type="tip" title="DO">
+- **Always set `url_prefix`** for proper deep link generation
+- **Test regex patterns** using online regex testers before deployment
+- **Order rules carefully** - specific patterns first, generic patterns last
+- **Use `host_status_filter`** only if you have status-specific hosts configured
+- **Keep announcements concise** - max 128 characters
+- **Validate import URLs** - must contain `{url}` placeholder
+- **One recommended app** per platform maximum
+- **Use meaningful profile titles** with variables for better UX
+</Callout>
+
+<Callout type="warning" title="DON'T">
+- Don't leave `url_prefix` empty in production (breaks import URLs)
+- Don't use overlapping regex patterns (first match wins)
+- Don't enable `host_status_filter` without configuring host statuses
+- Don't exceed 128 characters in `announce` field
+- Don't forget `{url}` placeholder in `import_url`
+- Don't set multiple apps as `recommended: true` for same platform
+- Don't use special characters in `profile_title` that break URLs
+</Callout>
+
+<Callout type="info" title="Testing">
+```bash
+# Test subscription endpoint
+curl -v "https://panel.example.com/sub/TOKEN" \
+  -H "User-Agent: v2rayNG/1.8.5"
+
+# Test HTML page
+curl -v "https://panel.example.com/sub/TOKEN" \
+  -H "Accept: text/html"
+
+# Check response headers
+curl -I "https://panel.example.com/sub/TOKEN"
+```
+</Callout>
+
+---
+
+## 6. General Settings
+
+Default proxy protocol settings applied when creating new configurations.
+
+<Callout type="warning" title="Important">
+These settings are **only applied by the front-end** as default values when creating new configurations. They do **NOT** affect:
+- Direct API requests (API bypasses these defaults)
+- Manual changes in the front-end (users can override these values)
+- Existing configurations (only applies to new configs)
+</Callout>
+
+### Fields
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `default_flow` | string | `"none"` | Default XTLS flow control (front-end default only) |
+| `default_method` | string | `"chacha20-poly1305"` | Default Shadowsocks encryption method (front-end default only) |
+
+### XTLS Flow Options
+
+| Value | Description |
+|-------|-------------|
+| `none` | No XTLS (standard TLS) |
+| `xtls-rprx-vision` | XTLS Vision flow (recommended for VLESS) |
+
+### Shadowsocks Methods
+
+| Value | Security | Performance |
+|-------|----------|-------------|
+| `chacha20-poly1305` | High | Fast |
+| `chacha20-ietf-poly1305` | High | Fast |
+| `aes-256-gcm` | High | Medium |
+| `aes-128-gcm` | Medium | Fast |
+
+### Example
+
+```json
+{
+  "general": {
+    "default_flow": "xtls-rprx-vision",
+    "default_method": "chacha20-poly1305"
+  }
+}
+```
+
+---
+
+## Complete Example Configuration
+
+This example demonstrates a production-ready configuration with all features enabled:
+
+```json
+{
+  "telegram": {
+    "enable": true,
+    "token": "123456789:ABCdefGHIjklMNOpqrsTUVwxyz0123456",
+    "method": "webhook",
+    "webhook_url": "https://panel.example.com/api/telegram/webhook",
+    "webhook_secret": "random_secret_string_here",
+    "proxy_url": null,
+    "mini_app_login": true,
+    "mini_app_web_url": "https://panel.example.com",
+    "for_admins_only": true
+  },
+  "webhook": {
+    "enable": true,
+    "webhooks": [
+      {
+        "url": "https://uptime.example.com/api/push/abc123",
+        "secret": "uptime_kuma_secret"
+      },
+      {
+        "url": "https://monitoring.example.com/webhook",
+        "secret": "monitoring_secret"
+      }
+    ],
+    "days_left": [1, 3, 7, 14],
+    "usage_percent": [80, 90, 95, 100],
+    "timeout": 10,
+    "recurrent": 3600,
+    "proxy_url": null
+  },
+  "notification_settings": {
+    "notify_telegram": true,
+    "notify_discord": false,
+    "telegram_api_token": "987654321:XYZabcDEFghiJKLmno9876543210ABCDEF",
+    "telegram_chat_id": -1001234567890,
+    "telegram_topic_id": null,
+    "discord_webhook_url": null,
+    "proxy_url": null,
+    "max_retries": 3,
+    "channels": {
+      "admin": {
+        "telegram_chat_id": -1002222222222,
+        "telegram_topic_id": 10,
+        "discord_webhook_url": null
+      },
+      "user": {
+        "telegram_chat_id": -1003333333333,
+        "telegram_topic_id": 20,
+        "discord_webhook_url": null
+      },
+      "node": {
+        "telegram_chat_id": -1004444444444,
+        "telegram_topic_id": null,
+        "discord_webhook_url": null
+      }
+    }
+  },
+  "notification_enable": {
+    "admin": {
+      "create": true,
+      "modify": false,
+      "delete": true,
+      "reset_usage": true,
+      "login": true
+    },
+    "core": {
+      "create": true,
+      "modify": false,
+      "delete": true
+    },
+    "group": {
+      "create": true,
+      "modify": false,
+      "delete": true
+    },
+    "host": {
+      "create": true,
+      "modify": false,
+      "delete": true,
+      "modify_hosts": true
+    },
+    "node": {
+      "create": true,
+      "modify": false,
+      "delete": true,
+      "connect": true,
+      "error": true
+    },
+    "user": {
+      "create": true,
+      "modify": true,
+      "delete": true,
+      "status_change": true,
+      "reset_data_usage": true,
+      "data_reset_by_next": true,
+      "subscription_revoked": true
+    },
+    "user_template": {
+      "create": true,
+      "modify": false,
+      "delete": true
+    }
+  },
+  "subscription": {
+    "url_prefix": "https://sub.example.com",
+    "update_interval": 12,
+    "support_url": "https://t.me/example_support",
+    "profile_title": "{username} | {data_limit} | Exp: {expire_days}d",
+    "announce": "Welcome! Update every 12 hours for best performance.",
+    "announce_url": "https://example.com/announcements",
+    "host_status_filter": true,
+    "rules": [
+      {"pattern": "^(Clash|ClashForAndroid)", "target": "clash"},
+      {"pattern": "ClashMeta", "target": "clash_meta"},
+      {"pattern": "Stash", "target": "clash"},
+      {"pattern": "Shadowrocket", "target": "links"},
+      {"pattern": "v2rayN", "target": "xray"},
+      {"pattern": "v2rayNG", "target": "xray"},
+      {"pattern": "Hiddify|SFI|SFA", "target": "sing_box"},
+      {"pattern": "Outline", "target": "outline"}
+    ],
+    "manual_sub_request": {
+      "links": true,
+      "links_base64": true,
+      "xray": true,
+      "sing_box": true,
+      "clash": true,
+      "clash_meta": true,
+      "outline": true
+    },
+    "applications": [
+      {
+        "name": "v2rayNG",
+        "platform": "android",
+        "icon_url": "https://cdn.example.com/icons/v2rayng.png",
+        "import_url": "v2rayng://install-config?url={url}",
+        "description": {
+          "en": "Recommended Android client",
+          "fa": "کلاینت پیشنهادی اندروید"
+        },
+        "recommended": true,
+        "download_links": [
+          {
+            "name": "GitHub Release",
+            "url": "https://github.com/2dust/v2rayNG/releases",
+            "language": "en"
+          }
+        ]
+      },
+      {
+        "name": "Hiddify",
+        "platform": "ios",
+        "icon_url": "https://cdn.example.com/icons/hiddify.png",
+        "import_url": "hiddify://import-remote-profile?url={url}",
+        "description": {
+          "en": "Recommended iOS client"
+        },
+        "recommended": true,
+        "download_links": [
+          {
+            "name": "App Store",
+            "url": "https://apps.apple.com/app/hiddify",
+            "language": "en"
+          }
+        ]
+      }
+    ]
+  },
+  "general": {
+    "default_flow": "xtls-rprx-vision",
+    "default_method": "chacha20-poly1305"
+  }
+}
+```
+
+---
+
+## Additional Resources
+
+- **Telegram Bot API**: https://core.telegram.org/bots/api
+- **Discord Webhooks**: https://discord.com/developers/docs/resources/webhook
+- **Xray Documentation**: https://xtls.github.io/
+- **Clash Documentation**: https://github.com/Dreamacro/clash/wiki
+- **sing-box Documentation**: https://sing-box.sagernet.org/
+
+---
+
+## Support
+
+For questions, issues, or contributions:
+- Telegram Group: https://t.me/Pasar_Guard
+
+---

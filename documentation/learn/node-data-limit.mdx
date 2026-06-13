@@ -1,0 +1,509 @@
+---
+title: "Node Traffic Limits"
+description: "Comprehensive guide to setting up and managing traffic limits for Pasargard nodes"
+icon: "HardDrive"
+---
+
+## Introduction
+
+The **Per-Node Data Limits** feature is one of PasarGuard's advanced node-management features. It allows you to set individual traffic limits for each node and automatically manage nodes that have reached their limits.
+
+<Callout type="info">
+This feature is very useful for managing server costs and controlling node consumption.
+</Callout>
+
+## Why Node Traffic Limits?
+
+### Benefits
+
+- **Cost Control**: Prevent excessive traffic consumption on servers
+- **Automatic Management**: Automatically disable over-consuming nodes
+- **Transparency**: Accurate monitoring of each node's usage
+- **Flexibility**: Various reset strategies
+- **Smart Alerts**: Automatic notifications when limits are reached
+
+## How It Works
+
+### General Process
+
+1. **Set Limit**: Determine the allowed traffic volume for the node (e.g., 1000 GB)
+2. **Continuous Monitoring**: The system automatically checks node consumption
+3. **Identify Limited Node**: When the node's consumption reaches the limit, it is identified
+4. **Status Change**: Node status changes to `limited`
+5. **Disconnect**: Node is automatically disconnected
+6. **Notification**: Notification sent to Telegram/Discord
+
+### Calculation Equations
+
+Calculation of total node usage:
+
+```
+Used Traffic = Uplink + Downlink
+```
+
+Condition for limiting the node:
+
+```
+If Data Limit > 0 and Used Traffic >= Data Limit:
+  Is Limited = true
+Otherwise:
+  Is Limited = false
+```
+
+## Settings in Panel
+
+### Creating Node with Traffic Limit
+
+When creating or editing a node, you can set the traffic limit:
+
+<Steps>
+
+### Open Node Dialog
+
+In the **Nodes** section, click the **Add Node** or **Edit** button.
+
+### Set Traffic Limit
+
+In the **Data Limit (GB)** section:
+- Enter the desired value in GB
+- For unlimited traffic, enter 0 or leave blank
+
+Example: For a 500 GB limit, enter `500`.
+
+### Select Reset Strategy
+
+In the **Data Limit Reset Strategy** menu, select one of the following options:
+- **No Reset**: Never reset (default)
+- **Daily**: Reset daily
+- **Weekly**: Reset weekly
+- **Monthly**: Reset monthly
+- **Yearly**: Reset yearly
+
+### Set Reset Time (Optional)
+
+If you selected a reset strategy, you can specify the exact reset time:
+
+- **Daily**: Desired hour (0-86399 seconds from start of day)
+- **Weekly**: Desired day and hour (0-604799 seconds from start of week)
+- **Monthly**: Desired day and hour (0-2678399 seconds from start of month)
+- **Yearly**: Desired month, day, and hour
+
+For reset based on interval, enter `-1`.
+
+</Steps>
+
+### Practical Examples
+
+#### Example 1: 1 TB Limit Without Reset
+
+```json
+{
+  "data_limit": 1073741824000,  // 1TB in bytes
+  "data_limit_reset_strategy": "no_reset",
+  "reset_time": -1
+}
+```
+
+This setting is suitable for nodes where you want full manual control over resets.
+
+#### Example 2: 500 GB Limit with Daily Reset
+
+```json
+{
+  "data_limit": 536870912000,   // 500GB in bytes
+  "data_limit_reset_strategy": "day",
+  "reset_time": 0  // Midnight UTC
+}
+```
+
+This setting is useful for controlling daily server consumption.
+
+#### Example 3: Monthly 2 TB Limit
+
+```json
+{
+  "data_limit": 2147483648000,   // 2TB in bytes
+  "data_limit_reset_strategy": "month",
+  "reset_time": 0  // Start of each month, midnight
+}
+```
+
+Suitable for synchronizing with monthly hosting plans.
+
+## Node Statuses
+
+Nodes can have various statuses:
+
+| Status | Description | UI Display |
+|--------|-------------|------------|
+| `connected` | Node is active and connected | 🟢 Connected |
+| `connecting` | Attempting to connect | 🟡 Connecting |
+| `error` | Connection error | 🔴 Error |
+| `disabled` | Disabled by admin | ⚫ Disabled |
+| `limited` | Traffic limit reached | ⚠️ Limited |
+
+<Callout type="warning">
+When a node reaches `limited` status, it is automatically disconnected and users cannot use it.
+</Callout>
+
+## Monitoring and Logs
+
+### Checking Node Usage
+
+In the node list, you can see each node's current usage:
+
+```
+Node Name: Server-1
+Usage: 750 GB / 1000 GB (75%)
+Status: Connected ✅
+```
+
+When the node reaches 100%, it is automatically limited.
+
+### Reset Logs
+
+All traffic resets for nodes are logged in the `node_usage_reset_logs` table:
+
+```sql
+SELECT * FROM node_usage_reset_logs ORDER BY created_at DESC;
+```
+
+Logged information includes:
+- **node_id**: Node ID
+- **uplink**: Upload volume at reset time
+- **downlink**: Download volume at reset time
+- **created_at**: Reset date and time
+
+### Node Information API
+
+To get complete node information via API:
+
+```bash
+curl -X GET "https://your-panel.com/api/node/{node_id}" \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+The response will include these fields:
+
+```json
+{
+  "id": 1,
+  "name": "Server-1",
+  "status": "connected",
+  "data_limit": 1073741824000,
+  "uplink": 536870912000,
+  "downlink": 268435456000,
+  "lifetime_uplink": 2147483648000,
+  "lifetime_downlink": 1073741824000,
+  "data_limit_reset_strategy": "month",
+  "reset_time": 0
+}
+```
+
+## Notifications
+
+### Telegram
+
+When a node is limited, this message is sent:
+
+```
+⚠️ #Limited_Node
+➖➖➖➖➖➖➖➖➖
+Name: Server-1
+Data Limit: 1.00 TB
+Used Traffic: 1.02 TB
+➖➖➖➖➖➖➖➖➖
+ID: 1
+```
+
+### Discord
+
+The same message is sent in Discord Embed format.
+
+### Enabling Notifications
+
+In panel settings (Settings > Notifications):
+
+```json
+{
+  "node": {
+    "limited": true,
+    "reset_usage": true
+  }
+}
+```
+
+## Administrative Operations
+
+### Manual Reset of Node Usage
+
+If you need to manually reset a node's usage:
+
+<Steps>
+
+### Go to Nodes Section
+
+In the admin panel, go to the node list.
+
+### Select Node
+
+Click on the desired node.
+
+### Reset
+
+Click the **Reset Usage** button.
+
+</Steps>
+
+<Callout type="info">
+Manual reset is logged in the `node_usage_reset_logs` table and notifications are sent.
+</Callout>
+
+### Re-enabling Limited Node
+
+There are two ways to re-enable a limited node:
+
+#### Method 1: Reset Usage
+
+Reset the node's usage (as explained above).
+
+#### Method 2: Increase Limit
+
+1. Edit the node
+2. Increase the traffic limit
+3. Save
+
+The node will automatically return to normal status.
+
+## Best Practices
+
+### 1. Set Realistic Limits
+
+Set limits based on your actual hosting plan:
+
+```
+Server Plan: 5 TB/month
+Suggested Limit: 4.5 TB
+(10% safety margin)
+```
+
+### 2. Use Appropriate Strategy
+
+- **Commercial Users**: Monthly strategy with specific time
+- **Testing and Development**: Daily strategy
+- **Limited Projects**: no_reset (no reset)
+
+### 3. Regular Monitoring
+
+A monitoring dashboard to check daily:
+
+```bash
+# Sample script to check nodes close to limit
+curl -X GET "https://your-panel.com/api/nodes" | \
+  jq '.nodes[] | select(.used_traffic / .data_limit > 0.8)'
+```
+
+### 4. Preventive Alerts
+
+You can set custom alerts for 80% usage to take action before limiting.
+
+## Jobs and Schedulers
+
+### Node Limit Check Job
+
+The system checks nodes periodically (default every 5 minutes):
+
+```python
+# In config.py
+JOB_CHECK_NODE_LIMITS_INTERVAL = 300  # in seconds (5 minutes)
+```
+
+### How the Job Works
+
+1. Get list of nodes with `is_limited = True`
+2. Check current node status
+3. Disconnect node
+4. Change status to `limited`
+5. Send notification
+
+### Changing Interval
+
+You can change the interval in the settings file:
+
+```python
+# For faster checking (every 2 minutes)
+JOB_CHECK_NODE_LIMITS_INTERVAL = 120
+
+# For slower checking (every 10 minutes)
+JOB_CHECK_NODE_LIMITS_INTERVAL = 600
+```
+
+## Reset Strategies
+
+### no_reset
+
+Limit is never reset:
+
+- **Use Case**: Nodes with limited consumption
+- **Management**: Manual by admin
+
+### day (Daily)
+
+Limit resets every day:
+
+```python
+# Example: Every day at 3 AM UTC
+reset_time = 3 * 3600  # 10800 seconds
+```
+
+### week (Weekly)
+
+Limit resets every week:
+
+```python
+# Example: Every Monday at 0:00 UTC
+reset_time = 0  # start of week
+
+# Example: Every Friday at 18:00 UTC
+# Friday = day 4 of week (0-6)
+reset_time = (4 * 86400) + (18 * 3600)  # 410400 seconds
+```
+
+### month (Monthly)
+
+Limit resets every month:
+
+```python
+# Example: 1st of each month at 0:00 UTC
+reset_time = 0
+
+# Example: 15th of each month at 12:00 UTC
+reset_time = (14 * 86400) + (12 * 3600)  # 1252800 seconds
+```
+
+### year (Yearly)
+
+Limit resets every year:
+
+```python
+# Example: January 1st at 0:00 UTC
+reset_time = 0
+```
+
+### Using Interval
+
+For reset based on interval from first activation:
+
+```python
+reset_time = -1
+```
+
+## Troubleshooting
+
+### Node Not Limiting
+
+**Possible Causes:**
+
+1. Limit not set correctly
+2. Check job disabled
+3. Node usage not yet at limit
+
+**Solution:**
+
+```bash
+# Check node settings
+curl -X GET "https://your-panel.com/api/node/{node_id}"
+
+# Check job logs
+tail -f /var/log/pasarguard/jobs.log | grep "node_checker"
+```
+
+### Notification Not Sent
+
+**Check Settings:**
+
+1. Telegram/Discord settings correct?
+2. `limited` notification enabled?
+
+```bash
+curl -X GET "https://your-panel.com/api/settings/notifications"
+```
+
+### Node Not Auto-Activating
+
+After reset or limit increase, you should:
+
+1. Change node status to `connecting`
+2. Or reactivate via API:
+
+```bash
+curl -X PUT "https://your-panel.com/api/node/{node_id}" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -d '{"status": "connecting"}'
+```
+
+## Migration from Previous Version
+
+If you are using older versions of Pasargard:
+
+### 1. Update Database
+
+Migration runs automatically, but you can run it manually:
+
+```bash
+cd /opt/pasarguard
+alembic upgrade head
+```
+
+### 2. Check Changes
+
+```sql
+-- Check new columns
+DESCRIBE nodes;
+
+-- View new table
+DESCRIBE node_usage_reset_logs;
+```
+
+### 3. Set Limits for Existing Nodes
+
+All existing nodes will be unlimited by default (`data_limit = 0`). You can edit them.
+
+## FAQ
+
+### Does node limit affect user limits?
+
+No, these limits are independent. Users still have their own traffic limits.
+
+### What happens to connected users when node is limited?
+
+When the node is limited, all connected users are disconnected and must use other nodes.
+
+### Can I set different limits for different nodes?
+
+Yes, each node can have its own limit and reset strategy.
+
+### What is lifetime traffic?
+
+Lifetime traffic is the historical total usage of the node that is never reset, even with reset strategies.
+
+```python
+lifetime_used_traffic = lifetime_uplink + lifetime_downlink
+```
+
+### What's the difference between uplink and downlink?
+
+- **Uplink**: Traffic sent from server to users
+- **Downlink**: Traffic received from users to server
+
+Usually in VPN services, uplink is more.
+
+## More Resources
+
+- [Node API Documentation](../node/api)
+- [Node Configuration](../node/configuration)
+- [Multi-Worker Setup](./multi-worker)
+
+<Callout type="success">
+By using the node traffic limits feature, you can manage your servers better and prevent unexpected costs.
+</Callout>

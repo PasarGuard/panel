@@ -1,4 +1,3 @@
-import asyncio
 from datetime import datetime as dt, timedelta as td, timezone as tz
 
 from app import scheduler
@@ -11,6 +10,7 @@ from app.operation.node import NodeOperation
 from app import notification
 from app.jobs.dependencies import SYSTEM_ADMIN
 from app.utils.logger import get_logger
+from app.utils.tasks import create_background_task
 from config import job_settings, runtime_settings
 
 logger = get_logger("jobs")
@@ -35,7 +35,7 @@ async def reset_node_data_usage():
                 old_uplink = latest_log.uplink
                 old_downlink = latest_log.downlink
 
-            asyncio.create_task(notification.reset_node_usage(node, SYSTEM_ADMIN.username, old_uplink, old_downlink))
+            create_background_task(notification.reset_node_usage(node, SYSTEM_ADMIN.username, old_uplink, old_downlink))
 
             if db_node.id in limited_node_ids:
                 await node_operator.connect_single_node(db, db_node.id)

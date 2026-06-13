@@ -1,0 +1,892 @@
+---
+title: Host Configuration
+description: Proxy host configuration, value overrides, format variables, and filtering
+icon: Globe
+---
+
+# Host Configuration Documentation
+
+This document explains how PasarGuard processes and manages proxy hosts, how host configurations work, what values override inbound defaults, and how hosts are displayed to users in subscriptions.
+
+## Table of Contents
+
+1. [Overview](#overview)
+2. [Host Configuration Basics](#host-configuration-basics)
+3. [Value Override Priority](#value-override-priority)
+4. [Host Fields and Their Behavior](#host-fields-and-their-behavior)
+5. [Format Variables for User Display](#format-variables-for-user-display)
+6. [Transport Settings](#transport-settings)
+7. [Host Status and Filtering](#host-status-and-filtering)
+9. [Common Scenarios](#common-scenarios)
+
+---
+
+## Overview
+
+Hosts in PasarGuard are proxy server configurations that:
+- **Override** default values from XRay inbound configurations
+- **Provide** server addresses, ports, and transport settings
+- **Display** customized names (remarks) to users in subscriptions
+- **Filter** which users can see which hosts based on status
+
+### Subscription Generation Process
+
+When a user requests a subscription, PasarGuard:
+
+1. **Checks user's accessible inbounds** - Only hosts whose `inbound_tag` is accessible to the user (through their groups) are processed
+2. Loads all enabled hosts that match the user's status
+3. Merges host settings with inbound defaults (host values take priority)
+4. Formats host remarks and addresses using user-specific variables
+5. Randomly selects values from lists (SNI, host, address, port) for each request
+6. Generates the subscription configuration
+
+<Callout type="warning" title="Host Visibility Requirements">
+A host will only appear in a user's subscription if:
+- The host's `inbound_tag` is assigned to at least one of the user's groups
+- The user's groups are not disabled
+- The host is not disabled (`is_disabled: false`)
+- The host's `status` filter (if set) includes the user's status
+</Callout>
+
+---
+
+## Host Configuration Basics
+
+### Required Fields
+
+Every host **must** have:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `remark` | string | Display name shown to users (supports format variables) |
+| `inbound_tag` | string | Must match a tag from one of your XRay core configurations. **Important:** This inbound must be assigned to user groups for users to see this host |
+| `priority` | integer | Order hosts appear in subscriptions (lower = higher priority) |
+
+### Optional Fields
+
+Hosts can override inbound defaults for:
+
+- **Network Settings**: `address`, `port`, `sni`, `host`, `path`
+- **Security Settings**: `security`, `alpn`, `fingerprint`, `allowinsecure`
+- **Transport Settings**: Network-specific configurations (WebSocket, gRPC, etc.)
+- **Advanced Features**: Mux, fragment, noise settings
+- **Display Options**: `status` (which user statuses can see this host)
+
+---
+
+## Value Override Priority
+
+When generating subscriptions, PasarGuard merges values in this order:
+
+### Priority Order (Highest to Lowest)
+
+1. **Host Configuration** - Values set on the host override everything
+2. **Inbound Defaults** - Values from the XRay inbound configuration
+3. **System Defaults** - Built-in fallback values
+
+### How Overrides Work
+
+```
+Final Value = Host Value (if set) OR Inbound Value (if exists) OR System Default
+```
+
+<Tabs items={['Host Override', 'Inbound Default']}>
+  <Tab value="Host Override">
+    **Host value overrides inbound:**
+    
+    - Inbound has `sni: ["example.com"]`
+    - Host has `sni: ["host1.com", "host2.com"]`
+    - **Result:** `sni: ["host1.com", "host2.com"]` (host value wins)
+  </Tab>
+  <Tab value="Inbound Default">
+    **Inbound value used when host not set:**
+    
+    - Inbound has `port: 443`
+    - Host has `port: null` (not set)
+    - **Result:** `port: 443` (inbound value used)
+  </Tab>
+</Tabs>
+
+---
+
+## Host Fields and Their Behavior
+
+### Basic Network Fields
+
+<Tabs items={['address', 'port', 'sni', 'host', 'path']}>
+  <Tab value="address">
+    #### `address` (Set of Strings)
+    
+    - **Purpose:** Server IP addresses or domain names
+    - **Override:** Host value replaces inbound value completely
+    - **Display:** Randomly selected per subscription request
+    - **Format Variables:** Supports `` {SERVER_IP} ``, `` {SERVER_IPV6} ``, `` {USERNAME} ``, etc.
+    - **Limit:** Combined string length max 256 characters
+    - **Wildcards:** Supports `*` which gets replaced with random salt per request
+
+    **Example:**
+    ```json
+    {
+      "address": ["1.2.3.4", "server.example.com", "{SERVER_IP}"]
+    }
+    ```
+  </Tab>
+  <Tab value="port">
+    #### `port` (Integer)
+    
+    - **Purpose:** Server port number
+    - **Override:** Host port replaces inbound port
+    - **Special:** If not set, uses inbound port (can be single int or comma-separated string like "8080,8443")
+    - **Display:** If inbound has multiple ports, one is randomly selected per request
+
+    **Example:**
+    ```json
+    {
+      "port": 443  // Overrides inbound port
+    }
+    // OR
+    {
+      "port": null  // Uses inbound port (could be multiple)
+    }
+    ```
+  </Tab>
+  <Tab value="sni">
+    #### `sni` (Set of Strings)
+    
+    - **Purpose:** Server Name Indication for TLS
+    - **Override:** Host value replaces inbound SNI list
+    - **Display:** Randomly selected per subscription request
+    - **Limit:** Combined string length max 1000 characters
+    - **Wildcards:** Supports `*` which gets replaced with random salt
+
+    **Example:**
+    ```json
+    {
+      "sni": ["example.com", "*.example.com", "cdn.example.com"]
+    }
+    ```
+  </Tab>
+  <Tab value="host">
+    #### `host` (Set of Strings)
+    
+    - **Purpose:** Host header for HTTP/WebSocket transports
+    - **Override:** Host value replaces inbound host list
+    - **Display:** Randomly selected per subscription request
+    - **Limit:** Combined string length max 1000 characters
+    - **Wildcards:** Supports `*` which gets replaced with random salt
+
+    **Example:**
+    ```json
+    {
+      "host": ["example.com", "www.example.com"]
+    }
+    ```
+  </Tab>
+  <Tab value="path">
+    #### `path` (String)
+    
+    - **Purpose:** Path for WebSocket, gRPC, HTTP transports
+    - **Override:** Host path replaces inbound path if set
+    - **Format Variables:** Supports `` {PROTOCOL} ``, `` {TRANSPORT} ``, `` {USERNAME} ``, etc.
+    - **Default:** Uses inbound path if host path is not set
+
+    **Example:**
+    ```json
+    {
+      "path": "/{PROTOCOL}-{TRANSPORT}/path"
+    }
+    ```
+  </Tab>
+</Tabs>
+
+### Security Settings
+
+<Tabs items={['security', 'alpn', 'fingerprint', 'allowinsecure', 'ech_config_list']}>
+  <Tab value="security">
+    #### `security` (Enum: ProxyHostSecurity)
+    
+    - **Purpose:** TLS/Reality security type
+    - **Options:**
+      - `inbound_default` - Use security from inbound configuration
+      - `none` - No encryption
+      - `tls` - TLS encryption
+      - `reality` - Reality protocol
+    - **Override:** Host security replaces inbound security (unless set to `inbound_default`)
+
+    **Example:**
+    ```json
+    {
+      "security": "tls"  // Overrides inbound security
+    }
+    // OR
+    {
+      "security": "inbound_default"  // Uses inbound security
+    }
+    ```
+  </Tab>
+  <Tab value="alpn">
+    #### `alpn` (List of ProxyHostALPN)
+    
+    - **Purpose:** Application-Layer Protocol Negotiation
+    - **Options:** `h3`, `h2`, `http/1.1`
+    - **Override:** Host ALPN list replaces inbound ALPN
+    - **Special:** Automatically sorted by priority (h3 → h2 → http/1.1)
+    - **Default:** Uses inbound ALPN if not set
+
+    **Example:**
+    ```json
+    {
+      "alpn": ["h3", "h2", "http/1.1"]
+    }
+    ```
+  </Tab>
+  <Tab value="fingerprint">
+    #### `fingerprint` (Enum: ProxyHostFingerprint)
+    
+    - **Purpose:** TLS fingerprint type
+    - **Override:** Host fingerprint replaces inbound fingerprint (unless set to `none`)
+    - **Default:** Uses inbound fingerprint (usually `chrome` for Reality)
+
+    **Example:**
+    ```json
+    {
+      "fingerprint": "chrome"  // Overrides inbound fingerprint
+    }
+    // OR
+    {
+      "fingerprint": "none"  // Uses inbound fingerprint
+    }
+    ```
+  </Tab>
+  <Tab value="allowinsecure">
+    #### `allowinsecure` (Boolean)
+    
+    - **Purpose:** Allow insecure TLS connections
+    - **Override:** Host value replaces inbound value if set
+    - **Default:** Uses inbound value (usually `false`)
+
+    **Example:**
+    ```json
+    {
+      "allowinsecure": false  // Overrides inbound setting
+    }
+    ```
+  </Tab>
+  <Tab value="ech_config_list">
+    #### `ech_config_list` (String)
+    
+    - **Purpose:** Encrypted Client Hello (ECH) configuration
+    - **Override:** Host value replaces inbound value if set
+    - **Default:** Uses inbound value if not set
+  </Tab>
+</Tabs>
+
+### Advanced Features
+
+<Tabs items={['use_sni_as_host', 'random_user_agent', 'http_headers', 'is_disabled', 'status']}>
+  <Tab value="use_sni_as_host">
+    #### `use_sni_as_host` (Boolean)
+    
+    - **Purpose:** Use SNI value as host header
+    - **Behavior:** When `true`, the selected SNI value replaces the host header
+    - **Default:** `false`
+  </Tab>
+  <Tab value="random_user_agent">
+    #### `random_user_agent` (Boolean)
+    
+    - **Purpose:** Generate random User-Agent headers
+    - **Behavior:** When `true`, random User-Agent is added to HTTP headers
+    - **Default:** `false`
+  </Tab>
+  <Tab value="http_headers">
+    #### `http_headers` (Dictionary)
+    
+    - **Purpose:** Custom HTTP headers
+    - **Format:** `{"Header-Name": "value"}`
+    - **Override:** Host headers are added to transport config
+
+    **Example:**
+    ```json
+    {
+      "http_headers": {
+        "X-Forwarded-For": "1.2.3.4",
+        "Custom-Header": "value"
+      }
+    }
+    ```
+  </Tab>
+  <Tab value="is_disabled">
+    #### `is_disabled` (Boolean)
+    
+    - **Purpose:** Temporarily disable host without deleting
+    - **Behavior:** Disabled hosts are excluded from subscriptions
+    - **Default:** `false`
+  </Tab>
+  <Tab value="status">
+    #### `status` (Set of UserStatus)
+    
+    - **Purpose:** Filter which user statuses can see this host
+    - **Options:** `active`, `expired`, `limited`, `disabled`, `on_hold`
+    - **Behavior:** If set, only users with matching status see this host
+    - **Default:** `null` (all users can see it)
+
+    **Example:**
+    ```json
+    {
+      "status": ["active", "on_hold"]  // Only active and on_hold users see this
+    }
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+## Format Variables for User Display
+
+Host `remark` and `address` fields support format variables that are replaced with user-specific values when generating subscriptions.
+
+### Available Format Variables
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `{SERVER_IP}` | Server's public IPv4 address | `1.2.3.4` |
+| `{SERVER_IPV6}` | Server's public IPv6 address | `2001:db8::1` |
+| `{USERNAME}` | User's username | `john_doe` |
+| `{PROTOCOL}` | Protocol name (vmess, vless, etc.) | `vless` |
+| `{TRANSPORT}` | Transport type (tcp, ws, grpc, etc.) | `ws` |
+| `{DATA_USAGE}` | User's data usage (formatted) | `1.5 GB` |
+| `{DATA_LIMIT}` | User's data limit (formatted) | `100 GB` or `∞` |
+| `{DATA_LEFT}` | Remaining data (formatted) | `98.5 GB` or `∞` |
+| `{DAYS_LEFT}` | Days until expiration | `30` or `∞` |
+| `{EXPIRE_DATE}` | Expiration date (Gregorian) | `2024-12-31` |
+| `{JALALI_EXPIRE_DATE}` | Expiration date (Jalali) | `1403-10-11` |
+| `{TIME_LEFT}` | Time until expiration (formatted) | `30 days` or `∞` |
+| `{STATUS_EMOJI}` | User status emoji | `✅`, `⌛️`, `🪫`, `❌`, `🔌` |
+| `{USAGE_PERCENTAGE}` | Data usage percentage | `15.5` or `∞` |
+| `{ADMIN_USERNAME}` | Admin who created the user | `admin` |
+
+### Format Variable Examples
+
+<Tabs items={['Remark Examples', 'Address Examples', 'Missing Variables']}>
+  <Tab value="Remark Examples">
+    **Remark Examples:**
+    
+    ```json
+    {
+      "remark": "{PROTOCOL}-{TRANSPORT} Server {STATUS_EMOJI}"
+    }
+    // Results in: "vless-ws Server ✅" (for active user)
+    ```
+
+    ```json
+    {
+      "remark": "{USERNAME} - {DATA_LEFT} left"
+    }
+    // Results in: "john_doe - 98.5 GB left"
+    ```
+
+    ```json
+    {
+      "remark": "Server {SERVER_IP} - Expires {EXPIRE_DATE}"
+    }
+    // Results in: "Server 1.2.3.4 - Expires 2024-12-31"
+    ```
+  </Tab>
+  <Tab value="Address Examples">
+    **Address Examples:**
+    
+    ```json
+    {
+      "address": ["{SERVER_IP}", "cdn-{USERNAME}.example.com"]
+    }
+    // Results in random selection: "1.2.3.4" or "cdn-john_doe.example.com"
+    ```
+  </Tab>
+  <Tab value="Missing Variables">
+    **Missing Variables:**
+    
+    If a format variable is not available (e.g., user has no expiration), it will be replaced with:
+    - `∞` for date/time/limit fields
+    - `-` for dates when user is on hold
+    - `<missing>` for other missing variables
+  </Tab>
+</Tabs>
+
+---
+
+## Transport Settings
+
+Hosts can configure network-specific transport settings that override inbound defaults.
+
+<Tabs items={['WebSocket', 'gRPC', 'KCP', 'TCP', 'XHTTP/SplitHTTP', 'Mux', 'Fragment', 'Noise']}>
+  <Tab value="WebSocket">
+    ### WebSocket Settings
+
+    ```json
+    {
+      "transport_settings": {
+        "websocket_settings": {
+          "heartbeatPeriod": 30  // Heartbeat interval in seconds
+        }
+      }
+    }
+    ```
+  </Tab>
+  <Tab value="gRPC">
+    ### gRPC Settings
+
+    ```json
+    {
+      "transport_settings": {
+        "grpc_settings": {
+          "multi_mode": true,  // Enable multi-mode
+          "idle_timeout": 60,  // Idle timeout in seconds
+          "health_check_timeout": 20,  // Health check timeout
+          "permit_without_stream": false,  // Require stream
+          "initial_windows_size": 1048576  // Initial window size
+        }
+      }
+    }
+    ```
+  </Tab>
+  <Tab value="KCP">
+    ### KCP Settings
+
+    ```json
+    {
+      "transport_settings": {
+        "kcp_settings": {
+          "header": "wechat-video",  // Header type
+          "mtu": 1350,  // Maximum Transmission Unit
+          "tti": 20,  // Transmission Time Interval
+          "uplink_capacity": 5,  // Uplink capacity
+          "downlink_capacity": 20,  // Downlink capacity
+          "congestion": false,  // Congestion control
+          "read_buffer_size": 2,  // Read buffer size
+          "write_buffer_size": 2  // Write buffer size
+        }
+      }
+    }
+    ```
+  </Tab>
+  <Tab value="TCP">
+    ### TCP Settings
+
+    ```json
+    {
+      "transport_settings": {
+        "tcp_settings": {
+          "header": "http",  // Header type: "none" or "http"
+          "request": {
+            "method": "GET",
+            "version": "1.1",
+            "headers": {
+              "Host": ["example.com"]
+            }
+          },
+          "response": {
+            "status": "200",
+            "reason": "OK",
+            "version": "1.1"
+          }
+        }
+      }
+    }
+    ```
+  </Tab>
+  <Tab value="XHTTP/SplitHTTP">
+    ### XHTTP/SplitHTTP Settings
+
+    ```json
+    {
+      "transport_settings": {
+        "xhttp_settings": {
+          "mode": "auto",  // auto, packet-up, stream-up, stream-one
+          "no_grpc_header": false,  // Disable gRPC header
+          "x_padding_bytes": "1-100",  // Padding bytes range
+          "sc_max_each_post_bytes": 1048576,  // Max post bytes
+          "sc_min_posts_interval_ms": 100,  // Min interval between posts
+          "xmux": {
+            "maxConcurrency": 8,
+            "maxConnections": 8,
+            "cMaxReuseTimes": 1,
+            "hMaxReusableSecs": 300,
+            "hMaxRequestTimes": 8,
+            "hKeepAlivePeriod": 15
+          },
+          "download_settings": 2  // ID of another host for download
+        }
+      }
+    }
+    ```
+
+    <Callout type="warning" title="Download Settings">
+    `download_settings` references another host ID for XHTTP download functionality. The referenced host cannot have its own download host (no nesting).
+    </Callout>
+  </Tab>
+  <Tab value="Mux">
+    ### Mux Settings
+
+    ```json
+    {
+      "mux_settings": {
+        "xray": {
+          "enabled": true,
+          "concurrency": 8,
+          "xudpConcurrency": 8,
+          "xudpProxyUDP443": "reject"  // reject, allow, skip
+        },
+        "sing_box": {
+          "enable": true,
+          "protocol": "smux",  // smux, yamux, h2mux
+          "max_connections": 8,
+          "max_streams": 8,
+          "min_streams": 1,
+          "padding": false,
+          "brutal": {
+            "enable": true,
+            "up_mbps": 100,
+            "down_mbps": 100
+          }
+        },
+        "clash": {
+          // Same as sing_box plus:
+          "statistic": false,
+          "only_tcp": false
+        }
+      }
+    }
+    ```
+  </Tab>
+  <Tab value="Fragment">
+    ### Fragment Settings
+
+    ```json
+    {
+      "fragment_settings": {
+        "xray": {
+          "packets": "tlshello",  // or range like "1-10"
+          "length": "100-200",  // Fragment length range
+          "interval": "10-20"  // Interval range
+        },
+        "sing_box": {
+          "fragment": true,
+          "fragment_fallback_delay": "100ms",
+          "record_fragment": false
+        }
+      }
+    }
+    ```
+  </Tab>
+  <Tab value="Noise">
+    ### Noise Settings
+
+    ```json
+    {
+      "noise_settings": {
+        "xray": [
+          {
+            "type": "rand",  // rand, str, base64, hex
+            "packet": "base64-encoded-data",
+            "delay": "10-20",  // Delay range
+            "apply_to": "ip"  // ip, ipv4, ipv6
+          }
+        ]
+      }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+## Host Status and Filtering
+
+### How Host Filtering Works
+
+When generating a subscription, hosts are filtered in this order:
+
+1. **Inbound Access Check:** Host's `inbound_tag` must be accessible to the user through their groups
+   - Users belong to groups
+   - Groups have inbound tags assigned to them
+   - Only hosts whose `inbound_tag` is in the user's accessible inbounds (from all their groups) are processed
+   - Disabled groups are excluded from this check
+   - **This is the first and most important filter** - if a user doesn't have access to the inbound through their groups, the host will never appear in their subscription
+
+2. **Disabled Check:** Hosts with `is_disabled: true` are excluded
+
+3. **Status Check:** If host has `status` set, user's status must match one of the values in the set
+
+4. **Priority Sort:** Remaining hosts are sorted by `priority` (ascending)
+
+### Understanding Inbound Access Through Groups
+
+**How it works:**
+- Users are assigned to groups
+- Groups have inbound tags assigned to them (many-to-many relationship)
+- When generating a subscription, PasarGuard collects all inbound tags from all of the user's groups (excluding disabled groups)
+- Only hosts whose `inbound_tag` matches one of these accessible inbounds will be included
+
+**Example:**
+```
+User "john" belongs to:
+  - Group "Premium" (inbound_tags: ["vless-443", "trojan-8443"])
+  - Group "Standard" (inbound_tags: ["vmess-8080"])
+
+Hosts:
+  - Host A (inbound_tag: "vless-443") ✅ Will appear (in Premium group)
+  - Host B (inbound_tag: "trojan-8443") ✅ Will appear (in Premium group)
+  - Host C (inbound_tag: "vmess-8080") ✅ Will appear (in Standard group)
+  - Host D (inbound_tag: "shadowsocks-9090") ❌ Will NOT appear (not in any group)
+```
+
+<Callout type="warning" title="No Groups = No Hosts">
+If a user has no groups, or all their groups are disabled, they will see no hosts in their subscription.
+</Callout>
+
+### Status Filtering Examples
+
+<Tabs items={['All Users', 'Active Only', 'Multiple Statuses']}>
+  <Tab value="All Users">
+    **Host visible to all users:**
+    ```json
+    {
+      "status": null  // or empty set
+    }
+    ```
+  </Tab>
+  <Tab value="Active Only">
+    **Host visible only to active users:**
+    ```json
+    {
+      "status": ["active"]
+    }
+    ```
+  </Tab>
+  <Tab value="Multiple Statuses">
+    **Host visible to active and on_hold users:**
+    ```json
+    {
+      "status": ["active", "on_hold"]
+    }
+    ```
+  </Tab>
+</Tabs>
+
+### Priority Ordering
+
+Hosts are sorted by `priority` field (lower number = higher priority):
+
+```json
+{
+  "priority": 1  // Appears first in subscription
+}
+```
+
+```json
+{
+  "priority": 100  // Appears later in subscription
+}
+```
+
+---
+
+## Common Scenarios
+
+<Tabs items={['Override Port', 'Multiple SNI', 'User-Specific Names', 'Status-Based Visibility', 'Group-Based Access', 'Override Security', 'Custom Path', 'Multiple Ports', 'XHTTP Download', 'Wildcard SNI', 'Priority Ordering']}>
+  <Tab value="Override Port">
+    ### Scenario 1: Override Inbound Port
+    
+    **Problem:** Inbound uses port 443, but you want this host to use port 8443.
+
+    **Solution:**
+    ```json
+    {
+      "inbound_tag": "my-inbound",
+      "port": 8443,  // Overrides inbound port
+      "remark": "Custom Port Server"
+    }
+    ```
+  </Tab>
+  <Tab value="Multiple SNI">
+    ### Scenario 2: Multiple SNI Values
+    
+    **Problem:** You want to randomly select from multiple SNI values per request.
+
+    **Solution:**
+    ```json
+    {
+      "sni": ["example.com", "cdn.example.com", "www.example.com"]
+    }
+    // Each subscription request randomly picks one
+    ```
+  </Tab>
+  <Tab value="User-Specific Names">
+    ### Scenario 3: User-Specific Server Names
+    
+    **Problem:** You want each user to see their username in the server address.
+
+    **Solution:**
+    ```json
+    {
+      "address": ["{USERNAME}.example.com", "{SERVER_IP}"],
+      "remark": "Server for {USERNAME}"
+    }
+    ```
+  </Tab>
+  <Tab value="Status-Based Visibility">
+    ### Scenario 4: Status-Based Host Visibility
+    
+    **Problem:** You want a premium server only visible to active users.
+
+    **Solution:**
+    ```json
+    {
+      "remark": "Premium Server",
+      "status": ["active"],  // Only active users see this
+      "priority": 1  // High priority
+    }
+    ```
+
+    <Callout type="warning" title="Group Access Required">
+    The host's `inbound_tag` must also be assigned to the user's groups. The `status` filter only works on hosts that are already accessible through groups.
+    </Callout>
+  </Tab>
+  <Tab value="Group-Based Access">
+    ### Scenario 4b: Group-Based Host Access
+    
+    **Problem:** You want a host to be visible only to users in specific groups.
+
+    **Solution:**
+    1. Create a group (e.g., "VIP Group")
+    2. Assign the host's `inbound_tag` to that group
+    3. Only assign users to that group who should see the host
+
+    ```json
+    // Host configuration
+    {
+      "inbound_tag": "vless-premium-443",
+      "remark": "VIP Server"
+    }
+
+    // Group configuration (via API)
+    {
+      "name": "VIP Group",
+      "inbound_tags": ["vless-premium-443"]  // Must match host's inbound_tag
+    }
+    ```
+
+    Users in "VIP Group" will see this host. Users not in this group will not see it, regardless of other settings.
+  </Tab>
+  <Tab value="Override Security">
+    ### Scenario 5: Override Security Type
+    
+    **Problem:** Inbound uses TLS, but you want this host to use Reality.
+
+    **Solution:**
+    ```json
+    {
+      "security": "reality",  // Overrides inbound security
+      "sni": ["reality.example.com"]
+    }
+    ```
+  </Tab>
+  <Tab value="Custom Path">
+    ### Scenario 6: Custom Path with Variables
+    
+    **Problem:** You want path to include protocol and transport type.
+
+    **Solution:**
+    ```json
+    {
+      "path": "/{PROTOCOL}/{TRANSPORT}/path"
+    }
+    // Results in: "/vless/ws/path"
+    ```
+  </Tab>
+  <Tab value="Multiple Ports">
+    ### Scenario 7: Multiple Ports from Inbound
+    
+    **Problem:** Inbound has ports "8080,8443,9090" and you want to use all of them.
+
+    **Solution:**
+    ```json
+    {
+      "port": null  // Don't set port, uses inbound's multiple ports
+    }
+    // Each subscription request randomly picks one port
+    ```
+  </Tab>
+  <Tab value="XHTTP Download">
+    ### Scenario 8: XHTTP with Download Host
+    
+    **Problem:** You want to configure XHTTP with a download host.
+
+    **Solution:**
+    ```json
+    {
+      "transport_settings": {
+        "xhttp_settings": {
+          "mode": "auto",
+          "download_settings": 5  // Reference to host ID 5
+        }
+      }
+    }
+    ```
+  </Tab>
+  <Tab value="Wildcard SNI">
+    ### Scenario 9: Wildcard SNI with Random Salt
+    
+    **Problem:** You want SNI to have random subdomain per request.
+
+    **Solution:**
+    ```json
+    {
+      "sni": ["*.example.com"]
+    }
+    // Each request: "a1b2c3d4.example.com" (random salt replaces *)
+    ```
+  </Tab>
+  <Tab value="Priority Ordering">
+    ### Scenario 10: Priority Ordering
+    
+    **Problem:** You want certain hosts to appear first in subscriptions.
+
+    **Solution:**
+    ```json
+    // High priority host
+    {
+      "remark": "Primary Server",
+      "priority": 1
+    }
+
+    // Lower priority host
+    {
+      "remark": "Backup Server",
+      "priority": 100
+    }
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+## Summary
+
+<Callout type="tip" title="Best Practices">
+- ✅ **Host values override inbound defaults** - Host settings take priority over inbound defaults
+- ✅ **Inbound access through groups is required** - Hosts only appear if their `inbound_tag` is assigned to the user's groups
+- ✅ **Use format variables** in `remark` and `address` for user-specific display
+- ✅ **Multiple values are randomly selected** - SNI, host, address, and port values are randomly chosen per subscription request
+- ✅ **Wildcards (`*`)** in SNI/host/address are replaced with random salt
+- ✅ **Host `status` filters** which users can see the host (but only if inbound is accessible through groups)
+- ✅ **Host `priority`** determines order in subscriptions
+- ✅ **`inbound_tag` must exist** in your XRay core configurations AND be assigned to user groups
+- ✅ **Transport settings** override inbound defaults for specific networks
+- ✅ **Disabled hosts** (`is_disabled: true`) are excluded from subscriptions
+- ✅ **Format variables** are replaced with user-specific values when generating subscriptions
+- ✅ **Group-based access control** - Users only see hosts whose inbounds are in their assigned groups
+</Callout>
+
+For more information about XRay configuration, see [Core Configuration](/panel/core).
+

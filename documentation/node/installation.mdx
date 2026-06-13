@@ -1,0 +1,238 @@
+---
+title: Installation
+description: Install PasarGuard Node using various methods
+icon: Download
+---
+
+## System Requirements
+
+### Minimum Requirements
+
+- **RAM:** 1 GB
+- **CPU:** 1 core
+- **Storage:** 10 GB
+
+### Recommended Requirements
+
+- **RAM:** 2 GB
+- **CPU:** 2 cores
+- **Storage:** 20 GB
+
+---
+
+## Installation Methods
+
+PasarGuard Node can be installed using multiple methods. Choose the one that best fits your needs.
+
+## One-Click Installation (Recommended)
+
+The easiest way to install PasarGuard Node is using our automated installation script:
+
+```bash
+sudo bash -c "$(curl -sL https://github.com/PasarGuard/scripts/raw/main/pg-node.sh)" @ install
+```
+
+This script will:
+- Install all required dependencies
+- Set up the PasarGuard Node
+- Configure basic settings
+- Start the service automatically
+
+### Multiple Nodes on the Same Server
+
+If you want to run more than one node on the same server, install each node with a unique name:
+
+```bash
+sudo bash -c "$(curl -sL https://github.com/PasarGuard/scripts/raw/main/pg-node.sh)" @ install --name node-eu-1
+```
+
+After installation, use the selected name as the management command prefix:
+
+```bash
+node-eu-1 update
+node-eu-1 edit
+node-eu-1 edit-env
+```
+
+You can also use other available subcommands with the same prefix (`node-eu-1 ...`) to manage that specific node instance.
+
+Important: Do not reuse ports between nodes. Connection ports and the Xray core configuration linked to each node must be unique for every node instance.
+
+---
+
+## Docker Installation
+
+### Prerequisites
+
+Install Docker on your machine:
+
+```bash
+curl -fsSL https://get.docker.com | sh
+```
+
+### Using Docker Compose
+
+1. Download the docker-compose file:
+
+```bash
+wget https://raw.githubusercontent.com/PasarGuard/node/refs/heads/main/docker-compose.yml
+```
+
+2. Create and configure your `.env` file (see [Configuration](/node/configuration))
+
+3. Start the node:
+
+```bash
+docker compose up -d
+```
+
+### Docker Commands
+
+**View logs:**
+```bash
+docker compose logs -f
+```
+
+**Stop the node:**
+```bash
+docker compose down
+```
+
+**Restart the node:**
+```bash
+docker compose restart
+```
+
+**Update to latest version:**
+```bash
+docker compose pull
+docker compose up -d
+```
+
+---
+
+## Manual Installation
+
+<Callout type="warn">
+  Manual installation is not recommended for beginners. Use the one-click installation or Docker method instead.
+</Callout>
+
+### Prerequisites
+
+1. **Install Go** (version 1.25 or higher)
+   
+   Download from [go.dev](https://go.dev/dl/)
+
+2. **Clone the repository:**
+
+```bash
+git clone https://github.com/PasarGuard/node.git
+cd node
+```
+
+### Build the Binary
+
+1. Install dependencies:
+
+```bash
+make deps
+```
+
+2. Build the binary:
+
+```bash
+make
+```
+
+This will generate a binary file for your system architecture.
+
+### Install Xray Core
+
+Install the Xray core:
+
+```bash
+make install_xray
+```
+
+### Generate SSL Certificate
+
+Generate a certificate based on your server's IP or domain:
+
+```bash
+# For domain-based certificate
+make generate_server_cert CN=example.com SAN="DNS:example.com"
+
+# For IP-based certificate
+make generate_server_cert CN=example.com SAN="IP:YOUR_SERVER_IP"
+
+# For both domain and IP
+make generate_server_cert CN=example.com SAN="DNS:example.com,IP:YOUR_SERVER_IP"
+```
+
+### Configure and Run
+
+1. Create and configure your `.env` file (see [Configuration](/node/configuration))
+
+2. Run the binary:
+
+```bash
+./pasarguard-node
+```
+
+---
+
+## Post-Installation
+
+### Configure Firewall
+
+Make sure to open the required ports in your firewall:
+
+```bash
+# For Ubuntu/Debian
+sudo ufw allow YOUR_PORT/tcp
+
+# For CentOS/RHEL
+sudo firewall-cmd --permanent --add-port=YOUR_PORT/tcp
+sudo firewall-cmd --reload
+```
+
+### Set Up as System Service (Manual Installation)
+
+Create a systemd service file:
+
+```bash
+sudo nano /etc/systemd/system/pg-node.service
+```
+
+Add the following content:
+
+```ini
+[Unit]
+Description=PasarGuard Node
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/path/to/node
+ExecStart=/path/to/node/pasarguard-node
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Enable and start the service:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable pg-node
+sudo systemctl start pg-node
+```
+
+Check service status:
+
+```bash
+sudo systemctl status pg-node
+```

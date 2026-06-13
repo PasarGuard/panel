@@ -1,0 +1,48 @@
+---
+title: Users
+description: Create, edit, filter, and monitor user accounts
+icon: User
+---
+
+Users are the accounts that receive subscription links and proxy access. A user combines identity, traffic limits, expiry, groups, and optional proxy-specific settings.
+
+## Create A User
+
+1. Open **Users**.
+2. Click **Create User**.
+3. Set the username and account status.
+4. Choose the groups that decide which hosts the user can access.
+5. Set data limit and expiry.
+6. Add proxy settings only when this user needs custom values.
+7. Save the user, then open the subscription view to copy the link or configs.
+
+If many users should share the same defaults, create a [User Template](./user_template) first and use it during creation.
+
+## Important Fields
+
+- **Groups** control host and inbound access.
+- **Data limit** controls the traffic quota.
+- **Expire date** controls account validity.
+- **Status** controls whether the user can connect.
+- **Proxy settings** can override defaults for protocols such as WireGuard.
+- **Subscription** gives the user a link or generated configs.
+
+## Status Meaning
+
+- **Active**: the user can connect if groups, hosts, and nodes are valid.
+- **Disabled**: the account is blocked manually.
+- **Expired**: the expiry time has passed.
+- **Limited**: the data limit has been reached.
+- **On hold**: the account is waiting for its start condition or policy.
+
+## Subscription Actions
+
+Open the user's subscription view to copy the subscription link, copy individual configs, show QR codes, or revoke the subscription. Revoking a subscription invalidates the old link and forces the user to use the new one.
+
+## Good Practices
+
+- Use groups instead of manually changing host access per user.
+- Use templates for repeated plans.
+- Use [Bulk Operations](./bulk) for large changes.
+- After changing WireGuard settings, verify peer IPs are unique.
+- If one user cannot connect, compare their groups, status, expiry, and subscription output with a working user.

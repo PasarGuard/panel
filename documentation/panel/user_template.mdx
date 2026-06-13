@@ -1,0 +1,984 @@
+---
+title: User Templates Configuration
+description: Template management, field application, bulk user creation
+icon: FileText
+---
+
+# User Templates Documentation
+
+This document explains how user templates work in PasarGuard. Templates are pre-configured user settings that can be used to quickly create users with consistent configurations.
+
+## Table of Contents
+
+1. [Overview](#overview)
+2. [Template Configuration Basics](#template-configuration-basics)
+3. [Template Fields Explained](#template-fields-explained)
+4. [How Templates Work](#how-templates-work)
+5. [Username Handling](#username-handling)
+6. [Extra Settings](#extra-settings)
+7. [Status and Expiration](#status-and-expiration)
+8. [Data Limit and Reset Strategy](#data-limit-and-reset-strategy)
+9. [Creating Users from Templates](#creating-users-from-templates)
+10. [Modifying Users with Templates](#modifying-users-with-templates)
+11. [Bulk User Creation](#bulk-user-creation)
+12. [Validation Rules and Constraints](#validation-rules-and-constraints)
+14. [Common Scenarios](#common-scenarios)
+
+---
+
+## Overview
+
+User templates in PasarGuard are **pre-configured user settings** that:
+
+- **Standardize user creation** - Apply consistent settings to multiple users
+- **Speed up user management** - Create users quickly without configuring each field
+- **Support bulk operations** - Create many users at once with automatic username generation
+- **Enable automation** - Templates can be used in automated workflows
+
+### The Template Flow
+
+```
+Template → User Creation → Applied Settings
+```
+
+**How it works:**
+1. Admin creates a template with desired user settings
+2. When creating a user, admin selects a template
+3. Template fields are automatically applied to the new user
+4. Admin only needs to provide username (and optionally note)
+5. User is created with all template settings
+
+<Callout type="info">
+Templates are **blueprints** for user creation. They don't create users themselves - they provide default values when creating users.
+</Callout>
+
+---
+
+## Template Configuration Basics
+
+### Required Fields
+
+Every template **must** have:
+
+| Field | Type | Constraints | Description |
+|-------|------|-------------|-------------|
+| `name` | string | Cannot be empty, max 64 chars, must be unique | Template identifier/name |
+| `group_ids` | list[integer] | At least one group required (on creation) | Groups to assign to users created from this template |
+
+### Optional Fields
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `data_limit` | integer | `0` (unlimited) | Data limit in bytes (0 = unlimited) |
+| `expire_duration` | integer | `0` (unlimited) | Expiration duration in seconds (0 = unlimited) |
+| `username_prefix` | string | `null` | Prefix added to usernames (max 20 chars) |
+| `username_suffix` | string | `null` | Suffix added to usernames (max 20 chars) |
+| `extra_settings` | ExtraSettings | `null` | Protocol-specific settings (flow, method) |
+| `status` | UserStatusCreate | `active` | Initial user status (`active` or `on_hold`) |
+| `reset_usages` | boolean | `false` | Reset data usage when applying template to existing user |
+| `on_hold_timeout` | integer | `null` | Timeout in seconds for `on_hold` status |
+| `data_limit_reset_strategy` | DataLimitResetStrategy | `no_reset` | How data limit resets |
+| `is_disabled` | boolean | `false` | Disable template (prevents use) |
+
+### Template Response Fields
+
+When retrieving templates, you also get:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | integer | Unique identifier (auto-generated) |
+
+---
+
+## Template Fields Explained
+
+### Basic Fields
+
+#### `name` (String, Required)
+- **Purpose:** Template identifier
+- **Constraints:** Max 64 characters
+- **Example:** `"Premium Plan"`, `"Basic User"`, `"Trial Account"`
+
+#### `group_ids` (List[Integer], Required on Creation)
+- **Purpose:** Groups to assign to users created from this template
+- **Behavior:** Users automatically join these groups when created
+- **Validation:** All group IDs must exist
+- **Example:** `[1, 2, 3]` - User joins groups 1, 2, and 3
+
+#### `data_limit` (Integer, Optional)
+- **Purpose:** Maximum data usage in bytes
+- **Default:** `0` (unlimited)
+- **Format:** Bytes (e.g., `1073741824` = 1 GB)
+- **Example:** `1073741824` = 1 GB limit
+
+#### `expire_duration` (Integer, Optional)
+- **Purpose:** Account expiration duration in seconds
+- **Default:** `0` (unlimited)
+- **Calculation:** When user is created, expiration = now + expire_duration
+- **Example:** `2592000` = 30 days (30 * 24 * 60 * 60)
+
+### Username Fields
+
+#### `username_prefix` (String, Optional)
+- **Purpose:** Prefix added before username when creating users
+- **Constraints:** Max 20 characters
+- **Behavior:** Prepended to provided username
+- **Example:** Prefix `"premium_"` + username `"john"` = `"premium_john"`
+
+#### `username_suffix` (String, Optional)
+- **Purpose:** Suffix added after username when creating users
+- **Constraints:** Max 20 characters
+- **Behavior:** Appended to provided username
+- **Example:** Username `"john"` + suffix `"_vip"` = `"john_vip"`
+
+**Combined Example:**
+```
+prefix: "premium_"
+username: "john"
+suffix: "_vip"
+Result: "premium_john_vip"
+```
+
+### Status Fields
+
+#### `status` (UserStatusCreate, Optional)
+- **Purpose:** Initial user status
+- **Options:**
+  - `active` - User is active (default)
+  - `on_hold` - User is on hold
+- **Default:** `active`
+- **Behavior:** Affects how expiration is calculated (see Status and Expiration section)
+
+#### `on_hold_timeout` (Integer, Optional)
+- **Purpose:** When `on_hold` status should start/end
+- **Format:** Seconds from creation time
+- **Required:** When `status` is `on_hold` and `expire_duration` is set
+- **Example:** `3600` = User becomes active after 1 hour
+
+### Data Management Fields
+
+#### `data_limit_reset_strategy` (DataLimitResetStrategy, Optional)
+- **Purpose:** How data limit resets
+- **Options:**
+  - `no_reset` - Never resets (default)
+  - `day` - Resets daily
+  - `week` - Resets weekly
+  - `month` - Resets monthly
+  - `year` - Resets yearly
+- **Default:** `no_reset`
+- **Note:** Only applies if `data_limit` is set
+
+#### `reset_usages` (Boolean, Optional)
+- **Purpose:** Reset data usage when applying template to existing user
+- **Default:** `false`
+- **Behavior:** Only used when modifying existing users with templates
+- **Effect:** Clears user's data usage history
+
+### Advanced Fields
+
+#### `extra_settings` (ExtraSettings, Optional)
+- **Purpose:** Protocol-specific settings
+- **Fields:**
+  - `flow` - VLESS flow control (XTLSFlows enum)
+  - `method` - Shadowsocks encryption method (ShadowsocksMethods enum)
+- **Default:** `null`
+- **Example:** `{"flow": "xtls-rprx-vision", "method": "chacha20-poly1305"}`
+
+#### `is_disabled` (Boolean, Optional)
+- **Purpose:** Disable template to prevent use
+- **Default:** `false`
+- **Behavior:** Disabled templates cannot be used to create or modify users
+- **Use Case:** Temporarily disable templates without deleting them
+
+---
+
+## How Templates Work
+
+### Template Application Process
+
+When creating a user from a template:
+
+1. **Template Validation** - Template must exist and not be disabled
+2. **Field Loading** - Base fields are loaded from template
+3. **Username Construction** - Prefix + username + suffix
+4. **Settings Application** - Extra settings (flow, method) are applied
+5. **User Creation** - User is created with all template values
+
+### Field Application Order
+
+```
+Template Fields → User Creation → Final User
+```
+
+**What gets applied:**
+- ✅ `data_limit` → User's data limit
+- ✅ `expire_duration` → User's expiration (calculated from now)
+- ✅ `group_ids` → User's groups
+- ✅ `status` → User's initial status
+- ✅ `data_limit_reset_strategy` → User's reset strategy
+- ✅ `username_prefix` + `username` + `username_suffix` → Final username
+- ✅ `extra_settings.flow` → VLESS flow setting
+- ✅ `extra_settings.method` → Shadowsocks method setting
+- ✅ `on_hold_timeout` → User's on_hold timeout (if status is on_hold)
+
+**What doesn't get applied:**
+- ❌ `name` - Template name is not copied to user
+- ❌ `is_disabled` - Template state doesn't affect created users
+- ❌ `reset_usages` - Only used when modifying existing users
+
+---
+
+## Username Handling
+
+### Username Construction
+
+When creating a user from a template, the final username is constructed as:
+
+```
+Final Username = prefix + provided_username + suffix
+```
+
+**Rules:**
+- If prefix is `null` or empty, it's not added
+- If suffix is `null` or empty, it's not added
+- Provided username must still be valid (3-128 chars, alphanumeric + special chars)
+- Final username must be unique
+
+<Tabs items={['Prefix Only', 'Suffix Only', 'Both', 'None']}>
+<Tab value="Prefix Only">
+
+```
+Template: prefix = "premium_", suffix = null
+Provided: username = "john"
+Result: "premium_john"
+```
+
+</Tab>
+<Tab value="Suffix Only">
+
+```
+Template: prefix = null, suffix = "_vip"
+Provided: username = "john"
+Result: "john_vip"
+```
+
+</Tab>
+<Tab value="Both">
+
+```
+Template: prefix = "premium_", suffix = "_vip"
+Provided: username = "john"
+Result: "premium_john_vip"
+```
+
+</Tab>
+<Tab value="None">
+
+```
+Template: prefix = null, suffix = null
+Provided: username = "john"
+Result: "john"
+```
+
+</Tab>
+</Tabs>
+
+### Username Validation
+
+The **final username** (after prefix/suffix) must:
+- Be 3-128 characters long
+- Contain only: a-z, A-Z, 0-9, `-`, `_`, `@`, `.`
+- Not have consecutive special characters
+- Be unique (not already exist)
+
+<Callout type="info">
+**Validation happens on the final username**, not the provided username.
+</Callout>
+
+---
+
+## Extra Settings
+
+### Flow (VLESS)
+
+Controls VLESS flow control setting.
+
+**Options:**
+- `none` - No flow (default)
+- `xtls-rprx-vision` - XTLS Reality Proxy Vision
+
+**Applied to:** User's VLESS proxy settings
+
+**Example:**
+```json
+{
+  "extra_settings": {
+    "flow": "xtls-rprx-vision"
+  }
+}
+```
+
+### Method (Shadowsocks)
+
+Controls Shadowsocks encryption method.
+
+**Options:**
+- `chacha20-ietf-poly1305` - ChaCha20-ietf-Poly1305 (default)
+- `xchacha20-poly1305` - XChaCha20-Poly1305
+- `aes-128-gcm` - AES-128-GCM
+- `aes-256-gcm` - AES-256-GCM
+- And other Shadowsocks methods
+
+**Applied to:** User's Shadowsocks proxy settings
+
+**Example:**
+```json
+{
+  "extra_settings": {
+    "method": "aes-256-gcm"
+  }
+}
+```
+
+### Combined Extra Settings
+
+You can set both flow and method:
+
+```json
+{
+  "extra_settings": {
+    "flow": "xtls-rprx-vision",
+    "method": "aes-256-gcm"
+  }
+}
+```
+
+---
+
+## Status and Expiration
+
+### Active Status
+
+When `status` is `active`:
+
+- **Expiration Calculation:**
+  - If `expire_duration > 0`: `expire = now + expire_duration`
+  - If `expire_duration = 0`: `expire = 0` (unlimited)
+
+**Example:**
+```
+Template: status = "active", expire_duration = 2592000 (30 days)
+User created: 2024-01-01 00:00:00
+Result: expire = 2024-01-31 00:00:00
+```
+
+### On Hold Status
+
+When `status` is `on_hold`:
+
+- **Expiration:** Always set to `0` (unlimited)
+- **On Hold Expire Duration:** Uses `expire_duration` as `on_hold_expire_duration`
+- **On Hold Timeout:**
+  - If `on_hold_timeout` is set: `on_hold_timeout = now + on_hold_timeout`
+  - If `on_hold_timeout` is not set: `on_hold_timeout = null`
+
+**Example:**
+```
+Template: 
+  status = "on_hold"
+  expire_duration = 2592000 (30 days)
+  on_hold_timeout = 3600 (1 hour)
+
+User created: 2024-01-01 00:00:00
+Result:
+  expire = 0 (unlimited)
+  on_hold_expire_duration = 2592000
+  on_hold_timeout = 2024-01-01 01:00:00 (becomes active after 1 hour)
+```
+
+<Callout type="warning">
+**Validation:** If `status` is `on_hold` and `expire_duration > 0`, then `on_hold_timeout` must be set.
+</Callout>
+
+---
+
+## Data Limit and Reset Strategy
+
+### Data Limit
+
+- **Format:** Bytes (integer)
+- **Default:** `0` (unlimited)
+- **Applied to:** User's `data_limit` field
+
+**Examples:**
+- `1073741824` = 1 GB
+- `5368709120` = 5 GB
+- `0` = Unlimited
+
+### Reset Strategy
+
+Controls how data limit resets (only applies if `data_limit > 0`):
+
+| Strategy | Description | Reset Interval |
+|----------|-------------|----------------|
+| `no_reset` | Never resets | Never |
+| `day` | Resets daily | Every 24 hours |
+| `week` | Resets weekly | Every 7 days |
+| `month` | Resets monthly | Every 30 days |
+| `year` | Resets yearly | Every 365 days |
+
+**Behavior:**
+- When reset occurs, user's `used_traffic` is reset to 0
+- Reset time is calculated from user creation time
+- Reset logs are maintained in `UserUsageResetLogs`
+
+**Example:**
+```
+Template:
+  data_limit = 1073741824 (1 GB)
+  data_limit_reset_strategy = "month"
+
+User created: 2024-01-01
+Result:
+  - User has 1 GB limit
+  - Limit resets on 2024-01-31, 2024-03-01, etc.
+```
+
+---
+
+## Creating Users from Templates
+
+### Single User Creation
+
+**Endpoint:** `POST /api/user/from_template`
+
+**Request:**
+```json
+{
+  "user_template_id": 1,
+  "username": "john",
+  "note": "Premium customer"
+}
+```
+
+**Process:**
+1. Template is validated (exists, not disabled)
+2. Base fields loaded from template
+3. Username constructed: `prefix + "john" + suffix`
+4. Extra settings applied
+5. User created with all template values
+
+**Response:** User object with all applied settings
+
+### What Gets Applied
+
+All template fields are applied to the new user:
+
+- ✅ Groups from `group_ids`
+- ✅ Data limit from `data_limit`
+- ✅ Expiration from `expire_duration` (calculated)
+- ✅ Status from `status`
+- ✅ Data limit reset strategy
+- ✅ VLESS flow (if set in extra_settings)
+- ✅ Shadowsocks method (if set in extra_settings)
+- ✅ On hold timeout (if status is on_hold)
+
+---
+
+## Modifying Users with Templates
+
+### Applying Template to Existing User
+
+**Endpoint:** `PUT /api/user/{username}/from_template`
+
+**Request:**
+```json
+{
+  "user_template_id": 2,
+  "note": "Updated to premium plan"
+}
+```
+
+**Process:**
+1. Template is validated (exists, not disabled)
+2. Base fields loaded from template
+3. User's existing `proxy_settings` are preserved
+4. Template fields are applied (overriding user's current values)
+5. If `reset_usages` is `true`, user's data usage is reset
+6. User is updated
+
+### What Gets Applied
+
+When modifying a user with a template:
+
+- ✅ Groups from `group_ids` (replaces user's groups)
+- ✅ Data limit from `data_limit`
+- ✅ Expiration from `expire_duration` (recalculated)
+- ✅ Status from `status`
+- ✅ Data limit reset strategy
+- ✅ VLESS flow (if set in extra_settings)
+- ✅ Shadowsocks method (if set in extra_settings)
+- ✅ On hold timeout (if status is on_hold)
+- ✅ Data usage reset (if `reset_usages` is `true`)
+
+**What Doesn't Change:**
+- ❌ Username (cannot be changed)
+- ❌ Proxy settings structure (only flow/method are updated)
+- ❌ User's creation date
+- ❌ User's admin (who created them)
+
+### Reset Usages Flag
+
+When `reset_usages` is `true` in the template:
+
+- User's `used_traffic` is reset to 0
+- Usage history is cleared
+- Reset log entry is created
+
+**Use Case:** When upgrading a user to a new plan, you might want to reset their usage.
+
+---
+
+## Bulk User Creation
+
+### Overview
+
+Bulk user creation allows creating multiple users from a template at once with automatic username generation.
+
+**Endpoint:** `POST /api/users/bulk/from_template`
+
+**Features:**
+- Create up to 500 users at once
+- Automatic username generation
+- Two username generation strategies
+- Subscription URLs returned for all created users
+
+### Username Generation Strategies
+
+<Tabs items={['Random Strategy', 'Sequence Strategy']}>
+<Tab value="Random Strategy">
+
+**Strategy:** `random`
+
+**Behavior:**
+- Generates random usernames
+- Format: 5 random alphanumeric characters (A-Z, 0-9)
+- Example: `"A3K9M"`, `"X7P2Q"`
+
+**Request:**
+```json
+{
+  "user_template_id": 1,
+  "count": 10,
+  "strategy": "random",
+  "username": null,
+  "note": "Bulk created users"
+}
+```
+
+**Constraints:**
+- `username` must be `null` or empty
+- `start_number` must not be provided
+
+</Tab>
+<Tab value="Sequence Strategy">
+
+**Strategy:** `sequence`
+
+**Behavior:**
+- Generates sequential usernames
+- Format: `base_username + number`
+- Example: `"user1"`, `"user2"`, `"user3"`
+
+**Request:**
+```json
+{
+  "user_template_id": 1,
+  "count": 10,
+  "strategy": "sequence",
+  "username": "user",
+  "start_number": 1,
+  "note": "Sequential users"
+}
+```
+
+**Constraints:**
+- `username` is required
+- `start_number` is optional (defaults to 1)
+- If base username ends with digits, they are ignored
+
+**Examples:**
+```
+Base: "user", start: 1 → "user1", "user2", "user3"
+Base: "user10", start: 1 → "user11", "user12", "user13" (10 is ignored)
+Base: "test", start: 100 → "test100", "test101", "test102"
+```
+
+</Tab>
+</Tabs>
+
+### Username Prefix/Suffix in Bulk Creation
+
+Template's `username_prefix` and `username_suffix` are applied to **all** generated usernames:
+
+**Example:**
+```
+Template: prefix = "premium_", suffix = "_vip"
+Strategy: sequence, base = "user", start = 1
+
+Generated usernames:
+  "premium_user1_vip"
+  "premium_user2_vip"
+  "premium_user3_vip"
+```
+
+### Bulk Creation Process
+
+1. **Template Validation** - Template exists and not disabled
+2. **Strategy Validation** - Username strategy rules are checked
+3. **Username Generation** - Usernames generated based on strategy
+4. **Duplicate Filtering** - Existing usernames are filtered out
+5. **User Creation** - All users created with template settings
+6. **Subscription URLs** - URLs generated for all created users
+
+### Response
+
+```json
+{
+  "subscription_urls": [
+    "https://example.com/sub/user1?token=...",
+    "https://example.com/sub/user2?token=..."
+  ],
+  "created": 10
+}
+```
+
+<Callout type="info">
+**Note:** `created` count may be less than `count` if some usernames already existed.
+</Callout>
+
+### Constraints
+
+- **Maximum count:** 500 users per request
+- **Minimum count:** 1 user
+- **Username uniqueness:** Duplicate usernames are automatically skipped
+- **Template validation:** Template must exist and not be disabled
+
+---
+
+## Validation Rules and Constraints
+
+### Name Validation
+
+| Rule | Constraint | Error Message |
+|------|------------|---------------|
+| Required | Cannot be empty | "name can't be empty" |
+| Length | Max 64 characters | Name too long |
+| Uniqueness | Must be unique | "Template by this name already exists" |
+
+### Group IDs Validation
+
+| Rule | Constraint | Error Message |
+|------|------------|---------------|
+| Creation | At least one required | "you must select at least one group" |
+| Existence | All IDs must exist | Group not found |
+| Modification | Can be empty/null | Allowed when modifying |
+
+### Username Prefix/Suffix Validation
+
+| Rule | Constraint | Error Message |
+|------|------------|---------------|
+| Length | Max 20 characters | Prefix/suffix too long |
+| Characters | Same as username rules | Invalid characters |
+
+### Status Validation
+
+| Rule | Constraint | Error Message |
+|------|------------|---------------|
+| On Hold | If `on_hold` and `expire_duration > 0`, `on_hold_timeout` required | "User cannot be on hold without a valid on_hold_expire_duration" |
+| On Hold | Cannot have `expire` when `on_hold` | "User cannot be on hold with specified expire" |
+
+### Data Limit Validation
+
+| Rule | Constraint | Error Message |
+|------|------------|---------------|
+| Minimum | Must be >= 0 | Data limit must be 0 or greater |
+
+### Expire Duration Validation
+
+| Rule | Constraint | Error Message |
+|------|------------|---------------|
+| Minimum | Must be >= 0 | Expire duration must be 0 or greater |
+| Format | Seconds (integer) | Must be integer |
+
+### Disabled Template Validation
+
+<Callout type="warning">
+- Disabled templates cannot be used to create users
+- Disabled templates cannot be used to modify users
+- Error: "this template is disabled"
+</Callout>
+
+---
+
+## Common Scenarios
+
+<Tabs items={['Basic Template', 'Username Prefix', 'Extra Settings', 'On Hold', 'Monthly Reset', 'Create User', 'Bulk Random', 'Bulk Sequential', 'Update User', 'Reset Usages', 'Disable Template', 'Multiple Groups', 'Unlimited', 'Prefix & Suffix']}>
+<Tab value="Basic Template">
+
+**Problem:** You want a template for premium users with 1 GB limit and 30-day expiration.
+
+**Solution:**
+```json
+POST /api/user_template
+{
+  "name": "Premium Plan",
+  "data_limit": 1073741824,
+  "expire_duration": 2592000,
+  "group_ids": [1],
+  "status": "active"
+}
+```
+
+</Tab>
+<Tab value="Username Prefix">
+
+**Problem:** You want all users from a template to have a "premium_" prefix.
+
+**Solution:**
+```json
+{
+  "name": "Premium Plan",
+  "username_prefix": "premium_",
+  "group_ids": [1]
+}
+```
+
+When creating user with username "john", final username is "premium_john".
+
+</Tab>
+<Tab value="Extra Settings">
+
+**Problem:** You want template to set VLESS flow and Shadowsocks method.
+
+**Solution:**
+```json
+{
+  "name": "Advanced Plan",
+  "group_ids": [1],
+  "extra_settings": {
+    "flow": "xtls-rprx-vision",
+    "method": "aes-256-gcm"
+  }
+}
+```
+
+</Tab>
+<Tab value="On Hold">
+
+**Problem:** You want template that creates users on hold for 1 hour, then active for 30 days.
+
+**Solution:**
+```json
+{
+  "name": "Trial Plan",
+  "status": "on_hold",
+  "expire_duration": 2592000,
+  "on_hold_timeout": 3600,
+  "group_ids": [1]
+}
+```
+
+User starts on hold, becomes active after 1 hour, expires after 30 days total.
+
+</Tab>
+<Tab value="Monthly Reset">
+
+**Problem:** You want template with 5 GB limit that resets monthly.
+
+**Solution:**
+```json
+{
+  "name": "Monthly Plan",
+  "data_limit": 5368709120,
+  "data_limit_reset_strategy": "month",
+  "group_ids": [1]
+}
+```
+
+</Tab>
+<Tab value="Create User">
+
+**Problem:** You want to quickly create a user using a template.
+
+**Solution:**
+```json
+POST /api/user/from_template
+{
+  "user_template_id": 1,
+  "username": "john",
+  "note": "New customer"
+}
+```
+
+User is created with all template settings automatically applied.
+
+</Tab>
+<Tab value="Bulk Random">
+
+**Problem:** You want to create 50 users with random usernames.
+
+**Solution:**
+```json
+POST /api/users/bulk/from_template
+{
+  "user_template_id": 1,
+  "count": 50,
+  "strategy": "random",
+  "username": null
+}
+```
+
+50 users created with random 5-character usernames.
+
+</Tab>
+<Tab value="Bulk Sequential">
+
+**Problem:** You want to create 100 users named "user1", "user2", etc.
+
+**Solution:**
+```json
+POST /api/users/bulk/from_template
+{
+  "user_template_id": 1,
+  "count": 100,
+  "strategy": "sequence",
+  "username": "user",
+  "start_number": 1
+}
+```
+
+</Tab>
+<Tab value="Update User">
+
+**Problem:** You want to upgrade an existing user to premium plan using a template.
+
+**Solution:**
+```json
+PUT /api/user/john/from_template
+{
+  "user_template_id": 2,
+  "note": "Upgraded to premium"
+}
+```
+
+User "john" gets all settings from template 2, preserving their proxy settings structure.
+
+</Tab>
+<Tab value="Reset Usages">
+
+**Problem:** When upgrading a user, you want to reset their data usage.
+
+**Solution:**
+```json
+// First, update template to enable reset_usages
+PUT /api/user_template/2
+{
+  "reset_usages": true
+}
+
+// Then apply template to user
+PUT /api/user/john/from_template
+{
+  "user_template_id": 2
+}
+```
+
+User's data usage is reset to 0.
+
+</Tab>
+<Tab value="Disable Template">
+
+**Problem:** You want to temporarily prevent a template from being used.
+
+**Solution:**
+```json
+PUT /api/user_template/1
+{
+  "is_disabled": true
+}
+```
+
+Template cannot be used until re-enabled.
+
+</Tab>
+<Tab value="Multiple Groups">
+
+**Problem:** You want template that assigns users to multiple groups.
+
+**Solution:**
+```json
+{
+  "name": "Multi-Group Plan",
+  "group_ids": [1, 2, 3],
+  "data_limit": 1073741824
+}
+```
+
+Users created from this template join all three groups.
+
+</Tab>
+<Tab value="Unlimited">
+
+**Problem:** You want a template with unlimited data and no expiration.
+
+**Solution:**
+```json
+{
+  "name": "Unlimited Plan",
+  "data_limit": 0,
+  "expire_duration": 0,
+  "group_ids": [1]
+}
+```
+
+</Tab>
+<Tab value="Prefix & Suffix">
+
+**Problem:** You want usernames like "premium_john_vip".
+
+**Solution:**
+```json
+{
+  "name": "VIP Plan",
+  "username_prefix": "premium_",
+  "username_suffix": "_vip",
+  "group_ids": [1]
+}
+```
+
+When creating user "john", final username is "premium_john_vip".
+
+</Tab>
+</Tabs>
+
+---
+
+## Summary
+
+- ✅ **Templates are blueprints** - They provide default values for user creation
+- ✅ **All fields are applied** - Template settings override defaults when creating users
+- ✅ **Username prefix/suffix** - Automatically added to usernames
+- ✅ **Extra settings** - Apply protocol-specific settings (flow, method)
+- ✅ **Group assignment** - Users automatically join template's groups
+- ✅ **Status handling** - Supports active and on_hold with timeout
+- ✅ **Expiration calculation** - Automatically calculated from expire_duration
+- ✅ **Data limit reset** - Configurable reset strategies
+- ✅ **Bulk creation** - Create up to 500 users with automatic username generation
+- ✅ **Disabled templates** - Cannot be used until re-enabled
+- ✅ **User modification** - Apply templates to existing users
+- ✅ **Reset usages** - Option to reset data usage when modifying users
+
+For more information about:
+- Groups: See [groups](./groups)
+- Hosts: See [host](./host)

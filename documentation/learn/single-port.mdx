@@ -1,0 +1,539 @@
+---
+title: "Single Port with HAProxy"
+description: "Learn how to route all your server communications (panel, TLS configs, and REALITY) through one or two ports. This makes your server connections look more natural, bypass restrictions on specific ports, and increases security."
+icon: "Network"
+---
+
+With this tutorial, you can handle all your server communications (panel, TLS configs, and REALITY) through one or two ports. This makes server connections appear more natural, bypass restrictions on a specific port, and provides more security.
+
+<Callout type="info">
+If you changed your panel port in the past and want old subscription links to still work, you can use HAProxy to listen on the old port and forward traffic to the new port so both links remain active.
+</Callout>
+
+## Prerequisites
+
+In this tutorial, we assume:
+- Your panel subdomain: `panel.example.com`
+- Your TLS configs subdomain: `sub.example.com`
+- REALITY config SNI address: `reality.com`
+
+<Callout type="warning">
+If you previously used HAProxy for panel SSL, you should use another method (mentioned in the documentation) for SSL to avoid conflicts.
+</Callout>
+
+## Installing and Setting Up HAProxy
+
+### Installing HAProxy
+
+<Callout type="info">
+We install HAProxy directly on the server, but you can also install it in Docker. If you plan to use more complex rules later, install HAProxy from its official repository, not Linux repositories.
+</Callout>
+
+Run these commands to install:
+
+```bash
+apt update
+apt install -y haproxy
+```
+
+### Preparing SSL Certificate
+
+Before configuration, you need SSL certificates for your domains. If you don't have them yet, you can get them with Certbot:
+
+```bash
+apt install -y certbot
+certbot certonly --standalone -d panel.example.com -d sub.example.com
+```
+
+Then prepare the certificates for HAProxy:
+
+```bash
+mkdir -p /etc/haproxy/certs
+cat /etc/letsencrypt/live/panel.example.com/fullchain.pem \
+    /etc/letsencrypt/live/panel.example.com/privkey.pem \
+    > /etc/haproxy/certs/panel.example.com.pem
+cat /etc/letsencrypt/live/sub.example.com/fullchain.pem \
+    /etc/letsencrypt/live/sub.example.com/privkey.pem \
+    > /etc/haproxy/certs/sub.example.com.pem
+```
+
+### Configuring HAProxy
+
+After installation, the configuration file is located at: `/etc/haproxy/haproxy.cfg`
+
+Open the file with nano:
+
+```bash
+nano /etc/haproxy/haproxy.cfg
+```
+
+Now add this configuration after changing your domains to the end of the file:
+
+```nginx
+listen front
+    mode http
+    option httplog
+    log /dev/log local0
+    
+    # Listen on multiple ports simultaneously
+    bind :::443 ssl crt /etc/haproxy/certs/
+    bind :::80
+    bind :::8443 ssl crt /etc/haproxy/certs/
+    bind 0.0.0.0:9000
+    
+    # Capture information for logging
+    capture request header X-Forwarded-For len 15
+    capture request header Host len 50
+    log-format "%ci:%cp [%tr] %ft %b/%s %TR/%Tw/%Tc/%Tr/%Ta %ST %B %CC %CS %tsc %ac/%fc/%bc/%sc/%rc %sq/%bq %hr %hs %{+Q}r %U"
+    
+    # ACL based on domain
+    acl host_panel hdr(host) -i panel.example.com
+    acl host_sub   hdr(host) -i sub.example.com
+    
+    # Secure routing
+    use_backend panel if host_panel
+    use_backend sub   if host_sub
+    default_backend deny_backend
+
+backend panel
+    mode http
+    server srv1 127.0.0.1:8000
+
+backend sub
+    mode http
+    acl is_sub path_beg /sub/
+    http-request deny if !is_sub
+    server srv1 127.0.0.1:8000
+
+backend deny_backend
+    mode http
+    http-request deny deny_status 403
+```
+
+#### Configuration Explanation
+
+This professional configuration includes:
+
+**Frontend (listen front):**
+- **mode http**: Uses HTTP mode which has more features
+- **bind**: Listens on multiple ports simultaneously (443, 80, 8443, 9000)
+- **ssl crt**: Handles SSL itself
+- **capture**: Stores important information for logging
+- **log-format**: Precise and professional log format
+
+**ACL (Access Control List):**
+- Detects where traffic should go based on domain (`Host` header)
+- More security with `default_backend deny_backend` that rejects any unknown requests
+
+**Backends:**
+- Each backend sends traffic to the corresponding service based on domain
+- `sub` backend has an additional security layer that only accepts `/sub/` paths
+- `deny_backend` returns 403 for requests that do not match any frontend routing rule
+
+<Callout type="info">
+With `default_backend deny_backend` at the end of the frontend routing rules, any request that does not match the defined domains is blocked. This prevents abuse of your IP without denying valid backend matches.
+</Callout>
+
+After editing, save the file (Ctrl+X, then Y, then Enter) and restart HAProxy:
+
+```bash
+systemctl restart haproxy
+systemctl status haproxy
+```
+
+## Configuring Configs
+
+<Callout type="info">
+By using HTTP mode in HAProxy, your panel and TLS services are easily available on multiple ports and SSL handling is done by HAProxy.
+</Callout>
+
+### Panel and TLS Configs
+
+If you use the above configuration, your panel and TLS configs should listen on local ports (like `8000`) and HAProxy directs traffic to them.
+
+In panel settings:
+- **Panel Host**: `127.0.0.1`  
+- **Panel Port**: `8000`
+
+### REALITY Configs (for Nodes)
+
+For nodes that need REALITY, it's better to use TCP mode. Place this configuration on your nodes:
+
+```nginx
+listen front_node
+    mode tcp
+    bind *:443
+
+    tcp-request inspect-delay 5s
+    tcp-request content accept if { req_ssl_hello_type 1 }
+
+    use_backend reality if { req.ssl_sni -m end reality.com }
+    default_backend fallback_node
+
+backend fallback_node
+    mode tcp
+    server srv1 127.0.0.1:11000
+
+backend reality
+    mode tcp
+    server srv1 127.0.0.1:12000 send-proxy
+```
+
+Sample REALITY Inbound Configuration:
+
+```json
+{
+    "tag": "VLESS_TCP_REALITY",
+    "listen": "127.0.0.1",
+    "port": 12000,
+    "protocol": "vless",
+    "settings": {
+        "clients": [],
+        "decryption": "none"
+    },
+    "streamSettings": {
+        "network": "tcp",
+        "tcpSettings": {
+            "acceptProxyProtocol": true
+        },
+        "security": "reality",
+        "realitySettings": {
+            "show": false,
+            "dest": "example.com:443",
+            "xver": 0,
+            "serverNames": [
+                "reality.com"
+            ],
+            "privateKey": "YOUR_PRIVATE_KEY",
+            "shortIds": [
+                ""
+            ]
+        }
+    },
+    "sniffing": {
+        "enabled": true,
+        "destOverride": [
+            "http",
+            "tls"
+        ]
+    }
+}
+```
+
+**Important Notes:**
+- Set `listen` to `127.0.0.1` (not `0.0.0.0`)
+- Set `"acceptProxyProtocol": true`
+- Each Inbound should have a unique local port
+
+### TLS Configs with Fallback
+
+To single-port TLS configs, we use the Fallback feature.
+
+#### Main Fallback Inbound
+
+```json
+{
+    "tag": "TROJAN_FALLBACK_INBOUND",
+    "listen": "127.0.0.1",
+    "port": 11000,
+    "protocol": "trojan",
+    "settings": {
+        "clients": [],
+        "decryption": "none",
+        "fallbacks": [
+            {
+                "path": "/vless",
+                "dest": "@vless-ws",
+                "xver": 2
+            },
+            {
+                "path": "/vmess",
+                "dest": "@vmess-ws",
+                "xver": 2
+            },
+            {
+                "path": "/trojan",
+                "dest": "@trojan-ws",
+                "xver": 2
+            }
+        ]
+    },
+    "streamSettings": {
+        "network": "tcp",
+        "security": "tls",
+        "tlsSettings": {
+            "serverName": "sub.example.com",
+            "certificates": [
+                {
+                    "ocspStapling": 3600,
+                    /* Lines 263-265 omitted */
+                }
+            ],
+            "minVersion": "1.2",
+            "cipherSuites": "TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256:TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256:TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384:TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384",
+            "alpn": [
+                "http/1.1"
+            ]
+        }
+    },
+    "sniffing": {
+        "enabled": true,
+        "destOverride": [
+            "http",
+            "tls"
+        ]
+    }
+}
+```
+
+#### WebSocket Inbounds
+
+Now define WebSocket Inbounds with listen as Unix socket:
+
+**VLESS WebSocket:**
+
+```json
+{
+    "tag": "VLESS_WS_INBOUND",
+    "listen": "@vless-ws",
+    "protocol": "vless",
+    "settings": {
+        "clients": [],
+        "decryption": "none"
+    },
+    "streamSettings": {
+        "network": "ws",
+        "wsSettings": {
+            "acceptProxyProtocol": true,
+            "path": "/vless"
+        }
+    }
+}
+```
+
+**VMess WebSocket:**
+
+```json
+{
+    "tag": "VMESS_WS_INBOUND",
+    "listen": "@vmess-ws",
+    "protocol": "vmess",
+    "settings": {
+        "clients": []
+    },
+    "streamSettings": {
+        "network": "ws",
+        "wsSettings": {
+            "acceptProxyProtocol": true,
+            "path": "/vmess"
+        }
+    }
+}
+```
+
+<Callout type="warning">
+In Inbounds where `listen` is defined as `@xxx`, remove the `port` line.
+</Callout>
+
+#### Setting Fallback Tag
+
+If you use Fallback, set this variable in Pasargard settings:
+
+Go to **Settings → Core** in the panel and set the Fallback Inbound Tag to match your main Inbound tag:
+
+```
+TROJAN_FALLBACK_INBOUND
+```
+
+<Callout type="tip">
+Instead of using Fallback, you can define a separate subdomain for each config and use HAProxy to differentiate them based on SNI. This method has less processing load.
+</Callout>
+
+## Panel Settings
+
+With HTTP mode in HAProxy, your panel is easily accessible.
+
+Go to **Settings → Panel** in Pasargard and set these:
+
+- **Panel Host**: `127.0.0.1`
+- **Panel Port**: `8000`
+
+<Callout type="tip">
+Since HAProxy handles SSL itself, there's no need for the panel to run on HTTPS. The connection between HAProxy and the panel is on localhost and HTTP, but users access the panel via HTTPS.
+</Callout>
+
+## Host Settings
+
+With the new HAProxy configuration:
+
+1. Go to **Hosts** in the panel
+2. Edit each Host  
+3. Set the port to `443` (or `80` or `8443` or `9000` - whichever you want)
+4. Save
+
+<Callout type="info">
+Since HAProxy listens on multiple ports simultaneously, you can give different ports to different users. For example, one user uses port 443 and another uses port 8443.
+</Callout>
+
+## Node Configurations
+
+<Callout type="warning">
+HAProxy settings must be done on **all your Nodes**. For nodes, we recommend using TCP mode (like the configuration above for REALITY).
+</Callout>
+
+### Sample Node Configuration with TCP Mode
+
+```nginx
+listen front_node
+    mode tcp
+    bind *:443
+
+    tcp-request inspect-delay 5s
+    tcp-request content accept if { req_ssl_hello_type 1 }
+
+    # Differentiation based on SNI
+    use_backend vless_reality if { req.ssl_sni -m end reality1.com }
+    use_backend vmess_tls if { req.ssl_sni -m end tls1.com }
+    default_backend fallback_node
+
+backend fallback_node
+    mode tcp
+    server srv1 127.0.0.1:11000
+
+backend vless_reality
+    mode tcp
+    server srv1 127.0.0.1:12000 send-proxy
+
+backend vmess_tls
+    mode tcp  
+    server srv1 127.0.0.1:13000
+```
+
+This method is suitable for nodes that have multiple different protocols and need differentiation based on SNI.
+
+## Important Notes
+
+<Callout type="danger">
+**SSL Certificate**: SSL certificates must be combined (fullchain + privkey) in the `/etc/haproxy/certs/` folder. If you renewed the certificates, be sure to rebuild the combined files and reload HAProxy:
+
+```bash
+systemctl reload haproxy
+```
+</Callout>
+
+<Callout type="danger">
+**IP Limiter:** If you use IP limiter and use TCP mode (for REALITY), be sure to:
+1. Add `send-proxy` to the end of each `server` in HAProxy backend
+2. Set `"acceptProxyProtocol": true` in the Inbound config
+
+In HTTP mode, there's no need for these settings, as HAProxy sends the real IP with the `X-Forwarded-For` header.
+</Callout>
+
+<Callout type="warning">
+**Firewall**: Make sure the used ports (443, 80, 8443, 9000) are open in the firewall:
+
+```bash
+ufw allow 443/tcp
+ufw allow 80/tcp
+ufw allow 8443/tcp
+ufw allow 9000/tcp
+```
+</Callout>
+
+<Callout type="info">
+**Professional Logging**: With the defined log format in HAProxy, complete information from all requests is saved. You can see these logs in `/var/log/haproxy.log`.
+
+To enable logging, you may need to configure rsyslog:
+
+```bash
+echo '$ModLoad imudp' >> /etc/rsyslog.d/49-haproxy.conf
+echo '$UDPServerRun 514' >> /etc/rsyslog.d/49-haproxy.conf
+echo 'local0.* /var/log/haproxy.log' >> /etc/rsyslog.d/49-haproxy.conf
+systemctl restart rsyslog
+```
+</Callout>
+
+## Troubleshooting
+
+### HAProxy Won't Start
+
+Check HAProxy status and logs:
+
+```bash
+systemctl status haproxy
+journalctl -u haproxy -n 50
+```
+
+If there's a syntax error, test the config file:
+
+```bash
+haproxy -c -f /etc/haproxy/haproxy.cfg
+```
+
+### SSL Certificate Error
+
+If HAProxy won't start with certificate error:
+
+```bash
+# Check if certificate file exists
+ls -la /etc/haproxy/certs/
+
+# Check permissions
+chmod 600 /etc/haproxy/certs/*.pem
+
+# Test certificate
+openssl x509 -in /etc/haproxy/certs/panel.example.com.pem -text -noout
+```
+
+### Panel or Configs Won't Connect
+
+1. Make sure HAProxy is running:
+```bash
+systemctl status haproxy
+```
+
+2. Check if ports are open correctly:
+```bash
+netstat -tulpn | grep haproxy
+```
+
+3. Test if local services are working:
+```bash
+curl -I http://127.0.0.1:8000
+netstat -tulpn | grep "8000"
+```
+
+4. See HAProxy logs in real-time:
+```bash
+tail -f /var/log/haproxy.log
+```
+
+### Traffic Goes to Wrong Backend
+
+1. Check ACLs - make sure domains are written correctly
+2. Test with curl:
+```bash
+curl -H "Host: panel.example.com" https://YOUR_SERVER_IP
+curl -H "Host: sub.example.com" https://YOUR_SERVER_IP
+```
+
+3. Make sure DNS is set correctly:
+```bash
+nslookup panel.example.com
+nslookup sub.example.com
+```
+
+## Summary
+
+By completing these steps:
+- ✅ All traffic is accessible from multiple ports simultaneously (443, 80, 8443, 9000)
+- ✅ Panel is securely accessible with HTTPS
+- ✅ HAProxy handles SSL itself
+- ✅ Professional and accurate logging
+- ✅ High security with ACL and denying unwanted traffic
+- ✅ Easier and centralized management
+- ✅ Ability to use TCP mode for nodes
+
+<Callout type="success">
+Now you can safely use your single-port (or multi-port) server! This professional configuration allows you to manage all your services from one point. 🎉
+</Callout>

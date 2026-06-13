@@ -1,0 +1,13 @@
+{
+  "title": "Learn",
+  "description": "Step-by-step guides for advanced configurations",
+  "pages": [
+    "ssl-certificate-cli",
+    "ssl-activation-cli",
+    "multi-worker",
+    "warp",
+    "single-port",
+    "node-data-limit"
+  ],
+  "icon": "BookOpen"
+}

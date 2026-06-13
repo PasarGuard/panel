@@ -1,4 +1,3 @@
-import asyncio
 from datetime import datetime as dt, timedelta as td, timezone as tz
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -24,6 +23,7 @@ from app.models.settings import Webhook
 from app.models.user import UserNotificationResponse
 from app.node import node_manager as node_manager
 from app.settings import webhook_settings
+from app.utils.tasks import create_background_task
 from app.utils.logger import get_logger
 from config import job_settings, runtime_settings, usage_settings
 
@@ -43,11 +43,11 @@ async def change_status(db: AsyncSession, db_user: User, status: UserStatus):
     user = await user_operator.update_user(db_user)
 
     if next_plan_activated:
-        asyncio.create_task(notification.user_data_reset_by_next(user, SYSTEM_ADMIN))
+        create_background_task(notification.user_data_reset_by_next(user, SYSTEM_ADMIN))
         logger.info(f'User "{db_user.username}" next plan activated')
         return
 
-    asyncio.create_task(notification.user_status_change(user, SYSTEM_ADMIN))
+    create_background_task(notification.user_status_change(user, SYSTEM_ADMIN))
     logger.info(f'User "{user.username}" status changed to {status.value}')
 
 

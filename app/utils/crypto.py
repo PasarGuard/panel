@@ -55,7 +55,7 @@ def get_x25519_public_key(private_key_b64: str) -> str:
 
         return public_key_b64
 
-    except ValueError, binascii.Error:
+    except (ValueError, binascii.Error):
         raise ValueError("Invalid private key.")
 
 

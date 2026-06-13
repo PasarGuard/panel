@@ -11,7 +11,7 @@ from app.db.crud.general import get_jwt_secret_key
 from config import jwt_settings
 
 
-@cached()
+@cached(ttl=300)
 async def get_secret_key():
     async with GetDB() as db:
         key = await get_jwt_secret_key(db=db)
@@ -38,7 +38,7 @@ async def get_admin_payload(token: str) -> dict | None:
         if admin_id is not None:
             try:
                 admin_id = int(admin_id)
-            except TypeError, ValueError:
+            except (TypeError, ValueError):
                 return
         if not username or access not in ("admin", "sudo"):
             return

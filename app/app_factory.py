@@ -117,6 +117,9 @@ def create_app() -> FastAPI:
     _register_scheduler_hooks()
     _register_jobs()
 
+    from app.db import create_indexes_if_not_exists
+    on_startup(create_indexes_if_not_exists)
+
     _use_route_names_as_operation_ids(app)
 
     on_startup(lambda: logger.info(f"PasarGuard v{__version__} ({runtime_settings.role.value})"))

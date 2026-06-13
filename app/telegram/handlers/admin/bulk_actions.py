@@ -95,7 +95,7 @@ async def bulk_template_count(event: Message, state: FSMContext):
 
     try:
         count = int(event.text)
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         msg = await event.reply(text=Texts.bulk_count_not_valid, reply_markup=CancelKeyboard().as_markup())
         await add_to_messages_to_delete(state, msg)
         return

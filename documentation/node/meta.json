@@ -1,0 +1,13 @@
+{
+  "title": "Node",
+  "description": "PasarGuard Node documentation and guides",
+  "icon": "Network",
+  "pages": [
+    "index",
+    "installation",
+    "configuration",
+    "api",
+    "libraries"
+  ]
+}
+

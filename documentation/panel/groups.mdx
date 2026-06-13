@@ -1,0 +1,708 @@
+---
+title: Groups Configuration
+description: Group management, access control, relationships
+icon: Users
+---
+
+# Groups Documentation
+
+This document explains how groups work in PasarGuard. Groups are the primary mechanism for controlling which inbounds (and therefore which hosts) users can access in their subscriptions.
+
+## Table of Contents
+
+1. [Overview](#overview)
+2. [Group Configuration Basics](#group-configuration-basics)
+3. [How Groups Work](#how-groups-work)
+4. [Relationships](#relationships)
+5. [Inbound Access Control](#inbound-access-control)
+6. [Group Management](#group-management)
+7. [Bulk Operations](#bulk-operations)
+8. [Validation Rules and Constraints](#validation-rules-and-constraints)
+10. [Common Scenarios](#common-scenarios)
+
+---
+
+## Overview
+
+Groups in PasarGuard are access control mechanisms that:
+
+- **Connect users to inbounds** - Groups define which inbound tags users can access
+- **Control host visibility** - Users only see hosts whose `inbound_tag` is in their groups
+- **Enable bulk management** - Assign groups to multiple users at once
+- **Support templates** - User templates can be assigned to groups for automatic group assignment
+
+### The Group Flow
+
+```
+User → Groups → Inbound Tags → Hosts (in subscriptions)
+```
+
+**How it works:**
+1. Users are assigned to groups (many-to-many relationship)
+2. Groups have inbound tags assigned to them (many-to-many relationship)
+3. When generating a subscription, PasarGuard collects all inbound tags from all of the user's groups
+4. Only hosts whose `inbound_tag` matches one of these accessible inbounds appear in the subscription
+
+<Callout type="warning">
+Groups are the **gateway** between users and hosts. Without group membership, users cannot see any hosts in their subscriptions.
+</Callout>
+
+---
+
+## Group Configuration Basics
+
+### Required Fields
+
+Every group **must** have:
+
+| Field | Type | Constraints | Description |
+|-------|------|-------------|-------------|
+| `name` | string | 3-64 characters, a-z and 0-9 only | Unique group identifier/name |
+| `inbound_tags` | list[string] | At least one tag required (on creation) | List of inbound tags this group can access |
+
+### Optional Fields
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `is_disabled` | boolean | `false` | Disable group (excludes it from access calculations) |
+| `inbound_tags` | list[string] | Can be empty/null (on modification) | Can be cleared when modifying |
+
+### Group Response Fields
+
+When retrieving groups, you also get:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | integer | Unique identifier (auto-generated) |
+| `total_users` | integer | Number of users currently in this group |
+
+---
+
+## How Groups Work
+
+### Basic Concept
+
+Groups act as **permission containers** that grant users access to specific inbounds. Think of it like this:
+
+- **Group** = A permission set
+- **Inbound Tags** = What the group allows access to
+- **Users** = Who gets the permissions
+
+### Example Flow
+
+```
+1. Create Group "Premium" with inbound_tags: ["vless-443", "trojan-8443"]
+2. Assign User "john" to Group "Premium"
+3. When "john" requests subscription:
+   - System collects: ["vless-443", "trojan-8443"] (from Premium group)
+   - Only hosts with inbound_tag matching these appear
+   - Host with inbound_tag "vmess-8080" won't appear (not in group)
+```
+
+### Disabled Groups
+
+When a group has `is_disabled: true`:
+- The group is **excluded** from inbound access calculations
+- Users in disabled groups **lose access** to those inbounds
+- The group still exists and can be re-enabled
+
+**Example:**
+```
+User "john" is in:
+  - Group "Premium" (disabled) with ["vless-443"]
+  - Group "Standard" (enabled) with ["vmess-8080"]
+
+Result: User only has access to ["vmess-8080"]
+```
+
+---
+
+## Relationships
+
+### User ↔ Group Relationship
+
+- **Many-to-Many**: Users can belong to multiple groups, groups can have multiple users
+- **Association Table**: `users_groups_association`
+- **No Limits**: A user can be in unlimited groups
+
+**Example:**
+```
+User "john" belongs to:
+  - Group "Premium"
+  - Group "Standard"
+  - Group "VIP"
+
+User gets access to ALL inbounds from ALL groups (if enabled)
+```
+
+### Group ↔ Inbound Relationship
+
+- **Many-to-Many**: Groups can have multiple inbounds, inbounds can be in multiple groups
+- **Association Table**: `inbounds_groups_association`
+- **Inbound Tags**: Groups reference inbounds by their `tag` (not ID)
+
+**Example:**
+```
+Group "Premium" has:
+  - inbound_tag: "vless-443"
+  - inbound_tag: "trojan-8443"
+  - inbound_tag: "vmess-8080"
+
+All users in "Premium" can access hosts with these inbound tags
+```
+
+### Group ↔ UserTemplate Relationship
+
+- **Many-to-Many**: Groups can be assigned to user templates
+- **Purpose**: When creating users from templates, they automatically get assigned to the template's groups
+- **Association Table**: `template_group_association`
+
+**Example:**
+```
+UserTemplate "Basic Plan" has:
+  - Group "Standard"
+  - Group "Free"
+
+New users created from this template automatically join both groups
+```
+
+---
+
+## Inbound Access Control
+
+### How Inbound Access is Calculated
+
+When a user requests a subscription, PasarGuard:
+
+1. **Collects all groups** the user belongs to
+2. **Filters out disabled groups**
+3. **Collects all inbound tags** from enabled groups
+4. **Deduplicates** the inbound tags (user might have same inbound from multiple groups)
+5. **Uses this list** to filter which hosts appear in the subscription
+
+### Code Flow
+
+```python
+# Pseudo-code of what happens
+user_groups = user.groups  # Get all user's groups
+enabled_groups = [g for g in user_groups if not g.is_disabled]
+accessible_inbounds = set()
+for group in enabled_groups:
+    accessible_inbounds.update(group.inbound_tags)
+
+# Now filter hosts
+for host in all_hosts:
+    if host.inbound_tag in accessible_inbounds:
+        # Include in subscription
+        pass
+```
+
+### Access Examples
+
+<Tabs items={['Single Group', 'Multiple Groups', 'Disabled Group', 'No Groups']}>
+<Tab value="Single Group">
+
+```
+User "john" → Group "Premium" → ["vless-443", "trojan-8443"]
+Result: User can see hosts with inbound_tag "vless-443" or "trojan-8443"
+```
+
+</Tab>
+<Tab value="Multiple Groups">
+
+```
+User "john" → 
+  - Group "Premium" → ["vless-443"]
+  - Group "Standard" → ["vmess-8080", "vless-443"]
+  
+Result: User can see hosts with inbound_tag "vless-443" or "vmess-8080"
+Note: "vless-443" appears in both groups but is deduplicated
+```
+
+</Tab>
+<Tab value="Disabled Group">
+
+```
+User "john" →
+  - Group "Premium" (disabled) → ["vless-443"]
+  - Group "Standard" (enabled) → ["vmess-8080"]
+  
+Result: User can ONLY see hosts with inbound_tag "vmess-8080"
+Note: Premium group is ignored because it's disabled
+```
+
+</Tab>
+<Tab value="No Groups">
+
+```
+User "john" → No groups assigned
+Result: User sees NO hosts in subscription (empty subscription)
+```
+
+</Tab>
+</Tabs>
+
+---
+
+## Group Management
+
+### Creating Groups
+
+When creating a group:
+
+1. **Name Validation**: Must be 3-64 characters, only a-z and 0-9
+2. **Inbound Validation**: All inbound tags must exist in XRay core configurations
+3. **Uniqueness**: Group name must be unique
+4. **Auto-creation**: Inbound tags are automatically created in database if they don't exist
+
+**Example:**
+```json
+POST /api/group
+{
+  "name": "premium",
+  "inbound_tags": ["vless-443", "trojan-8443"],
+  "is_disabled": false
+}
+```
+
+**Validation:**
+- ✅ Name is valid (3-64 chars)
+- ✅ All inbound tags exist in core configs
+
+### Modifying Groups
+
+When modifying a group:
+
+1. **Name can be changed** (must still be unique)
+2. **Inbound tags can be updated** (all must exist in core configs)
+3. **Can be disabled/enabled**
+4. **Inbound tags can be cleared** (set to empty list/null)
+5. **Users are automatically updated** - Active and on_hold users get their node configs updated
+
+**Example:**
+```json
+PUT /api/group/1
+{
+  "name": "premium-v2",
+  "inbound_tags": ["vless-443", "trojan-8443", "vmess-8080"],
+  "is_disabled": false
+}
+```
+
+**What happens:**
+- Group name changes
+- Inbound tags are updated
+- All users in this group get updated node configurations
+- Their subscriptions now include hosts with the new inbound tags
+
+### Deleting Groups
+
+When deleting a group:
+
+1. **Group is removed** from database
+2. **User associations are removed** (users no longer in this group)
+3. **Users are updated** - All affected users get their node configs updated
+4. **Inbound associations are removed** (but inbounds themselves remain)
+
+<Callout type="warning">
+**Important:** 
+- Users lose access to inbounds that were only in this group
+- If a user had access to an inbound through multiple groups, they keep access through other groups
+- Deleted groups cannot be recovered
+</Callout>
+
+**Example:**
+```
+Before deletion:
+  User "john" → Group "Premium" → ["vless-443"]
+  User "john" → Group "Standard" → ["vless-443", "vmess-8080"]
+  
+Delete Group "Premium":
+  User "john" → Group "Standard" → ["vless-443", "vmess-8080"]
+  
+Result: User still has access to both inbounds (through Standard group)
+```
+
+---
+
+## Bulk Operations
+
+PasarGuard supports bulk operations for efficiently managing group assignments.
+
+### Bulk Add Groups to Users
+
+Add one or more groups to multiple users at once.
+
+**Endpoint:** `POST /api/groups/bulk/add`
+
+**Request Body:**
+```json
+{
+  "group_ids": [1, 2, 3],
+  "users": [10, 11, 12],
+  "admins": [5, 6],
+  "has_group_ids": [4]
+}
+```
+
+**Behavior:**
+- If `users` is provided: Add groups to these specific users
+- If `admins` is provided: Add groups to all users created by these admins
+- If neither `users` nor `admins` provided: Add groups to **ALL users**
+- `has_group_ids`: Filter to only users who already have these groups
+- Existing associations are ignored (no duplicates created)
+
+<Tabs items={['Specific Users', 'Admin\'s Users', 'All Users', 'Conditional']}>
+<Tab value="Specific Users">
+
+```json
+{
+  "group_ids": [1, 2],
+  "users": [10, 11, 12]
+}
+```
+Result: Users 10, 11, 12 get groups 1 and 2
+
+</Tab>
+<Tab value="Admin's Users">
+
+```json
+{
+  "group_ids": [1],
+  "admins": [5]
+}
+```
+Result: All users created by admin 5 get group 1
+
+</Tab>
+<Tab value="All Users">
+
+```json
+{
+  "group_ids": [1, 2]
+}
+```
+Result: ALL users in system get groups 1 and 2
+
+</Tab>
+<Tab value="Conditional">
+
+```json
+{
+  "group_ids": [2],
+  "has_group_ids": [1]
+}
+```
+Result: Only users who already have group 1 get group 2
+
+</Tab>
+</Tabs>
+
+### Bulk Remove Groups from Users
+
+Remove one or more groups from multiple users at once.
+
+**Endpoint:** `POST /api/groups/bulk/remove`
+
+**Request Body:**
+```json
+{
+  "group_ids": [1, 2, 3],
+  "users": [10, 11, 12],
+  "admins": [5, 6],
+  "has_group_ids": [4]
+}
+```
+
+**Behavior:**
+- Similar to bulk add, but removes group associations
+- Only existing associations are removed
+- Users lose access to inbounds that were only in removed groups
+
+**Example:**
+```json
+{
+  "group_ids": [1],
+  "users": [10, 11]
+}
+```
+Result: Users 10 and 11 lose group 1 (and access to its inbounds)
+
+---
+
+## Validation Rules and Constraints
+
+### Name Validation
+
+| Rule | Constraint | Error Message |
+|------|------------|---------------|
+| Length | 3-64 characters | Name must be 3-64 characters |
+
+<Tabs items={['Valid Names', 'Invalid Names']}>
+<Tab value="Valid Names">
+
+- ✅ `premium`
+- ✅ `standard123`
+- ✅ `group1`
+- ✅ `vip`
+
+</Tab>
+<Tab value="Invalid Names">
+
+- ❌ `pr` (too short, < 3 chars)
+
+</Tab>
+</Tabs>
+
+### Inbound Tags Validation
+
+| Rule | Constraint | Error Message |
+|------|------------|---------------|
+| Existence | Must exist in core configs | Inbound tag not found in core configurations |
+| Creation | At least one required | You must select at least one inbound |
+| Modification | Can be empty/null | Allowed when modifying |
+
+**Validation Process:**
+1. When creating: All inbound tags are validated against XRay core configurations
+2. When modifying: If inbound_tags provided, all are validated
+3. Auto-creation: Inbound tags are automatically created in database if they exist in core configs
+
+**Example:**
+```
+Core config has inbounds: ["vless-443", "trojan-8443"]
+
+Valid group:
+  inbound_tags: ["vless-443", "trojan-8443"] ✅
+
+Invalid group:
+  inbound_tags: ["vmess-8080"] ❌ (not in core config)
+```
+
+### Group State Validation
+
+- **Disabled groups** are excluded from access calculations
+- **Deleted groups** remove all user associations
+- **Empty inbound_tags** (on modification) means group grants no access
+
+---
+
+## Common Scenarios
+
+<Tabs items={['Basic Group', 'Assign to User', 'Grant Access', 'Disable Group', 'Bulk Assign', 'Admin Users', 'Tiered Access', 'Remove Inbound', 'Clear Inbounds', 'Migrate Users', 'Conditional', 'Multiple Groups']}>
+<Tab value="Basic Group">
+
+**Problem:** You want to create a group for premium users with access to specific inbounds.
+
+**Solution:**
+```json
+POST /api/group
+{
+  "name": "premium",
+  "inbound_tags": ["vless-443", "trojan-8443"],
+  "is_disabled": false
+}
+```
+
+</Tab>
+<Tab value="Assign to User">
+
+**Problem:** You want to assign a group to a user (done through user modification, not group API).
+
+**Solution:**
+```json
+PUT /api/user/john
+{
+  "group_ids": [1, 2]
+}
+```
+
+</Tab>
+<Tab value="Grant Access">
+
+**Problem:** You added a new inbound to your XRay config and want existing groups to access it.
+
+**Solution:**
+```json
+PUT /api/group/1
+{
+  "inbound_tags": ["vless-443", "trojan-8443", "vmess-8080"]
+}
+```
+
+All users in group 1 now have access to hosts with `inbound_tag: "vmess-8080"`.
+
+</Tab>
+<Tab value="Disable Group">
+
+**Problem:** You want to temporarily revoke access without deleting the group.
+
+**Solution:**
+```json
+PUT /api/group/1
+{
+  "is_disabled": true
+}
+```
+
+All users in this group immediately lose access to its inbounds. Re-enable by setting `is_disabled: false`.
+
+</Tab>
+<Tab value="Bulk Assign">
+
+**Problem:** You want to give all users access to a new group.
+
+**Solution:**
+```json
+POST /api/groups/bulk/add
+{
+  "group_ids": [1]
+}
+```
+
+</Tab>
+<Tab value="Admin Users">
+
+**Problem:** You want to add a premium group to all users created by a specific admin.
+
+**Solution:**
+```json
+POST /api/groups/bulk/add
+{
+  "group_ids": [1],
+  "admins": [5]
+}
+```
+
+</Tab>
+<Tab value="Tiered Access">
+
+**Problem:** You want different access levels: Free (limited), Standard (more), Premium (all).
+
+**Solution:**
+```json
+// Create Free group
+POST /api/group
+{
+  "name": "free",
+  "inbound_tags": ["vmess-8080"]
+}
+
+// Create Standard group
+POST /api/group
+{
+  "name": "standard",
+  "inbound_tags": ["vmess-8080", "vless-443"]
+}
+
+// Create Premium group
+POST /api/group
+{
+  "name": "premium",
+  "inbound_tags": ["vmess-8080", "vless-443", "trojan-8443"]
+}
+```
+
+Users can be assigned to appropriate groups based on their subscription tier.
+
+</Tab>
+<Tab value="Remove Inbound">
+
+**Problem:** You want to remove access to an inbound from a group.
+
+**Solution:**
+```json
+PUT /api/group/1
+{
+  "inbound_tags": ["vless-443"]
+}
+```
+
+Users in this group lose access to hosts with `inbound_tag: "trojan-8443"`.
+
+</Tab>
+<Tab value="Clear Inbounds">
+
+**Problem:** You want to remove all inbound access from a group (but keep the group).
+
+**Solution:**
+```json
+PUT /api/group/1
+{
+  "inbound_tags": []
+}
+```
+
+Users in this group now see no hosts in their subscriptions.
+
+</Tab>
+<Tab value="Migrate Users">
+
+**Problem:** You want to move users from "Standard" to "Premium" group.
+
+**Solution:**
+```json
+// Step 1: Remove from Standard
+POST /api/groups/bulk/remove
+{
+  "group_ids": [2],
+  "users": [10, 11, 12]
+}
+
+// Step 2: Add to Premium
+POST /api/groups/bulk/add
+{
+  "group_ids": [1],
+  "users": [10, 11, 12]
+}
+```
+
+</Tab>
+<Tab value="Conditional">
+
+**Problem:** You want to add group 2 only to users who already have group 1.
+
+**Solution:**
+```json
+POST /api/groups/bulk/add
+{
+  "group_ids": [2],
+  "has_group_ids": [1]
+}
+```
+
+</Tab>
+<Tab value="Multiple Groups">
+
+**Problem:** User should have access to inbounds from multiple groups.
+
+**Solution:**
+```json
+PUT /api/user/john
+{
+  "group_ids": [1, 2, 3]
+}
+```
+
+User gets access to **all** inbounds from **all** groups (union of all inbound tags).
+
+</Tab>
+</Tabs>
+
+---
+
+## Summary
+
+- ✅ **Groups control inbound access** - Users only see hosts whose inbound_tag is in their groups
+- ✅ **Many-to-many relationships** - Users can be in multiple groups, groups can have multiple inbounds
+- ✅ **Disabled groups are excluded** - Users lose access when their groups are disabled
+- ✅ **Name constraints** - 3-64 chars
+- ✅ **Inbound validation** - All inbound tags must exist in XRay core configurations
+- ✅ **Automatic updates** - User node configs update when groups are modified/deleted
+- ✅ **Bulk operations** - Efficiently manage group assignments for multiple users
+- ✅ **Empty groups** - Groups with no inbounds grant no access
+- ✅ **Template integration** - User templates can assign groups automatically
+- ✅ **Access is cumulative** - Users get access to inbounds from ALL their enabled groups
+
+For more information about:
+- How hosts use inbound tags: See [host](./host)
+

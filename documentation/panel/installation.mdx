@@ -1,0 +1,118 @@
+---
+title: Installation
+description: Installation instructions for PasarGuard.
+icon: Download
+---
+
+## System Requirements
+
+### Minimum Requirements
+
+- **RAM:** 1 GB
+- **CPU:** 1 core
+- **Storage:** 10 GB
+
+<Callout type="warning">
+**Important:** With minimum requirements, monitor disk usage regularly, especially when using MySQL-family databases. Consider upgrading resources if logs or database files begin consuming too much disk space.
+</Callout>
+
+### Recommended Requirements
+
+- **RAM:** 2 GB
+- **CPU:** 2 cores
+- **Storage:** 20 GB
+
+---
+
+## Installation Options
+
+PasarGuard Panel supports multiple database backends:
+
+- **TimescaleDB** - Optimized for time-series data and analytics (**Recommended**)
+- **PostgreSQL** - Advanced features and scalability
+- **MariaDB** - Open-source alternative to MySQL
+- **MySQL** - Ideal for production environments
+- **SQLite** - Perfect for small deployments and testing
+
+### Install PasarGuard
+
+<Tabs items={['TimescaleDB (Recommended)', 'PostgreSQL', 'MySQL', 'MariaDB', 'SQLite']}>
+  <Tab value="TimescaleDB (Recommended)">
+    ```bash
+    curl -fsSL https://github.com/PasarGuard/scripts/raw/main/pasarguard.sh -o /tmp/pg.sh \
+      && sudo bash /tmp/pg.sh install --database timescaledb
+    ```
+  </Tab>
+  <Tab value="PostgreSQL">
+    ```bash
+    curl -fsSL https://github.com/PasarGuard/scripts/raw/main/pasarguard.sh -o /tmp/pg.sh \
+      && sudo bash /tmp/pg.sh install --database postgresql
+    ```
+  </Tab>
+  <Tab value="MySQL">
+    ```bash
+    curl -fsSL https://github.com/PasarGuard/scripts/raw/main/pasarguard.sh -o /tmp/pg.sh \
+      && sudo bash /tmp/pg.sh install --database mysql
+    ```
+  </Tab>
+  <Tab value="MariaDB">
+    ```bash
+    curl -fsSL https://github.com/PasarGuard/scripts/raw/main/pasarguard.sh -o /tmp/pg.sh \
+      && sudo bash /tmp/pg.sh install --database mariadb
+    ```
+  </Tab>
+  <Tab value="SQLite">
+    ```bash
+    curl -fsSL https://github.com/PasarGuard/scripts/raw/main/pasarguard.sh -o /tmp/pg.sh \
+      && sudo bash /tmp/pg.sh install
+    ```
+  </Tab>
+</Tabs>
+
+### Post Installation
+
+Once the installation is complete:
+
+-   You will see the logs that you can stop watching them by closing the terminal or pressing `Ctrl+C`
+-   The PasarGuard files will be located at `/opt/pasarguard`
+-   The configuration file can be found at `/opt/pasarguard/.env` (refer to [configurations](#configuration) section to see variables)
+-   The data files will be placed at `/var/lib/pasarguard`
+-   For security reasons, the PasarGuard dashboard is not accessible via IP address. Therefore, you must [obtain SSL certificate](https://PasarGuard.github.io/PasarGuard/en/examples/issue-ssl-certificate) and access your PasarGuard dashboard by opening a web browser and navigating to `https://YOUR_DOMAIN:8000/dashboard/` (replace YOUR_DOMAIN with your actual domain)
+-   You can also use SSH port forwarding to access the PasarGuard dashboard locally without a domain. Replace `user@serverip` with your actual SSH username and server IP and Run the command below:
+
+```bash
+ssh -L 8000:localhost:8000 user@serverip
+```
+
+Finally, you can enter the following link in your browser to access your PasarGuard dashboard:
+
+http://localhost:8000/dashboard/
+
+You will lose access to the dashboard as soon as you close the SSH terminal. Therefore, this method is recommended only for testing purposes.
+
+### Create Owner Account
+
+Use the setup form on the panel login page with a one-time temporary key to create the first owner account.
+
+1. Open the panel login page from the previous step.
+2. On the login page, choose **Owner access**.
+3. Select **Create owner**.
+4. On the server, generate a temporary setup key:
+
+```bash
+pasarguard cli generate-temp-key
+```
+
+5. Paste the key into the setup form, enter the owner username and password, then create the owner account.
+
+<Callout type="warning">
+The temporary setup key is valid for 5 minutes and can only be used once. Generate a new key if it expires.
+</Callout>
+
+To make an existing admin the owner, go back to the login page, choose **Owner access**, select **Make admin owner**, generate a new temporary key, then enter the existing admin username and the key. This only works when there is no owner account already.
+
+To see the help message of the PasarGuard script, run the following command:
+
+```bash
+pasarguard --help
+```

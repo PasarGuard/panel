@@ -1,0 +1,34 @@
+---
+title: CLI
+navigation: CLI
+icon: Terminal
+---
+
+# PasarGuard CLI
+
+The CLI is installed with PasarGuard and is currently used for setup keys and basic maintenance commands.
+
+## Commands
+
+```bash
+# Show help
+pasarguard cli --help
+
+# Show installed version
+pasarguard cli version
+
+# Generate a one-time temporary setup key
+pasarguard cli generate-temp-key
+```
+
+## Owner Setup Key
+
+Use `generate-temp-key` before opening the dashboard **Owner access** form:
+
+```bash
+pasarguard cli generate-temp-key
+```
+
+The command prints a temporary key and its expiration time. The key is valid for 5 minutes and can only be used once.
+
+The dashboard setup form can use this key to create the first owner account, reset the owner password, delete the owner, or promote an existing admin to owner.

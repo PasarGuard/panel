@@ -1,0 +1,37 @@
+---
+title: Dashboard
+description: Main panel overview, quick actions, and daily checks
+icon: LayoutDashboard
+---
+
+The dashboard is the operational starting point for the panel. Use it to confirm that the system is healthy before changing users, nodes, or settings.
+
+## What The Dashboard Shows
+
+- **User state**: totals and recent account status changes.
+- **Node state**: whether nodes are online and reporting data.
+- **Traffic state**: high-level usage signals before opening detailed statistics.
+- **Quick actions**: shortcuts to common pages and workflows.
+
+The dashboard is not a replacement for the detailed pages. It is a first-pass overview that tells you where to look next.
+
+## Daily Check
+
+1. Confirm that the expected nodes are online.
+2. Check whether user counts or traffic changed unexpectedly.
+3. Open [Statistics](./statistics) when you need traffic history or node-level detail.
+4. Open [Users](./users) when account status looks wrong.
+5. Open [Core Configuration](./core) or node logs when a node is online but users cannot connect.
+
+## Quick Actions
+
+Quick actions are shortcuts. They do not change anything by themselves unless they open a form that you submit.
+
+Use them for common work such as creating users, opening templates, checking nodes, or moving to bulk operations. If you are not sure what a shortcut does, open the related page from the sidebar instead.
+
+## When Something Looks Wrong
+
+- If nodes are offline, check node service status and node logs first.
+- If users suddenly become limited or expired, check [Statistics](./statistics), [Users](./users), and recent [Bulk Operations](./bulk).
+- If subscriptions changed, check [Client Templates](./client_template), [User Templates](./user_template), hosts, and subscription settings.
+- If only one admin sees different data, check [Admin Roles](./admin_roles) and that admin's permission overrides.

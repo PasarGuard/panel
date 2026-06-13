@@ -1,0 +1,237 @@
+---
+title: Configuration
+description: Configure PasarGuard Node settings and environment variables
+icon: Cog
+---
+
+## Configuration Overview
+
+PasarGuard Node can be configured using environment variables. All settings can be set in a `.env` file or directly as environment variables.
+
+<Callout type="warn">
+  PasarGuard Node is currently in testing/development stage. Use at your own risk.
+</Callout>
+
+## Environment Variables
+
+### Core Settings
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `API_KEY` | string | - | Authentication UUID for API access (required) |
+| `NODE_HOST` | string | `127.0.0.1` | Bind application host address |
+| `SERVICE_PORT` | int | `62050` | Bind application port number |
+| `SERVICE_PROTOCOL` | string | `grpc` | Connection protocol (`grpc` or `rest`, recommended: `grpc`) |
+| `DEBUG` | bool | `false` | Enable debug mode for verbose logging |
+
+### SSL/TLS Configuration
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `SSL_CERT_FILE` | string | - | Path to SSL certificate file |
+| `SSL_KEY_FILE` | string | - | Path to SSL private key file |
+
+### Xray Configuration
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `XRAY_EXECUTABLE_PATH` | string | `/usr/local/bin/xray` | Path to Xray binary |
+| `XRAY_ASSETS_PATH` | string | `/usr/local/share/xray` | Path to Xray assets directory |
+
+<Callout type="info">
+  **Supported Cores:**
+  - ✅ xray-core
+  - ❌ sing-box (not supported)
+  - ❌ v2ray-core (not supported)
+</Callout>
+
+---
+
+## Example Configuration
+
+### Basic Setup
+
+```bash
+# Core Settings
+API_KEY=your-uuid-here
+NODE_HOST=127.0.0.1
+SERVICE_PORT=62050
+SERVICE_PROTOCOL=grpc
+DEBUG=false
+
+# SSL Configuration
+SSL_CERT_FILE=/path/to/ssl_cert.pem
+SSL_KEY_FILE=/path/to/ssl_key.pem
+
+# Xray Paths (defaults usually work)
+XRAY_EXECUTABLE_PATH=/usr/local/bin/xray
+XRAY_ASSETS_PATH=/usr/local/share/xray
+```
+
+### Production Setup
+
+```bash
+# Core Settings
+API_KEY=change-this-to-a-secure-uuid
+NODE_HOST=0.0.0.0
+SERVICE_PORT=62050
+SERVICE_PROTOCOL=grpc
+DEBUG=false
+
+# SSL - Use valid certificates
+SSL_CERT_FILE=/etc/ssl/certs/your-domain.pem
+SSL_KEY_FILE=/etc/ssl/private/your-domain-key.pem
+
+# Xray Configuration
+XRAY_EXECUTABLE_PATH=/usr/local/bin/xray
+XRAY_ASSETS_PATH=/usr/local/share/xray
+```
+
+### Docker Compose Setup
+
+When using Docker, you can set environment variables in the `docker-compose.yml` file or use a `.env` file:
+
+```bash
+API_KEY=your-uuid-here
+SERVICE_PORT=62050
+SERVICE_PROTOCOL=grpc
+SSL_CERT_FILE=/app/certs/ssl_cert.pem
+SSL_KEY_FILE=/app/certs/ssl_key.pem
+```
+
+---
+
+## SSL Certificate Setup
+
+### Generate Self-Signed Certificate
+
+For testing or internal use, generate a self-signed certificate:
+
+```bash
+openssl req -x509 -newkey rsa:4096 -keyout ssl_key.pem \
+  -out ssl_cert.pem -days 36500 -nodes \
+  -subj "/CN=your-server-ip-or-domain" \
+  -addext "subjectAltName = DNS:your-domain.com,IP:your.server.ip"
+```
+
+Then configure the paths:
+
+```bash
+SSL_CERT_FILE=/path/to/ssl_cert.pem
+SSL_KEY_FILE=/path/to/ssl_key.pem
+```
+
+### Use Let's Encrypt Certificate
+
+For production with a domain:
+
+1. Install Certbot:
+```bash
+sudo apt-get install certbot
+```
+
+2. Obtain certificate:
+```bash
+sudo certbot certonly --standalone -d your-domain.com
+```
+
+3. Update environment variables:
+```bash
+SSL_CERT_FILE=/etc/letsencrypt/live/your-domain.com/fullchain.pem
+SSL_KEY_FILE=/etc/letsencrypt/live/your-domain.com/privkey.pem
+```
+
+### Use Custom Certificate
+
+If you have your own certificate:
+
+```bash
+SSL_CERT_FILE=/path/to/your/certificate.pem
+SSL_KEY_FILE=/path/to/your/private-key.pem
+```
+
+---
+
+## Security Best Practices
+
+### Generate Secure API Key
+
+Generate a secure UUID for the `API_KEY`:
+
+```bash
+# Using uuidgen (Linux/macOS)
+uuidgen
+
+# Using Python
+python3 -c "import uuid; print(uuid.uuid4())"
+
+# Using OpenSSL
+openssl rand -hex 16 | awk '{print substr($1,1,8)"-"substr($1,9,4)"-"substr($1,13,4)"-"substr($1,17,4)"-"substr($1,21,12)}'
+```
+
+### File Permissions
+
+Ensure proper permissions for sensitive files:
+
+```bash
+# Certificate files
+chmod 600 /path/to/ssl_key.pem
+chmod 644 /path/to/ssl_cert.pem
+
+# Environment file
+chmod 600 .env
+```
+
+### Firewall Configuration
+
+Only expose necessary ports:
+
+```bash
+# Allow only node port
+sudo ufw allow 62050/tcp
+
+# Enable firewall
+sudo ufw enable
+```
+
+---
+
+## Protocol Configuration
+
+### gRPC (Recommended)
+
+gRPC is the recommended protocol for better performance and lower latency:
+
+```bash
+SERVICE_PROTOCOL=grpc
+```
+
+### REST API
+
+REST API is also supported but may have higher overhead:
+
+```bash
+SERVICE_PROTOCOL=rest
+```
+
+---
+
+## Troubleshooting
+
+### Common Issues
+
+**Port already in use:**
+```bash
+# Change the port
+SERVICE_PORT=62051
+```
+
+### Debug Mode
+
+Enable debug mode for verbose logging:
+
+```bash
+DEBUG=true
+```
+
+This will provide detailed logs to help troubleshoot issues.

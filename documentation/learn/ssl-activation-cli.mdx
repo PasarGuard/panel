@@ -1,0 +1,191 @@
+---
+title: SSL Activation
+navigation: SSL Activation
+icon: Lock
+---
+
+By enabling SSL in PasarGuard, the dashboard and subscription link will be accessible via https.
+There are different approaches to enabling SSL in PasarGuard, which we'll cover below in order from simple to complex.
+
+<Callout type="info">
+In all examples below, the `docker-compose.yml` and `.env` files can be found at `/opt/pasarguard`, and `xray_config.json` at `/var/lib/pasarguard`.
+
+If you installed PasarGuard manually, you'll need to make the necessary changes yourself.
+</Callout>
+
+## SSL Activation with Caddy
+
+In this method, you don't need to create an SSL certificate - Caddy does all the work for you!
+
+### Modifying docker-compose.yml
+
+Modify the `docker-compose.yml` file as follows:
+
+```yml {9-10,12-22,24-25}
+services:
+  pasarguard:
+    image: pasarguard/panel:latest
+    restart: always
+    env_file: .env
+    network_mode: host
+    volumes:
+      - /var/lib/pasarguard:/var/lib/pasarguard
+    depends_on:
+      - caddy
+
+  caddy:
+    image: caddy
+    restart: always
+    ports:
+      - 80:80
+      - 443:443
+    volumes:
+      - /var/lib/pasarguard:/var/lib/pasarguard
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_volume:/data
+      - caddy_volume:/config
+
+volumes:
+  caddy_volume:
+```
+
+### Creating Caddyfile
+
+Create a new file named `Caddyfile` at `/opt/pasarguard` and replace `YOUR_DOMAIN` with your desired domain or subdomain.
+
+<Callout type="warn">
+The first letter in the `Caddyfile` filename must be uppercase `C`.
+</Callout>
+
+```nginx
+YOUR_DOMAIN {
+	reverse_proxy unix//var/lib/pasarguard/pasarguard.socket
+}
+```
+
+<Callout type="warn">
+If you want the subscription domain or subdomain to be different from the panel, duplicate the above content in your Caddyfile and replace both domains or subdomains in place of `YOUR_DOMAIN`.
+</Callout>
+
+### Setting Environment Variables
+
+Set the following variables in the `.env` file.
+
+
+```bash
+UVICORN_UDS = /var/lib/pasarguard/pasarguard.socket
+```
+
+### Restarting PasarGuard
+
+Restart PasarGuard:
+
+```bash
+PasarGuard restart
+```
+
+Now the PasarGuard dashboard will be accessible at your domain or subdomain address via https.
+
+## SSL Activation with Uvicorn
+
+PasarGuard runs with `Uvicorn` by default. `Uvicorn` also allows you to define SSL certificate files.
+
+### Obtaining SSL Certificate
+
+First, you need to obtain certificate files for your domain or subdomain. For this, see the [SSL Certificate Issuance](ssl-certificate-cli) tutorial.
+
+### Setting Environment Variables
+
+After creating the SSL certificate files, set the following variables in the `.env` file.
+
+Replace `YOUR_DOMAIN` with your desired domain or subdomain.
+
+```bash
+UVICORN_PORT = 443
+UVICORN_SSL_CERTFILE = "/var/lib/pasarguard/certs/YOUR_DOMAIN.cer"
+UVICORN_SSL_KEYFILE = "/var/lib/pasarguard/certs/YOUR_DOMAIN.cer.key"
+```
+
+Now the PasarGuard dashboard will be accessible at your domain or subdomain address via https.
+
+## SSL Activation with HAProxy
+
+`HAProxy` is one of the best tools for this task. In this method, we run PasarGuard on https with the help of `HAProxy`.
+
+### Obtaining SSL Certificate
+
+First, you need to obtain certificate files for your domain or subdomain. For this, see the [SSL Certificate Issuance](ssl-certificate-cli) tutorial.
+
+### Modifying docker-compose.yml
+
+Modify the `docker-compose.yml` file as follows:
+
+```yml {9-10,12-20}
+services:
+  pasarguard:
+      image: pasarguard/panel:latest
+      restart: always
+      env_file: .env
+      network_mode: host
+      volumes:
+        - /var/lib/pasarguard:/var/lib/pasarguard
+      depends_on:
+        - haproxy
+    
+  haproxy:
+    image: haproxy:latest
+    restart: always
+    volumes:
+      - ./haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg
+      - /var/lib/pasarguard:/var/lib/pasarguard
+    ports:
+      - 80:80
+      - 443:443
+```
+
+### Creating haproxy.cfg
+
+Create a new file named `haproxy.cfg` at `/opt/pasarguard` and replace `YOUR_DOMAIN` with your desired domain or subdomain.
+
+```ini
+defaults
+  mode tcp
+  timeout client 30s
+  timeout connect 4s
+  timeout server 30s
+
+global
+  maxconn 10000000
+
+frontend http_frontend
+  bind *:80
+  mode http
+  redirect scheme https code 301 if !{ ssl_fc }
+
+frontend https_frontend
+  bind *:443 ssl crt /var/lib/pasarguard/certs/YOUR_DOMAIN.cer
+  default_backend PasarGuard_backend
+
+backend PasarGuard_backend
+  server PasarGuard /var/lib/pasarguard/pasarguard.socket
+```
+
+### Setting Environment Variables
+
+Set the following variables in the `.env` file.
+
+Replace `YOUR_DOMAIN` with your desired domain or subdomain.
+
+```bash
+UVICORN_UDS = /var/lib/pasarguard/pasarguard.socket
+```
+
+### Restarting PasarGuard
+
+Restart PasarGuard:
+
+```bash
+PasarGuard restart
+```
+
+Now the PasarGuard dashboard will be accessible at your domain or subdomain address via https.

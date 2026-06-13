@@ -1,0 +1,29 @@
+---
+title: Overview
+description: Command-line tools for PasarGuard
+icon: Terminal
+---
+
+# PasarGuard Interfaces
+
+PasarGuard includes a small command-line interface for setup and maintenance tasks.
+
+## Available Tool
+
+<Cards>
+  <Card title="CLI Guide" href="/interfaces/cli">
+    Generate one-time setup keys, check the installed version, and view command help.
+  </Card>
+</Cards>
+
+## Quick Start
+
+```bash
+# Show available commands
+pasarguard cli --help
+
+# Generate a one-time owner setup key
+pasarguard cli generate-temp-key
+```
+
+Use the generated key in the dashboard **Owner access** form to create, reset, delete, or promote the owner account.

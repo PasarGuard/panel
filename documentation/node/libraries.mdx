@@ -1,0 +1,449 @@
+---
+title: Official Libraries
+description: Official Go and Python libraries for PasarGuard Node integration
+icon: Library
+---
+
+PasarGuard provides official libraries to simplify integration with the Node. These libraries handle authentication, serialization, and provide type-safe interfaces for all API operations.
+
+---
+
+## Go Library
+
+### node-bridge
+
+Official Go library for seamless PasarGuard Node integration.
+
+**Repository:** [PasarGuard/node_bridge](https://github.com/PasarGuard/node_bridge)
+
+### Installation
+
+```bash
+go get github.com/PasarGuard/node_bridge
+```
+
+### Quick Start
+
+```go
+package main
+
+import (
+    "context"
+    "log"
+    
+    bridge "github.com/PasarGuard/node_bridge"
+)
+```
+
+### Examples
+
+#### Starting a Backend
+
+```go
+package main
+
+import (
+    "context"
+    "log"
+    
+    "github.com/PasarGuard/node_bridge"
+    pb "github.com/PasarGuard/node_bridge/proto"
+)
+
+func main() {
+    client, _ := nodebridge.NewClient("https://node:443", "session-id")
+    defer client.Close()
+
+    backend := &pb.Backend{
+        Type: pb.BackendType_XRAY,
+        Config: `{
+            "log": {"loglevel": "warning"},
+            "inbounds": [...],
+            "outbounds": [...]
+        }`,
+        Users: []*pb.User{
+            {
+                Email: "user1@example.com",
+                Proxies: &pb.Proxy{
+                    Vmess: &pb.Vmess{
+                        Id: "uuid-here",
+                    },
+                },
+                Inbounds: []string{"inbound-tag"},
+            },
+        },
+        KeepAlive: 60,
+    }
+
+    info, err := client.Start(context.Background(), backend)
+    if err != nil {
+        log.Fatal(err)
+    }
+    
+    log.Printf("Backend started: %v", info)
+}
+```
+
+#### Syncing Users
+
+```go
+// Sync a single user
+user := &pb.User{
+    Email: "newuser@example.com",
+    Proxies: &pb.Proxy{
+        Vmess: &pb.Vmess{Id: "uuid"},
+    },
+    Inbounds: []string{"inbound-tag"},
+}
+
+err := client.SyncUser(context.Background(), user)
+if err != nil {
+    log.Fatal(err)
+}
+
+// Remove a user (empty inbounds)
+user.Inbounds = []string{}
+err = client.SyncUser(context.Background(), user)
+```
+
+#### Getting Statistics
+
+```go
+// Get all users' stats
+statsReq := &pb.StatRequest{
+    Type: pb.StatType_UsersStat,
+    Reset: false,
+}
+
+stats, err := client.GetStats(context.Background(), statsReq)
+if err != nil {
+    log.Fatal(err)
+}
+
+for _, stat := range stats.Stats {
+    log.Printf("User: %s, Traffic: %d bytes", stat.Name, stat.Value)
+}
+
+// Get specific user stats and reset
+userStatsReq := &pb.StatRequest{
+    Name: "user@example.com",
+    Type: pb.StatType_UserStat,
+    Reset: true,
+}
+
+userStats, err := client.GetStats(context.Background(), userStatsReq)
+```
+
+#### Streaming Logs
+
+```go
+ctx := context.Background()
+logStream, err := client.GetLogs(ctx)
+if err != nil {
+    log.Fatal(err)
+}
+
+for {
+    logMsg, err := logStream.Recv()
+    if err != nil {
+        log.Fatal(err)
+    }
+    
+    log.Printf("Backend log: %s", logMsg.Detail)
+}
+```
+
+#### Getting System Stats
+
+```go
+sysStats, err := client.GetSystemStats(context.Background())
+if err != nil {
+    log.Fatal(err)
+}
+
+log.Printf("CPU Usage: %.2f%%", sysStats.CpuUsage)
+log.Printf("Memory: %d/%d MB", 
+    sysStats.MemUsed/1024/1024, 
+    sysStats.MemTotal/1024/1024)
+```
+
+### Advanced Usage
+
+#### Using gRPC
+
+```go
+client, err := nodebridge.NewGRPCClient(
+    "node:50051",
+    "session-id",
+    grpc.WithTransportCredentials(...),
+)
+```
+
+#### Context with Timeout
+
+```go
+ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+defer cancel()
+
+info, err := client.GetBaseInfo(ctx)
+```
+
+#### Error Handling
+
+```go
+import "google.golang.org/grpc/codes"
+import "google.golang.org/grpc/status"
+
+info, err := client.GetBaseInfo(ctx)
+if err != nil {
+    st, ok := status.FromError(err)
+    if ok {
+        switch st.Code() {
+        case codes.Unauthenticated:
+            log.Println("Invalid session ID")
+        case codes.Unavailable:
+            log.Println("Node is unavailable")
+        default:
+            log.Printf("Error: %v", st.Message())
+        }
+    }
+}
+```
+
+---
+
+## Python Library
+
+### node-bridge-py
+
+Official Python library for PasarGuard Node integration.
+
+**Repository:** [PasarGuard/node-bridge-py](https://github.com/PasarGuard/node-bridge-py)
+
+### Installation
+
+```bash
+pip install pasarguard-node-bridge
+```
+
+### Quick Start
+
+```python
+from pasarguard_node_bridge import NodeClient
+
+# Create a client
+client = NodeClient(
+    url="https://your-node:443",
+    session_id="your-session-id"
+)
+
+# Get node info
+info = client.get_base_info()
+print(f"Node version: {info.version}, Running: {info.running}")
+```
+
+### Examples
+
+#### Starting a Backend
+
+```python
+from pasarguard_node_bridge import NodeClient, Backend, User, Proxy, Vmess
+
+client = NodeClient("https://node:443", "session-id")
+
+backend = Backend(
+    type=Backend.Type.XRAY,
+    config="""{
+        "log": {"loglevel": "warning"},
+        "inbounds": [...],
+        "outbounds": [...]
+    }""",
+    users=[
+        User(
+            email="user1@example.com",
+            proxies=Proxy(
+                vmess=Vmess(id="uuid-here")
+            ),
+            inbounds=["inbound-tag"]
+        )
+    ],
+    keep_alive=60
+)
+
+info = client.start(backend)
+print(f"Backend started: {info}")
+```
+
+#### Syncing Users
+
+```python
+from pasarguard_node_bridge import User, Proxy, Vmess
+
+# Add/update a user
+user = User(
+    email="newuser@example.com",
+    proxies=Proxy(
+        vmess=Vmess(id="uuid")
+    ),
+    inbounds=["inbound-tag"]
+)
+
+client.sync_user(user)
+
+# Remove a user (empty inbounds)
+user.inbounds = []
+client.sync_user(user)
+```
+
+#### Getting Statistics
+
+```python
+from pasarguard_node_bridge import StatRequest, StatType
+
+# Get all users' stats
+stats_req = StatRequest(
+    type=StatType.USERS_STAT,
+    reset=False
+)
+
+stats = client.get_stats(stats_req)
+for stat in stats.stats:
+    print(f"User: {stat.name}, Traffic: {stat.value} bytes")
+
+# Get specific user stats
+user_stats_req = StatRequest(
+    name="user@example.com",
+    type=StatType.USER_STAT,
+    reset=True
+)
+
+user_stats = client.get_stats(user_stats_req)
+```
+
+#### Streaming Logs
+
+```python
+# Stream logs in real-time
+for log in client.get_logs():
+    print(f"Backend log: {log.detail}")
+```
+
+#### Getting System Stats
+
+```python
+sys_stats = client.get_system_stats()
+
+print(f"CPU Usage: {sys_stats.cpu_usage:.2f}%")
+print(f"Memory: {sys_stats.mem_used/1024/1024}/{sys_stats.mem_total/1024/1024} MB")
+print(f"Download: {sys_stats.incoming_bandwidth_speed/1024/1024:.2f} MB/s")
+print(f"Upload: {sys_stats.outgoing_bandwidth_speed/1024/1024:.2f} MB/s")
+```
+
+#### Getting Online Users
+
+```python
+online_req = StatRequest(
+    name="user@example.com",
+    type=StatType.USER_STAT
+)
+
+online_stats = client.get_user_online_stats(online_req)
+print(f"User has {online_stats.value} active connections")
+
+# Get IP list
+ip_list = client.get_user_online_ip_list(online_req)
+for ip, count in ip_list.value.items():
+    print(f"IP: {ip}, Connections: {count}")
+```
+
+### Advanced Usage
+
+#### Async Support
+
+```python
+from pasarguard_node_bridge import AsyncNodeClient
+
+async def main():
+    client = AsyncNodeClient("https://node:443", "session-id")
+    
+    info = await client.get_base_info()
+    print(info)
+    
+    await client.close()
+
+# Run with asyncio
+import asyncio
+asyncio.run(main())
+```
+
+#### Error Handling
+
+```python
+from pasarguard_node_bridge import NodeError, AuthenticationError
+
+try:
+    info = client.get_base_info()
+except AuthenticationError:
+    print("Invalid session ID")
+except NodeError as e:
+    print(f"Node error: {e}")
+except Exception as e:
+    print(f"Unexpected error: {e}")
+```
+
+#### Using gRPC
+
+```python
+client = NodeClient(
+    url="node:50051",
+    session_id="session-id",
+    use_grpc=True
+)
+```
+
+---
+
+## Best Practices
+
+### Connection Management
+
+**Go:**
+```go
+// Always close clients
+defer client.Close()
+```
+
+**Python:**
+```python
+# Use context manager
+with NodeClient(url, session_id) as client:
+    # Use client
+    pass
+
+# Or close manually
+client.close()
+```
+
+### Error Handling
+
+Always handle errors appropriately:
+- Authentication errors → Check SESSION_ID
+- Connection errors → Verify node is running
+- Timeout errors → Increase context timeout
+
+### Performance Tips
+
+1. **Reuse clients** - Don't create new clients for each request
+2. **Batch operations** - Use `SyncUsers` for multiple user updates
+3. **Cache stats** - Don't poll statistics too frequently
+4. **Use streaming** - For logs, use streaming instead of polling
+
+---
+
+## Examples & Tutorials
+
+Check out complete examples in the library repositories:
+
+- **Go Examples:** [github.com/PasarGuard/node_bridge/examples](https://github.com/PasarGuard/node_bridge/tree/main/examples)
+- **Python Examples:** [github.com/PasarGuard/node-bridge-py/examples](https://github.com/PasarGuard/node-bridge-py/tree/main/examples)
+

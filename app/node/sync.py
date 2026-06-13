@@ -1,5 +1,3 @@
-import asyncio
-
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_object_session
 
@@ -11,6 +9,7 @@ from app.nats.proto_utils import serialize_proto_message, serialize_proto_messag
 from app.node import node_manager
 from app.node.user import _serialize_user_for_node, serialize_user, serialize_users_for_node
 from app.utils.logger import get_logger
+from app.utils.tasks import create_background_task
 from config import runtime_settings
 
 logger = get_logger("node-sync")
@@ -118,12 +117,12 @@ async def sync_user(db_user: User) -> None:
         return
 
     proto_user = await serialize_user(db_user)
-    asyncio.create_task(_dispatch_user_update(proto_user))
+    create_background_task(_dispatch_user_update(proto_user))
 
 
 async def remove_user(user: UserNotificationResponse) -> None:
-    proto_user = _serialize_user_for_node(user.id, user.proxy_settings.dict())
-    asyncio.create_task(_dispatch_user_update(proto_user))
+    proto_user = _serialize_user_for_node(user.id, user.proxy_settings.model_dump())
+    create_background_task(_dispatch_user_update(proto_user))
 
 
 async def remove_users(users: list[User]) -> None:
@@ -131,7 +130,7 @@ async def remove_users(users: list[User]) -> None:
     if not users:
         return
     proto_users = [_serialize_user_for_node(u.id, u.proxy_settings) for u in users]
-    asyncio.create_task(_dispatch_users_update(proto_users))
+    create_background_task(_dispatch_users_update(proto_users))
 
 
 async def sync_users(users: list[User]) -> None:
@@ -139,4 +138,4 @@ async def sync_users(users: list[User]) -> None:
     blocked_admin_ids = await _blocked_admin_ids_for_users(users)
     filtered = [user for user in users if user.admin_id not in blocked_admin_ids]
     proto_users = await serialize_users_for_node(filtered)
-    asyncio.create_task(_dispatch_users_update(proto_users))
+    create_background_task(_dispatch_users_update(proto_users))

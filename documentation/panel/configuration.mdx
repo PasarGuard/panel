@@ -1,0 +1,285 @@
+---
+title: Configuration
+description: Configure PasarGuard Panel with environment variables and settings
+icon: Cog
+---
+
+## Configuration Overview
+
+PasarGuard Panel is configured through environment variables stored in the `.env` file located at `/opt/pasarguard/.env`.
+
+## Environment Variables
+
+### Admin Configuration
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `SUDO_USERNAME` | string | - | Superuser's username for initial admin account |
+| `SUDO_PASSWORD` | string | - | Superuser's password for initial admin account |
+
+<Callout type="warn">
+  `SUDO_USERNAME` and `SUDO_PASSWORD` only work when `DEBUG` mode is enabled. For production, create the owner account from the dashboard setup form using `pasarguard cli generate-temp-key`.
+</Callout>
+
+### Database Configuration
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `SQLALCHEMY_DATABASE_URL` | string | - | Database connection string (SQLite, MySQL, MariaDB, PostgreSQL, TimescaleDB) |
+
+**Database URL Examples:**
+
+```bash
+# TimescaleDB/PostgreSQL (default)
+SQLALCHEMY_DATABASE_URL = "postgresql+asyncpg://user:password@localhost/pasarguard"
+
+# MySQL/MariaDB
+SQLALCHEMY_DATABASE_URL = "mysql+asyncmy://user:password@localhost/pasarguard"
+
+# SQLite 
+SQLALCHEMY_DATABASE_URL = "sqlite+aiosqlite:////var/lib/pasarguard/db.sqlite3"
+```
+
+### UVICORN Web Server
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `UVICORN_HOST` | string | `0.0.0.0` | Host address to bind the web server |
+| `UVICORN_PORT` | int | `8000` | Port number for the web server |
+| `UVICORN_UDS` | string | - | Unix domain socket path; when set, Uvicorn binds to the socket instead of host/port |
+| `UVICORN_SSL_CERTFILE` | string | - | Path to SSL certificate file |
+| `UVICORN_SSL_KEYFILE` | string | - | Path to SSL private key file |
+| `UVICORN_SSL_CA_TYPE` | string | `public` | Certificate authority type used for SSL validation |
+| `UVICORN_WORKERS` | int | `1` | Number of Uvicorn worker processes |
+| `UVICORN_LOOP` | string | `auto` | Uvicorn event loop setting |
+| `UVICORN_PROXY_HEADERS` | bool | `false` | Trust proxy headers such as forwarded client IPs |
+| `UVICORN_FORWARDED_ALLOW_IPS` | string/list | `127.0.0.1` | Trusted proxy IPs for forwarded headers; use `*` only on trusted private networks |
+
+**Example:**
+
+```bash
+UVICORN_HOST = "0.0.0.0"
+UVICORN_PORT = 8000
+UVICORN_SSL_CERTFILE = "/var/lib/pasarguard/cert.pem"
+UVICORN_SSL_KEYFILE = "/var/lib/pasarguard/key.pem"
+UVICORN_PROXY_HEADERS = true
+UVICORN_FORWARDED_ALLOW_IPS = "127.0.0.1"
+```
+
+<Callout type="warn">
+Enable `UVICORN_PROXY_HEADERS` only when PasarGuard is behind a trusted reverse proxy. Do not use `UVICORN_FORWARDED_ALLOW_IPS = "*"` on an untrusted network.
+</Callout>
+
+### Authentication & Security
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `JWT_ACCESS_TOKEN_EXPIRE_MINUTES` | int | `1440` | JWT token expiration time in minutes (default: 24 hours) |
+
+**Example:**
+
+```bash
+# Token expires after 24 hours
+JWT_ACCESS_TOKEN_EXPIRE_MINUTES = 1440
+
+# Token expires after 7 days
+JWT_ACCESS_TOKEN_EXPIRE_MINUTES = 10080
+```
+
+### Panel Settings
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `DOCS` | bool | `false` | Enable/disable API documentation endpoint |
+| `DEBUG` | bool | `false` | Enable debug mode for verbose logging |
+| `ROLE` | string | `all-in-one` | Runtime role: `backend`, `node`, `scheduler`, or `all-in-one` |
+| `DASHBOARD_PATH` | string | `/dashboard/` | URL path where the dashboard is served |
+| `VITE_BASE_API` | string | `/` | API base URL used by the dashboard |
+| `ALLOWED_ORIGINS` | string | `*` | Comma-separated CORS origins |
+
+**Example:**
+
+```bash
+DOCS = true
+DEBUG = false
+```
+
+### WireGuard
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `WIREGUARD_ENABLED` | bool | `true` | Enable WireGuard peer allocation and WireGuard subscription output |
+| `WIREGUARD_GLOBAL_POOL` | CIDR | `10.0.0.0/8` | IPv4 pool used to auto-allocate WireGuard user peer IPs and validate manual peer IPs |
+| `WIREGUARD_RESERVED` | CIDR list | `10.0.0.0/31` | Comma-separated IPv4 CIDR ranges that must never be allocated |
+
+**Example:**
+
+```bash
+# Disable WireGuard output and automatic peer allocation
+WIREGUARD_ENABLED = false
+
+# Custom allocation pool
+WIREGUARD_GLOBAL_POOL = "10.66.0.0/16"
+WIREGUARD_RESERVED = "10.66.0.0/31,10.66.0.10/32"
+```
+
+<Callout type="info">
+When `WIREGUARD_ENABLED = false`, WireGuard subscription output is skipped and automatic WireGuard peer IP allocation is disabled.
+</Callout>
+
+### Usage Recording
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `DISABLE_RECORDING_NODE_USAGE` | bool | `false` | Disable recording node usage samples |
+| `ENABLE_RECORDING_NODES_STATS` | bool | `false` | Enable detailed node stats recording; only available for PostgreSQL/TimescaleDB |
+| `RESET_USER_USAGE_CLEAN_CHART_DATA` | bool | `false` | Delete user chart history when resetting user usage |
+
+**Example:**
+
+```bash
+DISABLE_RECORDING_NODE_USAGE = false
+ENABLE_RECORDING_NODES_STATS = true
+RESET_USER_USAGE_CLEAN_CHART_DATA = false
+```
+
+---
+
+## Complete Configuration Example
+
+### Production Setup
+
+```bash
+# Database (TimescaleDB recommended)
+SQLALCHEMY_DATABASE_URL = "postgresql+asyncpg://pasarguard:password@localhost/pasarguard"
+
+# Web Server
+UVICORN_HOST = "0.0.0.0"
+UVICORN_PORT = 8000
+UVICORN_SSL_CERTFILE = "/var/lib/pasarguard/cert.pem"
+UVICORN_SSL_KEYFILE = "/var/lib/pasarguard/key.pem"
+UVICORN_PROXY_HEADERS = true
+UVICORN_FORWARDED_ALLOW_IPS = "127.0.0.1"
+
+# Security
+JWT_ACCESS_TOKEN_EXPIRE_MINUTES = 1440
+
+# Panel Settings
+DOCS = false
+DEBUG = false
+
+# WireGuard
+WIREGUARD_ENABLED = true
+WIREGUARD_GLOBAL_POOL = "10.0.0.0/8"
+WIREGUARD_RESERVED = "10.0.0.0/31"
+```
+
+### Development/Testing Setup
+
+```bash
+# Debug admin configuration; only used when DEBUG = true
+SUDO_USERNAME = "admin"
+SUDO_PASSWORD = "admin123"
+
+# Database (SQLite for testing)
+SQLALCHEMY_DATABASE_URL = "sqlite+aiosqlite:////var/lib/pasarguard/db.sqlite3"
+
+# Web Server
+UVICORN_HOST = "127.0.0.1"
+UVICORN_PORT = 8000
+
+# Security
+JWT_ACCESS_TOKEN_EXPIRE_MINUTES = 1440
+
+# Panel Settings
+DOCS = true
+DEBUG = true
+```
+
+---
+
+## Configuration Management
+
+### View Current Configuration
+
+```bash
+cat /opt/pasarguard/.env
+```
+
+### Edit Configuration
+
+```bash
+sudo nano /opt/pasarguard/.env
+```
+
+### Apply Changes
+
+After modifying configuration, restart the panel:
+
+```bash
+pasarguard restart
+```
+
+### Verify Configuration
+
+Check if the service is running correctly:
+
+```bash
+pasarguard status
+```
+
+View logs to troubleshoot issues:
+
+```bash
+pasarguard logs
+```
+
+---
+
+## Multi-Node Setup
+
+To configure multiple nodes:
+
+1. **Install and configure PasarGuard Node** on each server (see [Node Installation](/node/installation))
+
+2. **Configure node API credentials** on each node server
+
+3. **Add nodes in the panel interface:**
+   - Navigate to the Nodes section in the dashboard
+   - Click "Add Node"
+   - Enter node connection details (address, port, API key, etc.)
+   - Check the connection
+---
+
+## Security Best Practices
+
+### Secure Database Credentials
+
+Use strong passwords for database connections:
+
+```bash
+# Generate secure password
+openssl rand -base64 32
+```
+
+### Use SSL Certificates
+
+Always use valid SSL certificates in production:
+
+```bash
+# Using Let's Encrypt
+sudo certbot certonly --standalone -d your-domain.com
+
+# Update .env
+UVICORN_SSL_CERTFILE = "/etc/letsencrypt/live/your-domain.com/fullchain.pem"
+UVICORN_SSL_KEYFILE = "/etc/letsencrypt/live/your-domain.com/privkey.pem"
+```
+
+### Disable Debug Mode in Production
+
+```bash
+DEBUG = false
+DOCS = false
+```
+
+---

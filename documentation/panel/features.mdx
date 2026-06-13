@@ -1,0 +1,128 @@
+---
+title: Features & Usage
+description: Explore PasarGuard Panel features and learn how to use them
+icon: Sparkles
+---
+
+## Dashboard Overview
+
+PasarGuard Panel provides a modern web interface for managing your proxy infrastructure. Access the dashboard at `https://YOUR_DOMAIN:8000/dashboard/`
+
+## User Management
+
+### Creating Users
+
+Create and manage proxy users through the intuitive interface:
+
+- **Multi Protocol**: Assign multiple protocols to a single user
+- **Traffic Limits**: Set data transfer limits per user
+- **Expiry Dates**: Configure subscription expiration dates
+
+### User Status
+
+Monitor and control user accounts:
+
+- **Active/Inactive**: Enable or disable users instantly
+- **Traffic Usage**: Real-time monitoring of data consumption
+- **Online Status**: See which users are currently connected
+- **Reset Traffic**: Reset user traffic counters when needed
+
+## Subscription Management
+
+### Subscription Links
+
+PasarGuard generates subscription links compatible with popular clients:
+
+- **V2Ray**: Standard V2Ray subscription format
+- **Clash**: Clash configuration format
+- **ClashMeta**: Enhanced Clash format with additional features
+- **Sing-Box**: Sing-Box compatible json configuration
+- **Outline**: Outline compatible links (Supports Only Shadowsocks)
+
+### QR Codes
+
+Automatically generated QR codes for easy client configuration:
+
+- Share QR codes directly with users
+- Quick setup on mobile devices
+- Support for all protocols
+
+## Node Management
+
+### Multi-Node Architecture
+
+Distribute your infrastructure across multiple servers:
+
+- **Load Distribution**: Balance traffic across nodes
+- **Geographic Distribution**: Place nodes in different locations
+
+### Node Monitoring
+
+Keep track of your node infrastructure:
+
+- **Health Status**: Monitor node connectivity and status
+- **Resource Usage**: CPU, memory, and bandwidth monitoring
+- **Traffic Statistics**: Per-node traffic analysis
+
+## System Monitoring
+
+### Traffic Statistics
+
+Comprehensive traffic monitoring:
+
+- **Real-time Stats**: Live traffic usage display
+- **Historical Data**: Traffic history and trends
+- **Per-User Analytics**: Individual user consumption
+- **System-wide Overview**: Total bandwidth usage
+
+### Performance Metrics
+
+Monitor system performance:
+
+- **CPU Usage**: Server CPU utilization
+- **Memory Usage**: RAM consumption
+- **Active Connections**: Number of concurrent connections
+- **Uptime**: System availability statistics
+
+## Automation Features
+
+### Telegram Bot
+
+Integrate with Telegram for notifications and management:
+
+- **User Notifications**: Automatic expiry and traffic alerts
+- **Admin Commands**: Manage the panel via Telegram
+- **Real-time Alerts**: System status notifications
+
+### CLI Tools
+
+Command-line interface for setup and maintenance:
+
+```bash
+# Generate a one-time owner setup key
+pasarguard cli generate-temp-key
+
+# Show CLI help
+pasarguard cli --help
+
+# Show installed version
+pasarguard cli version
+```
+## Security Features
+
+### TLS Support
+
+Secure connections with TLS:
+
+- **Custom Certificates**: Use your own SSL certificates
+- **SNI Configuration**: Server Name Indication support
+
+<Cards>
+  <Card title="Installation" href="/panel/installation">
+    Installation guide for new setups
+  </Card>
+
+  <Card title="Configuration" href="/panel/configuration">
+    Configure environment variables and settings
+  </Card>
+</Cards>

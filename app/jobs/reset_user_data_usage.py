@@ -1,4 +1,3 @@
-import asyncio
 from datetime import datetime as dt, timedelta as td, timezone as tz
 
 from app import scheduler
@@ -9,6 +8,7 @@ from app.operation.user import UserOperation
 from app import notification
 from app.jobs.dependencies import SYSTEM_ADMIN
 from app.utils.logger import get_logger
+from app.utils.tasks import create_background_task
 from config import job_settings, runtime_settings, usage_settings
 
 logger = get_logger("jobs")
@@ -28,10 +28,10 @@ async def reset_data_usage():
 
         for db_user in updated_users:
             user = await user_operator.update_user(db_user)
-            asyncio.create_task(notification.reset_user_data_usage(user, SYSTEM_ADMIN))
+            create_background_task(notification.reset_user_data_usage(user, SYSTEM_ADMIN))
 
             if old_statuses.get(user.id) != user.status:
-                asyncio.create_task(notification.user_status_change(user, SYSTEM_ADMIN))
+                create_background_task(notification.user_status_change(user, SYSTEM_ADMIN))
 
             logger.info(f'User data usage reset for User "{user.username}"')
 

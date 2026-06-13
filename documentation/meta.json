@@ -1,0 +1,12 @@
+{
+  "title": "PasarGuard Documentation",
+  "description": "Complete guide to PasarGuard proxy management",
+  "pages": [
+    "...introduction",
+    "panel",
+    "node",
+    "interfaces",
+    "learn",
+    "migration"
+  ]
+}

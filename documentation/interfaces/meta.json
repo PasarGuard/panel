@@ -1,0 +1,9 @@
+{
+  "title": "Interfaces",
+  "description": "Interfaces tools for PasarGuard",
+  "pages": [
+    "index",
+    "cli"
+  ],
+  "icon": "Terminal"
+}

@@ -1,0 +1,627 @@
+---
+title: Multi-Worker Setup
+navigation: Multi-Worker
+icon: Server
+---
+
+Multi-worker mode splits PasarGuard Panel into dedicated services so API traffic and background jobs run independently. It improves throughput and keeps long-running jobs from blocking the dashboard.
+
+<Callout type="info">
+In the examples below, the `docker-compose.yml` and `.env` files live in `/opt/pasarguard`, and data is stored in `/var/lib/pasarguard`.
+</Callout>
+
+## What Multi-Worker Runs
+
+| Role | Purpose |
+|------|---------|
+| `backend` | HTTP API + dashboard + migrations |
+| `node` | Node operations, logs, and node-related tasks |
+| `scheduler` | Scheduled jobs, notifications, and queue processing |
+
+## When To Use
+
+- You have many nodes/users and want better responsiveness.
+- You need scheduler jobs isolated from API traffic.
+- You want to scale API workers independently.
+
+## Requirements
+
+- NATS is required for inter-worker coordination.
+- All services must share the same database.
+- All workers must share `/var/lib/pasarguard` (templates, certs, runtime files).
+
+<Callout type="warn">
+Multi-worker mode requires `NATS_ENABLED=True`. If NATS is disabled, node/scheduler workers cannot coordinate with the backend.
+</Callout>
+
+## Step 1: Prepare `.env`
+
+Below is a minimal set. Add the database block from your selected tab.
+
+```bash
+# NATS
+NATS_ENABLED = True
+NATS_URL = "nats://127.0.0.1:4222"
+
+# Web server
+# UVICORN_PORT = 8000
+
+# Uvicorn processes inside the backend container
+# Set this to the number of CPU cores on your server for best performance
+# UVICORN_WORKERS = 4
+
+# Database connection (set per database section)
+# SQLALCHEMY_DATABASE_URL = "..."
+
+# Pooling (per worker process)
+# SQLALCHEMY_POOL_SIZE = 10
+# SQLALCHEMY_MAX_OVERFLOW = 30
+```
+
+<Callout type="info">
+`ROLE` is defined per service in `docker-compose.yml`. Leave it unset in `.env` when using the multi-worker compose files below.
+</Callout>
+
+## Step 2: Choose Your Database
+
+<Tabs items={['TimescaleDB (Recommended)', 'PostgreSQL', 'MySQL', 'MariaDB']}>
+  <Tab value="TimescaleDB (Recommended)">
+  
+    **docker-compose.yml**
+    ```yml
+    services:
+        nats:
+            image: nats:2.10-alpine
+            restart: unless-stopped
+            command: ["-js"]
+            ports:
+                - "4222:4222"
+            volumes:
+                - nats-data:/data
+            healthcheck:
+                test: ["CMD", "nc", "-z", "localhost", "4222"]
+                interval: 2s
+                timeout: 2s
+                retries: 10
+                start_period: 30s
+
+        pasarguard:
+            container_name: pasarguard
+            image: pasarguard/panel:latest
+            restart: unless-stopped
+            env_file: .env
+            network_mode: host
+            environment:
+                ROLE: backend
+            depends_on:
+                nats:
+                    condition: service_healthy
+                pgbouncer:
+                    condition: service_healthy
+            volumes:
+                - /var/lib/pasarguard:/var/lib/pasarguard
+            healthcheck:
+                test: ["CMD", "/code/healthcheck.sh"]
+                interval: 5s
+                timeout: 5s
+                retries: 10
+                start_period: 60s
+
+        node-worker:
+            container_name: node-worker
+            image: pasarguard/panel:latest
+            restart: unless-stopped
+            env_file: .env
+            network_mode: host
+            environment:
+                ROLE: node
+            depends_on:
+                pasarguard:
+                    condition: service_healthy
+            volumes:
+                - /var/lib/pasarguard:/var/lib/pasarguard
+
+        scheduler:
+            container_name: scheduler
+            image: pasarguard/panel:latest
+            restart: unless-stopped
+            env_file: .env
+            network_mode: host
+            environment:
+                ROLE: scheduler
+            depends_on:
+                pasarguard:
+                    condition: service_healthy
+            volumes:
+                - /var/lib/pasarguard:/var/lib/pasarguard
+
+        timescaledb:
+            image: timescale/timescaledb:latest-pg17
+            restart: always
+            command: >
+                postgres -c max_connections=${PG_MAX_CONNECTIONS:-400}
+                         -c shared_buffers=${PG_SHARED_BUFFERS:-512MB}
+                         -c work_mem=${PG_WORK_MEM:-32MB}
+            environment:
+                POSTGRES_DB: ${DB_NAME}
+                POSTGRES_USER: ${DB_USER}
+                POSTGRES_PASSWORD: ${DB_PASSWORD}
+            ports:
+                - "127.0.0.1:5432:5432"
+            volumes:
+                - /var/lib/postgresql/pasarguard:/var/lib/postgresql/data
+            healthcheck:
+                test: ["CMD-SHELL", "pg_isready -q -d ${DB_NAME} -U ${DB_USER}"]
+                interval: 10s
+                timeout: 5s
+                retries: 5
+            networks:
+                - pg_backend
+        pgbouncer:
+            image: edoburu/pgbouncer:latest
+            restart: always
+            environment:
+                DB_HOST: timescaledb
+                DB_PORT: 5432
+                DB_USER: ${DB_USER}
+                DB_PASSWORD: ${DB_PASSWORD}
+                DB_NAME: ${DB_NAME}
+                LISTEN_PORT: 6432
+                POOL_MODE: transaction
+                MAX_CLIENT_CONN: ${PG_MAX_CLIENT_CONN:-700}
+                DEFAULT_POOL_SIZE: ${PG_DEFAULT_POOL_SIZE:-50}
+                RESERVE_POOL_SIZE: ${PG_RESERVE_POOL_SIZE:-50}
+                AUTH_TYPE: scram-sha-256
+                LOG_CONNECTIONS: 0
+                LOG_DISCONNECTIONS: 0
+                LOG_POOLER_ERRORS: 0
+                VERBOSE: 0
+            ports:
+                - "127.0.0.1:6432:6432"
+            depends_on:
+                timescaledb:
+                    condition: service_healthy
+            healthcheck:
+                test: ["CMD-SHELL", "pgrep -f pgbouncer > /dev/null"]
+                interval: 10s
+                timeout: 5s
+                retries: 5
+                start_period: 10s
+            networks:
+                - pg_backend
+
+        pgadmin:
+            image: dpage/pgadmin4:latest
+            container_name: pgadmin
+            restart: unless-stopped
+            network_mode: host
+            environment:
+                PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL}
+                PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}
+                PGADMIN_LISTEN_ADDRESS: 127.0.0.1
+                PGADMIN_LISTEN_PORT: 8010
+            volumes:
+                - pgadmin:/var/lib/pgadmin
+            depends_on:
+                timescaledb:
+                    condition: service_healthy
+
+    volumes:
+        pgadmin:
+        nats-data:
+    networks:
+        pg_backend:
+            driver: bridge
+    ```
+  </Tab>
+  <Tab value="PostgreSQL">
+
+    **docker-compose.yml**
+    ```yml
+    services:
+        nats:
+            image: nats:2.10-alpine
+            restart: unless-stopped
+            command: ["-js"]
+            ports:
+                - "4222:4222"
+            volumes:
+                - nats-data:/data
+            healthcheck:
+                test: ["CMD", "nc", "-z", "localhost", "4222"]
+                interval: 2s
+                timeout: 2s
+                retries: 10
+                start_period: 30s
+
+        pasarguard:
+            container_name: pasarguard
+            image: pasarguard/panel:latest
+            restart: unless-stopped
+            env_file: .env
+            network_mode: host
+            environment:
+                ROLE: backend
+            depends_on:
+                nats:
+                    condition: service_healthy
+                pgbouncer:
+                    condition: service_healthy
+            volumes:
+                - /var/lib/pasarguard:/var/lib/pasarguard
+            healthcheck:
+                test: ["CMD", "/code/healthcheck.sh"]
+                interval: 5s
+                timeout: 5s
+                retries: 10
+                start_period: 60s
+
+        node-worker:
+            container_name: node-worker
+            image: pasarguard/panel:latest
+            restart: unless-stopped
+            env_file: .env
+            network_mode: host
+            environment:
+                ROLE: node
+            depends_on:
+                pasarguard:
+                    condition: service_healthy
+            volumes:
+                - /var/lib/pasarguard:/var/lib/pasarguard
+
+        scheduler:
+            container_name: scheduler
+            image: pasarguard/panel:latest
+            restart: unless-stopped
+            env_file: .env
+            network_mode: host
+            environment:
+                ROLE: scheduler
+            depends_on:
+                pasarguard:
+                    condition: service_healthy
+            volumes:
+                - /var/lib/pasarguard:/var/lib/pasarguard
+
+        postgresql:
+            image: postgres:latest
+            restart: always
+            command: >
+                postgres -c max_connections=${PG_MAX_CONNECTIONS:-400}
+                         -c shared_buffers=${PG_SHARED_BUFFERS:-512MB}
+                         -c work_mem=${PG_WORK_MEM:-32MB}
+            environment:
+                POSTGRES_DB: ${DB_NAME}
+                POSTGRES_USER: ${DB_USER}
+                POSTGRES_PASSWORD: ${DB_PASSWORD}
+            ports:
+                - "127.0.0.1:5432:5432"
+            volumes:
+                - /var/lib/postgresql/pasarguard:/var/lib/postgresql
+            healthcheck:
+                test: ["CMD-SHELL", "pg_isready -q -d ${DB_NAME} -U ${DB_USER}"]
+                interval: 10s
+                timeout: 5s
+                retries: 5
+            networks:
+                - pg_backend
+        pgbouncer:
+            image: edoburu/pgbouncer:latest
+            restart: always
+            environment:
+                DB_HOST: postgresql
+                DB_PORT: 5432
+                DB_USER: ${DB_USER}
+                DB_PASSWORD: ${DB_PASSWORD}
+                DB_NAME: ${DB_NAME}
+                LISTEN_PORT: 6432
+                POOL_MODE: transaction
+                MAX_CLIENT_CONN: ${PG_MAX_CLIENT_CONN:-700}
+                DEFAULT_POOL_SIZE: ${PG_DEFAULT_POOL_SIZE:-50}
+                RESERVE_POOL_SIZE: ${PG_RESERVE_POOL_SIZE:-50}
+                AUTH_TYPE: scram-sha-256
+                LOG_CONNECTIONS: 0
+                LOG_DISCONNECTIONS: 0
+                LOG_POOLER_ERRORS: 0
+                VERBOSE: 0
+            ports:
+                - "127.0.0.1:6432:6432"
+            depends_on:
+                postgresql:
+                    condition: service_healthy
+            healthcheck:
+                test: ["CMD-SHELL", "pgrep -f pgbouncer > /dev/null"]
+                interval: 10s
+                timeout: 5s
+                retries: 5
+                start_period: 10s
+            networks:
+                - pg_backend
+
+        pgadmin:
+            image: dpage/pgadmin4:latest
+            container_name: pgadmin
+            restart: unless-stopped
+            network_mode: host
+            environment:
+                PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL}
+                PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}
+                PGADMIN_LISTEN_ADDRESS: 127.0.0.1
+                PGADMIN_LISTEN_PORT: 8010
+            volumes:
+                - pgadmin:/var/lib/pgadmin
+            depends_on:
+                postgresql:
+                    condition: service_healthy
+
+    volumes:
+        pgadmin:
+        nats-data:
+    networks:
+        pg_backend:
+            driver: bridge
+    ```
+  </Tab>
+  <Tab value="MySQL">
+   
+    **docker-compose.yml**
+    ```yml
+    services:
+        nats:
+            image: nats:2.10-alpine
+            restart: unless-stopped
+            command: ["-js"]
+            ports:
+                - "4222:4222"
+            volumes:
+                - nats-data:/data
+            healthcheck:
+                test: ["CMD", "nc", "-z", "localhost", "4222"]
+                interval: 2s
+                timeout: 2s
+                retries: 10
+                start_period: 30s
+
+        pasarguard:
+            container_name: pasarguard
+            image: pasarguard/panel:latest
+            restart: always
+            env_file: .env
+            network_mode: host
+            environment:
+                ROLE: backend
+            depends_on:
+                nats:
+                    condition: service_healthy
+                mysql:
+                    condition: service_healthy
+            volumes:
+                - /var/lib/pasarguard:/var/lib/pasarguard
+            healthcheck:
+                test: ["CMD", "/code/healthcheck.sh"]
+                interval: 5s
+                timeout: 5s
+                retries: 10
+                start_period: 60s
+
+        node-worker:
+            container_name: node-worker
+            image: pasarguard/panel:latest
+            restart: always
+            env_file: .env
+            network_mode: host
+            environment:
+                ROLE: node
+            depends_on:
+                pasarguard:
+                    condition: service_healthy
+            volumes:
+                - /var/lib/pasarguard:/var/lib/pasarguard
+
+        scheduler:
+            container_name: scheduler
+            image: pasarguard/panel:latest
+            restart: always
+            env_file: .env
+            network_mode: host
+            environment:
+                ROLE: scheduler
+            depends_on:
+                pasarguard:
+                    condition: service_healthy
+            volumes:
+                - /var/lib/pasarguard:/var/lib/pasarguard
+
+        mysql:
+            image: mysql:lts
+            network_mode: host
+            restart: always
+            environment:
+                MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+                MYSQL_ROOT_HOST: "%"
+                MYSQL_DATABASE: ${DB_NAME}
+                MYSQL_USER: ${DB_USER}
+                MYSQL_PASSWORD: ${DB_PASSWORD}
+            command:
+                - --mysqlx=OFF
+                - --bind-address=127.0.0.1
+                - --character_set_server=utf8mb4
+                - --collation_server=utf8mb4_unicode_ci
+                - --skip-log-bin
+                - --host-cache-size=0
+                - --innodb-open-files=1024
+                - --innodb-buffer-pool-size=256M
+                - --general_log=0
+                - --slow_query_log=1
+                - --slow_query_log_file=/var/lib/mysql/slow.log
+                - --long_query_time=2
+            volumes:
+                - /var/lib/mysql/pasarguard:/var/lib/mysql
+            healthcheck:
+                test:
+                    [
+                        "CMD",
+                        "mysqladmin",
+                        "ping",
+                        "-h",
+                        "127.0.0.1",
+                        "-u",
+                        "${DB_USER}",
+                        "--password=${DB_PASSWORD}",
+                    ]
+                start_period: 5s
+                interval: 5s
+                timeout: 5s
+                retries: 55
+
+        phpmyadmin:
+            container_name: phpmyadmin
+            image: phpmyadmin:latest
+            restart: always
+            env_file: .env
+            network_mode: host
+            environment:
+                PMA_HOST: 127.0.0.1
+                APACHE_PORT: 8010
+                UPLOAD_LIMIT: 1024M
+            depends_on:
+                mysql:
+                    condition: service_healthy
+
+    volumes:
+        nats-data:
+    ```
+  </Tab>
+  <Tab value="MariaDB">
+
+    **docker-compose.yml**
+    ```yml
+    services:
+        nats:
+            image: nats:2.10-alpine
+            restart: unless-stopped
+            command: ["-js"]
+            ports:
+                - "4222:4222"
+            volumes:
+                - nats-data:/data
+            healthcheck:
+                test: ["CMD", "nc", "-z", "localhost", "4222"]
+                interval: 2s
+                timeout: 2s
+                retries: 10
+                start_period: 30s
+
+        pasarguard:
+            container_name: pasarguard
+            image: pasarguard/panel:latest
+            restart: unless-stopped
+            env_file: .env
+            network_mode: host
+            environment:
+                ROLE: backend
+            depends_on:
+                nats:
+                    condition: service_healthy
+                mariadb:
+                    condition: service_healthy
+            volumes:
+                - /var/lib/pasarguard:/var/lib/pasarguard
+            healthcheck:
+                test: ["CMD", "/code/healthcheck.sh"]
+                interval: 5s
+                timeout: 5s
+                retries: 10
+                start_period: 60s
+
+        node-worker:
+            container_name: node-worker
+            image: pasarguard/panel:latest
+            restart: unless-stopped
+            env_file: .env
+            network_mode: host
+            environment:
+                ROLE: node
+            depends_on:
+                pasarguard:
+                    condition: service_healthy
+            volumes:
+                - /var/lib/pasarguard:/var/lib/pasarguard
+
+        scheduler:
+            container_name: scheduler
+            image: pasarguard/panel:latest
+            restart: unless-stopped
+            env_file: .env
+            network_mode: host
+            environment:
+                ROLE: scheduler
+            depends_on:
+                pasarguard:
+                    condition: service_healthy
+            volumes:
+                - /var/lib/pasarguard:/var/lib/pasarguard
+
+        mariadb:
+            image: mariadb:lts
+            restart: always
+            environment:
+                MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+                MYSQL_ROOT_HOST: "%"
+                MYSQL_DATABASE: ${DB_NAME}
+                MYSQL_USER: ${DB_USER}
+                MYSQL_PASSWORD: ${DB_PASSWORD}
+            command:
+                - --bind-address=0.0.0.0
+                - --character_set_server=utf8mb4
+                - --collation_server=utf8mb4_unicode_ci
+                - --host-cache-size=0
+                - --innodb-open-files=1024
+                - --innodb-buffer-pool-size=256M
+                - --binlog_expire_logs_seconds=1209600
+                - --innodb-log-file-size=64M
+                - --innodb-doublewrite=0
+                - --general_log=0
+                - --slow_query_log=1
+                - --slow_query_log_file=/var/lib/mysql/slow.log
+                - --long_query_time=2
+                - --innodb_snapshot_isolation=0
+            ports:
+                - "127.0.0.1:3306:3306"
+            volumes:
+                - /var/lib/mysql/pasarguard:/var/lib/mysql
+            healthcheck:
+                test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+                start_period: 10s
+                start_interval: 3s
+                interval: 10s
+                timeout: 5s
+                retries: 3
+
+    volumes:
+        nats-data:
+    ```
+  </Tab>
+</Tabs>
+
+## Step 3: Start Services
+
+```bash
+cd /opt/pasarguard
+sudo docker compose up -d
+```
+
+To verify status:
+
+```bash
+sudo docker compose ps
+```
+
+View logs for the backend service:
+
+```bash
+sudo docker compose logs -f pasarguard
+```
+
+

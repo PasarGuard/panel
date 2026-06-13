@@ -1,0 +1,199 @@
+---
+title: API Reference
+description: Current REST API and gRPC reference for PasarGuard Node
+icon: Code
+---
+
+## API Overview
+
+PasarGuard Node exposes both **REST API** and **gRPC** interfaces. REST requests and responses use Protocol Buffers, except log streaming which uses Server-Sent Events.
+
+### Authentication
+
+All requests require the node `API_KEY`.
+
+```http
+Authorization: Bearer <api_key>
+```
+
+For gRPC, send the same value as metadata:
+
+```text
+authorization: Bearer <api_key>
+```
+
+### Base URL
+
+```text
+https://your-node-address:port/
+```
+
+### Content Type
+
+```http
+Content-Type: application/x-protobuf
+```
+
+## Data Structures
+
+```protobuf
+enum BackendType {
+  XRAY = 0;
+  WIREGUARD = 1;
+}
+
+message Backend {
+  BackendType type = 1;
+  string config = 2;
+  repeated User users = 3;
+  uint64 keep_alive = 4;
+  repeated string exclude_inbounds = 5;
+}
+
+message User {
+  string email = 1;
+  Proxy proxies = 2;
+  repeated string inbounds = 3;
+}
+
+message Proxy {
+  Vmess vmess = 1;
+  Vless vless = 2;
+  Trojan trojan = 3;
+  Shadowsocks shadowsocks = 4;
+  Wireguard wireguard = 5;
+  Hysteria hysteria = 6;
+}
+
+message Wireguard {
+  string public_key = 1;
+  repeated string peer_ips = 2;
+}
+
+message Hysteria {
+  string auth = 1;
+}
+```
+
+## Node Management
+
+| Operation | REST | gRPC | Body | Response |
+|---|---|---|---|---|
+| Start backend | `POST /start` | `Start(Backend)` | `Backend` | `BaseInfoResponse` |
+| Stop backend | `PUT /stop` | `Stop(Empty)` | none | `Empty` |
+| Get base info | `GET /info` | `GetBaseInfo(Empty)` | none | `BaseInfoResponse` |
+
+```protobuf
+message BaseInfoResponse {
+  bool started = 1;
+  string core_version = 2;
+  string node_version = 3;
+}
+```
+
+<Callout type="info">
+`/start` and `/info` are available before the backend is running. Other REST endpoints require an active backend connection.
+</Callout>
+
+## Logs
+
+| Operation | REST | gRPC | Response |
+|---|---|---|---|
+| Stream backend logs | `GET /logs` | `GetLogs(Empty)` | stream of `Log` |
+
+REST log streaming returns `text/event-stream`.
+
+```protobuf
+message Log {
+  string detail = 1;
+}
+```
+
+## Statistics
+
+| Operation | REST | gRPC | Body | Response |
+|---|---|---|---|---|
+| Traffic stats | `GET /stats/` | `GetStats(StatRequest)` | `StatRequest` | `StatResponse` |
+| Outbound latency | `GET /stats/latency` | `GetOutboundsLatency(LatencyRequest)` | `LatencyRequest` | `LatencyResponse` |
+| User online count | `GET /stats/user/online` | `GetUserOnlineStats(StatRequest)` | `StatRequest` | `OnlineStatResponse` |
+| User online IP list | `GET /stats/user/online_ip` | `GetUserOnlineIpListStats(StatRequest)` | `StatRequest` | `StatsOnlineIpListResponse` |
+| Backend runtime stats | `GET /stats/backend` | `GetBackendStats(Empty)` | none | `BackendStatsResponse` |
+| System stats | `GET /stats/system` | `GetSystemStats(Empty)` | none | `SystemStatsResponse` |
+
+```protobuf
+enum StatType {
+  Outbounds = 0;
+  Outbound = 1;
+  Inbounds = 2;
+  Inbound = 3;
+  UsersStat = 4;
+  UserStat = 5;
+}
+
+message StatRequest {
+  string name = 1;
+  bool reset = 2;
+  StatType type = 3;
+}
+
+message Stat {
+  string name = 1;
+  string type = 2;
+  string link = 3;
+  int64 value = 4;
+}
+
+message LatencyRequest {
+  string name = 1;
+}
+
+message Latency {
+  string name = 1;
+  bool alive = 2;
+  int64 delay = 3;
+  string link = 4;
+  int64 last_seen_time = 5;
+  int64 last_try_time = 6;
+  string source = 7;
+}
+```
+
+`StatRequest.name` is the target user email or inbound/outbound tag. Set `reset` to `true` when the caller should reset counters after reading them.
+
+## User Sync
+
+| Operation | REST | gRPC | Body |
+|---|---|---|---|
+| Sync one user | `PUT /user/sync` | `SyncUser(stream User)` | `User` |
+| Sync users | `PUT /users/sync` | `SyncUsers(Users)` | `Users` |
+| Sync users in chunks | `PUT /users/sync/chunked` | `SyncUsersChunked(stream UsersChunk)` | `UsersChunk` stream |
+
+```protobuf
+message Users {
+  repeated User users = 1;
+}
+
+message UsersChunk {
+  repeated User users = 1;
+  uint64 index = 2;
+  bool last = 3;
+}
+```
+
+For REST chunked sync, each `UsersChunk` protobuf message is sent with a uvarint length prefix followed by the protobuf payload. Chunks are reassembled by `index`; the chunk with `last = true` marks the end.
+
+<Callout type="warning">
+`/users/sync` replaces the full user set. Chunked sync updates users from all chunks; large batches may restart the backend after updating in-memory users.
+</Callout>
+
+## Errors
+
+REST errors are returned as plain HTTP errors with the appropriate status code. gRPC errors use standard gRPC status codes. Common REST statuses:
+
+| Code | Meaning |
+|---|---|
+| `400` | Invalid protobuf body or invalid request data |
+| `401` | Missing or invalid `API_KEY` |
+| `404` | Requested stat target was not found |
+| `500` | Backend or server error |
+| `503` | Backend start or listener error |

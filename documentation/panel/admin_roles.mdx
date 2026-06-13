@@ -1,0 +1,47 @@
+---
+title: Admin Roles
+description: Role permissions, scopes, and access control for admins
+icon: KeyRound
+---
+
+Admin roles define what admins can read, create, update, or delete. They also define limits, feature access, and which groups or templates an admin can use.
+
+## Create A Role
+
+1. Open **Admin Roles**.
+2. Click **Create Role**.
+3. Set a clear role name.
+4. Choose permissions for each resource.
+5. Configure limits and feature access.
+6. Restrict allowed groups or templates if needed.
+7. Save the role and assign it from [Admins](./admins).
+
+## Permission Scopes
+
+Some user-related permissions use scopes:
+
+- **None**: the action is not allowed.
+- **Own**: the admin can act only on users they own or manage.
+- **All**: the admin can act across the panel.
+
+Use **All** only for trusted admins. For support or reseller-style accounts, **Own** is usually safer.
+
+## Built-In And Protected Roles
+
+Owner and protected roles cannot be edited like normal roles. You can review them, but changes should be made through new custom roles or admin assignment.
+
+## Limits And Feature Access
+
+Roles can control limits such as user creation rules, template requirements, HWID policy, allowed templates, allowed groups, and access to panel resources.
+
+If **Require template** is enabled, admins with that role must create users from allowed templates. This is useful when you want consistent plans and fewer manual mistakes.
+
+## Recommended Pattern
+
+- Create one role for support staff.
+- Create one role for user managers or resellers.
+- Create one role for technical admins who manage nodes and cores.
+- Keep settings, roles, and owner operations restricted.
+- Test each role with a real admin account before using it widely.
+
+Roles should be narrow. Add permissions later when needed instead of starting with broad access.
