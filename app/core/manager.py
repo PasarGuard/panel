@@ -1,6 +1,5 @@
 import json
 from asyncio import Lock
-from copy import deepcopy
 
 import nats
 from aiocache import cached
@@ -52,22 +51,17 @@ class CoreManager:
     async def _snapshot_state(self) -> dict:
         async with self._lock:
             return {
-                "cores": deepcopy(self._cores),
-                "inbounds": deepcopy(self._inbounds),
-                "inbounds_by_tag": deepcopy(self._inbounds_by_tag),
+                "cores": {k: v.to_json() for k, v in self._cores.items()},
+                "inbounds": list(self._inbounds),
+                "inbounds_by_tag": dict(self._inbounds_by_tag),
             }
 
     async def _persist_state(self):
         if not self._kv:
             return
         state = await self._snapshot_state()
-
-        # Manually serialize cores to their JSON representation
-        serialized_state = deepcopy(state)
-        serialized_state["cores"] = {str(k): v.to_json() for k, v in state.get("cores", {}).items()}
-
-        # Serialize state using JSON
-        state_bytes = json.dumps(serialized_state).encode("utf-8")
+        # State is already serialized by _snapshot_state; just encode
+        state_bytes = json.dumps(state).encode("utf-8")
         try:
             await self._kv.put(self.STATE_CACHE_KEY, state_bytes)
         except Exception as exc:
@@ -298,26 +292,25 @@ class CoreManager:
     async def get_cores(self, core_ids: list[int] | set[int] | None = None) -> dict[int, AbstractCore]:
         async with self._lock:
             if core_ids is None:
-                return deepcopy(self._cores)
-
-            return {core_id: deepcopy(core) for core_id, core in self._cores.items() if core_id in core_ids}
+                return dict(self._cores)
+            return {core_id: core for core_id, core in self._cores.items() if core_id in core_ids}
 
     @cached()
     async def get_inbounds(self) -> list[str]:
         async with self._lock:
-            return deepcopy(self._inbounds)
+            return list(self._inbounds)
 
     @cached()
     async def get_inbounds_by_tag(self) -> dict:
         async with self._lock:
-            return deepcopy(self._inbounds_by_tag)
+            return dict(self._inbounds_by_tag)
 
     async def get_inbound_by_tag(self, tag) -> dict:
         async with self._lock:
             inbound = self._inbounds_by_tag.get(tag, None)
             if not inbound:
                 return None
-            return deepcopy(inbound)
+            return dict(inbound)
 
 
 core_manager = CoreManager()
