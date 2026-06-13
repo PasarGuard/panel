@@ -1,3 +1,4 @@
+import time
 import re
 from json import dumps as json_dumps
 from typing import Any
@@ -12,7 +13,7 @@ from app.db.crud.hwid import (
     register_user_hwid,
 )
 from app.db.crud.user import get_user_usages, user_sub_update
-from app.db.models import User
+from app.db.models import User, UserStatus
 from app.models.admin import AdminDetails
 from app.models.settings import Application, ConfigFormat, HWIDSettings, SubRule, Subscription as SubSettings
 from app.models.stats import UserUsageStatsList
@@ -82,6 +83,46 @@ client_config = {
 class SubscriptionOperation(BaseOperation):
     _ENCODED_RULE_RESPONSE_HEADERS = {"announce", "profile-title"}
 
+    # Lightweight in-memory subscription cache: (user_id, status, client_type, traffic_hash, revoked_ts) -> (config_str, media_type, headers, timestamp)
+    _sub_cache: dict[tuple, tuple[str | bytes, str, dict, float]] = {}
+    _SUB_CACHE_TTL = 60  # seconds — short TTL to reflect usage changes quickly
+    _SUB_CACHE_MAX_SIZE = 512  # max cached entries per process
+
+    @classmethod
+    def _cache_key(cls, user: "UsersResponseWithInbounds", client_type: "ConfigFormat", sub_revoked_at) -> tuple:
+        """Build a cache key that changes when user status/usage/config changes."""
+        # Quantize used_traffic to 10MB buckets so high-frequency minor changes don't bust cache
+        traffic_bucket = int(user.used_traffic // (10 * 1024 * 1024))
+        revoked_ts = sub_revoked_at.timestamp() if sub_revoked_at else 0
+        return (user.id, str(user.status), str(client_type), traffic_bucket, int(revoked_ts))
+
+    @classmethod
+    def _get_cached(cls, key: tuple) -> tuple[str | bytes, str, dict] | None:
+        entry = cls._sub_cache.get(key)
+        if entry is None:
+            return None
+        config_str, media_type, headers, ts = entry
+        if time.monotonic() - ts > cls._SUB_CACHE_TTL:
+            cls._sub_cache.pop(key, None)
+            return None
+        return config_str, media_type, headers
+
+    @classmethod
+    def _set_cached(cls, key: tuple, config_str: str | bytes, media_type: str, headers: dict) -> None:
+        if len(cls._sub_cache) >= cls._SUB_CACHE_MAX_SIZE:
+            # Evict oldest 25% of entries to avoid unbounded growth
+            sorted_keys = sorted(cls._sub_cache, key=lambda k: cls._sub_cache[k][3])
+            for old_key in sorted_keys[: cls._SUB_CACHE_MAX_SIZE // 4]:
+                cls._sub_cache.pop(old_key, None)
+        cls._sub_cache[key] = (config_str, media_type, headers, time.monotonic())
+
+    @classmethod
+    def invalidate_user_cache(cls, user_id: int) -> None:
+        """Invalidate all cached entries for a given user (call on status/usage change)."""
+        keys_to_remove = [k for k in cls._sub_cache if k[0] == user_id]
+        for k in keys_to_remove:
+            cls._sub_cache.pop(k, None)
+
     @staticmethod
     async def validated_user(db_user: User) -> UsersResponseWithInbounds:
         user = UsersResponseWithInbounds.model_validate(db_user.__dict__)
@@ -121,7 +162,7 @@ class SubscriptionOperation(BaseOperation):
 
         try:
             return profile_title.format_map(format_variables)
-        except (ValueError, KeyError):
+        except ValueError, KeyError:
             # Invalid format string, return original title
             return profile_title
 
@@ -133,7 +174,7 @@ class SubscriptionOperation(BaseOperation):
 
         try:
             return sub_settings.announce.format_map(format_variables)
-        except (ValueError, KeyError):
+        except ValueError, KeyError:
             return sub_settings.announce
 
     @staticmethod
@@ -236,7 +277,7 @@ class SubscriptionOperation(BaseOperation):
                 return ""
             try:
                 return header_value.format_map(format_variables)
-            except (ValueError, KeyError):
+            except ValueError, KeyError:
                 return header_value
 
         if isinstance(value, (dict, list, tuple, bool, int, float)):
@@ -380,7 +421,41 @@ class SubscriptionOperation(BaseOperation):
 
             # Update user subscription info
             await user_sub_update(db, db_user.id, user_agent, ip=ip, hwid=x_hwid)
+
+            # Check subscription cache before rebuilding config
+            _cache_key = self._cache_key(user, client_type, db_user.sub_revoked_at)
+            _cached = self._get_cached(_cache_key)
+            if _cached is not None:
+                conf, media_type, _cached_headers = _cached
+                # Rebuild response headers (they contain request-specific data like request_url)
+                inline_view = sub_settings.disable_sub_template and is_browser_request
+                response_headers = self.create_response_headers(
+                    user,
+                    request_url,
+                    sub_settings,
+                    inline=inline_view,
+                    extra_headers={},
+                )
+                try:
+                    response_headers.update(
+                        self._format_subscription_response_headers(
+                            sub_settings, await self._get_rule_response_header_variables(user, client_type)
+                        )
+                    )
+                    response_headers.update(
+                        self._format_rule_response_headers(
+                            matched_rule, await self._get_rule_response_header_variables(user, client_type)
+                        )
+                    )
+                    response_headers = self.sanitize_response_headers(response_headers)
+                except ValueError as exc:
+                    await self.raise_error(message=str(exc), code=400)
+                return Response(content=conf, media_type=media_type, headers=response_headers)
+
             conf, media_type = await self.fetch_config(user, client_type)
+
+            # Cache the rendered config (without request-specific headers)
+            self._set_cached(_cache_key, conf, media_type, {})
 
             # If disable_sub_template is True and it's a browser request, use inline to view instead of download
             inline_view = sub_settings.disable_sub_template and is_browser_request
@@ -462,6 +537,15 @@ class SubscriptionOperation(BaseOperation):
             x_device_model,
         )
 
+        # Check subscription cache before rebuilding config
+        _cache_key = self._cache_key(user, client_type, db_user.sub_revoked_at)
+        _cached = self._get_cached(_cache_key)
+        if _cached is not None:
+            conf, media_type = _cached[0], _cached[1]
+        else:
+            conf, media_type = await self.fetch_config(user, client_type)
+            self._set_cached(_cache_key, conf, media_type, {})
+
         response_headers = self.create_response_headers(
             user, request_url, sub_settings, extension=client_config.get(client_type, {}).get("extension", "")
         )
@@ -474,9 +558,8 @@ class SubscriptionOperation(BaseOperation):
             response_headers = self.sanitize_response_headers(response_headers)
         except ValueError as exc:
             await self.raise_error(message=str(exc), code=400)
-        conf, media_type = await self.fetch_config(user, client_type)
 
-        # Create response headers
+        # Create response
         return Response(content=conf, media_type=media_type, headers=response_headers)
 
     def _build_subscription_body_payload(
@@ -585,6 +668,11 @@ class SubscriptionOperation(BaseOperation):
         """Retrieves detailed information about the user's subscription."""
         sub_settings: SubSettings = await subscription_settings()
         db_user = await self.get_validated_sub(db, token=token)
+
+        # Validate active user status to prevent data leakage
+        if db_user.status in (UserStatus.disabled, UserStatus.expired, UserStatus.limited):
+            await self.raise_error(message="Account is not active", code=403)
+
         user = await self.validated_user(db_user)
 
         response_headers = self.create_info_response_headers(user, sub_settings)
@@ -626,5 +714,9 @@ class SubscriptionOperation(BaseOperation):
         start, end = await self.validate_dates(query.start, query.end, True)
 
         db_user = await self.get_validated_sub(db, token=token)
+
+        # Validate active user status to prevent data leakage
+        if db_user.status in (UserStatus.disabled, UserStatus.expired, UserStatus.limited):
+            await self.raise_error(message="Account is not active", code=403)
 
         return await get_user_usages(db, db_user.id, start, end, query.period)
