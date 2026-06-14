@@ -95,6 +95,11 @@ export const DecimalInput = React.forwardRef<HTMLInputElement, DecimalInputProps
     }
 
     const handleBlur = (event: React.FocusEvent<HTMLInputElement>) => {
+      if (!isEditing) {
+        onBlur?.(event)
+        return
+      }
+
       const nextRawInput = rawInput.trim()
       setIsEditing(false)
 
