@@ -437,7 +437,6 @@ class SubscriptionOperation(BaseOperation):
         token: str,
         client_type: ConfigFormat,
         request_url: str = "",
-        accept_header: str = "",
         x_hwid: str | None = None,
         x_device_os: str | None = None,
         x_ver_os: str | None = None,
