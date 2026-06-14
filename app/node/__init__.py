@@ -75,8 +75,11 @@ class NodeManager:
         async with self._lock.reader_lock:
             items = list(self._nodes.items())
 
+        async def get_health_with_timeout(node: PasarGuardNode) -> Health:
+            return await asyncio.wait_for(node.get_health(), timeout=10)
+
         health_results = await asyncio.gather(
-            *(node.get_health() for _, node in items),
+            *(get_health_with_timeout(node) for _, node in items),
             return_exceptions=True,
         )
 
