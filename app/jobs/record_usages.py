@@ -98,10 +98,17 @@ def _chunked(items: list, size: int):
         yield items[index : index + size]
 
 
+_dialect_cache: str | None = None
+
+
 async def get_dialect() -> str:
-    """Get the database dialect name without holding the session open."""
+    """Get the database dialect name, cached after first lookup."""
+    global _dialect_cache
+    if _dialect_cache is not None:
+        return _dialect_cache
     async with GetDB() as db:
-        return db.bind.dialect.name
+        _dialect_cache = db.bind.dialect.name
+    return _dialect_cache
 
 
 def build_node_user_usage_upsert(dialect: str, upsert_params: list[dict]):
@@ -436,11 +443,8 @@ async def record_user_stats_batched(all_node_params: dict, usage_coefficients: d
 
 async def record_node_stats_batched(all_node_params: dict):
     """
-    Record node-level statistics for ALL nodes in batched operations.
-    This reduces write amplification and lock contention.
-
-    Args:
-        all_node_params: Dict mapping node_id -> list of node stat params
+    Record node-level statistics for ALL nodes in a single batched transaction.
+    This reduces write amplification, lock contention, and connection overhead.
     """
     if not all_node_params:
         return
@@ -448,35 +452,49 @@ async def record_node_stats_batched(all_node_params: dict):
     created_at = _get_time_bucket()
     dialect = await get_dialect()
 
-    # Process each node's stats with concurrency control
-    async def _record_single_node(node_id: int, params: list[dict]):
+    # Aggregate all node stats first
+    upsert_params = []
+    for node_id, params in all_node_params.items():
         if not params:
-            return
-
-        # Aggregate uplink and downlink from params
+            continue
         total_up = sum(p.get("up", 0) for p in params)
         total_down = sum(p.get("down", 0) for p in params)
-
         if not (total_up or total_down):
-            return
+            continue
+        upsert_params.append(
+            {
+                "node_id": node_id,
+                "created_at": created_at,
+                "up": total_up,
+                "down": total_down,
+            }
+        )
 
-        upsert_param = {
-            "node_id": node_id,
-            "created_at": created_at,
-            "up": total_up,
-            "down": total_down,
-        }
+    if not upsert_params:
+        return
 
-        # Execute with concurrency control
-        async with JOB_SEM:
-            queries = build_node_usage_upsert(dialect, upsert_param)
-            for stmt, stmt_params in queries:
-                await safe_execute(stmt, stmt_params)
-
-    # Execute all node stats with limited concurrency
-    tasks = [_record_single_node(node_id, params) for node_id, params in all_node_params.items()]
-    if tasks:
-        await asyncio.gather(*tasks, return_exceptions=True)
+    # Execute all node stats in a single transaction
+    async with JOB_SEM:
+        try:
+            async with engine.begin() as conn:
+                for upsert_param in upsert_params:
+                    queries = build_node_usage_upsert(dialect, upsert_param)
+                    for stmt, stmt_params in queries:
+                        await conn.execute(stmt, stmt_params)
+        except (OperationalError, DatabaseError) as err:
+            logger.warning("Batch failed, falling back to per-row safe_execute: %s", err)
+            for upsert_param in upsert_params:
+                queries = build_node_usage_upsert(dialect, upsert_param)
+                try:
+                    for stmt, stmt_params in queries:
+                        await safe_execute(stmt, stmt_params)
+                except (OperationalError, DatabaseError) as row_err:
+                    logger.error(
+                        "Failed to record node usage for node %s during fallback: %s",
+                        upsert_param.get("node_id", "?"),
+                        row_err,
+                        exc_info=True,
+                    )
 
 
 def _process_users_stats_response(stats_response):

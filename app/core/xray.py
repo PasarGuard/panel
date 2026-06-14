@@ -372,7 +372,7 @@ class XRayConfig(dict):
         """Normalize Hysteria Salamander masks into finalmask for client generation."""
         finalmask = stream.get("finalmask") or stream.get("finalMask")
         if isinstance(finalmask, dict):
-            finalmask = deepcopy(finalmask)
+            finalmask = {k: v for k, v in finalmask.items()}
         else:
             finalmask = {}
 
@@ -383,7 +383,7 @@ class XRayConfig(dict):
             udpmasks = stream.get("udpmasks")
 
         if isinstance(udpmasks, list) and udpmasks and not finalmask.get("udp"):
-            finalmask["udp"] = deepcopy(udpmasks)
+            finalmask["udp"] = list(udpmasks)
 
         return finalmask or None
 
