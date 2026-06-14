@@ -2237,7 +2237,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
       const ocspNum = ocspRaw === '' ? undefined : Number(ocspRaw)
       const base = {
         ...(ocspNum !== undefined && Number.isFinite(ocspNum) ? { ocspStapling: ocspNum } : {}),
-        ...(item.serveOnNode ? { serveOnNode: true } : {}),
+        serveOnNode: item.serveOnNode,
       }
       if (item.mode === 'content') {
         const certificateLines = certContent
