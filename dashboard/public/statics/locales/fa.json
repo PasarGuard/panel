@@ -728,8 +728,8 @@
     },
     "limitFields": {
       "max_users": "حداکثر کاربران",
-      "data_limit_min": "حداقل محدودیت داده (بایت)",
-      "data_limit_max": "حداکثر محدودیت داده (بایت)",
+      "data_limit_min": "حداقل محدودیت داده",
+      "data_limit_max": "حداکثر محدودیت داده)",
       "expire_days_min": "حداقل روز انقضا",
       "expire_days_max": "حداکثر روز انقضا",
       "min_hwid_per_user": "حداقل HWID به ازای کاربر",
