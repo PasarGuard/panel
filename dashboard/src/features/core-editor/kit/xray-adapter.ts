@@ -234,6 +234,22 @@ function preserveUnmodeledTopLevelSections(profile: Profile, raw: unknown): Prof
   } as Profile
 }
 
+function applyUnmodeledTopLevelSectionsToCompiledConfig(profile: Profile, config: Record<string, unknown>): Record<string, unknown> {
+  const topLevel = profile.raw?.topLevel
+  if (!isRecord(topLevel)) return config
+
+  let next: Record<string, unknown> | undefined
+  for (const key of UNMODELED_TOP_LEVEL_KEYS_TO_PRESERVE) {
+    if (!Object.prototype.hasOwnProperty.call(topLevel, key)) continue
+    const value = topLevel[key]
+    if (!isJsonValue(value)) continue
+    next ??= { ...config }
+    next[key] = JSON.parse(JSON.stringify(value)) as JsonValue
+  }
+
+  return next ?? config
+}
+
 function applyInboundSockoptToCompiledConfig(profile: Profile, config: Record<string, unknown>): Record<string, unknown> {
   if (!Array.isArray(config.inbounds)) return config
   const inbounds = config.inbounds.map((compiledInbound, index) => {
@@ -359,7 +375,7 @@ export function profileToPersistedConfig(profile: Profile): Record<string, unkno
     ),
   )
 
-  return result
+  return applyUnmodeledTopLevelSectionsToCompiledConfig(prepared, result)
 }
 
 export function validateProfileForSave(profile: Profile) {
