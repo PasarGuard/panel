@@ -485,8 +485,16 @@ async def record_node_stats_batched(all_node_params: dict):
             logger.warning("Batch failed, falling back to per-row safe_execute: %s", err)
             for upsert_param in upsert_params:
                 queries = build_node_usage_upsert(dialect, upsert_param)
-                for stmt, stmt_params in queries:
-                    await safe_execute(stmt, stmt_params)
+                try:
+                    for stmt, stmt_params in queries:
+                        await safe_execute(stmt, stmt_params)
+                except (OperationalError, DatabaseError) as row_err:
+                    logger.error(
+                        "Failed to record node usage for node %s during fallback: %s",
+                        upsert_param.get("node_id", "?"),
+                        row_err,
+                        exc_info=True,
+                    )
 
 
 def _process_users_stats_response(stats_response):

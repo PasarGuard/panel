@@ -81,11 +81,14 @@ class NodeManager:
         )
 
         async with self._lock.reader_lock:
-            return [
-                (node_id, node)
-                for (node_id, node), health in zip(items, health_results)
-                if health == expected and self._nodes.get(node_id) is node
-            ]
+            matched = []
+            for (node_id, node), health in zip(items, health_results):
+                if isinstance(health, Exception):
+                    self.logger.warning("Failed to get health for node %s: %s", node_id, health)
+                    continue
+                if health == expected and self._nodes.get(node_id) is node:
+                    matched.append((node_id, node))
+            return matched
 
     async def get_healthy_nodes(self) -> list[tuple[int, PasarGuardNode]]:
         return await self._get_nodes_by_health(Health.HEALTHY)
