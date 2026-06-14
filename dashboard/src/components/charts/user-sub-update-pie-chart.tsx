@@ -172,7 +172,7 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
 
   const { data, isLoading, error } = useGetUsersSubUpdateChart(params, {
     query: {
-      refetchInterval: isTabVisible ? 60_000 : 1000 * 60 * 5,
+      refetchInterval: isTabVisible ? 1000 * 60 * 15 : 1000 * 60 * 60,
     },
   })
 
