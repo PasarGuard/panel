@@ -132,7 +132,8 @@ async def limited_node(node: NodeNotification, data_limit: int, used_traffic: in
     if (await notification_enable()).node.limited:
         await _gather_notifications(
             "limited_node",
-            ds.limited_node(node, data_limit, used_traffic), tg.limited_node(node, data_limit, used_traffic)
+            ds.limited_node(node, data_limit, used_traffic),
+            tg.limited_node(node, data_limit, used_traffic),
         )
 
 
@@ -140,7 +141,8 @@ async def reset_node_usage(node: NodeResponse, by: str, uplink: int, downlink: i
     if (await notification_enable()).node.reset_usage:
         await _gather_notifications(
             "reset_node_usage",
-            ds.reset_node_usage(node, by, uplink, downlink), tg.reset_node_usage(node, by, uplink, downlink)
+            ds.reset_node_usage(node, by, uplink, downlink),
+            tg.reset_node_usage(node, by, uplink, downlink),
         )
 
 
@@ -176,7 +178,9 @@ async def remove_admin(username: str, by: str):
 
 async def admin_usage_reset(admin: AdminDetails, by: str):
     if (await notification_enable()).admin.reset_usage:
-        await _gather_notifications("admin_usage_reset", ds.admin_reset_usage(admin, by), tg.admin_reset_usage(admin, by))
+        await _gather_notifications(
+            "admin_usage_reset", ds.admin_reset_usage(admin, by), tg.admin_reset_usage(admin, by)
+        )
 
 
 async def admin_usage_limit_reached(admin: AdminDetails, usage_percentage: int, threshold: int):
@@ -201,7 +205,9 @@ async def user_status_change(user: UserNotificationResponse, by: AdminDetails):
     if (await notification_enable()).user.status_change:
         await _gather_notifications(
             "user_status_change",
-            ds.user_status_change(user, by.username), tg.user_status_change(user, by.username), wh.status_change(user)
+            ds.user_status_change(user, by.username),
+            tg.user_status_change(user, by.username),
+            wh.status_change(user),
         )
 
 
