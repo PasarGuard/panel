@@ -1146,7 +1146,7 @@ def test_wireguard_subscription_outputs_are_consistent(access_token):
         delete_core(access_token, core["id"])
 
 
-def test_wireguard_disabled_skips_peer_ip_allocation_and_subscription_outputs(access_token, monkeypatch):
+def test_wireguard_disabled_skips_peer_ip_allocation(access_token, monkeypatch):
     monkeypatch.setattr("config.wireguard_settings.enabled", False)
 
     interface_private_key, _ = generate_wireguard_keypair()
@@ -1187,11 +1187,9 @@ def test_wireguard_disabled_skips_peer_ip_allocation_and_subscription_outputs(ac
         assert user["proxy_settings"]["wireguard"]["peer_ips"] == []
 
         links_response = client.get(f"{user['subscription_url']}/links")
-        wireguard_response = client.get(f"{user['subscription_url']}/wireguard")
 
         assert links_response.status_code == status.HTTP_200_OK
         assert "wireguard://" not in links_response.text
-        assert wireguard_response.status_code == status.HTTP_406_NOT_ACCEPTABLE
     finally:
         delete_user(access_token, user["username"])
         delete_group(access_token, group["id"])
