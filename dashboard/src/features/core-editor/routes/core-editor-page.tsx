@@ -14,7 +14,7 @@ import { useXrayPersistValidationItems } from '@/features/core-editor/hooks/use-
 import { WireGuardCoreEditor } from '@/features/core-editor/components/wg/wireguard-core-editor'
 import { XrayCoreEditor } from '@/features/core-editor/components/xray/xray-core-editor'
 import { profileToPersistedConfig } from '@/features/core-editor/kit/xray-adapter'
-import { draftToPersistedConfig, getWireGuardPersistConfig } from '@/features/core-editor/kit/wireguard-adapter'
+import { getWireGuardPersistConfig } from '@/features/core-editor/kit/wireguard-adapter'
 import { selectCoreEditorHasActualChanges } from '@/features/core-editor/kit/core-editor-change-state'
 import { useCoreEditorStore } from '@/features/core-editor/state/core-editor-store'
 import type { WgCoreSection, XrayCoreSection } from '@/features/core-editor/state/core-editor-store'
@@ -278,7 +278,14 @@ export default function CoreEditorPage() {
     try {
       if (kind === 'wg') {
         if (!wgDraft) return
-        const cfg = draftToPersistedConfig(wgDraft)
+        const result = getWireGuardPersistConfig(wgDraft)
+        if (!result.ok) {
+          const issues = ('draftIssues' in result ? result.draftIssues : result.kitIssues) ?? []
+          const firstIssue = issues[0]
+          toast.error(firstIssue ? `${firstIssue.path}: ${firstIssue.message}` : t('coreEditor.validationErrors', { defaultValue: 'Validation errors' }))
+          return
+        }
+        const cfg = result.config
         if (isNew) {
           const res = await createMutation.mutateAsync({
             data: {

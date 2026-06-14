@@ -1,6 +1,7 @@
 import { Button } from '@/components/ui/button'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { PasswordInput } from '@/components/ui/password-input'
 import { Textarea } from '@/components/ui/textarea'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { useCoreEditorStore } from '@/features/core-editor/state/core-editor-store'
@@ -153,17 +154,18 @@ export function WireGuardCoreForm({ className }: { className?: string }) {
                       <FormControl>
                         {showKeygen || showPreSharedKeygen ? (
                           <div dir="ltr" className={cn('flex items-center gap-2', dir === 'rtl' ? 'flex-row-reverse' : 'flex-row')}>
-                            <Input
-                              type={field.input === 'secret' ? 'password' : 'text'}
-                              placeholder={field.placeholder}
-                              className="min-w-0 flex-1 text-xs"
-                              {...f}
-                              onChange={e => {
-                                const val = e.target.value
-                                f.onChange(val)
-                                onField(key as keyof WireGuardCoreDraft, val)
-                              }}
-                            />
+                            <div className="min-w-0 flex-1">
+                              <PasswordInput
+                                placeholder={field.placeholder}
+                                className="text-xs"
+                                {...f}
+                                onChange={e => {
+                                  const val = e.target.value
+                                  f.onChange(val)
+                                  onField(key as keyof WireGuardCoreDraft, val)
+                                }}
+                              />
+                            </div>
                             <Button
                               type="button"
                               size="icon"
@@ -180,18 +182,32 @@ export function WireGuardCoreForm({ className }: { className?: string }) {
                             </Button>
                           </div>
                         ) : (
-                          <Input
-                            type={field.input === 'secret' ? 'password' : 'text'}
-                            placeholder={field.placeholder}
-                            className="text-xs"
-                            dir="ltr"
-                            {...f}
-                            onChange={e => {
-                              const val = e.target.value
-                              f.onChange(val)
-                              onField(key as keyof WireGuardCoreDraft, val)
-                            }}
-                          />
+                          field.input === 'secret' ? (
+                            <PasswordInput
+                              placeholder={field.placeholder}
+                              className="text-xs"
+                              dir="ltr"
+                              {...f}
+                              onChange={e => {
+                                const val = e.target.value
+                                f.onChange(val)
+                                onField(key as keyof WireGuardCoreDraft, val)
+                              }}
+                            />
+                          ) : (
+                            <Input
+                              type="text"
+                              placeholder={field.placeholder}
+                              className="text-xs"
+                              dir="ltr"
+                              {...f}
+                              onChange={e => {
+                                const val = e.target.value
+                                f.onChange(val)
+                                onField(key as keyof WireGuardCoreDraft, val)
+                              }}
+                            />
+                          )
                         )}
                       </FormControl>
                       <FormMessage />
