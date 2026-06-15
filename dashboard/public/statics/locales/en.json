@@ -861,8 +861,8 @@
     },
     "limitFields": {
       "max_users": "Max users",
-      "data_limit_min": "Min data limit (bytes)",
-      "data_limit_max": "Max data limit (bytes)",
+      "data_limit_min": "Min data limit",
+      "data_limit_max": "Max data limit",
       "expire_days_min": "Min expire days",
       "expire_days_max": "Max expire days",
       "min_hwid_per_user": "Min HWIDs per user",

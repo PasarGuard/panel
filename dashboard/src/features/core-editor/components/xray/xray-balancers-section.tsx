@@ -129,11 +129,19 @@ function setTopLevelValue(profile: Profile, key: string, value: JsonValue | unde
   if (value === undefined) delete topLevel[key]
   else topLevel[key] = value
 
+  const source = readJsonObject(profile.raw?.source)
+  const nextSource = source ? { ...source } : undefined
+  if (nextSource) {
+    if (value === undefined) delete nextSource[key]
+    else nextSource[key] = value
+  }
+
   return {
     ...profile,
     raw: {
       ...(profile.raw ?? {}),
       topLevel: Object.keys(topLevel).length > 0 ? topLevel : undefined,
+      ...(nextSource ? { source: Object.keys(nextSource).length > 0 ? nextSource : undefined } : {}),
     },
   } as Profile
 }

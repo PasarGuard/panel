@@ -861,8 +861,8 @@
     },
     "limitFields": {
       "max_users": "最大用户数",
-      "data_limit_min": "最小流量限制（字节）",
-      "data_limit_max": "最大流量限制（字节）",
+      "data_limit_min": "最小流量限制",
+      "data_limit_max": "最大流量限制",
       "expire_days_min": "最小到期天数",
       "expire_days_max": "最大到期天数",
       "min_hwid_per_user": "每用户最少 HWID",

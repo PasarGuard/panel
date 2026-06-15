@@ -118,6 +118,37 @@ function preserveInboundStreamSettingsFromRaw(profile: Profile, raw: unknown): P
   return changed ? { ...profile, inbounds } : profile
 }
 
+function preserveInboundSockoptFromRaw(profile: Profile, raw: unknown): Profile {
+  if (!isRecord(raw)) return profile
+  const rawInbounds = raw.inbounds
+  if (!Array.isArray(rawInbounds)) return profile
+
+  let changed = false
+  const inbounds = profile.inbounds.map((inbound, index) => {
+    if (inbound.protocol === 'unmanaged' || inbound.protocol === 'tun') return inbound
+
+    const rawInbound = asRecord(rawInbounds[index])
+    const streamSettings = asRecord(rawInbound?.streamSettings)
+    const sockopt = asRecord(streamSettings?.sockopt)
+    if (!sockopt || Object.keys(sockopt).length === 0 || !isJsonValue(sockopt)) return inbound
+
+    const streamAdvanced = asRecord((inbound as { streamAdvanced?: unknown }).streamAdvanced)
+    const currentSockopt = asRecord(streamAdvanced?.sockopt)
+    if (currentSockopt && Object.keys(currentSockopt).length > 0) return inbound
+
+    changed = true
+    return {
+      ...inbound,
+      streamAdvanced: {
+        ...(streamAdvanced ?? {}),
+        sockopt: JSON.parse(JSON.stringify(sockopt)) as JsonValue,
+      },
+    } as typeof inbound
+  })
+
+  return changed ? { ...profile, inbounds } : profile
+}
+
 function stripRealityInboundXverForKit(profile: Profile): Profile {
   const inbounds = profile.inbounds.map(inbound => {
     const security = asRecord((inbound as { security?: unknown }).security)
@@ -234,6 +265,22 @@ function preserveUnmodeledTopLevelSections(profile: Profile, raw: unknown): Prof
   } as Profile
 }
 
+function applyUnmodeledTopLevelSectionsToCompiledConfig(profile: Profile, config: Record<string, unknown>): Record<string, unknown> {
+  const topLevel = profile.raw?.topLevel
+  if (!isRecord(topLevel)) return config
+
+  let next: Record<string, unknown> | undefined
+  for (const key of UNMODELED_TOP_LEVEL_KEYS_TO_PRESERVE) {
+    if (!Object.prototype.hasOwnProperty.call(topLevel, key)) continue
+    const value = topLevel[key]
+    if (!isJsonValue(value)) continue
+    next ??= { ...config }
+    next[key] = JSON.parse(JSON.stringify(value)) as JsonValue
+  }
+
+  return next ?? config
+}
+
 function applyInboundSockoptToCompiledConfig(profile: Profile, config: Record<string, unknown>): Record<string, unknown> {
   if (!Array.isArray(config.inbounds)) return config
   const inbounds = config.inbounds.map((compiledInbound, index) => {
@@ -339,9 +386,14 @@ export type XrayPersistValidationResult = { ok: true; config: Record<string, unk
 
 export function importRawToProfile(raw: unknown): { profile: Profile; issues: Issue[] } {
   const imported = importXrayConfig(raw)
+  const normalized = sanitizeProfileInbounds(normalizeProfile(imported.profile))
+  const withVlessEncryption = patchVlessInboundEncryptionFromRaw(normalized, raw)
+  const withRealityXver = patchRealityInboundXverFromRaw(withVlessEncryption, raw)
+  const withInboundSockopt = preserveInboundSockoptFromRaw(withRealityXver, raw)
+  const withInboundStreamSettings = preserveInboundStreamSettingsFromRaw(withInboundSockopt, raw)
   const profile = stripHysteriaInboundAuth(
     preserveUnmodeledTopLevelSections(
-      preserveInboundStreamSettingsFromRaw(patchRealityInboundXverFromRaw(patchVlessInboundEncryptionFromRaw(sanitizeProfileInbounds(normalizeProfile(imported.profile)), raw), raw), raw),
+      withInboundStreamSettings,
       raw,
     ),
   )
@@ -359,7 +411,7 @@ export function profileToPersistedConfig(profile: Profile): Record<string, unkno
     ),
   )
 
-  return result
+  return applyUnmodeledTopLevelSectionsToCompiledConfig(prepared, result)
 }
 
 export function validateProfileForSave(profile: Profile) {

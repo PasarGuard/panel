@@ -847,8 +847,8 @@
     },
     "limitFields": {
       "max_users": "Макс. пользователей",
-      "data_limit_min": "Мин. лимит трафика (байт)",
-      "data_limit_max": "Макс. лимит трафика (байт)",
+      "data_limit_min": "Мин. лимит трафика",
+      "data_limit_max": "Макс. лимит трафика",
       "expire_days_min": "Мин. дней до истечения",
       "expire_days_max": "Макс. дней до истечения",
       "min_hwid_per_user": "Мин. HWID на пользователя",

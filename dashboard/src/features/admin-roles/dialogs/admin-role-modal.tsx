@@ -801,7 +801,12 @@ function IdMultiSelect({ label, description, emptyText, options, value, onChange
             <ChevronsUpDown className="ms-2 h-4 w-4 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-[min(90vw,28rem)] p-2" align={dir === 'rtl' ? 'end' : 'start'}>
+        <PopoverContent
+          className="w-[min(90vw,28rem)] p-2"
+          align={dir === 'rtl' ? 'end' : 'start'}
+          onWheelCapture={event => event.stopPropagation()}
+          onTouchMoveCapture={event => event.stopPropagation()}
+        >
           <div className="space-y-2">
             <div className="relative">
               <Search className="text-muted-foreground absolute top-2.5 left-2 h-4 w-4" />
@@ -813,7 +818,7 @@ function IdMultiSelect({ label, description, emptyText, options, value, onChange
                 {allFilteredSelected ? t('deselectAll', { defaultValue: 'Deselect all' }) : t('selectAll', { defaultValue: 'Select all' })}
               </Button>
             )}
-            <ScrollArea className="bg-muted/20 h-56 rounded-md border">
+            <ScrollArea className="bg-muted/20 h-[min(45dvh,14rem)] overscroll-contain rounded-md border">
               <div className="space-y-1 p-1">
                 {isLoading ? (
                   <div className="text-muted-foreground px-2 py-3 text-xs">{t('loading', { defaultValue: 'Loading...' })}</div>

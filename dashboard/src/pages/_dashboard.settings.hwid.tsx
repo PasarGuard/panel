@@ -39,6 +39,12 @@ const defaultValues: HwidSettingsFormInput = {
   max_limit: 0,
 }
 
+const toDeviceLimit = (value: unknown): number => {
+  const numericValue = typeof value === 'number' ? value : typeof value === 'string' && value.trim() !== '' ? Number(value) : 0
+  if (!Number.isFinite(numericValue) || numericValue <= 0) return 0
+  return Math.floor(numericValue)
+}
+
 export default function HwidSettings() {
   const { t } = useTranslation()
   const { settings, isLoading, error, updateSettings, isSaving } = useSettingsContext()
@@ -49,9 +55,9 @@ export default function HwidSettings() {
     return {
       enabled: hwid.enabled ?? false,
       forced: hwid.forced ?? false,
-      fallback_limit: hwid.fallback_limit ?? 0,
-      min_limit: hwid.min_limit ?? 0,
-      max_limit: hwid.max_limit ?? 0,
+      fallback_limit: toDeviceLimit(hwid.fallback_limit),
+      min_limit: toDeviceLimit(hwid.min_limit),
+      max_limit: toDeviceLimit(hwid.max_limit),
     }
   }, [settings?.hwid])
 
@@ -66,9 +72,9 @@ export default function HwidSettings() {
         hwid: {
           enabled: data.enabled,
           forced: data.enabled ? data.forced : false,
-          fallback_limit: Math.floor(data.fallback_limit ?? 0),
-          min_limit: Math.floor(data.min_limit ?? 0),
-          max_limit: Math.floor(data.max_limit ?? 0),
+          fallback_limit: toDeviceLimit(data.fallback_limit),
+          min_limit: toDeviceLimit(data.min_limit),
+          max_limit: toDeviceLimit(data.max_limit),
         },
       })
     } catch {

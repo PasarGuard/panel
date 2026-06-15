@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { ChartConfig, ChartContainer, ChartTooltip } from '@/components/ui/chart'
 import { formatBytes } from '@/utils/formatByte'
 import { useTranslation } from 'react-i18next'
-import { useGetUsersUsage, useGetUsage, Period, UserUsageStatsList, NodeUsageStatsList, UserUsageStat, NodeUsageStat } from '@/service/api'
+import { useGetAdminUsageById, useGetAdminUsageByUsername, useGetUsage, Period, UserUsageStatsList, NodeUsageStatsList, UserUsageStat, NodeUsageStat } from '@/service/api'
 import { useMemo, useState, useEffect } from 'react'
 import { SearchXIcon, TrendingUp, TrendingDown } from 'lucide-react'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
@@ -152,14 +152,13 @@ const DataUsageChart = ({ adminId, adminUsername }: { adminId?: number; adminUse
     [activePeriod, queryRange.startDate, queryRange.endDate],
   )
 
-  const userUsageParams = useMemo(
+  const adminUsageParams = useMemo(
     () => ({
-      ...(adminId != null ? { admin_id: adminId } : adminUsername ? { admin: [adminUsername] } : {}),
       period: activePeriod,
       start: queryRange.startDate,
       end: queryRange.endDate,
     }),
-    [adminId, adminUsername, activePeriod, queryRange.startDate, queryRange.endDate],
+    [activePeriod, queryRange.startDate, queryRange.endDate],
   )
 
   const { data: nodeData, isLoading: isLoadingNodes } = useGetUsage(nodeUsageParams, {
@@ -169,15 +168,22 @@ const DataUsageChart = ({ adminId, adminUsername }: { adminId?: number; adminUse
     },
   })
 
-  const { data: userData, isLoading: isLoadingUsers } = useGetUsersUsage(userUsageParams, {
+  const { data: adminUsageByIdData, isLoading: isLoadingAdminUsageById } = useGetAdminUsageById(adminId ?? 0, adminUsageParams, {
     query: {
-      enabled: !shouldUseNodeUsage,
+      enabled: !shouldUseNodeUsage && adminId != null,
       refetchInterval: 1000 * 60 * 5,
     },
   })
 
-  const data: UserUsageStatsList | NodeUsageStatsList | undefined = shouldUseNodeUsage ? nodeData : userData
-  const isLoading = shouldUseNodeUsage ? isLoadingNodes : isLoadingUsers
+  const { data: adminUsageByUsernameData, isLoading: isLoadingAdminUsageByUsername } = useGetAdminUsageByUsername(adminUsername ?? '', adminUsageParams, {
+    query: {
+      enabled: !shouldUseNodeUsage && adminId == null && !!adminUsername,
+      refetchInterval: 1000 * 60 * 5,
+    },
+  })
+
+  const data: UserUsageStatsList | NodeUsageStatsList | undefined = shouldUseNodeUsage ? nodeData : adminId != null ? adminUsageByIdData : adminUsageByUsernameData
+  const isLoading = shouldUseNodeUsage ? isLoadingNodes : adminId != null ? isLoadingAdminUsageById : isLoadingAdminUsageByUsername
 
   let statsArr: (UserUsageStat | NodeUsageStat)[] = []
   if (data?.stats) {

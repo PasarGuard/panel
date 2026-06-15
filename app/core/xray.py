@@ -182,9 +182,9 @@ class XRayConfig(dict):
         if sni := tls_settings.get("serverName"):
             settings["sni"].append(sni)
         for certificate in tls_settings.get("certificates", []):
-            if certificate.get("serveOnNode", False):
+            serve_on_node = certificate.pop("serveOnNode", False)
+            if serve_on_node:
                 # prevent error on parse by xray core
-                del certificate["serveOnNode"]
                 continue
             if certificate.get("certificateFile", None):
                 with open(certificate["certificateFile"], "rb") as file:
