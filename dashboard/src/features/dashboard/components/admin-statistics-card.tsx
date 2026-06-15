@@ -7,6 +7,8 @@ import UserStatisticsCard from './users-statistics-card'
 
 const DataUsageChart = lazy(() => import('./data-usage-chart'))
 
+type DashboardAdmin = Pick<AdminDetails, 'id' | 'username'>
+
 function DataUsageChartSkeleton() {
   return (
     <div className="rounded-lg border bg-card/80 p-4">
@@ -41,7 +43,7 @@ const AdminStatisticsCard = ({
   systemStats,
   showAdminInfo = true,
 }: {
-  admin: AdminDetails | undefined
+  admin: DashboardAdmin | undefined
   systemStats: SystemUsersStats | undefined
   showAdminInfo?: boolean
   currentAdmin?: AdminDetails | undefined
@@ -55,14 +57,15 @@ const AdminStatisticsCard = ({
   // Fetch system stats specific to this admin
   const { data: adminSystemStats } = useGetSystemUsersStats(systemStatsParams, {
     query: {
+      enabled: !systemStats && admin.username !== 'Total',
       refetchInterval: 5000,
     },
   })
 
-  // Use admin-specific stats if available, otherwise fall back to global stats
-  const statsToUse = adminSystemStats || systemStats
+  // The dashboard parent already fetches `/api/system` with the selected admin scope.
+  const statsToUse = systemStats || adminSystemStats
 
-  // For DataUsageChart: prefer admin id for specific admin data, except for 'Total' which shows global data.
+  // Users usage API filters by admin username (`admin` query alias), not admin id.
   const shouldScopeAdminData = admin.username !== 'Total'
 
   if (showAdminInfo)
@@ -82,7 +85,7 @@ const AdminStatisticsCard = ({
         </div>
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
           <UserStatisticsCard data={statsToUse} />
-          <DeferredDataUsageChart adminId={shouldScopeAdminData ? admin.id ?? undefined : undefined} adminUsername={shouldScopeAdminData ? admin.username : undefined} />
+          <DeferredDataUsageChart adminUsername={shouldScopeAdminData ? admin.username : undefined} />
         </div>
       </div>
     )
@@ -90,7 +93,7 @@ const AdminStatisticsCard = ({
   return (
     <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
       <UserStatisticsCard data={statsToUse} />
-      <DeferredDataUsageChart adminId={shouldScopeAdminData ? admin.id ?? undefined : undefined} adminUsername={shouldScopeAdminData ? admin.username : undefined} />
+      <DeferredDataUsageChart adminUsername={shouldScopeAdminData ? admin.username : undefined} />
     </div>
   )
 }

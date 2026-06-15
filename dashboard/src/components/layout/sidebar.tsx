@@ -33,6 +33,7 @@ import {
   Fingerprint,
   GithubIcon,
   Group,
+  Key,
   Layers,
   LayoutDashboardIcon,
   LayoutTemplate,
@@ -67,6 +68,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const canReadHosts = canReadResourcePage(admin, 'hosts')
   const canReadGroups = canReadResourcePage(admin, 'groups')
   const canReadAdmins = canReadResourcePage(admin, 'admins')
+  const canReadApiKeys = canReadResourcePage(admin, 'api_keys')
   const canReadNodes = canReadResourcePage(admin, 'nodes')
   const canReadCores = canReadResourcePage(admin, 'cores')
   const canReadTemplates = canReadResourcePage(admin, 'templates')
@@ -209,6 +211,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             title: 'adminRoles.title',
             url: '/admin-roles',
             icon: UserKey,
+          }]
+        : []),
+      ...(canReadApiKeys
+        ? [{
+            title: 'apiKeys.title',
+            url: '/api-keys',
+            icon: Key,
           }]
         : []),
       ...(nodeNavItems.length > 0

@@ -34,7 +34,9 @@ import { hasPermission, hasScopeAll } from '@/utils/rbac'
 // Lazy load CoreConfigModal to prevent Monaco Editor from loading until needed
 const CoreConfigModal = lazy(() => import('@/features/nodes/dialogs/core-config-modal'))
 
-const totalAdmin: AdminDetails = {
+type DashboardAdmin = Pick<AdminDetails, 'id' | 'username'>
+
+const totalAdmin: DashboardAdmin = {
   username: 'Total',
 }
 
@@ -59,7 +61,7 @@ const Dashboard = () => {
   const canReadNodeStats = hasPermission(currentAdmin, 'nodes', 'stats')
   const { t } = useTranslation()
 
-  const [selectedAdmin, setSelectedAdmin] = useState<AdminDetails | undefined>(totalAdmin)
+  const [selectedAdmin, setSelectedAdmin] = useState<DashboardAdmin | undefined>(totalAdmin)
 
   const userForm = useForm<UseFormValues | UseEditFormValues>({
     defaultValues: getDefaultUserForm,

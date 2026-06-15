@@ -1,0 +1,172 @@
+import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { Plus } from 'lucide-react'
+import PageHeader from '@/components/layout/page-header'
+import { Separator } from '@/components/ui/separator'
+import ApiKeysTable from '@/features/api-keys/components/api-keys-table'
+import ApiKeyModal from '@/features/api-keys/dialogs/api-key-modal'
+import { APIKeyResponse, useDeleteApiKey, useRevokeApiKey } from '@/features/api-keys/hooks/use-api-keys'
+import { toast } from 'sonner'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import { Input } from '@/components/ui/input'
+import { Key, Copy, Check } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+
+export default function ApiKeysPage() {
+  const { t } = useTranslation()
+  const [editingApiKey, setEditingApiKey] = useState<APIKeyResponse | null>(null)
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  
+  const [keyToDelete, setKeyToDelete] = useState<APIKeyResponse | null>(null)
+  const [keyToRevoke, setKeyToRevoke] = useState<APIKeyResponse | null>(null)
+  const [newReissuedKey, setNewReissuedKey] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
+
+  const deleteMutation = useDeleteApiKey()
+  const revokeMutation = useRevokeApiKey()
+
+  const handleEdit = (apiKey: APIKeyResponse) => {
+    setEditingApiKey(apiKey)
+    setIsModalOpen(true)
+  }
+
+  const handleDelete = async () => {
+    if (!keyToDelete) return
+    try {
+      await deleteMutation.mutateAsync(keyToDelete.id)
+      toast.success(t('apiKeys.deleteSuccess'))
+      setKeyToDelete(null)
+    } catch (error: any) {
+      toast.error(t('apiKeys.deleteFailed'), {
+        description: error?.data?.detail || error?.message,
+      })
+    }
+  }
+
+  const handleRevoke = async () => {
+    if (!keyToRevoke) return
+    try {
+      const response = await revokeMutation.mutateAsync(keyToRevoke.id)
+      setNewReissuedKey(response.api_key)
+      toast.success(t('apiKeys.revokeSuccess'))
+      setKeyToRevoke(null)
+    } catch (error: any) {
+      toast.error(t('apiKeys.revokeFailed'), {
+        description: error?.data?.detail || error?.message,
+      })
+    }
+  }
+
+  const copyToClipboard = () => {
+    if (newReissuedKey) {
+      navigator.clipboard.writeText(newReissuedKey)
+      setCopied(true)
+      toast.success(t('apiKeys.apiKeyCopySuccess'))
+      setTimeout(() => setCopied(false), 2000)
+    }
+  }
+
+  return (
+    <div className="flex w-full flex-col items-start gap-2">
+      <div className="w-full transform-gpu animate-fade-in" style={{ animationDuration: '400ms' }}>
+        <PageHeader
+          title="apiKeys.title"
+          description="apiKeys.description"
+          buttonIcon={Plus}
+          buttonText="apiKeys.createKey"
+          onButtonClick={() => {
+            setEditingApiKey(null)
+            setIsModalOpen(true)
+          }}
+        />
+        <Separator />
+      </div>
+
+      <div className="w-full px-4 pt-2">
+        <ApiKeysTable
+          onEdit={handleEdit}
+          onDelete={setKeyToDelete}
+          onRevoke={setKeyToRevoke}
+        />
+      </div>
+
+      <ApiKeyModal
+        isOpen={isModalOpen}
+        onOpenChange={setIsModalOpen}
+        editingApiKey={editingApiKey}
+      />
+
+      <AlertDialog open={!!keyToDelete} onOpenChange={() => setKeyToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('apiKeys.deleteTitle')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t('apiKeys.deletePrompt', { name: keyToDelete?.name })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={handleDelete}
+            >
+              {t('delete')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!keyToRevoke} onOpenChange={() => setKeyToRevoke(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('apiKeys.revokeTitle')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t('apiKeys.revokePrompt')}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
+            <AlertDialogAction onClick={handleRevoke}>
+              {t('confirm')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!newReissuedKey} onOpenChange={() => setNewReissuedKey(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('apiKeys.apiKey')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t('apiKeys.apiKeyShowWarning')}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="flex items-center gap-2 py-4">
+            <Input
+              readOnly
+              value={newReissuedKey || ''}
+              className="font-mono"
+            />
+            <Button size="icon" variant="outline" onClick={copyToClipboard}>
+              {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+            </Button>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setNewReissuedKey(null)}>
+              {t('close')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  )
+}
