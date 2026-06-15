@@ -258,6 +258,9 @@ async def prepare_wireguard_keys_only(
     if not wireguard_tags:
         return proxy_settings
 
+    if not wireguard_settings.enabled:
+        return proxy_settings
+
     await ensure_unique_wireguard_public_key(db, proxy_settings, exclude_user_id=exclude_user_id)
 
     if proxy_settings.wireguard.public_key and not proxy_settings.wireguard.private_key:

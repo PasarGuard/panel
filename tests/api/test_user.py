@@ -2016,6 +2016,48 @@ def test_revoke_user_subscription(access_token):
         cleanup_groups(access_token, core, groups)
 
 
+def test_revoke_user_subscription_regenerates_wireguard_keys(access_token):
+    interface_private_key, _ = generate_wireguard_keypair()
+    interface_name = unique_name("wg_revoke")
+    core = create_core(
+        access_token,
+        name=unique_name("wireguard_revoke_core"),
+        config={
+            "interface_name": interface_name,
+            "private_key": interface_private_key,
+            "listen_port": 51820,
+            "address": ["10.45.0.1/24"],
+        },
+        type="wg",
+        fallbacks=[],
+    )
+    group = create_group(access_token, name=unique_name("wg_revoke_group"), inbound_tags=[interface_name])
+    user = create_user(access_token, group_ids=[group["id"]], payload={"username": unique_name("wg_revoke_user")})
+    old_wireguard = user["proxy_settings"]["wireguard"]
+
+    try:
+        assert old_wireguard["private_key"]
+        assert old_wireguard["public_key"] == get_wireguard_public_key(old_wireguard["private_key"])
+        assert old_wireguard["peer_ips"]
+
+        response = client.post(
+            f"/api/user/{user['username']}/revoke_sub",
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+        assert response.status_code == status.HTTP_200_OK
+
+        wireguard = response.json()["proxy_settings"]["wireguard"]
+        assert wireguard["private_key"]
+        assert wireguard["public_key"] == get_wireguard_public_key(wireguard["private_key"])
+        assert wireguard["private_key"] != old_wireguard["private_key"]
+        assert wireguard["public_key"] != old_wireguard["public_key"]
+        assert wireguard["peer_ips"] == old_wireguard["peer_ips"]
+    finally:
+        delete_user(access_token, user["username"])
+        delete_group(access_token, group["id"])
+        delete_core(access_token, core["id"])
+
+
 def test_user_delete(access_token):
     """Test that the user delete route is accessible."""
     core, groups = setup_groups(access_token, 1)
