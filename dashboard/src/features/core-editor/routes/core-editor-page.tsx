@@ -14,7 +14,7 @@ import { useXrayPersistValidationItems } from '@/features/core-editor/hooks/use-
 import { WireGuardCoreEditor } from '@/features/core-editor/components/wg/wireguard-core-editor'
 import { XrayCoreEditor } from '@/features/core-editor/components/xray/xray-core-editor'
 import { profileToPersistedConfig } from '@/features/core-editor/kit/xray-adapter'
-import { draftToPersistedConfig, getWireGuardPersistConfig } from '@/features/core-editor/kit/wireguard-adapter'
+import { getWireGuardPersistConfig } from '@/features/core-editor/kit/wireguard-adapter'
 import { selectCoreEditorHasActualChanges } from '@/features/core-editor/kit/core-editor-change-state'
 import { useCoreEditorStore } from '@/features/core-editor/state/core-editor-store'
 import type { WgCoreSection, XrayCoreSection } from '@/features/core-editor/state/core-editor-store'
@@ -52,8 +52,7 @@ function loadingSectionPageHeaderProps(coreKind?: LoadingCoreKind): { title: str
 
 /** Mirrors {@link CoreEditorLayout} shell: header → section header → tabs → list toolbar + table rows → sticky save bar. */
 function CoreEditorLoadingSkeleton({ coreKind }: { coreKind?: LoadingCoreKind }) {
-  const listGridCols =
-    '24px 28px 52px minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) 44px' as const
+  const listGridCols = '24px 28px 52px minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) 44px' as const
   const pageHeader = loadingSectionPageHeaderProps(coreKind)
   const neutral = coreKind === undefined
   const formLike = neutral || coreKind === 'wg'
@@ -61,7 +60,7 @@ function CoreEditorLoadingSkeleton({ coreKind }: { coreKind?: LoadingCoreKind })
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-0" aria-busy="true">
       <CoreCommandMenu />
-      <div className="px-4 pt-3 md:pt-6 pb-2 md:pb-0">
+      <div className="px-4 pt-3 pb-2 md:pt-6 md:pb-0">
         <div className="flex min-w-0 items-start gap-2 sm:items-center sm:gap-3">
           <Skeleton className="h-10 w-10 shrink-0 rounded-md" />
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 sm:gap-3">
@@ -72,11 +71,7 @@ function CoreEditorLoadingSkeleton({ coreKind }: { coreKind?: LoadingCoreKind })
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        <PageHeader
-          title={pageHeader.title}
-          description={pageHeader.description}
-          className="flex-wrap gap-x-3 gap-y-2 py-2.5 sm:gap-4 sm:py-4 md:pt-6"
-        />
+        <PageHeader title={pageHeader.title} description={pageHeader.description} className="flex-wrap gap-x-3 gap-y-2 py-2.5 sm:gap-4 sm:py-4 md:pt-6" />
 
         {neutral ? (
           <div className="border-b px-4">
@@ -117,7 +112,7 @@ function CoreEditorLoadingSkeleton({ coreKind }: { coreKind?: LoadingCoreKind })
               </div>
 
               <div
-                className="text-muted-foreground grid min-w-0 items-center gap-3 rounded-md border bg-background/80 px-3 py-2 text-xs font-semibold uppercase tracking-wide"
+                className="text-muted-foreground bg-background/80 grid min-w-0 items-center gap-3 rounded-md border px-3 py-2 text-xs font-semibold tracking-wide uppercase"
                 style={{ gridTemplateColumns: listGridCols }}
                 aria-hidden
               >
@@ -131,17 +126,13 @@ function CoreEditorLoadingSkeleton({ coreKind }: { coreKind?: LoadingCoreKind })
               </div>
 
               {Array.from({ length: 4 }, (_, row) => (
-                <div
-                  key={row}
-                  className="bg-background grid min-w-0 items-center gap-3 overflow-hidden rounded-md border px-3 py-3"
-                  style={{ gridTemplateColumns: listGridCols }}
-                >
+                <div key={row} className="bg-background grid min-w-0 items-center gap-3 overflow-hidden rounded-md border px-3 py-3" style={{ gridTemplateColumns: listGridCols }}>
                   <Skeleton className="mx-auto size-5 rounded-md" />
                   <Skeleton className="mx-auto h-3.5 w-3.5 rounded-[3px]" />
                   <Skeleton className="h-4 w-6 shrink-0" />
                   <Skeleton className="h-4 w-full max-w-40 min-w-0" />
                   <Skeleton className="h-4 w-full max-w-36 min-w-0" />
-                  <Skeleton className="h-4 max-w-16 w-full min-w-0" />
+                  <Skeleton className="h-4 w-full max-w-16 min-w-0" />
                   <Skeleton className="size-8 justify-self-end rounded-md" />
                 </div>
               ))}
@@ -150,7 +141,7 @@ function CoreEditorLoadingSkeleton({ coreKind }: { coreKind?: LoadingCoreKind })
         </div>
       </div>
 
-      <div className="sticky bottom-0 z-20 flex flex-col gap-3 border-t bg-background/95 px-4 py-3 backdrop-blur supports-backdrop-filter:bg-background/80 sm:flex-row sm:items-center sm:justify-end">
+      <div className="bg-background/95 supports-backdrop-filter:bg-background/80 sticky bottom-0 z-20 flex flex-col gap-3 border-t px-4 py-3 backdrop-blur sm:flex-row sm:items-center sm:justify-end">
         <div className="flex flex-wrap items-center justify-end gap-3">
           <div className="flex items-center gap-2 pr-2">
             <Skeleton className="size-4 rounded-sm" />
@@ -174,7 +165,11 @@ export default function CoreEditorPage() {
   const numericId = coreIdParam && !isNew ? Number(coreIdParam) : NaN
   const validId = Number.isFinite(numericId) && numericId > 0
 
-  const { data: coreData, isLoading, isError } = useGetCoreConfig(validId ? numericId : 0, {
+  const {
+    data: coreData,
+    isLoading,
+    isError,
+  } = useGetCoreConfig(validId ? numericId : 0, {
     query: { enabled: validId },
   })
 
@@ -226,10 +221,7 @@ export default function CoreEditorPage() {
     }
   }, [isNew, initNew, searchParams])
 
-  const serverConfigJson = useMemo(
-    () => (validId && coreData ? JSON.stringify(coreData.config) : null),
-    [validId, coreData],
-  )
+  const serverConfigJson = useMemo(() => (validId && coreData ? JSON.stringify(coreData.config) : null), [validId, coreData])
 
   useEffect(() => {
     if (isNew || !validId || !coreData || serverConfigJson === null) return
@@ -238,12 +230,7 @@ export default function CoreEditorPage() {
       initFromCore(coreData)
       return
     }
-    if (
-      state.hydrated &&
-      !selectCoreEditorHasActualChanges(state) &&
-      !state.isNew &&
-      state.serverHydratedConfigJson !== serverConfigJson
-    ) {
+    if (state.hydrated && !selectCoreEditorHasActualChanges(state) && !state.isNew && state.serverHydratedConfigJson !== serverConfigJson) {
       initFromCore(coreData, { preserveNavigation: true })
     }
   }, [isNew, validId, coreData, serverConfigJson, initFromCore])
@@ -291,7 +278,14 @@ export default function CoreEditorPage() {
     try {
       if (kind === 'wg') {
         if (!wgDraft) return
-        const cfg = draftToPersistedConfig(wgDraft)
+        const result = getWireGuardPersistConfig(wgDraft)
+        if (!result.ok) {
+          const issues = ('draftIssues' in result ? result.draftIssues : result.kitIssues) ?? []
+          const firstIssue = issues[0]
+          toast.error(firstIssue ? `${firstIssue.path}: ${firstIssue.message}` : t('coreEditor.validationErrors', { defaultValue: 'Validation errors' }))
+          return
+        }
+        const cfg = result.config
         if (isNew) {
           const res = await createMutation.mutateAsync({
             data: {
@@ -367,12 +361,7 @@ export default function CoreEditorPage() {
     } catch (e: unknown) {
       const err = e as { data?: { detail?: unknown }; response?: { _data?: { detail?: unknown }; data?: { detail?: unknown } }; message?: string }
       const detail = err?.data?.detail ?? err?.response?._data?.detail ?? err?.response?.data?.detail
-      const msg =
-        typeof detail === 'string'
-          ? detail
-          : detail
-            ? JSON.stringify(detail)
-            : err?.message ?? String(e)
+      const msg = typeof detail === 'string' ? detail : detail ? JSON.stringify(detail) : (err?.message ?? String(e))
       toast.error(msg)
     } finally {
       setSaving(false)
@@ -402,7 +391,7 @@ export default function CoreEditorPage() {
 
   const header = (
     <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-      <div className="flex min-w-0 flex-1 gap-2 items-center sm:gap-3">
+      <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
         <Button
           type="button"
           variant="ghost"
@@ -448,10 +437,7 @@ export default function CoreEditorPage() {
                 switchKind(nextKind)
               }}
             >
-              <SelectTrigger
-                className="h-10 w-24 shrink-0 px-2 sm:w-[200px] sm:px-3"
-                aria-label={t('coreConfigModal.backendType', { defaultValue: 'Backend type' })}
-              >
+              <SelectTrigger className="h-10 w-24 shrink-0 px-2 sm:w-[200px] sm:px-3" aria-label={t('coreConfigModal.backendType', { defaultValue: 'Backend type' })}>
                 <SelectValue placeholder={t('coreConfigModal.backendType', { defaultValue: 'Type' })} />
               </SelectTrigger>
               <SelectContent>
@@ -540,7 +526,7 @@ export default function CoreEditorPage() {
   if (!isNew && validId && (isError || !coreData)) {
     return (
       <div className="space-y-4 py-8">
-        <p className="text-sm text-destructive">{t('coreEditor.loadFailed', { defaultValue: 'Could not load this core.' })}</p>
+        <p className="text-destructive text-sm">{t('coreEditor.loadFailed', { defaultValue: 'Could not load this core.' })}</p>
         <Button type="button" variant="outline" onClick={() => navigate('/nodes/cores')}>
           {t('coreEditor.backToList', { defaultValue: 'Back to cores' })}
         </Button>
@@ -551,7 +537,7 @@ export default function CoreEditorPage() {
   if (!isNew && !validId) {
     return (
       <div className="space-y-4 py-8">
-        <p className="text-sm text-muted-foreground">{t('coreEditor.invalidId', { defaultValue: 'Invalid core id.' })}</p>
+        <p className="text-muted-foreground text-sm">{t('coreEditor.invalidId', { defaultValue: 'Invalid core id.' })}</p>
         <Button type="button" variant="outline" onClick={() => navigate('/nodes/cores')}>
           {t('coreEditor.backToList', { defaultValue: 'Back to cores' })}
         </Button>
@@ -585,11 +571,7 @@ export default function CoreEditorPage() {
         main={
           <div className="space-y-6">
             <ValidationSummary items={preSaveIssues} />
-            {kind === 'wg' ? (
-              <WireGuardCoreEditor />
-            ) : (
-              <XrayCoreEditor headerAddPulse={headerAddPulse} headerAddEpoch={headerAddEpoch} />
-            )}
+            {kind === 'wg' ? <WireGuardCoreEditor /> : <XrayCoreEditor headerAddPulse={headerAddPulse} headerAddEpoch={headerAddEpoch} />}
           </div>
         }
         dirty={hasActualChanges}

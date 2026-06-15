@@ -104,6 +104,8 @@ async def _prepare_subscription_inbound_data(
             wireguard_mtu=wg_over.mtu,
             wireguard_reserved=reserved,
             wireguard_dns=dns,
+            fragment_settings=host.fragment_settings.model_dump() if host.fragment_settings else None,
+            noise_settings=host.noise_settings.model_dump() if host.noise_settings else None,
             priority=host.priority,
             status=list(host.status) if host.status else None,
             subscription_templates=host.subscription_templates.model_dump(exclude_none=True)
@@ -186,6 +188,7 @@ async def _prepare_subscription_inbound_data(
         inbound_flow = ""
 
     finalmask = inbound_config.get("finalmask")
+    finalmask_link = json.dumps(finalmask, separators=(",", ":")) if finalmask else None
 
     # Network comes from inbound, NOT from checking which transport exists on host!
     # Host can have ALL transport configs, inbound determines which one is used
@@ -386,6 +389,7 @@ async def _prepare_subscription_inbound_data(
         fragment_settings=host.fragment_settings.model_dump() if host.fragment_settings else None,
         noise_settings=host.noise_settings.model_dump() if host.noise_settings else None,
         finalmask=finalmask,
+        finalmask_link=finalmask_link,
         priority=host.priority,
         status=list(host.status) if host.status else None,
         subscription_templates=host.subscription_templates.model_dump(exclude_none=True)

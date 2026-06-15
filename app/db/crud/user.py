@@ -1162,7 +1162,7 @@ async def bulk_reset_user_data_usage(
     return users
 
 
-def _build_revoked_proxy_settings(db_user: User) -> dict:
+def build_revoked_proxy_settings(db_user: User) -> dict:
     proxy_settings = ProxyTable()
     proxy_settings.shadowsocks.method = db_user.proxy_settings.get("shadowsocks", {}).get(
         "method", "chacha20-ietf-poly1305"
@@ -1229,7 +1229,7 @@ async def reset_user_by_next(db: AsyncSession, db_user: User, *, clean_chart_dat
     return db_user
 
 
-async def revoke_user_sub(db: AsyncSession, db_user: User) -> User:
+async def revoke_user_sub(db: AsyncSession, db_user: User, *, proxy_settings: dict | None = None) -> User:
     """
     Revokes the subscription of a user and updates proxies settings.
 
@@ -1241,13 +1241,15 @@ async def revoke_user_sub(db: AsyncSession, db_user: User) -> User:
         User: The updated user object.
     """
     db_user.sub_revoked_at = datetime.now(timezone.utc)
-    db_user.proxy_settings = _build_revoked_proxy_settings(db_user)
+    db_user.proxy_settings = proxy_settings if proxy_settings is not None else build_revoked_proxy_settings(db_user)
     await db.commit()
     await refresh_and_load_user(db, db_user)
     return db_user
 
 
-async def bulk_revoke_user_sub(db: AsyncSession, users: list[User]) -> list[User]:
+async def bulk_revoke_user_sub(
+    db: AsyncSession, users: list[User], *, proxy_settings_by_user_id: dict[int, dict] | None = None
+) -> list[User]:
     """
     Revoke subscriptions for multiple users in a single transaction.
 
@@ -1261,7 +1263,11 @@ async def bulk_revoke_user_sub(db: AsyncSession, users: list[User]) -> list[User
     revoked_at = datetime.now(timezone.utc)
     for user in users:
         user.sub_revoked_at = revoked_at
-        user.proxy_settings = _build_revoked_proxy_settings(user)
+        user.proxy_settings = (
+            proxy_settings_by_user_id.get(user.id)
+            if proxy_settings_by_user_id is not None and user.id in proxy_settings_by_user_id
+            else build_revoked_proxy_settings(user)
+        )
 
     await db.commit()
     for user in users:

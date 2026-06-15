@@ -1,13 +1,4 @@
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
@@ -98,14 +89,7 @@ function serverStrategyDisplay(v: DnsServerEntry): string {
 
 function serverSearchHaystack(v: DnsServerEntry): string {
   if (typeof v === 'string') return v
-  const parts: string[] = [
-    v.address ?? '',
-    v.port !== undefined ? String(v.port) : '',
-    v.tag ?? '',
-    v.queryStrategy ?? '',
-    ...(v.domains ?? []),
-    ...(v.expectedIPs ?? []),
-  ]
+  const parts: string[] = [v.address ?? '', v.port !== undefined ? String(v.port) : '', v.tag ?? '', v.queryStrategy ?? '', ...(v.domains ?? []), ...(v.expectedIPs ?? [])]
   try {
     parts.push(JSON.stringify(v))
   } catch {
@@ -171,13 +155,7 @@ function formToEntry(form: ServerFormValues): DnsServerEntry | null {
     ...(queryStrategy ? { queryStrategy } : {}),
     ...(tag ? { tag } : {}),
   }
-  const onlyAddress =
-    port === undefined &&
-    domains.length === 0 &&
-    expectedIPs.length === 0 &&
-    !form.skipFallback &&
-    queryStrategy === undefined &&
-    !tag
+  const onlyAddress = port === undefined && domains.length === 0 && expectedIPs.length === 0 && !form.skipFallback && queryStrategy === undefined && !tag
   return onlyAddress ? address : ns
 }
 
@@ -344,9 +322,7 @@ export function XrayDnsSection({ headerAddPulse, headerAddEpoch }: XrayDnsSectio
       {
         id: 'address',
         header: () => t('coreEditor.dns.server.address', { defaultValue: 'Address' }),
-        cell: ({ row }) => (
-          <span className="text-xs break-all">{serverAddress(row.original) || '—'}</span>
-        ),
+        cell: ({ row }) => <span className="text-xs break-all">{serverAddress(row.original) || '—'}</span>,
       },
       {
         id: 'port',
@@ -359,7 +335,7 @@ export function XrayDnsSection({ headerAddPulse, headerAddEpoch }: XrayDnsSectio
         cell: ({ row }) => {
           const summary = serverDomainsSummary(row.original)
           return (
-            <span className="line-clamp-2 min-w-0 max-w-56 text-xs" title={summary || undefined}>
+            <span className="line-clamp-2 max-w-56 min-w-0 text-xs" title={summary || undefined}>
               {summary || '—'}
             </span>
           )
@@ -368,9 +344,7 @@ export function XrayDnsSection({ headerAddPulse, headerAddEpoch }: XrayDnsSectio
       {
         id: 'strategy',
         header: () => t('coreEditor.dns.server.queryStrategy', { defaultValue: 'Strategy' }),
-        cell: ({ row }) => (
-          <span className="text-xs">{serverStrategyDisplay(row.original) || '—'}</span>
-        ),
+        cell: ({ row }) => <span className="text-xs">{serverStrategyDisplay(row.original) || '—'}</span>,
       },
     ],
     [t],
@@ -467,12 +441,8 @@ export function XrayDnsSection({ headerAddPulse, headerAddEpoch }: XrayDnsSectio
       <Card>
         <CardContent className="flex items-start justify-between gap-4 py-4">
           <div className="space-y-1">
-            <Label className="text-sm font-medium">
-              {t('coreEditor.dns.enable', { defaultValue: 'Enable DNS' })}
-            </Label>
-            <p className="text-xs text-muted-foreground">
-              {t('coreEditor.dns.enableHint', { defaultValue: 'Enable built-in DNS server.' })}
-            </p>
+            <Label className="text-sm font-medium">{t('coreEditor.dns.enable', { defaultValue: 'Enable DNS' })}</Label>
+            <p className="text-muted-foreground text-xs">{t('coreEditor.dns.enableHint', { defaultValue: 'Enable built-in DNS server.' })}</p>
           </div>
           <Switch checked={enabled} onCheckedChange={setEnabled} aria-label={t('coreEditor.dns.enable', { defaultValue: 'Enable DNS' })} />
         </CardContent>
@@ -483,15 +453,11 @@ export function XrayDnsSection({ headerAddPulse, headerAddEpoch }: XrayDnsSectio
           {/* Global DNS options */}
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium">
-                {t('coreEditor.dns.globalTitle', { defaultValue: 'Global settings' })}
-              </CardTitle>
+              <CardTitle className="text-sm font-medium">{t('coreEditor.dns.globalTitle', { defaultValue: 'Global settings' })}</CardTitle>
             </CardHeader>
             <CardContent className="grid gap-5 sm:grid-cols-2">
               <div className="flex min-w-0 flex-col gap-2 sm:col-span-2">
-                <Label className="text-xs font-medium">
-                  {t('coreEditor.dns.queryStrategy', { defaultValue: 'Query Strategy' })}
-                </Label>
+                <Label className="text-xs font-medium">{t('coreEditor.dns.queryStrategy', { defaultValue: 'Query Strategy' })}</Label>
                 <Select
                   value={queryStrategyValue}
                   onValueChange={v => {
@@ -503,20 +469,18 @@ export function XrayDnsSection({ headerAddPulse, headerAddEpoch }: XrayDnsSectio
                   }}
                 >
                   <SelectTrigger className="h-10" dir="ltr">
-                    <SelectValue
-                      placeholder={t('coreEditor.dns.queryStrategyPlaceholder', { defaultValue: 'Default (UseIP)' })}
-                    />
+                    <SelectValue placeholder={t('coreEditor.dns.queryStrategyPlaceholder', { defaultValue: 'Default (UseIP)' })} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="__inherit">
-                      {t('coreEditor.dns.queryStrategyDefault', { defaultValue: 'Default (UseIP)' })}
-                    </SelectItem>
+                    <SelectItem value="__inherit">{t('coreEditor.dns.queryStrategyDefault', { defaultValue: 'Default (UseIP)' })}</SelectItem>
                     {QUERY_STRATEGY_OPTIONS.map(opt => (
-                      <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                      <SelectItem key={opt} value={opt}>
+                        {opt}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-muted-foreground text-xs">
                   {t('coreEditor.dns.queryStrategyHint', {
                     defaultValue: 'Overall strategy to resolve domain names.',
                   })}
@@ -524,13 +488,9 @@ export function XrayDnsSection({ headerAddPulse, headerAddEpoch }: XrayDnsSectio
               </div>
 
               <div className="flex items-start justify-between gap-3 rounded-md border p-3 sm:col-span-1">
-                <div className="space-y-1 min-w-0">
-                  <Label className="text-xs font-medium">
-                    {t('coreEditor.dns.disableCache', { defaultValue: 'Disable cache' })}
-                  </Label>
-                  <p className="text-[11px] text-muted-foreground">
-                    {t('coreEditor.dns.disableCacheHint', { defaultValue: 'Disables DNS caching.' })}
-                  </p>
+                <div className="min-w-0 space-y-1">
+                  <Label className="text-xs font-medium">{t('coreEditor.dns.disableCache', { defaultValue: 'Disable cache' })}</Label>
+                  <p className="text-muted-foreground text-[11px]">{t('coreEditor.dns.disableCacheHint', { defaultValue: 'Disables DNS caching.' })}</p>
                 </div>
                 <Switch
                   checked={dns?.disableCache === true}
@@ -540,13 +500,9 @@ export function XrayDnsSection({ headerAddPulse, headerAddEpoch }: XrayDnsSectio
               </div>
 
               <div className="flex items-start justify-between gap-3 rounded-md border p-3 sm:col-span-1">
-                <div className="space-y-1 min-w-0">
-                  <Label className="text-xs font-medium">
-                    {t('coreEditor.dns.disableFallback', { defaultValue: 'Disable fallback' })}
-                  </Label>
-                  <p className="text-[11px] text-muted-foreground">
-                    {t('coreEditor.dns.disableFallbackHint', { defaultValue: 'Disables fallback DNS queries.' })}
-                  </p>
+                <div className="min-w-0 space-y-1">
+                  <Label className="text-xs font-medium">{t('coreEditor.dns.disableFallback', { defaultValue: 'Disable fallback' })}</Label>
+                  <p className="text-muted-foreground text-[11px]">{t('coreEditor.dns.disableFallbackHint', { defaultValue: 'Disables fallback DNS queries.' })}</p>
                 </div>
                 <Switch
                   checked={dns?.disableFallback === true}
@@ -561,7 +517,7 @@ export function XrayDnsSection({ headerAddPulse, headerAddEpoch }: XrayDnsSectio
           <Card>
             <CardHeader className="flex flex-row items-center justify-between gap-3 pb-3">
               <CardTitle className="flex items-center gap-2 text-sm font-medium">
-                <Globe className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+                <Globe className="text-muted-foreground h-4 w-4 shrink-0" aria-hidden />
                 {t('coreEditor.dns.serversTitle', { defaultValue: 'Servers' })}
               </CardTitle>
               <Button type="button" size="sm" variant="outline" onClick={beginAddServer}>
@@ -598,16 +554,12 @@ export function XrayDnsSection({ headerAddPulse, headerAddEpoch }: XrayDnsSectio
                 }}
                 onBulkRemove={indices => {
                   const rm = new Set(indices)
-                  updateXrayProfile(p =>
-                    updateDns(p, dns => ({ ...dns, servers: dns.servers.filter((_, idx) => !rm.has(idx)) })),
-                  )
+                  updateXrayProfile(p => updateDns(p, dns => ({ ...dns, servers: dns.servers.filter((_, idx) => !rm.has(idx)) })))
                   setSelectedServerIdx(0)
                 }}
                 enableReorder
                 onReorder={(from, to) => {
-                  updateXrayProfile(p =>
-                    updateDns(p, dns => ({ ...dns, servers: arrayMove([...dns.servers], from, to) })),
-                  )
+                  updateXrayProfile(p => updateDns(p, dns => ({ ...dns, servers: arrayMove([...dns.servers], from, to) })))
                   setSelectedServerIdx(sel => remapIndexAfterArrayMove(sel, from, to))
                 }}
               />
@@ -617,9 +569,7 @@ export function XrayDnsSection({ headerAddPulse, headerAddEpoch }: XrayDnsSectio
           {/* Hosts */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between gap-3 pb-3">
-              <CardTitle className="text-sm font-medium">
-                {t('coreEditor.dns.hostsTitle', { defaultValue: 'Hosts' })}
-              </CardTitle>
+              <CardTitle className="text-sm font-medium">{t('coreEditor.dns.hostsTitle', { defaultValue: 'Hosts' })}</CardTitle>
               <Button type="button" size="sm" variant="outline" onClick={beginAddHost}>
                 <Plus className="h-4 w-4" />
                 <span className="ms-1">{t('coreEditor.dns.addHost', { defaultValue: 'Add host' })}</span>
@@ -627,41 +577,20 @@ export function XrayDnsSection({ headerAddPulse, headerAddEpoch }: XrayDnsSectio
             </CardHeader>
             <CardContent>
               {hostsList.length === 0 ? (
-                <div className="text-muted-foreground rounded-md border px-4 py-8 text-center text-sm">
-                  {t('coreEditor.dns.emptyHosts', { defaultValue: 'No host mappings' })}
-                </div>
+                <div className="text-muted-foreground rounded-md border px-4 py-8 text-center text-sm">{t('coreEditor.dns.emptyHosts', { defaultValue: 'No host mappings' })}</div>
               ) : (
                 <ul className="divide-y rounded-md border">
                   {hostsList.map(entry => (
-                    <li
-                      key={entry.domain}
-                      className={cn(
-                        'flex flex-col gap-2 px-3 py-2 sm:flex-row sm:items-center sm:justify-between',
-                      )}
-                    >
+                    <li key={entry.domain} className={cn('flex flex-col gap-2 px-3 py-2 sm:flex-row sm:items-center sm:justify-between')}>
                       <div className="min-w-0">
                         <div className="text-xs font-medium break-all">{entry.domain}</div>
-                        <div className="text-[11px] text-muted-foreground break-all">
-                          {entry.addresses.join(', ')}
-                        </div>
+                        <div className="text-muted-foreground text-[11px] break-all">{entry.addresses.join(', ')}</div>
                       </div>
                       <div className="flex shrink-0 gap-1.5">
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => beginEditHost(entry.domain)}
-                          title={t('edit')}
-                        >
+                        <Button type="button" size="sm" variant="ghost" onClick={() => beginEditHost(entry.domain)} title={t('edit')}>
                           <Pencil className="h-4 w-4" />
                         </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => updateXrayProfile(p => removeHostMapping(p, entry.domain))}
-                          title={t('delete')}
-                        >
+                        <Button type="button" size="sm" variant="ghost" onClick={() => updateXrayProfile(p => removeHostMapping(p, entry.domain))} title={t('delete')}>
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
@@ -679,17 +608,11 @@ export function XrayDnsSection({ headerAddPulse, headerAddEpoch }: XrayDnsSectio
         isDialogOpen={serverDialogOpen}
         onOpenChange={handleServerDialogOpenChange}
         leadingIcon={dialogMode === 'add' ? <Plus className="h-5 w-5 shrink-0" /> : <Pencil className="h-5 w-5 shrink-0" />}
-        title={
-          dialogMode === 'add'
-            ? t('coreEditor.dns.dialogAddServer', { defaultValue: 'Add DNS server' })
-            : t('coreEditor.dns.dialogEditServer', { defaultValue: 'Edit DNS server' })
-        }
+        title={dialogMode === 'add' ? t('coreEditor.dns.dialogAddServer', { defaultValue: 'Add DNS server' }) : t('coreEditor.dns.dialogEditServer', { defaultValue: 'Edit DNS server' })}
         size="md"
         footerExtra={
           <Button type="button" className="sm:min-w-[88px]" onClick={commitServer}>
-            {dialogMode === 'add'
-              ? t('coreEditor.dns.addToList', { defaultValue: 'Add to list' })
-              : t('modify')}
+            {dialogMode === 'add' ? t('coreEditor.dns.addToList', { defaultValue: 'Add to list' }) : t('modify')}
           </Button>
         }
       >
@@ -699,17 +622,10 @@ export function XrayDnsSection({ headerAddPulse, headerAddEpoch }: XrayDnsSectio
               control={serverForm.control}
               name="address"
               render={({ field }) => (
-                <FormItem className="sm:col-span-2 min-w-0">
-                  <FormLabel className="text-xs font-medium">
-                    {t('coreEditor.dns.server.address', { defaultValue: 'Address' })}
-                  </FormLabel>
+                <FormItem className="min-w-0 sm:col-span-2">
+                  <FormLabel className="text-xs font-medium">{t('coreEditor.dns.server.address', { defaultValue: 'Address' })}</FormLabel>
                   <FormControl>
-                    <Input
-                      {...field}
-                      dir="ltr"
-                      placeholder="8.8.8.8 / https://1.1.1.1/dns-query / tcp://1.1.1.1"
-                      className="text-xs"
-                    />
+                    <Input {...field} dir="ltr" placeholder="8.8.8.8 / https://1.1.1.1/dns-query / tcp://1.1.1.1" className="text-xs" />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -721,17 +637,9 @@ export function XrayDnsSection({ headerAddPulse, headerAddEpoch }: XrayDnsSectio
               name="port"
               render={({ field }) => (
                 <FormItem className="min-w-0">
-                  <FormLabel className="text-xs font-medium">
-                    {t('coreEditor.dns.server.port', { defaultValue: 'Port' })}
-                  </FormLabel>
+                  <FormLabel className="text-xs font-medium">{t('coreEditor.dns.server.port', { defaultValue: 'Port' })}</FormLabel>
                   <FormControl>
-                    <Input
-                      {...field}
-                      dir="ltr"
-                      inputMode="numeric"
-                      placeholder="53"
-                      className="text-xs"
-                    />
+                    <Input {...field} dir="ltr" inputMode="numeric" placeholder="53" className="text-xs" />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -743,16 +651,9 @@ export function XrayDnsSection({ headerAddPulse, headerAddEpoch }: XrayDnsSectio
               name="tag"
               render={({ field }) => (
                 <FormItem className="min-w-0">
-                  <FormLabel className="text-xs font-medium">
-                    {t('coreEditor.dns.server.tag', { defaultValue: 'Tag' })}
-                  </FormLabel>
+                  <FormLabel className="text-xs font-medium">{t('coreEditor.dns.server.tag', { defaultValue: 'Tag' })}</FormLabel>
                   <FormControl>
-                    <Input
-                      {...field}
-                      dir="ltr"
-                      placeholder={t('coreEditor.dns.server.tagPlaceholder', { defaultValue: 'optional' })}
-                      className="text-xs"
-                    />
+                    <Input {...field} dir="ltr" placeholder={t('coreEditor.dns.server.tagPlaceholder', { defaultValue: 'optional' })} className="text-xs" />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -763,20 +664,18 @@ export function XrayDnsSection({ headerAddPulse, headerAddEpoch }: XrayDnsSectio
               control={serverForm.control}
               name="queryStrategy"
               render={({ field }) => (
-                <FormItem className="sm:col-span-2 min-w-0">
-                  <FormLabel className="text-xs font-medium">
-                    {t('coreEditor.dns.server.queryStrategy', { defaultValue: 'Query Strategy' })}
-                  </FormLabel>
+                <FormItem className="min-w-0 sm:col-span-2">
+                  <FormLabel className="text-xs font-medium">{t('coreEditor.dns.server.queryStrategy', { defaultValue: 'Query Strategy' })}</FormLabel>
                   <Select value={field.value} onValueChange={v => field.onChange(v)}>
                     <SelectTrigger className="h-10" dir="ltr">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value={QUERY_STRATEGY_INHERIT}>
-                        {t('coreEditor.dns.server.inheritGlobal', { defaultValue: 'Inherit global' })}
-                      </SelectItem>
+                      <SelectItem value={QUERY_STRATEGY_INHERIT}>{t('coreEditor.dns.server.inheritGlobal', { defaultValue: 'Inherit global' })}</SelectItem>
                       {QUERY_STRATEGY_OPTIONS.map(opt => (
-                        <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                        <SelectItem key={opt} value={opt}>
+                          {opt}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -789,10 +688,8 @@ export function XrayDnsSection({ headerAddPulse, headerAddEpoch }: XrayDnsSectio
               control={serverForm.control}
               name="domains"
               render={({ field }) => (
-                <FormItem className="sm:col-span-2 min-w-0">
-                  <FormLabel className="text-xs font-medium">
-                    {t('coreEditor.dns.server.domains', { defaultValue: 'Domains' })}
-                  </FormLabel>
+                <FormItem className="min-w-0 sm:col-span-2">
+                  <FormLabel className="text-xs font-medium">{t('coreEditor.dns.server.domains', { defaultValue: 'Domains' })}</FormLabel>
                   <FormControl>
                     <StringArrayPopoverInput
                       value={field.value}
@@ -817,10 +714,8 @@ export function XrayDnsSection({ headerAddPulse, headerAddEpoch }: XrayDnsSectio
               control={serverForm.control}
               name="expectedIPs"
               render={({ field }) => (
-                <FormItem className="sm:col-span-2 min-w-0">
-                  <FormLabel className="text-xs font-medium">
-                    {t('coreEditor.dns.server.expectedIPs', { defaultValue: 'Expected IPs' })}
-                  </FormLabel>
+                <FormItem className="min-w-0 sm:col-span-2">
+                  <FormLabel className="text-xs font-medium">{t('coreEditor.dns.server.expectedIPs', { defaultValue: 'Expected IPs' })}</FormLabel>
                   <FormControl>
                     <StringArrayPopoverInput
                       value={field.value}
@@ -844,11 +739,9 @@ export function XrayDnsSection({ headerAddPulse, headerAddEpoch }: XrayDnsSectio
               name="skipFallback"
               render={({ field }) => (
                 <FormItem className="flex flex-row items-start justify-between gap-3 rounded-md border p-3 sm:col-span-2">
-                  <div className="space-y-1 min-w-0">
-                    <FormLabel className="text-xs font-medium">
-                      {t('coreEditor.dns.server.skipFallback', { defaultValue: 'Skip fallback' })}
-                    </FormLabel>
-                    <p className="text-[11px] text-muted-foreground">
+                  <div className="min-w-0 space-y-1">
+                    <FormLabel className="text-xs font-medium">{t('coreEditor.dns.server.skipFallback', { defaultValue: 'Skip fallback' })}</FormLabel>
+                    <p className="text-muted-foreground text-[11px]">
                       {t('coreEditor.dns.server.skipFallbackHint', {
                         defaultValue: 'Skip this server during DNS fallback queries.',
                       })}
@@ -869,17 +762,11 @@ export function XrayDnsSection({ headerAddPulse, headerAddEpoch }: XrayDnsSectio
         isDialogOpen={hostDialogOpen}
         onOpenChange={setHostDialogOpen}
         leadingIcon={hostDialogMode === 'add' ? <Plus className="h-5 w-5 shrink-0" /> : <Pencil className="h-5 w-5 shrink-0" />}
-        title={
-          hostDialogMode === 'add'
-            ? t('coreEditor.dns.dialogAddHost', { defaultValue: 'Add host mapping' })
-            : t('coreEditor.dns.dialogEditHost', { defaultValue: 'Edit host mapping' })
-        }
+        title={hostDialogMode === 'add' ? t('coreEditor.dns.dialogAddHost', { defaultValue: 'Add host mapping' }) : t('coreEditor.dns.dialogEditHost', { defaultValue: 'Edit host mapping' })}
         size="md"
         footerExtra={
           <Button type="button" className="sm:min-w-[88px]" onClick={commitHost}>
-            {hostDialogMode === 'add'
-              ? t('coreEditor.dns.addToList', { defaultValue: 'Add to list' })
-              : t('modify')}
+            {hostDialogMode === 'add' ? t('coreEditor.dns.addToList', { defaultValue: 'Add to list' }) : t('modify')}
           </Button>
         }
       >
@@ -890,16 +777,9 @@ export function XrayDnsSection({ headerAddPulse, headerAddEpoch }: XrayDnsSectio
               name="domain"
               render={({ field }) => (
                 <FormItem className="min-w-0">
-                  <FormLabel className="text-xs font-medium">
-                    {t('coreEditor.dns.host.domain', { defaultValue: 'Domain' })}
-                  </FormLabel>
+                  <FormLabel className="text-xs font-medium">{t('coreEditor.dns.host.domain', { defaultValue: 'Domain' })}</FormLabel>
                   <FormControl>
-                    <Input
-                      {...field}
-                      dir="ltr"
-                      placeholder="domain:example.com / dns.google"
-                      className="text-xs"
-                    />
+                    <Input {...field} dir="ltr" placeholder="domain:example.com / dns.google" className="text-xs" />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -911,9 +791,7 @@ export function XrayDnsSection({ headerAddPulse, headerAddEpoch }: XrayDnsSectio
               name="addresses"
               render={({ field }) => (
                 <FormItem className="min-w-0">
-                  <FormLabel className="text-xs font-medium">
-                    {t('coreEditor.dns.host.addresses', { defaultValue: 'Addresses' })}
-                  </FormLabel>
+                  <FormLabel className="text-xs font-medium">{t('coreEditor.dns.host.addresses', { defaultValue: 'Addresses' })}</FormLabel>
                   <FormControl>
                     <StringArrayPopoverInput
                       value={field.value}
@@ -938,9 +816,7 @@ export function XrayDnsSection({ headerAddPulse, headerAddEpoch }: XrayDnsSectio
       <AlertDialog open={discardDraftOpen} onOpenChange={setDiscardDraftOpen}>
         <AlertDialogContent dir={dir}>
           <AlertDialogHeader>
-            <AlertDialogTitle>
-              {t('coreEditor.dns.discardDraftTitle', { defaultValue: 'Discard new DNS server?' })}
-            </AlertDialogTitle>
+            <AlertDialogTitle>{t('coreEditor.dns.discardDraftTitle', { defaultValue: 'Discard new DNS server?' })}</AlertDialogTitle>
             <AlertDialogDescription>
               {t('coreEditor.dns.discardDraftDescription', {
                 defaultValue: 'This server is not in the list yet. Closing without adding will discard your changes.',
@@ -964,9 +840,7 @@ export function XrayDnsSection({ headerAddPulse, headerAddEpoch }: XrayDnsSectio
       <AlertDialog open={blockAddWhileDraftOpen} onOpenChange={setBlockAddWhileDraftOpen}>
         <AlertDialogContent dir={dir}>
           <AlertDialogHeader>
-            <AlertDialogTitle>
-              {t('coreEditor.dns.finishCurrentTitle', { defaultValue: 'Finish the current DNS server first' })}
-            </AlertDialogTitle>
+            <AlertDialogTitle>{t('coreEditor.dns.finishCurrentTitle', { defaultValue: 'Finish the current DNS server first' })}</AlertDialogTitle>
             <AlertDialogDescription>
               {t('coreEditor.dns.finishCurrentDescription', {
                 defaultValue: 'Add it to the list, or close the dialog and discard the draft, before starting another DNS server.',

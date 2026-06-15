@@ -43,10 +43,7 @@ export default function AdminRoleActionsMenu({ role, onEdit, onDuplicate, classN
         description: t('adminRoles.deleteSuccess', { name: role.name, defaultValue: 'Role «{{name}}» has been deleted successfully' }),
       })
       setDeleteDialogOpen(false)
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: getGetRolesQueryKey() }),
-        queryClient.invalidateQueries({ queryKey: getGetRolesSimpleQueryKey() }),
-      ])
+      await Promise.all([queryClient.invalidateQueries({ queryKey: getGetRolesQueryKey() }), queryClient.invalidateQueries({ queryKey: getGetRolesSimpleQueryKey() })])
     } catch (error: any) {
       toast.error(t('error', { defaultValue: 'Error' }), {
         description: error?.data?.detail || error?.message || t('adminRoles.deleteFailed', { name: role.name, defaultValue: 'Failed to delete role «{{name}}»' }),
@@ -70,14 +67,8 @@ export default function AdminRoleActionsMenu({ role, onEdit, onDuplicate, classN
                 onEdit(role)
               }}
             >
-              {readOnlyRole ? (
-                <Eye className={cn('h-4 w-4 shrink-0', dir === 'rtl' ? 'ml-2' : 'mr-2')} />
-              ) : (
-                <Pencil className={cn('h-4 w-4 shrink-0', dir === 'rtl' ? 'ml-2' : 'mr-2')} />
-              )}
-              <span className="min-w-0 truncate">
-                {readOnlyRole ? t('view', { defaultValue: 'View' }) : t('edit', { defaultValue: 'Edit' })}
-              </span>
+              {readOnlyRole ? <Eye className={cn('h-4 w-4 shrink-0', dir === 'rtl' ? 'ml-2' : 'mr-2')} /> : <Pencil className={cn('h-4 w-4 shrink-0', dir === 'rtl' ? 'ml-2' : 'mr-2')} />}
+              <span className="min-w-0 truncate">{readOnlyRole ? t('view', { defaultValue: 'View' }) : t('edit', { defaultValue: 'Edit' })}</span>
             </DropdownMenuItem>
             <DropdownMenuItem
               onSelect={e => {

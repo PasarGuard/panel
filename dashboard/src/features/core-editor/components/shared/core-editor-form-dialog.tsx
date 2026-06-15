@@ -1,9 +1,6 @@
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import {
-  filterValidationListItemsByPathPrefix,
-  ValidationSummary,
-} from '@/features/core-editor/components/shared/validation-summary'
+import { filterValidationListItemsByPathPrefix, ValidationSummary } from '@/features/core-editor/components/shared/validation-summary'
 import { useXrayPersistValidationItems } from '@/features/core-editor/hooks/use-xray-persist-validation-items'
 import { cn } from '@/lib/utils'
 import useDirDetection from '@/hooks/use-dir-detection'
@@ -64,34 +61,21 @@ export function CoreEditorFormDialog({
   const { t } = useTranslation()
   const dir = useDirDetection()
   const allPersistValidationItems = useXrayPersistValidationItems()
-  const persistValidationItems = useMemo(
-    () => filterValidationListItemsByPathPrefix(allPersistValidationItems, persistValidationPathPrefix),
-    [allPersistValidationItems, persistValidationPathPrefix],
-  )
+  const persistValidationItems = useMemo(() => filterValidationListItemsByPathPrefix(allPersistValidationItems, persistValidationPathPrefix), [allPersistValidationItems, persistValidationPathPrefix])
 
   return (
     <Dialog open={isDialogOpen} onOpenChange={onOpenChange}>
-      <DialogContent
-        dir={dir}
-        onOpenAutoFocus={e => e.preventDefault()}
-        className={cn('h-auto w-full gap-4', sizeClass[size], className)}
-      >
+      <DialogContent dir={dir} onOpenAutoFocus={e => e.preventDefault()} className={cn('h-auto w-full gap-4', sizeClass[size], className)}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             {leadingIcon}
             {typeof title === 'string' || typeof title === 'number' ? <span>{title}</span> : title}
           </DialogTitle>
-          {description != null && (
-            <DialogDescription className={cn(!showDescription && 'sr-only', showDescription && 'text-pretty')}>
-              {description}
-            </DialogDescription>
-          )}
+          {description != null && <DialogDescription className={cn(!showDescription && 'sr-only', showDescription && 'text-pretty')}>{description}</DialogDescription>}
         </DialogHeader>
 
         <div className="-me-4 max-h-[80dvh] space-y-4 overflow-y-auto overscroll-contain px-2 pe-4 sm:max-h-[75dvh]">
-          {isDialogOpen && inlinePersistValidation && persistValidationItems.length > 0 ? (
-            <ValidationSummary items={persistValidationItems} className="shrink-0" />
-          ) : null}
+          {isDialogOpen && inlinePersistValidation && persistValidationItems.length > 0 ? <ValidationSummary items={persistValidationItems} className="shrink-0" /> : null}
           {children}
         </div>
 

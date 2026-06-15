@@ -61,14 +61,14 @@ export const useAdminRolesListColumns = ({ onEdit, onDuplicate }: UseAdminRolesL
         id: 'permissions',
         header: t('adminRoles.permissions', { defaultValue: 'Permissions' }),
         width: '1fr',
-        cell: role => <span className="truncate text-xs text-muted-foreground">{countResourcePermissions(role)}</span>,
+        cell: role => <span className="text-muted-foreground truncate text-xs">{countResourcePermissions(role)}</span>,
         hideOnMobile: true,
       },
       {
         id: 'limits',
         header: t('adminRoles.limits', { defaultValue: 'Limits' }),
         width: '1fr',
-        cell: role => <span className="truncate text-xs text-muted-foreground">{Object.keys(role.limits || {}).length}</span>,
+        cell: role => <span className="text-muted-foreground truncate text-xs">{Object.keys(role.limits || {}).length}</span>,
         hideOnMobile: true,
       },
       {

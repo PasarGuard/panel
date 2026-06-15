@@ -1,9 +1,5 @@
 import { isValidIconUrl, languageOptions, platformOptions, PlatformIcon } from '@/features/subscriptions/components/subscription-application-shared'
-import {
-  subscriptionApplicationSchema,
-  type SubscriptionApplicationFormData,
-  type SubscriptionFormData,
-} from '@/features/subscriptions/components/subscription-settings-schema'
+import { subscriptionApplicationSchema, type SubscriptionApplicationFormData, type SubscriptionFormData } from '@/features/subscriptions/components/subscription-settings-schema'
 import { Button } from '@/components/ui/button'
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
@@ -19,18 +15,7 @@ import { cn } from '@/lib/utils'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Info, Pencil, Plus, RotateCcw, Trash2 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import {
-  useFieldArray,
-  useForm,
-  useFormContext,
-  useFormState,
-  useWatch,
-  type Control,
-  type FieldArrayPath,
-  type FieldErrors,
-  type FieldPath,
-  type UseFormReturn,
-} from 'react-hook-form'
+import { useFieldArray, useForm, useFormContext, useFormState, useWatch, type Control, type FieldArrayPath, type FieldErrors, type FieldPath, type UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
 function IconUrlInfoPopover() {
@@ -45,15 +30,10 @@ function IconUrlInfoPopover() {
     <Popover>
       <PopoverTrigger asChild>
         <Button type="button" variant="ghost" size="icon" className="h-auto w-auto p-0 hover:bg-transparent" aria-label={description}>
-          <Info className="h-3.5 w-3.5 text-muted-foreground" />
+          <Info className="text-muted-foreground h-3.5 w-3.5" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent
-        className="w-[280px] p-3 text-xs leading-relaxed text-muted-foreground sm:w-[320px]"
-        side={infoPopoverSide}
-        align={infoPopoverAlign}
-        sideOffset={5}
-      >
+      <PopoverContent className="text-muted-foreground w-[280px] p-3 text-xs leading-relaxed sm:w-[320px]" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
         {description}
       </PopoverContent>
     </Popover>
@@ -80,20 +60,20 @@ function cloneApplication(app: SubscriptionApplicationFormData): SubscriptionApp
 
 export type SubscriptionApplicationSheetProps =
   | {
-    variant: 'create'
-    open: boolean
-    onOpenChange: (open: boolean) => void
-    onConfirm: (app: SubscriptionApplicationFormData) => void
-    isSaving: boolean
-  }
+      variant: 'create'
+      open: boolean
+      onOpenChange: (open: boolean) => void
+      onConfirm: (app: SubscriptionApplicationFormData) => void
+      isSaving: boolean
+    }
   | {
-    variant: 'edit'
-    form: UseFormReturn<SubscriptionFormData>
-    applicationIndex: number
-    rowId: string
-    open: boolean
-    onOpenChange: (open: boolean) => void
-  }
+      variant: 'edit'
+      form: UseFormReturn<SubscriptionFormData>
+      applicationIndex: number
+      rowId: string
+      open: boolean
+      onOpenChange: (open: boolean) => void
+    }
 
 export function SubscriptionApplicationSheet(props: SubscriptionApplicationSheetProps) {
   if (props.variant === 'create') {
@@ -103,18 +83,11 @@ export function SubscriptionApplicationSheet(props: SubscriptionApplicationSheet
 }
 
 /** @deprecated Use `<SubscriptionApplicationSheet variant="create" ... />` */
-export function SubscriptionAddApplicationDialog(
-  props: Pick<Extract<SubscriptionApplicationSheetProps, { variant: 'create' }>, 'open' | 'onOpenChange' | 'onConfirm' | 'isSaving'>,
-) {
+export function SubscriptionAddApplicationDialog(props: Pick<Extract<SubscriptionApplicationSheetProps, { variant: 'create' }>, 'open' | 'onOpenChange' | 'onConfirm' | 'isSaving'>) {
   return <SubscriptionApplicationSheet variant="create" {...props} />
 }
 
-function SubscriptionApplicationSheetCreate({
-  open,
-  onOpenChange,
-  onConfirm,
-  isSaving,
-}: Extract<SubscriptionApplicationSheetProps, { variant: 'create' }>) {
+function SubscriptionApplicationSheetCreate({ open, onOpenChange, onConfirm, isSaving }: Extract<SubscriptionApplicationSheetProps, { variant: 'create' }>) {
   const { t } = useTranslation()
   const isRtl = useDirDetection() === 'rtl'
   const [iconBroken, setIconBroken] = useState(false)
@@ -142,18 +115,10 @@ function SubscriptionApplicationSheetCreate({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        side={isRtl ? 'left' : 'right'}
-        className={cn('flex h-full max-h-screen w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-lg')}
-        onOpenAutoFocus={e => e.preventDefault()}
-      >
+      <SheetContent side={isRtl ? 'left' : 'right'} className={cn('flex h-full max-h-screen w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-lg')} onOpenAutoFocus={e => e.preventDefault()}>
         <Form {...form}>
-          <form
-            id="subscription-create-application-form"
-            className="flex min-h-0 flex-1 flex-col gap-0 overflow-hidden"
-            onSubmit={form.handleSubmit(onSubmit)}
-          >
-            <SheetHeader className="flex flex-col flex-shrink-0 space-y-1 border-b px-6 pb-4 pt-6 pe-14 text-start">
+          <form id="subscription-create-application-form" className="flex min-h-0 flex-1 flex-col gap-0 overflow-hidden" onSubmit={form.handleSubmit(onSubmit)}>
+            <SheetHeader className="flex flex-shrink-0 flex-col space-y-1 border-b px-6 pe-14 pt-6 pb-4 text-start">
               <SheetTitle className="flex items-center gap-2">
                 <Plus className="h-5 w-5" />
                 <span>{t('settings.subscriptions.applications.addApplication')}</span>
@@ -162,10 +127,7 @@ function SubscriptionApplicationSheetCreate({
             </SheetHeader>
 
             <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-6 py-4">
-              <ApplicationFieldsGridCreate
-                iconBroken={iconBroken}
-                setIconBroken={setIconBroken}
-              />
+              <ApplicationFieldsGridCreate iconBroken={iconBroken} setIconBroken={setIconBroken} />
               <DownloadLinksSection variant="create" linksFieldName="download_links" rowIdPrefix="create" />
             </div>
 
@@ -184,13 +146,7 @@ function SubscriptionApplicationSheetCreate({
   )
 }
 
-function SubscriptionApplicationSheetEdit({
-  form,
-  applicationIndex,
-  rowId,
-  open,
-  onOpenChange,
-}: Extract<SubscriptionApplicationSheetProps, { variant: 'edit' }>) {
+function SubscriptionApplicationSheetEdit({ form, applicationIndex, rowId, open, onOpenChange }: Extract<SubscriptionApplicationSheetProps, { variant: 'edit' }>) {
   const { t } = useTranslation()
   const isRtl = useDirDetection() === 'rtl'
   const [iconBroken, setIconBroken] = useState(false)
@@ -233,12 +189,8 @@ function SubscriptionApplicationSheetEdit({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        side={isRtl ? 'left' : 'right'}
-        className={cn('flex h-full max-h-screen w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-lg')}
-        onOpenAutoFocus={e => e.preventDefault()}
-      >
-        <SheetHeader className="flex flex-col flex-shrink-0 space-y-1 border-b px-6 pb-4 pt-6 pe-14 text-start">
+      <SheetContent side={isRtl ? 'left' : 'right'} className={cn('flex h-full max-h-screen w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-lg')} onOpenAutoFocus={e => e.preventDefault()}>
+        <SheetHeader className="flex flex-shrink-0 flex-col space-y-1 border-b px-6 pe-14 pt-6 pb-4 text-start">
           <SheetTitle className="flex items-center gap-2">
             <Pencil className="h-5 w-5" />
             <span>{t('settings.subscriptions.applications.editApplication', { defaultValue: 'Edit application' })}</span>
@@ -247,12 +199,7 @@ function SubscriptionApplicationSheetEdit({
         </SheetHeader>
 
         <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-6 py-4">
-          <ApplicationFieldsGridEdit
-            form={form}
-            applicationIndex={applicationIndex}
-            iconBroken={iconBroken}
-            setIconBroken={setIconBroken}
-          />
+          <ApplicationFieldsGridEdit form={form} applicationIndex={applicationIndex} iconBroken={iconBroken} setIconBroken={setIconBroken} />
           <DownloadLinksSection
             variant="edit"
             linksFieldName={linksFieldName}
@@ -277,13 +224,7 @@ function SubscriptionApplicationSheetEdit({
   )
 }
 
-function ApplicationFieldsGridCreate({
-  iconBroken,
-  setIconBroken,
-}: {
-  iconBroken: boolean
-  setIconBroken: (v: boolean) => void
-}) {
+function ApplicationFieldsGridCreate({ iconBroken, setIconBroken }: { iconBroken: boolean; setIconBroken: (v: boolean) => void }) {
   const { t } = useTranslation()
   const isRtl = useDirDetection() === 'rtl'
   const [selectedLanguage, setSelectedLanguage] = useState('en')
@@ -295,7 +236,7 @@ function ApplicationFieldsGridCreate({
         name="name"
         render={({ field }) => (
           <FormItem className="space-y-1">
-            <FormLabel className="text-xs text-muted-foreground/80">{t('settings.subscriptions.applications.name')}</FormLabel>
+            <FormLabel className="text-muted-foreground/80 text-xs">{t('settings.subscriptions.applications.name')}</FormLabel>
             <FormControl>
               <Input placeholder={t('settings.subscriptions.applications.namePlaceholder')} {...field} className="h-8 text-xs" />
             </FormControl>
@@ -310,7 +251,7 @@ function ApplicationFieldsGridCreate({
         render={({ field }) => (
           <FormItem className="space-y-1">
             <div className="flex items-center gap-1.5">
-              <FormLabel className="text-xs text-muted-foreground/80">{t('settings.subscriptions.applications.iconUrl', { defaultValue: 'Icon URL' })}</FormLabel>
+              <FormLabel className="text-muted-foreground/80 text-xs">{t('settings.subscriptions.applications.iconUrl', { defaultValue: 'Icon URL' })}</FormLabel>
               <IconUrlInfoPopover />
             </div>
             <FormControl>
@@ -324,7 +265,7 @@ function ApplicationFieldsGridCreate({
                 {field.value && !iconBroken && isValidIconUrl(String(field.value)) ? (
                   <img src={String(field.value)} alt="" className="h-8 w-8 shrink-0 rounded-sm object-cover" onError={() => setIconBroken(true)} />
                 ) : (
-                  <div className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-sm bg-muted text-muted-foreground/80">
+                  <div className="bg-muted text-muted-foreground/80 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-sm">
                     <span className="text-[10px]">🖼️</span>
                   </div>
                 )}
@@ -340,7 +281,7 @@ function ApplicationFieldsGridCreate({
         name="platform"
         render={({ field }) => (
           <FormItem className="space-y-1 sm:col-span-2">
-            <FormLabel className="text-xs text-muted-foreground/80">{t('settings.subscriptions.applications.platform')}</FormLabel>
+            <FormLabel className="text-muted-foreground/80 text-xs">{t('settings.subscriptions.applications.platform')}</FormLabel>
             <Select onValueChange={field.onChange} value={field.value}>
               <FormControl>
                 <SelectTrigger className="h-8 w-full text-xs">
@@ -368,11 +309,11 @@ function ApplicationFieldsGridCreate({
         name="import_url"
         render={({ field }) => (
           <FormItem className="space-y-1 sm:col-span-2">
-            <FormLabel className="text-xs text-muted-foreground/80">{t('settings.subscriptions.applications.importUrl')}</FormLabel>
+            <FormLabel className="text-muted-foreground/80 text-xs">{t('settings.subscriptions.applications.importUrl')}</FormLabel>
             <FormControl>
               <Input placeholder={t('settings.subscriptions.applications.importUrlPlaceholder')} {...field} className="h-8 font-mono text-xs" dir="ltr" />
             </FormControl>
-            <FormDescription className="text-xs text-muted-foreground">{t('settings.subscriptions.applications.importUrlDescription')}</FormDescription>
+            <FormDescription className="text-muted-foreground text-xs">{t('settings.subscriptions.applications.importUrlDescription')}</FormDescription>
             <FormMessage />
           </FormItem>
         )}
@@ -383,7 +324,7 @@ function ApplicationFieldsGridCreate({
         name="description"
         render={({ field }) => (
           <FormItem className="space-y-1 sm:col-span-2">
-            <FormLabel className="text-xs text-muted-foreground/80">{t('settings.subscriptions.applications.descriptionApp')}</FormLabel>
+            <FormLabel className="text-muted-foreground/80 text-xs">{t('settings.subscriptions.applications.descriptionApp')}</FormLabel>
             <FormControl>
               <div className="flex flex-col gap-2">
                 <Tabs value={selectedLanguage} onValueChange={setSelectedLanguage} className="w-full">
@@ -423,10 +364,10 @@ function ApplicationFieldsGridCreate({
         control={control}
         name="recommended"
         render={({ field }) => (
-          <FormItem className="flex flex-row items-center justify-between space-y-0 rounded-lg border bg-muted/30 p-3 sm:col-span-2">
+          <FormItem className="bg-muted/30 flex flex-row items-center justify-between space-y-0 rounded-lg border p-3 sm:col-span-2">
             <div className="space-y-0.5">
               <FormLabel className="text-xs font-medium">{t('settings.subscriptions.applications.recommended')}</FormLabel>
-              <FormDescription className="text-xs text-muted-foreground">{t('settings.subscriptions.applications.recommendedDescription')}</FormDescription>
+              <FormDescription className="text-muted-foreground text-xs">{t('settings.subscriptions.applications.recommendedDescription')}</FormDescription>
             </div>
             <FormControl>
               <Switch checked={field.value} onCheckedChange={field.onChange} />
@@ -459,12 +400,12 @@ function ApplicationFieldsGridEdit({
         name={`applications.${applicationIndex}.name`}
         render={({ field }) => (
           <FormItem className="space-y-1">
-            <FormLabel className="text-xs text-muted-foreground/80">{t('settings.subscriptions.applications.name')}</FormLabel>
+            <FormLabel className="text-muted-foreground/80 text-xs">{t('settings.subscriptions.applications.name')}</FormLabel>
             <FormControl>
               <Input placeholder={t('settings.subscriptions.applications.namePlaceholder')} {...field} className="h-8 text-xs" />
             </FormControl>
             {form.formState.errors.applications?.[applicationIndex]?.name && (
-              <p className="text-[0.8rem] font-medium text-destructive">{t('validation.required', { field: t('settings.subscriptions.applications.name') })}</p>
+              <p className="text-destructive text-[0.8rem] font-medium">{t('validation.required', { field: t('settings.subscriptions.applications.name') })}</p>
             )}
           </FormItem>
         )}
@@ -476,16 +417,21 @@ function ApplicationFieldsGridEdit({
         render={({ field }) => (
           <FormItem className="space-y-1">
             <div className="flex items-center gap-1.5">
-              <FormLabel className="text-xs text-muted-foreground/80">{t('settings.subscriptions.applications.iconUrl', { defaultValue: 'Icon URL' })}</FormLabel>
+              <FormLabel className="text-muted-foreground/80 text-xs">{t('settings.subscriptions.applications.iconUrl', { defaultValue: 'Icon URL' })}</FormLabel>
               <IconUrlInfoPopover />
             </div>
             <FormControl>
               <div className="flex items-center gap-2">
-                <Input placeholder={t('settings.subscriptions.applications.iconUrlPlaceholder', { defaultValue: 'https://...' })} {...field} className="h-8 min-w-0 flex-1 font-mono text-xs" dir="ltr" />
+                <Input
+                  placeholder={t('settings.subscriptions.applications.iconUrlPlaceholder', { defaultValue: 'https://...' })}
+                  {...field}
+                  className="h-8 min-w-0 flex-1 font-mono text-xs"
+                  dir="ltr"
+                />
                 {field.value && !iconBroken && isValidIconUrl(String(field.value)) ? (
                   <img src={String(field.value)} alt="" className="h-8 w-8 shrink-0 rounded-sm object-cover" onError={() => setIconBroken(true)} />
                 ) : (
-                  <div className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-sm bg-muted text-muted-foreground/80">
+                  <div className="bg-muted text-muted-foreground/80 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-sm">
                     <span className="text-[10px]">🖼️</span>
                   </div>
                 )}
@@ -501,7 +447,7 @@ function ApplicationFieldsGridEdit({
         name={`applications.${applicationIndex}.platform`}
         render={({ field }) => (
           <FormItem className="space-y-1 sm:col-span-2">
-            <FormLabel className="text-xs text-muted-foreground/80">{t('settings.subscriptions.applications.platform')}</FormLabel>
+            <FormLabel className="text-muted-foreground/80 text-xs">{t('settings.subscriptions.applications.platform')}</FormLabel>
             <Select onValueChange={field.onChange} value={field.value}>
               <FormControl>
                 <SelectTrigger className="h-8 w-full text-xs">
@@ -529,11 +475,11 @@ function ApplicationFieldsGridEdit({
         name={`applications.${applicationIndex}.import_url`}
         render={({ field }) => (
           <FormItem className="space-y-1 sm:col-span-2">
-            <FormLabel className="text-xs text-muted-foreground/80">{t('settings.subscriptions.applications.importUrl')}</FormLabel>
+            <FormLabel className="text-muted-foreground/80 text-xs">{t('settings.subscriptions.applications.importUrl')}</FormLabel>
             <FormControl>
               <Input placeholder={t('settings.subscriptions.applications.importUrlPlaceholder')} {...field} className="h-8 text-left font-mono text-xs" dir="ltr" />
             </FormControl>
-            <FormDescription className="text-xs text-muted-foreground">{t('settings.subscriptions.applications.importUrlDescription')}</FormDescription>
+            <FormDescription className="text-muted-foreground text-xs">{t('settings.subscriptions.applications.importUrlDescription')}</FormDescription>
             <FormMessage />
           </FormItem>
         )}
@@ -544,7 +490,7 @@ function ApplicationFieldsGridEdit({
         name={`applications.${applicationIndex}.description`}
         render={({ field }) => (
           <FormItem className="space-y-1 sm:col-span-2">
-            <FormLabel className="text-xs text-muted-foreground/80">{t('settings.subscriptions.applications.descriptionApp')}</FormLabel>
+            <FormLabel className="text-muted-foreground/80 text-xs">{t('settings.subscriptions.applications.descriptionApp')}</FormLabel>
             <FormControl>
               <div className="flex flex-col gap-2">
                 <Tabs value={selectedLanguage} onValueChange={setSelectedLanguage} className="w-full">
@@ -584,10 +530,10 @@ function ApplicationFieldsGridEdit({
         control={form.control}
         name={`applications.${applicationIndex}.recommended`}
         render={({ field }) => (
-          <FormItem className="flex flex-row items-center justify-between space-y-0 rounded-lg border bg-muted/30 p-3 sm:col-span-2">
+          <FormItem className="bg-muted/30 flex flex-row items-center justify-between space-y-0 rounded-lg border p-3 sm:col-span-2">
             <div className="space-y-0.5">
               <FormLabel className="text-xs font-medium">{t('settings.subscriptions.applications.recommended')}</FormLabel>
-              <FormDescription className="text-xs text-muted-foreground">{t('settings.subscriptions.applications.recommendedDescription')}</FormDescription>
+              <FormDescription className="text-muted-foreground text-xs">{t('settings.subscriptions.applications.recommendedDescription')}</FormDescription>
             </div>
             <FormControl>
               <Switch checked={field.value} onCheckedChange={field.onChange} />
@@ -608,14 +554,7 @@ type DownloadLinksSectionProps = {
   restoreLinksVersion?: number
 }
 
-function DownloadLinksSection({
-  variant,
-  linksFieldName,
-  rowIdPrefix,
-  applicationIndex,
-  restoredLinks,
-  restoreLinksVersion = 0,
-}: DownloadLinksSectionProps) {
+function DownloadLinksSection({ variant, linksFieldName, rowIdPrefix, applicationIndex, restoredLinks, restoreLinksVersion = 0 }: DownloadLinksSectionProps) {
   const { t } = useTranslation()
   const isRtl = useDirDetection() === 'rtl'
   const { control } = useFormContext<SubscriptionFormData & SubscriptionApplicationFormData>()
@@ -643,16 +582,12 @@ function DownloadLinksSection({
   const createErrors = errors as FieldErrors<SubscriptionApplicationFormData>
   const editErrors = errors as FieldErrors<SubscriptionFormData>
   const downloadLinksRootError =
-    variant === 'create'
-      ? createErrors.download_links?.message
-      : applicationIndex !== undefined
-        ? editErrors.applications?.[applicationIndex]?.download_links?.message
-        : undefined
+    variant === 'create' ? createErrors.download_links?.message : applicationIndex !== undefined ? editErrors.applications?.[applicationIndex]?.download_links?.message : undefined
 
   return (
     <div className="space-y-2">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <FormLabel className="text-xs font-medium text-muted-foreground/80">
+        <FormLabel className="text-muted-foreground/80 text-xs font-medium">
           {t('settings.subscriptions.applications.downloadLinks')} ({fields.length})
         </FormLabel>
         <Button type="button" variant="outline" size="sm" onClick={addDownloadLink} className="h-7 w-full text-xs sm:w-auto">
@@ -663,13 +598,11 @@ function DownloadLinksSection({
       </div>
 
       {downloadLinksRootError && (
-        <p className="px-1 text-[0.8rem] font-medium text-destructive">
-          {t('settings.subscriptions.applications.downloadLinksRequired', { defaultValue: 'At least one download link is required' })}
-        </p>
+        <p className="text-destructive px-1 text-[0.8rem] font-medium">{t('settings.subscriptions.applications.downloadLinksRequired', { defaultValue: 'At least one download link is required' })}</p>
       )}
 
       {fields.length === 0 ? (
-        <div className="py-4 text-center text-muted-foreground">
+        <div className="text-muted-foreground py-4 text-center">
           <p className="text-xs">{t('settings.subscriptions.applications.noDownloadLinks')}</p>
         </div>
       ) : (
@@ -693,7 +626,7 @@ function DownloadLinksSection({
                   : undefined
 
             return (
-              <div key={`${rowIdPrefix}-${linkField.id}`} className="flex flex-col gap-2 rounded-md border bg-muted/20 p-2 sm:flex-row">
+              <div key={`${rowIdPrefix}-${linkField.id}`} className="bg-muted/20 flex flex-col gap-2 rounded-md border p-2 sm:flex-row">
                 <FormField
                   control={control}
                   name={`${base}.name` as FieldPath<SubscriptionFormData & SubscriptionApplicationFormData>}
@@ -712,7 +645,7 @@ function DownloadLinksSection({
                         />
                       </FormControl>
                       {nameErr && (
-                        <p className="text-[0.75rem] font-medium text-destructive">
+                        <p className="text-destructive text-[0.75rem] font-medium">
                           {t('validation.required', { field: t('settings.subscriptions.applications.downloadLinkName', { defaultValue: 'Download link name' }) })}
                         </p>
                       )}
@@ -736,7 +669,7 @@ function DownloadLinksSection({
                           dir="ltr"
                         />
                       </FormControl>
-                      {urlErr && <p className="text-[0.75rem] font-medium text-destructive">{t('validation.url', { defaultValue: 'Please enter a valid URL' })}</p>}
+                      {urlErr && <p className="text-destructive text-[0.75rem] font-medium">{t('validation.url', { defaultValue: 'Please enter a valid URL' })}</p>}
                     </FormItem>
                   )}
                 />
@@ -773,7 +706,7 @@ function DownloadLinksSection({
                     size="icon"
                     onClick={() => remove(linkIndex)}
                     disabled={fields.length <= 1}
-                    className="h-7 w-7 shrink-0 p-0 text-destructive hover:bg-destructive/10 disabled:opacity-40"
+                    className="text-destructive hover:bg-destructive/10 h-7 w-7 shrink-0 p-0 disabled:opacity-40"
                     aria-label={t('remove', { defaultValue: 'Remove' })}
                   >
                     <Trash2 className="h-3 w-3" />

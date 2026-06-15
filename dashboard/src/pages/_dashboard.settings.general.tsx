@@ -27,11 +27,7 @@ type GeneralSettingsFormInput = z.input<typeof generalSettingsSchema>
 export default function General() {
   const { t } = useTranslation()
   const { isLoading, error, updateSettings, isSaving } = useSettingsContext()
-  const {
-    data: generalSettings,
-    isLoading: isGeneralLoading,
-    error: generalError,
-  } = useGetGeneralSettings()
+  const { data: generalSettings, isLoading: isGeneralLoading, error: generalError } = useGetGeneralSettings()
   const [isReconnectAllDialogOpen, setIsReconnectAllDialogOpen] = useState(false)
   const reconnectAllNodeMutation = useReconnectAllNode()
 
@@ -187,7 +183,7 @@ export default function General() {
                         </SelectContent>
                       </Select>
                     </FormControl>
-                    <FormDescription className="text-xs text-muted-foreground sm:text-sm">{t('settings.general.defaultMethod.description')}</FormDescription>
+                    <FormDescription className="text-muted-foreground text-xs sm:text-sm">{t('settings.general.defaultMethod.description')}</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -201,9 +197,16 @@ export default function General() {
           <div className="flex flex-col gap-3 py-3 sm:gap-4 md:flex-row md:items-start md:justify-between">
             <div className="space-y-1">
               <h3 className="text-base font-semibold sm:text-lg">{t('nodes.title', { defaultValue: 'Reconnect All Nodes' })}</h3>
-              <p className="text-xs text-muted-foreground sm:text-sm">{t('nodes.reconnectinfo', { defaultValue: 'Refresh all nodes connections' })}</p>
+              <p className="text-muted-foreground text-xs sm:text-sm">{t('nodes.reconnectinfo', { defaultValue: 'Refresh all nodes connections' })}</p>
             </div>
-            <Button variant="destructive" size="sm" type="button" onClick={() => setIsReconnectAllDialogOpen(true)} disabled={reconnectAllNodeMutation.isPending} className="w-full shrink-0 gap-2 sm:w-auto">
+            <Button
+              variant="destructive"
+              size="sm"
+              type="button"
+              onClick={() => setIsReconnectAllDialogOpen(true)}
+              disabled={reconnectAllNodeMutation.isPending}
+              className="w-full shrink-0 gap-2 sm:w-auto"
+            >
               {reconnectAllNodeMutation.isPending ? (
                 <>
                   <Loader2 className="h-3 w-3 animate-spin" />

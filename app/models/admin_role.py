@@ -1,11 +1,21 @@
 from datetime import datetime as dt
-from enum import Enum, IntEnum
+from enum import Enum, IntEnum, StrEnum
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.models.settings import HWIDSettings
 from app.models.validators import ListValidator
+
+
+class HWIDMode(StrEnum):
+    DISABLED = "disabled"
+    USE_GLOBAL = "use_global"
+    OVERRIDE = "override"
+
+
+class RoleHWIDSettings(HWIDSettings):
+    mode: HWIDMode = Field(default=HWIDMode.USE_GLOBAL)
 
 
 class PermissionScope(IntEnum):
@@ -141,7 +151,7 @@ class AdminRoleBase(BaseModel):
     limits: RoleLimits = Field(default_factory=RoleLimits)
     features: RoleFeatures = Field(default_factory=RoleFeatures)
     access: RoleAccess = Field(default_factory=RoleAccess)
-    hwid: HWIDSettings = Field(default_factory=HWIDSettings)
+    hwid: RoleHWIDSettings = Field(default_factory=RoleHWIDSettings)
     disabled_when_limited: bool = False
     disconnect_users_when_limited: bool = True
     disconnect_users_when_disabled: bool = True
@@ -159,7 +169,7 @@ class AdminRoleModify(BaseModel):
     limits: RoleLimits | None = None
     features: RoleFeatures | None = None
     access: RoleAccess | None = None
-    hwid: HWIDSettings | None = None
+    hwid: RoleHWIDSettings | None = None
     disabled_when_limited: bool | None = None
     disconnect_users_when_limited: bool | None = None
     disconnect_users_when_disabled: bool | None = None

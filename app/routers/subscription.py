@@ -82,6 +82,5 @@ async def user_subscription_with_client_type(
         token=token,
         client_type=client_type,
         request_url=str(request.url),
-        accept_header=request.headers.get("Accept", ""),
         **headers.model_dump(),
     )

@@ -8,7 +8,7 @@ import { toast } from 'sonner'
 import AdminsTable from '@/features/admins/components/admins-table'
 import AdminModal from '@/features/admins/dialogs/admin-modal'
 import { adminFormDefaultValues, adminFormSchema, adminPermissionOverridesDefaultValues, type AdminFormValuesInput } from '@/features/admins/forms/admin-form'
-import { useActivateAllDisabledUsersById, useDisableAllActiveUsersById, useModifyAdminById, useRemoveAdminById, useResetAdminUsageById } from '@/service/api'
+import { useModifyAdminById, useRemoveAdminById, useResetAdminUsageById } from '@/service/api'
 import type { AdminDetails } from '@/service/api'
 import AdminsStatistics from '@/features/admins/components/admin-statistics'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -36,8 +36,6 @@ export default function AdminsPage() {
   const removeAdminMutation = useRemoveAdminById()
   const modifyAdminMutation = useModifyAdminById()
   const rolesQuery = useGetRolesSimple({ query: { enabled: canUpdateAdmins } })
-  const modifyDisableAllAdminUsers = useDisableAllActiveUsersById()
-  const modifyActivateAllAdminUsers = useActivateAllDisabledUsersById()
   const resetUsageMutation = useResetAdminUsageById()
   const handleError = useDynamicErrorHandler()
 
@@ -82,23 +80,12 @@ export default function AdminsPage() {
     }
   }
 
-  const handleToggleStatus = async (admin: AdminDetails, checked: boolean) => {
+  const handleToggleStatus = async (admin: AdminDetails) => {
     const adminId = getAdminId(admin)
     if (adminId == null) return
 
     try {
       const disabled = isAdminDisabled(admin)
-      if (!disabled && checked) {
-        await modifyDisableAllAdminUsers.mutateAsync({
-          adminId,
-        })
-      }
-
-      if (disabled && checked) {
-        await modifyActivateAllAdminUsers.mutateAsync({
-          adminId,
-        })
-      }
       const updatedAdmin = await modifyAdminMutation.mutateAsync({
         adminId,
         data: {
@@ -218,7 +205,7 @@ export default function AdminsPage() {
 
   return (
     <div className="flex w-full flex-col items-start gap-2">
-      <div className="w-full transform-gpu animate-fade-in" style={{ animationDuration: '400ms' }}>
+      <div className="animate-fade-in w-full transform-gpu" style={{ animationDuration: '400ms' }}>
         <PageHeader
           title="admins.title"
           description="admins.description"
@@ -227,10 +214,10 @@ export default function AdminsPage() {
           onButtonClick={
             canCreateAdmins
               ? () => {
-                setEditingAdmin(null)
-                form.reset(adminFormDefaultValues)
-                setIsDialogOpen(true)
-              }
+                  setEditingAdmin(null)
+                  form.reset(adminFormDefaultValues)
+                  setIsDialogOpen(true)
+                }
               : undefined
           }
         />
@@ -238,11 +225,11 @@ export default function AdminsPage() {
       </div>
 
       <div className="w-full px-4 pt-2">
-        <div className="transform-gpu animate-slide-up" style={{ animationDuration: '500ms', animationDelay: '100ms', animationFillMode: 'both' }}>
+        <div className="animate-slide-up transform-gpu" style={{ animationDuration: '500ms', animationDelay: '100ms', animationFillMode: 'both' }}>
           <AdminsStatistics counts={adminCounts} />
         </div>
 
-        <div className="transform-gpu animate-slide-up" style={{ animationDuration: '500ms', animationDelay: '250ms', animationFillMode: 'both' }}>
+        <div className="animate-slide-up transform-gpu" style={{ animationDuration: '500ms', animationDelay: '250ms', animationFillMode: 'both' }}>
           <AdminsTable onEdit={handleEdit} onDelete={handleDelete} onToggleStatus={handleToggleStatus} onResetUsage={resetUsage} onTotalAdminsChange={setAdminCounts} />
         </div>
 

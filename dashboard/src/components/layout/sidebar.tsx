@@ -77,34 +77,54 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const canBulkCreateFromTemplate = hasPermission(admin, 'users', 'create') && canReadTemplates
   const canBulkUpdateUsers = hasScopeAll(admin, 'users', 'update')
   const nodeNavItems = [
-    ...(canReadNodes ? [{
-      title: 'nodes.title',
-      url: '/nodes',
-      icon: Share2Icon,
-    }] : []),
-    ...(canReadCores ? [{
-      title: 'settings.cores.title',
-      url: '/nodes/cores',
-      icon: Cpu,
-      matchPrefix: true,
-    }] : []),
-    ...(canReadNodeLogs ? [{
-      title: 'nodes.logs.title',
-      url: '/nodes/logs',
-      icon: Logs,
-    }] : []),
+    ...(canReadNodes
+      ? [
+          {
+            title: 'nodes.title',
+            url: '/nodes',
+            icon: Share2Icon,
+          },
+        ]
+      : []),
+    ...(canReadCores
+      ? [
+          {
+            title: 'settings.cores.title',
+            url: '/nodes/cores',
+            icon: Cpu,
+            matchPrefix: true,
+          },
+        ]
+      : []),
+    ...(canReadNodeLogs
+      ? [
+          {
+            title: 'nodes.logs.title',
+            url: '/nodes/logs',
+            icon: Logs,
+          },
+        ]
+      : []),
   ]
   const templateNavItems = [
-    ...(canReadTemplates ? [{
-      title: 'templates.userTemplates',
-      url: '/templates/user',
-      icon: FileUser,
-    }] : []),
-    ...(canReadClientTemplates ? [{
-      title: 'templates.clientTemplates',
-      url: '/templates/client',
-      icon: FileCode2,
-    }] : []),
+    ...(canReadTemplates
+      ? [
+          {
+            title: 'templates.userTemplates',
+            url: '/templates/user',
+            icon: FileUser,
+          },
+        ]
+      : []),
+    ...(canReadClientTemplates
+      ? [
+          {
+            title: 'templates.clientTemplates',
+            url: '/templates/client',
+            icon: FileCode2,
+          },
+        ]
+      : []),
   ]
   const { currentVersion: systemVersion } = useSystemVersion({ enabled: canReadSystem })
   const { setOpenMobile, openMobile, state, isMobile, toggleSidebar } = useSidebar()
@@ -168,50 +188,68 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       name: admin?.username || 'Admin',
     },
     navMain: [
-      ...(canReadSystem ? [{
-        title: 'dashboard',
-        url: '/',
-        icon: LayoutDashboardIcon,
-      }] : []),
-      ...(hasPermission(admin, 'users', 'read') ? [{
-        title: 'users',
-        url: '/users',
-        icon: UsersIcon,
-      }] : []),
+      ...(canReadSystem
+        ? [
+            {
+              title: 'dashboard',
+              url: '/',
+              icon: LayoutDashboardIcon,
+            },
+          ]
+        : []),
+      ...(hasPermission(admin, 'users', 'read')
+        ? [
+            {
+              title: 'users',
+              url: '/users',
+              icon: UsersIcon,
+            },
+          ]
+        : []),
       ...(hasPermission(admin, 'nodes', 'stats')
-        ? [{
-            title: 'statistics',
-            url: '/statistics',
-            icon: PieChart,
-          }]
+        ? [
+            {
+              title: 'statistics',
+              url: '/statistics',
+              icon: PieChart,
+            },
+          ]
         : []),
       ...(canReadHosts
-        ? [{
-            title: 'hosts',
-            url: '/hosts',
-            icon: ListTodo,
-          }]
+        ? [
+            {
+              title: 'hosts',
+              url: '/hosts',
+              icon: ListTodo,
+            },
+          ]
         : []),
       ...(canReadGroups
-        ? [{
-            title: 'groups',
-            url: '/groups',
-            icon: Group,
-          }]
+        ? [
+            {
+              title: 'groups',
+              url: '/groups',
+              icon: Group,
+            },
+          ]
         : []),
       ...(canReadAdmins
-        ? [{
-            title: 'admins.title',
-            url: '/admins',
-            icon: UserCog,
-          }]
+        ? [
+            {
+              title: 'admins.title',
+              url: '/admins',
+              icon: UserCog,
+            },
+          ]
         : []),
       ...(isOwner(admin)
-        ? [{
-            title: 'adminRoles.title',
-            url: '/admin-roles',
-            icon: UserKey,
-          }]
+        ? [
+            {
+              title: 'adminRoles.title',
+              url: '/admin-roles',
+              icon: UserKey,
+            },
+          ]
         : []),
       ...(canReadApiKeys
         ? [{
@@ -221,107 +259,129 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           }]
         : []),
       ...(nodeNavItems.length > 0
-        ? [{
-            title: 'nodes.title',
-            url: nodeNavItems[0].url,
-            icon: Share2Icon,
-            items: nodeNavItems,
-          }]
+        ? [
+            {
+              title: 'nodes.title',
+              url: nodeNavItems[0].url,
+              icon: Share2Icon,
+              items: nodeNavItems,
+            },
+          ]
         : []),
       ...(templateNavItems.length > 0
-        ? [{
-            title: 'templates.title',
-            url: templateNavItems[0].url,
-            icon: LayoutTemplate,
-            items: templateNavItems,
-          }]
+        ? [
+            {
+              title: 'templates.title',
+              url: templateNavItems[0].url,
+              icon: LayoutTemplate,
+              items: templateNavItems,
+            },
+          ]
         : []),
       ...(canBulkCreateFromTemplate || canBulkUpdateUsers
-        ? [{
-            title: 'bulk.title',
-            url: '/bulk',
-            icon: Layers,
-            items: [
-              ...(canBulkCreateFromTemplate ? [{
-                title: 'bulk.createUsers',
-                url: '/bulk',
-                icon: UserPlus,
-              }] : []),
-              ...(canBulkUpdateUsers ? [{
-                title: 'bulk.groups',
-                url: '/bulk/groups',
-                icon: Group,
-              },
-              {
-                title: 'bulk.expireDate',
-                url: '/bulk/expire',
-                icon: Calendar,
-              },
-              {
-                title: 'bulk.dataLimit',
-                url: '/bulk/data',
-                icon: ArrowUpDown,
-              },
-              {
-                title: 'bulk.proxySettings',
-                url: '/bulk/proxy',
-                icon: Lock,
-              },
-              {
-                title: 'bulk.wireguardPeerIps',
-                url: '/bulk/wireguard',
-                icon: Network,
-              }] : []),
-            ],
-          }]
+        ? [
+            {
+              title: 'bulk.title',
+              url: '/bulk',
+              icon: Layers,
+              items: [
+                ...(canBulkCreateFromTemplate
+                  ? [
+                      {
+                        title: 'bulk.createUsers',
+                        url: '/bulk',
+                        icon: UserPlus,
+                      },
+                    ]
+                  : []),
+                ...(canBulkUpdateUsers
+                  ? [
+                      {
+                        title: 'bulk.groups',
+                        url: '/bulk/groups',
+                        icon: Group,
+                      },
+                      {
+                        title: 'bulk.expireDate',
+                        url: '/bulk/expire',
+                        icon: Calendar,
+                      },
+                      {
+                        title: 'bulk.dataLimit',
+                        url: '/bulk/data',
+                        icon: ArrowUpDown,
+                      },
+                      {
+                        title: 'bulk.proxySettings',
+                        url: '/bulk/proxy',
+                        icon: Lock,
+                      },
+                      {
+                        title: 'bulk.wireguardPeerIps',
+                        url: '/bulk/wireguard',
+                        icon: Network,
+                      },
+                    ]
+                  : []),
+              ],
+            },
+          ]
         : []),
       {
-            title: 'settings.title',
-            url: '/settings',
-            icon: Settings2,
-            items: [
-              ...(hasPermission(admin, 'settings', 'read_general') && hasPermission(admin, 'settings', 'update') ? [{
-                title: 'settings.general.title',
-                url: '/settings/general',
-                icon: Settings,
-              }] : []),
-              ...(hasPermission(admin, 'settings', 'read') && hasPermission(admin, 'settings', 'update') ? [{
-                title: 'settings.notifications.title',
-                url: '/settings/notifications',
-                icon: Bell,
-              },
-              {
-                title: 'settings.subscriptions.title',
-                url: '/settings/subscriptions',
-                icon: ListTodo,
-              },
-              {
-                title: 'settings.hwid.title',
-                url: '/settings/hwid',
-                icon: Fingerprint
-              },
-              {
-                title: 'settings.telegram.title',
-                url: '/settings/telegram',
-                icon: Send,
-              },
-              {
-                title: 'settings.webhook.title',
-                url: '/settings/webhook',
-                icon: Webhook,
-              },
-              {
-                title: 'settings.cleanup.title',
-                url: '/settings/cleanup',
-                icon: Database,
-              }] : []),
-              {
-                title: 'theme.title',
-                url: '/settings/theme',
-                icon: Palette,
-              },
-            ],
+        title: 'settings.title',
+        url: '/settings',
+        icon: Settings2,
+        items: [
+          ...(hasPermission(admin, 'settings', 'read_general') && hasPermission(admin, 'settings', 'update')
+            ? [
+                {
+                  title: 'settings.general.title',
+                  url: '/settings/general',
+                  icon: Settings,
+                },
+              ]
+            : []),
+          ...(hasPermission(admin, 'settings', 'read') && hasPermission(admin, 'settings', 'update')
+            ? [
+                {
+                  title: 'settings.notifications.title',
+                  url: '/settings/notifications',
+                  icon: Bell,
+                },
+                {
+                  title: 'settings.subscriptions.title',
+                  url: '/settings/subscriptions',
+                  icon: ListTodo,
+                },
+                {
+                  title: 'settings.hwid.title',
+                  url: '/settings/hwid',
+                  icon: Fingerprint,
+                },
+                {
+                  title: 'settings.telegram.title',
+                  url: '/settings/telegram',
+                  icon: Send,
+                },
+                {
+                  title: 'settings.webhook.title',
+                  url: '/settings/webhook',
+                  icon: Webhook,
+                },
+                {
+                  title: 'settings.cleanup.title',
+                  url: '/settings/cleanup',
+                  icon: Database,
+                },
+              ]
+            : []),
+          {
+            title: 'theme.title',
+            url: '/settings/theme',
+            icon: Palette,
           },
+        ],
+      },
     ],
     navSecondary: [
       {
@@ -356,8 +416,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   return (
     <>
       <div className="sticky top-0 z-30 lg:hidden">
-        <div className="h-[env(safe-area-inset-top)] bg-sidebar" />
-        <div className="flex items-center justify-between border-b border-sidebar-border bg-sidebar/80 px-4 py-3 backdrop-blur-md supports-[backdrop-filter]:bg-sidebar/65">
+        <div className="bg-sidebar h-[env(safe-area-inset-top)]" />
+        <div className="border-sidebar-border bg-sidebar/80 supports-[backdrop-filter]:bg-sidebar/65 flex items-center justify-between border-b px-4 py-3 backdrop-blur-md">
           <Link to="/" className="flex items-center gap-2">
             <img
               src={resolvedTheme === 'dark' ? window.location.pathname + 'statics/favicon/logo.png' : window.location.pathname + 'statics/favicon/logo-dark.png'}
@@ -413,7 +473,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                         <SidebarMenuButton
                           size="lg"
                           className={cn(
-                            'absolute inset-0 w-full cursor-pointer justify-center !gap-0 rounded-full transition-opacity duration-200 ease-in-out hover:bg-sidebar-accent/70',
+                            'hover:bg-sidebar-accent/70 absolute inset-0 w-full cursor-pointer justify-center !gap-0 rounded-full transition-opacity duration-200 ease-in-out',
                             showCollapseButton ? 'opacity-100' : 'pointer-events-none opacity-0',
                           )}
                           onClick={toggleSidebar}
@@ -439,7 +499,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                         className="h-8 w-8 flex-shrink-0 object-contain"
                       />
                       <div className="flex min-w-0 flex-1 flex-col items-start overflow-hidden">
-                        <span className={cn(isRTL ? 'text-right' : 'text-left', 'truncate text-sm font-semibold leading-tight')}>{t('pasarguard')}</span>
+                        <span className={cn(isRTL ? 'text-right' : 'text-left', 'truncate text-sm leading-tight font-semibold')}>{t('pasarguard')}</span>
                         {canReadSystem && (
                           <div className="flex min-w-0 flex-wrap items-center gap-0.75 leading-none">
                             <span className="max-w-full truncate text-xs leading-none opacity-45">{displayVersion}</span>
@@ -460,7 +520,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                           variant="ghost"
                           size="icon"
                           className={cn(
-                            'absolute top-1/2 z-10 h-8 w-8 shrink-0 -translate-y-1/2 cursor-pointer rounded-full border border-transparent transition-colors hover:border-sidebar-border hover:bg-sidebar-accent/70',
+                            'hover:border-sidebar-border hover:bg-sidebar-accent/70 absolute top-1/2 z-10 h-8 w-8 shrink-0 -translate-y-1/2 cursor-pointer rounded-full border border-transparent transition-colors',
                             isRTL ? 'left-2' : 'right-2',
                           )}
                           onClick={e => {
@@ -488,7 +548,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                       className="h-8 w-8 flex-shrink-0 object-contain"
                     />
                     <div className="flex min-w-0 flex-col overflow-hidden">
-                      <span className={cn(isRTL ? 'text-right' : 'text-left', 'truncate text-sm font-semibold leading-tight')}>{t('pasarguard')}</span>
+                      <span className={cn(isRTL ? 'text-right' : 'text-left', 'truncate text-sm leading-tight font-semibold')}>{t('pasarguard')}</span>
                       {canReadSystem && (
                         <div className="flex min-w-0 flex-wrap items-center gap-0.75 leading-none">
                           <span className="max-w-full truncate text-xs leading-none opacity-45">{displayVersion}</span>

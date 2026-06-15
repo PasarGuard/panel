@@ -5,7 +5,7 @@ from fastapi import status
 from sqlalchemy import select
 
 from app.db.models import User
-from app.utils.crypto import generate_wireguard_keypair
+from app.utils.crypto import generate_wireguard_keypair, get_wireguard_public_key
 from tests.api import TestSession
 from tests.api import client
 from tests.api.helpers import (
@@ -448,6 +448,62 @@ def test_bulk_revoke_users_subscription_by_ids(access_token):
             assert get_user_sub_revoked_at(user["username"]) is not None
     finally:
         cleanup(access_token, core, groups, users)
+
+
+def test_bulk_revoke_users_subscription_regenerates_wireguard_keys(access_token):
+    interface_private_key, _ = generate_wireguard_keypair()
+    interface_name = unique_name("wg_bulk_revoke")
+    core = create_core(
+        access_token,
+        name=unique_name("wireguard_bulk_revoke_core"),
+        config={
+            "interface_name": interface_name,
+            "private_key": interface_private_key,
+            "listen_port": 51820,
+            "address": ["10.46.0.1/24"],
+        },
+        type="wg",
+        fallbacks=[],
+    )
+    group = create_group(access_token, name=unique_name("wg_bulk_revoke_group"), inbound_tags=[interface_name])
+    users = [
+        create_user(access_token, group_ids=[group["id"]], payload={"username": unique_name("wg_bulk_revoke_user")})
+        for _ in range(2)
+    ]
+    old_wireguard_by_username = {user["username"]: user["proxy_settings"]["wireguard"] for user in users}
+
+    try:
+        for wireguard in old_wireguard_by_username.values():
+            assert wireguard["private_key"]
+            assert wireguard["public_key"] == get_wireguard_public_key(wireguard["private_key"])
+            assert wireguard["peer_ips"]
+
+        response = client.post(
+            "/api/users/bulk/revoke_sub",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={"ids": [user["id"] for user in users]},
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["count"] == len(users)
+
+        for user in users:
+            assert get_user_sub_revoked_at(user["username"]) is not None
+            user_response = client.get(
+                f"/api/user/{user['username']}",
+                headers={"Authorization": f"Bearer {access_token}"},
+            )
+            assert user_response.status_code == status.HTTP_200_OK
+
+            old_wireguard = old_wireguard_by_username[user["username"]]
+            wireguard = user_response.json()["proxy_settings"]["wireguard"]
+            assert wireguard["private_key"]
+            assert wireguard["public_key"] == get_wireguard_public_key(wireguard["private_key"])
+            assert wireguard["private_key"] != old_wireguard["private_key"]
+            assert wireguard["public_key"] != old_wireguard["public_key"]
+            assert wireguard["peer_ips"] == old_wireguard["peer_ips"]
+    finally:
+        cleanup(access_token, core, [group], users)
 
 
 def test_bulk_disable_users_by_ids(access_token):

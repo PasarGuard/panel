@@ -19,18 +19,15 @@ export function OperationSelector({ operation, onOperationChange, addLabel, remo
   return (
     <div className="space-y-3">
       <div className="text-center">
-        <h3 className="text-sm font-medium text-muted-foreground">{title || t('bulk.operationType', { defaultValue: 'Operation Type' })}</h3>
-        {description && <p className="text-xs text-muted-foreground mt-1">{description}</p>}
+        <h3 className="text-muted-foreground text-sm font-medium">{title || t('bulk.operationType', { defaultValue: 'Operation Type' })}</h3>
+        {description && <p className="text-muted-foreground mt-1 text-xs">{description}</p>}
       </div>
       <div className="flex flex-wrap justify-center gap-2 sm:gap-3">
         <Button
           variant={operation === 'add' ? 'default' : 'outline'}
           size="sm"
           onClick={() => onOperationChange('add')}
-          className={cn(
-            'flex items-center justify-center gap-2 transition-all',
-            operation === 'add' && 'shadow-sm',
-          )}
+          className={cn('flex items-center justify-center gap-2 transition-all', operation === 'add' && 'shadow-sm')}
         >
           <Plus className="h-4 w-4 shrink-0" />
           <span className="whitespace-nowrap">{addLabel || (isAddRemove ? t('bulk.addGroups') : t('bulk.addDataLimit', { defaultValue: 'Add Data Limit' }))}</span>
@@ -39,18 +36,12 @@ export function OperationSelector({ operation, onOperationChange, addLabel, remo
           variant={operation === 'remove' || operation === 'subtract' ? (isAddRemove ? 'destructive' : 'default') : 'outline'}
           size="sm"
           onClick={() => onOperationChange(isAddRemove ? 'remove' : 'subtract')}
-          className={cn(
-            'flex items-center justify-center gap-2 transition-all',
-            (operation === 'remove' || operation === 'subtract') && 'shadow-sm',
-          )}
+          className={cn('flex items-center justify-center gap-2 transition-all', (operation === 'remove' || operation === 'subtract') && 'shadow-sm')}
         >
           <Minus className="h-4 w-4 shrink-0" />
-          <span className="whitespace-nowrap">
-            {removeLabel || (isAddRemove ? t('bulk.removeGroups') : t('bulk.subtractDataLimit', { defaultValue: 'Subtract Data Limit' }))}
-          </span>
+          <span className="whitespace-nowrap">{removeLabel || (isAddRemove ? t('bulk.removeGroups') : t('bulk.subtractDataLimit', { defaultValue: 'Subtract Data Limit' }))}</span>
         </Button>
       </div>
     </div>
   )
 }
-

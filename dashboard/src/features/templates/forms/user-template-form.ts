@@ -74,14 +74,7 @@ export function createUserTemplateFormResolver(t: TFunction): Resolver<UserTempl
       const err = errors[key] as FieldError | undefined
       if (err && typeof err === 'object' && err.message === 'validation.required') {
         const fieldName = String(key)
-        const fieldLabelKey =
-          fieldName === 'name'
-            ? 'templates.name'
-            : fieldName === 'expire_duration'
-              ? 'templates.expire'
-              : fieldName === 'groups'
-                ? 'templates.groups'
-                : `fields.${fieldName}`
+        const fieldLabelKey = fieldName === 'name' ? 'templates.name' : fieldName === 'expire_duration' ? 'templates.expire' : fieldName === 'groups' ? 'templates.groups' : `fields.${fieldName}`
         ;(errors as Record<string, FieldError | undefined>)[fieldName] = {
           ...err,
           message: t('validation.required', { field: t(fieldLabelKey, { defaultValue: fieldName }) }),

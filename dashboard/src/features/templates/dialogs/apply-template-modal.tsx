@@ -89,10 +89,8 @@ export default function ApplyTemplateModal({ open, onClose, userIds, selectedCou
         </DialogHeader>
         <div className="mt-2 flex flex-col gap-4">
           <div>
-            <div className="mb-3 text-sm text-muted-foreground">
-              {t('bulk.applyTemplateDesc')}
-            </div>
-            <div className="mb-3 text-sm text-muted-foreground">
+            <div className="text-muted-foreground mb-3 text-sm">{t('bulk.applyTemplateDesc')}</div>
+            <div className="text-muted-foreground mb-3 text-sm">
               {t('bulk.applyTemplatePrompt', {
                 templateName: selectedTemplate?.name || t('bulk.noTemplateSelected'),
                 count: selectedCount,
@@ -103,22 +101,24 @@ export default function ApplyTemplateModal({ open, onClose, userIds, selectedCou
                 <Loader2 className="animate-spin" />
               </div>
             ) : isError ? (
-              <div className="p-2 text-destructive">{t('bulk.applyTemplateError')}</div>
+              <div className="text-destructive p-2">{t('bulk.applyTemplateError')}</div>
             ) : templates.length > 0 ? (
-              <Select value={selectedTemplateId?.toString() ?? ''} onValueChange={(value) => setSelectedTemplateId(Number(value))}>
+              <Select value={selectedTemplateId?.toString() ?? ''} onValueChange={value => setSelectedTemplateId(Number(value))}>
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder={t('bulk.selectTemplatePlaceholder')} />
                 </SelectTrigger>
                 <SelectContent>
-                  {templates.filter(t => !t.is_disabled).map((template: any) => (
-                    <SelectItem key={template.id} value={template.id.toString()}>
-                      {template.name}
-                    </SelectItem>
-                  ))}
+                  {templates
+                    .filter(t => !t.is_disabled)
+                    .map((template: any) => (
+                      <SelectItem key={template.id} value={template.id.toString()}>
+                        {template.name}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             ) : (
-              <div className="p-2 text-sm text-muted-foreground">{t('bulk.noTemplates')}</div>
+              <div className="text-muted-foreground p-2 text-sm">{t('bulk.noTemplates')}</div>
             )}
           </div>
           <div className="mt-4 flex justify-end gap-2">

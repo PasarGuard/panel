@@ -14,14 +14,16 @@ const Toaster = ({ ...props }: ToasterProps) => {
       theme={resolvedTheme as ToasterProps['theme']}
       className="toaster group font-body"
       dir={dir}
-      style={{
-        '--normal-bg': 'hsl(var(--background))',
-        '--normal-border': 'hsl(var(--border))',
-        '--normal-text': 'hsl(var(--foreground))',
-        '--normal-bg-hover': 'hsl(var(--accent))',
-        '--normal-border-hover': 'hsl(var(--border))',
-        ...props.style,
-      } as CSSProperties}
+      style={
+        {
+          '--normal-bg': 'hsl(var(--background))',
+          '--normal-border': 'hsl(var(--border))',
+          '--normal-text': 'hsl(var(--foreground))',
+          '--normal-bg-hover': 'hsl(var(--accent))',
+          '--normal-border-hover': 'hsl(var(--border))',
+          ...props.style,
+        } as CSSProperties
+      }
       toastOptions={{
         style: { borderRadius: radius },
         classNames: {

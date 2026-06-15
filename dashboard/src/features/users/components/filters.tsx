@@ -89,11 +89,13 @@ interface FiltersProps {
     search?: string
     proxy_id?: string
     is_protocol?: boolean
+    is_id?: boolean
     limit?: number
     offset?: number
     sort: string
     status?: UserStatus | null
     load_sub: boolean
+    ids?: number[] | null
     admin?: string[]
     group?: number[]
     data_limit_min?: number | null
@@ -143,7 +145,7 @@ export const Filters = ({ filters, onFilterChange, refetch, autoRefetch, advance
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [autoRefreshInterval, setAutoRefreshInterval] = useState<number>(() => getUsersAutoRefreshIntervalSeconds())
   const { refetch: queryRefetch, isFetching } = useGetUsers(filters)
-  const activeSearchValue = filters.search || filters.proxy_id || ''
+  const activeSearchValue = filters.ids?.join(', ') || filters.search || filters.proxy_id || ''
   const { search, debouncedSearch, setSearch } = useDebouncedSearch(activeSearchValue, 300)
   const prevDebouncedSearchRef = useRef<string | undefined>(activeSearchValue || undefined)
   const searchResolveIdRef = useRef(0)
@@ -152,7 +154,7 @@ export const Filters = ({ filters, onFilterChange, refetch, autoRefetch, advance
   useEffect(() => {
     prevDebouncedSearchRef.current = activeSearchValue || undefined
   }, [activeSearchValue])
-  
+
   const refetchUsers = useCallback(
     async (showLoading = false, isAutoRefresh = false) => {
       if (showLoading) {
@@ -220,7 +222,9 @@ export const Filters = ({ filters, onFilterChange, refetch, autoRefetch, advance
       if (!trimmedSearch) {
         onFilterChange({
           search: '',
+          ids: undefined,
           proxy_id: undefined,
+          is_id: false,
           is_protocol: false,
           offset: 0,
         })
@@ -242,7 +246,9 @@ export const Filters = ({ filters, onFilterChange, refetch, autoRefetch, advance
             setSearch(username)
             onFilterChange({
               search: username,
+              ids: undefined,
               proxy_id: undefined,
+              is_id: false,
               is_protocol: false,
               offset: 0,
             })
@@ -250,6 +256,9 @@ export const Filters = ({ filters, onFilterChange, refetch, autoRefetch, advance
             if (searchResolveIdRef.current !== resolveId) return
             onFilterChange({
               search: debouncedSearch || '',
+              ids: undefined,
+              is_id: false,
+              is_protocol: false,
               offset: 0,
             })
           }
@@ -280,7 +289,9 @@ export const Filters = ({ filters, onFilterChange, refetch, autoRefetch, advance
     setSearch('')
     onFilterChange({
       search: '',
+      ids: undefined,
       proxy_id: undefined,
+      is_id: false,
       is_protocol: false,
       offset: 0,
     })
@@ -305,15 +316,13 @@ export const Filters = ({ filters, onFilterChange, refetch, autoRefetch, advance
   const hasActiveAdvanceFilters = () => {
     const admin = filters.admin
     const group = filters.group
+    const ids = filters.ids
     const status = filters.status
-    const hasDataLimit = (
-      (filters.data_limit_min !== undefined && filters.data_limit_min !== null) ||
-      (filters.data_limit_max !== undefined && filters.data_limit_max !== null) ||
-      Boolean(filters.no_data_limit)
-    )
+    const hasDataLimit =
+      (filters.data_limit_min !== undefined && filters.data_limit_min !== null) || (filters.data_limit_max !== undefined && filters.data_limit_max !== null) || Boolean(filters.no_data_limit)
     const hasExpireDate = Boolean(filters.expire_after || filters.expire_before || filters.no_expire)
     const hasOnlineDate = Boolean(filters.online_after || filters.online_before || filters.online)
-    return (admin && admin.length > 0) || (group && group.length > 0) || (status !== undefined && status !== null) || hasDataLimit || hasExpireDate || hasOnlineDate
+    return (ids && ids.length > 0) || (admin && admin.length > 0) || (group && group.length > 0) || (status !== undefined && status !== null) || hasDataLimit || hasExpireDate || hasOnlineDate
   }
 
   // Get the count of active advance filters
@@ -321,15 +330,14 @@ export const Filters = ({ filters, onFilterChange, refetch, autoRefetch, advance
   const getActiveFiltersCount = () => {
     const admin = filters.admin
     const group = filters.group
+    const ids = filters.ids
     const status = filters.status
-    const hasDataLimit = (
-      (filters.data_limit_min !== undefined && filters.data_limit_min !== null) ||
-      (filters.data_limit_max !== undefined && filters.data_limit_max !== null) ||
-      Boolean(filters.no_data_limit)
-    )
+    const hasDataLimit =
+      (filters.data_limit_min !== undefined && filters.data_limit_min !== null) || (filters.data_limit_max !== undefined && filters.data_limit_max !== null) || Boolean(filters.no_data_limit)
     const hasExpireDate = Boolean(filters.expire_after || filters.expire_before || filters.no_expire)
     const hasOnlineDate = Boolean(filters.online_after || filters.online_before || filters.online)
     let count = 0
+    if (ids && ids.length > 0) count++
     if (admin && admin.length > 0) count++
     if (group && group.length > 0) count++
     if (status !== undefined && status !== null) count++
@@ -357,8 +365,8 @@ export const Filters = ({ filters, onFilterChange, refetch, autoRefetch, advance
     <div dir={dir} className="flex items-center gap-2 py-4 md:gap-4">
       {/* Search Input */}
       <div className="relative min-w-0 flex-1 md:w-[calc(100%/3-10px)] md:flex-none">
-        <SearchIcon className={cn('absolute', dir === 'rtl' ? 'right-2' : 'left-2', 'top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 text-input-placeholder')} />
-        <Input placeholder={t('search')} value={search} onChange={handleSearchChange} className="pl-8 pr-10" />
+        <SearchIcon className={cn('absolute', dir === 'rtl' ? 'right-2' : 'left-2', 'text-input-placeholder top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400')} />
+        <Input placeholder={t('search')} value={search} onChange={handleSearchChange} className="pr-10 pl-8" />
         {search && (
           <button onClick={clearSearch} className={cn('absolute', dir === 'rtl' ? 'left-2' : 'right-2', 'top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600')}>
             <X className="h-4 w-4" />
@@ -369,7 +377,7 @@ export const Filters = ({ filters, onFilterChange, refetch, autoRefetch, advance
         <Button size="icon-md" variant="ghost" className="relative flex h-9 w-9 items-center justify-center rounded-lg border" onClick={handleOpenAdvanceSearch}>
           <Filter className="h-4 w-4" />
           {hasActiveAdvanceFilters() && (
-            <Badge variant="default" className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary p-0 text-[10.5px] text-primary-foreground">
+            <Badge variant="default" className="bg-primary text-primary-foreground absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full p-0 text-[10.5px]">
               {getActiveFiltersCount()}
             </Badge>
           )}
@@ -392,36 +400,23 @@ export const Filters = ({ filters, onFilterChange, refetch, autoRefetch, advance
         <div className="flex h-full flex-shrink-0 items-center gap-1">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button
-                size="icon-md"
-                variant="ghost"
-                className="relative flex h-9 w-9 items-center justify-center rounded-lg border"
-                aria-label={t('sortOptions', { defaultValue: 'Sort Options' })}
-              >
+              <Button size="icon-md" variant="ghost" className="relative flex h-9 w-9 items-center justify-center rounded-lg border" aria-label={t('sortOptions', { defaultValue: 'Sort Options' })}>
                 <ArrowUpDown className="h-4 w-4" />
-                {filters.sort && filters.sort !== '-created_at' && <div className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-primary" />}
+                {filters.sort && filters.sort !== '-created_at' && <div className="bg-primary absolute -top-1 -right-1 h-2 w-2 rounded-full" />}
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-52 max-h-72 overflow-y-auto">
-              <DropdownMenuLabel className="px-2 py-1 text-[10px] text-muted-foreground">
-                {t('sortOptions', { defaultValue: 'Sort Options' })}
-              </DropdownMenuLabel>
+            <DropdownMenuContent align="end" className="max-h-72 w-52 overflow-y-auto">
+              <DropdownMenuLabel className="text-muted-foreground px-2 py-1 text-[10px]">{t('sortOptions', { defaultValue: 'Sort Options' })}</DropdownMenuLabel>
               <DropdownMenuSeparator />
               {sortSections.map(section => {
                 const state = getSortState(section)
                 return (
-                  <DropdownMenuItem
-                    key={section.key}
-                    onClick={() => handleCompactSort(section)}
-                    className={cn('flex items-center gap-1.5 px-2 py-1.5 text-[11px]', state !== 'none' && 'bg-accent')}
-                  >
-                    <section.icon className="h-3 w-3 text-muted-foreground" />
+                  <DropdownMenuItem key={section.key} onClick={() => handleCompactSort(section)} className={cn('flex items-center gap-1.5 px-2 py-1.5 text-[11px]', state !== 'none' && 'bg-accent')}>
+                    <section.icon className="text-muted-foreground h-3 w-3" />
                     <span className="truncate">{t(section.label)}</span>
                     {state !== 'none' && (
                       <>
-                        <span className="ml-auto text-[10px] text-muted-foreground">
-                          {t(state === 'desc' ? section.descHintKey : section.ascHintKey)}
-                        </span>
+                        <span className="text-muted-foreground ml-auto text-[10px]">{t(state === 'desc' ? section.descHintKey : section.ascHintKey)}</span>
                         <ChevronDown className={cn('h-2.5 w-2.5 flex-shrink-0', state === 'asc' && 'rotate-180')} />
                       </>
                     )}
@@ -448,13 +443,13 @@ export const Filters = ({ filters, onFilterChange, refetch, autoRefetch, advance
           disabled={isRefreshing || isFetching}
         >
           <RefreshCw className="h-4 w-4" />
-          <div className="absolute -right-1 -top-1 flex items-center justify-center">
+          <div className="absolute -top-1 -right-1 flex items-center justify-center">
             {isRefreshing || isFetching ? (
-              <div className="flex h-3 w-3 items-center justify-center rounded-full bg-primary transition-all duration-200 ease-in-out">
-                <LoaderCircle className="h-2 w-2 animate-spin text-primary-foreground" />
+              <div className="bg-primary flex h-3 w-3 items-center justify-center rounded-full transition-all duration-200 ease-in-out">
+                <LoaderCircle className="text-primary-foreground h-2 w-2 animate-spin" />
               </div>
             ) : (
-              autoRefreshInterval > 0 && <div className="h-2 w-2 rounded-full bg-primary transition-all duration-200 ease-in-out z-50" />
+              autoRefreshInterval > 0 && <div className="bg-primary z-50 h-2 w-2 rounded-full transition-all duration-200 ease-in-out" />
             )}
           </div>
         </Button>
@@ -471,7 +466,7 @@ export const Filters = ({ filters, onFilterChange, refetch, autoRefetch, advance
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48">
-            <DropdownMenuLabel className="flex flex-col gap-0.5 px-2 py-1.5 text-[11px] text-muted-foreground">
+            <DropdownMenuLabel className="text-muted-foreground flex flex-col gap-0.5 px-2 py-1.5 text-[11px]">
               <span>{t('autoRefresh.label')}</span>
               <span className="text-[10px]">{t('autoRefresh.currentSelection', { value: currentAutoRefreshDescription })}</span>
             </DropdownMenuLabel>
@@ -483,7 +478,7 @@ export const Filters = ({ filters, onFilterChange, refetch, autoRefetch, advance
             >
               <RefreshCw className="h-3 w-3 flex-shrink-0" />
               <span className="truncate">{t('autoRefresh.refreshNow')}</span>
-              {(isRefreshing || isFetching) && <LoaderCircle className="ml-auto h-3 w-3 animate-spin text-primary" />}
+              {(isRefreshing || isFetching) && <LoaderCircle className="text-primary ml-auto h-3 w-3 animate-spin" />}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             {autoRefreshOptions.map(option => {
@@ -492,7 +487,7 @@ export const Filters = ({ filters, onFilterChange, refetch, autoRefetch, advance
                 <DropdownMenuItem
                   key={option.value}
                   onSelect={() => handleAutoRefreshChange(option.value)}
-                  className={cn('flex items-center gap-2 whitespace-nowrap px-2 py-1.5 text-xs', isActive && 'bg-accent')}
+                  className={cn('flex items-center gap-2 px-2 py-1.5 text-xs whitespace-nowrap', isActive && 'bg-accent')}
                 >
                   <span>{t(option.labelKey)}</span>
                   {isActive && <Check className="ml-auto h-3 w-3 flex-shrink-0" />}
@@ -588,7 +583,7 @@ export const PaginationControls = ({ currentPage, totalPages, itemsPerPage, isLo
             </SelectGroup>
           </SelectContent>
         </Select>
-        <span className="whitespace-nowrap text-sm text-muted-foreground">{t('itemsPerPage')}</span>
+        <span className="text-muted-foreground text-sm whitespace-nowrap">{t('itemsPerPage')}</span>
       </div>
 
       <Pagination dir="ltr" className={`md:justify-end ${dir === 'rtl' ? 'flex-row-reverse' : ''}`}>

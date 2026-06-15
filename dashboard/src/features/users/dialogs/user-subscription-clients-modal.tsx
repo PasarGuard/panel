@@ -172,13 +172,7 @@ const detectOS = (userAgent: string, clientInfo?: { name: string; isKnownClient:
   if (ua.includes('harmonyos') || ua.includes('openharmony')) return 'HarmonyOS'
 
   // iOS detection (comprehensive)
-  if (
-    ua.includes('iphone') ||
-    ua.includes('ipod') ||
-    ua.includes('ios') ||
-    ua.includes('cpu iphone os') ||
-    (ua.includes('mobile safari') && (ua.includes('version/') || ua.includes('cpu iphone os')))
-  )
+  if (ua.includes('iphone') || ua.includes('ipod') || ua.includes('ios') || ua.includes('cpu iphone os') || (ua.includes('mobile safari') && (ua.includes('version/') || ua.includes('cpu iphone os'))))
     return 'iOS'
 
   // Android detection
@@ -188,8 +182,7 @@ const detectOS = (userAgent: string, clientInfo?: { name: string; isKnownClient:
   if (ua.includes('windows nt') || ua.includes('windows phone') || ua.includes('win32') || ua.includes('win64') || (ua.includes('windows') && !ua.includes('windows phone'))) return 'Windows'
 
   // macOS detection (comprehensive)
-  if (ua.includes('mac os x') || ua.includes('macos') || ua.includes('macintosh') || ua.includes('mac_powerpc') || ua.includes('macintel') || ua.includes('osx'))
-    return 'macOS'
+  if (ua.includes('mac os x') || ua.includes('macos') || ua.includes('macintosh') || ua.includes('mac_powerpc') || ua.includes('macintel') || ua.includes('osx')) return 'macOS'
 
   // CFNetwork/Darwin often omits the concrete Apple OS. Keep it as an iOS fallback after explicit Apple checks.
   if (ua.includes('darwin') || ua.includes('cfnetwork')) return 'iOS'
@@ -330,15 +323,15 @@ export const UserSubscriptionClientsModal: FC<UserSubscriptionClientsModalProps>
     const hwid = update.hwid?.trim()
 
     return (
-      <div key={index} className="rounded-lg border bg-card p-4 transition-colors hover:bg-accent/50" dir={dir}>
+      <div key={index} className="bg-card hover:bg-accent/50 rounded-lg border p-4 transition-colors" dir={dir}>
         <div className={`mb-3 flex items-start justify-between ${dir === 'rtl' ? 'flex-row-reverse' : 'flex-row'}`}>
           <div className={`flex items-center gap-2 ${dir === 'rtl' ? 'flex-row-reverse' : 'flex-row'}`}>
-            <ClientIcon className="h-5 w-5 flex-shrink-0 text-muted-foreground" />
+            <ClientIcon className="text-muted-foreground h-5 w-5 flex-shrink-0" />
             <span className="text-sm font-medium" dir="ltr">
               {formattedClient}
             </span>
           </div>
-          <span dir={dir} className="whitespace-nowrap text-xs text-muted-foreground">
+          <span dir={dir} className="text-muted-foreground text-xs whitespace-nowrap">
             {timeAgo || t('subscriptionClients.unknown', { defaultValue: 'Unknown' })}
           </span>
         </div>
@@ -413,12 +406,12 @@ export const UserSubscriptionClientsModal: FC<UserSubscriptionClientsModalProps>
 
           <Tooltip>
             <TooltipTrigger asChild>
-              <p className="mt-2 cursor-help truncate text-xs text-muted-foreground" dir="ltr">
+              <p className="text-muted-foreground mt-2 cursor-help truncate text-xs" dir="ltr">
                 {update.user_agent}
               </p>
             </TooltipTrigger>
             <TooltipContent side="bottom" className="max-w-xs">
-              <p className="break-all text-xs" dir="ltr">
+              <p className="text-xs break-all" dir="ltr">
                 {update.user_agent}
               </p>
             </TooltipContent>
@@ -453,7 +446,7 @@ export const UserSubscriptionClientsModal: FC<UserSubscriptionClientsModalProps>
       </div>
       <div className="grid grid-cols-1 gap-4 p-1 sm:grid-cols-2 lg:grid-cols-3">
         {Array.from({ length: 3 }).map((_, index) => (
-          <div key={index} className="rounded-lg border bg-card p-4">
+          <div key={index} className="bg-card rounded-lg border p-4">
             <div className="mb-3 flex items-start justify-between gap-3">
               <div className="flex items-center gap-2">
                 <Skeleton className="h-5 w-5 rounded-full" />
@@ -490,16 +483,14 @@ export const UserSubscriptionClientsModal: FC<UserSubscriptionClientsModalProps>
 
         {/* Content Area */}
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          {isLoading && (
-            renderLoadingSkeleton()
-          )}
+          {isLoading && renderLoadingSkeleton()}
 
-          {error && <div className="py-8 text-center text-destructive">{t('subscriptionClients.error', { defaultValue: 'Failed to load subscription clients' })}</div>}
+          {error && <div className="text-destructive py-8 text-center">{t('subscriptionClients.error', { defaultValue: 'Failed to load subscription clients' })}</div>}
 
           {!isLoading && !error && subUpdateList && (
             <>
               <div className={`flex flex-shrink-0 items-center justify-between py-4 ${dir === 'rtl' ? 'flex-row-reverse' : 'flex-row'}`}>
-                <span className="text-sm text-muted-foreground">
+                <span className="text-muted-foreground text-sm">
                   {t('subscriptionClients.total', {
                     defaultValue: 'Total: {{count}} clients',
                     count: subUpdateList.count,
@@ -507,7 +498,7 @@ export const UserSubscriptionClientsModal: FC<UserSubscriptionClientsModalProps>
                 </span>
                 <div className={`flex items-center gap-2 ${dir === 'rtl' ? 'flex-row-reverse' : 'flex-row'}`}>
                   {totalPages > 1 && (
-                    <span className="text-xs text-muted-foreground" dir="ltr">
+                    <span className="text-muted-foreground text-xs" dir="ltr">
                       {currentPage + 1} / {totalPages}
                     </span>
                   )}
@@ -518,7 +509,7 @@ export const UserSubscriptionClientsModal: FC<UserSubscriptionClientsModalProps>
                 {subUpdateList.updates && subUpdateList.updates.length > 0 ? (
                   <div className="grid grid-cols-1 gap-4 p-1 sm:grid-cols-2 lg:grid-cols-3">{subUpdateList.updates.map((update, index) => renderClientCard(update, index))}</div>
                 ) : (
-                  <div className="flex items-center justify-center py-8 text-muted-foreground">
+                  <div className="text-muted-foreground flex items-center justify-center py-8">
                     <div className="text-center">
                       <Users className="mx-auto mb-2 h-12 w-12 opacity-50" />
                       <p className="text-sm">
@@ -547,7 +538,7 @@ export const UserSubscriptionClientsModal: FC<UserSubscriptionClientsModalProps>
               {t('previous', { defaultValue: 'Previous' })}
             </Button>
 
-            <span className="text-sm text-muted-foreground" dir="ltr">
+            <span className="text-muted-foreground text-sm" dir="ltr">
               {currentPage + 1} / {totalPages}
             </span>
 

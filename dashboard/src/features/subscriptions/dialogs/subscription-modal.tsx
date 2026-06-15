@@ -189,13 +189,12 @@ const SubscriptionModal: FC<SubscriptionModalProps> = memo(({ open, subscribeUrl
   }
 
   const selectedConfigWireGuardDownload = selectedConfigQR ? getWireGuardDownloadPayload(selectedConfigQR.config) : null
-  const selectedConfigQrValue =
-    selectedConfigWireGuardDownload && selectedConfigQrMode === 'config' ? selectedConfigWireGuardDownload.content : selectedConfigQR?.config || ''
+  const selectedConfigQrValue = selectedConfigWireGuardDownload && selectedConfigQrMode === 'config' ? selectedConfigWireGuardDownload.content : selectedConfigQR?.config || ''
 
   return (
     <>
       <Dialog open={isOpen && !isConfigQrOpen} onOpenChange={onCloseModal}>
-        <DialogContent className="max-h-[90dvh] max-w-[860px] overflow-y-auto overflow-x-hidden">
+        <DialogContent className="max-h-[90dvh] max-w-[860px] overflow-x-hidden overflow-y-auto">
           <DialogHeader dir={dir}>
             <DialogTitle className="flex items-center gap-2">
               <ScanQrCode className="h-5 w-5 shrink-0" />
@@ -210,7 +209,7 @@ const SubscriptionModal: FC<SubscriptionModalProps> = memo(({ open, subscribeUrl
               </div>
             </div>
 
-            <div className="flex flex-col gap-3 h-full">
+            <div className="flex h-full flex-col gap-3">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium">{t('subscriptionModal.configs', { defaultValue: 'Configurations' })}</span>
                 <Button variant="ghost" size="sm" onClick={handleCopyAllConfigs} disabled={isLoading || configs.length === 0} className="h-7 px-2 text-xs">
@@ -236,7 +235,7 @@ const SubscriptionModal: FC<SubscriptionModalProps> = memo(({ open, subscribeUrl
                 </div>
               ) : error ? (
                 <div className="flex h-[200px] flex-col items-center justify-center gap-3">
-                  <span className="text-sm text-destructive">{error}</span>
+                  <span className="text-destructive text-sm">{error}</span>
                   <Button variant="outline" size="sm" onClick={fetchConfigs}>
                     <RefreshCw className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
                     {t('retry', { defaultValue: 'Retry' })}
@@ -244,7 +243,7 @@ const SubscriptionModal: FC<SubscriptionModalProps> = memo(({ open, subscribeUrl
                 </div>
               ) : configs.length === 0 ? (
                 <div className="flex h-[200px] items-center justify-center">
-                  <span className="text-sm text-muted-foreground">{t('subscriptionModal.noConfigs', { defaultValue: 'No configurations found' })}</span>
+                  <span className="text-muted-foreground text-sm">{t('subscriptionModal.noConfigs', { defaultValue: 'No configurations found' })}</span>
                 </div>
               ) : (
                 <>
@@ -253,7 +252,7 @@ const SubscriptionModal: FC<SubscriptionModalProps> = memo(({ open, subscribeUrl
                       const wireGuardDownload = getWireGuardDownloadPayload(item.config)
 
                       return (
-                        <div key={startIndex + index} className="flex items-center justify-between rounded-md border p-2 hover:bg-muted/50">
+                        <div key={startIndex + index} className="hover:bg-muted/50 flex items-center justify-between rounded-md border p-2">
                           <div className="flex flex-1 flex-col gap-1 overflow-hidden">
                             <span dir="ltr" className="text-sm font-medium" title={item.name}>
                               <span className="sm:hidden">{item.name.length > 30 ? `${item.name.slice(0, 30)}...` : item.name}</span>
@@ -302,7 +301,7 @@ const SubscriptionModal: FC<SubscriptionModalProps> = memo(({ open, subscribeUrl
                       <Button variant="outline" size="icon" className="h-8 w-8" onClick={isRTL ? handleNextPage : handlePreviousPage} disabled={totalPages <= 1}>
                         <ChevronLeft className={cn('h-4 w-4', dir === 'rtl' && 'rotate-180')} />
                       </Button>
-                      <span className="text-sm text-muted-foreground">
+                      <span className="text-muted-foreground text-sm">
                         {currentPage + 1} / {totalPages}
                       </span>
                       <Button variant="outline" size="icon" className="h-8 w-8" onClick={isRTL ? handlePreviousPage : handleNextPage} disabled={totalPages <= 1}>
@@ -317,16 +316,17 @@ const SubscriptionModal: FC<SubscriptionModalProps> = memo(({ open, subscribeUrl
         </DialogContent>
       </Dialog>
 
-      <Dialog open={isConfigQrOpen} onOpenChange={open => {
-        if (!open) handleCloseConfigQR()
-      }}>
+      <Dialog
+        open={isConfigQrOpen}
+        onOpenChange={open => {
+          if (!open) handleCloseConfigQR()
+        }}
+      >
         <DialogContent className="w-[calc(100vw-2rem)] max-w-[380px] sm:max-w-[420px]">
           <DialogHeader dir={dir}>
             <DialogTitle className="flex items-center gap-2">
               <QrCode className="h-5 w-5 shrink-0" />
-              <span title={selectedConfigQR?.name}>
-                {selectedConfigQR?.name && selectedConfigQR.name.length > 20 ? `${selectedConfigQR.name.slice(0, 20)}...` : selectedConfigQR?.name}
-              </span>
+              <span title={selectedConfigQR?.name}>{selectedConfigQR?.name && selectedConfigQR.name.length > 20 ? `${selectedConfigQR.name.slice(0, 20)}...` : selectedConfigQR?.name}</span>
             </DialogTitle>
           </DialogHeader>
           <div className="flex flex-col items-center gap-4 py-2">
@@ -341,7 +341,7 @@ const SubscriptionModal: FC<SubscriptionModalProps> = memo(({ open, subscribeUrl
                 }}
                 variant="outline"
                 size="sm"
-                className="rounded-md border border-border bg-muted/30 p-1"
+                className="border-border bg-muted/30 rounded-md border p-1"
                 aria-label={t('subscriptionModal.qrFormat', { defaultValue: 'QR code format' })}
               >
                 <ToggleGroupItem value="config" className="h-7 px-2.5 text-[11px]">
@@ -361,11 +361,7 @@ const SubscriptionModal: FC<SubscriptionModalProps> = memo(({ open, subscribeUrl
                 onClick={() => selectedConfigQR && handleCopyConfig(selectedConfigQR.config)}
                 className={cn('h-auto min-h-11 w-full gap-3 px-3 py-3 text-sm leading-tight whitespace-normal', isRTL ? 'flex-row-reverse text-right' : 'justify-start text-left')}
               >
-                {copiedConfig?.config === selectedConfigQR?.config && copiedConfig?.mode === 'config' ? (
-                  <Check className="h-4 w-4 shrink-0" />
-                ) : (
-                  <Copy className="h-4 w-4 shrink-0" />
-                )}
+                {copiedConfig?.config === selectedConfigQR?.config && copiedConfig?.mode === 'config' ? <Check className="h-4 w-4 shrink-0" /> : <Copy className="h-4 w-4 shrink-0" />}
                 {t('configActions.copyConfig', { defaultValue: 'Copy Config' })}
               </Button>
               <Button
@@ -373,11 +369,7 @@ const SubscriptionModal: FC<SubscriptionModalProps> = memo(({ open, subscribeUrl
                 onClick={() => selectedConfigQR && handleCopyConfig(selectedConfigQR.config, 'base64')}
                 className={cn('h-auto min-h-11 w-full gap-3 px-3 py-3 text-sm leading-tight whitespace-normal', isRTL ? 'flex-row-reverse text-right' : 'justify-start text-left')}
               >
-                {copiedConfig?.config === selectedConfigQR?.config && copiedConfig?.mode === 'base64' ? (
-                  <Check className="h-4 w-4 shrink-0" />
-                ) : (
-                  <Copy className="h-4 w-4 shrink-0" />
-                )}
+                {copiedConfig?.config === selectedConfigQR?.config && copiedConfig?.mode === 'base64' ? <Check className="h-4 w-4 shrink-0" /> : <Copy className="h-4 w-4 shrink-0" />}
                 {t('configActions.copyBase64', { defaultValue: 'Copy Base64' })}
               </Button>
               {selectedConfigWireGuardDownload && (

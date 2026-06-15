@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-const optionalNonNegativeNumber = z.preprocess((value) => {
+const optionalNonNegativeNumber = z.preprocess(value => {
   if (value === '' || value === null || value === undefined) return undefined
   if (typeof value === 'number') return Number.isFinite(value) ? value : undefined
   if (typeof value === 'string') {
@@ -16,6 +16,7 @@ export const advanceSearchFormSchema = z
   .object({
     is_username: z.boolean().default(true),
     is_protocol: z.boolean().default(false),
+    is_id: z.boolean().default(false),
     show_created_by: z.boolean().default(true),
     show_selection_checkbox: z.boolean().default(false),
     no_data_limit: z.boolean().default(false),
@@ -32,12 +33,7 @@ export const advanceSearchFormSchema = z
     online_before: z.date().optional(),
   })
   .superRefine((values, ctx) => {
-    if (
-      !values.no_data_limit &&
-      values.data_limit_min !== undefined &&
-      values.data_limit_max !== undefined &&
-      values.data_limit_min > values.data_limit_max
-    ) {
+    if (!values.no_data_limit && values.data_limit_min !== undefined && values.data_limit_max !== undefined && values.data_limit_min > values.data_limit_max) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['data_limit_max'],
@@ -45,12 +41,7 @@ export const advanceSearchFormSchema = z
       })
     }
 
-    if (
-      !values.no_expire &&
-      values.expire_after !== undefined &&
-      values.expire_before !== undefined &&
-      values.expire_after.getTime() > values.expire_before.getTime()
-    ) {
+    if (!values.no_expire && values.expire_after !== undefined && values.expire_before !== undefined && values.expire_after.getTime() > values.expire_before.getTime()) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['expire_before'],
@@ -58,11 +49,7 @@ export const advanceSearchFormSchema = z
       })
     }
 
-    if (
-      values.online_after !== undefined &&
-      values.online_before !== undefined &&
-      values.online_after.getTime() > values.online_before.getTime()
-    ) {
+    if (values.online_after !== undefined && values.online_before !== undefined && values.online_after.getTime() > values.online_before.getTime()) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['online_before'],

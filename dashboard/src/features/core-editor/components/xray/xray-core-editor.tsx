@@ -30,15 +30,7 @@ export function XrayCoreEditor({ headerAddPulse, headerAddEpoch }: XrayCoreEdito
       {section === 'routing' && <XrayRoutingSection headerAddPulse={headerAddPulse} headerAddEpoch={headerAddEpoch} />}
       {section === 'balancers' && <XrayBalancersSection headerAddPulse={headerAddPulse} headerAddEpoch={headerAddEpoch} />}
       {section === 'dns' && <XrayDnsSection headerAddPulse={headerAddPulse} headerAddEpoch={headerAddEpoch} />}
-      {section === 'bindings' && (
-        <XrayInboundTagSelectors
-          inboundTags={inboundTags}
-          fallbackTags={fallbacks}
-          excludedTags={excludes}
-          onFallbackChange={setFallbacks}
-          onExcludedChange={setExcludes}
-        />
-      )}
+      {section === 'bindings' && <XrayInboundTagSelectors inboundTags={inboundTags} fallbackTags={fallbacks} excludedTags={excludes} onFallbackChange={setFallbacks} onExcludedChange={setExcludes} />}
       {section === 'advanced' && <XrayAdvancedSection />}
     </div>
   )

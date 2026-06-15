@@ -58,7 +58,7 @@ export function StatusLogsFilter({ value = [], setValue, title, options }: Statu
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="outline" size="sm" className="h-9 w-full bg-input text-sm placeholder-gray-400 sm:w-auto">
+        <Button variant="outline" size="sm" className="bg-input h-9 w-full text-sm placeholder-gray-400 sm:w-auto">
           {title}
           <Separator orientation="vertical" className="mx-2 h-4" />
           <div className="flex space-x-1">{getSelectedBadges()}</div>
@@ -73,7 +73,7 @@ export function StatusLogsFilter({ value = [], setValue, title, options }: Statu
                   setValue?.([]) // Empty array means "All"
                 }}
               >
-                <div className={cn('mr-2 flex h-4 w-4 items-center rounded-sm border border-primary', allSelected ? 'bg-primary text-primary-foreground' : 'opacity-50 [&_svg]:invisible')}>
+                <div className={cn('border-primary mr-2 flex h-4 w-4 items-center rounded-sm border', allSelected ? 'bg-primary text-primary-foreground' : 'opacity-50 [&_svg]:invisible')}>
                   <CheckIcon className={cn('h-4 w-4')} />
                 </div>
                 <Badge variant="blank">{t('nodes.logs.all')}</Badge>
@@ -93,10 +93,10 @@ export function StatusLogsFilter({ value = [], setValue, title, options }: Statu
                       setValue?.(Array.from(newValues))
                     }}
                   >
-                    <div className={cn('mr-2 flex h-4 w-4 items-center rounded-sm border border-primary', isSelected ? 'bg-primary text-primary-foreground' : 'opacity-50 [&_svg]:invisible')}>
+                    <div className={cn('border-primary mr-2 flex h-4 w-4 items-center rounded-sm border', isSelected ? 'bg-primary text-primary-foreground' : 'opacity-50 [&_svg]:invisible')}>
                       <CheckIcon className={cn('h-4 w-4')} />
                     </div>
-                    {option.icon && <option.icon className="mr-2 h-4 w-4 text-muted-foreground" />}
+                    {option.icon && <option.icon className="text-muted-foreground mr-2 h-4 w-4" />}
                     <Badge variant={option.value === 'error' ? 'red' : option.value === 'warning' ? 'orange' : option.value === 'info' ? 'blue' : option.value === 'debug' ? 'yellow' : 'blank'}>
                       {t(option.label)}
                     </Badge>

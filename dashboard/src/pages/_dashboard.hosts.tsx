@@ -75,8 +75,7 @@ export default function HostsPage() {
         ech_config_list: formData.ech_config_list || undefined,
         ech_query_strategy: formData.ech_query_strategy || undefined,
         pinned_peer_cert_sha256: formData.pinned_peer_cert_sha256 || undefined,
-        verify_peer_cert_by_name:
-          formData.verify_peer_cert_by_name && formData.verify_peer_cert_by_name.length > 0 ? formData.verify_peer_cert_by_name : undefined,
+        verify_peer_cert_by_name: formData.verify_peer_cert_by_name && formData.verify_peer_cert_by_name.length > 0 ? formData.verify_peer_cert_by_name : undefined,
         vless_route: formData.vless_route || undefined,
         transport_settings: formData.transport_settings
           ? {
@@ -234,8 +233,14 @@ export default function HostsPage() {
 
   return (
     <div className="flex w-full flex-col items-start gap-2 pb-8">
-      <div className="w-full transform-gpu animate-fade-in" style={{ animationDuration: '400ms' }}>
-        <PageHeader title="hosts" description="manageHosts" buttonIcon={canCreateHosts ? Plus : undefined} buttonText={canCreateHosts ? 'hostsDialog.addHost' : undefined} onButtonClick={canCreateHosts ? handleCreateClick : undefined} />
+      <div className="animate-fade-in w-full transform-gpu" style={{ animationDuration: '400ms' }}>
+        <PageHeader
+          title="hosts"
+          description="manageHosts"
+          buttonIcon={canCreateHosts ? Plus : undefined}
+          buttonText={canCreateHosts ? 'hostsDialog.addHost' : undefined}
+          onButtonClick={canCreateHosts ? handleCreateClick : undefined}
+        />
         <Separator />
       </div>
 

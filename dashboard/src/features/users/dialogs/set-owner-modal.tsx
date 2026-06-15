@@ -115,14 +115,14 @@ export default function SetOwnerModal({ open, onClose, userId, username, userIds
         <div className="mt-2 flex flex-col gap-4">
           <div>
             {isBulkMode ? (
-              <div className="mb-3 text-sm text-muted-foreground">
+              <div className="text-muted-foreground mb-3 text-sm">
                 {t('setOwnerModal.bulkDescription', {
                   defaultValue: 'Select a new owner for {{count}} selected users.',
                   count: bulkCount,
                 })}
               </div>
             ) : (
-              <div className="mb-3 text-sm text-muted-foreground">
+              <div className="text-muted-foreground mb-3 text-sm">
                 {t('setOwnerModal.currentOwner', { defaultValue: 'Current owner:' })}
                 <span className="ml-4 font-bold">{currentOwner || t('setOwnerModal.none', { defaultValue: 'None' })}</span>
               </div>
@@ -130,7 +130,7 @@ export default function SetOwnerModal({ open, onClose, userId, username, userIds
             {isLoading ? (
               <Skeleton className="h-10 w-full rounded-md" />
             ) : isError ? (
-              <div className="p-2 text-destructive">{t('setOwnerModal.loadError', { defaultValue: 'Failed to load admins.' })}</div>
+              <div className="text-destructive p-2">{t('setOwnerModal.loadError', { defaultValue: 'Failed to load admins.' })}</div>
             ) : admins.length > 0 ? (
               <Select value={selectedAdmin ?? ''} onValueChange={setSelectedAdmin}>
                 <SelectTrigger className="w-full">
@@ -145,7 +145,7 @@ export default function SetOwnerModal({ open, onClose, userId, username, userIds
                 </SelectContent>
               </Select>
             ) : (
-              <div className="p-2 text-sm text-muted-foreground">{t('noAdminsFound')}</div>
+              <div className="text-muted-foreground p-2 text-sm">{t('noAdminsFound')}</div>
             )}
           </div>
           <div className="mt-4 flex justify-end gap-2">

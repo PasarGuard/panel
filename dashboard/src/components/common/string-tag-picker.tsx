@@ -77,8 +77,7 @@ export function StringTagPicker({
     const trimmed = valueSingle.trim()
     const q = normalizeQuery(query)
     const filtered = q === '' ? sorted : sorted.filter(tag => tag.toLowerCase().includes(q))
-    const canAddCustom =
-      query.trim() !== '' && !sorted.some(t => t.toLowerCase() === query.trim().toLowerCase()) && query.trim() !== trimmed
+    const canAddCustom = query.trim() !== '' && !sorted.some(t => t.toLowerCase() === query.trim().toLowerCase()) && query.trim() !== trimmed
 
     return (
       <Popover open={open} onOpenChange={handleOpenChange}>
@@ -90,11 +89,7 @@ export function StringTagPicker({
             aria-expanded={open}
             disabled={disabled}
             dir="ltr"
-            className={cn(
-              'h-10 w-full min-w-0 justify-between gap-2 px-3 font-normal',
-              !trimmed && 'text-muted-foreground',
-              className,
-            )}
+            className={cn('h-10 w-full min-w-0 justify-between gap-2 px-3 font-normal', !trimmed && 'text-muted-foreground', className)}
           >
             <span className={cn('min-w-0 flex-1 truncate text-start text-sm', trimmed && 'text-foreground')}>
               {trimmed || placeholder || t('coreEditor.tagPicker.chooseTag', { defaultValue: 'Choose tag…' })}
@@ -103,7 +98,7 @@ export function StringTagPicker({
           </Button>
         </PopoverTrigger>
         <PopoverContent
-          className="w-[var(--radix-popover-trigger-width)] min-w-[280px] max-w-[min(96vw,420px)] p-0"
+          className="w-[var(--radix-popover-trigger-width)] max-w-[min(96vw,420px)] min-w-[280px] p-0"
           align="start"
           collisionPadding={8}
           onWheel={e => e.stopPropagation()}
@@ -112,7 +107,7 @@ export function StringTagPicker({
           <div className="flex max-h-[min(60dvh,360px)] flex-col">
             <div className="shrink-0 border-b p-2">
               <div className="relative">
-                <Search className="pointer-events-none absolute start-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                <Search className="text-muted-foreground pointer-events-none absolute start-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2" />
                 <Input
                   dir="ltr"
                   className="h-9 ps-8 text-sm"
@@ -125,7 +120,7 @@ export function StringTagPicker({
               </div>
             </div>
 
-            <ScrollArea className="min-h-0 flex-1">
+            <ScrollArea className="h-[min(40dvh,14rem)] min-h-0 overscroll-contain" onWheelCapture={event => event.stopPropagation()} onTouchMoveCapture={event => event.stopPropagation()}>
               <div className="p-1.5" dir="ltr">
                 <button
                   type="button"
@@ -134,28 +129,23 @@ export function StringTagPicker({
                     onChangeSingle?.('')
                     setOpen(false)
                   }}
-                  className={cn(
-                    'flex w-full items-center gap-2 rounded-sm px-2 py-2 text-start text-xs transition-colors hover:bg-accent',
-                    trimmed === '' && 'bg-accent/60',
-                  )}
+                  className={cn('hover:bg-accent flex w-full items-center gap-2 rounded-sm px-2 py-2 text-start text-xs transition-colors', trimmed === '' && 'bg-accent/60')}
                 >
                   <span className="text-muted-foreground">{placeholder ?? '—'}</span>
                   {trimmed === '' ? <Check className="ms-auto h-3.5 w-3.5 shrink-0" /> : null}
                 </button>
 
                 {trimmed !== '' && !sorted.some(t => t === trimmed) ? (
-                  <div className="rounded-sm border border-dashed px-2 py-1.5 text-[11px] text-muted-foreground">
+                  <div className="text-muted-foreground rounded-sm border border-dashed px-2 py-1.5 text-[11px]">
                     {t('coreEditor.tagPicker.customValueActive', {
                       defaultValue: 'Using custom tag (not in profile list):',
                     })}{' '}
-                    <span className=" text-foreground">{trimmed}</span>
+                    <span className="text-foreground">{trimmed}</span>
                   </div>
                 ) : null}
 
                 {filtered.length === 0 && q !== '' ? (
-                  <p className="px-2 py-3 text-center text-xs text-muted-foreground">
-                    {t('coreEditor.tagPicker.noMatches', { defaultValue: 'No matching tags.' })}
-                  </p>
+                  <p className="text-muted-foreground px-2 py-3 text-center text-xs">{t('coreEditor.tagPicker.noMatches', { defaultValue: 'No matching tags.' })}</p>
                 ) : (
                   filtered.map(tag => {
                     const selected = tag === trimmed
@@ -168,10 +158,7 @@ export function StringTagPicker({
                           onChangeSingle?.(tag)
                           setOpen(false)
                         }}
-                        className={cn(
-                          'flex w-full items-center gap-2 rounded-sm px-2 py-2 text-start text-sm transition-colors hover:bg-accent',
-                          selected && 'bg-accent/70',
-                        )}
+                        className={cn('hover:bg-accent flex w-full items-center gap-2 rounded-sm px-2 py-2 text-start text-sm transition-colors', selected && 'bg-accent/70')}
                       >
                         <span className="min-w-0 flex-1 truncate">{tag}</span>
                         {selected ? <Check className="h-3.5 w-3.5 shrink-0" /> : null}
@@ -185,9 +172,7 @@ export function StringTagPicker({
             <Separator />
 
             <div className="space-y-2 p-2">
-              <p className="text-[11px] font-medium text-muted-foreground">
-                {t('coreEditor.tagPicker.customTag', { defaultValue: 'Custom tag' })}
-              </p>
+              <p className="text-muted-foreground text-[11px] font-medium">{t('coreEditor.tagPicker.customTag', { defaultValue: 'Custom tag' })}</p>
               <div className="flex gap-2">
                 <Input
                   dir="ltr"
@@ -254,10 +239,7 @@ export function StringTagPicker({
   const available = sorted.filter(t => !list.includes(t))
   const filteredAvailable = qn === '' ? available : available.filter(t => t.toLowerCase().includes(qn))
   const queryTrim = query.trim()
-  const canAddFromSearch =
-    queryTrim !== '' &&
-    !list.some(t => t.toLowerCase() === queryTrim.toLowerCase()) &&
-    !sorted.some(t => t.toLowerCase() === queryTrim.toLowerCase())
+  const canAddFromSearch = queryTrim !== '' && !list.some(t => t.toLowerCase() === queryTrim.toLowerCase()) && !sorted.some(t => t.toLowerCase() === queryTrim.toLowerCase())
 
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
@@ -273,15 +255,15 @@ export function StringTagPicker({
         >
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
             {list.length === 0 ? (
-              <span className="text-sm text-muted-foreground">{placeholder}</span>
+              <span className="text-muted-foreground text-sm">{placeholder}</span>
             ) : (
               list.map(tag => (
-                <Badge key={tag} variant="secondary" className="max-w-full gap-1 py-0.5 pl-2 pr-1  text-[11px] font-normal">
+                <Badge key={tag} variant="secondary" className="max-w-full gap-1 py-0.5 pr-1 pl-2 text-[11px] font-normal">
                   <span className="truncate">{tag}</span>
                   <span
                     role="button"
                     tabIndex={0}
-                    className="inline-flex shrink-0 rounded p-0.5 hover:bg-muted-foreground/20"
+                    className="hover:bg-muted-foreground/20 inline-flex shrink-0 rounded p-0.5"
                     onClick={e => {
                       e.preventDefault()
                       e.stopPropagation()
@@ -305,26 +287,16 @@ export function StringTagPicker({
             )}
           </div>
           <div className="flex shrink-0 items-center gap-1.5">
-            {list.length > 0 ? (
-              <span className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-muted-foreground">
-                {list.length}
-              </span>
-            ) : null}
+            {list.length > 0 ? <span className="bg-muted text-muted-foreground rounded-md px-1.5 py-0.5 text-[10px] font-medium tabular-nums">{list.length}</span> : null}
             <ChevronDown className="h-4 w-4 shrink-0 opacity-60" aria-hidden />
           </div>
         </Button>
       </PopoverTrigger>
-      <PopoverContent
-        className="w-[min(96vw,400px)] p-0"
-        align="start"
-        side="bottom"
-        onWheel={e => e.stopPropagation()}
-        onTouchMove={e => e.stopPropagation()}
-      >
+      <PopoverContent className="w-[min(96vw,400px)] p-0" align="start" side="bottom" onWheel={e => e.stopPropagation()} onTouchMove={e => e.stopPropagation()}>
         <div className="flex max-h-[min(72dvh,28rem)] flex-col">
           <div className="border-b p-2">
             <div className="relative">
-              <Search className="pointer-events-none absolute start-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Search className="text-muted-foreground pointer-events-none absolute start-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2" />
               <Input
                 dir="ltr"
                 className="h-9 ps-8 text-sm"
@@ -337,15 +309,13 @@ export function StringTagPicker({
           </div>
 
           {sorted.length === 0 && !queryTrim ? (
-            <div className="px-3 py-4 text-xs leading-snug text-muted-foreground">{emptyHint}</div>
+            <div className="text-muted-foreground px-3 py-4 text-xs leading-snug">{emptyHint}</div>
           ) : (
             <>
-              <ScrollArea className="min-h-0 flex-1">
+              <ScrollArea className="h-[min(42dvh,16rem)] min-h-0 overscroll-contain" onWheelCapture={event => event.stopPropagation()} onTouchMoveCapture={event => event.stopPropagation()}>
                 <div className="space-y-0.5 p-2" dir="ltr">
                   {filteredAvailable.length === 0 && queryTrim && sorted.length > 0 ? (
-                    <p className="px-1 py-2 text-center text-xs text-muted-foreground">
-                      {t('coreEditor.tagPicker.allMatchingAdded', { defaultValue: 'All matching tags are already selected.' })}
-                    </p>
+                    <p className="text-muted-foreground px-1 py-2 text-center text-xs">{t('coreEditor.tagPicker.allMatchingAdded', { defaultValue: 'All matching tags are already selected.' })}</p>
                   ) : null}
 
                   {filteredAvailable.map(tag => (
@@ -354,15 +324,15 @@ export function StringTagPicker({
                       type="button"
                       disabled={disabled}
                       onClick={() => onChangeMulti?.([...list, tag])}
-                      className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-start transition-colors hover:bg-accent/80 disabled:pointer-events-none disabled:opacity-50"
+                      className="hover:bg-accent/80 flex w-full items-center gap-2 rounded-md px-2 py-2 text-start transition-colors disabled:pointer-events-none disabled:opacity-50"
                     >
-                      <Plus className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
+                      <Plus className="text-muted-foreground h-3.5 w-3.5 shrink-0" aria-hidden />
                       <span className="min-w-0 flex-1 truncate text-sm">{tag}</span>
                     </button>
                   ))}
 
                   {sorted.length === 0 && queryTrim ? (
-                    <p className="px-1 py-2 text-xs text-muted-foreground">
+                    <p className="text-muted-foreground px-1 py-2 text-xs">
                       {t('coreEditor.tagPicker.noProfileTags', {
                         defaultValue: 'No tags from the profile. Add a custom tag below.',
                       })}
@@ -398,27 +368,18 @@ export function StringTagPicker({
                   <Separator />
                   <div className="space-y-2 px-2 py-2">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs font-medium text-muted-foreground">
-                        {t('coreEditor.tagPicker.selectedTags', { count: list.length, defaultValue: 'Selected ({{count}})' })}
-                      </span>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 text-xs text-muted-foreground hover:text-destructive"
-                        disabled={disabled}
-                        onClick={() => onChangeMulti?.([])}
-                      >
+                      <span className="text-muted-foreground text-xs font-medium">{t('coreEditor.tagPicker.selectedTags', { count: list.length, defaultValue: 'Selected ({{count}})' })}</span>
+                      <Button type="button" variant="ghost" size="sm" className="text-muted-foreground hover:text-destructive h-7 text-xs" disabled={disabled} onClick={() => onChangeMulti?.([])}>
                         {clearAllLabel}
                       </Button>
                     </div>
                     <div className="flex max-h-24 flex-wrap gap-1 overflow-y-auto overscroll-contain">
                       {list.map(tag => (
-                        <Badge key={tag} variant="outline" className="gap-1 py-0.5 pl-2 pr-1  text-[11px] font-normal">
+                        <Badge key={tag} variant="outline" className="gap-1 py-0.5 pr-1 pl-2 text-[11px] font-normal">
                           <span className="max-w-[200px] truncate">{tag}</span>
                           <button
                             type="button"
-                            className="rounded p-0.5 hover:bg-destructive/15 hover:text-destructive"
+                            className="hover:bg-destructive/15 hover:text-destructive rounded p-0.5"
                             disabled={disabled}
                             onClick={() => onChangeMulti?.(list.filter(x => x !== tag))}
                             aria-label={t('coreEditor.tagPicker.removeTag', { defaultValue: 'Remove {{tag}}', tag })}

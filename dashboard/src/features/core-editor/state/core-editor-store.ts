@@ -171,9 +171,7 @@ export const useCoreEditorStore = create<CoreEditorStoreState>((set, get) => ({
     const excludes = (core.exclude_inbound_tags ?? []).map(String)
     const serverJson = JSON.stringify(core.config)
     const nav =
-      preserveNavigation && prev && prev.coreId === core.id
-        ? { activeSection: prev.activeSection, restartNodes: prev.restartNodes }
-        : { activeSection: defaultSection(kind), restartNodes: true }
+      preserveNavigation && prev && prev.coreId === core.id ? { activeSection: prev.activeSection, restartNodes: prev.restartNodes } : { activeSection: defaultSection(kind), restartNodes: true }
     if (kind === 'wg') {
       const parsed = wireGuardConfigToDraft(core.config)
       if (!parsed.ok) {

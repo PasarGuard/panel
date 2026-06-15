@@ -274,6 +274,7 @@ class Subscription(BaseModel):
 class HWIDSettings(BaseModel):
     enabled: bool = Field(default=True)
     forced: bool = Field(default=False)
+    require_hwid_for_manual_sub: bool = Field(default=True)
     fallback_limit: int | None = Field(default=None, ge=0)
     min_limit: int | None = Field(default=None, ge=0)
     max_limit: int | None = Field(default=None, ge=0)

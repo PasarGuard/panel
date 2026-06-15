@@ -172,14 +172,7 @@ export function CodeEditorPanel({
     if (isMobile) {
       return (
         <Suspense fallback={editorFallback}>
-          <MobileCodeAceEditor
-            value={value}
-            language={language}
-            theme={resolvedTheme}
-            onChange={onChange}
-            onLoad={handleEditorDidMount}
-            readOnly={readOnly}
-          />
+          <MobileCodeAceEditor value={value} language={language} theme={resolvedTheme} onChange={onChange} onLoad={handleEditorDidMount} readOnly={readOnly} />
         </Suspense>
       )
     }
@@ -203,7 +196,7 @@ export function CodeEditorPanel({
 
   if (!enableFullscreen) {
     return (
-      <div className={cn('relative flex flex-col overflow-hidden rounded-lg border bg-background', className)} dir="ltr">
+      <div className={cn('bg-background relative flex flex-col overflow-hidden rounded-lg border', className)} dir="ltr">
         <div className="relative min-h-0 flex-1" style={{ minHeight: 0 }}>
           {renderEditor()}
         </div>
@@ -216,7 +209,7 @@ export function CodeEditorPanel({
     <>
       {!isEditorFullscreen && (
         <div
-          className={cn('relative flex flex-col rounded-lg border bg-background', embeddedContainerClassName, className)}
+          className={cn('bg-background relative flex flex-col rounded-lg border', embeddedContainerClassName, className)}
           dir="ltr"
           style={{
             display: 'flex',
@@ -224,15 +217,15 @@ export function CodeEditorPanel({
           }}
         >
           {!isEditorReady && (
-            <div className="absolute inset-0 z-[70] flex items-center justify-center bg-background/80 backdrop-blur-sm">
-              <span className="h-8 w-8 animate-spin rounded-full border-b-2 border-t-2 border-primary" />
+            <div className="bg-background/80 absolute inset-0 z-[70] flex items-center justify-center backdrop-blur-sm">
+              <span className="border-primary h-8 w-8 animate-spin rounded-full border-t-2 border-b-2" />
             </div>
           )}
           <Button
             type="button"
             size="icon"
             variant="ghost"
-            className="absolute right-2 top-2 z-10 bg-background/90 backdrop-blur-sm hover:bg-background/90"
+            className="bg-background/90 hover:bg-background/90 absolute top-2 right-2 z-10 backdrop-blur-sm"
             onClick={handleToggleFullscreen}
             aria-label={t('fullscreen', { defaultValue: 'Fullscreen' })}
           >
@@ -247,7 +240,12 @@ export function CodeEditorPanel({
 
       {/* Fullscreen uses a nested Radix Dialog so it gets its own focus trap,
           which works correctly even when this component is inside another Dialog. */}
-      <Dialog open={isEditorFullscreen} onOpenChange={open => { if (!open) handleToggleFullscreen() }}>
+      <Dialog
+        open={isEditorFullscreen}
+        onOpenChange={open => {
+          if (!open) handleToggleFullscreen()
+        }}
+      >
         <DialogContent
           className="flex h-[100dvh] max-h-[100dvh] w-[100dvw] max-w-[100dvw] flex-col gap-0 rounded-none border-none p-0 sm:h-[calc(100vh-4rem)] sm:max-h-[calc(100vh-4rem)] sm:max-w-[95vw] sm:rounded-lg sm:border sm:p-0 [&>button[class*='top-6']]:hidden"
           dir="ltr"
@@ -263,15 +261,8 @@ export function CodeEditorPanel({
           onPointerDownOutside={e => e.preventDefault()}
           onInteractOutside={e => e.preventDefault()}
         >
-          <div className="hidden shrink-0 items-center justify-end border-b bg-background px-3 py-2.5 sm:flex sm:rounded-t-lg">
-            <Button
-              type="button"
-              size="icon"
-              variant="ghost"
-              className="h-8 w-8 shrink-0"
-              onClick={handleToggleFullscreen}
-              aria-label={t('exitFullscreen', { defaultValue: 'Exit fullscreen' })}
-            >
+          <div className="bg-background hidden shrink-0 items-center justify-end border-b px-3 py-2.5 sm:flex sm:rounded-t-lg">
+            <Button type="button" size="icon" variant="ghost" className="h-8 w-8 shrink-0" onClick={handleToggleFullscreen} aria-label={t('exitFullscreen', { defaultValue: 'Exit fullscreen' })}>
               <Minimize2 className="h-4 w-4" />
             </Button>
           </div>
@@ -279,15 +270,13 @@ export function CodeEditorPanel({
             type="button"
             size="icon"
             variant="default"
-            className="absolute right-2 top-2 z-20 h-9 w-9 rounded-full shadow-lg sm:hidden"
+            className="absolute top-2 right-2 z-20 h-9 w-9 rounded-full shadow-lg sm:hidden"
             onClick={handleToggleFullscreen}
             aria-label={t('exitFullscreen', { defaultValue: 'Exit fullscreen' })}
           >
             <Minimize2 className="h-4 w-4" />
           </Button>
-          <div className="relative min-h-0 w-full flex-1">
-            {isEditorFullscreen && renderEditor()}
-          </div>
+          <div className="relative min-h-0 w-full flex-1">{isEditorFullscreen && renderEditor()}</div>
           {footer}
         </DialogContent>
       </Dialog>

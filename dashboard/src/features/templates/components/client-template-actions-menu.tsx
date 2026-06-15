@@ -19,17 +19,7 @@ interface ClientTemplateActionsMenuProps {
   className?: string
 }
 
-const DeleteAlertDialog = ({
-  template,
-  isOpen,
-  onClose,
-  onConfirm,
-}: {
-  template: ClientTemplateResponse
-  isOpen: boolean
-  onClose: () => void
-  onConfirm: () => void
-}) => {
+const DeleteAlertDialog = ({ template, isOpen, onClose, onConfirm }: { template: ClientTemplateResponse; isOpen: boolean; onClose: () => void; onConfirm: () => void }) => {
   const { t } = useTranslation()
   const dir = useDirDetection()
 

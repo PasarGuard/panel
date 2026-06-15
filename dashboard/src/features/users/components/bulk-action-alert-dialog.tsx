@@ -1,13 +1,4 @@
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { useTranslation } from 'react-i18next'
 
@@ -22,16 +13,7 @@ interface BulkActionAlertDialogProps {
   destructive?: boolean
 }
 
-export function BulkActionAlertDialog({
-  open,
-  onOpenChange,
-  title,
-  description,
-  actionLabel,
-  onConfirm,
-  isPending = false,
-  destructive = false,
-}: BulkActionAlertDialogProps) {
+export function BulkActionAlertDialog({ open, onOpenChange, title, description, actionLabel, onConfirm, isPending = false, destructive = false }: BulkActionAlertDialogProps) {
   const { t } = useTranslation()
   const dir = useDirDetection()
 

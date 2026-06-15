@@ -1,7 +1,18 @@
 import { ChevronRight, type LucideIcon } from 'lucide-react'
 
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
-import { SidebarGroup, SidebarGroupLabel, SidebarMenu, SidebarMenuAction, SidebarMenuButton, SidebarMenuItem, SidebarMenuSub, SidebarMenuSubButton, SidebarMenuSubItem, useSidebar } from '@/components/ui/sidebar'
+import {
+  SidebarGroup,
+  SidebarGroupLabel,
+  SidebarMenu,
+  SidebarMenuAction,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
+  useSidebar,
+} from '@/components/ui/sidebar'
 import { NavLink, useLocation } from 'react-router'
 import { useTranslation } from 'react-i18next'
 
@@ -59,19 +70,16 @@ export function NavMain({
                     <SidebarMenuSub>
                       {item.items?.map(subItem => {
                         const base = subItem.url.replace(/\/$/, '')
-                        const subActive =
-                          location.pathname === subItem.url ||
-                          (subItem.matchPrefix &&
-                            (location.pathname === base || location.pathname.startsWith(`${base}/`)))
+                        const subActive = location.pathname === subItem.url || (subItem.matchPrefix && (location.pathname === base || location.pathname.startsWith(`${base}/`)))
                         return (
-                        <SidebarMenuSubItem key={subItem.title}>
-                          <SidebarMenuSubButton asChild className="flex items-center gap-2 h-8" isActive={subActive}>
-                            <NavLink to={subItem.url} end={!subItem.matchPrefix} onClick={handleNavigation}>
-                              <subItem.icon />
-                              <span>{t(subItem.title)}</span>
-                            </NavLink>
-                          </SidebarMenuSubButton>
-                        </SidebarMenuSubItem>
+                          <SidebarMenuSubItem key={subItem.title}>
+                            <SidebarMenuSubButton asChild className="flex h-8 items-center gap-2" isActive={subActive}>
+                              <NavLink to={subItem.url} end={!subItem.matchPrefix} onClick={handleNavigation}>
+                                <subItem.icon />
+                                <span>{t(subItem.title)}</span>
+                              </NavLink>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
                         )
                       })}
                     </SidebarMenuSub>

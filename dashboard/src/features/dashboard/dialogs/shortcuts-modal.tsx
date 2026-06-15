@@ -56,16 +56,16 @@ const QuickActionsModal = ({
     // User Management
     ...(canCreateUser
       ? [
-        {
-          id: '1',
-          name: t('createUser'),
-          description: t('emptyState.noUsers.description', { defaultValue: 'Get started by creating your first user account' }),
-          icon: <UsersIcon className="h-5 w-5" />,
-          action: onCreateUser,
-          disabled: false,
-          category: 'users' as const,
-        },
-      ]
+          {
+            id: '1',
+            name: t('createUser'),
+            description: t('emptyState.noUsers.description', { defaultValue: 'Get started by creating your first user account' }),
+            icon: <UsersIcon className="h-5 w-5" />,
+            action: onCreateUser,
+            disabled: false,
+            category: 'users' as const,
+          },
+        ]
       : []),
     ...(canCreateGroup
       ? [
@@ -177,7 +177,7 @@ const QuickActionsModal = ({
         <div className="max-h-[calc(100dvh-100px)] space-y-4 overflow-y-auto pr-1">
           {Object.entries(groupedActions).map(([category, actions]) => (
             <div key={category} className="space-y-2">
-              <div className="flex items-center gap-2 px-1 text-sm font-medium text-muted-foreground">
+              <div className="text-muted-foreground flex items-center gap-2 px-1 text-sm font-medium">
                 {categories[category as keyof typeof categories]?.icon}
                 {categories[category as keyof typeof categories]?.title}
               </div>
@@ -196,12 +196,12 @@ const QuickActionsModal = ({
                   >
                     <CardHeader className="px-3 py-3 pb-2">
                       <div className="flex items-center gap-3">
-                        <div className="rounded-md bg-muted p-1.5 text-muted-foreground">{action.icon}</div>
+                        <div className="bg-muted text-muted-foreground rounded-md p-1.5">{action.icon}</div>
                         <div className="min-w-0 flex-1">
                           <CardTitle className="truncate text-sm font-medium">{action.name}</CardTitle>
                           <CardDescription className="line-clamp-1 text-xs">{action.description}</CardDescription>
                         </div>
-                        {action.disabled && <div className="rounded bg-muted px-2 py-0.5 text-center text-xs text-muted-foreground">{t('quickActions.comingSoon')}</div>}
+                        {action.disabled && <div className="bg-muted text-muted-foreground rounded px-2 py-0.5 text-center text-xs">{t('quickActions.comingSoon')}</div>}
                       </div>
                     </CardHeader>
                   </Card>

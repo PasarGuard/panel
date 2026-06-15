@@ -52,12 +52,7 @@ export function StringArrayPopoverInput({
   const [editingValue, setEditingValue] = useState('')
 
   const items = normalizeItems(value ?? [])
-  const displayValue =
-    items.length > 0
-      ? items.length <= 3
-        ? items.join(', ')
-        : `${items.slice(0, 3).join(', ')}... (+${items.length - 3} more)`
-      : ''
+  const displayValue = items.length > 0 ? (items.length <= 3 ? items.join(', ') : `${items.slice(0, 3).join(', ')}... (+${items.length - 3} more)`) : ''
 
   const addItem = () => {
     if (disabled) return
@@ -124,17 +119,11 @@ export function StringArrayPopoverInput({
           dir="ltr"
           variant="outline"
           role="combobox"
-          className={cn('h-auto w-full min-w-0 overflow-hidden justify-between p-2 text-left', className)}
+          className={cn('h-auto w-full min-w-0 justify-between overflow-hidden p-2 text-left', className)}
           title={displayValue || placeholder}
           disabled={disabled}
         >
-          <span
-            className={cn(
-              'min-w-0 flex-1 truncate text-start',
-              displayValue ? 'text-foreground' : 'text-muted-foreground',
-            )}
-            title={displayValue || placeholder}
-          >
+          <span className={cn('min-w-0 flex-1 truncate text-start', displayValue ? 'text-foreground' : 'text-muted-foreground')} title={displayValue || placeholder}>
             {displayValue || placeholder}
           </span>
           <div className="ml-2 flex shrink-0 items-center gap-1">
@@ -143,16 +132,11 @@ export function StringArrayPopoverInput({
                 {items.length}
               </Badge>
             )}
-            <Link2 className="h-5 w-5 text-muted-foreground" />
+            <Link2 className="text-muted-foreground h-5 w-5" />
           </div>
         </Button>
       </PopoverTrigger>
-      <PopoverContent
-        className="w-[min(90vw,400px)] overflow-hidden p-3"
-        side="bottom"
-        onWheel={e => e.stopPropagation()}
-        onTouchMove={e => e.stopPropagation()}
-      >
+      <PopoverContent className="w-[min(90vw,400px)] overflow-hidden p-3" side="bottom" onWheel={e => e.stopPropagation()} onTouchMove={e => e.stopPropagation()}>
         <div className="flex max-h-[min(70dvh,24rem)] min-h-0 flex-col gap-3 overflow-hidden">
           <div className="m-1.5 flex flex-col gap-2 sm:flex-row sm:items-center">
             <Input
@@ -188,12 +172,12 @@ export function StringArrayPopoverInput({
 
           {items.length > 0 && (
             <div dir="ltr" className="flex min-h-0 flex-col gap-2">
-              <div className="text-xs font-medium text-muted-foreground">
+              <div className="text-muted-foreground text-xs font-medium">
                 {itemsLabel} ({items.length})
               </div>
-              <div className="min-h-0 max-h-[min(50dvh,14rem)] space-y-1 overflow-y-auto overscroll-contain pr-1 touch-pan-y">
+              <div className="max-h-[min(50dvh,14rem)] min-h-0 touch-pan-y space-y-1 overflow-y-auto overscroll-contain pr-1">
                 {items.map((item, index) => (
-                  <div key={`${item}-${index}`} className="group flex min-w-0 max-w-full items-center gap-2 rounded-md border p-2 transition-colors hover:bg-accent/50">
+                  <div key={`${item}-${index}`} className="group hover:bg-accent/50 flex max-w-full min-w-0 items-center gap-2 rounded-md border p-2 transition-colors">
                     {editingIndex === index ? (
                       <Input
                         value={editingValue}
@@ -217,11 +201,7 @@ export function StringArrayPopoverInput({
                         disabled={disabled}
                       />
                     ) : (
-                      <span
-                        className="min-w-0 flex-1 cursor-text truncate text-sm leading-tight transition-colors hover:text-primary"
-                        onClick={() => startEdit(index, item)}
-                        title={clickToEditTitle}
-                      >
+                      <span className="hover:text-primary min-w-0 flex-1 cursor-text truncate text-sm leading-tight transition-colors" onClick={() => startEdit(index, item)} title={clickToEditTitle}>
                         {item}
                       </span>
                     )}
@@ -300,7 +280,7 @@ export function StringArrayPopoverInput({
             </div>
           )}
 
-          {items.length === 0 && <div className="py-6 text-start text-sm text-muted-foreground">{emptyMessage}</div>}
+          {items.length === 0 && <div className="text-muted-foreground py-6 text-start text-sm">{emptyMessage}</div>}
         </div>
       </PopoverContent>
     </Popover>

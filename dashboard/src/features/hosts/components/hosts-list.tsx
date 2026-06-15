@@ -54,7 +54,18 @@ const toOptionalNumber = (value: unknown) => {
   return Number.isFinite(numericValue) ? numericValue : undefined
 }
 
-export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, editingHost, setEditingHost, onRefresh, isRefreshing: isRefreshingProp, canCreate = true, canUpdate = true }: HostsListProps) {
+export default function HostsList({
+  data,
+  onAddHost,
+  isDialogOpen,
+  onSubmit,
+  editingHost,
+  setEditingHost,
+  onRefresh,
+  isRefreshing: isRefreshingProp,
+  canCreate = true,
+  canUpdate = true,
+}: HostsListProps) {
   const [hosts, setHosts] = useState<BaseHost[] | undefined>(data)
   const [isUpdatingPriorities, setIsUpdatingPriorities] = useState(false)
   const [filters, setFilters] = useState<HostListFilters>({})
@@ -821,35 +832,35 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
   const bulkActions: BulkActionItem[] = selectedCount
     ? canUpdate
       ? [
-        {
-          key: 'delete',
-          label: t('delete'),
-          icon: Trash2,
-          onClick: () => setBulkAction('delete'),
-          direct: true,
-          destructive: true,
-        },
-        ...(disableEligibleCount > 0
-          ? [
-            {
-              key: 'disable',
-              label: t('disable'),
-              icon: PowerOff,
-              onClick: () => setBulkAction('disable'),
-            } as BulkActionItem,
-          ]
-          : []),
-        ...(enableEligibleCount > 0
-          ? [
-            {
-              key: 'enable',
-              label: t('enable'),
-              icon: Power,
-              onClick: () => setBulkAction('enable'),
-            } as BulkActionItem,
-          ]
-          : []),
-      ]
+          {
+            key: 'delete',
+            label: t('delete'),
+            icon: Trash2,
+            onClick: () => setBulkAction('delete'),
+            direct: true,
+            destructive: true,
+          },
+          ...(disableEligibleCount > 0
+            ? [
+                {
+                  key: 'disable',
+                  label: t('disable'),
+                  icon: PowerOff,
+                  onClick: () => setBulkAction('disable'),
+                } as BulkActionItem,
+              ]
+            : []),
+          ...(enableEligibleCount > 0
+            ? [
+                {
+                  key: 'enable',
+                  label: t('enable'),
+                  icon: Power,
+                  onClick: () => setBulkAction('enable'),
+                } as BulkActionItem,
+              ]
+            : []),
+        ]
       : []
     : []
   const bulkActionConfigs: Record<BulkHostActionType, BulkActionDialogConfig> = {
@@ -918,7 +929,16 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
               isRowSelectable={host => typeof host.id === 'number'}
               showEmptyState={false}
               renderItem={host => (
-                <SortableHost key={host.id ?? 'new'} host={host} onEdit={handleEdit} onDuplicate={handleDuplicate} onDataChanged={refreshHostsData} disabled={isSortingDisabled} canUpdate={canUpdate} canCreate={canCreate} />
+                <SortableHost
+                  key={host.id ?? 'new'}
+                  host={host}
+                  onEdit={handleEdit}
+                  onDuplicate={handleDuplicate}
+                  onDataChanged={refreshHostsData}
+                  disabled={isSortingDisabled}
+                  canUpdate={canUpdate}
+                  canCreate={canCreate}
+                />
               )}
               renderSkeleton={index => (
                 <Card key={index} className="group relative h-full p-4">
@@ -973,7 +993,7 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
           <CardContent className="p-8 text-center">
             <div className="space-y-4">
               <h3 className="text-lg font-semibold">{t('host.noHosts')}</h3>
-              <p className="mx-auto max-w-2xl text-muted-foreground">{t('host.noHostsDescription')}</p>
+              <p className="text-muted-foreground mx-auto max-w-2xl">{t('host.noHostsDescription')}</p>
             </div>
           </CardContent>
         </Card>
@@ -983,7 +1003,7 @@ export default function HostsList({ data, onAddHost, isDialogOpen, onSubmit, edi
           <CardContent className="p-8 text-center">
             <div className="space-y-4">
               <h3 className="text-lg font-semibold">{t('noResults')}</h3>
-              <p className="mx-auto max-w-2xl text-muted-foreground">{t('host.noSearchResults')}</p>
+              <p className="text-muted-foreground mx-auto max-w-2xl">{t('host.noSearchResults')}</p>
             </div>
           </CardContent>
         </Card>

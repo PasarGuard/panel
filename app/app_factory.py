@@ -3,6 +3,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
+from sqlalchemy.exc import DBAPIError
 
 from app.lifecycle import on_shutdown, on_startup
 from app.nats import is_nats_enabled
@@ -17,6 +18,16 @@ from config import runtime_settings, subscription_env_settings
 
 
 logger = get_logger("app-factory")
+
+
+async def database_operational_error_handler(request: Request, exc: DBAPIError):
+    orig = getattr(exc, "orig", None)
+    error_summary = f"{type(orig).__name__}: {orig}" if orig else type(exc).__name__
+    logger.warning(f"Database unavailable while handling {request.method} {request.url.path}: {error_summary}")
+    return JSONResponse(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        content={"detail": "Database temporarily unavailable"},
+    )
 
 
 def _use_route_names_as_operation_ids(app: FastAPI) -> None:
@@ -130,6 +141,8 @@ def create_app() -> FastAPI:
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             content=jsonable_encoder({"detail": details}),
         )
+
+    app.add_exception_handler(DBAPIError, database_operational_error_handler)
 
     from app.operation.permissions import LimitExceeded, PermissionDenied  # noqa: F401
 

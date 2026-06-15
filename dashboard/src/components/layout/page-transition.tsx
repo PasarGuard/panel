@@ -42,13 +42,7 @@ const getMotion = () => {
 
 const isTab = (a: string, b: string) => (a.startsWith('/settings') && b.startsWith('/settings')) || (a.startsWith('/nodes') && b.startsWith('/nodes'))
 
-export default memo(function PageTransition({
-  children,
-  duration = 300,
-  delay = 0,
-  isContentTransition = false,
-  className,
-}: PageTransitionProps) {
+export default memo(function PageTransition({ children, duration = 300, delay = 0, isContentTransition = false, className }: PageTransitionProps) {
   const location = useLocation()
   const navType = useNavigationType()
   const [displayChildren, setDisplayChildren] = useState(children)
@@ -86,8 +80,7 @@ export default memo(function PageTransition({
       return
     }
 
-    const pathnameHashSame =
-      location.pathname === prev.current.pathname && location.hash === prev.current.hash
+    const pathnameHashSame = location.pathname === prev.current.pathname && location.hash === prev.current.hash
     /** Same route + only query changed (e.g. core editor `?kind=wg`); new location.key must not trigger shake. */
     if (pathnameHashSame && location.search !== prev.current.search) {
       setDisplayChildren(children)

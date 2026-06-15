@@ -122,13 +122,7 @@ function TabStripPlaceholder({ tabs, activeId }: { tabs: TabDef[]; activeId: str
         const Icon = tab.icon
         const isActive = activeId === tab.id
         return (
-          <div
-            key={tab.id}
-            className={cn(
-              'relative shrink-0 whitespace-nowrap px-3 py-2 text-sm font-medium',
-              isActive ? 'border-b-2 border-primary text-foreground' : 'text-muted-foreground',
-            )}
-          >
+          <div key={tab.id} className={cn('relative shrink-0 px-3 py-2 text-sm font-medium whitespace-nowrap', isActive ? 'border-primary text-foreground border-b-2' : 'text-muted-foreground')}>
             <div className="flex items-center gap-1.5">
               <Icon className="h-4 w-4 shrink-0" aria-hidden />
               {tab.id === 'core' ? (
@@ -159,9 +153,9 @@ function NodesTabbedFallback({ pathname }: { pathname: string }) {
   const header = nodesHeader(pathname)
   const activeId = nodesActiveTabId(pathname)
   return (
-    <div className="flex w-full min-h-0 flex-1 flex-col items-start gap-0">
+    <div className="flex min-h-0 w-full flex-1 flex-col items-start gap-0">
       <PageHeader title={header.title} description={header.description} tutorialUrl={getDocsUrl(pathname)} />
-      <div className="flex w-full min-h-0 flex-1 flex-col">
+      <div className="flex min-h-0 w-full flex-1 flex-col">
         <TabStripPlaceholder tabs={NODES_TABS} activeId={activeId} />
         <ContentSpinner />
       </div>
@@ -203,8 +197,7 @@ function BulkTabbedFallback({ pathname, isSudo }: { pathname: string; isSudo: bo
 
 function TemplatesTabbedFallback({ pathname }: { pathname: string }) {
   const header = templatesHeader(pathname)
-  const activeId =
-    pathname === '/templates/client' ? 'templates.clientTemplates' : 'templates.userTemplates'
+  const activeId = pathname === '/templates/client' ? 'templates.clientTemplates' : 'templates.userTemplates'
   return (
     <div className="flex w-full flex-col items-start gap-0">
       <PageHeader title={header.title} description={header.description} tutorialUrl={getDocsUrl(pathname)} />

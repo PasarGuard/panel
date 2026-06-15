@@ -19,11 +19,7 @@ function routingRuleTag(rule: RoutingRule): string {
  * True if `candidateRaw` (trimmed) is already used as a tag on another inbound, outbound,
  * routing balancer, or routing rule `tag` (Xray expects these names not to collide).
  */
-export function profileTagHasDuplicateUsage(
-  profile: Profile,
-  candidateRaw: string,
-  ignore?: ProfileTagIgnore,
-): boolean {
+export function profileTagHasDuplicateUsage(profile: Profile, candidateRaw: string, ignore?: ProfileTagIgnore): boolean {
   const c = normTag(candidateRaw)
   if (c === '') return false
 

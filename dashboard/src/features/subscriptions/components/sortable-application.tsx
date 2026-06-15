@@ -34,33 +34,33 @@ export function SortableApplication({ index, onRemove, form, id }: SortableAppli
   return (
     <>
       <div ref={setNodeRef} style={style} className="cursor-default">
-        <div className="group relative cursor-pointer rounded-md border bg-card transition-colors hover:bg-accent/20" dir="ltr" onClick={() => setIsSheetOpen(true)}>
+        <div className="group bg-card hover:bg-accent/20 relative cursor-pointer rounded-md border transition-colors" dir="ltr" onClick={() => setIsSheetOpen(true)}>
           <div className="flex items-center gap-2 p-3 sm:gap-3 sm:p-4">
-            <button type="button" style={{ cursor: cursor }} className="touch-none shrink-0 opacity-50 transition-opacity group-hover:opacity-100" onClick={e => e.stopPropagation()} {...attributes} {...listeners}>
+            <button
+              type="button"
+              style={{ cursor: cursor }}
+              className="shrink-0 touch-none opacity-50 transition-opacity group-hover:opacity-100"
+              onClick={e => e.stopPropagation()}
+              {...attributes}
+              {...listeners}
+            >
               <GripVertical className="h-4 w-4 sm:h-5 sm:w-5" />
               <span className="sr-only">Drag to reorder</span>
             </button>
 
-            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5 sm:gap-2 sm:flex-nowrap">
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5 sm:flex-nowrap sm:gap-2">
               {(() => {
                 const iconUrl = form.watch(`applications.${index}.icon_url`)
                 const name = (form.watch(`applications.${index}.name`) || '').trim()
                 const initial = name ? name.charAt(0).toUpperCase() : ''
                 const platform = form.watch(`applications.${index}.platform`) ?? ''
                 if (iconUrl && !iconBroken) {
-                  return (
-                    <img
-                      src={iconUrl}
-                      alt={name || 'icon'}
-                      className="h-4 w-4 shrink-0 rounded-sm object-cover sm:h-5 sm:w-5"
-                      onError={() => setIconBroken(true)}
-                    />
-                  )
+                  return <img src={iconUrl} alt={name || 'icon'} className="h-4 w-4 shrink-0 rounded-sm object-cover sm:h-5 sm:w-5" onError={() => setIconBroken(true)} />
                 }
                 return (
-                  <span aria-label="app-icon-fallback" className="inline-flex h-4 w-4 shrink-0 items-center justify-center overflow-hidden rounded-sm bg-muted text-muted-foreground/90 sm:h-5 sm:w-5">
+                  <span aria-label="app-icon-fallback" className="bg-muted text-muted-foreground/90 inline-flex h-4 w-4 shrink-0 items-center justify-center overflow-hidden rounded-sm sm:h-5 sm:w-5">
                     {initial ? (
-                      <span className="text-[10px] font-medium leading-none">{initial}</span>
+                      <span className="text-[10px] leading-none font-medium">{initial}</span>
                     ) : (
                       <span className="text-[10px] leading-none">
                         <PlatformIcon platform={platform} />
@@ -72,13 +72,13 @@ export function SortableApplication({ index, onRemove, form, id }: SortableAppli
               <FormField
                 control={form.control}
                 name={`applications.${index}.platform`}
-                render={({ field }) => <span className="hidden text-xs text-muted-foreground sm:inline">{t(platformOptions.find(o => o.value === field.value)?.label || '')}</span>}
+                render={({ field }) => <span className="text-muted-foreground hidden text-xs sm:inline">{t(platformOptions.find(o => o.value === field.value)?.label || '')}</span>}
               />
               <FormField
                 control={form.control}
                 name={`applications.${index}.platform`}
                 render={({ field }) => (
-                  <span className="shrink-0 text-muted-foreground/80">
+                  <span className="text-muted-foreground/80 shrink-0">
                     <PlatformIcon platform={field.value ?? ''} />
                   </span>
                 )}
@@ -123,24 +123,17 @@ export function SortableApplication({ index, onRemove, form, id }: SortableAppli
                 e.stopPropagation()
                 onRemove(index)
               }}
-              className="h-7 w-7 shrink-0 p-0 text-destructive opacity-70 transition-opacity hover:bg-destructive/10 hover:text-destructive hover:opacity-100 sm:h-8 sm:w-8"
+              className="text-destructive hover:bg-destructive/10 hover:text-destructive h-7 w-7 shrink-0 p-0 opacity-70 transition-opacity hover:opacity-100 sm:h-8 sm:w-8"
             >
               <Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             </Button>
           </div>
 
-          {isDragging && <div className="pointer-events-none absolute inset-0 rounded-md border border-primary/20 bg-primary/5" />}
+          {isDragging && <div className="border-primary/20 bg-primary/5 pointer-events-none absolute inset-0 rounded-md border" />}
         </div>
       </div>
 
-      <SubscriptionApplicationSheet
-        variant="edit"
-        form={form}
-        applicationIndex={index}
-        rowId={id}
-        open={isSheetOpen}
-        onOpenChange={setIsSheetOpen}
-      />
+      <SubscriptionApplicationSheet variant="edit" form={form} applicationIndex={index} rowId={id} open={isSheetOpen} onOpenChange={setIsSheetOpen} />
     </>
   )
 }

@@ -28,7 +28,19 @@ interface NodeProps {
   selected?: boolean
 }
 
-export default function Node({ node, onEdit, onToggleStatus, coresData, canUpdate = true, canDelete = true, canReconnect = true, canUpdateCore = true, canReadStats = true, selectionControl, selected = false }: NodeProps) {
+export default function Node({
+  node,
+  onEdit,
+  onToggleStatus,
+  coresData,
+  canUpdate = true,
+  canDelete = true,
+  canReconnect = true,
+  canUpdateCore = true,
+  canReadStats = true,
+  selectionControl,
+  selected = false,
+}: NodeProps) {
   const { t } = useTranslation()
   const dir = useDirDetection()
   const [showUpdateCoreDialog, setShowUpdateCoreDialog] = useState(false)
@@ -101,7 +113,7 @@ export default function Node({ node, onEdit, onToggleStatus, coresData, canUpdat
   return (
     <TooltipProvider>
       <Card
-        className={cn('group relative h-full overflow-hidden border transition-colors', canUpdate && 'cursor-pointer hover:bg-accent', selected && 'border-primary/50 bg-accent/30')}
+        className={cn('group relative h-full overflow-hidden border transition-colors', canUpdate && 'hover:bg-accent cursor-pointer', selected && 'border-primary/50 bg-accent/30')}
         onClick={() => {
           if (canUpdate) onEdit(node)
         }}

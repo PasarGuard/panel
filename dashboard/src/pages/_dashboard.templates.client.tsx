@@ -125,10 +125,14 @@ export default function ClientTemplates() {
       <div className="w-full flex-1 space-y-4 px-4">
         <div dir={dir} className="flex items-center gap-2 pt-4 md:gap-4">
           <div className="relative min-w-0 flex-1 md:w-[calc(100%/3-10px)] md:flex-none">
-            <Search className={cn('absolute', dir === 'rtl' ? 'right-2' : 'left-2', 'top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground')} />
-            <Input placeholder={t('search')} value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className={cn('pl-8 pr-10', dir === 'rtl' && 'pl-10 pr-8')} />
+            <Search className={cn('absolute', dir === 'rtl' ? 'right-2' : 'left-2', 'text-muted-foreground top-1/2 h-4 w-4 -translate-y-1/2')} />
+            <Input placeholder={t('search')} value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className={cn('pr-10 pl-8', dir === 'rtl' && 'pr-8 pl-10')} />
             {searchQuery && (
-              <button type="button" onClick={() => setSearchQuery('')} className={cn('absolute', dir === 'rtl' ? 'left-2' : 'right-2', 'top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground')}>
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className={cn('absolute', dir === 'rtl' ? 'left-2' : 'right-2', 'text-muted-foreground hover:text-foreground top-1/2 -translate-y-1/2')}
+              >
                 <X className="h-4 w-4" />
               </button>
             )}
@@ -148,7 +152,9 @@ export default function ClientTemplates() {
             <ViewToggle value={viewMode} onChange={setViewMode} />
           </div>
         </div>
-        {canDeleteTemplates && <BulkActionsBar selectedCount={selectedTemplateIds.length} onClear={clearSelection} onDelete={selectedTemplateIds.length > 0 ? () => setBulkAction('delete') : undefined} />}
+        {canDeleteTemplates && (
+          <BulkActionsBar selectedCount={selectedTemplateIds.length} onClear={clearSelection} onDelete={selectedTemplateIds.length > 0 ? () => setBulkAction('delete') : undefined} />
+        )}
 
         {(isCurrentlyLoading || filteredTemplates.length > 0) &&
           (viewMode === 'grid' ? (
@@ -205,7 +211,7 @@ export default function ClientTemplates() {
             <CardContent className="p-8 text-center">
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold">{t('clientTemplates.noTemplates', { defaultValue: 'No client templates' })}</h3>
-                <p className="mx-auto max-w-2xl text-muted-foreground">
+                <p className="text-muted-foreground mx-auto max-w-2xl">
                   {t('clientTemplates.noTemplatesDescription', { defaultValue: 'Create a client template to customize subscription output formats.' })}
                 </p>
               </div>
@@ -218,7 +224,7 @@ export default function ClientTemplates() {
             <CardContent className="p-8 text-center">
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold">{t('noResults')}</h3>
-                <p className="mx-auto max-w-2xl text-muted-foreground">{t('clientTemplates.noSearchResults', { defaultValue: 'No client templates match your search.' })}</p>
+                <p className="text-muted-foreground mx-auto max-w-2xl">{t('clientTemplates.noSearchResults', { defaultValue: 'No client templates match your search.' })}</p>
               </div>
             </CardContent>
           </Card>

@@ -44,7 +44,7 @@ const UserStatsCard = React.memo(({ userId, username, stats, onViewIPs }: UserSt
   }, [onViewIPs, userId, username])
 
   return (
-    <Card className="transition-colors hover:bg-accent/50">
+    <Card className="hover:bg-accent/50 transition-colors">
       <CardHeader className="pb-3">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <CardTitle className="flex items-center gap-2 text-sm font-medium">
@@ -81,14 +81,14 @@ UserStatsCard.displayName = 'UserStatsCard'
 // Optimized IP list item component with minimal re-renders
 const IPListItem = React.memo(({ ip, timeStrings }: { ip: string; timeStrings: string[] }) => {
   return (
-    <div className="rounded bg-accent/40 p-2 transition-colors hover:bg-accent/60">
+    <div className="bg-accent/40 hover:bg-accent/60 rounded p-2 transition-colors">
       <div className="flex flex-col gap-1">
-        <span className="break-all font-mono text-sm" dir="ltr">
+        <span className="font-mono text-sm break-all" dir="ltr">
           {ip}
         </span>
         <div className="flex flex-wrap gap-1">
           {timeStrings.map((timeString, index) => (
-            <span key={index} className="rounded bg-muted px-1.5 py-0.5 text-xs" dir="ltr">
+            <span key={index} className="bg-muted rounded px-1.5 py-0.5 text-xs" dir="ltr">
               {timeString}
             </span>
           ))}
@@ -122,7 +122,7 @@ const ErrorState = React.memo(({ message }: { message: string }) => {
   const dir = useDirDetection()
 
   return (
-    <div className="flex h-32 flex-col items-center justify-center gap-2 px-4 text-center text-muted-foreground">
+    <div className="text-muted-foreground flex h-32 flex-col items-center justify-center gap-2 px-4 text-center">
       <AlertCircle className="h-5 w-5" />
       <span className="text-sm" dir={dir}>
         {message}
@@ -138,7 +138,7 @@ const EmptyState = React.memo(({ message }: { message: string }) => {
   const dir = useDirDetection()
 
   return (
-    <div className="flex h-32 flex-col items-center justify-center gap-2 px-4 text-center text-muted-foreground">
+    <div className="text-muted-foreground flex h-32 flex-col items-center justify-center gap-2 px-4 text-center">
       <Users className="h-5 w-5" />
       <span className="text-sm" dir={dir}>
         {message}
@@ -205,14 +205,11 @@ export default function UserOnlineStatsModal({ isOpen, onOpenChange, nodeId, nod
     [isOpen, nodeId, viewingIPs],
   )
 
-  const { data: usersResponse, isLoading: isLoadingUserLookup } = useGetUsersSimple(
-    specificUsername ? { usernames: [specificUsername], limit: 1 } : undefined,
-    {
-      query: {
-        enabled: !!(isOpen && specificUsername),
-      },
+  const { data: usersResponse, isLoading: isLoadingUserLookup } = useGetUsersSimple(specificUsername ? { usernames: [specificUsername], limit: 1 } : undefined, {
+    query: {
+      enabled: !!(isOpen && specificUsername),
     },
-  )
+  })
 
   const searchedUser = useMemo(() => {
     return usersResponse?.users?.find(user => user.username === specificUsername) || null
@@ -306,9 +303,12 @@ export default function UserOnlineStatsModal({ isOpen, onOpenChange, nodeId, nod
   }, [searchTerm, t])
 
   // Handle search input (debounced automatically by hook)
-  const handleSearchInput = useCallback((value: string) => {
-    setSearchTerm(value)
-  }, [setSearchTerm])
+  const handleSearchInput = useCallback(
+    (value: string) => {
+      setSearchTerm(value)
+    },
+    [setSearchTerm],
+  )
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true)
@@ -430,7 +430,7 @@ export default function UserOnlineStatsModal({ isOpen, onOpenChange, nodeId, nod
             <ScrollArea className="h-[300px] sm:h-[400px]">
               <div className="p-4">
                 <h4 className="mb-2 text-sm font-medium">Raw Data (Debug):</h4>
-                <pre className="overflow-auto rounded bg-muted p-2 text-xs">{JSON.stringify(userIPs, null, 2)}</pre>
+                <pre className="bg-muted overflow-auto rounded p-2 text-xs">{JSON.stringify(userIPs, null, 2)}</pre>
               </div>
             </ScrollArea>
           </div>
@@ -459,7 +459,7 @@ export default function UserOnlineStatsModal({ isOpen, onOpenChange, nodeId, nod
             ))}
           </div>
           {hasMore && (
-            <div className="py-2 text-center text-xs text-muted-foreground">
+            <div className="text-muted-foreground py-2 text-center text-xs">
               {t('nodeModal.onlineStats.showingFirst', {
                 defaultValue: 'Showing first {{count}} IP addresses',
                 count: maxItems,
@@ -524,7 +524,7 @@ export default function UserOnlineStatsModal({ isOpen, onOpenChange, nodeId, nod
             <span>{dialogTitle}</span>
           </DialogTitle>
           {nodeName && (
-            <p className={cn('text-sm text-muted-foreground', dir === 'rtl' && 'sm:text-right')}>
+            <p className={cn('text-muted-foreground text-sm', dir === 'rtl' && 'sm:text-right')}>
               {t('nodeModal.onlineStats.nodeInfo', {
                 defaultValue: 'Node: {{nodeName}}',
                 nodeName,
@@ -557,7 +557,7 @@ export default function UserOnlineStatsModal({ isOpen, onOpenChange, nodeId, nod
 
         {/* Auto-refresh indicator */}
         {(specificUsername || viewingIPs) && (
-          <div className="border-t py-2 text-center text-xs text-muted-foreground">
+          <div className="text-muted-foreground border-t py-2 text-center text-xs">
             <Activity className="mr-1 inline h-3 w-3" />
             <span dir={dir}>{t('nodeModal.onlineStats.autoRefresh', { defaultValue: 'Auto-refreshing every 10 seconds' })}</span>
           </div>

@@ -78,13 +78,8 @@ export default function UpdateGeofilesDialog({ node, isOpen, onOpenChange }: Upd
 
         <div className="space-y-4 py-4">
           <div className="space-y-2">
-            <label className={cn('text-sm font-medium', dir === 'rtl' && 'text-right')}>
-              {t('nodeModal.selectRegion', { defaultValue: 'Select Region' })}
-            </label>
-            <Select
-              value={selectedRegion || ''}
-              onValueChange={value => setSelectedRegion(value as GeoFilseRegion)}
-            >
+            <label className={cn('text-sm font-medium', dir === 'rtl' && 'text-right')}>{t('nodeModal.selectRegion', { defaultValue: 'Select Region' })}</label>
+            <Select value={selectedRegion || ''} onValueChange={value => setSelectedRegion(value as GeoFilseRegion)}>
               <SelectTrigger className={cn(dir === 'rtl' && 'text-right')}>
                 <SelectValue placeholder={t('nodeModal.selectRegion', { defaultValue: 'Select Region' })} />
               </SelectTrigger>
@@ -96,7 +91,7 @@ export default function UpdateGeofilesDialog({ node, isOpen, onOpenChange }: Upd
                 ))}
               </SelectContent>
             </Select>
-            <p className={cn('text-xs text-muted-foreground', dir === 'rtl' && 'text-right')}>
+            <p className={cn('text-muted-foreground text-xs', dir === 'rtl' && 'text-right')}>
               {t('nodeModal.updateGeofilesHint', {
                 defaultValue: 'Select a specific region to update geofiles',
               })}
@@ -109,7 +104,7 @@ export default function UpdateGeofilesDialog({ node, isOpen, onOpenChange }: Upd
             {t('cancel')}
           </Button>
           <LoaderButton
-            className='!m-0'
+            className="!m-0"
             onClick={handleUpdate}
             disabled={updateGeofilesMutation.isPending}
             isLoading={updateGeofilesMutation.isPending}

@@ -51,10 +51,7 @@ export function getInboundTransportSelectOptions(
     if (c) fromCaps.add(c)
   }
 
-  if (
-    (input.protocol === 'vless' || input.protocol === 'trojan') &&
-    input.securityType === 'reality'
-  ) {
+  if ((input.protocol === 'vless' || input.protocol === 'trojan') && input.securityType === 'reality') {
     for (const t of [...fromCaps]) {
       if (!REALITY_COMPATIBLE_TRANSPORTS.has(t)) fromCaps.delete(t)
     }
@@ -73,13 +70,8 @@ export function getInboundTransportSelectOptions(
   return ordered
 }
 
-export function getInboundSecuritySelectOptions(
-  caps: InboundFormCapabilities,
-  protocol: Inbound['protocol'],
-): Array<'none' | 'tls' | 'reality'> {
-  const all = Object.keys(caps.securities).filter((k): k is 'none' | 'tls' | 'reality' =>
-    caps.securities[k],
-  )
+export function getInboundSecuritySelectOptions(caps: InboundFormCapabilities, protocol: Inbound['protocol']): Array<'none' | 'tls' | 'reality'> {
+  const all = Object.keys(caps.securities).filter((k): k is 'none' | 'tls' | 'reality' => caps.securities[k])
   if (protocol === 'vmess' || protocol === 'shadowsocks' || protocol === 'hysteria') {
     return all.filter(s => s !== 'reality')
   }

@@ -38,7 +38,11 @@ export default function AdminFilterCombobox({ value, onValueChange, onAdminSelec
     setIsLoadingMore(false)
   }, [adminSearch])
 
-  const { data: fetchedAdminsResponse, isLoading, isFetching } = useGetAdminsSimple(
+  const {
+    data: fetchedAdminsResponse,
+    isLoading,
+    isFetching,
+  } = useGetAdminsSimple(
     {
       limit: PAGE_SIZE,
       offset,
@@ -91,15 +95,19 @@ export default function AdminFilterCombobox({ value, onValueChange, onAdminSelec
     <div className={cn('w-full', className)} dir={dir}>
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
-          <Button variant="outline" className="h-8 w-full min-w-0 justify-between px-2 text-xs font-medium transition-colors hover:bg-muted/50 sm:px-3 sm:text-sm">
+          <Button variant="outline" className="hover:bg-muted/50 h-8 w-full min-w-0 justify-between px-2 text-xs font-medium transition-colors sm:px-3 sm:text-sm">
             <div className={cn('flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2', dir === 'rtl' ? 'flex-row-reverse' : 'flex-row')}>
               <Avatar className="h-4 w-4 flex-shrink-0 sm:h-5 sm:w-5">
                 <AvatarFallback className="bg-muted text-xs font-medium">{value === 'all' ? <Sigma className="h-3 w-3" /> : triggerLabel.charAt(0).toUpperCase()}</AvatarFallback>
               </Avatar>
               <span className="truncate">{triggerLabel}</span>
-              {value !== 'all' && selectedAdmin && <div className="flex-shrink-0"><UserRound className="h-3 w-3 text-primary" /></div>}
+              {value !== 'all' && selectedAdmin && (
+                <div className="flex-shrink-0">
+                  <UserRound className="text-primary h-3 w-3" />
+                </div>
+              )}
             </div>
-            <ChevronDown className="ml-1 h-3 w-3 flex-shrink-0 text-muted-foreground" />
+            <ChevronDown className="text-muted-foreground ml-1 h-3 w-3 flex-shrink-0" />
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-[min(92vw,20rem)] p-1 sm:w-[20rem]" sideOffset={4} align={dir === 'rtl' ? 'end' : 'start'}>
@@ -108,12 +116,12 @@ export default function AdminFilterCombobox({ value, onValueChange, onAdminSelec
             <CommandList ref={listRef}>
               <CommandEmpty>
                 {showInitialAdminsLoading ? (
-                  <div className="flex items-center justify-center gap-2 py-3 text-xs text-muted-foreground sm:py-4 sm:text-sm">
+                  <div className="text-muted-foreground flex items-center justify-center gap-2 py-3 text-xs sm:py-4 sm:text-sm">
                     <Loader2 className="h-3 w-3 animate-spin" />
                     <span>{t('loading', { defaultValue: 'Loading...' })}</span>
                   </div>
                 ) : (
-                  <div className="py-3 text-center text-xs text-muted-foreground sm:py-4 sm:text-sm">{t('noAdminsFound', { defaultValue: 'No admins found' })}</div>
+                  <div className="text-muted-foreground py-3 text-center text-xs sm:py-4 sm:text-sm">{t('noAdminsFound', { defaultValue: 'No admins found' })}</div>
                 )}
               </CommandEmpty>
 
@@ -132,7 +140,7 @@ export default function AdminFilterCombobox({ value, onValueChange, onAdminSelec
                   </AvatarFallback>
                 </Avatar>
                 <span className="flex-1 truncate">{t('statistics.adminFilterAll')}</span>
-                {value === 'all' && <Check className="h-3 w-3 text-primary" />}
+                {value === 'all' && <Check className="text-primary h-3 w-3" />}
               </CommandItem>
 
               {admins.map(admin => (
@@ -143,6 +151,8 @@ export default function AdminFilterCombobox({ value, onValueChange, onAdminSelec
                     onValueChange(admin.username)
                     onAdminSelect?.({
                       ...admin,
+                      is_disabled: false,
+                      is_limited: false,
                     })
                     setOpen(false)
                   }}
@@ -153,15 +163,15 @@ export default function AdminFilterCombobox({ value, onValueChange, onAdminSelec
                   </Avatar>
                   <span className="flex-1 truncate">{admin.username}</span>
                   <div className="flex flex-shrink-0 items-center gap-1">
-                    <UserRound className="h-3 w-3 text-primary" />
-                    {value === admin.username && <Check className="h-3 w-3 text-primary" />}
+                    <UserRound className="text-primary h-3 w-3" />
+                    {value === admin.username && <Check className="text-primary h-3 w-3" />}
                   </div>
                 </CommandItem>
               ))}
 
               {(isLoadingMore || (!showInitialAdminsLoading && (isLoading || isFetching))) && (
                 <div className="flex justify-center py-2">
-                  <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+                  <Loader2 className="text-muted-foreground h-3 w-3 animate-spin" />
                 </div>
               )}
             </CommandList>

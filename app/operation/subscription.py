@@ -22,7 +22,7 @@ from app.settings import hwid_settings, subscription_settings
 from app.subscription.share import encode_title, generate_subscription, setup_format_variables
 from app.templates import render_template
 from app.utils.hwid import resolve_effective_hwid_settings
-from config import template_settings, wireguard_settings
+from config import template_settings
 
 from . import BaseOperation
 from .user import UserOperation
@@ -282,11 +282,12 @@ class SubscriptionOperation(BaseOperation):
         db: AsyncSession,
         user_id: int,
         user_hwid_limit: int | None,
-        role_hwid_settings: HWIDSettings | None,
+        role_hwid_settings: HWIDSettings | dict | None,
         x_hwid: str | None,
         x_device_os: str | None,
         x_ver_os: str | None,
         x_device_model: str | None,
+        is_manual_sub: bool = False,
     ):
         global_hwid_conf: HWIDSettings = await hwid_settings()
         effective_hwid_conf = resolve_effective_hwid_settings(global_hwid_conf, role_hwid_settings)
@@ -295,7 +296,11 @@ class SubscriptionOperation(BaseOperation):
             return
 
         if not x_hwid:
-            if effective_hwid_conf.forced:
+            forced = effective_hwid_conf.forced
+            if is_manual_sub and not global_hwid_conf.require_hwid_for_manual_sub:
+                forced = False
+
+            if forced:
                 await self.raise_error(message="HWID header required", code=403)
             return
 
@@ -375,8 +380,6 @@ class SubscriptionOperation(BaseOperation):
             client_type = matched_rule.target if matched_rule else None
             if client_type == ConfigFormat.block or not client_type:
                 await self.raise_error(message="Client not supported", code=406)
-            if client_type == ConfigFormat.wireguard and not wireguard_settings.enabled:
-                await self.raise_error(message="Client not supported", code=406)
 
             # Update user subscription info
             await user_sub_update(db, db_user.id, user_agent, ip=ip, hwid=x_hwid)
@@ -434,7 +437,6 @@ class SubscriptionOperation(BaseOperation):
         token: str,
         client_type: ConfigFormat,
         request_url: str = "",
-        accept_header: str = "",
         x_hwid: str | None = None,
         x_device_os: str | None = None,
         x_ver_os: str | None = None,
@@ -442,9 +444,6 @@ class SubscriptionOperation(BaseOperation):
     ):
         """Provides a subscription link based on the specified client type (e.g., Clash, V2Ray)."""
         sub_settings: SubSettings = await subscription_settings()
-
-        if client_type == ConfigFormat.wireguard and not wireguard_settings.enabled:
-            await self.raise_error(message="Client not supported", code=406)
 
         if client_type == ConfigFormat.block or not getattr(sub_settings.manual_sub_request, client_type):
             await self.raise_error(message="Client not supported", code=406)
@@ -460,6 +459,7 @@ class SubscriptionOperation(BaseOperation):
             x_device_os,
             x_ver_os,
             x_device_model,
+            is_manual_sub=True,
         )
 
         response_headers = self.create_response_headers(
@@ -488,7 +488,7 @@ class SubscriptionOperation(BaseOperation):
         format_variables: dict,
     ) -> dict[str, Any]:
         return {
-            "user": user,
+            "user": SubscriptionUserResponse.model_validate(user),
             "links": links,
             "announce": formatted_announce,
             "announce_url": sub_settings.announce_url,
@@ -548,9 +548,6 @@ class SubscriptionOperation(BaseOperation):
         client_type: ConfigFormat,
         request_url: str = "",
     ):
-        if client_type == ConfigFormat.wireguard and not wireguard_settings.enabled:
-            await self.raise_error(message="Client not supported", code=406)
-
         if client_type == ConfigFormat.block:
             await self.raise_error(message="Client not supported", code=406)
 

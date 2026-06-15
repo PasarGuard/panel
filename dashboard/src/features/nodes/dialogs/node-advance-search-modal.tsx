@@ -34,7 +34,7 @@ export default function NodeAdvanceSearchModal({ isDialogOpen, onOpenChange, for
 
   return (
     <Dialog open={isDialogOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="flex h-auto max-w-[650px] flex-col justify-start " onOpenAutoFocus={e => e.preventDefault()}>
+      <DialogContent className="flex h-auto max-w-[650px] flex-col justify-start" onOpenAutoFocus={e => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Search className="h-5 w-5" />
@@ -56,7 +56,7 @@ export default function NodeAdvanceSearchModal({ isDialogOpen, onOpenChange, for
                           <>
                             {/* Display selected statuses as badges */}
                             {field.value && field.value.length > 0 && (
-                              <div className="flex flex-wrap gap-2 mb-2">
+                              <div className="mb-2 flex flex-wrap gap-2">
                                 {field.value.map(status => {
                                   const option = statusOptions.find(opt => opt.value === status)
                                   if (!option) return null
@@ -74,7 +74,7 @@ export default function NodeAdvanceSearchModal({ isDialogOpen, onOpenChange, for
                                 })}
                               </div>
                             )}
-                            
+
                             {/* Status selector with checkboxes */}
                             <Select
                               value=""
@@ -94,7 +94,7 @@ export default function NodeAdvanceSearchModal({ isDialogOpen, onOpenChange, for
                                   <SelectItem
                                     key={option.value}
                                     value={option.value}
-                                    className="flex cursor-pointer items-center gap-2 px-4 py-2 focus:bg-accent"
+                                    className="focus:bg-accent flex cursor-pointer items-center gap-2 px-4 py-2"
                                     disabled={field.value?.includes(option.value)}
                                   >
                                     <div className="flex w-full items-center gap-3">
@@ -105,16 +105,10 @@ export default function NodeAdvanceSearchModal({ isDialogOpen, onOpenChange, for
                                 ))}
                               </SelectContent>
                             </Select>
-                            
+
                             {/* Clear all button */}
                             {field.value && field.value.length > 0 && (
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                onClick={() => field.onChange([])}
-                                className="mt-2 w-full"
-                              >
+                              <Button type="button" variant="outline" size="sm" onClick={() => field.onChange([])} className="mt-2 w-full">
                                 {t('hostsDialog.clearAllStatuses')}
                               </Button>
                             )}
@@ -125,7 +119,7 @@ export default function NodeAdvanceSearchModal({ isDialogOpen, onOpenChange, for
                     )
                   }}
                 />
-                
+
                 <FormField
                   control={form.control}
                   name="core_id"
@@ -134,12 +128,7 @@ export default function NodeAdvanceSearchModal({ isDialogOpen, onOpenChange, for
                       <FormItem className="w-full flex-1">
                         <FormLabel>{t('advanceSearch.byCore', { defaultValue: 'Core' })}</FormLabel>
                         <FormControl>
-                          <CoresSelector
-                            control={form.control}
-                            name="core_id"
-                            onCoreChange={field.onChange}
-                            placeholder={t('advanceSearch.searchCore', { defaultValue: 'Search cores...' })}
-                          />
+                          <CoresSelector control={form.control} name="core_id" onCoreChange={field.onChange} placeholder={t('advanceSearch.searchCore', { defaultValue: 'Search cores...' })} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -152,9 +141,7 @@ export default function NodeAdvanceSearchModal({ isDialogOpen, onOpenChange, for
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 {t('cancel')}
               </Button>
-              <LoaderButton type="submit">
-                {t('apply')}
-              </LoaderButton>
+              <LoaderButton type="submit">{t('apply')}</LoaderButton>
             </div>
           </form>
         </Form>
@@ -162,4 +149,3 @@ export default function NodeAdvanceSearchModal({ isDialogOpen, onOpenChange, for
     </Dialog>
   )
 }
-

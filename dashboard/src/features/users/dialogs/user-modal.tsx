@@ -47,7 +47,25 @@ import { invalidateUserMetricsQueries, upsertUserInUsersCache } from '@/utils/us
 import { generateWireGuardKeyPair, getWireGuardPublicKey } from '@/utils/wireguard'
 import { hasPermission, hasScopeAll } from '@/utils/rbac'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { CalendarClock, CalendarPlus, ChevronDown, EllipsisVertical, Fingerprint, Info, Layers, Link2Off, ListStart, Lock, Network, PieChart, RefreshCcw, Group, Users, Pencil, UserRoundPlus } from 'lucide-react'
+import {
+  CalendarClock,
+  CalendarPlus,
+  ChevronDown,
+  EllipsisVertical,
+  Fingerprint,
+  Info,
+  Layers,
+  Link2Off,
+  ListStart,
+  Lock,
+  Network,
+  PieChart,
+  RefreshCcw,
+  Group,
+  Users,
+  Pencil,
+  UserRoundPlus,
+} from 'lucide-react'
 import React, { useEffect, useState } from 'react'
 import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -190,7 +208,7 @@ const ExpiryDateField = ({
             <p
               className={cn(
                 fieldName !== 'on_hold_timeout' && 'lg:w-48',
-                'text-muted-foreground absolute top-full right-0 mt-1 text-end text-xs whitespace-nowrap lg:overflow-hidden lg:text-ellipsis left-0'
+                'text-muted-foreground absolute top-full right-0 left-0 mt-1 text-end text-xs whitespace-nowrap lg:overflow-hidden lg:text-ellipsis',
               )}
             >
               {(() => {
@@ -712,7 +730,19 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
       setNextPlanEnabled(true)
       setNextPlanManuallyDisabled(false)
     }
-  }, [isDialogOpen, editingUser, canUseNextPlan, hasNextPlanData, nextPlanManuallyDisabled, form, nextPlanUserTemplateId, nextPlanExpire, nextPlanDataLimit, nextPlanAddRemainingTraffic, editingUserData])
+  }, [
+    isDialogOpen,
+    editingUser,
+    canUseNextPlan,
+    hasNextPlanData,
+    nextPlanManuallyDisabled,
+    form,
+    nextPlanUserTemplateId,
+    nextPlanExpire,
+    nextPlanDataLimit,
+    nextPlanAddRemainingTraffic,
+    editingUserData,
+  ])
 
   // Helper to clear group selection
   const clearGroups = () => form.setValue('group_ids', [])
@@ -1081,12 +1111,8 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
             const originalStatus = editingUserData?.status
             const requestedStatus = sendValues.status
             const statusWasChanged = !!touchedFields.status && requestedStatus !== originalStatus
-            const disabledToggle =
-              statusWasChanged && requestedStatus === 'disabled'
-                ? true
-                : statusWasChanged && originalStatus === 'disabled' && requestedStatus === 'active'
-                  ? false
-                  : undefined
+            const onlyStatusWasTouched = Object.entries(touchedFields).every(([field, touched]) => !touched || field === 'status')
+            const disabledToggle = statusWasChanged && requestedStatus === 'disabled' ? true : statusWasChanged && originalStatus === 'disabled' && requestedStatus === 'active' ? false : undefined
 
             if (disabledToggle === undefined) {
               if (!touchedFields.status) {
@@ -1099,7 +1125,9 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
             } else {
               const modifyPayload = { ...sendValues }
               delete modifyPayload.status
-              await modifyUserById(editingUserId, modifyPayload)
+              if (!onlyStatusWasTouched) {
+                await modifyUserById(editingUserId, modifyPayload)
+              }
               const updatedUser = await setUserDisabledById(editingUserId, { disabled: disabledToggle })
               syncUserCacheFromApiResponse(updatedUser, { allowInsert: true, notifySuccessCallback: true })
             }
@@ -1312,13 +1340,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
 
   // Regenerate all proxy credentials (VMess, VLESS, Trojan, Shadowsocks, Hysteria, WireGuard)
   const GenerateProxySettingsButton = () => (
-    <Button
-      size="icon"
-      type="button"
-      variant="outline"
-      onClick={generateAllProxySettings}
-      className="flex items-center gap-1.5 text-xs border-0"
-    >
+    <Button size="icon" type="button" variant="outline" onClick={generateAllProxySettings} className="flex items-center gap-1.5 border-0 text-xs">
       <RefreshCcw className="h-3 w-3" />
     </Button>
   )
@@ -1591,8 +1613,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
                     <div className="flex w-full flex-col gap-4">
                       {(() => {
                         const dataLimitValue = form.watch('data_limit')
-                        const showResetStrategy =
-                          canUseResetStrategy && !selectedTemplateId && dataLimitValue !== undefined && dataLimitValue !== null && Number(dataLimitValue) > 0
+                        const showResetStrategy = canUseResetStrategy && !selectedTemplateId && dataLimitValue !== undefined && dataLimitValue !== null && Number(dataLimitValue) > 0
                         return (
                           <div className={cn('flex w-full flex-col gap-4 lg:flex-row lg:items-start')}>
                             {!selectedTemplateId && (
@@ -2317,7 +2338,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
                     <div className="py-2">
                       {activeTab === 'templates' &&
                         (!canUseUserTemplates ? (
-                          <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+                          <div className="border-destructive/30 bg-destructive/5 text-destructive rounded-md border p-3 text-sm">
                             {t('userDialog.templatePermissionRequired', {
                               defaultValue: 'Template selection requires user template selector access for this role.',
                             })}
@@ -2572,7 +2593,9 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
         </AlertDialogContent>
       </AlertDialog>
 
-      {canViewAllUserIps && currentUserId && currentUsername && <UserAllIPsModal isOpen={isUserAllIPsModalOpen} onOpenChange={setUserAllIPsModalOpen} userId={currentUserId} username={currentUsername} />}
+      {canViewAllUserIps && currentUserId && currentUsername && (
+        <UserAllIPsModal isOpen={isUserAllIPsModalOpen} onOpenChange={setUserAllIPsModalOpen} userId={currentUserId} username={currentUsername} />
+      )}
       {currentUserId && <UsageModal open={isUsageModalOpen} onClose={() => setUsageModalOpen(false)} userId={currentUserId} />}
       {currentUserId && <UserHwidsModal isOpen={isHwidsModalOpen} onOpenChange={setHwidsModalOpen} userId={currentUserId} username={currentUsername} />}
       {currentUserId && <UserSubscriptionClientsModal isOpen={isSubscriptionClientsModalOpen} onOpenChange={setSubscriptionClientsModalOpen} userId={currentUserId} username={currentUsername} />}

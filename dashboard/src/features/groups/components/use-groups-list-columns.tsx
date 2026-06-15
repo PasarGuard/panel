@@ -32,27 +32,27 @@ export const useGroupsListColumns = ({ onEdit, onToggleStatus, canUpdate = true,
         id: 'inbounds',
         header: t('inbounds', { defaultValue: t('inbound') }),
         width: '1fr',
-        cell: group => <span className="truncate text-xs text-muted-foreground">{group.inbound_tags?.length || 0}</span>,
+        cell: group => <span className="text-muted-foreground truncate text-xs">{group.inbound_tags?.length || 0}</span>,
         hideOnMobile: true,
       },
       {
         id: 'users',
         header: t('admins.total.users'),
         width: '1fr',
-        cell: group => <span className="truncate text-xs text-muted-foreground">{group.total_users || 0}</span>,
+        cell: group => <span className="text-muted-foreground truncate text-xs">{group.total_users || 0}</span>,
         hideOnMobile: true,
       },
       ...(canUpdate || canDelete
         ? [
-          {
-            id: 'actions',
-            header: '',
-            width: '64px',
-            align: 'end' as const,
-            hideOnMobile: true,
-            cell: (group: GroupResponse) => <GroupActionsMenu group={group} onEdit={onEdit} onToggleStatus={onToggleStatus} canUpdate={canUpdate} canDelete={canDelete} />,
-          },
-        ]
+            {
+              id: 'actions',
+              header: '',
+              width: '64px',
+              align: 'end' as const,
+              hideOnMobile: true,
+              cell: (group: GroupResponse) => <GroupActionsMenu group={group} onEdit={onEdit} onToggleStatus={onToggleStatus} canUpdate={canUpdate} canDelete={canDelete} />,
+            },
+          ]
         : []),
     ],
     [t, onEdit, onToggleStatus, canUpdate, canDelete],

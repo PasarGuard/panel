@@ -23,14 +23,7 @@ import useDirDetection from '@/hooks/use-dir-detection'
 import useDynamicErrorHandler from '@/hooks/use-dynamic-errors.ts'
 import { cn } from '@/lib/utils'
 import { bytesToFormGigabytes, formatBytes, gbToBytes } from '@/utils/formatByte'
-import {
-  getGetRolesQueryKey,
-  getGetRolesSimpleQueryKey,
-  useCreateRole,
-  useGetAllGroups,
-  useGetUserTemplatesSimple,
-  useModifyRole,
-} from '@/service/api'
+import { getGetRolesQueryKey, getGetRolesSimpleQueryKey, useCreateRole, useGetAllGroups, useGetUserTemplatesSimple, useModifyRole } from '@/service/api'
 
 import {
   AdminRoleFormValues,
@@ -73,14 +66,8 @@ export default function AdminRoleModal({ isDialogOpen, onOpenChange, form, editi
   const groupsQuery = useGetAllGroups({}, { query: { enabled: isDialogOpen } })
   const templatesQuery = useGetUserTemplatesSimple(undefined, { query: { enabled: isDialogOpen } })
 
-  const groupsOptions = useMemo(
-    () => (groupsQuery.data?.groups || []).map(group => ({ id: group.id, name: group.name || `#${group.id}` })),
-    [groupsQuery.data?.groups],
-  )
-  const templatesOptions = useMemo(
-    () => (templatesQuery.data?.templates || []).map(tpl => ({ id: tpl.id, name: tpl.name || `#${tpl.id}` })),
-    [templatesQuery.data?.templates],
-  )
+  const groupsOptions = useMemo(() => (groupsQuery.data?.groups || []).map(group => ({ id: group.id, name: group.name || `#${group.id}` })), [groupsQuery.data?.groups])
+  const templatesOptions = useMemo(() => (templatesQuery.data?.templates || []).map(tpl => ({ id: tpl.id, name: tpl.name || `#${tpl.id}` })), [templatesQuery.data?.templates])
 
   useEffect(() => {
     if (!isDialogOpen) {
@@ -101,10 +88,7 @@ export default function AdminRoleModal({ isDialogOpen, onOpenChange, form, editi
         await createRole.mutateAsync({ data: payload })
         toast.success(t('adminRoles.createSuccess', { name: payload.name, defaultValue: 'Role «{{name}}» has been created successfully' }))
       }
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: getGetRolesQueryKey() }),
-        queryClient.invalidateQueries({ queryKey: getGetRolesSimpleQueryKey() }),
-      ])
+      await Promise.all([queryClient.invalidateQueries({ queryKey: getGetRolesQueryKey() }), queryClient.invalidateQueries({ queryKey: getGetRolesSimpleQueryKey() })])
       onOpenChange(false)
       form.reset(adminRoleFormDefaultValues)
     } catch (error: any) {
@@ -151,7 +135,7 @@ export default function AdminRoleModal({ isDialogOpen, onOpenChange, form, editi
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit, onInvalidSubmit)} className="space-y-4">
             {readOnly && (
-              <div className="rounded-md border border-dashed bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+              <div className="bg-muted/40 text-muted-foreground rounded-md border border-dashed px-3 py-2 text-xs">
                 {t('adminRoles.readOnlyHint', { defaultValue: 'This is a built-in role. You can review its configuration but cannot modify it.' })}
               </div>
             )}
@@ -172,13 +156,7 @@ export default function AdminRoleModal({ isDialogOpen, onOpenChange, form, editi
                 />
               </fieldset>
 
-              <Accordion
-                type="single"
-                collapsible
-                value={openSection}
-                onValueChange={handleAccordionChange}
-                className="mt-0! mb-2 flex w-full flex-col gap-y-4"
-              >
+              <Accordion type="single" collapsible value={openSection} onValueChange={handleAccordionChange} className="mt-0! mb-2 flex w-full flex-col gap-y-4">
                 <AccordionItem className="rounded-sm border px-4 **:data-[state=closed]:no-underline **:data-[state=open]:no-underline" value={SECTION_PERMISSIONS}>
                   <AccordionTrigger>
                     <div className="flex items-center gap-2">
@@ -338,9 +316,7 @@ function PermissionsSection({ form }: { form: AdminRoleForm }) {
 
   return (
     <div className="space-y-3">
-      <p className="text-xs text-muted-foreground">
-        {t('adminRoles.roleFormHint', { defaultValue: 'Scoped user actions use none, own, or all. Other actions are boolean toggles.' })}
-      </p>
+      <p className="text-muted-foreground text-xs">{t('adminRoles.roleFormHint', { defaultValue: 'Scoped user actions use none, own, or all. Other actions are boolean toggles.' })}</p>
       {PERMISSION_GROUPS.map(group => {
         const enabledInGroup = group.actions.reduce((acc, item) => {
           const value = permissions?.[item.resource]?.[item.action]
@@ -353,11 +329,11 @@ function PermissionsSection({ form }: { form: AdminRoleForm }) {
         const showResourcePrefix = group.actions.some((a, _, all) => all.some(b => b !== a && b.action === a.action && b.resource !== a.resource))
 
         return (
-          <div key={group.labelKey} className="rounded-md border bg-background">
+          <div key={group.labelKey} className="bg-background rounded-md border">
             <div className="flex items-center justify-between gap-2 border-b px-3 py-2">
               <div className="flex min-w-0 items-center gap-2">
                 <span className="text-sm font-medium">{groupLabel}</span>
-                <span className="text-[10px] text-muted-foreground">
+                <span className="text-muted-foreground text-[10px]">
                   {enabledInGroup}/{group.actions.length}
                 </span>
               </div>
@@ -379,16 +355,10 @@ function PermissionsSection({ form }: { form: AdminRoleForm }) {
                 const { resourceLabel, actionLabel } = formatActionLabel(item)
 
                 return (
-                  <div key={`${item.resource}.${item.action}`} className="flex min-h-10 items-center justify-between gap-3 rounded-md bg-muted/40 px-3 py-2">
+                  <div key={`${item.resource}.${item.action}`} className="bg-muted/40 flex min-h-10 items-center justify-between gap-3 rounded-md px-3 py-2">
                     <div className="flex min-w-0 flex-col gap-0.5">
-                      <span className="truncate text-xs font-medium">
-                        {showResourcePrefix ? `${resourceLabel} · ${actionLabel}` : actionLabel}
-                      </span>
-                      {item.scoped && (
-                        <span className="text-[10px] text-muted-foreground">
-                          {t('adminRoles.scopedBadge', { defaultValue: 'Scoped' })}
-                        </span>
-                      )}
+                      <span className="truncate text-xs font-medium">{showResourcePrefix ? `${resourceLabel} · ${actionLabel}` : actionLabel}</span>
+                      {item.scoped && <span className="text-muted-foreground text-[10px]">{t('adminRoles.scopedBadge', { defaultValue: 'Scoped' })}</span>}
                     </div>
                     {item.scoped ? (
                       <Select value={String(scopeValue)} onValueChange={next => setPermission(item.resource, item.action, { scope: Number(next) as RoleScope })}>
@@ -416,9 +386,7 @@ function PermissionsSection({ form }: { form: AdminRoleForm }) {
 }
 
 function humanizeKey(key: string) {
-  return key
-    .replace(/_/g, ' ')
-    .replace(/\b\w/g, char => char.toUpperCase())
+  return key.replace(/_/g, ' ').replace(/\b\w/g, char => char.toUpperCase())
 }
 
 function LimitsSection({ form }: { form: AdminRoleForm }) {
@@ -426,7 +394,7 @@ function LimitsSection({ form }: { form: AdminRoleForm }) {
 
   return (
     <div className="space-y-3">
-      <p className="text-xs text-muted-foreground">{t('adminRoles.limitsHint', { defaultValue: 'Leave empty to inherit defaults. Set to 0 to disable.' })}</p>
+      <p className="text-muted-foreground text-xs">{t('adminRoles.limitsHint', { defaultValue: 'Leave empty to inherit defaults. Set to 0 to disable.' })}</p>
 
       <FormField
         control={form.control}
@@ -468,65 +436,65 @@ function LimitsSection({ form }: { form: AdminRoleForm }) {
 
 function HwidPolicySection({ form }: { form: AdminRoleForm }) {
   const { t } = useTranslation()
-  const enabled = useWatch({ control: form.control, name: 'hwid.enabled' })
+  const mode = useWatch({ control: form.control, name: 'hwid.mode' })
+  const isOverride = mode === 'override'
 
   return (
     <div className="space-y-3">
-      <p className="text-xs text-muted-foreground">
-        {t('adminRoles.hwidPolicyHint', { defaultValue: 'When enabled, empty limits inherit the global HWID settings. Turn it off to disable HWID checks for admins with this role.' })}
+      <p className="text-muted-foreground text-xs">
+        {t('adminRoles.hwidPolicyHint', { defaultValue: 'Choose how HWID policy is applied. Use "Override" to customize limits for this role.' })}
       </p>
 
       <FormField
         control={form.control}
-        name="hwid.enabled"
+        name="hwid.mode"
         render={({ field }) => (
-          <FormItem
-            className="flex cursor-pointer flex-row items-center justify-between space-y-0 rounded-lg border p-4"
-            onClick={() => field.onChange(!field.value)}
-          >
-            <div className="space-y-0.5">
-              <FormLabel className="text-base">{t('settings.hwid.enabled.title', { defaultValue: 'Enable HWID checks' })}</FormLabel>
-              <p className="text-xs text-muted-foreground">
-                {t('adminRoles.hwidEnabledDescription', { defaultValue: 'Apply HWID registration and limits to users created or modified by this role.' })}
-              </p>
-            </div>
+          <FormItem>
+            <FormLabel className="text-sm font-medium">{t('adminRoles.hwidMode', { defaultValue: 'HWID Mode' })}</FormLabel>
             <FormControl>
-              <div onClick={e => e.stopPropagation()}>
-                <Switch checked={!!field.value} onCheckedChange={field.onChange} />
-              </div>
+              <Select value={field.value} onValueChange={field.onChange}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="disabled">{t('adminRoles.hwidModeDisabled', { defaultValue: 'Disabled' })}</SelectItem>
+                  <SelectItem value="use_global">{t('adminRoles.hwidModeUseGlobal', { defaultValue: 'Use Global Settings' })}</SelectItem>
+                  <SelectItem value="override">{t('adminRoles.hwidModeOverride', { defaultValue: 'Override Settings' })}</SelectItem>
+                </SelectContent>
+              </Select>
             </FormControl>
+            <FormMessage />
           </FormItem>
         )}
       />
 
-      <FormField
-        control={form.control}
-        name="hwid.forced"
-        render={({ field }) => (
-          <FormItem
-            className="flex cursor-pointer flex-row items-center justify-between space-y-0 rounded-lg border p-4"
-            onClick={() => enabled && field.onChange(!field.value)}
-          >
-            <div className="space-y-0.5">
-              <FormLabel className="text-base">{t('settings.hwid.forced.title', { defaultValue: 'Require HWID header' })}</FormLabel>
-              <p className="text-xs text-muted-foreground">
-                {t('settings.hwid.forced.description', { defaultValue: 'Reject subscription requests that do not send X-HWID.' })}
-              </p>
-            </div>
-            <FormControl>
-              <div onClick={e => e.stopPropagation()}>
-                <Switch checked={!!field.value} onCheckedChange={field.onChange} disabled={!enabled} />
-              </div>
-            </FormControl>
-          </FormItem>
-        )}
-      />
+      {isOverride && (
+        <>
+          <FormField
+            control={form.control}
+            name="hwid.forced"
+            render={({ field }) => (
+              <FormItem className="flex cursor-pointer flex-row items-center justify-between space-y-0 rounded-lg border p-4" onClick={() => field.onChange(!field.value)}>
+                <div className="space-y-0.5">
+                  <FormLabel className="text-base">{t('settings.hwid.forced.title', { defaultValue: 'Require HWID header' })}</FormLabel>
+                  <p className="text-muted-foreground text-xs">{t('settings.hwid.forced.description', { defaultValue: 'Reject subscription requests that do not send X-HWID.' })}</p>
+                </div>
+                <FormControl>
+                  <div onClick={e => e.stopPropagation()}>
+                    <Switch checked={!!field.value} onCheckedChange={field.onChange} />
+                  </div>
+                </FormControl>
+              </FormItem>
+            )}
+          />
 
-      <div className="grid gap-3 sm:grid-cols-3">
-        <NumberLimitField form={form} name="hwid.fallback_limit" labelKey="settings.hwid.fallbackLimit.title" disabled={!enabled} />
-        <NumberLimitField form={form} name="hwid.min_limit" labelKey="settings.hwid.minLimit.title" disabled={!enabled} />
-        <NumberLimitField form={form} name="hwid.max_limit" labelKey="settings.hwid.maxLimit.title" disabled={!enabled} />
-      </div>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <NumberLimitField form={form} name="hwid.fallback_limit" labelKey="settings.hwid.fallbackLimit.title" />
+            <NumberLimitField form={form} name="hwid.min_limit" labelKey="settings.hwid.minLimit.title" />
+            <NumberLimitField form={form} name="hwid.max_limit" labelKey="settings.hwid.maxLimit.title" />
+          </div>
+        </>
+      )}
     </div>
   )
 }
@@ -583,13 +551,11 @@ function BytesLimitField({ form, name, labelKey }: { form: AdminRoleForm; name: 
                   emptyValue={undefined}
                   className="pr-10"
                 />
-                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-muted-foreground">
-                  {t('userDialog.gb', { defaultValue: 'GB' })}
-                </span>
+                <span className="text-muted-foreground pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-xs font-medium">{t('userDialog.gb', { defaultValue: 'GB' })}</span>
               </div>
             </FormControl>
             {numericValue != null && numericValue > 0 && numericValue < ONE_GB_IN_BYTES && (
-              <p dir="ltr" className="mt-1 w-full text-end text-[11px] text-muted-foreground">
+              <p dir="ltr" className="text-muted-foreground mt-1 w-full text-end text-[11px]">
                 {formatBytes(numericValue)}
               </p>
             )}
@@ -609,13 +575,10 @@ function FeaturesSection({ form }: { form: AdminRoleForm }) {
         control={form.control}
         name="disabled_when_limited"
         render={({ field }) => (
-          <FormItem
-            className="flex cursor-pointer flex-row items-center justify-between space-y-0 rounded-lg border p-4"
-            onClick={() => field.onChange(!field.value)}
-          >
+          <FormItem className="flex cursor-pointer flex-row items-center justify-between space-y-0 rounded-lg border p-4" onClick={() => field.onChange(!field.value)}>
             <div className="space-y-0.5">
               <FormLabel className="text-base">{t('adminRoles.limitedBehavior.disabledWhenLimited.title', { defaultValue: 'Block limited admins' })}</FormLabel>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-muted-foreground text-xs">
                 {t('adminRoles.limitedBehavior.disabledWhenLimited.description', { defaultValue: 'Deny all dashboard and API access after an admin reaches their data limit.' })}
               </p>
             </div>
@@ -632,13 +595,10 @@ function FeaturesSection({ form }: { form: AdminRoleForm }) {
         control={form.control}
         name="disconnect_users_when_limited"
         render={({ field }) => (
-          <FormItem
-            className="flex cursor-pointer flex-row items-center justify-between space-y-0 rounded-lg border p-4"
-            onClick={() => field.onChange(!field.value)}
-          >
+          <FormItem className="flex cursor-pointer flex-row items-center justify-between space-y-0 rounded-lg border p-4" onClick={() => field.onChange(!field.value)}>
             <div className="space-y-0.5">
               <FormLabel className="text-base">{t('adminRoles.limitedBehavior.disconnectUsersWhenLimited.title', { defaultValue: 'Disconnect users when limited' })}</FormLabel>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-muted-foreground text-xs">
                 {t('adminRoles.limitedBehavior.disconnectUsersWhenLimited.description', { defaultValue: "Remove this admin's users from nodes while the admin is usage-limited." })}
               </p>
             </div>
@@ -655,13 +615,10 @@ function FeaturesSection({ form }: { form: AdminRoleForm }) {
         control={form.control}
         name="disconnect_users_when_disabled"
         render={({ field }) => (
-          <FormItem
-            className="flex cursor-pointer flex-row items-center justify-between space-y-0 rounded-lg border p-4"
-            onClick={() => field.onChange(!field.value)}
-          >
+          <FormItem className="flex cursor-pointer flex-row items-center justify-between space-y-0 rounded-lg border p-4" onClick={() => field.onChange(!field.value)}>
             <div className="space-y-0.5">
               <FormLabel className="text-base">{t('adminRoles.limitedBehavior.disconnectUsersWhenDisabled.title', { defaultValue: 'Disconnect users when disabled' })}</FormLabel>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-muted-foreground text-xs">
                 {t('adminRoles.limitedBehavior.disconnectUsersWhenDisabled.description', { defaultValue: "Remove this admin's users from nodes while the admin is disabled." })}
               </p>
             </div>
@@ -680,13 +637,10 @@ function FeaturesSection({ form }: { form: AdminRoleForm }) {
           control={form.control}
           name={`features.${key}` as const}
           render={({ field }) => (
-            <FormItem
-              className="flex cursor-pointer flex-row items-center justify-between space-y-0 rounded-lg border p-4"
-              onClick={() => field.onChange(!field.value)}
-            >
+            <FormItem className="flex cursor-pointer flex-row items-center justify-between space-y-0 rounded-lg border p-4" onClick={() => field.onChange(!field.value)}>
               <div className="space-y-0.5">
                 <FormLabel className="text-base">{t(`adminRoles.featureFields.${key}.title`, { defaultValue: key })}</FormLabel>
-                <p className="text-xs text-muted-foreground">{t(`adminRoles.featureFields.${key}.description`, { defaultValue: '' })}</p>
+                <p className="text-muted-foreground text-xs">{t(`adminRoles.featureFields.${key}.description`, { defaultValue: '' })}</p>
               </div>
               <FormControl>
                 <div onClick={e => e.stopPropagation()}>
@@ -720,13 +674,12 @@ function AccessSection({
         control={form.control}
         name="access.require_template"
         render={({ field }) => (
-          <FormItem
-            className="flex cursor-pointer flex-row items-center justify-between space-y-0 rounded-lg border p-4"
-            onClick={() => field.onChange(!field.value)}
-          >
+          <FormItem className="flex cursor-pointer flex-row items-center justify-between space-y-0 rounded-lg border p-4" onClick={() => field.onChange(!field.value)}>
             <div className="space-y-0.5">
               <FormLabel className="text-base">{t('adminRoles.requireTemplateTitle', { defaultValue: 'Require template' })}</FormLabel>
-              <p className="text-xs text-muted-foreground">{t('adminRoles.requireTemplateDescription', { defaultValue: 'Force admins with this role to create or modify users only from a template.' })}</p>
+              <p className="text-muted-foreground text-xs">
+                {t('adminRoles.requireTemplateDescription', { defaultValue: 'Force admins with this role to create or modify users only from a template.' })}
+              </p>
             </div>
             <FormControl>
               <div onClick={e => e.stopPropagation()}>
@@ -820,21 +773,13 @@ function IdMultiSelect({ label, description, emptyText, options, value, onChange
   return (
     <FormItem>
       <FormLabel>{label}</FormLabel>
-      {description && <p className="text-xs text-muted-foreground">{description}</p>}
+      {description && <p className="text-muted-foreground text-xs">{description}</p>}
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
-          <Button
-            type="button"
-            variant="outline"
-            role="combobox"
-            className="h-auto min-h-[40px] w-full justify-between p-2"
-            disabled={isLoading}
-          >
+          <Button type="button" variant="outline" role="combobox" className="h-auto min-h-[40px] w-full justify-between p-2" disabled={isLoading}>
             <div className="flex flex-1 flex-wrap gap-1.5">
               {value.length === 0 ? (
-                <span className="text-sm text-muted-foreground">
-                  {isLoading ? t('loading', { defaultValue: 'Loading...' }) : t('adminRoles.allowAll', { defaultValue: 'Allow all' })}
-                </span>
+                <span className="text-muted-foreground text-sm">{isLoading ? t('loading', { defaultValue: 'Loading...' }) : t('adminRoles.allowAll', { defaultValue: 'Allow all' })}</span>
               ) : (
                 value.map(id => {
                   const option = optionMap.get(id)
@@ -842,7 +787,7 @@ function IdMultiSelect({ label, description, emptyText, options, value, onChange
                     <Badge key={id} variant="secondary" className="flex items-center gap-1">
                       <span className="max-w-40 truncate">{option?.name || `#${id}`}</span>
                       <X
-                        className="h-3 w-3 cursor-pointer hover:text-destructive"
+                        className="hover:text-destructive h-3 w-3 cursor-pointer"
                         onClick={event => {
                           event.stopPropagation()
                           onChange(value.filter(item => item !== id))
@@ -856,16 +801,16 @@ function IdMultiSelect({ label, description, emptyText, options, value, onChange
             <ChevronsUpDown className="ms-2 h-4 w-4 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-[min(90vw,28rem)] p-2" align={dir === 'rtl' ? 'end' : 'start'}>
+        <PopoverContent
+          className="w-[min(90vw,28rem)] p-2"
+          align={dir === 'rtl' ? 'end' : 'start'}
+          onWheelCapture={event => event.stopPropagation()}
+          onTouchMoveCapture={event => event.stopPropagation()}
+        >
           <div className="space-y-2">
             <div className="relative">
-              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                value={search}
-                onChange={event => setSearch(event.target.value)}
-                placeholder={t('search', { defaultValue: 'Search' })}
-                className="pl-8"
-              />
+              <Search className="text-muted-foreground absolute top-2.5 left-2 h-4 w-4" />
+              <Input value={search} onChange={event => setSearch(event.target.value)} placeholder={t('search', { defaultValue: 'Search' })} className="pl-8" />
             </div>
             {options.length > 0 && (
               <Button type="button" variant="ghost" size="sm" onClick={handleToggleAll} className="w-full justify-start text-xs">
@@ -873,12 +818,12 @@ function IdMultiSelect({ label, description, emptyText, options, value, onChange
                 {allFilteredSelected ? t('deselectAll', { defaultValue: 'Deselect all' }) : t('selectAll', { defaultValue: 'Select all' })}
               </Button>
             )}
-            <ScrollArea className="h-56 rounded-md border bg-muted/20">
+            <ScrollArea className="bg-muted/20 h-[min(45dvh,14rem)] overscroll-contain rounded-md border">
               <div className="space-y-1 p-1">
                 {isLoading ? (
-                  <div className="px-2 py-3 text-xs text-muted-foreground">{t('loading', { defaultValue: 'Loading...' })}</div>
+                  <div className="text-muted-foreground px-2 py-3 text-xs">{t('loading', { defaultValue: 'Loading...' })}</div>
                 ) : filtered.length === 0 ? (
-                  <div className="px-2 py-3 text-xs text-muted-foreground">{options.length === 0 ? emptyText : t('noResults', { defaultValue: 'No results' })}</div>
+                  <div className="text-muted-foreground px-2 py-3 text-xs">{options.length === 0 ? emptyText : t('noResults', { defaultValue: 'No results' })}</div>
                 ) : (
                   filtered.map(option => {
                     const isSelected = selected.has(option.id)
@@ -887,7 +832,7 @@ function IdMultiSelect({ label, description, emptyText, options, value, onChange
                         type="button"
                         key={option.id}
                         onClick={() => toggle(option.id)}
-                        className={cn('flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent', isSelected && 'bg-accent/60')}
+                        className={cn('hover:bg-accent flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm', isSelected && 'bg-accent/60')}
                       >
                         <SelectionCheckbox checked={isSelected} className="h-3.5 w-3.5" />
                         <span className="min-w-0 truncate">{option.name}</span>
@@ -909,11 +854,7 @@ function SelectionCheckbox({ checked, className }: { checked: boolean | 'indeter
   return (
     <span
       aria-hidden="true"
-      className={cn(
-        'pointer-events-none inline-flex shrink-0 items-center justify-center rounded-sm border border-primary text-primary-foreground',
-        checked && 'bg-primary',
-        className,
-      )}
+      className={cn('border-primary text-primary-foreground pointer-events-none inline-flex shrink-0 items-center justify-center rounded-sm border', checked && 'bg-primary', className)}
     >
       {checked === 'indeterminate' ? <Minus className="h-3 w-3 stroke-current" /> : checked ? <Check className="h-3 w-3 stroke-current" /> : null}
     </span>

@@ -170,20 +170,18 @@ export default function ClientTemplateModal({ isDialogOpen, onOpenChange, form, 
 
   return (
     <Dialog open={isDialogOpen} onOpenChange={onOpenChange}>
-      <DialogContent className={cn('md:h-auto h-full w-full max-w-5xl', dir === 'rtl' && 'rtl')}>
+      <DialogContent className={cn('h-full w-full max-w-5xl md:h-auto', dir === 'rtl' && 'rtl')}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             {editingTemplate ? <Pencil className="h-5 w-5" /> : <FileCode2 className="h-5 w-5" />}
             <span>{title}</span>
           </DialogTitle>
-          <DialogDescription className="sr-only">
-            {t('clientTemplates.modalDescription', { defaultValue: 'Create or edit a client template and adjust its content.' })}
-          </DialogDescription>
+          <DialogDescription className="sr-only">{t('clientTemplates.modalDescription', { defaultValue: 'Create or edit a client template and adjust its content.' })}</DialogDescription>
         </DialogHeader>
 
         <Form {...form}>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="-mr-4 max-h-[80dvh] space-y-4 overflow-y-auto px-2 pr-4 sm:max-h-[75dvh] pb-2">
+            <div className="-mr-4 max-h-[80dvh] space-y-4 overflow-y-auto px-2 pr-4 pb-2 sm:max-h-[75dvh]">
               <div className="grid grid-cols-1 gap-4 md:h-full md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] md:gap-6">
                 <div className="flex flex-col">
                   <div className="flex flex-col space-y-4 md:h-full">
@@ -261,7 +259,7 @@ export default function ClientTemplateModal({ isDialogOpen, onOpenChange, form, 
                       <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
                         <div className="space-y-1">
                           <FormLabel className="cursor-pointer">{t('clientTemplates.isDefault', { defaultValue: 'Set as default' })}</FormLabel>
-                          <p className="text-xs text-muted-foreground">{t('clientTemplates.isDefaultDescription', { defaultValue: 'Use this template automatically for matching output type.' })}</p>
+                          <p className="text-muted-foreground text-xs">{t('clientTemplates.isDefaultDescription', { defaultValue: 'Use this template automatically for matching output type.' })}</p>
                         </div>
                         <FormControl>
                           <Switch checked={!!field.value} onCheckedChange={field.onChange} />

@@ -72,8 +72,8 @@ export function TerminalLine({ log, noTimestamp, searchTerm }: LogLineProps) {
         <Tooltip>
           <TooltipTrigger asChild>{square}</TooltipTrigger>
           <TooltipPortal>
-            <TooltipContent sideOffset={5} className="z-[99999] border-border bg-popover">
-              <p className="text max-w-md break-all text-xs text-muted-foreground">
+            <TooltipContent sideOffset={5} className="border-border bg-popover z-[99999]">
+              <p className="text text-muted-foreground max-w-md text-xs break-all">
                 <pre>{timestamp}</pre>
               </p>
             </TooltipContent>
@@ -102,15 +102,13 @@ export function TerminalLine({ log, noTimestamp, searchTerm }: LogLineProps) {
         {/* Icon to expand the log item maybe implement a colapsible later */}
         {/* <Square className="size-4 text-muted-foreground opacity-0 group-hover/logitem:opacity-100 transition-opacity" /> */}
         {tooltip(color, tooltipTimestamp || null)}
-        {!noTimestamp && (
-          <span className="w-20 flex-shrink-0 select-text text-[11px] text-muted-foreground sm:w-24 sm:text-xs">{displayTime}</span>
-        )}
+        {!noTimestamp && <span className="text-muted-foreground w-20 flex-shrink-0 text-[11px] select-text sm:w-24 sm:text-xs">{displayTime}</span>}
 
         <Badge variant={variant} className={cn('w-12 flex-shrink-0 justify-center px-1 py-0 text-[11px] sm:w-14 sm:text-[10px]', locale === 'fa' && 'font-body')}>
           {t(`nodes.logs.${type}`)}
         </Badge>
       </div>
-      <span className="whitespace-pre-wrap break-words font-mono text-xs leading-relaxed text-foreground dark:text-gray-200 sm:text-xs">{highlightMessage(message, searchTerm || '')}</span>
+      <span className="text-foreground font-mono text-xs leading-relaxed break-words whitespace-pre-wrap sm:text-xs dark:text-gray-200">{highlightMessage(message, searchTerm || '')}</span>
     </div>
   )
 }

@@ -45,7 +45,7 @@ export function TcpHeaderObfuscationForm({ onValueChange, currentValue }: TcpHea
   return (
     <div className="space-y-6">
       {/* Request Section */}
-      <div className="space-y-4 rounded-lg border border-border p-4">
+      <div className="border-border space-y-4 rounded-lg border p-4">
         <h3 className="text-sm font-semibold">{t('coreEditor.inbound.tcp.request.title', { defaultValue: 'Request' })}</h3>
 
         <div className="grid gap-4 sm:grid-cols-3">
@@ -107,7 +107,10 @@ export function TcpHeaderObfuscationForm({ onValueChange, currentValue }: TcpHea
                 placeholder={t('coreEditor.inbound.tcp.request.pathPlaceholder', { defaultValue: '/, /api, /health' })}
                 value={Array.isArray(request.path) ? request.path.join(', ') : String(request.path ?? '')}
                 onChange={e => {
-                  const paths = e.target.value.split(',').map(p => p.trim()).filter(Boolean)
+                  const paths = e.target.value
+                    .split(',')
+                    .map(p => p.trim())
+                    .filter(Boolean)
                   const updated = { ...currentValue, request: { ...request, path: paths.length > 0 ? paths : ['/'] } } as Record<string, unknown>
                   onValueChange(updated)
                 }}
@@ -119,9 +122,7 @@ export function TcpHeaderObfuscationForm({ onValueChange, currentValue }: TcpHea
         {/* Request Headers */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <h4 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              {t('coreEditor.inbound.tcp.request.headers', { defaultValue: 'Request Headers' })}
-            </h4>
+            <h4 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">{t('coreEditor.inbound.tcp.request.headers', { defaultValue: 'Request Headers' })}</h4>
             <Button
               type="button"
               variant="outline"
@@ -199,7 +200,7 @@ export function TcpHeaderObfuscationForm({ onValueChange, currentValue }: TcpHea
       </div>
 
       {/* Response Section */}
-      <div className="space-y-4 rounded-lg border border-border p-4">
+      <div className="border-border space-y-4 rounded-lg border p-4">
         <h3 className="text-sm font-semibold">{t('coreEditor.inbound.tcp.response.title', { defaultValue: 'Response' })}</h3>
 
         <div className="grid gap-4 sm:grid-cols-3">
@@ -263,9 +264,7 @@ export function TcpHeaderObfuscationForm({ onValueChange, currentValue }: TcpHea
         {/* Response Headers */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <h4 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              {t('coreEditor.inbound.tcp.response.headers', { defaultValue: 'Response Headers' })}
-            </h4>
+            <h4 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">{t('coreEditor.inbound.tcp.response.headers', { defaultValue: 'Response Headers' })}</h4>
             <Button
               type="button"
               variant="outline"

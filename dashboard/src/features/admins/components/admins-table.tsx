@@ -20,7 +20,6 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import { PaginationControls } from './filters'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import useDirDetection from '@/hooks/use-dir-detection'
-import { Checkbox } from '@/components/ui/checkbox'
 import { getAdminsPerPageLimitSize, setAdminsPerPageLimitSize } from '@/utils/userPreferenceStorage'
 import { toast } from 'sonner'
 import { useAdmin } from '@/hooks/use-admin'
@@ -41,7 +40,7 @@ interface AdminFilters {
 interface AdminsTableProps {
   onEdit: (admin: AdminDetails) => void
   onDelete: (admin: AdminDetails) => void
-  onToggleStatus: (admin: AdminDetails, checked: boolean) => void
+  onToggleStatus: (admin: AdminDetails) => void
   onResetUsage: (admin: AdminDetails) => void
   onTotalAdminsChange?: (counts: { total: number; active: number; disabled: number; limited: number } | null) => void
 }
@@ -85,30 +84,31 @@ const DeleteAlertDialog = ({ admin, isOpen, onClose, onConfirm }: { admin: Admin
   )
 }
 
-const ToggleAdminStatusModal = ({ admin, isOpen, onClose, onConfirm }: { admin: AdminDetails; isOpen: boolean; onClose: () => void; onConfirm: (clicked: boolean) => void }) => {
+const ToggleAdminStatusModal = ({ admin, isOpen, onClose, onConfirm }: { admin: AdminDetails; isOpen: boolean; onClose: () => void; onConfirm: () => void }) => {
   const { t } = useTranslation()
   const dir = useDirDetection()
-  const [adminUsersToggle, setAdminUsersToggle] = useState(false)
-
-  useEffect(() => {
-    if (!isOpen) {
-      setAdminUsersToggle(false)
-    }
-  }, [isOpen])
+  const isDisabled = getAdminStatus(admin) === 'disabled'
 
   return (
     <AlertDialog open={isOpen} onOpenChange={onClose}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>{t(getAdminStatus(admin) === 'disabled' ? 'admin.enable' : 'admin.disable')}</AlertDialogTitle>
-          <AlertDialogDescription className="flex items-center gap-2">
-            <Checkbox checked={adminUsersToggle} onCheckedChange={() => setAdminUsersToggle(!adminUsersToggle)} />
-            <span dir={dir} dangerouslySetInnerHTML={{ __html: t(getAdminStatus(admin) === 'disabled' ? 'activeUsers.prompt' : 'disableUsers.prompt', { name: admin.username }) }} />
+          <AlertDialogTitle>{t(isDisabled ? 'admin.enable' : 'admin.disable')}</AlertDialogTitle>
+          <AlertDialogDescription>
+            <span
+              dir={dir}
+              dangerouslySetInnerHTML={{
+                __html: t(isDisabled ? 'admin.enablePrompt' : 'admin.disablePrompt', {
+                  name: admin.username,
+                  defaultValue: isDisabled ? 'Are you sure you want to enable admin <b>{{name}}</b>?' : 'Are you sure you want to disable admin <b>{{name}}</b>?',
+                }),
+              }}
+            />
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel onClick={onClose}>{t('cancel')}</AlertDialogCancel>
-          <AlertDialogAction onClick={() => onConfirm(adminUsersToggle)}>{t('confirm')}</AlertDialogAction>
+          <AlertDialogAction onClick={onConfirm}>{t('confirm')}</AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
@@ -421,10 +421,7 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
       toast.error(t('error', { defaultValue: 'Error' }), {
         description: t(actionType === 'disable' ? 'admins.disableAllActiveUsersFailed' : 'admins.activateAllDisabledUsersFailed', {
           name: admin.username,
-          defaultValue:
-            actionType === 'disable'
-              ? `Failed to disable all active users under admin "${admin.username}"`
-              : `Failed to activate all disabled users under admin "${admin.username}"`,
+          defaultValue: actionType === 'disable' ? `Failed to disable all active users under admin "${admin.username}"` : `Failed to activate all disabled users under admin "${admin.username}"`,
         }),
       })
     }
@@ -466,9 +463,9 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
     }
   }
 
-  const handleConfirmStatusToggle = async (clicked: boolean) => {
+  const handleConfirmStatusToggle = async () => {
     if (adminToToggleStatus) {
-      onToggleStatus(adminToToggleStatus, clicked)
+      onToggleStatus(adminToToggleStatus)
       setStatusToggleDialogOpen(false)
       setAdminToToggleStatus(null)
     }
@@ -706,76 +703,76 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
   const disableEligibleCount = selectedDisableEligibleAdmins.length
   const bulkActions: BulkActionItem[] = selectedCount
     ? [
-      ...(canDeleteAdmins
-        ? [
-      {
-        key: 'delete',
-        label: t('delete'),
-        icon: Trash2,
-        onClick: () => setBulkAction('delete'),
-        direct: true,
-        destructive: true,
-      } as BulkActionItem,
-        ]
-        : []),
-      ...(canResetAdmins
-        ? [
-      {
-        key: 'reset',
-        label: t('admins.reset'),
-        icon: RefreshCw,
-        onClick: () => setBulkAction('reset'),
-      } as BulkActionItem,
-        ]
-        : []),
-      ...(canUpdateAdmins && disableEligibleCount > 0
-        ? [
-          {
-            key: 'disable',
-            label: t('disable'),
-            icon: PowerOff,
-            onClick: () => setBulkAction('disable'),
-          } as BulkActionItem,
-        ]
-        : []),
-      ...(canUpdateAdmins && enableEligibleCount > 0
-        ? [
-          {
-            key: 'enable',
-            label: t('enable'),
-            icon: Power,
-            onClick: () => setBulkAction('enable'),
-          } as BulkActionItem,
-        ]
-        : []),
-      ...(canUpdateAllUsers
-        ? [
-      {
-        key: 'disableUsers',
-        label: t('admins.disableAllActiveUsers'),
-        icon: UserMinus,
-        onClick: () => setBulkAction('disableUsers'),
-      } as BulkActionItem,
-      {
-        key: 'activateUsers',
-        label: t('admins.activateAllDisabledUsers'),
-        icon: UserCheck,
-        onClick: () => setBulkAction('activateUsers'),
-      } as BulkActionItem,
-        ]
-        : []),
-      ...(canDeleteAllUsers
-        ? [
-      {
-        key: 'removeUsers',
-        label: t('admins.removeAllUsers'),
-        icon: UserX,
-        onClick: () => setBulkAction('removeUsers'),
-        destructive: true,
-      } as BulkActionItem,
-        ]
-        : []),
-    ]
+        ...(canDeleteAdmins
+          ? [
+              {
+                key: 'delete',
+                label: t('delete'),
+                icon: Trash2,
+                onClick: () => setBulkAction('delete'),
+                direct: true,
+                destructive: true,
+              } as BulkActionItem,
+            ]
+          : []),
+        ...(canResetAdmins
+          ? [
+              {
+                key: 'reset',
+                label: t('admins.reset'),
+                icon: RefreshCw,
+                onClick: () => setBulkAction('reset'),
+              } as BulkActionItem,
+            ]
+          : []),
+        ...(canUpdateAdmins && disableEligibleCount > 0
+          ? [
+              {
+                key: 'disable',
+                label: t('disable'),
+                icon: PowerOff,
+                onClick: () => setBulkAction('disable'),
+              } as BulkActionItem,
+            ]
+          : []),
+        ...(canUpdateAdmins && enableEligibleCount > 0
+          ? [
+              {
+                key: 'enable',
+                label: t('enable'),
+                icon: Power,
+                onClick: () => setBulkAction('enable'),
+              } as BulkActionItem,
+            ]
+          : []),
+        ...(canUpdateAllUsers
+          ? [
+              {
+                key: 'disableUsers',
+                label: t('admins.disableAllActiveUsers'),
+                icon: UserMinus,
+                onClick: () => setBulkAction('disableUsers'),
+              } as BulkActionItem,
+              {
+                key: 'activateUsers',
+                label: t('admins.activateAllDisabledUsers'),
+                icon: UserCheck,
+                onClick: () => setBulkAction('activateUsers'),
+              } as BulkActionItem,
+            ]
+          : []),
+        ...(canDeleteAllUsers
+          ? [
+              {
+                key: 'removeUsers',
+                label: t('admins.removeAllUsers'),
+                icon: UserX,
+                onClick: () => setBulkAction('removeUsers'),
+                destructive: true,
+              } as BulkActionItem,
+            ]
+          : []),
+      ]
     : []
   const bulkActionConfigs: Record<BulkAdminActionType, BulkActionDialogConfig> = {
     delete: {

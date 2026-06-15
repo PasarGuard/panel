@@ -10,6 +10,15 @@ function stableStringify(value: unknown): string {
   }
 }
 
+function safeConfigString(label: string, factory: () => unknown): string {
+  try {
+    return stableStringify(factory())
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    return `__invalid_${label}__:${message}`
+  }
+}
+
 function sameStringArray(a: string[], b: string[]): boolean {
   return JSON.stringify(a) === JSON.stringify(b)
 }
@@ -22,14 +31,26 @@ function currentConfigString(s: CoreEditorStoreState): string {
       return `__invalid_monaco_json__:${s.monacoJson}`
     }
   }
-  if (s.kind === 'wg' && s.wgDraft) return stableStringify(draftToPersistedConfig(s.wgDraft))
-  if (s.kind === 'xray' && s.xrayProfile) return stableStringify(profileToPersistedConfig(s.xrayProfile))
+  if (s.kind === 'wg' && s.wgDraft) {
+    const draft = s.wgDraft
+    return safeConfigString('wg_current_config', () => draftToPersistedConfig(draft))
+  }
+  if (s.kind === 'xray' && s.xrayProfile) {
+    const profile = s.xrayProfile
+    return safeConfigString('xray_current_config', () => profileToPersistedConfig(profile))
+  }
   return ''
 }
 
 function baselineConfigString(s: CoreEditorStoreState): string {
-  if (s.kind === 'wg' && s.wgBaseline) return stableStringify(draftToPersistedConfig(s.wgBaseline))
-  if (s.kind === 'xray' && s.xrayBaseline) return stableStringify(profileToPersistedConfig(s.xrayBaseline))
+  if (s.kind === 'wg' && s.wgBaseline) {
+    const draft = s.wgBaseline
+    return safeConfigString('wg_baseline_config', () => draftToPersistedConfig(draft))
+  }
+  if (s.kind === 'xray' && s.xrayBaseline) {
+    const profile = s.xrayBaseline
+    return safeConfigString('xray_baseline_config', () => profileToPersistedConfig(profile))
+  }
   return ''
 }
 

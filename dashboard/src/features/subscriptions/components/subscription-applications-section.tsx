@@ -24,15 +24,7 @@ export interface SubscriptionApplicationsSectionProps {
   onRemoveApplication: (index: number) => void
 }
 
-export function SubscriptionApplicationsSection({
-  form,
-  applicationFields,
-  sensors,
-  onDragEnd,
-  onLoadOrReset,
-  onAddApplication,
-  onRemoveApplication,
-}: SubscriptionApplicationsSectionProps) {
+export function SubscriptionApplicationsSection({ form, applicationFields, sensors, onDragEnd, onLoadOrReset, onAddApplication, onRemoveApplication }: SubscriptionApplicationsSectionProps) {
   const { t } = useTranslation()
 
   return (
@@ -47,7 +39,7 @@ export function SubscriptionApplicationsSection({
               </Badge>
             )}
           </h3>
-          <p className="text-xs text-muted-foreground sm:text-sm">{t('settings.subscriptions.applications.description')}</p>
+          <p className="text-muted-foreground text-xs sm:text-sm">{t('settings.subscriptions.applications.description')}</p>
         </div>
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:gap-2">
           <Button type="button" variant="outline" size="sm" onClick={onLoadOrReset} className="flex w-full shrink-0 items-center justify-center gap-2 sm:w-auto">
@@ -72,7 +64,7 @@ export function SubscriptionApplicationsSection({
       </div>
 
       {applicationFields.length === 0 ? (
-        <div className="py-8 text-center text-muted-foreground">
+        <div className="text-muted-foreground py-8 text-center">
           <Settings className="mx-auto mb-3 h-8 w-8 opacity-30" />
           <p className="mb-1 text-xs font-medium sm:text-sm">{t('settings.subscriptions.applications.noApplications')}</p>
           <p className="text-xs">{t('settings.subscriptions.applications.noApplicationsDescription')}</p>
@@ -85,11 +77,9 @@ export function SubscriptionApplicationsSection({
             if (indices.length === 0) return null
             return (
               <SortableContext key={platformKey} items={indices.map(i => i.id)} strategy={rectSortingStrategy}>
-                <div className="mb-2 mt-2 flex items-center gap-2 px-1 sm:px-0">
-                  <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                    {t(`settings.subscriptions.applications.platforms.${platformKey}`)}
-                  </span>
-                  <div className="hidden h-px min-w-0 flex-1 bg-border sm:block" />
+                <div className="mt-2 mb-2 flex items-center gap-2 px-1 sm:px-0">
+                  <span className="text-muted-foreground shrink-0 text-[10px] font-medium tracking-wide uppercase">{t(`settings.subscriptions.applications.platforms.${platformKey}`)}</span>
+                  <div className="bg-border hidden h-px min-w-0 flex-1 sm:block" />
                 </div>
                 <div className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2" dir="ltr">
                   {indices.map(({ id, idx }) => (

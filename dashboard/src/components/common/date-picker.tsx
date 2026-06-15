@@ -182,9 +182,7 @@ export function DatePicker({
   const isRTL = dir === 'rtl'
   const handleSingleDateChange = onDateChange ?? (() => undefined)
   const [datePreference, setDatePreference] = useState<DatePickerPreference>('locale')
-  const isPersianCalendar =
-    datePreference === 'persian' ||
-    (datePreference === 'locale' && isPersianLocaleLanguage(i18n.resolvedLanguage ?? i18n.language))
+  const isPersianCalendar = datePreference === 'persian' || (datePreference === 'locale' && isPersianLocaleLanguage(i18n.resolvedLanguage ?? i18n.language))
   const isMobile = useIsMobile()
   const { resolvedTheme } = useTheme()
   const [internalOpen, setInternalOpen] = useState(false)
@@ -351,12 +349,10 @@ export function DatePicker({
     const timeValue = displayDate ? `${String(displayDate.getHours()).padStart(2, '0')}:${String(displayDate.getMinutes()).padStart(2, '0')}` : ''
 
     const clearDate = useCallback(() => {
-        setInternalDate(undefined)
-        handleSingleDateChange(undefined)
-        onFieldChange?.(fieldName, undefined)
-      }, 
-      [handleSingleDateChange, onFieldChange, fieldName],
-    )
+      setInternalDate(undefined)
+      handleSingleDateChange(undefined)
+      onFieldChange?.(fieldName, undefined)
+    }, [handleSingleDateChange, onFieldChange, fieldName])
 
     const handleClearClick = useCallback(
       (e: MouseEvent<HTMLElement>) => {
@@ -382,22 +378,16 @@ export function DatePicker({
         {label && <label className="text-sm font-medium">{label}</label>}
         <Popover open={isOpen} onOpenChange={setIsOpen}>
           <PopoverTrigger asChild>
-            <Button
-              dir="ltr"
-              type="button"
-              variant="outline"
-              size="sm"
-              className={cn('w-full justify-start font-normal', isRTL ? 'text-right' : 'text-left', !displayDate && 'text-muted-foreground')}
-            >
+            <Button dir="ltr" type="button" variant="outline" size="sm" className={cn('w-full justify-start font-normal', isRTL ? 'text-right' : 'text-left', !displayDate && 'text-muted-foreground')}>
               {displayDate ? formatDate(displayDate) : <span>{placeholder || label || t('timeSelector.pickDate')}</span>}
-              <div className="flex items-center gap-1 ml-auto">
+              <div className="ml-auto flex items-center gap-1">
                 {displayDate && (
                   <span
                     role="button"
                     tabIndex={0}
                     onClick={handleClearClick}
                     onKeyDown={handleClearKeyDown}
-                    className="rounded-sm opacity-50 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                    className="focus:ring-ring rounded-sm opacity-50 hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-none"
                     aria-label={t('clear', { defaultValue: 'Clear' })}
                   >
                     <X className="h-4 w-4" />
@@ -468,7 +458,7 @@ export function DatePicker({
                         type="button"
                         variant="ghost"
                         size="sm"
-                        className="h-5 px-1.5 text-[10px] text-muted-foreground hover:text-foreground"
+                        className="text-muted-foreground hover:text-foreground h-5 px-1.5 text-[10px]"
                         onClick={e => {
                           e.preventDefault()
                           e.stopPropagation()
@@ -533,7 +523,7 @@ export function DatePicker({
             )}
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-auto p-0" align={align ? align : "start"} side={side ? side : "bottom"} sideOffset={4} collisionPadding={8}>
+        <PopoverContent className="w-auto p-0" align={align ? align : 'start'} side={side ? side : 'bottom'} sideOffset={4} collisionPadding={8}>
           {isPersianCalendar ? (
             <PersianCalendar
               mode="range"

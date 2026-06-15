@@ -8,6 +8,8 @@ type RolePermissionInput = object | null | undefined
 
 export type RoleHwidPolicy = HWIDSettings
 
+export type HwidMode = 'disabled' | 'use_global' | 'override'
+
 export type PermissionAction = {
   resource: string
   action: string
@@ -115,15 +117,7 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
   },
 ]
 
-export const LIMIT_KEYS = [
-  'max_users',
-  'data_limit_min',
-  'data_limit_max',
-  'expire_days_min',
-  'expire_days_max',
-  'min_hwid_per_user',
-  'max_hwid_per_user',
-] as const
+export const LIMIT_KEYS = ['max_users', 'data_limit_min', 'data_limit_max', 'expire_days_min', 'expire_days_max', 'min_hwid_per_user', 'max_hwid_per_user'] as const
 
 export const FEATURE_KEYS: Array<keyof RoleFeatures> = ['can_use_reset_strategy', 'can_use_next_plan']
 
@@ -213,6 +207,7 @@ const accessSchema = z.object({
 
 const hwidPolicySchema = z
   .object({
+    mode: z.enum(['disabled', 'use_global', 'override']),
     enabled: z.boolean(),
     forced: z.boolean(),
     fallback_limit: optionalNullableNumber,
@@ -256,6 +251,7 @@ export const defaultAdminRoleAccess = (): AdminRoleFormValues['access'] => ({
 })
 
 export const defaultAdminRoleHwid = (): AdminRoleFormValues['hwid'] => ({
+  mode: 'use_global',
   enabled: true,
   forced: false,
   fallback_limit: null,
@@ -305,6 +301,7 @@ export const adminRoleFormFromResponse = (role: AdminRoleResponse): AdminRoleFor
     allowed_group_ids: role.access?.allowed_group_ids ?? null,
   },
   hwid: {
+    mode: role.hwid?.mode ?? 'use_global',
     enabled: role.hwid?.enabled ?? true,
     forced: role.hwid?.forced ?? false,
     fallback_limit: role.hwid?.fallback_limit ?? null,
@@ -339,11 +336,12 @@ export const adminRoleFormToPayload = (values: AdminRoleFormValues) => {
       allowed_group_ids: values.access.allowed_group_ids?.length ? values.access.allowed_group_ids : null,
     } as RoleAccess,
     hwid: {
-      enabled: values.hwid.enabled,
-      forced: values.hwid.enabled ? values.hwid.forced : false,
-      fallback_limit: values.hwid.fallback_limit ?? null,
-      min_limit: values.hwid.min_limit ?? null,
-      max_limit: values.hwid.max_limit ?? null,
+      mode: values.hwid.mode,
+      enabled: values.hwid.mode === 'override' ? true : values.hwid.mode !== 'disabled',
+      forced: values.hwid.mode === 'override' && values.hwid.forced,
+      fallback_limit: values.hwid.mode === 'override' ? (values.hwid.fallback_limit ?? null) : null,
+      min_limit: values.hwid.mode === 'override' ? (values.hwid.min_limit ?? null) : null,
+      max_limit: values.hwid.mode === 'override' ? (values.hwid.max_limit ?? null) : null,
     },
     disabled_when_limited: values.disabled_when_limited,
     disconnect_users_when_limited: values.disconnect_users_when_limited,

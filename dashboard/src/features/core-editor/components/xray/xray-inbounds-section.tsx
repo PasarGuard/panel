@@ -364,7 +364,7 @@ function kitArgsPreservingListenPort(inbound: Inbound): { tag: string; listen?: 
 
 function hysteriaSalamanderPasswordForForm(inbound: Inbound): string {
   if (inbound.protocol !== 'hysteria' || inbound.transport.type !== 'hysteria') return ''
-  const udpmasks = (inbound.transport as unknown as { udpmasks?: unknown }).udpmasks
+  const udpmasks = hysteriaUdpmasksForForm(inbound)
   if (!Array.isArray(udpmasks)) return ''
   const salamander = udpmasks.find(mask => {
     if (!mask || typeof mask !== 'object' || Array.isArray(mask)) return false
@@ -377,17 +377,35 @@ function hysteriaSalamanderPasswordForForm(inbound: Inbound): string {
   return typeof password === 'string' ? password : ''
 }
 
+function hysteriaUdpmasksForForm(inbound: Inbound): unknown {
+  if (inbound.protocol !== 'hysteria' || inbound.transport.type !== 'hysteria') return undefined
+  const transportUdpmasks = (inbound.transport as unknown as { udpmasks?: unknown }).udpmasks
+  if (Array.isArray(transportUdpmasks)) return transportUdpmasks
+  return (inbound as { streamAdvanced?: { finalmask?: { udp?: unknown } } }).streamAdvanced?.finalmask?.udp
+}
+
 function hysteriaUdpmasksWithSalamanderPassword(current: unknown, password: string | undefined): Array<{ type: string; settings?: Record<string, unknown> }> | undefined {
-  const existing = Array.isArray(current)
-    ? current.filter((mask): mask is Record<string, unknown> => Boolean(mask) && typeof mask === 'object' && !Array.isArray(mask))
-    : []
+  const existing = Array.isArray(current) ? current.filter((mask): mask is Record<string, unknown> => Boolean(mask) && typeof mask === 'object' && !Array.isArray(mask)) : []
   const withoutSalamander = existing.filter(mask => mask.type !== 'salamander')
   const normalized = password?.trim() ?? ''
-  if (normalized === '') return withoutSalamander.length > 0 ? withoutSalamander.map(mask => ({ ...mask } as { type: string; settings?: Record<string, unknown> })) : undefined
-  return [
-    ...withoutSalamander.map(mask => ({ ...mask } as { type: string; settings?: Record<string, unknown> })),
-    { type: 'salamander', settings: { password: normalized } },
-  ]
+  if (normalized === '') return withoutSalamander.length > 0 ? withoutSalamander.map(mask => ({ ...mask }) as { type: string; settings?: Record<string, unknown> }) : undefined
+  return [...withoutSalamander.map(mask => ({ ...mask }) as { type: string; settings?: Record<string, unknown> }), { type: 'salamander', settings: { password: normalized } }]
+}
+
+function clearHysteriaFinalmaskUdp(inbound: Inbound): Record<string, unknown> | undefined {
+  const streamAdvanced = (inbound as { streamAdvanced?: unknown }).streamAdvanced
+  if (!streamAdvanced || typeof streamAdvanced !== 'object' || Array.isArray(streamAdvanced)) return undefined
+
+  const nextStreamAdvanced = { ...(streamAdvanced as Record<string, unknown>) }
+  const finalmask = nextStreamAdvanced.finalmask
+  if (!finalmask || typeof finalmask !== 'object' || Array.isArray(finalmask)) return nextStreamAdvanced
+
+  const nextFinalmask = { ...(finalmask as Record<string, unknown>) }
+  delete nextFinalmask.udp
+  if (Object.keys(nextFinalmask).length === 0) delete nextStreamAdvanced.finalmask
+  else nextStreamAdvanced.finalmask = nextFinalmask
+
+  return Object.keys(nextStreamAdvanced).length > 0 ? nextStreamAdvanced : undefined
 }
 
 /** xray-config-kit factory defaults tunnel/dokodemo `network` to tcp; editor default is tcp,udp. */
@@ -1909,13 +1927,16 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
         }
       }
       if ('obfsPassword' in patch) {
-        const udpmasks = hysteriaUdpmasksWithSalamanderPassword(nextTransport.udpmasks, patch.obfsPassword)
+        const currentUdpmasks = nextTransport.udpmasks ?? hysteriaUdpmasksForForm(inbound)
+        const udpmasks = hysteriaUdpmasksWithSalamanderPassword(currentUdpmasks, patch.obfsPassword)
         if (udpmasks === undefined) delete nextTransport.udpmasks
         else nextTransport.udpmasks = udpmasks
       }
+      const nextStreamAdvanced = 'obfsPassword' in patch ? clearHysteriaFinalmaskUdp(inbound) : (inbound as { streamAdvanced?: unknown }).streamAdvanced
       patchInbound({
         clients: [],
         transport: nextTransport as Transport,
+        streamAdvanced: nextStreamAdvanced,
       } as Partial<Inbound>)
     },
     [inbound],
@@ -2242,7 +2263,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
       const ocspNum = ocspRaw === '' ? undefined : Number(ocspRaw)
       const base = {
         ...(ocspNum !== undefined && Number.isFinite(ocspNum) ? { ocspStapling: ocspNum } : {}),
-        ...(item.serveOnNode ? { serveOnNode: true } : {}),
+        serveOnNode: item.serveOnNode,
       }
       if (item.mode === 'content') {
         const certificateLines = certContent
@@ -2643,7 +2664,9 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent dir="ltr">
-                              {!isDisallowedShadowsocksMethod(field.value) && !CORE_EDITOR_SHADOWSOCKS_ENCRYPTION_METHODS.some(m => m.value === field.value) ? <SelectItem value={field.value}>{field.value}</SelectItem> : null}
+                              {!isDisallowedShadowsocksMethod(field.value) && !CORE_EDITOR_SHADOWSOCKS_ENCRYPTION_METHODS.some(m => m.value === field.value) ? (
+                                <SelectItem value={field.value}>{field.value}</SelectItem>
+                              ) : null}
                               {CORE_EDITOR_SHADOWSOCKS_ENCRYPTION_METHODS.map(method => (
                                 <SelectItem key={method.value} value={method.value}>
                                   {method.label}
@@ -2894,9 +2917,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                       name="hysteriaObfsEnabled"
                       render={({ field }) => (
                         <FormItem className="flex min-h-10 flex-row items-center justify-between gap-3 space-y-0 rounded-md border px-3 py-2">
-                          <FormLabel className="cursor-pointer text-sm font-medium">
-                            {t('coreEditor.inbound.hysteria.obfs', { defaultValue: 'Salamander obfuscation' })}
-                          </FormLabel>
+                          <FormLabel className="cursor-pointer text-sm font-medium">{t('coreEditor.inbound.hysteria.obfs', { defaultValue: 'Salamander obfuscation' })}</FormLabel>
                           <FormControl>
                             <Switch
                               checked={field.value === 'true'}

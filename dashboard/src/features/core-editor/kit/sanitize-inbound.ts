@@ -82,11 +82,7 @@ export function normalizeTunnelInboundForKit(ib: Inbound): Inbound {
     typeof pm === 'object' &&
     !Array.isArray(pm) &&
     Object.keys(pm).length > 0 &&
-    (draft.portMap === undefined ||
-      (typeof draft.portMap === 'object' &&
-        draft.portMap !== null &&
-        !Array.isArray(draft.portMap) &&
-        Object.keys(draft.portMap as object).length === 0))
+    (draft.portMap === undefined || (typeof draft.portMap === 'object' && draft.portMap !== null && !Array.isArray(draft.portMap) && Object.keys(draft.portMap as object).length === 0))
   ) {
     draft.portMap = recordToPortMap(pm as Record<string, unknown>)
   }

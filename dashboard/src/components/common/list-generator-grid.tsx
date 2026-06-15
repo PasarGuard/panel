@@ -24,8 +24,7 @@ export interface ListGeneratorGridProps<T> {
   isRowSelectable?: (item: T) => boolean
 }
 
-const headerSelectionCheckboxClassName =
-  'h-3.5 w-3.5 rounded-[3px] border-muted-foreground/40 data-[state=checked]:border-primary'
+const headerSelectionCheckboxClassName = 'h-3.5 w-3.5 rounded-[3px] border-muted-foreground/40 data-[state=checked]:border-primary'
 const selectionCheckboxClassName =
   'h-3.5 w-3.5 rounded-[3px] border-muted-foreground/40 bg-background data-[state=checked]:border-primary data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground data-[state=indeterminate]:border-primary data-[state=indeterminate]:bg-primary data-[state=indeterminate]:text-primary-foreground'
 
@@ -166,13 +165,7 @@ export function ListGeneratorGrid<T>({
               defaultValue: isSelected ? 'Selected' : 'Select',
             })
             const selectionControl = canSelectRow ? (
-              <div
-                className="flex shrink-0 items-center"
-                onClick={stopSelectionClick}
-                onMouseDown={stopSelectionPointer}
-                onPointerDown={stopSelectionPointer}
-                onKeyDown={stopSelectionClick}
-              >
+              <div className="flex shrink-0 items-center" onClick={stopSelectionClick} onMouseDown={stopSelectionPointer} onPointerDown={stopSelectionPointer} onKeyDown={stopSelectionClick}>
                 <Checkbox aria-label={selectionLabel} className={selectionCheckboxClassName} checked={isSelected} onCheckedChange={() => handleToggleRowSelection(rowId, item)} />
               </div>
             ) : undefined

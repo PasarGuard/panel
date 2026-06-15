@@ -55,11 +55,7 @@ function SettingsIndex() {
 
 function TemplatesIndex() {
   const { admin } = useAdmin()
-  const defaultPath = hasPermission(admin, 'templates', 'read')
-    ? '/templates/user'
-    : hasPermission(admin, 'client_templates', 'read')
-      ? '/templates/client'
-      : '/settings/theme'
+  const defaultPath = hasPermission(admin, 'templates', 'read') ? '/templates/user' : hasPermission(admin, 'client_templates', 'read') ? '/templates/client' : '/settings/theme'
 
   return <Navigate to={defaultPath} replace />
 }

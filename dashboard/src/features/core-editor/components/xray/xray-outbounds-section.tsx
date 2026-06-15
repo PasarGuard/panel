@@ -277,10 +277,7 @@ function syncAutoManagedObservationSubjectSelectors(profile: Profile, previousOu
 
 function updateOutbounds(profile: Profile, mutator: (outbounds: Outbound[]) => Outbound[]): Profile {
   const currentOutbounds = profile.outbounds ?? []
-  return syncAutoManagedObservationSubjectSelectors(
-    { ...profile, outbounds: mutator(currentOutbounds) },
-    currentOutbounds,
-  )
+  return syncAutoManagedObservationSubjectSelectors({ ...profile, outbounds: mutator(currentOutbounds) }, currentOutbounds)
 }
 
 function outboundSearchHaystack(ob: Outbound): string {
@@ -759,9 +756,7 @@ export function XrayOutboundsSection({ headerAddPulse, headerAddEpoch }: XrayOut
     }
     if (!assertNoPersistBlockingErrors()) return
 
-    const tagTrim = outboundDialogTab === 'json'
-      ? String(row.tag ?? '').trim()
-      : (form.getValues(K_TAG) ?? '').trim()
+    const tagTrim = outboundDialogTab === 'json' ? String(row.tag ?? '').trim() : (form.getValues(K_TAG) ?? '').trim()
     row = stripEmptyStreamSettingsFromRecord({
       ...row,
       tag: tagTrim,
@@ -847,9 +842,7 @@ export function XrayOutboundsSection({ headerAddPulse, headerAddEpoch }: XrayOut
             title={t('coreEditor.outbound.latency.testAll', { defaultValue: 'Test all' })}
           >
             <Gauge className="h-4 w-4" />
-            <span className="hidden sm:inline">
-              {t('coreEditor.outbound.latency.testAll', { defaultValue: 'Test all' })}
-            </span>
+            <span className="hidden sm:inline">{t('coreEditor.outbound.latency.testAll', { defaultValue: 'Test all' })}</span>
           </Button>
         }
         getSearchableText={outboundSearchHaystack}
@@ -1285,7 +1278,7 @@ function OutboundProxyEndpointSection({ ob, patchOutbound, t }: OutboundProxyEnd
     return (
       <div className="rounded-md border p-4">
         <p className="text-sm font-medium">{t('coreEditor.outbound.reverseSection', { defaultValue: 'Reverse proxy' })}</p>
-        <p className="mt-2 text-xs text-muted-foreground">
+        <p className="text-muted-foreground mt-2 text-xs">
           {t('coreEditor.outbound.reverseHint', {
             defaultValue: reverseTag
               ? `Traffic routed to this outbound is forwarded through reverse tag "${reverseTag}".`
@@ -2151,13 +2144,7 @@ function OutboundSockoptAccordion({ ob, patchOutbound, t, dialerProxyTagOptions 
         </div>
       </AccordionTrigger>
       <AccordionContent className="px-2 pb-4">
-        <XrayStreamSockoptFields
-          variant="outbound"
-          value={sockoptValue}
-          onChange={next => patchOutboundSockopt(ob, patchOutbound, next)}
-          t={t}
-          dialerProxyTags={dialerProxyTagOptions}
-        />
+        <XrayStreamSockoptFields variant="outbound" value={sockoptValue} onChange={next => patchOutboundSockopt(ob, patchOutbound, next)} t={t} dialerProxyTags={dialerProxyTagOptions} />
       </AccordionContent>
     </AccordionItem>
   )

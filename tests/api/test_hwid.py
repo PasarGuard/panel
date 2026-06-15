@@ -133,53 +133,102 @@ def test_hwid_respects_admin_role_policy(access_token):
         assert response.status_code == status.HTTP_200_OK
         return response.json()["access_token"]
 
-    def _create_role(enabled: bool) -> dict:
+    def _create_role(mode: str) -> dict:
         payload = {
-            "name": unique_name(f"role_hwid_{'enabled' if enabled else 'disabled'}"),
+            "name": unique_name(f"role_hwid_{mode}"),
             "permissions": {
                 "users": {"create": True, "read": {"scope": 2}, "delete": {"scope": 2}},
             },
             "limits": {},
             "features": {},
             "access": {},
-            "hwid": {"enabled": enabled, "forced": False},
+            "hwid": {"mode": mode, "forced": False},
         }
         response = client.post("/api/admin-role", headers=auth_headers(access_token), json=payload)
         assert response.status_code == status.HTTP_201_CREATED
         return response.json()
 
-    role_off = _create_role(False)
-    role_on = _create_role(True)
-    admin_off = create_admin(access_token, role_id=role_off["id"])
-    admin_on = create_admin(access_token, role_id=role_on["id"])
-    user_off = None
-    user_on = None
+    role_disabled = _create_role("disabled")
+    role_use_global = _create_role("use_global")
+    admin_disabled = create_admin(access_token, role_id=role_disabled["id"])
+    admin_use_global = create_admin(access_token, role_id=role_use_global["id"])
+    user_disabled = None
+    user_use_global = None
 
     try:
-        off_token = _login(admin_off["username"], admin_off["password"])
-        on_token = _login(admin_on["username"], admin_on["password"])
+        disabled_token = _login(admin_disabled["username"], admin_disabled["password"])
+        use_global_token = _login(admin_use_global["username"], admin_use_global["password"])
 
-        user_off = create_user(off_token)
-        user_on = create_user(on_token)
+        user_disabled = create_user(disabled_token)
+        user_use_global = create_user(use_global_token)
 
-        off_sub_response = client.get(user_off["subscription_url"], headers={"X-HWID": "off-device"})
-        assert off_sub_response.status_code == status.HTTP_200_OK
+        disabled_sub_response = client.get(user_disabled["subscription_url"], headers={"X-HWID": "disabled-device"})
+        assert disabled_sub_response.status_code == status.HTTP_200_OK
 
-        on_sub_response = client.get(user_on["subscription_url"], headers={"X-HWID": "on-device"})
-        assert on_sub_response.status_code == status.HTTP_200_OK
+        use_global_sub_response = client.get(user_use_global["subscription_url"], headers={"X-HWID": "global-device"})
+        assert use_global_sub_response.status_code == status.HTTP_200_OK
 
-        off_hwids = client.get(f"/api/user/{user_off['id']}/hwids", headers=auth_headers(access_token)).json()
-        on_hwids = client.get(f"/api/user/{user_on['id']}/hwids", headers=auth_headers(access_token)).json()
+        disabled_hwids = client.get(f"/api/user/{user_disabled['id']}/hwids", headers=auth_headers(access_token)).json()
+        use_global_hwids = client.get(
+            f"/api/user/{user_use_global['id']}/hwids", headers=auth_headers(access_token)
+        ).json()
 
-        assert off_hwids["count"] == 0
-        assert on_hwids["count"] == 1
-        assert on_hwids["hwids"][0]["hwid"] == "on-device"
+        assert disabled_hwids["count"] == 0
+        assert use_global_hwids["count"] == 1
+        assert use_global_hwids["hwids"][0]["hwid"] == "global-device"
     finally:
-        if user_off is not None:
-            delete_user(access_token, user_off["username"])
-        if user_on is not None:
-            delete_user(access_token, user_on["username"])
-        delete_admin(access_token, admin_off["username"])
-        delete_admin(access_token, admin_on["username"])
-        client.delete(f"/api/admin-role/{role_off['id']}", headers=auth_headers(access_token))
-        client.delete(f"/api/admin-role/{role_on['id']}", headers=auth_headers(access_token))
+        if user_disabled is not None:
+            delete_user(access_token, user_disabled["username"])
+        if user_use_global is not None:
+            delete_user(access_token, user_use_global["username"])
+        delete_admin(access_token, admin_disabled["username"])
+        delete_admin(access_token, admin_use_global["username"])
+        client.delete(f"/api/admin-role/{role_disabled['id']}", headers=auth_headers(access_token))
+        client.delete(f"/api/admin-role/{role_use_global['id']}", headers=auth_headers(access_token))
+
+
+def test_hwid_override_mode_with_custom_limits(access_token):
+    """Test that override mode allows custom limits to take effect."""
+
+    def _login(username: str, password: str) -> str:
+        response = client.post(
+            "/api/admin/token",
+            data={"username": username, "password": password, "grant_type": "password"},
+        )
+        assert response.status_code == status.HTTP_200_OK
+        return response.json()["access_token"]
+
+    # Create role with override mode and custom fallback_limit=2 (global is 3)
+    payload = {
+        "name": unique_name("role_hwid_override"),
+        "permissions": {
+            "users": {"create": True, "read": {"scope": 2}, "delete": {"scope": 2}},
+        },
+        "limits": {},
+        "features": {},
+        "access": {},
+        "hwid": {"mode": "override", "forced": False, "fallback_limit": 2},
+    }
+    response = client.post("/api/admin-role", headers=auth_headers(access_token), json=payload)
+    assert response.status_code == status.HTTP_201_CREATED
+    role = response.json()
+    admin = create_admin(access_token, role_id=role["id"])
+    user = None
+
+    try:
+        token = _login(admin["username"], admin["password"])
+        user = create_user(token)
+
+        # Register 2 devices (the override fallback_limit)
+        client.get(user["subscription_url"], headers={"X-HWID": "ov-device-1"})
+        client.get(user["subscription_url"], headers={"X-HWID": "ov-device-2"})
+
+        # 3rd device should fail (override limit is 2, not global 3)
+        response = client.get(user["subscription_url"], headers={"X-HWID": "ov-device-3"})
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+        assert "Device limit reached" in response.json()["detail"]
+    finally:
+        if user is not None:
+            delete_user(access_token, user["username"])
+        delete_admin(access_token, admin["username"])
+        client.delete(f"/api/admin-role/{role['id']}", headers=auth_headers(access_token))

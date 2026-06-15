@@ -1,7 +1,4 @@
-import {
-  filterValidationListBlockingErrors,
-  formatValidationListItemsToastLines,
-} from '@/features/core-editor/components/shared/validation-summary'
+import { filterValidationListBlockingErrors, formatValidationListItemsToastLines } from '@/features/core-editor/components/shared/validation-summary'
 import { useXrayPersistValidationItems } from '@/features/core-editor/hooks/use-xray-persist-validation-items'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'

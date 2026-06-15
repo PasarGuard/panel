@@ -45,15 +45,7 @@ export interface MobileCodeAceEditorProps {
   readOnly?: boolean
 }
 
-export default function MobileCodeAceEditor({
-  value,
-  language,
-  aceMode: aceModeProp,
-  theme,
-  onChange,
-  onLoad,
-  readOnly,
-}: MobileCodeAceEditorProps) {
+export default function MobileCodeAceEditor({ value, language, aceMode: aceModeProp, theme, onChange, onLoad, readOnly }: MobileCodeAceEditorProps) {
   const mode = aceModeProp ?? monacoLanguageToAceMode(language)
 
   return (

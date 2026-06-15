@@ -3,7 +3,7 @@
  * Do not edit manually.
  * PasarGuardAPI
  * Unified GUI Censorship Resistant Solution
- * OpenAPI spec version: 5.0.0
+ * OpenAPI spec version: 5.0.1
  */
 import { useMutation, useQuery } from '@tanstack/react-query'
 import type {
@@ -730,14 +730,6 @@ export type UsersPermissionsActivateNextPlanAnyOf = { [key: string]: PermissionS
 
 export type UsersPermissionsActivateNextPlan = boolean | UsersPermissionsActivateNextPlanAnyOf | null
 
-export type UsersPermissionsSetOwnerAnyOf = { [key: string]: PermissionScope | number }
-
-export type UsersPermissionsSetOwner = boolean | UsersPermissionsSetOwnerAnyOf | null
-
-export type UsersPermissionsRevokeSubAnyOf = { [key: string]: PermissionScope | number }
-
-export type UsersPermissionsRevokeSub = boolean | UsersPermissionsRevokeSubAnyOf | null
-
 export interface UsersPermissions {
   create?: UsersPermissionsCreate
   read?: UsersPermissionsRead
@@ -749,6 +741,14 @@ export interface UsersPermissions {
   set_owner?: UsersPermissionsSetOwner
   activate_next_plan?: UsersPermissionsActivateNextPlan
 }
+
+export type UsersPermissionsSetOwnerAnyOf = { [key: string]: PermissionScope | number }
+
+export type UsersPermissionsSetOwner = boolean | UsersPermissionsSetOwnerAnyOf | null
+
+export type UsersPermissionsRevokeSubAnyOf = { [key: string]: PermissionScope | number }
+
+export type UsersPermissionsRevokeSub = boolean | UsersPermissionsRevokeSubAnyOf | null
 
 export type UsersPermissionsResetUsageAnyOf = { [key: string]: PermissionScope | number }
 
@@ -784,19 +784,19 @@ export const UsernameGenerationStrategy = {
 
 export type UserUsageStatsListPeriod = Period | null
 
-export interface UserUsageStatsList {
-  period?: UserUsageStatsListPeriod
-  start: string
-  end: string
-  stats: UserUsageStatsListStats
-}
-
 export interface UserUsageStat {
   total_traffic: number
   period_start: string
 }
 
 export type UserUsageStatsListStats = { [key: string]: UserUsageStat[] }
+
+export interface UserUsageStatsList {
+  period?: UserUsageStatsListPeriod
+  start: string
+  end: string
+  stats: UserUsageStatsListStats
+}
 
 export type UserTemplateSimpleName = string | null
 
@@ -1663,6 +1663,22 @@ export interface RoleLimits {
   max_hwid_per_user?: RoleLimitsMaxHwidPerUser
 }
 
+export type RoleHWIDSettingsMaxLimit = number | null
+
+export type RoleHWIDSettingsMinLimit = number | null
+
+export type RoleHWIDSettingsFallbackLimit = number | null
+
+export interface RoleHWIDSettings {
+  enabled?: boolean
+  forced?: boolean
+  require_hwid_for_manual_sub?: boolean
+  fallback_limit?: RoleHWIDSettingsFallbackLimit
+  min_limit?: RoleHWIDSettingsMinLimit
+  max_limit?: RoleHWIDSettingsMaxLimit
+  mode?: HWIDMode
+}
+
 export interface RoleFeatures {
   can_use_reset_strategy?: boolean
   can_use_next_plan?: boolean
@@ -1974,8 +1990,6 @@ export type NodesPermissionsCreateAnyOf = { [key: string]: PermissionScope | num
 
 export type NodesPermissionsCreate = boolean | NodesPermissionsCreateAnyOf | null
 
-export type NodeUsageStatsListStats = { [key: string]: NodeUsageStat[] }
-
 export type NodeUsageStatsListPeriod = Period | null
 
 export interface NodeUsageStatsList {
@@ -1990,6 +2004,8 @@ export interface NodeUsageStat {
   downlink: number
   period_start: string
 }
+
+export type NodeUsageStatsListStats = { [key: string]: NodeUsageStat[] }
 
 export type NodeStatus = (typeof NodeStatus)[keyof typeof NodeStatus]
 
@@ -2368,10 +2384,20 @@ export type HWIDSettingsFallbackLimit = number | null
 export interface HWIDSettings {
   enabled?: boolean
   forced?: boolean
+  require_hwid_for_manual_sub?: boolean
   fallback_limit?: HWIDSettingsFallbackLimit
   min_limit?: HWIDSettingsMinLimit
   max_limit?: HWIDSettingsMaxLimit
 }
+
+export type HWIDMode = (typeof HWIDMode)[keyof typeof HWIDMode]
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const HWIDMode = {
+  disabled: 'disabled',
+  use_global: 'use_global',
+  override: 'override',
+} as const
 
 export interface HTTPValidationError {
   detail?: ValidationError[]
@@ -3221,7 +3247,7 @@ export interface AdminRoleResponse {
   limits?: RoleLimits
   features?: RoleFeatures
   access?: RoleAccess
-  hwid?: HWIDSettings
+  hwid?: RoleHWIDSettings
   disabled_when_limited?: boolean
   disconnect_users_when_limited?: boolean
   disconnect_users_when_disabled?: boolean
@@ -3241,7 +3267,7 @@ export type AdminRoleModifyDisconnectUsersWhenLimited = boolean | null
 
 export type AdminRoleModifyDisabledWhenLimited = boolean | null
 
-export type AdminRoleModifyHwid = HWIDSettings | null
+export type AdminRoleModifyHwid = RoleHWIDSettings | null
 
 export type AdminRoleModifyAccess = RoleAccess | null
 
@@ -3278,7 +3304,7 @@ export interface AdminRoleData {
   limits?: RoleLimits
   features?: RoleFeatures
   access?: RoleAccess
-  hwid?: HWIDSettings
+  hwid?: RoleHWIDSettings
   disabled_when_limited?: boolean
   disconnect_users_when_limited?: boolean
   disconnect_users_when_disabled?: boolean
@@ -3291,7 +3317,7 @@ export interface AdminRoleCreate {
   limits?: RoleLimits
   features?: RoleFeatures
   access?: RoleAccess
-  hwid?: HWIDSettings
+  hwid?: RoleHWIDSettings
   disabled_when_limited?: boolean
   disconnect_users_when_limited?: boolean
   disconnect_users_when_disabled?: boolean

@@ -51,12 +51,7 @@ export function useCoreDraftMonacoSync(debounceMs = 200) {
 
   useEffect(() => {
     const unsub = useCoreEditorStore.subscribe(s => {
-      const sig =
-        s.kind === 'wg'
-          ? JSON.stringify(s.wgDraft)
-          : s.kind === 'xray' && s.xrayProfile
-            ? JSON.stringify(s.xrayProfile)
-            : ''
+      const sig = s.kind === 'wg' ? JSON.stringify(s.wgDraft) : s.kind === 'xray' && s.xrayProfile ? JSON.stringify(s.xrayProfile) : ''
       if (sig !== prevDraftSig.current) {
         prevDraftSig.current = sig
         if (!s.monacoDirty) debouncedSync()

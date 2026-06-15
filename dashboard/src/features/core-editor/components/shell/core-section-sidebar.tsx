@@ -26,7 +26,7 @@ export function CoreSectionTabs({ className }: { className?: string }) {
               onClick={() => setActive(item.id)}
               className={cn(
                 'relative shrink-0 px-3 py-2 text-sm font-medium transition-colors',
-                isActive ? 'border-b-2 border-primary text-foreground' : 'text-muted-foreground hover:text-foreground',
+                isActive ? 'border-primary text-foreground border-b-2' : 'text-muted-foreground hover:text-foreground',
               )}
             >
               <span className="flex items-center gap-1.5 whitespace-nowrap">
@@ -54,28 +54,16 @@ export function CoreSectionTabsPlaceholder({
 }) {
   const { t } = useTranslation()
   const items = kind === 'wg' ? WG_CORE_SECTION_NAV : XRAY_CORE_SECTION_NAV
-  const active =
-    activeSectionId ?? (kind === 'wg' ? 'interface' : 'inbounds')
+  const active = activeSectionId ?? (kind === 'wg' ? 'interface' : 'inbounds')
 
   return (
-    <div
-      className={cn('flex w-full border-b px-4', className)}
-      role="presentation"
-      aria-busy="true"
-      aria-label={t('coreEditor.section.label', { defaultValue: 'Section' })}
-    >
+    <div className={cn('flex w-full border-b px-4', className)} role="presentation" aria-busy="true" aria-label={t('coreEditor.section.label', { defaultValue: 'Section' })}>
       <div className="scrollbar-none flex min-w-0 flex-1 overflow-x-auto">
         {items.map(item => {
           const Icon = item.icon
           const isActive = active === item.id
           return (
-            <div
-              key={item.id}
-              className={cn(
-                'relative shrink-0 px-3 py-2 text-sm font-medium',
-                isActive ? 'border-b-2 border-primary text-foreground' : 'text-muted-foreground',
-              )}
-            >
+            <div key={item.id} className={cn('relative shrink-0 px-3 py-2 text-sm font-medium', isActive ? 'border-primary text-foreground border-b-2' : 'text-muted-foreground')}>
               <span className="flex items-center gap-1.5 whitespace-nowrap">
                 <Icon className="h-4 w-4 shrink-0" aria-hidden />
                 {t(item.labelKey, { defaultValue: item.defaultLabel })}

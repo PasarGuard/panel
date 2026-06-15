@@ -42,7 +42,7 @@ export const useUserTemplatesListColumns = ({ onEdit, onToggleStatus, canCreate 
         header: t('userDialog.dataLimit', { defaultValue: 'Data Limit' }),
         width: '1fr',
         cell: template => (
-          <span dir="ltr" className="text-xs text-muted-foreground">
+          <span dir="ltr" className="text-muted-foreground text-xs">
             {!template.data_limit || template.data_limit === 0 ? <Infinity className="inline h-4 w-4" /> : formatBytes(template.data_limit)}
           </span>
         ),
@@ -53,7 +53,7 @@ export const useUserTemplatesListColumns = ({ onEdit, onToggleStatus, canCreate 
         header: t('expire', { defaultValue: 'Expire' }),
         width: '1fr',
         cell: template => (
-          <span className="text-xs text-muted-foreground">
+          <span className="text-muted-foreground text-xs">
             {!template.expire_duration || template.expire_duration === 0 ? (
               <Infinity className="inline h-4 w-4" />
             ) : (
@@ -68,27 +68,31 @@ export const useUserTemplatesListColumns = ({ onEdit, onToggleStatus, canCreate 
         header: t('templates.hwidLimit', { defaultValue: 'HWID' }),
         width: '1fr',
         cell: template => (
-          <span dir="ltr" className="text-xs text-muted-foreground">
-            {template.hwid_limit === null || template.hwid_limit === undefined
-              ? t('default', { defaultValue: 'Default' })
-              : template.hwid_limit === 0
-                ? <Infinity className="inline h-4 w-4" />
-                : template.hwid_limit}
+          <span dir="ltr" className="text-muted-foreground text-xs">
+            {template.hwid_limit === null || template.hwid_limit === undefined ? (
+              t('default', { defaultValue: 'Default' })
+            ) : template.hwid_limit === 0 ? (
+              <Infinity className="inline h-4 w-4" />
+            ) : (
+              template.hwid_limit
+            )}
           </span>
         ),
         hideOnMobile: true,
       },
       ...(canCreate || canUpdate || canDelete
         ? [
-          {
-            id: 'actions',
-            header: '',
-            width: '64px',
-            align: 'end' as const,
-            hideOnMobile: true,
-            cell: (template: UserTemplateResponse) => <UserTemplateActionsMenu template={template} onEdit={onEdit} onToggleStatus={onToggleStatus} canCreate={canCreate} canUpdate={canUpdate} canDelete={canDelete} />,
-          },
-        ]
+            {
+              id: 'actions',
+              header: '',
+              width: '64px',
+              align: 'end' as const,
+              hideOnMobile: true,
+              cell: (template: UserTemplateResponse) => (
+                <UserTemplateActionsMenu template={template} onEdit={onEdit} onToggleStatus={onToggleStatus} canCreate={canCreate} canUpdate={canUpdate} canDelete={canDelete} />
+              ),
+            },
+          ]
         : []),
     ],
     [t, onEdit, onToggleStatus, canCreate, canUpdate, canDelete],

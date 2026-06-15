@@ -1,14 +1,5 @@
 import type { LucideIcon } from 'lucide-react'
-import {
-  ArrowDownToLine,
-  ArrowUpFromLine,
-  Braces,
-  Cable,
-  Globe,
-  Link2,
-  Scale,
-  Waypoints,
-} from 'lucide-react'
+import { ArrowDownToLine, ArrowUpFromLine, Braces, Cable, Globe, Link2, Scale, Waypoints } from 'lucide-react'
 import type { WgCoreSection, XrayCoreSection } from '@/features/core-editor/state/core-editor-store'
 
 export type XraySectionNavItem = {

@@ -89,10 +89,10 @@ export function UserHwidsModal({ isOpen, onOpenChange, userId, username }: UserH
     const lastUsedAt = formatHwidDate(item.last_used_at)
 
     return (
-      <div key={item.id} className="rounded-md border bg-card p-3">
+      <div key={item.id} className="bg-card rounded-md border p-3">
         <div className="flex items-start justify-between gap-3">
           <div className="flex min-w-0 items-start gap-2">
-            <DeviceIcon className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+            <DeviceIcon className="text-muted-foreground mt-0.5 h-4 w-4 shrink-0" />
             <div className="min-w-0 space-y-2">
               <TooltipProvider>
                 <Tooltip>
@@ -102,7 +102,7 @@ export function UserHwidsModal({ isOpen, onOpenChange, userId, username }: UserH
                     </p>
                   </TooltipTrigger>
                   <TooltipContent className="max-w-sm">
-                    <p className="break-all font-mono text-xs" dir="ltr">
+                    <p className="font-mono text-xs break-all" dir="ltr">
                       {item.hwid}
                     </p>
                   </TooltipContent>
@@ -113,7 +113,7 @@ export function UserHwidsModal({ isOpen, onOpenChange, userId, username }: UserH
                 {item.os_version && <Badge variant="outline">v{item.os_version}</Badge>}
                 {item.device_model && <Badge variant="outline">{item.device_model}</Badge>}
               </div>
-              <div className="grid gap-1 text-xs text-muted-foreground sm:grid-cols-2">
+              <div className="text-muted-foreground grid gap-1 text-xs sm:grid-cols-2">
                 {createdAt && (
                   <span>
                     {t('hwids.createdAt', { defaultValue: 'Created' })}: <span dir="ltr">{createdAt}</span>
@@ -128,15 +128,8 @@ export function UserHwidsModal({ isOpen, onOpenChange, userId, username }: UserH
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-1">
-            <CopyButton
-              value={item.hwid}
-              className="h-8 w-8"
-              copiedMessage="hwids.copied"
-              defaultMessage="hwids.copy"
-              showToast
-              toastSuccessMessage="hwids.copied"
-            />
-            <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => setHwidToDelete(item.hwid)}>
+            <CopyButton value={item.hwid} className="h-8 w-8" copiedMessage="hwids.copied" defaultMessage="hwids.copy" showToast toastSuccessMessage="hwids.copied" />
+            <Button type="button" variant="ghost" size="icon" className="text-destructive hover:text-destructive h-8 w-8" onClick={() => setHwidToDelete(item.hwid)}>
               <Trash2 className="h-4 w-4" />
             </Button>
           </div>
@@ -162,11 +155,9 @@ export function UserHwidsModal({ isOpen, onOpenChange, userId, username }: UserH
         </DialogHeader>
 
         <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-          <Button className='flex items-center gap-2' type="button" variant="destructive" onClick={() => setResetDialogOpen(true)} disabled={hwids.length === 0 || resetMutation.isPending}>
-            <RefreshCw className='h-4 w-4' />
-            <span>
-              {t('hwids.reset', { defaultValue: 'Reset all' })}
-            </span>
+          <Button className="flex items-center gap-2" type="button" variant="destructive" onClick={() => setResetDialogOpen(true)} disabled={hwids.length === 0 || resetMutation.isPending}>
+            <RefreshCw className="h-4 w-4" />
+            <span>{t('hwids.reset', { defaultValue: 'Reset all' })}</span>
           </Button>
         </div>
 
@@ -185,10 +176,10 @@ export function UserHwidsModal({ isOpen, onOpenChange, userId, username }: UserH
                   </div>
                 ))}
 
-              {error && <div className="py-8 text-center text-sm text-destructive">{t('hwids.loadFailed', { defaultValue: 'Failed to load hardware IDs' })}</div>}
+              {error && <div className="text-destructive py-8 text-center text-sm">{t('hwids.loadFailed', { defaultValue: 'Failed to load hardware IDs' })}</div>}
 
               {!isLoading && !error && hwids.length === 0 && (
-                <div className="flex h-40 flex-col items-center justify-center gap-2 text-center text-muted-foreground">
+                <div className="text-muted-foreground flex h-40 flex-col items-center justify-center gap-2 text-center">
                   <Fingerprint className="h-8 w-8" />
                   <p className="text-sm">{t('hwids.empty', { defaultValue: 'No hardware IDs registered yet' })}</p>
                 </div>

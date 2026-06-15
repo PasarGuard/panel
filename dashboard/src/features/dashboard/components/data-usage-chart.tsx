@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { ChartConfig, ChartContainer, ChartTooltip } from '@/components/ui/chart'
 import { formatBytes } from '@/utils/formatByte'
 import { useTranslation } from 'react-i18next'
-import { useGetUsersUsage, useGetUsage, Period, UserUsageStatsList, NodeUsageStatsList, UserUsageStat, NodeUsageStat } from '@/service/api'
+import { useGetAdminUsageById, useGetAdminUsageByUsername, useGetUsage, Period, UserUsageStatsList, NodeUsageStatsList, UserUsageStat, NodeUsageStat } from '@/service/api'
 import { useMemo, useState, useEffect } from 'react'
 import { SearchXIcon, TrendingUp, TrendingDown } from 'lucide-react'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
@@ -88,7 +88,7 @@ function CustomBarTooltip({ active, payload, period }: CustomBarTooltipProps) {
   const isRTL = i18n.language === 'fa'
 
   return (
-    <div className={`min-w-[160px] rounded border border-border bg-gradient-to-br from-background to-muted/80 p-2 text-xs shadow ${isRTL ? 'text-right' : 'text-left'}`} dir={isRTL ? 'rtl' : 'ltr'}>
+    <div className={`border-border from-background to-muted/80 min-w-[160px] rounded border bg-gradient-to-br p-2 text-xs shadow ${isRTL ? 'text-right' : 'text-left'}`} dir={isRTL ? 'rtl' : 'ltr'}>
       <div className={`mb-1 text-xs font-semibold ${isRTL ? 'text-right' : 'text-left'}`}>
         {t('statistics.date', { defaultValue: 'Date' })}:{' '}
         <span dir="ltr" className="inline-block">
@@ -97,7 +97,7 @@ function CustomBarTooltip({ active, payload, period }: CustomBarTooltipProps) {
       </div>
       <div className="flex flex-col gap-0.5 text-xs">
         <div>
-          <span className="font-medium text-foreground">{t('statistics.totalUsage', { defaultValue: 'Total Usage' })}:</span>
+          <span className="text-foreground font-medium">{t('statistics.totalUsage', { defaultValue: 'Total Usage' })}:</span>
           <span dir="ltr" className={isRTL ? 'mr-1' : 'ml-1'}>
             {formatBytes(data.traffic)}
           </span>
@@ -152,14 +152,14 @@ const DataUsageChart = ({ adminUsername }: { adminUsername?: string }) => {
     [activePeriod, queryRange.startDate, queryRange.endDate],
   )
 
-  const userUsageParams = useMemo(
+  const adminUsageParams = useMemo(
     () => ({
       ...(adminUsername ? { admin: [adminUsername] } : {}),
       period: activePeriod,
       start: queryRange.startDate,
       end: queryRange.endDate,
     }),
-    [adminUsername, activePeriod, queryRange.startDate, queryRange.endDate],
+    [activePeriod, queryRange.startDate, queryRange.endDate],
   )
 
   const { data: nodeData, isLoading: isLoadingNodes } = useGetUsage(nodeUsageParams, {
@@ -169,15 +169,22 @@ const DataUsageChart = ({ adminUsername }: { adminUsername?: string }) => {
     },
   })
 
-  const { data: userData, isLoading: isLoadingUsers } = useGetUsersUsage(userUsageParams, {
+  const { data: adminUsageByIdData, isLoading: isLoadingAdminUsageById } = useGetAdminUsageById(adminId ?? 0, adminUsageParams, {
     query: {
-      enabled: !shouldUseNodeUsage,
+      enabled: !shouldUseNodeUsage && adminId != null,
       refetchInterval: 1000 * 60 * 5,
     },
   })
 
-  const data: UserUsageStatsList | NodeUsageStatsList | undefined = shouldUseNodeUsage ? nodeData : userData
-  const isLoading = shouldUseNodeUsage ? isLoadingNodes : isLoadingUsers
+  const { data: adminUsageByUsernameData, isLoading: isLoadingAdminUsageByUsername } = useGetAdminUsageByUsername(adminUsername ?? '', adminUsageParams, {
+    query: {
+      enabled: !shouldUseNodeUsage && adminId == null && !!adminUsername,
+      refetchInterval: 1000 * 60 * 5,
+    },
+  })
+
+  const data: UserUsageStatsList | NodeUsageStatsList | undefined = shouldUseNodeUsage ? nodeData : adminId != null ? adminUsageByIdData : adminUsageByUsernameData
+  const isLoading = shouldUseNodeUsage ? isLoadingNodes : adminId != null ? isLoadingAdminUsageById : isLoadingAdminUsageByUsername
 
   let statsArr: (UserUsageStat | NodeUsageStat)[] = []
   if (data?.stats) {
@@ -260,7 +267,7 @@ const DataUsageChart = ({ adminUsername }: { adminUsername?: string }) => {
             </div>
           </div>
         ) : chartData.length === 0 ? (
-          <div className="mt-16 flex min-h-[200px] flex-col items-center justify-center gap-4 text-muted-foreground">
+          <div className="text-muted-foreground mt-16 flex min-h-[200px] flex-col items-center justify-center gap-4">
             <SearchXIcon className="size-16" strokeWidth={1} />
             {t('admins.monitor.no_traffic', { defaultValue: 'No traffic data available' })}
           </div>
@@ -356,21 +363,24 @@ const DataUsageChart = ({ adminUsername }: { adminUsername?: string }) => {
       </CardContent>
       <CardFooter className="mt-0 flex-col items-start gap-2 pt-2 text-sm sm:pt-4">
         {chartData.length > 0 && trend !== null && trend > 0 && (
-          <div className="flex gap-2 font-medium leading-none text-green-600 dark:text-green-400">
+          <div className="flex gap-2 leading-none font-medium text-green-600 dark:text-green-400">
             {t('usersTable.trendingUp', { defaultValue: 'Trending up by' })} {trend.toFixed(1)}% <TrendingUp className="h-4 w-4" />
           </div>
         )}
         {chartData.length > 0 && trend !== null && trend < 0 && (
-          <div className="flex gap-2 font-medium leading-none text-red-600 dark:text-red-400">
+          <div className="flex gap-2 leading-none font-medium text-red-600 dark:text-red-400">
             {t('usersTable.trendingDown', { defaultValue: 'Trending down by' })} {Math.abs(trend).toFixed(1)}% <TrendingDown className="h-4 w-4" />
           </div>
         )}
         {chartData.length > 0 && (
-          <div className="leading-none text-muted-foreground">
-            {t('statistics.usageDuringPeriod', { defaultValue: 'Usage During Period' })}: <span dir="ltr" className="font-mono">{totalUsageDuringPeriod}</span>
+          <div className="text-muted-foreground leading-none">
+            {t('statistics.usageDuringPeriod', { defaultValue: 'Usage During Period' })}:{' '}
+            <span dir="ltr" className="font-mono">
+              {totalUsageDuringPeriod}
+            </span>
           </div>
         )}
-        <div className="leading-none text-muted-foreground">{t('statistics.trafficUsageDescription', { defaultValue: 'Total traffic usage across all servers' })}</div>
+        <div className="text-muted-foreground leading-none">{t('statistics.trafficUsageDescription', { defaultValue: 'Total traffic usage across all servers' })}</div>
       </CardFooter>
     </Card>
   )

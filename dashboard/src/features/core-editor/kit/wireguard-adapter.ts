@@ -6,7 +6,7 @@ import {
   validateWireGuardCoreConfig,
   validateWireGuardCoreDraft,
 } from '@pasarguard/wireguard-config-kit'
-import type { WireGuardCoreConfig, WireGuardCoreDraft } from '@pasarguard/wireguard-config-kit'
+import type { WireGuardCoreConfig, WireGuardCoreDraft, WireGuardValidationIssue } from '@pasarguard/wireguard-config-kit'
 import { validateCoreConfig } from '@pasarguard/core-kit'
 
 const knownConfigKeys = new Set(['interface_name', 'private_key', 'pre_shared_key', 'listen_port', 'address'])
@@ -45,12 +45,27 @@ export function draftToPersistedConfig(draft: WireGuardCoreDraft): Record<string
   return JSON.parse(json) as Record<string, unknown>
 }
 
+function draftGenerationIssue(error: unknown): WireGuardValidationIssue {
+  const rawMessage = error instanceof Error ? error.message : String(error)
+  const match = rawMessage.match(/^(\/[^:]*):\s*(.+)$/)
+  return {
+    path: match?.[1] ?? '/',
+    code: 'WG_FORM_CONFIG_GENERATION_INVALID',
+    message: match?.[2] ?? rawMessage,
+  }
+}
+
 export function validateWireGuardDraftForSave(draft: WireGuardCoreDraft) {
   const issues = validateWireGuardCoreDraft(draft)
   if (issues.length > 0) {
     return { ok: false as const, issues }
   }
-  const config = draftToPersistedConfig(draft)
+  let config: Record<string, unknown>
+  try {
+    config = draftToPersistedConfig(draft)
+  } catch (error) {
+    return { ok: false as const, issues: [draftGenerationIssue(error)] }
+  }
   return validateCoreConfig('wg', config)
 }
 
@@ -60,7 +75,12 @@ export function getWireGuardPersistConfig(draft: WireGuardCoreDraft) {
   if (issues.length > 0) {
     return { ok: false as const, draftIssues: issues }
   }
-  const config = draftToPersistedConfig(draft)
+  let config: Record<string, unknown>
+  try {
+    config = draftToPersistedConfig(draft)
+  } catch (error) {
+    return { ok: false as const, draftIssues: [draftGenerationIssue(error)] }
+  }
   const r = validateCoreConfig('wg', config)
   if (!r.ok) {
     return { ok: false as const, kitIssues: r.issues }

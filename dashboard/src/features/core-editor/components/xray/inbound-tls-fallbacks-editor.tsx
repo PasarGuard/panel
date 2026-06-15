@@ -59,8 +59,7 @@ export function editorRowsToFallbacks(rows: TlsFallbackEditorRow[]): Fallback[] 
 }
 
 /** Same chrome as DNS rules / Freedom sub-accordions in outbound settings. */
-const TLS_FALLBACKS_ACCORDION_ITEM_CLASS =
-  'rounded-sm border px-4 [&_[data-state=closed]]:no-underline [&_[data-state=open]]:no-underline'
+const TLS_FALLBACKS_ACCORDION_ITEM_CLASS = 'rounded-sm border px-4 [&_[data-state=closed]]:no-underline [&_[data-state=open]]:no-underline'
 
 export interface InboundTlsFallbacksEditorProps {
   className?: string
@@ -68,11 +67,7 @@ export interface InboundTlsFallbacksEditorProps {
   onPersist: (next: Fallback[] | undefined) => void
 }
 
-export function InboundTlsFallbacksEditor({
-  className,
-  fallbacks,
-  onPersist,
-}: InboundTlsFallbacksEditorProps) {
+export function InboundTlsFallbacksEditor({ className, fallbacks, onPersist }: InboundTlsFallbacksEditorProps) {
   const { t } = useTranslation()
   const fbKey = useMemo(() => JSON.stringify(fallbacks ?? null), [fallbacks])
   const [rows, setRows] = useState<TlsFallbackEditorRow[]>(() => fallbacksToEditorRows(fallbacks))
@@ -105,14 +100,12 @@ export function InboundTlsFallbacksEditor({
       <AccordionItem value="tls-fallbacks" className={TLS_FALLBACKS_ACCORDION_ITEM_CLASS}>
         <AccordionTrigger>
           <div className="flex min-w-0 flex-1 items-center gap-2">
-            <ListTree className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-            <span className="truncate text-left">
-              {t('coreEditor.inbound.tlsFallbacks.title', { defaultValue: 'TLS fallbacks' })}
-            </span>
+            <ListTree className="text-muted-foreground h-4 w-4 shrink-0" aria-hidden />
+            <span className="truncate text-left">{t('coreEditor.inbound.tlsFallbacks.title', { defaultValue: 'TLS fallbacks' })}</span>
           </div>
         </AccordionTrigger>
         <AccordionContent className="space-y-4 px-2 pb-4">
-          <p className="text-xs leading-relaxed text-muted-foreground">
+          <p className="text-muted-foreground text-xs leading-relaxed">
             {t('coreEditor.inbound.tlsFallbacks.hint', {
               defaultValue:
                 'For VLESS or Trojan with TCP and TLS. Xray matches SNI, ALPN, and path on the first bytes after TLS, then forwards to dest (port, host:port, or UDS path). Rows without dest are ignored.',
@@ -121,9 +114,9 @@ export function InboundTlsFallbacksEditor({
 
           <div className="space-y-4">
             {rows.map((row, idx) => (
-              <div key={row.id} className="rounded-lg border border-border bg-muted/15 p-4 shadow-sm">
+              <div key={row.id} className="border-border bg-muted/15 rounded-lg border p-4 shadow-sm">
                 <div className="mb-3 flex items-center justify-between gap-2">
-                  <span className="text-xs font-medium text-muted-foreground">
+                  <span className="text-muted-foreground text-xs font-medium">
                     {t('coreEditor.inbound.tlsFallbacks.rowLabel', {
                       index: idx + 1,
                       defaultValue: 'Rule {{index}}',
@@ -133,7 +126,7 @@ export function InboundTlsFallbacksEditor({
                     type="button"
                     variant="ghost"
                     size="icon"
-                    className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+                    className="text-muted-foreground hover:text-destructive h-8 w-8 shrink-0"
                     title={t('coreEditor.inbound.tlsFallbacks.remove', { defaultValue: 'Remove rule' })}
                     aria-label={t('coreEditor.inbound.tlsFallbacks.remove', { defaultValue: 'Remove rule' })}
                     onClick={() => removeRow(row.id)}
@@ -143,45 +136,20 @@ export function InboundTlsFallbacksEditor({
                 </div>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="flex min-w-0 flex-col gap-1.5">
-                    <Label className="text-xs font-medium text-muted-foreground">
-                      {t('coreEditor.inbound.tlsFallbacks.name', { defaultValue: 'SNI (name)' })}
-                    </Label>
-                    <Input
-                      dir="ltr"
-                      className="h-10 w-full min-w-0 text-xs"
-                      value={row.name}
-                      onChange={e => updateRow(row.id, { name: e.target.value })}
-                      placeholder="cdn.example.com"
-                    />
+                    <Label className="text-muted-foreground text-xs font-medium">{t('coreEditor.inbound.tlsFallbacks.name', { defaultValue: 'SNI (name)' })}</Label>
+                    <Input dir="ltr" className="h-10 w-full min-w-0 text-xs" value={row.name} onChange={e => updateRow(row.id, { name: e.target.value })} placeholder="cdn.example.com" />
                   </div>
                   <div className="flex min-w-0 flex-col gap-1.5">
-                    <Label className="text-xs font-medium text-muted-foreground">
-                      {t('coreEditor.inbound.tlsFallbacks.alpn', { defaultValue: 'ALPN' })}
-                    </Label>
-                    <Input
-                      dir="ltr"
-                      className="h-10 w-full min-w-0 text-xs"
-                      value={row.alpn}
-                      onChange={e => updateRow(row.id, { alpn: e.target.value })}
-                      placeholder="http/1.1"
-                    />
+                    <Label className="text-muted-foreground text-xs font-medium">{t('coreEditor.inbound.tlsFallbacks.alpn', { defaultValue: 'ALPN' })}</Label>
+                    <Input dir="ltr" className="h-10 w-full min-w-0 text-xs" value={row.alpn} onChange={e => updateRow(row.id, { alpn: e.target.value })} placeholder="http/1.1" />
                   </div>
-                  <div className="flex min-w-0 w-full flex-col gap-1.5 sm:col-span-2">
-                    <Label className="text-xs font-medium text-muted-foreground">
-                      {t('coreEditor.inbound.tlsFallbacks.path', { defaultValue: 'Path' })}
-                    </Label>
-                    <Input
-                      dir="ltr"
-                      className="h-10 w-full min-w-0 text-xs"
-                      value={row.path}
-                      onChange={e => updateRow(row.id, { path: e.target.value })}
-                      placeholder="/ws"
-                    />
+                  <div className="flex w-full min-w-0 flex-col gap-1.5 sm:col-span-2">
+                    <Label className="text-muted-foreground text-xs font-medium">{t('coreEditor.inbound.tlsFallbacks.path', { defaultValue: 'Path' })}</Label>
+                    <Input dir="ltr" className="h-10 w-full min-w-0 text-xs" value={row.path} onChange={e => updateRow(row.id, { path: e.target.value })} placeholder="/ws" />
                   </div>
-                  <div className="flex min-w-0 w-full flex-col gap-1.5 sm:col-span-2">
-                    <Label className="text-xs font-medium text-muted-foreground">
-                      {t('coreEditor.inbound.tlsFallbacks.dest', { defaultValue: 'Destination (dest)' })}{' '}
-                      <span className="text-destructive">*</span>
+                  <div className="flex w-full min-w-0 flex-col gap-1.5 sm:col-span-2">
+                    <Label className="text-muted-foreground text-xs font-medium">
+                      {t('coreEditor.inbound.tlsFallbacks.dest', { defaultValue: 'Destination (dest)' })} <span className="text-destructive">*</span>
                     </Label>
                     <Input
                       dir="ltr"
@@ -191,14 +159,9 @@ export function InboundTlsFallbacksEditor({
                       placeholder="80 · 127.0.0.1:8080 · /path/to.sock"
                     />
                   </div>
-                  <div className="flex min-w-0 w-full flex-col gap-1.5 sm:col-span-2">
-                    <Label className="text-xs font-medium text-muted-foreground">
-                      PROXY protocol (xver)
-                    </Label>
-                    <Select
-                      value={String(row.xver)}
-                      onValueChange={v => updateRow(row.id, { xver: Number(v) as 0 | 1 | 2 })}
-                    >
+                  <div className="flex w-full min-w-0 flex-col gap-1.5 sm:col-span-2">
+                    <Label className="text-muted-foreground text-xs font-medium">PROXY protocol (xver)</Label>
+                    <Select value={String(row.xver)} onValueChange={v => updateRow(row.id, { xver: Number(v) as 0 | 1 | 2 })}>
                       <SelectTrigger className="h-10 w-full min-w-0">
                         <SelectValue />
                       </SelectTrigger>

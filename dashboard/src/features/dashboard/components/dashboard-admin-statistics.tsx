@@ -13,13 +13,13 @@ const DashboardAdminStatistics = ({ currentAdmin, systemStats }: { currentAdmin:
   const admins = data.admins ?? []
 
   if (admins.length === 1) {
-    return <AdminStatisticsCard showAdminInfo={false} admin={currentAdmin} systemStats={systemStats} />
+    return <AdminStatisticsCard showAdminInfo={false} admin={currentAdmin} systemStats={systemStats} skipStatsFetch />
   }
 
   return (
     <div className="flex flex-col gap-4">
       {admins.map((admin: AdminDetails) => (
-        <AdminStatisticsCard key={admin.username} admin={admin} systemStats={systemStats} />
+        <AdminStatisticsCard key={admin.username} admin={admin} systemStats={undefined} />
       ))}
     </div>
   )

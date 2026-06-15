@@ -52,23 +52,14 @@ function projectForTab(fullConfig: Record<string, unknown> | null, tab: Advanced
 }
 
 /** Merge the tab-scoped value back into the full config. */
-function mergeTabValueIntoConfig(
-  fullConfig: Record<string, unknown>,
-  tab: AdvancedTab,
-  tabValue: unknown,
-): Record<string, unknown> {
+function mergeTabValueIntoConfig(fullConfig: Record<string, unknown>, tab: AdvancedTab, tabValue: unknown): Record<string, unknown> {
   if (tab === 'all') {
-    return tabValue && typeof tabValue === 'object' && !Array.isArray(tabValue)
-      ? (tabValue as Record<string, unknown>)
-      : fullConfig
+    return tabValue && typeof tabValue === 'object' && !Array.isArray(tabValue) ? (tabValue as Record<string, unknown>) : fullConfig
   }
   if (tab === 'inbounds') return { ...fullConfig, inbounds: tabValue }
   if (tab === 'outbounds') return { ...fullConfig, outbounds: tabValue }
   if (tab === 'routing') {
-    const prevRouting =
-      fullConfig.routing && typeof fullConfig.routing === 'object' && !Array.isArray(fullConfig.routing)
-        ? (fullConfig.routing as Record<string, unknown>)
-        : {}
+    const prevRouting = fullConfig.routing && typeof fullConfig.routing === 'object' && !Array.isArray(fullConfig.routing) ? (fullConfig.routing as Record<string, unknown>) : {}
     return { ...fullConfig, routing: { ...prevRouting, rules: tabValue } }
   }
   return fullConfig
@@ -203,28 +194,22 @@ export function XrayAdvancedSection() {
 
   return (
     <div className="space-y-4">
-      <div className="rounded-lg border border-border bg-muted/15 p-4 shadow-sm">
+      <div className="border-border bg-muted/15 rounded-lg border p-4 shadow-sm">
         <div className="flex gap-3 sm:gap-4">
-          <Switch
-            id="show-diff"
-            className="mt-0.5 shrink-0"
-            checked={showDiff}
-            onCheckedChange={setShowDiff}
-            aria-describedby={showDiff ? undefined : 'show-diff-hint'}
-          />
+          <Switch id="show-diff" className="mt-0.5 shrink-0" checked={showDiff} onCheckedChange={setShowDiff} aria-describedby={showDiff ? undefined : 'show-diff-hint'} />
           <div className="min-w-0 flex-1 space-y-1.5">
-            <Label htmlFor="show-diff" className="block cursor-pointer text-sm font-medium leading-snug">
+            <Label htmlFor="show-diff" className="block cursor-pointer text-sm leading-snug font-medium">
               {t('coreEditor.advanced.showDiff', { defaultValue: 'Show diff vs last saved' })}
             </Label>
             {!showDiff && (
-              <p id="show-diff-hint" className="text-xs leading-relaxed text-muted-foreground">
+              <p id="show-diff-hint" className="text-muted-foreground text-xs leading-relaxed">
                 {t('coreEditor.advanced.autoApplyHint', {
                   defaultValue: 'Valid JSON is merged into the draft automatically after you stop typing.',
                 })}
               </p>
             )}
             {showDiff && (
-              <p className="text-xs leading-relaxed text-muted-foreground">
+              <p className="text-muted-foreground text-xs leading-relaxed">
                 {t('coreEditor.advanced.diffModeHint', {
                   defaultValue: 'Green and red lines show additions and removals compared to the last saved version.',
                 })}
@@ -235,12 +220,7 @@ export function XrayAdvancedSection() {
       </div>
 
       {filterTabsAvailable && (
-        <Tabs
-          dir={dir}
-          value={activeTab}
-          onValueChange={value => setActiveTab(value as AdvancedTab)}
-          className="min-w-0"
-        >
+        <Tabs dir={dir} value={activeTab} onValueChange={value => setActiveTab(value as AdvancedTab)} className="min-w-0">
           <div className="-mx-1 overflow-x-auto px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <TabsList dir={dir} className="inline-flex h-10 w-auto">
               <TabsTrigger value="all" className="px-3">
@@ -250,8 +230,7 @@ export function XrayAdvancedSection() {
                 <TabsTrigger key={tab} value={tab} className="px-3">
                   {tab === 'inbounds' && t('coreEditor.section.inbounds', { defaultValue: 'Inbounds' })}
                   {tab === 'outbounds' && t('coreEditor.section.outbounds', { defaultValue: 'Outbounds' })}
-                  {tab === 'routing' &&
-                    t('coreEditor.advanced.tabs.routingRules', { defaultValue: 'Routing Rules' })}
+                  {tab === 'routing' && t('coreEditor.advanced.tabs.routingRules', { defaultValue: 'Routing Rules' })}
                 </TabsTrigger>
               ))}
             </TabsList>
@@ -263,13 +242,9 @@ export function XrayAdvancedSection() {
         <ConfigDiffPanel before={beforeJson} after={afterJson} />
       ) : (
         <div className="space-y-2">
-          <JsonCodeEditorPanel
-            value={editorValue}
-            onChange={editorOnChange}
-            onValidate={handleEditorValidation}
-          />
+          <JsonCodeEditorPanel value={editorValue} onChange={editorOnChange} onValidate={handleEditorValidation} />
           {jsonValidation.error && !jsonValidation.isValid ? (
-            <p role="alert" className="text-[0.8rem] font-medium text-destructive">
+            <p role="alert" className="text-destructive text-[0.8rem] font-medium">
               {jsonValidation.error}
             </p>
           ) : null}

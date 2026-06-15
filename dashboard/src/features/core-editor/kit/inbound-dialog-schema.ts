@@ -12,14 +12,7 @@ export const INBOUND_FORM_FIELD_SEC_TARGET = 'sec_target' as const
 
 /** Form keys to `form.trigger` when validating REALITY before commit (matches Zod `path` entries). */
 export function realityInboundZodTriggerFieldNames(): string[] {
-  return [
-    INBOUND_FORM_FIELD_SEC_SERVER_NAMES,
-    'sec_privateKey',
-    'sec_shortIds',
-    'sec_shortId',
-    INBOUND_FORM_FIELD_SEC_TARGET,
-    'sec_xver',
-  ]
+  return [INBOUND_FORM_FIELD_SEC_SERVER_NAMES, 'sec_privateKey', 'sec_shortIds', 'sec_shortId', INBOUND_FORM_FIELD_SEC_TARGET, 'sec_xver']
 }
 
 /**
@@ -71,8 +64,7 @@ export function createInboundDialogSchema(caps: Caps, t: TFunction) {
   const protocolLabel = t('coreEditor.field.protocol', { defaultValue: 'Protocol' })
   const tagLabel = t('coreEditor.field.tag', { defaultValue: 'Tag' })
 
-  const required = (fieldLabel: string) =>
-    t('validation.required', { field: fieldLabel, defaultValue: `${fieldLabel} is required` })
+  const required = (fieldLabel: string) => t('validation.required', { field: fieldLabel, defaultValue: `${fieldLabel} is required` })
 
   return z
     .object({
@@ -106,7 +98,7 @@ export function createInboundDialogSchema(caps: Caps, t: TFunction) {
     })
     .superRefine((data, ctx) => {
       if (data.security !== 'reality') return
-      
+
       const msg = validateRealityServerNamesFormRaw(data[INBOUND_FORM_FIELD_SEC_SERVER_NAMES], t)
       if (msg) {
         ctx.addIssue({
@@ -115,7 +107,7 @@ export function createInboundDialogSchema(caps: Caps, t: TFunction) {
           path: [INBOUND_FORM_FIELD_SEC_SERVER_NAMES],
         })
       }
-      
+
       // REALITY: private key required; public key may stay empty (e.g. client-only / derived elsewhere).
       const raw = data as Record<string, unknown>
       const privateKeyLabel = t('coreEditor.field.privateKey', { defaultValue: 'Private Key' })
@@ -129,10 +121,8 @@ export function createInboundDialogSchema(caps: Caps, t: TFunction) {
           path: ['sec_privateKey'],
         })
       }
-      
-      const shortIdsValue =
-        (typeof raw.sec_shortIds === 'string' ? raw.sec_shortIds.trim() : '') ||
-        (typeof raw.sec_shortId === 'string' ? raw.sec_shortId.trim() : '')
+
+      const shortIdsValue = (typeof raw.sec_shortIds === 'string' ? raw.sec_shortIds.trim() : '') || (typeof raw.sec_shortId === 'string' ? raw.sec_shortId.trim() : '')
       if (shortIdsValue === '') {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
@@ -232,8 +222,7 @@ export function createInboundDialogSchema(caps: Caps, t: TFunction) {
         })
       }
 
-      const portRaw =
-        typeof raw.tunnelRewritePort === 'string' ? raw.tunnelRewritePort.trim() : ''
+      const portRaw = typeof raw.tunnelRewritePort === 'string' ? raw.tunnelRewritePort.trim() : ''
       if (portRaw === '') {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,

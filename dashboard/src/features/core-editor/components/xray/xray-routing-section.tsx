@@ -1,13 +1,4 @@
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { Button } from '@/components/ui/button'
 import { Form, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
@@ -18,11 +9,7 @@ import { useSectionHeaderAddPulseEffect, type SectionHeaderAddPulse } from '@/fe
 import { useXrayPersistModifyGuard } from '@/features/core-editor/hooks/use-xray-persist-modify-guard'
 import { profileDuplicateTagMessage, profileTagHasDuplicateUsage } from '@/features/core-editor/kit/profile-tag-uniqueness'
 import { remapIndexAfterArrayMove } from '@/features/core-editor/kit/remap-index-after-move'
-import {
-  collectRoutingRuleDialogFormErrors,
-  collectRoutingRuleDialogIssues,
-  routingRuleDialogHasBlockingErrors,
-} from '@/features/core-editor/kit/routing-rule-dialog-validation'
+import { collectRoutingRuleDialogFormErrors, collectRoutingRuleDialogIssues, routingRuleDialogHasBlockingErrors } from '@/features/core-editor/kit/routing-rule-dialog-validation'
 import { inferParityFieldMode, parseRoutingRuleFieldValue, routingRuleFieldToString } from '@/features/core-editor/kit/xray-parity-value'
 import { ValidationSummary } from '@/features/core-editor/components/shared/validation-summary'
 import { useCoreEditorStore } from '@/features/core-editor/state/core-editor-store'
@@ -143,23 +130,7 @@ const ROUTING_SECTIONS = [
     id: 'match-conditions',
     label: 'Match Conditions',
     icon: Filter,
-    keys: [
-      'inboundTag',
-      'domain',
-      'domains',
-      'ip',
-      'port',
-      'sourcePort',
-      'sourceIP',
-      'source',
-      'localIP',
-      'localPort',
-      'network',
-      'protocol',
-      'user',
-      'vlessRoute',
-      'process',
-    ],
+    keys: ['inboundTag', 'domain', 'domains', 'ip', 'port', 'sourcePort', 'sourceIP', 'source', 'localIP', 'localPort', 'network', 'protocol', 'user', 'vlessRoute', 'process'],
   },
   {
     id: 'advanced',
@@ -183,10 +154,7 @@ type RoutingSectionId = (typeof ROUTING_SECTIONS)[number]['id']
  * Returns only sections that have at least one field.
  */
 /** Ensures outbound/balancer tags appear in the form even if parity field order omits them. */
-function mergeCriticalRoutingKeys(
-  order: readonly string[],
-  defs: Record<string, XrayGeneratedFormField>,
-): string[] {
+function mergeCriticalRoutingKeys(order: readonly string[], defs: Record<string, XrayGeneratedFormField>): string[] {
   const critical = ['outboundTag', 'balancerTag'] as const
   const next = [...order]
   const missing = critical.filter(k => defs[k] != null && !next.includes(k))
@@ -201,9 +169,7 @@ function buildSectionedFields(fieldOrder: readonly string[]): Map<RoutingSection
     }
   }
 
-  const result = new Map<RoutingSectionId, string[]>(
-    ROUTING_SECTIONS.map(s => [s.id, []]),
-  )
+  const result = new Map<RoutingSectionId, string[]>(ROUTING_SECTIONS.map(s => [s.id, []]))
 
   for (const key of fieldOrder) {
     if (SKIP_ROUTING_KEYS.has(key)) continue
@@ -217,10 +183,7 @@ function buildSectionedFields(fieldOrder: readonly string[]): Map<RoutingSection
 
   const matchKeys = result.get('match-conditions')!
   if (matchKeys.includes('inboundTag')) {
-    result.set(
-      'match-conditions',
-      ['inboundTag', ...matchKeys.filter(k => k !== 'inboundTag')],
-    )
+    result.set('match-conditions', ['inboundTag', ...matchKeys.filter(k => k !== 'inboundTag')])
   }
 
   return result
@@ -282,10 +245,7 @@ export function XrayRoutingSection({ headerAddPulse, headerAddEpoch }: XrayRouti
     [routingCaps],
   )
 
-  const sectionedFields = useMemo(
-    () => buildSectionedFields(routingCaps.fieldOrder),
-    [routingCaps.fieldOrder],
-  )
+  const sectionedFields = useMemo(() => buildSectionedFields(routingCaps.fieldOrder), [routingCaps.fieldOrder])
 
   const defaultOpenAccordion = useMemo(() => {
     if ((sectionedFields.get('routing-action') ?? []).length > 0) return 'routing-action'
@@ -365,7 +325,7 @@ export function XrayRoutingSection({ headerAddPulse, headerAddEpoch }: XrayRouti
         cell: ({ row }) => {
           const summary = routingRuleDomainSummary(row.original)
           return (
-            <span className="line-clamp-2 min-w-0 max-w-56 text-xs" title={summary || undefined}>
+            <span className="line-clamp-2 max-w-56 min-w-0 text-xs" title={summary || undefined}>
               {summary || '—'}
             </span>
           )
@@ -483,15 +443,8 @@ export function XrayRoutingSection({ headerAddPulse, headerAddEpoch }: XrayRouti
         control={form.control}
         name={jsonKey}
         render={({ field }) => (
-          <FormItem
-            className={cn(
-              'min-w-0',
-              (isJsonMode || colSpan === 'full') && 'sm:col-span-2',
-            )}
-          >
-            <FormLabel className="text-xs font-medium">
-              {transportParityFieldLabel(def, t)}
-            </FormLabel>
+          <FormItem className={cn('min-w-0', (isJsonMode || colSpan === 'full') && 'sm:col-span-2')}>
+            <FormLabel className="text-xs font-medium">{transportParityFieldLabel(def, t)}</FormLabel>
             <XrayParityFormControl
               field={def}
               value={field.value ?? ''}
@@ -507,15 +460,7 @@ export function XrayRoutingSection({ headerAddPulse, headerAddEpoch }: XrayRouti
                   if (jsonKey === 'tag') {
                     const nextTag = String(value ?? '').trim()
                     const snap = useCoreEditorStore.getState().xrayProfile
-                    if (
-                      nextTag &&
-                      snap &&
-                      profileTagHasDuplicateUsage(
-                        snap,
-                        nextTag,
-                        dialogMode === 'edit' ? { owner: 'routingRule', index: selected } : undefined,
-                      )
-                    ) {
+                    if (nextTag && snap && profileTagHasDuplicateUsage(snap, nextTag, dialogMode === 'edit' ? { owner: 'routingRule', index: selected } : undefined)) {
                       form.setError('tag', { type: 'validate', message: profileDuplicateTagMessage(t, nextTag) })
                     } else {
                       form.clearErrors('tag')
@@ -586,11 +531,7 @@ export function XrayRoutingSection({ headerAddPulse, headerAddEpoch }: XrayRouti
         isDialogOpen={detailOpen}
         onOpenChange={handleDetailOpenChange}
         leadingIcon={dialogMode === 'add' ? <Plus className="h-5 w-5 shrink-0" /> : <Pencil className="h-5 w-5 shrink-0" />}
-        title={
-          dialogMode === 'add'
-            ? t('coreEditor.routing.dialogTitleAdd', { defaultValue: 'Add routing rule' })
-            : t('coreEditor.routing.dialogTitleEdit', { defaultValue: 'Edit routing rule' })
-        }
+        title={dialogMode === 'add' ? t('coreEditor.routing.dialogTitleAdd', { defaultValue: 'Add routing rule' }) : t('coreEditor.routing.dialogTitleEdit', { defaultValue: 'Edit routing rule' })}
         size="lg"
         footerExtra={
           dialogMode === 'add' && draftRule ? (
@@ -607,46 +548,30 @@ export function XrayRoutingSection({ headerAddPulse, headerAddEpoch }: XrayRouti
         {rule && (
           <Form {...form}>
             <form className="pb-2" onSubmit={e => e.preventDefault()}>
-              {ruleDialogIssues.length > 0 ? (
-                <ValidationSummary
-                  className="mb-4"
-                  items={ruleDialogIssues.map(issue => ({ source: 'xray' as const, issue }))}
-                />
-              ) : null}
-              <Accordion
-                type="single"
-                collapsible
-                defaultValue={defaultOpenAccordion}
-                className="!mt-0 flex w-full flex-col gap-y-4"
-              >
+              {ruleDialogIssues.length > 0 ? <ValidationSummary className="mb-4" items={ruleDialogIssues.map(issue => ({ source: 'xray' as const, issue }))} /> : null}
+              <Accordion type="single" collapsible defaultValue={defaultOpenAccordion} className="!mt-0 flex w-full flex-col gap-y-4">
                 {/* ── Section 1: Routing Action ───────────────────────────── */}
                 {(() => {
                   const sectionKeys = sectionedFields.get('routing-action') ?? []
                   if (sectionKeys.length === 0) return null
                   return (
-                    <AccordionItem
-                      value="routing-action"
-                      className="rounded-sm border px-4 [&_[data-state=closed]]:no-underline [&_[data-state=open]]:no-underline"
-                    >
+                    <AccordionItem value="routing-action" className="rounded-sm border px-4 [&_[data-state=closed]]:no-underline [&_[data-state=open]]:no-underline">
                       <AccordionTrigger>
                         <div className="flex items-center gap-2">
-                          <ArrowRightFromLine className="h-4 w-4 shrink-0 text-muted-foreground" />
+                          <ArrowRightFromLine className="text-muted-foreground h-4 w-4 shrink-0" />
                           <span>{t('coreEditor.routing.sectionRoutingAction', { defaultValue: 'Routing Action' })}</span>
                         </div>
                       </AccordionTrigger>
                       <AccordionContent className="px-2 pb-4">
-                        <div className="mb-4 flex items-start gap-2 rounded-md border bg-muted/30 px-3 py-2.5 text-xs text-muted-foreground">
-                          <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-foreground/70" />
+                        <div className="bg-muted/30 text-muted-foreground mb-4 flex items-start gap-2 rounded-md border px-3 py-2.5 text-xs">
+                          <Info className="text-foreground/70 mt-0.5 h-3.5 w-3.5 shrink-0" />
                           <span>
                             {t('coreEditor.routing.routingActionHint', {
-                              defaultValue:
-                                'Choose one target for matched traffic. When both are set, outboundTag takes precedence over balancerTag.',
+                              defaultValue: 'Choose one target for matched traffic. When both are set, outboundTag takes precedence over balancerTag.',
                             })}
                           </span>
                         </div>
-                        <div className="grid gap-4 sm:grid-cols-2">
-                          {sectionKeys.map(k => renderField(k))}
-                        </div>
+                        <div className="grid gap-4 sm:grid-cols-2">{sectionKeys.map(k => renderField(k))}</div>
                       </AccordionContent>
                     </AccordionItem>
                   )
@@ -657,18 +582,15 @@ export function XrayRoutingSection({ headerAddPulse, headerAddEpoch }: XrayRouti
                   const sectionKeys = sectionedFields.get('match-conditions') ?? []
                   if (sectionKeys.length === 0) return null
                   return (
-                    <AccordionItem
-                      value="match-conditions"
-                      className="rounded-sm border px-4 [&_[data-state=closed]]:no-underline [&_[data-state=open]]:no-underline"
-                    >
+                    <AccordionItem value="match-conditions" className="rounded-sm border px-4 [&_[data-state=closed]]:no-underline [&_[data-state=open]]:no-underline">
                       <AccordionTrigger>
                         <div className="flex items-center gap-2">
-                          <Filter className="h-4 w-4 shrink-0 text-muted-foreground" />
+                          <Filter className="text-muted-foreground h-4 w-4 shrink-0" />
                           <span>{t('coreEditor.routing.sectionMatchConditions', { defaultValue: 'Match Conditions' })}</span>
                         </div>
                       </AccordionTrigger>
                       <AccordionContent className="px-2 pb-4">
-                        <div className="mb-3 text-xs text-muted-foreground">
+                        <div className="text-muted-foreground mb-3 text-xs">
                           {t('coreEditor.routing.matchConditionsHint', {
                             defaultValue: 'All specified conditions must be satisfied for this rule to apply.',
                           })}
@@ -690,20 +612,15 @@ export function XrayRoutingSection({ headerAddPulse, headerAddEpoch }: XrayRouti
                   const sectionKeys = sectionedFields.get('advanced') ?? []
                   if (sectionKeys.length === 0) return null
                   return (
-                    <AccordionItem
-                      value="advanced"
-                      className="rounded-sm border px-4 [&_[data-state=closed]]:no-underline [&_[data-state=open]]:no-underline"
-                    >
+                    <AccordionItem value="advanced" className="rounded-sm border px-4 [&_[data-state=closed]]:no-underline [&_[data-state=open]]:no-underline">
                       <AccordionTrigger>
                         <div className="flex items-center gap-2">
-                          <Settings2 className="h-4 w-4 shrink-0 text-muted-foreground" />
+                          <Settings2 className="text-muted-foreground h-4 w-4 shrink-0" />
                           <span>{t('coreEditor.routing.sectionAdvanced', { defaultValue: 'Advanced' })}</span>
                         </div>
                       </AccordionTrigger>
                       <AccordionContent className="px-2 pb-4">
-                        <div className="grid gap-4">
-                          {sectionKeys.map(k => renderField(k, 'full'))}
-                        </div>
+                        <div className="grid gap-4">{sectionKeys.map(k => renderField(k, 'full'))}</div>
                       </AccordionContent>
                     </AccordionItem>
                   )
@@ -714,25 +631,20 @@ export function XrayRoutingSection({ headerAddPulse, headerAddEpoch }: XrayRouti
                   const sectionKeys = sectionedFields.get('identification') ?? []
                   if (sectionKeys.length === 0) return null
                   return (
-                    <AccordionItem
-                      value="identification"
-                      className="rounded-sm border px-4 [&_[data-state=closed]]:no-underline [&_[data-state=open]]:no-underline"
-                    >
+                    <AccordionItem value="identification" className="rounded-sm border px-4 [&_[data-state=closed]]:no-underline [&_[data-state=open]]:no-underline">
                       <AccordionTrigger>
                         <div className="flex items-center gap-2">
-                          <Tag className="h-4 w-4 shrink-0 text-muted-foreground" />
+                          <Tag className="text-muted-foreground h-4 w-4 shrink-0" />
                           <span>{t('coreEditor.routing.sectionIdentification', { defaultValue: 'Identification' })}</span>
                         </div>
                       </AccordionTrigger>
                       <AccordionContent className="px-2 pb-4">
-                        <div className="mb-3 text-xs text-muted-foreground">
+                        <div className="text-muted-foreground mb-3 text-xs">
                           {t('coreEditor.routing.identificationHint', {
                             defaultValue: 'Optional label for debugging. When set, matched rules are logged at Info level.',
                           })}
                         </div>
-                        <div className="grid gap-4 sm:grid-cols-2">
-                          {sectionKeys.map(k => renderField(k, 'full'))}
-                        </div>
+                        <div className="grid gap-4 sm:grid-cols-2">{sectionKeys.map(k => renderField(k, 'full'))}</div>
                       </AccordionContent>
                     </AccordionItem>
                   )
@@ -746,9 +658,7 @@ export function XrayRoutingSection({ headerAddPulse, headerAddEpoch }: XrayRouti
       <AlertDialog open={discardDraftOpen} onOpenChange={setDiscardDraftOpen}>
         <AlertDialogContent dir={dir}>
           <AlertDialogHeader>
-            <AlertDialogTitle>
-              {t('coreEditor.routing.discardDraftTitle', { defaultValue: 'Discard new rule?' })}
-            </AlertDialogTitle>
+            <AlertDialogTitle>{t('coreEditor.routing.discardDraftTitle', { defaultValue: 'Discard new rule?' })}</AlertDialogTitle>
             <AlertDialogDescription>
               {t('coreEditor.routing.discardDraftDescription', {
                 defaultValue: 'This rule is not in the list yet. Closing without adding will discard your changes.',
@@ -772,13 +682,10 @@ export function XrayRoutingSection({ headerAddPulse, headerAddEpoch }: XrayRouti
       <AlertDialog open={blockAddWhileDraftOpen} onOpenChange={setBlockAddWhileDraftOpen}>
         <AlertDialogContent dir={dir}>
           <AlertDialogHeader>
-            <AlertDialogTitle>
-              {t('coreEditor.routing.finishCurrentTitle', { defaultValue: 'Finish the current rule first' })}
-            </AlertDialogTitle>
+            <AlertDialogTitle>{t('coreEditor.routing.finishCurrentTitle', { defaultValue: 'Finish the current rule first' })}</AlertDialogTitle>
             <AlertDialogDescription>
               {t('coreEditor.routing.finishCurrentDescription', {
-                defaultValue:
-                  'Add it to the list, or close the dialog and discard the draft, before starting another rule.',
+                defaultValue: 'Add it to the list, or close the dialog and discard the draft, before starting another rule.',
               })}
             </AlertDialogDescription>
           </AlertDialogHeader>

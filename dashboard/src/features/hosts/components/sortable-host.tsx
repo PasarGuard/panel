@@ -46,7 +46,7 @@ export default function SortableHost({ host, onEdit, onDuplicate, onDataChanged,
   return (
     <div ref={setNodeRef} className="cursor-default" style={style} {...attributes}>
       <Card
-        className={cn('group relative h-full p-4 transition-colors', canUpdate && 'cursor-pointer hover:bg-accent', selected && 'border-primary/50 bg-accent/30')}
+        className={cn('group relative h-full p-4 transition-colors', canUpdate && 'hover:bg-accent cursor-pointer', selected && 'border-primary/50 bg-accent/30')}
         onClick={() => {
           if (canUpdate) onEdit(host)
         }}
@@ -69,12 +69,12 @@ export default function SortableHost({ host, onEdit, onDuplicate, onDataChanged,
               <div className="truncate font-medium">{host.remark ?? ''}</div>
             </div>
             <div className={cn('flex items-center gap-1', dir === 'rtl' && 'justify-start')}>
-              <ChevronsLeftRightEllipsis className="h-4 w-4 text-muted-foreground" />
-              <div dir="ltr" className="truncate text-sm text-muted-foreground">
+              <ChevronsLeftRightEllipsis className="text-muted-foreground h-4 w-4" />
+              <div dir="ltr" className="text-muted-foreground truncate text-sm">
                 {Array.isArray(host.address) ? host.address[0] || '' : (host.address ?? '')}:{host.port === null ? <Settings className="inline h-3 w-3" /> : host.port}
               </div>
             </div>
-            <div className="flex items-center gap-1 truncate text-sm text-muted-foreground">
+            <div className="text-muted-foreground flex items-center gap-1 truncate text-sm">
               <CloudCog className="h-4 w-4" />
               <span>{t('inbound')}: </span>
               <span dir="ltr">{host.inbound_tag ?? ''}</span>

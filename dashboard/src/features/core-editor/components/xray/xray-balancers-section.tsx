@@ -1,13 +1,4 @@
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { StringTagPicker } from '@/components/common/string-tag-picker'
 import { Button } from '@/components/ui/button'
 import { Form, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
@@ -64,12 +55,7 @@ function balancerSelectorSummary(b: RoutingBalancer): string {
 }
 
 function balancerSearchHaystack(b: RoutingBalancer): string {
-  const parts: string[] = [
-    b.tag,
-    b.fallbackTag ?? '',
-    b.strategy?.type ?? '',
-    ...(b.selector ?? []),
-  ]
+  const parts: string[] = [b.tag, b.fallbackTag ?? '', b.strategy?.type ?? '', ...(b.selector ?? [])]
   const st = b.strategy
   if (st?.settings !== undefined && st.settings !== null) {
     try {
@@ -120,7 +106,7 @@ function mergeBalancerPatch(balancer: RoutingBalancer, patch: Partial<RoutingBal
 }
 
 function cloneJsonObject(value: JsonObject | undefined): JsonObject | undefined {
-  return value === undefined ? undefined : JSON.parse(JSON.stringify(value)) as JsonObject
+  return value === undefined ? undefined : (JSON.parse(JSON.stringify(value)) as JsonObject)
 }
 
 function parseOptionalNumber(raw: string): number | undefined {
@@ -143,11 +129,19 @@ function setTopLevelValue(profile: Profile, key: string, value: JsonValue | unde
   if (value === undefined) delete topLevel[key]
   else topLevel[key] = value
 
+  const source = readJsonObject(profile.raw?.source)
+  const nextSource = source ? { ...source } : undefined
+  if (nextSource) {
+    if (value === undefined) delete nextSource[key]
+    else nextSource[key] = value
+  }
+
   return {
     ...profile,
     raw: {
       ...(profile.raw ?? {}),
       topLevel: Object.keys(topLevel).length > 0 ? topLevel : undefined,
+      ...(nextSource ? { source: Object.keys(nextSource).length > 0 ? nextSource : undefined } : {}),
     },
   } as Profile
 }
@@ -281,31 +275,24 @@ export function XrayBalancersSection({ headerAddPulse, headerAddEpoch }: XrayBal
     return t('coreEditor.balancer.fallback', { defaultValue: 'Fallback' })
   }, [t])
   /** Tag + strategy object only — selector / fallback use {@link StringTagPicker}. */
-  const dialogScalarBalancerFields = useMemo(
-    () => {
-      return balancerParityFields
-        .filter(f => f.json !== 'strategy' && f.json !== 'selector' && f.json !== 'fallbackTag')
-        .sort((a, b) => {
-          const isBoolA = isBooleanParityField(a)
-          const isBoolB = isBooleanParityField(b)
-          if (isBoolA && !isBoolB) return 1
-          if (!isBoolA && isBoolB) return -1
-          return 0
-        })
-    },
-    [balancerParityFields],
-  )
+  const dialogScalarBalancerFields = useMemo(() => {
+    return balancerParityFields
+      .filter(f => f.json !== 'strategy' && f.json !== 'selector' && f.json !== 'fallbackTag')
+      .sort((a, b) => {
+        const isBoolA = isBooleanParityField(a)
+        const isBoolB = isBooleanParityField(b)
+        if (isBoolA && !isBoolB) return 1
+        if (!isBoolA && isBoolB) return -1
+        return 0
+      })
+  }, [balancerParityFields])
 
   const form = useForm<Record<string, string>>({})
 
   const isBalancerTagDuplicate = useCallback(
     (candidateRaw: string): boolean => {
       if (!profile) return false
-      return profileTagHasDuplicateUsage(
-        profile,
-        candidateRaw,
-        dialogMode === 'edit' ? { owner: 'balancer', index: selected } : undefined,
-      )
+      return profileTagHasDuplicateUsage(profile, candidateRaw, dialogMode === 'edit' ? { owner: 'balancer', index: selected } : undefined)
     },
     [profile, dialogMode, selected],
   )
@@ -373,10 +360,7 @@ export function XrayBalancersSection({ headerAddPulse, headerAddEpoch }: XrayBal
           const full = (row.original.selector ?? []).join(', ')
           const summary = balancerSelectorSummary(row.original)
           return (
-            <span
-              className="line-clamp-2 min-w-0 max-w-72 text-xs"
-              title={full || undefined}
-            >
+            <span className="line-clamp-2 max-w-72 min-w-0 text-xs" title={full || undefined}>
               {summary || '—'}
             </span>
           )
@@ -549,11 +533,12 @@ export function XrayBalancersSection({ headerAddPulse, headerAddEpoch }: XrayBal
     : null
   const observatoryIsRequired = requiresObservationSource && draftObservatory !== undefined && draftBurstObservatory === undefined
   const burstObservatoryIsRequired = requiresObservationSource && draftBurstObservatory !== undefined && draftObservatory === undefined
-  const observatoryDisabledReason = !hasLeastPingBalancer && draftObservatory === undefined
-    ? t('coreEditor.balancer.observatoryRequiresLeastPing', {
-        defaultValue: 'Observatory needs at least one balancer with the leastPing strategy. Use Burst observatory until then.',
-      })
-    : null
+  const observatoryDisabledReason =
+    !hasLeastPingBalancer && draftObservatory === undefined
+      ? t('coreEditor.balancer.observatoryRequiresLeastPing', {
+          defaultValue: 'Observatory needs at least one balancer with the leastPing strategy. Use Burst observatory until then.',
+        })
+      : null
   const observatorySwitchDisabledReason = observatoryDisabledReason ?? (observatoryIsRequired ? requiredObservationSourceReason : null)
   const burstObservatorySwitchDisabledReason = burstObservatoryIsRequired ? requiredObservationSourceReason : null
   const activeObservationTab: ObservationTab =
@@ -598,13 +583,7 @@ export function XrayBalancersSection({ headerAddPulse, headerAddEpoch }: XrayBal
       onClick={openObservationDialog}
     >
       <Eye className="h-4 w-4" />
-      <span
-        className={cn(
-          'absolute end-1.5 top-1.5 h-2 w-2 rounded-full ring-2 ring-background',
-          observationEnabled ? 'bg-green-500' : 'bg-muted-foreground/45',
-        )}
-        aria-hidden
-      />
+      <span className={cn('ring-background absolute end-1.5 top-1.5 h-2 w-2 rounded-full ring-2', observationEnabled ? 'bg-green-500' : 'bg-muted-foreground/45')} aria-hidden />
     </Button>
   )
 
@@ -674,11 +653,7 @@ export function XrayBalancersSection({ headerAddPulse, headerAddEpoch }: XrayBal
         isDialogOpen={detailOpen}
         onOpenChange={handleDetailOpenChange}
         leadingIcon={dialogMode === 'add' ? <Plus className="h-5 w-5 shrink-0" /> : <Pencil className="h-5 w-5 shrink-0" />}
-        title={
-          dialogMode === 'add'
-            ? t('coreEditor.balancer.dialogTitleAdd', { defaultValue: 'Add balancer' })
-            : t('coreEditor.balancer.dialogTitleEdit', { defaultValue: 'Edit balancer' })
-        }
+        title={dialogMode === 'add' ? t('coreEditor.balancer.dialogTitleAdd', { defaultValue: 'Add balancer' }) : t('coreEditor.balancer.dialogTitleEdit', { defaultValue: 'Edit balancer' })}
         size="md"
         footerExtra={
           dialogMode === 'add' && draftBalancer ? (
@@ -706,17 +681,8 @@ export function XrayBalancersSection({ headerAddPulse, headerAddEpoch }: XrayBal
                       control={form.control}
                       name={jsonKey}
                       render={({ field }) => (
-                        <FormItem
-                          className={cn(
-                            'min-w-0 w-full',
-                            (fullRow || tagFullWidth) && 'sm:col-span-2',
-                          )}
-                        >
-                          <FormLabel className="text-xs font-medium">
-                            {jsonKey === 'tag'
-                              ? t('coreEditor.balancer.tag', { defaultValue: 'Tag' })
-                              : def.go || def.json}
-                          </FormLabel>
+                        <FormItem className={cn('w-full min-w-0', (fullRow || tagFullWidth) && 'sm:col-span-2')}>
+                          <FormLabel className="text-xs font-medium">{jsonKey === 'tag' ? t('coreEditor.balancer.tag', { defaultValue: 'Tag' }) : def.go || def.json}</FormLabel>
                           <XrayParityFormControl
                             field={def}
                             value={field.value ?? ''}
@@ -729,14 +695,7 @@ export function XrayBalancersSection({ headerAddPulse, headerAddEpoch }: XrayBal
                                   const nextTag = String(value ?? '')
                                   patchBalancer({ tag: nextTag })
                                   const snap = useCoreEditorStore.getState().xrayProfile
-                                  if (
-                                    snap &&
-                                    profileTagHasDuplicateUsage(
-                                      snap,
-                                      nextTag,
-                                      dialogMode === 'edit' ? { owner: 'balancer', index: selected } : undefined,
-                                    )
-                                  ) {
+                                  if (snap && profileTagHasDuplicateUsage(snap, nextTag, dialogMode === 'edit' ? { owner: 'balancer', index: selected } : undefined)) {
                                     setDuplicateBalancerTagError(nextTag)
                                   } else {
                                     form.clearErrors('tag')
@@ -754,7 +713,7 @@ export function XrayBalancersSection({ headerAddPulse, headerAddEpoch }: XrayBal
                   )
                 })}
 
-                <div className="min-w-0 flex flex-col gap-2.5 sm:col-span-2">
+                <div className="flex min-w-0 flex-col gap-2.5 sm:col-span-2">
                   <Label className="text-xs font-medium">{selectorFieldLabel}</Label>
                   <StringTagPicker
                     mode="multi"
@@ -771,13 +730,13 @@ export function XrayBalancersSection({ headerAddPulse, headerAddEpoch }: XrayBal
                     addButtonLabel={t('coreEditor.balancer.addOutboundTag', { defaultValue: 'Add tag' })}
                   />
                   {selectorCommitError ? (
-                    <p className="text-sm font-medium text-destructive" role="alert">
+                    <p className="text-destructive text-sm font-medium" role="alert">
                       {selectorCommitError}
                     </p>
                   ) : null}
                 </div>
 
-                <div className="min-w-0 flex flex-col gap-2.5 sm:col-span-2">
+                <div className="flex min-w-0 flex-col gap-2.5 sm:col-span-2">
                   <Label className="text-xs font-medium">{fallbackFieldLabel}</Label>
                   <StringTagPicker
                     mode="single"
@@ -790,7 +749,7 @@ export function XrayBalancersSection({ headerAddPulse, headerAddEpoch }: XrayBal
                   />
                 </div>
 
-                <div className="min-w-0 flex flex-col gap-2.5 sm:col-span-2">
+                <div className="flex min-w-0 flex-col gap-2.5 sm:col-span-2">
                   <Label className="text-xs font-medium">{strategyTypeLabel}</Label>
                   <Select
                     value={(() => {
@@ -816,14 +775,10 @@ export function XrayBalancersSection({ headerAddPulse, headerAddEpoch }: XrayBal
                     }}
                   >
                     <SelectTrigger className="h-10" dir="ltr">
-                      <SelectValue
-                        placeholder={t('coreEditor.balancer.strategyPlaceholder', { defaultValue: 'Strategy' })}
-                      />
+                      <SelectValue placeholder={t('coreEditor.balancer.strategyPlaceholder', { defaultValue: 'Strategy' })} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="__none">
-                        {t('coreEditor.balancer.strategyNone', { defaultValue: 'Default (none)' })}
-                      </SelectItem>
+                      <SelectItem value="__none">{t('coreEditor.balancer.strategyNone', { defaultValue: 'Default (none)' })}</SelectItem>
                       {BALANCING_STRATEGY_TYPES.map(st => (
                         <SelectItem key={st} value={st}>
                           {st}
@@ -831,26 +786,18 @@ export function XrayBalancersSection({ headerAddPulse, headerAddEpoch }: XrayBal
                       ))}
                       {(() => {
                         const raw = b.strategy?.type?.trim() ?? ''
-                        if (
-                          !raw ||
-                          BALANCING_STRATEGY_TYPES.includes(raw as (typeof BALANCING_STRATEGY_TYPES)[number]) ||
-                          raw === '__none'
-                        ) {
+                        if (!raw || BALANCING_STRATEGY_TYPES.includes(raw as (typeof BALANCING_STRATEGY_TYPES)[number]) || raw === '__none') {
                           return null
                         }
                         return (
                           <SelectItem value={raw}>
-                            {raw}{' '}
-                            <span className="text-muted-foreground">
-                              ({t('coreEditor.balancer.strategyFromConfig', { defaultValue: 'from config' })})
-                            </span>
+                            {raw} <span className="text-muted-foreground">({t('coreEditor.balancer.strategyFromConfig', { defaultValue: 'from config' })})</span>
                           </SelectItem>
                         )
                       })()}
                     </SelectContent>
                   </Select>
                 </div>
-
               </div>
             </form>
           </Form>
@@ -872,12 +819,16 @@ export function XrayBalancersSection({ headerAddPulse, headerAddEpoch }: XrayBal
       >
         <TooltipProvider delayDuration={200}>
           <div className="grid gap-3 text-start sm:grid-cols-2">
-            <div className={cn('flex min-w-0 items-start justify-between gap-3 rounded-md border border-border/70 bg-background/60 px-3 py-3 text-start', draftObservatory && 'border-primary/30 bg-primary/5', observatoryDisabledReason && 'opacity-70')}>
+            <div
+              className={cn(
+                'border-border/70 bg-background/60 flex min-w-0 items-start justify-between gap-3 rounded-md border px-3 py-3 text-start',
+                draftObservatory && 'border-primary/30 bg-primary/5',
+                observatoryDisabledReason && 'opacity-70',
+              )}
+            >
               <div className="min-w-0">
-                <Label className="text-xs font-medium">
-                  {t('coreEditor.balancer.observatory', { defaultValue: 'Observatory' })}
-                </Label>
-                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                <Label className="text-xs font-medium">{t('coreEditor.balancer.observatory', { defaultValue: 'Observatory' })}</Label>
+                <p className="text-muted-foreground mt-1 text-xs leading-relaxed">
                   {t('coreEditor.balancer.observatoryHint', {
                     defaultValue: 'Fixed-interval background HTTP probes.',
                   })}
@@ -887,11 +838,7 @@ export function XrayBalancersSection({ headerAddPulse, headerAddEpoch }: XrayBal
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <span className="mt-0.5 shrink-0">
-                      <Switch
-                        checked={draftObservatory !== undefined}
-                        disabled
-                        onCheckedChange={() => {}}
-                      />
+                      <Switch checked={draftObservatory !== undefined} disabled onCheckedChange={() => {}} />
                     </span>
                   </TooltipTrigger>
                   <TooltipContent side="top" className="max-w-xs text-xs">
@@ -911,12 +858,15 @@ export function XrayBalancersSection({ headerAddPulse, headerAddEpoch }: XrayBal
               )}
             </div>
 
-            <div className={cn('flex min-w-0 items-start justify-between gap-3 rounded-md border border-border/70 bg-background/60 px-3 py-3 text-start', draftBurstObservatory && 'border-primary/30 bg-primary/5')}>
+            <div
+              className={cn(
+                'border-border/70 bg-background/60 flex min-w-0 items-start justify-between gap-3 rounded-md border px-3 py-3 text-start',
+                draftBurstObservatory && 'border-primary/30 bg-primary/5',
+              )}
+            >
               <div className="min-w-0">
-                <Label className="text-xs font-medium">
-                  {t('coreEditor.balancer.burstObservatory', { defaultValue: 'Burst observatory' })}
-                </Label>
-                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                <Label className="text-xs font-medium">{t('coreEditor.balancer.burstObservatory', { defaultValue: 'Burst observatory' })}</Label>
+                <p className="text-muted-foreground mt-1 text-xs leading-relaxed">
                   {t('coreEditor.balancer.burstObservatoryHint', {
                     defaultValue: 'Randomized probes configured through pingConfig.',
                   })}
@@ -926,11 +876,7 @@ export function XrayBalancersSection({ headerAddPulse, headerAddEpoch }: XrayBal
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <span className="mt-0.5 shrink-0">
-                      <Switch
-                        checked={draftBurstObservatory !== undefined}
-                        disabled
-                        onCheckedChange={() => {}}
-                      />
+                      <Switch checked={draftBurstObservatory !== undefined} disabled onCheckedChange={() => {}} />
                     </span>
                   </TooltipTrigger>
                   <TooltipContent side="top" className="max-w-xs text-xs">
@@ -953,12 +899,7 @@ export function XrayBalancersSection({ headerAddPulse, headerAddEpoch }: XrayBal
         </TooltipProvider>
 
         {draftObservationEnabled ? (
-          <Tabs
-            dir={dir}
-            value={activeObservationTab}
-            onValueChange={value => setObservationTab(value as ObservationTab)}
-            className="min-w-0 text-start"
-          >
+          <Tabs dir={dir} value={activeObservationTab} onValueChange={value => setObservationTab(value as ObservationTab)} className="min-w-0 text-start">
             <TabsList dir={dir} className="mx-auto grid w-full grid-cols-2 sm:w-[420px]">
               <TabsTrigger value="observatory" disabled={draftObservatory === undefined}>
                 {t('coreEditor.balancer.observatory', { defaultValue: 'Observatory' })}
@@ -971,9 +912,7 @@ export function XrayBalancersSection({ headerAddPulse, headerAddEpoch }: XrayBal
             {draftObservatory ? (
               <TabsContent value="observatory" className="mt-4 space-y-3 text-start">
                 <div className="flex min-w-0 flex-col gap-2.5">
-                  <Label className="text-xs font-medium">
-                    {t('coreEditor.balancer.subjectSelector', { defaultValue: 'Subject selector' })}
-                  </Label>
+                  <Label className="text-xs font-medium">{t('coreEditor.balancer.subjectSelector', { defaultValue: 'Subject selector' })}</Label>
                   <StringTagPicker
                     mode="multi"
                     options={profileTagOptions.outboundTags}
@@ -988,9 +927,7 @@ export function XrayBalancersSection({ headerAddPulse, headerAddEpoch }: XrayBal
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div className="flex min-w-0 flex-col gap-2.5">
-                    <Label className="text-xs font-medium">
-                      {t('coreEditor.balancer.observation.probeURL', { defaultValue: 'Probe URL' })}
-                    </Label>
+                    <Label className="text-xs font-medium">{t('coreEditor.balancer.observation.probeURL', { defaultValue: 'Probe URL' })}</Label>
                     <Input
                       dir="ltr"
                       className="h-9 font-mono text-xs"
@@ -1000,9 +937,7 @@ export function XrayBalancersSection({ headerAddPulse, headerAddEpoch }: XrayBal
                     />
                   </div>
                   <div className="flex min-w-0 flex-col gap-2.5">
-                    <Label className="text-xs font-medium">
-                      {t('coreEditor.balancer.observation.probeInterval', { defaultValue: 'Probe interval' })}
-                    </Label>
+                    <Label className="text-xs font-medium">{t('coreEditor.balancer.observation.probeInterval', { defaultValue: 'Probe interval' })}</Label>
                     <Input
                       dir="ltr"
                       className="h-9 font-mono text-xs"
@@ -1011,128 +946,108 @@ export function XrayBalancersSection({ headerAddPulse, headerAddEpoch }: XrayBal
                       placeholder="10m"
                     />
                   </div>
-                  <div className="flex min-w-0 items-center justify-between gap-3 rounded-md border border-border/70 bg-background/60 px-3 py-2 sm:col-span-2">
-                    <Label className="min-w-0 text-xs font-medium">
-                      {t('coreEditor.balancer.observation.enableConcurrency', { defaultValue: 'Enable concurrency' })}
-                    </Label>
-                    <Switch
-                      checked={readBooleanProperty(draftObservatory, 'enableConcurrency')}
-                      onCheckedChange={checked => patchTopLevelObject('observatory', { enableConcurrency: checked })}
-                    />
+                  <div className="border-border/70 bg-background/60 flex min-w-0 items-center justify-between gap-3 rounded-md border px-3 py-2 sm:col-span-2">
+                    <Label className="min-w-0 text-xs font-medium">{t('coreEditor.balancer.observation.enableConcurrency', { defaultValue: 'Enable concurrency' })}</Label>
+                    <Switch checked={readBooleanProperty(draftObservatory, 'enableConcurrency')} onCheckedChange={checked => patchTopLevelObject('observatory', { enableConcurrency: checked })} />
                   </div>
                 </div>
               </TabsContent>
             ) : null}
 
-            {draftBurstObservatory ? (() => {
-              const pingConfig = readJsonObject(draftBurstObservatory.pingConfig)
-              return (
-                <TabsContent value="burstObservatory" className="mt-4 space-y-3 text-start">
-                  <div className="flex min-w-0 flex-col gap-2.5">
-                    <Label className="text-xs font-medium">
-                      {t('coreEditor.balancer.subjectSelector', { defaultValue: 'Subject selector' })}
-                    </Label>
-                    <StringTagPicker
-                      mode="multi"
-                      options={profileTagOptions.outboundTags}
-                      valueMulti={readStringArrayProperty(draftBurstObservatory, 'subjectSelector')}
-                      onChangeMulti={next => patchTopLevelObject('burstObservatory', { subjectSelector: next })}
-                      placeholder={t('coreEditor.balancer.subjectSelectorPlaceholder', {
-                        defaultValue: 'Select outbound tag prefixes...',
-                      })}
-                      clearAllLabel={t('coreEditor.balancer.clearSelectors', { defaultValue: 'Clear all' })}
-                      addButtonLabel={t('coreEditor.balancer.addOutboundTag', { defaultValue: 'Add tag' })}
-                    />
-                  </div>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="flex min-w-0 flex-col gap-2.5 sm:col-span-2">
-                      <Label className="text-xs font-medium">
-                        {t('coreEditor.balancer.observation.destination', { defaultValue: 'Destination' })}
-                      </Label>
-                      <Input
-                        dir="ltr"
-                        className="h-9 font-mono text-xs"
-                        value={readStringProperty(pingConfig, 'destination')}
-                        onChange={e => patchBurstPingConfig({ destination: e.target.value.trim() || undefined })}
-                        placeholder="https://www.google.com/generate_204"
-                      />
-                    </div>
-                    <div className="flex min-w-0 flex-col gap-2.5 sm:col-span-2">
-                      <Label className="text-xs font-medium">
-                        {t('coreEditor.balancer.observation.connectivity', { defaultValue: 'Connectivity' })}
-                      </Label>
-                      <Input
-                        dir="ltr"
-                        className="h-9 font-mono text-xs"
-                        value={readStringProperty(pingConfig, 'connectivity')}
-                        onChange={e => patchBurstPingConfig({ connectivity: e.target.value.trim() })}
-                        placeholder="https://www.google.com/generate_204"
-                      />
-                    </div>
-                    <div className="flex min-w-0 flex-col gap-2.5">
-                      <Label className="text-xs font-medium">
-                        {t('coreEditor.balancer.observation.interval', { defaultValue: 'Interval' })}
-                      </Label>
-                      <Input
-                        dir="ltr"
-                        className="h-9 font-mono text-xs"
-                        value={readStringProperty(pingConfig, 'interval')}
-                        onChange={e => patchBurstPingConfig({ interval: e.target.value.trim() || undefined })}
-                        placeholder="1m"
-                      />
-                    </div>
-                    <div className="flex min-w-0 flex-col gap-2.5">
-                      <Label className="text-xs font-medium">
-                        {t('coreEditor.balancer.observation.timeout', { defaultValue: 'Timeout' })}
-                      </Label>
-                      <Input
-                        dir="ltr"
-                        className="h-9 font-mono text-xs"
-                        value={readStringProperty(pingConfig, 'timeout')}
-                        onChange={e => patchBurstPingConfig({ timeout: e.target.value.trim() || undefined })}
-                        placeholder="5s"
-                      />
-                    </div>
-                    <div className="flex min-w-0 flex-col gap-2.5">
-                      <Label className="text-xs font-medium">
-                        {t('coreEditor.balancer.observation.sampling', { defaultValue: 'Sampling' })}
-                      </Label>
-                      <Input
-                        dir="ltr"
-                        inputMode="numeric"
-                        className="h-9 font-mono text-xs"
-                        value={readNumberProperty(pingConfig, 'sampling')}
-                        onChange={e => patchBurstPingConfig({ sampling: parseOptionalNumber(e.target.value) })}
-                        placeholder="10"
-                      />
-                    </div>
-                    <div className="flex min-w-0 flex-col gap-2.5">
-                      <Label className="text-xs font-medium">
-                        {t('coreEditor.balancer.observation.httpMethod', { defaultValue: 'HTTP method' })}
-                      </Label>
-                      <Select
-                        value={readStringProperty(pingConfig, 'httpMethod') || 'HEAD'}
-                        onValueChange={value => patchBurstPingConfig({ httpMethod: value })}
-                      >
-                        <SelectTrigger className="h-9" dir="ltr">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {['HEAD', 'GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'].map(method => (
-                            <SelectItem key={method} value={method}>
-                              {method}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                </TabsContent>
-              )
-            })() : null}
+            {draftBurstObservatory
+              ? (() => {
+                  const pingConfig = readJsonObject(draftBurstObservatory.pingConfig)
+                  return (
+                    <TabsContent value="burstObservatory" className="mt-4 space-y-3 text-start">
+                      <div className="flex min-w-0 flex-col gap-2.5">
+                        <Label className="text-xs font-medium">{t('coreEditor.balancer.subjectSelector', { defaultValue: 'Subject selector' })}</Label>
+                        <StringTagPicker
+                          mode="multi"
+                          options={profileTagOptions.outboundTags}
+                          valueMulti={readStringArrayProperty(draftBurstObservatory, 'subjectSelector')}
+                          onChangeMulti={next => patchTopLevelObject('burstObservatory', { subjectSelector: next })}
+                          placeholder={t('coreEditor.balancer.subjectSelectorPlaceholder', {
+                            defaultValue: 'Select outbound tag prefixes...',
+                          })}
+                          clearAllLabel={t('coreEditor.balancer.clearSelectors', { defaultValue: 'Clear all' })}
+                          addButtonLabel={t('coreEditor.balancer.addOutboundTag', { defaultValue: 'Add tag' })}
+                        />
+                      </div>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <div className="flex min-w-0 flex-col gap-2.5 sm:col-span-2">
+                          <Label className="text-xs font-medium">{t('coreEditor.balancer.observation.destination', { defaultValue: 'Destination' })}</Label>
+                          <Input
+                            dir="ltr"
+                            className="h-9 font-mono text-xs"
+                            value={readStringProperty(pingConfig, 'destination')}
+                            onChange={e => patchBurstPingConfig({ destination: e.target.value.trim() || undefined })}
+                            placeholder="https://www.google.com/generate_204"
+                          />
+                        </div>
+                        <div className="flex min-w-0 flex-col gap-2.5 sm:col-span-2">
+                          <Label className="text-xs font-medium">{t('coreEditor.balancer.observation.connectivity', { defaultValue: 'Connectivity' })}</Label>
+                          <Input
+                            dir="ltr"
+                            className="h-9 font-mono text-xs"
+                            value={readStringProperty(pingConfig, 'connectivity')}
+                            onChange={e => patchBurstPingConfig({ connectivity: e.target.value.trim() })}
+                            placeholder="https://www.google.com/generate_204"
+                          />
+                        </div>
+                        <div className="flex min-w-0 flex-col gap-2.5">
+                          <Label className="text-xs font-medium">{t('coreEditor.balancer.observation.interval', { defaultValue: 'Interval' })}</Label>
+                          <Input
+                            dir="ltr"
+                            className="h-9 font-mono text-xs"
+                            value={readStringProperty(pingConfig, 'interval')}
+                            onChange={e => patchBurstPingConfig({ interval: e.target.value.trim() || undefined })}
+                            placeholder="1m"
+                          />
+                        </div>
+                        <div className="flex min-w-0 flex-col gap-2.5">
+                          <Label className="text-xs font-medium">{t('coreEditor.balancer.observation.timeout', { defaultValue: 'Timeout' })}</Label>
+                          <Input
+                            dir="ltr"
+                            className="h-9 font-mono text-xs"
+                            value={readStringProperty(pingConfig, 'timeout')}
+                            onChange={e => patchBurstPingConfig({ timeout: e.target.value.trim() || undefined })}
+                            placeholder="5s"
+                          />
+                        </div>
+                        <div className="flex min-w-0 flex-col gap-2.5">
+                          <Label className="text-xs font-medium">{t('coreEditor.balancer.observation.sampling', { defaultValue: 'Sampling' })}</Label>
+                          <Input
+                            dir="ltr"
+                            inputMode="numeric"
+                            className="h-9 font-mono text-xs"
+                            value={readNumberProperty(pingConfig, 'sampling')}
+                            onChange={e => patchBurstPingConfig({ sampling: parseOptionalNumber(e.target.value) })}
+                            placeholder="10"
+                          />
+                        </div>
+                        <div className="flex min-w-0 flex-col gap-2.5">
+                          <Label className="text-xs font-medium">{t('coreEditor.balancer.observation.httpMethod', { defaultValue: 'HTTP method' })}</Label>
+                          <Select value={readStringProperty(pingConfig, 'httpMethod') || 'HEAD'} onValueChange={value => patchBurstPingConfig({ httpMethod: value })}>
+                            <SelectTrigger className="h-9" dir="ltr">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {['HEAD', 'GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'].map(method => (
+                                <SelectItem key={method} value={method}>
+                                  {method}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                    </TabsContent>
+                  )
+                })()
+              : null}
           </Tabs>
         ) : (
-          <div className="rounded-md border border-dashed border-border px-3 py-4 text-xs text-muted-foreground">
+          <div className="border-border text-muted-foreground rounded-md border border-dashed px-3 py-4 text-xs">
             {t('coreEditor.balancer.noObservationSources', {
               defaultValue: 'Enable an observation source here when using leastPing or leastLoad, or when random/roundRobin should filter unavailable outbounds.',
             })}
@@ -1143,9 +1058,7 @@ export function XrayBalancersSection({ headerAddPulse, headerAddEpoch }: XrayBal
       <AlertDialog open={discardDraftOpen} onOpenChange={setDiscardDraftOpen}>
         <AlertDialogContent dir={dir}>
           <AlertDialogHeader>
-            <AlertDialogTitle>
-              {t('coreEditor.balancer.discardDraftTitle', { defaultValue: 'Discard new balancer?' })}
-            </AlertDialogTitle>
+            <AlertDialogTitle>{t('coreEditor.balancer.discardDraftTitle', { defaultValue: 'Discard new balancer?' })}</AlertDialogTitle>
             <AlertDialogDescription>
               {t('coreEditor.balancer.discardDraftDescription', {
                 defaultValue: 'This balancer is not in the list yet. Closing without adding will discard your changes.',
@@ -1169,9 +1082,7 @@ export function XrayBalancersSection({ headerAddPulse, headerAddEpoch }: XrayBal
       <AlertDialog open={blockAddWhileDraftOpen} onOpenChange={setBlockAddWhileDraftOpen}>
         <AlertDialogContent dir={dir}>
           <AlertDialogHeader>
-            <AlertDialogTitle>
-              {t('coreEditor.balancer.finishCurrentTitle', { defaultValue: 'Finish the current balancer first' })}
-            </AlertDialogTitle>
+            <AlertDialogTitle>{t('coreEditor.balancer.finishCurrentTitle', { defaultValue: 'Finish the current balancer first' })}</AlertDialogTitle>
             <AlertDialogDescription>
               {t('coreEditor.balancer.finishCurrentDescription', {
                 defaultValue: 'Add it to the list, or close the dialog and discard the draft, before starting another balancer.',

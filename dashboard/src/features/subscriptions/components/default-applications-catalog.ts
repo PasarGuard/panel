@@ -131,7 +131,12 @@ const defaultApplicationsData: { operatingSystems: DefaultOperatingSystem[] } = 
 }
 
 function mapOsNameToPlatform(engName: string): SubscriptionPlatform {
-  switch (engName.trim().toLowerCase().replace(/[\s_-]+/g, '')) {
+  switch (
+    engName
+      .trim()
+      .toLowerCase()
+      .replace(/[\s_-]+/g, '')
+  ) {
     case 'android':
       return 'android'
     case 'ios':

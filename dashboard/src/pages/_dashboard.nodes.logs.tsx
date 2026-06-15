@@ -325,11 +325,11 @@ export default function NodeLogs() {
 
             <div className={cn('flex w-full gap-2 sm:w-auto', dir === 'rtl' && 'flex-row-reverse')}>
               <Button variant="outline" size="sm" className="h-9 flex-1 sm:flex-initial" onClick={handlePauseResume} title={isPaused ? t('nodes.logs.resume') : t('nodes.logs.pause')}>
-                {isPaused ? <Play className={cn('h-4 w-4 sm:mr-2', dir === 'rtl' && 'sm:ml-2 sm:mr-0')} /> : <Pause className={cn('h-4 w-4 sm:mr-2', dir === 'rtl' && 'sm:ml-2 sm:mr-0')} />}
+                {isPaused ? <Play className={cn('h-4 w-4 sm:mr-2', dir === 'rtl' && 'sm:mr-0 sm:ml-2')} /> : <Pause className={cn('h-4 w-4 sm:mr-2', dir === 'rtl' && 'sm:mr-0 sm:ml-2')} />}
                 <span className="hidden sm:inline">{isPaused ? t('nodes.logs.resume') : t('nodes.logs.pause')}</span>
               </Button>
               <Button variant="outline" size="sm" className="h-9 flex-1 sm:flex-initial" onClick={handleDownload} disabled={filteredLogs.length === 0}>
-                <DownloadIcon className={cn('h-4 w-4 sm:mr-2', dir === 'rtl' && 'sm:ml-2 sm:mr-0')} />
+                <DownloadIcon className={cn('h-4 w-4 sm:mr-2', dir === 'rtl' && 'sm:mr-0 sm:ml-2')} />
                 <span className="hidden sm:inline">{t('nodes.logs.download')}</span>
               </Button>
             </div>
@@ -353,16 +353,16 @@ export default function NodeLogs() {
                 ref={scrollRef}
                 onScroll={handleScroll}
                 dir="ltr"
-                className="custom-logs-scrollbar h-[calc(100vh-280px)] max-h-[720px] min-h-[400px] space-y-0 overflow-y-auto overflow-x-hidden rounded bg-background/75 sm:h-[720px] sm:min-h-0"
+                className="custom-logs-scrollbar bg-background/75 h-[calc(100vh-280px)] max-h-[720px] min-h-[400px] space-y-0 overflow-x-hidden overflow-y-auto rounded sm:h-[720px] sm:min-h-0"
               >
                 {filteredLogs.length > 0 ? (
                   filteredLogs.map((filteredLog: LogLine, index: number) => <TerminalLine key={index} log={filteredLog} searchTerm={search} noTimestamp={!showTimestamp} />)
                 ) : isLoading ? (
-                  <div className="flex h-full items-center justify-center text-muted-foreground">
+                  <div className="text-muted-foreground flex h-full items-center justify-center">
                     <Loader2 className="h-6 w-6" />
                   </div>
                 ) : (
-                  <div className="flex h-full items-center justify-center text-muted-foreground">{t('nodes.logs.noLogs')}</div>
+                  <div className="text-muted-foreground flex h-full items-center justify-center">{t('nodes.logs.noLogs')}</div>
                 )}
               </div>
             </CardContent>

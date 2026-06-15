@@ -279,6 +279,7 @@ class SubscriptionInboundData(BaseModel):
     fragment_settings: dict[str, Any] | None = Field(None)
     noise_settings: dict[str, Any] | None = Field(None)
     finalmask: dict[str, Any] | None = Field(None)
+    finalmask_link: str | None = Field(None)
 
     # Priority and status
     priority: int = Field(0)

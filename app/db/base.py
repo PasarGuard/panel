@@ -6,13 +6,18 @@ from config import database_settings
 
 IS_SQLITE = database_settings.is_sqlite
 
+connect_args = {}
 if IS_SQLITE:
-    engine = create_async_engine(
-        database_settings.url, connect_args={"check_same_thread": False}, echo=database_settings.echo_queries
-    )
+    connect_args["check_same_thread"] = False
+elif database_settings.is_mysql:
+    connect_args["connect_timeout"] = database_settings.connect_timeout
+
+if IS_SQLITE:
+    engine = create_async_engine(database_settings.url, connect_args=connect_args, echo=database_settings.echo_queries)
 else:
     engine = create_async_engine(
         database_settings.url,
+        connect_args=connect_args,
         pool_size=database_settings.pool_size,
         max_overflow=database_settings.max_overflow,
         pool_recycle=database_settings.pool_recycle,

@@ -230,8 +230,8 @@ export default function Settings() {
                       key={tab.id}
                       onClick={() => navigate(tab.url)}
                       className={cn(
-                        'relative flex-shrink-0 whitespace-nowrap px-3 py-2 text-sm font-medium transition-colors',
-                        isActive ? 'border-b-2 border-primary text-foreground' : 'text-muted-foreground hover:text-foreground',
+                        'relative flex-shrink-0 px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors',
+                        isActive ? 'border-primary text-foreground border-b-2' : 'text-muted-foreground hover:text-foreground',
                       )}
                     >
                       <div className="flex items-center gap-1.5">

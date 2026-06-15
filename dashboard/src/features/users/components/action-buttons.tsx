@@ -208,11 +208,11 @@ const buildUserEditFormValues = (user: UserResponse): UseEditFormValues => ({
   proxy_settings: user.proxy_settings || undefined,
   next_plan: user.next_plan
     ? {
-      user_template_id: user.next_plan.user_template_id ? Number(user.next_plan.user_template_id) : undefined,
-      data_limit: user.next_plan.data_limit ? Math.round(Number(user.next_plan.data_limit)) : 0,
-      expire: user.next_plan.expire ? Math.round(Number(user.next_plan.expire)) : 0,
-      add_remaining_traffic: user.next_plan.add_remaining_traffic || false,
-    }
+        user_template_id: user.next_plan.user_template_id ? Number(user.next_plan.user_template_id) : undefined,
+        data_limit: user.next_plan.data_limit ? Math.round(Number(user.next_plan.data_limit)) : 0,
+        expire: user.next_plan.expire ? Math.round(Number(user.next_plan.expire)) : 0,
+        add_remaining_traffic: user.next_plan.add_remaining_traffic || false,
+      }
     : undefined,
 })
 
@@ -289,7 +289,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
   const removeUserMutation = useRemoveUserById()
   const resetUserDataUsageMutation = useResetUserDataUsageById({
     mutation: {
-      onSuccess: (updatedUser) => {
+      onSuccess: updatedUser => {
         if (updatedUser) {
           updateUserInCache(updatedUser)
         }
@@ -298,7 +298,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
   })
   const revokeUserSubscriptionMutation = useRevokeUserSubscriptionById({
     mutation: {
-      onSuccess: (updatedUser) => {
+      onSuccess: updatedUser => {
         if (updatedUser) {
           updateUserInCache(updatedUser)
         }
@@ -307,7 +307,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
   })
   const activeNextMutation = useActiveNextPlanById({
     mutation: {
-      onSuccess: (updatedUser) => {
+      onSuccess: updatedUser => {
         if (updatedUser) {
           updateUserInCache(updatedUser)
         }
@@ -643,14 +643,12 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
   return (
     <>
       {renderActions && (
-        <div
-          className="flex items-center justify-end"
-          onClick={e => e.stopPropagation()}
-          onPointerDown={e => e.stopPropagation()}
-        >
-          {canUpdateUsers && <Button size="icon" variant="ghost" onClick={handleEdit} className="md:hidden">
-            <Pencil className="h-4 w-4" />
-          </Button>}
+        <div className="flex items-center justify-end" onClick={e => e.stopPropagation()} onPointerDown={e => e.stopPropagation()}>
+          {canUpdateUsers && (
+            <Button size="icon" variant="ghost" onClick={handleEdit} className="md:hidden">
+              <Pencil className="h-4 w-4" />
+            </Button>
+          )}
           <TooltipProvider>
             <CopyButton
               value={subscriptionPublicUrl}
@@ -675,7 +673,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
                 </DropdownMenuTrigger>
                 <DropdownMenuContent>
                   {subscribeLinks.map((item, index) => (
-                    <DropdownMenuItem dir='ltr' key={index} onClick={() => handleCopyOrDownload(item.format, item.protocol)}>
+                    <DropdownMenuItem dir="ltr" key={index} onClick={() => handleCopyOrDownload(item.format, item.protocol)}>
                       <item.icon className="mr-2 h-4 w-4" />
                       {item.protocol}
                     </DropdownMenuItem>
@@ -688,13 +686,11 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
               <TooltipTrigger asChild>
                 <div>
                   <Button type="button" size="icon" variant="ghost" aria-label={t('qrcodeDialog.title')} onClick={onOpenSubscriptionModal}>
-                    <QrCode className='h-4 w-4' />
+                    <QrCode className="h-4 w-4" />
                   </Button>
                 </div>
               </TooltipTrigger>
-              <TooltipContent>
-                {t('qrcodeDialog.title')}
-              </TooltipContent>
+              <TooltipContent>{t('qrcodeDialog.title')}</TooltipContent>
             </Tooltip>
           </TooltipProvider>
           <DropdownMenu modal={false} open={isActionsMenuOpen} onOpenChange={setActionsMenuOpen}>
@@ -709,10 +705,12 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
               onInteractOutside={() => setActionsMenuOpen(false)}
               onEscapeKeyDown={() => setActionsMenuOpen(false)}
             >
-              {canUpdateUsers && <DropdownMenuItem className="hidden md:flex" onSelect={handleEdit}>
-                <Pencil className="mr-2 h-4 w-4" />
-                <span>{t('edit')}</span>
-              </DropdownMenuItem>}
+              {canUpdateUsers && (
+                <DropdownMenuItem className="hidden md:flex" onSelect={handleEdit}>
+                  <Pencil className="mr-2 h-4 w-4" />
+                  <span>{t('edit')}</span>
+                </DropdownMenuItem>
+              )}
 
               {canUpdateAllUsers && (
                 <DropdownMenuItem onSelect={handleSetOwner}>
@@ -731,15 +729,19 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
               {topDropdownActionCount > 0 && middleDropdownActionCount > 0 && <DropdownMenuSeparator />}
 
               {/* Revoke Sub */}
-              {canUpdateUsers && <DropdownMenuItem onSelect={handleRevokeSubscription}>
-                <Link2Off className="mr-2 h-4 w-4" />
-                <span>{t('userDialog.revokeSubscription')}</span>
-              </DropdownMenuItem>}
+              {canUpdateUsers && (
+                <DropdownMenuItem onSelect={handleRevokeSubscription}>
+                  <Link2Off className="mr-2 h-4 w-4" />
+                  <span>{t('userDialog.revokeSubscription')}</span>
+                </DropdownMenuItem>
+              )}
 
-              {canUpdateUsers && <DropdownMenuItem onSelect={handleResetUsage}>
-                <RefreshCcw className="mr-2 h-4 w-4" />
-                <span>{t('userDialog.resetUsage')}</span>
-              </DropdownMenuItem>}
+              {canUpdateUsers && (
+                <DropdownMenuItem onSelect={handleResetUsage}>
+                  <RefreshCcw className="mr-2 h-4 w-4" />
+                  <span>{t('userDialog.resetUsage')}</span>
+                </DropdownMenuItem>
+              )}
 
               {/* Usage State */}
               <DropdownMenuItem onSelect={handleUsageState}>
@@ -776,10 +778,12 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
               {middleDropdownActionCount > 0 && destructiveDropdownActionCount > 0 && <DropdownMenuSeparator />}
 
               {/* Trash */}
-              {canDeleteUsers && <DropdownMenuItem onSelect={handleDelete} className="text-red-600">
-                <Trash2 className="mr-2 h-4 w-4" />
-                <span>{t('remove')}</span>
-              </DropdownMenuItem>}
+              {canDeleteUsers && (
+                <DropdownMenuItem onSelect={handleDelete} className="text-red-600">
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  <span>{t('remove')}</span>
+                </DropdownMenuItem>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -788,15 +792,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
       {isModalHost && (
         <div className="contents" onClick={e => e.stopPropagation()}>
           {/* Subscription Modal */}
-          {subscribeUrl && (
-            <SubscriptionModal
-              open={showSubscriptionModal}
-              subscribeUrl={subscribeUrl}
-              userId={user.id}
-              username={user.username}
-              onCloseModal={onCloseSubscriptionModal}
-            />
-          )}
+          {subscribeUrl && <SubscriptionModal open={showSubscriptionModal} subscribeUrl={subscribeUrl} userId={user.id} username={user.username} onCloseModal={onCloseSubscriptionModal} />}
 
           {/* Active Next Plan Confirm Dialog */}
           <AlertDialog open={isActiveNextPlanModalOpen} onOpenChange={setIsActiveNextPlanModalOpen}>
@@ -880,19 +876,9 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
           )}
 
           {/* UserSubscriptionClientsModal */}
-          <UserSubscriptionClientsModal
-            isOpen={isSubscriptionClientsModalOpen}
-            onOpenChange={setSubscriptionClientsModalOpen}
-            userId={user.id}
-            username={user.username}
-          />
+          <UserSubscriptionClientsModal isOpen={isSubscriptionClientsModalOpen} onOpenChange={setSubscriptionClientsModalOpen} userId={user.id} username={user.username} />
 
-          <UserHwidsModal
-            isOpen={isHwidsModalOpen}
-            onOpenChange={setHwidsModalOpen}
-            userId={user.id}
-            username={user.username}
-          />
+          <UserHwidsModal isOpen={isHwidsModalOpen} onOpenChange={setHwidsModalOpen} userId={user.id} username={user.username} />
 
           {canReadAllUsers && <UserAllIPsModal isOpen={isUserAllIPsModalOpen} onOpenChange={setUserAllIPsModalOpen} userId={user.id} username={user.username} />}
         </div>
@@ -903,7 +889,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
         <div className="contents" onClick={e => e.stopPropagation()}>
           <UserModal
             isDialogOpen={isEditModalOpen}
-            onOpenChange={(open) => {
+            onOpenChange={open => {
               if (open) setEditModalOpen(true)
               else closeEditModal()
             }}

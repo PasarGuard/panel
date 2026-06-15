@@ -26,17 +26,23 @@ const Users = () => {
 
   return (
     <div className="flex w-full flex-col items-start gap-2">
-      <div className="w-full transform-gpu animate-fade-in" style={{ animationDuration: '400ms' }}>
-        <PageHeader title="users" description="manageAccounts" buttonIcon={canCreateUsers ? Plus : undefined} buttonText={canCreateUsers ? 'createUser' : undefined} onButtonClick={canCreateUsers ? handleCreateUser : undefined} />
+      <div className="animate-fade-in w-full transform-gpu" style={{ animationDuration: '400ms' }}>
+        <PageHeader
+          title="users"
+          description="manageAccounts"
+          buttonIcon={canCreateUsers ? Plus : undefined}
+          buttonText={canCreateUsers ? 'createUser' : undefined}
+          onButtonClick={canCreateUsers ? handleCreateUser : undefined}
+        />
         <Separator />
       </div>
 
       <div className="w-full px-4 pt-2">
-        <div className="transform-gpu animate-slide-up" style={{ animationDuration: '500ms', animationDelay: '100ms', animationFillMode: 'both' }}>
+        <div className="animate-slide-up transform-gpu" style={{ animationDuration: '500ms', animationDelay: '100ms', animationFillMode: 'both' }}>
           <UsersStatistics />
         </div>
 
-        <div className="transform-gpu animate-slide-up" style={{ animationDuration: '500ms', animationDelay: '250ms', animationFillMode: 'both' }}>
+        <div className="animate-slide-up transform-gpu" style={{ animationDuration: '500ms', animationDelay: '250ms', animationFillMode: 'both' }}>
           <UsersTable />
         </div>
       </div>
@@ -47,4 +53,3 @@ const Users = () => {
 }
 
 export default Users
-

@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { ChartConfig, ChartContainer } from '@/components/ui/chart'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useTranslation } from 'react-i18next'
-import { SystemStats, Period, NodeStats, NodeRealtimeStats, useGetNodeStatsPeriodic } from '@/service/api'
+import { SystemResourceStats, Period, NodeStats, NodeRealtimeStats, useGetNodeStatsPeriodic } from '@/service/api'
 import { Skeleton } from '@/components/ui/skeleton'
 import { EmptyState } from './empty-state'
 import { Button } from '@/components/ui/button'
@@ -41,8 +41,8 @@ const CustomTooltip = ({ active, payload, period }: TooltipProps<number, string>
   const formattedDate = data._period_start ? formatTooltipDate(data._period_start, period, i18n.language) : data.time
 
   return (
-    <div dir="ltr" className="rounded-lg border bg-background/95 p-3 shadow-lg backdrop-blur-sm">
-      <p className="text-sm font-medium text-muted-foreground">
+    <div dir="ltr" className="bg-background/95 rounded-lg border p-3 shadow-lg backdrop-blur-sm">
+      <p className="text-muted-foreground text-sm font-medium">
         <span dir="ltr">{formattedDate}</span>
       </p>
       <div className="mt-1 space-y-1">
@@ -66,14 +66,10 @@ const CustomTooltip = ({ active, payload, period }: TooltipProps<number, string>
 
 interface AreaCostumeChartProps {
   nodeId?: number
-  currentStats?: SystemStats | NodeRealtimeStats | null
-  realtimeStats?: SystemStats | NodeRealtimeStats
+  currentStats?: SystemResourceStats | NodeRealtimeStats | null
+  realtimeStats?: SystemResourceStats | NodeRealtimeStats
   realtimeAvailable?: boolean
 }
-
-const isSystemStats = (stats: SystemStats | NodeRealtimeStats): stats is SystemStats => 'total_user' in stats
-
-const isNodeRealtimeStats = (stats: SystemStats | NodeRealtimeStats): stats is NodeRealtimeStats => 'incoming_bandwidth_speed' in stats
 
 export function AreaCostumeChart({ nodeId, currentStats, realtimeStats, realtimeAvailable = true }: AreaCostumeChartProps) {
   const { t, i18n } = useTranslation()
@@ -154,12 +150,10 @@ export function AreaCostumeChart({ nodeId, currentStats, realtimeStats, realtime
       let cpuUsage = 0
       let ramUsage = 0
 
-      if (isSystemStats(realtimeStats) || isNodeRealtimeStats(realtimeStats)) {
-        cpuUsage = Number(realtimeStats.cpu_usage ?? 0)
-        const memUsed = Number(realtimeStats.mem_used ?? 0)
-        const memTotal = Number(realtimeStats.mem_total ?? 1)
-        ramUsage = parseFloat(((memUsed / memTotal) * 100).toFixed(1))
-      }
+      cpuUsage = Number(realtimeStats.cpu_usage ?? 0)
+      const memUsed = Number(realtimeStats.mem_used ?? 0)
+      const memTotal = Number(realtimeStats.mem_total ?? 1)
+      ramUsage = parseFloat(((memUsed / memTotal) * 100).toFixed(1))
 
       setRealtimeHistory(previous => {
         const next = [
@@ -207,7 +201,11 @@ export function AreaCostumeChart({ nodeId, currentStats, realtimeStats, realtime
     [startDate, endDate, periodOption.period],
   )
 
-  const { data: historicalData, isLoading: isLoadingHistorical, error: historicalError } = useGetNodeStatsPeriodic(nodeId ?? 0, historicalParams, {
+  const {
+    data: historicalData,
+    isLoading: isLoadingHistorical,
+    error: historicalError,
+  } = useGetNodeStatsPeriodic(nodeId ?? 0, historicalParams, {
     query: {
       enabled: viewMode === 'historical' && nodeId !== undefined,
       refetchInterval: 1000 * 60 * 5,
@@ -235,15 +233,13 @@ export function AreaCostumeChart({ nodeId, currentStats, realtimeStats, realtime
   let displayRamUsage: string | ReactNode = <Skeleton className="h-5 w-16" />
 
   if (currentStats) {
-    if (isSystemStats(currentStats) || isNodeRealtimeStats(currentStats)) {
-      const cpuUsage = Number(currentStats.cpu_usage ?? 0)
-      const memUsed = Number(currentStats.mem_used ?? 0)
-      const memTotal = Number(currentStats.mem_total ?? 1)
-      const ramPercentage = (memUsed / memTotal) * 100
+    const cpuUsage = Number(currentStats.cpu_usage ?? 0)
+    const memUsed = Number(currentStats.mem_used ?? 0)
+    const memTotal = Number(currentStats.mem_total ?? 1)
+    const ramPercentage = (memUsed / memTotal) * 100
 
-      displayCpuUsage = `${cpuUsage.toFixed(1)}%`
-      displayRamUsage = `${ramPercentage.toFixed(1)}%`
-    }
+    displayCpuUsage = `${cpuUsage.toFixed(1)}%`
+    displayRamUsage = `${ramPercentage.toFixed(1)}%`
   } else if (!isLoading && error) {
     displayCpuUsage = t('error')
     displayRamUsage = t('error')
@@ -280,19 +276,19 @@ export function AreaCostumeChart({ nodeId, currentStats, realtimeStats, realtime
 
         {realtimeAvailable && (
           <div className="grid grid-cols-1 gap-3 pt-2 sm:grid-cols-2 sm:gap-6">
-            <div className="flex flex-col items-center space-y-2 rounded-lg bg-muted/50 p-3">
+            <div className="bg-muted/50 flex flex-col items-center space-y-2 rounded-lg p-3">
               <div className="flex items-center gap-2">
-                <Cpu className="h-4 w-4 text-muted-foreground" />
-                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t('statistics.cpuUsage')}</span>
+                <Cpu className="text-muted-foreground h-4 w-4" />
+                <span className="text-muted-foreground text-xs font-medium tracking-wide uppercase">{t('statistics.cpuUsage')}</span>
               </div>
-              <span className="text-xl font-bold text-foreground sm:text-2xl">{displayCpuUsage}</span>
+              <span className="text-foreground text-xl font-bold sm:text-2xl">{displayCpuUsage}</span>
             </div>
-            <div className="flex flex-col items-center space-y-2 rounded-lg bg-muted/50 p-3">
+            <div className="bg-muted/50 flex flex-col items-center space-y-2 rounded-lg p-3">
               <div className="flex items-center gap-2">
-                <MemoryStick className="h-4 w-4 text-muted-foreground" />
-                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t('statistics.ramUsage')}</span>
+                <MemoryStick className="text-muted-foreground h-4 w-4" />
+                <span className="text-muted-foreground text-xs font-medium tracking-wide uppercase">{t('statistics.ramUsage')}</span>
               </div>
-              <span dir="ltr" className="text-xl font-bold text-foreground sm:text-2xl">
+              <span dir="ltr" className="text-foreground text-xl font-bold sm:text-2xl">
                 {displayRamUsage}
               </span>
             </div>
@@ -301,11 +297,11 @@ export function AreaCostumeChart({ nodeId, currentStats, realtimeStats, realtime
       </CardHeader>
 
       {viewMode === 'historical' && nodeId !== undefined && (
-        <div className="border-t bg-muted/30 p-4 md:p-6">
+        <div className="bg-muted/30 border-t p-4 md:p-6">
           <div className="flex flex-col space-y-4 lg:flex-row lg:items-center lg:justify-between lg:space-y-0">
             <div className="space-y-1">
-              <h4 className="text-sm font-semibold text-foreground">{t('statistics.selectTimeRange')}</h4>
-              <p className="text-xs text-muted-foreground">{t('statistics.selectTimeRangeDescription')}</p>
+              <h4 className="text-foreground text-sm font-semibold">{t('statistics.selectTimeRange')}</h4>
+              <p className="text-muted-foreground text-xs">{t('statistics.selectTimeRangeDescription')}</p>
             </div>
             <Select
               value={periodOption.value}
@@ -395,12 +391,7 @@ export function AreaCostumeChart({ nodeId, currentStats, realtimeStats, realtime
                 />
 
                 <Tooltip
-                  content={props => (
-                    <CustomTooltip
-                      {...(props as TooltipProps<number, string>)}
-                      period={viewMode === 'historical' ? periodOption.period : Period.hour}
-                    />
-                  )}
+                  content={props => <CustomTooltip {...(props as TooltipProps<number, string>)} period={viewMode === 'historical' ? periodOption.period : Period.hour} />}
                   cursor={{
                     stroke: 'hsl(var(--border))',
                     strokeWidth: 1,

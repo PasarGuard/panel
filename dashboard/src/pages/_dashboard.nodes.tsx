@@ -68,8 +68,8 @@ const Settings = () => {
         buttonText: canCreateCores ? 'settings.cores.addCore' : undefined,
         onButtonClick: canCreateCores
           ? () => {
-            navigate('/nodes/cores/new')
-          }
+              navigate('/nodes/cores/new')
+            }
           : undefined,
       }
     }
@@ -89,21 +89,21 @@ const Settings = () => {
       buttonText: canCreateNodes ? 'nodes.addNode' : undefined,
       onButtonClick: canCreateNodes
         ? () => {
-          const event = new CustomEvent('openNodeDialog')
-          window.dispatchEvent(event)
-        }
+            const event = new CustomEvent('openNodeDialog')
+            window.dispatchEvent(event)
+          }
         : undefined,
     }
   }
 
   return (
-    <div className="flex w-full flex-1 min-h-0 flex-col items-start gap-0">
+    <div className="flex min-h-0 w-full flex-1 flex-col items-start gap-0">
       {!isCoreEditorPage && (
         <PageTransition isContentTransition={true}>
           <PageHeader {...getPageHeaderProps()} tutorialUrl={getDocsUrl(location.pathname)} />
         </PageTransition>
       )}
-      <div className="flex w-full min-h-0 flex-1 flex-col">
+      <div className="flex min-h-0 w-full flex-1 flex-col">
         {!isCoreEditorPage && (
           <div className="flex border-b px-4">
             {visibleTabs.map(tab => (
@@ -111,7 +111,7 @@ const Settings = () => {
                 key={tab.id}
                 onClick={() => navigate(tab.url)}
                 className={`relative px-3 py-2 text-sm font-medium transition-colors ${
-                  activeTab === tab.id ? 'border-b-2 border-primary text-foreground' : 'text-muted-foreground hover:text-foreground'
+                  activeTab === tab.id ? 'border-primary text-foreground border-b-2' : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
                 <div className="flex items-center gap-1.5">

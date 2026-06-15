@@ -73,7 +73,7 @@ export default function AdminStatisticsSection({ counts }: AdminsStatisticsProps
         <Card
           key={stat.label}
           dir={dir}
-          className={cn('group relative w-full animate-fade-in overflow-hidden rounded-md transition-all duration-500')}
+          className={cn('group animate-fade-in relative w-full overflow-hidden rounded-md transition-all duration-500')}
           style={{
             animationDuration: '600ms',
             animationDelay: `${(idx + 1) * 100}ms`,
@@ -82,7 +82,7 @@ export default function AdminStatisticsSection({ counts }: AdminsStatisticsProps
         >
           <div
             className={cn(
-              'absolute inset-0 bg-gradient-to-r from-primary/10 to-transparent opacity-0 transition-opacity duration-500',
+              'from-primary/10 absolute inset-0 bg-gradient-to-r to-transparent opacity-0 transition-opacity duration-500',
               'dark:from-primary/5 dark:to-transparent',
               'group-hover:opacity-100',
             )}

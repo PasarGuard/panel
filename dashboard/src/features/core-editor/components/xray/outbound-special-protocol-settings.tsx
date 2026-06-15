@@ -16,8 +16,7 @@ import { useEffect, useMemo, useState } from 'react'
 type PatchOutbound = (next: Outbound) => void
 
 /** Same item chrome as `OutboundStreamSettingsAccordion` / mux in `xray-outbounds-section`. */
-const OUTBOUND_SUBACCORDION_ITEM_CLASS =
-  'rounded-sm border px-4 [&_[data-state=closed]]:no-underline [&_[data-state=open]]:no-underline'
+const OUTBOUND_SUBACCORDION_ITEM_CLASS = 'rounded-sm border px-4 [&_[data-state=closed]]:no-underline [&_[data-state=open]]:no-underline'
 
 function readSettings(ob: Outbound): Record<string, unknown> {
   return ((ob as { settings?: Record<string, unknown> }).settings ?? {}) as Record<string, unknown>
@@ -28,19 +27,7 @@ function commitSettings(ob: Outbound, nextSettings: Record<string, unknown>, pat
   patchOutbound({ ...(ob as object), settings: normalized } as Outbound)
 }
 
-const FREEDOM_DOMAIN_STRATEGIES = [
-  'AsIs',
-  'UseIP',
-  'UseIPv6v4',
-  'UseIPv6',
-  'UseIPv4v6',
-  'UseIPv4',
-  'ForceIP',
-  'ForceIPv6v4',
-  'ForceIPv6',
-  'ForceIPv4v6',
-  'ForceIPv4',
-] as const
+const FREEDOM_DOMAIN_STRATEGIES = ['AsIs', 'UseIP', 'UseIPv6v4', 'UseIPv6', 'UseIPv4v6', 'UseIPv4', 'ForceIP', 'ForceIPv6v4', 'ForceIPv6', 'ForceIPv4v6', 'ForceIPv4'] as const
 
 type NoiseRow = { type: string; packet: string; delay: string }
 type FinalRuleRow = { action: 'allow' | 'block'; network: string; port: string; ipText: string; blockDelay: string }
@@ -110,9 +97,7 @@ function pruneFreedomSettings(s: Record<string, unknown>): Record<string, unknow
   if (Array.isArray(out.noises) && out.noises.length === 0) delete out.noises
 
   if (Array.isArray(out.finalRules)) {
-    const cleaned = (out.finalRules as unknown[]).filter(
-      r => r && typeof r === 'object' && !Array.isArray(r) && Object.keys(r as object).length > 0,
-    )
+    const cleaned = (out.finalRules as unknown[]).filter(r => r && typeof r === 'object' && !Array.isArray(r) && Object.keys(r as object).length > 0)
     if (cleaned.length === 0) delete out.finalRules
     else out.finalRules = cleaned
   }
@@ -175,7 +160,13 @@ function OutboundFreedomSettings({ ob, patchOutbound, t }: { ob: Outbound; patch
       .map(row => {
         const o: Record<string, unknown> = { action: row.action }
         const net = row.network.trim()
-        if (net) o.network = net.includes(',') ? net.split(',').map(x => x.trim()).filter(Boolean) : net
+        if (net)
+          o.network = net.includes(',')
+            ? net
+                .split(',')
+                .map(x => x.trim())
+                .filter(Boolean)
+            : net
         if (row.port.trim()) o.port = row.port.trim()
         const ips = buildIpArray(row.ipText)
         if (ips) o.ip = ips
@@ -197,15 +188,14 @@ function OutboundFreedomSettings({ ob, patchOutbound, t }: { ob: Outbound; patch
 
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-xs text-muted-foreground">
+      <p className="text-muted-foreground text-xs">
         {t('coreEditor.outbound.freedom.blurb', {
-          defaultValue:
-            'Freedom forwards traffic as-is. Fragment, noises, and final rules are optional; use JSON tab for edge cases.',
+          defaultValue: 'Freedom forwards traffic as-is. Fragment, noises, and final rules are optional; use JSON tab for edge cases.',
         })}
       </p>
 
       <div className="grid w-full gap-4 sm:grid-cols-2">
-        <div className="flex min-w-0 w-full flex-col gap-2">
+        <div className="flex w-full min-w-0 flex-col gap-2">
           <Label className="text-xs font-medium">{t('coreEditor.outbound.freedom.domainStrategy', { defaultValue: 'Domain strategy' })}</Label>
           <Select
             dir="ltr"
@@ -230,7 +220,7 @@ function OutboundFreedomSettings({ ob, patchOutbound, t }: { ob: Outbound; patch
           </Select>
         </div>
 
-        <div className="flex min-w-0 w-full flex-col gap-2">
+        <div className="flex w-full min-w-0 flex-col gap-2">
           <Label className="text-xs font-medium">{t('coreEditor.outbound.freedom.proxyProtocol', { defaultValue: 'PROXY protocol' })}</Label>
           <Select
             dir="ltr"
@@ -254,7 +244,7 @@ function OutboundFreedomSettings({ ob, patchOutbound, t }: { ob: Outbound; patch
           </Select>
         </div>
 
-        <div className="flex min-w-0 w-full flex-col gap-2 sm:col-span-2">
+        <div className="flex w-full min-w-0 flex-col gap-2 sm:col-span-2">
           <Label className="text-xs font-medium">{t('coreEditor.outbound.freedom.redirect', { defaultValue: 'Redirect' })}</Label>
           <Input
             dir="ltr"
@@ -272,7 +262,7 @@ function OutboundFreedomSettings({ ob, patchOutbound, t }: { ob: Outbound; patch
           />
         </div>
 
-        <div className="flex min-w-0 w-full flex-col gap-2 sm:col-span-2">
+        <div className="flex w-full min-w-0 flex-col gap-2 sm:col-span-2">
           <Label className="text-xs font-medium">{t('coreEditor.outbound.freedom.userLevel', { defaultValue: 'User level' })}</Label>
           <Input
             type="number"
@@ -299,14 +289,14 @@ function OutboundFreedomSettings({ ob, patchOutbound, t }: { ob: Outbound; patch
         <AccordionItem value="fragment" className={OUTBOUND_SUBACCORDION_ITEM_CLASS}>
           <AccordionTrigger>
             <div className="flex flex-wrap items-center gap-2">
-              <Scissors className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+              <Scissors className="text-muted-foreground h-4 w-4 shrink-0" aria-hidden />
               <span>{t('coreEditor.outbound.freedom.fragmentTitle', { defaultValue: 'TCP fragment' })}</span>
             </div>
           </AccordionTrigger>
           <AccordionContent className="space-y-3 px-2 pb-4">
             <div className="grid gap-3 sm:grid-cols-3">
               <div className="flex flex-col gap-1.5">
-                <Label className="text-xs text-muted-foreground">{t('coreEditor.outbound.freedom.fragmentPackets', { defaultValue: 'Packets' })}</Label>
+                <Label className="text-muted-foreground text-xs">{t('coreEditor.outbound.freedom.fragmentPackets', { defaultValue: 'Packets' })}</Label>
                 <Input
                   dir="ltr"
                   className="h-9 text-xs"
@@ -317,9 +307,7 @@ function OutboundFreedomSettings({ ob, patchOutbound, t }: { ob: Outbound; patch
                     const cur = readSettings(ob)
                     const next = { ...cur }
                     const f = {
-                      ...(typeof next.fragment === 'object' && next.fragment && !Array.isArray(next.fragment)
-                        ? (next.fragment as object)
-                        : {}),
+                      ...(typeof next.fragment === 'object' && next.fragment && !Array.isArray(next.fragment) ? (next.fragment as object) : {}),
                     } as Record<string, unknown>
                     if (!v.trim() && !String(f.length ?? '').trim() && !String(f.interval ?? '').trim()) delete next.fragment
                     else {
@@ -331,7 +319,7 @@ function OutboundFreedomSettings({ ob, patchOutbound, t }: { ob: Outbound; patch
                 />
               </div>
               <div className="flex flex-col gap-1.5">
-                <Label className="text-xs text-muted-foreground">{t('coreEditor.outbound.freedom.fragmentLength', { defaultValue: 'Length (bytes)' })}</Label>
+                <Label className="text-muted-foreground text-xs">{t('coreEditor.outbound.freedom.fragmentLength', { defaultValue: 'Length (bytes)' })}</Label>
                 <Input
                   dir="ltr"
                   className="h-9 text-xs"
@@ -350,7 +338,7 @@ function OutboundFreedomSettings({ ob, patchOutbound, t }: { ob: Outbound; patch
                 />
               </div>
               <div className="flex flex-col gap-1.5">
-                <Label className="text-xs text-muted-foreground">{t('coreEditor.outbound.freedom.fragmentInterval', { defaultValue: 'Interval (ms)' })}</Label>
+                <Label className="text-muted-foreground text-xs">{t('coreEditor.outbound.freedom.fragmentInterval', { defaultValue: 'Interval (ms)' })}</Label>
                 <Input
                   dir="ltr"
                   className="h-9 text-xs"
@@ -375,25 +363,20 @@ function OutboundFreedomSettings({ ob, patchOutbound, t }: { ob: Outbound; patch
         <AccordionItem value="noises" className={OUTBOUND_SUBACCORDION_ITEM_CLASS}>
           <AccordionTrigger>
             <div className="flex flex-wrap items-center gap-2">
-              <Radio className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+              <Radio className="text-muted-foreground h-4 w-4 shrink-0" aria-hidden />
               <span>{t('coreEditor.outbound.freedom.noisesTitle', { defaultValue: 'UDP noises' })}</span>
             </div>
           </AccordionTrigger>
           <AccordionContent className="space-y-4 px-2 pb-4">
             {noiseRows.map((row, i) => (
-              <div
-                key={i}
-                className="rounded-lg border border-border bg-muted/15 p-4 shadow-sm"
-              >
+              <div key={i} className="border-border bg-muted/15 rounded-lg border p-4 shadow-sm">
                 <div className="mb-3 flex items-center justify-between gap-2">
-                  <span className="text-xs font-medium text-muted-foreground">
-                    {t('coreEditor.outbound.freedom.noiseRowLabel', { index: i + 1, defaultValue: 'Noise {{index}}' })}
-                  </span>
+                  <span className="text-muted-foreground text-xs font-medium">{t('coreEditor.outbound.freedom.noiseRowLabel', { index: i + 1, defaultValue: 'Noise {{index}}' })}</span>
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon"
-                    className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+                    className="text-muted-foreground hover:text-destructive h-8 w-8 shrink-0"
                     aria-label={t('coreEditor.outbound.freedom.removeNoise', { defaultValue: 'Remove noise' })}
                     onClick={() => {
                       const nr = noiseRows.filter((_, j) => j !== i)
@@ -406,9 +389,7 @@ function OutboundFreedomSettings({ ob, patchOutbound, t }: { ob: Outbound; patch
                 </div>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-12 sm:items-end">
                   <div className="flex flex-col gap-1.5 sm:col-span-3">
-                    <Label className="text-xs font-medium text-muted-foreground">
-                      {t('coreEditor.outbound.freedom.noiseType', { defaultValue: 'Type' })}
-                    </Label>
+                    <Label className="text-muted-foreground text-xs font-medium">{t('coreEditor.outbound.freedom.noiseType', { defaultValue: 'Type' })}</Label>
                     <Select
                       dir="ltr"
                       value={row.type || 'rand'}
@@ -430,9 +411,7 @@ function OutboundFreedomSettings({ ob, patchOutbound, t }: { ob: Outbound; patch
                     </Select>
                   </div>
                   <div className="flex min-w-0 flex-col gap-1.5 sm:col-span-6">
-                    <Label className="text-xs font-medium text-muted-foreground">
-                      {t('coreEditor.outbound.freedom.noisePacket', { defaultValue: 'Packet' })}
-                    </Label>
+                    <Label className="text-muted-foreground text-xs font-medium">{t('coreEditor.outbound.freedom.noisePacket', { defaultValue: 'Packet' })}</Label>
                     <Input
                       dir="ltr"
                       className="h-10 text-xs"
@@ -449,9 +428,7 @@ function OutboundFreedomSettings({ ob, patchOutbound, t }: { ob: Outbound; patch
                     />
                   </div>
                   <div className="flex flex-col gap-1.5 sm:col-span-3">
-                    <Label className="text-xs font-medium text-muted-foreground">
-                      {t('coreEditor.outbound.freedom.noiseDelay', { defaultValue: 'Delay (ms)' })}
-                    </Label>
+                    <Label className="text-muted-foreground text-xs font-medium">{t('coreEditor.outbound.freedom.noiseDelay', { defaultValue: 'Delay (ms)' })}</Label>
                     <Input
                       dir="ltr"
                       className="h-10 text-xs"
@@ -487,28 +464,25 @@ function OutboundFreedomSettings({ ob, patchOutbound, t }: { ob: Outbound; patch
         <AccordionItem value="finalRules" className={OUTBOUND_SUBACCORDION_ITEM_CLASS}>
           <AccordionTrigger>
             <div className="flex flex-wrap items-center gap-2">
-              <ListOrdered className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+              <ListOrdered className="text-muted-foreground h-4 w-4 shrink-0" aria-hidden />
               <span>{t('coreEditor.outbound.freedom.finalRulesTitle', { defaultValue: 'Final rules' })}</span>
             </div>
           </AccordionTrigger>
           <AccordionContent className="space-y-4 px-2 pb-4">
-            <p className="text-xs leading-relaxed text-muted-foreground">
+            <p className="text-muted-foreground text-xs leading-relaxed">
               {t('coreEditor.outbound.freedom.finalRulesHint', {
-                defaultValue:
-                  'Rules are matched in order (AND across fields). IP list: one CIDR or geoip tag per line.',
+                defaultValue: 'Rules are matched in order (AND across fields). IP list: one CIDR or geoip tag per line.',
               })}
             </p>
             {ruleRows.map((row, i) => (
-              <div key={i} className="rounded-lg border border-border bg-muted/15 p-4 shadow-sm">
+              <div key={i} className="border-border bg-muted/15 rounded-lg border p-4 shadow-sm">
                 <div className="mb-3 flex items-center justify-between gap-2">
-                  <span className="text-xs font-medium text-muted-foreground">
-                    {t('coreEditor.outbound.freedom.ruleRowLabel', { index: i + 1, defaultValue: 'Rule {{index}}' })}
-                  </span>
+                  <span className="text-muted-foreground text-xs font-medium">{t('coreEditor.outbound.freedom.ruleRowLabel', { index: i + 1, defaultValue: 'Rule {{index}}' })}</span>
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon"
-                    className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+                    className="text-muted-foreground hover:text-destructive h-8 w-8 shrink-0"
                     aria-label={t('coreEditor.outbound.freedom.removeRule', { defaultValue: 'Remove rule' })}
                     onClick={() => {
                       const rr = ruleRows.filter((_, j) => j !== i)
@@ -522,9 +496,7 @@ function OutboundFreedomSettings({ ob, patchOutbound, t }: { ob: Outbound; patch
 
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
                   <div className="flex min-w-0 flex-col gap-1.5">
-                    <Label className="text-xs font-medium text-muted-foreground">
-                      {t('coreEditor.outbound.freedom.ruleAction', { defaultValue: 'Action' })}
-                    </Label>
+                    <Label className="text-muted-foreground text-xs font-medium">{t('coreEditor.outbound.freedom.ruleAction', { defaultValue: 'Action' })}</Label>
                     <Select
                       dir="ltr"
                       value={row.action}
@@ -544,9 +516,7 @@ function OutboundFreedomSettings({ ob, patchOutbound, t }: { ob: Outbound; patch
                     </Select>
                   </div>
                   <div className="flex min-w-0 flex-col gap-1.5">
-                    <Label className="text-xs font-medium text-muted-foreground">
-                      {t('coreEditor.outbound.freedom.ruleNetwork', { defaultValue: 'Network' })}
-                    </Label>
+                    <Label className="text-muted-foreground text-xs font-medium">{t('coreEditor.outbound.freedom.ruleNetwork', { defaultValue: 'Network' })}</Label>
                     <Input
                       dir="ltr"
                       className="h-10 w-full min-w-0 text-xs"
@@ -561,9 +531,7 @@ function OutboundFreedomSettings({ ob, patchOutbound, t }: { ob: Outbound; patch
                     />
                   </div>
                   <div className="flex min-w-0 flex-col gap-1.5">
-                    <Label className="text-xs font-medium text-muted-foreground">
-                      {t('coreEditor.outbound.freedom.rulePort', { defaultValue: 'Port' })}
-                    </Label>
+                    <Label className="text-muted-foreground text-xs font-medium">{t('coreEditor.outbound.freedom.rulePort', { defaultValue: 'Port' })}</Label>
                     <Input
                       dir="ltr"
                       className="h-10 w-full min-w-0 text-xs"
@@ -578,9 +546,7 @@ function OutboundFreedomSettings({ ob, patchOutbound, t }: { ob: Outbound; patch
                     />
                   </div>
                   <div className="flex min-w-0 flex-col gap-1.5">
-                    <Label className="text-xs font-medium text-muted-foreground">
-                      {t('coreEditor.outbound.freedom.ruleBlockDelay', { defaultValue: 'Block delay (s)' })}
-                    </Label>
+                    <Label className="text-muted-foreground text-xs font-medium">{t('coreEditor.outbound.freedom.ruleBlockDelay', { defaultValue: 'Block delay (s)' })}</Label>
                     <Input
                       dir="ltr"
                       className="h-10 w-full min-w-0 text-xs"
@@ -597,9 +563,7 @@ function OutboundFreedomSettings({ ob, patchOutbound, t }: { ob: Outbound; patch
                 </div>
 
                 <div className="mt-3 flex flex-col gap-1.5">
-                  <Label className="text-xs font-medium text-muted-foreground">
-                    {t('coreEditor.outbound.freedom.ruleIpList', { defaultValue: 'IP / CIDR / geoip' })}
-                  </Label>
+                  <Label className="text-muted-foreground text-xs font-medium">{t('coreEditor.outbound.freedom.ruleIpList', { defaultValue: 'IP / CIDR / geoip' })}</Label>
                   <Textarea
                     dir="ltr"
                     className="min-h-[72px] resize-y text-xs"
@@ -660,8 +624,7 @@ function parseDnsRuleRows(settings: Record<string, unknown>): DnsRuleRow[] {
     const q = o.qtype
     const qtype = q === undefined || q === null ? '' : String(q)
     const act = o.action
-    const action =
-      typeof act === 'string' && (DNS_ACTIONS as readonly string[]).includes(act) ? act : 'hijack'
+    const action = typeof act === 'string' && (DNS_ACTIONS as readonly string[]).includes(act) ? act : 'hijack'
     return { action, qtype, domainText }
   })
 }
@@ -690,9 +653,7 @@ function OutboundDnsSettings({ ob, patchOutbound, t }: { ob: Outbound; patchOutb
   const networkSelect =
     networkRaw === 'tcp' || networkRaw === 'udp'
       ? networkRaw
-      : Array.isArray(networkRaw) &&
-          networkRaw.length > 0 &&
-          (networkRaw[0] === 'tcp' || networkRaw[0] === 'udp')
+      : Array.isArray(networkRaw) && networkRaw.length > 0 && (networkRaw[0] === 'tcp' || networkRaw[0] === 'udp')
         ? String(networkRaw[0])
         : '__preserve__'
   const addrRaw = s.address ?? s.rewriteAddress
@@ -722,18 +683,15 @@ function OutboundDnsSettings({ ob, patchOutbound, t }: { ob: Outbound; patchOutb
 
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-xs text-muted-foreground">
+      <p className="text-muted-foreground text-xs">
         {t('coreEditor.outbound.dns.blurb', {
-          defaultValue:
-            'DNS outbound handles plaintext DNS from routing (e.g. TUN / transparent / dokodemo). Optional rewrites and ordered rules; see Xray docs for full syntax.',
+          defaultValue: 'DNS outbound handles plaintext DNS from routing (e.g. TUN / transparent / dokodemo). Optional rewrites and ordered rules; see Xray docs for full syntax.',
         })}
       </p>
 
       <div className="grid w-full gap-4 sm:grid-cols-2">
-        <div className="flex min-w-0 w-full flex-col gap-2">
-          <Label className="text-xs font-medium">
-            {t('coreEditor.outbound.dns.rewriteNetwork', { defaultValue: 'Rewrite transport' })}
-          </Label>
+        <div className="flex w-full min-w-0 flex-col gap-2">
+          <Label className="text-xs font-medium">{t('coreEditor.outbound.dns.rewriteNetwork', { defaultValue: 'Rewrite transport' })}</Label>
           <Select
             dir="ltr"
             value={networkSelect}
@@ -750,16 +708,14 @@ function OutboundDnsSettings({ ob, patchOutbound, t }: { ob: Outbound; patchOutb
               <SelectValue />
             </SelectTrigger>
             <SelectContent dir="ltr">
-              <SelectItem value="__preserve__">
-                {t('coreEditor.outbound.dns.rewriteNetworkPreserve', { defaultValue: 'Keep original' })}
-              </SelectItem>
+              <SelectItem value="__preserve__">{t('coreEditor.outbound.dns.rewriteNetworkPreserve', { defaultValue: 'Keep original' })}</SelectItem>
               <SelectItem value="tcp">tcp</SelectItem>
               <SelectItem value="udp">udp</SelectItem>
             </SelectContent>
           </Select>
         </div>
 
-        <div className="flex min-w-0 w-full flex-col gap-2">
+        <div className="flex w-full min-w-0 flex-col gap-2">
           <Label className="text-xs font-medium">{t('coreEditor.outbound.dns.userLevel', { defaultValue: 'User level' })}</Label>
           <Input
             type="number"
@@ -781,7 +737,7 @@ function OutboundDnsSettings({ ob, patchOutbound, t }: { ob: Outbound; patchOutb
           />
         </div>
 
-        <div className="flex min-w-0 w-full flex-col gap-2 sm:col-span-2">
+        <div className="flex w-full min-w-0 flex-col gap-2 sm:col-span-2">
           <Label className="text-xs font-medium">{t('coreEditor.outbound.dns.rewriteAddress', { defaultValue: 'Rewrite address' })}</Label>
           <Input
             dir="ltr"
@@ -800,7 +756,7 @@ function OutboundDnsSettings({ ob, patchOutbound, t }: { ob: Outbound; patchOutb
           />
         </div>
 
-        <div className="flex min-w-0 w-full flex-col gap-2 sm:col-span-2">
+        <div className="flex w-full min-w-0 flex-col gap-2 sm:col-span-2">
           <Label className="text-xs font-medium">{t('coreEditor.outbound.dns.rewritePort', { defaultValue: 'Rewrite port' })}</Label>
           <Input
             dir="ltr"
@@ -827,30 +783,25 @@ function OutboundDnsSettings({ ob, patchOutbound, t }: { ob: Outbound; patchOutb
         <AccordionItem value="dns-rules" className={OUTBOUND_SUBACCORDION_ITEM_CLASS}>
           <AccordionTrigger>
             <div className="flex flex-wrap items-center gap-2">
-              <Globe2 className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+              <Globe2 className="text-muted-foreground h-4 w-4 shrink-0" aria-hidden />
               <span>{t('coreEditor.outbound.dns.rulesTitle', { defaultValue: 'DNS rules' })}</span>
             </div>
           </AccordionTrigger>
           <AccordionContent className="space-y-4 px-2 pb-4">
-            <p className="text-xs leading-relaxed text-muted-foreground">
+            <p className="text-muted-foreground text-xs leading-relaxed">
               {t('coreEditor.outbound.dns.rulesHint', {
                 defaultValue: 'Conditions combine with AND. Domain: same syntax as routing (one per line). Qtype: number, range string, or comma list.',
               })}
             </p>
             {ruleRows.map((row, i) => (
-              <div
-                key={i}
-                className="rounded-lg border border-border bg-muted/15 p-4 shadow-sm"
-              >
+              <div key={i} className="border-border bg-muted/15 rounded-lg border p-4 shadow-sm">
                 <div className="mb-3 flex items-center justify-between gap-2">
-                  <span className="text-xs font-medium text-muted-foreground">
-                    {t('coreEditor.outbound.dns.ruleRowLabel', { index: i + 1, defaultValue: 'Rule {{index}}' })}
-                  </span>
+                  <span className="text-muted-foreground text-xs font-medium">{t('coreEditor.outbound.dns.ruleRowLabel', { index: i + 1, defaultValue: 'Rule {{index}}' })}</span>
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon"
-                    className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+                    className="text-muted-foreground hover:text-destructive h-8 w-8 shrink-0"
                     aria-label={t('coreEditor.outbound.dns.removeRule', { defaultValue: 'Remove rule' })}
                     onClick={() => {
                       const rr = ruleRows.filter((_, j) => j !== i)
@@ -863,9 +814,7 @@ function OutboundDnsSettings({ ob, patchOutbound, t }: { ob: Outbound; patchOutb
                 </div>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="flex min-w-0 flex-col gap-1.5">
-                    <Label className="text-xs font-medium text-muted-foreground">
-                      {t('coreEditor.outbound.dns.ruleAction', { defaultValue: 'Action' })}
-                    </Label>
+                    <Label className="text-muted-foreground text-xs font-medium">{t('coreEditor.outbound.dns.ruleAction', { defaultValue: 'Action' })}</Label>
                     <Select
                       dir="ltr"
                       value={row.action}
@@ -888,9 +837,7 @@ function OutboundDnsSettings({ ob, patchOutbound, t }: { ob: Outbound; patchOutb
                     </Select>
                   </div>
                   <div className="flex min-w-0 flex-col gap-1.5">
-                    <Label className="text-xs font-medium text-muted-foreground">
-                      {t('coreEditor.outbound.dns.ruleQtype', { defaultValue: 'Qtype' })}
-                    </Label>
+                    <Label className="text-muted-foreground text-xs font-medium">{t('coreEditor.outbound.dns.ruleQtype', { defaultValue: 'Qtype' })}</Label>
                     <Input
                       dir="ltr"
                       className="h-10 w-full min-w-0 text-xs"
@@ -906,7 +853,7 @@ function OutboundDnsSettings({ ob, patchOutbound, t }: { ob: Outbound; patchOutb
                   </div>
                 </div>
                 <div className="mt-3 flex flex-col gap-1.5">
-                  <Label className="text-xs font-medium text-muted-foreground">
+                  <Label className="text-muted-foreground text-xs font-medium">
                     {t('coreEditor.outbound.dns.ruleDomainList', {
                       defaultValue: 'Domain matchers (one per line)',
                     })}
@@ -957,10 +904,7 @@ function OutboundWireGuardSettings({ ob, patchOutbound, t }: { ob: Outbound; pat
   const reserved = Array.isArray(s.reserved) ? JSON.stringify(s.reserved) : typeof s.reserved === 'string' ? s.reserved : ''
   const domainStrategy = typeof s.domainStrategy === 'string' && s.domainStrategy.trim() ? s.domainStrategy : '__default__'
   const dns = typeof s.DNS === 'string' ? s.DNS : ''
-  const kernelModeValue =
-    typeof s.kernelMode === 'boolean'
-      ? String(s.kernelMode)
-      : '__default__'
+  const kernelModeValue = typeof s.kernelMode === 'boolean' ? String(s.kernelMode) : '__default__'
 
   const commitWireGuard = (next: Record<string, unknown>) => {
     commitSettings(ob, next, patchOutbound)
@@ -1023,7 +967,7 @@ function OutboundWireGuardSettings({ ob, patchOutbound, t }: { ob: Outbound; pat
   return (
     <div className="flex w-full flex-col gap-4">
       <div className="grid w-full gap-4 sm:grid-cols-2">
-        <div className="flex min-w-0 w-full flex-col gap-2 sm:col-span-2">
+        <div className="flex w-full min-w-0 flex-col gap-2 sm:col-span-2">
           <Label className="text-xs font-medium">{t('coreEditor.outbound.wireguard.secretKey', { defaultValue: 'Secret Key' })}</Label>
           <Input
             type="password"
@@ -1041,7 +985,7 @@ function OutboundWireGuardSettings({ ob, patchOutbound, t }: { ob: Outbound; pat
           />
         </div>
 
-        <div className="flex min-w-0 w-full flex-col gap-2 sm:col-span-2">
+        <div className="flex w-full min-w-0 flex-col gap-2 sm:col-span-2">
           <Label className="text-xs font-medium">{t('coreEditor.outbound.wireguard.address', { defaultValue: 'Server Address' })}</Label>
           <StringArrayPopoverInput
             value={addresses}
@@ -1060,7 +1004,7 @@ function OutboundWireGuardSettings({ ob, patchOutbound, t }: { ob: Outbound; pat
           />
         </div>
 
-        <div className="flex min-w-0 w-full flex-col gap-2">
+        <div className="flex w-full min-w-0 flex-col gap-2">
           <Label className="text-xs font-medium">{t('coreEditor.outbound.wireguard.mtu', { defaultValue: 'MTU' })}</Label>
           <Input
             dir="ltr"
@@ -1078,7 +1022,7 @@ function OutboundWireGuardSettings({ ob, patchOutbound, t }: { ob: Outbound; pat
           />
         </div>
 
-        <div className="flex min-w-0 w-full flex-col gap-2">
+        <div className="flex w-full min-w-0 flex-col gap-2">
           <Label className="text-xs font-medium">{t('coreEditor.outbound.wireguard.workers', { defaultValue: 'Workers' })}</Label>
           <Input
             dir="ltr"
@@ -1096,7 +1040,7 @@ function OutboundWireGuardSettings({ ob, patchOutbound, t }: { ob: Outbound; pat
           />
         </div>
 
-        <div className="flex min-w-0 w-full flex-col gap-2">
+        <div className="flex w-full min-w-0 flex-col gap-2">
           <Label className="text-xs font-medium">{t('coreEditor.outbound.wireguard.reserved', { defaultValue: 'Reserved' })}</Label>
           <Input
             dir="ltr"
@@ -1113,7 +1057,7 @@ function OutboundWireGuardSettings({ ob, patchOutbound, t }: { ob: Outbound; pat
           />
         </div>
 
-        <div className="flex min-w-0 w-full flex-col gap-2">
+        <div className="flex w-full min-w-0 flex-col gap-2">
           <Label className="text-xs font-medium">{t('coreEditor.outbound.wireguard.domainStrategy', { defaultValue: 'Domain Strategy' })}</Label>
           <Select
             dir="ltr"
@@ -1137,45 +1081,45 @@ function OutboundWireGuardSettings({ ob, patchOutbound, t }: { ob: Outbound; pat
           </Select>
         </div>
 
-      <div className="flex min-w-0 w-full flex-col gap-2">
-        <Label className="text-xs font-medium">{t('coreEditor.outbound.wireguard.dns', { defaultValue: 'DNS' })}</Label>
-        <Input
-          dir="ltr"
-          className="h-10 w-full min-w-0 text-xs"
-          placeholder="1.1.1.1"
-          value={dns}
-          onChange={e => {
-            const v = e.target.value
-            const next = { ...readSettings(ob) }
-            if (!v.trim()) delete next.DNS
-            else next.DNS = v
-            commitWireGuard(next)
-          }}
-        />
-      </div>
+        <div className="flex w-full min-w-0 flex-col gap-2">
+          <Label className="text-xs font-medium">{t('coreEditor.outbound.wireguard.dns', { defaultValue: 'DNS' })}</Label>
+          <Input
+            dir="ltr"
+            className="h-10 w-full min-w-0 text-xs"
+            placeholder="1.1.1.1"
+            value={dns}
+            onChange={e => {
+              const v = e.target.value
+              const next = { ...readSettings(ob) }
+              if (!v.trim()) delete next.DNS
+              else next.DNS = v
+              commitWireGuard(next)
+            }}
+          />
+        </div>
 
-      <div className="flex min-w-0 w-full flex-col gap-2">
-        <Label className="text-xs font-medium">{t('coreEditor.outbound.wireguard.kernelMode', { defaultValue: 'Kernel mode' })}</Label>
-        <Select
-          dir="ltr"
-          value={kernelModeValue}
-          onValueChange={v => {
-            const next = { ...readSettings(ob) }
-            if (v === '__default__') delete next.kernelMode
-            else next.kernelMode = v === 'true'
-            commitWireGuard(next)
-          }}
-        >
-          <SelectTrigger className="h-10 w-full min-w-0" dir="ltr">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent dir="ltr">
-            <SelectItem value="__default__">{t('coreEditor.outbound.wireguard.kernelModeDefault', { defaultValue: 'Default' })}</SelectItem>
-            <SelectItem value="true">{t('enabled', { defaultValue: 'Enabled' })}</SelectItem>
-            <SelectItem value="false">{t('disabled', { defaultValue: 'Disabled' })}</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+        <div className="flex w-full min-w-0 flex-col gap-2">
+          <Label className="text-xs font-medium">{t('coreEditor.outbound.wireguard.kernelMode', { defaultValue: 'Kernel mode' })}</Label>
+          <Select
+            dir="ltr"
+            value={kernelModeValue}
+            onValueChange={v => {
+              const next = { ...readSettings(ob) }
+              if (v === '__default__') delete next.kernelMode
+              else next.kernelMode = v === 'true'
+              commitWireGuard(next)
+            }}
+          >
+            <SelectTrigger className="h-10 w-full min-w-0" dir="ltr">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent dir="ltr">
+              <SelectItem value="__default__">{t('coreEditor.outbound.wireguard.kernelModeDefault', { defaultValue: 'Default' })}</SelectItem>
+              <SelectItem value="true">{t('enabled', { defaultValue: 'Enabled' })}</SelectItem>
+              <SelectItem value="false">{t('disabled', { defaultValue: 'Disabled' })}</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       <div className="space-y-2">
@@ -1196,9 +1140,7 @@ function OutboundWireGuardSettings({ ob, patchOutbound, t }: { ob: Outbound; pat
 
         <div className="rounded-md border">
           {peers.length === 0 ? (
-            <div className="text-muted-foreground px-3 py-2 text-xs">
-              {t('coreEditor.outbound.wireguard.noPeers', { defaultValue: 'No peers added.' })}
-            </div>
+            <div className="text-muted-foreground px-3 py-2 text-xs">{t('coreEditor.outbound.wireguard.noPeers', { defaultValue: 'No peers added.' })}</div>
           ) : (
             <div className="divide-y">
               {peers.map((peer, index) => (
@@ -1222,7 +1164,7 @@ function OutboundWireGuardSettings({ ob, patchOutbound, t }: { ob: Outbound; pat
 
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="flex min-w-0 flex-col gap-1.5 sm:col-span-2">
-                      <Label className="text-xs font-medium text-muted-foreground">{t('coreEditor.outbound.wireguard.publicKey', { defaultValue: 'Public Key' })}</Label>
+                      <Label className="text-muted-foreground text-xs font-medium">{t('coreEditor.outbound.wireguard.publicKey', { defaultValue: 'Public Key' })}</Label>
                       <Input
                         dir="ltr"
                         className="h-10 w-full min-w-0 text-xs"
@@ -1236,7 +1178,7 @@ function OutboundWireGuardSettings({ ob, patchOutbound, t }: { ob: Outbound; pat
                     </div>
 
                     <div className="flex min-w-0 flex-col gap-1.5 sm:col-span-2">
-                      <Label className="text-xs font-medium text-muted-foreground">{t('coreEditor.outbound.wireguard.preSharedKey', { defaultValue: 'PreShared Key' })}</Label>
+                      <Label className="text-muted-foreground text-xs font-medium">{t('coreEditor.outbound.wireguard.preSharedKey', { defaultValue: 'PreShared Key' })}</Label>
                       <Input
                         type="password"
                         autoComplete="new-password"
@@ -1252,7 +1194,7 @@ function OutboundWireGuardSettings({ ob, patchOutbound, t }: { ob: Outbound; pat
                     </div>
 
                     <div className="flex min-w-0 flex-col gap-1.5">
-                      <Label className="text-xs font-medium text-muted-foreground">{t('coreEditor.outbound.wireguard.endpoint', { defaultValue: 'Endpoint' })}</Label>
+                      <Label className="text-muted-foreground text-xs font-medium">{t('coreEditor.outbound.wireguard.endpoint', { defaultValue: 'Endpoint' })}</Label>
                       <Input
                         dir="ltr"
                         className="h-10 w-full min-w-0 text-xs"
@@ -1267,7 +1209,7 @@ function OutboundWireGuardSettings({ ob, patchOutbound, t }: { ob: Outbound; pat
                     </div>
 
                     <div className="flex min-w-0 flex-col gap-1.5">
-                      <Label className="text-xs font-medium text-muted-foreground">{t('coreEditor.outbound.wireguard.keepAlive', { defaultValue: 'Keep alive' })}</Label>
+                      <Label className="text-muted-foreground text-xs font-medium">{t('coreEditor.outbound.wireguard.keepAlive', { defaultValue: 'Keep alive' })}</Label>
                       <Input
                         dir="ltr"
                         inputMode="numeric"
@@ -1283,7 +1225,7 @@ function OutboundWireGuardSettings({ ob, patchOutbound, t }: { ob: Outbound; pat
                     </div>
 
                     <div className="flex min-w-0 flex-col gap-1.5 sm:col-span-2">
-                      <Label className="text-xs font-medium text-muted-foreground">{t('coreEditor.outbound.wireguard.allowedIPs', { defaultValue: 'Allowed IPs' })}</Label>
+                      <Label className="text-muted-foreground text-xs font-medium">{t('coreEditor.outbound.wireguard.allowedIPs', { defaultValue: 'Allowed IPs' })}</Label>
                       <StringArrayPopoverInput
                         value={peer.allowedIPs}
                         onChange={nextAllowedIps => {
@@ -1333,9 +1275,7 @@ function OutboundLoopbackInboundTagSelect({ ob, patchOutbound, t }: { ob: Outbou
 
   return (
     <div className="flex max-w-xl flex-col gap-2">
-      <Label className="text-xs font-medium">
-        {t('coreEditor.outbound.loopback.inboundTag', { defaultValue: 'Inbound tag' })}
-      </Label>
+      <Label className="text-xs font-medium">{t('coreEditor.outbound.loopback.inboundTag', { defaultValue: 'Inbound tag' })}</Label>
       <Select
         dir="ltr"
         value={selectValue}
@@ -1348,14 +1288,10 @@ function OutboundLoopbackInboundTagSelect({ ob, patchOutbound, t }: { ob: Outbou
         }}
       >
         <SelectTrigger className="h-10 text-xs" dir="ltr">
-          <SelectValue
-            placeholder={t('coreEditor.outbound.loopback.pickInbound', { defaultValue: 'Choose an inbound tag…' })}
-          />
+          <SelectValue placeholder={t('coreEditor.outbound.loopback.pickInbound', { defaultValue: 'Choose an inbound tag…' })} />
         </SelectTrigger>
         <SelectContent dir="ltr">
-          <SelectItem value="__none__">
-            {t('coreEditor.outbound.loopback.none', { defaultValue: '— None —' })}
-          </SelectItem>
+          <SelectItem value="__none__">{t('coreEditor.outbound.loopback.none', { defaultValue: '— None —' })}</SelectItem>
           {orphan ? (
             <SelectItem value={inboundTag}>
               {t('coreEditor.outbound.loopback.orphanTag', {
@@ -1371,7 +1307,7 @@ function OutboundLoopbackInboundTagSelect({ ob, patchOutbound, t }: { ob: Outbou
           ))}
         </SelectContent>
       </Select>
-      <p className="text-xs text-muted-foreground">
+      <p className="text-muted-foreground text-xs">
         {t('coreEditor.outbound.loopback.hint', {
           defaultValue: 'Traffic from this outbound is re-injected into routing using this inbound tag.',
         })}
@@ -1414,15 +1350,7 @@ function OutboundBlackholeSettings({ ob, patchOutbound, t }: { ob: Outbound; pat
   )
 }
 
-export function OutboundSpecialProtocolSettings({
-  ob,
-  patchOutbound,
-  t,
-}: {
-  ob: Outbound
-  patchOutbound: PatchOutbound
-  t: TFunction
-}) {
+export function OutboundSpecialProtocolSettings({ ob, patchOutbound, t }: { ob: Outbound; patchOutbound: PatchOutbound; t: TFunction }) {
   if (ob.protocol === 'freedom') {
     return (
       <>

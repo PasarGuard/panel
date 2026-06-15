@@ -289,12 +289,9 @@ export const buildWireGuardDownloadFileName = (value: string) => {
     return 'wireguard.conf'
   }
 
-  const fileNameParts = [
-    sanitizeFileNameSegment(parsed.remark),
-  ].filter(Boolean)
+  const fileNameParts = [sanitizeFileNameSegment(parsed.remark)].filter(Boolean)
 
-  const fallbackPart =
-    sanitizeFileNameSegment(formatCommaSeparatedValue(parsed.address).replace(/[,:/[\]]+/g, '-')) || 'wireguard'
+  const fallbackPart = sanitizeFileNameSegment(formatCommaSeparatedValue(parsed.address).replace(/[,:/[\]]+/g, '-')) || 'wireguard'
 
   return `${fileNameParts.join('_') || fallbackPart}.conf`
 }
@@ -342,9 +339,7 @@ export const prepareSubscriptionContentForCopy = (content: string) => {
     }
   }
 
-  const convertedConfigs = configLines
-    .map(convertWireGuardUrlToConfig)
-    .filter((value): value is string => Boolean(value))
+  const convertedConfigs = configLines.map(convertWireGuardUrlToConfig).filter((value): value is string => Boolean(value))
 
   if (convertedConfigs.length !== configLines.length) {
     return {

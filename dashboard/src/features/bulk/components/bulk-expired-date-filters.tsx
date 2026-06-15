@@ -18,13 +18,7 @@ type BulkExpiredDateFiltersProps = {
  * Optional expire-date range for bulk operations (BulkUser expire_after / expire_before).
  * Uses the same DatePicker behavior as cleanup settings and other app surfaces.
  */
-export function BulkExpiredDateFilters({
-  expiredAfter,
-  expiredBefore,
-  onExpiredAfterChange,
-  onExpiredBeforeChange,
-  className,
-}: BulkExpiredDateFiltersProps) {
+export function BulkExpiredDateFilters({ expiredAfter, expiredBefore, onExpiredAfterChange, onExpiredBeforeChange, className }: BulkExpiredDateFiltersProps) {
   const { t, i18n } = useTranslation()
   const dir = useDirDetection()
   const isPersianLocale = i18n.language === 'fa'
@@ -32,7 +26,7 @@ export function BulkExpiredDateFilters({
 
   return (
     <div className={cn('space-y-3', className)} dir={dir}>
-      <p className="text-xs text-muted-foreground sm:text-sm">{t('bulk.expiredFilterHint')}</p>
+      <p className="text-muted-foreground text-xs sm:text-sm">{t('bulk.expiredFilterHint')}</p>
       <div className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2">
         <div className="space-y-2">
           <DatePicker
@@ -45,7 +39,7 @@ export function BulkExpiredDateFilters({
             formatDate={formatDate}
             side="bottom"
             align="center"
-            className="[&_label]:text-xs sm:[&_label]:text-sm [&_button]:text-xs sm:[&_button]:text-sm"
+            className="[&_button]:text-xs sm:[&_button]:text-sm [&_label]:text-xs sm:[&_label]:text-sm"
           />
         </div>
         <div className="space-y-2">
@@ -59,7 +53,7 @@ export function BulkExpiredDateFilters({
             formatDate={formatDate}
             side="bottom"
             align="center"
-            className="[&_label]:text-xs sm:[&_label]:text-sm [&_button]:text-xs sm:[&_button]:text-sm"
+            className="[&_button]:text-xs sm:[&_button]:text-sm [&_label]:text-xs sm:[&_label]:text-sm"
           />
         </div>
       </div>
