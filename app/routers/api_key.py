@@ -55,7 +55,7 @@ async def modify_api_key(
     key_id: int,
     model: APIKeyUpdate,
     db: AsyncSession = Depends(get_db),
-    admin: AdminDetails = Depends(require_permission("api_keys", "modify")),
+    admin: AdminDetails = Depends(require_permission("api_keys", "update")),
 ):
     return await api_key_operator.modify_api_key(db, admin=admin, key_id=key_id, model=model)
 
