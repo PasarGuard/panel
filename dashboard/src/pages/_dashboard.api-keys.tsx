@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Plus } from 'lucide-react'
 import PageHeader from '@/components/layout/page-header'
@@ -9,7 +9,9 @@ import {
   APIKeyResponse,
   useRemoveApiKey,
   useRevokeApiKey,
+  useListApiKeys,
   getListApiKeysQueryKey,
+  APIKeyStatus,
 } from '@/service/api'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -26,6 +28,15 @@ import {
 import { Input } from '@/components/ui/input'
 import { Copy, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { ApiKeyFilters } from '@/features/api-keys/components/api-key-filters'
+import { useDebouncedSearch } from '@/hooks/use-debounced-search'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import {
+  apiKeyAdvanceSearchFormSchema,
+  type ApiKeyAdvanceSearchFormValue,
+} from '@/features/api-keys/forms/api-key-advance-search-form'
+import ApiKeyAdvanceSearchModal from '@/features/api-keys/dialogs/api-key-advance-search-modal'
 
 export default function ApiKeysPage() {
   const { t } = useTranslation()
@@ -36,6 +47,32 @@ export default function ApiKeysPage() {
   const [keyToRevoke, setKeyToRevoke] = useState<APIKeyResponse | null>(null)
   const [newReissuedKey, setNewReissuedKey] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+
+  const [isCardView, setIsCardView] = useState(false)
+  const [filters, setFilters] = useState<{ status?: APIKeyStatus[]; role_id?: number; key_id?: number }>({})
+  const { search, debouncedSearch, setSearch } = useDebouncedSearch('', 300)
+  const [isAdvanceSearchOpen, setIsAdvanceSearchOpen] = useState(false)
+
+  const advanceSearchForm = useForm<ApiKeyAdvanceSearchFormValue>({
+    resolver: zodResolver(apiKeyAdvanceSearchFormSchema),
+    defaultValues: {
+      status: [],
+      key_id: undefined,
+    },
+  })
+
+  const {
+    data: apiKeysResponse,
+    isLoading,
+    isFetching,
+    refetch,
+  } = useListApiKeys({
+    name: debouncedSearch || undefined,
+    status: filters.status?.[0],
+    key_id: filters.key_id,
+  })
+
+  const apiKeys = apiKeysResponse?.api_keys || []
 
   const queryClient = useQueryClient()
   const deleteMutation = useRemoveApiKey({
@@ -94,6 +131,27 @@ export default function ApiKeysPage() {
     }
   }
 
+  const handleAdvanceSearchSubmit = (values: ApiKeyAdvanceSearchFormValue) => {
+    setFilters(prev => ({
+      ...prev,
+      status: values.status && values.status.length > 0 ? values.status : undefined,
+      key_id: values.key_id,
+    }))
+    setIsAdvanceSearchOpen(false)
+  }
+
+  const handleClearAdvanceSearch = () => {
+    advanceSearchForm.reset({
+      status: [],
+      key_id: undefined,
+    })
+    setFilters(prev => ({
+      ...prev,
+      status: undefined,
+      key_id: undefined,
+    }))
+  }
+
   return (
     <div className="flex w-full flex-col items-start gap-2">
       <div className="w-full transform-gpu animate-fade-in" style={{ animationDuration: '400ms' }}>
@@ -110,11 +168,35 @@ export default function ApiKeysPage() {
         <Separator />
       </div>
 
-      <div className="w-full px-4 pt-2">
+      <div className="flex w-full flex-col gap-4 px-4 pt-4">
+        <ApiKeyFilters
+          search={search}
+          onSearchChange={setSearch}
+          isFetching={isFetching}
+          onRefresh={() => refetch()}
+          viewMode={isCardView ? 'grid' : 'list'}
+          onViewModeChange={(mode) => setIsCardView(mode === 'grid')}
+          filters={{
+            status: filters.status?.[0],
+            role_id: filters.role_id,
+          }}
+          onFilterChange={(newFilters) => {
+            if (!Object.keys(newFilters).length) {
+              handleClearAdvanceSearch()
+            } else {
+              setFilters(prev => ({ ...prev, ...newFilters, status: newFilters.status ? [newFilters.status as APIKeyStatus] : undefined }))
+            }
+          }}
+          onAdvanceSearchOpen={() => setIsAdvanceSearchOpen(true)}
+        />
+
         <ApiKeysTable
           onEdit={handleEdit}
           onDelete={setKeyToDelete}
           onRevoke={setKeyToRevoke}
+          isCardView={isCardView}
+          apiKeys={apiKeys}
+          isLoading={isLoading}
         />
       </div>
 
@@ -122,6 +204,13 @@ export default function ApiKeysPage() {
         isOpen={isModalOpen}
         onOpenChange={setIsModalOpen}
         editingApiKey={editingApiKey}
+      />
+
+      <ApiKeyAdvanceSearchModal
+        isDialogOpen={isAdvanceSearchOpen}
+        onOpenChange={setIsAdvanceSearchOpen}
+        form={advanceSearchForm}
+        onSubmit={handleAdvanceSearchSubmit}
       />
 
       <AlertDialog open={!!keyToDelete} onOpenChange={() => setKeyToDelete(null)}>

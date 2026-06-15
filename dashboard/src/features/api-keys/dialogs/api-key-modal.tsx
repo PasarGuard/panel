@@ -27,6 +27,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { DatePicker } from '@/components/common/date-picker'
+import {
+  serializeDatePickerValue,
+  toDatePickerDisplayDate,
+} from '@/utils/datePickerUtils'
 import {
   apiKeyFormSchema,
   ApiKeyFormValues,
@@ -96,9 +101,7 @@ export default function ApiKeyModal({
         note: editingApiKey.note || '',
         role_id: editingApiKey.role_id,
         status: editingApiKey.status || 'active',
-        expire_date: editingApiKey.expire_date
-          ? new Date(editingApiKey.expire_date)
-          : null,
+        expire_date: editingApiKey.expire_date,
       })
     } else {
       form.reset({
@@ -223,26 +226,19 @@ export default function ApiKeyModal({
                 control={form.control}
                 name="expire_date"
                 render={({ field }) => (
-                  <FormItem>
+                  <FormItem className="flex flex-col">
                     <FormLabel>{t('apiKeys.expireDate')}</FormLabel>
                     <FormControl>
-                      <Input
-                        type="datetime-local"
-                        value={
-                          field.value
-                            ? new Date(
-                                field.value.getTime() -
-                                  field.value.getTimezoneOffset() * 60000
-                              )
-                                .toISOString()
-                                .slice(0, 16)
-                            : ''
-                        }
-                        onChange={(e) =>
-                          field.onChange(
-                            e.target.value ? new Date(e.target.value) : null
-                          )
-                        }
+                      <DatePicker
+                        mode="single"
+                        showTime
+                        useUtcTimestamp
+                        date={toDatePickerDisplayDate(field.value)}
+                        onDateChange={(date) => {
+                          const value = serializeDatePickerValue(date, { useUtcTimestamp: true })
+                          field.onChange(value)
+                        }}
+                        placeholder={t('apiKeys.expireDate')}
                       />
                     </FormControl>
                     <FormMessage />
