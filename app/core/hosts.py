@@ -104,8 +104,6 @@ async def _prepare_subscription_inbound_data(
             wireguard_mtu=wg_over.mtu,
             wireguard_reserved=reserved,
             wireguard_dns=dns,
-            fragment_settings=host.fragment_settings.model_dump() if host.fragment_settings else None,
-            noise_settings=host.noise_settings.model_dump() if host.noise_settings else None,
             priority=host.priority,
             status=list(host.status) if host.status else None,
             subscription_templates=host.subscription_templates.model_dump(exclude_none=True)
@@ -420,7 +418,7 @@ class HostManager:
 
     async def _snapshot_state(self) -> dict[int, dict]:
         async with self._lock:
-            return deepcopy(self._hosts)
+            return dict(self._hosts)
 
     async def _persist_state(self):
         if not self._kv:
