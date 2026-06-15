@@ -24,14 +24,14 @@ OWNER_ADMIN_API_KEY_PERMS = {
     "create": True,
     "read": True,
     "read_simple": True,
-    "modify": True,
+    "update": True,
     "delete": True,
 }
 
 OPERATOR_API_KEY_PERMS = {
     "read": {"scope": 1},
     "read_simple": {"scope": 1},
-    "modify": {"scope": 1},
+    "update": {"scope": 1},
     "delete": {"scope": 1},
 }
 
