@@ -5,7 +5,13 @@ import PageHeader from '@/components/layout/page-header'
 import { Separator } from '@/components/ui/separator'
 import ApiKeysTable from '@/features/api-keys/components/api-keys-table'
 import ApiKeyModal from '@/features/api-keys/dialogs/api-key-modal'
-import { APIKeyResponse, useDeleteApiKey, useRevokeApiKey } from '@/features/api-keys/hooks/use-api-keys'
+import {
+  APIKeyResponse,
+  useRemoveApiKey,
+  useRevokeApiKey,
+  getListApiKeysQueryKey,
+} from '@/service/api'
+import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import {
   AlertDialog,
@@ -18,7 +24,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Input } from '@/components/ui/input'
-import { Key, Copy, Check } from 'lucide-react'
+import { Copy, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 export default function ApiKeysPage() {
@@ -31,8 +37,21 @@ export default function ApiKeysPage() {
   const [newReissuedKey, setNewReissuedKey] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
 
-  const deleteMutation = useDeleteApiKey()
-  const revokeMutation = useRevokeApiKey()
+  const queryClient = useQueryClient()
+  const deleteMutation = useRemoveApiKey({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListApiKeysQueryKey() })
+      },
+    },
+  })
+  const revokeMutation = useRevokeApiKey({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListApiKeysQueryKey() })
+      },
+    },
+  })
 
   const handleEdit = (apiKey: APIKeyResponse) => {
     setEditingApiKey(apiKey)
@@ -42,7 +61,7 @@ export default function ApiKeysPage() {
   const handleDelete = async () => {
     if (!keyToDelete) return
     try {
-      await deleteMutation.mutateAsync(keyToDelete.id)
+      await deleteMutation.mutateAsync({ keyId: keyToDelete.id })
       toast.success(t('apiKeys.deleteSuccess'))
       setKeyToDelete(null)
     } catch (error: any) {
@@ -55,7 +74,7 @@ export default function ApiKeysPage() {
   const handleRevoke = async () => {
     if (!keyToRevoke) return
     try {
-      const response = await revokeMutation.mutateAsync(keyToRevoke.id)
+      const response = await revokeMutation.mutateAsync({ keyId: keyToRevoke.id })
       setNewReissuedKey(response.api_key)
       toast.success(t('apiKeys.revokeSuccess'))
       setKeyToRevoke(null)

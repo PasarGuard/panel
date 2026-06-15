@@ -1,5 +1,5 @@
 import { ColumnDef } from '@tanstack/react-table'
-import { MoreHorizontal, Key, Trash2, Edit2, RotateCcw, Copy, Check, X } from 'lucide-react'
+import { MoreHorizontal, Trash2, Edit2, RotateCcw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -10,9 +10,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Badge } from '@/components/ui/badge'
-import { APIKeyResponse } from '../hooks/use-api-keys'
+import { APIKeyResponse } from '@/service/api'
 import { dateUtils } from '@/utils/dateFormatter'
-import { toast } from 'sonner'
 
 interface ColumnsProps {
   t: any
@@ -43,7 +42,7 @@ export const setupColumns = ({ t, onEdit, onDelete, onRevoke }: ColumnsProps): C
       const isExpired = row.original.is_expired
       if (isExpired) return <Badge variant="destructive">{t('expired')}</Badge>
       return (
-        <Badge variant={status === 'active' ? 'success' : 'secondary'}>
+        <Badge variant={status === 'active' ? 'green' : 'secondary'}>
           {t(`admins.${status}`)}
         </Badge>
       )
@@ -54,13 +53,13 @@ export const setupColumns = ({ t, onEdit, onDelete, onRevoke }: ColumnsProps): C
     header: t('apiKeys.expireDate'),
     cell: ({ row }) => {
       const date = row.getValue('expire_date') as string | null
-      return date ? dateUtils.formatDateTime(date) : t('never')
+      return date ? dateUtils.formatDate(date) : t('never')
     },
   },
   {
     accessorKey: 'created_at',
     header: t('apiKeys.createdAt'),
-    cell: ({ row }) => dateUtils.formatDateTime(row.getValue('created_at')),
+    cell: ({ row }) => dateUtils.formatDate(row.getValue('created_at')),
   },
   {
     id: 'actions',

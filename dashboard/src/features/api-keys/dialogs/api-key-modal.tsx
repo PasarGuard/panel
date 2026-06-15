@@ -5,7 +5,6 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
@@ -35,10 +34,13 @@ import {
 } from '../forms/api-key-form'
 import {
   useCreateApiKey,
-  useUpdateApiKey,
+  useModifyApiKey,
   APIKeyResponse,
-} from '../hooks/use-api-keys'
+  getListApiKeysQueryKey,
+} from '@/service/api'
+import { useAdmin } from '@/hooks/use-admin'
 import { useGetRolesSimple } from '@/service/api'
+import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Key, Copy, Check } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -58,10 +60,23 @@ export default function ApiKeyModal({
   const [createdKey, setCreatedKey] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
 
+  const queryClient = useQueryClient()
   const rolesQuery = useGetRolesSimple()
   const { admin } = useAdmin()
-  const createMutation = useCreateApiKey()
-  const updateMutation = useUpdateApiKey()
+  const createMutation = useCreateApiKey({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListApiKeysQueryKey() })
+      },
+    },
+  })
+  const updateMutation = useModifyApiKey({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListApiKeysQueryKey() })
+      },
+    },
+  })
 
   const form = useForm<ApiKeyFormValues>({
     resolver: zodResolver(apiKeyFormSchema),
@@ -80,7 +95,7 @@ export default function ApiKeyModal({
         name: editingApiKey.name,
         note: editingApiKey.note || '',
         role_id: editingApiKey.role_id,
-        status: editingApiKey.status,
+        status: editingApiKey.status || 'active',
         expire_date: editingApiKey.expire_date
           ? new Date(editingApiKey.expire_date)
           : null,
@@ -104,7 +119,7 @@ export default function ApiKeyModal({
         toast.success(t('apiKeys.updateSuccess'))
         onOpenChange(false)
       } else {
-        const response = await createMutation.mutateAsync(values)
+        const response = await createMutation.mutateAsync({ data: values })
         setCreatedKey(response.api_key)
         toast.success(t('apiKeys.createSuccess'))
       }
@@ -138,7 +153,7 @@ export default function ApiKeyModal({
 
         {createdKey ? (
           <div className="space-y-4 py-4">
-            <Alert variant="warning">
+            <Alert>
               <Key className="h-4 w-4" />
               <AlertTitle>{t('apiKeys.apiKey')}</AlertTitle>
               <AlertDescription>{t('apiKeys.apiKeyShowWarning')}</AlertDescription>

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   flexRender,
@@ -14,7 +14,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { setupColumns } from './columns'
-import { APIKeyResponse, useListApiKeys } from '../hooks/use-api-keys'
+import { APIKeyResponse, useListApiKeys } from '@/service/api'
 import { Skeleton } from '@/components/ui/skeleton'
 
 interface ApiKeysTableProps {
