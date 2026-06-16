@@ -1,5 +1,6 @@
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
+import { StringArrayPopoverInput } from '@/components/common/string-array-popover-input'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
@@ -11,31 +12,31 @@ import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
-import { StringArrayPopoverInput } from '@/components/common/string-array-popover-input'
 import { CoreEditorDataTable } from '@/features/core-editor/components/shared/core-editor-data-table'
 import { CoreEditorFormDialog } from '@/features/core-editor/components/shared/core-editor-form-dialog'
+import { TcpHeaderObfuscationForm } from '@/features/core-editor/components/shared/tcp-header-obfuscation-form'
 import { VlessAdvancedGenerationModal } from '@/features/core-editor/components/shared/vless-advanced-generation-modal'
 import { isBooleanParityField, isJsonRawMessageField, transportParityFieldLabel, XrayParityFormControl } from '@/features/core-editor/components/shared/xray-parity-form-control'
-import { TcpHeaderObfuscationForm } from '@/features/core-editor/components/shared/tcp-header-obfuscation-form'
 import { pruneSockoptObject, XrayStreamSockoptInboundAccordion } from '@/features/core-editor/components/shared/xray-stream-sockopt-editor'
 import { InboundTlsFallbacksEditor } from '@/features/core-editor/components/xray/inbound-tls-fallbacks-editor'
-import { getInboundSecuritySelectOptions, getInboundTransportSelectOptions, transportCompatibleWithReality } from '@/features/core-editor/kit/inbound-form-options'
-import { inferParityFieldMode, outboundSettingToString, parseOutboundSettingValue } from '@/features/core-editor/kit/xray-parity-value'
 import { useSectionHeaderAddPulseEffect, type SectionHeaderAddPulse } from '@/features/core-editor/hooks/use-section-header-add-pulse'
 import { useXrayPersistModifyGuard } from '@/features/core-editor/hooks/use-xray-persist-modify-guard'
 import { createInboundDialogSchema, realityInboundZodTriggerFieldNames } from '@/features/core-editor/kit/inbound-dialog-schema'
-import { remapIndexAfterArrayMove } from '@/features/core-editor/kit/remap-index-after-move'
+import { getInboundSecuritySelectOptions, getInboundTransportSelectOptions, transportCompatibleWithReality } from '@/features/core-editor/kit/inbound-form-options'
 import { profileDuplicateTagMessage, profileTagHasDuplicateUsage } from '@/features/core-editor/kit/profile-tag-uniqueness'
+import { remapIndexAfterArrayMove } from '@/features/core-editor/kit/remap-index-after-move'
 import { isPlaceholderTunnelRewriteAddress, normalizeTunnelNetworkForKit } from '@/features/core-editor/kit/sanitize-inbound'
+import { inferParityFieldMode, outboundSettingToString, parseOutboundSettingValue } from '@/features/core-editor/kit/xray-parity-value'
 import { useCoreEditorStore } from '@/features/core-editor/state/core-editor-store'
-import { generateWireGuardKeyPair, getWireGuardPublicKey } from '@/utils/wireguard'
+import useDirDetection from '@/hooks/use-dir-detection'
+import { cn } from '@/lib/utils'
 import {
   buildVlessGenerationOptionsFromInboundForm,
   canGenerateShadowsocksPassword,
-  generateShadowsocksPassword,
+  generateMldsa65Keys,
   generateRealityKeyPair,
   generateRealityShortId,
-  generateMldsa65Keys,
+  generateShadowsocksPassword,
   parseVlessEncryptionMethodTokenFromString,
   SHADOWSOCKS_ENCRYPTION_METHODS,
   VLESS_ENCRYPTION_METHODS,
@@ -43,18 +44,17 @@ import {
   vlessInboundEncryptionRawForForm,
   type VlessBuilderOptions,
 } from '@/lib/xray-generation'
-import { createDefaultInbound, createDefaultInboundForProtocol, getInboundFieldVisibility, getInboundFormCapabilities } from '@pasarguard/xray-config-kit'
-import type { Fallback, Inbound, InboundPort, Profile, Security, ShadowsocksMethod, Transport, XrayGeneratedFormField } from '@pasarguard/xray-config-kit'
-import useDirDetection from '@/hooks/use-dir-detection'
-import { cn } from '@/lib/utils'
-import { Cable, KeyRound, Pencil, Plus, RefreshCcw, Shield, Trash2 } from 'lucide-react'
-import { zodResolver } from '@hookform/resolvers/zod'
+import { generateWireGuardKeyPair, getWireGuardPublicKey } from '@/utils/wireguard'
 import { arrayMove } from '@dnd-kit/sortable'
+import { zodResolver } from '@hookform/resolvers/zod'
+import type { Fallback, Inbound, InboundPort, Profile, Security, ShadowsocksMethod, Transport, XrayGeneratedFormField } from '@pasarguard/xray-config-kit'
+import { createDefaultInbound, createDefaultInboundForProtocol, getInboundFieldVisibility, getInboundFormCapabilities } from '@pasarguard/xray-config-kit'
 import type { ColumnDef } from '@tanstack/react-table'
+import type { TFunction } from 'i18next'
+import { Cable, Dices, KeyRound, Pencil, Plus, RefreshCcw, Shield, Trash2 } from 'lucide-react'
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useForm, type Resolver } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
-import type { TFunction } from 'i18next'
 import { toast } from 'sonner'
 
 function replaceInbound(profile: Profile, index: number, inbound: Inbound): Profile {
@@ -911,6 +911,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
   const [vlessDecryptionJustGenerated, setVlessDecryptionJustGenerated] = useState(false)
   const [vlessAdvancedOpen, setVlessAdvancedOpen] = useState(false)
   const [vlessAdvancedSeed, setVlessAdvancedSeed] = useState<VlessBuilderOptions | undefined>(undefined)
+  const [isTagAutoGenerated, setIsTagAutoGenerated] = useState(true)
   const [tunnelBlankPortMapRows, setTunnelBlankPortMapRows] = useState<{ listenPort: string; target: string }[]>([])
   const [wireguardPeerPrivateKeys, setWireguardPeerPrivateKeys] = useState<Record<number, string>>({})
   const tunnelBlankPortMapRowsRef = useRef(tunnelBlankPortMapRows)
@@ -1173,6 +1174,28 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
     }
   }, [inbound?.protocol])
 
+  const watchedProtocol = form.watch('protocol')
+  const watchedPort = form.watch('port')
+  const watchedTransport = form.watch('transport')
+  const watchedSecurity = form.watch('security')
+  const watchedShadowsocksNetwork = form.watch('shadowsocksNetwork')
+
+  useEffect(() => {
+    const tagSeparator = ' '
+    if (dialogMode === 'add' && isTagAutoGenerated && watchedProtocol) {
+      let tag = watchedProtocol
+      let network = watchedTransport
+      if (watchedProtocol === 'shadowsocks') network = watchedShadowsocksNetwork
+
+      if (network) tag += `${tagSeparator}${network}`
+      if (watchedSecurity && watchedSecurity !== 'none') tag += `${tagSeparator}${watchedSecurity}`
+      if (watchedPort) tag += `${tagSeparator}${watchedPort}`
+
+      form.setValue('tag', tag)
+      patchInbound({ tag })
+    }
+  }, [dialogMode, isTagAutoGenerated, watchedProtocol, watchedPort, watchedTransport, watchedSecurity, watchedShadowsocksNetwork])
+
   const columns = useMemo<ColumnDef<Inbound, unknown>[]>(
     () => [
       {
@@ -1214,6 +1237,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
     })
     setDraftInbound(created)
     setDialogMode('add')
+    setIsTagAutoGenerated(true)
     setDetailOpen(true)
   }, [profile, detailOpen, dialogMode, draftInbound])
 
@@ -2441,6 +2465,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                           onChange={e => {
                             const v = e.target.value
                             field.onChange(v)
+                            setIsTagAutoGenerated(false)
                             if (isTagDuplicate(v)) {
                               setDuplicateTagError(v)
                               return
@@ -2544,22 +2569,38 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                     <FormItem>
                       <FormLabel>{t('coreEditor.field.port', { defaultValue: 'Port' })}</FormLabel>
                       <FormControl>
-                        <Input
-                          {...field}
-                          className="h-10"
-                          dir="ltr"
-                          isError={!!fieldState.error}
-                          placeholder="443 or 1000-2000,444"
-                          onChange={e => {
-                            const v = e.target.value
-                            field.onChange(v)
-                            if (v.trim() === '') patchInbound({ port: undefined } as Partial<Inbound>)
-                            else {
-                              const n = Number(v)
-                              patchInbound({ port: Number.isFinite(n) ? n : v } as Partial<Inbound>)
-                            }
-                          }}
-                        />
+                        <div className="relative">
+                          <Input
+                            {...field}
+                            className="h-10 pr-10"
+                            dir="ltr"
+                            isError={!!fieldState.error}
+                            placeholder="443 or 1000-2000,444"
+                            onChange={e => {
+                              const v = e.target.value
+                              field.onChange(v)
+                              if (v.trim() === '') patchInbound({ port: undefined } as Partial<Inbound>)
+                              else {
+                                const n = Number(v)
+                                patchInbound({ port: Number.isFinite(n) ? n : v } as Partial<Inbound>)
+                              }
+                            }}
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="absolute top-0 right-0 h-10 px-3 hover:bg-transparent"
+                            onClick={() => {
+                              const p = randomInboundPort(profile)
+                              field.onChange(String(p))
+                              patchInbound({ port: p } as Partial<Inbound>)
+                            }}
+                            title={t('coreEditor.inbound.randomPort', { defaultValue: 'Generate random port' })}
+                          >
+                            <Dices className="text-muted-foreground h-4 w-4" />
+                          </Button>
+                        </div>
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -4001,6 +4042,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                           onChange={e => {
                             const v = e.target.value
                             field.onChange(v)
+                            setIsTagAutoGenerated(false)
                             if (isTagDuplicate(v)) {
                               setDuplicateTagError(v)
                               return
@@ -4101,22 +4143,38 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                     <FormItem>
                       <FormLabel>{t('coreEditor.field.port', { defaultValue: 'Port' })}</FormLabel>
                       <FormControl>
-                        <Input
-                          {...field}
-                          className="h-10"
-                          dir="ltr"
-                          isError={!!fieldState.error}
-                          placeholder="443 or 1000-2000,444"
-                          onChange={e => {
-                            const v = e.target.value
-                            field.onChange(v)
-                            if (v.trim() === '') patchInbound({ port: undefined } as Partial<Inbound>)
-                            else {
-                              const n = Number(v)
-                              patchInbound({ port: Number.isFinite(n) ? n : v } as Partial<Inbound>)
-                            }
-                          }}
-                        />
+                        <div className="relative">
+                          <Input
+                            {...field}
+                            className="h-10 pr-10"
+                            dir="ltr"
+                            isError={!!fieldState.error}
+                            placeholder="443 or 1000-2000,444"
+                            onChange={e => {
+                              const v = e.target.value
+                              field.onChange(v)
+                              if (v.trim() === '') patchInbound({ port: undefined } as Partial<Inbound>)
+                              else {
+                                const n = Number(v)
+                                patchInbound({ port: Number.isFinite(n) ? n : v } as Partial<Inbound>)
+                              }
+                            }}
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="absolute top-0 right-0 h-10 px-3 hover:bg-transparent"
+                            onClick={() => {
+                              const p = randomInboundPort(profile)
+                              field.onChange(String(p))
+                              patchInbound({ port: p } as Partial<Inbound>)
+                            }}
+                            title={t('coreEditor.inbound.randomPort', { defaultValue: 'Generate random port' })}
+                          >
+                            <Dices className="text-muted-foreground h-4 w-4" />
+                          </Button>
+                        </div>
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -4397,6 +4455,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                           onChange={e => {
                             const v = e.target.value
                             field.onChange(v)
+                            setIsTagAutoGenerated(false)
                             if (isTagDuplicate(v)) {
                               setDuplicateTagError(v)
                               return
@@ -4498,22 +4557,38 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                       <FormItem>
                         <FormLabel>{t('coreEditor.field.port', { defaultValue: 'Port' })}</FormLabel>
                         <FormControl>
-                          <Input
-                            {...field}
-                            className="h-10"
-                            dir="ltr"
-                            isError={!!fieldState.error}
-                            placeholder="443 or 1000-2000,444"
-                            onChange={e => {
-                              const v = e.target.value
-                              field.onChange(v)
-                              if (v.trim() === '') patchInbound({ port: undefined } as Partial<Inbound>)
-                              else {
-                                const n = Number(v)
-                                patchInbound({ port: Number.isFinite(n) ? n : v } as Partial<Inbound>)
-                              }
-                            }}
-                          />
+                          <div className="relative">
+                            <Input
+                              {...field}
+                              className="h-10 pr-10"
+                              dir="ltr"
+                              isError={!!fieldState.error}
+                              placeholder="443 or 1000-2000,444"
+                              onChange={e => {
+                                const v = e.target.value
+                                field.onChange(v)
+                                if (v.trim() === '') patchInbound({ port: undefined } as Partial<Inbound>)
+                                else {
+                                  const n = Number(v)
+                                  patchInbound({ port: Number.isFinite(n) ? n : v } as Partial<Inbound>)
+                                }
+                              }}
+                            />
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="absolute top-0 right-0 h-10 px-3 hover:bg-transparent"
+                              onClick={() => {
+                                const p = randomInboundPort(profile)
+                                field.onChange(String(p))
+                                patchInbound({ port: p } as Partial<Inbound>)
+                              }}
+                              title={t('coreEditor.inbound.randomPort', { defaultValue: 'Generate random port' })}
+                            >
+                              <Dices className="text-muted-foreground h-4 w-4" />
+                            </Button>
+                          </div>
                         </FormControl>
                         <FormMessage />
                       </FormItem>
