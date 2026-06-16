@@ -1191,6 +1191,8 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
       if (watchedSecurity && watchedSecurity !== 'none') tag += `${tagSeparator}${watchedSecurity}`
       if (watchedPort) tag += `${tagSeparator}${watchedPort}`
 
+      tag = tag.toUpperCase()
+
       form.setValue('tag', tag)
       patchInbound({ tag })
     }
