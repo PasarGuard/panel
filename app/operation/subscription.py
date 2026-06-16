@@ -277,6 +277,21 @@ class SubscriptionOperation(BaseOperation):
             config["media_type"],
         )
 
+    @staticmethod
+    def is_hwid_enabled(
+        global_hwid_conf: HWIDSettings,
+        effective_hwid_conf: HWIDSettings | None,
+        user_hwid_limit: int | None,
+    ) -> bool:
+        if effective_hwid_conf is None or not effective_hwid_conf.enabled:
+            return False
+
+        forced = effective_hwid_conf.forced
+        if not global_hwid_conf.require_hwid_for_manual_sub:
+            forced = False
+
+        return forced or user_hwid_limit is not None
+
     async def validate_and_register_hwid(
         self,
         db: AsyncSession,
@@ -292,7 +307,12 @@ class SubscriptionOperation(BaseOperation):
         global_hwid_conf: HWIDSettings = await hwid_settings()
         effective_hwid_conf = resolve_effective_hwid_settings(global_hwid_conf, role_hwid_settings)
 
-        if effective_hwid_conf is None or not effective_hwid_conf.enabled:
+        if not self.is_hwid_enabled(
+            global_hwid_conf,
+            effective_hwid_conf,
+            user_hwid_limit,
+            is_manual_sub=is_manual_sub,
+        ):
             return
 
         forced = effective_hwid_conf.forced
@@ -342,18 +362,25 @@ class SubscriptionOperation(BaseOperation):
         """
         sub_settings: SubSettings = await subscription_settings()
         db_user = await self.get_validated_sub(db, token, load_admin_role=True)
+        role_hwid_settings = db_user.admin.role.hwid if db_user.admin and db_user.admin.role else None
         user = await self.validated_user(db_user)
         is_browser_request = "text/html" in accept_header
         is_subscription_page_request = is_browser_request and not sub_settings.disable_sub_template
-
         if is_subscription_page_request:
             template = (
                 db_user.admin.sub_template
                 if db_user.admin and db_user.admin.sub_template
                 else template_settings.subscription_page_template
             )
+            global_hwid_conf: HWIDSettings = await hwid_settings()
+            effective_hwid_conf = resolve_effective_hwid_settings(global_hwid_conf, role_hwid_settings)
+            is_allow_browser_config = sub_settings.allow_browser_config and not self.is_hwid_enabled(
+                global_hwid_conf,
+                effective_hwid_conf,
+                db_user.hwid_limit,
+            )
             links = []
-            if sub_settings.allow_browser_config:
+            if is_allow_browser_config:
                 conf, media_type = await self.fetch_config(
                     user,
                     ConfigFormat.links,
@@ -376,7 +403,7 @@ class SubscriptionOperation(BaseOperation):
                 db,
                 db_user.id,
                 db_user.hwid_limit,
-                db_user.admin.role.hwid if db_user.admin and db_user.admin.role else None,
+                role_hwid_settings,
                 x_hwid,
                 x_device_os,
                 x_ver_os,
