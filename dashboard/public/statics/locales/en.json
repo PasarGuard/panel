@@ -381,6 +381,10 @@
         "title": "Require HWID header",
         "description": "Reject subscription requests that do not send X-HWID."
       },
+      "manualSubscription": {
+        "title": "Require HWID for manual subscriptions",
+        "description": "Apply the forced HWID header policy to manual subscription format requests."
+      },
       "limits": {
         "title": "Device limits",
         "description": "Set the default device count and optional bounds for user HWID limits."

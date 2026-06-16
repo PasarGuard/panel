@@ -363,6 +363,10 @@
         "title": "要求 HWID 请求头",
         "description": "拒绝未发送 X-HWID 的订阅请求。"
       },
+      "manualSubscription": {
+        "title": "手动订阅要求 HWID",
+        "description": "将强制 HWID 请求头策略应用到手动订阅格式请求。"
+      },
       "limits": {
         "title": "设备限制",
         "description": "设置默认设备数量，以及用户 HWID 限制的可选边界。"
