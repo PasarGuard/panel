@@ -292,7 +292,7 @@ class SubscriptionOperation(BaseOperation):
         if is_manual_sub and not global_hwid_conf.require_hwid_for_manual_sub:
             forced = False
 
-        return forced or user_hwid_limit is not None
+        return forced or (user_hwid_limit is not None and user_hwid_limit > 0)
 
     async def is_user_hwid_enabled(self, db_user: User, *, is_manual_sub: bool = False) -> bool:
         role_hwid_settings = db_user.admin.role.hwid if db_user.admin and db_user.admin.role else None

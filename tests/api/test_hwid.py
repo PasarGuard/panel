@@ -259,6 +259,11 @@ async def test_subscription_apps_are_filtered_by_hwid_policy(access_token, monke
         response = client.get(f"{user['subscription_url']}/apps")
         assert response.status_code == status.HTTP_200_OK
         assert [app["name"] for app in response.json()] == ["DeviceBoundApp"]
+
+        await _set_user_hwid_limit(user["id"], 0)
+        response = client.get(f"{user['subscription_url']}/apps")
+        assert response.status_code == status.HTTP_200_OK
+        assert [app["name"] for app in response.json()] == ["StandardApp"]
     finally:
         await _reset_user_hwids(user["id"])
         delete_user(access_token, user["username"])
