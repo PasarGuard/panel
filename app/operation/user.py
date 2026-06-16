@@ -328,6 +328,7 @@ class UserOperation(BaseOperation):
                     expire=user_to_create.expire,
                     status=user_to_create.status,
                     on_hold_expire_duration=user_to_create.on_hold_expire_duration,
+                    on_hold_timeout=user_to_create.on_hold_timeout,
                     hwid_limit=user_to_create.hwid_limit,
                     data_limit_reset_strategy=user_to_create.data_limit_reset_strategy,
                     next_plan=user_to_create.next_plan,
@@ -456,12 +457,14 @@ class UserOperation(BaseOperation):
         expire: dt | int | None = None,
         status: UserStatus | None = None,
         on_hold_expire_duration: int | None = None,
+        on_hold_timeout: dt | int | None = None,
         hwid_limit: int | None = None,
         data_limit_reset_strategy=None,
         next_plan=None,
         check_max_users: bool = False,
         require_finite_data_limit: bool = True,
         require_finite_expire: bool = True,
+        require_finite_on_hold_timeout: bool = True,
         require_finite_hwid_limit: bool = True,
     ) -> None:
         """Enforce role-level limits and feature flags. No-op for owner."""
@@ -543,6 +546,36 @@ class UserOperation(BaseOperation):
                 )
 
         if (
+            limits.on_hold_timeout_max is not None
+            and require_finite_on_hold_timeout
+            and (on_hold_timeout is None or on_hold_timeout == 0)
+        ):
+            await self.raise_error(
+                message=f"On-hold timeout cannot be unlimited; maximum is {readable_duration(limits.on_hold_timeout_max)} from now",
+                code=400,
+                db=db,
+            )
+
+        if on_hold_timeout is not None and on_hold_timeout != 0:
+            if isinstance(on_hold_timeout, dt):
+                timeout_seconds = (fix_datetime_timezone(on_hold_timeout) - datetime.now(timezone.utc)).total_seconds()
+            else:
+                timeout_seconds = on_hold_timeout
+
+            if limits.on_hold_timeout_min is not None and timeout_seconds < limits.on_hold_timeout_min:
+                await self.raise_error(
+                    message=f"On-hold timeout must be at least {readable_duration(limits.on_hold_timeout_min)}",
+                    code=400,
+                    db=db,
+                )
+            if limits.on_hold_timeout_max is not None and timeout_seconds > limits.on_hold_timeout_max:
+                await self.raise_error(
+                    message=f"On-hold timeout cannot exceed {readable_duration(limits.on_hold_timeout_max)}",
+                    code=400,
+                    db=db,
+                )
+
+        if (
             limits.max_hwid_per_user is not None
             and require_finite_hwid_limit
             and (hwid_limit is None or hwid_limit <= 0)
@@ -599,6 +632,7 @@ class UserOperation(BaseOperation):
                 expire=new_user.expire,
                 status=new_user.status,
                 on_hold_expire_duration=new_user.on_hold_expire_duration,
+                on_hold_timeout=new_user.on_hold_timeout,
                 hwid_limit=new_user.hwid_limit,
                 data_limit_reset_strategy=new_user.data_limit_reset_strategy,
                 next_plan=new_user.next_plan,
@@ -676,6 +710,10 @@ class UserOperation(BaseOperation):
                 or on_hold_duration_was_changed
             )
             hwid_limit_was_changed = "hwid_limit" in modified_fields and modified_user.hwid_limit is not None
+            on_hold_timeout_was_changed = "on_hold_timeout" in modified_fields
+            on_hold_timeout_requires_finite_limit = (
+                on_hold_timeout_was_changed or (status_was_changed and modified_status_value == UserStatus.on_hold.value)
+            )
 
             effective_status = modified_user.status if modified_user.status is not None else db_user.status
             effective_expire = modified_user.expire
@@ -695,11 +733,13 @@ class UserOperation(BaseOperation):
                 expire=effective_expire,
                 status=effective_status,
                 on_hold_expire_duration=effective_on_hold_expire_duration,
+                on_hold_timeout=modified_user.on_hold_timeout,
                 hwid_limit=modified_user.hwid_limit,
                 data_limit_reset_strategy=modified_user.data_limit_reset_strategy,
                 next_plan=modified_user.next_plan,
                 require_finite_data_limit=data_limit_was_changed,
                 require_finite_expire=expire_requires_finite_limit,
+                require_finite_on_hold_timeout=on_hold_timeout_requires_finite_limit,
                 require_finite_hwid_limit=hwid_limit_was_changed,
             )
 
@@ -1607,6 +1647,7 @@ class UserOperation(BaseOperation):
             check_max_users=True,
             require_finite_data_limit=False,
             require_finite_expire=False,
+            require_finite_on_hold_timeout=False,
             require_finite_hwid_limit=False,
         )
         return await self.create_user(db, new_user, admin, skip_role_limits=True)

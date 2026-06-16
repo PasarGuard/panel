@@ -868,7 +868,9 @@
       "expire_days_min": "最小到期天数",
       "expire_days_max": "最大到期天数",
       "min_hwid_per_user": "每用户最少 HWID",
-      "max_hwid_per_user": "每用户最多 HWID"
+      "max_hwid_per_user": "每用户最多 HWID",
+      "on_hold_timeout_days_min": "最小挂起超时（天）",
+      "on_hold_timeout_days_max": "最大挂起超时（天）"
     },
     "limitedBehavior": {
       "disabledWhenLimited": {

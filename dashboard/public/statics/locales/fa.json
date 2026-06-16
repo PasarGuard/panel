@@ -733,10 +733,13 @@
       "data_limit_min": "حداقل محدودیت داده",
       "data_limit_max": "حداکثر محدودیت داده)",
       "expire_days_min": "حداقل روز انقضا",
-      "expire_days_max": "حداکثر روز انقضا",
-      "min_hwid_per_user": "حداقل HWID به ازای کاربر",
-      "max_hwid_per_user": "حداکثر HWID به ازای کاربر"
-    },
+      "expire_days_max": "حداکثر روزهای انقضا",
+      "min_hwid_per_user": "حداقل HWID برای هر کاربر",
+      "max_hwid_per_user": "حداکثر HWID برای هر کاربر",
+      "on_hold_timeout_days_min": "حداقل زمان انتظار (روز)",
+      "on_hold_timeout_days_max": "حداکثر زمان انتظار (روز)"
+      },
+
     "limitedBehavior": {
       "disabledWhenLimited": {
         "title": "مسدود کردن مدیران محدودشده",

@@ -99,6 +99,8 @@ class RoleLimits(BaseModel):
     expire_max: int | None = None
     min_hwid_per_user: int | None = None
     max_hwid_per_user: int | None = None
+    on_hold_timeout_min: int | None = None
+    on_hold_timeout_max: int | None = None
 
     model_config = ConfigDict(from_attributes=True)
 

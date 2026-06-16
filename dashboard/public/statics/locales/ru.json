@@ -854,7 +854,9 @@
       "expire_days_min": "Мин. дней до истечения",
       "expire_days_max": "Макс. дней до истечения",
       "min_hwid_per_user": "Мин. HWID на пользователя",
-      "max_hwid_per_user": "Макс. HWID на пользователя"
+      "max_hwid_per_user": "Макс. HWID на пользователя",
+      "on_hold_timeout_days_min": "Мин. таймаут ожидания (дни)",
+      "on_hold_timeout_days_max": "Макс. таймаут ожидания (дни)"
     },
     "limitedBehavior": {
       "disabledWhenLimited": {

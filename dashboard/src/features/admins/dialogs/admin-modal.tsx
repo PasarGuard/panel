@@ -45,6 +45,8 @@ const SECONDS_PER_DAY = 86_400
 const normalizePermissionOverrides = (overrides: AdminFormValuesInput['permission_overrides']): RoleLimits => {
   const minDays = normalizeOverrideValue(overrides?.expire_days_min)
   const maxDays = normalizeOverrideValue(overrides?.expire_days_max)
+  const minTimeoutDays = normalizeOverrideValue(overrides?.on_hold_timeout_days_min)
+  const maxTimeoutDays = normalizeOverrideValue(overrides?.on_hold_timeout_days_max)
   return {
     max_users: normalizeOverrideValue(overrides?.max_users),
     data_limit_min: normalizeOverrideValue(overrides?.data_limit_min),
@@ -53,6 +55,8 @@ const normalizePermissionOverrides = (overrides: AdminFormValuesInput['permissio
     expire_max: maxDays === null ? null : Math.round(maxDays * SECONDS_PER_DAY),
     min_hwid_per_user: normalizeOverrideValue(overrides?.min_hwid_per_user),
     max_hwid_per_user: normalizeOverrideValue(overrides?.max_hwid_per_user),
+    on_hold_timeout_min: minTimeoutDays === null ? null : Math.round(minTimeoutDays * SECONDS_PER_DAY),
+    on_hold_timeout_max: maxTimeoutDays === null ? null : Math.round(maxTimeoutDays * SECONDS_PER_DAY),
   }
 }
 
@@ -606,7 +610,7 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
                     <div className="flex items-center gap-2">
                       <Sliders className="h-4 w-4" />
                       <span>{t('admins.permissionOverrides', { defaultValue: 'Permission overrides' })}</span>
-                      <span className="text-muted-foreground text-xs">{permissionOverridesCount}/7</span>
+                      <span className="text-muted-foreground text-xs">{permissionOverridesCount}/9</span>
                     </div>
                   </AccordionTrigger>
                   <AccordionContent className="px-1 pt-1">
@@ -673,6 +677,11 @@ function PermissionOverridesFields({ form }: { form: AdminForm }) {
       <div className="grid gap-3 sm:grid-cols-2">
         <NumberLimitField form={form} name="permission_overrides.min_hwid_per_user" labelKey="adminRoles.limitFields.min_hwid_per_user" />
         <NumberLimitField form={form} name="permission_overrides.max_hwid_per_user" labelKey="adminRoles.limitFields.max_hwid_per_user" />
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <NumberLimitField form={form} name="permission_overrides.on_hold_timeout_days_min" labelKey="adminRoles.limitFields.on_hold_timeout_days_min" />
+        <NumberLimitField form={form} name="permission_overrides.on_hold_timeout_days_max" labelKey="adminRoles.limitFields.on_hold_timeout_days_max" />
       </div>
     </div>
   )

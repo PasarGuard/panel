@@ -430,6 +430,11 @@ function LimitsSection({ form }: { form: AdminRoleForm }) {
         <NumberLimitField form={form} name="limits.min_hwid_per_user" labelKey="adminRoles.limitFields.min_hwid_per_user" />
         <NumberLimitField form={form} name="limits.max_hwid_per_user" labelKey="adminRoles.limitFields.max_hwid_per_user" />
       </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <NumberLimitField form={form} name="limits.on_hold_timeout_days_min" labelKey="adminRoles.limitFields.on_hold_timeout_days_min" />
+        <NumberLimitField form={form} name="limits.on_hold_timeout_days_max" labelKey="adminRoles.limitFields.on_hold_timeout_days_max" />
+      </div>
     </div>
   )
 }

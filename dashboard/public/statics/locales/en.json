@@ -868,7 +868,9 @@
       "expire_days_min": "Min expire days",
       "expire_days_max": "Max expire days",
       "min_hwid_per_user": "Min HWIDs per user",
-      "max_hwid_per_user": "Max HWIDs per user"
+      "max_hwid_per_user": "Max HWIDs per user",
+      "on_hold_timeout_days_min": "Min On-Hold timeout (days)",
+      "on_hold_timeout_days_max": "Max On-Hold timeout (days)"
     },
     "limitedBehavior": {
       "disabledWhenLimited": {

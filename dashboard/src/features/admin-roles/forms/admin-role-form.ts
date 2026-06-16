@@ -117,54 +117,10 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
   },
 ]
 
-export const LIMIT_KEYS = ['max_users', 'data_limit_min', 'data_limit_max', 'expire_days_min', 'expire_days_max', 'min_hwid_per_user', 'max_hwid_per_user'] as const
+export const LIMIT_KEYS = ['max_users', 'data_limit_min', 'data_limit_max', 'expire_days_min', 'expire_days_max', 'min_hwid_per_user', 'max_hwid_per_user', 'on_hold_timeout_days_min', 'on_hold_timeout_days_max'] as const
 
 export const FEATURE_KEYS: Array<keyof RoleFeatures> = ['can_use_reset_strategy', 'can_use_next_plan']
-
-const VALID_PERMISSION_ACTIONS = PERMISSION_GROUPS.reduce<Record<string, Set<string>>>((acc, group) => {
-  for (const item of group.actions) {
-    acc[item.resource] = acc[item.resource] || new Set()
-    acc[item.resource].add(item.action)
-  }
-  return acc
-}, {})
-
-const normalizePermissionValue = (value: unknown): RolePermissionFormValue | undefined => {
-  if (typeof value === 'boolean') return value
-  if (!value || typeof value !== 'object') return undefined
-
-  const rawScope = (value as { scope?: unknown }).scope
-  const scope = typeof rawScope === 'string' ? Number(rawScope) : rawScope
-  if (scope === 0 || scope === 1 || scope === 2) return { scope }
-
-  return undefined
-}
-
-const sanitizeRolePermissions = (permissions: RolePermissionInput): RolePermissionFormMap => {
-  const next: RolePermissionFormMap = {}
-
-  for (const [resource, actions] of Object.entries(permissions || {})) {
-    const allowedActions = VALID_PERMISSION_ACTIONS[resource]
-    if (!allowedActions || !actions || typeof actions !== 'object') continue
-
-    for (const [action, value] of Object.entries(actions as Record<string, boolean | { scope: RoleScope }>)) {
-      if (!allowedActions.has(action)) continue
-      const normalizedValue = normalizePermissionValue(value)
-      if (normalizedValue === undefined) continue
-      next[resource] = { ...(next[resource] || {}), [action]: normalizedValue }
-    }
-  }
-
-  return next
-}
-
-const scopeSchema = z.object({ scope: z.union([z.literal(0), z.literal(1), z.literal(2)]) })
-const permissionValueSchema = z.union([z.boolean(), scopeSchema])
-const resourcePermissionsSchema = z.record(z.string(), permissionValueSchema)
-const permissionsSchema = z.preprocess(value => sanitizeRolePermissions(value as RolePermissionInput), z.record(z.string(), resourcePermissionsSchema))
-
-const optionalNullableNumber = z.union([z.literal('').transform(() => null), z.null(), z.coerce.number()]).optional()
-
+...
 const limitsSchema = z.object({
   max_users: optionalNullableNumber,
   data_limit_min: optionalNullableNumber,
@@ -173,6 +129,8 @@ const limitsSchema = z.object({
   expire_days_max: optionalNullableNumber,
   min_hwid_per_user: optionalNullableNumber,
   max_hwid_per_user: optionalNullableNumber,
+  on_hold_timeout_days_min: optionalNullableNumber,
+  on_hold_timeout_days_max: optionalNullableNumber,
 })
 
 const SECONDS_PER_DAY = 86_400
@@ -270,6 +228,8 @@ export const adminRoleFormDefaultValues: AdminRoleFormValuesInput = {
     expire_days_max: null,
     min_hwid_per_user: null,
     max_hwid_per_user: null,
+    on_hold_timeout_days_min: null,
+    on_hold_timeout_days_max: null,
   },
   features: defaultAdminRoleFeatures(),
   access: defaultAdminRoleAccess(),
@@ -290,6 +250,8 @@ export const adminRoleFormFromResponse = (role: AdminRoleResponse): AdminRoleFor
     expire_days_max: secondsToDays(role.limits?.expire_max),
     min_hwid_per_user: role.limits?.min_hwid_per_user ?? null,
     max_hwid_per_user: role.limits?.max_hwid_per_user ?? null,
+    on_hold_timeout_days_min: secondsToDays(role.limits?.on_hold_timeout_min),
+    on_hold_timeout_days_max: secondsToDays(role.limits?.on_hold_timeout_max),
   },
   features: {
     can_use_reset_strategy: role.features?.can_use_reset_strategy ?? true,
@@ -323,6 +285,8 @@ export const adminRoleFormToPayload = (values: AdminRoleFormValues) => {
     expire_max: daysToSeconds(values.limits.expire_days_max),
     min_hwid_per_user: values.limits.min_hwid_per_user,
     max_hwid_per_user: values.limits.max_hwid_per_user,
+    on_hold_timeout_min: daysToSeconds(values.limits.on_hold_timeout_days_min),
+    on_hold_timeout_max: daysToSeconds(values.limits.on_hold_timeout_days_max),
   }
 
   return {

@@ -605,6 +605,11 @@ export interface XHttpSettingsInput {
   download_settings?: XHttpSettingsInputDownloadSettings
 }
 
+export interface WorkersHealth {
+  scheduler: WorkerHealth
+  node: WorkerHealth
+}
+
 export type WorkerHealthError = string | null
 
 export type WorkerHealthResponseTimeMs = number | null
@@ -613,11 +618,6 @@ export interface WorkerHealth {
   status: string
   response_time_ms?: WorkerHealthResponseTimeMs
   error?: WorkerHealthError
-}
-
-export interface WorkersHealth {
-  scheduler: WorkerHealth
-  node: WorkerHealth
 }
 
 export type WireGuardSettingsPublicKey = string | null
@@ -730,6 +730,18 @@ export type UsersPermissionsRevokeSubAnyOf = { [key: string]: PermissionScope | 
 
 export type UsersPermissionsRevokeSub = boolean | UsersPermissionsRevokeSubAnyOf | null
 
+export interface UsersPermissions {
+  create?: UsersPermissionsCreate
+  read?: UsersPermissionsRead
+  read_simple?: UsersPermissionsReadSimple
+  update?: UsersPermissionsUpdate
+  delete?: UsersPermissionsDelete
+  reset_usage?: UsersPermissionsResetUsage
+  revoke_sub?: UsersPermissionsRevokeSub
+  set_owner?: UsersPermissionsSetOwner
+  activate_next_plan?: UsersPermissionsActivateNextPlan
+}
+
 export type UsersPermissionsResetUsageAnyOf = { [key: string]: PermissionScope | number }
 
 export type UsersPermissionsResetUsage = boolean | UsersPermissionsResetUsageAnyOf | null
@@ -753,18 +765,6 @@ export type UsersPermissionsRead = boolean | UsersPermissionsReadAnyOf | null
 export type UsersPermissionsCreateAnyOf = { [key: string]: PermissionScope | number }
 
 export type UsersPermissionsCreate = boolean | UsersPermissionsCreateAnyOf | null
-
-export interface UsersPermissions {
-  create?: UsersPermissionsCreate
-  read?: UsersPermissionsRead
-  read_simple?: UsersPermissionsReadSimple
-  update?: UsersPermissionsUpdate
-  delete?: UsersPermissionsDelete
-  reset_usage?: UsersPermissionsResetUsage
-  revoke_sub?: UsersPermissionsRevokeSub
-  set_owner?: UsersPermissionsSetOwner
-  activate_next_plan?: UsersPermissionsActivateNextPlan
-}
 
 export type UsernameGenerationStrategy = (typeof UsernameGenerationStrategy)[keyof typeof UsernameGenerationStrategy]
 
@@ -1628,6 +1628,10 @@ export interface RolePermissions {
   admin_roles?: RolePermissionsAdminRoles
 }
 
+export type RoleLimitsOnHoldTimeoutMax = number | null
+
+export type RoleLimitsOnHoldTimeoutMin = number | null
+
 export type RoleLimitsMaxHwidPerUser = number | null
 
 export type RoleLimitsMinHwidPerUser = number | null
@@ -1650,6 +1654,8 @@ export interface RoleLimits {
   expire_max?: RoleLimitsExpireMax
   min_hwid_per_user?: RoleLimitsMinHwidPerUser
   max_hwid_per_user?: RoleLimitsMaxHwidPerUser
+  on_hold_timeout_min?: RoleLimitsOnHoldTimeoutMin
+  on_hold_timeout_max?: RoleLimitsOnHoldTimeoutMax
 }
 
 export type RoleHWIDSettingsMaxLimit = number | null

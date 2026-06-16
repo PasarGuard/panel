@@ -81,6 +81,8 @@ export const adminFormSchema = z
         expire_days_max: z.union([z.literal('').transform(() => null), z.null(), z.coerce.number()]).optional(),
         min_hwid_per_user: z.union([z.literal('').transform(() => null), z.null(), z.coerce.number()]).optional(),
         max_hwid_per_user: z.union([z.literal('').transform(() => null), z.null(), z.coerce.number()]).optional(),
+        on_hold_timeout_days_min: z.union([z.literal('').transform(() => null), z.null(), z.coerce.number()]).optional(),
+        on_hold_timeout_days_max: z.union([z.literal('').transform(() => null), z.null(), z.coerce.number()]).optional(),
       })
       .optional(),
   })
@@ -129,6 +131,8 @@ export const adminPermissionOverridesDefaultValues = {
   expire_days_max: null,
   min_hwid_per_user: null,
   max_hwid_per_user: null,
+  on_hold_timeout_days_min: null,
+  on_hold_timeout_days_max: null,
 } as const
 
 export const adminFormDefaultValues: Partial<AdminFormValuesInput> = {
