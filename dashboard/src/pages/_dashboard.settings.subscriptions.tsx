@@ -167,6 +167,7 @@ export default function SubscriptionSettings() {
           import_url: app.import_url?.trim() || undefined,
           description: app.description || {},
           recommended: app.recommended || false,
+          show_when_hwid_enabled: app.show_when_hwid_enabled || false,
           platform: app.platform,
           download_links: (app.download_links || [])
             .map(link => ({
@@ -181,10 +182,11 @@ export default function SubscriptionSettings() {
       const platformHasRecommended: Record<string, boolean> = {}
       const processedApplications = rawApps.map(app => {
         if (app.recommended) {
-          if (platformHasRecommended[app.platform]) {
+          const recommendationKey = `${app.platform}:${app.show_when_hwid_enabled ? 'hwid' : 'standard'}`
+          if (platformHasRecommended[recommendationKey]) {
             return { ...app, recommended: false }
           }
-          platformHasRecommended[app.platform] = true
+          platformHasRecommended[recommendationKey] = true
         }
         return app
       })

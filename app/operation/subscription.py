@@ -663,12 +663,14 @@ class SubscriptionOperation(BaseOperation):
     ) -> list[Application]:
         apps_with_updated_urls = []
         for app in applications:
-            if app.show_when_hwid_enabled != is_hwid_enabled:
-                continue
             updated_app = app.model_copy()
             import_url = app.import_url.format_map(format_variables)
             updated_app.import_url = import_url
-            apps_with_updated_urls.append(updated_app)
+            if is_hwid_enabled:
+                if app.show_when_hwid_enabled:
+                    apps_with_updated_urls.append(updated_app)
+            else:
+                apps_with_updated_urls.append(updated_app)
 
         return apps_with_updated_urls
 
