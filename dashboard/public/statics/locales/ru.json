@@ -353,6 +353,8 @@
         "descriptionPlaceholder": "Введите описание на {{lang}}",
         "recommended": "Рекомендуемое",
         "recommendedDescription": "Отметить это приложение как рекомендуемое для пользователей",
+        "showWhenHwidEnabled": "Target HWID-enabled users",
+        "showWhenHwidEnabledDescription": "If enabled, this app only shows to users with HWID active. If disabled, it only shows to users without HWID.",
         "downloadLinks": "Ссылки",
         "addDownloadLink": "Добавить ссылку",
         "noDownloadLinks": "Ссылки не добавлены",

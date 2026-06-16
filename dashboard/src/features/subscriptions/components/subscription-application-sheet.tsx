@@ -46,6 +46,7 @@ const emptyApplicationDefaults: SubscriptionApplicationFormData = {
   import_url: '',
   description: { fa: '', en: '', ru: '', zh: '' },
   recommended: false,
+  show_when_hwid_enabled: false,
   platform: 'android',
   download_links: [{ name: '', url: '', language: 'en' }],
 }
@@ -178,6 +179,7 @@ function SubscriptionApplicationSheetEdit({ form, applicationIndex, rowId, open,
     form.setValue(`applications.${applicationIndex}.import_url`, restoredApplication.import_url, setOptions)
     form.setValue(`applications.${applicationIndex}.description`, restoredApplication.description, setOptions)
     form.setValue(`applications.${applicationIndex}.recommended`, restoredApplication.recommended, setOptions)
+    form.setValue(`applications.${applicationIndex}.show_when_hwid_enabled`, restoredApplication.show_when_hwid_enabled, setOptions)
     form.setValue(`applications.${applicationIndex}.platform`, restoredApplication.platform, setOptions)
     setRestoredLinks(restoredApplication.download_links)
     setRestoreLinksVersion(version => version + 1)
@@ -375,6 +377,22 @@ function ApplicationFieldsGridCreate({ iconBroken, setIconBroken }: { iconBroken
           </FormItem>
         )}
       />
+
+      <FormField
+        control={control}
+        name="show_when_hwid_enabled"
+        render={({ field }) => (
+          <FormItem className="bg-muted/30 flex flex-row items-center justify-between space-y-0 rounded-lg border p-3 sm:col-span-2">
+            <div className="space-y-0.5">
+              <FormLabel className="text-xs font-medium">{t('settings.subscriptions.applications.showWhenHwidEnabled')}</FormLabel>
+              <FormDescription className="text-muted-foreground text-xs">{t('settings.subscriptions.applications.showWhenHwidEnabledDescription')}</FormDescription>
+            </div>
+            <FormControl>
+              <Switch checked={field.value} onCheckedChange={field.onChange} />
+            </FormControl>
+          </FormItem>
+        )}
+      />
     </div>
   )
 }
@@ -534,6 +552,22 @@ function ApplicationFieldsGridEdit({
             <div className="space-y-0.5">
               <FormLabel className="text-xs font-medium">{t('settings.subscriptions.applications.recommended')}</FormLabel>
               <FormDescription className="text-muted-foreground text-xs">{t('settings.subscriptions.applications.recommendedDescription')}</FormDescription>
+            </div>
+            <FormControl>
+              <Switch checked={field.value} onCheckedChange={field.onChange} />
+            </FormControl>
+          </FormItem>
+        )}
+      />
+
+      <FormField
+        control={form.control}
+        name={`applications.${applicationIndex}.show_when_hwid_enabled`}
+        render={({ field }) => (
+          <FormItem className="bg-muted/30 flex flex-row items-center justify-between space-y-0 rounded-lg border p-3 sm:col-span-2">
+            <div className="space-y-0.5">
+              <FormLabel className="text-xs font-medium">{t('settings.subscriptions.applications.showWhenHwidEnabled')}</FormLabel>
+              <FormDescription className="text-muted-foreground text-xs">{t('settings.subscriptions.applications.showWhenHwidEnabledDescription')}</FormDescription>
             </div>
             <FormControl>
               <Switch checked={field.value} onCheckedChange={field.onChange} />

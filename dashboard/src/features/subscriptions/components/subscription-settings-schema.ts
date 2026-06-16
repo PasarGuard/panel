@@ -18,6 +18,7 @@ export const subscriptionApplicationSchema = z.object({
     .or(z.literal('')),
   description: z.record(z.string()).optional(),
   recommended: z.boolean().optional(),
+  show_when_hwid_enabled: z.boolean().optional(),
   platform: z.enum(['android', 'ios', 'windows', 'macos', 'linux', 'appletv', 'androidtv']),
   download_links: z
     .array(

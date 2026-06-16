@@ -320,6 +320,8 @@
         "descriptionPlaceholder": "用{{lang}}输入描述",
         "recommended": "推荐",
         "recommendedDescription": "将此应用程序标记为用户推荐",
+        "showWhenHwidEnabled": "Target HWID-enabled users",
+        "showWhenHwidEnabledDescription": "If enabled, this app only shows to users with HWID active. If disabled, it only shows to users without HWID.",
         "downloadLinks": "链接",
         "addDownloadLink": "添加链接",
         "noDownloadLinks": "未添加链接",

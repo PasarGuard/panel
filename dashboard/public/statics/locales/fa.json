@@ -223,6 +223,8 @@
         "descriptionPlaceholder": "توضیحات را به {{lang}} وارد کنید",
         "recommended": "توصیه شده",
         "recommendedDescription": "این برنامه را به عنوان توصیه شده برای کاربران علامت‌گذاری کنید",
+        "showWhenHwidEnabled": "هدف کاربران با HWID فعال",
+        "showWhenHwidEnabledDescription": "اگر فعال باشد، این برنامه فقط به کاربرانی که HWID فعال دارند نشان داده می‌شود. اگر غیرفعال باشد، فقط به کاربران بدون HWID نشان داده می‌شود.",
         "downloadLinks": "لینک‌ها",
         "addDownloadLink": "افزودن لینک",
         "noDownloadLinks": "هیچ لینکی اضافه نشده است",

@@ -402,6 +402,13 @@ export type XrayMuxSettingsInputXudpConcurrency = number | null
 
 export type XrayMuxSettingsInputConcurrency = number | null
 
+export interface XrayMuxSettingsInput {
+  enabled?: boolean
+  concurrency?: XrayMuxSettingsInputConcurrency
+  xudp_concurrency?: XrayMuxSettingsInputXudpConcurrency
+  xudp_proxy_udp_443?: Xudp
+}
+
 export interface XrayFragmentSettings {
   /** @pattern ^(:?tlshello|[\d-]{1,16})$ */
   packets: string
@@ -419,13 +426,6 @@ export const Xudp = {
   allow: 'allow',
   skip: 'skip',
 } as const
-
-export interface XrayMuxSettingsInput {
-  enabled?: boolean
-  concurrency?: XrayMuxSettingsInputConcurrency
-  xudp_concurrency?: XrayMuxSettingsInputXudpConcurrency
-  xudp_proxy_udp_443?: Xudp
-}
 
 export type XMuxSettingsOutputHKeepAlivePeriod = number | null
 
@@ -734,18 +734,6 @@ export type UsersPermissionsResetUsageAnyOf = { [key: string]: PermissionScope |
 
 export type UsersPermissionsResetUsage = boolean | UsersPermissionsResetUsageAnyOf | null
 
-export interface UsersPermissions {
-  create?: UsersPermissionsCreate
-  read?: UsersPermissionsRead
-  read_simple?: UsersPermissionsReadSimple
-  update?: UsersPermissionsUpdate
-  delete?: UsersPermissionsDelete
-  reset_usage?: UsersPermissionsResetUsage
-  revoke_sub?: UsersPermissionsRevokeSub
-  set_owner?: UsersPermissionsSetOwner
-  activate_next_plan?: UsersPermissionsActivateNextPlan
-}
-
 export type UsersPermissionsDeleteAnyOf = { [key: string]: PermissionScope | number }
 
 export type UsersPermissionsDelete = boolean | UsersPermissionsDeleteAnyOf | null
@@ -766,6 +754,18 @@ export type UsersPermissionsCreateAnyOf = { [key: string]: PermissionScope | num
 
 export type UsersPermissionsCreate = boolean | UsersPermissionsCreateAnyOf | null
 
+export interface UsersPermissions {
+  create?: UsersPermissionsCreate
+  read?: UsersPermissionsRead
+  read_simple?: UsersPermissionsReadSimple
+  update?: UsersPermissionsUpdate
+  delete?: UsersPermissionsDelete
+  reset_usage?: UsersPermissionsResetUsage
+  revoke_sub?: UsersPermissionsRevokeSub
+  set_owner?: UsersPermissionsSetOwner
+  activate_next_plan?: UsersPermissionsActivateNextPlan
+}
+
 export type UsernameGenerationStrategy = (typeof UsernameGenerationStrategy)[keyof typeof UsernameGenerationStrategy]
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
@@ -776,19 +776,19 @@ export const UsernameGenerationStrategy = {
 
 export type UserUsageStatsListPeriod = Period | null
 
-export interface UserUsageStat {
-  total_traffic: number
-  period_start: string
-}
-
-export type UserUsageStatsListStats = { [key: string]: UserUsageStat[] }
-
 export interface UserUsageStatsList {
   period?: UserUsageStatsListPeriod
   start: string
   end: string
   stats: UserUsageStatsListStats
 }
+
+export interface UserUsageStat {
+  total_traffic: number
+  period_start: string
+}
+
+export type UserUsageStatsListStats = { [key: string]: UserUsageStat[] }
 
 export type UserTemplateSimpleName = string | null
 
@@ -1458,6 +1458,14 @@ export interface SubscriptionTemplates {
 
 export type SubscriptionResponseHeaders = { [key: string]: unknown }
 
+export type SubRuleResponseHeaders = { [key: string]: unknown }
+
+export interface SubRule {
+  pattern: string
+  target: ConfigFormat
+  response_headers?: SubRuleResponseHeaders
+}
+
 export interface SubFormatEnable {
   links?: boolean
   links_base64?: boolean
@@ -1484,14 +1492,6 @@ export interface Subscription {
   allow_browser_config?: boolean
   disable_sub_template?: boolean
   randomize_order?: boolean
-}
-
-export type SubRuleResponseHeaders = { [key: string]: unknown }
-
-export interface SubRule {
-  pattern: string
-  target: ConfigFormat
-  response_headers?: SubRuleResponseHeaders
 }
 
 export type SingBoxMuxSettingsBrutal = Brutal | null
@@ -1563,6 +1563,12 @@ export type SettingsPermissionsUpdateAnyOf = { [key: string]: PermissionScope | 
 
 export type SettingsPermissionsUpdate = boolean | SettingsPermissionsUpdateAnyOf | null
 
+export interface SettingsPermissions {
+  read?: SettingsPermissionsRead
+  read_general?: SettingsPermissionsReadGeneral
+  update?: SettingsPermissionsUpdate
+}
+
 export type SettingsPermissionsReadGeneralAnyOf = { [key: string]: PermissionScope | number }
 
 export type SettingsPermissionsReadGeneral = boolean | SettingsPermissionsReadGeneralAnyOf | null
@@ -1570,12 +1576,6 @@ export type SettingsPermissionsReadGeneral = boolean | SettingsPermissionsReadGe
 export type SettingsPermissionsReadAnyOf = { [key: string]: PermissionScope | number }
 
 export type SettingsPermissionsRead = boolean | SettingsPermissionsReadAnyOf | null
-
-export interface SettingsPermissions {
-  read?: SettingsPermissionsRead
-  read_general?: SettingsPermissionsReadGeneral
-  update?: SettingsPermissionsUpdate
-}
 
 export type RunMethod = (typeof RunMethod)[keyof typeof RunMethod]
 
@@ -1650,6 +1650,22 @@ export interface RoleLimits {
   expire_max?: RoleLimitsExpireMax
   min_hwid_per_user?: RoleLimitsMinHwidPerUser
   max_hwid_per_user?: RoleLimitsMaxHwidPerUser
+}
+
+export type RoleHWIDSettingsMaxLimit = number | null
+
+export type RoleHWIDSettingsMinLimit = number | null
+
+export type RoleHWIDSettingsFallbackLimit = number | null
+
+export interface RoleHWIDSettings {
+  enabled?: boolean
+  forced?: boolean
+  require_hwid_for_manual_sub?: boolean
+  fallback_limit?: RoleHWIDSettingsFallbackLimit
+  min_limit?: RoleHWIDSettingsMinLimit
+  max_limit?: RoleHWIDSettingsMaxLimit
+  mode?: HWIDMode
 }
 
 export interface RoleFeatures {
@@ -2353,13 +2369,22 @@ export type HWIDSettingsMinLimit = number | null
 export type HWIDSettingsFallbackLimit = number | null
 
 export interface HWIDSettings {
-  mode?: 'disabled' | 'use_global' | 'override'
   enabled?: boolean
   forced?: boolean
+  require_hwid_for_manual_sub?: boolean
   fallback_limit?: HWIDSettingsFallbackLimit
   min_limit?: HWIDSettingsMinLimit
   max_limit?: HWIDSettingsMaxLimit
 }
+
+export type HWIDMode = (typeof HWIDMode)[keyof typeof HWIDMode]
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const HWIDMode = {
+  disabled: 'disabled',
+  use_global: 'use_global',
+  override: 'override',
+} as const
 
 export interface HTTPValidationError {
   detail?: ValidationError[]
@@ -3118,6 +3143,7 @@ export interface Application {
   import_url?: string
   description?: ApplicationDescription
   recommended?: boolean
+  show_when_hwid_enabled?: boolean
   platform: Platform
   download_links: DownloadLink[]
 }
@@ -3209,7 +3235,7 @@ export interface AdminRoleResponse {
   limits?: RoleLimits
   features?: RoleFeatures
   access?: RoleAccess
-  hwid?: HWIDSettings
+  hwid?: RoleHWIDSettings
   disabled_when_limited?: boolean
   disconnect_users_when_limited?: boolean
   disconnect_users_when_disabled?: boolean
@@ -3229,7 +3255,7 @@ export type AdminRoleModifyDisconnectUsersWhenLimited = boolean | null
 
 export type AdminRoleModifyDisabledWhenLimited = boolean | null
 
-export type AdminRoleModifyHwid = HWIDSettings | null
+export type AdminRoleModifyHwid = RoleHWIDSettings | null
 
 export type AdminRoleModifyAccess = RoleAccess | null
 
@@ -3266,7 +3292,7 @@ export interface AdminRoleData {
   limits?: RoleLimits
   features?: RoleFeatures
   access?: RoleAccess
-  hwid?: HWIDSettings
+  hwid?: RoleHWIDSettings
   disabled_when_limited?: boolean
   disconnect_users_when_limited?: boolean
   disconnect_users_when_disabled?: boolean
@@ -3279,7 +3305,7 @@ export interface AdminRoleCreate {
   limits?: RoleLimits
   features?: RoleFeatures
   access?: RoleAccess
-  hwid?: HWIDSettings
+  hwid?: RoleHWIDSettings
   disabled_when_limited?: boolean
   disconnect_users_when_limited?: boolean
   disconnect_users_when_disabled?: boolean

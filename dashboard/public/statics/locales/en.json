@@ -338,6 +338,8 @@
         "descriptionDescription": "Multi-language descriptions for the application",
         "recommended": "Recommended",
         "recommendedDescription": "Mark this application as recommended for users",
+        "showWhenHwidEnabled": "Target HWID-enabled users",
+        "showWhenHwidEnabledDescription": "If enabled, this app only shows to users with HWID active. If disabled, it only shows to users without HWID.",
         "downloadLinks": "Links",
         "addDownloadLink": "Add Link",
         "noDownloadLinks": "No links added",
