@@ -295,11 +295,18 @@ class SubscriptionOperation(BaseOperation):
         if effective_hwid_conf is None or not effective_hwid_conf.enabled:
             return
 
-        if not x_hwid:
-            forced = effective_hwid_conf.forced
-            if is_manual_sub and not global_hwid_conf.require_hwid_for_manual_sub:
-                forced = False
+        forced = effective_hwid_conf.forced
+        if is_manual_sub and not global_hwid_conf.require_hwid_for_manual_sub:
+            forced = False
 
+        limit = user_hwid_limit
+        if forced and limit is None:
+            limit = effective_hwid_conf.fallback_limit
+
+        if not forced and limit is None:
+            return
+
+        if not x_hwid:
             if forced:
                 await self.raise_error(message="HWID header required", code=403)
             return
@@ -310,7 +317,6 @@ class SubscriptionOperation(BaseOperation):
             return
 
         # It's a new HWID, check limit
-        limit = user_hwid_limit if user_hwid_limit is not None else effective_hwid_conf.fallback_limit
         if limit is not None and limit > 0:
             current_count = await get_user_hwid_count(db, user_id)
             if current_count >= limit:
