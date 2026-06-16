@@ -212,6 +212,58 @@ async def test_hwid_forced_applies_fallback_to_user_without_limit(access_token, 
         delete_user(access_token, user["username"])
 
 
+@pytest.mark.asyncio
+async def test_subscription_apps_are_filtered_by_hwid_policy(access_token, monkeypatch):
+    from app.operation import subscription as subscription_module
+
+    applications = [
+        {
+            "name": "StandardApp",
+            "icon_url": "",
+            "import_url": "standard://import/{url}",
+            "description": {"en": "Standard subscription app"},
+            "recommended": True,
+            "show_when_hwid_enabled": False,
+            "platform": "android",
+            "download_links": [{"name": "Download", "url": "https://example.com/standard", "language": "en"}],
+        },
+        {
+            "name": "DeviceBoundApp",
+            "icon_url": "",
+            "import_url": "device://import/{url}",
+            "description": {"en": "Device-bound subscription app"},
+            "recommended": True,
+            "show_when_hwid_enabled": True,
+            "platform": "android",
+            "download_links": [{"name": "Download", "url": "https://example.com/device-bound", "language": "en"}],
+        },
+    ]
+    sub_settings = await subscription_module.subscription_settings()
+    sub_settings_data = sub_settings.model_dump(mode="json")
+    sub_settings_data["applications"] = applications
+    patched_sub_settings = subscription_module.SubSettings.model_validate(sub_settings_data)
+
+    async def patched_subscription_settings() -> subscription_module.SubSettings:
+        return patched_sub_settings
+
+    monkeypatch.setattr(subscription_module, "subscription_settings", patched_subscription_settings)
+    user = create_user(access_token)
+
+    try:
+        await _set_user_hwid_limit(user["id"], None)
+        response = client.get(f"{user['subscription_url']}/apps")
+        assert response.status_code == status.HTTP_200_OK
+        assert [app["name"] for app in response.json()] == ["StandardApp"]
+
+        await _set_user_hwid_limit(user["id"], 1)
+        response = client.get(f"{user['subscription_url']}/apps")
+        assert response.status_code == status.HTTP_200_OK
+        assert [app["name"] for app in response.json()] == ["DeviceBoundApp"]
+    finally:
+        await _reset_user_hwids(user["id"])
+        delete_user(access_token, user["username"])
+
+
 def test_hwid_respects_admin_role_policy(access_token):
     def _login(username: str, password: str) -> str:
         response = client.post(

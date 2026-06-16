@@ -282,15 +282,28 @@ class SubscriptionOperation(BaseOperation):
         global_hwid_conf: HWIDSettings,
         effective_hwid_conf: HWIDSettings | None,
         user_hwid_limit: int | None,
+        *,
+        is_manual_sub: bool = False,
     ) -> bool:
         if effective_hwid_conf is None or not effective_hwid_conf.enabled:
             return False
 
         forced = effective_hwid_conf.forced
-        if not global_hwid_conf.require_hwid_for_manual_sub:
+        if is_manual_sub and not global_hwid_conf.require_hwid_for_manual_sub:
             forced = False
 
         return forced or user_hwid_limit is not None
+
+    async def is_user_hwid_enabled(self, db_user: User, *, is_manual_sub: bool = False) -> bool:
+        role_hwid_settings = db_user.admin.role.hwid if db_user.admin and db_user.admin.role else None
+        global_hwid_conf: HWIDSettings = await hwid_settings()
+        effective_hwid_conf = resolve_effective_hwid_settings(global_hwid_conf, role_hwid_settings)
+        return self.is_hwid_enabled(
+            global_hwid_conf,
+            effective_hwid_conf,
+            db_user.hwid_limit,
+            is_manual_sub=is_manual_sub,
+        )
 
     async def validate_and_register_hwid(
         self,
@@ -367,18 +380,13 @@ class SubscriptionOperation(BaseOperation):
         is_browser_request = "text/html" in accept_header
         is_subscription_page_request = is_browser_request and not sub_settings.disable_sub_template
         if is_subscription_page_request:
+            is_hwid_enabled = await self.is_user_hwid_enabled(db_user)
             template = (
                 db_user.admin.sub_template
                 if db_user.admin and db_user.admin.sub_template
                 else template_settings.subscription_page_template
             )
-            global_hwid_conf: HWIDSettings = await hwid_settings()
-            effective_hwid_conf = resolve_effective_hwid_settings(global_hwid_conf, role_hwid_settings)
-            is_allow_browser_config = sub_settings.allow_browser_config and not self.is_hwid_enabled(
-                global_hwid_conf,
-                effective_hwid_conf,
-                db_user.hwid_limit,
-            )
+            is_allow_browser_config = sub_settings.allow_browser_config and not is_hwid_enabled
             links = []
             if is_allow_browser_config:
                 conf, media_type = await self.fetch_config(
@@ -394,7 +402,7 @@ class SubscriptionOperation(BaseOperation):
                 render_template(
                     template,
                     self._build_subscription_body_payload(
-                        user, links, formatted_announce, sub_settings, format_variables
+                        user, links, formatted_announce, sub_settings, format_variables, is_hwid_enabled
                     ),
                 )
             )
@@ -519,13 +527,18 @@ class SubscriptionOperation(BaseOperation):
         formatted_announce: str,
         sub_settings: SubSettings,
         format_variables: dict,
+        is_hwid_enabled: bool,
     ) -> dict[str, Any]:
         return {
             "user": SubscriptionUserResponse.model_validate(user),
             "links": links,
             "announce": formatted_announce,
             "announce_url": sub_settings.announce_url,
-            "apps": self._make_apps_import_urls(sub_settings.applications, format_variables),
+            "apps": self._make_apps_import_urls(
+                sub_settings.applications,
+                format_variables,
+                is_hwid_enabled=is_hwid_enabled,
+            ),
         }
 
     def _build_raw_subscription_payload(
@@ -536,10 +549,11 @@ class SubscriptionOperation(BaseOperation):
         sub_settings: SubSettings,
         format_variables: dict,
         headers: dict[str, str],
+        is_hwid_enabled: bool,
     ) -> dict[str, Any]:
         return {
             "body": self._build_subscription_body_payload(
-                user, links, formatted_announce, sub_settings, format_variables
+                user, links, formatted_announce, sub_settings, format_variables, is_hwid_enabled
             ),
             "headers": headers,
         }
@@ -548,6 +562,7 @@ class SubscriptionOperation(BaseOperation):
         sub_settings: SubSettings = await subscription_settings()
         db_user = await self.get_validated_sub(db, token, load_admin_role=True)
         user = await self.validated_user(db_user)
+        is_hwid_enabled = await self.is_user_hwid_enabled(db_user)
 
         links = []
         if sub_settings.allow_browser_config:
@@ -573,6 +588,7 @@ class SubscriptionOperation(BaseOperation):
             sub_settings,
             format_variables,
             response_headers,
+            is_hwid_enabled,
         )
 
     async def user_subscription_by_user(
@@ -631,14 +647,24 @@ class SubscriptionOperation(BaseOperation):
         """
         Get available applications for user's subscription.
         """
-        user, _ = await self.user_subscription_info(db, token)
+        db_user = await self.get_validated_sub(db, token=token, load_admin_role=True)
+        user = await self.validated_user(db_user)
+        is_hwid_enabled = await self.is_user_hwid_enabled(db_user)
         sub_settings: SubSettings = await subscription_settings()
         format_variables = await self.get_format_variables(user)
-        return self._make_apps_import_urls(sub_settings.applications, format_variables)
+        return self._make_apps_import_urls(
+            sub_settings.applications,
+            format_variables,
+            is_hwid_enabled=is_hwid_enabled,
+        )
 
-    def _make_apps_import_urls(self, applications: list[Application], format_variables: dict) -> list[Application]:
+    def _make_apps_import_urls(
+        self, applications: list[Application], format_variables: dict, *, is_hwid_enabled: bool
+    ) -> list[Application]:
         apps_with_updated_urls = []
         for app in applications:
+            if app.show_when_hwid_enabled != is_hwid_enabled:
+                continue
             updated_app = app.model_copy()
             import_url = app.import_url.format_map(format_variables)
             updated_app.import_url = import_url

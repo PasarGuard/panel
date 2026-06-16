@@ -226,6 +226,7 @@ class Application(BaseModel):
     import_url: str = Field(default="", max_length=256)
     description: dict[Language, str] = Field(default_factory=dict)
     recommended: bool = Field(False)
+    show_when_hwid_enabled: bool = Field(False)
     platform: Platform
     download_links: list[DownloadLink]
 
@@ -258,14 +259,18 @@ class Subscription(BaseModel):
     @field_validator("applications")
     @classmethod
     def validate_recommended_apps(cls, v: list[Application]) -> list[Application]:
-        """Validate that each platform has at most one recommended application"""
+        """Validate that each platform has at most one recommended app per subscription type."""
         platform_recommended = {}
 
         for app in v:
             if app.recommended:
-                if app.platform in platform_recommended:
-                    raise ValueError(f"Multiple recommended applications found for platform '{app.platform}'.")
-                platform_recommended[app.platform] = app.name
+                recommendation_key = (app.platform, app.show_when_hwid_enabled)
+                if recommendation_key in platform_recommended:
+                    subscription_type = "device-bound" if app.show_when_hwid_enabled else "standard"
+                    raise ValueError(
+                        f"Multiple recommended {subscription_type} applications found for platform '{app.platform}'."
+                    )
+                platform_recommended[recommendation_key] = app.name
 
         return v
 
