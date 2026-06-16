@@ -63,16 +63,16 @@ class NoiseSettings(BaseModel):
 
 
 class XMuxSettings(BaseModel):
-    max_concurrency: str | None = Field(None, pattern=r"^\d{1,16}(-\d{1,16})?$", serialization_alias="maxConcurrency")
-    max_connections: str | None = Field(None, pattern=r"^\d{1,16}(-\d{1,16})?$", serialization_alias="maxConnections")
-    c_max_reuse_times: str | None = Field(None, pattern=r"^\d{1,16}(-\d{1,16})?$", serialization_alias="cMaxReuseTimes")
+    max_concurrency: str | None = Field(None, pattern=r"^\d{1,16}(-\d{1,16})?$", alias="maxConcurrency")
+    max_connections: str | None = Field(None, pattern=r"^\d{1,16}(-\d{1,16})?$", alias="maxConnections")
+    c_max_reuse_times: str | None = Field(None, pattern=r"^\d{1,16}(-\d{1,16})?$", alias="cMaxReuseTimes")
     h_max_reusable_secs: str | None = Field(
-        None, pattern=r"^\d{1,16}(-\d{1,16})?$", serialization_alias="hMaxReusableSecs"
+        None, pattern=r"^\d{1,16}(-\d{1,16})?$", alias="hMaxReusableSecs"
     )
     h_max_request_times: str | None = Field(
-        None, pattern=r"^\d{1,16}(-\d{1,16})?$", serialization_alias="hMaxRequestTimes"
+        None, pattern=r"^\d{1,16}(-\d{1,16})?$", alias="hMaxRequestTimes"
     )
-    h_keep_alive_period: int | None = Field(None, serialization_alias="hKeepAlivePeriod")
+    h_keep_alive_period: int | None = Field(None, alias="hKeepAlivePeriod")
 
     @field_validator(
         "max_concurrency",
