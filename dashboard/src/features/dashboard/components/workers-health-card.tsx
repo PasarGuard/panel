@@ -6,6 +6,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { DOCUMENTATION } from '@/constants/Project'
 import { cn } from '@/lib/utils'
 import useDirDetection from '@/hooks/use-dir-detection'
+import { useDocumentVisibility } from '@/hooks/use-document-visibility'
 import { useGetWorkersHealth } from '@/service/api'
 import { ChevronDown, ChevronRight, Clock, HelpCircle, Server, ServerCog } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
@@ -44,11 +45,12 @@ const dotClassMap: Record<WorkerStatusVariant, string> = {
 const WorkersHealthCard = () => {
   const { t, i18n } = useTranslation()
   const dir = useDirDetection()
+  const isTabVisible = useDocumentVisibility()
   const [pauseRefetch, setPauseRefetch] = useState(false)
   const [isCollapsed, setIsCollapsed] = useState(true)
   const { data, isLoading, isError } = useGetWorkersHealth({
     query: {
-      refetchInterval: pauseRefetch ? false : 5000,
+      refetchInterval: pauseRefetch ? false : isTabVisible ? 5000 : 60000,
       retry: false,
     },
   })
