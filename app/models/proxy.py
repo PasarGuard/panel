@@ -3,7 +3,7 @@ from enum import StrEnum
 from ipaddress import ip_network
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.utils.crypto import get_wireguard_public_key, validate_wireguard_key
 from app.utils.system import random_password
@@ -31,6 +31,7 @@ class ShadowsocksMethods(StrEnum):
 class ShadowsocksSettings(BaseModel):
     password: str = Field(default_factory=random_password, min_length=22)
     method: ShadowsocksMethods = ShadowsocksMethods.CHACHA20_POLY1305
+    model_config = ConfigDict(validate_assignment=True)
 
 
 class HysteriaSettings(BaseModel):
