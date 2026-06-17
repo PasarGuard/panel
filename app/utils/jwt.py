@@ -1,3 +1,4 @@
+import hmac
 import time
 import jwt
 from base64 import b64decode, b64encode
@@ -38,7 +39,7 @@ async def get_admin_payload(token: str) -> dict | None:
         if admin_id is not None:
             try:
                 admin_id = int(admin_id)
-            except TypeError, ValueError:
+            except (TypeError, ValueError):
                 return
         if not username or access not in ("admin", "sudo"):
             return
@@ -97,7 +98,7 @@ async def get_subscription_payload(token: str) -> dict | None:
                 sha256((u_token + await get_secret_key()).encode("utf-8")).digest(), altchars=b"-_"
             ).decode("utf-8")[:10]
             u_token_hex_resign = sha256((u_token + await get_secret_key()).encode("utf-8")).hexdigest()[:10]
-            if u_signature in (u_token_resign, u_token_hex_resign):
+            if hmac.compare_digest(u_signature, u_token_resign) | hmac.compare_digest(u_signature, u_token_hex_resign):
                 parts = u_token_dec_str.split(",")
                 if len(parts) == 3 and parts[0] in ("v2", "v3"):
                     _, u_user_id_str, u_created_at_str = parts
