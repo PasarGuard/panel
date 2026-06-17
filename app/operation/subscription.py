@@ -127,7 +127,7 @@ class SubscriptionOperation(BaseOperation):
 
         try:
             return profile_title.format_map(format_variables)
-        except (ValueError, KeyError):
+        except ValueError, KeyError:
             # Invalid format string, return original title
             return profile_title
 
@@ -139,7 +139,7 @@ class SubscriptionOperation(BaseOperation):
 
         try:
             return sub_settings.announce.format_map(format_variables)
-        except (ValueError, KeyError):
+        except ValueError, KeyError:
             return sub_settings.announce
 
     @staticmethod
@@ -246,7 +246,7 @@ class SubscriptionOperation(BaseOperation):
                 return ""
             try:
                 return header_value.format_map(format_variables)
-            except (ValueError, KeyError):
+            except ValueError, KeyError:
                 return header_value
 
         if isinstance(value, (dict, list, tuple, bool, int, float)):
@@ -353,7 +353,7 @@ class SubscriptionOperation(BaseOperation):
             return
 
         if not x_hwid:
-            if forced:
+            if limit or forced:
                 await self.raise_error(message="HWID header required", code=403)
             return
 
@@ -486,7 +486,9 @@ class SubscriptionOperation(BaseOperation):
         format_variables = await self.get_format_variables(user)
         format_variables.update({"format": client_format.value})
         sub_settings: SubSettings = await subscription_settings()
-        apply_custom_format_variables(format_variables, get_effective_custom_variables(user, sub_settings.custom_variables))
+        apply_custom_format_variables(
+            format_variables, get_effective_custom_variables(user, sub_settings.custom_variables)
+        )
         return format_variables
 
     async def user_subscription_with_client_type(
