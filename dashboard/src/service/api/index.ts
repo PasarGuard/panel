@@ -3345,6 +3345,8 @@ export type AdminModifyNote = string | null
 
 export type AdminModifySupportUrl = string | null
 
+export type AdminModifyCustomVariables = CustomVariable[] | null
+
 export type AdminModifyProfileTitle = string | null
 
 export type AdminModifySubDomain = string | null
@@ -3371,6 +3373,7 @@ export interface AdminModify {
   sub_domain?: AdminModifySubDomain
   profile_title?: AdminModifyProfileTitle
   support_url?: AdminModifySupportUrl
+  custom_variables?: AdminModifyCustomVariables
   note?: AdminModifyNote
   notification_enable?: AdminModifyNotificationEnable
   role_id?: AdminModifyRoleId
@@ -3393,6 +3396,8 @@ export type AdminDetailsNotificationEnable = UserNotificationEnable | null
 
 export type AdminDetailsSupportUrl = string | null
 
+export type AdminDetailsCustomVariables = CustomVariable[]
+
 export type AdminDetailsProfileTitle = string | null
 
 export type AdminDetailsSubDomain = string | null
@@ -3414,6 +3419,7 @@ export interface AdminDetails {
   sub_domain?: AdminDetailsSubDomain
   profile_title?: AdminDetailsProfileTitle
   support_url?: AdminDetailsSupportUrl
+  custom_variables?: AdminDetailsCustomVariables
   notification_enable?: AdminDetailsNotificationEnable
   total_users?: number
   used_traffic?: number
@@ -3435,6 +3441,8 @@ export type AdminCreateNotificationEnable = UserNotificationEnable | null
 export type AdminCreateNote = string | null
 
 export type AdminCreateSupportUrl = string | null
+
+export type AdminCreateCustomVariables = CustomVariable[] | null
 
 export type AdminCreateProfileTitle = string | null
 
@@ -3463,6 +3471,7 @@ export interface AdminCreate {
   sub_domain?: AdminCreateSubDomain
   profile_title?: AdminCreateProfileTitle
   support_url?: AdminCreateSupportUrl
+  custom_variables?: AdminCreateCustomVariables
   note?: AdminCreateNote
   notification_enable?: AdminCreateNotificationEnable
   role_id: number
@@ -3473,6 +3482,8 @@ export interface AdminCreate {
 export type AdminContactInfoNotificationEnable = UserNotificationEnable | null
 
 export type AdminContactInfoSupportUrl = string | null
+
+export type AdminContactInfoCustomVariables = CustomVariable[]
 
 export type AdminContactInfoProfileTitle = string | null
 
@@ -3495,6 +3506,7 @@ export interface AdminContactInfo {
   sub_domain?: AdminContactInfoSubDomain
   profile_title?: AdminContactInfoProfileTitle
   support_url?: AdminContactInfoSupportUrl
+  custom_variables?: AdminContactInfoCustomVariables
   notification_enable?: AdminContactInfoNotificationEnable
 }
 

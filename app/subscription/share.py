@@ -91,6 +91,7 @@ async def generate_subscription(
         raise ValueError(f'Unsupported format "{config_format}"')
 
     sub_settings = await subscription_settings()
+    custom_variables = get_effective_custom_variables(user, sub_settings.custom_variables)
     format_variables = setup_format_variables(user, sub_settings.custom_variables)
 
     config = await process_inbounds_and_tags(
@@ -100,7 +101,7 @@ async def generate_subscription(
         client_templates,
         xray_template_overrides=xray_template_overrides,
         randomize_order=randomize_order,
-        custom_variables=sub_settings.custom_variables,
+        custom_variables=custom_variables,
     )
 
     if as_base64 and not isinstance(config, bytes):
@@ -140,6 +141,13 @@ def _custom_variable_parts(custom_variable) -> tuple[str | None, str]:
     return (str(key) if key else None), str(value or "")
 
 
+def get_effective_custom_variables(user: UsersResponseWithInbounds, custom_variables: list | tuple | None = None) -> list:
+    variables = list(custom_variables or [])
+    admin_variables = getattr(getattr(user, "admin", None), "custom_variables", None) or []
+    variables.extend(admin_variables)
+    return variables
+
+
 def apply_custom_format_variables(format_variables: dict, custom_variables: list | tuple | None = None) -> dict:
     if not custom_variables:
         return format_variables
@@ -176,6 +184,7 @@ def _format_dynamic_value(value, format_variables: dict):
 
 
 def setup_format_variables(user: UsersResponseWithInbounds, custom_variables: list | tuple | None = None) -> dict:
+    custom_variables = get_effective_custom_variables(user, custom_variables)
     user_status = user.status
     expire = user.expire
     on_hold_expire_duration = user.on_hold_expire_duration

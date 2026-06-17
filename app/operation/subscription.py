@@ -19,7 +19,13 @@ from app.models.stats import UserUsageStatsList
 from app.models.subscription import SubscriptionUsageQuery
 from app.models.user import SubscriptionUserResponse, UsersResponseWithInbounds
 from app.settings import hwid_settings, subscription_settings
-from app.subscription.share import apply_custom_format_variables, encode_title, generate_subscription, setup_format_variables
+from app.subscription.share import (
+    apply_custom_format_variables,
+    encode_title,
+    generate_subscription,
+    get_effective_custom_variables,
+    setup_format_variables,
+)
 from app.templates import render_template
 from app.utils.hwid import resolve_effective_hwid_settings
 from config import template_settings
@@ -156,11 +162,12 @@ class SubscriptionOperation(BaseOperation):
             user_info["expire"] = int(user.expire.timestamp())
 
         # Format profile title with dynamic variables
+        custom_variables = get_effective_custom_variables(user, sub_settings.custom_variables)
         format_variables = setup_format_variables(user, sub_settings.custom_variables)
         format_variables.update({"url": request_url})
         formatted_title = SubscriptionOperation._format_profile_title(user, format_variables, sub_settings)
         format_variables.update({"PROFILE_TITLE": formatted_title})
-        apply_custom_format_variables(format_variables, sub_settings.custom_variables)
+        apply_custom_format_variables(format_variables, custom_variables)
         formatted_announce = SubscriptionOperation._format_announce(sub_settings, format_variables)
 
         # Prefer admin's support_url over subscription settings
@@ -462,13 +469,14 @@ class SubscriptionOperation(BaseOperation):
     async def get_format_variables(self, user: UsersResponseWithInbounds) -> dict:
         """Get format variables for URL formatting."""
         sub_settings: SubSettings = await subscription_settings()
+        custom_variables = get_effective_custom_variables(user, sub_settings.custom_variables)
         format_variables = setup_format_variables(user, sub_settings.custom_variables)
         sub_url = await UserOperation.generate_subscription_url(user)
         format_variables.update({"url": sub_url})
         formatted_title = SubscriptionOperation._format_profile_title(user, format_variables, sub_settings)
 
         format_variables.update({"PROFILE_TITLE": formatted_title})
-        apply_custom_format_variables(format_variables, sub_settings.custom_variables)
+        apply_custom_format_variables(format_variables, custom_variables)
 
         return format_variables
 
@@ -478,7 +486,7 @@ class SubscriptionOperation(BaseOperation):
         format_variables = await self.get_format_variables(user)
         format_variables.update({"format": client_format.value})
         sub_settings: SubSettings = await subscription_settings()
-        apply_custom_format_variables(format_variables, sub_settings.custom_variables)
+        apply_custom_format_variables(format_variables, get_effective_custom_variables(user, sub_settings.custom_variables))
         return format_variables
 
     async def user_subscription_with_client_type(

@@ -710,6 +710,14 @@
     "subDomain": "Subscription Domain",
     "profile": "Profile Title",
     "subTemplate": "Subscription Template Path",
+    "customVariables": {
+      "title": "Custom Variables",
+      "description": "Override global custom variables for users owned by this admin.",
+      "addVariable": "Add Variable",
+      "empty": "No custom variables configured.",
+      "duplicateKey": "Duplicate custom variable key.",
+      "builtinConflict": "This key is reserved for a built-in variable."
+    },
     "passwordConfirm": "Confirm Password",
     "enterPasswordConfirm": "Enter Confirm Password",
     "disableSuccess": "Admin «{{name}}» has been disabled successfully",

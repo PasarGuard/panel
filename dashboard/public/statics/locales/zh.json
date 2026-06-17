@@ -710,6 +710,14 @@
     "subDomain": "订阅域名",
     "profile": "个人资料标题",
     "subTemplate": "订阅模板路径",
+    "customVariables": {
+      "title": "自定义变量",
+      "description": "为此管理员名下的用户覆盖全局自定义变量。",
+      "addVariable": "添加变量",
+      "empty": "未配置自定义变量。",
+      "duplicateKey": "自定义变量键重复。",
+      "builtinConflict": "此键已保留给内置变量。"
+    },
     "passwordConfirm": "确认密码",
     "enterPasswordConfirm": "请输入确认密码",
     "disableSuccess": "管理员「{{name}}」已成功禁用",

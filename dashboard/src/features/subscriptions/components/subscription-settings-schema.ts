@@ -17,8 +17,8 @@ export const builtInVariableKeys = [
   'PROFILE_TITLE',
   'PROTOCOL',
   'TRANSPORT',
-  'url',
-  'format',
+  'URL',
+  'FORMAT',
 ] as const
 
 export const customVariableSchema = z.object({

@@ -30,6 +30,7 @@ BUILTIN_FORMAT_VARIABLES = {
     "url",
     "format",
 }
+BUILTIN_CUSTOM_VARIABLE_KEYS = {variable.upper() for variable in BUILTIN_FORMAT_VARIABLES}
 
 
 class RunMethod(StrEnum):
@@ -292,6 +293,17 @@ class CustomVariable(BaseModel):
         return value
 
 
+def validate_custom_variables(value: list[CustomVariable]) -> list[CustomVariable]:
+    seen: set[str] = set()
+    for variable in value:
+        if variable.key.upper() in BUILTIN_CUSTOM_VARIABLE_KEYS:
+            raise ValueError(f"Custom variable {variable.key} conflicts with a built-in variable")
+        if variable.key in seen:
+            raise ValueError(f"Duplicate custom variable {variable.key}")
+        seen.add(variable.key)
+    return value
+
+
 class Subscription(BaseModel):
     url_prefix: str = Field(default="")
     update_interval: int = Field(default=12)
@@ -313,14 +325,7 @@ class Subscription(BaseModel):
     @field_validator("custom_variables")
     @classmethod
     def validate_custom_variables(cls, value: list[CustomVariable]) -> list[CustomVariable]:
-        seen: set[str] = set()
-        for variable in value:
-            if variable.key in BUILTIN_FORMAT_VARIABLES:
-                raise ValueError(f"Custom variable {variable.key} conflicts with a built-in variable")
-            if variable.key in seen:
-                raise ValueError(f"Duplicate custom variable {variable.key}")
-            seen.add(variable.key)
-        return value
+        return validate_custom_variables(value)
 
     @field_validator("applications")
     @classmethod

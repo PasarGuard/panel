@@ -45,6 +45,7 @@ def _admin_usage_warning_details(admin: Admin) -> AdminDetails:
         sub_domain=admin.sub_domain,
         profile_title=admin.profile_title,
         support_url=admin.support_url,
+        custom_variables=admin.custom_variables or [],
         notification_enable=admin.notification_enable,
         sub_template=admin.sub_template,
         note=admin.note,

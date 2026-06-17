@@ -8,7 +8,7 @@ import { toast } from 'sonner'
 
 export interface CustomVariableDefinition {
   key: string
-  value: string
+  value?: string
 }
 
 export const CUSTOM_VARIABLE_SAMPLE_VALUES: Record<string, string | number> = {

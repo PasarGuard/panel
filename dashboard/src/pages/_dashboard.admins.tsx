@@ -96,6 +96,7 @@ export default function AdminsPage() {
           support_url: admin.support_url,
           profile_title: admin.profile_title,
           sub_domain: admin.sub_domain,
+          custom_variables: admin.custom_variables || [],
           note: admin.note,
         },
       })
@@ -149,6 +150,7 @@ export default function AdminsPage() {
       support_url: admin.support_url || '',
       profile_title: admin.profile_title || '',
       sub_domain: admin.sub_domain || '',
+      custom_variables: admin.custom_variables || [],
       note: admin.note || '',
       password: undefined,
       permission_overrides: {

@@ -67,7 +67,7 @@ def build_admin_details(
     if "role" in getattr(db_admin, "__dict__", {}):
         try:
             role = AdminRoleData.model_validate(db_admin.role) if db_admin.role is not None else None
-        except DetachedInstanceError, InvalidRequestError:
+        except (DetachedInstanceError, InvalidRequestError):
             role = None
 
     return AdminDetails(
@@ -82,6 +82,7 @@ def build_admin_details(
         sub_domain=db_admin.sub_domain,
         profile_title=db_admin.profile_title,
         support_url=db_admin.support_url,
+        custom_variables=db_admin.custom_variables or [],
         note=db_admin.note,
         notification_enable=db_admin.notification_enable,
         sub_template=db_admin.sub_template,
@@ -213,6 +214,8 @@ async def update_admin(db: AsyncSession, db_admin: Admin, modified_admin: AdminM
         db_admin.support_url = modified_admin.support_url
     if modified_admin.profile_title is not None:
         db_admin.profile_title = modified_admin.profile_title
+    if modified_admin.custom_variables is not None:
+        db_admin.custom_variables = [variable.model_dump() for variable in modified_admin.custom_variables]
     if modified_admin.note is not None:
         db_admin.note = modified_admin.note
     if modified_admin.notification_enable is not None:
