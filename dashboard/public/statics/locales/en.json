@@ -259,6 +259,14 @@
         "headerValue": "Header value",
         "noHeaders": "No response headers configured. Add headers to include custom HTTP headers in subscription responses."
       },
+      "customVariables": {
+        "title": "Custom Variables",
+        "description": "Create reusable placeholders for subscription and host output.",
+        "addVariable": "Add Variable",
+        "empty": "No custom variables configured.",
+        "duplicateKey": "Duplicate custom variable key.",
+        "builtinConflict": "This key is reserved for a built-in variable."
+      },
       "rules": {
         "title": "Subscription Rules",
         "description": "Configure client-specific subscription rules and formats",
@@ -1368,6 +1376,13 @@
       "url": "Subscription URL",
       "format": "Matched subscription format (e.g. links, sing_box)",
       "admin_username": "Admin username"
+    },
+    "customVariables": {
+      "title": "Custom variables",
+      "trigger": "Custom variables",
+      "preview": "Preview",
+      "empty": "No custom variables configured.",
+      "emptyValue": "Empty value"
     },
     "advancedOptions": "Advanced Options",
     "hos.info": "By default, if a request host is set in the XRAY configuration, it will be used. However, if needed, you can set a custom request host here.",

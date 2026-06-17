@@ -243,6 +243,14 @@
         "headerValue": "头值",
         "noHeaders": "未配置响应头。添加头以在订阅响应中包含自定义 HTTP 头。"
       },
+      "customVariables": {
+        "title": "自定义变量",
+        "description": "为订阅和主机输出创建可复用的占位符。",
+        "addVariable": "添加变量",
+        "empty": "未配置自定义变量。",
+        "duplicateKey": "自定义变量键重复。",
+        "builtinConflict": "此键已保留给内置变量。"
+      },
       "rules": {
         "title": "订阅规则",
         "description": "为特定客户端模式定义自定义规则",
@@ -1342,6 +1350,13 @@
       "url": "订阅链接",
       "format": "匹配到的订阅格式（例如：links、sing_box）",
       "admin_username": "管理员用户名"
+    },
+    "customVariables": {
+      "title": "自定义变量",
+      "trigger": "自定义变量",
+      "preview": "预览",
+      "empty": "未配置自定义变量。",
+      "emptyValue": "空值"
     },
     "advancedOptions": "高级选项",
     "hos.info": "默认情况下，如果请求主机在 XRAY 配置中设置，则使用该主机。但是，如果需要，您可以在此处设置自定义请求主机。",

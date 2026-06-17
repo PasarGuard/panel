@@ -1460,6 +1460,13 @@ export type SubscriptionResponseHeaders = { [key: string]: unknown }
 
 export type SubRuleResponseHeaders = { [key: string]: unknown }
 
+export interface CustomVariable {
+  /** @maxLength 64 */
+  key: string
+  /** @maxLength 512 */
+  value?: string
+}
+
 export interface SubRule {
   pattern: string
   target: ConfigFormat
@@ -1492,6 +1499,7 @@ export interface Subscription {
   allow_browser_config?: boolean
   disable_sub_template?: boolean
   randomize_order?: boolean
+  custom_variables?: CustomVariable[]
 }
 
 export type SingBoxMuxSettingsBrutal = Brutal | null
