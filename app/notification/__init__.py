@@ -123,6 +123,11 @@ async def connect_node(node: NodeNotification):
         await _gather_notifications("connect_node", ds.connect_node(node), tg.connect_node(node))
 
 
+async def recovered_node(node: NodeNotification):
+    if (await notification_enable()).node.recovered:
+        await _gather_notifications("recovered_node", ds.recovered_node(node), tg.recovered_node(node))
+
+
 async def error_node(node: NodeNotification):
     if (await notification_enable()).node.error:
         await _gather_notifications("error_node", ds.error_node(node), tg.error_node(node))
@@ -301,6 +306,7 @@ for _task_name in (
     "modify_node",
     "remove_node",
     "connect_node",
+    "recovered_node",
     "error_node",
     "limited_node",
     "reset_node_usage",

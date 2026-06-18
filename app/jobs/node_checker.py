@@ -159,13 +159,25 @@ async def process_node_health_check(db_node: Node, node: PasarGuardNode):
             async with GetDB() as db:
                 logger.info(f"Node '{db_node.name}' have been recovered")
                 node_version, core_version = await node.get_versions()
+                # Connection restored without a hard reset. Suppress the default
+                # connect notification and send a distinct "recovered" one instead,
+                # so a self-recovery is visibly different from a full reconnect.
                 await NodeOperation._update_single_node_status(
                     db,
                     db_node.id,
                     NodeStatus.connected,
                     xray_version=core_version,
                     node_version=node_version,
+                    send_notification=False,
                 )
+            await notification.recovered_node(
+                NodeNotification(
+                    id=db_node.id,
+                    name=db_node.name,
+                    xray_version=core_version,
+                    node_version=node_version,
+                )
+            )
             return
 
 

@@ -164,6 +164,7 @@
         "usageLimitWarning": "用量限制预警",
         "modifyHosts": "修改主机",
         "connect": "连接",
+        "recovered": "已恢复",
         "error": "错误",
         "limited": "受限",
         "statusChange": "状态变更",

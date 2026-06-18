@@ -180,6 +180,7 @@
         "usageLimitWarning": "Usage Limit Warning",
         "modifyHosts": "Modify Hosts",
         "connect": "Connect",
+        "recovered": "Recovered",
         "error": "Error",
         "limited": "Limited",
         "statusChange": "Status Change",

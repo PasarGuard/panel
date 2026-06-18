@@ -212,6 +212,16 @@ CONNECT_NODE = """
 <i>ID</i>: <code>{id}</code>
 """
 
+RECOVERED_NODE = """
+✅ #Recovered_Node
+➖➖➖➖➖➖➖➖➖
+<b>Name:</b> <code>{name}</code>
+<b>Node Version:</b> <code>{node_version}</code>
+<b>Core Version:</b> <code>{core_version}</code>
+➖➖➖➖➖➖➖➖➖
+<i>ID</i>: <code>{id}</code>
+"""
+
 ERROR_NODE = """
 #Error_Node
 ➖➖➖➖➖➖➖➖➖

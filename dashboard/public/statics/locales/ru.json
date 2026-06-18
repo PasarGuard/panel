@@ -195,6 +195,7 @@
         "usageLimitWarning": "Предупреждение о лимите",
         "modifyHosts": "Изменить хосты",
         "connect": "Подключить",
+        "recovered": "Восстановлен",
         "error": "Ошибка",
         "limited": "Ограничен",
         "statusChange": "Изменение статуса",
