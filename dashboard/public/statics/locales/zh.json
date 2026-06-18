@@ -991,6 +991,7 @@
     "dataLimit": "数据限制",
     "hwidLimit": "HWID 限制",
     "hwidLimitPlaceholder": "留空 = 默认，0 = 无限制",
+    "hwidLimitHint": "留空 = 使用默认策略。0 = 无限制并免除 HWID 校验，即使已强制要求 HWID 请求头。",
     "expire": "过期时间",
     "onHoldTimeout": "挂起超时",
     "method": "方法",

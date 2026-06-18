@@ -301,6 +301,11 @@ class SubscriptionOperation(BaseOperation):
         if effective_hwid_conf is None or not effective_hwid_conf.enabled:
             return False
 
+        # An explicit hwid_limit of 0 opts the user out of HWID entirely, even under a
+        # forced global/role policy. None is distinct: it falls back to forced/fallback.
+        if user_hwid_limit == 0:
+            return False
+
         forced = effective_hwid_conf.forced
         if is_manual_sub and not global_hwid_conf.require_hwid_for_manual_sub:
             forced = False
@@ -353,7 +358,9 @@ class SubscriptionOperation(BaseOperation):
             return
 
         if not x_hwid:
-            if limit or forced:
+            # Only a forced policy requires the header. A bare limit just caps device
+            # count (enforced below once an X-HWID is actually presented).
+            if forced:
                 await self.raise_error(message="HWID header required", code=403)
             return
 

@@ -1652,6 +1652,7 @@
     "dataLimit": "Data Limit",
     "hwidLimit": "HWID Limit",
     "hwidLimitPlaceholder": "Empty = default, 0 = unlimited",
+    "hwidLimitHint": "Empty = use default policy. 0 = unlimited and exempt from HWID, even when the HWID header is forced.",
     "days": "Days",
     "editUser": "Modify user",
     "editUserTitle": "Modify user",
