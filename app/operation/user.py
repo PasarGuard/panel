@@ -711,8 +711,8 @@ class UserOperation(BaseOperation):
             )
             hwid_limit_was_changed = "hwid_limit" in modified_fields and modified_user.hwid_limit is not None
             on_hold_timeout_was_changed = "on_hold_timeout" in modified_fields
-            on_hold_timeout_requires_finite_limit = (
-                on_hold_timeout_was_changed or (status_was_changed and modified_status_value == UserStatus.on_hold.value)
+            on_hold_timeout_requires_finite_limit = on_hold_timeout_was_changed or (
+                status_was_changed and modified_status_value == UserStatus.on_hold.value
             )
 
             effective_status = modified_user.status if modified_user.status is not None else db_user.status

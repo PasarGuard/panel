@@ -141,7 +141,9 @@ def _custom_variable_parts(custom_variable) -> tuple[str | None, str]:
     return (str(key) if key else None), str(value or "")
 
 
-def get_effective_custom_variables(user: UsersResponseWithInbounds, custom_variables: list | tuple | None = None) -> list:
+def get_effective_custom_variables(
+    user: UsersResponseWithInbounds, custom_variables: list | tuple | None = None
+) -> list:
     variables = list(custom_variables or [])
     admin_variables = getattr(getattr(user, "admin", None), "custom_variables", None) or []
     variables.extend(admin_variables)
@@ -164,7 +166,7 @@ def apply_custom_format_variables(format_variables: dict, custom_variables: list
             continue
         try:
             format_variables[key] = raw_value.format_map(base_variables)
-        except (ValueError, KeyError):
+        except ValueError, KeyError:
             format_variables[key] = raw_value
 
     return format_variables
@@ -174,7 +176,7 @@ def _format_dynamic_value(value, format_variables: dict):
     if isinstance(value, str):
         try:
             return value.format_map(format_variables)
-        except (ValueError, KeyError):
+        except ValueError, KeyError:
             return value
     if isinstance(value, list):
         return [_format_dynamic_value(item, format_variables) for item in value]
