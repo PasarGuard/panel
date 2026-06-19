@@ -217,7 +217,7 @@ def test_user_create_active(access_token):
         cleanup_groups(access_token, core, groups)
 
 
-def test_user_hwid_limit_uses_fallback_on_create_and_null_modify_is_noop(access_token):
+def test_user_hwid_limit_stays_null_on_create_and_null_modify_clears(access_token):
     core, groups = setup_groups(access_token, 1)
     group_ids = [group["id"] for group in groups]
     expire = datetime.now(timezone.utc).replace(microsecond=0) + timedelta(days=30)
@@ -237,7 +237,7 @@ def test_user_hwid_limit_uses_fallback_on_create_and_null_modify_is_noop(access_
             },
         )
         usernames.append(user["username"])
-        assert user["hwid_limit"] == 3
+        assert user["hwid_limit"] is None
 
         explicit_null = create_user(
             access_token,
@@ -253,7 +253,7 @@ def test_user_hwid_limit_uses_fallback_on_create_and_null_modify_is_noop(access_
             },
         )
         usernames.append(explicit_null["username"])
-        assert explicit_null["hwid_limit"] == 3
+        assert explicit_null["hwid_limit"] is None
 
         response = client.put(
             f"/api/user/{user['username']}",
@@ -269,7 +269,7 @@ def test_user_hwid_limit_uses_fallback_on_create_and_null_modify_is_noop(access_
             json={"hwid_limit": None},
         )
         assert response.status_code == status.HTTP_200_OK
-        assert response.json()["hwid_limit"] == 2
+        assert response.json()["hwid_limit"] is None
     finally:
         for username in usernames:
             delete_user(access_token, username)
