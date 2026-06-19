@@ -3,7 +3,7 @@ from fastapi import status
 from sqlalchemy import select
 
 from app.db.crud.hwid import register_user_hwid, reset_user_hwids
-from app.db.models import UserHWID
+from app.db.models import User as DBUser, UserHWID
 from tests.api import TestSession, client
 from tests.api.helpers import (
     auth_headers,
@@ -13,6 +13,19 @@ from tests.api.helpers import (
     delete_user,
     unique_name,
 )
+
+
+async def _set_user_hwid_limit(user_id: int, hwid_limit: int | None) -> None:
+    async with TestSession() as session:
+        await reset_user_hwids(session, user_id)
+        db_user = (await session.execute(select(DBUser).where(DBUser.id == user_id))).scalar_one()
+        db_user.hwid_limit = hwid_limit
+        await session.commit()
+
+
+async def _reset_user_hwids(user_id: int) -> None:
+    async with TestSession() as session:
+        await reset_user_hwids(session, user_id)
 
 
 @pytest.mark.asyncio
@@ -121,6 +134,80 @@ def test_hwid_workflow(access_token):
         assert response.json()["count"] == 0
 
     finally:
+        delete_user(access_token, user["username"])
+
+
+@pytest.mark.asyncio
+async def test_hwid_enabled_applies_to_users_with_explicit_limit(access_token):
+    user = create_user(access_token)
+
+    try:
+        await _set_user_hwid_limit(user["id"], 1)
+
+        response = client.get(user["subscription_url"], headers={"X-HWID": "explicit-device-1"})
+        assert response.status_code == status.HTTP_200_OK
+
+        response = client.get(user["subscription_url"], headers={"X-HWID": "explicit-device-2"})
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+        assert "Device limit reached" in response.json()["detail"]
+
+        response = client.get(f"/api/user/{user['id']}/hwids", headers=auth_headers(access_token))
+        assert response.json()["count"] == 1
+        assert response.json()["hwids"][0]["hwid"] == "explicit-device-1"
+    finally:
+        await _reset_user_hwids(user["id"])
+        delete_user(access_token, user["username"])
+
+
+@pytest.mark.asyncio
+async def test_hwid_enabled_does_not_apply_fallback_to_user_without_limit(access_token):
+    user = create_user(access_token)
+
+    try:
+        await _set_user_hwid_limit(user["id"], None)
+
+        for index in range(4):
+            response = client.get(user["subscription_url"], headers={"X-HWID": f"null-limit-device-{index}"})
+            assert response.status_code == status.HTTP_200_OK
+
+        response = client.get(f"/api/user/{user['id']}/hwids", headers=auth_headers(access_token))
+        assert response.json()["count"] == 0
+    finally:
+        await _reset_user_hwids(user["id"])
+        delete_user(access_token, user["username"])
+
+
+@pytest.mark.asyncio
+async def test_hwid_forced_applies_fallback_to_user_without_limit(access_token, monkeypatch):
+    from app.models.settings import HWIDSettings
+    from app.operation import subscription as subscription_module
+
+    user = create_user(access_token)
+
+    try:
+        await _set_user_hwid_limit(user["id"], None)
+
+        async def forced_hwid_settings() -> HWIDSettings:
+            return HWIDSettings(enabled=True, forced=True, fallback_limit=3, min_limit=1, max_limit=0)
+
+        monkeypatch.setattr(subscription_module, "hwid_settings", forced_hwid_settings)
+
+        response = client.get(user["subscription_url"])
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+        assert "HWID header required" in response.json()["detail"]
+
+        for index in range(3):
+            response = client.get(user["subscription_url"], headers={"X-HWID": f"forced-fallback-device-{index}"})
+            assert response.status_code == status.HTTP_200_OK
+
+        response = client.get(user["subscription_url"], headers={"X-HWID": "forced-fallback-device-4"})
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+        assert "Device limit reached" in response.json()["detail"]
+
+        response = client.get(f"/api/user/{user['id']}/hwids", headers=auth_headers(access_token))
+        assert response.json()["count"] == 3
+    finally:
+        await _reset_user_hwids(user["id"])
         delete_user(access_token, user["username"])
 
 

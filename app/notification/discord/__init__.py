@@ -8,7 +8,16 @@ from .api_key import (
 from .core import create_core, modify_core, remove_core
 from .group import create_group, modify_group, remove_group
 from .host import create_host, modify_host, modify_hosts, remove_host
-from .node import connect_node, create_node, error_node, limited_node, modify_node, remove_node, reset_node_usage
+from .node import (
+    connect_node,
+    create_node,
+    error_node,
+    limited_node,
+    modify_node,
+    recovered_node,
+    remove_node,
+    reset_node_usage,
+)
 from .user import (
     create_user,
     modify_user,
@@ -38,6 +47,7 @@ __all__ = [
     "modify_node",
     "remove_node",
     "connect_node",
+    "recovered_node",
     "error_node",
     "limited_node",
     "create_group",

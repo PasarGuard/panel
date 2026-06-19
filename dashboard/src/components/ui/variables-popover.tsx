@@ -1,9 +1,48 @@
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useClipboard } from '@/hooks/use-clipboard'
-import { Info } from 'lucide-react'
+import { useGetSettings } from '@/service/api'
+import { Braces, Info } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+
+export interface CustomVariableDefinition {
+  key: string
+  value?: string
+}
+
+export const CUSTOM_VARIABLE_SAMPLE_VALUES: Record<string, string | number> = {
+  SERVER_IP: '203.0.113.10',
+  SERVER_IPV6: '[2001:db8::10]',
+  USERNAME: 'alice',
+  DATA_USAGE: '2 GB',
+  DATA_LEFT: '8 GB',
+  DATA_LIMIT: '10 GB',
+  DAYS_LEFT: '14',
+  EXPIRE_DATE: '2026-12-31',
+  JALALI_EXPIRE_DATE: '1405-10-10',
+  TIME_LEFT: '14d',
+  STATUS_EMOJI: 'OK',
+  USAGE_PERCENTAGE: '20',
+  ADMIN_USERNAME: 'admin',
+  PROFILE_TITLE: 'Alice Profile',
+  PROTOCOL: 'vless',
+  TRANSPORT: 'ws',
+  url: 'https://example.com/sub/alice',
+  format: 'links',
+}
+
+export function normalizeCustomVariableKey(value: string) {
+  const stripped = value.trim().replace(/^\{|\}$/g, '')
+  return stripped.toUpperCase().replace(/[^A-Z0-9_]/g, '_')
+}
+
+export function previewVariableValue(value: string, variables: Record<string, string | number> = CUSTOM_VARIABLE_SAMPLE_VALUES) {
+  return value.replace(/\{([A-Za-z0-9_]+)\}/g, (_, key: string) => {
+    const replacement = variables[key]
+    return replacement == null ? '<missing>' : String(replacement)
+  })
+}
 
 interface VariablesPopoverProps {
   /** Whether to show protocol and transport variables (default: false) */
@@ -142,5 +181,69 @@ export function VariablesList({
       )}
       <VariableItem variable="{ADMIN_USERNAME}" translationKey="hostsDialog.variables.admin_username" />
     </div>
+  )
+}
+
+interface CustomVariablesPopoverProps {
+  customVariables?: CustomVariableDefinition[]
+  side?: 'top' | 'right' | 'bottom' | 'left'
+  align?: 'start' | 'center' | 'end'
+  sideOffset?: number
+}
+
+export function CustomVariablesPopover({ customVariables, side = 'bottom', align = 'start', sideOffset = 0 }: CustomVariablesPopoverProps) {
+  const { t } = useTranslation()
+  const { copy } = useClipboard()
+  const shouldFetchSettings = customVariables === undefined
+  const { data: settings } = useGetSettings({
+    query: {
+      enabled: shouldFetchSettings,
+      retry: false,
+    },
+  })
+
+  const variables = customVariables ?? (((settings as any)?.subscription?.custom_variables ?? []) as CustomVariableDefinition[])
+  const visibleVariables = variables.filter(variable => variable.key?.trim())
+
+  const handleCopy = async (text: string) => {
+    await copy(text)
+    toast.success(t('usersTable.copied'))
+  }
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button type="button" variant="ghost" size="icon" className="h-auto w-auto p-0 hover:bg-transparent" title={t('hostsDialog.customVariables.trigger', { defaultValue: 'Custom variables' })}>
+          <Braces className="text-muted-foreground h-3.5 w-3.5" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[300px] p-3 sm:w-[360px]" side={side} align={align} sideOffset={sideOffset}>
+        <div className="space-y-2">
+          <h4 className="text-[11px] font-medium">{t('hostsDialog.customVariables.title', { defaultValue: 'Custom variables' })}</h4>
+          {visibleVariables.length > 0 ? (
+            <div className="max-h-[60vh] space-y-2 overflow-y-auto pr-1">
+              {visibleVariables.map(variable => {
+                const token = `{${variable.key}}`
+                const preview = previewVariableValue(variable.value || '')
+                return (
+                  <div key={variable.key} className="space-y-1 rounded-md border p-2">
+                    <div className="flex min-w-0 items-center gap-1.5">
+                      <code className="bg-muted/50 hover:bg-muted shrink-0 cursor-pointer rounded-sm px-1.5 py-0.5 text-[11px] transition-colors" onClick={() => handleCopy(token)} title={t('copy')}>
+                        {token}
+                      </code>
+                      <span className="text-muted-foreground min-w-0 truncate text-[11px]" title={variable.value}>
+                        {variable.value || t('hostsDialog.customVariables.emptyValue', { defaultValue: 'Empty value' })}
+                      </span>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          ) : (
+            <p className="text-muted-foreground text-[11px]">{t('hostsDialog.customVariables.empty', { defaultValue: 'No custom variables configured.' })}</p>
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
   )
 }

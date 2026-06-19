@@ -1,5 +1,35 @@
 import { z } from 'zod'
 
+export const builtInVariableKeys = [
+  'SERVER_IP',
+  'SERVER_IPV6',
+  'USERNAME',
+  'DATA_USAGE',
+  'DATA_LIMIT',
+  'DATA_LEFT',
+  'DAYS_LEFT',
+  'EXPIRE_DATE',
+  'JALALI_EXPIRE_DATE',
+  'TIME_LEFT',
+  'STATUS_EMOJI',
+  'USAGE_PERCENTAGE',
+  'ADMIN_USERNAME',
+  'PROFILE_TITLE',
+  'PROTOCOL',
+  'TRANSPORT',
+  'URL',
+  'FORMAT',
+] as const
+
+export const customVariableSchema = z.object({
+  key: z
+    .string()
+    .min(1, 'Variable key is required')
+    .max(64, 'Variable key must be 64 characters or less')
+    .regex(/^[A-Z][A-Z0-9_]*$/, 'Use uppercase letters, numbers, and underscores'),
+  value: z.string().max(512, 'Variable value must be 512 characters or less').default(''),
+})
+
 export const subscriptionApplicationSchema = z.object({
   name: z.string().min(1, 'Application name is required').max(32, 'Application name must be 32 characters or less'),
   icon_url: z.string().url('Please enter a valid URL').optional().or(z.literal('')),
@@ -18,6 +48,7 @@ export const subscriptionApplicationSchema = z.object({
     .or(z.literal('')),
   description: z.record(z.string()).optional(),
   recommended: z.boolean().optional(),
+  show_when_hwid_enabled: z.boolean().optional(),
   platform: z.enum(['android', 'ios', 'windows', 'macos', 'linux', 'appletv', 'androidtv']),
   download_links: z
     .array(
@@ -42,6 +73,29 @@ export const subscriptionSchema = z.object({
   allow_browser_config: z.boolean().optional(),
   disable_sub_template: z.boolean().optional(),
   randomize_order: z.boolean().optional(),
+  custom_variables: z
+    .array(customVariableSchema)
+    .default([])
+    .superRefine((variables, ctx) => {
+      const seen = new Set<string>()
+      for (const [index, variable] of variables.entries()) {
+        if ((builtInVariableKeys as readonly string[]).includes(variable.key)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'Custom variable conflicts with a built-in variable',
+            path: [index, 'key'],
+          })
+        }
+        if (seen.has(variable.key)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'Duplicate custom variable',
+            path: [index, 'key'],
+          })
+        }
+        seen.add(variable.key)
+      }
+    }),
   response_headers: z.record(z.string()).optional(),
   rules: z.array(
     z.object({

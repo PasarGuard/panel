@@ -103,6 +103,7 @@ class Admin(Base, CreatedAtUTCMixin):
     sub_domain: Mapped[Optional[str]] = mapped_column(String(256), default=None)
     profile_title: Mapped[Optional[str]] = mapped_column(String(512), default=None)
     support_url: Mapped[Optional[str]] = mapped_column(String(1024), default=None)
+    custom_variables: Mapped[Optional[list[dict[str, str]]]] = mapped_column(PostgresJSONB, default=None)
     notification_enable: Mapped[Optional[Dict]] = mapped_column(PostgresJSONB, default=None)
     note: Mapped[Optional[str]] = mapped_column(String(500), default=None)
     role_id: Mapped[int] = fk_id_column("admin_roles.id", default=0)

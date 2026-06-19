@@ -117,7 +117,7 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
   },
 ]
 
-export const LIMIT_KEYS = ['max_users', 'data_limit_min', 'data_limit_max', 'expire_days_min', 'expire_days_max', 'min_hwid_per_user', 'max_hwid_per_user'] as const
+export const LIMIT_KEYS = ['max_users', 'data_limit_min', 'data_limit_max', 'expire_days_min', 'expire_days_max', 'min_hwid_per_user', 'max_hwid_per_user', 'on_hold_timeout_days_min', 'on_hold_timeout_days_max'] as const
 
 export const FEATURE_KEYS: Array<keyof RoleFeatures> = ['can_use_reset_strategy', 'can_use_next_plan']
 
@@ -163,7 +163,7 @@ const permissionValueSchema = z.union([z.boolean(), scopeSchema])
 const resourcePermissionsSchema = z.record(z.string(), permissionValueSchema)
 const permissionsSchema = z.preprocess(value => sanitizeRolePermissions(value as RolePermissionInput), z.record(z.string(), resourcePermissionsSchema))
 
-const optionalNullableNumber = z.union([z.literal('').transform(() => null), z.null(), z.coerce.number()]).optional()
+const optionalNullableNumber = z.union([z.number(), z.string().transform(v => (v === '' ? null : Number(v)))]).nullable().optional()
 
 const limitsSchema = z.object({
   max_users: optionalNullableNumber,
@@ -173,6 +173,8 @@ const limitsSchema = z.object({
   expire_days_max: optionalNullableNumber,
   min_hwid_per_user: optionalNullableNumber,
   max_hwid_per_user: optionalNullableNumber,
+  on_hold_timeout_days_min: optionalNullableNumber,
+  on_hold_timeout_days_max: optionalNullableNumber,
 })
 
 const SECONDS_PER_DAY = 86_400
@@ -224,6 +226,7 @@ const hwidPolicySchema = z
     }
   })
 
+// Admin role form schema for validation and default values
 export const adminRoleFormSchema = z.object({
   name: z.string().trim().min(1, 'Name is required').max(64),
   permissions: permissionsSchema,
@@ -270,6 +273,8 @@ export const adminRoleFormDefaultValues: AdminRoleFormValuesInput = {
     expire_days_max: null,
     min_hwid_per_user: null,
     max_hwid_per_user: null,
+    on_hold_timeout_days_min: null,
+    on_hold_timeout_days_max: null,
   },
   features: defaultAdminRoleFeatures(),
   access: defaultAdminRoleAccess(),
@@ -290,6 +295,8 @@ export const adminRoleFormFromResponse = (role: AdminRoleResponse): AdminRoleFor
     expire_days_max: secondsToDays(role.limits?.expire_max),
     min_hwid_per_user: role.limits?.min_hwid_per_user ?? null,
     max_hwid_per_user: role.limits?.max_hwid_per_user ?? null,
+    on_hold_timeout_days_min: secondsToDays(role.limits?.on_hold_timeout_min),
+    on_hold_timeout_days_max: secondsToDays(role.limits?.on_hold_timeout_max),
   },
   features: {
     can_use_reset_strategy: role.features?.can_use_reset_strategy ?? true,
@@ -323,6 +330,8 @@ export const adminRoleFormToPayload = (values: AdminRoleFormValues) => {
     expire_max: daysToSeconds(values.limits.expire_days_max),
     min_hwid_per_user: values.limits.min_hwid_per_user,
     max_hwid_per_user: values.limits.max_hwid_per_user,
+    on_hold_timeout_min: daysToSeconds(values.limits.on_hold_timeout_days_min),
+    on_hold_timeout_max: daysToSeconds(values.limits.on_hold_timeout_days_max),
   }
 
   return {

@@ -180,6 +180,7 @@
         "usageLimitWarning": "Usage Limit Warning",
         "modifyHosts": "Modify Hosts",
         "connect": "Connect",
+        "recovered": "Recovered",
         "error": "Error",
         "limited": "Limited",
         "statusChange": "Status Change",
@@ -258,6 +259,14 @@
         "headerName": "Header name",
         "headerValue": "Header value",
         "noHeaders": "No response headers configured. Add headers to include custom HTTP headers in subscription responses."
+      },
+      "customVariables": {
+        "title": "Custom Variables",
+        "description": "Create reusable placeholders for subscription and host output.",
+        "addVariable": "Add Variable",
+        "empty": "No custom variables configured.",
+        "duplicateKey": "Duplicate custom variable key.",
+        "builtinConflict": "This key is reserved for a built-in variable."
       },
       "rules": {
         "title": "Subscription Rules",
@@ -338,6 +347,8 @@
         "descriptionDescription": "Multi-language descriptions for the application",
         "recommended": "Recommended",
         "recommendedDescription": "Mark this application as recommended for users",
+        "showWhenHwidEnabled": "Target HWID-enabled users",
+        "showWhenHwidEnabledDescription": "If enabled, this app only shows to users with HWID active. If disabled, it only shows to users without HWID.",
         "downloadLinks": "Links",
         "addDownloadLink": "Add Link",
         "noDownloadLinks": "No links added",
@@ -378,6 +389,10 @@
       "forced": {
         "title": "Require HWID header",
         "description": "Reject subscription requests that do not send X-HWID."
+      },
+      "manualSubscription": {
+        "title": "Require HWID for manual subscriptions",
+        "description": "Apply the forced HWID header policy to manual subscription format requests."
       },
       "limits": {
         "title": "Device limits",
@@ -696,6 +711,14 @@
     "subDomain": "Subscription Domain",
     "profile": "Profile Title",
     "subTemplate": "Subscription Template Path",
+    "customVariables": {
+      "title": "Custom Variables",
+      "description": "Override global custom variables for users owned by this admin.",
+      "addVariable": "Add Variable",
+      "empty": "No custom variables configured.",
+      "duplicateKey": "Duplicate custom variable key.",
+      "builtinConflict": "This key is reserved for a built-in variable."
+    },
     "passwordConfirm": "Confirm Password",
     "enterPasswordConfirm": "Enter Confirm Password",
     "disableSuccess": "Admin «{{name}}» has been disabled successfully",
@@ -898,7 +921,9 @@
       "expire_days_min": "Min expire days",
       "expire_days_max": "Max expire days",
       "min_hwid_per_user": "Min HWIDs per user",
-      "max_hwid_per_user": "Max HWIDs per user"
+      "max_hwid_per_user": "Max HWIDs per user",
+      "on_hold_timeout_days_min": "Min On-Hold timeout (days)",
+      "on_hold_timeout_days_max": "Max On-Hold timeout (days)"
     },
     "limitedBehavior": {
       "disabledWhenLimited": {
@@ -1393,6 +1418,13 @@
       "format": "Matched subscription format (e.g. links, sing_box)",
       "admin_username": "Admin username"
     },
+    "customVariables": {
+      "title": "Custom variables",
+      "trigger": "Custom variables",
+      "preview": "Preview",
+      "empty": "No custom variables configured.",
+      "emptyValue": "Empty value"
+    },
     "advancedOptions": "Advanced Options",
     "hos.info": "By default, if a request host is set in the XRAY configuration, it will be used. However, if needed, you can set a custom request host here.",
     "multiHost": "To set multiple addresses, separate them with , A random address will be selected each time.",
@@ -1653,6 +1685,7 @@
     "dataLimit": "Data Limit",
     "hwidLimit": "HWID Limit",
     "hwidLimitPlaceholder": "Empty = default, 0 = unlimited",
+    "hwidLimitHint": "Empty = use default policy. 0 = unlimited and exempt from HWID, even when the HWID header is forced.",
     "days": "Days",
     "editUser": "Modify user",
     "editUserTitle": "Modify user",

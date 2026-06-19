@@ -3,7 +3,7 @@ import { FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessa
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
-import { VariablesPopover } from '@/components/ui/variables-popover'
+import { CustomVariablesPopover, VariablesPopover } from '@/components/ui/variables-popover'
 import { Clock, ExternalLink, FileCode2, Globe, HelpCircle, Link, Megaphone, Shuffle, User } from 'lucide-react'
 import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -93,6 +93,7 @@ export function SubscriptionGeneralSettingsSection({ form }: SubscriptionGeneral
                   {t('settings.subscriptions.general.profileTitle')}
                 </FormLabel>
                 <VariablesPopover />
+                <CustomVariablesPopover customVariables={form.watch('custom_variables') || []} />
               </div>
               <FormControl>
                 <Input placeholder={t('settings.subscriptions.general.profileTitlePlaceholder')} {...field} className="text-xs sm:text-sm" />
@@ -114,6 +115,7 @@ export function SubscriptionGeneralSettingsSection({ form }: SubscriptionGeneral
                   {t('settings.subscriptions.general.announce')}
                 </FormLabel>
                 <VariablesPopover />
+                <CustomVariablesPopover customVariables={form.watch('custom_variables') || []} />
               </div>
               <FormControl>
                 <Textarea maxLength={128} placeholder={t('settings.subscriptions.general.announcePlaceholder')} rows={3} className="resize-none text-xs sm:text-sm" {...field} />

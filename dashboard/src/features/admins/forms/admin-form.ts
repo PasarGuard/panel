@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { builtInVariableKeys, customVariableSchema } from '@/features/subscriptions/components/subscription-settings-schema'
 
 export const adminStatusEditEnum = z.enum(['active', 'disabled'])
 
@@ -60,6 +61,30 @@ export const adminFormSchema = z
     support_url: z.string().optional(),
     telegram_id: z.number().optional(),
     profile_title: z.string().optional(),
+    custom_variables: z
+      .array(customVariableSchema)
+      .default([])
+      .superRefine((variables, ctx) => {
+        const seen = new Set<string>()
+        const builtInKeys = new Set<string>(builtInVariableKeys)
+        variables.forEach((variable, index) => {
+          if (builtInKeys.has(variable.key)) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: 'This key is reserved for a built-in variable.',
+              path: [index, 'key'],
+            })
+          }
+          if (seen.has(variable.key)) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: 'Duplicate custom variable key.',
+              path: [index, 'key'],
+            })
+          }
+          seen.add(variable.key)
+        })
+      }),
     note: z.string().optional(),
     notification_enable: z
       .object({
@@ -81,6 +106,8 @@ export const adminFormSchema = z
         expire_days_max: z.union([z.literal('').transform(() => null), z.null(), z.coerce.number()]).optional(),
         min_hwid_per_user: z.union([z.literal('').transform(() => null), z.null(), z.coerce.number()]).optional(),
         max_hwid_per_user: z.union([z.literal('').transform(() => null), z.null(), z.coerce.number()]).optional(),
+        on_hold_timeout_days_min: z.union([z.literal('').transform(() => null), z.null(), z.coerce.number()]).optional(),
+        on_hold_timeout_days_max: z.union([z.literal('').transform(() => null), z.null(), z.coerce.number()]).optional(),
       })
       .optional(),
   })
@@ -129,6 +156,8 @@ export const adminPermissionOverridesDefaultValues = {
   expire_days_max: null,
   min_hwid_per_user: null,
   max_hwid_per_user: null,
+  on_hold_timeout_days_min: null,
+  on_hold_timeout_days_max: null,
 } as const
 
 export const adminFormDefaultValues: Partial<AdminFormValuesInput> = {
@@ -145,6 +174,7 @@ export const adminFormDefaultValues: Partial<AdminFormValuesInput> = {
   support_url: '',
   telegram_id: undefined,
   profile_title: '',
+  custom_variables: [],
   note: '',
   notification_enable: {
     create: true,

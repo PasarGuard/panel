@@ -1,5 +1,5 @@
 import re
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any, Optional
 from urllib.parse import urlparse
@@ -197,10 +197,13 @@ class UserValidator:
 
     @staticmethod
     def validator_on_hold_timeout(value):
-        if value == 0 or isinstance(value, datetime) or value is None:
+        if value == 0 or value is None:
+            return None
+        if isinstance(value, int):
+            return datetime.now(timezone.utc) + timedelta(seconds=value)
+        if isinstance(value, datetime):
             return value
-        else:
-            raise ValueError("on_hold_timeout can be datetime or 0")
+        raise ValueError("on_hold_timeout can be datetime or int (seconds)")
 
     @staticmethod
     def allow_status(

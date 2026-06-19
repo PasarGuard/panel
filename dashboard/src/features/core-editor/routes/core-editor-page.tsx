@@ -403,21 +403,19 @@ export default function CoreEditorPage() {
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div className="min-w-0 flex-1 space-y-2">
-          <div className="flex min-w-0 flex-row flex-wrap items-center gap-2 sm:gap-3">
-            <div className="min-w-0 flex-1">
-              <Input
-                value={coreName}
-                onChange={e => {
-                  const nextName = e.target.value
-                  setCoreName(nextName)
-                  if (nextName.trim()) setNameSubmitAttempted(false)
-                }}
-                isError={showNameRequired}
-                className="h-10 font-medium sm:max-w-md"
-                placeholder={showNameRequired ? nameRequiredMessage : t('coreConfigModal.namePlaceholder', { defaultValue: 'Core name' })}
-                aria-invalid={showNameRequired}
-              />
-            </div>
+          <div className="grid max-w-2xl grid-cols-[1fr_auto] items-center gap-2 sm:gap-3">
+            <Input
+              value={coreName}
+              onChange={e => {
+                const nextName = e.target.value
+                setCoreName(nextName)
+                if (nextName.trim()) setNameSubmitAttempted(false)
+              }}
+              isError={showNameRequired}
+              className="h-10 font-medium"
+              placeholder={showNameRequired ? nameRequiredMessage : t('coreConfigModal.namePlaceholder', { defaultValue: 'Core name' })}
+              aria-invalid={showNameRequired}
+            />
             <Select
               value={kind === 'wg' ? 'wg' : 'xray'}
               onValueChange={value => {
@@ -437,7 +435,7 @@ export default function CoreEditorPage() {
                 switchKind(nextKind)
               }}
             >
-              <SelectTrigger className="h-10 w-24 shrink-0 px-2 sm:w-[200px] sm:px-3" aria-label={t('coreConfigModal.backendType', { defaultValue: 'Backend type' })}>
+              <SelectTrigger className="h-10 w-28 shrink-0 px-2 sm:w-[180px] sm:px-3" aria-label={t('coreConfigModal.backendType', { defaultValue: 'Backend type' })}>
                 <SelectValue placeholder={t('coreConfigModal.backendType', { defaultValue: 'Type' })} />
               </SelectTrigger>
               <SelectContent>

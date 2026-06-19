@@ -11,7 +11,7 @@ import { useClipboard } from '@/hooks/use-clipboard'
 import { toast } from 'sonner'
 import { useSystemVersion } from '@/hooks/use-system-version'
 import { useAdmin } from '@/hooks/use-admin'
-import { hasPermission } from '@/utils/rbac'
+import { isOwner } from '@/utils/rbac'
 
 const VERSION_BANNER_STORAGE_KEY = 'version_update_banner_closed'
 const HOURS_TO_HIDE = 24
@@ -28,19 +28,19 @@ export function VersionUpdateBanner() {
   const isDark = resolvedTheme === 'dark'
   const { copy } = useClipboard()
   const { admin } = useAdmin()
-  const canReadSystem = hasPermission(admin, 'system', 'read')
-  const { currentVersion } = useSystemVersion({ enabled: canReadSystem })
+  const isOwnerAdmin = isOwner(admin)
+  const { currentVersion } = useSystemVersion({ enabled: isOwnerAdmin })
   const [isVisible, setIsVisible] = useState(false)
   const [isClosing, setIsClosing] = useState(false)
   const [isAnimating, setIsAnimating] = useState(false)
   const normalizedVersion = currentVersion ? currentVersion.replace(/[^0-9.]/g, '') : null
-  const { hasUpdate, latestVersion, releaseUrl, isLoading } = useVersionCheck(normalizedVersion, { enabled: canReadSystem })
+  const { hasUpdate, latestVersion, releaseUrl, isLoading } = useVersionCheck(normalizedVersion, { enabled: isOwnerAdmin })
 
   const gradientBg = getGradientByColorTheme(colorTheme, isDark, 'banner')
   const indicatorColor = getIndicatorColorByTheme(colorTheme, isDark)
 
   useEffect(() => {
-    if (!canReadSystem || isLoading || !hasUpdate || !normalizedVersion) {
+    if (!isOwnerAdmin || isLoading || !hasUpdate || !normalizedVersion) {
       setIsVisible(false)
       setIsAnimating(false)
       return
@@ -91,7 +91,7 @@ export function VersionUpdateBanner() {
     }
 
     checkShouldShow()
-  }, [hasUpdate, canReadSystem, latestVersion, normalizedVersion, isLoading])
+  }, [hasUpdate, isOwnerAdmin, latestVersion, normalizedVersion, isLoading])
 
   const handleClose = (e: React.MouseEvent) => {
     e.preventDefault()
@@ -118,7 +118,7 @@ export function VersionUpdateBanner() {
     toast.success(t('usersTable.copied'))
   }
 
-  if (!canReadSystem || isLoading || !hasUpdate || !isVisible || !latestVersion || !normalizedVersion) return null
+  if (!isOwnerAdmin || isLoading || !hasUpdate || !isVisible || !latestVersion || !normalizedVersion) return null
 
   const releaseLink = releaseUrl || 'https://github.com/PasarGuard/panel/releases/latest'
 

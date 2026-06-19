@@ -164,6 +164,7 @@
         "usageLimitWarning": "用量限制预警",
         "modifyHosts": "修改主机",
         "connect": "连接",
+        "recovered": "已恢复",
         "error": "错误",
         "limited": "受限",
         "statusChange": "状态变更",
@@ -243,6 +244,14 @@
         "headerValue": "头值",
         "noHeaders": "未配置响应头。添加头以在订阅响应中包含自定义 HTTP 头。"
       },
+      "customVariables": {
+        "title": "自定义变量",
+        "description": "为订阅和主机输出创建可复用的占位符。",
+        "addVariable": "添加变量",
+        "empty": "未配置自定义变量。",
+        "duplicateKey": "自定义变量键重复。",
+        "builtinConflict": "此键已保留给内置变量。"
+      },
       "rules": {
         "title": "订阅规则",
         "description": "为特定客户端模式定义自定义规则",
@@ -320,6 +329,8 @@
         "descriptionPlaceholder": "用{{lang}}输入描述",
         "recommended": "推荐",
         "recommendedDescription": "将此应用程序标记为用户推荐",
+        "showWhenHwidEnabled": "面向已启用 HWID 的用户",
+        "showWhenHwidEnabledDescription": "启用后，此应用只会显示给 HWID 处于活动状态的用户。停用后，只会显示给没有 HWID 的用户。",
         "downloadLinks": "链接",
         "addDownloadLink": "添加链接",
         "noDownloadLinks": "未添加链接",
@@ -360,6 +371,10 @@
       "forced": {
         "title": "要求 HWID 请求头",
         "description": "拒绝未发送 X-HWID 的订阅请求。"
+      },
+      "manualSubscription": {
+        "title": "手动订阅要求 HWID",
+        "description": "将强制 HWID 请求头策略应用到手动订阅格式请求。"
       },
       "limits": {
         "title": "设备限制",
@@ -696,6 +711,14 @@
     "subDomain": "订阅域名",
     "profile": "个人资料标题",
     "subTemplate": "订阅模板路径",
+    "customVariables": {
+      "title": "自定义变量",
+      "description": "为此管理员名下的用户覆盖全局自定义变量。",
+      "addVariable": "添加变量",
+      "empty": "未配置自定义变量。",
+      "duplicateKey": "自定义变量键重复。",
+      "builtinConflict": "此键已保留给内置变量。"
+    },
     "passwordConfirm": "确认密码",
     "enterPasswordConfirm": "请输入确认密码",
     "disableSuccess": "管理员「{{name}}」已成功禁用",
@@ -898,7 +921,9 @@
       "expire_days_min": "最小到期天数",
       "expire_days_max": "最大到期天数",
       "min_hwid_per_user": "每用户最少 HWID",
-      "max_hwid_per_user": "每用户最多 HWID"
+      "max_hwid_per_user": "每用户最多 HWID",
+      "on_hold_timeout_days_min": "最小挂起超时（天）",
+      "on_hold_timeout_days_max": "最大挂起超时（天）"
     },
     "limitedBehavior": {
       "disabledWhenLimited": {
@@ -999,6 +1024,7 @@
     "dataLimit": "数据限制",
     "hwidLimit": "HWID 限制",
     "hwidLimitPlaceholder": "留空 = 默认，0 = 无限制",
+    "hwidLimitHint": "留空 = 使用默认策略。0 = 无限制并免除 HWID 校验，即使已强制要求 HWID 请求头。",
     "expire": "过期时间",
     "onHoldTimeout": "挂起超时",
     "method": "方法",
@@ -1366,6 +1392,13 @@
       "url": "订阅链接",
       "format": "匹配到的订阅格式（例如：links、sing_box）",
       "admin_username": "管理员用户名"
+    },
+    "customVariables": {
+      "title": "自定义变量",
+      "trigger": "自定义变量",
+      "preview": "预览",
+      "empty": "未配置自定义变量。",
+      "emptyValue": "空值"
     },
     "advancedOptions": "高级选项",
     "hos.info": "默认情况下，如果请求主机在 XRAY 配置中设置，则使用该主机。但是，如果需要，您可以在此处设置自定义请求主机。",

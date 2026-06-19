@@ -12,7 +12,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { LoaderButton } from '@/components/ui/loader-button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -1766,6 +1766,11 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
                                   }}
                                 />
                               </FormControl>
+                              <FormDescription className="text-xs">
+                                {t('userDialog.hwidLimitHint', {
+                                  defaultValue: 'Empty = use default policy. 0 = unlimited and exempt from HWID, even when the HWID header is forced.',
+                                })}
+                              </FormDescription>
                               <FormMessage />
                             </FormItem>
                           )}

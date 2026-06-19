@@ -23,6 +23,7 @@ class AdminNotificationEnable(BaseNotificationEnable):
 
 class NodeNotificationEnable(BaseNotificationEnable):
     connect: bool = Field(default=True)
+    recovered: bool = Field(default=True)
     error: bool = Field(default=True)
     limited: bool = Field(default=True)
     reset_usage: bool = Field(default=True)

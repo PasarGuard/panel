@@ -79,6 +79,24 @@ async def connect_node(node: NodeNotification):
         await send_discord_webhook(data, webhook)
 
 
+async def recovered_node(node: NodeNotification):
+    name = escape_ds_markdown(node.name)
+    message = copy.deepcopy(messages.RECOVERED_NODE)
+    message["description"] = message["description"].format(
+        name=name, node_version=node.node_version, core_version=node.core_version
+    )
+    message["footer"]["text"] = message["footer"]["text"].format(id=node.id)
+    data = {
+        "content": "",
+        "embeds": [message],
+    }
+    data["embeds"][0]["color"] = colors.GREEN
+    settings: NotificationSettings = await notification_settings()
+    if settings.notify_discord:
+        webhook = get_discord_webhook(settings, ENTITY)
+        await send_discord_webhook(data, webhook)
+
+
 async def error_node(node: NodeNotification):
     name, node_message = escape_ds_markdown_list((node.name, node.message))
     message = copy.deepcopy(messages.ERROR_NODE)

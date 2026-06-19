@@ -4,7 +4,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Textarea } from '@/components/ui/textarea'
 import type { SubscriptionFormData } from './subscription-settings-schema'
-import { VariablesList } from '@/components/ui/variables-popover'
+import { CustomVariablesPopover, VariablesList } from '@/components/ui/variables-popover'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
@@ -80,21 +80,24 @@ export function SubscriptionRuleAdvancedSheet({ form, ruleIndex, rowId, open, on
                 <p className="text-foreground text-sm font-medium">{t('settings.subscriptions.rules.responseHeaders')}</p>
                 <p className="text-muted-foreground mt-0.5 text-sm">{t('settings.subscriptions.rules.responseHeadersDescription')}</p>
               </div>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0">
-                    <Info className="text-muted-foreground h-4 w-4" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
-                  <div className="space-y-1.5">
-                    <h4 className="mb-2 text-[11px] font-medium">{t('hostsDialog.variables.title')}</h4>
-                    <div className="max-h-[60vh] space-y-1 overflow-y-auto pr-1">
-                      <VariablesList includeProfileTitle={true} includeFormat={true} />
+              <div className="flex shrink-0 items-center gap-2">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0">
+                      <Info className="text-muted-foreground h-4 w-4" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
+                    <div className="space-y-1.5">
+                      <h4 className="mb-2 text-[11px] font-medium">{t('hostsDialog.variables.title')}</h4>
+                      <div className="max-h-[60vh] space-y-1 overflow-y-auto pr-1">
+                        <VariablesList includeProfileTitle={true} includeFormat={true} />
+                      </div>
                     </div>
-                  </div>
-                </PopoverContent>
-              </Popover>
+                  </PopoverContent>
+                </Popover>
+                <CustomVariablesPopover customVariables={form.watch('custom_variables') || []} side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5} />
+              </div>
             </div>
 
             <div className="flex justify-end">

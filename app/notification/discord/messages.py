@@ -190,6 +190,12 @@ CONNECT_NODE = {
     "footer": {"text": "ID: {id}"},
 }
 
+RECOVERED_NODE = {
+    "title": "✅ Recovered Node",
+    "description": "**Name:** {name}\n" + "**Node Version:** {node_version}\n" + "**Core Version:** {core_version}",
+    "footer": {"text": "ID: {id}"},
+}
+
 ERROR_NODE = {
     "title": "Error Node",
     "description": "**Name:** {name}\n**Error:** {error}",

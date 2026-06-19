@@ -11,16 +11,17 @@ import { PasswordInput } from '@/components/ui/password-input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
-import { VariablesPopover } from '@/components/ui/variables-popover'
+import { CustomVariablesPopover, normalizeCustomVariableKey, VariablesPopover } from '@/components/ui/variables-popover'
 import { useAdmin } from '@/hooks/use-admin'
 import useDynamicErrorHandler from '@/hooks/use-dynamic-errors.ts'
 import { useCreateAdmin, useGetRolesSimple, useModifyAdminById } from '@/service/api'
 import type { RoleLimits } from '@/service/api'
+import { builtInVariableKeys } from '@/features/subscriptions/components/subscription-settings-schema'
 import { upsertAdminInAdminsCache } from '@/utils/adminsCache'
 import { removeAuthToken } from '@/utils/authStorage'
 import { bytesToFormGigabytes, formatBytes, gbToBytes } from '@/utils/formatByte'
 import { useQueryClient } from '@tanstack/react-query'
-import { Bell, IdCard, Pencil, Sliders, UserCog } from 'lucide-react'
+import { Bell, IdCard, Pencil, Plus, Sliders, Trash2, UserCog } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { UseFormReturn, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -45,6 +46,8 @@ const SECONDS_PER_DAY = 86_400
 const normalizePermissionOverrides = (overrides: AdminFormValuesInput['permission_overrides']): RoleLimits => {
   const minDays = normalizeOverrideValue(overrides?.expire_days_min)
   const maxDays = normalizeOverrideValue(overrides?.expire_days_max)
+  const minTimeoutDays = normalizeOverrideValue(overrides?.on_hold_timeout_days_min)
+  const maxTimeoutDays = normalizeOverrideValue(overrides?.on_hold_timeout_days_max)
   return {
     max_users: normalizeOverrideValue(overrides?.max_users),
     data_limit_min: normalizeOverrideValue(overrides?.data_limit_min),
@@ -53,6 +56,8 @@ const normalizePermissionOverrides = (overrides: AdminFormValuesInput['permissio
     expire_max: maxDays === null ? null : Math.round(maxDays * SECONDS_PER_DAY),
     min_hwid_per_user: normalizeOverrideValue(overrides?.min_hwid_per_user),
     max_hwid_per_user: normalizeOverrideValue(overrides?.max_hwid_per_user),
+    on_hold_timeout_min: minTimeoutDays === null ? null : Math.round(minTimeoutDays * SECONDS_PER_DAY),
+    on_hold_timeout_max: maxTimeoutDays === null ? null : Math.round(maxTimeoutDays * SECONDS_PER_DAY),
   }
 }
 
@@ -61,6 +66,17 @@ const normalizeDataLimit = (value: AdminFormValuesInput['data_limit']): number =
   return normalized && normalized > 0 ? normalized : 0
 }
 const ONE_GB_IN_BYTES = 1024 * 1024 * 1024
+
+const nextCustomVariableKey = (variables: NonNullable<AdminFormValuesInput['custom_variables']>) => {
+  let index = variables.length + 1
+  let key = `CUSTOM_${index}`
+  const usedKeys = new Set(variables.map(variable => variable.key))
+  while (usedKeys.has(key)) {
+    index += 1
+    key = `CUSTOM_${index}`
+  }
+  return key
+}
 
 interface AdminModalProps {
   isDialogOpen: boolean
@@ -80,6 +96,8 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
   const modifyAdminMutation = useModifyAdminById()
   const rolesQuery = useGetRolesSimple()
   const selectedRoleId = form.watch('role_id')
+  const customVariables = form.watch('custom_variables') || []
+  const builtInKeys = new Set<string>(builtInVariableKeys)
   const roleOptions = useMemo(() => {
     const rolesById = new Map<number, { id: number; name: string; is_owner: boolean }>()
     BUILTIN_ADMIN_ROLES.forEach(role => rolesById.set(role.id, role))
@@ -117,6 +135,26 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
     setOpenSection(prev => (prev === value ? undefined : value))
   }
 
+  const setCustomVariables = (variables: NonNullable<AdminFormValuesInput['custom_variables']>) => {
+    form.setValue('custom_variables', variables, {
+      shouldDirty: true,
+      shouldTouch: true,
+      shouldValidate: true,
+    })
+  }
+
+  const addCustomVariable = () => {
+    setCustomVariables([...customVariables, { key: nextCustomVariableKey(customVariables), value: '' }])
+  }
+
+  const updateCustomVariable = (index: number, patch: Partial<NonNullable<AdminFormValuesInput['custom_variables']>[number]>) => {
+    setCustomVariables(customVariables.map((variable, variableIndex) => (variableIndex === index ? { ...variable, ...patch } : variable)))
+  }
+
+  const removeCustomVariable = (index: number) => {
+    setCustomVariables(customVariables.filter((_, variableIndex) => variableIndex !== index))
+  }
+
   // Ensure form is cleared when modal is closed
   const handleClose = (open: boolean) => {
     if (!open) {
@@ -148,6 +186,7 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
         support_url: values.support_url,
         telegram_id: values.telegram_id,
         profile_title: values.profile_title,
+        custom_variables: values.custom_variables || [],
         note: values.note,
         notification_enable: values.notification_enable || null,
         role_id: values.role_id,
@@ -190,6 +229,7 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
           support_url: values.support_url,
           telegram_id: values.telegram_id,
           profile_title: values.profile_title,
+          custom_variables: values.custom_variables || [],
           note: values.note,
           notification_enable: values.notification_enable || null,
           role_id: values.role_id,
@@ -222,6 +262,7 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
         'support_url',
         'telegram_id',
         'profile_title',
+        'custom_variables',
         'note',
         'permission_overrides',
       ]
@@ -464,6 +505,76 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
                           </FormItem>
                         )}
                       />
+                      <div className="space-y-3 sm:col-span-2">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1 space-y-1">
+                            <div className="flex items-center gap-1.5">
+                              <FormLabel>{t('admins.customVariables.title', { defaultValue: 'Custom Variables' })}</FormLabel>
+                              <CustomVariablesPopover customVariables={customVariables} />
+                            </div>
+                            <p className="text-muted-foreground text-xs">
+                              {t('admins.customVariables.description', {
+                                defaultValue: 'Override global custom variables for users owned by this admin.',
+                              })}
+                            </p>
+                          </div>
+                          <Button type="button" variant="outline" size="sm" onClick={addCustomVariable}>
+                            <Plus className="mr-1.5 h-3.5 w-3.5" />
+                            {t('admins.customVariables.addVariable', { defaultValue: 'Add Variable' })}
+                          </Button>
+                        </div>
+                        <div className="space-y-2">
+                          {customVariables.length > 0 ? (
+                            customVariables.map((variable, index) => {
+                              const duplicate = customVariables.some((candidate, candidateIndex) => candidateIndex !== index && candidate.key === variable.key)
+                              const conflictsWithBuiltIn = builtInKeys.has(variable.key)
+                              const hasKeyError = duplicate || conflictsWithBuiltIn
+                              return (
+                                <div key={`admin-custom-variable-${index}`} className="bg-card/50 space-y-2 rounded-lg border p-3">
+                                  <div className="flex flex-col gap-2 sm:flex-row">
+                                    <div className="min-w-0 flex-1 space-y-1">
+                                      <Input
+                                        value={variable.key}
+                                        onChange={event => updateCustomVariable(index, { key: normalizeCustomVariableKey(event.target.value) })}
+                                        placeholder="CUSTOM_HOST"
+                                        className="font-mono text-xs"
+                                        aria-invalid={hasKeyError}
+                                      />
+                                      {hasKeyError ? (
+                                        <p className="text-destructive text-xs">
+                                          {duplicate
+                                            ? t('admins.customVariables.duplicateKey', { defaultValue: 'Duplicate custom variable key.' })
+                                            : t('admins.customVariables.builtinConflict', { defaultValue: 'This key is reserved for a built-in variable.' })}
+                                        </p>
+                                      ) : null}
+                                    </div>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
+                                      className="text-destructive hover:bg-destructive/10 h-8 w-8 shrink-0"
+                                      onClick={() => removeCustomVariable(index)}
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </div>
+                                  <Textarea
+                                    value={variable.value}
+                                    onChange={event => updateCustomVariable(index, { value: event.target.value })}
+                                    placeholder="{USERNAME}.example.com"
+                                    className="min-h-[60px] resize-none font-mono text-xs"
+                                    rows={2}
+                                  />
+                                </div>
+                              )
+                            })
+                          ) : (
+                            <div className="border-border/70 rounded-lg border border-dashed px-4 py-6 text-center">
+                              <p className="text-muted-foreground text-sm">{t('admins.customVariables.empty', { defaultValue: 'No custom variables configured.' })}</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
                       <FormField
                         control={form.control}
                         name="note"
@@ -606,7 +717,7 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
                     <div className="flex items-center gap-2">
                       <Sliders className="h-4 w-4" />
                       <span>{t('admins.permissionOverrides', { defaultValue: 'Permission overrides' })}</span>
-                      <span className="text-muted-foreground text-xs">{permissionOverridesCount}/7</span>
+                      <span className="text-muted-foreground text-xs">{permissionOverridesCount}/9</span>
                     </div>
                   </AccordionTrigger>
                   <AccordionContent className="px-1 pt-1">
@@ -673,6 +784,11 @@ function PermissionOverridesFields({ form }: { form: AdminForm }) {
       <div className="grid gap-3 sm:grid-cols-2">
         <NumberLimitField form={form} name="permission_overrides.min_hwid_per_user" labelKey="adminRoles.limitFields.min_hwid_per_user" />
         <NumberLimitField form={form} name="permission_overrides.max_hwid_per_user" labelKey="adminRoles.limitFields.max_hwid_per_user" />
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <NumberLimitField form={form} name="permission_overrides.on_hold_timeout_days_min" labelKey="adminRoles.limitFields.on_hold_timeout_days_min" />
+        <NumberLimitField form={form} name="permission_overrides.on_hold_timeout_days_max" labelKey="adminRoles.limitFields.on_hold_timeout_days_max" />
       </div>
     </div>
   )
