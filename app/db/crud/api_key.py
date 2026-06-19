@@ -22,6 +22,7 @@ async def create_api_key(
         name=model.name,
         note=model.note,
         key_hash=hash_api_key(raw_key),
+        api_key_trimmed=f"{raw_key[:3]}***{raw_key[-3:]}",
         expire_date=model.expire_date,
     )
     db.add(db_key)
@@ -97,6 +98,7 @@ async def delete_api_key(db: AsyncSession, db_key: APIKey) -> None:
 async def revoke_api_key(db: AsyncSession, db_key: APIKey) -> tuple[str, APIKey]:
     raw_key = str(uuid.uuid4())
     db_key.key_hash = hash_api_key(raw_key)
+    db_key.api_key_trimmed = f"{raw_key[:3]}***{raw_key[-3:]}"
     db_key.revoked_at = dt.now(tz.utc)
     db_key.status = APIKeyStatus.active
     await db.flush()

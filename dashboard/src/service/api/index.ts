@@ -3583,6 +3583,7 @@ export interface APIKeyResponse {
   revoked_at?: APIKeyResponseRevokedAt
   status?: APIKeyStatus
   is_expired?: boolean
+  api_key_trimmed?: string | null
 }
 
 export type APIKeyCreateResponseRevokedAt = string | null

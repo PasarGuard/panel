@@ -127,6 +127,13 @@ export default function ApiKeysTable({
                           </Badge>
                         )}
                       </div>
+                      {apiKey.api_key_trimmed && (
+                        <div className="mt-1">
+                          <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px]">
+                            {apiKey.api_key_trimmed}
+                          </code>
+                        </div>
+                      )}
                       
                       <div className="space-y-1 mt-2">
                         <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">

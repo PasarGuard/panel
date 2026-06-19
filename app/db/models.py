@@ -917,6 +917,7 @@ class APIKey(Base, CreatedAtUTCMixin):
     admin: Mapped["Admin"] = relationship(back_populates="api_keys", init=False)
     name: Mapped[str] = mapped_column(String(128), nullable=False)
     key_hash: Mapped[str] = mapped_column(String(128), nullable=False)
+    api_key_trimmed: Mapped[str] = mapped_column(String(16))
     role_id: Mapped[int] = fk_id_column("admin_roles.id")
     role: Mapped["AdminRole"] = relationship(back_populates="api_keys", init=False, lazy="selectin")
     note: Mapped[Optional[str]] = mapped_column(String(512), default=None)

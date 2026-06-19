@@ -43,6 +43,20 @@ export const setupColumns = ({ t, onEdit, onDelete, onRevoke, admins, roles }: C
       },
     },
     {
+      accessorKey: 'api_key_trimmed',
+      header: t('apiKeys.key', { defaultValue: 'API Key' }),
+      cell: ({ row }) => {
+        const trimmed = row.original.api_key_trimmed
+        return trimmed ? (
+          <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
+            {trimmed}
+          </code>
+        ) : (
+          <span className="text-muted-foreground">-</span>
+        )
+      },
+    },
+    {
       accessorKey: 'role_id',
       header: t('apiKeys.role'),
       cell: ({ row }) => {

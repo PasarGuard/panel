@@ -73,6 +73,7 @@ class APIKeyOperation(BaseOperation):
             status=db_key.status,
             is_expired=db_key.is_expired,
             api_key=raw_key,
+            api_key_trimmed=db_key.api_key_trimmed,
         )
 
     async def list_api_keys(self, db: AsyncSession, *, admin: AdminDetails, query: APIKeysQuery) -> APIKeysResponse:
@@ -147,6 +148,7 @@ class APIKeyOperation(BaseOperation):
             status=db_key.status,
             is_expired=db_key.is_expired,
             api_key=raw_key,
+            api_key_trimmed=db_key.api_key_trimmed,
         )
 
     async def get_api_key(self, db: AsyncSession, *, admin: AdminDetails, key_id: int) -> APIKeyResponse:

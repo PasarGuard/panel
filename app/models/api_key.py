@@ -50,6 +50,7 @@ class APIKeyResponse(APIKeyBase):
     id: int
     admin_id: int
     created_at: dt
+    api_key_trimmed: str
     revoked_at: dt | None = None
     status: APIKeyStatus = APIKeyStatus.active
     is_expired: bool = False
