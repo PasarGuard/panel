@@ -709,6 +709,7 @@
       "users": "کاربران",
       "admins": "مدیران",
       "roles": "نقش‌ها",
+      "apiKeys": "کلیدهای API",
       "nodes": "گره‌ها",
       "coreHosts": "هسته و هاست‌ها",
       "groupsTemplates": "گروه‌ها و قالب‌ها",

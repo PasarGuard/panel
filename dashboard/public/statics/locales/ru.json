@@ -828,6 +828,7 @@
       "users": "Пользователи",
       "admins": "Админы",
       "roles": "Роли",
+      "apiKeys": "API Ключи",
       "nodes": "Узлы",
       "coreHosts": "Ядра и хосты",
       "groupsTemplates": "Группы и шаблоны",

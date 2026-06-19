@@ -11,10 +11,15 @@ from app.utils.helpers import fix_datetime_timezone
 class APIKeyBase(BaseModel):
     name: str = Field(min_length=1, max_length=128)
     note: str | None = Field(default=None, max_length=512)
-    roles: RolePermissions = Field(default_factory=RolePermissions)
+    permissions: RolePermissions = Field(default_factory=RolePermissions)
     expire_date: dt | None = None
 
     model_config = ConfigDict(from_attributes=True)
+
+    @field_validator("permissions", mode="before")
+    @classmethod
+    def validate_permissions(cls, value):
+        return value or RolePermissions()
 
 
 class APIKeyCreate(APIKeyBase):
@@ -32,7 +37,7 @@ class APIKeyCreate(APIKeyBase):
 class APIKeyUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=128)
     note: str | None = Field(default=None, max_length=512)
-    roles: RolePermissions | None = None
+    permissions: RolePermissions | None = None
     expire_date: dt | None = None
     status: APIKeyStatus | None = None
 

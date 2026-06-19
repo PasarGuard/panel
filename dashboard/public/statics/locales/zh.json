@@ -842,6 +842,7 @@
       "users": "用户",
       "admins": "管理员",
       "roles": "角色",
+      "apiKeys": "API 密钥",
       "nodes": "节点",
       "coreHosts": "核心和主机",
       "groupsTemplates": "组和模板",

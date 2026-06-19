@@ -14,7 +14,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { setupColumns } from './columns'
-import { APIKeyResponse, useGetAdminsSimple, useGetRolesSimple } from '@/service/api'
+import { APIKeyResponse, useGetAdminsSimple, RolePermissions } from '@/service/api'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -51,13 +51,10 @@ export default function ApiKeysTable({
   const { t } = useTranslation()
   const adminsQuery = useGetAdminsSimple()
   const admins = adminsQuery.data?.admins || []
-  
-  const rolesQuery = useGetRolesSimple()
-  const roles = rolesQuery.data?.roles || []
 
   const columns = useMemo(
-    () => setupColumns({ t, onEdit, onDelete, onRevoke, admins, roles }),
-    [t, onEdit, onDelete, onRevoke, admins, roles]
+    () => setupColumns({ t, onEdit, onDelete, onRevoke, admins }),
+    [t, onEdit, onDelete, onRevoke, admins]
   )
 
   const table = useReactTable({
@@ -103,8 +100,11 @@ export default function ApiKeysTable({
         {apiKeys.length ? (
           apiKeys.map((apiKey) => {
             const admin = admins.find(a => a.id === apiKey.admin_id)
-            const role = roles.find(r => r.id === apiKey.role_id)
-            const roleName = role?.name || (apiKey.role_id === 1 ? 'Owner' : apiKey.role_id === 2 ? 'Admin' : 'Role ' + apiKey.role_id)
+            const permissions = apiKey.permissions as RolePermissions | undefined
+            const resourceCount = permissions ? Object.keys(permissions).length : 0
+            const actionCount = permissions
+              ? Object.values(permissions).reduce((sum, r) => sum + (r ? Object.values(r as object).filter(Boolean).length : 0), 0)
+              : 0
             
             return (
               <Card
@@ -138,7 +138,9 @@ export default function ApiKeysTable({
                       <div className="space-y-1 mt-2">
                         <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
                           <ShieldCheck className="h-3 w-3" />
-                          <span className="truncate">{roleName}</span>
+                          <span className="truncate">
+                            {resourceCount} res · {actionCount} actions
+                          </span>
                         </div>
                         
                         <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">

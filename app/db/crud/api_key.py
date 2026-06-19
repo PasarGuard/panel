@@ -19,7 +19,7 @@ async def create_api_key(
     raw_key = f"pg_key_{raw_uuid}"
     db_key = APIKey(
         admin_id=admin_id,
-        roles=model.roles.model_dump(exclude_none=True),
+        permissions=model.permissions.model_dump(exclude_none=True),
         name=model.name,
         note=model.note,
         key_hash=hash_api_key(raw_key),

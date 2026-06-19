@@ -10,7 +10,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Badge } from '@/components/ui/badge'
-import { APIKeyResponse, AdminBase, AdminRoleSimple } from '@/service/api'
+import { APIKeyResponse, AdminBase, RolePermissions } from '@/service/api'
 import { dateUtils } from '@/utils/dateFormatter'
 
 interface ColumnsProps {
@@ -19,10 +19,17 @@ interface ColumnsProps {
   onDelete: (apiKey: APIKeyResponse) => void
   onRevoke: (apiKey: APIKeyResponse) => void
   admins: AdminBase[]
-  roles: AdminRoleSimple[]
 }
 
-export const setupColumns = ({ t, onEdit, onDelete, onRevoke, admins, roles }: ColumnsProps): ColumnDef<APIKeyResponse>[] => {
+function countEnabledPermissions(permissions: RolePermissions | undefined): number {
+  if (!permissions) return 0
+  return Object.values(permissions).reduce((total, resource) => {
+    if (!resource || typeof resource !== 'object') return total
+    return total + Object.values(resource as object).filter(Boolean).length
+  }, 0)
+}
+
+export const setupColumns = ({ t, onEdit, onDelete, onRevoke, admins }: ColumnsProps): ColumnDef<APIKeyResponse>[] => {
   return [
     {
       accessorKey: 'name',
@@ -57,19 +64,22 @@ export const setupColumns = ({ t, onEdit, onDelete, onRevoke, admins, roles }: C
       },
     },
     {
-      accessorKey: 'role_id',
-      header: t('apiKeys.role'),
+      accessorKey: 'permissions',
+      header: t('adminRoles.permissions', { defaultValue: 'Permissions' }),
       cell: ({ row }) => {
-        const roleId = row.getValue('role_id')
-        const adminId = row.original.admin_id
-        const admin = admins.find(a => a.id === adminId)
-        
-        const role = roles.find(r => r.id === roleId)
-        const roleName = role?.name || (roleId === 1 ? 'Owner' : roleId === 2 ? 'Admin' : 'Role ' + roleId)
-
+        const permissions = row.original.permissions as RolePermissions | undefined
+        const count = countEnabledPermissions(permissions)
+        const resourceCount = permissions ? Object.keys(permissions).length : 0
         return (
-          <div className="flex flex-col gap-1">
-            <Badge variant="outline" className="w-fit">{roleName}</Badge>
+          <div className="flex items-center gap-1">
+            <Badge variant="outline" className="text-xs">
+              {resourceCount} {t('resources', { defaultValue: 'resources' })}
+            </Badge>
+            {count > 0 && (
+              <Badge variant="secondary" className="text-xs">
+                {count} {t('actions', { defaultValue: 'actions' })}
+              </Badge>
+            )}
           </div>
         )
       },

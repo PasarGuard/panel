@@ -51,21 +51,21 @@ def _safe_notification_task(func):
 async def create_api_key(api_key: APIKeyResponse, admin_username: str, by: str):
     if (await notification_enable()).api_key.create:
         await asyncio.gather(
-            ds.create_api_key_ds(api_key, admin_username, by), tg.create_api_key_tg(api_key, admin_username, by)
+            ds.create_api_key(api_key, admin_username, by), tg.create_api_key_tg(api_key, admin_username, by)
         )
 
 
 async def modify_api_key(api_key: APIKeyResponse, admin_username: str, by: str):
     if (await notification_enable()).api_key.modify:
         await asyncio.gather(
-            ds.modify_api_key_ds(api_key, admin_username, by), tg.modify_api_key_tg(api_key, admin_username, by)
+            ds.modify_api_key(api_key, admin_username, by), tg.modify_api_key_tg(api_key, admin_username, by)
         )
 
 
 async def remove_api_key(api_key: APIKeyResponse, admin_username: str, by: str):
     if (await notification_enable()).api_key.delete:
         await asyncio.gather(
-            ds.remove_api_key_ds(api_key, admin_username, by), tg.remove_api_key_tg(api_key, admin_username, by)
+            ds.remove_api_key(api_key, admin_username, by), tg.remove_api_key_tg(api_key, admin_username, by)
         )
 
 

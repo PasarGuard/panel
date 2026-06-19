@@ -49,7 +49,7 @@ export default function ApiKeysPage() {
   const [copied, setCopied] = useState(false)
 
   const [isCardView, setIsCardView] = useState(false)
-  const [filters, setFilters] = useState<{ status?: APIKeyStatus[]; role_id?: number; key_id?: number }>({})
+  const [filters, setFilters] = useState<{ status?: APIKeyStatus[]; key_id?: number }>({})
   const { search, debouncedSearch, setSearch } = useDebouncedSearch('', 300)
   const [isAdvanceSearchOpen, setIsAdvanceSearchOpen] = useState(false)
 
@@ -154,7 +154,7 @@ export default function ApiKeysPage() {
 
   return (
     <div className="flex w-full flex-col items-start gap-2">
-      <div className="w-full transform-gpu animate-fade-in" style={{ animationDuration: '400ms' }}>
+      <div className="animate-fade-in w-full transform-gpu" style={{ animationDuration: '400ms' }}>
         <PageHeader
           title="apiKeys.title"
           description="apiKeys.description"
@@ -168,36 +168,40 @@ export default function ApiKeysPage() {
         <Separator />
       </div>
 
-      <div className="flex w-full flex-col gap-4 px-4 pt-4">
-        <ApiKeyFilters
-          search={search}
-          onSearchChange={setSearch}
-          isFetching={isFetching}
-          onRefresh={() => refetch()}
-          viewMode={isCardView ? 'grid' : 'list'}
-          onViewModeChange={(mode) => setIsCardView(mode === 'grid')}
-          filters={{
-            status: filters.status?.[0],
-            role_id: filters.role_id,
-          }}
-          onFilterChange={(newFilters) => {
-            if (!Object.keys(newFilters).length) {
-              handleClearAdvanceSearch()
-            } else {
-              setFilters(prev => ({ ...prev, ...newFilters, status: newFilters.status ? [newFilters.status as APIKeyStatus] : undefined }))
-            }
-          }}
-          onAdvanceSearchOpen={() => setIsAdvanceSearchOpen(true)}
-        />
+      <div className="w-full px-4 pt-2">
+        <div
+          className="flex flex-col gap-4 animate-slide-up transform-gpu"
+          style={{ animationDuration: '500ms', animationDelay: '100ms', animationFillMode: 'both' }}
+        >
+          <ApiKeyFilters
+            search={search}
+            onSearchChange={setSearch}
+            isFetching={isFetching}
+            onRefresh={() => refetch()}
+            viewMode={isCardView ? 'grid' : 'list'}
+            onViewModeChange={(mode) => setIsCardView(mode === 'grid')}
+            filters={{
+              status: filters.status?.[0],
+            }}
+            onFilterChange={(newFilters) => {
+              if (!Object.keys(newFilters).length) {
+                handleClearAdvanceSearch()
+              } else {
+                setFilters(prev => ({ ...prev, ...newFilters, status: newFilters.status ? [newFilters.status as APIKeyStatus] : undefined }))
+              }
+            }}
+            onAdvanceSearchOpen={() => setIsAdvanceSearchOpen(true)}
+          />
 
-        <ApiKeysTable
-          onEdit={handleEdit}
-          onDelete={setKeyToDelete}
-          onRevoke={setKeyToRevoke}
-          isCardView={isCardView}
-          apiKeys={apiKeys}
-          isLoading={isLoading}
-        />
+          <ApiKeysTable
+            onEdit={handleEdit}
+            onDelete={setKeyToDelete}
+            onRevoke={setKeyToRevoke}
+            isCardView={isCardView}
+            apiKeys={apiKeys}
+            isLoading={isLoading}
+          />
+        </div>
       </div>
 
       <ApiKeyModal

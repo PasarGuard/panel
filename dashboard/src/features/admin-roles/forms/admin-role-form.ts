@@ -58,6 +58,16 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
     ],
   },
   {
+    labelKey: 'apiKeys',
+    actions: [
+      { resource: 'api_keys', action: 'read' },
+      { resource: 'api_keys', action: 'read_simple' },
+      { resource: 'api_keys', action: 'create' },
+      { resource: 'api_keys', action: 'update' },
+      { resource: 'api_keys', action: 'delete' },
+    ],
+  },
+  {
     labelKey: 'nodes',
     actions: [
       { resource: 'nodes', action: 'read' },

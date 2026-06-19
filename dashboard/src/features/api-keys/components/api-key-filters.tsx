@@ -17,10 +17,9 @@ interface ApiKeyFiltersProps {
   onViewModeChange?: (mode: ViewMode) => void
   filters: {
     status?: string
-    role_id?: number
     key_id?: number
   }
-  onFilterChange: (filters: { status?: string; role_id?: number; key_id?: number }) => void
+  onFilterChange: (filters: { status?: string; key_id?: number }) => void
   onAdvanceSearchOpen: () => void
 }
 
@@ -42,8 +41,8 @@ export const ApiKeyFilters = ({
     onSearchChange('')
   }
 
-  const hasActiveFilters = !!(filters.status || filters.role_id || filters.key_id)
-  const activeFiltersCount = (filters.status ? 1 : 0) + (filters.role_id ? 1 : 0) + (filters.key_id ? 1 : 0)
+  const hasActiveFilters = !!(filters.status || filters.key_id)
+  const activeFiltersCount = (filters.status ? 1 : 0) + (filters.key_id ? 1 : 0)
 
   return (
     <div dir={dir} className="flex items-center gap-2 md:gap-4">

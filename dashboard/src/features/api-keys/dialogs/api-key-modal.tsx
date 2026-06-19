@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useForm } from 'react-hook-form'
+import { useForm, useFieldArray, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import {
   Dialog,
@@ -42,18 +42,106 @@ import {
   useModifyApiKey,
   APIKeyResponse,
   getListApiKeysQueryKey,
+  RolePermissions,
 } from '@/service/api'
 import { useAdmin } from '@/hooks/use-admin'
-import { useGetRolesSimple } from '@/service/api'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Key, Copy, Check } from 'lucide-react'
+import { Key, Copy, Check, ChevronDown, ChevronRight, ShieldCheck, KeyRound } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Badge } from '@/components/ui/badge'
+import { Switch } from '@/components/ui/switch'
+import { cn } from '@/lib/utils'
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 
 interface ApiKeyModalProps {
   isOpen: boolean
   onOpenChange: (open: boolean) => void
   editingApiKey: APIKeyResponse | null
+}
+
+// All resources and their available actions
+const RESOURCE_ACTIONS: Record<string, string[]> = {
+  users: ['create', 'read', 'read_simple', 'update', 'delete', 'reset_usage', 'revoke_sub', 'set_owner', 'activate_next_plan'],
+  admins: ['create', 'read', 'read_simple', 'update', 'delete', 'reset_usage'],
+  nodes: ['create', 'read', 'read_simple', 'update', 'delete', 'reconnect', 'update_core', 'logs', 'stats'],
+  groups: ['create', 'read', 'read_simple', 'update', 'delete'],
+  hosts: ['create', 'read', 'update'],
+  templates: ['create', 'read', 'read_simple', 'update', 'delete'],
+  client_templates: ['create', 'read', 'read_simple', 'update', 'delete'],
+  cores: ['create', 'read', 'read_simple', 'update', 'delete'],
+  settings: ['read', 'read_general', 'update'],
+  system: ['read'],
+  hwids: ['read', 'delete'],
+  admin_roles: ['create', 'read', 'read_simple', 'update', 'delete'],
+  api_keys: ['create', 'read', 'read_simple', 'update', 'delete'],
+}
+
+type ActionValue = true | { scope: number } | null
+
+function getActionValue(permissions: RolePermissions | undefined, resource: string, action: string): ActionValue {
+  const res = (permissions as any)?.[resource]
+  if (!res) return null
+  const val = res[action]
+  if (val === undefined || val === null) return null
+  return val
+}
+
+function setActionValue(permissions: RolePermissions, resource: string, action: string, value: ActionValue): RolePermissions {
+  const updated = { ...permissions } as any
+  if (!updated[resource]) updated[resource] = {}
+  else updated[resource] = { ...updated[resource] }
+
+  if (value === null) {
+    delete updated[resource][action]
+    if (Object.keys(updated[resource]).length === 0) delete updated[resource]
+  } else {
+    updated[resource][action] = value
+  }
+  return updated
+}
+
+function PermissionToggle({
+  resource,
+  action,
+  value,
+  onChange,
+}: {
+  resource: string
+  action: string
+  value: ActionValue
+  onChange: (v: ActionValue) => void
+}) {
+  const isEnabled = value !== null
+  const isScoped = typeof value === 'object' && value !== null
+  const scope = isScoped ? (value as { scope: number }).scope : 1
+
+  return (
+    <div className="flex items-center gap-2 py-0.5">
+      <Switch
+        checked={isEnabled}
+        onCheckedChange={(checked) => onChange(checked ? true : null)}
+        className="scale-75 origin-left"
+      />
+      <span className={cn('text-xs w-24 truncate', !isEnabled && 'text-muted-foreground')}>
+        {action}
+      </span>
+      {isEnabled && (resource === 'users' || resource === 'admins') && (action === 'read' || action === 'read_simple' || action === 'update' || action === 'delete') && (
+        <Select
+          value={isScoped ? scope.toString() : 'all'}
+          onValueChange={(v) => onChange(v === 'all' ? true : { scope: parseInt(v) })}
+        >
+          <SelectTrigger className="h-5 text-[10px] w-16 px-1.5">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all" className="text-[10px]">All</SelectItem>
+            <SelectItem value="1" className="text-[10px]">Own</SelectItem>
+          </SelectContent>
+        </Select>
+      )}
+    </div>
+  )
 }
 
 export default function ApiKeyModal({
@@ -66,7 +154,6 @@ export default function ApiKeyModal({
   const [copied, setCopied] = useState(false)
 
   const queryClient = useQueryClient()
-  const rolesQuery = useGetRolesSimple()
   const { admin } = useAdmin()
   const createMutation = useCreateApiKey({
     mutation: {
@@ -88,25 +175,35 @@ export default function ApiKeyModal({
     defaultValues: apiKeyFormDefaultValues,
   })
 
-  const filteredRoles = (rolesQuery.data?.roles || []).filter(role => {
-    if (!admin) return false
-    if (admin.role?.is_owner) return true
-    return role.id === admin.role?.id
-  })
+  const permissionsValue = form.watch('permissions') as RolePermissions
+
+  const totalPermissionsCount = useMemo(() => {
+    let count = 0
+    for (const value of Object.values(permissionsValue || {})) {
+      if (!value || typeof value !== 'object') continue
+      for (const inner of Object.values(value as Record<string, unknown>)) {
+        if (inner === true) count += 1
+        else if (inner && typeof inner === 'object' && Number((inner as any).scope) > 0) count += 1
+      }
+    }
+    return count
+  }, [permissionsValue])
 
   useEffect(() => {
     if (editingApiKey) {
       form.reset({
         name: editingApiKey.name,
         note: editingApiKey.note || '',
-        role_id: editingApiKey.role_id,
+        permissions: (editingApiKey.permissions as RolePermissions) || {},
         status: editingApiKey.status || 'active',
         expire_date: editingApiKey.expire_date,
       })
     } else {
+      // Default to the admin's own role permissions as a starting point
+      const defaultPermissions = (admin?.role?.permissions as RolePermissions) || {}
       form.reset({
         ...apiKeyFormDefaultValues,
-        role_id: admin?.role?.id || 2
+        permissions: defaultPermissions,
       })
     }
     setCreatedKey(null)
@@ -117,12 +214,25 @@ export default function ApiKeyModal({
       if (editingApiKey) {
         await updateMutation.mutateAsync({
           keyId: editingApiKey.id,
-          data: values,
+          data: {
+            name: values.name,
+            note: values.note,
+            permissions: values.permissions as RolePermissions,
+            expire_date: values.expire_date as string | null | undefined,
+            status: values.status,
+          },
         })
         toast.success(t('apiKeys.updateSuccess'))
         onOpenChange(false)
       } else {
-        const response = await createMutation.mutateAsync({ data: values })
+        const response = await createMutation.mutateAsync({
+          data: {
+            name: values.name,
+            note: values.note,
+            permissions: values.permissions as RolePermissions,
+            expire_date: values.expire_date as string | null | undefined,
+          },
+        })
         setCreatedKey(response.api_key)
         toast.success(t('apiKeys.createSuccess'))
       }
@@ -147,7 +257,7 @@ export default function ApiKeyModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[540px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {editingApiKey ? t('apiKeys.editKey') : t('apiKeys.createKey')}
@@ -193,34 +303,65 @@ export default function ApiKeyModal({
                 )}
               />
 
-              <FormField
-                control={form.control}
-                name="role_id"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('apiKeys.role')}</FormLabel>
-                    <Select
-                      value={field.value.toString()}
-                      onValueChange={(val) => field.onChange(parseInt(val))}
-                      disabled={filteredRoles.length <= 1}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder={t('apiKeys.role')} />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {filteredRoles.map((role) => (
-                          <SelectItem key={role.id} value={role.id.toString()}>
-                            {role.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              {/* Permissions editor */}
+              <Accordion type="single" collapsible className="mt-0! mb-2 flex w-full flex-col gap-y-4">
+                <AccordionItem className="rounded-sm border px-4 **:data-[state=closed]:no-underline **:data-[state=open]:no-underline" value="permissions">
+                  <AccordionTrigger className="hover:no-underline py-4">
+                    <div className="flex items-center gap-2">
+                      <KeyRound className="h-4 w-4" />
+                      <span>{t('adminRoles.permissions', { defaultValue: 'Permissions' })}</span>
+                      {totalPermissionsCount > 0 && (
+                        <Badge variant="secondary" className="ms-2 shrink-0 text-[10px]">
+                          {t('adminRoles.permissionCount', { count: totalPermissionsCount, defaultValue: '{{count}} permissions' })}
+                        </Badge>
+                      )}
+                    </div>
+                  </AccordionTrigger>
+                  <AccordionContent className="pb-3 pt-1">
+                    <div className="max-h-[250px] overflow-y-auto pr-1 border rounded-md">
+                      <Accordion type="multiple" className="w-full">
+                        {Object.entries(RESOURCE_ACTIONS).map(([resource, actions]) => {
+                          const resourceData = (permissionsValue as any)?.[resource]
+                          const enabledCount = resourceData ? Object.values(resourceData).filter(Boolean).length : 0
+                          return (
+                            <AccordionItem
+                              value={resource}
+                              key={resource}
+                              className="px-3 border-b last:border-b-0"
+                            >
+                              <AccordionTrigger className="py-2 hover:no-underline">
+                                <div className="flex items-center gap-2">
+                                  <ShieldCheck className="h-3.5 w-3.5 text-muted-foreground" />
+                                  <span className="capitalize text-sm font-medium">{resource.replace('_', ' ')}</span>
+                                  {enabledCount > 0 && (
+                                    <Badge variant="secondary" className="h-4 px-1.5 text-[9px]">
+                                      {enabledCount}
+                                    </Badge>
+                                  )}
+                                </div>
+                              </AccordionTrigger>
+                              <AccordionContent className="pb-3 pt-1 grid grid-cols-2 gap-x-4 gap-y-1">
+                                {actions.map((action) => (
+                                  <PermissionToggle
+                                    key={action}
+                                    resource={resource}
+                                    action={action}
+                                    value={getActionValue(permissionsValue || {}, resource, action)}
+                                    onChange={(v) => {
+                                      const updated = setActionValue(permissionsValue || {}, resource, action, v)
+                                      form.setValue('permissions', updated as any)
+                                    }}
+                                  />
+                                ))}
+                              </AccordionContent>
+                            </AccordionItem>
+                          )
+                        })}
+                      </Accordion>
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
 
               <FormField
                 control={form.control}

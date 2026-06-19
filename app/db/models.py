@@ -917,7 +917,7 @@ class APIKey(Base, CreatedAtUTCMixin):
     name: Mapped[str] = mapped_column(String(128), nullable=False)
     key_hash: Mapped[str] = mapped_column(String(128), nullable=False)
     api_key_trimmed: Mapped[str] = mapped_column(String(16))
-    roles: Mapped[Dict] = mapped_column(PostgresJSONB, default_factory=dict)
+    permissions: Mapped[Dict] = mapped_column(PostgresJSONB, default_factory=dict)
     note: Mapped[Optional[str]] = mapped_column(String(512), default=None)
     expire_date: Mapped[Optional[dt]] = mapped_column(DateTime(timezone=True), default=None)
     revoked_at: Mapped[Optional[dt]] = mapped_column(DateTime(timezone=True), default=None)

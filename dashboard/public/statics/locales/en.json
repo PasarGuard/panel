@@ -842,6 +842,7 @@
       "users": "Users",
       "admins": "Admins",
       "roles": "Roles",
+      "apiKeys": "API Keys",
       "nodes": "Nodes",
       "coreHosts": "Core and hosts",
       "groupsTemplates": "Groups and templates",

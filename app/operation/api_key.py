@@ -79,7 +79,7 @@ class APIKeyOperation(BaseOperation):
             await self.raise_error(message="API key creation is not available for env admins", code=403)
 
         try:
-            _check_permissions_not_exceed_admin(admin, model.roles)
+            _check_permissions_not_exceed_admin(admin, model.permissions)
         except ValueError as exc:
             await self.raise_error(message=str(exc), code=403)
 
@@ -106,7 +106,7 @@ class APIKeyOperation(BaseOperation):
             admin_id=db_key.admin_id,
             name=db_key.name,
             note=db_key.note,
-            roles=RolePermissions.model_validate(db_key.roles),
+            permissions=RolePermissions.model_validate(db_key.permissions),
             created_at=db_key.created_at,
             expire_date=db_key.expire_date,
             revoked_at=db_key.revoked_at,
@@ -144,18 +144,18 @@ class APIKeyOperation(BaseOperation):
             if duplicates:
                 await self.raise_error(message="API key name already exists", code=409)
 
-        if model.roles is not None:
+        if model.permissions is not None:
             try:
-                _check_permissions_not_exceed_admin(admin, model.roles)
+                _check_permissions_not_exceed_admin(admin, model.permissions)
             except ValueError as exc:
                 await self.raise_error(message=str(exc), code=403)
 
         update_data = model.model_dump(exclude_unset=True)
-        # Serialize roles to plain dict for DB storage
-        if "roles" in update_data and isinstance(update_data["roles"], RolePermissions):
-            update_data["roles"] = update_data["roles"].model_dump(exclude_none=True)
-        elif "roles" in update_data and model.roles is not None:
-            update_data["roles"] = model.roles.model_dump(exclude_none=True)
+        # Serialize permissions to plain dict for DB storage
+        if "permissions" in update_data and isinstance(update_data["permissions"], RolePermissions):
+            update_data["permissions"] = update_data["permissions"].model_dump(exclude_none=True)
+        elif "permissions" in update_data and model.permissions is not None:
+            update_data["permissions"] = model.permissions.model_dump(exclude_none=True)
 
         db_key = await update_api_key(db, db_key, update_data)
         await db.commit()
@@ -186,7 +186,7 @@ class APIKeyOperation(BaseOperation):
             admin_id=db_key.admin_id,
             name=db_key.name,
             note=db_key.note,
-            roles=RolePermissions.model_validate(db_key.roles),
+            permissions=RolePermissions.model_validate(db_key.permissions),
             created_at=db_key.created_at,
             expire_date=db_key.expire_date,
             revoked_at=db_key.revoked_at,
