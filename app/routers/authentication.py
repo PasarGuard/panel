@@ -88,14 +88,18 @@ async def _get_admin_from_api_key_internal(
     if not raw_key:
         return
 
+    if not raw_key.startswith("pg_key_"):
+        return
+
+    uuid_str = raw_key[7:]
     try:
-        parsed_key = UUID(raw_key)
+        parsed_key = UUID(uuid_str)
     except ValueError:
         return
     if parsed_key.version != 4:
         return
 
-    db_key = await get_api_key_by_raw_key(db, str(parsed_key))
+    db_key = await get_api_key_by_raw_key(db, raw_key)
     if db_key is None:
         return
 
