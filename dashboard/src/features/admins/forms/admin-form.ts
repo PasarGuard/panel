@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { builtInVariableKeys, customVariableSchema } from '@/features/subscriptions/components/subscription-settings-schema'
+import { customVariablesSchema } from '@/features/subscriptions/components/subscription-settings-schema'
 
 export const adminStatusEditEnum = z.enum(['active', 'disabled'])
 
@@ -61,30 +61,7 @@ export const adminFormSchema = z
     support_url: z.string().optional(),
     telegram_id: z.number().optional(),
     profile_title: z.string().optional(),
-    custom_variables: z
-      .array(customVariableSchema)
-      .default([])
-      .superRefine((variables, ctx) => {
-        const seen = new Set<string>()
-        const builtInKeys = new Set<string>(builtInVariableKeys)
-        variables.forEach((variable, index) => {
-          if (builtInKeys.has(variable.key)) {
-            ctx.addIssue({
-              code: z.ZodIssueCode.custom,
-              message: 'This key is reserved for a built-in variable.',
-              path: [index, 'key'],
-            })
-          }
-          if (seen.has(variable.key)) {
-            ctx.addIssue({
-              code: z.ZodIssueCode.custom,
-              message: 'Duplicate custom variable key.',
-              path: [index, 'key'],
-            })
-          }
-          seen.add(variable.key)
-        })
-      }),
+    custom_variables: customVariablesSchema,
     note: z.string().optional(),
     notification_enable: z
       .object({

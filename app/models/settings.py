@@ -357,6 +357,14 @@ class HWIDSettings(BaseModel):
 
 class General(BaseModel):
     default_method: ShadowsocksMethods = Field(default=ShadowsocksMethods.CHACHA20_POLY1305)
+    custom_variables: list[CustomVariable] | None = Field(default=None)
+
+    @field_validator("custom_variables")
+    @classmethod
+    def validate_custom_variables(cls, value: list[CustomVariable] | None) -> list[CustomVariable] | None:
+        if value is None:
+            return None
+        return validate_custom_variables(value)
 
 
 class SettingsSchema(BaseModel):

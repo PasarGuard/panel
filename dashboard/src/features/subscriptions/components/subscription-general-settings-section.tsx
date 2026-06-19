@@ -92,7 +92,7 @@ export function SubscriptionGeneralSettingsSection({ form }: SubscriptionGeneral
                   <User className="h-4 w-4" />
                   {t('settings.subscriptions.general.profileTitle')}
                 </FormLabel>
-                <VariablesPopover />
+                <VariablesPopover customVariables={form.watch('custom_variables') || []} />
                 <CustomVariablesPopover customVariables={form.watch('custom_variables') || []} />
               </div>
               <FormControl>
@@ -114,7 +114,7 @@ export function SubscriptionGeneralSettingsSection({ form }: SubscriptionGeneral
                   <Megaphone className="h-4 w-4" />
                   {t('settings.subscriptions.general.announce')}
                 </FormLabel>
-                <VariablesPopover />
+                <VariablesPopover customVariables={form.watch('custom_variables') || []} />
                 <CustomVariablesPopover customVariables={form.watch('custom_variables') || []} />
               </div>
               <FormControl>

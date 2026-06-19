@@ -9,7 +9,7 @@ import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
 export interface SubscriptionCustomVariablesSectionProps {
-  form: UseFormReturn<SubscriptionFormData>
+  form: UseFormReturn<any>
 }
 
 const nextCustomVariableKey = (variables: NonNullable<SubscriptionFormData['custom_variables']>) => {
@@ -69,8 +69,8 @@ export function SubscriptionCustomVariablesSection({ form }: SubscriptionCustomV
       <div className="space-y-3">
         {customVariables.length > 0 ? (
           customVariables.map((variable, index) => {
-            const duplicate = customVariables.some((candidate, candidateIndex) => candidateIndex !== index && candidate.key === variable.key)
-            const conflictsWithBuiltIn = builtInKeys.has(variable.key)
+            const duplicate = !!variable.key && customVariables.some((candidate, candidateIndex) => candidateIndex !== index && candidate.key === variable.key)
+            const conflictsWithBuiltIn = !!variable.key && builtInKeys.has(variable.key)
             const hasKeyError = duplicate || conflictsWithBuiltIn
             return (
               <div key={`custom-variable-${index}`} className="bg-card/50 space-y-2 rounded-lg border p-3">

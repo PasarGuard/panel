@@ -2502,6 +2502,7 @@ export const GeoFilseRegion = {
 
 export interface General {
   default_method?: ShadowsocksMethods
+  custom_variables?: CustomVariable[] | null
 }
 
 export type GRPCSettingsInitialWindowsSize = number | null
