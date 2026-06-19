@@ -217,7 +217,7 @@ def test_user_create_active(access_token):
         cleanup_groups(access_token, core, groups)
 
 
-def test_user_hwid_limit_can_be_empty_on_create_and_modify(access_token):
+def test_user_hwid_limit_uses_fallback_on_create_and_null_modify_is_noop(access_token):
     core, groups = setup_groups(access_token, 1)
     group_ids = [group["id"] for group in groups]
     expire = datetime.now(timezone.utc).replace(microsecond=0) + timedelta(days=30)
@@ -237,7 +237,7 @@ def test_user_hwid_limit_can_be_empty_on_create_and_modify(access_token):
             },
         )
         usernames.append(user["username"])
-        assert user["hwid_limit"] is None
+        assert user["hwid_limit"] == 3
 
         explicit_null = create_user(
             access_token,
@@ -253,7 +253,7 @@ def test_user_hwid_limit_can_be_empty_on_create_and_modify(access_token):
             },
         )
         usernames.append(explicit_null["username"])
-        assert explicit_null["hwid_limit"] is None
+        assert explicit_null["hwid_limit"] == 3
 
         response = client.put(
             f"/api/user/{user['username']}",
@@ -269,7 +269,7 @@ def test_user_hwid_limit_can_be_empty_on_create_and_modify(access_token):
             json={"hwid_limit": None},
         )
         assert response.status_code == status.HTTP_200_OK
-        assert response.json()["hwid_limit"] is None
+        assert response.json()["hwid_limit"] == 2
     finally:
         for username in usernames:
             delete_user(access_token, username)
@@ -327,10 +327,8 @@ def test_limited_admin_cannot_create_or_modify_user_to_unlimited_data_or_expire(
                 "status": "active",
             },
         )
-        assert response.status_code == status.HTTP_201_CREATED
-        bounded_default_hwid_user = response.json()
-        assert bounded_default_hwid_user["hwid_limit"] is None
-        client.delete(f"/api/user/{bounded_default_hwid_user['username']}", headers=auth_headers(access_token))
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "HWID limit cannot be unlimited" in response.json()["detail"]
 
         response = client.post(
             "/api/user",
