@@ -43,6 +43,7 @@ export const apiKeyFormSchema = z.object({
   name: z.string().min(1, 'Name is required').max(128),
   note: z.string().max(512).optional(),
   permissions: permissionsSchema,
+  inherit_permissions: z.boolean().default(true),
   expire_date: z.union([z.date(), z.string(), z.number()]).nullable().optional(),
   status: z.enum(['active', 'disabled']).optional(),
 })
@@ -53,6 +54,7 @@ export const apiKeyFormDefaultValues: ApiKeyFormValues = {
   name: '',
   note: '',
   permissions: {},
+  inherit_permissions: true,
   expire_date: null,
   status: 'active',
 }

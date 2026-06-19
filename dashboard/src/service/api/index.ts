@@ -3547,6 +3547,7 @@ export interface APIKeyUpdate {
   name?: APIKeyUpdateName
   note?: APIKeyUpdateNote
   permissions?: APIKeyUpdatePermissions
+  inherit_permissions?: boolean | null
   expire_date?: APIKeyUpdateExpireDate
   status?: APIKeyUpdateStatus
 }
@@ -3575,6 +3576,7 @@ export interface APIKeyResponse {
   name: string
   note?: APIKeyResponseNote
   permissions?: RolePermissions
+  inherit_permissions?: boolean
   expire_date?: APIKeyResponseExpireDate
   id: number
   admin_id: number
@@ -3599,6 +3601,7 @@ export interface APIKeyCreateResponse {
   name: string
   note?: APIKeyCreateResponseNote
   permissions?: RolePermissions
+  inherit_permissions?: boolean
   expire_date?: APIKeyCreateResponseExpireDate
   id: number
   admin_id: number
@@ -3622,6 +3625,7 @@ export interface APIKeyCreate {
   name: string
   note?: APIKeyCreateNote
   permissions?: RolePermissions
+  inherit_permissions?: boolean
   expire_date?: APIKeyCreateExpireDate
 }
 

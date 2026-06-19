@@ -29,6 +29,7 @@ def upgrade() -> None:
         sa.Column("key_hash", sa.String(length=128), nullable=False),
         sa.Column("api_key_trimmed", sa.String(length=16), nullable=False),
         sa.Column("permissions", sa.JSON(), nullable=False, server_default="{}"),
+        sa.Column("inherit_permissions", sa.Boolean(), nullable=False, server_default="1"),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("expire_date", sa.DateTime(timezone=True), nullable=True),
         sa.Column("revoked_at", sa.DateTime(timezone=True), nullable=True),
@@ -52,11 +53,11 @@ def upgrade() -> None:
 
     # Update admin_roles permissions to include api_keys entry
     OWNER_ADMIN_API_KEY_PERMS = {
-        "create": True,
-        "read": True,
-        "read_simple": True,
-        "update": True,
-        "delete": True,
+        "create": {"scope": 2},
+        "read": {"scope": 2},
+        "read_simple": {"scope": 2},
+        "update": {"scope": 2},
+        "delete": {"scope": 2},
     }
     OPERATOR_API_KEY_PERMS = {
         "read": {"scope": 1},

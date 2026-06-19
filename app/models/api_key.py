@@ -12,6 +12,7 @@ class APIKeyBase(BaseModel):
     name: str = Field(min_length=1, max_length=128)
     note: str | None = Field(default=None, max_length=512)
     permissions: RolePermissions = Field(default_factory=RolePermissions)
+    inherit_permissions: bool = True
     expire_date: dt | None = None
 
     model_config = ConfigDict(from_attributes=True)
@@ -38,6 +39,7 @@ class APIKeyUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=128)
     note: str | None = Field(default=None, max_length=512)
     permissions: RolePermissions | None = None
+    inherit_permissions: bool | None = None
     expire_date: dt | None = None
     status: APIKeyStatus | None = None
 

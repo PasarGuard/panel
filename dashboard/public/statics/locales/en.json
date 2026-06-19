@@ -775,7 +775,10 @@
     "deletePrompt": "Are you sure you want to delete API key \"{{name}}\"?",
     "revokePrompt": "Revoking will invalidate the current key and issue a new one. Are you sure?",
     "revokeTitle": "Revoke & Reissue API Key",
-    "deleteTitle": "Delete API Key"
+    "deleteTitle": "Delete API Key",
+    "inheritPermissions": "Inherit admin permissions",
+    "inheritPermissionsDescription": "Use the owning admin's current role permissions. Disable to store custom permissions on this key.",
+    "inherited": "Inherited"
   },
   "adminRoles": {
     "title": "Admin Roles",
@@ -796,7 +799,7 @@
     "limits": "Limits",
     "limitsAndFeatures": "Limits & Features",
     "limitsHint": "Leave empty to inherit defaults. Set to 0 to disable.",
-    "roleFormHint": "Scoped user actions use none, own, or all. Other actions are boolean toggles.",
+    "roleFormHint": "Scoped actions use none, own, or all. Other actions are boolean toggles.",
     "scopedActionInfo": "Choose ownership scope: none denies access, own limits to the admin's own users, all grants full access.",
     "allowAll": "Allow all",
     "features": "Features",

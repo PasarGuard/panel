@@ -12,6 +12,8 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { APIKeyResponse, AdminBase, RolePermissions } from '@/service/api'
 import { dateUtils } from '@/utils/dateFormatter'
+import { countEnabledPermissions } from '@/features/admin-roles/components/permission-editor'
+import { RolePermissionFormMap } from '@/features/admin-roles/forms/admin-role-form'
 
 interface ColumnsProps {
   t: any
@@ -21,11 +23,16 @@ interface ColumnsProps {
   admins: AdminBase[]
 }
 
-function countEnabledPermissions(permissions: RolePermissions | undefined): number {
+function countEnabledResources(permissions: RolePermissions | undefined): number {
   if (!permissions) return 0
   return Object.values(permissions).reduce((total, resource) => {
     if (!resource || typeof resource !== 'object') return total
-    return total + Object.values(resource as object).filter(Boolean).length
+    return Object.values(resource as Record<string, unknown>).some(value => {
+      if (value === true) return true
+      return !!value && typeof value === 'object' && Number((value as any).scope) > 0
+    })
+      ? total + 1
+      : total
   }, 0)
 }
 
@@ -68,8 +75,11 @@ export const setupColumns = ({ t, onEdit, onDelete, onRevoke, admins }: ColumnsP
       header: t('adminRoles.permissions', { defaultValue: 'Permissions' }),
       cell: ({ row }) => {
         const permissions = row.original.permissions as RolePermissions | undefined
-        const count = countEnabledPermissions(permissions)
-        const resourceCount = permissions ? Object.keys(permissions).length : 0
+        const count = countEnabledPermissions(permissions as RolePermissionFormMap | undefined)
+        const resourceCount = countEnabledResources(permissions)
+        if (row.original.inherit_permissions) {
+          return <Badge variant="secondary">{t('apiKeys.inherited', { defaultValue: 'Inherited' })}</Badge>
+        }
         return (
           <div className="flex items-center gap-1">
             <Badge variant="outline" className="text-xs">

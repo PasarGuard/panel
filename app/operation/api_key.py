@@ -78,10 +78,11 @@ class APIKeyOperation(BaseOperation):
         if admin.id is None:
             await self.raise_error(message="API key creation is not available for env admins", code=403)
 
-        try:
-            _check_permissions_not_exceed_admin(admin, model.permissions)
-        except ValueError as exc:
-            await self.raise_error(message=str(exc), code=403)
+        if not model.inherit_permissions:
+            try:
+                _check_permissions_not_exceed_admin(admin, model.permissions)
+            except ValueError as exc:
+                await self.raise_error(message=str(exc), code=403)
 
         duplicates, _ = await get_api_keys(db, admin_id=admin.id, offset=0, limit=1, name=model.name)
         if duplicates:
@@ -107,6 +108,7 @@ class APIKeyOperation(BaseOperation):
             name=db_key.name,
             note=db_key.note,
             permissions=RolePermissions.model_validate(db_key.permissions),
+            inherit_permissions=db_key.inherit_permissions,
             created_at=db_key.created_at,
             expire_date=db_key.expire_date,
             revoked_at=db_key.revoked_at,
@@ -144,13 +146,19 @@ class APIKeyOperation(BaseOperation):
             if duplicates:
                 await self.raise_error(message="API key name already exists", code=409)
 
-        if model.permissions is not None:
+        uses_custom_permissions = model.inherit_permissions is False or (
+            model.inherit_permissions is None and model.permissions is not None and not db_key.inherit_permissions
+        )
+
+        if model.permissions is not None and uses_custom_permissions:
             try:
                 _check_permissions_not_exceed_admin(admin, model.permissions)
             except ValueError as exc:
                 await self.raise_error(message=str(exc), code=403)
 
         update_data = model.model_dump(exclude_unset=True)
+        if update_data.get("inherit_permissions") is True:
+            update_data["permissions"] = {}
         # Serialize permissions to plain dict for DB storage
         if "permissions" in update_data and isinstance(update_data["permissions"], RolePermissions):
             update_data["permissions"] = update_data["permissions"].model_dump(exclude_none=True)
@@ -187,6 +195,7 @@ class APIKeyOperation(BaseOperation):
             name=db_key.name,
             note=db_key.note,
             permissions=RolePermissions.model_validate(db_key.permissions),
+            inherit_permissions=db_key.inherit_permissions,
             created_at=db_key.created_at,
             expire_date=db_key.expire_date,
             revoked_at=db_key.revoked_at,

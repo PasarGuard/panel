@@ -18,10 +18,12 @@ import { APIKeyResponse, useGetAdminsSimple, RolePermissions } from '@/service/a
 import { Skeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Edit2, RotateCcw, Trash2, Key, Calendar as CalendarIcon, User as UserIcon, ShieldCheck, MoreHorizontal } from 'lucide-react'
+import { Edit2, RotateCcw, Trash2, Key, Calendar as CalendarIcon, ShieldCheck, MoreHorizontal } from 'lucide-react'
 import { dateUtils } from '@/utils/dateFormatter'
 import { Card } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
+import { countEnabledPermissions } from '@/features/admin-roles/components/permission-editor'
+import { RolePermissionFormMap } from '@/features/admin-roles/forms/admin-role-form'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -101,10 +103,16 @@ export default function ApiKeysTable({
           apiKeys.map((apiKey) => {
             const admin = admins.find(a => a.id === apiKey.admin_id)
             const permissions = apiKey.permissions as RolePermissions | undefined
-            const resourceCount = permissions ? Object.keys(permissions).length : 0
-            const actionCount = permissions
-              ? Object.values(permissions).reduce((sum, r) => sum + (r ? Object.values(r as object).filter(Boolean).length : 0), 0)
+            const resourceCount = permissions
+              ? Object.values(permissions).filter(resource => {
+                  if (!resource || typeof resource !== 'object') return false
+                  return Object.values(resource as Record<string, unknown>).some(value => {
+                    if (value === true) return true
+                    return !!value && typeof value === 'object' && Number((value as any).scope) > 0
+                  })
+                }).length
               : 0
+            const actionCount = countEnabledPermissions(permissions as RolePermissionFormMap | undefined)
             
             return (
               <Card
@@ -139,7 +147,7 @@ export default function ApiKeysTable({
                         <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
                           <ShieldCheck className="h-3 w-3" />
                           <span className="truncate">
-                            {resourceCount} res · {actionCount} actions
+                            {apiKey.inherit_permissions ? t('apiKeys.inherited', { defaultValue: 'Inherited' }) : `${resourceCount} res - ${actionCount} actions`}
                           </span>
                         </div>
                         

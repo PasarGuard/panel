@@ -2,8 +2,8 @@ import { z } from 'zod'
 import type { AdminRoleResponse, HWIDSettings, RoleAccess, RoleFeatures, RoleLimits, RolePermissions } from '@/service/api'
 
 export type RoleScope = 0 | 1 | 2
-type RolePermissionFormValue = boolean | { scope: RoleScope }
-type RolePermissionFormMap = Record<string, Record<string, RolePermissionFormValue>>
+export type RolePermissionFormValue = boolean | { scope: RoleScope }
+export type RolePermissionFormMap = Record<string, Record<string, RolePermissionFormValue>>
 type RolePermissionInput = object | null | undefined
 
 export type RoleHwidPolicy = HWIDSettings
@@ -60,11 +60,11 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
   {
     labelKey: 'apiKeys',
     actions: [
-      { resource: 'api_keys', action: 'read' },
-      { resource: 'api_keys', action: 'read_simple' },
-      { resource: 'api_keys', action: 'create' },
-      { resource: 'api_keys', action: 'update' },
-      { resource: 'api_keys', action: 'delete' },
+      { resource: 'api_keys', action: 'read', scoped: true },
+      { resource: 'api_keys', action: 'read_simple', scoped: true },
+      { resource: 'api_keys', action: 'create', scoped: true },
+      { resource: 'api_keys', action: 'update', scoped: true },
+      { resource: 'api_keys', action: 'delete', scoped: true },
     ],
   },
   {
