@@ -15,7 +15,6 @@ async def create_api_key(api_key: APIKeyResponse, admin_username: str, by: str):
     data = messages.CREATE_API_KEY.format(
         id=api_key.id,
         name=name,
-        role_id=api_key.role_id,
         expire_date=api_key.expire_date or "Never",
         admin_username=admin_username,
         by=by,
@@ -31,7 +30,6 @@ async def modify_api_key(api_key: APIKeyResponse, admin_username: str, by: str):
     data = messages.MODIFY_API_KEY.format(
         id=api_key.id,
         name=name,
-        role_id=api_key.role_id,
         expire_date=api_key.expire_date or "Never",
         status=api_key.status.value,
         admin_username=admin_username,

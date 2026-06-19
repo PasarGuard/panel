@@ -300,13 +300,13 @@ REMOVE_ADMIN_ROLE = {
 
 CREATE_API_KEY = {
     "title": "🆕 Create API Key",
-    "description": "**Name:** {name}\n**Role ID:** {role_id}\n**Expire Date:** {expire_date}",
+    "description": "**Name:** {name}\n**Expire Date:** {expire_date}",
     "footer": {"text": "ID: {id}\nBelongs To: {admin_username}\nBy: {by}"},
 }
 
 MODIFY_API_KEY = {
     "title": "✏️ Modify API Key",
-    "description": "**Name:** {name}\n**Role ID:** {role_id}\n**Expire Date:** {expire_date}\n**Status:** {status}",
+    "description": "**Name:** {name}\n**Expire Date:** {expire_date}\n**Status:** {status}",
     "footer": {"text": "ID: {id}\nBelongs To: {admin_username}\nBy: {by}"},
 }
 

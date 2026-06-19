@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime as dt, timezone as tz
 
-from sqlalchemy import func, select, update
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -19,7 +19,7 @@ async def create_api_key(
     raw_key = f"pg_key_{raw_uuid}"
     db_key = APIKey(
         admin_id=admin_id,
-        role_id=model.role_id,
+        roles=model.roles.model_dump(exclude_none=True),
         name=model.name,
         note=model.note,
         key_hash=hash_api_key(raw_key),
@@ -41,7 +41,7 @@ async def get_api_key_by_raw_key(db: AsyncSession, raw_api_key: str) -> APIKey |
             APIKey.key_hash.startswith(f"v1${lookup_id}$"),
             APIKey.status != APIKeyStatus.disabled,
         )
-        .options(selectinload(APIKey.admin).selectinload(Admin.role), selectinload(APIKey.role))
+        .options(selectinload(APIKey.admin).selectinload(Admin.role))
         .limit(1)
     )
     db_key = (await db.execute(stmt)).scalar_one_or_none()
@@ -55,7 +55,7 @@ async def get_api_key_by_raw_key(db: AsyncSession, raw_api_key: str) -> APIKey |
 
 
 async def get_api_key_by_id(db: AsyncSession, key_id: int) -> APIKey | None:
-    stmt = select(APIKey).where(APIKey.id == key_id).options(selectinload(APIKey.admin), selectinload(APIKey.role))
+    stmt = select(APIKey).where(APIKey.id == key_id).options(selectinload(APIKey.admin))
     return (await db.execute(stmt)).scalar_one_or_none()
 
 
@@ -69,7 +69,7 @@ async def get_api_keys(
     name: str | None = None,
     status: APIKeyStatus | None = None,
 ) -> tuple[list[APIKey], int]:
-    stmt = select(APIKey).options(selectinload(APIKey.role))
+    stmt = select(APIKey)
     if admin_id is not None:
         stmt = stmt.where(APIKey.admin_id == admin_id)
     if key_id is not None:
@@ -114,9 +114,3 @@ async def update_api_key(db: AsyncSession, db_key: APIKey, update_data: dict) ->
     await db.flush()
     await db.refresh(db_key)
     return db_key
-
-
-async def update_api_keys_role(db: AsyncSession, admin_id: int, new_role_id: int) -> int:
-    """Update role_id on all API keys belonging to admin_id. Returns affected row count."""
-    result = await db.execute(update(APIKey).where(APIKey.admin_id == admin_id).values(role_id=new_role_id))
-    return result.rowcount

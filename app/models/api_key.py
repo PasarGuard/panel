@@ -4,13 +4,14 @@ from typing import Annotated
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.db.models import APIKeyStatus
+from app.models.admin_role import RolePermissions
 from app.utils.helpers import fix_datetime_timezone
 
 
 class APIKeyBase(BaseModel):
     name: str = Field(min_length=1, max_length=128)
     note: str | None = Field(default=None, max_length=512)
-    role_id: int = Field(ge=1)
+    roles: RolePermissions = Field(default_factory=RolePermissions)
     expire_date: dt | None = None
 
     model_config = ConfigDict(from_attributes=True)
@@ -31,7 +32,7 @@ class APIKeyCreate(APIKeyBase):
 class APIKeyUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=128)
     note: str | None = Field(default=None, max_length=512)
-    role_id: int | None = Field(default=None, ge=1)
+    roles: RolePermissions | None = None
     expire_date: dt | None = None
     status: APIKeyStatus | None = None
 

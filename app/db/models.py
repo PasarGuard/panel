@@ -886,7 +886,6 @@ class AdminRole(Base, CreatedAtUTCMixin):
     disconnect_users_when_limited: Mapped[bool] = mapped_column(default=True, server_default="1")
     disconnect_users_when_disabled: Mapped[bool] = mapped_column(default=True, server_default="1")
     admins: Mapped[List["Admin"]] = relationship(back_populates="role", init=False, viewonly=True, lazy="noload")
-    api_keys: Mapped[List["APIKey"]] = relationship(back_populates="role", init=False, lazy="noload")
 
     @hybrid_property
     def is_builtin(self) -> bool:
@@ -918,8 +917,7 @@ class APIKey(Base, CreatedAtUTCMixin):
     name: Mapped[str] = mapped_column(String(128), nullable=False)
     key_hash: Mapped[str] = mapped_column(String(128), nullable=False)
     api_key_trimmed: Mapped[str] = mapped_column(String(16))
-    role_id: Mapped[int] = fk_id_column("admin_roles.id")
-    role: Mapped["AdminRole"] = relationship(back_populates="api_keys", init=False, lazy="selectin")
+    roles: Mapped[Dict] = mapped_column(PostgresJSONB, default_factory=dict)
     note: Mapped[Optional[str]] = mapped_column(String(512), default=None)
     expire_date: Mapped[Optional[dt]] = mapped_column(DateTime(timezone=True), default=None)
     revoked_at: Mapped[Optional[dt]] = mapped_column(DateTime(timezone=True), default=None)

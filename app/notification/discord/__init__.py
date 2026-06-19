@@ -1,9 +1,9 @@
 from .admin import admin_login, admin_reset_usage, admin_usage_limit_reached, create_admin, modify_admin, remove_admin
 from .admin_role import create_admin_role, modify_admin_role, remove_admin_role
 from .api_key import (
-    create_api_key as create_api_key_ds,
-    modify_api_key as modify_api_key_ds,
-    remove_api_key as remove_api_key_ds,
+    create_api_key,
+    modify_api_key,
+    remove_api_key,
 )
 from .core import create_core, modify_core, remove_core
 from .group import create_group, modify_group, remove_group
@@ -33,9 +33,9 @@ __all__ = [
     "create_admin_role",
     "modify_admin_role",
     "remove_admin_role",
-    "create_api_key_ds",
-    "modify_api_key_ds",
-    "remove_api_key_ds",
+    "create_api_key",
+    "modify_api_key",
+    "remove_api_key",
     "create_host",
     "modify_host",
     "remove_host",

@@ -12,7 +12,6 @@ from app.db.crud.general import (
     get_complete_period_start_for_filter,
     to_utc_for_filter,
 )
-from app.db.crud.api_key import update_api_keys_role
 from app.db.models import Admin, AdminNotificationReminder, AdminRole, AdminUsageLogs, NodeUserUsage, ReminderType, User
 from app.models.admin import (
     AdminCreate,
@@ -221,9 +220,6 @@ async def update_admin(db: AsyncSession, db_admin: Admin, modified_admin: AdminM
         db_admin.note = modified_admin.note
     if modified_admin.notification_enable is not None:
         db_admin.notification_enable = modified_admin.notification_enable.model_dump()
-
-    if modified_admin.role_id is not None:
-        await update_api_keys_role(db, db_admin.id, modified_admin.role_id)
 
     await db.commit()
     await db.refresh(db_admin)

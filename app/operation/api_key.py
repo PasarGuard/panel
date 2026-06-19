@@ -3,7 +3,6 @@ from datetime import datetime as dt, timezone as tz
 from sqlalchemy.exc import IntegrityError
 
 from app.db import AsyncSession
-from app.db.crud.admin_role import get_role
 from app.db.crud.api_key import (
     create_api_key,
     delete_api_key,
@@ -18,6 +17,7 @@ from app.notification import (
     remove_api_key as notify_delete,
 )
 from app.models.admin import AdminDetails
+from app.models.admin_role import RolePermissions
 from app.models.api_key import (
     APIKeyCreate,
     APIKeyCreateResponse,
@@ -29,6 +29,48 @@ from app.models.api_key import (
 from app.operation import BaseOperation
 
 
+def _check_permissions_not_exceed_admin(admin: AdminDetails, requested: RolePermissions) -> None:
+    """Raise ValueError if any permission in `requested` exceeds what `admin` has.
+
+    Owners are exempt — they can assign any permissions.
+    """
+    if admin.is_owner:
+        return
+
+    admin_perms = admin.role.permissions if admin.role else RolePermissions()
+
+    for resource_name, resource_perms in requested.model_dump(exclude_none=True).items():
+        if resource_perms is None:
+            continue
+        admin_resource = admin_perms.get(resource_name)
+        if admin_resource is None:
+            raise ValueError(f"You don't have access to resource '{resource_name}'")
+
+        for action, value in resource_perms.items():
+            if value is None:
+                continue
+            admin_action = admin_resource.get(action) if admin_resource else None
+            if admin_action is None:
+                raise ValueError(
+                    f"You don't have the '{action}' permission on '{resource_name}'"
+                )
+            # True means unrestricted — cannot grant if admin only has scoped access
+            if value is True and admin_action is not True:
+                raise ValueError(
+                    f"Cannot grant '{resource_name}.{action}=True': "
+                    f"your own access is scoped (scope={admin_action.get('scope', 0) if isinstance(admin_action, dict) else admin_action})"
+                )
+            # If both sides have a scope dict, key scope must not exceed admin scope
+            if isinstance(value, dict) and isinstance(admin_action, dict):
+                key_scope = value.get("scope", 0)
+                admin_scope = admin_action.get("scope", 0)
+                if key_scope > admin_scope:
+                    raise ValueError(
+                        f"Cannot grant '{resource_name}.{action}' with scope={key_scope}: "
+                        f"your scope is {admin_scope}"
+                    )
+
+
 class APIKeyOperation(BaseOperation):
     async def create_api_key(
         self, db: AsyncSession, *, admin: AdminDetails, model: APIKeyCreate
@@ -36,12 +78,10 @@ class APIKeyOperation(BaseOperation):
         if admin.id is None:
             await self.raise_error(message="API key creation is not available for env admins", code=403)
 
-        role = await get_role(db, model.role_id)
-        if role is None:
-            await self.raise_error(message="Role not found", code=404)
-
-        if not admin.is_owner and admin.role and role.id != admin.role.id:
-            await self.raise_error(message="Only owner can create API keys with a different role", code=403)
+        try:
+            _check_permissions_not_exceed_admin(admin, model.roles)
+        except ValueError as exc:
+            await self.raise_error(message=str(exc), code=403)
 
         duplicates, _ = await get_api_keys(db, admin_id=admin.id, offset=0, limit=1, name=model.name)
         if duplicates:
@@ -66,7 +106,7 @@ class APIKeyOperation(BaseOperation):
             admin_id=db_key.admin_id,
             name=db_key.name,
             note=db_key.note,
-            role_id=db_key.role_id,
+            roles=RolePermissions.model_validate(db_key.roles),
             created_at=db_key.created_at,
             expire_date=db_key.expire_date,
             revoked_at=db_key.revoked_at,
@@ -104,14 +144,19 @@ class APIKeyOperation(BaseOperation):
             if duplicates:
                 await self.raise_error(message="API key name already exists", code=409)
 
-        if model.role_id is not None and model.role_id != db_key.role_id:
-            role = await get_role(db, model.role_id)
-            if role is None:
-                await self.raise_error(message="Role not found", code=404)
-            if not admin.is_owner and admin.role and role.id != admin.role.id:
-                await self.raise_error(message="Only owner can assign a different role to API keys", code=403)
+        if model.roles is not None:
+            try:
+                _check_permissions_not_exceed_admin(admin, model.roles)
+            except ValueError as exc:
+                await self.raise_error(message=str(exc), code=403)
 
         update_data = model.model_dump(exclude_unset=True)
+        # Serialize roles to plain dict for DB storage
+        if "roles" in update_data and isinstance(update_data["roles"], RolePermissions):
+            update_data["roles"] = update_data["roles"].model_dump(exclude_none=True)
+        elif "roles" in update_data and model.roles is not None:
+            update_data["roles"] = model.roles.model_dump(exclude_none=True)
+
         db_key = await update_api_key(db, db_key, update_data)
         await db.commit()
 
@@ -141,7 +186,7 @@ class APIKeyOperation(BaseOperation):
             admin_id=db_key.admin_id,
             name=db_key.name,
             note=db_key.note,
-            role_id=db_key.role_id,
+            roles=RolePermissions.model_validate(db_key.roles),
             created_at=db_key.created_at,
             expire_date=db_key.expire_date,
             revoked_at=db_key.revoked_at,

@@ -376,7 +376,6 @@ CREATE_API_KEY = """
 #Create_API_Key
 ➖➖➖➖➖➖➖➖➖
 <b>Name:</b> <code>{name}</code>
-<b>Role ID:</b> <code>{role_id}</code>
 <b>Expire Date:</b> <code>{expire_date}</code>
 ➖➖➖➖➖➖➖➖➖
 <i>ID</i>: <code>{id}</code>
@@ -388,7 +387,6 @@ MODIFY_API_KEY = """
 ✏️ #Modify_API_Key
 ➖➖➖➖➖➖➖➖➖
 <b>Name:</b> <code>{name}</code>
-<b>Role ID:</b> <code>{role_id}</code>
 <b>Expire Date:</b> <code>{expire_date}</code>
 <b>Status:</b> <code>{status}</code>
 ➖➖➖➖➖➖➖➖➖
