@@ -1055,7 +1055,7 @@ async def modify_user(
     if modify.on_hold_expire_duration is not None:
         db_user.on_hold_expire_duration = modify.on_hold_expire_duration
 
-    if modify.hwid_limit is not None:
+    if "hwid_limit" in modify.model_fields_set:
         db_user.hwid_limit = modify.hwid_limit
 
     if modify.next_plan is not None:

@@ -621,8 +621,9 @@ class UserOperation(BaseOperation):
             admin.role.hwid if admin.role is not None else None,
         )
 
-        if new_user.hwid_limit is None:
-            new_user.hwid_limit = 0 if effective_hwid_conf is None else (effective_hwid_conf.fallback_limit or 0)
+        effective_hwid_limit = new_user.hwid_limit
+        if effective_hwid_limit is None and effective_hwid_conf is not None:
+            effective_hwid_limit = effective_hwid_conf.fallback_limit
 
         if not skip_role_limits:
             await self._enforce_user_limits(
@@ -633,21 +634,21 @@ class UserOperation(BaseOperation):
                 status=new_user.status,
                 on_hold_expire_duration=new_user.on_hold_expire_duration,
                 on_hold_timeout=new_user.on_hold_timeout,
-                hwid_limit=new_user.hwid_limit,
+                hwid_limit=effective_hwid_limit,
                 data_limit_reset_strategy=new_user.data_limit_reset_strategy,
                 next_plan=new_user.next_plan,
                 check_max_users=True,
             )
 
-        if new_user.hwid_limit is not None and not admin.is_owner and effective_hwid_conf is not None:
-            if effective_hwid_conf.min_limit is not None and new_user.hwid_limit < effective_hwid_conf.min_limit:
+        if effective_hwid_limit is not None and not admin.is_owner and effective_hwid_conf is not None:
+            if effective_hwid_conf.min_limit is not None and effective_hwid_limit < effective_hwid_conf.min_limit:
                 await self.raise_error(
                     message=f"HWID limit cannot be less than {effective_hwid_conf.min_limit}", code=400, db=db
                 )
             if (
                 effective_hwid_conf.max_limit is not None
                 and effective_hwid_conf.max_limit > 0
-                and (new_user.hwid_limit > effective_hwid_conf.max_limit or new_user.hwid_limit == 0)
+                and (effective_hwid_limit > effective_hwid_conf.max_limit or effective_hwid_limit == 0)
             ):
                 await self.raise_error(
                     message=f"HWID limit cannot exceed {effective_hwid_conf.max_limit}", code=400, db=db
@@ -709,7 +710,6 @@ class UserOperation(BaseOperation):
                 or (status_was_changed and status_requires_finite_expire)
                 or on_hold_duration_was_changed
             )
-            hwid_limit_was_changed = "hwid_limit" in modified_fields and modified_user.hwid_limit is not None
             on_hold_timeout_was_changed = "on_hold_timeout" in modified_fields
             on_hold_timeout_requires_finite_limit = on_hold_timeout_was_changed or (
                 status_was_changed and modified_status_value == UserStatus.on_hold.value
@@ -725,6 +725,15 @@ class UserOperation(BaseOperation):
                         effective_on_hold_expire_duration = db_user.on_hold_expire_duration
                 elif effective_expire is None:
                     effective_expire = db_user.expire
+            effective_hwid_limit = modified_user.hwid_limit
+            if "hwid_limit" in modified_fields and effective_hwid_limit is None:
+                global_hwid_conf = await hwid_settings()
+                effective_hwid_conf = resolve_effective_hwid_settings(
+                    global_hwid_conf,
+                    admin.role.hwid if admin.role is not None else None,
+                )
+                if effective_hwid_conf is not None:
+                    effective_hwid_limit = effective_hwid_conf.fallback_limit
 
             await self._enforce_user_limits(
                 db,
@@ -734,25 +743,29 @@ class UserOperation(BaseOperation):
                 status=effective_status,
                 on_hold_expire_duration=effective_on_hold_expire_duration,
                 on_hold_timeout=modified_user.on_hold_timeout,
-                hwid_limit=modified_user.hwid_limit,
+                hwid_limit=effective_hwid_limit,
                 data_limit_reset_strategy=modified_user.data_limit_reset_strategy,
                 next_plan=modified_user.next_plan,
                 require_finite_data_limit=data_limit_was_changed,
                 require_finite_expire=expire_requires_finite_limit,
                 require_finite_on_hold_timeout=on_hold_timeout_requires_finite_limit,
-                require_finite_hwid_limit=hwid_limit_was_changed,
+                require_finite_hwid_limit="hwid_limit" in modified_fields,
             )
 
-        if modified_user.hwid_limit is not None and not admin.is_owner:
+        if "hwid_limit" in modified_user.model_fields_set and not admin.is_owner:
+            effective_hwid_limit = modified_user.hwid_limit
             global_hwid_conf = await hwid_settings()
             effective_hwid_conf = resolve_effective_hwid_settings(
                 global_hwid_conf,
                 admin.role.hwid if admin.role is not None else None,
             )
+            if effective_hwid_limit is None and effective_hwid_conf is not None:
+                effective_hwid_limit = effective_hwid_conf.fallback_limit
             if effective_hwid_conf is not None:
                 if (
                     effective_hwid_conf.min_limit is not None
-                    and modified_user.hwid_limit < effective_hwid_conf.min_limit
+                    and effective_hwid_limit is not None
+                    and effective_hwid_limit < effective_hwid_conf.min_limit
                 ):
                     await self.raise_error(
                         message=f"HWID limit cannot be less than {effective_hwid_conf.min_limit}", code=400, db=db
@@ -760,7 +773,8 @@ class UserOperation(BaseOperation):
                 if (
                     effective_hwid_conf.max_limit is not None
                     and effective_hwid_conf.max_limit > 0
-                    and (modified_user.hwid_limit > effective_hwid_conf.max_limit or modified_user.hwid_limit == 0)
+                    and effective_hwid_limit is not None
+                    and (effective_hwid_limit > effective_hwid_conf.max_limit or effective_hwid_limit == 0)
                 ):
                     await self.raise_error(
                         message=f"HWID limit cannot exceed {effective_hwid_conf.max_limit}", code=400, db=db

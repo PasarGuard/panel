@@ -217,6 +217,65 @@ def test_user_create_active(access_token):
         cleanup_groups(access_token, core, groups)
 
 
+def test_user_hwid_limit_can_be_empty_on_create_and_modify(access_token):
+    core, groups = setup_groups(access_token, 1)
+    group_ids = [group["id"] for group in groups]
+    expire = datetime.now(timezone.utc).replace(microsecond=0) + timedelta(days=30)
+    usernames: list[str] = []
+
+    try:
+        user = create_user(
+            access_token,
+            group_ids=group_ids,
+            payload={
+                "username": unique_name("test_user_empty_hwid"),
+                "proxy_settings": {},
+                "expire": expire.isoformat(),
+                "data_limit": 1024 * 1024 * 1024,
+                "data_limit_reset_strategy": "no_reset",
+                "status": "active",
+            },
+        )
+        usernames.append(user["username"])
+        assert user["hwid_limit"] is None
+
+        explicit_null = create_user(
+            access_token,
+            group_ids=group_ids,
+            payload={
+                "username": unique_name("test_user_null_hwid"),
+                "proxy_settings": {},
+                "expire": expire.isoformat(),
+                "data_limit": 1024 * 1024 * 1024,
+                "data_limit_reset_strategy": "no_reset",
+                "hwid_limit": None,
+                "status": "active",
+            },
+        )
+        usernames.append(explicit_null["username"])
+        assert explicit_null["hwid_limit"] is None
+
+        response = client.put(
+            f"/api/user/{user['username']}",
+            headers=auth_headers(access_token),
+            json={"hwid_limit": 2},
+        )
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["hwid_limit"] == 2
+
+        response = client.put(
+            f"/api/user/{user['username']}",
+            headers=auth_headers(access_token),
+            json={"hwid_limit": None},
+        )
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["hwid_limit"] is None
+    finally:
+        for username in usernames:
+            delete_user(access_token, username)
+        cleanup_groups(access_token, core, groups)
+
+
 def test_limited_admin_cannot_create_or_modify_user_to_unlimited_data_or_expire(access_token):
     role = _create_limited_user_creator_role(access_token)
     admin = create_admin(access_token, role_id=role["id"])
@@ -268,8 +327,10 @@ def test_limited_admin_cannot_create_or_modify_user_to_unlimited_data_or_expire(
                 "status": "active",
             },
         )
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert "HWID limit cannot be unlimited" in response.json()["detail"]
+        assert response.status_code == status.HTTP_201_CREATED
+        bounded_default_hwid_user = response.json()
+        assert bounded_default_hwid_user["hwid_limit"] is None
+        client.delete(f"/api/user/{bounded_default_hwid_user['username']}", headers=auth_headers(access_token))
 
         response = client.post(
             "/api/user",
