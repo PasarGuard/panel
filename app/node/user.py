@@ -1,6 +1,6 @@
 from PasarGuardNodeBridge import create_proxy, create_user
 from PasarGuardNodeBridge.common.service_pb2 import User as ProtoUser
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, func, or_, select
 
 from app.db import AsyncSession
 from app.db.models import (
@@ -129,9 +129,11 @@ async def core_users(
         .outerjoin(AdminRole, AdminRole.id == Admin.role_id)
         .where(User.status.in_([UserStatus.active, UserStatus.on_hold]))
         .where(
-            ~(
-                ((Admin.status == AdminStatus.limited) & (AdminRole.disconnect_users_when_limited.is_(True)))
-                | ((Admin.status == AdminStatus.disabled) & (AdminRole.disconnect_users_when_disabled.is_(True)))
+            or_(
+                Admin.id.is_(None),
+                Admin.status.not_in([AdminStatus.limited, AdminStatus.disabled]),
+                and_(Admin.status == AdminStatus.limited, AdminRole.disconnect_users_when_limited.is_not(True)),
+                and_(Admin.status == AdminStatus.disabled, AdminRole.disconnect_users_when_disabled.is_not(True)),
             )
         )
         .group_by(User.id)
