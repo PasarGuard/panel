@@ -57,7 +57,7 @@ def upgrade() -> None:
         sa.Column("name", sa.String(length=128), nullable=False),
         sa.Column("note", sa.String(length=512), nullable=True),
         sa.Column("key_hash", sa.String(length=128), nullable=False),
-        sa.Column("api_key_trimmed", sa.String(length=16)),
+        sa.Column("api_key_trimmed", sa.String(length=16), nullable=False),
         sa.Column("role_id", app.db.compiles_types.SqliteCompatibleBigInteger(), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("expire_date", sa.DateTime(timezone=True), nullable=True),
