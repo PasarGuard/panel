@@ -5,10 +5,9 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.db.crud.general import get_jwt_secret_key
 from app.db.models import Admin, AdminStatus, APIKey, APIKeyStatus
 from app.models.api_key import APIKeyCreate
-from app.utils.crypto import API_KEY_HASH_VERSION, api_key_lookup_id, hash_api_key, verify_api_key
+from app.utils.crypto import api_key_trimmed, hash_api_key, verify_api_key
 
 
 async def create_api_key(
@@ -18,15 +17,16 @@ async def create_api_key(
 ) -> tuple[str, APIKey]:
     raw_uuid = str(uuid.uuid4())
     raw_key = f"pg_key_{raw_uuid}"
-    secret_key = await get_jwt_secret_key(db)
+    trimmed_key = api_key_trimmed(raw_key)
+    assert trimmed_key is not None
     db_key = APIKey(
         admin_id=admin_id,
         permissions={} if model.inherit_permissions else model.permissions.model_dump(exclude_none=True),
         inherit_permissions=model.inherit_permissions,
         name=model.name,
         note=model.note,
-        key_hash=hash_api_key(raw_key, secret_key),
-        api_key_trimmed=f"pg_key_{raw_uuid[:3]}***{raw_uuid[-3:]}",
+        key_hash=hash_api_key(raw_key),
+        api_key_trimmed=trimmed_key,
         expire_date=model.expire_date,
     )
     db.add(db_key)
@@ -36,21 +36,23 @@ async def create_api_key(
 
 
 async def get_api_key_by_raw_key(db: AsyncSession, raw_api_key: str) -> APIKey | None:
-    secret_key = await get_jwt_secret_key(db)
-    lookup_id = api_key_lookup_id(raw_api_key, secret_key)
+    trimmed_key = api_key_trimmed(raw_api_key)
+    if trimmed_key is None:
+        return None
 
     stmt = (
         select(APIKey)
         .where(
-            APIKey.key_hash.startswith(f"{API_KEY_HASH_VERSION}${lookup_id}$"),
+            APIKey.api_key_trimmed == trimmed_key,
             APIKey.status != APIKeyStatus.disabled,
         )
         .options(selectinload(APIKey.admin).selectinload(Admin.role))
-        .limit(1)
     )
-    db_key = (await db.execute(stmt)).scalar_one_or_none()
+    db_keys = list((await db.execute(stmt)).scalars().all())
 
-    if db_key is None or not verify_api_key(raw_api_key, db_key.key_hash, secret_key):
+    db_key = next((candidate for candidate in db_keys if verify_api_key(raw_api_key, candidate.key_hash)), None)
+
+    if db_key is None:
         return None
     # Reject if the owning admin is disabled
     if db_key.admin is not None and db_key.admin.status == AdminStatus.disabled:
@@ -111,9 +113,10 @@ async def delete_api_key(db: AsyncSession, db_key: APIKey) -> None:
 async def revoke_api_key(db: AsyncSession, db_key: APIKey) -> tuple[str, APIKey]:
     raw_uuid = str(uuid.uuid4())
     raw_key = f"pg_key_{raw_uuid}"
-    secret_key = await get_jwt_secret_key(db)
-    db_key.key_hash = hash_api_key(raw_key, secret_key)
-    db_key.api_key_trimmed = f"pg_key_{raw_uuid[:3]}***{raw_uuid[-3:]}"
+    trimmed_key = api_key_trimmed(raw_key)
+    assert trimmed_key is not None
+    db_key.key_hash = hash_api_key(raw_key)
+    db_key.api_key_trimmed = trimmed_key
     db_key.revoked_at = dt.now(tz.utc)
     db_key.status = APIKeyStatus.active
     await db.flush()
