@@ -353,12 +353,12 @@ class SubscriptionOperation(BaseOperation):
         global_hwid_conf: HWIDSettings = await hwid_settings()
         effective_hwid_conf = resolve_effective_hwid_settings(global_hwid_conf, role_hwid_settings)
 
-        if not self.is_hwid_enabled(
-            global_hwid_conf,
-            effective_hwid_conf,
-            user_hwid_limit,
-            is_manual_sub=is_manual_sub,
-        ):
+        # Registration is gated on the master "enabled" switch only: whenever HWID is
+        # enabled we record/refresh the device on any request that carries an X-HWID,
+        # independent of forced/limit. `forced` only controls whether the header is
+        # required; `limit` only caps the number of distinct devices. An explicit
+        # hwid_limit of 0 opts the user out entirely.
+        if effective_hwid_conf is None or not effective_hwid_conf.enabled or user_hwid_limit == 0:
             return
 
         forced = effective_hwid_conf.forced
@@ -366,9 +366,6 @@ class SubscriptionOperation(BaseOperation):
             forced = False
 
         limit = self.resolve_subscription_hwid_limit(user_hwid_limit, effective_hwid_conf)
-
-        if not forced and limit is None:
-            return
 
         if not x_hwid:
             # Only a forced policy requires the header. A bare limit just caps device
