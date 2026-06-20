@@ -1,6 +1,5 @@
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { cn } from '@/lib/utils'
 import { SearchIcon, X, RefreshCw, Filter } from 'lucide-react'
@@ -46,60 +45,58 @@ export const ApiKeyFilters = ({
 
   return (
     <div dir={dir} className="flex items-center gap-2 md:gap-4">
-      {/* Search Input */}
       <div className="relative min-w-0 flex-1 md:w-[calc(100%/3-10px)] md:flex-none">
-        <SearchIcon className={cn('absolute', dir === 'rtl' ? 'right-2' : 'left-2', 'top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 text-input-placeholder')} />
-        <Input 
-          placeholder={t('search')} 
-          value={search} 
-          onChange={(e) => onSearchChange(e.target.value)} 
-          className="pl-8 pr-10" 
+        <SearchIcon className={cn('absolute', dir === 'rtl' ? 'right-2' : 'left-2', 'text-muted-foreground top-1/2 h-4 w-4 -translate-y-1/2')} />
+        <Input
+          placeholder={t('search', { defaultValue: 'Search' })}
+          value={search}
+          onChange={e => onSearchChange(e.target.value)}
+          className={cn('pr-10 pl-8', dir === 'rtl' && 'pr-8 pl-10')}
         />
         {search && (
-          <button type="button" onClick={clearSearch} className={cn('absolute', dir === 'rtl' ? 'left-2' : 'right-2', 'top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600')}>
+          <button
+            type="button"
+            onClick={clearSearch}
+            className={cn('absolute', dir === 'rtl' ? 'left-2' : 'right-2', 'text-muted-foreground hover:text-foreground top-1/2 -translate-y-1/2')}
+            aria-label={t('clear', { defaultValue: 'Clear' })}
+          >
             <X className="h-4 w-4" />
           </button>
         )}
       </div>
 
       <div className="flex flex-shrink-0 items-center gap-2">
-        {/* Advanced Filter Button */}
-        <div className="flex h-full flex-shrink-0 items-center gap-1">
-          <Button 
-            type="button" 
-            size="icon-md" 
-            variant="ghost" 
-            className="relative flex h-9 w-9 items-center justify-center rounded-lg border" 
-            onClick={onAdvanceSearchOpen}
-          >
-            <Filter className="h-4 w-4" />
-            {hasActiveFilters && (
-              <Badge variant="default" className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary p-0 text-[10.5px] text-primary-foreground">
-                {activeFiltersCount}
-              </Badge>
-            )}
-          </Button>
+        <Button
+          type="button"
+          size="icon-md"
+          variant="ghost"
+          className="relative h-9 w-9 rounded-lg border"
+          onClick={onAdvanceSearchOpen}
+          aria-label={t('advanceSearch.title', { defaultValue: 'Advanced search' })}
+          title={t('advanceSearch.title', { defaultValue: 'Advanced search' })}
+        >
+          <Filter className="h-4 w-4" />
           {hasActiveFilters && (
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button 
-                  type="button" 
-                  size="sm" 
-                  variant="outline" 
-                  className={cn('h-9 w-9 p-0', dir === 'rtl' ? 'rounded-r-none border-r-0' : 'rounded-l-none border-l-0')} 
-                  onClick={() => onFilterChange({})}
-                >
-                  <X className="h-3 w-3" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-2" side={dir === 'rtl' ? 'left' : 'right'} align="center">
-                <p className="text-sm">{t('clearAllFilters', { defaultValue: 'Clear All Filters' })}</p>
-              </PopoverContent>
-            </Popover>
+            <Badge variant="default" className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full p-0 text-[10px]">
+              {activeFiltersCount}
+            </Badge>
           )}
-        </div>
+        </Button>
 
-        {/* Refresh Button */}
+        {hasActiveFilters && (
+          <Button
+            type="button"
+            size="icon-md"
+            variant="outline"
+            className="h-9 w-9 rounded-lg"
+            onClick={() => onFilterChange({})}
+            aria-label={t('clearAllFilters', { defaultValue: 'Clear all filters' })}
+            title={t('clearAllFilters', { defaultValue: 'Clear all filters' })}
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        )}
+
         <Button
           type="button"
           size="icon-md"

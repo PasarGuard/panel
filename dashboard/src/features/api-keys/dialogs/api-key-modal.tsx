@@ -5,6 +5,8 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
@@ -44,11 +46,12 @@ import {
   APIKeyResponse,
   getListApiKeysQueryKey,
   RolePermissions,
+  useGetAdminsSimple,
 } from '@/service/api'
 import { useAdmin } from '@/hooks/use-admin'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Key, Copy, Check, KeyRound } from 'lucide-react'
+import { Key, Copy, Check, KeyRound, Pencil } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Switch } from '@/components/ui/switch'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
@@ -56,13 +59,13 @@ import { PermissionCountBadge, PermissionEditor } from '@/features/admin-roles/c
 import { RolePermissionFormMap } from '@/features/admin-roles/forms/admin-role-form'
 
 interface ApiKeyModalProps {
-  isOpen: boolean
+  isDialogOpen: boolean
   onOpenChange: (open: boolean) => void
   editingApiKey: APIKeyResponse | null
 }
 
 export default function ApiKeyModal({
-  isOpen,
+  isDialogOpen,
   onOpenChange,
   editingApiKey,
 }: ApiKeyModalProps) {
@@ -72,6 +75,9 @@ export default function ApiKeyModal({
 
   const queryClient = useQueryClient()
   const { admin } = useAdmin()
+  const isOwner = admin?.role?.is_owner === true
+  const adminsQuery = useGetAdminsSimple({ all: true }, { query: { enabled: isOwner && isDialogOpen && !editingApiKey } })
+  const admins = adminsQuery.data?.admins || []
   const createMutation = useCreateApiKey({
     mutation: {
       onSuccess: () => {
@@ -99,6 +105,7 @@ export default function ApiKeyModal({
     if (editingApiKey) {
       form.reset({
         name: editingApiKey.name,
+        admin_id: editingApiKey.admin_id,
         note: editingApiKey.note || '',
         permissions: ((editingApiKey.inherit_permissions ? admin?.role?.permissions : editingApiKey.permissions) as RolePermissionFormMap) || {},
         inherit_permissions: editingApiKey.inherit_permissions ?? true,
@@ -110,12 +117,13 @@ export default function ApiKeyModal({
       const defaultPermissions = (admin?.role?.permissions as RolePermissions) || {}
       form.reset({
         ...apiKeyFormDefaultValues,
+        admin_id: admin?.id ?? null,
         permissions: defaultPermissions,
         inherit_permissions: true,
       })
     }
     setCreatedKey(null)
-  }, [editingApiKey, form, isOpen, admin])
+  }, [editingApiKey, form, isDialogOpen, admin])
 
   const onSubmit = async (values: ApiKeyFormValues) => {
     try {
@@ -137,6 +145,7 @@ export default function ApiKeyModal({
         const response = await createMutation.mutateAsync({
           data: {
             name: values.name,
+            admin_id: values.admin_id || undefined,
             note: values.note,
             permissions: values.inherit_permissions ? {} : (values.permissions as RolePermissions),
             inherit_permissions: values.inherit_permissions,
@@ -165,172 +174,240 @@ export default function ApiKeyModal({
     }
   }
 
+  const handleOpenChange = (open: boolean) => {
+    if (!open) {
+      setCreatedKey(null)
+      setCopied(false)
+    }
+    onOpenChange(open)
+  }
+
   return (
-    <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[540px] max-h-[90vh] overflow-y-auto">
+    <Dialog open={isDialogOpen} onOpenChange={handleOpenChange}>
+      <DialogContent className="h-auto w-full max-w-2xl" onOpenAutoFocus={e => e.preventDefault()}>
         <DialogHeader>
-          <DialogTitle>
-            {editingApiKey ? t('apiKeys.editKey') : t('apiKeys.createKey')}
+          <DialogTitle className="flex items-center gap-2">
+            {editingApiKey ? <Pencil className="h-5 w-5" /> : <KeyRound className="h-5 w-5" />}
+            <span>{editingApiKey ? t('apiKeys.editKey') : t('apiKeys.createKey')}</span>
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            {t('apiKeys.description', { defaultValue: 'Manage API keys for programmatic access' })}
+          </DialogDescription>
         </DialogHeader>
 
         {createdKey ? (
-          <div className="space-y-4 py-4">
-            <Alert>
-              <Key className="h-4 w-4" />
-              <AlertTitle>{t('apiKeys.apiKey')}</AlertTitle>
-              <AlertDescription>{t('apiKeys.apiKeyShowWarning')}</AlertDescription>
-            </Alert>
-            <div className="flex items-center gap-2">
-              <Input
-                readOnly
-                value={createdKey}
-                className="font-mono"
-                onClick={(e) => (e.target as HTMLInputElement).select()}
-              />
-              <Button size="icon" variant="outline" onClick={copyToClipboard}>
-                {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-              </Button>
+          <div className="space-y-4">
+            <div className="-mr-4 max-h-[80dvh] space-y-4 overflow-y-auto px-2 pr-4 sm:max-h-[75dvh]">
+              <Alert>
+                <Key className="h-4 w-4" />
+                <AlertTitle>{t('apiKeys.apiKey')}</AlertTitle>
+                <AlertDescription>{t('apiKeys.apiKeyShowWarning')}</AlertDescription>
+              </Alert>
+              <div className="flex items-center gap-2">
+                <Input
+                  readOnly
+                  value={createdKey}
+                  className="font-mono"
+                  onClick={(e) => (e.target as HTMLInputElement).select()}
+                />
+                <Button
+                  size="icon"
+                  variant="outline"
+                  onClick={copyToClipboard}
+                  aria-label={t('apiKeys.apiKeyCopy')}
+                  title={t('apiKeys.apiKeyCopy')}
+                >
+                  {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                </Button>
+              </div>
             </div>
-            <Button className="w-full" onClick={() => onOpenChange(false)}>
-              {t('close')}
-            </Button>
+            <DialogFooter>
+              <Button onClick={() => handleOpenChange(false)}>
+                {t('close')}
+              </Button>
+            </DialogFooter>
           </div>
         ) : (
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('apiKeys.name')}</FormLabel>
-                    <FormControl>
-                      <Input placeholder={t('apiKeys.name')} {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <Accordion type="single" collapsible className="mt-0! mb-2 flex w-full flex-col gap-y-4">
-                <AccordionItem className="rounded-sm border px-4 **:data-[state=closed]:no-underline **:data-[state=open]:no-underline" value="permissions">
-                  <AccordionTrigger className="hover:no-underline py-4">
-                    <div className="flex items-center gap-2">
-                      <KeyRound className="h-4 w-4" />
-                      <span>{t('adminRoles.permissions', { defaultValue: 'Permissions' })}</span>
-                      {!inheritPermissions && <PermissionCountBadge permissions={permissionsValue} />}
-                    </div>
-                  </AccordionTrigger>
-                  <AccordionContent className="pb-3 pt-1">
-                    <div className="space-y-3">
-                      <FormField
-                        control={form.control}
-                        name="inherit_permissions"
-                        render={({ field }) => (
-                          <FormItem className="flex cursor-pointer flex-row items-center justify-between space-y-0 rounded-lg border p-4" onClick={() => field.onChange(!field.value)}>
-                            <div className="space-y-0.5">
-                              <FormLabel className="text-base">{t('apiKeys.inheritPermissions', { defaultValue: 'Inherit admin permissions' })}</FormLabel>
-                              <FormDescription>
-                                {t('apiKeys.inheritPermissionsDescription', { defaultValue: "Use the owning admin's current role permissions. Disable to store custom permissions on this key." })}
-                              </FormDescription>
-                            </div>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+              <div className="-mr-4 max-h-[80dvh] space-y-6 overflow-y-auto px-2 pr-4 sm:max-h-[75dvh]">
+                <div className="grid grid-cols-1 items-start gap-x-5 gap-y-4 sm:grid-cols-2">
+                  {isOwner && !editingApiKey && (
+                    <FormField
+                      control={form.control}
+                      name="admin_id"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t('admins.admin', { defaultValue: 'Admin' })}</FormLabel>
+                          <Select
+                            value={field.value ? String(field.value) : ''}
+                            onValueChange={value => field.onChange(Number(value))}
+                            disabled={adminsQuery.isLoading}
+                          >
                             <FormControl>
-                              <div onClick={e => e.stopPropagation()}>
-                                <Switch checked={!!field.value} onCheckedChange={field.onChange} />
-                              </div>
+                              <SelectTrigger>
+                                <SelectValue placeholder={t('setOwnerModal.selectAdmin', { defaultValue: 'Select admin' })} />
+                              </SelectTrigger>
                             </FormControl>
-                          </FormItem>
-                        )}
-                      />
-                      {!inheritPermissions && (
-                        <PermissionEditor
-                          permissions={permissionsValue}
-                          onPermissionsChange={next => form.setValue('permissions', next, { shouldDirty: true })}
-                        />
+                            <SelectContent>
+                              {admins.map(item => (
+                                <SelectItem key={item.id} value={String(item.id)}>
+                                  {item.username}
+                                </SelectItem>
+                              ))}
+                              {adminsQuery.isLoading && (
+                                <SelectItem value="__loading_admins__" disabled>
+                                  {t('loading', { defaultValue: 'Loading...' })}
+                                </SelectItem>
+                              )}
+                            </SelectContent>
+                          </Select>
+                          <FormDescription>
+                            {t('apiKeys.adminDescription', { defaultValue: 'The key will authenticate as this admin.' })}
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
                       )}
-                    </div>
-                  </AccordionContent>
-                </AccordionItem>
-              </Accordion>
-
-              <FormField
-                control={form.control}
-                name="expire_date"
-                render={({ field }) => (
-                  <FormItem className="flex flex-col">
-                    <FormLabel>{t('apiKeys.expireDate')}</FormLabel>
-                    <FormControl>
-                      <DatePicker
-                        mode="single"
-                        showTime
-                        useUtcTimestamp
-                        date={toDatePickerDisplayDate(field.value)}
-                        onDateChange={(date) => {
-                          const value = serializeDatePickerValue(date, { useUtcTimestamp: true })
-                          field.onChange(value)
-                        }}
-                        placeholder={t('apiKeys.expireDate')}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              {editingApiKey && (
-                <FormField
-                  control={form.control}
-                  name="status"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t('apiKeys.status')}</FormLabel>
-                      <Select value={field.value} onValueChange={field.onChange}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder={t('apiKeys.status')} />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="active">{t('admins.active')}</SelectItem>
-                          <SelectItem value="disabled">{t('admins.disabled')}</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
+                    />
                   )}
-                />
-              )}
 
-              <FormField
-                control={form.control}
-                name="note"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('apiKeys.note')}</FormLabel>
-                    <FormControl>
-                      <Textarea placeholder={t('apiKeys.note')} {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+                  <FormField
+                    control={form.control}
+                    name="name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('apiKeys.name')}</FormLabel>
+                        <FormControl>
+                          <Input placeholder={t('apiKeys.name')} autoComplete="off" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-              <div className="flex justify-end gap-2 pt-4">
+                  <FormField
+                    control={form.control}
+                    name="expire_date"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-col">
+                        <FormLabel>{t('apiKeys.expireDate')}</FormLabel>
+                        <FormControl>
+                          <DatePicker
+                            mode="single"
+                            showTime
+                            useUtcTimestamp
+                            date={toDatePickerDisplayDate(field.value)}
+                            onDateChange={(date) => {
+                              const value = serializeDatePickerValue(date, { useUtcTimestamp: true })
+                              field.onChange(value)
+                            }}
+                            placeholder={t('apiKeys.expireDate')}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {editingApiKey && (
+                    <FormField
+                      control={form.control}
+                      name="status"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t('apiKeys.status')}</FormLabel>
+                          <Select value={field.value} onValueChange={field.onChange}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder={t('apiKeys.status')} />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="active">{t('admins.active')}</SelectItem>
+                              <SelectItem value="disabled">{t('admins.disabled')}</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
+                </div>
+
+                <Accordion type="single" collapsible className="mt-0! flex w-full flex-col gap-y-4">
+                  <AccordionItem className="rounded-sm border px-4 **:data-[state=closed]:no-underline **:data-[state=open]:no-underline" value="permissions">
+                    <AccordionTrigger>
+                      <div className="flex items-center gap-2">
+                        <KeyRound className="h-4 w-4" />
+                        <span>{t('adminRoles.permissions', { defaultValue: 'Permissions' })}</span>
+                        {!inheritPermissions && <PermissionCountBadge permissions={permissionsValue} />}
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent className="px-1 pt-1">
+                      <div className="space-y-3">
+                        <FormField
+                          control={form.control}
+                          name="inherit_permissions"
+                          render={({ field }) => (
+                            <FormItem className="flex cursor-pointer flex-row items-center justify-between space-y-0 rounded-lg border p-4" onClick={() => field.onChange(!field.value)}>
+                              <div className="space-y-0.5">
+                                <FormLabel className="text-base">{t('apiKeys.inheritPermissions', { defaultValue: 'Inherit admin permissions' })}</FormLabel>
+                                <FormDescription>
+                                  {t('apiKeys.inheritPermissionsDescription', { defaultValue: "Use the owning admin's current role permissions. Disable to store custom permissions on this key." })}
+                                </FormDescription>
+                              </div>
+                              <FormControl>
+                                <div onClick={e => e.stopPropagation()}>
+                                  <Switch checked={!!field.value} onCheckedChange={field.onChange} />
+                                </div>
+                              </FormControl>
+                            </FormItem>
+                          )}
+                        />
+                        {!inheritPermissions && (
+                          <PermissionEditor
+                            permissions={permissionsValue}
+                            onPermissionsChange={next => form.setValue('permissions', next, { shouldDirty: true })}
+                          />
+                        )}
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                </Accordion>
+
+                <div className="pt-0.5">
+                  <FormField
+                    control={form.control}
+                    name="note"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('apiKeys.note')}</FormLabel>
+                        <FormControl>
+                          <Textarea placeholder={t('apiKeys.note')} rows={4} className="min-h-[96px] resize-y" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </div>
+
+              <DialogFooter className="pt-1">
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => onOpenChange(false)}
+                  onClick={() => handleOpenChange(false)}
                 >
                   {t('cancel')}
                 </Button>
                 <LoaderButton
                   type="submit"
                   isLoading={createMutation.isPending || updateMutation.isPending}
+                  loadingText={editingApiKey ? t('modifying') : t('creating')}
                 >
                   {editingApiKey ? t('modify') : t('create')}
                 </LoaderButton>
-              </div>
+              </DialogFooter>
             </form>
           </Form>
         )}

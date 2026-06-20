@@ -40,6 +40,7 @@ export const permissionsSchema = z.object({
 }).optional().default({})
 
 export const apiKeyFormSchema = z.object({
+  admin_id: z.number().nullable().optional(),
   name: z.string().min(1, 'Name is required').max(128),
   note: z.string().max(512).optional(),
   permissions: permissionsSchema,
@@ -51,6 +52,7 @@ export const apiKeyFormSchema = z.object({
 export type ApiKeyFormValues = z.infer<typeof apiKeyFormSchema>
 
 export const apiKeyFormDefaultValues: ApiKeyFormValues = {
+  admin_id: null,
   name: '',
   note: '',
   permissions: {},

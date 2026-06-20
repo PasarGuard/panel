@@ -3619,6 +3619,10 @@ export type APIKeyCreateNote = string | null
 
 export interface APIKeyCreate {
   /**
+   * @minimum 1
+   */
+  admin_id?: number | null
+  /**
    * @minLength 1
    * @maxLength 128
    */

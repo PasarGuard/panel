@@ -24,6 +24,8 @@ class APIKeyBase(BaseModel):
 
 
 class APIKeyCreate(APIKeyBase):
+    admin_id: int | None = Field(default=None, ge=1)
+
     @field_validator("expire_date", mode="before")
     @classmethod
     def validate_expire_date(cls, value):

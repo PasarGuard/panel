@@ -1,29 +1,13 @@
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import {
-  flexRender,
-  getCoreRowModel,
-  useReactTable,
-} from '@tanstack/react-table'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
-import { setupColumns } from './columns'
-import { APIKeyResponse, useGetAdminsSimple, RolePermissions } from '@/service/api'
-import { Skeleton } from '@/components/ui/skeleton'
+import { Calendar as CalendarIcon, Edit2, Key, MoreVertical, RotateCcw, ShieldCheck, Trash2 } from 'lucide-react'
+
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Edit2, RotateCcw, Trash2, Key, Calendar as CalendarIcon, ShieldCheck, MoreHorizontal } from 'lucide-react'
-import { dateUtils } from '@/utils/dateFormatter'
 import { Card } from '@/components/ui/card'
-import { cn } from '@/lib/utils'
-import { countEnabledPermissions } from '@/features/admin-roles/components/permission-editor'
-import { RolePermissionFormMap } from '@/features/admin-roles/forms/admin-role-form'
+import { ListColumn, ListGenerator } from '@/components/common/list-generator'
+import { ListGeneratorGrid } from '@/components/common/list-generator-grid'
+import { Skeleton } from '@/components/ui/skeleton'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -32,6 +16,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { cn } from '@/lib/utils'
+import { APIKeyResponse, RolePermissions, useGetAdminsSimple } from '@/service/api'
+import { countEnabledPermissions } from '@/features/admin-roles/components/permission-editor'
+import { RolePermissionFormMap } from '@/features/admin-roles/forms/admin-role-form'
+import { dateUtils } from '@/utils/dateFormatter'
 
 interface ApiKeysTableProps {
   onEdit: (apiKey: APIKeyResponse) => void
@@ -40,217 +29,358 @@ interface ApiKeysTableProps {
   isCardView?: boolean
   apiKeys: APIKeyResponse[]
   isLoading: boolean
+  canUpdate?: boolean
+  canDelete?: boolean
 }
 
-export default function ApiKeysTable({
+function countEnabledResources(permissions: RolePermissions | undefined): number {
+  if (!permissions) return 0
+
+  return Object.values(permissions).reduce((total, resource) => {
+    if (!resource || typeof resource !== 'object') return total
+
+    const hasEnabledPermission = Object.values(resource as Record<string, unknown>).some(value => {
+      if (value === true) return true
+      return !!value && typeof value === 'object' && Number((value as { scope?: unknown }).scope) > 0
+    })
+
+    return hasEnabledPermission ? total + 1 : total
+  }, 0)
+}
+
+function ApiKeyActionsMenu({
+  apiKey,
   onEdit,
   onDelete,
   onRevoke,
-  isCardView = false,
-  apiKeys,
-  isLoading,
-}: ApiKeysTableProps) {
+  canUpdate = true,
+  canDelete = true,
+}: {
+  apiKey: APIKeyResponse
+  onEdit: (apiKey: APIKeyResponse) => void
+  onDelete: (apiKey: APIKeyResponse) => void
+  onRevoke: (apiKey: APIKeyResponse) => void
+  canUpdate?: boolean
+  canDelete?: boolean
+}) {
   const { t } = useTranslation()
-  const adminsQuery = useGetAdminsSimple()
-  const admins = adminsQuery.data?.admins || []
 
-  const columns = useMemo(
-    () => setupColumns({ t, onEdit, onDelete, onRevoke, admins }),
-    [t, onEdit, onDelete, onRevoke, admins]
+  if (!canUpdate && !canDelete) return null
+
+  return (
+    <div onClick={event => event.stopPropagation()}>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button type="button" variant="ghost" size="icon">
+            <MoreVertical className="h-4 w-4" />
+            <span className="sr-only">{t('actions')}</span>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuLabel>{t('actions')}</DropdownMenuLabel>
+          {canUpdate && (
+            <DropdownMenuItem
+              onSelect={event => {
+                event.stopPropagation()
+                onEdit(apiKey)
+              }}
+            >
+              <Edit2 className="mr-2 h-4 w-4" />
+              {t('edit')}
+            </DropdownMenuItem>
+          )}
+          {canDelete && (
+            <>
+              <DropdownMenuItem
+                onSelect={event => {
+                  event.stopPropagation()
+                  onRevoke(apiKey)
+                }}
+              >
+                <RotateCcw className="mr-2 h-4 w-4" />
+                {t('apiKeys.revoke')}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="text-destructive focus:text-destructive"
+                onSelect={event => {
+                  event.stopPropagation()
+                  onDelete(apiKey)
+                }}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                {t('delete')}
+              </DropdownMenuItem>
+            </>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
   )
+}
 
-  const table = useReactTable({
-    data: apiKeys,
-    columns,
-    getCoreRowModel: getCoreRowModel(),
-  })
+function ApiKeyStatusBadge({ apiKey }: { apiKey: APIKeyResponse }) {
+  const { t } = useTranslation()
 
-  if (isLoading) {
-    if (isCardView) {
-      return (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <Card key={i} className="h-32 p-4">
-              <div className="flex items-start gap-3">
-                <div className="flex-1 space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Skeleton className="h-4 w-4 rounded-full" />
-                    <Skeleton className="h-5 w-32" />
-                  </div>
-                  <Skeleton className="h-4 w-24" />
-                  <Skeleton className="h-3 w-40" />
-                </div>
-                <Skeleton className="h-8 w-8 rounded-md" />
-              </div>
-            </Card>
-          ))}
-        </div>
-      )
-    }
-    return (
-      <div className="space-y-2">
-        {Array.from({ length: 8 }).map((_, i) => (
-          <Skeleton key={i} className="h-16 w-full rounded-md" />
-        ))}
-      </div>
-    )
+  if (apiKey.is_expired) {
+    return <Badge variant="destructive">{t('expired')}</Badge>
   }
 
-  if (isCardView) {
+  return <Badge variant={apiKey.status === 'active' ? 'green' : 'secondary'}>{t(`admins.${apiKey.status}`)}</Badge>
+}
+
+function ApiKeyPermissionsSummary({ apiKey, compact = false }: { apiKey: APIKeyResponse; compact?: boolean }) {
+  const { t } = useTranslation()
+
+  if (apiKey.inherit_permissions) {
+    return <Badge variant="secondary">{t('apiKeys.inherited', { defaultValue: 'Inherited' })}</Badge>
+  }
+
+  const permissions = apiKey.permissions as RolePermissions | undefined
+  const resourceCount = countEnabledResources(permissions)
+  const actionCount = countEnabledPermissions(permissions as RolePermissionFormMap | undefined)
+
+  if (compact) {
     return (
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {apiKeys.length ? (
-          apiKeys.map((apiKey) => {
-            const admin = admins.find(a => a.id === apiKey.admin_id)
-            const permissions = apiKey.permissions as RolePermissions | undefined
-            const resourceCount = permissions
-              ? Object.values(permissions).filter(resource => {
-                  if (!resource || typeof resource !== 'object') return false
-                  return Object.values(resource as Record<string, unknown>).some(value => {
-                    if (value === true) return true
-                    return !!value && typeof value === 'object' && Number((value as any).scope) > 0
-                  })
-                }).length
-              : 0
-            const actionCount = countEnabledPermissions(permissions as RolePermissionFormMap | undefined)
-            
-            return (
-              <Card
-                key={apiKey.id}
-                className={cn(
-                  "group relative overflow-hidden border transition-all hover:bg-accent cursor-pointer",
-                  apiKey.is_expired && "border-destructive/20 opacity-80"
-                )}
-                onClick={() => onEdit(apiKey)}
-              >
-                <div className="p-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5 mb-1 flex-wrap">
-                        <Key className={cn("h-3.5 w-3.5 shrink-0", apiKey.status === 'active' ? "text-primary" : "text-muted-foreground")} />
-                        <h3 className="truncate text-sm font-semibold tracking-tight">{apiKey.name}</h3>
-                        {admin && (
-                          <Badge variant="outline" className="h-3.5 px-1 text-[8px] font-normal opacity-70 shrink-0">
-                            {admin.username}
-                          </Badge>
-                        )}
-                      </div>
-                      {apiKey.api_key_trimmed && (
-                        <div className="mt-1">
-                          <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px]">
-                            {apiKey.api_key_trimmed}
-                          </code>
-                        </div>
-                      )}
-                      
-                      <div className="space-y-1 mt-2">
-                        <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-                          <ShieldCheck className="h-3 w-3" />
-                          <span className="truncate">
-                            {apiKey.inherit_permissions ? t('apiKeys.inherited', { defaultValue: 'Inherited' }) : `${resourceCount} res - ${actionCount} actions`}
-                          </span>
-                        </div>
-                        
-                        <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-                          <CalendarIcon className="h-3 w-3" />
-                          <span className={cn(apiKey.is_expired && "text-destructive font-medium")}>
-                            {apiKey.expire_date ? dateUtils.formatDate(apiKey.expire_date) : t('never')}
-                            {apiKey.is_expired && ` (${t('expired')})`}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-col gap-1 items-end shrink-0">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                          <Button variant="ghost" className="h-7 w-7 p-0 hover:bg-accent">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuLabel>{t('actions')}</DropdownMenuLabel>
-                          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEdit(apiKey); }}>
-                            <Edit2 className="mr-2 h-3.5 w-3.5" />
-                            {t('edit')}
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onRevoke(apiKey); }}>
-                            <RotateCcw className="mr-2 h-3.5 w-3.5" />
-                            {t('apiKeys.revoke')}
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            className="text-destructive focus:text-destructive"
-                            onClick={(e) => { e.stopPropagation(); onDelete(apiKey); }}
-                          >
-                            <Trash2 className="mr-2 h-3.5 w-3.5" />
-                            {t('delete')}
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-
-                      <Badge variant={apiKey.status === 'active' ? 'green' : 'secondary'} className="px-1.5 py-0 text-[9px] uppercase font-bold mt-1">
-                        {t(`admins.${apiKey.status}`)}
-                      </Badge>
-                    </div>
-                  </div>
-                </div>
-              </Card>
-            )
-          })
-        ) : (
-          <div className="col-span-full flex h-40 items-center justify-center rounded-xl border border-dashed text-muted-foreground">
-            {t('noResults')}
-          </div>
-        )}
-      </div>
+      <span className="truncate">
+        {resourceCount} {t('resources', { defaultValue: 'resources' })} / {actionCount} {t('actions', { defaultValue: 'actions' })}
+      </span>
     )
   }
 
   return (
-    <div className="rounded-md border">
-      <Table>
-        <TableHeader>
-          {table.getHeaderGroups().map((headerGroup) => (
-            <TableRow key={headerGroup.id}>
-              {headerGroup.headers.map((header) => (
-                <TableHead key={header.id}>
-                  {header.isPlaceholder
-                    ? null
-                    : flexRender(
-                        header.column.columnDef.header,
-                        header.getContext()
-                      )}
-                </TableHead>
-              ))}
-            </TableRow>
-          ))}
-        </TableHeader>
-        <TableBody>
-          {table.getRowModel().rows?.length ? (
-            table.getRowModel().rows.map((row) => (
-              <TableRow
-                key={row.id}
-                data-state={row.getIsSelected() && 'selected'}
-                className="cursor-pointer"
-                onClick={() => onEdit(row.original)}
-              >
-                {row.getVisibleCells().map((cell) => (
-                  <TableCell key={cell.id}>
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </TableCell>
-                ))}
-              </TableRow>
-            ))
-          ) : (
-            <TableRow>
-              <TableCell colSpan={columns.length} className="h-24 text-center">
-                {t('noResults')}
-              </TableCell>
-            </TableRow>
-          )}
-        </TableBody>
-      </Table>
+    <div className="flex min-w-0 flex-wrap items-center gap-1">
+      <Badge variant="outline" className="text-xs">
+        {resourceCount} {t('resources', { defaultValue: 'resources' })}
+      </Badge>
+      <Badge variant="secondary" className="text-xs">
+        {actionCount} {t('actions', { defaultValue: 'actions' })}
+      </Badge>
     </div>
+  )
+}
+
+function ApiKeyCard({
+  apiKey,
+  adminName,
+  onEdit,
+  onDelete,
+  onRevoke,
+  canUpdate = true,
+  canDelete = true,
+}: {
+  apiKey: APIKeyResponse
+  adminName?: string
+  onEdit: (apiKey: APIKeyResponse) => void
+  onDelete: (apiKey: APIKeyResponse) => void
+  onRevoke: (apiKey: APIKeyResponse) => void
+  canUpdate?: boolean
+  canDelete?: boolean
+}) {
+  const { t } = useTranslation()
+
+  return (
+    <Card
+      className={cn('group relative px-4 py-5 transition-colors', canUpdate && 'hover:bg-accent cursor-pointer', apiKey.is_expired && 'border-destructive/30')}
+      onClick={() => {
+        if (canUpdate) onEdit(apiKey)
+      }}
+    >
+      <div className="flex items-start gap-3">
+        <div className="flex min-w-0 flex-1 items-start gap-3">
+          <Key className={cn('mt-0.5 h-4 w-4 shrink-0', apiKey.status === 'active' && !apiKey.is_expired ? 'text-primary' : 'text-muted-foreground')} />
+          <div className="min-w-0 flex-1 space-y-3">
+            <div className="min-w-0 space-y-1">
+              <div className="flex min-w-0 items-center gap-2">
+                <span className="truncate font-medium">{apiKey.name}</span>
+                {adminName ? (
+                  <Badge variant="outline" className="max-w-32 shrink-0 truncate px-1.5 text-[10px] font-normal">
+                    {adminName}
+                  </Badge>
+                ) : null}
+              </div>
+              <div className="min-w-0">
+                {apiKey.api_key_trimmed ? (
+                  <code className="inline-block max-w-full truncate rounded bg-muted px-1.5 py-0.5 font-mono text-xs">{apiKey.api_key_trimmed}</code>
+                ) : (
+                  <span className="text-muted-foreground text-xs">-</span>
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="text-muted-foreground flex min-w-0 items-center gap-2 text-xs">
+                <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
+                <ApiKeyPermissionsSummary apiKey={apiKey} compact />
+              </div>
+              <div className="text-muted-foreground flex min-w-0 items-center gap-2 text-xs">
+                <CalendarIcon className="h-3.5 w-3.5 shrink-0" />
+                <span className={cn('truncate', apiKey.is_expired && 'text-destructive font-medium')}>
+                  {apiKey.expire_date ? dateUtils.formatDate(apiKey.expire_date) : t('never')}
+                  {apiKey.is_expired ? ` (${t('expired')})` : ''}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex shrink-0 flex-col items-end gap-2">
+          <ApiKeyActionsMenu apiKey={apiKey} onEdit={onEdit} onDelete={onDelete} onRevoke={onRevoke} canUpdate={canUpdate} canDelete={canDelete} />
+          <ApiKeyStatusBadge apiKey={apiKey} />
+        </div>
+      </div>
+    </Card>
+  )
+}
+
+export default function ApiKeysTable({ onEdit, onDelete, onRevoke, isCardView = false, apiKeys, isLoading, canUpdate = true, canDelete = true }: ApiKeysTableProps) {
+  const { t } = useTranslation()
+  const adminsQuery = useGetAdminsSimple()
+  const admins = adminsQuery.data?.admins || []
+  const adminNamesById = useMemo(() => new Map(admins.map(admin => [admin.id, admin.username])), [admins])
+
+  const columns = useMemo<ListColumn<APIKeyResponse>[]>(
+    () => [
+      {
+        id: 'name',
+        header: t('apiKeys.name'),
+        width: 'minmax(12rem, 2fr)',
+        skeletonClassName: 'w-40',
+        cell: apiKey => {
+          const adminName = adminNamesById.get(apiKey.admin_id)
+
+          return (
+            <div className="flex min-w-0 items-center gap-2">
+              <Key className={cn('h-4 w-4 shrink-0', apiKey.status === 'active' && !apiKey.is_expired ? 'text-primary' : 'text-muted-foreground')} />
+              <div className="min-w-0">
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className="truncate font-medium">{apiKey.name}</span>
+                  {adminName ? (
+                    <Badge variant="outline" className="max-w-28 shrink-0 truncate px-1.5 text-[10px] font-normal">
+                      {adminName}
+                    </Badge>
+                  ) : null}
+                </div>
+                {apiKey.api_key_trimmed ? (
+                  <code className="mt-1 inline-block max-w-full truncate rounded bg-muted px-1.5 py-0.5 font-mono text-xs md:hidden">{apiKey.api_key_trimmed}</code>
+                ) : null}
+              </div>
+            </div>
+          )
+        },
+      },
+      {
+        id: 'key',
+        header: t('apiKeys.key', { defaultValue: 'API Key' }),
+        width: 'minmax(10rem, 1.3fr)',
+        hideOnMobile: true,
+        skeletonClassName: 'w-32',
+        cell: apiKey =>
+          apiKey.api_key_trimmed ? (
+            <code className="inline-block max-w-full truncate rounded bg-muted px-1.5 py-0.5 font-mono text-xs">{apiKey.api_key_trimmed}</code>
+          ) : (
+            <span className="text-muted-foreground">-</span>
+          ),
+      },
+      {
+        id: 'permissions',
+        header: t('adminRoles.permissions', { defaultValue: 'Permissions' }),
+        width: 'minmax(10rem, 1.4fr)',
+        hideOnMobile: true,
+        skeletonClassName: 'w-28',
+        cell: apiKey => <ApiKeyPermissionsSummary apiKey={apiKey} />,
+      },
+      {
+        id: 'status',
+        header: t('apiKeys.status'),
+        width: '7rem',
+        align: 'center',
+        skeletonClassName: 'w-16',
+        cell: apiKey => <ApiKeyStatusBadge apiKey={apiKey} />,
+      },
+      {
+        id: 'expire_date',
+        header: t('apiKeys.expireDate'),
+        width: 'minmax(9rem, 1fr)',
+        hideOnMobile: true,
+        skeletonClassName: 'w-24',
+        cell: apiKey => (
+          <span className={cn('text-muted-foreground truncate text-sm', apiKey.is_expired && 'text-destructive font-medium')}>
+            {apiKey.expire_date ? dateUtils.formatDate(apiKey.expire_date) : t('never')}
+          </span>
+        ),
+      },
+      ...(canUpdate || canDelete
+        ? [
+            {
+              id: 'actions',
+              header: '',
+              width: '64px',
+              align: 'end' as const,
+              hideOnMobile: true,
+              skeletonClassName: 'w-8',
+              cell: (apiKey: APIKeyResponse) => <ApiKeyActionsMenu apiKey={apiKey} onEdit={onEdit} onDelete={onDelete} onRevoke={onRevoke} canUpdate={canUpdate} canDelete={canDelete} />,
+            },
+          ]
+        : []),
+    ],
+    [adminNamesById, canDelete, canUpdate, onDelete, onEdit, onRevoke, t],
+  )
+
+  if (isCardView) {
+    return (
+      <ListGeneratorGrid
+        data={apiKeys}
+        getRowId={apiKey => apiKey.id}
+        isLoading={isLoading}
+        loadingRows={6}
+        className="gap-4"
+        showEmptyState={false}
+        renderItem={apiKey => (
+          <ApiKeyCard
+            apiKey={apiKey}
+            adminName={adminNamesById.get(apiKey.admin_id)}
+            onEdit={onEdit}
+            onDelete={onDelete}
+            onRevoke={onRevoke}
+            canUpdate={canUpdate}
+            canDelete={canDelete}
+          />
+        )}
+        renderSkeleton={index => (
+          <Card key={index} className="px-4 py-5">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex min-w-0 flex-1 gap-3">
+                <Skeleton className="mt-0.5 h-4 w-4 shrink-0 rounded-full" />
+                <div className="min-w-0 flex-1 space-y-3">
+                  <div className="space-y-1.5">
+                    <Skeleton className="h-5 w-32" />
+                    <Skeleton className="h-4 w-40" />
+                  </div>
+                  <div className="space-y-2">
+                    <Skeleton className="h-4 w-28" />
+                    <Skeleton className="h-4 w-36" />
+                  </div>
+                </div>
+              </div>
+              <Skeleton className="h-8 w-8 shrink-0 rounded-md" />
+            </div>
+          </Card>
+        )}
+      />
+    )
+  }
+
+  return (
+    <ListGenerator
+      data={apiKeys}
+      columns={columns}
+      getRowId={apiKey => apiKey.id}
+      isLoading={isLoading}
+      loadingRows={6}
+      className="gap-3"
+      onRowClick={canUpdate ? onEdit : undefined}
+      showEmptyState={false}
+    />
   )
 }

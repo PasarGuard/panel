@@ -1,8 +1,9 @@
-import { useState, useMemo } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Plus } from 'lucide-react'
 import PageHeader from '@/components/layout/page-header'
 import { Separator } from '@/components/ui/separator'
+import { Card, CardContent } from '@/components/ui/card'
 import ApiKeysTable from '@/features/api-keys/components/api-keys-table'
 import ApiKeyModal from '@/features/api-keys/dialogs/api-key-modal'
 import {
@@ -15,19 +16,6 @@ import {
 } from '@/service/api'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
-import { Input } from '@/components/ui/input'
-import { Copy, Check } from 'lucide-react'
-import { Button } from '@/components/ui/button'
 import { ApiKeyFilters } from '@/features/api-keys/components/api-key-filters'
 import { useDebouncedSearch } from '@/hooks/use-debounced-search'
 import { useForm } from 'react-hook-form'
@@ -37,9 +25,17 @@ import {
   type ApiKeyAdvanceSearchFormValue,
 } from '@/features/api-keys/forms/api-key-advance-search-form'
 import ApiKeyAdvanceSearchModal from '@/features/api-keys/dialogs/api-key-advance-search-modal'
+import { ApiKeyDeleteDialog, ApiKeyRevokeDialog, ApiKeySecretDialog } from '@/features/api-keys/dialogs/api-key-action-dialogs'
+import { usePersistedViewMode } from '@/hooks/use-persisted-view-mode'
+import { useAdmin } from '@/hooks/use-admin'
+import { hasPermission } from '@/utils/rbac'
 
 export default function ApiKeysPage() {
   const { t } = useTranslation()
+  const { admin } = useAdmin()
+  const canCreateApiKeys = hasPermission(admin, 'api_keys', 'create')
+  const canUpdateApiKeys = hasPermission(admin, 'api_keys', 'update')
+  const canDeleteApiKeys = hasPermission(admin, 'api_keys', 'delete')
   const [editingApiKey, setEditingApiKey] = useState<APIKeyResponse | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   
@@ -48,7 +44,7 @@ export default function ApiKeysPage() {
   const [newReissuedKey, setNewReissuedKey] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
 
-  const [isCardView, setIsCardView] = useState(false)
+  const [viewMode, setViewMode] = usePersistedViewMode('view-mode:api-keys')
   const [filters, setFilters] = useState<{ status?: APIKeyStatus[]; key_id?: number }>({})
   const { search, debouncedSearch, setSearch } = useDebouncedSearch('', 300)
   const [isAdvanceSearchOpen, setIsAdvanceSearchOpen] = useState(false)
@@ -73,6 +69,11 @@ export default function ApiKeysPage() {
   })
 
   const apiKeys = apiKeysResponse?.api_keys || []
+  const hasActiveSearch = (search || '').trim() !== '' || (debouncedSearch || '').trim() !== ''
+  const hasAdvancedFilters = !!filters.status?.length || filters.key_id !== undefined
+  const isCurrentlyLoading = isLoading || (isFetching && !apiKeysResponse)
+  const isEmpty = !isCurrentlyLoading && apiKeys.length === 0 && !hasActiveSearch && !hasAdvancedFilters
+  const isSearchEmpty = !isCurrentlyLoading && apiKeys.length === 0 && (hasActiveSearch || hasAdvancedFilters)
 
   const queryClient = useQueryClient()
   const deleteMutation = useRemoveApiKey({
@@ -91,12 +92,14 @@ export default function ApiKeysPage() {
   })
 
   const handleEdit = (apiKey: APIKeyResponse) => {
+    if (!canUpdateApiKeys) return
+
     setEditingApiKey(apiKey)
     setIsModalOpen(true)
   }
 
   const handleDelete = async () => {
-    if (!keyToDelete) return
+    if (!keyToDelete || !canDeleteApiKeys) return
     try {
       await deleteMutation.mutateAsync({ keyId: keyToDelete.id })
       toast.success(t('apiKeys.deleteSuccess'))
@@ -109,7 +112,7 @@ export default function ApiKeysPage() {
   }
 
   const handleRevoke = async () => {
-    if (!keyToRevoke) return
+    if (!keyToRevoke || !canDeleteApiKeys) return
     try {
       const response = await revokeMutation.mutateAsync({ keyId: keyToRevoke.id })
       setNewReissuedKey(response.api_key)
@@ -158,17 +161,17 @@ export default function ApiKeysPage() {
         <PageHeader
           title="apiKeys.title"
           description="apiKeys.description"
-          buttonIcon={Plus}
-          buttonText="apiKeys.createKey"
-          onButtonClick={() => {
+          buttonIcon={canCreateApiKeys ? Plus : undefined}
+          buttonText={canCreateApiKeys ? 'apiKeys.createKey' : undefined}
+          onButtonClick={canCreateApiKeys ? () => {
             setEditingApiKey(null)
             setIsModalOpen(true)
-          }}
+          } : undefined}
         />
         <Separator />
       </div>
 
-      <div className="w-full px-4 pt-2">
+      <div className="w-full p-4">
         <div
           className="flex flex-col gap-4 animate-slide-up transform-gpu"
           style={{ animationDuration: '500ms', animationDelay: '100ms', animationFillMode: 'both' }}
@@ -178,8 +181,8 @@ export default function ApiKeysPage() {
             onSearchChange={setSearch}
             isFetching={isFetching}
             onRefresh={() => refetch()}
-            viewMode={isCardView ? 'grid' : 'list'}
-            onViewModeChange={(mode) => setIsCardView(mode === 'grid')}
+            viewMode={viewMode}
+            onViewModeChange={setViewMode}
             filters={{
               status: filters.status?.[0],
             }}
@@ -193,22 +196,54 @@ export default function ApiKeysPage() {
             onAdvanceSearchOpen={() => setIsAdvanceSearchOpen(true)}
           />
 
-          <ApiKeysTable
-            onEdit={handleEdit}
-            onDelete={setKeyToDelete}
-            onRevoke={setKeyToRevoke}
-            isCardView={isCardView}
-            apiKeys={apiKeys}
-            isLoading={isLoading}
-          />
+          {(isCurrentlyLoading || apiKeys.length > 0) && (
+            <ApiKeysTable
+              onEdit={handleEdit}
+              onDelete={setKeyToDelete}
+              onRevoke={setKeyToRevoke}
+              isCardView={viewMode === 'grid'}
+              apiKeys={apiKeys}
+              isLoading={isCurrentlyLoading}
+              canUpdate={canUpdateApiKeys}
+              canDelete={canDeleteApiKeys}
+            />
+          )}
+
+          {isEmpty && (
+            <Card className="mb-12">
+              <CardContent className="p-8 text-center">
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold">{t('apiKeys.noKeys', { defaultValue: 'No API keys configured' })}</h3>
+                  <p className="text-muted-foreground mx-auto max-w-2xl">
+                    {t('apiKeys.noKeysDescription', { defaultValue: 'Create an API key to allow programmatic access.' })}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {isSearchEmpty && (
+            <Card className="mb-12">
+              <CardContent className="p-8 text-center">
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold">{t('noResults')}</h3>
+                  <p className="text-muted-foreground mx-auto max-w-2xl">
+                    {t('apiKeys.noSearchResults', { defaultValue: 'No API keys match your search criteria. Try adjusting your search terms or filters.' })}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
 
-      <ApiKeyModal
-        isOpen={isModalOpen}
-        onOpenChange={setIsModalOpen}
-        editingApiKey={editingApiKey}
-      />
+      {(canCreateApiKeys || canUpdateApiKeys) && (
+        <ApiKeyModal
+          isDialogOpen={isModalOpen}
+          onOpenChange={setIsModalOpen}
+          editingApiKey={editingApiKey}
+        />
+      )}
 
       <ApiKeyAdvanceSearchModal
         isDialogOpen={isAdvanceSearchOpen}
@@ -217,68 +252,35 @@ export default function ApiKeysPage() {
         onSubmit={handleAdvanceSearchSubmit}
       />
 
-      <AlertDialog open={!!keyToDelete} onOpenChange={() => setKeyToDelete(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t('apiKeys.deleteTitle')}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {t('apiKeys.deletePrompt', { name: keyToDelete?.name })}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
-            <AlertDialogAction
-              variant="destructive"
-              onClick={handleDelete}
-            >
-              {t('delete')}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ApiKeyDeleteDialog
+        apiKey={keyToDelete}
+        onOpenChange={open => {
+          if (!open) setKeyToDelete(null)
+        }}
+        onConfirm={handleDelete}
+        isPending={deleteMutation.isPending}
+      />
 
-      <AlertDialog open={!!keyToRevoke} onOpenChange={() => setKeyToRevoke(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t('apiKeys.revokeTitle')}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {t('apiKeys.revokePrompt')}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
-            <AlertDialogAction onClick={handleRevoke}>
-              {t('confirm')}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ApiKeyRevokeDialog
+        apiKey={keyToRevoke}
+        onOpenChange={open => {
+          if (!open) setKeyToRevoke(null)
+        }}
+        onConfirm={handleRevoke}
+        isPending={revokeMutation.isPending}
+      />
 
-      <AlertDialog open={!!newReissuedKey} onOpenChange={() => setNewReissuedKey(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t('apiKeys.apiKey')}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {t('apiKeys.apiKeyShowWarning')}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <div className="flex items-center gap-2 py-4">
-            <Input
-              readOnly
-              value={newReissuedKey || ''}
-              className="font-mono"
-            />
-            <Button size="icon" variant="outline" onClick={copyToClipboard}>
-              {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-            </Button>
-          </div>
-          <AlertDialogFooter>
-            <AlertDialogAction onClick={() => setNewReissuedKey(null)}>
-              {t('close')}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ApiKeySecretDialog
+        apiKey={newReissuedKey}
+        copied={copied}
+        onCopy={copyToClipboard}
+        onOpenChange={open => {
+          if (!open) {
+            setNewReissuedKey(null)
+            setCopied(false)
+          }
+        }}
+      />
     </div>
   )
 }

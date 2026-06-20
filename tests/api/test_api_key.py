@@ -135,3 +135,41 @@ def test_revoke_api_key_rotates_secret_and_blocks_old_key(access_token):
         assert new_auth_response.json()["username"] == admin["username"]
     finally:
         delete_admin(access_token, admin["username"])
+
+
+def test_owner_can_assign_api_key_to_admin(access_token):
+    admin = create_admin(access_token, role_id=2)
+
+    try:
+        create_response = client.post(
+            "/api/api_key",
+            headers=auth_headers(access_token),
+            json={"name": unique_name("api_key"), "admin_id": admin["id"]},
+        )
+        assert create_response.status_code == status.HTTP_201_CREATED
+        created = create_response.json()
+        raw_api_key = created["api_key"]
+        assert created["admin_id"] == admin["id"]
+
+        current_admin_response = client.get("/api/admin", headers={"X-Api-Key": raw_api_key})
+        assert current_admin_response.status_code == status.HTTP_200_OK
+        assert current_admin_response.json()["username"] == admin["username"]
+    finally:
+        delete_admin(access_token, admin["username"])
+
+
+def test_non_owner_cannot_assign_api_key_to_other_admin(access_token):
+    admin = create_admin(access_token, role_id=2)
+    other_admin = create_admin(access_token, role_id=2)
+    admin_token = _login(admin["username"], admin["password"])
+
+    try:
+        create_response = client.post(
+            "/api/api_key",
+            headers=auth_headers(admin_token),
+            json={"name": unique_name("api_key"), "admin_id": other_admin["id"]},
+        )
+        assert create_response.status_code == status.HTTP_403_FORBIDDEN
+    finally:
+        delete_admin(access_token, admin["username"])
+        delete_admin(access_token, other_admin["username"])

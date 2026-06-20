@@ -3,6 +3,7 @@ from datetime import datetime as dt, timezone as tz
 from sqlalchemy.exc import IntegrityError
 
 from app.db import AsyncSession
+from app.db.crud.admin import get_admin_by_id
 from app.db.crud.api_key import (
     create_api_key,
     delete_api_key,
@@ -78,13 +79,26 @@ class APIKeyOperation(BaseOperation):
         if admin.id is None:
             await self.raise_error(message="API key creation is not available for env admins", code=403)
 
+        target_admin_id = model.admin_id or admin.id
+        if target_admin_id != admin.id and not admin.is_owner:
+            await self.raise_error(message="Only the owner can assign API keys to another admin", code=403)
+
+        target_db_admin = await get_admin_by_id(
+            db, target_admin_id, load_users=False, load_usage_logs=False, load_role=True
+        )
+        if target_db_admin is None:
+            await self.raise_error(message="Target admin not found", code=404)
+
+        target_admin = AdminDetails.model_validate(target_db_admin)
+
         if not model.inherit_permissions:
             try:
                 _check_permissions_not_exceed_admin(admin, model.permissions)
+                _check_permissions_not_exceed_admin(target_admin, model.permissions)
             except ValueError as exc:
                 await self.raise_error(message=str(exc), code=403)
 
-        duplicates, _ = await get_api_keys(db, admin_id=admin.id, offset=0, limit=1, name=model.name)
+        duplicates, _ = await get_api_keys(db, admin_id=target_admin_id, offset=0, limit=1, name=model.name)
         if duplicates:
             await self.raise_error(message="API key name already exists", code=409)
 
@@ -94,11 +108,11 @@ class APIKeyOperation(BaseOperation):
         try:
             raw_key, db_key = await create_api_key(
                 db,
-                admin_id=admin.id,
+                admin_id=target_admin_id,
                 model=model,
             )
             await db.commit()
-            await notify_create(APIKeyResponse.model_validate(db_key), admin.username, admin.username)
+            await notify_create(APIKeyResponse.model_validate(db_key), target_db_admin.username, admin.username)
         except IntegrityError:
             await self.raise_error(message="API key already exists", code=409, db=db)
 
