@@ -3,9 +3,10 @@ import asyncio
 from fastapi import status
 from sqlalchemy import select
 
-from app.db.models import APIKey
+from app.db.models import Admin, APIKey
+from app.models.admin import hash_password
 from tests.api import TestSession, client
-from tests.api.helpers import auth_headers, create_admin, delete_admin, unique_name
+from tests.api.helpers import auth_headers, create_admin, delete_admin, strong_password, unique_name
 
 
 def _login(username: str, password: str) -> str:
@@ -26,6 +27,33 @@ def _api_key_state(key_id: int) -> tuple[str | None, str]:
             return revoked_at, db_key.status.value
 
     return asyncio.run(_get_state())
+
+
+def _create_owner_admin() -> dict:
+    username = unique_name("api_key_owner")
+    password = strong_password("ApiKeyOwner")
+
+    async def _create_owner() -> int:
+        async with TestSession() as session:
+            db_admin = Admin(username=username, hashed_password=await hash_password(password), role_id=1)
+            session.add(db_admin)
+            await session.commit()
+            await session.refresh(db_admin)
+            return db_admin.id
+
+    return {"id": asyncio.run(_create_owner()), "username": username, "password": password}
+
+
+def _delete_admin_row(username: str) -> None:
+    async def _delete_admin() -> None:
+        async with TestSession() as session:
+            result = await session.execute(select(Admin).where(Admin.username == username))
+            db_admin = result.scalar_one_or_none()
+            if db_admin is not None:
+                await session.delete(db_admin)
+                await session.commit()
+
+    asyncio.run(_delete_admin())
 
 
 def test_api_key_authenticates_protected_requests(access_token):
@@ -138,12 +166,14 @@ def test_revoke_api_key_rotates_secret_and_blocks_old_key(access_token):
 
 
 def test_owner_can_assign_api_key_to_admin(access_token):
+    owner = _create_owner_admin()
     admin = create_admin(access_token, role_id=2)
+    owner_token = _login(owner["username"], owner["password"])
 
     try:
         create_response = client.post(
             "/api/api_key",
-            headers=auth_headers(access_token),
+            headers=auth_headers(owner_token),
             json={"name": unique_name("api_key"), "admin_id": admin["id"]},
         )
         assert create_response.status_code == status.HTTP_201_CREATED
@@ -156,38 +186,45 @@ def test_owner_can_assign_api_key_to_admin(access_token):
         assert current_admin_response.json()["username"] == admin["username"]
     finally:
         delete_admin(access_token, admin["username"])
+        _delete_admin_row(owner["username"])
 
 
 def test_bulk_delete_api_keys_removes_selected_keys(access_token):
+    owner = _create_owner_admin()
+    owner_token = _login(owner["username"], owner["password"])
+
     first_response = client.post(
         "/api/api_key",
-        headers=auth_headers(access_token),
+        headers=auth_headers(owner_token),
         json={"name": unique_name("api_key")},
     )
     second_response = client.post(
         "/api/api_key",
-        headers=auth_headers(access_token),
+        headers=auth_headers(owner_token),
         json={"name": unique_name("api_key")},
     )
-    assert first_response.status_code == status.HTTP_201_CREATED
-    assert second_response.status_code == status.HTTP_201_CREATED
-    first = first_response.json()
-    second = second_response.json()
+    try:
+        assert first_response.status_code == status.HTTP_201_CREATED
+        assert second_response.status_code == status.HTTP_201_CREATED
+        first = first_response.json()
+        second = second_response.json()
 
-    delete_response = client.post(
-        "/api/api_keys/bulk/delete",
-        headers=auth_headers(access_token),
-        json={"ids": [first["id"], second["id"]]},
-    )
+        delete_response = client.post(
+            "/api/api_keys/bulk/delete",
+            headers=auth_headers(owner_token),
+            json={"ids": [first["id"], second["id"]]},
+        )
 
-    assert delete_response.status_code == status.HTTP_200_OK
-    deleted = delete_response.json()
-    assert deleted["count"] == 2
-    assert set(deleted["api_keys"]) == {first["name"], second["name"]}
+        assert delete_response.status_code == status.HTTP_200_OK
+        deleted = delete_response.json()
+        assert deleted["count"] == 2
+        assert set(deleted["api_keys"]) == {first["name"], second["name"]}
 
-    for key_id in (first["id"], second["id"]):
-        detail_response = client.get(f"/api/api_key/{key_id}", headers=auth_headers(access_token))
-        assert detail_response.status_code == status.HTTP_404_NOT_FOUND
+        for key_id in (first["id"], second["id"]):
+            detail_response = client.get(f"/api/api_key/{key_id}", headers=auth_headers(owner_token))
+            assert detail_response.status_code == status.HTTP_404_NOT_FOUND
+    finally:
+        _delete_admin_row(owner["username"])
 
 
 def test_bulk_delete_api_keys_rejects_missing_key(access_token):
