@@ -16,6 +16,7 @@ import { countEnabledPermissions } from '@/features/admin-roles/components/permi
 import { RolePermissionFormMap } from '@/features/admin-roles/forms/admin-role-form'
 import { AdminStatusBadge } from '@/features/admins/components/admin-status-badge'
 import { dateUtils } from '@/utils/dateFormatter'
+import { formatDateByLocale } from '@/utils/datePickerUtils'
 
 interface ApiKeysTableProps {
   onEdit: (apiKey: APIKeyResponse) => void
@@ -120,18 +121,24 @@ function ApiKeyActionsMenu({
   )
 }
 
-function ApiKeyStatusBadge({ apiKey }: { apiKey: APIKeyResponse }) {
+function formatApiKeyExpireDate(date: string | number | Date, language: string): string {
+  return formatDateByLocale(dateUtils.toDayjs(date).toDate(), language.toLowerCase().startsWith('fa'), true)
+}
+
+function ApiKeyStatusBadge({ apiKey, compactOnMobile = true }: { apiKey: APIKeyResponse; compactOnMobile?: boolean }) {
   const { t } = useTranslation()
   const status = apiKey.is_expired ? 'expired' : apiKey.status || 'active'
 
   return (
     <div className="flex flex-col gap-y-2 py-1">
-      <div className="hidden md:block">
+      <div className={cn(compactOnMobile && 'hidden md:block')}>
         <AdminStatusBadge isSudo={false} status={status} label={t(`status.${status}`, { defaultValue: status })} />
       </div>
-      <div className="md:hidden">
-        <AdminStatusBadge compact isSudo={false} status={status} />
-      </div>
+      {compactOnMobile ? (
+        <div className="md:hidden">
+          <AdminStatusBadge compact isSudo={false} status={status} />
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -192,7 +199,7 @@ function ApiKeyCard({
   selectionControl?: ReactNode
   selected?: boolean
 }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const isActive = apiKey.status === 'active' && !apiKey.is_expired
 
   return (
@@ -217,16 +224,16 @@ function ApiKeyCard({
           <div className="flex min-w-0 items-start justify-between gap-2">
             <div className="min-w-0 space-y-1.5">
               <div className="flex min-w-0 items-center gap-x-2">
-                <span className="min-w-0 truncate text-sm font-medium">{apiKey.name}</span>
+                <span dir="auto" className="min-w-0 truncate text-sm font-medium">{apiKey.name}</span>
                 {adminName ? (
                   <Badge variant="outline" className="flex max-w-32 shrink-0 items-center gap-1 px-1.5 text-[10px] font-normal opacity-80 sm:max-w-36">
                     <UserRound className="h-3 w-3 shrink-0" />
-                    <span className="min-w-0 truncate">{adminName}</span>
+                    <span dir="auto" className="min-w-0 truncate">{adminName}</span>
                   </Badge>
                 ) : null}
               </div>
               {apiKey.api_key_trimmed ? (
-                <code className="bg-muted/80 inline-block max-w-full truncate rounded px-1.5 py-0.5 font-mono text-xs">{apiKey.api_key_trimmed}</code>
+                <code dir="ltr" className="bg-muted/80 inline-block max-w-full truncate rounded px-1.5 py-0.5 font-mono text-xs">{apiKey.api_key_trimmed}</code>
               ) : (
                 <span className="text-muted-foreground text-xs">-</span>
               )}
@@ -245,7 +252,7 @@ function ApiKeyCard({
             </div>
             <div className="text-muted-foreground flex min-w-0 items-center gap-1.5 leading-none sm:justify-end">
               <CalendarIcon className="h-3.5 w-3.5 shrink-0" />
-              <span className={cn('truncate', apiKey.is_expired && 'text-destructive font-medium')}>{apiKey.expire_date ? dateUtils.formatDate(apiKey.expire_date) : t('never')}</span>
+              <span dir="ltr" className={cn('truncate', apiKey.is_expired && 'text-destructive font-medium')}>{apiKey.expire_date ? formatApiKeyExpireDate(apiKey.expire_date, i18n.language) : t('never')}</span>
             </div>
           </div>
         </div>
@@ -267,7 +274,7 @@ export default function ApiKeysTable({
   selectedRowIds = [],
   onSelectionChange,
 }: ApiKeysTableProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const adminsQuery = useGetAdminsSimple()
   const admins = adminsQuery.data?.admins || []
   const adminNamesById = useMemo(() => new Map(admins.map(admin => [admin.id, admin.username])), [admins])
@@ -289,11 +296,11 @@ export default function ApiKeysTable({
               </div>
               <div className="flex min-w-0 flex-1 flex-col gap-y-1 overflow-hidden">
                 <div className="flex min-w-0 items-center gap-x-1.5 overflow-hidden">
-                  <span className="overflow-hidden text-sm font-medium text-ellipsis whitespace-nowrap">{apiKey.name}</span>
+                  <span dir="auto" className="overflow-hidden text-sm font-medium text-ellipsis whitespace-nowrap">{apiKey.name}</span>
                   {adminName ? (
                     <Badge variant="outline" className="flex max-w-28 shrink-0 items-center gap-1 px-1.5 text-[10px] font-normal opacity-80">
                       <UserRound className="h-3 w-3 shrink-0" />
-                      <span className="min-w-0 truncate">{adminName}</span>
+                      <span dir="auto" className="min-w-0 truncate">{adminName}</span>
                     </Badge>
                   ) : null}
                 </div>
@@ -310,7 +317,7 @@ export default function ApiKeysTable({
         skeletonClassName: 'w-32',
         cell: apiKey =>
           apiKey.api_key_trimmed ? (
-            <code className="bg-muted/80 inline-block max-w-full truncate rounded px-1.5 py-0.5 font-mono text-xs">{apiKey.api_key_trimmed}</code>
+            <code dir="ltr" className="bg-muted/80 inline-block max-w-full truncate rounded px-1.5 py-0.5 font-mono text-xs">{apiKey.api_key_trimmed}</code>
           ) : (
             <span className="text-muted-foreground">-</span>
           ),
@@ -329,7 +336,7 @@ export default function ApiKeysTable({
         width: '7.5rem',
         hideOnMobile: true,
         skeletonClassName: 'h-7 w-[88px] rounded-full',
-        cell: apiKey => <ApiKeyStatusBadge apiKey={apiKey} />,
+        cell: apiKey => <ApiKeyStatusBadge apiKey={apiKey} compactOnMobile={false} />,
       },
       {
         id: 'expire_date',
@@ -338,8 +345,8 @@ export default function ApiKeysTable({
         hideOnMobile: true,
         skeletonClassName: 'w-24',
         cell: apiKey => (
-          <span className={cn('text-muted-foreground truncate text-sm', apiKey.is_expired && 'font-medium text-amber-600 dark:text-amber-400')}>
-            {apiKey.expire_date ? dateUtils.formatDate(apiKey.expire_date) : t('never')}
+          <span dir="ltr" className={cn('text-muted-foreground truncate text-sm', apiKey.is_expired && 'font-medium text-amber-600 dark:text-amber-400')}>
+            {apiKey.expire_date ? formatApiKeyExpireDate(apiKey.expire_date, i18n.language) : t('never')}
           </span>
         ),
       },
@@ -357,7 +364,7 @@ export default function ApiKeysTable({
           ]
         : []),
     ],
-    [adminNamesById, canDelete, canUpdate, onDelete, onEdit, onRevoke, t],
+    [adminNamesById, canDelete, canUpdate, i18n.language, onDelete, onEdit, onRevoke, t],
   )
 
   if (isCardView) {

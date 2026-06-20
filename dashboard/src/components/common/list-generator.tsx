@@ -334,9 +334,9 @@ export function ListGenerator<T>({
                         if (cellContent === null || cellContent === undefined) return null
 
                         return (
-                          <div key={`mobile-${column.id}-${rowId}`} className={cn('flex items-start justify-between gap-3 px-1.5 py-1.5', dir === 'rtl' && 'flex-row-reverse')}>
-                            <div className="text-muted-foreground shrink-0 text-[10px] font-medium tracking-wide uppercase">{column.header}</div>
-                            <div className={cn('min-w-0 text-sm leading-5', dir === 'rtl' ? 'text-left' : 'text-right')}>{cellContent}</div>
+                          <div key={`mobile-${column.id}-${rowId}`} dir={dir} className="flex items-start justify-between gap-3 px-1.5 py-1.5">
+                            <div className="text-muted-foreground shrink-0 text-start text-[10px] font-medium tracking-wide uppercase">{column.header}</div>
+                            <div className="min-w-0 text-end text-sm leading-5">{cellContent}</div>
                           </div>
                         )
                       })}
