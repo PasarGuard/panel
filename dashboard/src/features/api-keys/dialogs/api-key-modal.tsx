@@ -185,7 +185,7 @@ export default function ApiKeyModal({
 
   return (
     <Dialog open={isDialogOpen} onOpenChange={handleOpenChange}>
-      <DialogContent className="h-auto w-full max-w-2xl" onOpenAutoFocus={e => e.preventDefault()}>
+      <DialogContent className="h-auto max-w-[640px]" onOpenAutoFocus={e => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             {editingApiKey ? <Pencil className="h-5 w-5" /> : <KeyRound className="h-5 w-5" />}
@@ -198,7 +198,7 @@ export default function ApiKeyModal({
 
         {createdKey ? (
           <div className="space-y-4">
-            <div className="-mr-4 max-h-[80dvh] space-y-4 overflow-y-auto px-2 pr-4 sm:max-h-[75dvh]">
+            <div className="-mr-4 max-h-[75dvh] space-y-4 overflow-y-auto px-2 pr-4 sm:max-h-[70dvh]">
               <Alert>
                 <Key className="h-4 w-4" />
                 <AlertTitle>{t('apiKeys.apiKey')}</AlertTitle>
@@ -222,7 +222,7 @@ export default function ApiKeyModal({
                 </Button>
               </div>
             </div>
-            <DialogFooter>
+            <DialogFooter className="pt-2">
               <Button onClick={() => handleOpenChange(false)}>
                 {t('close')}
               </Button>
@@ -230,9 +230,9 @@ export default function ApiKeyModal({
           </div>
         ) : (
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-              <div className="-mr-4 max-h-[80dvh] space-y-6 overflow-y-auto px-2 pr-4 sm:max-h-[75dvh]">
-                <div className="grid grid-cols-1 items-start gap-x-5 gap-y-4 sm:grid-cols-2">
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <div className="-mr-4 max-h-[75dvh] space-y-4 overflow-y-auto px-2 pr-4 sm:max-h-[70dvh]">
+                <div className="grid grid-cols-1 items-stretch gap-4 sm:grid-cols-2">
                   {isOwner && (
                     <FormField
                       control={form.control}
@@ -335,8 +335,8 @@ export default function ApiKeyModal({
                   )}
                 </div>
 
-                <Accordion type="single" collapsible className="mt-0! flex w-full flex-col gap-y-4">
-                  <AccordionItem className="rounded-sm border px-4 **:data-[state=closed]:no-underline **:data-[state=open]:no-underline" value="permissions">
+                <Accordion type="single" collapsible className="!mt-0 flex w-full flex-col gap-y-3">
+                  <AccordionItem className="rounded-md border px-4 [&_[data-state=closed]]:no-underline [&_[data-state=open]]:no-underline" value="permissions">
                     <AccordionTrigger>
                       <div className="flex items-center gap-2">
                         <KeyRound className="h-4 w-4" />
@@ -393,7 +393,7 @@ export default function ApiKeyModal({
                 </div>
               </div>
 
-              <DialogFooter className="pt-1">
+              <div className="flex justify-end gap-2 pt-2">
                 <Button
                   type="button"
                   variant="outline"
@@ -408,7 +408,7 @@ export default function ApiKeyModal({
                 >
                   {editingApiKey ? t('modify') : t('create')}
                 </LoaderButton>
-              </DialogFooter>
+              </div>
             </form>
           </Form>
         )}

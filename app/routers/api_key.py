@@ -10,6 +10,8 @@ from app.models.api_key import (
     APIKeyUpdate,
     APIKeysQuery,
     APIKeysResponse,
+    BulkAPIKeySelection,
+    RemoveAPIKeysResponse,
 )
 from app.operation import OperatorType
 from app.operation.api_key import APIKeyOperation
@@ -48,6 +50,19 @@ async def list_api_keys(
     admin: AdminDetails = Depends(require_permission("api_keys", "read")),
 ):
     return await api_key_operator.list_api_keys(db, admin=admin, query=query)
+
+
+@router.post(
+    "s/bulk/delete",
+    response_model=RemoveAPIKeysResponse,
+    responses={400: responses._400, 403: responses._403, 404: responses._404},
+)
+async def bulk_delete_api_keys(
+    bulk_api_keys: BulkAPIKeySelection,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(require_permission("api_keys", "delete")),
+):
+    return await api_key_operator.bulk_delete_api_keys(db, admin=admin, bulk_api_keys=bulk_api_keys)
 
 
 @router.patch("/{key_id}", response_model=APIKeyResponse, responses={404: responses._404, 409: responses._409})

@@ -7,6 +7,8 @@ from app.db.models import APIKeyStatus
 from app.models.admin_role import RolePermissions
 from app.utils.helpers import fix_datetime_timezone
 
+from .validators import ListValidator
+
 
 class APIKeyBase(BaseModel):
     name: str = Field(min_length=1, max_length=128)
@@ -74,6 +76,24 @@ class APIKeyCreateResponse(APIKeyResponse):
 class APIKeysResponse(BaseModel):
     api_keys: list[APIKeyResponse]
     total: int
+
+
+class BulkAPIKeySelection(BaseModel):
+    """Model for bulk API key selection by IDs."""
+
+    ids: set[int] = Field(default_factory=set)
+
+    @field_validator("ids", mode="after")
+    @classmethod
+    def ids_validator(cls, v):
+        return ListValidator.not_null_list(list(v), "API key")
+
+
+class RemoveAPIKeysResponse(BaseModel):
+    """Response model for bulk API key deletion."""
+
+    api_keys: list[str]
+    count: int
 
 
 Offset = Annotated[int, Field(default=0, ge=0)]

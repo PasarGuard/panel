@@ -158,6 +158,48 @@ def test_owner_can_assign_api_key_to_admin(access_token):
         delete_admin(access_token, admin["username"])
 
 
+def test_bulk_delete_api_keys_removes_selected_keys(access_token):
+    first_response = client.post(
+        "/api/api_key",
+        headers=auth_headers(access_token),
+        json={"name": unique_name("api_key")},
+    )
+    second_response = client.post(
+        "/api/api_key",
+        headers=auth_headers(access_token),
+        json={"name": unique_name("api_key")},
+    )
+    assert first_response.status_code == status.HTTP_201_CREATED
+    assert second_response.status_code == status.HTTP_201_CREATED
+    first = first_response.json()
+    second = second_response.json()
+
+    delete_response = client.post(
+        "/api/api_keys/bulk/delete",
+        headers=auth_headers(access_token),
+        json={"ids": [first["id"], second["id"]]},
+    )
+
+    assert delete_response.status_code == status.HTTP_200_OK
+    deleted = delete_response.json()
+    assert deleted["count"] == 2
+    assert set(deleted["api_keys"]) == {first["name"], second["name"]}
+
+    for key_id in (first["id"], second["id"]):
+        detail_response = client.get(f"/api/api_key/{key_id}", headers=auth_headers(access_token))
+        assert detail_response.status_code == status.HTTP_404_NOT_FOUND
+
+
+def test_bulk_delete_api_keys_rejects_missing_key(access_token):
+    delete_response = client.post(
+        "/api/api_keys/bulk/delete",
+        headers=auth_headers(access_token),
+        json={"ids": [999999999]},
+    )
+
+    assert delete_response.status_code == status.HTTP_404_NOT_FOUND
+
+
 def test_api_key_create_permission_accepts_boolean(access_token):
     create_response = client.post(
         "/api/api_key",

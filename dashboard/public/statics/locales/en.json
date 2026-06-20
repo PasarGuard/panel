@@ -787,7 +787,11 @@
     "inherited": "Inherited",
     "noKeys": "No API keys configured",
     "noKeysDescription": "Create an API key to allow programmatic access.",
-    "noSearchResults": "No API keys match your search criteria. Try adjusting your search terms or filters."
+    "noSearchResults": "No API keys match your search criteria. Try adjusting your search terms or filters.",
+    "bulkDeleteSuccess": "{{count}} API keys deleted successfully.",
+    "bulkDeleteFailed": "Failed to delete selected API keys.",
+    "bulkDeleteTitle": "Delete selected API keys",
+    "bulkDeletePrompt": "Are you sure you want to delete {{count}} selected API keys? This action cannot be undone."
   },
   "adminRoles": {
     "title": "Admin Roles",

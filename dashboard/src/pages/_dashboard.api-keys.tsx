@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Plus } from 'lucide-react'
+import { Plus, Trash2 } from 'lucide-react'
 import PageHeader from '@/components/layout/page-header'
 import { Separator } from '@/components/ui/separator'
 import { Card, CardContent } from '@/components/ui/card'
@@ -8,6 +8,7 @@ import ApiKeysTable from '@/features/api-keys/components/api-keys-table'
 import ApiKeyModal from '@/features/api-keys/dialogs/api-key-modal'
 import {
   APIKeyResponse,
+  useBulkDeleteApiKeys,
   useRemoveApiKey,
   useRevokeApiKey,
   useListApiKeys,
@@ -29,6 +30,8 @@ import { ApiKeyDeleteDialog, ApiKeyRevokeDialog, ApiKeySecretDialog } from '@/fe
 import { usePersistedViewMode } from '@/hooks/use-persisted-view-mode'
 import { useAdmin } from '@/hooks/use-admin'
 import { hasPermission } from '@/utils/rbac'
+import { BulkActionItem, BulkActionsBar } from '@/features/users/components/bulk-actions-bar'
+import { BulkActionAlertDialog } from '@/features/users/components/bulk-action-alert-dialog'
 
 export default function ApiKeysPage() {
   const { t } = useTranslation()
@@ -43,6 +46,8 @@ export default function ApiKeysPage() {
   const [keyToRevoke, setKeyToRevoke] = useState<APIKeyResponse | null>(null)
   const [newReissuedKey, setNewReissuedKey] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  const [selectedApiKeyIds, setSelectedApiKeyIds] = useState<number[]>([])
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false)
 
   const [viewMode, setViewMode] = usePersistedViewMode('view-mode:api-keys')
   const [filters, setFilters] = useState<{ status?: APIKeyStatus[]; key_id?: number }>({})
@@ -83,6 +88,13 @@ export default function ApiKeysPage() {
       },
     },
   })
+  const bulkDeleteMutation = useBulkDeleteApiKeys({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListApiKeysQueryKey() })
+      },
+    },
+  })
   const revokeMutation = useRevokeApiKey({
     mutation: {
       onSuccess: () => {
@@ -107,6 +119,31 @@ export default function ApiKeysPage() {
     } catch (error: any) {
       toast.error(t('apiKeys.deleteFailed'), {
         description: error?.data?.detail || error?.message,
+      })
+    }
+  }
+
+  const clearSelection = () => {
+    setSelectedApiKeyIds([])
+  }
+
+  const handleBulkDelete = async () => {
+    if (!canDeleteApiKeys || !selectedApiKeyIds.length) return
+
+    try {
+      const response = await bulkDeleteMutation.mutateAsync({ data: { ids: selectedApiKeyIds } })
+      toast.success(t('success', { defaultValue: 'Success' }), {
+        description: t('apiKeys.bulkDeleteSuccess', {
+          count: response.count,
+          defaultValue: '{{count}} API keys deleted successfully.',
+        }),
+      })
+
+      clearSelection()
+      setConfirmBulkDelete(false)
+    } catch (error: any) {
+      toast.error(t('error', { defaultValue: 'Error' }), {
+        description: error?.data?.detail || error?.message || t('apiKeys.bulkDeleteFailed', { defaultValue: 'Failed to delete selected API keys.' }),
       })
     }
   }
@@ -155,6 +192,20 @@ export default function ApiKeysPage() {
     }))
   }
 
+  const selectedCount = selectedApiKeyIds.length
+  const bulkActions: BulkActionItem[] = selectedCount && canDeleteApiKeys
+    ? [
+        {
+          key: 'delete',
+          label: t('delete'),
+          icon: Trash2,
+          onClick: () => setConfirmBulkDelete(true),
+          direct: true,
+          destructive: true,
+        },
+      ]
+    : []
+
   return (
     <div className="flex w-full flex-col items-start gap-2">
       <div className="animate-fade-in w-full transform-gpu" style={{ animationDuration: '400ms' }}>
@@ -196,6 +247,8 @@ export default function ApiKeysPage() {
             onAdvanceSearchOpen={() => setIsAdvanceSearchOpen(true)}
           />
 
+          {canDeleteApiKeys && <BulkActionsBar selectedCount={selectedCount} onClear={clearSelection} actions={bulkActions} />}
+
           {(isCurrentlyLoading || apiKeys.length > 0) && (
             <ApiKeysTable
               onEdit={handleEdit}
@@ -206,6 +259,9 @@ export default function ApiKeysPage() {
               isLoading={isCurrentlyLoading}
               canUpdate={canUpdateApiKeys}
               canDelete={canDeleteApiKeys}
+              enableSelection={canDeleteApiKeys}
+              selectedRowIds={selectedApiKeyIds}
+              onSelectionChange={setSelectedApiKeyIds}
             />
           )}
 
@@ -280,6 +336,20 @@ export default function ApiKeysPage() {
             setCopied(false)
           }
         }}
+      />
+
+      <BulkActionAlertDialog
+        open={confirmBulkDelete}
+        onOpenChange={setConfirmBulkDelete}
+        title={t('apiKeys.bulkDeleteTitle', { defaultValue: 'Delete selected API keys' })}
+        description={t('apiKeys.bulkDeletePrompt', {
+          count: selectedCount,
+          defaultValue: 'Are you sure you want to delete {{count}} selected API keys? This action cannot be undone.',
+        })}
+        actionLabel={t('delete')}
+        onConfirm={handleBulkDelete}
+        isPending={bulkDeleteMutation.isPending}
+        destructive
       />
     </div>
   )

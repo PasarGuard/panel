@@ -60,6 +60,14 @@ async def get_api_key_by_id(db: AsyncSession, key_id: int) -> APIKey | None:
     return (await db.execute(stmt)).scalar_one_or_none()
 
 
+async def get_api_keys_by_ids(db: AsyncSession, key_ids: list[int]) -> list[APIKey]:
+    if not key_ids:
+        return []
+
+    stmt = select(APIKey).where(APIKey.id.in_(key_ids)).options(selectinload(APIKey.admin))
+    return list((await db.execute(stmt)).scalars().all())
+
+
 async def get_api_keys(
     db: AsyncSession,
     *,

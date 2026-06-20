@@ -1739,6 +1739,14 @@ export interface RemoveGroupsResponse {
 }
 
 /**
+ * Response model for bulk API key deletion.
+ */
+export interface RemoveAPIKeysResponse {
+  api_keys: string[]
+  count: number
+}
+
+/**
  * Response model for bulk core deletion
  */
 export interface RemoveCoresResponse {
@@ -3017,6 +3025,13 @@ export interface BulkGroupsActionResponse {
  * Model for bulk group selection by IDs
  */
 export interface BulkGroupSelection {
+  ids?: number[]
+}
+
+/**
+ * Model for bulk API key selection by IDs.
+ */
+export interface BulkAPIKeySelection {
   ids?: number[]
 }
 
@@ -5589,6 +5604,55 @@ export function useListApiKeys<TData = Awaited<ReturnType<typeof listApiKeys>>, 
   query.queryKey = queryOptions.queryKey
 
   return query
+}
+
+/**
+ * @summary Bulk Delete Api Keys
+ */
+export const bulkDeleteApiKeys = (bulkAPIKeySelection: BodyType<BulkAPIKeySelection>, signal?: AbortSignal) => {
+  return orvalFetcher<RemoveAPIKeysResponse>({ url: `/api/api_keys/bulk/delete`, method: 'POST', headers: { 'Content-Type': 'application/json' }, data: bulkAPIKeySelection, signal })
+}
+
+export const getBulkDeleteApiKeysMutationOptions = <
+  TData = Awaited<ReturnType<typeof bulkDeleteApiKeys>>,
+  TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkAPIKeySelection> }, TContext>
+}) => {
+  const mutationKey = ['bulkDeleteApiKeys']
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } }
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof bulkDeleteApiKeys>>, { data: BodyType<BulkAPIKeySelection> }> = props => {
+    const { data } = props ?? {}
+
+    return bulkDeleteApiKeys(data)
+  }
+
+  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { data: BodyType<BulkAPIKeySelection> }, TContext>
+}
+
+export type BulkDeleteApiKeysMutationResult = NonNullable<Awaited<ReturnType<typeof bulkDeleteApiKeys>>>
+export type BulkDeleteApiKeysMutationBody = BodyType<BulkAPIKeySelection>
+export type BulkDeleteApiKeysMutationError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>
+
+/**
+ * @summary Bulk Delete Api Keys
+ */
+export const useBulkDeleteApiKeys = <
+  TData = Awaited<ReturnType<typeof bulkDeleteApiKeys>>,
+  TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkAPIKeySelection> }, TContext>
+}): UseMutationResult<TData, TError, { data: BodyType<BulkAPIKeySelection> }, TContext> => {
+  const mutationOptions = getBulkDeleteApiKeysMutationOptions(options)
+
+  return useMutation(mutationOptions)
 }
 
 /**

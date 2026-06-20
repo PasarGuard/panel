@@ -9,6 +9,7 @@ from app.db.crud.api_key import (
     delete_api_key,
     get_api_key_by_id,
     get_api_keys,
+    get_api_keys_by_ids,
     revoke_api_key as revoke_api_key_crud,
     update_api_key,
 )
@@ -26,6 +27,8 @@ from app.models.api_key import (
     APIKeyUpdate,
     APIKeysQuery,
     APIKeysResponse,
+    BulkAPIKeySelection,
+    RemoveAPIKeysResponse,
 )
 from app.operation import BaseOperation
 
@@ -263,3 +266,36 @@ class APIKeyOperation(BaseOperation):
         await delete_api_key(db, db_key)
         await db.commit()
         await notify_delete(api_key_resp, admin_username, admin.username)
+
+    async def bulk_delete_api_keys(
+        self, db: AsyncSession, *, admin: AdminDetails, bulk_api_keys: BulkAPIKeySelection
+    ) -> RemoveAPIKeysResponse:
+        requested_ids = list(bulk_api_keys.ids)
+        db_keys = await get_api_keys_by_ids(db, requested_ids)
+        found_ids = {db_key.id for db_key in db_keys}
+
+        for key_id in requested_ids:
+            if key_id not in found_ids:
+                await self.raise_error(message="API key not found", code=404)
+
+        if not admin.is_owner:
+            for db_key in db_keys:
+                if db_key.admin_id != admin.id:
+                    await self.raise_error(message="Permission denied", code=403)
+
+        api_key_responses: list[APIKeyResponse] = []
+        admin_usernames: list[str] = []
+        api_key_names: list[str] = []
+
+        for db_key in db_keys:
+            api_key_responses.append(APIKeyResponse.model_validate(db_key))
+            admin_usernames.append(db_key.admin.username if db_key.admin else "Unknown")
+            api_key_names.append(db_key.name)
+            await delete_api_key(db, db_key)
+
+        await db.commit()
+
+        for api_key_resp, admin_username in zip(api_key_responses, admin_usernames):
+            await notify_delete(api_key_resp, admin_username, admin.username)
+
+        return RemoveAPIKeysResponse(api_keys=api_key_names, count=len(db_keys))

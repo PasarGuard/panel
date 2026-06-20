@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Calendar as CalendarIcon, KeyRound, MoreVertical, Pencil, RotateCcw, ShieldCheck, Trash2, UserRound } from 'lucide-react'
 
@@ -26,6 +26,9 @@ interface ApiKeysTableProps {
   isLoading: boolean
   canUpdate?: boolean
   canDelete?: boolean
+  enableSelection?: boolean
+  selectedRowIds?: number[]
+  onSelectionChange?: (ids: number[]) => void
 }
 
 function countEnabledResources(permissions: RolePermissions | undefined): number {
@@ -176,6 +179,8 @@ function ApiKeyCard({
   onRevoke,
   canUpdate = true,
   canDelete = true,
+  selectionControl,
+  selected = false,
 }: {
   apiKey: APIKeyResponse
   adminName?: string
@@ -184,64 +189,84 @@ function ApiKeyCard({
   onRevoke: (apiKey: APIKeyResponse) => void
   canUpdate?: boolean
   canDelete?: boolean
+  selectionControl?: ReactNode
+  selected?: boolean
 }) {
   const { t } = useTranslation()
+  const isActive = apiKey.status === 'active' && !apiKey.is_expired
 
   return (
     <Card
-      className={cn('group relative rounded-md px-3 py-3 transition-colors', canUpdate && 'hover:bg-muted/40 cursor-pointer', apiKey.is_expired && 'border-amber-500/30')}
+      className={cn(
+        'group bg-background relative overflow-hidden rounded-md px-3.5 py-3 transition-colors sm:px-4',
+        canUpdate && 'hover:bg-muted/40 cursor-pointer',
+        selected && 'border-primary/50 bg-muted/40',
+        apiKey.is_expired && 'border-amber-500/30',
+      )}
       onClick={() => {
         if (canUpdate) onEdit(apiKey)
       }}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex min-w-0 flex-1 items-start gap-3">
-          <div className="pt-0.5">
-            <KeyRound className={cn('h-4 w-4 shrink-0', apiKey.status === 'active' && !apiKey.is_expired ? 'text-primary' : 'text-muted-foreground/70')} />
-          </div>
-          <div className="min-w-0 flex-1 space-y-2.5">
+      <div className="flex min-w-0 items-start gap-3">
+        {selectionControl ? <div className="pt-1">{selectionControl}</div> : null}
+        <div className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-md', isActive ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground')}>
+          <KeyRound className="h-4 w-4" />
+        </div>
+
+        <div className="min-w-0 flex-1 space-y-2.5">
+          <div className="flex min-w-0 items-start justify-between gap-2">
             <div className="min-w-0 space-y-1.5">
-              <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+              <div className="flex min-w-0 items-center gap-x-2">
                 <span className="min-w-0 truncate text-sm font-medium">{apiKey.name}</span>
                 {adminName ? (
-                  <Badge variant="outline" className="flex max-w-36 shrink-0 items-center gap-1 px-1.5 text-[10px] font-normal opacity-80">
+                  <Badge variant="outline" className="flex max-w-32 shrink-0 items-center gap-1 px-1.5 text-[10px] font-normal opacity-80 sm:max-w-36">
                     <UserRound className="h-3 w-3 shrink-0" />
                     <span className="min-w-0 truncate">{adminName}</span>
                   </Badge>
                 ) : null}
               </div>
-              <div className="min-w-0">
-                {apiKey.api_key_trimmed ? (
-                  <code className="bg-muted/80 inline-block max-w-full truncate rounded px-1.5 py-0.5 font-mono text-xs">{apiKey.api_key_trimmed}</code>
-                ) : (
-                  <span className="text-muted-foreground text-xs">-</span>
-                )}
-              </div>
+              {apiKey.api_key_trimmed ? (
+                <code className="bg-muted/80 inline-block max-w-full truncate rounded px-1.5 py-0.5 font-mono text-xs">{apiKey.api_key_trimmed}</code>
+              ) : (
+                <span className="text-muted-foreground text-xs">-</span>
+              )}
             </div>
 
-            <div className="grid gap-1.5 text-xs sm:grid-cols-2">
-              <div className="text-muted-foreground flex min-w-0 items-center gap-1.5 leading-none">
-                <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
-                <ApiKeyPermissionsSummary apiKey={apiKey} compact />
-              </div>
-              <div className="text-muted-foreground flex min-w-0 items-center gap-1.5 leading-none">
-                <CalendarIcon className="h-3.5 w-3.5 shrink-0" />
-                <span className={cn('truncate', apiKey.is_expired && 'text-destructive font-medium')}>{apiKey.expire_date ? dateUtils.formatDate(apiKey.expire_date) : t('never')}</span>
-              </div>
+            <div className="flex shrink-0 items-start gap-1.5">
+              <ApiKeyStatusBadge apiKey={apiKey} />
+              <ApiKeyActionsMenu apiKey={apiKey} onEdit={onEdit} onDelete={onDelete} onRevoke={onRevoke} canUpdate={canUpdate} canDelete={canDelete} />
             </div>
           </div>
-        </div>
 
-        <div className="flex shrink-0 flex-col items-end gap-1">
-          <ApiKeyActionsMenu apiKey={apiKey} onEdit={onEdit} onDelete={onDelete} onRevoke={onRevoke} canUpdate={canUpdate} canDelete={canDelete} />
-          <ApiKeyStatusBadge apiKey={apiKey} />
+          <div className="border-border/70 grid gap-2 border-t pt-2 text-xs sm:grid-cols-2">
+            <div className="text-muted-foreground flex min-w-0 items-center gap-1.5 leading-none">
+              <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
+              <ApiKeyPermissionsSummary apiKey={apiKey} compact />
+            </div>
+            <div className="text-muted-foreground flex min-w-0 items-center gap-1.5 leading-none sm:justify-end">
+              <CalendarIcon className="h-3.5 w-3.5 shrink-0" />
+              <span className={cn('truncate', apiKey.is_expired && 'text-destructive font-medium')}>{apiKey.expire_date ? dateUtils.formatDate(apiKey.expire_date) : t('never')}</span>
+            </div>
+          </div>
         </div>
       </div>
     </Card>
   )
 }
 
-export default function ApiKeysTable({ onEdit, onDelete, onRevoke, isCardView = false, apiKeys, isLoading, canUpdate = true, canDelete = true }: ApiKeysTableProps) {
+export default function ApiKeysTable({
+  onEdit,
+  onDelete,
+  onRevoke,
+  isCardView = false,
+  apiKeys,
+  isLoading,
+  canUpdate = true,
+  canDelete = true,
+  enableSelection = false,
+  selectedRowIds = [],
+  onSelectionChange,
+}: ApiKeysTableProps) {
   const { t } = useTranslation()
   const adminsQuery = useGetAdminsSimple()
   const admins = adminsQuery.data?.admins || []
@@ -272,7 +297,6 @@ export default function ApiKeysTable({ onEdit, onDelete, onRevoke, isCardView = 
                     </Badge>
                   ) : null}
                 </div>
-                {apiKey.api_key_trimmed ? <code className="bg-muted/80 inline-block max-w-full truncate rounded px-1.5 py-0.5 font-mono text-xs md:hidden">{apiKey.api_key_trimmed}</code> : null}
               </div>
             </div>
           )
@@ -303,8 +327,7 @@ export default function ApiKeysTable({ onEdit, onDelete, onRevoke, isCardView = 
         id: 'status',
         header: t('apiKeys.status'),
         width: '7.5rem',
-        align: 'center',
-        className: 'px-1',
+        hideOnMobile: true,
         skeletonClassName: 'h-7 w-[88px] rounded-full',
         cell: apiKey => <ApiKeyStatusBadge apiKey={apiKey} />,
       },
@@ -325,8 +348,8 @@ export default function ApiKeysTable({ onEdit, onDelete, onRevoke, isCardView = 
             {
               id: 'actions',
               header: '',
-              width: '48px',
-              align: 'end' as const,
+              width: '56px',
+              align: 'center' as const,
               hideOnMobile: true,
               skeletonClassName: 'w-8',
               cell: (apiKey: APIKeyResponse) => <ApiKeyActionsMenu apiKey={apiKey} onEdit={onEdit} onDelete={onDelete} onRevoke={onRevoke} canUpdate={canUpdate} canDelete={canDelete} />,
@@ -346,6 +369,10 @@ export default function ApiKeysTable({ onEdit, onDelete, onRevoke, isCardView = 
         loadingRows={6}
         className="gap-4"
         gridClassName="gap-3 md:grid-cols-2 xl:grid-cols-3"
+        enableSelection={enableSelection}
+        injectSelectionProps={enableSelection}
+        selectedRowIds={selectedRowIds}
+        onSelectionChange={ids => onSelectionChange?.(ids.map(id => Number(id)))}
         showEmptyState={false}
         renderItem={apiKey => (
           <ApiKeyCard apiKey={apiKey} adminName={adminNamesById.get(apiKey.admin_id)} onEdit={onEdit} onDelete={onDelete} onRevoke={onRevoke} canUpdate={canUpdate} canDelete={canDelete} />
@@ -384,10 +411,12 @@ export default function ApiKeysTable({ onEdit, onDelete, onRevoke, isCardView = 
       getRowId={apiKey => apiKey.id}
       isLoading={isLoading}
       loadingRows={6}
-      className="gap-2"
-      headerClassName="px-3"
-      rowClassName="py-2.5"
+      className="gap-1.5"
+      rowClassName="py-2"
       onRowClick={canUpdate ? onEdit : undefined}
+      enableSelection={enableSelection}
+      selectedRowIds={selectedRowIds}
+      onSelectionChange={ids => onSelectionChange?.(ids.map(id => Number(id)))}
       showEmptyState={false}
     />
   )

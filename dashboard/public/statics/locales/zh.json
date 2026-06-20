@@ -787,7 +787,11 @@
     "inherited": "已继承",
     "noKeys": "未配置 API 密钥",
     "noKeysDescription": "创建 API 密钥以允许程序化访问。",
-    "noSearchResults": "没有 API 密钥符合搜索条件。请调整搜索词或筛选器。"
+    "noSearchResults": "没有 API 密钥符合搜索条件。请调整搜索词或筛选器。",
+    "bulkDeleteSuccess": "已成功删除 {{count}} 个 API 密钥。",
+    "bulkDeleteFailed": "删除所选 API 密钥失败。",
+    "bulkDeleteTitle": "删除所选 API 密钥",
+    "bulkDeletePrompt": "确定要删除选中的 {{count}} 个 API 密钥吗？此操作无法撤销。"
   },
   "adminRoles": {
     "title": "管理员角色",
