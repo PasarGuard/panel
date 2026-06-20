@@ -53,7 +53,7 @@ def upgrade() -> None:
 
     # Update admin_roles permissions to include api_keys entry
     OWNER_ADMIN_API_KEY_PERMS = {
-        "create": {"scope": 2},
+        "create": True,
         "read": {"scope": 2},
         "read_simple": {"scope": 2},
         "update": {"scope": 2},

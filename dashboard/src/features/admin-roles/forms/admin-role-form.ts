@@ -62,7 +62,7 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
     actions: [
       { resource: 'api_keys', action: 'read', scoped: true },
       { resource: 'api_keys', action: 'read_simple', scoped: true },
-      { resource: 'api_keys', action: 'create', scoped: true },
+      { resource: 'api_keys', action: 'create' },
       { resource: 'api_keys', action: 'update', scoped: true },
       { resource: 'api_keys', action: 'delete', scoped: true },
     ],
@@ -139,6 +139,15 @@ const VALID_PERMISSION_ACTIONS = PERMISSION_GROUPS.reduce<Record<string, Set<str
   return acc
 }, {})
 
+const SCOPED_PERMISSION_ACTIONS = PERMISSION_GROUPS.reduce<Record<string, Set<string>>>((acc, group) => {
+  for (const item of group.actions) {
+    if (!item.scoped) continue
+    acc[item.resource] = acc[item.resource] || new Set()
+    acc[item.resource].add(item.action)
+  }
+  return acc
+}, {})
+
 const normalizePermissionValue = (value: unknown): RolePermissionFormValue | undefined => {
   if (typeof value === 'boolean') return value
   if (!value || typeof value !== 'object') return undefined
@@ -161,7 +170,10 @@ export const sanitizeRolePermissions = (permissions: RolePermissionInput): RoleP
       if (!allowedActions.has(action)) continue
       const normalizedValue = normalizePermissionValue(value)
       if (normalizedValue === undefined) continue
-      next[resource] = { ...(next[resource] || {}), [action]: normalizedValue }
+      const isScoped = SCOPED_PERMISSION_ACTIONS[resource]?.has(action) === true
+      if (!isScoped && typeof normalizedValue !== 'boolean') continue
+      const normalizedActionValue = isScoped ? normalizedValue : normalizedValue
+      next[resource] = { ...(next[resource] || {}), [action]: normalizedActionValue }
     }
   }
 

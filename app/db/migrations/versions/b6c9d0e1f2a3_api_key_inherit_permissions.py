@@ -51,7 +51,7 @@ def upgrade() -> None:
             continue
 
         changed = False
-        for action in ("create", "read", "read_simple", "update", "delete"):
+        for action in ("read", "read_simple", "update", "delete"):
             if api_key_permissions.get(action) is True:
                 api_key_permissions[action] = {"scope": 2}
                 changed = True

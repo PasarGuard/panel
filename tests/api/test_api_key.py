@@ -158,6 +158,47 @@ def test_owner_can_assign_api_key_to_admin(access_token):
         delete_admin(access_token, admin["username"])
 
 
+def test_api_key_create_permission_accepts_boolean(access_token):
+    create_response = client.post(
+        "/api/api_key",
+        headers=auth_headers(access_token),
+        json={
+            "name": unique_name("api_key"),
+            "inherit_permissions": False,
+            "permissions": {
+                "api_keys": {
+                    "create": True,
+                    "read": {"scope": 2},
+                }
+            },
+        },
+    )
+
+    assert create_response.status_code == status.HTTP_201_CREATED
+    created = create_response.json()
+    assert created["permissions"]["api_keys"]["create"] is True
+    assert created["permissions"]["api_keys"]["read"] == {"scope": 2}
+
+
+def test_api_key_create_permission_rejects_scope(access_token):
+    create_response = client.post(
+        "/api/api_key",
+        headers=auth_headers(access_token),
+        json={
+            "name": unique_name("api_key"),
+            "inherit_permissions": False,
+            "permissions": {
+                "api_keys": {
+                    "create": {"scope": 2},
+                    "read": {"scope": 2},
+                }
+            },
+        },
+    )
+
+    assert create_response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+
 def test_non_owner_cannot_assign_api_key_to_other_admin(access_token):
     admin = create_admin(access_token, role_id=2)
     other_admin = create_admin(access_token, role_id=2)
