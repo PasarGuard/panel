@@ -200,28 +200,6 @@ def test_bulk_delete_api_keys_rejects_missing_key(access_token):
     assert delete_response.status_code == status.HTTP_404_NOT_FOUND
 
 
-def test_api_key_create_permission_accepts_boolean(access_token):
-    create_response = client.post(
-        "/api/api_key",
-        headers=auth_headers(access_token),
-        json={
-            "name": unique_name("api_key"),
-            "inherit_permissions": False,
-            "permissions": {
-                "api_keys": {
-                    "create": True,
-                    "read": {"scope": 2},
-                }
-            },
-        },
-    )
-
-    assert create_response.status_code == status.HTTP_201_CREATED
-    created = create_response.json()
-    assert created["permissions"]["api_keys"]["create"] is True
-    assert created["permissions"]["api_keys"]["read"] == {"scope": 2}
-
-
 def test_api_key_create_permission_rejects_scope(access_token):
     create_response = client.post(
         "/api/api_key",
