@@ -3,7 +3,7 @@ from datetime import datetime as dt, timezone as tz
 from sqlalchemy.exc import IntegrityError
 
 from app.db import AsyncSession
-from app.db.crud.admin import get_admin_by_id
+from app.db.crud.admin import build_admin_details, get_admin_by_id
 from app.db.crud.api_key import (
     create_api_key,
     delete_api_key,
@@ -89,7 +89,7 @@ class APIKeyOperation(BaseOperation):
         if target_db_admin is None:
             await self.raise_error(message="Target admin not found", code=404)
 
-        target_admin = AdminDetails.model_validate(target_db_admin)
+        target_admin = build_admin_details(target_db_admin)
 
         if not model.inherit_permissions:
             try:
@@ -155,9 +155,23 @@ class APIKeyOperation(BaseOperation):
         if not admin.is_owner and db_key.admin_id != admin.id:
             await self.raise_error(message="Permission denied", code=403)
 
-        if model.name is not None and model.name != db_key.name:
-            duplicates, _ = await get_api_keys(db, admin_id=db_key.admin_id, offset=0, limit=1, name=model.name)
-            if duplicates:
+        target_admin_id = model.admin_id or db_key.admin_id
+        if target_admin_id != db_key.admin_id and not admin.is_owner:
+            await self.raise_error(message="Only the owner can assign API keys to another admin", code=403)
+
+        target_admin = None
+        if target_admin_id != db_key.admin_id or model.permissions is not None:
+            target_db_admin = await get_admin_by_id(
+                db, target_admin_id, load_users=False, load_usage_logs=False, load_role=True
+            )
+            if target_db_admin is None:
+                await self.raise_error(message="Target admin not found", code=404)
+            target_admin = build_admin_details(target_db_admin)
+
+        next_name = model.name if model.name is not None else db_key.name
+        if next_name != db_key.name or target_admin_id != db_key.admin_id:
+            duplicates, _ = await get_api_keys(db, admin_id=target_admin_id, offset=0, limit=1, name=next_name)
+            if any(duplicate.id != db_key.id for duplicate in duplicates):
                 await self.raise_error(message="API key name already exists", code=409)
 
         uses_custom_permissions = model.inherit_permissions is False or (
@@ -167,10 +181,19 @@ class APIKeyOperation(BaseOperation):
         if model.permissions is not None and uses_custom_permissions:
             try:
                 _check_permissions_not_exceed_admin(admin, model.permissions)
+                if target_admin is not None:
+                    _check_permissions_not_exceed_admin(target_admin, model.permissions)
+            except ValueError as exc:
+                await self.raise_error(message=str(exc), code=403)
+        elif target_admin is not None and not db_key.inherit_permissions:
+            try:
+                _check_permissions_not_exceed_admin(target_admin, RolePermissions.model_validate(db_key.permissions))
             except ValueError as exc:
                 await self.raise_error(message=str(exc), code=403)
 
         update_data = model.model_dump(exclude_unset=True)
+        if update_data.get("admin_id") is None:
+            update_data.pop("admin_id", None)
         if update_data.get("inherit_permissions") is True:
             update_data["permissions"] = {}
         # Serialize permissions to plain dict for DB storage

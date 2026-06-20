@@ -19,8 +19,8 @@ interface ApiKeyAdvanceSearchModalProps {
 }
 
 const statusOptions = [
-  { value: APIKeyStatus.active, label: 'admins.active' },
-  { value: APIKeyStatus.disabled, label: 'admins.disabled' },
+  { value: APIKeyStatus.active, label: 'status.active' },
+  { value: APIKeyStatus.disabled, label: 'status.disabled' },
 ] as const
 
 export default function ApiKeyAdvanceSearchModal({ isDialogOpen, onOpenChange, form, onSubmit }: ApiKeyAdvanceSearchModalProps) {

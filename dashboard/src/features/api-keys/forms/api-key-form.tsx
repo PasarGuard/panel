@@ -1,43 +1,12 @@
 import { z } from 'zod'
 
-// Mirrors RolePermissions from the backend — all fields optional
-const roleActionValue = z.union([
-  z.boolean(),
-  z.object({ scope: z.number() }),
-]).nullable().optional()
+import { sanitizeRolePermissions } from '@/features/admin-roles/forms/admin-role-form'
 
-const resourcePermissionsSchema = z.object({
-  create: roleActionValue,
-  read: roleActionValue,
-  read_simple: roleActionValue,
-  update: roleActionValue,
-  delete: roleActionValue,
-  reset_usage: roleActionValue,
-  revoke_sub: roleActionValue,
-  set_owner: roleActionValue,
-  activate_next_plan: roleActionValue,
-  reconnect: roleActionValue,
-  update_core: roleActionValue,
-  logs: roleActionValue,
-  stats: roleActionValue,
-  read_general: roleActionValue,
-}).partial()
+const scopeSchema = z.object({ scope: z.union([z.literal(0), z.literal(1), z.literal(2)]) })
+const permissionValueSchema = z.union([z.boolean(), scopeSchema])
+const resourcePermissionsSchema = z.record(z.string(), permissionValueSchema)
 
-export const permissionsSchema = z.object({
-  users: resourcePermissionsSchema.optional(),
-  admins: resourcePermissionsSchema.optional(),
-  nodes: resourcePermissionsSchema.optional(),
-  groups: resourcePermissionsSchema.optional(),
-  hosts: resourcePermissionsSchema.optional(),
-  templates: resourcePermissionsSchema.optional(),
-  client_templates: resourcePermissionsSchema.optional(),
-  cores: resourcePermissionsSchema.optional(),
-  settings: resourcePermissionsSchema.optional(),
-  system: resourcePermissionsSchema.optional(),
-  hwids: resourcePermissionsSchema.optional(),
-  admin_roles: resourcePermissionsSchema.optional(),
-  api_keys: resourcePermissionsSchema.optional(),
-}).optional().default({})
+export const permissionsSchema = z.preprocess(value => sanitizeRolePermissions(value as object | null | undefined), z.record(z.string(), resourcePermissionsSchema))
 
 export const apiKeyFormSchema = z.object({
   admin_id: z.number().nullable().optional(),
@@ -49,9 +18,10 @@ export const apiKeyFormSchema = z.object({
   status: z.enum(['active', 'disabled']).optional(),
 })
 
+export type ApiKeyFormValuesInput = z.input<typeof apiKeyFormSchema>
 export type ApiKeyFormValues = z.infer<typeof apiKeyFormSchema>
 
-export const apiKeyFormDefaultValues: ApiKeyFormValues = {
+export const apiKeyFormDefaultValues: ApiKeyFormValuesInput = {
   admin_id: null,
   name: '',
   note: '',

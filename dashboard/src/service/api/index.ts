@@ -3544,6 +3544,10 @@ export type APIKeyUpdateNote = string | null
 export type APIKeyUpdateName = string | null
 
 export interface APIKeyUpdate {
+  /**
+   * @minimum 1
+   */
+  admin_id?: number | null
   name?: APIKeyUpdateName
   note?: APIKeyUpdateNote
   permissions?: APIKeyUpdatePermissions

@@ -744,14 +744,20 @@
     "monitor": {
       "traffic": "监控管理员使用情况",
       "no_traffic": "没有使用情况数据"
-    }
+    },
+    "disabled": "??"
   },
   "apiKeys": {
     "title": "API 密钥",
     "description": "管理用于编程访问的 API 密钥",
     "createKey": "创建 API 密钥",
     "editKey": "修改 API 密钥",
+    "admin": "管理员",
+    "selectAdmin": "选择管理员",
+    "adminDescription": "此密钥将以该管理员身份进行认证。",
     "name": "名称",
+    "key": "API 密钥",
+    "keyId": "密钥 ID",
     "note": "备注",
     "role": "角色",
     "status": "状态",
@@ -775,7 +781,13 @@
     "deletePrompt": "您确定要删除 API 密钥「{{name}}」吗？",
     "revokePrompt": "吊销将使当前密钥失效并签发新密钥。您确定吗？",
     "revokeTitle": "吊销并重新签发 API 密钥",
-    "deleteTitle": "删除 API 密钥"
+    "deleteTitle": "删除 API 密钥",
+    "inheritPermissions": "继承管理员权限",
+    "inheritPermissionsDescription": "使用拥有者管理员当前角色的权限。关闭后将在此密钥上保存自定义权限。",
+    "inherited": "已继承",
+    "noKeys": "未配置 API 密钥",
+    "noKeysDescription": "创建 API 密钥以允许程序化访问。",
+    "noSearchResults": "没有 API 密钥符合搜索条件。请调整搜索词或筛选器。"
   },
   "adminRoles": {
     "title": "管理员角色",
@@ -3152,7 +3164,9 @@
   },
   "online": "在线",
   "loading": "加载中...",
+  "clear": "清除",
   "never": "从未",
+  "resources": "资源",
   "noResults": "未找到结果",
   "noAdminsFound": "未找到管理员",
   "emptyState": {
@@ -3365,6 +3379,7 @@
   "timeSelector.pickDate": "选择日期",
   "advanceSearch": {
     "title": "高级搜索",
+    "description": "按标识符和状态筛选 API 密钥。",
     "searchMode": "搜索模式",
     "searchModeDescription": "选择如何解释主搜索框中的内容。",
     "byUsername": "用户名和备注",

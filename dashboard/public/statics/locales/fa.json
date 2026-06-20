@@ -481,7 +481,9 @@
   "saving": "در حال ذخیره...",
   "general": "عمومی",
   "loading": "در حال بارگذاری...",
+  "clear": "پاک کردن",
   "never": "هرگز",
+  "resources": "منابع",
   "noResults": "نتیجه‌ای یافت نشد",
   "noAdminsFound": "مدیری یافت نشد",
   "emptyState": {
@@ -611,14 +613,20 @@
     "monitor": {
       "traffic": "نظارت بر مصرف ترافیک مدیر در طول زمان",
       "no_traffic": "داده‌ای برای ترافیک موجود نیست"
-    }
+    },
+    "disabled": "???????"
   },
   "apiKeys": {
     "title": "کلیدهای API",
     "description": "مدیریت کلیدهای API برای دسترسی برنامه‌نویسی",
     "createKey": "ایجاد کلید API",
     "editKey": "ویرایش کلید API",
+    "admin": "مدیر",
+    "selectAdmin": "انتخاب مدیر",
+    "adminDescription": "این کلید با هویت این مدیر احراز هویت می‌شود.",
     "name": "نام",
+    "key": "کلید API",
+    "keyId": "شناسه کلید",
     "note": "یادداشت",
     "role": "نقش",
     "status": "وضعیت",
@@ -645,7 +653,10 @@
     "deleteTitle": "حذف کلید API",
     "inheritPermissions": "ارث‌بری مجوزهای مدیر",
     "inheritPermissionsDescription": "از مجوزهای فعلی نقش مدیر مالک استفاده شود. برای ذخیره مجوزهای سفارشی روی این کلید غیرفعال کنید.",
-    "inherited": "ارث‌بری‌شده"
+    "inherited": "ارث‌بری‌شده",
+    "noKeys": "هیچ کلید API تنظیم نشده است",
+    "noKeysDescription": "برای دسترسی برنامه‌نویسی یک کلید API ایجاد کنید.",
+    "noSearchResults": "هیچ کلید API با معیارهای جست‌وجوی شما مطابقت ندارد. عبارت جست‌وجو یا فیلترها را تغییر دهید."
   },
   "adminRoles": {
     "title": "نقش‌های مدیر",
@@ -795,8 +806,7 @@
       "max_hwid_per_user": "حداکثر HWID برای هر کاربر",
       "on_hold_timeout_days_min": "حداقل زمان انتظار (روز)",
       "on_hold_timeout_days_max": "حداکثر زمان انتظار (روز)"
-      },
-
+    },
     "limitedBehavior": {
       "disabledWhenLimited": {
         "title": "مسدود کردن مدیران محدودشده",
@@ -3345,6 +3355,7 @@
   "timeSelector.pickDate": "انتخاب تاریخ",
   "advanceSearch": {
     "title": "جستجوی پیشرفته",
+    "description": "فیلتر کردن کلیدهای API بر اساس شناسه و وضعیت.",
     "searchMode": "حالت جست‌وجو",
     "searchModeDescription": "مشخص کنید فیلد جست‌وجوی اصلی چگونه تفسیر شود.",
     "byUsername": "نام کاربری و یادداشت‌ها",

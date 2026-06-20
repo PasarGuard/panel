@@ -150,7 +150,7 @@ const normalizePermissionValue = (value: unknown): RolePermissionFormValue | und
   return undefined
 }
 
-const sanitizeRolePermissions = (permissions: RolePermissionInput): RolePermissionFormMap => {
+export const sanitizeRolePermissions = (permissions: RolePermissionInput): RolePermissionFormMap => {
   const next: RolePermissionFormMap = {}
 
   for (const [resource, actions] of Object.entries(permissions || {})) {

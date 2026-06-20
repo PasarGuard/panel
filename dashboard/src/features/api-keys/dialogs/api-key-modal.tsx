@@ -37,6 +37,7 @@ import {
 } from '@/utils/datePickerUtils'
 import {
   apiKeyFormSchema,
+  ApiKeyFormValuesInput,
   ApiKeyFormValues,
   apiKeyFormDefaultValues,
 } from '../forms/api-key-form'
@@ -56,7 +57,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Switch } from '@/components/ui/switch'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { PermissionCountBadge, PermissionEditor } from '@/features/admin-roles/components/permission-editor'
-import { RolePermissionFormMap } from '@/features/admin-roles/forms/admin-role-form'
+import { RolePermissionFormMap, sanitizeRolePermissions } from '@/features/admin-roles/forms/admin-role-form'
 
 interface ApiKeyModalProps {
   isDialogOpen: boolean
@@ -76,7 +77,7 @@ export default function ApiKeyModal({
   const queryClient = useQueryClient()
   const { admin } = useAdmin()
   const isOwner = admin?.role?.is_owner === true
-  const adminsQuery = useGetAdminsSimple({ all: true }, { query: { enabled: isOwner && isDialogOpen && !editingApiKey } })
+  const adminsQuery = useGetAdminsSimple({ all: true }, { query: { enabled: isOwner && isDialogOpen } })
   const admins = adminsQuery.data?.admins || []
   const createMutation = useCreateApiKey({
     mutation: {
@@ -93,7 +94,7 @@ export default function ApiKeyModal({
     },
   })
 
-  const form = useForm<ApiKeyFormValues>({
+  const form = useForm<ApiKeyFormValuesInput, unknown, ApiKeyFormValues>({
     resolver: zodResolver(apiKeyFormSchema),
     defaultValues: apiKeyFormDefaultValues,
   })
@@ -107,18 +108,17 @@ export default function ApiKeyModal({
         name: editingApiKey.name,
         admin_id: editingApiKey.admin_id,
         note: editingApiKey.note || '',
-        permissions: ((editingApiKey.inherit_permissions ? admin?.role?.permissions : editingApiKey.permissions) as RolePermissionFormMap) || {},
+        permissions: sanitizeRolePermissions(editingApiKey.inherit_permissions ? admin?.role?.permissions : editingApiKey.permissions),
         inherit_permissions: editingApiKey.inherit_permissions ?? true,
         status: editingApiKey.status || 'active',
         expire_date: editingApiKey.expire_date,
       })
     } else {
       // Default to the admin's own role permissions as a starting point
-      const defaultPermissions = (admin?.role?.permissions as RolePermissions) || {}
       form.reset({
         ...apiKeyFormDefaultValues,
         admin_id: admin?.id ?? null,
-        permissions: defaultPermissions,
+        permissions: sanitizeRolePermissions(admin?.role?.permissions),
         inherit_permissions: true,
       })
     }
@@ -133,6 +133,7 @@ export default function ApiKeyModal({
           data: {
             name: values.name,
             note: values.note,
+            admin_id: isOwner ? values.admin_id || undefined : undefined,
             permissions: values.inherit_permissions ? {} : (values.permissions as RolePermissions),
             inherit_permissions: values.inherit_permissions,
             expire_date: values.expire_date as string | null | undefined,
@@ -232,13 +233,13 @@ export default function ApiKeyModal({
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
               <div className="-mr-4 max-h-[80dvh] space-y-6 overflow-y-auto px-2 pr-4 sm:max-h-[75dvh]">
                 <div className="grid grid-cols-1 items-start gap-x-5 gap-y-4 sm:grid-cols-2">
-                  {isOwner && !editingApiKey && (
+                  {isOwner && (
                     <FormField
                       control={form.control}
                       name="admin_id"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>{t('admins.admin', { defaultValue: 'Admin' })}</FormLabel>
+                          <FormLabel>{t('apiKeys.admin')}</FormLabel>
                           <Select
                             value={field.value ? String(field.value) : ''}
                             onValueChange={value => field.onChange(Number(value))}
@@ -246,7 +247,7 @@ export default function ApiKeyModal({
                           >
                             <FormControl>
                               <SelectTrigger>
-                                <SelectValue placeholder={t('setOwnerModal.selectAdmin', { defaultValue: 'Select admin' })} />
+                                <SelectValue placeholder={t('apiKeys.selectAdmin')} />
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
@@ -298,7 +299,7 @@ export default function ApiKeyModal({
                             useUtcTimestamp
                             date={toDatePickerDisplayDate(field.value)}
                             onDateChange={(date) => {
-                              const value = serializeDatePickerValue(date, { useUtcTimestamp: true })
+                              const value = date ? serializeDatePickerValue(date, { useUtcTimestamp: true }) : null
                               field.onChange(value)
                             }}
                             placeholder={t('apiKeys.expireDate')}
@@ -323,8 +324,8 @@ export default function ApiKeyModal({
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              <SelectItem value="active">{t('admins.active')}</SelectItem>
-                              <SelectItem value="disabled">{t('admins.disabled')}</SelectItem>
+                              <SelectItem value="active">{t('status.active', { defaultValue: 'Active' })}</SelectItem>
+                              <SelectItem value="disabled">{t('status.disabled', { defaultValue: 'Disabled' })}</SelectItem>
                             </SelectContent>
                           </Select>
                           <FormMessage />

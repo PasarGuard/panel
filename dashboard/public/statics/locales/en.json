@@ -744,14 +744,20 @@
     "monitor": {
       "traffic": "Monitor admin traffic usage over time",
       "no_traffic": "No traffic data available"
-    }
+    },
+    "disabled": "Disabled"
   },
   "apiKeys": {
     "title": "API Keys",
     "description": "Manage API keys for programmatic access",
     "createKey": "Create API Key",
     "editKey": "Modify API Key",
+    "admin": "Admin",
+    "selectAdmin": "Select admin",
+    "adminDescription": "The key will authenticate as this admin.",
     "name": "Name",
+    "key": "API Key",
+    "keyId": "Key ID",
     "note": "Note",
     "role": "Role",
     "status": "Status",
@@ -778,7 +784,10 @@
     "deleteTitle": "Delete API Key",
     "inheritPermissions": "Inherit admin permissions",
     "inheritPermissionsDescription": "Use the owning admin's current role permissions. Disable to store custom permissions on this key.",
-    "inherited": "Inherited"
+    "inherited": "Inherited",
+    "noKeys": "No API keys configured",
+    "noKeysDescription": "Create an API key to allow programmatic access.",
+    "noSearchResults": "No API keys match your search criteria. Try adjusting your search terms or filters."
   },
   "adminRoles": {
     "title": "Admin Roles",
@@ -1179,7 +1188,9 @@
   "header.nodeSettings": "Node Settings",
   "header.nodesUsage": "Nodes Usage",
   "loading": "Loading...",
+  "clear": "Clear",
   "never": "Never",
+  "resources": "resources",
   "noResults": "No results found",
   "noAdminsFound": "No admins found",
   "emptyState": {
@@ -3371,6 +3382,7 @@
   "timeSelector.pickDate": "Pick a date",
   "advanceSearch": {
     "title": "Advanced Search",
+    "description": "Filter API keys by identifier and status.",
     "searchMode": "Search mode",
     "searchModeDescription": "Choose how the main search field should be interpreted.",
     "byUsername": "Username and Notes",

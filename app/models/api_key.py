@@ -38,6 +38,7 @@ class APIKeyCreate(APIKeyBase):
 
 
 class APIKeyUpdate(BaseModel):
+    admin_id: int | None = Field(default=None, ge=1)
     name: str | None = Field(default=None, min_length=1, max_length=128)
     note: str | None = Field(default=None, max_length=512)
     permissions: RolePermissions | None = None
