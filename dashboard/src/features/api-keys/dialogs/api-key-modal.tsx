@@ -114,11 +114,10 @@ export default function ApiKeyModal({
         expire_date: editingApiKey.expire_date,
       })
     } else {
-      // Default to the admin's own role permissions as a starting point
       form.reset({
         ...apiKeyFormDefaultValues,
         admin_id: admin?.id ?? null,
-        permissions: sanitizeRolePermissions(admin?.role?.permissions),
+        permissions: {},
         inherit_permissions: true,
       })
     }
