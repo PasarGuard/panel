@@ -1,8 +1,8 @@
 import base64
 import binascii
-import hashlib
 import hmac
 
+import bcrypt
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
@@ -101,37 +101,36 @@ def generate_wireguard_keypair() -> tuple[str, str]:
     )
 
 
-API_KEY_HASH_VERSION = "v1"
-API_KEY_SHA256_ALGORITHM = "sha256"
+API_KEY_HASH_VERSION = "v2"
+API_KEY_BCRYPT_ALGORITHM = "bcrypt"
 API_KEY_LOOKUP_BYTES = 16
 
 
-def api_key_lookup_id(raw_api_key: str) -> str:
-    digest = hashlib.sha256(raw_api_key.encode("utf-8")).digest()[:API_KEY_LOOKUP_BYTES]
+def api_key_lookup_id(raw_api_key: str, secret_key: str) -> str:
+    digest = hmac.digest(secret_key.encode("utf-8"), raw_api_key.encode("utf-8"), "sha256")[:API_KEY_LOOKUP_BYTES]
     return base64.urlsafe_b64encode(digest).decode("ascii").rstrip("=")
 
 
-def hash_api_key(raw_api_key: str) -> str:
-    lookup_id = api_key_lookup_id(raw_api_key)
+def hash_api_key(raw_api_key: str, secret_key: str) -> str:
+    lookup_id = api_key_lookup_id(raw_api_key, secret_key)
 
-    hash_hex = _sha256_api_key_digest(raw_api_key)
-    return f"{API_KEY_HASH_VERSION}${lookup_id}${API_KEY_SHA256_ALGORITHM}${hash_hex}"
-
-
-def _sha256_api_key_digest(raw_api_key: str) -> str:
-    return hashlib.sha256(raw_api_key.encode("utf-8")).hexdigest()
+    key_hash = bcrypt.hashpw(raw_api_key.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+    return f"{API_KEY_HASH_VERSION}${lookup_id}${API_KEY_BCRYPT_ALGORITHM}${key_hash}"
 
 
-def verify_api_key(raw_api_key: str, stored_hash: str) -> bool:
-    parts = stored_hash.split("$")
+def verify_api_key(raw_api_key: str, stored_hash: str, secret_key: str) -> bool:
+    parts = stored_hash.split("$", 3)
 
     if len(parts) != 4:
         return False
 
-    version, lookup_id, algorithm, hash_hex = parts
-    if version != API_KEY_HASH_VERSION or algorithm != API_KEY_SHA256_ALGORITHM:
+    version, lookup_id, algorithm, key_hash = parts
+    if version != API_KEY_HASH_VERSION or algorithm != API_KEY_BCRYPT_ALGORITHM:
         return False
-    if not hmac.compare_digest(lookup_id, api_key_lookup_id(raw_api_key)):
+    if not hmac.compare_digest(lookup_id, api_key_lookup_id(raw_api_key, secret_key)):
         return False
 
-    return hmac.compare_digest(_sha256_api_key_digest(raw_api_key), hash_hex)
+    try:
+        return bcrypt.checkpw(raw_api_key.encode("utf-8"), key_hash.encode("utf-8"))
+    except ValueError:
+        return False
