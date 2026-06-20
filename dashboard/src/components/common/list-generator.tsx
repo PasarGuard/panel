@@ -15,11 +15,13 @@ export interface ListColumn<T> {
   header: React.ReactNode
   cell: (item: T) => React.ReactNode
   width?: string
+  mobileWidth?: string
   className?: string
   headerClassName?: string
   skeletonClassName?: string
   align?: ListColumnAlign
   hideOnMobile?: boolean
+  hideInMobileDetails?: boolean
 }
 
 interface ListGeneratorProps<T> {
@@ -119,14 +121,14 @@ export function ListGenerator<T>({
   const shouldShowEmptyState = showEmptyState && !isLoading && !hasData
   const showRows = !isLoading && hasData
   const mobileDetailsColumns = useMemo(() => columns.filter(column => column.hideOnMobile), [columns])
-  const mobileDetailDataColumns = useMemo(() => mobileDetailsColumns.filter(column => !!column.header), [mobileDetailsColumns])
+  const mobileDetailDataColumns = useMemo(() => mobileDetailsColumns.filter(column => !!column.header && !column.hideInMobileDetails), [mobileDetailsColumns])
   const mobileDetailActionColumns = useMemo(() => mobileDetailsColumns.filter(column => !column.header), [mobileDetailsColumns])
   const hasMobileExpandableDetails = mobileDetailDataColumns.length > 0
   const hasMobileTrailingWidth = mobileDetailsColumns.length > 0
   const isAllVisibleSelected = visibleSelectableRowIds.length > 0 && visibleSelectableRowIds.every(id => selectedRowSet.has(id))
   const isSomeVisibleSelected = !isAllVisibleSelected && visibleSelectableRowIds.some(id => selectedRowSet.has(id))
   const mobileTemplateColumns = useMemo(() => {
-    const visibleColumns = columns.filter(column => !column.hideOnMobile).map(column => column.width ?? 'minmax(0, 1fr)')
+    const visibleColumns = columns.filter(column => !column.hideOnMobile).map(column => column.mobileWidth ?? column.width ?? 'minmax(0, 1fr)')
 
     if (hasMobileTrailingWidth) {
       visibleColumns.push(mobileDetailActionColumns.length > 0 ? 'max-content' : '32px')

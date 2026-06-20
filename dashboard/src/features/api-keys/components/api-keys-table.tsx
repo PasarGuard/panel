@@ -285,6 +285,7 @@ export default function ApiKeysTable({
         id: 'name',
         header: t('apiKeys.name'),
         width: 'minmax(14rem, 2fr)',
+        mobileWidth: 'minmax(0, 1fr)',
         skeletonClassName: 'w-40',
         cell: apiKey => {
           const adminName = adminNamesById.get(apiKey.admin_id)
@@ -304,6 +305,9 @@ export default function ApiKeysTable({
                     </Badge>
                   ) : null}
                 </div>
+                {apiKey.api_key_trimmed ? (
+                  <code dir="ltr" className="bg-muted/80 inline-block max-w-full truncate rounded px-1.5 py-0.5 font-mono text-xs md:hidden">{apiKey.api_key_trimmed}</code>
+                ) : null}
               </div>
             </div>
           )
@@ -314,6 +318,7 @@ export default function ApiKeysTable({
         header: t('apiKeys.key', { defaultValue: 'API Key' }),
         width: 'minmax(10rem, 1.2fr)',
         hideOnMobile: true,
+        hideInMobileDetails: true,
         skeletonClassName: 'w-32',
         cell: apiKey =>
           apiKey.api_key_trimmed ? (
