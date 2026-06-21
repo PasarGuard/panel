@@ -738,6 +738,18 @@ export type UsersPermissionsRevokeSubAnyOf = { [key: string]: PermissionScope | 
 
 export type UsersPermissionsRevokeSub = boolean | UsersPermissionsRevokeSubAnyOf | null
 
+export interface UsersPermissions {
+  create?: UsersPermissionsCreate
+  read?: UsersPermissionsRead
+  read_simple?: UsersPermissionsReadSimple
+  update?: UsersPermissionsUpdate
+  delete?: UsersPermissionsDelete
+  reset_usage?: UsersPermissionsResetUsage
+  revoke_sub?: UsersPermissionsRevokeSub
+  set_owner?: UsersPermissionsSetOwner
+  activate_next_plan?: UsersPermissionsActivateNextPlan
+}
+
 export type UsersPermissionsResetUsageAnyOf = { [key: string]: PermissionScope | number }
 
 export type UsersPermissionsResetUsage = boolean | UsersPermissionsResetUsageAnyOf | null
@@ -761,18 +773,6 @@ export type UsersPermissionsRead = boolean | UsersPermissionsReadAnyOf | null
 export type UsersPermissionsCreateAnyOf = { [key: string]: PermissionScope | number }
 
 export type UsersPermissionsCreate = boolean | UsersPermissionsCreateAnyOf | null
-
-export interface UsersPermissions {
-  create?: UsersPermissionsCreate
-  read?: UsersPermissionsRead
-  read_simple?: UsersPermissionsReadSimple
-  update?: UsersPermissionsUpdate
-  delete?: UsersPermissionsDelete
-  reset_usage?: UsersPermissionsResetUsage
-  revoke_sub?: UsersPermissionsRevokeSub
-  set_owner?: UsersPermissionsSetOwner
-  activate_next_plan?: UsersPermissionsActivateNextPlan
-}
 
 export type UsernameGenerationStrategy = (typeof UsernameGenerationStrategy)[keyof typeof UsernameGenerationStrategy]
 
@@ -917,6 +917,8 @@ export type UserTemplateCreateOnHoldTimeout = number | null
 
 export type UserTemplateCreateResetUsages = boolean | null
 
+export type UserTemplateCreateStatus = UserStatusCreate | null
+
 export type UserTemplateCreateExtraSettings = ExtraSettings | null
 
 export type UserTemplateCreateUsernameSuffix = string | null
@@ -993,8 +995,6 @@ export const UserStatusCreate = {
   active: 'active',
   on_hold: 'on_hold',
 } as const
-
-export type UserTemplateCreateStatus = UserStatusCreate | null
 
 export type UserStatus = (typeof UserStatus)[keyof typeof UserStatus]
 
@@ -1568,15 +1568,15 @@ export interface SettingsSchema {
   general?: SettingsSchemaGeneral
 }
 
-export type SettingsPermissionsUpdateAnyOf = { [key: string]: PermissionScope | number }
-
-export type SettingsPermissionsUpdate = boolean | SettingsPermissionsUpdateAnyOf | null
-
 export interface SettingsPermissions {
   read?: SettingsPermissionsRead
   read_general?: SettingsPermissionsReadGeneral
   update?: SettingsPermissionsUpdate
 }
+
+export type SettingsPermissionsUpdateAnyOf = { [key: string]: PermissionScope | number }
+
+export type SettingsPermissionsUpdate = boolean | SettingsPermissionsUpdateAnyOf | null
 
 export type SettingsPermissionsReadGeneralAnyOf = { [key: string]: PermissionScope | number }
 
@@ -1594,7 +1594,7 @@ export const RunMethod = {
   'long-polling': 'long-polling',
 } as const
 
-export type RolePermissionsApiKeys = CRUDPermissions | null
+export type RolePermissionsApiKeys = APIKeysPermissions | null
 
 export type RolePermissionsAdminRoles = CRUDPermissions | null
 
@@ -1739,14 +1739,6 @@ export interface RemoveGroupsResponse {
 }
 
 /**
- * Response model for bulk API key deletion.
- */
-export interface RemoveAPIKeysResponse {
-  api_keys: string[]
-  count: number
-}
-
-/**
  * Response model for bulk core deletion
  */
 export interface RemoveCoresResponse {
@@ -1767,6 +1759,14 @@ export interface RemoveClientTemplatesResponse {
  */
 export interface RemoveAdminsResponse {
   admins: string[]
+  count: number
+}
+
+/**
+ * Response model for bulk API key deletion.
+ */
+export interface RemoveAPIKeysResponse {
+  api_keys: string[]
   count: number
 }
 
@@ -1904,21 +1904,6 @@ export interface NotificationEnable {
   percentage_reached?: boolean
 }
 
-export type NotificationChannelDiscordWebhookUrl = string | null
-
-export type NotificationChannelTelegramTopicId = number | null
-
-export type NotificationChannelTelegramChatId = number | null
-
-/**
- * Channel configuration for sending notifications to a specific entity
- */
-export interface NotificationChannel {
-  telegram_chat_id?: NotificationChannelTelegramChatId
-  telegram_topic_id?: NotificationChannelTelegramTopicId
-  discord_webhook_url?: NotificationChannelDiscordWebhookUrl
-}
-
 /**
  * Per-object notification channels
  */
@@ -1932,6 +1917,21 @@ export interface NotificationChannels {
   user?: NotificationChannel
   user_template?: NotificationChannel
   api_key?: NotificationChannel
+}
+
+export type NotificationChannelDiscordWebhookUrl = string | null
+
+export type NotificationChannelTelegramTopicId = number | null
+
+export type NotificationChannelTelegramChatId = number | null
+
+/**
+ * Channel configuration for sending notifications to a specific entity
+ */
+export interface NotificationChannel {
+  telegram_chat_id?: NotificationChannelTelegramChatId
+  telegram_topic_id?: NotificationChannelTelegramTopicId
+  discord_webhook_url?: NotificationChannelDiscordWebhookUrl
 }
 
 export interface NotFound {
@@ -1985,14 +1985,6 @@ export type NodesPermissionsReadSimpleAnyOf = { [key: string]: PermissionScope |
 
 export type NodesPermissionsReadSimple = boolean | NodesPermissionsReadSimpleAnyOf | null
 
-export type NodesPermissionsReadAnyOf = { [key: string]: PermissionScope | number }
-
-export type NodesPermissionsRead = boolean | NodesPermissionsReadAnyOf | null
-
-export type NodesPermissionsCreateAnyOf = { [key: string]: PermissionScope | number }
-
-export type NodesPermissionsCreate = boolean | NodesPermissionsCreateAnyOf | null
-
 export interface NodesPermissions {
   create?: NodesPermissionsCreate
   read?: NodesPermissionsRead
@@ -2005,14 +1997,15 @@ export interface NodesPermissions {
   stats?: NodesPermissionsStats
 }
 
-export type NodeUsageStatsListPeriod = Period | null
+export type NodesPermissionsReadAnyOf = { [key: string]: PermissionScope | number }
 
-export interface NodeUsageStatsList {
-  period?: NodeUsageStatsListPeriod
-  start: string
-  end: string
-  stats: NodeUsageStatsListStats
-}
+export type NodesPermissionsRead = boolean | NodesPermissionsReadAnyOf | null
+
+export type NodesPermissionsCreateAnyOf = { [key: string]: PermissionScope | number }
+
+export type NodesPermissionsCreate = boolean | NodesPermissionsCreateAnyOf | null
+
+export type NodeUsageStatsListPeriod = Period | null
 
 export interface NodeUsageStat {
   uplink: number
@@ -2021,6 +2014,13 @@ export interface NodeUsageStat {
 }
 
 export type NodeUsageStatsListStats = { [key: string]: NodeUsageStat[] }
+
+export interface NodeUsageStatsList {
+  period?: NodeUsageStatsListPeriod
+  start: string
+  end: string
+  stats: NodeUsageStatsListStats
+}
 
 export type NodeStatus = (typeof NodeStatus)[keyof typeof NodeStatus]
 
@@ -2212,6 +2212,19 @@ export interface NodeGeoFilesUpdate {
 
 export type NodeCreateProxyUrl = string | null
 
+export interface NodeCoreUpdate {
+  /** @pattern ^(latest|v?\d+\.\d+\.\d+)$ */
+  core_version?: string
+}
+
+export type NodeConnectionType = (typeof NodeConnectionType)[keyof typeof NodeConnectionType]
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const NodeConnectionType = {
+  grpc: 'grpc',
+  rest: 'rest',
+} as const
+
 export interface NodeCreate {
   name: string
   address: string
@@ -2239,19 +2252,6 @@ export interface NodeCreate {
   internal_timeout?: number
   proxy_url?: NodeCreateProxyUrl
 }
-
-export interface NodeCoreUpdate {
-  /** @pattern ^(latest|v?\d+\.\d+\.\d+)$ */
-  core_version?: string
-}
-
-export type NodeConnectionType = (typeof NodeConnectionType)[keyof typeof NodeConnectionType]
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
-export const NodeConnectionType = {
-  grpc: 'grpc',
-  rest: 'rest',
-} as const
 
 export type NextPlanModelExpire = number | null
 
@@ -2370,6 +2370,12 @@ export type HostsPermissionsUpdateAnyOf = { [key: string]: PermissionScope | num
 
 export type HostsPermissionsUpdate = boolean | HostsPermissionsUpdateAnyOf | null
 
+export interface HostsPermissions {
+  create?: HostsPermissionsCreate
+  read?: HostsPermissionsRead
+  update?: HostsPermissionsUpdate
+}
+
 export type HostsPermissionsReadAnyOf = { [key: string]: PermissionScope | number }
 
 export type HostsPermissionsRead = boolean | HostsPermissionsReadAnyOf | null
@@ -2377,12 +2383,6 @@ export type HostsPermissionsRead = boolean | HostsPermissionsReadAnyOf | null
 export type HostsPermissionsCreateAnyOf = { [key: string]: PermissionScope | number }
 
 export type HostsPermissionsCreate = boolean | HostsPermissionsCreateAnyOf | null
-
-export interface HostsPermissions {
-  create?: HostsPermissionsCreate
-  read?: HostsPermissionsRead
-  update?: HostsPermissionsUpdate
-}
 
 export interface HostNotificationEnable {
   create?: boolean
@@ -2419,6 +2419,10 @@ export interface HTTPValidationError {
   detail?: ValidationError[]
 }
 
+export type HTTPResponseHeadersAnyOf = { [key: string]: string[] }
+
+export type HTTPResponseHeaders = HTTPResponseHeadersAnyOf | null
+
 export interface HTTPResponse {
   /** @pattern ^(1(?:\.0|\.1)|2\.0|3\.0)$ */
   version?: string
@@ -2428,10 +2432,6 @@ export interface HTTPResponse {
   /** @pattern ^(?i)(?:OK|Created|Accepted|Non-Authoritative Information|No Content|Reset Content|Partial Content|Multiple Choices|Moved Permanently|Found|See Other|Not Modified|Use Proxy|Temporary Redirect|Permanent Redirect|Bad Request|Unauthorized|Payment Required|Forbidden|Not Found|Method Not Allowed|Not Acceptable|Proxy Authentication Required|Request Timeout|Conflict|Gone|Length Required|Precondition Failed|Payload Too Large|URI Too Long|Unsupported Media Type|Range Not Satisfiable|Expectation Failed|I'm a teapot|Misdirected Request|Unprocessable Entity|Locked|Failed Dependency|Too Early|Upgrade Required|Precondition Required|Too Many Requests|Request Header Fields Too Large|Unavailable For Legal Reasons|Internal Server Error|Not Implemented|Bad Gateway|Service Unavailable|Gateway Timeout|HTTP Version Not Supported)$ */
   reason?: string
 }
-
-export type HTTPResponseHeadersAnyOf = { [key: string]: string[] }
-
-export type HTTPResponseHeaders = HTTPResponseHeadersAnyOf | null
 
 export type HTTPRequestHeadersAnyOf = { [key: string]: string[] }
 
@@ -2699,6 +2699,11 @@ export interface CoresSimpleResponse {
   total: number
 }
 
+export interface CoreResponseList {
+  count: number
+  cores?: CoreResponse[]
+}
+
 export type CoreResponseType = CoreType | null
 
 export type CoreResponseConfig = { [key: string]: unknown }
@@ -2711,11 +2716,6 @@ export interface CoreResponse {
   fallbacks_inbound_tags: string[]
   id: number
   created_at: string
-}
-
-export interface CoreResponseList {
-  count: number
-  cores?: CoreResponse[]
 }
 
 export type CoreCreateFallbacksInboundTags = unknown[] | null
@@ -2755,6 +2755,13 @@ export const ConfigFormat = {
   block: 'block',
 } as const
 
+export interface ClientTemplateSimple {
+  id: number
+  name: string
+  template_type: ClientTemplateType
+  is_default: boolean
+}
+
 export interface ClientTemplatesSimpleResponse {
   templates: ClientTemplateSimple[]
   total: number
@@ -2770,13 +2777,6 @@ export const ClientTemplateType = {
   user_agent: 'user_agent',
   grpc_user_agent: 'grpc_user_agent',
 } as const
-
-export interface ClientTemplateSimple {
-  id: number
-  name: string
-  template_type: ClientTemplateType
-  is_default: boolean
-}
 
 export interface ClientTemplateResponse {
   id: number
@@ -2844,6 +2844,14 @@ export type CRUDPermissionsReadSimpleAnyOf = { [key: string]: PermissionScope | 
 
 export type CRUDPermissionsReadSimple = boolean | CRUDPermissionsReadSimpleAnyOf | null
 
+export type CRUDPermissionsReadAnyOf = { [key: string]: PermissionScope | number }
+
+export type CRUDPermissionsRead = boolean | CRUDPermissionsReadAnyOf | null
+
+export type CRUDPermissionsCreateAnyOf = { [key: string]: PermissionScope | number }
+
+export type CRUDPermissionsCreate = boolean | CRUDPermissionsCreateAnyOf | null
+
 /**
  * Standard create/read/read_simple/update/delete permissions.
 Used directly by: groups, templates, client_templates, cores, admin_roles.
@@ -2856,14 +2864,6 @@ export interface CRUDPermissions {
   update?: CRUDPermissionsUpdate
   delete?: CRUDPermissionsDelete
 }
-
-export type CRUDPermissionsReadAnyOf = { [key: string]: PermissionScope | number }
-
-export type CRUDPermissionsRead = boolean | CRUDPermissionsReadAnyOf | null
-
-export type CRUDPermissionsCreateAnyOf = { [key: string]: PermissionScope | number }
-
-export type CRUDPermissionsCreate = boolean | CRUDPermissionsCreateAnyOf | null
 
 export type BulkWireGuardPeerIPsExpireBefore = string | null
 
@@ -3028,13 +3028,6 @@ export interface BulkGroupSelection {
   ids?: number[]
 }
 
-/**
- * Model for bulk API key selection by IDs.
- */
-export interface BulkAPIKeySelection {
-  ids?: number[]
-}
-
 export interface BulkGroup {
   group_ids: number[]
   has_group_ids?: number[]
@@ -3069,6 +3062,13 @@ export interface BulkAdminsActionResponse {
  * Model for bulk admin selection by IDs
  */
 export interface BulkAdminSelection {
+  ids?: number[]
+}
+
+/**
+ * Model for bulk API key selection by IDs.
+ */
+export interface BulkAPIKeySelection {
   ids?: number[]
 }
 
@@ -3222,6 +3222,15 @@ export type AdminsPermissionsUpdateAnyOf = { [key: string]: PermissionScope | nu
 
 export type AdminsPermissionsUpdate = boolean | AdminsPermissionsUpdateAnyOf | null
 
+export interface AdminsPermissions {
+  create?: AdminsPermissionsCreate
+  read?: AdminsPermissionsRead
+  read_simple?: AdminsPermissionsReadSimple
+  update?: AdminsPermissionsUpdate
+  delete?: AdminsPermissionsDelete
+  reset_usage?: AdminsPermissionsResetUsage
+}
+
 export type AdminsPermissionsReadSimpleAnyOf = { [key: string]: PermissionScope | number }
 
 export type AdminsPermissionsReadSimple = boolean | AdminsPermissionsReadSimpleAnyOf | null
@@ -3233,15 +3242,6 @@ export type AdminsPermissionsRead = boolean | AdminsPermissionsReadAnyOf | null
 export type AdminsPermissionsCreateAnyOf = { [key: string]: PermissionScope | number }
 
 export type AdminsPermissionsCreate = boolean | AdminsPermissionsCreateAnyOf | null
-
-export interface AdminsPermissions {
-  create?: AdminsPermissionsCreate
-  read?: AdminsPermissionsRead
-  read_simple?: AdminsPermissionsReadSimple
-  update?: AdminsPermissionsUpdate
-  delete?: AdminsPermissionsDelete
-  reset_usage?: AdminsPermissionsResetUsage
-}
 
 export type AdminStatus = (typeof AdminStatus)[keyof typeof AdminStatus]
 
@@ -3550,7 +3550,37 @@ export interface APIKeysResponse {
   total: number
 }
 
+export type APIKeysPermissionsDeleteAnyOf = { [key: string]: PermissionScope | number }
+
+export type APIKeysPermissionsDelete = boolean | APIKeysPermissionsDeleteAnyOf | null
+
+export type APIKeysPermissionsUpdateAnyOf = { [key: string]: PermissionScope | number }
+
+export type APIKeysPermissionsUpdate = boolean | APIKeysPermissionsUpdateAnyOf | null
+
+export type APIKeysPermissionsReadSimpleAnyOf = { [key: string]: PermissionScope | number }
+
+export type APIKeysPermissionsReadSimple = boolean | APIKeysPermissionsReadSimpleAnyOf | null
+
+export type APIKeysPermissionsReadAnyOf = { [key: string]: PermissionScope | number }
+
+export type APIKeysPermissionsRead = boolean | APIKeysPermissionsReadAnyOf | null
+
+export type APIKeysPermissionsCreate = boolean | null
+
+export interface APIKeysPermissions {
+  create?: APIKeysPermissionsCreate
+  read?: APIKeysPermissionsRead
+  read_simple?: APIKeysPermissionsReadSimple
+  update?: APIKeysPermissionsUpdate
+  delete?: APIKeysPermissionsDelete
+}
+
+export type APIKeyUpdateStatus = APIKeyStatus | null
+
 export type APIKeyUpdateExpireDate = string | null
+
+export type APIKeyUpdateInheritPermissions = boolean | null
 
 export type APIKeyUpdatePermissions = RolePermissions | null
 
@@ -3558,15 +3588,14 @@ export type APIKeyUpdateNote = string | null
 
 export type APIKeyUpdateName = string | null
 
+export type APIKeyUpdateAdminId = number | null
+
 export interface APIKeyUpdate {
-  /**
-   * @minimum 1
-   */
-  admin_id?: number | null
+  admin_id?: APIKeyUpdateAdminId
   name?: APIKeyUpdateName
   note?: APIKeyUpdateNote
   permissions?: APIKeyUpdatePermissions
-  inherit_permissions?: boolean | null
+  inherit_permissions?: APIKeyUpdateInheritPermissions
   expire_date?: APIKeyUpdateExpireDate
   status?: APIKeyUpdateStatus
 }
@@ -3578,8 +3607,6 @@ export const APIKeyStatus = {
   active: 'active',
   disabled: 'disabled',
 } as const
-
-export type APIKeyUpdateStatus = APIKeyStatus | null
 
 export type APIKeyResponseRevokedAt = string | null
 
@@ -3632,15 +3659,13 @@ export interface APIKeyCreateResponse {
   api_key: string
 }
 
+export type APIKeyCreateAdminId = number | null
+
 export type APIKeyCreateExpireDate = string | null
 
 export type APIKeyCreateNote = string | null
 
 export interface APIKeyCreate {
-  /**
-   * @minimum 1
-   */
-  admin_id?: number | null
   /**
    * @minLength 1
    * @maxLength 128
@@ -3650,6 +3675,7 @@ export interface APIKeyCreate {
   permissions?: RolePermissions
   inherit_permissions?: boolean
   expire_date?: APIKeyCreateExpireDate
+  admin_id?: APIKeyCreateAdminId
 }
 
 /**
@@ -5615,7 +5641,7 @@ export const bulkDeleteApiKeys = (bulkAPIKeySelection: BodyType<BulkAPIKeySelect
 
 export const getBulkDeleteApiKeysMutationOptions = <
   TData = Awaited<ReturnType<typeof bulkDeleteApiKeys>>,
-  TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkAPIKeySelection> }, TContext>
@@ -5638,14 +5664,14 @@ export const getBulkDeleteApiKeysMutationOptions = <
 
 export type BulkDeleteApiKeysMutationResult = NonNullable<Awaited<ReturnType<typeof bulkDeleteApiKeys>>>
 export type BulkDeleteApiKeysMutationBody = BodyType<BulkAPIKeySelection>
-export type BulkDeleteApiKeysMutationError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>
+export type BulkDeleteApiKeysMutationError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>
 
 /**
  * @summary Bulk Delete Api Keys
  */
 export const useBulkDeleteApiKeys = <
   TData = Awaited<ReturnType<typeof bulkDeleteApiKeys>>,
-  TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkAPIKeySelection> }, TContext>
