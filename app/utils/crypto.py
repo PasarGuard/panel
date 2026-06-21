@@ -1,5 +1,6 @@
 import base64
 import binascii
+import hmac
 
 import bcrypt
 from cryptography import x509
@@ -102,32 +103,31 @@ def generate_wireguard_keypair() -> tuple[str, str]:
 
 API_KEY_HASH_VERSION = "v2"
 API_KEY_BCRYPT_ALGORITHM = "bcrypt"
+API_KEY_LOOKUP_BYTES = 16
 
 
-def api_key_trimmed(raw_api_key: str) -> str | None:
-    if not raw_api_key.startswith("pg_key_"):
-        return None
-
-    raw_uuid = raw_api_key[7:]
-    if len(raw_uuid) < 6:
-        return None
-
-    return f"pg_key_{raw_uuid[:3]}***{raw_uuid[-3:]}"
+def api_key_lookup_id(raw_api_key: str, secret_key: str) -> str:
+    digest = hmac.digest(secret_key.encode("utf-8"), raw_api_key.encode("utf-8"), "sha256")[:API_KEY_LOOKUP_BYTES]
+    return base64.urlsafe_b64encode(digest).decode("ascii").rstrip("=")
 
 
-def hash_api_key(raw_api_key: str) -> str:
+def hash_api_key(raw_api_key: str, secret_key: str) -> str:
+    lookup_id = api_key_lookup_id(raw_api_key, secret_key)
+
     key_hash = bcrypt.hashpw(raw_api_key.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
-    return f"{API_KEY_HASH_VERSION}${API_KEY_BCRYPT_ALGORITHM}${key_hash}"
+    return f"{API_KEY_HASH_VERSION}${lookup_id}${API_KEY_BCRYPT_ALGORITHM}${key_hash}"
 
 
-def verify_api_key(raw_api_key: str, stored_hash: str) -> bool:
-    parts = stored_hash.split("$", 2)
+def verify_api_key(raw_api_key: str, stored_hash: str, secret_key: str) -> bool:
+    parts = stored_hash.split("$", 3)
 
-    if len(parts) != 3:
+    if len(parts) != 4:
         return False
 
-    version, algorithm, key_hash = parts
+    version, lookup_id, algorithm, key_hash = parts
     if version != API_KEY_HASH_VERSION or algorithm != API_KEY_BCRYPT_ALGORITHM:
+        return False
+    if not hmac.compare_digest(lookup_id, api_key_lookup_id(raw_api_key, secret_key)):
         return False
 
     try:
