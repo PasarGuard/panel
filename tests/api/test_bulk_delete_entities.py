@@ -9,6 +9,7 @@ from sqlalchemy import func, select, update
 from app.db.crud.node import create_node as db_create_node
 from app.db.crud.node import remove_node as db_remove_node
 from app.db.models import (
+    APIKey,
     Admin,
     AdminUsageLogs,
     NextPlan,
@@ -72,6 +73,22 @@ def seed_admin_usage_log(admin_id: int, used_traffic: int = 1024) -> None:
     asyncio.run(_seed())
 
 
+def seed_api_key(admin_id: int) -> int:
+    async def _seed():
+        async with TestSession() as session:
+            db_key = APIKey(
+                admin_id=admin_id,
+                name=unique_name("bulk_api_key"),
+                key_hash=f"test_hash_{uuid4().hex}",
+                api_key_trimmed="pg_key_abc***xyz",
+            )
+            session.add(db_key)
+            await session.commit()
+            return db_key.id
+
+    return asyncio.run(_seed())
+
+
 def get_user_admin_id(username: str) -> int | None:
     async def _get():
         async with TestSession() as session:
@@ -130,6 +147,15 @@ def count_admin_usage_logs(admin_id: int) -> int:
             result = await session.execute(
                 select(func.count()).select_from(AdminUsageLogs).where(AdminUsageLogs.admin_id == admin_id)
             )
+            return result.scalar_one()
+
+    return asyncio.run(_count())
+
+
+def count_api_keys(admin_id: int) -> int:
+    async def _count():
+        async with TestSession() as session:
+            result = await session.execute(select(func.count()).select_from(APIKey).where(APIKey.admin_id == admin_id))
             return result.scalar_one()
 
     return asyncio.run(_count())
@@ -315,7 +341,7 @@ def get_template_group_link_count(template_id: int) -> int:
     return asyncio.run(_count())
 
 
-def test_bulk_delete_admins_clears_owned_users_and_usage_logs(access_token):
+def test_bulk_delete_admins_clears_owned_users_usage_logs_and_api_keys(access_token):
     admin = create_admin(access_token)
     user = create_user(access_token, payload={"username": unique_name("bulk_admin_user")})
     try:
@@ -327,6 +353,7 @@ def test_bulk_delete_admins_clears_owned_users_and_usage_logs(access_token):
         assert owner_response.status_code == status.HTTP_200_OK
 
         seed_admin_usage_log(admin["id"])
+        seed_api_key(admin["id"])
 
         response = client.post(
             "/api/admins/bulk/delete",
@@ -338,6 +365,7 @@ def test_bulk_delete_admins_clears_owned_users_and_usage_logs(access_token):
         assert response.json()["count"] == 1
         assert get_user_admin_id(user["username"]) is None
         assert count_admin_usage_logs(admin["id"]) == 0
+        assert count_api_keys(admin["id"]) == 0
     finally:
         delete_user(access_token, user["username"])
         delete_admin_if_present(access_token, admin["username"])

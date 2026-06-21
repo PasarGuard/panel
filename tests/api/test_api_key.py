@@ -29,6 +29,15 @@ def _api_key_state(key_id: int) -> tuple[str | None, str]:
     return asyncio.run(_get_state())
 
 
+def _api_key_exists(key_id: int) -> bool:
+    async def _exists() -> bool:
+        async with TestSession() as session:
+            result = await session.execute(select(APIKey.id).where(APIKey.id == key_id))
+            return result.scalar_one_or_none() is not None
+
+    return asyncio.run(_exists())
+
+
 def _create_owner_admin() -> dict:
     username = unique_name("api_key_owner")
     password = strong_password("ApiKeyOwner")
@@ -120,6 +129,24 @@ def test_api_key_authenticates_protected_requests(access_token):
         assert delete_again_response.status_code == status.HTTP_404_NOT_FOUND
     finally:
         delete_admin(access_token, admin["username"])
+
+
+def test_admin_delete_removes_owned_api_keys(access_token):
+    admin = create_admin(access_token, role_id=2)
+    admin_token = _login(admin["username"], admin["password"])
+
+    create_response = client.post(
+        "/api/api_key",
+        headers=auth_headers(admin_token),
+        json={"name": unique_name("api_key")},
+    )
+    assert create_response.status_code == status.HTTP_201_CREATED
+    key_id = create_response.json()["id"]
+    assert _api_key_exists(key_id)
+
+    delete_admin(access_token, admin["username"])
+
+    assert not _api_key_exists(key_id)
 
 
 def test_revoke_api_key_rotates_secret_and_blocks_old_key(access_token):

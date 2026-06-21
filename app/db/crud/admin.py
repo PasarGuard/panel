@@ -12,7 +12,7 @@ from app.db.crud.general import (
     get_complete_period_start_for_filter,
     to_utc_for_filter,
 )
-from app.db.models import Admin, AdminNotificationReminder, AdminRole, AdminUsageLogs, NodeUserUsage, ReminderType, User
+from app.db.models import APIKey, Admin, AdminNotificationReminder, AdminRole, AdminUsageLogs, NodeUserUsage, ReminderType, User
 from app.models.admin import (
     AdminCreate,
     AdminDetails,
@@ -235,6 +235,7 @@ async def remove_admin(db: AsyncSession, dbadmin: Admin) -> None:
         db (AsyncSession): Database session.
         dbadmin (Admin): The admin object to be removed.
     """
+    await db.execute(delete(APIKey).where(APIKey.admin_id == dbadmin.id))
     await db.delete(dbadmin)
     await db.commit()
 
@@ -771,6 +772,7 @@ async def remove_admins(db: AsyncSession, admin_ids: list[int]) -> None:
         return
 
     await db.execute(update(User).where(User.admin_id.in_(admin_ids)).values(admin_id=None))
+    await db.execute(delete(APIKey).where(APIKey.admin_id.in_(admin_ids)))
     await db.execute(delete(AdminUsageLogs).where(AdminUsageLogs.admin_id.in_(admin_ids)))
     await db.execute(delete(Admin).where(Admin.id.in_(admin_ids)))
     await db.commit()
