@@ -36,6 +36,15 @@ def _use_route_names_as_operation_ids(app: FastAPI) -> None:
             route.operation_id = route.name
 
 
+def _validate_subscription_path(app: FastAPI) -> None:
+    paths = [f"{path}/" for route in app.routes if (path := getattr(route, "path", None)) is not None]
+    paths.append("/api/")
+    if f"/{subscription_env_settings.path}/" in paths:
+        raise ValueError(
+            f"you can't use /{subscription_env_settings.path}/ as subscription path it reserved for {app.title}"
+        )
+
+
 def _register_nats_handlers(enable_router: bool, enable_settings: bool, enable_client_templates: bool):
     if enable_router:
         on_startup(router.start)
@@ -92,15 +101,7 @@ def create_app() -> FastAPI:
 
     setup_middleware(app)
 
-    def _validate_paths():
-        paths = [f"{r.path}/" for r in app.routes]
-        paths.append("/api/")
-        if f"/{subscription_env_settings.path}/" in paths:
-            raise ValueError(
-                f"you can't use /{subscription_env_settings.path}/ as subscription path it reserved for {app.title}"
-            )
-
-    on_startup(_validate_paths)
+    on_startup(_validate_subscription_path)
 
     if runtime_settings.role.runs_panel:
         import dashboard
