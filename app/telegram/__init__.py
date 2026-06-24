@@ -6,10 +6,8 @@ from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.enums import ParseMode
-from aiogram.exceptions import TelegramBadRequest, TelegramNetworkError, TelegramRetryAfter, TelegramUnauthorizedError
 from aiogram.fsm.storage.memory import MemoryStorage
 from nats.js.kv import KeyValue
-from python_socks._errors import ProxyConnectionError
 
 from app import on_shutdown, on_startup
 from app.models.settings import RunMethod, Telegram
