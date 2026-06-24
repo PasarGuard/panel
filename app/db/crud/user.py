@@ -1124,6 +1124,7 @@ async def reset_user_data_usage(
         User: The updated user object.
     """
     await _reset_user_traffic_and_log(db, db_user)
+    await delete_user_passed_notification_reminders(db, db_user.id, ReminderType.data_usage, 0)
     if clean_chart_data:
         await clear_user_node_usages(db, db_user.id)
 
@@ -1151,6 +1152,7 @@ async def bulk_reset_user_data_usage(
     """
     for db_user in users:
         await _reset_user_traffic_and_log(db, db_user)
+        await delete_user_passed_notification_reminders(db, db_user.id, ReminderType.data_usage, 0)
         if clean_chart_data:
             await clear_user_node_usages(db, db_user.id)
         if db_user.status not in [UserStatus.expired, UserStatus.disabled]:
@@ -1220,6 +1222,7 @@ async def reset_user_by_next(db: AsyncSession, db_user: User, *, clean_chart_dat
         db_user.data_limit_reset_strategy = db_user.next_plan.user_template.data_limit_reset_strategy
 
     await _reset_user_traffic_and_log(db, db_user)
+    await delete_user_passed_notification_reminders(db, db_user.id, ReminderType.data_usage, 0)
     if clean_chart_data:
         await clear_user_node_usages(db, db_user.id)
     db_user.status = UserStatus.active
