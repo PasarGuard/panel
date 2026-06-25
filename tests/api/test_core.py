@@ -1,3 +1,5 @@
+from copy import deepcopy
+
 from fastapi import status
 
 from app.core.xray import XRayConfig
@@ -383,3 +385,36 @@ def test_get_cores_simple_search_and_sort(access_token):
     finally:
         for core_id in created_core_ids:
             delete_core(access_token, core_id)
+
+
+def test_hysteria_inbound_requires_tls(access_token):
+    config = deepcopy(xray_config)
+    config["inbounds"] = [
+        {
+            "tag": "hy2-no-tls",
+            "listen": "0.0.0.0",
+            "port": 1081,
+            "protocol": "hysteria",
+            "settings": {"version": 2, "clients": []},
+            "streamSettings": {
+                "network": "hysteria",
+                "hysteriaSettings": {"version": 2},
+                "security": "none",
+            },
+        }
+    ]
+
+    response = client.post(
+        "/api/core",
+        headers={"Authorization": f"Bearer {access_token}"},
+        json={
+            "config": config,
+            "name": unique_name("hysteria_no_tls"),
+            "type": "xray",
+            "exclude_inbound_tags": [],
+            "fallbacks_inbound_tags": [],
+        },
+    )
+
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert "hysteria inbound requires TLS" in response.json()["detail"]
