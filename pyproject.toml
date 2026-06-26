@@ -70,7 +70,7 @@ dev = [
     "pytest>=9.1.1",
     "pytest-asyncio>=1.4.0",
     "pytest-watch>=4.2.0",
-    "ruff>=0.15.19",
+    "ruff>=0.15.20",
     "sqlalchemy-utils>=0.41.2",
     "watchfiles>=1.2.0",
 ]
