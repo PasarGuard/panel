@@ -8,12 +8,21 @@ import { Switch } from '@/components/ui/switch'
 
 import { cn } from '@/lib/utils'
 
-import { PERMISSION_GROUPS, PermissionAction, RolePermissionFormMap, RoleScope } from '@/features/admin-roles/forms/admin-role-form'
+import {
+  getRolePermissionAllowedScope,
+  isRolePermissionActionAllowed,
+  limitRolePermissionsToAllowed,
+  PERMISSION_GROUPS,
+  PermissionAction,
+  RolePermissionFormMap,
+  RoleScope,
+} from '@/features/admin-roles/forms/admin-role-form'
 
 interface PermissionEditorProps {
   permissions?: RolePermissionFormMap
   onPermissionsChange: (permissions: RolePermissionFormMap) => void
   className?: string
+  allowedPermissions?: RolePermissionFormMap
 }
 
 export function countEnabledPermissions(permissions?: RolePermissionFormMap | null): number {
@@ -22,7 +31,7 @@ export function countEnabledPermissions(permissions?: RolePermissionFormMap | nu
     if (!value || typeof value !== 'object') continue
     for (const inner of Object.values(value as Record<string, unknown>)) {
       if (inner === true) count += 1
-      else if (inner && typeof inner === 'object' && Number((inner as any).scope) > 0) count += 1
+      else if (inner && typeof inner === 'object' && 'scope' in inner && Number((inner as { scope?: unknown }).scope) > 0) count += 1
     }
   }
   return count
@@ -40,24 +49,36 @@ export function PermissionCountBadge({ permissions }: { permissions?: RolePermis
   )
 }
 
-export function PermissionEditor({ permissions, onPermissionsChange, className }: PermissionEditorProps) {
+export function PermissionEditor({ permissions, onPermissionsChange, className, allowedPermissions }: PermissionEditorProps) {
   const { t } = useTranslation()
 
-  const setPermission = (resource: string, action: string, value: boolean | { scope: RoleScope }) => {
+  const visibleGroups = useMemo(
+    () =>
+      PERMISSION_GROUPS.map(group => ({
+        ...group,
+        actions: group.actions.filter(item => isRolePermissionActionAllowed(item, allowedPermissions)),
+      })).filter(group => group.actions.length > 0),
+    [allowedPermissions]
+  )
+
+  const setPermission = (item: PermissionAction, value: boolean | { scope: RoleScope }) => {
     const next: RolePermissionFormMap = { ...(permissions || {}) }
-    next[resource] = { ...(next[resource] || {}), [action]: value }
-    onPermissionsChange(next)
+    const nextValue = item.scoped && typeof value === 'object'
+      ? { scope: Math.min(value.scope, getRolePermissionAllowedScope(item, allowedPermissions)) as RoleScope }
+      : value
+    next[item.resource] = { ...(next[item.resource] || {}), [item.action]: nextValue }
+    onPermissionsChange(limitRolePermissionsToAllowed(next, allowedPermissions))
   }
 
   const setGroupAll = (group: { actions: PermissionAction[] }, mode: 'all' | 'none') => {
     const next: RolePermissionFormMap = { ...(permissions || {}) }
     for (const item of group.actions) {
       const inner = { ...(next[item.resource] || {}) }
-      if (item.scoped) inner[item.action] = { scope: mode === 'all' ? 2 : 0 }
+      if (item.scoped) inner[item.action] = { scope: mode === 'all' ? getRolePermissionAllowedScope(item, allowedPermissions) : 0 }
       else inner[item.action] = mode === 'all'
       next[item.resource] = inner
     }
-    onPermissionsChange(next)
+    onPermissionsChange(limitRolePermissionsToAllowed(next, allowedPermissions))
   }
 
   const formatActionLabel = (item: PermissionAction) => {
@@ -71,11 +92,16 @@ export function PermissionEditor({ permissions, onPermissionsChange, className }
   return (
     <div className={cn('space-y-3', className)}>
       <p className="text-muted-foreground text-xs">{t('adminRoles.roleFormHint', { defaultValue: 'Scoped actions use none, own, or all. Other actions are boolean toggles.' })}</p>
-      {PERMISSION_GROUPS.map(group => {
+      {visibleGroups.length === 0 && (
+        <div className="bg-muted/40 text-muted-foreground rounded-md border border-dashed px-3 py-2 text-xs">
+          {t('adminRoles.noAvailablePermissions', { defaultValue: 'No permissions available.' })}
+        </div>
+      )}
+      {visibleGroups.map(group => {
         const enabledInGroup = group.actions.reduce((acc, item) => {
           const value = permissions?.[item.resource]?.[item.action]
           if (value === true) return acc + 1
-          if (value && typeof value === 'object' && Number((value as any).scope) > 0) return acc + 1
+          if (value && typeof value === 'object' && Number(value.scope) > 0) return acc + 1
           return acc
         }, 0)
 
@@ -103,8 +129,9 @@ export function PermissionEditor({ permissions, onPermissionsChange, className }
             <div className="grid gap-2 p-2 sm:grid-cols-2">
               {group.actions.map(item => {
                 const current = permissions?.[item.resource]?.[item.action]
-                const isScope = current && typeof current === 'object'
-                const scopeValue: RoleScope = isScope ? (Number((current as any).scope) as RoleScope) : current === true ? 2 : 0
+                const maxScope = getRolePermissionAllowedScope(item, allowedPermissions)
+                const currentScope = current && typeof current === 'object' ? Number(current.scope) : current === true ? 2 : 0
+                const scopeValue: RoleScope = Math.min(currentScope, maxScope) as RoleScope
                 const boolValue = current === true
                 const { resourceLabel, actionLabel } = formatActionLabel(item)
 
@@ -115,18 +142,18 @@ export function PermissionEditor({ permissions, onPermissionsChange, className }
                       {item.scoped && <span className="text-muted-foreground text-[10px]">{t('adminRoles.scopedBadge', { defaultValue: 'Scoped' })}</span>}
                     </div>
                     {item.scoped ? (
-                      <Select value={String(scopeValue)} onValueChange={next => setPermission(item.resource, item.action, { scope: Number(next) as RoleScope })}>
+                      <Select value={String(scopeValue)} onValueChange={next => setPermission(item, { scope: Number(next) as RoleScope })}>
                         <SelectTrigger className="h-8 w-28">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="0">{t('adminRoles.scopes.none', { defaultValue: 'None' })}</SelectItem>
-                          <SelectItem value="1">{t('adminRoles.scopes.own', { defaultValue: 'Own' })}</SelectItem>
-                          <SelectItem value="2">{t('adminRoles.scopes.all', { defaultValue: 'All' })}</SelectItem>
+                          {maxScope >= 1 && <SelectItem value="1">{t('adminRoles.scopes.own', { defaultValue: 'Own' })}</SelectItem>}
+                          {maxScope >= 2 && <SelectItem value="2">{t('adminRoles.scopes.all', { defaultValue: 'All' })}</SelectItem>}
                         </SelectContent>
                       </Select>
                     ) : (
-                      <Switch checked={boolValue} onCheckedChange={checked => setPermission(item.resource, item.action, checked)} />
+                      <Switch checked={boolValue} onCheckedChange={checked => setPermission(item, checked)} />
                     )}
                   </div>
                 )

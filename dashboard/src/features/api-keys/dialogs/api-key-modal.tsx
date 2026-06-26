@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -47,6 +47,7 @@ import {
   APIKeyResponse,
   getListApiKeysQueryKey,
   RolePermissions,
+  useGetAdmins,
   useGetAdminsSimple,
 } from '@/service/api'
 import { useAdmin } from '@/hooks/use-admin'
@@ -57,12 +58,26 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Switch } from '@/components/ui/switch'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { PermissionCountBadge, PermissionEditor } from '@/features/admin-roles/components/permission-editor'
-import { RolePermissionFormMap, sanitizeRolePermissions } from '@/features/admin-roles/forms/admin-role-form'
+import { limitRolePermissionsToAllowed, RolePermissionFormMap, sanitizeRolePermissions } from '@/features/admin-roles/forms/admin-role-form'
 
 interface ApiKeyModalProps {
   isDialogOpen: boolean
   onOpenChange: (open: boolean) => void
   editingApiKey: APIKeyResponse | null
+}
+
+const arePermissionMapsEqual = (a?: RolePermissionFormMap | null, b?: RolePermissionFormMap | null) =>
+  JSON.stringify(a || {}) === JSON.stringify(b || {})
+
+const EMPTY_PERMISSION_MAP: RolePermissionFormMap = {}
+
+const getErrorDescription = (error: unknown) => {
+  if (!error || typeof error !== 'object') return undefined
+
+  const typedError = error as { data?: { detail?: unknown }; message?: unknown }
+  if (typeof typedError.data?.detail === 'string') return typedError.data.detail
+  if (typeof typedError.message === 'string') return typedError.message
+  return undefined
 }
 
 export default function ApiKeyModal({
@@ -101,6 +116,24 @@ export default function ApiKeyModal({
 
   const permissionsValue = form.watch('permissions') as RolePermissionFormMap
   const inheritPermissions = form.watch('inherit_permissions')
+  const targetAdminId = form.watch('admin_id')
+  const shouldLoadTargetAdminPermissions = isOwner && isDialogOpen && !inheritPermissions && !!targetAdminId && targetAdminId !== admin?.id
+  const targetAdminQuery = useGetAdmins(
+    shouldLoadTargetAdminPermissions && targetAdminId ? { ids: [targetAdminId] } : undefined,
+    { query: { enabled: shouldLoadTargetAdminPermissions } }
+  )
+  const isLoadingPermissionCeiling = shouldLoadTargetAdminPermissions && targetAdminQuery.isLoading
+  const targetAdmin = shouldLoadTargetAdminPermissions ? targetAdminQuery.data?.admins?.[0] : admin
+  const permissionCeiling = useMemo(() => {
+    if (shouldLoadTargetAdminPermissions && !targetAdmin) return EMPTY_PERMISSION_MAP
+    if (targetAdmin?.role?.is_owner) return undefined
+    return sanitizeRolePermissions(targetAdmin?.role?.permissions)
+  }, [shouldLoadTargetAdminPermissions, targetAdmin])
+  const visiblePermissionCeiling = isLoadingPermissionCeiling ? EMPTY_PERMISSION_MAP : permissionCeiling
+  const visiblePermissionsValue = useMemo(
+    () => limitRolePermissionsToAllowed(permissionsValue, visiblePermissionCeiling),
+    [permissionsValue, visiblePermissionCeiling]
+  )
 
   useEffect(() => {
     if (editingApiKey) {
@@ -124,7 +157,25 @@ export default function ApiKeyModal({
     setCreatedKey(null)
   }, [editingApiKey, form, isDialogOpen, admin])
 
+  useEffect(() => {
+    if (inheritPermissions || isLoadingPermissionCeiling) return
+
+    const limitedPermissions = limitRolePermissionsToAllowed(permissionsValue, permissionCeiling)
+    if (!arePermissionMapsEqual(permissionsValue, limitedPermissions)) {
+      form.setValue('permissions', limitedPermissions, { shouldDirty: true })
+    }
+  }, [form, inheritPermissions, isLoadingPermissionCeiling, permissionCeiling, permissionsValue])
+
   const onSubmit = async (values: ApiKeyFormValues) => {
+    if (!values.inherit_permissions && isLoadingPermissionCeiling) {
+      toast.info(t('loading', { defaultValue: 'Loading...' }))
+      return
+    }
+
+    const customPermissions = values.inherit_permissions
+      ? {}
+      : limitRolePermissionsToAllowed(values.permissions as RolePermissionFormMap, permissionCeiling)
+
     try {
       if (editingApiKey) {
         await updateMutation.mutateAsync({
@@ -133,7 +184,7 @@ export default function ApiKeyModal({
             name: values.name,
             note: values.note,
             admin_id: isOwner ? values.admin_id || undefined : undefined,
-            permissions: values.inherit_permissions ? {} : (values.permissions as RolePermissions),
+            permissions: customPermissions as RolePermissions,
             inherit_permissions: values.inherit_permissions,
             expire_date: values.expire_date as string | null | undefined,
             status: values.status,
@@ -147,7 +198,7 @@ export default function ApiKeyModal({
             name: values.name,
             admin_id: values.admin_id || undefined,
             note: values.note,
-            permissions: values.inherit_permissions ? {} : (values.permissions as RolePermissions),
+            permissions: customPermissions as RolePermissions,
             inherit_permissions: values.inherit_permissions,
             expire_date: values.expire_date as string | null | undefined,
           },
@@ -155,11 +206,11 @@ export default function ApiKeyModal({
         setCreatedKey(response.api_key)
         toast.success(t('apiKeys.createSuccess'))
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast.error(
         editingApiKey ? t('apiKeys.updateFailed') : t('apiKeys.createFailed'),
         {
-          description: error?.data?.detail || error?.message,
+          description: getErrorDescription(error),
         }
       )
     }
@@ -340,7 +391,7 @@ export default function ApiKeyModal({
                       <div className="flex items-center gap-2">
                         <KeyRound className="h-4 w-4" />
                         <span>{t('adminRoles.permissions', { defaultValue: 'Permissions' })}</span>
-                        {!inheritPermissions && <PermissionCountBadge permissions={permissionsValue} />}
+                        {!inheritPermissions && <PermissionCountBadge permissions={visiblePermissionsValue} />}
                       </div>
                     </AccordionTrigger>
                     <AccordionContent className="px-1 pt-1">
@@ -366,8 +417,9 @@ export default function ApiKeyModal({
                         />
                         {!inheritPermissions && (
                           <PermissionEditor
-                            permissions={permissionsValue}
+                            permissions={visiblePermissionsValue}
                             onPermissionsChange={next => form.setValue('permissions', next, { shouldDirty: true })}
+                            allowedPermissions={visiblePermissionCeiling}
                           />
                         )}
                       </div>
@@ -404,6 +456,7 @@ export default function ApiKeyModal({
                   type="submit"
                   isLoading={createMutation.isPending || updateMutation.isPending}
                   loadingText={editingApiKey ? t('modifying') : t('creating')}
+                  disabled={isLoadingPermissionCeiling}
                 >
                   {editingApiKey ? t('modify') : t('create')}
                 </LoaderButton>
