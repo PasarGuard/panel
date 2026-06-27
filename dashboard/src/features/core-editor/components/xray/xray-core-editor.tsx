@@ -1,5 +1,6 @@
 import { XrayInboundTagSelectors } from '@/features/core-editor/components/shared/xray-inbound-tag-selectors'
 import { XrayAdvancedSection } from '@/features/core-editor/components/xray/xray-advanced-section'
+import { XrayApiSection } from '@/features/core-editor/components/xray/xray-api-section'
 import { XrayBalancersSection } from '@/features/core-editor/components/xray/xray-balancers-section'
 import { XrayDnsSection } from '@/features/core-editor/components/xray/xray-dns-section'
 import { XrayInboundsSection } from '@/features/core-editor/components/xray/xray-inbounds-section'
@@ -31,6 +32,7 @@ export function XrayCoreEditor({ headerAddPulse, headerAddEpoch }: XrayCoreEdito
       {section === 'balancers' && <XrayBalancersSection headerAddPulse={headerAddPulse} headerAddEpoch={headerAddEpoch} />}
       {section === 'dns' && <XrayDnsSection headerAddPulse={headerAddPulse} headerAddEpoch={headerAddEpoch} />}
       {section === 'bindings' && <XrayInboundTagSelectors inboundTags={inboundTags} fallbackTags={fallbacks} excludedTags={excludes} onFallbackChange={setFallbacks} onExcludedChange={setExcludes} />}
+      {section === 'api' && <XrayApiSection />}
       {section === 'advanced' && <XrayAdvancedSection />}
     </div>
   )
