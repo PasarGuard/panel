@@ -506,6 +506,10 @@ export default function CoreEditorPage() {
         title: 'coreEditor.section.bindings',
         description: 'coreEditor.sectionDesc.bindings',
       },
+      api: {
+        title: 'coreEditor.section.api',
+        description: 'coreEditor.sectionDesc.api',
+      },
       advanced: {
         title: 'coreEditor.section.advanced',
         description: 'coreEditor.sectionDesc.advanced',
