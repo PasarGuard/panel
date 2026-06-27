@@ -771,10 +771,7 @@ class UserOperation(BaseOperation):
 
         if hwid_limit_was_changed and effective_hwid_limit is not None and not admin.is_owner:
             if effective_hwid_conf is not None:
-                if (
-                    effective_hwid_conf.min_limit is not None
-                    and effective_hwid_limit < effective_hwid_conf.min_limit
-                ):
+                if effective_hwid_conf.min_limit is not None and effective_hwid_limit < effective_hwid_conf.min_limit:
                     await self.raise_error(
                         message=f"HWID limit cannot be less than {effective_hwid_conf.min_limit}", code=400, db=db
                     )

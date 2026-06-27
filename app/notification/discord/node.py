@@ -79,7 +79,7 @@ async def connect_node(node: NodeNotification):
 
 async def recovered_node(node: NodeNotification):
     name = escape_ds_markdown(node.name)
-    message = copy.deepcopy(messages.RECOVERED_NODE)
+    message = {**messages.RECOVERED_NODE, "footer": dict(messages.RECOVERED_NODE["footer"])}
     message["description"] = message["description"].format(
         name=name, node_version=node.node_version, core_version=node.core_version
     )
