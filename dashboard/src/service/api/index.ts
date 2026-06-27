@@ -605,20 +605,20 @@ export interface XHttpSettingsInput {
   download_settings?: XHttpSettingsInputDownloadSettings
 }
 
-export interface WorkersHealth {
-  scheduler: WorkerHealth
-  node: WorkerHealth
-}
-
 export type WorkerHealthError = string | null
-
-export type WorkerHealthResponseTimeMs = number | null
 
 export interface WorkerHealth {
   status: string
   response_time_ms?: WorkerHealthResponseTimeMs
   error?: WorkerHealthError
 }
+
+export interface WorkersHealth {
+  scheduler: WorkerHealth
+  node: WorkerHealth
+}
+
+export type WorkerHealthResponseTimeMs = number | null
 
 export type WireGuardSettingsPublicKey = string | null
 
@@ -730,6 +730,10 @@ export type UsersPermissionsRevokeSubAnyOf = { [key: string]: PermissionScope | 
 
 export type UsersPermissionsRevokeSub = boolean | UsersPermissionsRevokeSubAnyOf | null
 
+export type UsersPermissionsResetUsageAnyOf = { [key: string]: PermissionScope | number }
+
+export type UsersPermissionsResetUsage = boolean | UsersPermissionsResetUsageAnyOf | null
+
 export interface UsersPermissions {
   create?: UsersPermissionsCreate
   read?: UsersPermissionsRead
@@ -741,10 +745,6 @@ export interface UsersPermissions {
   set_owner?: UsersPermissionsSetOwner
   activate_next_plan?: UsersPermissionsActivateNextPlan
 }
-
-export type UsersPermissionsResetUsageAnyOf = { [key: string]: PermissionScope | number }
-
-export type UsersPermissionsResetUsage = boolean | UsersPermissionsResetUsageAnyOf | null
 
 export type UsersPermissionsDeleteAnyOf = { [key: string]: PermissionScope | number }
 
@@ -776,19 +776,19 @@ export const UsernameGenerationStrategy = {
 
 export type UserUsageStatsListPeriod = Period | null
 
-export interface UserUsageStatsList {
-  period?: UserUsageStatsListPeriod
-  start: string
-  end: string
-  stats: UserUsageStatsListStats
-}
-
 export interface UserUsageStat {
   total_traffic: number
   period_start: string
 }
 
 export type UserUsageStatsListStats = { [key: string]: UserUsageStat[] }
+
+export interface UserUsageStatsList {
+  period?: UserUsageStatsListPeriod
+  start: string
+  end: string
+  stats: UserUsageStatsListStats
+}
 
 export type UserTemplateSimpleName = string | null
 
@@ -1391,13 +1391,13 @@ export interface SystemResourceStats {
   cpu_usage?: SystemResourceStatsCpuUsage
 }
 
-export type SystemPermissionsReadAnyOf = { [key: string]: PermissionScope | number }
-
-export type SystemPermissionsRead = boolean | SystemPermissionsReadAnyOf | null
-
 export interface SystemPermissions {
   read?: SystemPermissionsRead
 }
+
+export type SystemPermissionsReadAnyOf = { [key: string]: PermissionScope | number }
+
+export type SystemPermissionsRead = boolean | SystemPermissionsReadAnyOf | null
 
 export type SubscriptionUserResponseIp = string | null
 
@@ -1459,13 +1459,6 @@ export interface SubscriptionTemplates {
 export type SubscriptionResponseHeaders = { [key: string]: unknown }
 
 export type SubRuleResponseHeaders = { [key: string]: unknown }
-
-export interface CustomVariable {
-  /** @maxLength 64 */
-  key: string
-  /** @maxLength 512 */
-  value?: string
-}
 
 export interface SubRule {
   pattern: string
@@ -1571,12 +1564,6 @@ export type SettingsPermissionsUpdateAnyOf = { [key: string]: PermissionScope | 
 
 export type SettingsPermissionsUpdate = boolean | SettingsPermissionsUpdateAnyOf | null
 
-export interface SettingsPermissions {
-  read?: SettingsPermissionsRead
-  read_general?: SettingsPermissionsReadGeneral
-  update?: SettingsPermissionsUpdate
-}
-
 export type SettingsPermissionsReadGeneralAnyOf = { [key: string]: PermissionScope | number }
 
 export type SettingsPermissionsReadGeneral = boolean | SettingsPermissionsReadGeneralAnyOf | null
@@ -1584,6 +1571,12 @@ export type SettingsPermissionsReadGeneral = boolean | SettingsPermissionsReadGe
 export type SettingsPermissionsReadAnyOf = { [key: string]: PermissionScope | number }
 
 export type SettingsPermissionsRead = boolean | SettingsPermissionsReadAnyOf | null
+
+export interface SettingsPermissions {
+  read?: SettingsPermissionsRead
+  read_general?: SettingsPermissionsReadGeneral
+  update?: SettingsPermissionsUpdate
+}
 
 export type RunMethod = (typeof RunMethod)[keyof typeof RunMethod]
 
@@ -1891,20 +1884,6 @@ export interface NotificationEnable {
   percentage_reached?: boolean
 }
 
-/**
- * Per-object notification channels
- */
-export interface NotificationChannels {
-  admin?: NotificationChannel
-  admin_role?: NotificationChannel
-  core?: NotificationChannel
-  group?: NotificationChannel
-  host?: NotificationChannel
-  node?: NotificationChannel
-  user?: NotificationChannel
-  user_template?: NotificationChannel
-}
-
 export type NotificationChannelDiscordWebhookUrl = string | null
 
 export type NotificationChannelTelegramTopicId = number | null
@@ -1918,6 +1897,20 @@ export interface NotificationChannel {
   telegram_chat_id?: NotificationChannelTelegramChatId
   telegram_topic_id?: NotificationChannelTelegramTopicId
   discord_webhook_url?: NotificationChannelDiscordWebhookUrl
+}
+
+/**
+ * Per-object notification channels
+ */
+export interface NotificationChannels {
+  admin?: NotificationChannel
+  admin_role?: NotificationChannel
+  core?: NotificationChannel
+  group?: NotificationChannel
+  host?: NotificationChannel
+  node?: NotificationChannel
+  user?: NotificationChannel
+  user_template?: NotificationChannel
 }
 
 export interface NotFound {
@@ -1947,14 +1940,6 @@ export type NodesPermissionsStatsAnyOf = { [key: string]: PermissionScope | numb
 
 export type NodesPermissionsStats = boolean | NodesPermissionsStatsAnyOf | null
 
-export type NodesPermissionsLogsAnyOf = { [key: string]: PermissionScope | number }
-
-export type NodesPermissionsLogs = boolean | NodesPermissionsLogsAnyOf | null
-
-export type NodesPermissionsUpdateCoreAnyOf = { [key: string]: PermissionScope | number }
-
-export type NodesPermissionsUpdateCore = boolean | NodesPermissionsUpdateCoreAnyOf | null
-
 export interface NodesPermissions {
   create?: NodesPermissionsCreate
   read?: NodesPermissionsRead
@@ -1966,6 +1951,14 @@ export interface NodesPermissions {
   logs?: NodesPermissionsLogs
   stats?: NodesPermissionsStats
 }
+
+export type NodesPermissionsLogsAnyOf = { [key: string]: PermissionScope | number }
+
+export type NodesPermissionsLogs = boolean | NodesPermissionsLogsAnyOf | null
+
+export type NodesPermissionsUpdateCoreAnyOf = { [key: string]: PermissionScope | number }
+
+export type NodesPermissionsUpdateCore = boolean | NodesPermissionsUpdateCoreAnyOf | null
 
 export type NodesPermissionsReconnectAnyOf = { [key: string]: PermissionScope | number }
 
@@ -1993,6 +1986,13 @@ export type NodesPermissionsCreate = boolean | NodesPermissionsCreateAnyOf | nul
 
 export type NodeUsageStatsListPeriod = Period | null
 
+export interface NodeUsageStatsList {
+  period?: NodeUsageStatsListPeriod
+  start: string
+  end: string
+  stats: NodeUsageStatsListStats
+}
+
 export interface NodeUsageStat {
   uplink: number
   downlink: number
@@ -2000,13 +2000,6 @@ export interface NodeUsageStat {
 }
 
 export type NodeUsageStatsListStats = { [key: string]: NodeUsageStat[] }
-
-export interface NodeUsageStatsList {
-  period?: NodeUsageStatsListPeriod
-  start: string
-  end: string
-  stats: NodeUsageStatsListStats
-}
 
 export type NodeStatus = (typeof NodeStatus)[keyof typeof NodeStatus]
 
@@ -2134,6 +2127,7 @@ export interface NodeNotificationEnable {
   modify?: boolean
   delete?: boolean
   connect?: boolean
+  recovered?: boolean
   error?: boolean
   limited?: boolean
   reset_usage?: boolean
@@ -2197,6 +2191,19 @@ export interface NodeGeoFilesUpdate {
 
 export type NodeCreateProxyUrl = string | null
 
+export interface NodeCoreUpdate {
+  /** @pattern ^(latest|v?\d+\.\d+\.\d+)$ */
+  core_version?: string
+}
+
+export type NodeConnectionType = (typeof NodeConnectionType)[keyof typeof NodeConnectionType]
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const NodeConnectionType = {
+  grpc: 'grpc',
+  rest: 'rest',
+} as const
+
 export interface NodeCreate {
   name: string
   address: string
@@ -2224,19 +2231,6 @@ export interface NodeCreate {
   internal_timeout?: number
   proxy_url?: NodeCreateProxyUrl
 }
-
-export interface NodeCoreUpdate {
-  /** @pattern ^(latest|v?\d+\.\d+\.\d+)$ */
-  core_version?: string
-}
-
-export type NodeConnectionType = (typeof NodeConnectionType)[keyof typeof NodeConnectionType]
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
-export const NodeConnectionType = {
-  grpc: 'grpc',
-  rest: 'rest',
-} as const
 
 export type NextPlanModelExpire = number | null
 
@@ -2342,14 +2336,14 @@ export type HwidsPermissionsDeleteAnyOf = { [key: string]: PermissionScope | num
 
 export type HwidsPermissionsDelete = boolean | HwidsPermissionsDeleteAnyOf | null
 
+export type HwidsPermissionsReadAnyOf = { [key: string]: PermissionScope | number }
+
+export type HwidsPermissionsRead = boolean | HwidsPermissionsReadAnyOf | null
+
 export interface HwidsPermissions {
   read?: HwidsPermissionsRead
   delete?: HwidsPermissionsDelete
 }
-
-export type HwidsPermissionsReadAnyOf = { [key: string]: PermissionScope | number }
-
-export type HwidsPermissionsRead = boolean | HwidsPermissionsReadAnyOf | null
 
 export type HostsPermissionsUpdateAnyOf = { [key: string]: PermissionScope | number }
 
@@ -2404,6 +2398,10 @@ export interface HTTPValidationError {
   detail?: ValidationError[]
 }
 
+export type HTTPResponseHeadersAnyOf = { [key: string]: string[] }
+
+export type HTTPResponseHeaders = HTTPResponseHeadersAnyOf | null
+
 export interface HTTPResponse {
   /** @pattern ^(1(?:\.0|\.1)|2\.0|3\.0)$ */
   version?: string
@@ -2413,10 +2411,6 @@ export interface HTTPResponse {
   /** @pattern ^(?i)(?:OK|Created|Accepted|Non-Authoritative Information|No Content|Reset Content|Partial Content|Multiple Choices|Moved Permanently|Found|See Other|Not Modified|Use Proxy|Temporary Redirect|Permanent Redirect|Bad Request|Unauthorized|Payment Required|Forbidden|Not Found|Method Not Allowed|Not Acceptable|Proxy Authentication Required|Request Timeout|Conflict|Gone|Length Required|Precondition Failed|Payload Too Large|URI Too Long|Unsupported Media Type|Range Not Satisfiable|Expectation Failed|I'm a teapot|Misdirected Request|Unprocessable Entity|Locked|Failed Dependency|Too Early|Upgrade Required|Precondition Required|Too Many Requests|Request Header Fields Too Large|Unavailable For Legal Reasons|Internal Server Error|Not Implemented|Bad Gateway|Service Unavailable|Gateway Timeout|HTTP Version Not Supported)$ */
   reason?: string
 }
-
-export type HTTPResponseHeadersAnyOf = { [key: string]: string[] }
-
-export type HTTPResponseHeaders = HTTPResponseHeadersAnyOf | null
 
 export type HTTPRequestHeadersAnyOf = { [key: string]: string[] }
 
@@ -2432,6 +2426,11 @@ export interface HTTPRequest {
 
 export interface HTTPException {
   detail: string
+}
+
+export interface GroupsResponse {
+  groups: GroupResponse[]
+  total: number
 }
 
 /**
@@ -2462,11 +2461,6 @@ export interface GroupResponse {
   is_disabled?: boolean
   id: number
   total_users?: number
-}
-
-export interface GroupsResponse {
-  groups: GroupResponse[]
-  total: number
 }
 
 export type GroupModifyInboundTags = string[] | null
@@ -2500,9 +2494,11 @@ export const GeoFilseRegion = {
   russia: 'russia',
 } as const
 
+export type GeneralCustomVariables = CustomVariable[] | null
+
 export interface General {
   default_method?: ShadowsocksMethods
-  custom_variables?: CustomVariable[] | null
+  custom_variables?: GeneralCustomVariables
 }
 
 export type GRPCSettingsInitialWindowsSize = number | null
@@ -2564,6 +2560,13 @@ export const DataLimitResetStrategy = {
   month: 'month',
   year: 'year',
 } as const
+
+export interface CustomVariable {
+  /** @maxLength 64 */
+  key: string
+  /** @maxLength 512 */
+  value?: string
+}
 
 export type CreateUserFromTemplateNote = string | null
 
@@ -2649,6 +2652,14 @@ export interface CreateHost {
   subscription_templates?: CreateHostSubscriptionTemplates
 }
 
+/**
+ * Response model for lightweight core list.
+ */
+export interface CoresSimpleResponse {
+  cores: CoreSimple[]
+  total: number
+}
+
 export type CoreType = (typeof CoreType)[keyof typeof CoreType]
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
@@ -2670,12 +2681,9 @@ export interface CoreSimple {
   type?: CoreSimpleType
 }
 
-/**
- * Response model for lightweight core list.
- */
-export interface CoresSimpleResponse {
-  cores: CoreSimple[]
-  total: number
+export interface CoreResponseList {
+  count: number
+  cores?: CoreResponse[]
 }
 
 export type CoreResponseType = CoreType | null
@@ -2690,11 +2698,6 @@ export interface CoreResponse {
   fallbacks_inbound_tags: string[]
   id: number
   created_at: string
-}
-
-export interface CoreResponseList {
-  count: number
-  cores?: CoreResponse[]
 }
 
 export type CoreCreateFallbacksInboundTags = unknown[] | null
@@ -2815,14 +2818,6 @@ export type CRUDPermissionsDeleteAnyOf = { [key: string]: PermissionScope | numb
 
 export type CRUDPermissionsDelete = boolean | CRUDPermissionsDeleteAnyOf | null
 
-export type CRUDPermissionsUpdateAnyOf = { [key: string]: PermissionScope | number }
-
-export type CRUDPermissionsUpdate = boolean | CRUDPermissionsUpdateAnyOf | null
-
-export type CRUDPermissionsReadSimpleAnyOf = { [key: string]: PermissionScope | number }
-
-export type CRUDPermissionsReadSimple = boolean | CRUDPermissionsReadSimpleAnyOf | null
-
 /**
  * Standard create/read/read_simple/update/delete permissions.
 Used directly by: groups, templates, client_templates, cores, admin_roles.
@@ -2835,6 +2830,14 @@ export interface CRUDPermissions {
   update?: CRUDPermissionsUpdate
   delete?: CRUDPermissionsDelete
 }
+
+export type CRUDPermissionsUpdateAnyOf = { [key: string]: PermissionScope | number }
+
+export type CRUDPermissionsUpdate = boolean | CRUDPermissionsUpdateAnyOf | null
+
+export type CRUDPermissionsReadSimpleAnyOf = { [key: string]: PermissionScope | number }
+
+export type CRUDPermissionsReadSimple = boolean | CRUDPermissionsReadSimpleAnyOf | null
 
 export type CRUDPermissionsReadAnyOf = { [key: string]: PermissionScope | number }
 
@@ -3050,19 +3053,19 @@ export interface Brutal {
   down_mbps: number
 }
 
-export type BodyAdminTokenApiAdminTokenPostClientSecret = string | null
+export type BodyAdminTokenClientSecret = string | null
 
-export type BodyAdminTokenApiAdminTokenPostClientId = string | null
+export type BodyAdminTokenClientId = string | null
 
-export type BodyAdminTokenApiAdminTokenPostGrantType = string | null
+export type BodyAdminTokenGrantType = string | null
 
-export interface BodyAdminTokenApiAdminTokenPost {
-  grant_type?: BodyAdminTokenApiAdminTokenPostGrantType
+export interface BodyAdminToken {
+  grant_type?: BodyAdminTokenGrantType
   username: string
   password: string
   scope?: string
-  client_id?: BodyAdminTokenApiAdminTokenPostClientId
-  client_secret?: BodyAdminTokenApiAdminTokenPostClientSecret
+  client_id?: BodyAdminTokenClientId
+  client_secret?: BodyAdminTokenClientSecret
 }
 
 export interface BaseNotificationEnable {
@@ -3095,6 +3098,26 @@ export type BaseHostMuxSettings = MuxSettingsOutput | null
 
 export type BaseHostTransportSettings = TransportSettingsOutput | null
 
+export type BaseHostHttpHeadersAnyOf = { [key: string]: string }
+
+export type BaseHostHttpHeaders = BaseHostHttpHeadersAnyOf | null
+
+export type BaseHostAllowinsecure = boolean | null
+
+export type BaseHostAlpn = ProxyHostALPN[] | null
+
+export type BaseHostPath = string | null
+
+export type BaseHostHost = string[] | null
+
+export type BaseHostSni = string[] | null
+
+export type BaseHostPort = number | null
+
+export type BaseHostInboundTag = string | null
+
+export type BaseHostId = number | null
+
 export interface BaseHost {
   id?: BaseHostId
   remark: string
@@ -3126,26 +3149,6 @@ export interface BaseHost {
   wireguard_overrides?: BaseHostWireguardOverrides
   subscription_templates?: BaseHostSubscriptionTemplates
 }
-
-export type BaseHostHttpHeadersAnyOf = { [key: string]: string }
-
-export type BaseHostHttpHeaders = BaseHostHttpHeadersAnyOf | null
-
-export type BaseHostAllowinsecure = boolean | null
-
-export type BaseHostAlpn = ProxyHostALPN[] | null
-
-export type BaseHostPath = string | null
-
-export type BaseHostHost = string[] | null
-
-export type BaseHostSni = string[] | null
-
-export type BaseHostPort = number | null
-
-export type BaseHostInboundTag = string | null
-
-export type BaseHostId = number | null
 
 export type ApplicationDescription = { [key: string]: string }
 
@@ -3186,15 +3189,6 @@ export type AdminsPermissionsResetUsageAnyOf = { [key: string]: PermissionScope 
 
 export type AdminsPermissionsResetUsage = boolean | AdminsPermissionsResetUsageAnyOf | null
 
-export interface AdminsPermissions {
-  create?: AdminsPermissionsCreate
-  read?: AdminsPermissionsRead
-  read_simple?: AdminsPermissionsReadSimple
-  update?: AdminsPermissionsUpdate
-  delete?: AdminsPermissionsDelete
-  reset_usage?: AdminsPermissionsResetUsage
-}
-
 export type AdminsPermissionsDeleteAnyOf = { [key: string]: PermissionScope | number }
 
 export type AdminsPermissionsDelete = boolean | AdminsPermissionsDeleteAnyOf | null
@@ -3206,6 +3200,15 @@ export type AdminsPermissionsUpdate = boolean | AdminsPermissionsUpdateAnyOf | n
 export type AdminsPermissionsReadSimpleAnyOf = { [key: string]: PermissionScope | number }
 
 export type AdminsPermissionsReadSimple = boolean | AdminsPermissionsReadSimpleAnyOf | null
+
+export interface AdminsPermissions {
+  create?: AdminsPermissionsCreate
+  read?: AdminsPermissionsRead
+  read_simple?: AdminsPermissionsReadSimple
+  update?: AdminsPermissionsUpdate
+  delete?: AdminsPermissionsDelete
+  reset_usage?: AdminsPermissionsResetUsage
+}
 
 export type AdminsPermissionsReadAnyOf = { [key: string]: PermissionScope | number }
 
@@ -3344,9 +3347,9 @@ export type AdminModifyNotificationEnable = UserNotificationEnable | null
 
 export type AdminModifyNote = string | null
 
-export type AdminModifySupportUrl = string | null
-
 export type AdminModifyCustomVariables = CustomVariable[] | null
+
+export type AdminModifySupportUrl = string | null
 
 export type AdminModifyProfileTitle = string | null
 
@@ -3397,8 +3400,6 @@ export type AdminDetailsNotificationEnable = UserNotificationEnable | null
 
 export type AdminDetailsSupportUrl = string | null
 
-export type AdminDetailsCustomVariables = CustomVariable[]
-
 export type AdminDetailsProfileTitle = string | null
 
 export type AdminDetailsSubDomain = string | null
@@ -3420,7 +3421,7 @@ export interface AdminDetails {
   sub_domain?: AdminDetailsSubDomain
   profile_title?: AdminDetailsProfileTitle
   support_url?: AdminDetailsSupportUrl
-  custom_variables?: AdminDetailsCustomVariables
+  custom_variables?: CustomVariable[]
   notification_enable?: AdminDetailsNotificationEnable
   total_users?: number
   used_traffic?: number
@@ -3441,9 +3442,9 @@ export type AdminCreateNotificationEnable = UserNotificationEnable | null
 
 export type AdminCreateNote = string | null
 
-export type AdminCreateSupportUrl = string | null
-
 export type AdminCreateCustomVariables = CustomVariable[] | null
+
+export type AdminCreateSupportUrl = string | null
 
 export type AdminCreateProfileTitle = string | null
 
@@ -3484,8 +3485,6 @@ export type AdminContactInfoNotificationEnable = UserNotificationEnable | null
 
 export type AdminContactInfoSupportUrl = string | null
 
-export type AdminContactInfoCustomVariables = CustomVariable[]
-
 export type AdminContactInfoProfileTitle = string | null
 
 export type AdminContactInfoSubDomain = string | null
@@ -3507,7 +3506,7 @@ export interface AdminContactInfo {
   sub_domain?: AdminContactInfoSubDomain
   profile_title?: AdminContactInfoProfileTitle
   support_url?: AdminContactInfoSupportUrl
-  custom_variables?: AdminContactInfoCustomVariables
+  custom_variables?: CustomVariable[]
   notification_enable?: AdminContactInfoNotificationEnable
 }
 
@@ -3627,28 +3626,28 @@ export function useHealth<TData = Awaited<ReturnType<typeof health>>, TError = E
  * Authenticate an admin and issue a token.
  * @summary Admin Token
  */
-export const adminToken = (bodyAdminTokenApiAdminTokenPost: BodyType<BodyAdminTokenApiAdminTokenPost>, signal?: AbortSignal) => {
+export const adminToken = (bodyAdminToken: BodyType<BodyAdminToken>, signal?: AbortSignal) => {
   const formUrlEncoded = new URLSearchParams()
-  if (bodyAdminTokenApiAdminTokenPost.grant_type !== undefined && bodyAdminTokenApiAdminTokenPost.grant_type !== null) {
-    formUrlEncoded.append('grant_type', bodyAdminTokenApiAdminTokenPost.grant_type)
+  if (bodyAdminToken.grant_type !== undefined && bodyAdminToken.grant_type !== null) {
+    formUrlEncoded.append('grant_type', bodyAdminToken.grant_type)
   }
-  formUrlEncoded.append('username', bodyAdminTokenApiAdminTokenPost.username)
-  formUrlEncoded.append('password', bodyAdminTokenApiAdminTokenPost.password)
-  if (bodyAdminTokenApiAdminTokenPost.scope !== undefined) {
-    formUrlEncoded.append('scope', bodyAdminTokenApiAdminTokenPost.scope)
+  formUrlEncoded.append('username', bodyAdminToken.username)
+  formUrlEncoded.append('password', bodyAdminToken.password)
+  if (bodyAdminToken.scope !== undefined) {
+    formUrlEncoded.append('scope', bodyAdminToken.scope)
   }
-  if (bodyAdminTokenApiAdminTokenPost.client_id !== undefined && bodyAdminTokenApiAdminTokenPost.client_id !== null) {
-    formUrlEncoded.append('client_id', bodyAdminTokenApiAdminTokenPost.client_id)
+  if (bodyAdminToken.client_id !== undefined && bodyAdminToken.client_id !== null) {
+    formUrlEncoded.append('client_id', bodyAdminToken.client_id)
   }
-  if (bodyAdminTokenApiAdminTokenPost.client_secret !== undefined && bodyAdminTokenApiAdminTokenPost.client_secret !== null) {
-    formUrlEncoded.append('client_secret', bodyAdminTokenApiAdminTokenPost.client_secret)
+  if (bodyAdminToken.client_secret !== undefined && bodyAdminToken.client_secret !== null) {
+    formUrlEncoded.append('client_secret', bodyAdminToken.client_secret)
   }
 
   return orvalFetcher<Token>({ url: `/api/admin/token`, method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, data: formUrlEncoded, signal })
 }
 
 export const getAdminTokenMutationOptions = <TData = Awaited<ReturnType<typeof adminToken>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>, TContext = unknown>(options?: {
-  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BodyAdminTokenApiAdminTokenPost> }, TContext>
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BodyAdminToken> }, TContext>
 }) => {
   const mutationKey = ['adminToken']
   const { mutation: mutationOptions } = options
@@ -3657,25 +3656,25 @@ export const getAdminTokenMutationOptions = <TData = Awaited<ReturnType<typeof a
       : { ...options, mutation: { ...options.mutation, mutationKey } }
     : { mutation: { mutationKey } }
 
-  const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminToken>>, { data: BodyType<BodyAdminTokenApiAdminTokenPost> }> = props => {
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminToken>>, { data: BodyType<BodyAdminToken> }> = props => {
     const { data } = props ?? {}
 
     return adminToken(data)
   }
 
-  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { data: BodyType<BodyAdminTokenApiAdminTokenPost> }, TContext>
+  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { data: BodyType<BodyAdminToken> }, TContext>
 }
 
 export type AdminTokenMutationResult = NonNullable<Awaited<ReturnType<typeof adminToken>>>
-export type AdminTokenMutationBody = BodyType<BodyAdminTokenApiAdminTokenPost>
+export type AdminTokenMutationBody = BodyType<BodyAdminToken>
 export type AdminTokenMutationError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>
 
 /**
  * @summary Admin Token
  */
 export const useAdminToken = <TData = Awaited<ReturnType<typeof adminToken>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>, TContext = unknown>(options?: {
-  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BodyAdminTokenApiAdminTokenPost> }, TContext>
-}): UseMutationResult<TData, TError, { data: BodyType<BodyAdminTokenApiAdminTokenPost> }, TContext> => {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BodyAdminToken> }, TContext>
+}): UseMutationResult<TData, TError, { data: BodyType<BodyAdminToken> }, TContext> => {
   const mutationOptions = getAdminTokenMutationOptions(options)
 
   return useMutation(mutationOptions)

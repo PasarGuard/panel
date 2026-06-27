@@ -31,9 +31,16 @@ async def database_operational_error_handler(request: Request, exc: DBAPIError):
 
 
 def _use_route_names_as_operation_ids(app: FastAPI) -> None:
-    for route in app.routes:
-        if isinstance(route, APIRoute):
-            route.operation_id = route.name
+    def _simplify_operation_ids(routes):
+        for route in routes:
+            if isinstance(route, APIRoute):
+                route.operation_id = route.name
+            elif type(route).__name__ == "_IncludedRouter" and hasattr(route, "original_router"):
+                _simplify_operation_ids(route.original_router.routes)
+            elif hasattr(route, "routes"):
+                _simplify_operation_ids(route.routes)
+
+    _simplify_operation_ids(app.routes)
 
 
 def _validate_subscription_path(app: FastAPI) -> None:
