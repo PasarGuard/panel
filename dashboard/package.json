@@ -8,7 +8,8 @@
     "preview": "vite preview",
     "gen:api": "orval",
     "wait-port": "wait-port http://localhost:$UVICORN_PORT/openapi.json",
-    "wait-port-gen-api": "bun run wait-port && bun run gen:api"
+    "wait-port-gen-api": "bun run wait-port && bun run gen:api",
+    "test": "node --test 'src/**/*.test.ts'"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
