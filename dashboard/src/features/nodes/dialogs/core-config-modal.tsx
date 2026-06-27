@@ -173,10 +173,19 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
       }
       const nextJson = JSON.stringify(setOptionalService(parsed, service, enabled), null, 2)
       form.setValue('config', nextJson, { shouldDirty: true, shouldValidate: true })
+      // ponytail: re-serializing pretty-prints the whole config (2-space) and normalizes
+      // number literals — accepted per the "edit api.services in the JSON" design;
+      // setOptionalService preserves all other keys.
       validateJsonContent(nextJson)
     },
     [form, validateJsonContent],
   )
+
+  const apiServicesUnknownMessage = (names: string[]) =>
+    t('coreConfigModal.apiServicesUnknown', {
+      defaultValue: 'Unrecognized API service(s): {{names}}. Remove or fix them to save.',
+      names: names.join(', '),
+    })
 
   // Debounce config changes to improve performance
   const debouncedConfigChange = useCallback(
@@ -358,10 +367,7 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
 
       const unknownServices = findUnknownApiServices(configObj)
       if (unknownServices.length > 0) {
-        const message = t('coreConfigModal.apiServicesUnknown', {
-          defaultValue: 'Unrecognized API service(s): {{names}}. Remove or fix them to save.',
-          names: unknownServices.join(', '),
-        })
+        const message = apiServicesUnknownMessage(unknownServices)
         form.setError('config', { type: 'manual', message })
         toast.error(message)
         return
@@ -1016,31 +1022,26 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
                           <FormLabel>{t('coreConfigModal.apiServices', { defaultValue: 'API Services' })}</FormLabel>
                           <div className="space-y-2 rounded-md border p-3">
                             {REQUIRED_API_SERVICES.map(svc => (
-                              <div key={svc} className="flex items-center gap-2 opacity-60">
+                              <label key={svc} className="flex items-center gap-2 opacity-60">
                                 <Checkbox checked disabled />
                                 <span className="text-sm">{svc}</span>
                                 <span className="text-muted-foreground text-xs">
                                   {t('coreConfigModal.apiServiceAlwaysOn', { defaultValue: 'always on' })}
                                 </span>
-                              </div>
+                              </label>
                             ))}
                             {OPTIONAL_API_SERVICES.map(svc => (
-                              <div key={svc} className="flex items-center gap-2">
+                              <label key={svc} className="flex cursor-pointer items-center gap-2">
                                 <Checkbox
                                   checked={selectedApiServices.includes(svc)}
                                   onCheckedChange={checked => handleToggleApiService(svc, checked === true)}
                                   disabled={!validation.isValid}
                                 />
                                 <span className="text-sm">{svc}</span>
-                              </div>
+                              </label>
                             ))}
                             {unknownApiServices.length > 0 && (
-                              <p className="text-destructive text-xs">
-                                {t('coreConfigModal.apiServicesUnknown', {
-                                  defaultValue: 'Unrecognized API service(s): {{names}}. Remove or fix them to save.',
-                                  names: unknownApiServices.join(', '),
-                                })}
-                              </p>
+                              <p className="text-destructive text-xs">{apiServicesUnknownMessage(unknownApiServices)}</p>
                             )}
                           </div>
                         </div>
