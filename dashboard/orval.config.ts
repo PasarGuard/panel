@@ -19,7 +19,9 @@ export default defineConfig({
       },
     },
     input: {
-      target: `http://127.0.0.1:${process.env.UVICORN_PORT || 8000}/openapi.json`,
+      // Prefer a pre-extracted schema file (offline generation) when provided,
+      // otherwise fall back to the running server's live endpoint.
+      target: process.env.OPENAPI_INPUT || `http://127.0.0.1:${process.env.UVICORN_PORT || 8000}/openapi.json`,
     },
   },
 })
