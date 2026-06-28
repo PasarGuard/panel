@@ -2463,6 +2463,7 @@
     },
     "section": {
       "label": "分区",
+      "api": "API",
       "inbounds": "入站",
       "outbounds": "出站",
       "routing": "路由",
@@ -2474,6 +2475,7 @@
     },
     "sectionDesc": {
       "wgInterface": "WireGuard 接口与密钥",
+      "api": "Xray gRPC API 服务",
       "advanced": "JSON 编辑与诊断工具",
       "inbounds": "入站监听与协议配置",
       "outbounds": "出站连接与上游路由",
@@ -2481,6 +2483,10 @@
       "balancers": "负载均衡与调度策略",
       "dns": "DNS 解析与解析器",
       "bindings": "入站标签回退与排除"
+    },
+    "api": {
+      "title": "API 服务",
+      "hint": "此核心提供的 gRPC API 服务。节点始终启用必需的服务；可按需启用可选服务。"
     },
     "wg": {
       "interfaceBlurb": "此核心的 WireGuard 接口与密钥设置。",
