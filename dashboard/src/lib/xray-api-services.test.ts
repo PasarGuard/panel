@@ -8,6 +8,7 @@ import {
   OPTIONAL_API_SERVICES,
   REQUIRED_API_SERVICES,
   setOptionalService,
+  setRawOptionalService,
 } from './xray-api-services.ts'
 
 test('getSelectedOptional: no api yields empty', () => {
@@ -88,4 +89,38 @@ test('CANONICAL_API_SERVICES maps exactly REQUIRED ∪ OPTIONAL (both directions
 
 test('getSelectedOptional: trims and dedupes whitespace/case variants', () => {
   assert.deepEqual(getSelectedOptional({ api: { services: ['  routingservice ', 'RoutingService'] } }), ['RoutingService'])
+})
+
+// Regression: the kit re-emits `api` from `raw.source`, so a removal expressed only
+// on `raw.topLevel` is undone (Save never enables). setRawOptionalService must edit both.
+test('setRawOptionalService: disabling the last service clears api from BOTH source and topLevel', () => {
+  const raw = {
+    source: { api: { services: ['RoutingService'] }, log: { loglevel: 'warning' } },
+    topLevel: { api: { services: ['RoutingService'] } },
+  }
+  assert.deepEqual(setRawOptionalService(raw, 'RoutingService', false), {
+    source: { log: { loglevel: 'warning' } },
+    topLevel: {},
+  })
+})
+
+test('setRawOptionalService: enabling adds the service to BOTH source and topLevel', () => {
+  assert.deepEqual(setRawOptionalService({ source: { log: {} }, topLevel: {} }, 'RoutingService', true), {
+    source: { log: {}, api: { services: ['RoutingService'] } },
+    topLevel: { api: { services: ['RoutingService'] } },
+  })
+})
+
+test('setRawOptionalService: preserves other raw keys and only touches api', () => {
+  const raw = { extra: 1, source: { api: { services: ['RoutingService', 'ObservatoryService'] }, routing: { rules: [] } }, topLevel: { api: { services: ['RoutingService', 'ObservatoryService'] }, policy: {} } }
+  assert.deepEqual(setRawOptionalService(raw, 'RoutingService', false), {
+    extra: 1,
+    source: { api: { services: ['ObservatoryService'] }, routing: { rules: [] } },
+    topLevel: { api: { services: ['ObservatoryService'] }, policy: {} },
+  })
+})
+
+test('setRawOptionalService: missing source updates only topLevel; non-object raw is safe', () => {
+  assert.deepEqual(setRawOptionalService({ topLevel: {} }, 'RoutingService', true), { topLevel: { api: { services: ['RoutingService'] } } })
+  assert.deepEqual(setRawOptionalService(undefined, 'RoutingService', true), { topLevel: { api: { services: ['RoutingService'] } } })
 })
