@@ -2233,6 +2233,10 @@
       "bindings": "Inbound tag fallbacks and exclusions",
       "api": "Xray gRPC API services"
     },
+    "api": {
+      "title": "API Services",
+      "hint": "gRPC API services exposed by this core. The node always enables the required services; enable optional ones as needed."
+    },
     "wg": {
       "interfaceBlurb": "WireGuard interface settings and key material for this core.",
       "keysRegenerated": "New keypair generated",
