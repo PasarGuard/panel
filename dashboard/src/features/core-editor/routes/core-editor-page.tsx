@@ -31,6 +31,15 @@ import useDirDetection from '@/hooks/use-dir-detection'
 
 type LoadingCoreKind = 'xray' | 'wg'
 
+type SectionHeaderConfig = {
+  title: string
+  /** Fallback shown when the `title` key is missing from a stale cached locale bundle. */
+  titleDefault?: string
+  description?: string
+  descriptionDefault?: string
+  buttonText?: string
+}
+
 function loadingSectionPageHeaderProps(coreKind?: LoadingCoreKind): { title: string; description?: string } {
   if (coreKind === 'wg') {
     return {
@@ -461,10 +470,10 @@ export default function CoreEditorPage() {
     </div>
   )
 
-  const sectionHeaderConfig = useMemo(() => {
+  const sectionHeaderConfig: SectionHeaderConfig | undefined = useMemo(() => {
     if (kind === 'wg') {
       const section = activeSection as WgCoreSection
-      return {
+      const map: Record<WgCoreSection, SectionHeaderConfig> = {
         interface: {
           title: 'coreEditor.section.interface',
           description: 'coreEditor.sectionDesc.wgInterface',
@@ -473,11 +482,12 @@ export default function CoreEditorPage() {
           title: 'coreEditor.section.advanced',
           description: 'coreEditor.sectionDesc.advanced',
         },
-      }[section]
+      }
+      return map[section]
     }
 
     const section = activeSection as XrayCoreSection
-    return {
+    const map: Record<XrayCoreSection, SectionHeaderConfig> = {
       inbounds: {
         title: 'coreEditor.section.inbounds',
         description: 'coreEditor.sectionDesc.inbounds',
@@ -508,13 +518,16 @@ export default function CoreEditorPage() {
       },
       api: {
         title: 'coreEditor.section.api',
+        titleDefault: 'API',
         description: 'coreEditor.sectionDesc.api',
+        descriptionDefault: 'Xray gRPC API services',
       },
       advanced: {
         title: 'coreEditor.section.advanced',
         description: 'coreEditor.sectionDesc.advanced',
       },
-    }[section]
+    }
+    return map[section]
   }, [kind, activeSection])
 
   if (!isNew && validId && isLoading) {
@@ -563,7 +576,9 @@ export default function CoreEditorPage() {
           sectionHeaderConfig ? (
             <PageHeader
               title={sectionHeaderConfig.title}
+              titleDefault={sectionHeaderConfig.titleDefault}
               description={sectionHeaderConfig.description}
+              descriptionDefault={sectionHeaderConfig.descriptionDefault}
               className="flex-wrap gap-x-3 gap-y-2 py-2.5 sm:gap-4 sm:py-4 md:pt-6"
               buttonText={sectionHeaderConfig.buttonText}
               onButtonClick={sectionHeaderConfig.buttonText ? () => setHeaderAddPulse(p => ({ target: String(activeSection), n: p.n + 1 })) : undefined}
