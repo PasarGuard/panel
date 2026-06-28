@@ -92,3 +92,27 @@ export function setOptionalService(
   }
   return next
 }
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+// Toggle an optional service on a structured-editor profile's `raw`.
+//
+// The structured editor holds two copies of the unmodeled `api` section:
+//   - `raw.source` — the original config the kit re-emits verbatim on compile, and
+//   - `raw.topLevel` — the adapter's override, which only wins when the `api` key is
+//     present (see applyUnmodeledTopLevelSectionsToCompiledConfig in xray-adapter.ts).
+// Editing only `topLevel` desyncs them: removing the last optional service deletes
+// `topLevel.api`, the override vanishes, and the original `api` resurfaces from
+// `raw.source` — so the change is silently dropped (no diff -> Save stays disabled).
+// Apply the same edit to both so toggles always persist and round-trip cleanly.
+export function setRawOptionalService(raw: unknown, service: string, enabled: boolean): Record<string, unknown> {
+  const base = isRecord(raw) ? raw : {}
+  const topLevel = isRecord(base.topLevel) ? base.topLevel : {}
+  const next: Record<string, unknown> = { ...base, topLevel: setOptionalService(topLevel, service, enabled) }
+  if (isRecord(base.source)) {
+    next.source = setOptionalService(base.source, service, enabled)
+  }
+  return next
+}

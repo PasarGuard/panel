@@ -1,8 +1,8 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { useCoreEditorStore } from '@/features/core-editor/state/core-editor-store'
-import { findUnknownApiServices, getSelectedOptional, OPTIONAL_API_SERVICES, REQUIRED_API_SERVICES, setOptionalService } from '@/lib/xray-api-services'
-import type { JsonValue, Profile } from '@pasarguard/xray-config-kit'
+import { findUnknownApiServices, getSelectedOptional, OPTIONAL_API_SERVICES, REQUIRED_API_SERVICES, setRawOptionalService } from '@/lib/xray-api-services'
+import type { Profile } from '@pasarguard/xray-config-kit'
 import { Webhook } from 'lucide-react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -15,14 +15,7 @@ function readTopLevel(profile: Profile): Record<string, unknown> {
 }
 
 function withApiService(profile: Profile, service: string, enabled: boolean): Profile {
-  const nextTopLevel = setOptionalService(readTopLevel(profile), service, enabled) as Record<string, JsonValue>
-  return {
-    ...profile,
-    raw: {
-      ...(profile.raw ?? {}),
-      topLevel: nextTopLevel,
-    },
-  } as Profile
+  return { ...profile, raw: setRawOptionalService(profile.raw, service, enabled) } as Profile
 }
 
 export function XrayApiSection() {
