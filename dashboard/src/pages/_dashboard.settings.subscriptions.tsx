@@ -8,7 +8,7 @@ import { SubscriptionManualFormatsSection } from '@/features/subscriptions/compo
 import { SubscriptionResponseHeadersSection } from '@/features/subscriptions/components/subscription-response-headers-section'
 import { SubscriptionRulesSection } from '@/features/subscriptions/components/subscription-rules-section'
 import { SubscriptionSettingsSkeleton } from '@/features/subscriptions/components/subscription-settings-skeleton'
-import { subscriptionSchema, type SubscriptionApplicationFormData, type SubscriptionFormData, defaultSubscriptionRules } from '@/features/subscriptions/components/subscription-settings-schema'
+import { subscriptionSchema, type SubscriptionApplicationFormData, type SubscriptionFormData, defaultSubscriptionRules, normalizeCustomVariablesForPayload } from '@/features/subscriptions/components/subscription-settings-schema'
 import { Form } from '@/components/ui/form'
 import { Separator } from '@/components/ui/separator'
 import { type SubRule as ApiSubRule } from '@/service/api'
@@ -163,12 +163,7 @@ export default function SubscriptionSettings() {
           .filter(([key, value]) => key && value),
       )
 
-      const processedCustomVariables = (data.custom_variables || [])
-        .map(variable => ({
-          key: variable.key?.trim() || '',
-          value: variable.value?.trim() || '',
-        }))
-        .filter(variable => variable.key)
+      const processedCustomVariables = normalizeCustomVariablesForPayload(data.custom_variables)
 
       const rawApps = (data.applications || [])
         .map(app => ({

@@ -306,11 +306,26 @@ class SubscriptionOperation(BaseOperation):
         if user_hwid_limit == 0:
             return False
 
+        effective_limit = SubscriptionOperation.resolve_subscription_hwid_limit(
+            user_hwid_limit,
+            effective_hwid_conf,
+        )
         forced = effective_hwid_conf.forced
         if is_manual_sub and not global_hwid_conf.require_hwid_for_manual_sub:
             forced = False
 
-        return forced or (user_hwid_limit is not None and user_hwid_limit > 0)
+        return forced or (effective_limit is not None and effective_limit > 0)
+
+    @staticmethod
+    def resolve_subscription_hwid_limit(
+        user_hwid_limit: int | None,
+        effective_hwid_conf: HWIDSettings | None,
+    ) -> int | None:
+        if user_hwid_limit is not None:
+            return user_hwid_limit
+        if effective_hwid_conf is None or not effective_hwid_conf.enabled:
+            return None
+        return effective_hwid_conf.fallback_limit
 
     async def is_user_hwid_enabled(self, db_user: User, *, is_manual_sub: bool = False) -> bool:
         role_hwid_settings = db_user.admin.role.hwid if db_user.admin and db_user.admin.role else None
@@ -338,24 +353,19 @@ class SubscriptionOperation(BaseOperation):
         global_hwid_conf: HWIDSettings = await hwid_settings()
         effective_hwid_conf = resolve_effective_hwid_settings(global_hwid_conf, role_hwid_settings)
 
-        if not self.is_hwid_enabled(
-            global_hwid_conf,
-            effective_hwid_conf,
-            user_hwid_limit,
-            is_manual_sub=is_manual_sub,
-        ):
+        # Registration is gated on the master "enabled" switch only: whenever HWID is
+        # enabled we record/refresh the device on any request that carries an X-HWID,
+        # independent of forced/limit. `forced` only controls whether the header is
+        # required; `limit` only caps the number of distinct devices. An explicit
+        # hwid_limit of 0 opts the user out entirely.
+        if effective_hwid_conf is None or not effective_hwid_conf.enabled or user_hwid_limit == 0:
             return
 
         forced = effective_hwid_conf.forced
         if is_manual_sub and not global_hwid_conf.require_hwid_for_manual_sub:
             forced = False
 
-        limit = user_hwid_limit
-        if forced and limit is None:
-            limit = effective_hwid_conf.fallback_limit
-
-        if not forced and limit is None:
-            return
+        limit = self.resolve_subscription_hwid_limit(user_hwid_limit, effective_hwid_conf)
 
         if not x_hwid:
             # Only a forced policy requires the header. A bare limit just caps device

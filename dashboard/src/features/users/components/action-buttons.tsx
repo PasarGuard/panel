@@ -775,7 +775,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
                 </DropdownMenuItem>
               )}
 
-              {middleDropdownActionCount > 0 && destructiveDropdownActionCount > 0 && <DropdownMenuSeparator />}
+              {middleDropdownActionCount > 0 && destructiveDropdownActionCount > 0 && <DropdownMenuSeparator className="hidden md:block" />}
 
               {/* Trash */}
               {canDeleteUsers && (

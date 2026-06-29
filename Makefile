@@ -118,6 +118,13 @@ run-watch:
 	@echo "Running application with watchfiles..."
 	@uv run watchfiles --filter python "uv run main.py" .
 
+# Generate the API client (orval) WITHOUT running the server:
+# dump the OpenAPI schema offline, then feed the file to orval.
+# Cross-platform: the Python helper sets OPENAPI_INPUT and invokes orval itself.
+.PHONY: gen-api
+gen-api:
+	@uv run python scripts/export_openapi.py --gen-client
+
 # Check code
 .PHONY: check
 check:

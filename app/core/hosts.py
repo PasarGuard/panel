@@ -420,7 +420,7 @@ class HostManager:
 
     async def _snapshot_state(self) -> dict[int, dict]:
         async with self._lock:
-            return deepcopy(self._hosts)
+            return dict(self._hosts)
 
     async def _persist_state(self):
         if not self._kv:

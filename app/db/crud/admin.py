@@ -1,10 +1,10 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import and_, case, delete, func, insert, not_, select, update
+from sqlalchemy import and_, case, delete, func, not_, select, update
+from sqlalchemy.exc import InvalidRequestError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlalchemy.orm.exc import DetachedInstanceError
-from sqlalchemy.exc import InvalidRequestError
 
 from app.db.crud.general import (
     _build_trunc_expression,
@@ -521,8 +521,32 @@ async def bulk_create_admin_notification_reminders(db: AsyncSession, reminder_da
     if not reminder_data:
         return
 
-    await db.execute(insert(AdminNotificationReminder), reminder_data)
+    db.add_all([AdminNotificationReminder(**data) for data in reminder_data])
     await db.commit()
+
+
+async def create_admin_notification_reminder_if_absent(
+    db: AsyncSession,
+    admin_id: int,
+    reminder_type: ReminderType,
+    threshold: int | None = None,
+) -> bool:
+    """Create an admin reminder row and return whether this call claimed it."""
+    existing_reminder_id = await db.scalar(
+        select(AdminNotificationReminder.id)
+        .where(
+            AdminNotificationReminder.admin_id == admin_id,
+            AdminNotificationReminder.type == reminder_type,
+            AdminNotificationReminder.threshold == threshold,
+        )
+        .limit(1)
+    )
+    if existing_reminder_id is not None:
+        return False
+
+    db.add(AdminNotificationReminder(admin_id=admin_id, type=reminder_type, threshold=threshold))
+    await db.commit()
+    return True
 
 
 async def delete_admin_notification_reminders(

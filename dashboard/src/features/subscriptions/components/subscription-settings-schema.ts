@@ -24,11 +24,44 @@ export const builtInVariableKeys = [
 export const customVariableSchema = z.object({
   key: z
     .string()
-    .min(1, 'Variable key is required')
     .max(64, 'Variable key must be 64 characters or less')
-    .regex(/^[A-Z][A-Z0-9_]*$/, 'Use uppercase letters, numbers, and underscores'),
+    .regex(/^$|^[A-Z][A-Z0-9_]*$/, 'Use uppercase letters, numbers, and underscores')
+    .default(''),
   value: z.string().max(512, 'Variable value must be 512 characters or less').default(''),
 })
+
+export const customVariablesSchema = z
+  .array(customVariableSchema)
+  .default([])
+  .superRefine((variables, ctx) => {
+    const seen = new Set<string>()
+    for (const [index, variable] of variables.entries()) {
+      if (!variable.key) continue
+      if ((builtInVariableKeys as readonly string[]).includes(variable.key)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Custom variable conflicts with a built-in variable',
+          path: [index, 'key'],
+        })
+      }
+      if (seen.has(variable.key)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Duplicate custom variable',
+          path: [index, 'key'],
+        })
+      }
+      seen.add(variable.key)
+    }
+  })
+
+export const normalizeCustomVariablesForPayload = (variables?: { key?: string; value?: string }[] | null) =>
+  (variables || [])
+    .map(variable => ({
+      key: variable.key?.trim() || '',
+      value: variable.value?.trim() || '',
+    }))
+    .filter(variable => variable.key)
 
 export const subscriptionApplicationSchema = z.object({
   name: z.string().min(1, 'Application name is required').max(32, 'Application name must be 32 characters or less'),
@@ -73,29 +106,7 @@ export const subscriptionSchema = z.object({
   allow_browser_config: z.boolean().optional(),
   disable_sub_template: z.boolean().optional(),
   randomize_order: z.boolean().optional(),
-  custom_variables: z
-    .array(customVariableSchema)
-    .default([])
-    .superRefine((variables, ctx) => {
-      const seen = new Set<string>()
-      for (const [index, variable] of variables.entries()) {
-        if ((builtInVariableKeys as readonly string[]).includes(variable.key)) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: 'Custom variable conflicts with a built-in variable',
-            path: [index, 'key'],
-          })
-        }
-        if (seen.has(variable.key)) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: 'Duplicate custom variable',
-            path: [index, 'key'],
-          })
-        }
-        seen.add(variable.key)
-      }
-    }),
+  custom_variables: customVariablesSchema,
   response_headers: z.record(z.string()).optional(),
   rules: z.array(
     z.object({

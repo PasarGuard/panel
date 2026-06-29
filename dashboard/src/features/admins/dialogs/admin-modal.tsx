@@ -16,7 +16,7 @@ import { useAdmin } from '@/hooks/use-admin'
 import useDynamicErrorHandler from '@/hooks/use-dynamic-errors.ts'
 import { useCreateAdmin, useGetRolesSimple, useModifyAdminById } from '@/service/api'
 import type { RoleLimits } from '@/service/api'
-import { builtInVariableKeys } from '@/features/subscriptions/components/subscription-settings-schema'
+import { builtInVariableKeys, normalizeCustomVariablesForPayload } from '@/features/subscriptions/components/subscription-settings-schema'
 import { upsertAdminInAdminsCache } from '@/utils/adminsCache'
 import { removeAuthToken } from '@/utils/authStorage'
 import { bytesToFormGigabytes, formatBytes, gbToBytes } from '@/utils/formatByte'
@@ -97,6 +97,7 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
   const rolesQuery = useGetRolesSimple()
   const selectedRoleId = form.watch('role_id')
   const customVariables = form.watch('custom_variables') || []
+  const typedCustomVariables = customVariables.filter((v): v is { key: string; value?: string } => v.key !== undefined)
   const builtInKeys = new Set<string>(builtInVariableKeys)
   const roleOptions = useMemo(() => {
     const rolesById = new Map<number, { id: number; name: string; is_owner: boolean }>()
@@ -186,7 +187,7 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
         support_url: values.support_url,
         telegram_id: values.telegram_id,
         profile_title: values.profile_title,
-        custom_variables: values.custom_variables || [],
+        custom_variables: normalizeCustomVariablesForPayload(values.custom_variables),
         note: values.note,
         notification_enable: values.notification_enable || null,
         role_id: values.role_id,
@@ -229,7 +230,7 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
           support_url: values.support_url,
           telegram_id: values.telegram_id,
           profile_title: values.profile_title,
-          custom_variables: values.custom_variables || [],
+          custom_variables: normalizeCustomVariablesForPayload(values.custom_variables),
           note: values.note,
           notification_enable: values.notification_enable || null,
           role_id: values.role_id,
@@ -470,7 +471,7 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
                           <FormItem>
                             <div className="flex items-center gap-2">
                               <FormLabel>{t('admins.profile')}</FormLabel>
-                              <VariablesPopover />
+                              <VariablesPopover customVariables={typedCustomVariables} />
                             </div>
                             <FormControl>
                               <Input placeholder={t('admins.profile')} autoComplete="off" {...field} />
@@ -505,12 +506,25 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
                           </FormItem>
                         )}
                       />
+                      <FormField
+                        control={form.control}
+                        name="note"
+                        render={({ field }) => (
+                          <FormItem className="sm:col-span-2">
+                            <FormLabel>{t('fields.note')}</FormLabel>
+                            <FormControl>
+                              <Textarea placeholder={t('fields.note')} rows={3} autoComplete="off" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
                       <div className="space-y-3 sm:col-span-2">
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0 flex-1 space-y-1">
                             <div className="flex items-center gap-1.5">
                               <FormLabel>{t('admins.customVariables.title', { defaultValue: 'Custom Variables' })}</FormLabel>
-                              <CustomVariablesPopover customVariables={customVariables} />
+                              <CustomVariablesPopover customVariables={typedCustomVariables} />
                             </div>
                             <p className="text-muted-foreground text-xs">
                               {t('admins.customVariables.description', {
@@ -526,8 +540,8 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
                         <div className="space-y-2">
                           {customVariables.length > 0 ? (
                             customVariables.map((variable, index) => {
-                              const duplicate = customVariables.some((candidate, candidateIndex) => candidateIndex !== index && candidate.key === variable.key)
-                              const conflictsWithBuiltIn = builtInKeys.has(variable.key)
+                              const duplicate = !!variable.key && customVariables.some((candidate, candidateIndex) => candidateIndex !== index && candidate.key === variable.key)
+                              const conflictsWithBuiltIn = !!variable.key && builtInKeys.has(variable.key)
                               const hasKeyError = duplicate || conflictsWithBuiltIn
                               return (
                                 <div key={`admin-custom-variable-${index}`} className="bg-card/50 space-y-2 rounded-lg border p-3">
@@ -575,19 +589,6 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
                           )}
                         </div>
                       </div>
-                      <FormField
-                        control={form.control}
-                        name="note"
-                        render={({ field }) => (
-                          <FormItem className="sm:col-span-2">
-                            <FormLabel>{t('fields.note')}</FormLabel>
-                            <FormControl>
-                              <Textarea placeholder={t('fields.note')} rows={3} autoComplete="off" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
                     </div>
                   </AccordionContent>
                 </AccordionItem>

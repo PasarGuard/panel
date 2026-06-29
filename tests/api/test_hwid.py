@@ -85,6 +85,7 @@ def test_hwid_workflow(access_token):
     user = create_user(access_token)
     user_id = user["id"]
     sub_url = user["subscription_url"]
+    assert user["hwid_limit"] is None
 
     try:
         # 2. Fetch subscription with HWID headers (Registration)
@@ -160,18 +161,22 @@ async def test_hwid_enabled_applies_to_users_with_explicit_limit(access_token):
 
 
 @pytest.mark.asyncio
-async def test_hwid_enabled_does_not_apply_fallback_to_user_without_limit(access_token):
+async def test_hwid_enabled_applies_fallback_to_user_without_limit(access_token):
     user = create_user(access_token)
 
     try:
         await _set_user_hwid_limit(user["id"], None)
 
-        for index in range(4):
+        for index in range(3):
             response = client.get(user["subscription_url"], headers={"X-HWID": f"null-limit-device-{index}"})
             assert response.status_code == status.HTTP_200_OK
 
+        response = client.get(user["subscription_url"], headers={"X-HWID": "null-limit-device-4"})
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+        assert "Device limit reached" in response.json()["detail"]
+
         response = client.get(f"/api/user/{user['id']}/hwids", headers=auth_headers(access_token))
-        assert response.json()["count"] == 0
+        assert response.json()["count"] == 3
     finally:
         await _reset_user_hwids(user["id"])
         delete_user(access_token, user["username"])

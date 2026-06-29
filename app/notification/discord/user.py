@@ -1,5 +1,3 @@
-import copy
-
 from app.models.settings import NotificationSettings
 from app.models.user import UserNotificationResponse
 from app.notification.client import send_discord_webhook
@@ -30,7 +28,7 @@ _status_color = {
 
 async def user_status_change(user: UserNotificationResponse, by: str):
     username, admin_username, by = escape_md_user(user, by)
-    message = copy.deepcopy(messages.USER_STATUS_CHANGE)
+    message = {**messages.USER_STATUS_CHANGE, "footer": dict(messages.USER_STATUS_CHANGE["footer"])}
     message["title"] = message["title"].format(status=_status[user.status.value])
     message["description"] = message["description"].format(username=username)
     message["footer"]["text"] = message["footer"]["text"].format(admin_username=admin_username, by=by)
@@ -50,7 +48,7 @@ async def user_status_change(user: UserNotificationResponse, by: str):
 
 async def create_user(user: UserNotificationResponse, by: str):
     username, admin_username, by = escape_md_user(user, by)
-    message = copy.deepcopy(messages.CREATE_USER)
+    message = {**messages.CREATE_USER, "footer": dict(messages.CREATE_USER["footer"])}
     message["description"] = message["description"].format(
         username=username,
         data_limit=readable_size(user.data_limit) if user.data_limit else "Unlimited",
@@ -76,7 +74,7 @@ async def create_user(user: UserNotificationResponse, by: str):
 
 async def modify_user(user: UserNotificationResponse, by: str):
     username, admin_username, by = escape_md_user(user, by)
-    message = copy.deepcopy(messages.MODIFY_USER)
+    message = {**messages.MODIFY_USER, "footer": dict(messages.MODIFY_USER["footer"])}
     message["description"] = message["description"].format(
         username=username,
         data_limit=readable_size(user.data_limit) if user.data_limit else "Unlimited",
@@ -102,7 +100,7 @@ async def modify_user(user: UserNotificationResponse, by: str):
 
 async def remove_user(user: UserNotificationResponse, by: str):
     username, admin_username, by = escape_md_user(user, by)
-    message = copy.deepcopy(messages.REMOVE_USER)
+    message = {**messages.REMOVE_USER, "footer": dict(messages.REMOVE_USER["footer"])}
     message["description"] = message["description"].format(username=username)
     message["footer"]["text"] = message["footer"]["text"].format(id=user.id, admin_username=admin_username, by=by)
     data = {
@@ -121,7 +119,7 @@ async def remove_user(user: UserNotificationResponse, by: str):
 
 async def reset_user_data_usage(user: UserNotificationResponse, by: str):
     username, admin_username, by = escape_md_user(user, by)
-    message = copy.deepcopy(messages.RESET_USER_DATA_USAGE)
+    message = {**messages.RESET_USER_DATA_USAGE, "footer": dict(messages.RESET_USER_DATA_USAGE["footer"])}
     message["description"] = message["description"].format(
         username=username,
         data_limit=readable_size(user.data_limit) if user.data_limit else "Unlimited",
@@ -143,7 +141,7 @@ async def reset_user_data_usage(user: UserNotificationResponse, by: str):
 
 async def user_data_reset_by_next(user: UserNotificationResponse, by: str):
     username, admin_username, by = escape_md_user(user, by)
-    message = copy.deepcopy(messages.USER_DATA_RESET_BY_NEXT)
+    message = {**messages.USER_DATA_RESET_BY_NEXT, "footer": dict(messages.USER_DATA_RESET_BY_NEXT["footer"])}
     message["description"] = message["description"].format(
         username=username,
         data_limit=readable_size(user.data_limit) if user.data_limit else "Unlimited",
@@ -166,7 +164,7 @@ async def user_data_reset_by_next(user: UserNotificationResponse, by: str):
 
 async def user_subscription_revoked(user: UserNotificationResponse, by: str):
     username, admin_username, by = escape_md_user(user, by)
-    message = copy.deepcopy(messages.USER_SUBSCRIPTION_REVOKED)
+    message = {**messages.USER_SUBSCRIPTION_REVOKED, "footer": dict(messages.USER_SUBSCRIPTION_REVOKED["footer"])}
     message["description"] = message["description"].format(username=username)
     message["footer"]["text"] = message["footer"]["text"].format(id=user.id, admin_username=admin_username, by=by)
     data = {

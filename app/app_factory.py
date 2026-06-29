@@ -31,9 +31,25 @@ async def database_operational_error_handler(request: Request, exc: DBAPIError):
 
 
 def _use_route_names_as_operation_ids(app: FastAPI) -> None:
-    for route in app.routes:
-        if isinstance(route, APIRoute):
-            route.operation_id = route.name
+    def _simplify_operation_ids(routes):
+        for route in routes:
+            if isinstance(route, APIRoute):
+                route.operation_id = route.name
+            elif type(route).__name__ == "_IncludedRouter" and hasattr(route, "original_router"):
+                _simplify_operation_ids(route.original_router.routes)
+            elif hasattr(route, "routes"):
+                _simplify_operation_ids(route.routes)
+
+    _simplify_operation_ids(app.routes)
+
+
+def _validate_subscription_path(app: FastAPI) -> None:
+    paths = [f"{path}/" for route in app.routes if (path := getattr(route, "path", None)) is not None]
+    paths.append("/api/")
+    if f"/{subscription_env_settings.path}/" in paths:
+        raise ValueError(
+            f"you can't use /{subscription_env_settings.path}/ as subscription path it reserved for {app.title}"
+        )
 
 
 def _register_nats_handlers(enable_router: bool, enable_settings: bool, enable_client_templates: bool):
@@ -92,15 +108,7 @@ def create_app() -> FastAPI:
 
     setup_middleware(app)
 
-    def _validate_paths():
-        paths = [f"{r.path}/" for r in app.routes]
-        paths.append("/api/")
-        if f"/{subscription_env_settings.path}/" in paths:
-            raise ValueError(
-                f"you can't use /{subscription_env_settings.path}/ as subscription path it reserved for {app.title}"
-            )
-
-    on_startup(_validate_paths)
+    on_startup(_validate_subscription_path)
 
     if runtime_settings.role.runs_panel:
         import dashboard

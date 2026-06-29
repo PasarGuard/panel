@@ -307,7 +307,7 @@ export default function NodeActionsMenu({
     try {
       await syncNodeMutation.mutateAsync({
         nodeId: node.id,
-        params: { flush_users: false },
+        params: { flush_users: true },
       })
       toast.success(t('nodeModal.syncSuccess'))
       queryClient.invalidateQueries({ queryKey: ['/api/nodes'] })

@@ -294,7 +294,7 @@ async def reconnect_node(
 @router.put("/{node_id}/sync")
 async def sync_node(
     node_id: int,
-    flush_users: bool = False,
+    flush_users: bool = True,
     db: AsyncSession = Depends(get_db),
     _: AdminDetails = Depends(require_permission("nodes", "update")),
 ):

@@ -1,8 +1,11 @@
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useClipboard } from '@/hooks/use-clipboard'
-import { useGetSettings } from '@/service/api'
+import { getGetGeneralSettingsQueryKey, useGetGeneralSettings } from '@/service/api'
+import type { General } from '@/service/api'
+import { useQueryClient } from '@tanstack/react-query'
 import { Braces, Info } from 'lucide-react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -51,6 +54,8 @@ interface VariablesPopoverProps {
   includeProfileTitle?: boolean
   /** Whether to show format variable (default: false) */
   includeFormat?: boolean
+  /** Custom variables to show alongside built-in variables. If omitted, cached global settings are used. */
+  customVariables?: CustomVariableDefinition[]
   /** Popover side placement (default: "right") */
   side?: 'top' | 'right' | 'bottom' | 'left'
   /** Popover alignment (default: "start") */
@@ -59,9 +64,29 @@ interface VariablesPopoverProps {
   sideOffset?: number
 }
 
-export function VariablesPopover({ includeProtocolTransport = false, includeProfileTitle = false, includeFormat = false, side = 'bottom', align = 'start', sideOffset = 0 }: VariablesPopoverProps) {
+export function VariablesPopover({
+  includeProtocolTransport = false,
+  includeProfileTitle = false,
+  includeFormat = false,
+  customVariables,
+  side = 'bottom',
+  align = 'start',
+  sideOffset = 0,
+}: VariablesPopoverProps) {
   const { t } = useTranslation()
   const { copy } = useClipboard()
+  const [open, setOpen] = useState(false)
+  const queryClient = useQueryClient()
+  const cachedGeneralSettings = queryClient.getQueryData<General>(getGetGeneralSettingsQueryKey())
+  const shouldFetchSettings = customVariables === undefined
+  const { data: generalSettings } = useGetGeneralSettings({
+    query: {
+      enabled: shouldFetchSettings && open,
+      retry: false,
+      staleTime: 5 * 60 * 1000,
+    },
+  })
+  const visibleCustomVariables = (customVariables ?? (((generalSettings ?? cachedGeneralSettings)?.custom_variables ?? []) as CustomVariableDefinition[])).filter(variable => variable.key?.trim())
 
   const handleCopy = async (text: string) => {
     await copy(text)
@@ -78,6 +103,19 @@ export function VariablesPopover({ includeProtocolTransport = false, includeProf
       </span>
     </div>
   )
+  const CustomVariableItem = ({ variable }: { variable: CustomVariableDefinition }) => {
+    const token = `{${variable.key}}`
+    return (
+      <div className="flex min-w-0 items-center gap-1.5">
+        <code className="bg-muted/50 hover:bg-muted shrink-0 cursor-pointer rounded-sm px-1.5 py-0.5 text-[11px] transition-colors" onClick={() => handleCopy(token)} title={t('copy')}>
+          {token}
+        </code>
+        <span className="text-muted-foreground min-w-0 truncate text-[11px]" title={variable.value}>
+          {variable.value || t('hostsDialog.customVariables.emptyValue', { defaultValue: 'Empty value' })}
+        </span>
+      </div>
+    )
+  }
 
   const variablesList = (
     <div className="space-y-1">
@@ -105,11 +143,19 @@ export function VariablesPopover({ includeProtocolTransport = false, includeProf
         </>
       )}
       <VariableItem variable="{ADMIN_USERNAME}" translationKey="hostsDialog.variables.admin_username" />
+      {visibleCustomVariables.length > 0 && (
+        <div className="mt-2 space-y-1 border-t pt-2">
+          <p className="text-muted-foreground text-[10px] font-medium">{t('hostsDialog.customVariables.title', { defaultValue: 'Custom variables' })}</p>
+          {visibleCustomVariables.map(variable => (
+            <CustomVariableItem key={variable.key} variable={variable} />
+          ))}
+        </div>
+      )}
     </div>
   )
 
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button type="button" variant="ghost" size="icon" className="h-auto w-auto p-0 hover:bg-transparent">
           <Info className="text-muted-foreground h-3.5 w-3.5" />
@@ -194,15 +240,19 @@ interface CustomVariablesPopoverProps {
 export function CustomVariablesPopover({ customVariables, side = 'bottom', align = 'start', sideOffset = 0 }: CustomVariablesPopoverProps) {
   const { t } = useTranslation()
   const { copy } = useClipboard()
+  const [open, setOpen] = useState(false)
+  const queryClient = useQueryClient()
   const shouldFetchSettings = customVariables === undefined
-  const { data: settings } = useGetSettings({
+  const cachedGeneralSettings = queryClient.getQueryData<General>(getGetGeneralSettingsQueryKey())
+  const { data: generalSettings } = useGetGeneralSettings({
     query: {
-      enabled: shouldFetchSettings,
+      enabled: shouldFetchSettings && open,
       retry: false,
+      staleTime: 5 * 60 * 1000,
     },
   })
 
-  const variables = customVariables ?? (((settings as any)?.subscription?.custom_variables ?? []) as CustomVariableDefinition[])
+  const variables = customVariables ?? (((generalSettings ?? cachedGeneralSettings)?.custom_variables ?? []) as CustomVariableDefinition[])
   const visibleVariables = variables.filter(variable => variable.key?.trim())
 
   const handleCopy = async (text: string) => {
@@ -211,7 +261,7 @@ export function CustomVariablesPopover({ customVariables, side = 'bottom', align
   }
 
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button type="button" variant="ghost" size="icon" className="h-auto w-auto p-0 hover:bg-transparent" title={t('hostsDialog.customVariables.trigger', { defaultValue: 'Custom variables' })}>
           <Braces className="text-muted-foreground h-3.5 w-3.5" />
