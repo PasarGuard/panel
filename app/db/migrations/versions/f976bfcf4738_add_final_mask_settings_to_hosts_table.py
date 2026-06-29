@@ -1,7 +1,7 @@
 """add final_mask_settings to hosts table
 
 Revision ID: f976bfcf4738
-Revises:  73c78c6a9b24
+Revises: b6c9d0e1f2a3
 Create Date: 2026-05-02 13:46:21.008567
 
 """
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = 'f976bfcf4738'
-down_revision = '73c78c6a9b24'
+down_revision = 'b6c9d0e1f2a3'
 branch_labels = None
 depends_on = None
 
