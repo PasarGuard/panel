@@ -236,7 +236,7 @@ class TelegramBotManager:
                     try:
                         await self._bot.delete_webhook(drop_pending_updates=True)
                     except Exception as err:
-                        logger.error(f"Delete webhook - ")
+                        logger.error(f"Delete webhook - {err}")
 
                 if self._bot.session:
                     await self._bot.session.close()
