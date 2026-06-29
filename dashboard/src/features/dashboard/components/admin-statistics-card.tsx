@@ -68,7 +68,7 @@ const AdminStatisticsCard = ({
   // Use admin-specific stats if available, otherwise fall back to global stats
   const statsToUse = skipStatsFetch ? systemStats : adminSystemStats || systemStats
 
-  // Users usage API filters by admin username (`admin` query alias), not admin id.
+  // Users usage API filters by admin username (`admin` query alias).
   const shouldScopeAdminData = admin.username !== 'Total'
 
   if (showAdminInfo)
@@ -82,7 +82,7 @@ const AdminStatisticsCard = ({
         </div>
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
           <UserStatisticsCard data={statsToUse} />
-          <DeferredDataUsageChart adminId={shouldScopeAdminData ? (admin.id ?? undefined) : undefined} adminUsername={shouldScopeAdminData ? admin.username : undefined} />
+          <DeferredDataUsageChart adminUsername={shouldScopeAdminData ? admin.username : undefined} />
         </div>
       </div>
     )

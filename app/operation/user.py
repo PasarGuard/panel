@@ -134,6 +134,34 @@ def _has_permission(admin: AdminDetails, resource: str, action: str) -> bool:
         return False
 
 
+async def _resolve_users_usage_admins_filter(
+    operation: BaseOperation,
+    db: AsyncSession,
+    admin: AdminDetails,
+    requested_admins: list[str] | None,
+) -> list[str] | None:
+    """Resolve admin username filters for aggregate user usage endpoints."""
+    can_read_all_users = is_scope_all(admin, "users", "read")
+    if not requested_admins:
+        return None if can_read_all_users else [admin.username]
+
+    admins_filter = list(dict.fromkeys(requested_admins))
+    if can_read_all_users or all(username == admin.username for username in admins_filter):
+        return admins_filter
+
+    if not _has_permission(admin, "admins", "read"):
+        await operation.raise_error(message="You're not allowed", code=403)
+
+    for username in admins_filter:
+        if username == admin.username:
+            continue
+        db_admin = await get_admin(db, username, load_users=False, load_usage_logs=False)
+        if not db_admin:
+            await operation.raise_error(message="Admin not found", code=404)
+
+    return admins_filter
+
+
 logger = get_logger("user-operation")
 
 _USER_AGENT_SPLIT_RE = re.compile(r"[;/\s\(\)]+")
@@ -1471,7 +1499,7 @@ class UserOperation(BaseOperation):
             node_id = None
             group_by_node = False
 
-        admins_filter = query.owner if is_scope_all(admin, "users", "read") else [admin.username]
+        admins_filter = await _resolve_users_usage_admins_filter(self, db, admin, query.owner)
 
         return await get_all_users_usages(
             db=db,
@@ -1505,7 +1533,7 @@ class UserOperation(BaseOperation):
         except ValueError as exc:
             await self.raise_error(message=str(exc), code=400)
 
-        admins_filter = query.owner if is_scope_all(admin, "users", "read") else [admin.username]
+        admins_filter = await _resolve_users_usage_admins_filter(self, db, admin, query.owner)
 
         return await get_user_count_metric_stats(
             db=db,

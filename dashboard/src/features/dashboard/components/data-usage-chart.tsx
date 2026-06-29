@@ -2,13 +2,11 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { ChartConfig, ChartContainer, ChartTooltip } from '@/components/ui/chart'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useAdmin } from '@/hooks/use-admin'
 import { useChartViewType } from '@/hooks/use-chart-view-type'
 import useDirDetection from '@/hooks/use-dir-detection'
-import { NodeUsageStat, NodeUsageStatsList, Period, useGetAdminUsageById, useGetAdminUsageByUsername, useGetUsage, UserUsageStat, UserUsageStatsList } from '@/service/api'
+import { Period, useGetUsersUsage, UserUsageStat, UserUsageStatsList } from '@/service/api'
 import { formatPeriodLabelForPeriod, formatTooltipDate, getChartQueryRangeFromShortcut, getXAxisIntervalForShortcut } from '@/utils/chart-period-utils'
 import { formatBytes } from '@/utils/formatByte'
-import { hasScopeAll } from '@/utils/rbac'
 import { SearchXIcon, TrendingDown, TrendingUp } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -42,19 +40,17 @@ const PERIOD_KEYS = [
   { key: 'all', period: 'day' as Period, allTime: true },
 ]
 
-const transformUsageData = (apiData: { stats: (UserUsageStat | NodeUsageStat)[] }, period: Period, isNodeUsage: boolean = false, locale: string = 'en') => {
+const transformUsageData = (apiData: { stats: UserUsageStat[] }, period: Period, locale: string = 'en') => {
   if (!apiData?.stats || !Array.isArray(apiData.stats)) {
     return []
   }
 
-  return apiData.stats.map((stat: UserUsageStat | NodeUsageStat) => {
+  return apiData.stats.map((stat: UserUsageStat) => {
     const displayLabel = formatPeriodLabelForPeriod(stat.period_start, period, locale)
-
-    const traffic = isNodeUsage ? ((stat as NodeUsageStat).uplink || 0) + ((stat as NodeUsageStat).downlink || 0) : (stat as UserUsageStat).total_traffic || 0
 
     return {
       date: displayLabel,
-      traffic,
+      traffic: stat.total_traffic || 0,
       period_start: stat.period_start, // Keep original for tooltip
     }
   })
@@ -107,12 +103,10 @@ function CustomBarTooltip({ active, payload, period }: CustomBarTooltipProps) {
   )
 }
 
-const DataUsageChart = ({ adminId, adminUsername }: { adminId?: number; adminUsername?: string }) => {
+const DataUsageChart = ({ adminUsername }: { adminUsername?: string }) => {
   const { t, i18n } = useTranslation()
-  const { admin } = useAdmin()
   const dir = useDirDetection()
   const chartViewType = useChartViewType()
-  const canReadAllUsers = hasScopeAll(admin, 'users', 'read')
   const [activeIndex, setActiveIndex] = useState<number | null>(null)
   const PERIOD_OPTIONS: PeriodOption[] = useMemo(
     () => [
@@ -141,62 +135,33 @@ const DataUsageChart = ({ adminId, adminUsername }: { adminId?: number; adminUse
   const queryRange = useMemo(() => getChartQueryRangeFromShortcut(periodOption.value, new Date(), { minuteForOneHour: true }), [periodOption.value])
   const activePeriod = queryRange.period
 
-  const shouldUseNodeUsage = canReadAllUsers && !adminUsername
-
-  const nodeUsageParams = useMemo(
-    () => ({
-      period: activePeriod,
-      start: queryRange.startDate,
-      end: queryRange.endDate,
-    }),
-    [activePeriod, queryRange.startDate, queryRange.endDate],
-  )
-
-  const adminUsageParams = useMemo(
+  const usersUsageParams = useMemo(
     () => ({
       ...(adminUsername ? { admin: [adminUsername] } : {}),
       period: activePeriod,
       start: queryRange.startDate,
       end: queryRange.endDate,
     }),
-    [activePeriod, queryRange.startDate, queryRange.endDate],
+    [activePeriod, adminUsername, queryRange.startDate, queryRange.endDate],
   )
 
-  const { data: nodeData, isLoading: isLoadingNodes } = useGetUsage(nodeUsageParams, {
+  const { data, isLoading } = useGetUsersUsage(usersUsageParams, {
     query: {
-      enabled: shouldUseNodeUsage,
       refetchInterval: 1000 * 60 * 5,
     },
   })
 
-  const { data: adminUsageByIdData, isLoading: isLoadingAdminUsageById } = useGetAdminUsageById(adminId ?? 0, adminUsageParams, {
-    query: {
-      enabled: !shouldUseNodeUsage && adminId != null,
-      refetchInterval: 1000 * 60 * 5,
-    },
-  })
-
-  const { data: adminUsageByUsernameData, isLoading: isLoadingAdminUsageByUsername } = useGetAdminUsageByUsername(adminUsername ?? '', adminUsageParams, {
-    query: {
-      enabled: !shouldUseNodeUsage && adminId == null && !!adminUsername,
-      refetchInterval: 1000 * 60 * 5,
-    },
-  })
-
-  const data: UserUsageStatsList | NodeUsageStatsList | undefined = shouldUseNodeUsage ? nodeData : adminId != null ? adminUsageByIdData : adminUsageByUsernameData
-  const isLoading = shouldUseNodeUsage ? isLoadingNodes : adminId != null ? isLoadingAdminUsageById : isLoadingAdminUsageByUsername
-
-  let statsArr: (UserUsageStat | NodeUsageStat)[] = []
+  let statsArr: UserUsageStat[] = []
   if (data?.stats) {
     if (typeof data.stats === 'object' && !Array.isArray(data.stats)) {
-      const statsObj = data.stats as { [key: string]: (UserUsageStat | NodeUsageStat)[] }
+      const statsObj = data.stats as { [key: string]: UserUsageStat[] }
       statsArr = statsObj['-1'] || statsObj[Object.keys(statsObj)[0]] || []
     } else if (Array.isArray(data.stats)) {
       statsArr = data.stats
     }
   }
 
-  const chartData = useMemo(() => transformUsageData({ stats: statsArr }, activePeriod, shouldUseNodeUsage, i18n.language), [statsArr, activePeriod, shouldUseNodeUsage, i18n.language])
+  const chartData = useMemo(() => transformUsageData({ stats: statsArr }, activePeriod, i18n.language), [statsArr, activePeriod, i18n.language])
 
   const trend = useMemo(() => {
     if (!chartData || chartData.length < 2) return null
