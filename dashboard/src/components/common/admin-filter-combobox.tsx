@@ -7,7 +7,7 @@ import { useDebouncedSearch } from '@/hooks/use-debounced-search'
 import { cn } from '@/lib/utils'
 import { type AdminSimple, useGetAdminsSimple } from '@/service/api'
 import { Check, ChevronDown, Loader2, Sigma, UserRound } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { type UIEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface AdminFilterComboboxProps {
@@ -28,7 +28,7 @@ export default function AdminFilterCombobox({ value, onValueChange, onAdminSelec
   const [admins, setAdmins] = useState<AdminSimple[]>([])
   const [hasMore, setHasMore] = useState(true)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
-  const listRef = useRef<HTMLDivElement>(null)
+  const requestedOffsetRef = useRef(0)
   const { debouncedSearch: adminSearch, setSearch: setAdminSearchInput } = useDebouncedSearch('', 300)
 
   useEffect(() => {
@@ -36,6 +36,7 @@ export default function AdminFilterCombobox({ value, onValueChange, onAdminSelec
     setAdmins([])
     setHasMore(true)
     setIsLoadingMore(false)
+    requestedOffsetRef.current = 0
   }, [adminSearch])
 
   const {
@@ -46,6 +47,7 @@ export default function AdminFilterCombobox({ value, onValueChange, onAdminSelec
     {
       limit: PAGE_SIZE,
       offset,
+      sort: 'username',
       ...(adminSearch ? { search: adminSearch } : {}),
     },
     {
@@ -58,7 +60,8 @@ export default function AdminFilterCombobox({ value, onValueChange, onAdminSelec
   useEffect(() => {
     if (!fetchedAdminsResponse) return
 
-    const fetchedAdmins = (fetchedAdminsResponse.admins || []).filter(admin => admin.username !== 'system')
+    const fetchedAdminsPage = fetchedAdminsResponse.admins || []
+    const fetchedAdmins = fetchedAdminsPage.filter(admin => admin.username !== 'system')
     setAdmins(prev => {
       const merged = offset === 0 ? fetchedAdmins : [...prev, ...fetchedAdmins]
       const byUsername = new Map<string, AdminSimple>()
@@ -67,25 +70,20 @@ export default function AdminFilterCombobox({ value, onValueChange, onAdminSelec
       })
       return Array.from(byUsername.values())
     })
-    setHasMore(fetchedAdmins.length === PAGE_SIZE)
+    setHasMore(fetchedAdminsPage.length > 0 && offset + fetchedAdminsPage.length < fetchedAdminsResponse.total)
     setIsLoadingMore(false)
   }, [fetchedAdminsResponse, offset])
 
-  const handleScroll = useCallback(() => {
-    if (!listRef.current || isLoadingMore || isFetching || !hasMore) return
-    const { scrollTop, scrollHeight, clientHeight } = listRef.current
+  const handleScroll = useCallback((event: UIEvent<HTMLDivElement>) => {
+    if (isLoadingMore || isFetching || !hasMore) return
+    const { scrollTop, scrollHeight, clientHeight } = event.currentTarget
     if (scrollHeight - scrollTop - clientHeight < 90) {
+      const nextOffset = requestedOffsetRef.current + PAGE_SIZE
+      requestedOffsetRef.current = nextOffset
       setIsLoadingMore(true)
-      setOffset(prev => prev + PAGE_SIZE)
+      setOffset(nextOffset)
     }
   }, [hasMore, isFetching, isLoadingMore])
-
-  useEffect(() => {
-    const el = listRef.current
-    if (!el) return
-    el.addEventListener('scroll', handleScroll)
-    return () => el.removeEventListener('scroll', handleScroll)
-  }, [handleScroll])
 
   const selectedAdmin = useMemo(() => admins.find(admin => admin.username === value), [admins, value])
   const triggerLabel = value === 'all' ? t('statistics.adminFilterAll') : selectedAdmin?.username || value
@@ -113,7 +111,7 @@ export default function AdminFilterCombobox({ value, onValueChange, onAdminSelec
         <PopoverContent className="w-[min(92vw,20rem)] p-1 sm:w-[20rem]" sideOffset={4} align={dir === 'rtl' ? 'end' : 'start'}>
           <Command>
             <CommandInput placeholder={t('search', { defaultValue: 'Search' })} onValueChange={setAdminSearchInput} className="h-8 text-sm" />
-            <CommandList ref={listRef}>
+            <CommandList onScroll={handleScroll}>
               <CommandEmpty>
                 {showInitialAdminsLoading ? (
                   <div className="text-muted-foreground flex items-center justify-center gap-2 py-3 text-xs sm:py-4 sm:text-sm">
@@ -149,11 +147,7 @@ export default function AdminFilterCombobox({ value, onValueChange, onAdminSelec
                   value={admin.username}
                   onSelect={() => {
                     onValueChange(admin.username)
-                    onAdminSelect?.({
-                      ...admin,
-                      is_disabled: false,
-                      is_limited: false,
-                    })
+                    onAdminSelect?.(admin)
                     setOpen(false)
                   }}
                   className={cn('flex min-w-0 items-center gap-2 px-2 py-1.5 text-xs sm:text-sm', dir === 'rtl' ? 'flex-row-reverse' : 'flex-row')}
