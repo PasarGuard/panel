@@ -481,7 +481,9 @@
   "saving": "در حال ذخیره...",
   "general": "عمومی",
   "loading": "در حال بارگذاری...",
+  "clear": "پاک کردن",
   "never": "هرگز",
+  "resources": "منابع",
   "noResults": "نتیجه‌ای یافت نشد",
   "noAdminsFound": "مدیری یافت نشد",
   "emptyState": {
@@ -611,7 +613,54 @@
     "monitor": {
       "traffic": "نظارت بر مصرف ترافیک مدیر در طول زمان",
       "no_traffic": "داده‌ای برای ترافیک موجود نیست"
-    }
+    },
+    "disabled": "???????"
+  },
+  "apiKeys": {
+    "title": "کلیدهای API",
+    "description": "مدیریت کلیدهای API برای دسترسی برنامه‌نویسی",
+    "createKey": "ایجاد کلید API",
+    "editKey": "ویرایش کلید API",
+    "admin": "مدیر",
+    "selectAdmin": "انتخاب مدیر",
+    "adminDescription": "این کلید با هویت این مدیر احراز هویت می‌شود.",
+    "name": "نام",
+    "key": "کلید API",
+    "keyId": "شناسه کلید",
+    "note": "یادداشت",
+    "role": "نقش",
+    "status": "وضعیت",
+    "expireDate": "تاریخ انقضا",
+    "createdAt": "تاریخ ایجاد",
+    "revokedAt": "تاریخ ابطال",
+    "revoke": "ابطال",
+    "delete": "حذف",
+    "apiKey": "کلید API",
+    "apiKeyCopy": "کپی کلید API",
+    "apiKeyCopySuccess": "کلید API در حافظه کپی شد",
+    "apiKeyShowWarning": "این کلید فقط یکبار نمایش داده می‌شود. لطفا همین الان آن را کپی کنید.",
+    "createSuccess": "کلید API با موفقیت ایجاد شد",
+    "createFailed": "ایجاد کلید API ناموفق بود",
+    "updateSuccess": "کلید API با موفقیت بروزرسانی شد",
+    "updateFailed": "بروزرسانی کلید API ناموفق بود",
+    "revokeSuccess": "کلید API با موفقیت ابطال و مجدداً صادر شد",
+    "revokeFailed": "ابطال کلید API ناموفق بود",
+    "deleteSuccess": "کلید API با موفقیت حذف شد",
+    "deleteFailed": "حذف کلید API ناموفق بود",
+    "deletePrompt": "آیا از حذف کلید API «{{name}}» اطمینان دارید؟",
+    "revokePrompt": "ابطال کلید باعث غیرفعال شدن کلید فعلی و صدور کلید جدید می‌شود. آیا مطمئن هستید؟",
+    "revokeTitle": "ابطال و صدور مجدد کلید API",
+    "deleteTitle": "حذف کلید API",
+    "inheritPermissions": "ارث‌بری مجوزهای مدیر",
+    "inheritPermissionsDescription": "از مجوزهای فعلی نقش مدیر مالک استفاده شود. برای ذخیره مجوزهای سفارشی روی این کلید غیرفعال کنید.",
+    "inherited": "ارث‌بری‌شده",
+    "noKeys": "هیچ کلید API تنظیم نشده است",
+    "noKeysDescription": "برای دسترسی برنامه‌نویسی یک کلید API ایجاد کنید.",
+    "noSearchResults": "هیچ کلید API با معیارهای جست‌وجوی شما مطابقت ندارد. عبارت جست‌وجو یا فیلترها را تغییر دهید.",
+    "bulkDeleteSuccess": "{{count}} کلید API با موفقیت حذف شد.",
+    "bulkDeleteFailed": "حذف کلیدهای API انتخاب‌شده ناموفق بود.",
+    "bulkDeleteTitle": "حذف کلیدهای API انتخاب‌شده",
+    "bulkDeletePrompt": "آیا از حذف {{count}} کلید API انتخاب‌شده مطمئن هستید؟ این عملیات قابل بازگشت نیست."
   },
   "adminRoles": {
     "title": "نقش‌های مدیر",
@@ -632,7 +681,7 @@
     "limits": "محدودیت‌ها",
     "limitsAndFeatures": "محدودیت‌ها و قابلیت‌ها",
     "limitsHint": "برای استفاده از پیش‌فرض، خالی بگذارید. برای غیرفعال‌سازی ۰ بگذارید.",
-    "roleFormHint": "اعمال کاربر دارای محدوده، مقدار «هیچ»، «خودی» یا «همه» می‌گیرند. سایر اعمال سوئیچ بولی هستند.",
+    "roleFormHint": "اعمال دارای محدوده، مقدار «هیچ»، «خودی» یا «همه» می‌گیرند. سایر اعمال سوئیچ بولی هستند.",
     "scopedActionInfo": "محدوده مالکیت را انتخاب کنید: «هیچ» دسترسی را رد می‌کند، «خودی» فقط کاربران خود مدیر را شامل می‌شود و «همه» دسترسی کامل می‌دهد.",
     "allowAll": "اجازه همه",
     "features": "قابلیت‌ها",
@@ -678,6 +727,7 @@
       "users": "کاربران",
       "admins": "مدیران",
       "roles": "نقش‌ها",
+      "apiKeys": "کلیدهای API",
       "nodes": "گره‌ها",
       "coreHosts": "هسته و هاست‌ها",
       "groupsTemplates": "گروه‌ها و قالب‌ها",
@@ -733,6 +783,7 @@
       "users": "کاربران",
       "admins": "مدیران",
       "admin_roles": "نقش‌ها",
+      "api_keys": "کلیدهای API",
       "nodes": "گره‌ها",
       "cores": "هسته‌ها",
       "hosts": "هاست‌ها",
@@ -743,6 +794,7 @@
       "system": "سیستم",
       "hwids": "HWID"
     },
+    "noAvailablePermissions": "هیچ مجوزی در دسترس نیست.",
     "scopedBadge": "محدوده‌دار",
     "scopes": {
       "none": "هیچ",
@@ -759,8 +811,7 @@
       "max_hwid_per_user": "حداکثر HWID برای هر کاربر",
       "on_hold_timeout_days_min": "حداقل زمان انتظار (روز)",
       "on_hold_timeout_days_max": "حداکثر زمان انتظار (روز)"
-      },
-
+    },
     "limitedBehavior": {
       "disabledWhenLimited": {
         "title": "مسدود کردن مدیران محدودشده",
@@ -3309,6 +3360,7 @@
   "timeSelector.pickDate": "انتخاب تاریخ",
   "advanceSearch": {
     "title": "جستجوی پیشرفته",
+    "description": "فیلتر کردن کلیدهای API بر اساس شناسه و وضعیت.",
     "searchMode": "حالت جست‌وجو",
     "searchModeDescription": "مشخص کنید فیلد جست‌وجوی اصلی چگونه تفسیر شود.",
     "byUsername": "نام کاربری و یادداشت‌ها",

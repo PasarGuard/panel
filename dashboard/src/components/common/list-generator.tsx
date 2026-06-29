@@ -15,11 +15,13 @@ export interface ListColumn<T> {
   header: React.ReactNode
   cell: (item: T) => React.ReactNode
   width?: string
+  mobileWidth?: string
   className?: string
   headerClassName?: string
   skeletonClassName?: string
   align?: ListColumnAlign
   hideOnMobile?: boolean
+  hideInMobileDetails?: boolean
 }
 
 interface ListGeneratorProps<T> {
@@ -119,14 +121,14 @@ export function ListGenerator<T>({
   const shouldShowEmptyState = showEmptyState && !isLoading && !hasData
   const showRows = !isLoading && hasData
   const mobileDetailsColumns = useMemo(() => columns.filter(column => column.hideOnMobile), [columns])
-  const mobileDetailDataColumns = useMemo(() => mobileDetailsColumns.filter(column => !!column.header), [mobileDetailsColumns])
+  const mobileDetailDataColumns = useMemo(() => mobileDetailsColumns.filter(column => !!column.header && !column.hideInMobileDetails), [mobileDetailsColumns])
   const mobileDetailActionColumns = useMemo(() => mobileDetailsColumns.filter(column => !column.header), [mobileDetailsColumns])
   const hasMobileExpandableDetails = mobileDetailDataColumns.length > 0
   const hasMobileTrailingWidth = mobileDetailsColumns.length > 0
   const isAllVisibleSelected = visibleSelectableRowIds.length > 0 && visibleSelectableRowIds.every(id => selectedRowSet.has(id))
   const isSomeVisibleSelected = !isAllVisibleSelected && visibleSelectableRowIds.some(id => selectedRowSet.has(id))
   const mobileTemplateColumns = useMemo(() => {
-    const visibleColumns = columns.filter(column => !column.hideOnMobile).map(column => column.width ?? 'minmax(0, 1fr)')
+    const visibleColumns = columns.filter(column => !column.hideOnMobile).map(column => column.mobileWidth ?? column.width ?? 'minmax(0, 1fr)')
 
     if (hasMobileTrailingWidth) {
       visibleColumns.push(mobileDetailActionColumns.length > 0 ? 'max-content' : '32px')
@@ -334,9 +336,9 @@ export function ListGenerator<T>({
                         if (cellContent === null || cellContent === undefined) return null
 
                         return (
-                          <div key={`mobile-${column.id}-${rowId}`} className={cn('flex items-start justify-between gap-3 px-1.5 py-1.5', dir === 'rtl' && 'flex-row-reverse')}>
-                            <div className="text-muted-foreground shrink-0 text-[10px] font-medium tracking-wide uppercase">{column.header}</div>
-                            <div className={cn('min-w-0 text-sm leading-5', dir === 'rtl' ? 'text-left' : 'text-right')}>{cellContent}</div>
+                          <div key={`mobile-${column.id}-${rowId}`} dir={dir} className="flex items-start justify-between gap-3 px-1.5 py-1.5">
+                            <div className="text-muted-foreground shrink-0 text-start text-[10px] font-medium tracking-wide uppercase">{column.header}</div>
+                            <div className="min-w-0 text-end text-sm leading-5">{cellContent}</div>
                           </div>
                         )
                       })}

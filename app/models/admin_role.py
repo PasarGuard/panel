@@ -70,6 +70,10 @@ class NodesPermissions(CRUDPermissions):
     stats: RoleActionValue | None = None
 
 
+class APIKeysPermissions(CRUDPermissions):
+    create: bool | None = None
+
+
 class HostsPermissions(_ResourcePermissions):
     create: RoleActionValue | None = None
     read: RoleActionValue | None = None
@@ -138,6 +142,7 @@ class RolePermissions(BaseModel):
     system: SystemPermissions | None = None
     hwids: HwidsPermissions | None = None
     admin_roles: CRUDPermissions | None = None
+    api_keys: APIKeysPermissions | None = None
 
     model_config = ConfigDict(from_attributes=True)
 

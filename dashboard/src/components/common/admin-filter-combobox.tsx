@@ -5,7 +5,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import useDirDetection from '@/hooks/use-dir-detection'
 import { useDebouncedSearch } from '@/hooks/use-debounced-search'
 import { cn } from '@/lib/utils'
-import { type AdminDetails, type AdminSimple, useGetAdminsSimple } from '@/service/api'
+import { type AdminSimple, useGetAdminsSimple } from '@/service/api'
 import { Check, ChevronDown, Loader2, Sigma, UserRound } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -13,7 +13,7 @@ import { useTranslation } from 'react-i18next'
 interface AdminFilterComboboxProps {
   value: string
   onValueChange: (username: string) => void
-  onAdminSelect?: (admin: AdminDetails | null) => void
+  onAdminSelect?: (admin: AdminSimple | null) => void
   className?: string
 }
 

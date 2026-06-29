@@ -329,6 +329,14 @@ export type GetRolesParams = {
   sort?: string | null
 }
 
+export type ListApiKeysParams = {
+  offset?: number
+  limit?: number
+  key_id?: number | null
+  name?: string | null
+  status?: APIKeyStatus | null
+}
+
 export type GetAdminUsageByIdParams = {
   period?: Period
   node_id?: number | null
@@ -1122,6 +1130,13 @@ export interface UserModify {
   status?: UserModifyStatus
 }
 
+/**
+ * User IP lists for all nodes
+ */
+export interface UserIPListAll {
+  nodes: UserIPListAllNodes
+}
+
 export type UserIPListIps = { [key: string]: number }
 
 /**
@@ -1132,13 +1147,6 @@ export interface UserIPList {
 }
 
 export type UserIPListAllNodes = { [key: string]: UserIPList | null }
-
-/**
- * User IP lists for all nodes
- */
-export interface UserIPListAll {
-  nodes: UserIPListAllNodes
-}
 
 export type UserHWIDResponseDeviceModel = string | null
 
@@ -1560,15 +1568,15 @@ export interface SettingsSchema {
   general?: SettingsSchemaGeneral
 }
 
-export type SettingsPermissionsUpdateAnyOf = { [key: string]: PermissionScope | number }
-
-export type SettingsPermissionsUpdate = boolean | SettingsPermissionsUpdateAnyOf | null
-
 export interface SettingsPermissions {
   read?: SettingsPermissionsRead
   read_general?: SettingsPermissionsReadGeneral
   update?: SettingsPermissionsUpdate
 }
+
+export type SettingsPermissionsUpdateAnyOf = { [key: string]: PermissionScope | number }
+
+export type SettingsPermissionsUpdate = boolean | SettingsPermissionsUpdateAnyOf | null
 
 export type SettingsPermissionsReadGeneralAnyOf = { [key: string]: PermissionScope | number }
 
@@ -1585,6 +1593,8 @@ export const RunMethod = {
   webhook: 'webhook',
   'long-polling': 'long-polling',
 } as const
+
+export type RolePermissionsApiKeys = APIKeysPermissions | null
 
 export type RolePermissionsAdminRoles = CRUDPermissions | null
 
@@ -1627,6 +1637,7 @@ export interface RolePermissions {
   system?: RolePermissionsSystem
   hwids?: RolePermissionsHwids
   admin_roles?: RolePermissionsAdminRoles
+  api_keys?: RolePermissionsApiKeys
 }
 
 export type RoleLimitsOnHoldTimeoutMax = number | null
@@ -1751,6 +1762,14 @@ export interface RemoveAdminsResponse {
   count: number
 }
 
+/**
+ * Response model for bulk API key deletion.
+ */
+export interface RemoveAPIKeysResponse {
+  api_keys: string[]
+  count: number
+}
+
 export interface ProxyTable {
   vmess?: VMessSettings
   vless?: VlessSettings
@@ -1867,6 +1886,7 @@ export interface NotificationEnable {
   node?: NodeNotificationEnable
   user?: UserNotificationEnable
   user_template?: BaseNotificationEnable
+  api_key?: BaseNotificationEnable
   days_left?: boolean
   percentage_reached?: boolean
 }
@@ -1883,6 +1903,7 @@ export interface NotificationChannels {
   node?: NotificationChannel
   user?: NotificationChannel
   user_template?: NotificationChannel
+  api_key?: NotificationChannel
 }
 
 export interface NotificationSettings {
@@ -1975,6 +1996,18 @@ export type NodesPermissionsUpdate = boolean | NodesPermissionsUpdateAnyOf | nul
 export type NodesPermissionsReadSimpleAnyOf = { [key: string]: PermissionScope | number }
 
 export type NodesPermissionsReadSimple = boolean | NodesPermissionsReadSimpleAnyOf | null
+
+export interface NodesPermissions {
+  create?: NodesPermissionsCreate
+  read?: NodesPermissionsRead
+  read_simple?: NodesPermissionsReadSimple
+  update?: NodesPermissionsUpdate
+  delete?: NodesPermissionsDelete
+  reconnect?: NodesPermissionsReconnect
+  update_core?: NodesPermissionsUpdateCore
+  logs?: NodesPermissionsLogs
+  stats?: NodesPermissionsStats
+}
 
 export type NodesPermissionsReadAnyOf = { [key: string]: PermissionScope | number }
 
@@ -2191,6 +2224,19 @@ export interface NodeGeoFilesUpdate {
 
 export type NodeCreateProxyUrl = string | null
 
+export interface NodeCoreUpdate {
+  /** @pattern ^(latest|v?\d+\.\d+\.\d+)$ */
+  core_version?: string
+}
+
+export type NodeConnectionType = (typeof NodeConnectionType)[keyof typeof NodeConnectionType]
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const NodeConnectionType = {
+  grpc: 'grpc',
+  rest: 'rest',
+} as const
+
 export interface NodeCreate {
   name: string
   address: string
@@ -2218,19 +2264,6 @@ export interface NodeCreate {
   internal_timeout?: number
   proxy_url?: NodeCreateProxyUrl
 }
-
-export interface NodeCoreUpdate {
-  /** @pattern ^(latest|v?\d+\.\d+\.\d+)$ */
-  core_version?: string
-}
-
-export type NodeConnectionType = (typeof NodeConnectionType)[keyof typeof NodeConnectionType]
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
-export const NodeConnectionType = {
-  grpc: 'grpc',
-  rest: 'rest',
-} as const
 
 export type NextPlanModelExpire = number | null
 
@@ -2349,6 +2382,12 @@ export type HostsPermissionsUpdateAnyOf = { [key: string]: PermissionScope | num
 
 export type HostsPermissionsUpdate = boolean | HostsPermissionsUpdateAnyOf | null
 
+export interface HostsPermissions {
+  create?: HostsPermissionsCreate
+  read?: HostsPermissionsRead
+  update?: HostsPermissionsUpdate
+}
+
 export type HostsPermissionsReadAnyOf = { [key: string]: PermissionScope | number }
 
 export type HostsPermissionsRead = boolean | HostsPermissionsReadAnyOf | null
@@ -2356,12 +2395,6 @@ export type HostsPermissionsRead = boolean | HostsPermissionsReadAnyOf | null
 export type HostsPermissionsCreateAnyOf = { [key: string]: PermissionScope | number }
 
 export type HostsPermissionsCreate = boolean | HostsPermissionsCreateAnyOf | null
-
-export interface HostsPermissions {
-  create?: HostsPermissionsCreate
-  read?: HostsPermissionsRead
-  update?: HostsPermissionsUpdate
-}
 
 export interface HostNotificationEnable {
   create?: boolean
@@ -2428,6 +2461,11 @@ export interface HTTPException {
   detail: string
 }
 
+export interface GroupsResponse {
+  groups: GroupResponse[]
+  total: number
+}
+
 /**
  * Lightweight group model with only id and name for performance.
  */
@@ -2456,11 +2494,6 @@ export interface GroupResponse {
   is_disabled?: boolean
   id: number
   total_users?: number
-}
-
-export interface GroupsResponse {
-  groups: GroupResponse[]
-  total: number
 }
 
 export type GroupModifyInboundTags = string[] | null
@@ -2681,6 +2714,11 @@ export interface CoresSimpleResponse {
   total: number
 }
 
+export interface CoreResponseList {
+  count: number
+  cores?: CoreResponse[]
+}
+
 export type CoreResponseType = CoreType | null
 
 export type CoreResponseConfig = { [key: string]: unknown }
@@ -2693,11 +2731,6 @@ export interface CoreResponse {
   fallbacks_inbound_tags: string[]
   id: number
   created_at: string
-}
-
-export interface CoreResponseList {
-  count: number
-  cores?: CoreResponse[]
 }
 
 export type CoreCreateFallbacksInboundTags = unknown[] | null
@@ -2737,17 +2770,6 @@ export const ConfigFormat = {
   block: 'block',
 } as const
 
-export type ClientTemplateType = (typeof ClientTemplateType)[keyof typeof ClientTemplateType]
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
-export const ClientTemplateType = {
-  clash_subscription: 'clash_subscription',
-  xray_subscription: 'xray_subscription',
-  singbox_subscription: 'singbox_subscription',
-  user_agent: 'user_agent',
-  grpc_user_agent: 'grpc_user_agent',
-} as const
-
 export interface ClientTemplateSimple {
   id: number
   name: string
@@ -2759,6 +2781,17 @@ export interface ClientTemplatesSimpleResponse {
   templates: ClientTemplateSimple[]
   total: number
 }
+
+export type ClientTemplateType = (typeof ClientTemplateType)[keyof typeof ClientTemplateType]
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const ClientTemplateType = {
+  clash_subscription: 'clash_subscription',
+  xray_subscription: 'xray_subscription',
+  singbox_subscription: 'singbox_subscription',
+  user_agent: 'user_agent',
+  grpc_user_agent: 'grpc_user_agent',
+} as const
 
 export interface ClientTemplateResponse {
   id: number
@@ -2830,6 +2863,10 @@ export type CRUDPermissionsReadAnyOf = { [key: string]: PermissionScope | number
 
 export type CRUDPermissionsRead = boolean | CRUDPermissionsReadAnyOf | null
 
+export type CRUDPermissionsCreateAnyOf = { [key: string]: PermissionScope | number }
+
+export type CRUDPermissionsCreate = boolean | CRUDPermissionsCreateAnyOf | null
+
 /**
  * Standard create/read/read_simple/update/delete permissions.
 Used directly by: groups, templates, client_templates, cores, admin_roles.
@@ -2842,10 +2879,6 @@ export interface CRUDPermissions {
   update?: CRUDPermissionsUpdate
   delete?: CRUDPermissionsDelete
 }
-
-export type CRUDPermissionsCreateAnyOf = { [key: string]: PermissionScope | number }
-
-export type CRUDPermissionsCreate = boolean | CRUDPermissionsCreateAnyOf | null
 
 export type BulkWireGuardPeerIPsExpireBefore = string | null
 
@@ -3047,6 +3080,13 @@ export interface BulkAdminSelection {
   ids?: number[]
 }
 
+/**
+ * Model for bulk API key selection by IDs.
+ */
+export interface BulkAPIKeySelection {
+  ids?: number[]
+}
+
 export interface Brutal {
   enable?: boolean
   up_mbps: number
@@ -3098,6 +3138,26 @@ export type BaseHostMuxSettings = MuxSettingsOutput | null
 
 export type BaseHostTransportSettings = TransportSettingsOutput | null
 
+export type BaseHostHttpHeadersAnyOf = { [key: string]: string }
+
+export type BaseHostHttpHeaders = BaseHostHttpHeadersAnyOf | null
+
+export type BaseHostAllowinsecure = boolean | null
+
+export type BaseHostAlpn = ProxyHostALPN[] | null
+
+export type BaseHostPath = string | null
+
+export type BaseHostHost = string[] | null
+
+export type BaseHostSni = string[] | null
+
+export type BaseHostPort = number | null
+
+export type BaseHostInboundTag = string | null
+
+export type BaseHostId = number | null
+
 export interface BaseHost {
   id?: BaseHostId
   remark: string
@@ -3129,26 +3189,6 @@ export interface BaseHost {
   wireguard_overrides?: BaseHostWireguardOverrides
   subscription_templates?: BaseHostSubscriptionTemplates
 }
-
-export type BaseHostHttpHeadersAnyOf = { [key: string]: string }
-
-export type BaseHostHttpHeaders = BaseHostHttpHeadersAnyOf | null
-
-export type BaseHostAllowinsecure = boolean | null
-
-export type BaseHostAlpn = ProxyHostALPN[] | null
-
-export type BaseHostPath = string | null
-
-export type BaseHostHost = string[] | null
-
-export type BaseHostSni = string[] | null
-
-export type BaseHostPort = number | null
-
-export type BaseHostInboundTag = string | null
-
-export type BaseHostId = number | null
 
 export type ApplicationDescription = { [key: string]: string }
 
@@ -3189,6 +3229,14 @@ export type AdminsPermissionsResetUsageAnyOf = { [key: string]: PermissionScope 
 
 export type AdminsPermissionsResetUsage = boolean | AdminsPermissionsResetUsageAnyOf | null
 
+export type AdminsPermissionsDeleteAnyOf = { [key: string]: PermissionScope | number }
+
+export type AdminsPermissionsDelete = boolean | AdminsPermissionsDeleteAnyOf | null
+
+export type AdminsPermissionsUpdateAnyOf = { [key: string]: PermissionScope | number }
+
+export type AdminsPermissionsUpdate = boolean | AdminsPermissionsUpdateAnyOf | null
+
 export interface AdminsPermissions {
   create?: AdminsPermissionsCreate
   read?: AdminsPermissionsRead
@@ -3197,14 +3245,6 @@ export interface AdminsPermissions {
   delete?: AdminsPermissionsDelete
   reset_usage?: AdminsPermissionsResetUsage
 }
-
-export type AdminsPermissionsDeleteAnyOf = { [key: string]: PermissionScope | number }
-
-export type AdminsPermissionsDelete = boolean | AdminsPermissionsDeleteAnyOf | null
-
-export type AdminsPermissionsUpdateAnyOf = { [key: string]: PermissionScope | number }
-
-export type AdminsPermissionsUpdate = boolean | AdminsPermissionsUpdateAnyOf | null
 
 export type AdminsPermissionsReadSimpleAnyOf = { [key: string]: PermissionScope | number }
 
@@ -3518,6 +3558,139 @@ export type AdminBaseId = number | null
 export interface AdminBase {
   id?: AdminBaseId
   username: string
+}
+
+export interface APIKeysResponse {
+  api_keys: APIKeyResponse[]
+  total: number
+}
+
+export type APIKeysPermissionsDeleteAnyOf = { [key: string]: PermissionScope | number }
+
+export type APIKeysPermissionsDelete = boolean | APIKeysPermissionsDeleteAnyOf | null
+
+export type APIKeysPermissionsUpdateAnyOf = { [key: string]: PermissionScope | number }
+
+export type APIKeysPermissionsUpdate = boolean | APIKeysPermissionsUpdateAnyOf | null
+
+export type APIKeysPermissionsReadSimpleAnyOf = { [key: string]: PermissionScope | number }
+
+export type APIKeysPermissionsReadSimple = boolean | APIKeysPermissionsReadSimpleAnyOf | null
+
+export type APIKeysPermissionsReadAnyOf = { [key: string]: PermissionScope | number }
+
+export type APIKeysPermissionsRead = boolean | APIKeysPermissionsReadAnyOf | null
+
+export type APIKeysPermissionsCreate = boolean | null
+
+export interface APIKeysPermissions {
+  create?: APIKeysPermissionsCreate
+  read?: APIKeysPermissionsRead
+  read_simple?: APIKeysPermissionsReadSimple
+  update?: APIKeysPermissionsUpdate
+  delete?: APIKeysPermissionsDelete
+}
+
+export type APIKeyUpdateStatus = APIKeyStatus | null
+
+export type APIKeyUpdateExpireDate = string | null
+
+export type APIKeyUpdateInheritPermissions = boolean | null
+
+export type APIKeyUpdatePermissions = RolePermissions | null
+
+export type APIKeyUpdateNote = string | null
+
+export type APIKeyUpdateName = string | null
+
+export type APIKeyUpdateAdminId = number | null
+
+export interface APIKeyUpdate {
+  admin_id?: APIKeyUpdateAdminId
+  name?: APIKeyUpdateName
+  note?: APIKeyUpdateNote
+  permissions?: APIKeyUpdatePermissions
+  inherit_permissions?: APIKeyUpdateInheritPermissions
+  expire_date?: APIKeyUpdateExpireDate
+  status?: APIKeyUpdateStatus
+}
+
+export type APIKeyStatus = (typeof APIKeyStatus)[keyof typeof APIKeyStatus]
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const APIKeyStatus = {
+  active: 'active',
+  disabled: 'disabled',
+} as const
+
+export type APIKeyResponseRevokedAt = string | null
+
+export type APIKeyResponseExpireDate = string | null
+
+export type APIKeyResponseNote = string | null
+
+export interface APIKeyResponse {
+  /**
+   * @minLength 1
+   * @maxLength 128
+   */
+  name: string
+  note?: APIKeyResponseNote
+  permissions?: RolePermissions
+  inherit_permissions?: boolean
+  expire_date?: APIKeyResponseExpireDate
+  id: number
+  admin_id: number
+  created_at: string
+  api_key_trimmed: string
+  revoked_at?: APIKeyResponseRevokedAt
+  status?: APIKeyStatus
+  is_expired?: boolean
+}
+
+export type APIKeyCreateResponseRevokedAt = string | null
+
+export type APIKeyCreateResponseExpireDate = string | null
+
+export type APIKeyCreateResponseNote = string | null
+
+export interface APIKeyCreateResponse {
+  /**
+   * @minLength 1
+   * @maxLength 128
+   */
+  name: string
+  note?: APIKeyCreateResponseNote
+  permissions?: RolePermissions
+  inherit_permissions?: boolean
+  expire_date?: APIKeyCreateResponseExpireDate
+  id: number
+  admin_id: number
+  created_at: string
+  api_key_trimmed: string
+  revoked_at?: APIKeyCreateResponseRevokedAt
+  status?: APIKeyStatus
+  is_expired?: boolean
+  api_key: string
+}
+
+export type APIKeyCreateAdminId = number | null
+
+export type APIKeyCreateExpireDate = string | null
+
+export type APIKeyCreateNote = string | null
+
+export interface APIKeyCreate {
+  /**
+   * @minLength 1
+   * @maxLength 128
+   */
+  name: string
+  note?: APIKeyCreateNote
+  permissions?: RolePermissions
+  inherit_permissions?: boolean
+  expire_date?: APIKeyCreateExpireDate
+  admin_id?: APIKeyCreateAdminId
 }
 
 /**
@@ -5365,6 +5538,359 @@ export const useBulkRemoveAllUsers = <
   mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkAdminSelection> }, TContext>
 }): UseMutationResult<TData, TError, { data: BodyType<BulkAdminSelection> }, TContext> => {
   const mutationOptions = getBulkRemoveAllUsersMutationOptions(options)
+
+  return useMutation(mutationOptions)
+}
+
+/**
+ * @summary Create Api Key
+ */
+export const createApiKey = (aPIKeyCreate: BodyType<APIKeyCreate>, signal?: AbortSignal) => {
+  return orvalFetcher<APIKeyCreateResponse>({ url: `/api/api_key`, method: 'POST', headers: { 'Content-Type': 'application/json' }, data: aPIKeyCreate, signal })
+}
+
+export const getCreateApiKeyMutationOptions = <
+  TData = Awaited<ReturnType<typeof createApiKey>>,
+  TError = ErrorType<Unauthorized | Forbidden | Conflict | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<APIKeyCreate> }, TContext>
+}) => {
+  const mutationKey = ['createApiKey']
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } }
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof createApiKey>>, { data: BodyType<APIKeyCreate> }> = props => {
+    const { data } = props ?? {}
+
+    return createApiKey(data)
+  }
+
+  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { data: BodyType<APIKeyCreate> }, TContext>
+}
+
+export type CreateApiKeyMutationResult = NonNullable<Awaited<ReturnType<typeof createApiKey>>>
+export type CreateApiKeyMutationBody = BodyType<APIKeyCreate>
+export type CreateApiKeyMutationError = ErrorType<Unauthorized | Forbidden | Conflict | HTTPValidationError>
+
+/**
+ * @summary Create Api Key
+ */
+export const useCreateApiKey = <TData = Awaited<ReturnType<typeof createApiKey>>, TError = ErrorType<Unauthorized | Forbidden | Conflict | HTTPValidationError>, TContext = unknown>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<APIKeyCreate> }, TContext>
+}): UseMutationResult<TData, TError, { data: BodyType<APIKeyCreate> }, TContext> => {
+  const mutationOptions = getCreateApiKeyMutationOptions(options)
+
+  return useMutation(mutationOptions)
+}
+
+/**
+ * @summary List Api Keys
+ */
+export const listApiKeys = (params?: ListApiKeysParams, signal?: AbortSignal) => {
+  return orvalFetcher<APIKeysResponse>({ url: `/api/api_keys`, method: 'GET', params, signal })
+}
+
+export const getListApiKeysQueryKey = (params?: ListApiKeysParams) => {
+  return [`/api/api_keys`, ...(params ? [params] : [])] as const
+}
+
+export const getListApiKeysQueryOptions = <TData = Awaited<ReturnType<typeof listApiKeys>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+  params?: ListApiKeysParams,
+  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listApiKeys>>, TError, TData>> },
+) => {
+  const { query: queryOptions } = options ?? {}
+
+  const queryKey = queryOptions?.queryKey ?? getListApiKeysQueryKey(params)
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listApiKeys>>> = ({ signal }) => listApiKeys(params, signal)
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<Awaited<ReturnType<typeof listApiKeys>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListApiKeysQueryResult = NonNullable<Awaited<ReturnType<typeof listApiKeys>>>
+export type ListApiKeysQueryError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>
+
+export function useListApiKeys<TData = Awaited<ReturnType<typeof listApiKeys>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+  params: undefined | ListApiKeysParams,
+  options: {
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof listApiKeys>>, TError, TData>> & Pick<DefinedInitialDataOptions<Awaited<ReturnType<typeof listApiKeys>>, TError, TData>, 'initialData'>
+  },
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListApiKeys<TData = Awaited<ReturnType<typeof listApiKeys>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+  params?: ListApiKeysParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listApiKeys>>, TError, TData>> & Pick<UndefinedInitialDataOptions<Awaited<ReturnType<typeof listApiKeys>>, TError, TData>, 'initialData'>
+  },
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListApiKeys<TData = Awaited<ReturnType<typeof listApiKeys>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+  params?: ListApiKeysParams,
+  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listApiKeys>>, TError, TData>> },
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary List Api Keys
+ */
+
+export function useListApiKeys<TData = Awaited<ReturnType<typeof listApiKeys>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+  params?: ListApiKeysParams,
+  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listApiKeys>>, TError, TData>> },
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getListApiKeysQueryOptions(params, options)
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+  query.queryKey = queryOptions.queryKey
+
+  return query
+}
+
+/**
+ * @summary Bulk Delete Api Keys
+ */
+export const bulkDeleteApiKeys = (bulkAPIKeySelection: BodyType<BulkAPIKeySelection>, signal?: AbortSignal) => {
+  return orvalFetcher<RemoveAPIKeysResponse>({ url: `/api/api_keys/bulk/delete`, method: 'POST', headers: { 'Content-Type': 'application/json' }, data: bulkAPIKeySelection, signal })
+}
+
+export const getBulkDeleteApiKeysMutationOptions = <
+  TData = Awaited<ReturnType<typeof bulkDeleteApiKeys>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkAPIKeySelection> }, TContext>
+}) => {
+  const mutationKey = ['bulkDeleteApiKeys']
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } }
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof bulkDeleteApiKeys>>, { data: BodyType<BulkAPIKeySelection> }> = props => {
+    const { data } = props ?? {}
+
+    return bulkDeleteApiKeys(data)
+  }
+
+  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { data: BodyType<BulkAPIKeySelection> }, TContext>
+}
+
+export type BulkDeleteApiKeysMutationResult = NonNullable<Awaited<ReturnType<typeof bulkDeleteApiKeys>>>
+export type BulkDeleteApiKeysMutationBody = BodyType<BulkAPIKeySelection>
+export type BulkDeleteApiKeysMutationError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>
+
+/**
+ * @summary Bulk Delete Api Keys
+ */
+export const useBulkDeleteApiKeys = <
+  TData = Awaited<ReturnType<typeof bulkDeleteApiKeys>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkAPIKeySelection> }, TContext>
+}): UseMutationResult<TData, TError, { data: BodyType<BulkAPIKeySelection> }, TContext> => {
+  const mutationOptions = getBulkDeleteApiKeysMutationOptions(options)
+
+  return useMutation(mutationOptions)
+}
+
+/**
+ * @summary Modify Api Key
+ */
+export const modifyApiKey = (keyId: number, aPIKeyUpdate: BodyType<APIKeyUpdate>) => {
+  return orvalFetcher<APIKeyResponse>({ url: `/api/api_key/${keyId}`, method: 'PATCH', headers: { 'Content-Type': 'application/json' }, data: aPIKeyUpdate })
+}
+
+export const getModifyApiKeyMutationOptions = <
+  TData = Awaited<ReturnType<typeof modifyApiKey>>,
+  TError = ErrorType<Unauthorized | Forbidden | NotFound | Conflict | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { keyId: number; data: BodyType<APIKeyUpdate> }, TContext>
+}) => {
+  const mutationKey = ['modifyApiKey']
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } }
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof modifyApiKey>>, { keyId: number; data: BodyType<APIKeyUpdate> }> = props => {
+    const { keyId, data } = props ?? {}
+
+    return modifyApiKey(keyId, data)
+  }
+
+  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { keyId: number; data: BodyType<APIKeyUpdate> }, TContext>
+}
+
+export type ModifyApiKeyMutationResult = NonNullable<Awaited<ReturnType<typeof modifyApiKey>>>
+export type ModifyApiKeyMutationBody = BodyType<APIKeyUpdate>
+export type ModifyApiKeyMutationError = ErrorType<Unauthorized | Forbidden | NotFound | Conflict | HTTPValidationError>
+
+/**
+ * @summary Modify Api Key
+ */
+export const useModifyApiKey = <
+  TData = Awaited<ReturnType<typeof modifyApiKey>>,
+  TError = ErrorType<Unauthorized | Forbidden | NotFound | Conflict | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { keyId: number; data: BodyType<APIKeyUpdate> }, TContext>
+}): UseMutationResult<TData, TError, { keyId: number; data: BodyType<APIKeyUpdate> }, TContext> => {
+  const mutationOptions = getModifyApiKeyMutationOptions(options)
+
+  return useMutation(mutationOptions)
+}
+
+/**
+ * @summary Get Api Key
+ */
+export const getApiKey = (keyId: number, signal?: AbortSignal) => {
+  return orvalFetcher<APIKeyResponse>({ url: `/api/api_key/${keyId}`, method: 'GET', signal })
+}
+
+export const getGetApiKeyQueryKey = (keyId: number) => {
+  return [`/api/api_key/${keyId}`] as const
+}
+
+export const getGetApiKeyQueryOptions = <TData = Awaited<ReturnType<typeof getApiKey>>, TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>>(
+  keyId: number,
+  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiKey>>, TError, TData>> },
+) => {
+  const { query: queryOptions } = options ?? {}
+
+  const queryKey = queryOptions?.queryKey ?? getGetApiKeyQueryKey(keyId)
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiKey>>> = ({ signal }) => getApiKey(keyId, signal)
+
+  return { queryKey, queryFn, enabled: !!keyId, ...queryOptions } as UseQueryOptions<Awaited<ReturnType<typeof getApiKey>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetApiKeyQueryResult = NonNullable<Awaited<ReturnType<typeof getApiKey>>>
+export type GetApiKeyQueryError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>
+
+export function useGetApiKey<TData = Awaited<ReturnType<typeof getApiKey>>, TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>>(
+  keyId: number,
+  options: {
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiKey>>, TError, TData>> & Pick<DefinedInitialDataOptions<Awaited<ReturnType<typeof getApiKey>>, TError, TData>, 'initialData'>
+  },
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiKey<TData = Awaited<ReturnType<typeof getApiKey>>, TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>>(
+  keyId: number,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiKey>>, TError, TData>> & Pick<UndefinedInitialDataOptions<Awaited<ReturnType<typeof getApiKey>>, TError, TData>, 'initialData'>
+  },
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiKey<TData = Awaited<ReturnType<typeof getApiKey>>, TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>>(
+  keyId: number,
+  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiKey>>, TError, TData>> },
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get Api Key
+ */
+
+export function useGetApiKey<TData = Awaited<ReturnType<typeof getApiKey>>, TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>>(
+  keyId: number,
+  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiKey>>, TError, TData>> },
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetApiKeyQueryOptions(keyId, options)
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+  query.queryKey = queryOptions.queryKey
+
+  return query
+}
+
+/**
+ * @summary Remove Api Key
+ */
+export const removeApiKey = (keyId: number) => {
+  return orvalFetcher<void>({ url: `/api/api_key/${keyId}`, method: 'DELETE' })
+}
+
+export const getRemoveApiKeyMutationOptions = <
+  TData = Awaited<ReturnType<typeof removeApiKey>>,
+  TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { keyId: number }, TContext>
+}) => {
+  const mutationKey = ['removeApiKey']
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } }
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof removeApiKey>>, { keyId: number }> = props => {
+    const { keyId } = props ?? {}
+
+    return removeApiKey(keyId)
+  }
+
+  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { keyId: number }, TContext>
+}
+
+export type RemoveApiKeyMutationResult = NonNullable<Awaited<ReturnType<typeof removeApiKey>>>
+
+export type RemoveApiKeyMutationError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>
+
+/**
+ * @summary Remove Api Key
+ */
+export const useRemoveApiKey = <TData = Awaited<ReturnType<typeof removeApiKey>>, TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>, TContext = unknown>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { keyId: number }, TContext>
+}): UseMutationResult<TData, TError, { keyId: number }, TContext> => {
+  const mutationOptions = getRemoveApiKeyMutationOptions(options)
+
+  return useMutation(mutationOptions)
+}
+
+/**
+ * @summary Revoke Api Key
+ */
+export const revokeApiKey = (keyId: number, signal?: AbortSignal) => {
+  return orvalFetcher<APIKeyCreateResponse>({ url: `/api/api_key/${keyId}/revoke`, method: 'POST', signal })
+}
+
+export const getRevokeApiKeyMutationOptions = <
+  TData = Awaited<ReturnType<typeof revokeApiKey>>,
+  TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { keyId: number }, TContext>
+}) => {
+  const mutationKey = ['revokeApiKey']
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } }
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof revokeApiKey>>, { keyId: number }> = props => {
+    const { keyId } = props ?? {}
+
+    return revokeApiKey(keyId)
+  }
+
+  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { keyId: number }, TContext>
+}
+
+export type RevokeApiKeyMutationResult = NonNullable<Awaited<ReturnType<typeof revokeApiKey>>>
+
+export type RevokeApiKeyMutationError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>
+
+/**
+ * @summary Revoke Api Key
+ */
+export const useRevokeApiKey = <TData = Awaited<ReturnType<typeof revokeApiKey>>, TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>, TContext = unknown>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { keyId: number }, TContext>
+}): UseMutationResult<TData, TError, { keyId: number }, TContext> => {
+  const mutationOptions = getRevokeApiKeyMutationOptions(options)
 
   return useMutation(mutationOptions)
 }

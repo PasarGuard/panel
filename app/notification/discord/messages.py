@@ -297,3 +297,21 @@ REMOVE_ADMIN_ROLE = {
     "description": "**Name:** {name}\n",
     "footer": {"text": "ID: {id}\nBy: {by}"},
 }
+
+CREATE_API_KEY = {
+    "title": "🆕 Create API Key",
+    "description": "**Name:** {name}\n**Expire Date:** {expire_date}",
+    "footer": {"text": "ID: {id}\nBelongs To: {admin_username}\nBy: {by}"},
+}
+
+MODIFY_API_KEY = {
+    "title": "✏️ Modify API Key",
+    "description": "**Name:** {name}\n**Expire Date:** {expire_date}\n**Status:** {status}",
+    "footer": {"text": "ID: {id}\nBelongs To: {admin_username}\nBy: {by}"},
+}
+
+REMOVE_API_KEY = {
+    "title": "🗑️ Remove API Key",
+    "description": "**Name:** {name}\n",
+    "footer": {"text": "ID: {id}\nBelongs To: {admin_username}\nBy: {by}"},
+}

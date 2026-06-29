@@ -1,18 +1,18 @@
-import { Area, AreaChart, Bar, BarChart, CartesianGrid, XAxis, YAxis, Cell } from 'recharts'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { ChartConfig, ChartContainer, ChartTooltip } from '@/components/ui/chart'
-import { formatBytes } from '@/utils/formatByte'
-import { useTranslation } from 'react-i18next'
-import { useGetAdminUsageById, useGetAdminUsageByUsername, useGetUsage, Period, UserUsageStatsList, NodeUsageStatsList, UserUsageStat, NodeUsageStat } from '@/service/api'
-import { useMemo, useState, useEffect } from 'react'
-import { SearchXIcon, TrendingUp, TrendingDown } from 'lucide-react'
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useAdmin } from '@/hooks/use-admin'
-import useDirDetection from '@/hooks/use-dir-detection'
 import { useChartViewType } from '@/hooks/use-chart-view-type'
+import useDirDetection from '@/hooks/use-dir-detection'
+import { NodeUsageStat, NodeUsageStatsList, Period, useGetAdminUsageById, useGetAdminUsageByUsername, useGetUsage, UserUsageStat, UserUsageStatsList } from '@/service/api'
 import { formatPeriodLabelForPeriod, formatTooltipDate, getChartQueryRangeFromShortcut, getXAxisIntervalForShortcut } from '@/utils/chart-period-utils'
+import { formatBytes } from '@/utils/formatByte'
 import { hasScopeAll } from '@/utils/rbac'
+import { SearchXIcon, TrendingDown, TrendingUp } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, XAxis, YAxis } from 'recharts'
 
 type PeriodOption = {
   label: string
@@ -141,7 +141,7 @@ const DataUsageChart = ({ adminId, adminUsername }: { adminId?: number; adminUse
   const queryRange = useMemo(() => getChartQueryRangeFromShortcut(periodOption.value, new Date(), { minuteForOneHour: true }), [periodOption.value])
   const activePeriod = queryRange.period
 
-  const shouldUseNodeUsage = canReadAllUsers && adminId == null && !adminUsername
+  const shouldUseNodeUsage = canReadAllUsers && !adminUsername
 
   const nodeUsageParams = useMemo(
     () => ({
@@ -154,6 +154,7 @@ const DataUsageChart = ({ adminId, adminUsername }: { adminId?: number; adminUse
 
   const adminUsageParams = useMemo(
     () => ({
+      ...(adminUsername ? { admin: [adminUsername] } : {}),
       period: activePeriod,
       start: queryRange.startDate,
       end: queryRange.endDate,

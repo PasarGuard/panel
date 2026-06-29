@@ -84,6 +84,9 @@ class Admin(Base, CreatedAtUTCMixin):
     notification_reminders: Mapped[List["AdminNotificationReminder"]] = relationship(
         back_populates="admin", init=False, default_factory=list, cascade="all, delete-orphan"
     )
+    api_keys: Mapped[List["APIKey"]] = relationship(
+        back_populates="admin", init=False, default_factory=list, cascade="all, delete-orphan"
+    )
 
     password_reset_at: Mapped[Optional[dt]] = mapped_column(DateTime(timezone=True), default=None)
     telegram_id: Mapped[Optional[int]] = mapped_column(BigInteger, default=None)
@@ -151,6 +154,11 @@ class Admin(Base, CreatedAtUTCMixin):
     @property
     def total_users(self) -> int:
         return len(self.users)
+
+    @property
+    def has_api_keys(self) -> bool:
+        """True when the admin owns at least one API key."""
+        return len(self.api_keys) > 0
 
 
 class AdminUsageLogs(Base, IdMixin):
@@ -887,6 +895,59 @@ class AdminRole(Base, CreatedAtUTCMixin):
     @is_builtin.expression
     def is_builtin(cls):
         return cls.id <= 3
+
+
+class APIKeyStatus(str, Enum):
+    active = "active"
+    disabled = "disabled"
+
+
+class APIKey(Base, CreatedAtUTCMixin):
+    __tablename__ = "api_keys"
+    __table_args__ = (
+        UniqueConstraint("key_hash"),
+        UniqueConstraint("admin_id", "name"),
+        Index("ix_api_keys_admin_id", "admin_id"),
+        Index("ix_api_keys_created_at", "created_at"),
+        Index("ix_api_keys_expire_date", "expire_date"),
+    )
+
+    admin_id: Mapped[int] = fk_id_column("admins.id", ondelete="CASCADE")
+    admin: Mapped["Admin"] = relationship(back_populates="api_keys", init=False)
+    name: Mapped[str] = mapped_column(String(128), nullable=False)
+    key_hash: Mapped[str] = mapped_column(String(128), nullable=False)
+    api_key_trimmed: Mapped[str] = mapped_column(String(16))
+    permissions: Mapped[Dict] = mapped_column(PostgresJSONB, default_factory=dict)
+    inherit_permissions: Mapped[bool] = mapped_column(default=True, server_default="1")
+    note: Mapped[Optional[str]] = mapped_column(String(512), default=None)
+    expire_date: Mapped[Optional[dt]] = mapped_column(DateTime(timezone=True), default=None)
+    revoked_at: Mapped[Optional[dt]] = mapped_column(DateTime(timezone=True), default=None)
+    status: Mapped[APIKeyStatus] = mapped_column(
+        SQLEnum(APIKeyStatus, name="apikeystatus", create_constraint=True),
+        default=APIKeyStatus.active,
+        server_default="active",
+    )
+
+    @hybrid_property
+    def is_expired(self) -> bool:
+        """True when expire_date is set and is in the past."""
+        if self.expire_date is None:
+            return False
+        expire_at = self.expire_date if self.expire_date.tzinfo else self.expire_date.replace(tzinfo=tz.utc)
+        return expire_at <= dt.now(tz.utc)
+
+    @is_expired.expression
+    def is_expired(cls):
+        return and_(cls.expire_date.isnot(None), cls.expire_date <= func.current_timestamp())
+
+    @property
+    def is_usable(self) -> bool:
+        """False if the key is disabled, its admin is missing/disabled, or it has expired."""
+        if self.status == APIKeyStatus.disabled:
+            return False
+        if self.admin is None or self.admin.status == AdminStatus.disabled:
+            return False
+        return not self.is_expired
 
 
 class TempKey(Base):

@@ -2,8 +2,8 @@ import { z } from 'zod'
 import type { AdminRoleResponse, HWIDSettings, RoleAccess, RoleFeatures, RoleLimits, RolePermissions } from '@/service/api'
 
 export type RoleScope = 0 | 1 | 2
-type RolePermissionFormValue = boolean | { scope: RoleScope }
-type RolePermissionFormMap = Record<string, Record<string, RolePermissionFormValue>>
+export type RolePermissionFormValue = boolean | { scope: RoleScope }
+export type RolePermissionFormMap = Record<string, Record<string, RolePermissionFormValue>>
 type RolePermissionInput = object | null | undefined
 
 export type RoleHwidPolicy = HWIDSettings
@@ -55,6 +55,16 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
       { resource: 'admin_roles', action: 'create' },
       { resource: 'admin_roles', action: 'update' },
       { resource: 'admin_roles', action: 'delete' },
+    ],
+  },
+  {
+    labelKey: 'apiKeys',
+    actions: [
+      { resource: 'api_keys', action: 'read', scoped: true },
+      { resource: 'api_keys', action: 'read_simple', scoped: true },
+      { resource: 'api_keys', action: 'create' },
+      { resource: 'api_keys', action: 'update', scoped: true },
+      { resource: 'api_keys', action: 'delete', scoped: true },
     ],
   },
   {
@@ -129,6 +139,15 @@ const VALID_PERMISSION_ACTIONS = PERMISSION_GROUPS.reduce<Record<string, Set<str
   return acc
 }, {})
 
+const SCOPED_PERMISSION_ACTIONS = PERMISSION_GROUPS.reduce<Record<string, Set<string>>>((acc, group) => {
+  for (const item of group.actions) {
+    if (!item.scoped) continue
+    acc[item.resource] = acc[item.resource] || new Set()
+    acc[item.resource].add(item.action)
+  }
+  return acc
+}, {})
+
 const normalizePermissionValue = (value: unknown): RolePermissionFormValue | undefined => {
   if (typeof value === 'boolean') return value
   if (!value || typeof value !== 'object') return undefined
@@ -140,7 +159,7 @@ const normalizePermissionValue = (value: unknown): RolePermissionFormValue | und
   return undefined
 }
 
-const sanitizeRolePermissions = (permissions: RolePermissionInput): RolePermissionFormMap => {
+export const sanitizeRolePermissions = (permissions: RolePermissionInput): RolePermissionFormMap => {
   const next: RolePermissionFormMap = {}
 
   for (const [resource, actions] of Object.entries(permissions || {})) {
@@ -151,7 +170,63 @@ const sanitizeRolePermissions = (permissions: RolePermissionInput): RolePermissi
       if (!allowedActions.has(action)) continue
       const normalizedValue = normalizePermissionValue(value)
       if (normalizedValue === undefined) continue
-      next[resource] = { ...(next[resource] || {}), [action]: normalizedValue }
+      const isScoped = SCOPED_PERMISSION_ACTIONS[resource]?.has(action) === true
+      if (!isScoped && typeof normalizedValue !== 'boolean') continue
+      const normalizedActionValue = isScoped ? normalizedValue : normalizedValue
+      next[resource] = { ...(next[resource] || {}), [action]: normalizedActionValue }
+    }
+  }
+
+  return next
+}
+
+export const getRolePermissionScopeLimit = (value: RolePermissionFormValue | undefined): RoleScope => {
+  if (value === true) return 2
+  if (value && typeof value === 'object') {
+    const scope = Number(value.scope)
+    if (scope === 1 || scope === 2) return scope
+  }
+  return 0
+}
+
+export const getRolePermissionAllowedScope = (item: PermissionAction, allowedPermissions?: RolePermissionFormMap): RoleScope => {
+  if (!allowedPermissions) return 2
+  return getRolePermissionScopeLimit(allowedPermissions[item.resource]?.[item.action])
+}
+
+export const isRolePermissionActionAllowed = (item: PermissionAction, allowedPermissions?: RolePermissionFormMap) => {
+  if (!allowedPermissions) return true
+  const allowedValue = allowedPermissions[item.resource]?.[item.action]
+  if (item.scoped) return getRolePermissionScopeLimit(allowedValue) > 0
+  return allowedValue === true
+}
+
+export const limitRolePermissionsToAllowed = (permissions?: RolePermissionFormMap | null, allowedPermissions?: RolePermissionFormMap): RolePermissionFormMap => {
+  const sanitized = sanitizeRolePermissions(permissions)
+  if (!allowedPermissions) return sanitized
+
+  const next: RolePermissionFormMap = {}
+
+  for (const group of PERMISSION_GROUPS) {
+    for (const item of group.actions) {
+      if (!isRolePermissionActionAllowed(item, allowedPermissions)) continue
+
+      const current = sanitized[item.resource]?.[item.action]
+      if (current === undefined) continue
+
+      if (item.scoped) {
+        const allowedScope = getRolePermissionAllowedScope(item, allowedPermissions)
+        const currentScope = getRolePermissionScopeLimit(current)
+        next[item.resource] = {
+          ...(next[item.resource] || {}),
+          [item.action]: { scope: Math.min(currentScope, allowedScope) as RoleScope },
+        }
+      } else if (typeof current === 'boolean') {
+        next[item.resource] = {
+          ...(next[item.resource] || {}),
+          [item.action]: current,
+        }
+      }
     }
   }
 

@@ -139,6 +139,7 @@ class NotificationChannels(BaseModel):
     node: NotificationChannel = Field(default_factory=NotificationChannel)
     user: NotificationChannel = Field(default_factory=NotificationChannel)
     user_template: NotificationChannel = Field(default_factory=NotificationChannel)
+    api_key: NotificationChannel = Field(default_factory=NotificationChannel)
 
 
 class NotificationSettings(BaseModel):
