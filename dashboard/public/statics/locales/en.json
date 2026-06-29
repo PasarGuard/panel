@@ -925,6 +925,7 @@
       "system": "System",
       "hwids": "HWIDs"
     },
+    "noAvailablePermissions": "No permissions available.",
     "scopedBadge": "Scoped",
     "scopes": {
       "none": "None",

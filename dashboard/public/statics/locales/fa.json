@@ -794,6 +794,7 @@
       "system": "سیستم",
       "hwids": "HWID"
     },
+    "noAvailablePermissions": "هیچ مجوزی در دسترس نیست.",
     "scopedBadge": "محدوده‌دار",
     "scopes": {
       "none": "هیچ",

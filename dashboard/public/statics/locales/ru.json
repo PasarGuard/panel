@@ -911,6 +911,7 @@
       "system": "Система",
       "hwids": "HWID"
     },
+    "noAvailablePermissions": "Нет доступных разрешений.",
     "scopedBadge": "С областью",
     "scopes": {
       "none": "Нет",
