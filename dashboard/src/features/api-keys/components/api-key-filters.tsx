@@ -65,12 +65,15 @@ export const ApiKeyFilters = ({
         )}
       </div>
 
-      <div className="flex flex-shrink-0 items-center gap-2">
+      <div className="flex flex-shrink-0 items-center gap-1">
         <Button
           type="button"
           size="icon-md"
           variant="ghost"
-          className="relative h-9 w-9 rounded-lg border"
+          className={cn(
+            'relative h-9 w-9 rounded-lg border',
+            hasActiveFilters && (dir === 'rtl' ? 'rounded-l-none border-l-0' : 'rounded-r-none'),
+          )}
           onClick={onAdvanceSearchOpen}
           aria-label={t('advanceSearch.title', { defaultValue: 'Advanced search' })}
           title={t('advanceSearch.title', { defaultValue: 'Advanced search' })}
@@ -88,7 +91,7 @@ export const ApiKeyFilters = ({
             type="button"
             size="icon-md"
             variant="outline"
-            className="h-9 w-9 rounded-lg"
+            className={cn('h-9 w-9 rounded-lg', dir === 'rtl' ? 'rounded-r-none' : 'rounded-l-none border-l-0')}
             onClick={() => onFilterChange({})}
             aria-label={t('clearAllFilters', { defaultValue: 'Clear all filters' })}
             title={t('clearAllFilters', { defaultValue: 'Clear all filters' })}

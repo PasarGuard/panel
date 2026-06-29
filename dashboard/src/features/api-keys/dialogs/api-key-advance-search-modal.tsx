@@ -6,7 +6,7 @@ import useDirDetection from '@/hooks/use-dir-detection'
 import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Search, X, Hash } from 'lucide-react'
+import { Search, Hash } from 'lucide-react'
 import { APIKeyStatus } from '@/service/api'
 import { Input } from '@/components/ui/input'
 import type { ApiKeyAdvanceSearchFormValue } from '@/features/api-keys/forms/api-key-advance-search-form'
@@ -40,14 +40,14 @@ export default function ApiKeyAdvanceSearchModal({ isDialogOpen, onOpenChange, f
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             <div className="-mr-4 max-h-[80dvh] overflow-y-auto px-2 pr-4 sm:max-h-[75dvh]">
-              <div className="grid grid-cols-1 gap-4">
+              <div className="grid grid-cols-1 gap-5 py-1">
                 <FormField
                   control={form.control}
                   name="key_id"
                   render={({ field }) => (
-                    <FormItem className="w-full">
+                    <FormItem className="w-full space-y-2">
                       <FormLabel className="flex items-center gap-2">
                         <Hash className="h-3 w-3" />
                         {t('apiKeys.keyId')}
@@ -70,42 +70,28 @@ export default function ApiKeyAdvanceSearchModal({ isDialogOpen, onOpenChange, f
                   control={form.control}
                   name="status"
                   render={({ field }) => (
-                    <FormItem className="w-full">
+                    <FormItem className="w-full space-y-2">
                       <FormLabel>{t('advanceSearch.byStatus')}</FormLabel>
-                      <div className="flex gap-2">
-                        <Select
-                          value={field.value?.[0] || ''}
-                          onValueChange={(value: APIKeyStatus) => {
-                            field.onChange(value ? [value] : [])
-                          }}
-                        >
-                          <FormControl>
-                            <SelectTrigger dir={dir} className="min-w-0 flex-1">
-                              <SelectValue placeholder={t('hostsDialog.selectStatus', { defaultValue: 'Select status' })} />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent dir={dir}>
-                            {statusOptions.map(option => (
-                              <SelectItem key={option.value} value={option.value}>
-                                {t(option.label)}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        {!!field.value?.length && (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="icon-md"
-                            className="h-10 w-10 shrink-0"
-                            onClick={() => field.onChange([])}
-                            aria-label={t('clear', { defaultValue: 'Clear' })}
-                            title={t('clear', { defaultValue: 'Clear' })}
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </div>
+                      <Select
+                        value={field.value?.[0] || '__all'}
+                        onValueChange={(value: APIKeyStatus | '__all') => {
+                          field.onChange(value === '__all' ? [] : [value])
+                        }}
+                      >
+                        <FormControl>
+                          <SelectTrigger dir={dir} className="w-full">
+                            <SelectValue placeholder={t('hostsDialog.selectStatus', { defaultValue: 'Select status' })} />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent dir={dir}>
+                          <SelectItem value="__all">{t('allStatuses', { defaultValue: 'All statuses' })}</SelectItem>
+                          {statusOptions.map(option => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {t(option.label)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                       <FormMessage />
                     </FormItem>
                   )}
