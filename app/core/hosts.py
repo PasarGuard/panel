@@ -13,7 +13,7 @@ from app.core.manager import core_manager
 from app.db import GetDB
 from app.db.crud.host import get_host_by_id, get_hosts, upsert_inbounds
 from app.db.models import ProxyHostSecurity
-from app.models.host import BaseHost, TransportSettings, WireGuardHostOverrides
+from app.models.host import BaseHost, FinalMask, TransportSettings, WireGuardHostOverrides
 from app.models.subscription import (
     GRPCTransportConfig,
     KCPTransportConfig,
@@ -188,7 +188,11 @@ async def _prepare_subscription_inbound_data(
         inbound_flow = ""
 
     final_mask_settings = host.final_mask_settings if host.final_mask_settings else inbound_config.get("finalmask")
-    finalmask_link = json.dumps(final_mask_settings, separators=(",", ":")) if final_mask_settings else None
+    fms = final_mask_settings
+    if final_mask_settings:
+        if isinstance(final_mask_settings, FinalMask):
+            fms = final_mask_settings.model_dump()
+        finalmask_link = json.dumps(fms, separators=(",", ":"))
 
     # Network comes from inbound, NOT from checking which transport exists on host!
     # Host can have ALL transport configs, inbound determines which one is used
