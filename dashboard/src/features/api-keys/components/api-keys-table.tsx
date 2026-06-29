@@ -17,6 +17,8 @@ import { RolePermissionFormMap } from '@/features/admin-roles/forms/admin-role-f
 import { AdminStatusBadge } from '@/features/admins/components/admin-status-badge'
 import { dateUtils } from '@/utils/dateFormatter'
 import { formatDateByLocale } from '@/utils/datePickerUtils'
+import { useAdmin } from '@/hooks/use-admin'
+import { hasPermission } from '@/utils/rbac'
 
 interface ApiKeysTableProps {
   onEdit: (apiKey: APIKeyResponse) => void
@@ -275,9 +277,24 @@ export default function ApiKeysTable({
   onSelectionChange,
 }: ApiKeysTableProps) {
   const { t, i18n } = useTranslation()
-  const adminsQuery = useGetAdminsSimple()
-  const admins = adminsQuery.data?.admins || []
-  const adminNamesById = useMemo(() => new Map(admins.map(admin => [admin.id, admin.username])), [admins])
+  const { admin } = useAdmin()
+  const canReadAdminsSimple = hasPermission(admin, 'admins', 'read_simple')
+  const adminsQuery = useGetAdminsSimple(undefined, { query: { enabled: canReadAdminsSimple } })
+  const adminNamesById = useMemo(() => {
+    const names = new Map<number, string>()
+
+    if (admin?.id) {
+      names.set(admin.id, admin.username)
+    }
+
+    if (canReadAdminsSimple) {
+      for (const item of adminsQuery.data?.admins || []) {
+        names.set(item.id, item.username)
+      }
+    }
+
+    return names
+  }, [admin?.id, admin?.username, adminsQuery.data?.admins, canReadAdminsSimple])
 
   const columns = useMemo<ListColumn<APIKeyResponse>[]>(
     () => [
