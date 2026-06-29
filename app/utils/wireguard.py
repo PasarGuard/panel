@@ -17,7 +17,9 @@ from app.utils.ip_pool import (
     WireGuardPeerIPAllocator,
     allocate_and_validate_peer_ips,
     collect_used_peer_networks_from_proxy_settings_rows,
+    get_global_used_networks,
     peer_ips_outside_global_pool,
+    validate_peer_ips_within_global_pool,
 )
 from config import wireguard_settings
 
@@ -45,6 +47,54 @@ def _peer_network_owners_from_rows(rows: Iterable[dict]) -> dict[str, set[int]]:
         for network in _normalized_peer_networks(wireguard_settings.get("peer_ips") or []):
             owners.setdefault(network, set()).add(uid)
     return owners
+
+
+def _wireguard_public_key_from_proxy_settings(proxy_settings) -> str | None:
+    if not proxy_settings:
+        return None
+    if isinstance(proxy_settings, str):
+        proxy_settings = json.loads(proxy_settings)
+    wireguard_settings = proxy_settings.get("wireguard") or {}
+    public_key = wireguard_settings.get("public_key")
+    if not public_key:
+        private_key = wireguard_settings.get("private_key")
+        if private_key:
+            try:
+                public_key = get_wireguard_public_key(private_key)
+            except ValueError:
+                return None
+    return str(public_key).strip() if public_key else None
+
+
+def _wireguard_public_key_owners_from_rows(rows: Iterable[dict]) -> dict[str, set[int]]:
+    owners: dict[str, set[int]] = {}
+    for row in rows:
+        uid = row.get("id")
+        if uid is None:
+            continue
+        public_key = _wireguard_public_key_from_proxy_settings(row.get("proxy_settings"))
+        if public_key:
+            owners.setdefault(public_key, set()).add(uid)
+    return owners
+
+
+async def ensure_unique_wireguard_public_key(
+    db: AsyncSession,
+    proxy_settings: ProxyTable,
+    *,
+    exclude_user_id: int | None = None,
+) -> None:
+    public_key = proxy_settings.wireguard.public_key
+    if not public_key:
+        return
+
+    rows = [
+        {"id": user_id, **data}
+        for user_id, data in (await get_all_wireguard_peer_ips_raw(db, exclude_user_id=exclude_user_id)).items()
+    ]
+    owners = _wireguard_public_key_owners_from_rows(rows)
+    if public_key in owners:
+        raise ValueError("wireguard public_key is already assigned to another user")
 
 
 async def get_wireguard_tags(tags: Iterable[str]) -> list[str]:
@@ -116,6 +166,11 @@ async def prepare_wireguard_proxy_settings(
     if not wireguard_tags:
         return proxy_settings
 
+    if not wireguard_settings.enabled:
+        return proxy_settings
+
+    await ensure_unique_wireguard_public_key(db, proxy_settings, exclude_user_id=exclude_user_id)
+
     if proxy_settings.wireguard.public_key and not proxy_settings.wireguard.private_key:
         raise ValueError("wireguard private_key is required when user is assigned to a WireGuard interface")
 
@@ -138,10 +193,61 @@ async def prepare_wireguard_proxy_settings(
     return proxy_settings
 
 
+async def build_wireguard_peer_ip_allocator(
+    db: AsyncSession,
+    *,
+    exclude_user_id: int | None = None,
+) -> "WireGuardPeerIPAllocator":
+    """Build a stateful peer-IP allocator pre-loaded with all currently used peer networks.
+
+    Used by bulk-creation flows where many users need IPs allocated within a single
+    transaction; reusing one allocator avoids the duplicate-allocation bug that occurs
+    when each user independently re-reads the database before any of the new users have
+    been committed.
+    """
+    used_networks = await get_global_used_networks(db, exclude_user_id=exclude_user_id)
+    return WireGuardPeerIPAllocator(used_networks)
+
+
+def prepare_wireguard_proxy_settings_with_allocator(
+    proxy_settings: ProxyTable,
+    allocator: "WireGuardPeerIPAllocator",
+) -> ProxyTable:
+    """Prepare WireGuard settings for a single user against a shared allocator.
+
+    Caller is responsible for confirming the user belongs to a WireGuard group and that
+    `wireguard_settings.enabled` is true. Validates any user-supplied peer_ips against
+    the allocator's current blocked set, then either reserves them or allocates a fresh
+    IP. The allocator is mutated to reflect the new reservation.
+    """
+    prepare_wireguard_keys_for_member(proxy_settings)
+
+    peer_ips = list(proxy_settings.wireguard.peer_ips or [])
+
+    if peer_ips:
+        validate_peer_ips_within_global_pool(peer_ips)
+        for peer_ip in peer_ips:
+            if allocator.is_reserved(peer_ip):
+                raise ValueError(f"peer IP '{peer_ip}' is reserved")
+            if allocator.conflicts(peer_ip):
+                raise ValueError(f"peer IP/network '{peer_ip}' is already in use by an existing user's peer network")
+            allocator.reserve(peer_ip)
+        proxy_settings.wireguard.peer_ips = peer_ips
+        return proxy_settings
+
+    candidate = allocator.allocate()
+    if candidate is None:
+        raise ValueError("unable to allocate wireguard peer IP")
+    proxy_settings.wireguard.peer_ips = [candidate]
+    return proxy_settings
+
+
 async def prepare_wireguard_keys_only(
     db: AsyncSession,
     proxy_settings: ProxyTable,
     groups: Iterable,
+    *,
+    exclude_user_id: int | None = None,
 ) -> ProxyTable:
     """Generate WireGuard keys without validation or IP allocation.
 
@@ -151,6 +257,11 @@ async def prepare_wireguard_keys_only(
     wireguard_tags = await get_wireguard_tags_from_groups(groups)
     if not wireguard_tags:
         return proxy_settings
+
+    if not wireguard_settings.enabled:
+        return proxy_settings
+
+    await ensure_unique_wireguard_public_key(db, proxy_settings, exclude_user_id=exclude_user_id)
 
     if proxy_settings.wireguard.public_key and not proxy_settings.wireguard.private_key:
         raise ValueError("wireguard private_key is required when user is assigned to a WireGuard interface")
@@ -229,6 +340,7 @@ async def bulk_reallocate_wireguard_peer_ips(
     eligible_user_ids = {user.id for user, _ in eligible_users}
     all_peer_ip_rows = [{"id": user_id, **data} for user_id, data in (await get_all_wireguard_peer_ips_raw(db)).items()]
     peer_network_owners = _peer_network_owners_from_rows(all_peer_ip_rows)
+    public_key_owners = _wireguard_public_key_owners_from_rows(all_peer_ip_rows)
     duplicated_user_ids: set[int] = set()
     for owner_ids in peer_network_owners.values():
         if len(owner_ids) > 1:
@@ -240,6 +352,17 @@ async def bulk_reallocate_wireguard_peer_ips(
             else:
                 duplicated_user_ids.update(target_owner_ids)
 
+    duplicated_public_key_user_ids: set[int] = set()
+    for owner_ids in public_key_owners.values():
+        if len(owner_ids) > 1:
+            target_owner_ids = owner_ids & eligible_user_ids
+            if not target_owner_ids:
+                continue
+            if owner_ids <= eligible_user_ids:
+                duplicated_public_key_user_ids.update(sorted(owner_ids)[1:])
+            else:
+                duplicated_public_key_user_ids.update(target_owner_ids)
+
     for user, peer_ips in eligible_users:
         need = False
         if replace_all:
@@ -249,6 +372,8 @@ async def bulk_reallocate_wireguard_peer_ips(
         elif peer_ips_outside_global_pool(peer_ips):
             need = True
         elif user.id in duplicated_user_ids:
+            need = True
+        elif user.id in duplicated_public_key_user_ids:
             need = True
 
         if not need:
@@ -291,6 +416,10 @@ async def bulk_reallocate_wireguard_peer_ips(
             prepared = prepare_wireguard_keys_for_member(proxy_settings)
         except ValueError:
             continue
+        if user.id in duplicated_public_key_user_ids:
+            private_key, public_key = generate_wireguard_keypair()
+            prepared.wireguard.private_key = private_key
+            prepared.wireguard.public_key = public_key
         peer_ip = allocator.allocate()
         if peer_ip is None:
             continue

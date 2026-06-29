@@ -1,10 +1,7 @@
-import ipaddress
 import math
 import os
 import secrets
-import socket
 import time
-import urllib.request
 from dataclasses import dataclass
 
 import psutil
@@ -70,80 +67,6 @@ def random_password() -> str:
     return secrets.token_urlsafe(24)
 
 
-def check_port(port: int) -> bool:
-    s = socket.socket()
-    try:
-        s.connect(("127.0.0.1", port))
-        return True
-    except socket.error:
-        return False
-    finally:
-        s.close()
-
-
-def _fetch_text(url: str, timeout: float = 5.0) -> str | None:
-    try:
-        with urllib.request.urlopen(url, timeout=timeout) as response:
-            if response.status != 200:
-                return None
-            return response.read().decode("utf-8").strip()
-    except Exception:
-        return None
-
-
-def _get_public_ipv4() -> str | None:
-    urls = (
-        "https://api.ipify.org/",
-        "https://ipv4.icanhazip.com/",
-        "https://ifconfig.io/ip",
-    )
-    for url in urls:
-        ip = _fetch_text(url)
-        if not ip:
-            continue
-        try:
-            if ipaddress.IPv4Address(ip).is_global:
-                return ip
-        except Exception:
-            continue
-
-    return None
-
-
-def get_public_ip():
-    ip = _get_public_ipv4()
-    if ip:
-        return ip
-
-    return "127.0.0.1"
-
-
-def _get_public_ipv6() -> str | None:
-    urls = (
-        "https://api6.ipify.org/",
-        "https://ipv6.icanhazip.com/",
-    )
-    for url in urls:
-        ip = _fetch_text(url)
-        if not ip:
-            continue
-        try:
-            if ipaddress.IPv6Address(ip).is_global:
-                return "[%s]" % ip
-        except Exception:
-            continue
-
-    return None
-
-
-def get_public_ipv6():
-    ip = _get_public_ipv6()
-    if ip:
-        return ip
-
-    return "[::1]"
-
-
 def readable_size(size_bytes):
     if not size_bytes or size_bytes <= 0:
         return "0 B"
@@ -152,3 +75,33 @@ def readable_size(size_bytes):
     p = math.pow(1024, i)
     s = round(size_bytes / p, 2)
     return f"{s} {size_name[i]}"
+
+
+def readable_duration(seconds: int | float) -> str:
+    """Format a duration (in seconds) as a human-readable string.
+
+    Mirrors :func:`readable_size`: caller always passes seconds, this picks the
+    largest natural unit (years, months, days, hours, minutes, seconds) and
+    pluralizes correctly.
+    """
+    if not seconds or seconds <= 0:
+        return "0 seconds"
+
+    units = (
+        ("year", 31_536_000),  # 365 days
+        ("month", 2_592_000),  # 30 days
+        ("day", 86_400),
+        ("hour", 3_600),
+        ("minute", 60),
+        ("second", 1),
+    )
+
+    for label, factor in units:
+        if seconds >= factor:
+            amount = seconds / factor
+            if amount % 1 == 0:
+                amount_int = int(amount)
+                return f"{amount_int} {label}" if amount_int == 1 else f"{amount_int} {label}s"
+            return f"{amount:.2f} {label}s"
+
+    return f"{seconds} seconds"

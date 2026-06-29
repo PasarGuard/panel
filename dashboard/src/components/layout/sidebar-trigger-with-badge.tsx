@@ -19,17 +19,7 @@ export function SidebarTriggerWithBadge({ showUpdateBadge = true }: SidebarTrigg
   return (
     <div className="relative inline-block">
       <SidebarTrigger />
-      {showBadge && (
-        <span
-          className={cn(
-            'absolute -top-1 -right-1 h-3 w-3 rounded-full',
-            'bg-amber-500 dark:bg-amber-400',
-            'border-2 border-background'
-          )}
-          aria-label="Update available"
-        />
-      )}
+      {showBadge && <span className={cn('absolute -top-1 -right-1 h-3 w-3 rounded-full', 'bg-amber-500 dark:bg-amber-400', 'border-background border-2')} aria-label="Update available" />}
     </div>
   )
 }
-

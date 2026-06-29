@@ -1,7 +1,7 @@
 import asyncio
-from datetime import datetime as dt
+from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 
 from app import notification
@@ -9,40 +9,36 @@ from app.db import AsyncSession, get_db
 from app.models.admin import (
     AdminCreate,
     AdminDetails,
+    AdminListQuery,
     AdminModify,
-    Token,
+    AdminSimpleListQuery,
+    AdminStatus,
     AdminsResponse,
     AdminsSimpleResponse,
+    AdminUsageQuery,
     BulkAdminsActionResponse,
     BulkAdminSelection,
     RemoveAdminsResponse,
+    Token,
 )
-from app.models.stats import Period, UserUsageStatsList
+from app.models.stats import UserUsageStatsList
 from app.operation import OperatorType
 from app.operation.admin import AdminOperation
 from app.utils import responses
 from app.utils.jwt import create_admin_token
+from app.utils.request import get_client_ip
 
 from .authentication import (
-    check_sudo_admin,
     get_current,
     get_current_with_metrics,
+    require_permission,
     validate_admin,
     validate_mini_app_admin,
 )
+from .dependencies import get_admin_list_query, get_admin_simple_list_query, get_admin_usage_query
 
 router = APIRouter(tags=["Admin"], prefix="/api/admin", responses={401: responses._401, 403: responses._403})
 admin_operator = AdminOperation(operator_type=OperatorType.API)
-
-
-def get_client_ip(request: Request) -> str:
-    """Extract the client's IP address from the request headers or client."""
-    forwarded_for = request.headers.get("X-Forwarded-For")
-    if forwarded_for:
-        return forwarded_for.split(",")[0].strip()
-    if request.client:
-        return request.client.host
-    return "Unknown"
 
 
 @router.post("/token", response_model=Token)
@@ -51,61 +47,50 @@ async def admin_token(
 ):
     """Authenticate an admin and issue a token."""
     client_ip = get_client_ip(request)
-
     db_admin = await validate_admin(db, form_data.username, form_data.password)
     if not db_admin:
         asyncio.create_task(notification.admin_login(form_data.username, form_data.password, client_ip, False))
         raise HTTPException(
-            status_code=401,
-            detail="Incorrect username or password",
-            headers={"WWW-Authenticate": "Bearer"},
+            status_code=401, detail="Incorrect username or password", headers={"WWW-Authenticate": "Bearer"}
         )
-    if db_admin.is_disabled:
+    if db_admin.status == AdminStatus.disabled:
         asyncio.create_task(notification.admin_login(form_data.username, form_data.password, client_ip, False))
         raise HTTPException(
-            status_code=403,
-            detail="your account has been disabled",
-            headers={"WWW-Authenticate": "Bearer"},
+            status_code=403, detail="your account has been disabled", headers={"WWW-Authenticate": "Bearer"}
         )
     asyncio.create_task(notification.admin_login(db_admin.username, "", client_ip, True))
-    return Token(access_token=await create_admin_token(db_admin.id, form_data.username, db_admin.is_sudo))
+    return Token(access_token=await create_admin_token(db_admin.id, form_data.username))
 
 
 @router.post("/miniapp/token", responses={409: responses._409})
 async def admin_mini_app_token(
     request: Request, x_telegram_authorization: str = Header(), db: AsyncSession = Depends(get_db)
 ):
-    """Authenticate an admin and issue a token."""
-
+    """Authenticate an admin via Telegram MiniApp and issue a token."""
     client_ip = get_client_ip(request)
-
     db_admin = await validate_mini_app_admin(db, x_telegram_authorization)
     if not db_admin:
+        raise HTTPException(status_code=401, detail="admin not found.", headers={"WWW-Authenticate": "Bearer"})
+    if db_admin.status == AdminStatus.disabled:
         raise HTTPException(
-            status_code=401,
-            detail="admin not found.",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    if db_admin.is_disabled:
-        raise HTTPException(
-            status_code=403,
-            detail="your account has been disabled",
-            headers={"WWW-Authenticate": "Bearer"},
+            status_code=403, detail="your account has been disabled", headers={"WWW-Authenticate": "Bearer"}
         )
     asyncio.create_task(notification.admin_login(db_admin.username, "", client_ip, True))
-    return Token(access_token=await create_admin_token(db_admin.id, db_admin.username, db_admin.is_sudo))
+    return Token(access_token=await create_admin_token(db_admin.id, db_admin.username))
 
 
 @router.post(
     "",
     response_model=AdminDetails,
-    responses={201: {"description": "Admin created successfully"}, 409: responses._409},
     status_code=status.HTTP_201_CREATED,
+    responses={201: {"description": "Admin created successfully"}, 409: responses._409},
 )
 async def create_admin(
-    new_admin: AdminCreate, db: AsyncSession = Depends(get_db), admin: AdminDetails = Depends(check_sudo_admin)
+    new_admin: AdminCreate,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(require_permission("admins", "create")),
 ):
-    """Create a new admin if the current admin has sudo privileges."""
+    """Create a new admin."""
     return await admin_operator.create_admin(db, new_admin=new_admin, admin=admin)
 
 
@@ -118,7 +103,7 @@ async def modify_admin(
     username: str,
     modified_admin: AdminModify,
     db: AsyncSession = Depends(get_db),
-    current_admin: AdminDetails = Depends(check_sudo_admin),
+    current_admin: AdminDetails = Depends(require_permission("admins", "update")),
 ):
     """Modify an existing admin's details."""
     return await admin_operator.modify_admin(
@@ -135,13 +120,10 @@ async def modify_admin_by_username(
     username: str,
     modified_admin: AdminModify,
     db: AsyncSession = Depends(get_db),
-    current_admin: AdminDetails = Depends(check_sudo_admin),
+    current_admin: AdminDetails = Depends(require_permission("admins", "update")),
 ):
     return await admin_operator.modify_admin(
-        db,
-        username=username,
-        modified_admin=modified_admin,
-        current_admin=current_admin,
+        db, username=username, modified_admin=modified_admin, current_admin=current_admin
     )
 
 
@@ -154,19 +136,18 @@ async def modify_admin_by_id(
     admin_id: int,
     modified_admin: AdminModify,
     db: AsyncSession = Depends(get_db),
-    current_admin: AdminDetails = Depends(check_sudo_admin),
+    current_admin: AdminDetails = Depends(require_permission("admins", "update")),
 ):
     return await admin_operator.modify_admin_by_id(
-        db,
-        admin_id=admin_id,
-        modified_admin=modified_admin,
-        current_admin=current_admin,
+        db, admin_id=admin_id, modified_admin=modified_admin, current_admin=current_admin
     )
 
 
 @router.delete("/{username}", status_code=status.HTTP_204_NO_CONTENT)
 async def remove_admin(
-    username: str, db: AsyncSession = Depends(get_db), current_admin: AdminDetails = Depends(check_sudo_admin)
+    username: str,
+    db: AsyncSession = Depends(get_db),
+    current_admin: AdminDetails = Depends(require_permission("admins", "delete")),
 ):
     """Remove an admin from the database."""
     await admin_operator.remove_admin(db, username=username, current_admin=current_admin)
@@ -175,7 +156,9 @@ async def remove_admin(
 
 @router.delete("/by-username/{username}", status_code=status.HTTP_204_NO_CONTENT)
 async def remove_admin_by_username(
-    username: str, db: AsyncSession = Depends(get_db), current_admin: AdminDetails = Depends(check_sudo_admin)
+    username: str,
+    db: AsyncSession = Depends(get_db),
+    current_admin: AdminDetails = Depends(require_permission("admins", "delete")),
 ):
     await admin_operator.remove_admin(db, username=username, current_admin=current_admin)
     return {}
@@ -183,7 +166,9 @@ async def remove_admin_by_username(
 
 @router.delete("/by-id/{admin_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def remove_admin_by_id(
-    admin_id: int, db: AsyncSession = Depends(get_db), current_admin: AdminDetails = Depends(check_sudo_admin)
+    admin_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_admin: AdminDetails = Depends(require_permission("admins", "delete")),
 ):
     await admin_operator.remove_admin_by_id(db, admin_id=admin_id, current_admin=current_admin)
     return {}
@@ -197,15 +182,12 @@ def get_current_admin(admin: AdminDetails = Depends(get_current_with_metrics)):
 
 @router.get("s", response_model=AdminsResponse)
 async def get_admins(
-    username: str | None = None,
-    offset: int | None = None,
-    limit: int | None = None,
-    sort: str | None = None,
+    query: Annotated[AdminListQuery, Depends(get_admin_list_query)],
     db: AsyncSession = Depends(get_db),
-    _: AdminDetails = Depends(check_sudo_admin),
+    admin: AdminDetails = Depends(require_permission("admins", "read")),
 ):
     """Fetch a list of admins with optional filters for pagination and username."""
-    return await admin_operator.get_admins(db, username=username, offset=offset, limit=limit, sort=sort)
+    return await admin_operator.get_admins(db, query=query, admin=admin)
 
 
 @router.get(
@@ -213,25 +195,14 @@ async def get_admins(
     response_model=AdminsSimpleResponse,
     summary="Get lightweight admin list",
     description="Returns only id and username for admins. Optimized for dropdowns and autocomplete.",
-    dependencies=[Depends(check_sudo_admin)],
 )
 async def get_admins_simple(
-    search: str | None = None,
-    offset: int | None = None,
-    limit: int | None = None,
-    sort: str | None = None,
-    all: bool = False,
+    query: Annotated[AdminSimpleListQuery, Depends(get_admin_simple_list_query)],
     db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(require_permission("admins", "read_simple")),
 ):
-    """Get lightweight admin list with only id and username"""
-    return await admin_operator.get_admins_simple(
-        db=db,
-        search=search,
-        offset=offset,
-        limit=limit,
-        sort=sort,
-        all=all,
-    )
+    """Get lightweight admin list with only id and username."""
+    return await admin_operator.get_admins_simple(db=db, query=query, admin=admin)
 
 
 @router.get(
@@ -241,25 +212,12 @@ async def get_admins_simple(
 )
 async def get_admin_usage(
     username: str,
-    period: Period,
-    node_id: int | None = None,
-    group_by_node: bool = False,
-    start: dt | None = Query(None, examples=["2024-01-01T00:00:00+03:30"]),
-    end: dt | None = Query(None, examples=["2024-01-31T23:59:59+03:30"]),
+    query: Annotated[AdminUsageQuery, Depends(get_admin_usage_query)],
     db: AsyncSession = Depends(get_db),
     admin: AdminDetails = Depends(get_current),
 ):
     """Get admin usage aggregated from user traffic."""
-    return await admin_operator.get_admin_usage(
-        db,
-        username=username,
-        admin=admin,
-        start=start,
-        end=end,
-        period=period,
-        node_id=node_id,
-        group_by_node=group_by_node,
-    )
+    return await admin_operator.get_admin_usage(db, username=username, admin=admin, query=query)
 
 
 @router.get(
@@ -269,24 +227,11 @@ async def get_admin_usage(
 )
 async def get_admin_usage_by_username(
     username: str,
-    period: Period,
-    node_id: int | None = None,
-    group_by_node: bool = False,
-    start: dt | None = Query(None, examples=["2024-01-01T00:00:00+03:30"]),
-    end: dt | None = Query(None, examples=["2024-01-31T23:59:59+03:30"]),
+    query: Annotated[AdminUsageQuery, Depends(get_admin_usage_query)],
     db: AsyncSession = Depends(get_db),
-    admin: AdminDetails = Depends(get_current),
+    admin: AdminDetails = Depends(require_permission("admins", "read")),
 ):
-    return await admin_operator.get_admin_usage(
-        db,
-        username=username,
-        admin=admin,
-        start=start,
-        end=end,
-        period=period,
-        node_id=node_id,
-        group_by_node=group_by_node,
-    )
+    return await admin_operator.get_admin_usage(db, username=username, admin=admin, query=query)
 
 
 @router.get(
@@ -296,38 +241,29 @@ async def get_admin_usage_by_username(
 )
 async def get_admin_usage_by_id(
     admin_id: int,
-    period: Period,
-    node_id: int | None = None,
-    group_by_node: bool = False,
-    start: dt | None = Query(None, examples=["2024-01-01T00:00:00+03:30"]),
-    end: dt | None = Query(None, examples=["2024-01-31T23:59:59+03:30"]),
+    query: Annotated[AdminUsageQuery, Depends(get_admin_usage_query)],
     db: AsyncSession = Depends(get_db),
-    admin: AdminDetails = Depends(get_current),
+    admin: AdminDetails = Depends(require_permission("admins", "read")),
 ):
-    return await admin_operator.get_admin_usage_by_id(
-        db,
-        admin_id=admin_id,
-        admin=admin,
-        start=start,
-        end=end,
-        period=period,
-        node_id=node_id,
-        group_by_node=group_by_node,
-    )
+    return await admin_operator.get_admin_usage_by_id(db, admin_id=admin_id, admin=admin, query=query)
 
 
 @router.post("/{username}/users/disable", responses={404: responses._404})
 async def disable_all_active_users(
-    username: str, db: AsyncSession = Depends(get_db), admin: AdminDetails = Depends(check_sudo_admin)
+    username: str,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(require_permission("admins", "update")),
 ):
-    """Disable all active users under a specific admin"""
+    """Disable all active users under a specific admin."""
     await admin_operator.disable_all_active_users(db, username=username, admin=admin)
     return {}
 
 
 @router.post("/by-username/{username}/users/disable", responses={404: responses._404})
 async def disable_all_active_users_by_username(
-    username: str, db: AsyncSession = Depends(get_db), admin: AdminDetails = Depends(check_sudo_admin)
+    username: str,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(require_permission("admins", "update")),
 ):
     await admin_operator.disable_all_active_users(db, username=username, admin=admin)
     return {}
@@ -335,7 +271,9 @@ async def disable_all_active_users_by_username(
 
 @router.post("/by-id/{admin_id}/users/disable", responses={404: responses._404})
 async def disable_all_active_users_by_id(
-    admin_id: int, db: AsyncSession = Depends(get_db), admin: AdminDetails = Depends(check_sudo_admin)
+    admin_id: int,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(require_permission("admins", "update")),
 ):
     await admin_operator.disable_all_active_users_by_id(db, admin_id=admin_id, admin=admin)
     return {}
@@ -343,16 +281,20 @@ async def disable_all_active_users_by_id(
 
 @router.post("/{username}/users/activate", responses={404: responses._404})
 async def activate_all_disabled_users(
-    username: str, db: AsyncSession = Depends(get_db), admin: AdminDetails = Depends(check_sudo_admin)
+    username: str,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(require_permission("admins", "update")),
 ):
-    """Activate all disabled users under a specific admin"""
+    """Activate all disabled users under a specific admin."""
     await admin_operator.activate_all_disabled_users(db, username=username, admin=admin)
     return {}
 
 
 @router.post("/by-username/{username}/users/activate", responses={404: responses._404})
 async def activate_all_disabled_users_by_username(
-    username: str, db: AsyncSession = Depends(get_db), admin: AdminDetails = Depends(check_sudo_admin)
+    username: str,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(require_permission("admins", "update")),
 ):
     await admin_operator.activate_all_disabled_users(db, username=username, admin=admin)
     return {}
@@ -360,7 +302,9 @@ async def activate_all_disabled_users_by_username(
 
 @router.post("/by-id/{admin_id}/users/activate", responses={404: responses._404})
 async def activate_all_disabled_users_by_id(
-    admin_id: int, db: AsyncSession = Depends(get_db), admin: AdminDetails = Depends(check_sudo_admin)
+    admin_id: int,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(require_permission("admins", "update")),
 ):
     await admin_operator.activate_all_disabled_users_by_id(db, admin_id=admin_id, admin=admin)
     return {}
@@ -368,7 +312,9 @@ async def activate_all_disabled_users_by_id(
 
 @router.delete("/{username}/users", responses={403: responses._403, 404: responses._404})
 async def remove_all_users(
-    username: str, db: AsyncSession = Depends(get_db), admin: AdminDetails = Depends(check_sudo_admin)
+    username: str,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(require_permission("admins", "delete")),
 ):
     """Remove all users under a specific admin."""
     deleted = await admin_operator.remove_all_users(db, username=username, admin=admin)
@@ -377,7 +323,9 @@ async def remove_all_users(
 
 @router.delete("/by-username/{username}/users", responses={403: responses._403, 404: responses._404})
 async def remove_all_users_by_username(
-    username: str, db: AsyncSession = Depends(get_db), admin: AdminDetails = Depends(check_sudo_admin)
+    username: str,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(require_permission("admins", "delete")),
 ):
     deleted = await admin_operator.remove_all_users(db, username=username, admin=admin)
     return {"detail": f"operation has been successfuly done {deleted} users deleted"}
@@ -385,7 +333,9 @@ async def remove_all_users_by_username(
 
 @router.delete("/by-id/{admin_id}/users", responses={403: responses._403, 404: responses._404})
 async def remove_all_users_by_id(
-    admin_id: int, db: AsyncSession = Depends(get_db), admin: AdminDetails = Depends(check_sudo_admin)
+    admin_id: int,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(require_permission("admins", "delete")),
 ):
     deleted = await admin_operator.remove_all_users_by_id(db, admin_id=admin_id, admin=admin)
     return {"detail": f"operation has been successfuly done {deleted} users deleted"}
@@ -393,7 +343,9 @@ async def remove_all_users_by_id(
 
 @router.post("/{username}/reset", response_model=AdminDetails, responses={404: responses._404})
 async def reset_admin_usage(
-    username: str, db: AsyncSession = Depends(get_db), admin: AdminDetails = Depends(check_sudo_admin)
+    username: str,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(require_permission("admins", "reset_usage")),
 ):
     """Resets usage of admin."""
     return await admin_operator.reset_admin_usage(db, username=username, admin=admin)
@@ -401,14 +353,18 @@ async def reset_admin_usage(
 
 @router.post("/by-username/{username}/reset", response_model=AdminDetails, responses={404: responses._404})
 async def reset_admin_usage_by_username(
-    username: str, db: AsyncSession = Depends(get_db), admin: AdminDetails = Depends(check_sudo_admin)
+    username: str,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(require_permission("admins", "reset_usage")),
 ):
     return await admin_operator.reset_admin_usage(db, username=username, admin=admin)
 
 
 @router.post("/by-id/{admin_id}/reset", response_model=AdminDetails, responses={404: responses._404})
 async def reset_admin_usage_by_id(
-    admin_id: int, db: AsyncSession = Depends(get_db), admin: AdminDetails = Depends(check_sudo_admin)
+    admin_id: int,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(require_permission("admins", "reset_usage")),
 ):
     return await admin_operator.reset_admin_usage_by_id(db, admin_id=admin_id, admin=admin)
 
@@ -421,9 +377,9 @@ async def reset_admin_usage_by_id(
 async def bulk_delete_admins(
     bulk_admins: BulkAdminSelection,
     db: AsyncSession = Depends(get_db),
-    admin: AdminDetails = Depends(check_sudo_admin),
+    admin: AdminDetails = Depends(require_permission("admins", "delete")),
 ):
-    """Delete selected admins by username."""
+    """Delete selected admins by ID."""
     return await admin_operator.bulk_remove_admins(db, bulk_admins, admin)
 
 
@@ -435,9 +391,9 @@ async def bulk_delete_admins(
 async def bulk_reset_admins_usage(
     bulk_admins: BulkAdminSelection,
     db: AsyncSession = Depends(get_db),
-    admin: AdminDetails = Depends(check_sudo_admin),
+    admin: AdminDetails = Depends(require_permission("admins", "reset_usage")),
 ):
-    """Reset usage for selected admins by username."""
+    """Reset usage for selected admins by ID."""
     return await admin_operator.bulk_reset_admins_usage(db, bulk_admins, admin)
 
 
@@ -449,9 +405,9 @@ async def bulk_reset_admins_usage(
 async def bulk_disable_admins(
     bulk_admins: BulkAdminSelection,
     db: AsyncSession = Depends(get_db),
-    admin: AdminDetails = Depends(check_sudo_admin),
+    admin: AdminDetails = Depends(require_permission("admins", "update")),
 ):
-    """Disable selected admins by username."""
+    """Disable selected admins by ID."""
     return await admin_operator.bulk_set_admins_disabled(db, bulk_admins, admin, is_disabled=True)
 
 
@@ -463,9 +419,9 @@ async def bulk_disable_admins(
 async def bulk_enable_admins(
     bulk_admins: BulkAdminSelection,
     db: AsyncSession = Depends(get_db),
-    admin: AdminDetails = Depends(check_sudo_admin),
+    admin: AdminDetails = Depends(require_permission("admins", "update")),
 ):
-    """Enable selected admins by username."""
+    """Enable selected admins by ID."""
     return await admin_operator.bulk_set_admins_disabled(db, bulk_admins, admin, is_disabled=False)
 
 
@@ -477,7 +433,7 @@ async def bulk_enable_admins(
 async def bulk_disable_all_active_users(
     bulk_admins: BulkAdminSelection,
     db: AsyncSession = Depends(get_db),
-    admin: AdminDetails = Depends(check_sudo_admin),
+    admin: AdminDetails = Depends(require_permission("admins", "update")),
 ):
     """Disable all active users under selected admins."""
     return await admin_operator.bulk_disable_all_active_users_for_admins(db, bulk_admins, admin)
@@ -491,7 +447,7 @@ async def bulk_disable_all_active_users(
 async def bulk_activate_all_disabled_users(
     bulk_admins: BulkAdminSelection,
     db: AsyncSession = Depends(get_db),
-    admin: AdminDetails = Depends(check_sudo_admin),
+    admin: AdminDetails = Depends(require_permission("admins", "update")),
 ):
     """Activate all disabled users under selected admins."""
     return await admin_operator.bulk_activate_all_disabled_users_for_admins(db, bulk_admins, admin)
@@ -505,7 +461,7 @@ async def bulk_activate_all_disabled_users(
 async def bulk_remove_all_users(
     bulk_admins: BulkAdminSelection,
     db: AsyncSession = Depends(get_db),
-    admin: AdminDetails = Depends(check_sudo_admin),
+    admin: AdminDetails = Depends(require_permission("admins", "delete")),
 ):
     """Remove all users under selected admins."""
     return await admin_operator.bulk_remove_all_users_for_admins(db, bulk_admins, admin)

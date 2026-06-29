@@ -1,8 +1,10 @@
-import MainSection from '@/components/hosts/hosts-list'
-import { type HostFormValues } from '@/components/forms/host-form'
+import MainSection from '@/features/hosts/components/hosts-list'
+import { type HostFormValues } from '@/features/hosts/forms/host-form'
 import PageHeader from '@/components/layout/page-header'
 import { Separator } from '@/components/ui/separator'
 import { BaseHost, createHost, CreateHost, getHosts, modifyHost, MultiplexProtocol, ProxyHostALPN, ProxyHostFingerprint, Xudp } from '@/service/api'
+import { useAdmin } from '@/hooks/use-admin'
+import { hasPermission } from '@/utils/rbac'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Plus } from 'lucide-react'
 import { useState } from 'react'
@@ -10,6 +12,9 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 export default function HostsPage() {
+  const { admin } = useAdmin()
+  const canCreateHosts = hasPermission(admin, 'hosts', 'create')
+  const canUpdateHosts = hasPermission(admin, 'hosts', 'update')
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingHost, setEditingHost] = useState<BaseHost | null>(null)
   const { data, refetch, isFetching } = useQuery({
@@ -27,6 +32,7 @@ export default function HostsPage() {
   }
 
   const handleCreateClick = () => {
+    if (!canCreateHosts) return
     setEditingHost(null)
     setIsDialogOpen(true)
   }
@@ -37,6 +43,15 @@ export default function HostsPage() {
 
   const handleSubmit = async (formData: HostFormValues) => {
     try {
+      if (editingHost?.id && !canUpdateHosts) {
+        toast.error(t('permissionDenied', { defaultValue: 'Permission denied' }))
+        return { status: 403 }
+      }
+      if (!editingHost?.id && !canCreateHosts) {
+        toast.error(t('permissionDenied', { defaultValue: 'Permission denied' }))
+        return { status: 403 }
+      }
+
       // Check if all protocols are set to none
       const allProtocolsNone =
         formData.mux_settings &&
@@ -44,11 +59,10 @@ export default function HostsPage() {
         (!formData.mux_settings.clash?.protocol || formData.mux_settings.clash.protocol === 'none') &&
         !formData.mux_settings.xray?.concurrency
 
-      // If creating a new host, set priority to max+1
+      // If creating a new host, set priority to max+1 (or 0 if no hosts exist yet)
       let priority = formData.priority
-      if (!editingHost?.id && data && data.length > 0) {
-        const priorities = data.map(h => h.priority ?? 0)
-        const maxPriority = Math.max(...priorities)
+      if (!editingHost?.id) {
+        const maxPriority = data && data.length > 0 ? Math.max(...data.map(h => h.priority ?? 0)) : -1
         priority = maxPriority + 1
       }
 
@@ -61,8 +75,7 @@ export default function HostsPage() {
         ech_config_list: formData.ech_config_list || undefined,
         ech_query_strategy: formData.ech_query_strategy || undefined,
         pinned_peer_cert_sha256: formData.pinned_peer_cert_sha256 || undefined,
-        verify_peer_cert_by_name:
-          formData.verify_peer_cert_by_name && formData.verify_peer_cert_by_name.length > 0 ? formData.verify_peer_cert_by_name : undefined,
+        verify_peer_cert_by_name: formData.verify_peer_cert_by_name && formData.verify_peer_cert_by_name.length > 0 ? formData.verify_peer_cert_by_name : undefined,
         vless_route: formData.vless_route || undefined,
         transport_settings: formData.transport_settings
           ? {
@@ -220,8 +233,14 @@ export default function HostsPage() {
 
   return (
     <div className="flex w-full flex-col items-start gap-2 pb-8">
-      <div className="w-full transform-gpu animate-fade-in" style={{ animationDuration: '400ms' }}>
-        <PageHeader title="hosts" description="manageHosts" buttonIcon={Plus} buttonText="hostsDialog.addHost" onButtonClick={handleCreateClick} />
+      <div className="animate-fade-in w-full transform-gpu" style={{ animationDuration: '400ms' }}>
+        <PageHeader
+          title="hosts"
+          description="manageHosts"
+          buttonIcon={canCreateHosts ? Plus : undefined}
+          buttonText={canCreateHosts ? 'hostsDialog.addHost' : undefined}
+          onButtonClick={canCreateHosts ? handleCreateClick : undefined}
+        />
         <Separator />
       </div>
 
@@ -236,6 +255,8 @@ export default function HostsPage() {
           setEditingHost={setEditingHost}
           onRefresh={refetch}
           isRefreshing={isFetching}
+          canCreate={canCreateHosts}
+          canUpdate={canUpdateHosts}
         />
       </div>
     </div>

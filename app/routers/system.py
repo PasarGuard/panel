@@ -8,7 +8,14 @@ from fastapi.responses import JSONResponse
 from app.db import AsyncSession, get_db
 from app.models.admin import AdminDetails
 from app.models.settings import Telegram
-from app.models.system import InboundSummary, SystemStats, WorkerHealth, WorkersHealth
+from app.models.system import (
+    InboundSummary,
+    SystemResourceStats,
+    SystemStats,
+    SystemUsersStats,
+    WorkerHealth,
+    WorkersHealth,
+)
 from app.nats import is_nats_enabled
 from app.nats.node_rpc import node_nats_client
 from app.nats.scheduler_rpc import scheduler_nats_client
@@ -20,7 +27,7 @@ from app.utils import responses
 from app.utils.logger import EndpointFilter, get_logger
 from config import telegram_env_settings
 
-from .authentication import get_current
+from .authentication import require_permission
 
 system_operator = SystemOperation(operator_type=OperatorType.API)
 router = APIRouter(tags=["System"], prefix="/api", responses={401: responses._401})
@@ -33,20 +40,40 @@ if telegram_env_settings.do_not_log_bot:
 
 @router.get("/system", response_model=SystemStats)
 async def get_system_stats(
-    admin_username: str | None = None, db: AsyncSession = Depends(get_db), admin: AdminDetails = Depends(get_current)
+    admin_username: str | None = None,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(require_permission("system", "read")),
 ):
     """Fetch system stats including memory, CPU, disk, and user metrics."""
     return await system_operator.get_system_stats(db, admin=admin, admin_username=admin_username)
 
 
+@router.get("/system/resources", response_model=SystemResourceStats)
+async def get_system_resource_stats(
+    _: AdminDetails = Depends(require_permission("system", "read")),
+):
+    """Fetch system resource stats without user metrics."""
+    return await system_operator.get_system_resource_stats()
+
+
+@router.get("/system/users", response_model=SystemUsersStats)
+async def get_system_users_stats(
+    admin_username: str | None = None,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(require_permission("users", "read")),
+):
+    """Fetch user stats and traffic metrics without system resource stats."""
+    return await system_operator.get_system_users_stats(db, admin=admin, admin_username=admin_username)
+
+
 @router.get("/inbounds", response_model=list[str])
-async def get_inbounds(_: AdminDetails = Depends(get_current)):
+async def get_inbounds(_: AdminDetails = Depends(require_permission("system", "read"))):
     """Retrieve inbound configurations grouped by protocol."""
     return await system_operator.get_inbounds()
 
 
 @router.get("/inbounds/details", response_model=list[InboundSummary])
-async def get_inbound_details(_: AdminDetails = Depends(get_current)):
+async def get_inbound_details(_: AdminDetails = Depends(require_permission("system", "read"))):
     """Retrieve lightweight inbound metadata for dashboard forms."""
     return await system_operator.get_inbound_details()
 
@@ -64,7 +91,7 @@ async def _measure_worker_health(request_coro) -> WorkerHealth:
 
 
 @router.get("/workers/health", response_model=WorkersHealth)
-async def get_workers_health(_: AdminDetails = Depends(get_current)):
+async def get_workers_health(_: AdminDetails = Depends(require_permission("system", "read"))):
     if not is_nats_enabled():
         disabled = WorkerHealth(status="disabled")
         return WorkersHealth(scheduler=disabled, node=disabled)
@@ -89,6 +116,8 @@ async def webhook_handler(request: Request, X_Telegram_Bot_Api_Secret_Token: str
         raise HTTPException(status_code=403, detail="Forbidden: Invalid secret key")
 
     bot = get_bot()
+    if not bot:
+        return JSONResponse(status_code=200, content={"status": "ok"})
     dp = get_dispatcher()
 
     update_data = await request.json()

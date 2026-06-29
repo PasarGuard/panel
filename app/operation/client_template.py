@@ -5,7 +5,6 @@ from sqlalchemy.exc import IntegrityError
 
 from app.db import AsyncSession
 from app.db.crud.client_template import (
-    ClientTemplateSortingOptionsSimple,
     clear_host_subscription_template_overrides,
     count_client_templates_by_type,
     create_client_template,
@@ -21,10 +20,12 @@ from app.models.admin import AdminDetails
 from app.models.client_template import (
     BulkClientTemplateSelection,
     ClientTemplateCreate,
+    ClientTemplateListQuery,
     ClientTemplateModify,
     ClientTemplateResponse,
     ClientTemplateResponseList,
     ClientTemplateSimple,
+    ClientTemplateSimpleListQuery,
     ClientTemplatesSimpleResponse,
     ClientTemplateType,
     RemoveClientTemplatesResponse,
@@ -108,42 +109,15 @@ class ClientTemplateOperation(BaseOperation):
     async def get_client_templates(
         self,
         db: AsyncSession,
-        template_type: ClientTemplateType | None = None,
-        offset: int | None = None,
-        limit: int | None = None,
+        query: ClientTemplateListQuery,
     ) -> ClientTemplateResponseList:
-        templates, count = await get_client_templates(db, template_type=template_type, offset=offset, limit=limit)
+        templates, count = await get_client_templates(db, query=query)
         return ClientTemplateResponseList(templates=templates, count=count)
 
     async def get_client_templates_simple(
-        self,
-        db: AsyncSession,
-        offset: int | None = None,
-        limit: int | None = None,
-        search: str | None = None,
-        template_type: ClientTemplateType | None = None,
-        sort: str | None = None,
-        all: bool = False,
+        self, db: AsyncSession, query: ClientTemplateSimpleListQuery
     ) -> ClientTemplatesSimpleResponse:
-        sort_list = []
-        if sort is not None:
-            opts = sort.strip(",").split(",")
-            for opt in opts:
-                try:
-                    enum_member = ClientTemplateSortingOptionsSimple[opt]
-                    sort_list.append(enum_member)
-                except KeyError:
-                    await self.raise_error(message=f'"{opt}" is not a valid sort option', code=400)
-
-        rows, total = await get_client_templates_simple(
-            db=db,
-            offset=offset,
-            limit=limit,
-            search=search,
-            template_type=template_type,
-            sort=sort_list if sort_list else None,
-            skip_pagination=all,
-        )
+        rows, total = await get_client_templates_simple(db=db, query=query)
 
         templates = [
             ClientTemplateSimple(id=row[0], name=row[1], template_type=row[2], is_default=row[3]) for row in rows
@@ -212,12 +186,21 @@ class ClientTemplateOperation(BaseOperation):
         self, db: AsyncSession, bulk_templates: BulkClientTemplateSelection, admin: AdminDetails
     ) -> RemoveClientTemplatesResponse:
         """Remove multiple client templates by ID - fast batch delete"""
-        db_templates = []
+        ids_list = list(bulk_templates.ids)
+        db_templates_list, _ = await get_client_templates(
+            db, ClientTemplateListQuery(ids=ids_list, limit=len(ids_list))
+        )
+
+        found_ids = {t.id for t in db_templates_list}
+        missing = set(ids_list) - found_ids
+        if missing:
+            await self.raise_error(message="Client template not found", code=404)
+
+        db_templates = list(db_templates_list)
         templates_by_type = {}
 
-        # Validate all templates exist and can be deleted
-        for template_id in bulk_templates.ids:
-            db_template = await self.get_validated_client_template(db, template_id)
+        # Validate all templates can be deleted
+        for db_template in db_templates:
             template_type = ClientTemplateType(db_template.template_type)
 
             if db_template.is_system:
@@ -227,7 +210,6 @@ class ClientTemplateOperation(BaseOperation):
             if template_type not in templates_by_type:
                 templates_by_type[template_type] = []
             templates_by_type[template_type].append(db_template)
-            db_templates.append(db_template)
 
         # Validate we won't leave any type without templates
         for template_type, templates_of_type in templates_by_type.items():

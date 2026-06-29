@@ -2,10 +2,17 @@ import asyncio
 import json
 
 import nats
+from nats import errors as nats_errors
 from nats.js.client import JetStreamContext
 
 from app.nats import is_nats_enabled
 from app.nats.client import create_nats_client, get_jetstream_context
+from app.utils.logger import get_logger
+
+logger = get_logger("Notification")
+
+PUBLISH_TIMEOUT_MAX_ATTEMPTS = 3
+PUBLISH_TIMEOUT_BASE_DELAY = 0.1
 
 
 class NotificationQueue:
@@ -74,7 +81,20 @@ class NatsNotificationQueue(NotificationQueue):
             raise RuntimeError("JetStream context not available")
 
         data = json.dumps(item).encode()
-        await self._js.publish(self.SUBJECT, data)
+        for attempt in range(PUBLISH_TIMEOUT_MAX_ATTEMPTS):
+            try:
+                await self._js.publish(self.SUBJECT, data)
+                return
+            except (asyncio.TimeoutError, nats_errors.TimeoutError) as err:
+                if attempt == PUBLISH_TIMEOUT_MAX_ATTEMPTS - 1:
+                    raise
+
+                delay = PUBLISH_TIMEOUT_BASE_DELAY * (2**attempt)
+                logger.warning(
+                    f"NATS notification publish timed out, retrying in {delay:.1f}s "
+                    f"(attempt {attempt + 1}/{PUBLISH_TIMEOUT_MAX_ATTEMPTS}): {err}"
+                )
+                await asyncio.sleep(delay)
 
     async def dequeue(self, timeout: int | None = None):
         """Get a notification item from the queue - messages are held until claimed."""

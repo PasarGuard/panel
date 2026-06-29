@@ -3,6 +3,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
+from sqlalchemy.exc import DBAPIError
 
 from app.lifecycle import on_shutdown, on_startup
 from app.nats import is_nats_enabled
@@ -19,10 +20,36 @@ from config import runtime_settings, subscription_env_settings
 logger = get_logger("app-factory")
 
 
+async def database_operational_error_handler(request: Request, exc: DBAPIError):
+    orig = getattr(exc, "orig", None)
+    error_summary = f"{type(orig).__name__}: {orig}" if orig else type(exc).__name__
+    logger.warning(f"Database unavailable while handling {request.method} {request.url.path}: {error_summary}")
+    return JSONResponse(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        content={"detail": "Database temporarily unavailable"},
+    )
+
+
 def _use_route_names_as_operation_ids(app: FastAPI) -> None:
-    for route in app.routes:
-        if isinstance(route, APIRoute):
-            route.operation_id = route.name
+    def _simplify_operation_ids(routes):
+        for route in routes:
+            if isinstance(route, APIRoute):
+                route.operation_id = route.name
+            elif type(route).__name__ == "_IncludedRouter" and hasattr(route, "original_router"):
+                _simplify_operation_ids(route.original_router.routes)
+            elif hasattr(route, "routes"):
+                _simplify_operation_ids(route.routes)
+
+    _simplify_operation_ids(app.routes)
+
+
+def _validate_subscription_path(app: FastAPI) -> None:
+    paths = [f"{path}/" for route in app.routes if (path := getattr(route, "path", None)) is not None]
+    paths.append("/api/")
+    if f"/{subscription_env_settings.path}/" in paths:
+        raise ValueError(
+            f"you can't use /{subscription_env_settings.path}/ as subscription path it reserved for {app.title}"
+        )
 
 
 def _register_nats_handlers(enable_router: bool, enable_settings: bool, enable_client_templates: bool):
@@ -81,15 +108,7 @@ def create_app() -> FastAPI:
 
     setup_middleware(app)
 
-    def _validate_paths():
-        paths = [f"{r.path}/" for r in app.routes]
-        paths.append("/api/")
-        if f"/{subscription_env_settings.path}/" in paths:
-            raise ValueError(
-                f"you can't use /{subscription_env_settings.path}/ as subscription path it reserved for {app.title}"
-            )
-
-    on_startup(_validate_paths)
+    on_startup(_validate_subscription_path)
 
     if runtime_settings.role.runs_panel:
         import dashboard
@@ -129,6 +148,24 @@ def create_app() -> FastAPI:
         return JSONResponse(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             content=jsonable_encoder({"detail": details}),
+        )
+
+    app.add_exception_handler(DBAPIError, database_operational_error_handler)
+
+    from app.operation.permissions import LimitExceeded, PermissionDenied  # noqa: F401
+
+    @app.exception_handler(PermissionDenied)
+    async def permission_denied_handler(request: Request, exc: PermissionDenied):
+        return JSONResponse(
+            status_code=status.HTTP_403_FORBIDDEN,
+            content={"detail": exc.detail},
+        )
+
+    @app.exception_handler(LimitExceeded)
+    async def limit_exceeded_handler(request: Request, exc: LimitExceeded):
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"detail": exc.detail},
         )
 
     return app

@@ -63,6 +63,19 @@ async def session_factory(monkeypatch: pytest.MonkeyPatch):
         await conn.run_sync(base.Base.metadata.drop_all)
         await conn.run_sync(base.Base.metadata.create_all)
 
+    # Seed the 3 default roles so FK constraints on admins.role_id are satisfied
+    from app.db.models import AdminRole
+
+    async with async_sessionmaker(bind=engine, expire_on_commit=False)() as seed_session:
+        seed_session.add_all(
+            [
+                AdminRole(name="owner", is_owner=True, permissions={}, limits={}, features={}, access={}),
+                AdminRole(name="administrator", is_owner=False, permissions={}, limits={}, features={}, access={}),
+                AdminRole(name="operator", is_owner=False, permissions={}, limits={}, features={}, access={}),
+            ]
+        )
+        await seed_session.commit()
+
     session_factory = async_sessionmaker(bind=engine, expire_on_commit=False, autoflush=False)
 
     class TestGetDB:
@@ -92,7 +105,7 @@ async def session_factory(monkeypatch: pytest.MonkeyPatch):
 @pytest.mark.asyncio
 async def test_record_user_usages_updates_users_and_admins(monkeypatch: pytest.MonkeyPatch, session_factory):
     async with session_factory() as session:
-        admin = Admin(username="admin", hashed_password="secret")
+        admin = Admin(username="admin", hashed_password="secret", role_id=3)
         session.add(admin)
         await session.flush()
         admin_id = admin.id
@@ -181,9 +194,70 @@ async def test_record_user_usages_updates_users_and_admins(monkeypatch: pytest.M
 
 
 @pytest.mark.asyncio
+async def test_record_user_stats_batched_skips_missing_users(session_factory):
+    async with session_factory() as session:
+        admin = Admin(username="admin", hashed_password="secret", role_id=3)
+        session.add(admin)
+        await session.flush()
+
+        user = User(username="user", admin_id=admin.id, proxy_settings=ProxyTable().dict(no_obj=True))
+        node = Node(
+            name="node-1",
+            address="10.0.0.1",
+            port=1000,
+            api_port=1001,
+            server_ca="ca1",
+            api_key="key1",
+            core_config_id=None,
+        )
+        session.add_all([user, node])
+        await session.flush()
+        user_id, node_id = user.id, node.id
+        missing_user_id = user_id + 10_000
+        await session.commit()
+
+    await record_usages.record_user_stats_batched(
+        {
+            node_id: [
+                {"uid": str(user_id), "value": 100},
+                {"uid": str(missing_user_id), "value": 200},
+            ]
+        },
+        {node_id: 1},
+    )
+
+    async with session_factory() as session:
+        rows = await session.execute(select(NodeUserUsage.user_id, NodeUserUsage.used_traffic))
+        records = rows.all()
+
+    assert records == [(user_id, 100)]
+
+
+@pytest.mark.asyncio
+async def test_record_user_stats_batched_chunks_mysql_batches(monkeypatch: pytest.MonkeyPatch):
+    executed_param_sizes = []
+
+    async def fake_get_dialect():
+        return "mysql"
+
+    async def fake_safe_execute(stmt, params=None, max_retries=2):
+        executed_param_sizes.append(len(params))
+
+    monkeypatch.setattr(record_usages, "get_dialect", fake_get_dialect)
+    monkeypatch.setattr(record_usages, "safe_execute", fake_safe_execute)
+    monkeypatch.setattr(record_usages, "_get_time_bucket", lambda: None)
+
+    params = [{"uid": str(index + 1), "value": 1} for index in range(2_501)]
+
+    await record_usages.record_user_stats_batched({1: params}, {1: 1})
+
+    assert executed_param_sizes == [4_000, 4_000, 2_004]
+
+
+@pytest.mark.asyncio
 async def test_record_user_usages_returns_when_no_usage(monkeypatch: pytest.MonkeyPatch, session_factory):
     async with session_factory() as session:
-        admin = Admin(username="admin", hashed_password="secret")
+        admin = Admin(username="admin", hashed_password="secret", role_id=3)
         session.add(admin)
         await session.flush()
         admin_id = admin.id

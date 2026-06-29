@@ -105,7 +105,7 @@ export function useVersionCheck(currentVersion: string | null, options: UseVersi
     hasUpdate,
     latestVersion: enabled ? latestVersion : null,
     currentVersion: cleanCurrentVersion,
-    releaseUrl: enabled ? (data?.url || null) : null,
+    releaseUrl: enabled ? data?.url || null : null,
     isLoading: enabled ? isLoading : false,
   }
 }

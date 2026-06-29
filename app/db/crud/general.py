@@ -214,7 +214,7 @@ def attach_timezone_to_period_start(row_dict: dict, target_tz, dialect: str = No
             else:
                 # Fallback to fromisoformat
                 period_start = datetime.fromisoformat(clean_str)
-        except (ValueError, AttributeError):
+        except ValueError, AttributeError:
             # If parsing fails, leave as is
             return
 

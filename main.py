@@ -9,9 +9,8 @@ from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 
 from app import create_app  # noqa: F401
-from app.utils.logger import get_logger
 from app.nats import require_nats_if_multiworker
-from app.utils.logger import LOGGING_CONFIG
+from app.utils.logger import LOGGING_CONFIG, get_logger
 from config import logging_settings, runtime_settings, server_settings
 
 logger = get_logger("uvicorn-main")
@@ -60,7 +59,7 @@ def check_and_modify_ip(ip_address: str) -> str:
         else:
             return "localhost"
 
-    except (ValueError, socket.gaierror):
+    except ValueError, socket.gaierror:
         return "localhost"
 
 
@@ -130,7 +129,7 @@ The application will only be accessible through localhost. This means that {clic
 
 If you need external access, please provide the SSL files to allow the server to bind to 0.0.0.0. Alternatively, you can run the server on localhost or a Unix socket and use a reverse proxy, such as Nginx or Caddy, to handle SSL termination and provide external access.
 
-If you wish to continue without SSL, you can use SSH port forwarding to access the application from your machine. note that in this case, subscription functionality will not work. 
+If you wish to continue without SSL, you can use SSH port forwarding to access the application from your machine. note that in this case, subscription functionality will not work.
 
 Use the following command:
 
@@ -160,6 +159,8 @@ Then, navigate to {click.style(f"http://{ip}:{server_settings.port}", bold=True)
             log_config=LOGGING_CONFIG,
             log_level=effective_log_level.lower(),
             loop=server_settings.loop,
+            proxy_headers=server_settings.proxy_headers,
+            forwarded_allow_ips=server_settings.forwarded_allow_ips,
         )
     except FileNotFoundError:  # to prevent error on removing unix sock
         pass

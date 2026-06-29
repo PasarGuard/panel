@@ -59,6 +59,7 @@ async def send_notifications():
     failed_to_requeue = []
     ready_notifications = []
     current_time = dt.now(tz.utc).timestamp()
+    should_requeue = settings.enable
 
     try:
         async with aiohttp.ClientSession(
@@ -67,7 +68,7 @@ async def send_notifications():
             webhook_queue = get_webhook_queue()
             while True:
                 try:
-                    item = await webhook_queue.dequeue(timeout=0.1)
+                    item = await webhook_queue.dequeue(timeout=1)
                 except Exception:
                     # Handle any dequeue errors gracefully
                     break
@@ -112,13 +113,10 @@ async def send_notifications():
                     processed += len(batch)
 
     finally:
-        # Don't requeue failed items if webhook disabled
-        if not settings.enable:
-            return
-
-        # Requeue failed items at the end
-        for notif in failed_to_requeue:
-            await enqueue_webhook(notif.payload, send_at=notif.send_at, tries=notif.tries)
+        if should_requeue:
+            # Requeue failed items at the end
+            for notif in failed_to_requeue:
+                await enqueue_webhook(notif.payload, send_at=notif.send_at, tries=notif.tries)
 
         if processed or failed_to_requeue:
             logger.info(f"Processed {processed} notifications, requeued {len(failed_to_requeue)}")

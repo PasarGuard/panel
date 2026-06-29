@@ -1,0 +1,626 @@
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Pagination, PaginationContent, PaginationEllipsis, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination'
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Badge } from '@/components/ui/badge'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel } from '@/components/ui/dropdown-menu'
+import useDirDetection from '@/hooks/use-dir-detection'
+import { cn } from '@/lib/utils'
+import { useDebouncedSearch } from '@/hooks/use-debounced-search'
+import { RefreshCw, SearchIcon, Filter, X, ArrowUpDown, User, Calendar, ChartPie, ChevronDown, Check, Clock } from 'lucide-react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
+import { useGetUsers, UserStatus } from '@/service/api'
+import { RefetchOptions } from '@tanstack/react-query'
+import { LoaderCircle } from 'lucide-react'
+import { getUsersAutoRefreshIntervalSeconds, setUsersAutoRefreshIntervalSeconds } from '@/utils/userPreferenceStorage'
+import { $fetch as publicFetch } from 'ofetch'
+import { resolveSubscriptionPanelBaseUrl } from '@/utils/subscription-config'
+
+// Compact sort configuration: one row per field
+const sortSections = [
+  {
+    key: 'username',
+    icon: User,
+    label: 'username',
+    asc: 'username',
+    desc: '-username',
+    ascHintKey: 'sort.hints.az',
+    descHintKey: 'sort.hints.za',
+  },
+  {
+    key: 'createdAt',
+    icon: Calendar,
+    label: 'createdAt',
+    asc: 'created_at',
+    desc: '-created_at',
+    ascHintKey: 'sort.hints.oldest',
+    descHintKey: 'sort.hints.newest',
+  },
+  {
+    key: 'editedAt',
+    icon: Clock,
+    label: 'editedAt',
+    asc: 'edit_at',
+    desc: '-edit_at',
+    ascHintKey: 'sort.hints.oldest',
+    descHintKey: 'sort.hints.newest',
+  },
+  {
+    key: 'expire',
+    icon: Calendar,
+    label: 'expireDate',
+    asc: 'expire',
+    desc: '-expire',
+    ascHintKey: 'sort.hints.oldest',
+    descHintKey: 'sort.hints.newest',
+  },
+  {
+    key: 'usage',
+    icon: ChartPie,
+    label: 'dataUsage',
+    asc: 'used_traffic',
+    desc: '-used_traffic',
+    ascHintKey: 'sort.hints.lowToHigh',
+    descHintKey: 'sort.hints.highToLow',
+  },
+  {
+    key: 'onlineAt',
+    icon: Clock,
+    label: 'lastOnline',
+    asc: 'online_at',
+    desc: '-online_at',
+    ascHintKey: 'sort.hints.oldest',
+    descHintKey: 'sort.hints.newest',
+  },
+] as const
+
+const autoRefreshOptions = [
+  { value: 0, labelKey: 'autoRefresh.off' },
+  { value: 5, labelKey: 'autoRefresh.5Seconds' },
+  { value: 15, labelKey: 'autoRefresh.15Seconds' },
+  { value: 30, labelKey: 'autoRefresh.30Seconds' },
+  { value: 60, labelKey: 'autoRefresh.1Minute' },
+] as const
+
+interface FiltersProps {
+  filters: {
+    search?: string
+    proxy_id?: string
+    is_protocol?: boolean
+    is_id?: boolean
+    limit?: number
+    offset?: number
+    sort: string
+    status?: UserStatus | null
+    load_sub: boolean
+    ids?: number[] | null
+    admin?: string[]
+    group?: number[]
+    data_limit_min?: number | null
+    data_limit_max?: number | null
+    expire_after?: string | null
+    expire_before?: string | null
+    online_after?: string | null
+    online_before?: string | null
+    online?: boolean
+    no_data_limit?: boolean
+    no_expire?: boolean
+  }
+  onFilterChange: (filters: Partial<FiltersProps['filters']>) => void
+  refetch?: (options?: RefetchOptions) => Promise<unknown>
+  autoRefetch?: (options?: RefetchOptions) => Promise<unknown>
+  advanceSearchOnOpen: (status: boolean) => void
+  onClearAdvanceSearch?: () => void
+  handleSort?: (column: string, fromDropdown?: boolean) => void
+}
+
+type SubscriptionInfoResponse = {
+  username?: string
+}
+
+const isSubscriptionUrlSearch = (value: string | undefined): value is string => {
+  return Boolean(value?.trim().startsWith('https://'))
+}
+
+const buildSubscriptionInfoUrl = (value: string) => {
+  const baseUrl = resolveSubscriptionPanelBaseUrl(value)
+  if (!baseUrl) return ''
+
+  try {
+    const url = new URL(baseUrl)
+    url.pathname = `${url.pathname.replace(/\/+$/, '')}/info`
+    url.search = ''
+    url.hash = ''
+    return url.toString()
+  } catch {
+    return `${baseUrl.replace(/\/+$/, '')}/info`
+  }
+}
+
+export const Filters = ({ filters, onFilterChange, refetch, autoRefetch, advanceSearchOnOpen, onClearAdvanceSearch, handleSort }: FiltersProps) => {
+  const { t } = useTranslation()
+  const dir = useDirDetection()
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [autoRefreshInterval, setAutoRefreshInterval] = useState<number>(() => getUsersAutoRefreshIntervalSeconds())
+  const { refetch: queryRefetch, isFetching } = useGetUsers(filters)
+  const activeSearchValue = filters.ids?.join(', ') || filters.search || filters.proxy_id || ''
+  const { search, debouncedSearch, setSearch } = useDebouncedSearch(activeSearchValue, 300)
+  const prevDebouncedSearchRef = useRef<string | undefined>(activeSearchValue || undefined)
+  const searchResolveIdRef = useRef(0)
+  const ignoreNextDebouncedSearchRef = useRef(false)
+
+  useEffect(() => {
+    prevDebouncedSearchRef.current = activeSearchValue || undefined
+  }, [activeSearchValue])
+
+  const refetchUsers = useCallback(
+    async (showLoading = false, isAutoRefresh = false) => {
+      if (showLoading) {
+        setIsRefreshing(true)
+      }
+      try {
+        // Use autoRefetch for auto refresh, otherwise use manual refetch
+        const refetchFn = isAutoRefresh ? (autoRefetch ?? queryRefetch) : (refetch ?? queryRefetch)
+        await refetchFn()
+      } finally {
+        if (showLoading) {
+          setIsRefreshing(false)
+        }
+      }
+    },
+    [refetch, autoRefetch, queryRefetch],
+  )
+  useEffect(() => {
+    const persistedValue = getUsersAutoRefreshIntervalSeconds()
+    setAutoRefreshInterval(prev => (prev === persistedValue ? prev : persistedValue))
+  }, [])
+  useEffect(() => {
+    if (!autoRefreshInterval) return
+    const intervalId = setInterval(() => {
+      refetchUsers(true, true) // Show loading spinner on auto refresh, mark as auto refresh
+    }, autoRefreshInterval * 1000)
+    return () => clearInterval(intervalId)
+  }, [autoRefreshInterval, refetchUsers])
+  useEffect(() => {
+    if (typeof document === 'undefined') return
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && autoRefreshInterval > 0) {
+        refetchUsers(true, true) // Show loading spinner on visibility change refresh, mark as auto refresh
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [autoRefreshInterval, refetchUsers])
+  const currentAutoRefreshOption = autoRefreshOptions.find(option => option.value === autoRefreshInterval) ?? autoRefreshOptions[0]
+  const autoRefreshShortLabel =
+    autoRefreshInterval === 0
+      ? t('autoRefresh.offShort')
+      : autoRefreshInterval < 60
+        ? t('autoRefresh.shortSeconds', { count: autoRefreshInterval })
+        : t('autoRefresh.shortMinutes', { count: Math.round(autoRefreshInterval / 60) })
+  const currentAutoRefreshDescription = t(currentAutoRefreshOption.labelKey)
+
+  // Update filters when debounced search changes
+  useEffect(() => {
+    if (ignoreNextDebouncedSearchRef.current) {
+      ignoreNextDebouncedSearchRef.current = false
+      prevDebouncedSearchRef.current = debouncedSearch
+      return
+    }
+
+    // Only update if search actually changed to avoid resetting page on initial load
+    if (debouncedSearch !== prevDebouncedSearchRef.current) {
+      prevDebouncedSearchRef.current = debouncedSearch
+      const trimmedSearch = debouncedSearch?.trim()
+      const resolveId = searchResolveIdRef.current + 1
+      searchResolveIdRef.current = resolveId
+
+      if (!trimmedSearch) {
+        onFilterChange({
+          search: '',
+          ids: undefined,
+          proxy_id: undefined,
+          is_id: false,
+          is_protocol: false,
+          offset: 0,
+        })
+        return
+      }
+
+      if (isSubscriptionUrlSearch(trimmedSearch)) {
+        const resolveSubscriptionUsername = async () => {
+          try {
+            const infoUrl = buildSubscriptionInfoUrl(trimmedSearch)
+            if (!infoUrl) return
+
+            const info = await publicFetch<SubscriptionInfoResponse>(infoUrl)
+            const username = info.username?.trim()
+
+            if (searchResolveIdRef.current !== resolveId || !username) return
+
+            prevDebouncedSearchRef.current = username
+            setSearch(username)
+            onFilterChange({
+              search: username,
+              ids: undefined,
+              proxy_id: undefined,
+              is_id: false,
+              is_protocol: false,
+              offset: 0,
+            })
+          } catch {
+            if (searchResolveIdRef.current !== resolveId) return
+            onFilterChange({
+              search: debouncedSearch || '',
+              ids: undefined,
+              is_id: false,
+              is_protocol: false,
+              offset: 0,
+            })
+          }
+        }
+
+        void resolveSubscriptionUsername()
+        return
+      }
+
+      onFilterChange({
+        search: debouncedSearch || '',
+        offset: 0,
+      })
+    }
+  }, [debouncedSearch, onFilterChange])
+
+  // Handle input change
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    searchResolveIdRef.current += 1
+    setSearch(e.target.value)
+  }
+
+  // Clear search field
+  const clearSearch = () => {
+    searchResolveIdRef.current += 1
+    ignoreNextDebouncedSearchRef.current = true
+    prevDebouncedSearchRef.current = debouncedSearch
+    setSearch('')
+    onFilterChange({
+      search: '',
+      ids: undefined,
+      proxy_id: undefined,
+      is_id: false,
+      is_protocol: false,
+      offset: 0,
+    })
+  }
+
+  // Handle refresh with loading state
+  const handleRefreshClick = async () => {
+    await refetchUsers(true, false) // Show loading spinner on manual refresh, mark as manual refresh
+  }
+
+  const handleAutoRefreshChange = (seconds: number) => {
+    setUsersAutoRefreshIntervalSeconds(seconds)
+    setAutoRefreshInterval(seconds)
+  }
+
+  const handleOpenAdvanceSearch = () => {
+    advanceSearchOnOpen(true)
+  }
+
+  // Check if any advance search filters are active
+  // Check the actual filters prop instead of form values, as form gets reset when modal closes
+  const hasActiveAdvanceFilters = () => {
+    const admin = filters.admin
+    const group = filters.group
+    const ids = filters.ids
+    const status = filters.status
+    const hasDataLimit =
+      (filters.data_limit_min !== undefined && filters.data_limit_min !== null) || (filters.data_limit_max !== undefined && filters.data_limit_max !== null) || Boolean(filters.no_data_limit)
+    const hasExpireDate = Boolean(filters.expire_after || filters.expire_before || filters.no_expire)
+    const hasOnlineDate = Boolean(filters.online_after || filters.online_before || filters.online)
+    return (ids && ids.length > 0) || (admin && admin.length > 0) || (group && group.length > 0) || (status !== undefined && status !== null) || hasDataLimit || hasExpireDate || hasOnlineDate
+  }
+
+  // Get the count of active advance filters
+  // Check the actual filters prop instead of form values, as form gets reset when modal closes
+  const getActiveFiltersCount = () => {
+    const admin = filters.admin
+    const group = filters.group
+    const ids = filters.ids
+    const status = filters.status
+    const hasDataLimit =
+      (filters.data_limit_min !== undefined && filters.data_limit_min !== null) || (filters.data_limit_max !== undefined && filters.data_limit_max !== null) || Boolean(filters.no_data_limit)
+    const hasExpireDate = Boolean(filters.expire_after || filters.expire_before || filters.no_expire)
+    const hasOnlineDate = Boolean(filters.online_after || filters.online_before || filters.online)
+    let count = 0
+    if (ids && ids.length > 0) count++
+    if (admin && admin.length > 0) count++
+    if (group && group.length > 0) count++
+    if (status !== undefined && status !== null) count++
+    if (hasDataLimit) count++
+    if (hasExpireDate) count++
+    if (hasOnlineDate) count++
+    return count
+  }
+
+  const getSortState = (section: (typeof sortSections)[number]) => {
+    if (filters.sort === section.desc) return 'desc' as const
+    if (filters.sort === section.asc) return 'asc' as const
+    return 'none' as const
+  }
+
+  const handleCompactSort = (section: (typeof sortSections)[number]) => {
+    if (!handleSort) return
+
+    const state = getSortState(section)
+    const nextSort = state === 'none' ? section.desc : section.asc
+    handleSort(nextSort, true)
+  }
+
+  return (
+    <div dir={dir} className="flex items-center gap-2 py-4 md:gap-4">
+      {/* Search Input */}
+      <div className="relative min-w-0 flex-1 md:w-[calc(100%/3-10px)] md:flex-none">
+        <SearchIcon className={cn('absolute', dir === 'rtl' ? 'right-2' : 'left-2', 'text-input-placeholder top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400')} />
+        <Input placeholder={t('search')} value={search} onChange={handleSearchChange} className="pr-10 pl-8" />
+        {search && (
+          <button onClick={clearSearch} className={cn('absolute', dir === 'rtl' ? 'left-2' : 'right-2', 'top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600')}>
+            <X className="h-4 w-4" />
+          </button>
+        )}
+      </div>
+      <div className="flex h-full flex-shrink-0 items-center gap-1">
+        <Button size="icon-md" variant="ghost" className="relative flex h-9 w-9 items-center justify-center rounded-lg border" onClick={handleOpenAdvanceSearch}>
+          <Filter className="h-4 w-4" />
+          {hasActiveAdvanceFilters() && (
+            <Badge variant="default" className="bg-primary text-primary-foreground absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full p-0 text-[10.5px]">
+              {getActiveFiltersCount()}
+            </Badge>
+          )}
+        </Button>
+        {hasActiveAdvanceFilters() && onClearAdvanceSearch && (
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button size="sm" variant="outline" className={cn('h-9 w-9 p-0', dir === 'rtl' ? 'rounded-r-none border-r-0' : 'rounded-l-none border-l-0')} onClick={onClearAdvanceSearch}>
+                <X className="h-3 w-3" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-2" side={dir === 'rtl' ? 'left' : 'right'} align="center">
+              <p className="text-sm">{t('clearAllFilters', { defaultValue: 'Clear All Filters' })}</p>
+            </PopoverContent>
+          </Popover>
+        )}
+      </div>
+      {/* Sort Button */}
+      {handleSort && (
+        <div className="flex h-full flex-shrink-0 items-center gap-1">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="icon-md" variant="ghost" className="relative flex h-9 w-9 items-center justify-center rounded-lg border" aria-label={t('sortOptions', { defaultValue: 'Sort Options' })}>
+                <ArrowUpDown className="h-4 w-4" />
+                {filters.sort && filters.sort !== '-created_at' && <div className="bg-primary absolute -top-1 -right-1 h-2 w-2 rounded-full" />}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="max-h-72 w-52 overflow-y-auto">
+              <DropdownMenuLabel className="text-muted-foreground px-2 py-1 text-[10px]">{t('sortOptions', { defaultValue: 'Sort Options' })}</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {sortSections.map(section => {
+                const state = getSortState(section)
+                return (
+                  <DropdownMenuItem key={section.key} onClick={() => handleCompactSort(section)} className={cn('flex items-center gap-1.5 px-2 py-1.5 text-[11px]', state !== 'none' && 'bg-accent')}>
+                    <section.icon className="text-muted-foreground h-3 w-3" />
+                    <span className="truncate">{t(section.label)}</span>
+                    {state !== 'none' && (
+                      <>
+                        <span className="text-muted-foreground ml-auto text-[10px]">{t(state === 'desc' ? section.descHintKey : section.ascHintKey)}</span>
+                        <ChevronDown className={cn('h-2.5 w-2.5 flex-shrink-0', state === 'asc' && 'rotate-180')} />
+                      </>
+                    )}
+                  </DropdownMenuItem>
+                )
+              })}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      )}
+      {/* Refresh Button */}
+      <div className="flex h-full flex-shrink-0 items-center gap-0">
+        <Button
+          size="icon-md"
+          onClick={handleRefreshClick}
+          variant="ghost"
+          className={cn(
+            'relative flex h-9 w-9 items-center justify-center rounded-lg border transition-all duration-200',
+            dir === 'rtl' ? 'rounded-l-none border-l-0' : 'rounded-r-none',
+            (isRefreshing || isFetching) && 'opacity-70',
+          )}
+          aria-label={t('autoRefresh.refreshNow')}
+          title={t('autoRefresh.refreshNow')}
+          disabled={isRefreshing || isFetching}
+        >
+          <RefreshCw className="h-4 w-4" />
+          <div className="absolute -top-1 -right-1 flex items-center justify-center">
+            {isRefreshing || isFetching ? (
+              <div className="bg-primary flex h-3 w-3 items-center justify-center rounded-full transition-all duration-200 ease-in-out">
+                <LoaderCircle className="text-primary-foreground h-2 w-2 animate-spin" />
+              </div>
+            ) : (
+              autoRefreshInterval > 0 && <div className="bg-primary z-50 h-2 w-2 rounded-full transition-all duration-200 ease-in-out" />
+            )}
+          </div>
+        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              size="icon-md"
+              variant="ghost"
+              className={cn('relative flex h-9 w-9 items-center justify-center rounded-lg border', dir === 'rtl' ? 'rounded-r-none' : 'rounded-l-none border-l-0')}
+              aria-label={t('autoRefresh.label')}
+              title={`${t('autoRefresh.label')} (${autoRefreshShortLabel})`}
+            >
+              <ChevronDown className="h-3 w-3" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuLabel className="text-muted-foreground flex flex-col gap-0.5 px-2 py-1.5 text-[11px]">
+              <span>{t('autoRefresh.label')}</span>
+              <span className="text-[10px]">{t('autoRefresh.currentSelection', { value: currentAutoRefreshDescription })}</span>
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onSelect={() => void handleRefreshClick()}
+              disabled={isRefreshing || isFetching}
+              className={cn('flex items-center gap-2 px-2 py-1.5 text-xs transition-opacity duration-200', (isRefreshing || isFetching) && 'opacity-70')}
+            >
+              <RefreshCw className="h-3 w-3 flex-shrink-0" />
+              <span className="truncate">{t('autoRefresh.refreshNow')}</span>
+              {(isRefreshing || isFetching) && <LoaderCircle className="text-primary ml-auto h-3 w-3 animate-spin" />}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            {autoRefreshOptions.map(option => {
+              const isActive = option.value === autoRefreshInterval
+              return (
+                <DropdownMenuItem
+                  key={option.value}
+                  onSelect={() => handleAutoRefreshChange(option.value)}
+                  className={cn('flex items-center gap-2 px-2 py-1.5 text-xs whitespace-nowrap', isActive && 'bg-accent')}
+                >
+                  <span>{t(option.labelKey)}</span>
+                  {isActive && <Check className="ml-auto h-3 w-3 flex-shrink-0" />}
+                </DropdownMenuItem>
+              )
+            })}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    </div>
+  )
+}
+
+interface PaginationControlsProps {
+  currentPage: number
+  totalPages: number
+  itemsPerPage: number
+  totalUsers: number
+  isLoading: boolean
+  onPageChange: (page: number) => void
+  onItemsPerPageChange: (value: number) => void
+}
+
+export const PaginationControls = ({ currentPage, totalPages, itemsPerPage, isLoading, onPageChange, onItemsPerPageChange }: PaginationControlsProps) => {
+  const { t } = useTranslation()
+
+  const getPaginationRange = (currentPage: number, totalPages: number) => {
+    const delta = 2 // Number of pages to show on each side of current page
+    const range = []
+
+    // Handle small number of pages
+    if (totalPages <= 5) {
+      for (let i = 0; i < totalPages; i++) {
+        range.push(i)
+      }
+      return range
+    }
+
+    // Always include first and last page
+    range.push(0)
+
+    // Calculate start and end of range
+    let start = Math.max(1, currentPage - delta)
+    let end = Math.min(totalPages - 2, currentPage + delta)
+
+    // Adjust range if current page is near start or end
+    if (currentPage - delta <= 1) {
+      end = Math.min(totalPages - 2, start + 2 * delta)
+    }
+    if (currentPage + delta >= totalPages - 2) {
+      start = Math.max(1, totalPages - 3 - 2 * delta)
+    }
+
+    // Add ellipsis if needed
+    if (start > 1) {
+      range.push(-1) // -1 represents ellipsis
+    }
+
+    // Add pages in range
+    for (let i = start; i <= end; i++) {
+      range.push(i)
+    }
+
+    // Add ellipsis if needed
+    if (end < totalPages - 2) {
+      range.push(-1) // -1 represents ellipsis
+    }
+
+    // Add last page
+    if (totalPages > 1) {
+      range.push(totalPages - 1)
+    }
+
+    return range
+  }
+
+  const paginationRange = getPaginationRange(currentPage, totalPages)
+  const dir = useDirDetection()
+  return (
+    <div className="mt-4 flex flex-col-reverse items-center justify-between gap-4 md:flex-row">
+      <div className="flex items-center gap-2">
+        <Select value={itemsPerPage.toString()} onValueChange={value => onItemsPerPageChange(parseInt(value, 10))} disabled={isLoading}>
+          <SelectTrigger className="w-[70px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              <SelectItem value="10">10</SelectItem>
+              <SelectItem value="20">20</SelectItem>
+              <SelectItem value="30">30</SelectItem>
+              <SelectItem value="40">40</SelectItem>
+              <SelectItem value="50">50</SelectItem>
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+        <span className="text-muted-foreground text-sm whitespace-nowrap">{t('itemsPerPage')}</span>
+      </div>
+
+      <Pagination dir="ltr" className={`md:justify-end ${dir === 'rtl' ? 'flex-row-reverse' : ''}`}>
+        <PaginationContent className={cn('w-full justify-center overflow-x-auto', dir === 'rtl' ? 'md:justify-start' : 'md:justify-end')}>
+          <PaginationItem>
+            <PaginationPrevious onClick={() => onPageChange(currentPage - 1)} disabled={currentPage === 0 || isLoading} />
+          </PaginationItem>
+          {paginationRange.map((pageNumber, i) =>
+            pageNumber === -1 ? (
+              <PaginationItem key={`ellipsis-${i}`}>
+                <PaginationEllipsis />
+              </PaginationItem>
+            ) : (
+              <PaginationItem key={pageNumber}>
+                <PaginationLink
+                  isActive={currentPage === pageNumber}
+                  onClick={() => onPageChange(pageNumber as number)}
+                  disabled={isLoading}
+                  className={isLoading && currentPage === pageNumber ? 'opacity-70' : ''}
+                >
+                  {isLoading && currentPage === pageNumber ? (
+                    <div className="flex items-center">
+                      <LoaderCircle className="mr-1 h-3 w-3 animate-spin" />
+                      {(pageNumber as number) + 1}
+                    </div>
+                  ) : (
+                    (pageNumber as number) + 1
+                  )}
+                </PaginationLink>
+              </PaginationItem>
+            ),
+          )}
+          <PaginationItem>
+            <PaginationNext onClick={() => onPageChange(currentPage + 1)} disabled={currentPage === totalPages - 1 || totalPages === 0 || isLoading} />
+          </PaginationItem>
+        </PaginationContent>
+      </Pagination>
+    </div>
+  )
+}

@@ -10,10 +10,12 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, project_root)
 
 # Override settings for tests
-from config import auth_settings, runtime_settings  # noqa: E402
+from config import auth_settings, runtime_settings, server_settings  # noqa: E402
 
 runtime_settings.testing = True
 runtime_settings.debug = True
+server_settings.proxy_headers = True
+server_settings.forwarded_allow_ips = "*"
 auth_settings.sudoers["testadmin"] = "testadmin"
 
 

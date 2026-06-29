@@ -1,4 +1,4 @@
-import { useGetSystemStats } from '@/service/api'
+import { useGetSystemResourceStats } from '@/service/api'
 
 const SYSTEM_VERSION_STALE_TIME = 5 * 60 * 1000
 
@@ -8,7 +8,7 @@ interface UseSystemVersionOptions {
 
 export function useSystemVersion(options: UseSystemVersionOptions = {}) {
   const enabled = options.enabled ?? true
-  const { data, isLoading, isError } = useGetSystemStats(undefined, {
+  const { data, isLoading, isError } = useGetSystemResourceStats({
     query: {
       enabled,
       select: stats => stats?.version ?? null,

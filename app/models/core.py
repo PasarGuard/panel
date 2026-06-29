@@ -1,4 +1,5 @@
 from datetime import datetime as dt
+from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -80,6 +81,54 @@ class CoresSimpleResponse(BaseModel):
 
     cores: list[CoreSimple]
     total: int
+
+
+class CoreSimpleSortField(str, Enum):
+    id = "id"
+    core_name = "name"
+    created_at = "created_at"
+
+
+class SortDirection(str, Enum):
+    asc = "asc"
+    desc = "desc"
+
+
+class CoreSimpleSortOption(str, Enum):
+    id = "id"
+    core_name = "name"
+    created_at = "created_at"
+    desc_id = "-id"
+    desc_core_name = "-name"
+    desc_created_at = "-created_at"
+
+    @property
+    def field(self) -> CoreSimpleSortField:
+        return CoreSimpleSortField(self.value.lstrip("-"))
+
+    @property
+    def direction(self) -> SortDirection:
+        return SortDirection.desc if self.value.startswith("-") else SortDirection.asc
+
+
+class CoreListQuery(BaseModel):
+    ids: list[int] | None = None
+    offset: int | None = None
+    limit: int | None = None
+
+
+class CoreSimpleListQuery(BaseModel):
+    ids: list[int] | None = None
+    offset: int | None = None
+    limit: int | None = None
+    search: str | None = None
+    sort: list[CoreSimpleSortOption] = Field(default_factory=list)
+    all: bool = False
+
+    @field_validator("sort", mode="before")
+    @classmethod
+    def validate_sort(cls, value):
+        return ListValidator.normalize_enum_list_input(value, CoreSimpleSortOption)
 
 
 class BulkCoreSelection(BaseModel):

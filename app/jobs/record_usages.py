@@ -9,9 +9,10 @@ from operator import attrgetter
 
 from PasarGuardNodeBridge import NodeAPIError, PasarGuardNode
 from PasarGuardNodeBridge.common.service_pb2 import StatType
-from sqlalchemy import and_, bindparam, insert, select, update
+from sqlalchemy import BigInteger, DateTime, and_, bindparam, func, insert, select, union_all, update
 from sqlalchemy.dialects.mysql import insert as mysql_insert
-from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.dialects.postgresql import ARRAY, insert as pg_insert
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.exc import DatabaseError, OperationalError
 from sqlalchemy.sql.expression import Insert
 
@@ -29,6 +30,11 @@ logger = get_logger("record-usages")
 # Start with 2-4, adjust based on DB performance
 JOB_SEM = asyncio.Semaphore(3)  # Max 3 concurrent DB write operations
 API_SEM = asyncio.Semaphore(10)  # Max 10
+NODE_USER_USAGE_BATCH_SIZE_BY_DIALECT = {
+    "mysql": 1_000,
+    "sqlite": 400,
+}
+USER_ADMIN_LOOKUP_BATCH_SIZE = 1_000
 
 # Thread pool executor for I/O-bound node API calls
 # Distributes workload across threads/cores for data collection
@@ -87,6 +93,11 @@ def _merge_usage_dicts(dicts: list[dict]) -> dict:
     return dict(merged)
 
 
+def _chunked(items: list, size: int):
+    for index in range(0, len(items), size):
+        yield items[index : index + size]
+
+
 async def get_dialect() -> str:
     """Get the database dialect name without holding the session open."""
     async with GetDB() as db:
@@ -102,69 +113,107 @@ def build_node_user_usage_upsert(dialect: str, upsert_params: list[dict]):
         upsert_params: List of parameter dicts with keys: uid, node_id, created_at, value
 
     Returns:
-        tuple: (statements_list, params_list) - For SQLite returns 2 statements, others return 1
+        list: One SQL statement and its bound parameters.
     """
     if dialect == "postgresql":
-        stmt = pg_insert(NodeUserUsage).values(
-            user_id=bindparam("uid"),
-            node_id=bindparam("node_id"),
-            created_at=bindparam("created_at"),
-            used_traffic=bindparam("value"),
+        source = (
+            func.unnest(
+                bindparam("uids", type_=ARRAY(BigInteger())),
+                bindparam("node_ids", type_=ARRAY(BigInteger())),
+                bindparam("created_ats", type_=ARRAY(DateTime(timezone=True))),
+                bindparam("traffic_values", type_=ARRAY(BigInteger())),
+            )
+            .table_valued("uid", "node_id", "created_at", "value")
+            .render_derived(name="source")
+        )
+
+        select_stmt = (
+            select(
+                source.c.created_at,
+                source.c.uid,
+                source.c.node_id,
+                func.sum(source.c.value).label("used_traffic"),
+            )
+            .select_from(source.join(User, User.id == source.c.uid))
+            .group_by(source.c.created_at, source.c.uid, source.c.node_id)
+        )
+
+        stmt = pg_insert(NodeUserUsage).from_select(
+            ["created_at", "user_id", "node_id", "used_traffic"],
+            select_stmt,
         )
         stmt = stmt.on_conflict_do_update(
             index_elements=["created_at", "user_id", "node_id"],
-            set_={"used_traffic": NodeUserUsage.used_traffic + bindparam("value")},
+            set_={"used_traffic": NodeUserUsage.used_traffic + stmt.excluded.used_traffic},
         )
-        return [(stmt, upsert_params)]
-
-    elif dialect == "mysql":
-        stmt = mysql_insert(NodeUserUsage).values(
-            user_id=bindparam("uid"),
-            node_id=bindparam("node_id"),
-            created_at=bindparam("created_at"),
-            used_traffic=bindparam("value"),
-        )
-        stmt = stmt.on_duplicate_key_update(used_traffic=NodeUserUsage.used_traffic + stmt.inserted.used_traffic)
-        return [(stmt, upsert_params)]
-
-    else:  # SQLite
-        # Insert with OR IGNORE
-        insert_stmt = (
-            insert(NodeUserUsage)
-            .values(
-                user_id=bindparam("uid"),
-                node_id=bindparam("node_id"),
-                created_at=bindparam("created_at"),
-                used_traffic=0,
+        return [
+            (
+                stmt,
+                {
+                    "uids": [param["uid"] for param in upsert_params],
+                    "node_ids": [param["node_id"] for param in upsert_params],
+                    "created_ats": [param["created_at"] for param in upsert_params],
+                    "traffic_values": [param["value"] for param in upsert_params],
+                },
             )
-            .prefix_with("OR IGNORE")
-        )
-
-        # Update with renamed bindparams to avoid conflicts
-        update_stmt = (
-            update(NodeUserUsage)
-            .values(used_traffic=NodeUserUsage.used_traffic + bindparam("value"))
-            .where(
-                and_(
-                    NodeUserUsage.user_id == bindparam("b_uid"),
-                    NodeUserUsage.node_id == bindparam("b_node_id"),
-                    NodeUserUsage.created_at == bindparam("b_created_at"),
-                )
-            )
-        )
-
-        # Remap params for update statement
-        update_params = [
-            {
-                "value": p["value"],
-                "b_uid": p["uid"],
-                "b_node_id": p["node_id"],
-                "b_created_at": p["created_at"],
-            }
-            for p in upsert_params
         ]
 
-        return [(insert_stmt, upsert_params), (update_stmt, update_params)]
+    select_parts = []
+    stmt_params = {}
+    for index, param in enumerate(upsert_params):
+        uid_key = f"uid_{index}"
+        node_id_key = f"node_id_{index}"
+        created_at_key = f"created_at_{index}"
+        value_key = f"value_{index}"
+        select_parts.append(
+            select(
+                bindparam(uid_key).label("uid"),
+                bindparam(node_id_key).label("node_id"),
+                bindparam(created_at_key).label("created_at"),
+                bindparam(value_key).label("value"),
+            )
+        )
+        stmt_params[uid_key] = param["uid"]
+        stmt_params[node_id_key] = param["node_id"]
+        stmt_params[created_at_key] = param["created_at"]
+        stmt_params[value_key] = param["value"]
+
+    source = union_all(*select_parts).subquery("source")
+    select_stmt = (
+        select(
+            source.c.created_at,
+            source.c.uid,
+            source.c.node_id,
+            func.sum(source.c.value).label("used_traffic"),
+        )
+        .select_from(source.join(User, User.id == source.c.uid))
+        .group_by(source.c.created_at, source.c.uid, source.c.node_id)
+    )
+
+    if dialect == "mysql":
+        insert_source = select_stmt.subquery("insert_source")
+        insert_select_stmt = select(
+            insert_source.c.created_at,
+            insert_source.c.uid,
+            insert_source.c.node_id,
+            insert_source.c.used_traffic,
+        )
+        stmt = mysql_insert(NodeUserUsage).from_select(
+            ["created_at", "user_id", "node_id", "used_traffic"],
+            insert_select_stmt,
+        )
+        stmt = stmt.on_duplicate_key_update(used_traffic=NodeUserUsage.used_traffic + insert_source.c.used_traffic)
+        return [(stmt, stmt_params)]
+
+    stmt = sqlite_insert(NodeUserUsage).from_select(
+        ["created_at", "user_id", "node_id", "used_traffic"],
+        select_stmt,
+    )
+    stmt = stmt.on_conflict_do_update(
+        index_elements=["created_at", "user_id", "node_id"],
+        set_={"used_traffic": NodeUserUsage.used_traffic + stmt.excluded.used_traffic},
+    )
+    return [(stmt, stmt_params)]
 
 
 def build_node_usage_upsert(dialect: str, upsert_param: dict):
@@ -282,20 +331,22 @@ async def safe_execute(stmt, params=None, max_retries: int = 2):
             # Session auto-closed by context manager, locks released
 
             # Determine error type for retry logic
-            is_mysql_deadlock = (
-                hasattr(err, "orig")
-                and hasattr(err.orig, "args")
-                and len(err.orig.args) > 0
-                and err.orig.args[0] == 1213
+            mysql_errno = (
+                err.orig.args[0]
+                if hasattr(err, "orig") and hasattr(err.orig, "args") and len(err.orig.args) > 0
+                else None
             )
+            # 1213 = deadlock, 1205 = lock wait timeout
+            is_mysql_retriable = mysql_errno in (1213, 1205)
             is_pg_deadlock = hasattr(err, "orig") and hasattr(err.orig, "code") and err.orig.code == "40P01"
             is_sqlite_locked = "database is locked" in str(err)
 
             # Retry with exponential backoff if retriable error
             if attempt < max_retries - 1:
-                if is_mysql_deadlock or is_pg_deadlock:
+                if is_mysql_retriable or is_pg_deadlock:
                     # Exponential backoff with jitter: 50-75ms, 100-150ms
-                    base_delay = 0.05 * (2**attempt)
+                    # Use longer base delay for lock wait timeouts vs deadlocks
+                    base_delay = 0.1 * (2**attempt) if mysql_errno == 1205 else 0.05 * (2**attempt)
                     jitter = random.uniform(0, base_delay * 0.5)
                     await asyncio.sleep(base_delay + jitter)
                     continue
@@ -365,11 +416,22 @@ async def record_user_stats_batched(all_node_params: dict, usage_coefficients: d
     if not upsert_params:
         return
 
-    # Execute single batched UPSERT with concurrency control
+    batch_size = NODE_USER_USAGE_BATCH_SIZE_BY_DIALECT.get(dialect, len(upsert_params))
+    batches = list(_chunked(upsert_params, batch_size))
+    if len(batches) > 1:
+        logger.debug(
+            "Splitting %s node user usage rows into %s %s batches",
+            len(upsert_params),
+            len(batches),
+            dialect,
+        )
+
+    # Execute batched UPSERTs with concurrency control
     async with JOB_SEM:
-        queries = build_node_user_usage_upsert(dialect, upsert_params)
-        for stmt, stmt_params in queries:
-            await safe_execute(stmt, stmt_params)
+        for batch in batches:
+            queries = build_node_user_usage_upsert(dialect, batch)
+            for stmt, stmt_params in queries:
+                await safe_execute(stmt, stmt_params)
 
 
 async def record_node_stats_batched(all_node_params: dict):
@@ -425,19 +487,15 @@ def _process_users_stats_response(stats_response):
     """
     params = defaultdict(int)
     for stat in filter(attrgetter("value"), stats_response.stats):
-        params[stat.name.split(".", 1)[0]] += stat.value
+        params[stat.name] += stat.value
 
-    # Validate UIDs and filter out invalid ones
     validated_params = []
     invalid_uids = []
     for uid, value in params.items():
         try:
-            uid_int = int(uid)
-            validated_params.append({"uid": uid_int, "value": value})
-        except (ValueError, TypeError):
-            # Collect invalid UIDs to log outside thread
+            validated_params.append({"uid": int(uid), "value": value})
+        except ValueError, TypeError:
             invalid_uids.append(uid)
-            continue
 
     return validated_params, invalid_uids
 
@@ -459,7 +517,6 @@ async def get_users_stats(node: PasarGuardNode):
             thread_pool, _process_users_stats_response, stats_response
         )
 
-        # Log invalid UIDs outside of thread (thread-safe logging)
         if invalid_uids:
             for uid in invalid_uids:
                 logger.warning("Skipping invalid UID: %s", uid)
@@ -518,9 +575,11 @@ async def calculate_admin_usage(users_usage: list) -> tuple[dict, set[int]]:
 
     async with GetDB() as db:
         # Query only relevant users' admin IDs
-        stmt = select(User.id, User.admin_id).where(User.id.in_(uids))
-        result = await db.execute(stmt)
-        user_admin_pairs = result.fetchall()
+        user_admin_pairs = []
+        for uid_batch in _chunked(list(uids), USER_ADMIN_LOOKUP_BATCH_SIZE):
+            stmt = select(User.id, User.admin_id).where(User.id.in_(uid_batch))
+            result = await db.execute(stmt)
+            user_admin_pairs.extend(result.fetchall())
 
     user_admin_map = {uid: admin_id for uid, admin_id in user_admin_pairs}
 
@@ -645,8 +704,10 @@ async def _record_user_usages_impl():
             logger.warning("Skipping user usage recording; no matching users found for received stats")
             return
 
-        # Filter valid users - simple operation, no need to parallelize
-        valid_users_usage = [usage for usage in users_usage if int(usage["uid"]) in valid_user_ids]
+        # Filter valid users - only include users with actual non-zero traffic
+        valid_users_usage = [
+            usage for usage in users_usage if int(usage["uid"]) in valid_user_ids and usage["value"] > 0
+        ]
 
         # Update User table with concurrency control
         if valid_users_usage:
@@ -672,7 +733,6 @@ async def _record_user_usages_impl():
             async with JOB_SEM:
                 await safe_execute(admin_stmt, admin_data)
             logger.debug(f"Updated {len(admin_data)} admins")
-
         if usage_settings.disable_recording_node_usage:
             return
 

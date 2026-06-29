@@ -216,9 +216,9 @@ def test_get_cores_simple_sort_ascending(access_token):
     created_core_ids = []
     created_names = []
     try:
-        core1 = create_core(access_token, name="core_c_sort")
-        core2 = create_core(access_token, name="core_a_sort")
-        core3 = create_core(access_token, name="core_b_sort")
+        core1 = create_core(access_token, name=unique_name("core_c_sort"))
+        core2 = create_core(access_token, name=unique_name("core_a_sort"))
+        core3 = create_core(access_token, name=unique_name("core_b_sort"))
         created_core_ids = [core1["id"], core2["id"], core3["id"]]
         created_names = [core1["name"], core2["name"], core3["name"]]
 
@@ -243,9 +243,9 @@ def test_get_cores_simple_sort_descending(access_token):
     created_core_ids = []
     created_names = []
     try:
-        core1 = create_core(access_token, name="core_a_desc")
-        core2 = create_core(access_token, name="core_b_desc")
-        core3 = create_core(access_token, name="core_c_desc")
+        core1 = create_core(access_token, name=unique_name("core_a_desc"))
+        core2 = create_core(access_token, name=unique_name("core_b_desc"))
+        core3 = create_core(access_token, name=unique_name("core_c_desc"))
         created_core_ids = [core1["id"], core2["id"], core3["id"]]
         created_names = [core1["name"], core2["name"], core3["name"]]
 

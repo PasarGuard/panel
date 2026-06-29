@@ -4,9 +4,11 @@ import { cn } from '@/lib/utils'
 import { Button } from './button'
 import { Input, InputProps } from './input'
 
-export interface PasswordInputProps extends InputProps {}
+export interface PasswordInputProps extends InputProps {
+  allowBrowserSave?: boolean
+}
 
-const PasswordInput = React.forwardRef<HTMLInputElement, PasswordInputProps>(({ className, type, error, isError, value, ...props }, ref) => {
+const PasswordInput = React.forwardRef<HTMLInputElement, PasswordInputProps>(({ className, type, error, isError, value, allowBrowserSave = false, ...props }, ref) => {
   const [showPassword, setShowPassword] = React.useState(false)
   const [hasValue, setHasValue] = React.useState(false)
 
@@ -23,18 +25,28 @@ const PasswordInput = React.forwardRef<HTMLInputElement, PasswordInputProps>(({ 
   }
 
   return (
-    <div className="relative">
-      <Input type={showPassword ? 'text' : 'password'} className={cn('pr-10', className)} ref={ref} error={error} isError={isError} value={value} {...props} onChange={handleInputChange} />
+    <div className="relative w-full min-w-0">
+      <Input
+        type={showPassword ? 'text' : 'password'}
+        className={cn('pr-10', className)}
+        ref={ref}
+        error={error}
+        isError={isError}
+        value={value}
+        autoComplete={allowBrowserSave ? 'current-password' : 'off'}
+        {...props}
+        onChange={handleInputChange}
+      />
       {(value || hasValue) && (
         <Button
           type="button"
           variant="ghost"
           size="sm"
-          className="absolute right-0 top-0 flex h-full items-center justify-center px-3 py-2 transition-opacity duration-200 hover:bg-transparent"
+          className="absolute top-0 right-0 flex h-9 items-center justify-center px-3 py-2 transition-opacity duration-200 hover:bg-transparent"
           onClick={togglePasswordVisibility}
           tabIndex={-1}
         >
-          {showPassword ? <EyeOff className="h-4 w-4 text-muted-foreground" /> : <Eye className="h-4 w-4 text-muted-foreground" />}
+          {showPassword ? <EyeOff className="text-muted-foreground h-4 w-4" /> : <Eye className="text-muted-foreground h-4 w-4" />}
           <span className="sr-only">{showPassword ? 'Hide password' : 'Show password'}</span>
         </Button>
       )}

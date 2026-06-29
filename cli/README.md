@@ -5,10 +5,8 @@ A modern, type-safe command-line interface for managing PasarGuard, built with T
 ## Features
 
 -   🎯 Type-safe CLI with rich output
--   📊 Beautiful tables and panels
--   🔒 Secure admin management
--   📈 System status monitoring
--   ⌨️ Interactive prompts and confirmations
+-   🔒 One-time temp key generation for owner setup
+-   ⌨️ Simple project-root and installed-service usage
 
 ## Installation
 
@@ -29,32 +27,17 @@ uv run PasarGuard-cli.py --help
 # Show version
 pasarguard cli version
 
+# Generate a one-time temp key for owner setup
+pasarguard cli generate-temp-key
+
 # Show help
 pasarguard cli --help
 ```
 
-### Admin Management
+### Owner Setup
+
+Admin management is handled from the dashboard. For owner setup, reset, delete, or upgrade operations, generate a one-time temp key and use it on the dashboard login page.
 
 ```bash
-# List all admins
-pasarguard cli admins --list
-
-# Create new admin
-pasarguard cli admins --create username
-
-# Delete admin
-pasarguard cli admins --delete username
-
-# Modify admin (password and sudo status)
-PasarGuard cli admins --modify username
-
-# Reset admin usage
-pasarguard cli admins --reset-usage username
-```
-
-### System Information
-
-```bash
-# Show system status
-PasarGuard cli system
+pasarguard cli generate-temp-key
 ```

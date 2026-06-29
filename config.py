@@ -33,11 +33,16 @@ class DatabaseSettings(EnvSettings):
     pool_size: int = Field(default=25, validation_alias="SQLALCHEMY_POOL_SIZE")
     max_overflow: int = Field(default=60, validation_alias="SQLALCHEMY_MAX_OVERFLOW")
     pool_recycle: int = Field(default=300, validation_alias="SQLALCHEMY_POOL_RECYCLE")
+    connect_timeout: int = Field(default=5, gt=0, validation_alias="SQLALCHEMY_CONNECT_TIMEOUT")
     echo_queries: bool = Field(default=False, validation_alias="ECHO_SQL_QUERIES")
 
     @cached_property
     def is_postgresql(self) -> bool:
         return self.url.startswith("postgresql")
+
+    @cached_property
+    def is_mysql(self) -> bool:
+        return self.url.startswith(("mysql", "mariadb"))
 
     @cached_property
     def is_sqlite(self) -> bool:
@@ -53,6 +58,8 @@ class ServerSettings(EnvSettings):
     ssl_ca_type: str = Field(default="public", validation_alias="UVICORN_SSL_CA_TYPE")
     workers: int = Field(default=1, validation_alias="UVICORN_WORKERS")
     loop: str = Field(default="auto", validation_alias="UVICORN_LOOP")
+    proxy_headers: bool = Field(default=False, validation_alias="UVICORN_PROXY_HEADERS")
+    forwarded_allow_ips: str | list[str] = Field(default="127.0.0.1", validation_alias="UVICORN_FORWARDED_ALLOW_IPS")
 
     @field_validator("ssl_ca_type")
     @classmethod
@@ -175,6 +182,7 @@ class JobSettings(EnvSettings):
     record_node_usages_interval: int = Field(default=30, validation_alias="JOB_RECORD_NODE_USAGES_INTERVAL")
     record_user_usages_interval: int = Field(default=10, validation_alias="JOB_RECORD_USER_USAGES_INTERVAL")
     review_users_interval: int = Field(default=30, validation_alias="JOB_REVIEW_USERS_INTERVAL")
+    review_admin_limits_interval: int = Field(default=10, validation_alias="JOB_REVIEW_ADMIN_LIMITS_INTERVAL")
     send_notifications_interval: int = Field(default=30, validation_alias="JOB_SEND_NOTIFICATIONS_INTERVAL")
     gather_nodes_stats_interval: int = Field(default=25, validation_alias="JOB_GATHER_NODES_STATS_INTERVAL")
     remove_old_inbounds_interval: int = Field(default=600, validation_alias="JOB_REMOVE_OLD_INBOUNDS_INTERVAL")

@@ -7,13 +7,18 @@ from uuid import UUID, uuid4
 
 import pytest
 from fastapi import status
-from sqlalchemy import func, inspect, select
+from sqlalchemy import event, func, inspect, select
+from sqlalchemy.orm import selectinload
 
 from app.db.crud.core import create_core_config, remove_core_config
 from app.db.crud.node import create_node as db_create_node, remove_node as db_remove_node
 from app.db.models import (
+    Admin,
+    AdminRole,
+    AdminStatus,
     CoreConfig,
     DataLimitResetStrategy,
+    Group,
     Node,
     NodeConnectionType,
     NodeStat,
@@ -21,10 +26,13 @@ from app.db.models import (
     NodeUsage,
     NodeUsageResetLogs,
     NodeUserUsage,
+    ProxyInbound,
     User,
+    UserStatus,
+    users_groups_association,
 )
 from app.models.core import CoreCreate
-from app.models.admin import AdminDetails
+from app.models.admin import AdminDetails, AdminRoleData
 from app.models.node import NodeCreate, NodeModify, NodeResponse, NodeSettings, NodesResponse
 from app.models.stats import (
     NodeRealtimeStats,
@@ -39,7 +47,10 @@ from app.models.stats import (
 )
 from app.operation import OperatorType
 from app.operation.node import NodeOperation
-from tests.api import TestSession, client
+from app.node import user as node_user_module
+from app.node.sync import _blocked_admin_ids_for_users
+from app.models.proxy import ProxyTable
+from tests.api import TestSession, client, engine
 from tests.api.helpers import auth_headers, unique_name
 from tests.api.sample_data import XRAY_CONFIG
 
@@ -88,6 +99,326 @@ def sample_node_response(**overrides) -> NodeResponse:
     }
     data.update(overrides)
     return NodeResponse(**data)
+
+
+@pytest.mark.asyncio
+async def test_sync_users_blocked_admin_lookup_is_batched():
+    blocking_username = unique_name("syba")
+    disabled_username = unique_name("sydba")
+    nonblocking_username = unique_name("synba")
+    disabled_nonblocking_username = unique_name("syndba")
+    active_username = unique_name("syaa")
+    nonblocking_role_name = unique_name("sync_nonblocking_role")
+    disabled_nonblocking_role_name = unique_name("sync_disabled_nonblocking_role")
+    user_prefix = unique_name("sync_user")
+
+    async with TestSession() as session:
+        nonblocking_role = AdminRole(
+            name=nonblocking_role_name,
+            is_owner=False,
+            permissions={},
+            limits={},
+            features={},
+            access={},
+            disconnect_users_when_limited=False,
+        )
+        disabled_nonblocking_role = AdminRole(
+            name=disabled_nonblocking_role_name,
+            is_owner=False,
+            permissions={},
+            limits={},
+            features={},
+            access={},
+            disconnect_users_when_disabled=False,
+        )
+        blocking_admin = Admin(
+            username=blocking_username,
+            hashed_password="secret",
+            role_id=3,
+            status=AdminStatus.limited,
+        )
+        disabled_admin = Admin(
+            username=disabled_username,
+            hashed_password="secret",
+            role_id=3,
+            status=AdminStatus.disabled,
+        )
+        active_admin = Admin(
+            username=active_username,
+            hashed_password="secret",
+            role_id=3,
+            status=AdminStatus.active,
+        )
+        session.add_all([nonblocking_role, disabled_nonblocking_role, blocking_admin, disabled_admin, active_admin])
+        await session.flush()
+
+        nonblocking_admin = Admin(
+            username=nonblocking_username,
+            hashed_password="secret",
+            role_id=nonblocking_role.id,
+            status=AdminStatus.limited,
+        )
+        disabled_nonblocking_admin = Admin(
+            username=disabled_nonblocking_username,
+            hashed_password="secret",
+            role_id=disabled_nonblocking_role.id,
+            status=AdminStatus.disabled,
+        )
+        session.add_all([nonblocking_admin, disabled_nonblocking_admin])
+        await session.flush()
+
+        users = [
+            User(username=f"{user_prefix}_blocked_a", admin_id=blocking_admin.id),
+            User(username=f"{user_prefix}_blocked_b", admin_id=blocking_admin.id),
+            User(username=f"{user_prefix}_disabled_blocked", admin_id=disabled_admin.id),
+            User(username=f"{user_prefix}_nonblocking", admin_id=nonblocking_admin.id),
+            User(username=f"{user_prefix}_disabled_nonblocking", admin_id=disabled_nonblocking_admin.id),
+            User(username=f"{user_prefix}_active", admin_id=active_admin.id),
+        ]
+        session.add_all(users)
+        await session.commit()
+
+        user_ids = [user.id for user in users]
+        blocking_admin_id = blocking_admin.id
+        disabled_admin_id = disabled_admin.id
+        nonblocking_admin_id = nonblocking_admin.id
+        disabled_nonblocking_admin_id = disabled_nonblocking_admin.id
+        active_admin_id = active_admin.id
+
+    query_count = 0
+
+    def count_admin_role_queries(_, __, statement, *args):
+        nonlocal query_count
+        if "admin_roles" in statement.lower():
+            query_count += 1
+
+    event.listen(engine.sync_engine, "before_cursor_execute", count_admin_role_queries)
+    try:
+        async with TestSession() as session:
+            loaded_users = list((await session.execute(select(User).where(User.id.in_(user_ids)))).scalars().all())
+            blocked_ids = await _blocked_admin_ids_for_users(loaded_users)
+
+        assert blocked_ids == {blocking_admin_id, disabled_admin_id}
+        assert nonblocking_admin_id not in blocked_ids
+        assert disabled_nonblocking_admin_id not in blocked_ids
+        assert active_admin_id not in blocked_ids
+        assert query_count == 1
+    finally:
+        event.remove(engine.sync_engine, "before_cursor_execute", count_admin_role_queries)
+
+
+@pytest.mark.asyncio
+async def test_sync_users_blocked_admin_lookup_uses_preloaded_roles_without_fallback_query():
+    blocking_username = unique_name("sylba")
+    active_username = unique_name("sylaa")
+    user_prefix = unique_name("sync_loaded_user")
+
+    async with TestSession() as session:
+        blocking_admin = Admin(
+            username=blocking_username,
+            hashed_password="secret",
+            role_id=3,
+            status=AdminStatus.limited,
+        )
+        active_admin = Admin(
+            username=active_username,
+            hashed_password="secret",
+            role_id=3,
+            status=AdminStatus.active,
+        )
+        session.add_all([blocking_admin, active_admin])
+        await session.flush()
+
+        users = [
+            User(username=f"{user_prefix}_blocked", admin_id=blocking_admin.id),
+            User(username=f"{user_prefix}_active", admin_id=active_admin.id),
+        ]
+        session.add_all(users)
+        await session.commit()
+
+        user_ids = [user.id for user in users]
+        blocking_admin_id = blocking_admin.id
+
+    async with TestSession() as session:
+        loaded_users = list(
+            (
+                await session.execute(
+                    select(User).options(selectinload(User.admin).selectinload(Admin.role)).where(User.id.in_(user_ids))
+                )
+            )
+            .unique()
+            .scalars()
+            .all()
+        )
+
+        query_count = 0
+
+        def count_admin_role_queries(_, __, statement, *args):
+            nonlocal query_count
+            if "admin_roles" in statement.lower():
+                query_count += 1
+
+        event.listen(engine.sync_engine, "before_cursor_execute", count_admin_role_queries)
+        try:
+            blocked_ids = await _blocked_admin_ids_for_users(loaded_users)
+
+            assert blocked_ids == {blocking_admin_id}
+            assert query_count == 0
+        finally:
+            event.remove(engine.sync_engine, "before_cursor_execute", count_admin_role_queries)
+
+
+@pytest.mark.asyncio
+async def test_sync_users_blocked_admin_lookup_falls_back_when_admin_role_is_not_loaded():
+    blocking_username = unique_name("sync_admin_no_role")
+    user_prefix = unique_name("sync_user_no_role")
+
+    async with TestSession() as session:
+        blocking_admin = Admin(
+            username=blocking_username,
+            hashed_password="secret",
+            role_id=3,
+            status=AdminStatus.limited,
+        )
+        session.add(blocking_admin)
+        await session.flush()
+
+        user = User(username=f"{user_prefix}_blocked", admin_id=blocking_admin.id)
+        session.add(user)
+        await session.commit()
+
+        user_id = user.id
+        blocking_admin_id = blocking_admin.id
+
+    async with TestSession() as session:
+        loaded_users = list(
+            (await session.execute(select(User).options(selectinload(User.admin)).where(User.id == user_id)))
+            .unique()
+            .scalars()
+            .all()
+        )
+
+        assert "admin" in loaded_users[0].__dict__
+        assert "role" not in loaded_users[0].admin.__dict__
+
+        query_count = 0
+
+        def count_admin_role_queries(_, __, statement, *args):
+            nonlocal query_count
+            if "admin_roles" in statement.lower():
+                query_count += 1
+
+        event.listen(engine.sync_engine, "before_cursor_execute", count_admin_role_queries)
+        try:
+            blocked_ids = await _blocked_admin_ids_for_users(loaded_users)
+
+            assert blocked_ids == {blocking_admin_id}
+            assert query_count == 1
+        finally:
+            event.remove(engine.sync_engine, "before_cursor_execute", count_admin_role_queries)
+
+
+@pytest.mark.asyncio
+async def test_core_users_only_excludes_admins_with_blocking_sync_roles(monkeypatch):
+    inbound_tag = unique_name("sync_inbound")
+    group_name = unique_name("sync_group")
+    user_prefix = unique_name("sync_core_user")
+
+    monkeypatch.setattr(
+        node_user_module,
+        "_serialize_user_for_node",
+        lambda id, user_settings, inbounds, allowed_protocols=None: {"id": id, "inbounds": inbounds},
+    )
+
+    async with TestSession() as session:
+        blocking_role = AdminRole(
+            name=unique_name("sync_blocking_role"),
+            is_owner=False,
+            permissions={},
+            limits={},
+            features={},
+            access={},
+            disconnect_users_when_limited=True,
+        )
+        nonblocking_role = AdminRole(
+            name=unique_name("sync_nonblocking_role"),
+            is_owner=False,
+            permissions={},
+            limits={},
+            features={},
+            access={},
+            disconnect_users_when_limited=False,
+        )
+        session.add_all([blocking_role, nonblocking_role])
+        await session.flush()
+
+        active_admin = Admin(
+            username=unique_name("sync_active_admin"),
+            hashed_password="secret",
+            role_id=blocking_role.id,
+            status=AdminStatus.active,
+        )
+        blocking_admin = Admin(
+            username=unique_name("sync_blocking_admin"),
+            hashed_password="secret",
+            role_id=blocking_role.id,
+            status=AdminStatus.limited,
+        )
+        nonblocking_admin = Admin(
+            username=unique_name("sync_nonblocking_admin"),
+            hashed_password="secret",
+            role_id=nonblocking_role.id,
+            status=AdminStatus.limited,
+        )
+        session.add_all([active_admin, blocking_admin, nonblocking_admin])
+        await session.flush()
+
+        inbound = ProxyInbound(tag=inbound_tag)
+        group = Group(name=group_name, inbounds=[inbound])
+        session.add(group)
+        await session.flush()
+
+        active_user = User(
+            username=f"{user_prefix}_active",
+            admin_id=active_admin.id,
+            proxy_settings=ProxyTable().dict(no_obj=True),
+            status=UserStatus.active,
+        )
+        blocked_user = User(
+            username=f"{user_prefix}_blocked",
+            admin_id=blocking_admin.id,
+            proxy_settings=ProxyTable().dict(no_obj=True),
+            status=UserStatus.active,
+        )
+        nonblocked_user = User(
+            username=f"{user_prefix}_nonblocked",
+            admin_id=nonblocking_admin.id,
+            proxy_settings=ProxyTable().dict(no_obj=True),
+            status=UserStatus.active,
+        )
+        session.add_all([active_user, blocked_user, nonblocked_user])
+        await session.flush()
+
+        await session.execute(
+            users_groups_association.insert(),
+            [
+                {"user_id": active_user.id, "groups_id": group.id},
+                {"user_id": blocked_user.id, "groups_id": group.id},
+                {"user_id": nonblocked_user.id, "groups_id": group.id},
+            ],
+        )
+        await session.commit()
+
+        expected_user_ids = {active_user.id, nonblocked_user.id}
+        blocked_user_id = blocked_user.id
+
+    async with TestSession() as session:
+        users = await node_user_module.core_users(session, inbound_tags=[inbound_tag])
+
+    synced_user_ids = {user["id"] for user in users}
+    assert synced_user_ids == expected_user_ids
+    assert blocked_user_id not in synced_user_ids
+    assert all(user["inbounds"] == [inbound_tag] for user in users)
 
 
 def node_create_payload(**overrides) -> dict:
@@ -275,11 +606,12 @@ def test_get_usage_passes_filters(access_token, node_operator_mock):
     assert response.json() == usage.model_dump(mode="json")
 
     awaited_kwargs = node_operator_mock.get_usage.await_args.kwargs
-    assert awaited_kwargs["node_id"] == 5
-    assert awaited_kwargs["group_by_node"] is True
-    assert awaited_kwargs["period"] == Period.day
-    assert awaited_kwargs["start"] == start
-    assert awaited_kwargs["end"] == end
+    query = awaited_kwargs["query"]
+    assert query.node_id == 5
+    assert query.group_by_node is True
+    assert query.period == Period.day
+    assert query.start == start
+    assert query.end == end
 
 
 def test_get_user_count_metric_passes_filters(access_token, node_operator_mock):
@@ -303,11 +635,12 @@ def test_get_user_count_metric_passes_filters(access_token, node_operator_mock):
 
     awaited_kwargs = node_operator_mock.get_user_count_metric.await_args.kwargs
     assert awaited_kwargs["metric"] == UserCountMetric.online
-    assert awaited_kwargs["node_id"] == 5
-    assert awaited_kwargs["group_by_node"] is True
-    assert awaited_kwargs["period"] == Period.day
-    assert awaited_kwargs["start"] == start
-    assert awaited_kwargs["end"] == end
+    query = awaited_kwargs["query"]
+    assert query.node_id == 5
+    assert query.group_by_node is True
+    assert query.period == Period.day
+    assert query.start == start
+    assert query.end == end
 
 
 def test_get_user_count_metric_rejects_status_metric_node_scope(access_token, node_operator_mock):
@@ -342,13 +675,14 @@ def test_get_nodes_forwards_query_params(access_token, node_operator_mock):
     assert response.json() == nodes_response.model_dump(mode="json")
 
     awaited_kwargs = node_operator_mock.get_db_nodes.await_args.kwargs
-    assert awaited_kwargs["core_id"] == 2
-    assert awaited_kwargs["offset"] == 5
-    assert awaited_kwargs["limit"] == 25
-    assert awaited_kwargs["enabled"] is True
-    assert awaited_kwargs["ids"] == [1, 2]
-    assert awaited_kwargs["search"] == "test"
-    assert awaited_kwargs["status"] == [NodeStatus.connected, NodeStatus.error]
+    query = awaited_kwargs["query"]
+    assert query.core_id == 2
+    assert query.offset == 5
+    assert query.limit == 25
+    assert query.enabled is True
+    assert query.ids == [1, 2]
+    assert query.search == "test"
+    assert query.status == [NodeStatus.connected, NodeStatus.error]
 
 
 def test_reconnect_all_nodes_triggers_restart(access_token, node_operator_mock):
@@ -443,6 +777,16 @@ def test_sync_node_users(access_token, node_operator_mock):
     )
     assert response.status_code == status.HTTP_200_OK
     assert response.json() == {"synced": True}
+    awaited_kwargs = node_operator_mock.sync_node_users.await_args.kwargs
+    assert awaited_kwargs["node_id"] == 11
+    assert awaited_kwargs["flush_users"] is True
+
+
+def test_sync_node_users_flushes_by_default(access_token, node_operator_mock):
+    node_operator_mock.sync_node_users.return_value = {"synced": True}
+    response = client.put("/api/node/11/sync", headers=auth_headers(access_token))
+
+    assert response.status_code == status.HTTP_200_OK
     awaited_kwargs = node_operator_mock.sync_node_users.await_args.kwargs
     assert awaited_kwargs["node_id"] == 11
     assert awaited_kwargs["flush_users"] is True
@@ -546,9 +890,10 @@ def test_get_node_stats(access_token, node_operator_mock):
     assert response.json() == stats.model_dump(mode="json")
     awaited_kwargs = node_operator_mock.get_node_stats_periodic.await_args.kwargs
     assert awaited_kwargs["node_id"] == 8
-    assert awaited_kwargs["start"] == start
-    assert awaited_kwargs["end"] == end
-    assert awaited_kwargs["period"] == Period.hour
+    query = awaited_kwargs["query"]
+    assert query.start == start
+    assert query.end == end
+    assert query.period == Period.hour
 
 
 def test_realtime_node_stats(access_token, node_operator_mock):
@@ -574,7 +919,7 @@ async def test_node_create_and_modify_schedule_background_reconnect(monkeypatch:
     monkeypatch.setattr("app.operation.node.notification.create_node", AsyncMock())
     monkeypatch.setattr("app.operation.node.notification.modify_node", AsyncMock())
 
-    admin = AdminDetails(username="admin", is_sudo=True)
+    admin = AdminDetails(username="admin", role=AdminRoleData(is_owner=True))
     async with TestSession() as session:
         core = await create_core_config(session, core_create_model(unique_name("core_node_background")))
         core_id = inspect(core).identity[0]

@@ -1,7 +1,7 @@
 from datetime import datetime as dt
 from enum import Enum
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 from app.utils.helpers import ensure_datetime_timezone
 
@@ -54,7 +54,9 @@ class UserCountMetric(str, Enum):
     limited = "limited"
 
 
-def validate_user_count_metric_scope(metric: UserCountMetric, node_id: int | None = None, group_by_node: bool = False) -> None:
+def validate_user_count_metric_scope(
+    metric: UserCountMetric, node_id: int | None = None, group_by_node: bool = False
+) -> None:
     if metric != UserCountMetric.online and (node_id is not None or group_by_node):
         raise ValueError("Only online user counts support node_id or group_by_node")
 
@@ -77,6 +79,7 @@ class UserCountMetricStat(BaseModel):
 
 class UserCountMetricStatsList(StatList):
     metric: UserCountMetric
+    count_during_period: int = Field(default=0)
     stats: dict[int, list[UserCountMetricStat]]
 
 
@@ -109,6 +112,20 @@ class NodeRealtimeStats(BaseModel):
     incoming_bandwidth_speed: int
     outgoing_bandwidth_speed: int
     uptime: int
+
+
+class NodeOutboundLatency(BaseModel):
+    name: str
+    alive: bool
+    delay: int
+    link: str
+    last_seen_time: int
+    last_try_time: int
+    source: str
+
+
+class NodeOutboundsLatencyResponse(BaseModel):
+    latencies: list[NodeOutboundLatency]
 
 
 class NodeStats(BaseModel):

@@ -49,8 +49,7 @@ function isChristmasPeriod() {
 }
 
 export default function Snowfall({ className = '' }: { className?: string }) {
-
-  if(!isChristmasPeriod()) return null
+  if (!isChristmasPeriod()) return null
 
   return (
     <div className={`snowfall ${className}`} aria-hidden="true">

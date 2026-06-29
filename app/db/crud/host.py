@@ -1,6 +1,5 @@
 import asyncio
-from enum import Enum
-from typing import List, Optional
+from typing import List
 
 from sqlalchemy import bindparam, delete, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -9,7 +8,7 @@ from sqlalchemy import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import ProxyHost, ProxyInbound
-from app.models.host import CreateHost
+from app.models.host import CreateHost, HostListQuery
 
 
 async def upsert_inbounds(db: AsyncSession, inbound_tags: list[str]) -> dict[str, ProxyInbound]:
@@ -108,23 +107,7 @@ async def remove_inbounds(db: AsyncSession, inbounds: List[ProxyInbound]) -> Non
     await db.commit()
 
 
-ProxyHostSortingOptions = Enum(
-    "ProxyHostSortingOptions",
-    {
-        "priority": ProxyHost.priority.asc(),
-        "id": ProxyHost.id.asc(),
-        "-priority": ProxyHost.priority.desc(),
-        "-id": ProxyHost.id.desc(),
-    },
-)
-
-
-async def get_hosts(
-    db: AsyncSession,
-    offset: Optional[int] = 0,
-    limit: Optional[int] = 0,
-    sort: ProxyHostSortingOptions = ProxyHostSortingOptions.priority,
-) -> list[ProxyHost]:
+async def get_hosts(db: AsyncSession, query: HostListQuery | None = None) -> list[ProxyHost]:
     """
     Retrieves hosts sorted by priority (ascending) by default.
 
@@ -137,12 +120,15 @@ async def get_hosts(
     Returns:
         List[ProxyHost]: List of hosts sorted by the specified option.
     """
-    stmt = select(ProxyHost).order_by(sort.value)
+    query = query or HostListQuery()
+    stmt = select(ProxyHost).order_by(ProxyHost.priority.asc())
 
-    if offset:
-        stmt = stmt.offset(offset)
-    if limit:
-        stmt = stmt.limit(limit)
+    if query.ids:
+        stmt = stmt.where(ProxyHost.id.in_(query.ids))
+    if query.offset:
+        stmt = stmt.offset(query.offset)
+    if query.limit:
+        stmt = stmt.limit(query.limit)
 
     result = await db.execute(stmt)
     return list(result.scalars().all())

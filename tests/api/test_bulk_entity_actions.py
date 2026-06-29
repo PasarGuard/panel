@@ -321,14 +321,14 @@ def test_bulk_disable_enable_reset_update_and_reconnect_nodes(access_token, monk
 
 
 def test_bulk_disable_enable_and_reset_admins(access_token):
-    admin = create_admin(access_token, is_sudo=False)
+    admin = create_admin(access_token)
     try:
         set_admin_used_traffic(admin["username"], 8192)
 
         response = client.post(
             "/api/admins/bulk/reset",
             headers=auth_headers(access_token),
-            json={"usernames": [admin["username"]]},
+            json={"ids": [admin["id"]]},
         )
         assert response.status_code == status.HTTP_200_OK
         assert response.json()["count"] == 1
@@ -338,26 +338,26 @@ def test_bulk_disable_enable_and_reset_admins(access_token):
         response = client.post(
             "/api/admins/bulk/disable",
             headers=auth_headers(access_token),
-            json={"usernames": [admin["username"]]},
+            json={"ids": [admin["id"]]},
         )
         assert response.status_code == status.HTTP_200_OK
         assert response.json()["count"] == 1
-        assert get_admin_details(access_token, admin["username"])["is_disabled"] is True
+        assert get_admin_details(access_token, admin["username"])["status"] == "disabled"
 
         response = client.post(
             "/api/admins/bulk/enable",
             headers=auth_headers(access_token),
-            json={"usernames": [admin["username"]]},
+            json={"ids": [admin["id"]]},
         )
         assert response.status_code == status.HTTP_200_OK
         assert response.json()["count"] == 1
-        assert get_admin_details(access_token, admin["username"])["is_disabled"] is False
+        assert get_admin_details(access_token, admin["username"])["status"] == "active"
     finally:
         delete_admin(access_token, admin["username"])
 
 
 def test_bulk_admin_user_actions(access_token):
-    admin = create_admin(access_token, is_sudo=False)
+    admin = create_admin(access_token)
     active_user = create_user(access_token, payload={"username": unique_name("bulk_admin_active")})
     disabled_user = create_user(access_token, payload={"username": unique_name("bulk_admin_disabled")})
 
@@ -380,7 +380,7 @@ def test_bulk_admin_user_actions(access_token):
         response = client.post(
             "/api/admins/bulk/users/disable",
             headers=auth_headers(access_token),
-            json={"usernames": [admin["username"]]},
+            json={"ids": [admin["id"]]},
         )
         assert response.status_code == status.HTTP_200_OK
         assert response.json()["count"] == 1
@@ -398,7 +398,7 @@ def test_bulk_admin_user_actions(access_token):
         response = client.post(
             "/api/admins/bulk/users/activate",
             headers=auth_headers(access_token),
-            json={"usernames": [admin["username"]]},
+            json={"ids": [admin["id"]]},
         )
         assert response.status_code == status.HTTP_200_OK
         assert response.json()["count"] == 1
@@ -417,7 +417,7 @@ def test_bulk_admin_user_actions(access_token):
             "DELETE",
             "/api/admins/bulk/users",
             headers=auth_headers(access_token),
-            json={"usernames": [admin["username"]]},
+            json={"ids": [admin["id"]]},
         )
         assert response.status_code == status.HTTP_200_OK
         assert response.json()["count"] == 1

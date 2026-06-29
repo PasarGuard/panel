@@ -165,13 +165,13 @@ export function GoalProgress() {
         <Popover>
           <PopoverTrigger asChild>
             <Button variant="ghost" size="icon" className="h-8 w-8 rounded-md">
-              <SummaryIcon className="h-4 w-4 text-primary" />
+              <SummaryIcon className="text-primary h-4 w-4" />
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-80 p-4" side="right" align="start">
             <div className="space-y-3">
               <div className="flex items-center gap-2">
-                <SummaryIcon className="h-4 w-4 text-primary" />
+                <SummaryIcon className="text-primary h-4 w-4" />
                 <span className="text-sm font-semibold">{currentGoal.name}</span>
               </div>
 
@@ -182,7 +182,7 @@ export function GoalProgress() {
                 </div>
                 <Progress value={progress} className="h-2" />
                 <div className="flex items-center justify-between text-xs">
-                  <span className="font-medium text-primary">{formattedCurrent}</span>
+                  <span className="text-primary font-medium">{formattedCurrent}</span>
                   <span className="text-muted-foreground">
                     {t('goal.of')} {formattedTarget}
                   </span>
@@ -215,7 +215,7 @@ export function GoalProgress() {
   // Expanded state - full card
   return (
     <Card
-      className="user-select-none mx-2 mb-2 cursor-grab select-none border-primary/20 bg-gradient-to-br from-primary/5 to-primary/10 active:cursor-grabbing dark:from-primary/10 dark:to-primary/20"
+      className="user-select-none border-primary/20 from-primary/5 to-primary/10 dark:from-primary/10 dark:to-primary/20 mx-2 mb-2 cursor-grab bg-gradient-to-br select-none active:cursor-grabbing"
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
@@ -231,12 +231,12 @@ export function GoalProgress() {
           <div className="flex items-start justify-between gap-2">
             <div className="flex items-center gap-2">
               <div className="flex flex-col">
-                <span className="text-xs font-medium text-muted-foreground">
+                <span className="text-muted-foreground text-xs font-medium">
                   {t('goal.currentGoal')} ({currentGoalIndex + 1}/{pendingGoals.length})
                 </span>
-                <span className="line-clamp-1 text-sm font-semibold leading-tight">{currentGoal.name}</span>
+                <span className="line-clamp-1 text-sm leading-tight font-semibold">{currentGoal.name}</span>
                 <div className="mt-1 h-4">
-                  <div className={cn('flex items-center gap-1 text-[11px] text-muted-foreground transition-opacity', repoInfoAvailable ? 'opacity-100' : 'opacity-0')} aria-hidden={!repoInfoAvailable}>
+                  <div className={cn('text-muted-foreground flex items-center gap-1 text-[11px] transition-opacity', repoInfoAvailable ? 'opacity-100' : 'opacity-0')} aria-hidden={!repoInfoAvailable}>
                     <Github className="h-3 w-3" aria-hidden />
                     <span className="truncate">{repoIdentifier}</span>
                   </div>
@@ -253,7 +253,7 @@ export function GoalProgress() {
           <div className="space-y-1">
             <Progress value={progress} className="h-2" />
             <div className="flex items-center justify-between text-xs">
-              <span className="font-medium text-primary">{formattedCurrent}</span>
+              <span className="text-primary font-medium">{formattedCurrent}</span>
               <span className="text-muted-foreground">
                 {t('goal.of')} {formattedTarget}
               </span>
@@ -261,7 +261,7 @@ export function GoalProgress() {
           </div>
 
           {/* Details */}
-          <div className="min-h-[38px]">{currentGoal.detail && <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">{currentGoal.detail}</p>}</div>
+          <div className="min-h-[38px]">{currentGoal.detail && <p className="text-muted-foreground line-clamp-2 text-xs leading-relaxed">{currentGoal.detail}</p>}</div>
 
           {/* Remaining */}
           <div className="min-h-[32px]">
@@ -269,8 +269,8 @@ export function GoalProgress() {
               className={cn('flex items-center justify-between rounded-md px-2 py-1.5 text-xs transition-opacity', showRemaining ? 'bg-background/50 opacity-100' : 'opacity-0')}
               aria-hidden={!showRemaining}
             >
-              <span className="font-medium text-muted-foreground">{remainingLabel}</span>
-              <span className="font-semibold text-foreground">{formattedRemaining}</span>
+              <span className="text-muted-foreground font-medium">{remainingLabel}</span>
+              <span className="text-foreground font-semibold">{formattedRemaining}</span>
             </div>
           </div>
 
@@ -279,7 +279,7 @@ export function GoalProgress() {
             href={ctaHref}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex w-full items-center justify-center gap-2 rounded-md bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground transition-all hover:bg-primary/90 hover:shadow-md"
+            className="bg-primary text-primary-foreground hover:bg-primary/90 flex w-full items-center justify-center gap-2 rounded-md px-3 py-2 text-xs font-semibold transition-all hover:shadow-md"
           >
             <CtaIcon className="h-3.5 w-3.5" />
             {ctaLabel}

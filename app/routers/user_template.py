@@ -2,7 +2,7 @@ from fastapi import Depends, APIRouter, status
 
 from app.db import AsyncSession, get_db
 from app.models.admin import AdminDetails
-from .authentication import check_sudo_admin, get_current
+from .authentication import require_permission
 from app.models.user_template import (
     BulkUserTemplatesActionResponse,
     BulkUserTemplateSelection,
@@ -15,6 +15,7 @@ from app.models.user_template import (
 from app.operation import OperatorType
 from app.operation.user_template import UserTemplateOperation
 from app.utils import responses
+from .dependencies import get_user_template_list_query, get_user_template_simple_list_query
 
 
 router = APIRouter(tags=["User Template"], prefix="/api/user_template")
@@ -27,7 +28,7 @@ template_operator = UserTemplateOperation(OperatorType.API)
 async def create_user_template(
     new_user_template: UserTemplateCreate,
     db: AsyncSession = Depends(get_db),
-    admin: AdminDetails = Depends(check_sudo_admin),
+    admin: AdminDetails = Depends(require_permission("templates", "create")),
 ):
     """
     Create a new user template
@@ -42,10 +43,12 @@ async def create_user_template(
 
 @router.get("/{template_id}", response_model=UserTemplateResponse)
 async def get_user_template(
-    template_id: int, db: AsyncSession = Depends(get_db), _: AdminDetails = Depends(get_current)
+    template_id: int,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(require_permission("templates", "read")),
 ):
     """Get User Template information with id"""
-    return await template_operator.get_validated_user_template(db, template_id)
+    return await template_operator._get_template_with_access(db, template_id, admin)
 
 
 @router.put("/{template_id}", response_model=UserTemplateResponse, responses={403: responses._403})
@@ -53,7 +56,7 @@ async def modify_user_template(
     template_id: int,
     modify_user_template: UserTemplateModify,
     db: AsyncSession = Depends(get_db),
-    admin: AdminDetails = Depends(check_sudo_admin),
+    admin: AdminDetails = Depends(require_permission("templates", "update")),
 ):
     """
     Modify User Template
@@ -68,7 +71,9 @@ async def modify_user_template(
 
 @router.delete("/{template_id}", status_code=status.HTTP_204_NO_CONTENT, responses={403: responses._403})
 async def remove_user_template(
-    template_id: int, db: AsyncSession = Depends(get_db), admin: AdminDetails = Depends(check_sudo_admin)
+    template_id: int,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(require_permission("templates", "delete")),
 ):
     """Remove a User Template by its ID"""
     await template_operator.remove_user_template(db, template_id, admin)
@@ -77,10 +82,12 @@ async def remove_user_template(
 
 @router.get("s", response_model=list[UserTemplateResponse])
 async def get_user_templates(
-    offset: int = None, limit: int = None, db: AsyncSession = Depends(get_db), _: AdminDetails = Depends(get_current)
+    query=Depends(get_user_template_list_query),
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(require_permission("templates", "read")),
 ):
     """Get a list of User Templates with optional pagination"""
-    return await template_operator.get_user_templates(db, offset, limit)
+    return await template_operator.get_user_templates(db, query, admin)
 
 
 @router.get(
@@ -90,23 +97,12 @@ async def get_user_templates(
     description="Returns only id and name for user templates. Optimized for dropdowns and autocomplete.",
 )
 async def get_user_templates_simple(
-    offset: int | None = None,
-    limit: int | None = None,
-    search: str | None = None,
-    sort: str | None = None,
-    all: bool = False,
+    query=Depends(get_user_template_simple_list_query),
     db: AsyncSession = Depends(get_db),
-    _: AdminDetails = Depends(get_current),
+    admin: AdminDetails = Depends(require_permission("templates", "read_simple")),
 ):
     """Get lightweight user template list with only id and name"""
-    return await template_operator.get_user_templates_simple(
-        db=db,
-        offset=offset,
-        limit=limit,
-        search=search,
-        sort=sort,
-        all=all,
-    )
+    return await template_operator.get_user_templates_simple(db=db, query=query, admin=admin)
 
 
 @router.post(
@@ -117,7 +113,7 @@ async def get_user_templates_simple(
 async def bulk_delete_user_templates(
     bulk_templates: BulkUserTemplateSelection,
     db: AsyncSession = Depends(get_db),
-    admin: AdminDetails = Depends(check_sudo_admin),
+    admin: AdminDetails = Depends(require_permission("templates", "delete")),
 ):
     """Delete selected user templates by ID."""
     return await template_operator.bulk_remove_user_templates(db, bulk_templates, admin)
@@ -131,7 +127,7 @@ async def bulk_delete_user_templates(
 async def bulk_disable_user_templates(
     bulk_templates: BulkUserTemplateSelection,
     db: AsyncSession = Depends(get_db),
-    admin: AdminDetails = Depends(check_sudo_admin),
+    admin: AdminDetails = Depends(require_permission("templates", "update")),
 ):
     """Disable selected user templates by ID."""
     return await template_operator.bulk_set_user_templates_disabled(db, bulk_templates, admin, is_disabled=True)
@@ -145,7 +141,7 @@ async def bulk_disable_user_templates(
 async def bulk_enable_user_templates(
     bulk_templates: BulkUserTemplateSelection,
     db: AsyncSession = Depends(get_db),
-    admin: AdminDetails = Depends(check_sudo_admin),
+    admin: AdminDetails = Depends(require_permission("templates", "update")),
 ):
     """Enable selected user templates by ID."""
     return await template_operator.bulk_set_user_templates_disabled(db, bulk_templates, admin, is_disabled=False)

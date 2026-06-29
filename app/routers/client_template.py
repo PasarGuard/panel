@@ -9,14 +9,14 @@ from app.models.client_template import (
     ClientTemplateResponse,
     ClientTemplateResponseList,
     ClientTemplatesSimpleResponse,
-    ClientTemplateType,
     RemoveClientTemplatesResponse,
 )
 from app.operation import OperatorType
 from app.operation.client_template import ClientTemplateOperation
 from app.utils import responses
 
-from .authentication import check_sudo_admin, get_current
+from .authentication import require_permission
+from .dependencies import get_client_template_list_query, get_client_template_simple_list_query
 
 router = APIRouter(
     tags=["Client Template"],
@@ -31,7 +31,7 @@ client_template_operator = ClientTemplateOperation(OperatorType.API)
 async def create_client_template(
     new_template: ClientTemplateCreate,
     db: AsyncSession = Depends(get_db),
-    admin: AdminDetails = Depends(check_sudo_admin),
+    admin: AdminDetails = Depends(require_permission("client_templates", "create")),
 ):
     return await client_template_operator.create_client_template(db, new_template, admin)
 
@@ -40,7 +40,7 @@ async def create_client_template(
 async def get_client_template(
     template_id: int,
     db: AsyncSession = Depends(get_db),
-    _: AdminDetails = Depends(get_current),
+    _: AdminDetails = Depends(require_permission("client_templates", "read")),
 ):
     return await client_template_operator.get_validated_client_template(db, template_id)
 
@@ -50,7 +50,7 @@ async def modify_client_template(
     template_id: int,
     modified_template: ClientTemplateModify,
     db: AsyncSession = Depends(get_db),
-    admin: AdminDetails = Depends(check_sudo_admin),
+    admin: AdminDetails = Depends(require_permission("client_templates", "update")),
 ):
     return await client_template_operator.modify_client_template(db, template_id, modified_template, admin)
 
@@ -59,7 +59,7 @@ async def modify_client_template(
 async def remove_client_template(
     template_id: int,
     db: AsyncSession = Depends(get_db),
-    admin: AdminDetails = Depends(check_sudo_admin),
+    admin: AdminDetails = Depends(require_permission("client_templates", "delete")),
 ):
     await client_template_operator.remove_client_template(db, template_id, admin)
     return {}
@@ -67,37 +67,20 @@ async def remove_client_template(
 
 @router.get("s", response_model=ClientTemplateResponseList)
 async def get_client_templates(
-    template_type: ClientTemplateType | None = None,
-    offset: int | None = None,
-    limit: int | None = None,
+    query=Depends(get_client_template_list_query),
     db: AsyncSession = Depends(get_db),
-    _: AdminDetails = Depends(get_current),
+    _: AdminDetails = Depends(require_permission("client_templates", "read")),
 ):
-    return await client_template_operator.get_client_templates(
-        db, template_type=template_type, offset=offset, limit=limit
-    )
+    return await client_template_operator.get_client_templates(db, query=query)
 
 
 @router.get("s/simple", response_model=ClientTemplatesSimpleResponse)
 async def get_client_templates_simple(
-    template_type: ClientTemplateType | None = None,
-    offset: int | None = None,
-    limit: int | None = None,
-    search: str | None = None,
-    sort: str | None = None,
-    all: bool = False,
+    query=Depends(get_client_template_simple_list_query),
     db: AsyncSession = Depends(get_db),
-    _: AdminDetails = Depends(get_current),
+    _: AdminDetails = Depends(require_permission("client_templates", "read_simple")),
 ):
-    return await client_template_operator.get_client_templates_simple(
-        db=db,
-        template_type=template_type,
-        offset=offset,
-        limit=limit,
-        search=search,
-        sort=sort,
-        all=all,
-    )
+    return await client_template_operator.get_client_templates_simple(db=db, query=query)
 
 
 @router.post(
@@ -108,7 +91,7 @@ async def get_client_templates_simple(
 async def bulk_delete_client_templates(
     bulk_templates: BulkClientTemplateSelection,
     db: AsyncSession = Depends(get_db),
-    admin: AdminDetails = Depends(check_sudo_admin),
+    admin: AdminDetails = Depends(require_permission("client_templates", "delete")),
 ):
     """Delete selected client templates by ID."""
     return await client_template_operator.bulk_remove_client_templates(db, bulk_templates, admin)

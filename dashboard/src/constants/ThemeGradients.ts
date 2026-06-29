@@ -1,4 +1,4 @@
-import type { ColorTheme } from '@/components/common/theme-provider'
+import type { ColorTheme } from '@/app/providers/theme-provider'
 
 export type GradientVariant = 'ad' | 'banner'
 
@@ -95,11 +95,7 @@ const indicatorColors: Record<ColorTheme, GradientConfig> = {
  * @param variant - The gradient variant ('ad' for topbar ads, 'banner' for version banners)
  * @returns Tailwind CSS classes for the gradient
  */
-export function getGradientByColorTheme(
-  colorTheme: ColorTheme,
-  isDark: boolean,
-  variant: GradientVariant = 'ad'
-): string {
+export function getGradientByColorTheme(colorTheme: ColorTheme, isDark: boolean, variant: GradientVariant = 'ad'): string {
   const gradients = variant === 'ad' ? adGradients : bannerGradients
   return isDark ? gradients[colorTheme].dark : gradients[colorTheme].light
 }
@@ -113,4 +109,3 @@ export function getGradientByColorTheme(
 export function getIndicatorColorByTheme(colorTheme: ColorTheme, isDark: boolean): string {
   return isDark ? indicatorColors[colorTheme].dark : indicatorColors[colorTheme].light
 }
-

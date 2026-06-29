@@ -4,9 +4,9 @@ from html import escape
 from aiogram.utils.formatting import html_decoration
 
 from app.models.group import Group
+from app.models.status_emojis import STATUS_EMOJIS
 from app.models.system import SystemStats
 from app.models.user import UserResponse, UserStatus
-from app.subscription.share import STATUS_EMOJIS
 from app.telegram.utils.shared import readable_size
 
 b = html_decoration.bold
@@ -25,6 +25,7 @@ ebl = html_decoration.expandable_blockquote
 class Button:
     modify_groups = "👥 Modify Groups"
     subscription_url = "🔗 Subscription URL"
+    subscription_qr = "📷 QR Code"
     v2ray_links = "🌀 V2Ray Links"
     modify_note = "📝 Modify Note"
     random_username = "🎲 Random Username"

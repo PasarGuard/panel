@@ -2,17 +2,18 @@ import base64
 import random
 import secrets
 from collections import defaultdict
-from copy import deepcopy
 from datetime import datetime as dt, timedelta, timezone
 
 from jdatetime import date as jd
 
 from app.core.hosts import host_manager
 from app.db.models import UserStatus
+from app.models.status_emojis import STATUS_EMOJIS
 from app.models.subscription import SubscriptionInboundData
 from app.models.user import UsersResponseWithInbounds
+from app.settings import subscription_settings
 from app.subscription.client_templates import subscription_client_templates, subscription_xray_templates
-from app.utils.system import get_public_ip, get_public_ipv6, readable_size
+from app.utils.system import readable_size
 from config import wireguard_settings
 
 from . import (
@@ -25,16 +26,8 @@ from . import (
     XrayConfiguration,
 )
 
-SERVER_IP = get_public_ip()
-SERVER_IPV6 = get_public_ipv6()
-
-STATUS_EMOJIS = {
-    "active": "✅",
-    "expired": "⌛️",
-    "limited": "🪫",
-    "disabled": "❌",
-    "on_hold": "🔌",
-}
+SERVER_IP = "127.0.0.1"
+SERVER_IPV6 = "[::1]"
 
 
 def _build_subscription_config(
@@ -96,7 +89,9 @@ async def generate_subscription(
     if conf is None:
         raise ValueError(f'Unsupported format "{config_format}"')
 
-    format_variables = setup_format_variables(user)
+    sub_settings = await subscription_settings()
+    custom_variables = get_effective_custom_variables(user, sub_settings.custom_variables)
+    format_variables = setup_format_variables(user, sub_settings.custom_variables)
 
     config = await process_inbounds_and_tags(
         user,
@@ -105,6 +100,7 @@ async def generate_subscription(
         client_templates,
         xray_template_overrides=xray_template_overrides,
         randomize_order=randomize_order,
+        custom_variables=custom_variables,
     )
 
     if as_base64 and not isinstance(config, bytes):
@@ -134,7 +130,62 @@ def format_time_left(seconds_left: int) -> str:
     return " ".join(result)
 
 
-def setup_format_variables(user: UsersResponseWithInbounds) -> dict:
+def _custom_variable_parts(custom_variable) -> tuple[str | None, str]:
+    if isinstance(custom_variable, dict):
+        key = custom_variable.get("key")
+        value = custom_variable.get("value", "")
+    else:
+        key = getattr(custom_variable, "key", None)
+        value = getattr(custom_variable, "value", "")
+    return (str(key) if key else None), str(value or "")
+
+
+def get_effective_custom_variables(
+    user: UsersResponseWithInbounds, custom_variables: list | tuple | None = None
+) -> list:
+    variables = list(custom_variables or [])
+    admin_variables = getattr(getattr(user, "admin", None), "custom_variables", None) or []
+    variables.extend(admin_variables)
+    return variables
+
+
+def apply_custom_format_variables(format_variables: dict, custom_variables: list | tuple | None = None) -> dict:
+    if not custom_variables:
+        return format_variables
+
+    custom_keys = {key for key, _ in (_custom_variable_parts(variable) for variable in custom_variables) if key}
+    base_variables = defaultdict(
+        lambda: "<missing>",
+        {key: value for key, value in format_variables.items() if key not in custom_keys},
+    )
+
+    for variable in custom_variables:
+        key, raw_value = _custom_variable_parts(variable)
+        if not key:
+            continue
+        try:
+            format_variables[key] = raw_value.format_map(base_variables)
+        except ValueError, KeyError:
+            format_variables[key] = raw_value
+
+    return format_variables
+
+
+def _format_dynamic_value(value, format_variables: dict):
+    if isinstance(value, str):
+        try:
+            return value.format_map(format_variables)
+        except ValueError, KeyError:
+            return value
+    if isinstance(value, list):
+        return [_format_dynamic_value(item, format_variables) for item in value]
+    if isinstance(value, dict):
+        return {key: _format_dynamic_value(item, format_variables) for key, item in value.items()}
+    return value
+
+
+def setup_format_variables(user: UsersResponseWithInbounds, custom_variables: list | tuple | None = None) -> dict:
+    custom_variables = get_effective_custom_variables(user, custom_variables)
     user_status = user.status
     expire = user.expire
     on_hold_expire_duration = user.on_hold_expire_duration
@@ -210,7 +261,7 @@ def setup_format_variables(user: UsersResponseWithInbounds) -> dict:
         },
     )
 
-    return format_variables
+    return apply_custom_format_variables(format_variables, custom_variables)
 
 
 async def filter_hosts(hosts: list[SubscriptionInboundData], user_status: UserStatus) -> list[SubscriptionInboundData]:
@@ -218,7 +269,11 @@ async def filter_hosts(hosts: list[SubscriptionInboundData], user_status: UserSt
 
 
 async def process_host(
-    inbound: SubscriptionInboundData, format_variables: dict, inbounds: list[str], proxies: dict
+    inbound: SubscriptionInboundData,
+    format_variables: dict,
+    inbounds: list[str],
+    proxies: dict,
+    custom_variables: list | tuple | None = None,
 ) -> None | tuple[SubscriptionInboundData, dict]:
     """
     Process host data for subscription generation.
@@ -240,14 +295,10 @@ async def process_host(
     if user_id is not None:
         settings["_user_id"] = user_id
 
-    # Handle flow: user settings have priority, fall back to inbound flow
-    if "flow" in settings and settings["flow"] == "":
-        # User has empty flow, use inbound flow as default
-        settings["flow"] = inbound.inbound_flow
-
     # Update format variables
     format_variables.update({"PROTOCOL": inbound.protocol})
     format_variables.update({"TRANSPORT": inbound.network})
+    apply_custom_format_variables(format_variables, custom_variables)
 
     salt = secrets.token_hex(8)
 
@@ -261,6 +312,7 @@ async def process_host(
     if isinstance(host_list, list) and host_list:
         req_host = random.choice(host_list)
     req_host = req_host.replace("*", salt)
+    req_host = req_host.format_map(format_variables) if req_host else ""
 
     address = ""
     if inbound.address:
@@ -283,7 +335,13 @@ async def process_host(
         req_host = sni
 
     # Create a copy of the inbound data with selected random values
-    inbound_copy = deepcopy(inbound)
+    # Deep copy tls_config and transport_config to avoid mutating cached host data
+    inbound_copy = inbound.model_copy(
+        update={
+            "tls_config": inbound.tls_config.model_copy(deep=True),
+            "transport_config": inbound.transport_config.model_copy(deep=True),
+        }
+    )
 
     # Update TLS config with selected values
     inbound_copy.tls_config.sni = sni
@@ -292,6 +350,16 @@ async def process_host(
     # Update transport config with selected host
     inbound_copy.transport_config.host = req_host
     inbound_copy.transport_config.path = path
+    if getattr(inbound_copy.transport_config, "request", None):
+        inbound_copy.transport_config.request = _format_dynamic_value(
+            inbound_copy.transport_config.request,
+            format_variables,
+        )
+    if getattr(inbound_copy.transport_config, "response", None):
+        inbound_copy.transport_config.response = _format_dynamic_value(
+            inbound_copy.transport_config.response,
+            format_variables,
+        )
 
     # Update address and port with selected values
     inbound_copy.address = address
@@ -306,6 +374,7 @@ async def _prepare_download_settings(
     inbounds: list[str],
     proxies: dict,
     client_templates: dict[str, str],
+    custom_variables: list | tuple | None,
     conf: StandardLinks
     | XrayConfiguration
     | SingBoxConfiguration
@@ -314,7 +383,7 @@ async def _prepare_download_settings(
     | OutlineConfiguration
     | WireGuardConfiguration,
 ) -> SubscriptionInboundData | dict | None:
-    result = await process_host(download_data, format_variables, inbounds, proxies)
+    result = await process_host(download_data, format_variables, inbounds, proxies, custom_variables)
 
     if not result:
         return
@@ -348,7 +417,8 @@ async def process_inbounds_and_tags(
     client_templates: dict[str, str],
     xray_template_overrides: dict[int, str] | None = None,
     randomize_order: bool = False,
-) -> list | str | bytes:
+    custom_variables: list | tuple | None = None,
+) -> str | bytes:
     proxy_settings = user.proxy_settings.dict()
     proxy_settings["_user_id"] = user.id
     hosts = await filter_hosts(list((await host_manager.get_hosts()).values()), user.status)
@@ -369,7 +439,7 @@ async def process_inbounds_and_tags(
         if host_data.protocol == "wireguard" and not wireguard_settings.enabled:
             continue
 
-        result = await process_host(host_data, format_variables, user.inbounds, proxy_settings)
+        result = await process_host(host_data, format_variables, user.inbounds, proxy_settings, custom_variables)
         if not result:
             continue
 
@@ -382,14 +452,18 @@ async def process_inbounds_and_tags(
 
         download_settings = getattr(inbound_copy.transport_config, "download_settings", None)
         if download_settings:
-            processed_download_settings = await _prepare_download_settings(
-                download_settings,
-                format_variables,
-                user.inbounds,
-                proxy_settings,
-                client_templates,
-                conf,
-            )
+            if isinstance(download_settings, SubscriptionInboundData):
+                processed_download_settings = await _prepare_download_settings(
+                    download_settings,
+                    format_variables,
+                    user.inbounds,
+                    proxy_settings,
+                    client_templates,
+                    custom_variables,
+                    conf,
+                )
+            else:
+                processed_download_settings = download_settings
             if hasattr(inbound_copy.transport_config, "download_settings"):
                 inbound_copy.transport_config.download_settings = processed_download_settings
 

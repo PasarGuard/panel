@@ -1,24 +1,28 @@
-from typing import Union, List
-from enum import Enum
+from typing import List
 
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import NextPlan, UserTemplate, template_group_association
-from app.models.user_template import UserTemplateCreate, UserTemplateModify
+from app.models.user_template import (
+    UserTemplateCreate,
+    UserTemplateListQuery,
+    UserTemplateModify,
+    UserTemplateSimpleListQuery,
+    UserTemplateSimpleSortField,
+    UserTemplateSimpleSortOption,
+)
 
 from .group import get_groups_by_ids
 
 
-UserTemplateSortingOptionsSimple = Enum(
-    "UserTemplateSortingOptionsSimple",
-    {
-        "id": UserTemplate.id.asc(),
-        "-id": UserTemplate.id.desc(),
-        "name": UserTemplate.name.asc(),
-        "-name": UserTemplate.name.desc(),
-    },
-)
+def _build_user_template_simple_sort_clause(sort_option: UserTemplateSimpleSortOption):
+    field_map = {
+        UserTemplateSimpleSortField.id: UserTemplate.id,
+        UserTemplateSimpleSortField.template_name: UserTemplate.name,
+    }
+    column = field_map[sort_option.field]
+    return column.desc() if sort_option.value.startswith("-") else column.asc()
 
 
 async def load_user_template_attrs(template: UserTemplate):
@@ -40,6 +44,7 @@ async def create_user_template(db: AsyncSession, user_template: UserTemplateCrea
     db_user_template = UserTemplate(
         name=user_template.name,
         data_limit=user_template.data_limit,
+        hwid_limit=user_template.hwid_limit,
         expire_duration=user_template.expire_duration,
         username_prefix=user_template.username_prefix,
         username_suffix=user_template.username_suffix,
@@ -77,6 +82,8 @@ async def modify_user_template(
         db_user_template.name = modified_user_template.name
     if modified_user_template.data_limit is not None:
         db_user_template.data_limit = modified_user_template.data_limit
+    if "hwid_limit" in modified_user_template.model_fields_set:
+        db_user_template.hwid_limit = modified_user_template.hwid_limit
     if modified_user_template.expire_duration is not None:
         db_user_template.expire_duration = modified_user_template.expire_duration
     if modified_user_template.username_prefix is not None:
@@ -137,9 +144,7 @@ async def get_user_template(db: AsyncSession, user_template_id: int) -> UserTemp
     return user_template
 
 
-async def get_user_templates(
-    db: AsyncSession, offset: Union[int, None] = None, limit: Union[int, None] = None
-) -> List[UserTemplate]:
+async def get_user_templates(db: AsyncSession, query: UserTemplateListQuery) -> List[UserTemplate]:
     """
     Retrieves a list of user templates with optional pagination.
 
@@ -151,13 +156,15 @@ async def get_user_templates(
     Returns:
         List[UserTemplate]: A list of user template objects.
     """
-    query = select(UserTemplate).order_by(UserTemplate.id.asc())
-    if offset:
-        query = query.offset(offset)
-    if limit:
-        query = query.limit(limit)
+    stmt = select(UserTemplate).order_by(UserTemplate.id.asc())
+    if query.ids:
+        stmt = stmt.where(UserTemplate.id.in_(query.ids))
+    if query.offset:
+        stmt = stmt.offset(query.offset)
+    if query.limit:
+        stmt = stmt.limit(query.limit)
 
-    user_templates = (await db.execute(query)).scalars().all()
+    user_templates = (await db.execute(stmt)).scalars().all()
     for template in user_templates:
         await load_user_template_attrs(template)
 
@@ -166,11 +173,7 @@ async def get_user_templates(
 
 async def get_user_templates_simple(
     db: AsyncSession,
-    offset: int | None = None,
-    limit: int | None = None,
-    search: str | None = None,
-    sort: list[UserTemplateSortingOptionsSimple] | None = None,
-    skip_pagination: bool = False,
+    query: UserTemplateSimpleListQuery,
 ) -> tuple[list[tuple[int, str]], int]:
     """
     Retrieves lightweight user template data with only id and name.
@@ -188,19 +191,15 @@ async def get_user_templates_simple(
     """
     stmt = select(UserTemplate.id, UserTemplate.name)
 
-    if search:
-        search_value = search.strip()
+    if query.ids:
+        stmt = stmt.where(UserTemplate.id.in_(query.ids))
+    if query.search:
+        search_value = query.search.strip()
         if search_value:
             stmt = stmt.where(UserTemplate.name.ilike(f"%{search_value}%"))
 
-    if sort:
-        sort_list = []
-        for s in sort:
-            if isinstance(s.value, tuple):
-                sort_list.extend(s.value)
-            else:
-                sort_list.append(s.value)
-        stmt = stmt.order_by(*sort_list)
+    if query.sort:
+        stmt = stmt.order_by(*[_build_user_template_simple_sort_clause(sort_option) for sort_option in query.sort])
     else:
         stmt = stmt.order_by(UserTemplate.id.asc())
 
@@ -209,11 +208,11 @@ async def get_user_templates_simple(
     total = (await db.execute(count_stmt)).scalar()
 
     # Apply pagination or safety limit
-    if not skip_pagination:
-        if offset:
-            stmt = stmt.offset(offset)
-        if limit:
-            stmt = stmt.limit(limit)
+    if not query.all:
+        if query.offset:
+            stmt = stmt.offset(query.offset)
+        if query.limit:
+            stmt = stmt.limit(query.limit)
     else:
         stmt = stmt.limit(10000)  # Safety limit when all=true
 

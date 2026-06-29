@@ -1,4 +1,4 @@
-import { Theme, useTheme } from './theme-provider'
+import { Theme, useTheme } from '@/app/providers/theme-provider'
 import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -67,15 +67,15 @@ export function ThemeToggle() {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" side="top" className="transition-all duration-200 ease-in-out">
-        <DropdownMenuItem onClick={() => toggleTheme('light')} className="transition-colors duration-150 hover:bg-accent">
+        <DropdownMenuItem onClick={() => toggleTheme('light')} className="hover:bg-accent transition-colors duration-150">
           <Sun className="mr-2 h-4 w-4 transition-transform duration-200 hover:scale-110" />
           {t('theme.light')}
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => toggleTheme('dark')} className="transition-colors duration-150 hover:bg-accent">
+        <DropdownMenuItem onClick={() => toggleTheme('dark')} className="hover:bg-accent transition-colors duration-150">
           <Moon className="mr-2 h-4 w-4 transition-transform duration-200 hover:scale-110" />
           {t('theme.dark')}
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => toggleTheme('system')} className="transition-colors duration-150 hover:bg-accent">
+        <DropdownMenuItem onClick={() => toggleTheme('system')} className="hover:bg-accent transition-colors duration-150">
           <Monitor className="mr-2 h-4 w-4 transition-transform duration-200 hover:scale-110" />
           {t('theme.system')}
         </DropdownMenuItem>

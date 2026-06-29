@@ -25,6 +25,7 @@ from app.models.admin import AdminDetails
 from app.models.group import BulkGroup
 from app.models.user import UserCreate, UserModify
 from app.utils.helpers import ensure_datetime_timezone
+from app.operation.permissions import get_scope_admin_id
 from app.utils.jwt import get_subscription_payload
 
 
@@ -137,22 +138,21 @@ class BaseOperation:
             await self.raise_error(message="Host not found", code=404)
         return db_host
 
-    async def get_validated_sub(self, db: AsyncSession, token: str) -> User:
+    async def get_validated_sub(self, db: AsyncSession, token: str, *, load_admin_role: bool = False) -> User:
         sub = await get_subscription_payload(token)
-        if not sub:
-            await self.raise_error(message="Not Found", code=404)
 
-        if "user_id" in sub:
-            db_user = await get_user_by_id(db, sub["user_id"])
-        elif "username" in sub:
-            db_user = await get_user(db, sub["username"])
-        else:
-            await self.raise_error(message="Not Found", code=404)
+        db_user = None
+        if sub:
+            if sub.get("user_id"):
+                db_user = await get_user_by_id(db, sub["user_id"], load_admin_role=load_admin_role)
+            elif sub.get("username"):
+                db_user = await get_user(db, sub["username"], load_admin_role=load_admin_role)
 
-        if not db_user or db_user.created_at.astimezone(tz.utc) > sub["created_at"]:
-            await self.raise_error(message="Not Found", code=404)
-
-        if db_user.sub_revoked_at and db_user.sub_revoked_at.astimezone(tz.utc) > sub["created_at"]:
+        if (
+            not db_user
+            or db_user.created_at.astimezone(tz.utc) > sub["created_at"]
+            or (db_user.sub_revoked_at and db_user.sub_revoked_at.astimezone(tz.utc) > sub["created_at"])
+        ):
             await self.raise_error(message="Not Found", code=404)
 
         return db_user
@@ -167,6 +167,8 @@ class BaseOperation:
         load_next_plan: bool = True,
         load_usage_logs: bool = True,
         load_groups: bool = True,
+        scope_resource: str = "users",
+        scope_action: str = "read",
     ) -> User:
         db_user = await get_user(
             db,
@@ -175,13 +177,10 @@ class BaseOperation:
             load_next_plan=load_next_plan,
             load_usage_logs=load_usage_logs,
             load_groups=load_groups,
+            admin_id=get_scope_admin_id(admin, scope_resource, scope_action),
         )
         if not db_user:
             await self.raise_error(message="User not found", code=404)
-
-        if not (admin.is_sudo or db_user.admin_id == admin.id):
-            await self.raise_error(message="You're not allowed", code=403)
-
         return db_user
 
     async def get_validated_user_by_id(
@@ -194,6 +193,8 @@ class BaseOperation:
         load_next_plan: bool = True,
         load_usage_logs: bool = True,
         load_groups: bool = True,
+        scope_resource: str = "users",
+        scope_action: str = "read",
     ) -> User:
         db_user = await get_user_by_id(
             db,
@@ -202,13 +203,10 @@ class BaseOperation:
             load_next_plan=load_next_plan,
             load_usage_logs=load_usage_logs,
             load_groups=load_groups,
+            admin_id=get_scope_admin_id(admin, scope_resource, scope_action),
         )
         if not db_user:
             await self.raise_error(message="User not found", code=404)
-
-        if not (admin.is_sudo or db_user.admin_id == admin.id):
-            await self.raise_error(message="You're not allowed", code=403)
-
         return db_user
 
     async def get_validated_admin(self, db: AsyncSession, username: str) -> DBAdmin:

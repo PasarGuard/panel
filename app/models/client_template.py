@@ -1,4 +1,4 @@
-from enum import StrEnum
+from enum import Enum, StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -94,6 +94,56 @@ class ClientTemplateSimple(BaseModel):
 class ClientTemplatesSimpleResponse(BaseModel):
     templates: list[ClientTemplateSimple]
     total: int
+
+
+class ClientTemplateSimpleSortField(str, Enum):
+    id = "id"
+    template_name = "name"
+    template_type = "type"
+
+
+class SortDirection(str, Enum):
+    asc = "asc"
+    desc = "desc"
+
+
+class ClientTemplateSimpleSortOption(str, Enum):
+    id = "id"
+    template_name = "name"
+    template_type = "type"
+    desc_id = "-id"
+    desc_template_name = "-name"
+    desc_template_type = "-type"
+
+    @property
+    def field(self) -> ClientTemplateSimpleSortField:
+        return ClientTemplateSimpleSortField(self.value.lstrip("-"))
+
+    @property
+    def direction(self) -> SortDirection:
+        return SortDirection.desc if self.value.startswith("-") else SortDirection.asc
+
+
+class ClientTemplateListQuery(BaseModel):
+    ids: list[int] | None = None
+    template_type: ClientTemplateType | None = None
+    offset: int | None = None
+    limit: int | None = None
+
+
+class ClientTemplateSimpleListQuery(BaseModel):
+    ids: list[int] | None = None
+    template_type: ClientTemplateType | None = None
+    offset: int | None = None
+    limit: int | None = None
+    search: str | None = None
+    sort: list[ClientTemplateSimpleSortOption] = Field(default_factory=list)
+    all: bool = False
+
+    @field_validator("sort", mode="before")
+    @classmethod
+    def validate_sort(cls, value):
+        return ListValidator.normalize_enum_list_input(value, ClientTemplateSimpleSortOption)
 
 
 class BulkClientTemplateSelection(BaseModel):

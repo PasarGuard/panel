@@ -1,6 +1,5 @@
 from datetime import datetime, timezone
-from enum import Enum
-from typing import Optional, Union
+from typing import Optional
 
 from sqlalchemy import and_, bindparam, case, delete, func, literal_column, or_, select, update
 from sqlalchemy.exc import InvalidRequestError
@@ -17,7 +16,15 @@ from app.db.models import (
     NodeUsageResetLogs,
     NodeUserUsage,
 )
-from app.models.node import NodeCreate, NodeModify, UsageTable
+from app.models.node import (
+    NodeCreate,
+    NodeListQuery,
+    NodeModify,
+    NodeSimpleListQuery,
+    NodeSimpleSortField,
+    NodeSimpleSortOption,
+    UsageTable,
+)
 from app.models.stats import NodeStats, NodeStatsList, NodeUsageStat, NodeUsageStatsList, Period
 
 from .general import (
@@ -29,15 +36,14 @@ from .general import (
     to_utc_for_filter,
 )
 
-NodeSortingOptionsSimple = Enum(
-    "NodeSortingOptionsSimple",
-    {
-        "id": Node.id.asc(),
-        "-id": Node.id.desc(),
-        "name": Node.name.asc(),
-        "-name": Node.name.desc(),
-    },
-)
+
+def _build_node_simple_sort_clause(sort_option: NodeSimpleSortOption):
+    field_map = {
+        NodeSimpleSortField.id: Node.id,
+        NodeSimpleSortField.node_name: Node.name,
+    }
+    column = field_map[sort_option.field]
+    return column.desc() if sort_option.value.startswith("-") else column.asc()
 
 
 async def load_node_attrs(node: Node):
@@ -83,69 +89,61 @@ async def get_node_by_id(db: AsyncSession, node_id: int) -> Optional[Node]:
 
 async def get_nodes(
     db: AsyncSession,
-    status: Optional[Union[NodeStatus, list]] = None,
-    enabled: bool | None = None,
-    core_id: int | None = None,
-    offset: int | None = None,
-    limit: int | None = None,
-    ids: list[int] | None = None,
-    search: str | None = None,
+    query: NodeListQuery,
 ) -> tuple[list[Node], int]:
     """
     Retrieves nodes based on optional status, enabled, id, and search filters.
 
     Args:
         db (AsyncSession): The database session.
-        status (Optional[Union[app.db.models.NodeStatus, list]]): The status or list of statuses to filter by.
-        enabled (bool): If True, excludes disabled nodes.
-        core_id (int | None): Optional core/backend ID filter.
-        offset (int | None): Optional pagination offset.
-        limit (int | None): Optional pagination limit.
-        ids (list[int] | None): Optional list of node IDs to filter by.
-        search (str | None): Optional search term to match node names.
+        query: Structured node list query.
 
     Returns:
         tuple: A tuple containing:
             - list[Node]: A list of Node objects matching the criteria.
             - int: The total count of nodes matching the filters (before offset/limit).
     """
-    query = select(Node)
+    params = query
+    stmt = select(Node)
 
-    if status:
-        if isinstance(status, list):
-            query = query.where(Node.status.in_(status))
+    if params.status:
+        if isinstance(params.status, list):
+            stmt = stmt.where(Node.status.in_(params.status))
         else:
-            query = query.where(Node.status == status)
+            stmt = stmt.where(Node.status == params.status)
 
-    if enabled:
-        query = query.where(Node.status.not_in([NodeStatus.disabled, NodeStatus.limited]))
+    if params.enabled:
+        stmt = stmt.where(Node.status.not_in([NodeStatus.disabled, NodeStatus.limited]))
 
-    if core_id:
-        query = query.where(Node.core_config_id == core_id)
+    if params.core_id:
+        if params.core_id == 1:
+            stmt = stmt.where(or_(Node.core_config_id == params.core_id, Node.core_config_id.is_(None)))
+        else:
+            stmt = stmt.where(Node.core_config_id == params.core_id)
 
-    if ids:
-        query = query.where(Node.id.in_(ids))
+    if params.ids:
+        stmt = stmt.where(Node.id.in_(params.ids))
 
-    if search:
-        search_value = search.strip()
+    if params.search:
+        search_value = params.search.strip()
         if search_value:
             like_expression = f"%{search_value}%"
-            query = query.where(or_(Node.name.ilike(like_expression), Node.api_key.ilike(like_expression)))
+            stmt = stmt.where(or_(Node.name.ilike(like_expression), Node.api_key.ilike(like_expression)))
 
     # Get count before applying offset/limit
-    count_query = select(func.count()).select_from(query.subquery())
+    count_query = select(func.count()).select_from(stmt.subquery())
     count = (await db.execute(count_query)).scalar_one()
 
     # Apply pagination
-    if offset:
-        query = query.offset(offset)
-    if limit:
-        query = query.limit(limit)
+    if params.offset:
+        stmt = stmt.offset(params.offset)
+    if params.limit:
+        stmt = stmt.limit(params.limit)
 
     # Order by created_at and id for consistent results
-    query = query.order_by(Node.created_at.asc(), Node.id.asc())
+    stmt = stmt.order_by(Node.created_at.asc(), Node.id.asc())
 
-    db_nodes = (await db.execute(query)).scalars().all()
+    db_nodes = (await db.execute(stmt)).scalars().all()
     for node in db_nodes:
         await load_node_attrs(node)
 
@@ -154,52 +152,40 @@ async def get_nodes(
 
 async def get_nodes_simple(
     db: AsyncSession,
-    offset: int | None = None,
-    limit: int | None = None,
-    search: str | None = None,
-    sort: list[NodeSortingOptionsSimple] | None = None,
-    skip_pagination: bool = False,
+    query: NodeSimpleListQuery,
 ) -> tuple[list[tuple[int, str]], int]:
     """
     Retrieves lightweight node data with only id and name.
 
     Args:
         db: Database session.
-        offset: Number of records to skip.
-        limit: Number of records to retrieve.
-        search: Search term for node name.
-        sort: Sort options.
-        skip_pagination: If True, ignore offset/limit and return all records (max 1,000).
+        query: Structured lightweight node query.
 
     Returns:
         Tuple of (list of (id, name) tuples, total_count).
     """
     stmt = select(Node.id, Node.name, Node.status)
 
-    if search:
-        search_value = search.strip()
+    if query.ids:
+        stmt = stmt.where(Node.id.in_(query.ids))
+    if query.search:
+        search_value = query.search.strip()
         if search_value:
             stmt = stmt.where(Node.name.ilike(f"%{search_value}%"))
 
-    if sort:
-        sort_list = []
-        for s in sort:
-            if isinstance(s.value, tuple):
-                sort_list.extend(s.value)
-            else:
-                sort_list.append(s.value)
-        stmt = stmt.order_by(*sort_list)
+    if query.sort:
+        stmt = stmt.order_by(*[_build_node_simple_sort_clause(sort_option) for sort_option in query.sort])
 
     # Get count BEFORE pagination (always)
     count_stmt = select(func.count()).select_from(stmt.subquery())
     total = (await db.execute(count_stmt)).scalar()
 
     # Apply pagination or safety limit
-    if not skip_pagination:
-        if offset:
-            stmt = stmt.offset(offset)
-        if limit:
-            stmt = stmt.limit(limit)
+    if not query.all:
+        if query.offset:
+            stmt = stmt.offset(query.offset)
+        if query.limit:
+            stmt = stmt.limit(query.limit)
     else:
         stmt = stmt.limit(10000)  # Safety limit when all=true
 

@@ -31,7 +31,7 @@ const PaginationLink = ({ className, isActive, size = 'icon', ...props }: Pagina
         variant: isActive ? 'outline' : 'ghost',
         size,
       }),
-      size === 'icon' && 'h-9 min-w-9 w-auto px-2 tabular-nums',
+      size === 'icon' && 'h-9 w-auto min-w-9 px-2 tabular-nums',
       className,
     )}
     {...props}

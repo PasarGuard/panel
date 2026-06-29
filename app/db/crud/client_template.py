@@ -1,12 +1,19 @@
 from collections import defaultdict
-from enum import Enum
 
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import ClientTemplate, ProxyHost
-from app.models.client_template import ClientTemplateCreate, ClientTemplateModify, ClientTemplateType
+from app.models.client_template import (
+    ClientTemplateCreate,
+    ClientTemplateListQuery,
+    ClientTemplateModify,
+    ClientTemplateSimpleListQuery,
+    ClientTemplateSimpleSortField,
+    ClientTemplateSimpleSortOption,
+    ClientTemplateType,
+)
 
 TEMPLATE_TYPE_TO_LEGACY_KEY: dict[ClientTemplateType, str] = {
     ClientTemplateType.clash_subscription: "CLASH_SUBSCRIPTION_TEMPLATE",
@@ -16,17 +23,15 @@ TEMPLATE_TYPE_TO_LEGACY_KEY: dict[ClientTemplateType, str] = {
     ClientTemplateType.grpc_user_agent: "GRPC_USER_AGENT_TEMPLATE",
 }
 
-ClientTemplateSortingOptionsSimple = Enum(
-    "ClientTemplateSortingOptionsSimple",
-    {
-        "id": ClientTemplate.id.asc(),
-        "-id": ClientTemplate.id.desc(),
-        "name": ClientTemplate.name.asc(),
-        "-name": ClientTemplate.name.desc(),
-        "type": ClientTemplate.template_type.asc(),
-        "-type": ClientTemplate.template_type.desc(),
-    },
-)
+
+def _build_client_template_simple_sort_clause(sort_option: ClientTemplateSimpleSortOption):
+    field_map = {
+        ClientTemplateSimpleSortField.id: ClientTemplate.id,
+        ClientTemplateSimpleSortField.template_name: ClientTemplate.name,
+        ClientTemplateSimpleSortField.template_type: ClientTemplate.template_type,
+    }
+    column = field_map[sort_option.field]
+    return column.desc() if sort_option.value.startswith("-") else column.asc()
 
 
 async def get_client_template_values(db: AsyncSession) -> dict[str, str]:
@@ -86,61 +91,52 @@ async def get_client_template_by_id(db: AsyncSession, template_id: int) -> Clien
 
 async def get_client_templates(
     db: AsyncSession,
-    template_type: ClientTemplateType | None = None,
-    offset: int | None = None,
-    limit: int | None = None,
+    query: ClientTemplateListQuery,
 ) -> tuple[list[ClientTemplate], int]:
-    query = select(ClientTemplate)
-    if template_type is not None:
-        query = query.where(ClientTemplate.template_type == template_type.value)
+    stmt = select(ClientTemplate)
+    if query.ids:
+        stmt = stmt.where(ClientTemplate.id.in_(query.ids))
+    if query.template_type is not None:
+        stmt = stmt.where(ClientTemplate.template_type == query.template_type.value)
 
-    total = (await db.execute(select(func.count()).select_from(query.subquery()))).scalar() or 0
+    total = (await db.execute(select(func.count()).select_from(stmt.subquery()))).scalar() or 0
 
-    query = query.order_by(ClientTemplate.template_type.asc(), ClientTemplate.id.asc())
-    if offset:
-        query = query.offset(offset)
-    if limit:
-        query = query.limit(limit)
+    stmt = stmt.order_by(ClientTemplate.template_type.asc(), ClientTemplate.id.asc())
+    if query.offset:
+        stmt = stmt.offset(query.offset)
+    if query.limit:
+        stmt = stmt.limit(query.limit)
 
-    rows = (await db.execute(query)).scalars().all()
+    rows = (await db.execute(stmt)).scalars().all()
     return rows, total
 
 
 async def get_client_templates_simple(
     db: AsyncSession,
-    offset: int | None = None,
-    limit: int | None = None,
-    search: str | None = None,
-    template_type: ClientTemplateType | None = None,
-    sort: list[ClientTemplateSortingOptionsSimple] | None = None,
-    skip_pagination: bool = False,
+    query: ClientTemplateSimpleListQuery,
 ) -> tuple[list[tuple[int, str, str, bool]], int]:
     stmt = select(ClientTemplate.id, ClientTemplate.name, ClientTemplate.template_type, ClientTemplate.is_default)
 
-    if search:
-        stmt = stmt.where(ClientTemplate.name.ilike(f"%{search.strip()}%"))
+    if query.ids:
+        stmt = stmt.where(ClientTemplate.id.in_(query.ids))
+    if query.search:
+        stmt = stmt.where(ClientTemplate.name.ilike(f"%{query.search.strip()}%"))
 
-    if template_type is not None:
-        stmt = stmt.where(ClientTemplate.template_type == template_type.value)
+    if query.template_type is not None:
+        stmt = stmt.where(ClientTemplate.template_type == query.template_type.value)
 
-    if sort:
-        sort_list = []
-        for s in sort:
-            if isinstance(s.value, tuple):
-                sort_list.extend(s.value)
-            else:
-                sort_list.append(s.value)
-        stmt = stmt.order_by(*sort_list)
+    if query.sort:
+        stmt = stmt.order_by(*[_build_client_template_simple_sort_clause(sort_option) for sort_option in query.sort])
     else:
         stmt = stmt.order_by(ClientTemplate.template_type.asc(), ClientTemplate.id.asc())
 
     total = (await db.execute(select(func.count()).select_from(stmt.subquery()))).scalar() or 0
 
-    if not skip_pagination:
-        if offset:
-            stmt = stmt.offset(offset)
-        if limit:
-            stmt = stmt.limit(limit)
+    if not query.all:
+        if query.offset:
+            stmt = stmt.offset(query.offset)
+        if query.limit:
+            stmt = stmt.limit(query.limit)
     else:
         stmt = stmt.limit(10000)
 

@@ -21,6 +21,12 @@ export function getDocsUrl(pagePath: string): string {
   if (pagePath.startsWith('/settings')) {
     return `${DOCUMENTATION}/${normalizedLocale}/panel/settings`
   }
+  if (pagePath === '/templates/client') {
+    return `${DOCUMENTATION}/${normalizedLocale}/panel/client_template`
+  }
+  if (pagePath === '/templates/user') {
+    return `${DOCUMENTATION}/${normalizedLocale}/panel/user_template`
+  }
   // Map route paths to documentation paths
   const pathMap: Record<string, string> = {
     '/': 'dashboard',
@@ -30,6 +36,8 @@ export function getDocsUrl(pagePath: string): string {
     '/groups': 'groups',
     '/templates': 'user_template',
     '/admins': 'admins',
+    '/admin-roles': 'admin_roles',
+    '/api-keys': 'api_keys',
     '/bulk': 'bulk',
     '/nodes/cores': 'core',
   }

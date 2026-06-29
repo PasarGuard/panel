@@ -7,7 +7,8 @@ from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.admin import AdminDetails
-from app.models.user import BulkUser, BulkUsersFromTemplate, UsernameGenerationStrategy
+from app.models.user import BulkUser, BulkUsersFromTemplate, ExpiredUsersQuery, UsernameGenerationStrategy
+from app.models.user_template import UserTemplateListQuery
 from app.models.validators import UserValidator
 from app.operation import OperatorType
 from app.operation.user import UserOperation
@@ -22,6 +23,7 @@ from app.telegram.keyboards.bulk_actions import (
 )
 from app.telegram.keyboards.confim_action import ConfirmAction
 from app.telegram.utils import forms
+from app.telegram.utils.filters import IsScopeAll, HasPermission
 from app.telegram.utils.shared import add_to_messages_to_delete, delete_messages
 from app.telegram.utils.texts import Message as Texts
 
@@ -57,14 +59,18 @@ def _chunk_subscription_urls(urls: list[str], limit: int = 3800) -> list[str]:
     return chunks
 
 
-@router.callback_query(AdminPanel.Callback.filter(AdminPanelAction.bulk_actions == F.action))
-async def bulk_actions(event: CallbackQuery):
+@router.callback_query(
+    IsScopeAll("users", "update"), AdminPanel.Callback.filter(AdminPanelAction.bulk_actions == F.action)
+)
+async def bulk_actions(event: CallbackQuery, admin: AdminDetails):
     await event.message.edit_text(Texts.choose_action, reply_markup=BulkActionPanel().as_markup())
 
 
-@router.callback_query(BulkActionPanel.Callback.filter(BulkAction.create_from_template == F.action))
-async def bulk_create_from_template(event: CallbackQuery, db: AsyncSession, state: FSMContext):
-    templates = await user_templates.get_user_templates(db)
+@router.callback_query(
+    HasPermission("users", "create"), BulkActionPanel.Callback.filter(BulkAction.create_from_template == F.action)
+)
+async def bulk_create_from_template(event: CallbackQuery, db: AsyncSession, state: FSMContext, admin: AdminDetails):
+    templates = await user_templates.get_user_templates(db, UserTemplateListQuery(), admin)
     if not templates:
         return await event.answer(Texts.there_is_no_template)
 
@@ -89,7 +95,7 @@ async def bulk_template_count(event: Message, state: FSMContext):
 
     try:
         count = int(event.text)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         msg = await event.reply(text=Texts.bulk_count_not_valid, reply_markup=CancelKeyboard().as_markup())
         await add_to_messages_to_delete(state, msg)
         return
@@ -241,7 +247,9 @@ async def _perform_bulk_creation(
             await target.answer(chunk)
 
 
-@router.callback_query(BulkActionPanel.Callback.filter((BulkAction.delete_expired == F.action) & ~F.amount))
+@router.callback_query(
+    IsScopeAll("users", "delete"), BulkActionPanel.Callback.filter((BulkAction.delete_expired == F.action) & ~F.amount)
+)
 async def delete_expired(event: CallbackQuery, state: FSMContext):
     try:
         await event.message.delete()
@@ -275,7 +283,9 @@ async def process_expire_before(event: Message, state: FSMContext):
     )
 
 
-@router.callback_query(BulkActionPanel.Callback.filter((BulkAction.delete_expired == F.action) & F.amount))
+@router.callback_query(
+    IsScopeAll("users", "delete"), BulkActionPanel.Callback.filter((BulkAction.delete_expired == F.action) & F.amount)
+)
 async def delete_expired_done(
     event: CallbackQuery, db: AsyncSession, admin: AdminDetails, callback_data: BulkActionPanel.Callback
 ):
@@ -283,14 +293,18 @@ async def delete_expired_done(
     result = await user_operations.delete_expired_users(
         db,
         admin,
-        expired_before=expire_before,
-        expired_after=dt.fromtimestamp(0, tz.utc),
+        ExpiredUsersQuery(
+            expired_before=expire_before,
+            expired_after=dt.fromtimestamp(0, tz.utc),
+        ),
     )
     await event.answer(Texts.users_deleted(result.count))
     await event.message.edit_text(Texts.choose_action, reply_markup=BulkActionPanel().as_markup())
 
 
-@router.callback_query(BulkActionPanel.Callback.filter((BulkAction.modify_expiry == F.action) & ~F.amount))
+@router.callback_query(
+    IsScopeAll("users", "update"), BulkActionPanel.Callback.filter((BulkAction.modify_expiry == F.action) & ~F.amount)
+)
 async def modify_expiry(event: CallbackQuery, state: FSMContext):
     try:
         await event.message.delete()
@@ -326,14 +340,21 @@ async def process_expiry(event: Message, state: FSMContext):
     )
 
 
-@router.callback_query(BulkActionPanel.Callback.filter((BulkAction.modify_expiry == F.action) & F.amount))
-async def modify_expiry_done(event: CallbackQuery, db: AsyncSession, callback_data: BulkActionPanel.Callback):
+@router.callback_query(
+    IsScopeAll("users", "update"), BulkActionPanel.Callback.filter((BulkAction.modify_expiry == F.action) & F.amount)
+)
+async def modify_expiry_done(
+    event: CallbackQuery, db: AsyncSession, admin: AdminDetails, callback_data: BulkActionPanel.Callback
+):
     result = await user_operations.bulk_modify_expire(db, BulkUser(amount=int(callback_data.amount) * 86400))
     await event.answer(Texts.users_expiry_changed(result, int(callback_data.amount)))
     await event.message.edit_text(Texts.choose_action, reply_markup=BulkActionPanel().as_markup())
 
 
-@router.callback_query(BulkActionPanel.Callback.filter((BulkAction.modify_data_limit == F.action) & ~F.amount))
+@router.callback_query(
+    IsScopeAll("users", "update"),
+    BulkActionPanel.Callback.filter((BulkAction.modify_data_limit == F.action) & ~F.amount),
+)
 async def modify_data_limit(event: CallbackQuery, state: FSMContext):
     try:
         await event.message.delete()
@@ -369,8 +390,13 @@ async def process_data_limit(event: Message, state: FSMContext):
     )
 
 
-@router.callback_query(BulkActionPanel.Callback.filter((BulkAction.modify_data_limit == F.action) & F.amount))
-async def modify_data_limit_done(event: CallbackQuery, db: AsyncSession, callback_data: BulkActionPanel.Callback):
+@router.callback_query(
+    IsScopeAll("users", "update"),
+    BulkActionPanel.Callback.filter((BulkAction.modify_data_limit == F.action) & F.amount),
+)
+async def modify_data_limit_done(
+    event: CallbackQuery, db: AsyncSession, admin: AdminDetails, callback_data: BulkActionPanel.Callback
+):
     result = await user_operations.bulk_modify_datalimit(db, BulkUser(amount=int(callback_data.amount) * (1024**3)))
     await event.answer(Texts.users_data_limit_changed(result, int(callback_data.amount)))
     await event.message.edit_text(Texts.choose_action, reply_markup=BulkActionPanel().as_markup())

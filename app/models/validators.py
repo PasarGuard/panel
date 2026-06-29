@@ -1,10 +1,12 @@
 import re
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any, Optional
 from urllib.parse import urlparse
 
 from app.db.models import UserStatus, UserStatusCreate
+
+MAX_ON_HOLD_EXPIRE_DURATION_SECONDS = 2_147_483_647
 
 
 class NumericValidatorMixin:
@@ -57,7 +59,7 @@ class NumericValidatorMixin:
 
 class ListValidator:
     @staticmethod
-    def nullable_list(list: list[Any] | None, name: str) -> list[Any]:
+    def nullable_list(list: list[Any] | None, name: str) -> list[Any] | None:
         if list and len(list) < 1:
             raise ValueError(f"you must select at least one {name}")
         return list
@@ -74,6 +76,50 @@ class ListValidator:
         Remove duplicates from list while preserving order using dict.fromkeys()
         """
         return list(dict.fromkeys(list_))
+
+    @staticmethod
+    def normalize_enum_list_input(value, enum_cls) -> list:
+        if value in (None, "", []):
+            return []
+        if isinstance(value, str):
+            raw_values = [item for item in value.strip(",").split(",") if item]
+        elif isinstance(value, list):
+            raw_values = value
+        else:
+            raw_values = [value]
+
+        normalized = []
+        for item in raw_values:
+            normalized.append(item if isinstance(item, enum_cls) else enum_cls(item))
+        return normalized
+
+    @staticmethod
+    def normalize_percentage_list_input(
+        value,
+        *,
+        none_as_none: bool = False,
+        strict: bool = True,
+    ) -> list[int] | None:
+        """Normalize percentage thresholds to sorted unique ints in [1, 100]."""
+        if value in (None, "", []):
+            return None if value is None and none_as_none else []
+
+        if isinstance(value, str):
+            raw_values = [item.strip() for item in value.split(",") if item.strip()]
+        elif isinstance(value, list):
+            raw_values = value
+        else:
+            raw_values = [value]
+
+        normalized: list[int] = []
+        for item in raw_values:
+            percentage = int(item)
+            if 1 <= percentage <= 100:
+                normalized.append(percentage)
+            elif strict:
+                raise ValueError("percentage values must be between 1 and 100")
+
+        return sorted(set(normalized))
 
 
 class PasswordValidator:
@@ -151,10 +197,13 @@ class UserValidator:
 
     @staticmethod
     def validator_on_hold_timeout(value):
-        if value == 0 or isinstance(value, datetime) or value is None:
+        if value == 0 or value is None:
+            return None
+        if isinstance(value, int):
+            return datetime.now(timezone.utc) + timedelta(seconds=value)
+        if isinstance(value, datetime):
             return value
-        else:
-            raise ValueError("on_hold_timeout can be datetime or 0")
+        raise ValueError("on_hold_timeout can be datetime or int (seconds)")
 
     @staticmethod
     def allow_status(
@@ -181,8 +230,8 @@ class ProxyValidator:
             http://user:pass@host:port
             socks5://user:pass@host:port
         """
-        if value is None:
-            return value
+        if not value:
+            return None
         pattern = (
             r"^(?P<scheme>http|https|socks4|socks5)://"
             r"((?P<user>[^\s:@]+):(?P<pass>[^\s:@]+)@)?"
@@ -245,7 +294,8 @@ class StringArrayValidator:
         else:
             array = set(array)
 
-        compiled_string = ",".join([str(v) for v in array])
+        array = {str(v) for v in array}
+        compiled_string = ",".join(array)
         if len(compiled_string) > max:
             raise ValueError(f"String can't be bigger that {max} charachter")
         return array

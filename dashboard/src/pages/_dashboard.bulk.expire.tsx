@@ -1,11 +1,7 @@
 'use client'
 
-import BulkFlow from '@/components/bulk/bulk-flow'
+import BulkFlow from '@/features/bulk/components/bulk-flow'
 
 export default function BulkExpirePage() {
-  return (
-    <BulkFlow
-      operationType="expire"
-    />
-  )
+  return <BulkFlow operationType="expire" />
 }

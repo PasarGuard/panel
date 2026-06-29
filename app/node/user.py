@@ -1,13 +1,22 @@
-import inspect
-
 from PasarGuardNodeBridge import create_proxy, create_user
 from PasarGuardNodeBridge.common.service_pb2 import User as ProtoUser
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, func, or_, select
 
 from app.db import AsyncSession
-from app.db.models import Group, ProxyInbound, User, UserStatus, inbounds_groups_association, users_groups_association
+from app.db.models import (
+    Admin,
+    AdminRole,
+    AdminStatus,
+    Group,
+    ProxyInbound,
+    User,
+    UserStatus,
+    inbounds_groups_association,
+    users_groups_association,
+)
+from app.models.protocol import ProxyProtocol
 
-_CREATE_PROXY_PARAMS = set(inspect.signature(create_proxy).parameters)
+_ALL_PROXY_PROTOCOLS = frozenset(ProxyProtocol)
 
 
 def _inbounds_from_loaded_groups(user: User) -> list[str] | None:
@@ -30,7 +39,7 @@ def _inbounds_from_loaded_groups(user: User) -> list[str] | None:
     return list(tags)
 
 
-async def serialize_user(user: User) -> ProtoUser:
+async def serialize_user(user: User, allowed_protocols: frozenset[ProxyProtocol] | None = None) -> ProtoUser:
     user_settings = user.proxy_settings
     inbounds = None
     status = user.__dict__.get("status")
@@ -42,39 +51,49 @@ async def serialize_user(user: User) -> ProtoUser:
         if inbounds is None:
             inbounds = await user.inbounds()
 
-    return _serialize_user_for_node(user.id, user.username, user_settings, inbounds)
+    return _serialize_user_for_node(user.id, user_settings, inbounds, allowed_protocols)
 
 
-def _serialize_user_for_node(id: int, username: str, user_settings: dict, inbounds: list[str] = None) -> ProtoUser:
-    vmess_settings = user_settings.get("vmess", {})
-    vless_settings = user_settings.get("vless", {})
-    if vless_settings.get("flow") == "xtls-rprx-vision-udp443":
-        vless_settings["flow"] = "xtls-rprx-vision"
-    trojan_settings = user_settings.get("trojan", {})
-    shadowsocks_settings = user_settings.get("shadowsocks", {})
-    wireguard_settings = user_settings.get("wireguard", {})
-    hysteria_settings = user_settings.get("hysteria", {})
-    proxy_kwargs = {
-        "vmess_id": vmess_settings.get("id"),
-        "vless_id": vless_settings.get("id"),
-        "vless_flow": vless_settings.get("flow"),
-        "trojan_password": trojan_settings.get("password"),
-        "shadowsocks_password": shadowsocks_settings.get("password"),
-        "shadowsocks_method": shadowsocks_settings.get("method"),
-        "wireguard_public_key": wireguard_settings.get("public_key"),
-        "wireguard_peer_ips": wireguard_settings.get("peer_ips") or [],
-        "hysteria_auth": hysteria_settings.get("auth"),
-    }
+def _serialize_user_for_node(
+    id: int,
+    user_settings: dict,
+    inbounds: list[str] = None,
+    allowed_protocols: frozenset[ProxyProtocol] | None = None,
+) -> ProtoUser:
+    allowed_protocols = allowed_protocols or _ALL_PROXY_PROTOCOLS
+
+    proxy_kwargs = {}
+    if ProxyProtocol.vmess in allowed_protocols:
+        proxy_kwargs["vmess_id"] = user_settings.get("vmess", {}).get("id")
+    if ProxyProtocol.vless in allowed_protocols:
+        proxy_kwargs["vless_id"] = user_settings.get("vless", {}).get("id")
+    if ProxyProtocol.trojan in allowed_protocols:
+        proxy_kwargs["trojan_password"] = user_settings.get("trojan", {}).get("password")
+    if ProxyProtocol.shadowsocks in allowed_protocols:
+        shadowsocks_settings = user_settings.get("shadowsocks", {})
+        proxy_kwargs["shadowsocks_password"] = shadowsocks_settings.get("password")
+        proxy_kwargs["shadowsocks_method"] = shadowsocks_settings.get("method")
+    if ProxyProtocol.wireguard in allowed_protocols:
+        wireguard_settings = user_settings.get("wireguard", {})
+        proxy_kwargs["wireguard_public_key"] = wireguard_settings.get("public_key")
+        proxy_kwargs["wireguard_peer_ips"] = wireguard_settings.get("peer_ips") or []
+    if ProxyProtocol.hysteria in allowed_protocols:
+        proxy_kwargs["hysteria_auth"] = user_settings.get("hysteria", {}).get("auth")
 
     return create_user(
-        f"{id}.{username}",
-        create_proxy(**{key: value for key, value in proxy_kwargs.items() if key in _CREATE_PROXY_PARAMS}),
+        str(id),
+        create_proxy(**proxy_kwargs),
         inbounds,
     )
 
 
-async def core_users(db: AsyncSession):
+async def core_users(
+    db: AsyncSession,
+    inbound_tags: list[str] | set[str] | None = None,
+    allowed_protocols: frozenset[ProxyProtocol] | None = None,
+):
     dialect = db.bind.dialect.name
+    inbound_tags = list(dict.fromkeys(inbound_tags or []))
 
     # Use dialect-specific aggregation and grouping
     if dialect == "postgresql":
@@ -86,7 +105,6 @@ async def core_users(db: AsyncSession):
     stmt = (
         select(
             User.id,
-            User.username,
             User.proxy_settings,
             inbound_agg,
         )
@@ -99,8 +117,25 @@ async def core_users(db: AsyncSession):
             ),
         )
         .outerjoin(inbounds_groups_association, Group.id == inbounds_groups_association.c.group_id)
-        .outerjoin(ProxyInbound, inbounds_groups_association.c.inbound_id == ProxyInbound.id)
+        .outerjoin(
+            ProxyInbound,
+            and_(
+                inbounds_groups_association.c.inbound_id == ProxyInbound.id,
+                ProxyInbound.tag.in_(inbound_tags) if inbound_tags else True,
+            ),
+        )
+        # Exclude users whose admin role blocks user sync for the admin's current status.
+        .outerjoin(Admin, Admin.id == User.admin_id)
+        .outerjoin(AdminRole, AdminRole.id == Admin.role_id)
         .where(User.status.in_([UserStatus.active, UserStatus.on_hold]))
+        .where(
+            or_(
+                Admin.id.is_(None),
+                Admin.status.not_in([AdminStatus.limited, AdminStatus.disabled]),
+                and_(Admin.status == AdminStatus.limited, AdminRole.disconnect_users_when_limited.is_not(True)),
+                and_(Admin.status == AdminStatus.disabled, AdminRole.disconnect_users_when_disabled.is_not(True)),
+            )
+        )
         .group_by(User.id)
     )
 
@@ -110,11 +145,22 @@ async def core_users(db: AsyncSession):
     for row in results:
         inbound_tags = row.inbound_tags.split(",") if row.inbound_tags else []
         if inbound_tags:
-            bridge_users.append(_serialize_user_for_node(row.id, row.username, row.proxy_settings, inbound_tags))
+            bridge_users.append(
+                _serialize_user_for_node(
+                    row.id,
+                    row.proxy_settings,
+                    inbound_tags,
+                    allowed_protocols,
+                )
+            )
     return bridge_users
 
 
-async def serialize_users_for_node(users: list[User]) -> list[ProtoUser]:
+async def serialize_users_for_node(
+    users: list[User],
+    allowed_protocols: frozenset[ProxyProtocol] | None = None,
+) -> list[ProtoUser]:
+    """Serialize users for node dispatch."""
     bridge_users: list = []
 
     for user in users:
@@ -126,6 +172,6 @@ async def serialize_users_for_node(users: list[User]) -> list[ProtoUser]:
             else:
                 inbounds_list = loaded_inbounds
 
-        bridge_users.append(_serialize_user_for_node(user.id, user.username, user.proxy_settings, inbounds_list))
+        bridge_users.append(_serialize_user_for_node(user.id, user.proxy_settings, inbounds_list, allowed_protocols))
 
     return bridge_users

@@ -1,15 +1,15 @@
 import json
+from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.db.models import DataLimitResetStrategy, UserStatusCreate
-from app.models.proxy import ShadowsocksMethods, XTLSFlows
+from app.models.proxy import ShadowsocksMethods
 
-from .validators import ListValidator, UserValidator
+from .validators import MAX_ON_HOLD_EXPIRE_DURATION_SECONDS, ListValidator, UserValidator
 
 
 class ExtraSettings(BaseModel):
-    flow: XTLSFlows | None = Field(XTLSFlows.NONE)
     method: ShadowsocksMethods | None = Field(ShadowsocksMethods.CHACHA20_POLY1305)
 
     def dict(self, *, no_obj=True, **kwargs):
@@ -21,8 +21,12 @@ class ExtraSettings(BaseModel):
 class UserTemplate(BaseModel):
     name: str | None = None
     data_limit: int | None = Field(ge=0, default=None, description="data_limit can be 0 or greater")
+    hwid_limit: int | None = Field(default=None)
     expire_duration: int | None = Field(
-        ge=0, default=None, description="expire_duration can be 0 or greater in seconds"
+        ge=0,
+        le=MAX_ON_HOLD_EXPIRE_DURATION_SECONDS,
+        default=None,
+        description="expire_duration can be 0 or greater in seconds",
     )
     username_prefix: str | None = Field(max_length=20, default=None)
     username_suffix: str | None = Field(max_length=20, default=None)
@@ -95,6 +99,51 @@ class UserTemplatesSimpleResponse(BaseModel):
 
     templates: list[UserTemplateSimple]
     total: int
+
+
+class UserTemplateSimpleSortField(str, Enum):
+    id = "id"
+    template_name = "name"
+
+
+class SortDirection(str, Enum):
+    asc = "asc"
+    desc = "desc"
+
+
+class UserTemplateSimpleSortOption(str, Enum):
+    id = "id"
+    template_name = "name"
+    desc_id = "-id"
+    desc_template_name = "-name"
+
+    @property
+    def field(self) -> UserTemplateSimpleSortField:
+        return UserTemplateSimpleSortField(self.value.lstrip("-"))
+
+    @property
+    def direction(self) -> SortDirection:
+        return SortDirection.desc if self.value.startswith("-") else SortDirection.asc
+
+
+class UserTemplateListQuery(BaseModel):
+    ids: list[int] | None = None
+    offset: int | None = None
+    limit: int | None = None
+
+
+class UserTemplateSimpleListQuery(BaseModel):
+    ids: list[int] | None = None
+    offset: int | None = None
+    limit: int | None = None
+    search: str | None = None
+    sort: list[UserTemplateSimpleSortOption] = Field(default_factory=list)
+    all: bool = False
+
+    @field_validator("sort", mode="before")
+    @classmethod
+    def validate_sort(cls, value):
+        return ListValidator.normalize_enum_list_input(value, UserTemplateSimpleSortOption)
 
 
 class BulkUserTemplateSelection(BaseModel):

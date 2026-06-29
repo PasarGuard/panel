@@ -7,14 +7,17 @@ from app.operation import OperatorType
 from app.operation.host import HostOperation
 from app.utils import responses
 
-from .authentication import check_sudo_admin
+from .authentication import require_permission
+from .dependencies import get_host_list_query
 
 host_operator = HostOperation(operator_type=OperatorType.API)
 router = APIRouter(tags=["Host"], prefix="/api/host", responses={401: responses._401, 403: responses._403})
 
 
 @router.get("/{host_id}", response_model=BaseHost)
-async def get_host(host_id: int, db: AsyncSession = Depends(get_db), _: AdminDetails = Depends(check_sudo_admin)):
+async def get_host(
+    host_id: int, db: AsyncSession = Depends(get_db), _: AdminDetails = Depends(require_permission("hosts", "read"))
+):
     """
     get host by **id**
     """
@@ -23,17 +26,21 @@ async def get_host(host_id: int, db: AsyncSession = Depends(get_db), _: AdminDet
 
 @router.get("s", response_model=list[BaseHost])
 async def get_hosts(
-    offset: int = 0, limit: int = 0, db: AsyncSession = Depends(get_db), _: AdminDetails = Depends(check_sudo_admin)
+    query=Depends(get_host_list_query),
+    db: AsyncSession = Depends(get_db),
+    _: AdminDetails = Depends(require_permission("hosts", "read")),
 ):
     """
     Get proxy hosts.
     """
-    return await host_operator.get_hosts(db=db, offset=offset, limit=limit)
+    return await host_operator.get_hosts(db=db, query=query)
 
 
 @router.post("/", response_model=BaseHost, status_code=status.HTTP_201_CREATED)
 async def create_host(
-    new_host: CreateHost, db: AsyncSession = Depends(get_db), admin: AdminDetails = Depends(check_sudo_admin)
+    new_host: CreateHost,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(require_permission("hosts", "create")),
 ):
     """
     create a new host
@@ -48,7 +55,7 @@ async def modify_host(
     host_id: int,
     modified_host: CreateHost,
     db: AsyncSession = Depends(get_db),
-    admin: AdminDetails = Depends(check_sudo_admin),
+    admin: AdminDetails = Depends(require_permission("hosts", "update")),
 ):
     """
     modify host by **id**
@@ -64,7 +71,9 @@ async def modify_host(
     status_code=status.HTTP_204_NO_CONTENT,
 )
 async def remove_host(
-    host_id: int, db: AsyncSession = Depends(get_db), admin: AdminDetails = Depends(check_sudo_admin)
+    host_id: int,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(require_permission("hosts", "update")),
 ):
     """
     remove host by **id**
@@ -77,7 +86,7 @@ async def remove_host(
 async def modify_hosts(
     modified_hosts: list[CreateHost],
     db: AsyncSession = Depends(get_db),
-    admin: AdminDetails = Depends(check_sudo_admin),
+    admin: AdminDetails = Depends(require_permission("hosts", "update")),
 ):
     """
     Modify proxy hosts and update the configuration.
@@ -93,7 +102,7 @@ async def modify_hosts(
 async def bulk_delete_hosts(
     bulk_hosts: BulkHostSelection,
     db: AsyncSession = Depends(get_db),
-    admin: AdminDetails = Depends(check_sudo_admin),
+    admin: AdminDetails = Depends(require_permission("hosts", "update")),
 ):
     """Delete selected hosts by ID."""
     return await host_operator.bulk_remove_hosts(db, bulk_hosts, admin)
@@ -107,7 +116,7 @@ async def bulk_delete_hosts(
 async def bulk_disable_hosts(
     bulk_hosts: BulkHostSelection,
     db: AsyncSession = Depends(get_db),
-    admin: AdminDetails = Depends(check_sudo_admin),
+    admin: AdminDetails = Depends(require_permission("hosts", "update")),
 ):
     """Disable selected hosts by ID."""
     return await host_operator.bulk_set_hosts_disabled(db, bulk_hosts, admin, is_disabled=True)
@@ -121,7 +130,7 @@ async def bulk_disable_hosts(
 async def bulk_enable_hosts(
     bulk_hosts: BulkHostSelection,
     db: AsyncSession = Depends(get_db),
-    admin: AdminDetails = Depends(check_sudo_admin),
+    admin: AdminDetails = Depends(require_permission("hosts", "update")),
 ):
     """Enable selected hosts by ID."""
     return await host_operator.bulk_set_hosts_disabled(db, bulk_hosts, admin, is_disabled=False)

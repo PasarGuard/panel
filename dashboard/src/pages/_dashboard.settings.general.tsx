@@ -1,16 +1,18 @@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
-import { SubscriptionFormActions } from '@/components/subscriptions/subscription-form-actions'
+import { SubscriptionFormActions } from '@/features/subscriptions/components/subscription-form-actions'
+import { SubscriptionCustomVariablesSection } from '@/features/subscriptions/components/subscription-custom-variables-section'
+import { customVariablesSchema, normalizeCustomVariablesForPayload } from '@/features/subscriptions/components/subscription-settings-schema'
 import { Button } from '@/components/ui/button'
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { DEFAULT_SHADOWSOCKS_METHOD } from '@/constants/Proxies'
-import { ShadowsocksMethods, XTLSFlows, useReconnectAllNode } from '@/service/api'
+import { ShadowsocksMethods, useGetGeneralSettings, useReconnectAllNode } from '@/service/api'
 import { queryClient } from '@/utils/query-client'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Loader2, RefreshCcw, XIcon } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { Loader2, RefreshCcw } from 'lucide-react'
+import { useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -19,41 +21,45 @@ import { useSettingsContext } from './_dashboard.settings'
 
 // general settings validation schema
 const generalSettingsSchema = z.object({
-  default_flow: z.string().default(''),
   default_method: z.string().default(''),
+  custom_variables: customVariablesSchema,
 })
 
 type GeneralSettingsFormInput = z.input<typeof generalSettingsSchema>
 
 export default function General() {
   const { t } = useTranslation()
-  const { settings, isLoading, error, updateSettings, isSaving } = useSettingsContext()
+  const { isLoading, error, updateSettings, isSaving } = useSettingsContext()
+  const { data: generalSettings, isLoading: isGeneralLoading, error: generalError } = useGetGeneralSettings()
   const [isReconnectAllDialogOpen, setIsReconnectAllDialogOpen] = useState(false)
   const reconnectAllNodeMutation = useReconnectAllNode()
 
+  const generalFormValues = useMemo<GeneralSettingsFormInput>(
+    () =>
+      generalSettings
+        ? {
+            default_method: generalSettings.default_method || DEFAULT_SHADOWSOCKS_METHOD,
+            custom_variables: generalSettings.custom_variables || [],
+          }
+        : {
+            default_method: '',
+            custom_variables: [],
+          },
+    [generalSettings?.default_method, generalSettings?.custom_variables],
+  )
+
   const form = useForm<GeneralSettingsFormInput>({
     resolver: zodResolver(generalSettingsSchema),
-    defaultValues: {
-      default_flow: '',
-      default_method: '',
-    },
+    values: generalFormValues,
   })
-
-  useEffect(() => {
-    form.reset({
-      default_flow: settings?.general?.default_flow || '',
-      default_method: settings?.general?.default_method || DEFAULT_SHADOWSOCKS_METHOD,
-    })
-  }, [settings])
 
   const onSubmit = async (data: GeneralSettingsFormInput) => {
     try {
       // Filter out empty values and prepare the payload
       const filteredData: any = {
         general: {
-          ...data,
-          default_flow: data.default_flow || undefined,
           default_method: data.default_method || DEFAULT_SHADOWSOCKS_METHOD,
+          custom_variables: normalizeCustomVariablesForPayload(data.custom_variables),
         },
       }
 
@@ -64,13 +70,12 @@ export default function General() {
   }
 
   const handleCancel = () => {
-    if (settings?.general) {
-      form.reset({
-        default_flow: '',
-        default_method: DEFAULT_SHADOWSOCKS_METHOD,
-      })
-      toast.success(t('settings.general.cancelSuccess'))
-    }
+    if (!generalSettings) return
+    form.reset({
+      default_method: generalSettings.default_method || DEFAULT_SHADOWSOCKS_METHOD,
+      custom_variables: generalSettings.custom_variables || [],
+    })
+    toast.success(t('settings.general.cancelSuccess'))
   }
 
   const handleReconnectAll = async () => {
@@ -103,8 +108,10 @@ export default function General() {
     }
   }
 
+  const loadError = error || generalError
+
   // TODO: skeleton needs to be improved
-  if (isLoading) {
+  if (isLoading || isGeneralLoading) {
     return (
       <div className="w-full p-4 sm:py-6 lg:py-8">
         <div className="space-y-6 sm:space-y-8 lg:space-y-10">
@@ -140,7 +147,7 @@ export default function General() {
     )
   }
 
-  if (error) {
+  if (loadError) {
     return (
       <div className="flex min-h-[400px] items-center justify-center p-4 sm:py-6 lg:py-8">
         <div className="space-y-3 text-center">
@@ -151,14 +158,6 @@ export default function General() {
     )
   }
 
-  const clearField = (field: keyof GeneralSettingsFormInput) => {
-    return (e: React.MouseEvent<HTMLButtonElement>) => {
-      e.preventDefault()
-      e.stopPropagation()
-      form.setValue(field, '')
-    }
-  }
-
   return (
     <div className="flex min-h-[calc(100vh-200px)] w-full flex-col">
       <Form {...form}>
@@ -166,40 +165,6 @@ export default function General() {
           <div className="mb-4 sm:mb-6 lg:mb-8">
             {/* General Settings */}
             <div className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2">
-              <FormField
-                control={form.control}
-                name="default_flow"
-                render={({ field }) => (
-                  <FormItem className="relative space-y-2">
-                    <FormLabel className="flex items-center gap-2 text-xs font-medium sm:text-sm">{t('settings.general.defaultFlow.title')}</FormLabel>
-                    <FormControl>
-                      <Select value={field.value} onValueChange={field.onChange}>
-                        <SelectTrigger className="text-xs sm:text-sm">
-                          <SelectValue />
-                        </SelectTrigger>
-                        {field.value && (
-                          <Button size="icon" variant="ghost" className="absolute right-8 top-6" onClick={clearField('default_flow')}>
-                            <XIcon />
-                          </Button>
-                        )}
-                        <SelectContent>
-                          {Object.values(XTLSFlows)
-                            .filter(Boolean)
-                            .map(flow => {
-                              return (
-                                <SelectItem value={flow} key={flow} className="text-xs sm:text-sm">
-                                  {flow}
-                                </SelectItem>
-                              )
-                            })}
-                        </SelectContent>
-                      </Select>
-                    </FormControl>
-                    <FormDescription className="text-xs text-muted-foreground sm:text-sm">{t('settings.general.defaultFlow.description')}</FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
               <FormField
                 control={form.control}
                 name="default_method"
@@ -224,7 +189,7 @@ export default function General() {
                         </SelectContent>
                       </Select>
                     </FormControl>
-                    <FormDescription className="text-xs text-muted-foreground sm:text-sm">{t('settings.general.defaultMethod.description')}</FormDescription>
+                    <FormDescription className="text-muted-foreground text-xs sm:text-sm">{t('settings.general.defaultMethod.description')}</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -234,13 +199,26 @@ export default function General() {
 
           <Separator className="my-3" />
 
+          <div className="py-3">
+            <SubscriptionCustomVariablesSection form={form} />
+          </div>
+
+          <Separator className="my-3" />
+
           {/* Reconnect All Nodes Section */}
           <div className="flex flex-col gap-3 py-3 sm:gap-4 md:flex-row md:items-start md:justify-between">
             <div className="space-y-1">
               <h3 className="text-base font-semibold sm:text-lg">{t('nodes.title', { defaultValue: 'Reconnect All Nodes' })}</h3>
-              <p className="text-xs text-muted-foreground sm:text-sm">{t('nodes.reconnectinfo', { defaultValue: 'Refresh all nodes connections' })}</p>
+              <p className="text-muted-foreground text-xs sm:text-sm">{t('nodes.reconnectinfo', { defaultValue: 'Refresh all nodes connections' })}</p>
             </div>
-            <Button variant="destructive" size="sm" type="button" onClick={() => setIsReconnectAllDialogOpen(true)} disabled={reconnectAllNodeMutation.isPending} className="w-full shrink-0 gap-2 sm:w-auto">
+            <Button
+              variant="destructive"
+              size="sm"
+              type="button"
+              onClick={() => setIsReconnectAllDialogOpen(true)}
+              disabled={reconnectAllNodeMutation.isPending}
+              className="w-full shrink-0 gap-2 sm:w-auto"
+            >
               {reconnectAllNodeMutation.isPending ? (
                 <>
                   <Loader2 className="h-3 w-3 animate-spin" />

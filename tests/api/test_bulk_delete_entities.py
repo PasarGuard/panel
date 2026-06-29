@@ -9,6 +9,7 @@ from sqlalchemy import func, select, update
 from app.db.crud.node import create_node as db_create_node
 from app.db.crud.node import remove_node as db_remove_node
 from app.db.models import (
+    APIKey,
     Admin,
     AdminUsageLogs,
     NextPlan,
@@ -32,7 +33,6 @@ from tests.api.helpers import (
     create_group,
     create_user,
     create_user_template,
-    delete_admin,
     delete_user,
     delete_user_template,
     get_inbounds,
@@ -53,10 +53,12 @@ KuUcpBWSPkvH6y3Ak+YsTMg=
 -----END CERTIFICATE-----"""
 
 
-def set_admin_sudo(username: str, is_sudo: bool) -> None:
+def set_admin_role(username: str, role_id: int) -> None:
+    """Set admin role by role_id (2=administrator, 3=operator)."""
+
     async def _set_flag():
         async with TestSession() as session:
-            await session.execute(update(Admin).where(Admin.username == username).values(is_sudo=is_sudo))
+            await session.execute(update(Admin).where(Admin.username == username).values(role_id=role_id))
             await session.commit()
 
     asyncio.run(_set_flag())
@@ -71,6 +73,22 @@ def seed_admin_usage_log(admin_id: int, used_traffic: int = 1024) -> None:
     asyncio.run(_seed())
 
 
+def seed_api_key(admin_id: int) -> int:
+    async def _seed():
+        async with TestSession() as session:
+            db_key = APIKey(
+                admin_id=admin_id,
+                name=unique_name("bulk_api_key"),
+                key_hash=f"test_hash_{uuid4().hex}",
+                api_key_trimmed="pg_key_abc***xyz",
+            )
+            session.add(db_key)
+            await session.commit()
+            return db_key.id
+
+    return asyncio.run(_seed())
+
+
 def get_user_admin_id(username: str) -> int | None:
     async def _get():
         async with TestSession() as session:
@@ -83,6 +101,29 @@ def get_user_admin_id(username: str) -> int | None:
 def delete_admin_if_present(access_token: str, username: str) -> None:
     response = client.delete(f"/api/admin/{username}", headers=auth_headers(access_token))
     assert response.status_code in (status.HTTP_204_NO_CONTENT, status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND)
+
+
+def create_owner_admin_row() -> dict:
+    async def _create():
+        async with TestSession() as session:
+            db_admin = Admin(username=unique_name("bulk_owner"), hashed_password="secret", role_id=1)
+            session.add(db_admin)
+            await session.commit()
+            return {"id": db_admin.id, "username": db_admin.username}
+
+    return asyncio.run(_create())
+
+
+def delete_admin_row(username: str) -> None:
+    async def _delete():
+        async with TestSession() as session:
+            result = await session.execute(select(Admin).where(Admin.username == username))
+            db_admin = result.scalar_one_or_none()
+            if db_admin is not None:
+                await session.delete(db_admin)
+                await session.commit()
+
+    asyncio.run(_delete())
 
 
 def delete_core_if_present(access_token: str, core_id: int) -> None:
@@ -106,6 +147,15 @@ def count_admin_usage_logs(admin_id: int) -> int:
             result = await session.execute(
                 select(func.count()).select_from(AdminUsageLogs).where(AdminUsageLogs.admin_id == admin_id)
             )
+            return result.scalar_one()
+
+    return asyncio.run(_count())
+
+
+def count_api_keys(admin_id: int) -> int:
+    async def _count():
+        async with TestSession() as session:
+            result = await session.execute(select(func.count()).select_from(APIKey).where(APIKey.admin_id == admin_id))
             return result.scalar_one()
 
     return asyncio.run(_count())
@@ -291,8 +341,8 @@ def get_template_group_link_count(template_id: int) -> int:
     return asyncio.run(_count())
 
 
-def test_bulk_delete_admins_clears_owned_users_and_usage_logs(access_token):
-    admin = create_admin(access_token, is_sudo=False)
+def test_bulk_delete_admins_clears_owned_users_usage_logs_and_api_keys(access_token):
+    admin = create_admin(access_token)
     user = create_user(access_token, payload={"username": unique_name("bulk_admin_user")})
     try:
         owner_response = client.put(
@@ -303,35 +353,43 @@ def test_bulk_delete_admins_clears_owned_users_and_usage_logs(access_token):
         assert owner_response.status_code == status.HTTP_200_OK
 
         seed_admin_usage_log(admin["id"])
+        seed_api_key(admin["id"])
 
         response = client.post(
             "/api/admins/bulk/delete",
             headers=auth_headers(access_token),
-            json={"usernames": [admin["username"]]},
+            json={"ids": [admin["id"]]},
         )
 
         assert response.status_code == status.HTTP_200_OK
         assert response.json()["count"] == 1
         assert get_user_admin_id(user["username"]) is None
         assert count_admin_usage_logs(admin["id"]) == 0
+        assert count_api_keys(admin["id"]) == 0
     finally:
         delete_user(access_token, user["username"])
         delete_admin_if_present(access_token, admin["username"])
 
 
-def test_bulk_delete_admins_rejects_sudo_accounts(access_token):
-    admin = create_admin(access_token, is_sudo=False)
-    set_admin_sudo(admin["username"], True)
+def test_bulk_delete_admins_rejects_owner_account(access_token):
+    """Bulk deleting the owner admin (role_id=1) should be forbidden."""
+    owner = create_owner_admin_row()
     try:
         response = client.post(
             "/api/admins/bulk/delete",
             headers=auth_headers(access_token),
-            json={"usernames": [admin["username"]]},
+            json={"ids": [owner["id"]]},
         )
         assert response.status_code == status.HTTP_403_FORBIDDEN
+
+        async def _owner_exists():
+            async with TestSession() as session:
+                result = await session.execute(select(Admin.id).where(Admin.id == owner["id"]))
+                return result.scalar_one_or_none() is not None
+
+        assert asyncio.run(_owner_exists())
     finally:
-        set_admin_sudo(admin["username"], False)
-        delete_admin(access_token, admin["username"])
+        delete_admin_row(owner["username"])
 
 
 def test_bulk_delete_client_templates_reassigns_default(access_token):

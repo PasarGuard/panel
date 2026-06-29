@@ -109,6 +109,7 @@ PasarGuard — это удобный, многофункциональный и 
 - **Мультиinbound** на **одном порту** (поддержка fallbacks)
 - Ограничения по **трафику** и **сроку действия**
 - **Периодические** ограничения трафика (ежедневно, еженедельно и т.д.)
+- Ограничения **HWID/устройств** для контроля доступа по оборудованию
 
 **🔗 Подписки и обмен**
 - **Ссылка подписки** совместимая с **V2ray**, **Clash** и **ClashMeta**
@@ -120,7 +121,7 @@ PasarGuard — это удобный, многофункциональный и 
 - Встроенный **Telegram Bot**
 - **Интерфейс командной строки (CLI)**
 - Поддержка **многоязычности**
-- Поддержка **множественных администраторов** (в разработке)
+- Поддержка **множественных администраторов** с **RBAC** для детальных прав и ограниченных областей доступа
 
 </div>
 
@@ -136,32 +137,27 @@ PasarGuard — это удобный, многофункциональный и 
 
 **TimescaleDB (Рекомендуется):**
 ```bash
-curl -fsSL https://github.com/PasarGuard/scripts/raw/main/pasarguard.sh -o /tmp/pg.sh \
-  && sudo bash /tmp/pg.sh install --database timescaledb
+sudo bash -c "$(curl -fsSL https://github.com/PasarGuard/scripts/raw/main/pasarguard.sh)" @ install --database timescaledb
 ```
 
 **SQLite:**
 ```bash
-curl -fsSL https://github.com/PasarGuard/scripts/raw/main/pasarguard.sh -o /tmp/pg.sh \
-  && sudo bash /tmp/pg.sh install
+sudo bash -c "$(curl -fsSL https://github.com/PasarGuard/scripts/raw/main/pasarguard.sh)" @ install
 ```
 
 **MySQL:**
 ```bash
-curl -fsSL https://github.com/PasarGuard/scripts/raw/main/pasarguard.sh -o /tmp/pg.sh \
-  && sudo bash /tmp/pg.sh install --database mysql
+sudo bash -c "$(curl -fsSL https://github.com/PasarGuard/scripts/raw/main/pasarguard.sh)" @ install --database mysql
 ```
 
 **MariaDB:**
 ```bash
-curl -fsSL https://github.com/PasarGuard/scripts/raw/main/pasarguard.sh -o /tmp/pg.sh \
-  && sudo bash /tmp/pg.sh install --database mariadb
+sudo bash -c "$(curl -fsSL https://github.com/PasarGuard/scripts/raw/main/pasarguard.sh)" @ install --database mariadb
 ```
 
 **PostgreSQL:**
 ```bash
-curl -fsSL https://github.com/PasarGuard/scripts/raw/main/pasarguard.sh -o /tmp/pg.sh \
-  && sudo bash /tmp/pg.sh install --database postgresql --pre-release
+sudo bash -c "$(curl -fsSL https://github.com/PasarGuard/scripts/raw/main/pasarguard.sh)" @ install --database postgresql
 ```
 
 ### 📋 После установки:
@@ -197,8 +193,10 @@ ssh -L 8000:localhost:8000 user@serverip
 ### 🔧 Следующие шаги:
 
 ```bash
-# Создать учетную запись администратора
-pasarguard cli admins --create <username>
+# Сгенерировать одноразовый временный ключ для настройки owner-аккаунта
+pasarguard cli generate-temp-key
+
+# Используйте ключ на странице входа в панель, чтобы создать owner-аккаунт
 
 # Получить справку
 pasarguard --help

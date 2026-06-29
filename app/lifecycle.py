@@ -22,7 +22,7 @@ def on_shutdown(func):
 def _accepts_app(func) -> bool:
     try:
         return "app" in inspect.signature(func).parameters
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return False
 
 

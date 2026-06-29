@@ -7,7 +7,7 @@ import type { LucideIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import AdminFilterCombobox from '@/components/common/admin-filter-combobox'
-import UserCountStatsModal from '@/components/dialogs/user-count-stats-modal'
+import UserCountStatsModal from '@/features/users/dialogs/user-count-stats-modal'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { type ChartConfig, ChartContainer, ChartTooltip } from '@/components/ui/chart'
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
@@ -367,13 +367,7 @@ export function UserCountsChart({ nodeId, isSudo, nodesData = [] }: UserCountsCh
       })
   }, [activePeriod, effectiveGroupByNode, groupKeys, i18n.language, metricStatsByGroup, series])
 
-  const singleMetricTotal = useMemo(
-    () =>
-      Object.values(metricStatsByGroup).reduce((sum, statsArray) => {
-        return sum + statsArray.reduce((innerSum, stat) => innerSum + Number(stat.count || 0), 0)
-      }, 0),
-    [metricStatsByGroup],
-  )
+  const singleMetricTotal = useMemo(() => Number(metricCountsData?.count_during_period || 0), [metricCountsData?.count_during_period])
 
   const pieData = useMemo<CountPieDataPoint[]>(() => {
     if (!effectiveGroupByNode || chartData.length === 0) return []
@@ -512,8 +506,7 @@ export function UserCountsChart({ nodeId, isSudo, nodesData = [] }: UserCountsCh
                 <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                 <span>
                   {t('statistics.userCountChartAccuracyNote', {
-                    defaultValue:
-                      'Changing user status can make this chart show inaccurate historical data. Resetting usage only removes chart history when chart-data cleanup is enabled in the environment.',
+                    defaultValue: 'Status changes can skew history. Usage resets clear chart history only if chart-data cleanup is enabled.',
                   })}
                 </span>
               </p>

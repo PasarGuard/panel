@@ -140,7 +140,7 @@ class NatsFSMStorage(BaseStorage):
 
         try:
             return await kv.get(kv_key)
-        except (nats_js_errors.KeyNotFoundError, nats_js_errors.KeyDeletedError):
+        except nats_js_errors.KeyNotFoundError, nats_js_errors.KeyDeletedError:
             return None
         except Exception as exc:
             logger.warning(f"Failed to read Telegram FSM record from NATS KV: {exc}")
@@ -285,7 +285,7 @@ class NatsEventIsolation(BaseEventIsolation):
 
         try:
             expires_at_value = float(expires_at)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return None
 
         return token, expires_at_value
@@ -309,7 +309,7 @@ class NatsEventIsolation(BaseEventIsolation):
 
             try:
                 entry = await kv.get(lock_key)
-            except (nats_js_errors.KeyNotFoundError, nats_js_errors.KeyDeletedError):
+            except nats_js_errors.KeyNotFoundError, nats_js_errors.KeyDeletedError:
                 await asyncio.sleep(self.retry_delay)
                 continue
             except Exception as exc:
@@ -333,7 +333,7 @@ class NatsEventIsolation(BaseEventIsolation):
     async def _release_distributed_lock(self, kv: KeyValue, lock_key: str, token: str) -> None:
         try:
             entry = await kv.get(lock_key)
-        except (nats_js_errors.KeyNotFoundError, nats_js_errors.KeyDeletedError):
+        except nats_js_errors.KeyNotFoundError, nats_js_errors.KeyDeletedError:
             return
         except Exception as exc:
             logger.warning(f"Failed to read Telegram FSM lock for release from NATS KV: {exc}")

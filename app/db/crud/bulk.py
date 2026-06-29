@@ -180,14 +180,18 @@ async def add_groups_to_users(db: AsyncSession, bulk_model: BulkGroup) -> tuple[
     if not new_rows:
         return [], count_effctive_users
 
-    await db.execute(users_groups_association.insert(), new_rows)
+    # PostgreSQL asyncpg limits bind parameters to 32767 per query.
+    # Each row has 2 columns (user_id, groups_id), so cap batches at 16000 rows.
+    BATCH_SIZE = 16_000
+    for i in range(0, len(new_rows), BATCH_SIZE):
+        await db.execute(users_groups_association.insert(), new_rows[i : i + BATCH_SIZE])
     await db.commit()
 
     # Return users that actually had groups added
     result = await db.execute(select(User).where(User.id.in_({r["user_id"] for r in new_rows})))
     users = result.scalars().all()
     for user in users:
-        await load_user_attrs(user)
+        await load_user_attrs(user, load_admin_role=True)
     return users, count_effctive_users
 
 
@@ -233,7 +237,7 @@ async def remove_groups_from_users(
     )
     await db.commit()
     for user in users:
-        await load_user_attrs(user)
+        await load_user_attrs(user, load_admin_role=True)
     return users, count_effctive_users
 
 
@@ -351,7 +355,7 @@ async def update_users_expire(db: AsyncSession, bulk_model: BulkUser) -> tuple[l
         result = await db.execute(select(User).where(User.id.in_(status_changed_user_ids)))
         users = result.scalars().all()
         for user in users:
-            await load_user_attrs(user)
+            await load_user_attrs(user, load_admin_role=True)
         return users, count_effctive_users
     return [], count_effctive_users
 
@@ -409,7 +413,7 @@ async def update_users_datalimit(db: AsyncSession, bulk_model: BulkUser) -> tupl
         result = await db.execute(select(User).where(User.id.in_(status_changed_user_ids)))
         users = result.scalars().all()
         for user in users:
-            await load_user_attrs(user)
+            await load_user_attrs(user, load_admin_role=True)
         return users, count_effctive_users
     return [], count_effctive_users
 
@@ -436,13 +440,6 @@ async def update_users_proxy_settings(
     # Prepare the update statement
     if dialect == "postgresql":
         proxy_settings_expr = cast(User.proxy_settings, JSONB)
-        if bulk_model.flow is not None:
-            proxy_settings_expr = func.jsonb_set(
-                proxy_settings_expr,
-                text("'{vless,flow}'"),
-                cast(f"{bulk_model.flow.value}", JSONB),
-                True,
-            )
         if bulk_model.method is not None:
             proxy_settings_expr = func.jsonb_set(
                 proxy_settings_expr,
@@ -452,8 +449,6 @@ async def update_users_proxy_settings(
             )
     else:
         proxy_settings_expr = User.proxy_settings
-        if bulk_model.flow is not None:
-            proxy_settings_expr = func.json_set(proxy_settings_expr, "$.vless.flow", f"{bulk_model.flow.value}")
         if bulk_model.method is not None:
             proxy_settings_expr = func.json_set(
                 proxy_settings_expr, "$.shadowsocks.method", f"{bulk_model.method.value}"
@@ -467,6 +462,6 @@ async def update_users_proxy_settings(
     # Refresh the user objects to get updated values
     for user in users_to_update:
         await db.refresh(user)
-        await load_user_attrs(user)
+        await load_user_attrs(user, load_admin_role=True)
 
     return users_to_update, count_effctive_users

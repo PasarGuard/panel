@@ -1,11 +1,7 @@
 'use client'
 
-import BulkFlow from '@/components/bulk/bulk-flow'
+import BulkFlow from '@/features/bulk/components/bulk-flow'
 
 export default function BulkGroupsPage() {
-  return (
-    <BulkFlow
-      operationType="groups"
-    />
-  )
+  return <BulkFlow operationType="groups" />
 }

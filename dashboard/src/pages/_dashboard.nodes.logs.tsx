@@ -11,10 +11,10 @@ import { Input } from '@/components/ui/input'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { cn } from '@/lib/utils'
-import { TerminalLine } from '@/components/nodes/terminal-line'
-import { LineCountFilter } from '@/components/nodes/line-count-filter'
-import { SinceLogsFilter, type TimeFilter } from '@/components/nodes/since-logs-filter'
-import { StatusLogsFilter } from '@/components/nodes/status-logs-filter'
+import { TerminalLine } from '@/features/nodes/components/terminal-line'
+import { LineCountFilter } from '@/features/nodes/components/line-count-filter'
+import { SinceLogsFilter, type TimeFilter } from '@/features/nodes/components/since-logs-filter'
+import { StatusLogsFilter } from '@/features/nodes/components/status-logs-filter'
 
 /** Max raw SSE chunks kept in memory; display "lines" is sliced client-side (no reconnect). */
 const RAW_LOG_BUFFER_MAX = 10000
@@ -30,7 +30,7 @@ const SINCE_DURATION_MS: Record<Exclude<TimeFilter, 'all'>, number> = {
   '12h': 12 * 60 * 60 * 1000,
   '24h': 24 * 60 * 60 * 1000,
 }
-import { parseLogs, getLogType, type LogLine } from '@/utils/logsUtils'
+import { parseLogs, type LogLine } from '@/utils/logsUtils'
 import { EventSource } from 'eventsource'
 
 export const priorities = [
@@ -246,7 +246,7 @@ export default function NodeLogs() {
 
     return sortedLogs
       .filter(log => {
-        if (typeFilter.length > 0 && !typeFilter.includes(getLogType(log.message).type)) {
+        if (typeFilter.length > 0 && !typeFilter.includes(log.type)) {
           return false
         }
         if (search && !log.message.toLowerCase().includes(search.toLowerCase())) {
@@ -285,7 +285,7 @@ export default function NodeLogs() {
   }
 
   return (
-    <div className={cn('flex w-full flex-col gap-4 py-4', dir === 'rtl' && 'rtl')}>
+    <div className={cn('flex w-full flex-col gap-4 p-4', dir === 'rtl' && 'rtl')}>
       <div className="flex flex-col gap-4">
         <div className="w-full sm:w-auto">
           <Label htmlFor="node-select" className="mb-1 block text-sm">
@@ -325,11 +325,11 @@ export default function NodeLogs() {
 
             <div className={cn('flex w-full gap-2 sm:w-auto', dir === 'rtl' && 'flex-row-reverse')}>
               <Button variant="outline" size="sm" className="h-9 flex-1 sm:flex-initial" onClick={handlePauseResume} title={isPaused ? t('nodes.logs.resume') : t('nodes.logs.pause')}>
-                {isPaused ? <Play className={cn('h-4 w-4 sm:mr-2', dir === 'rtl' && 'sm:ml-2 sm:mr-0')} /> : <Pause className={cn('h-4 w-4 sm:mr-2', dir === 'rtl' && 'sm:ml-2 sm:mr-0')} />}
+                {isPaused ? <Play className={cn('h-4 w-4 sm:mr-2', dir === 'rtl' && 'sm:mr-0 sm:ml-2')} /> : <Pause className={cn('h-4 w-4 sm:mr-2', dir === 'rtl' && 'sm:mr-0 sm:ml-2')} />}
                 <span className="hidden sm:inline">{isPaused ? t('nodes.logs.resume') : t('nodes.logs.pause')}</span>
               </Button>
               <Button variant="outline" size="sm" className="h-9 flex-1 sm:flex-initial" onClick={handleDownload} disabled={filteredLogs.length === 0}>
-                <DownloadIcon className={cn('h-4 w-4 sm:mr-2', dir === 'rtl' && 'sm:ml-2 sm:mr-0')} />
+                <DownloadIcon className={cn('h-4 w-4 sm:mr-2', dir === 'rtl' && 'sm:mr-0 sm:ml-2')} />
                 <span className="hidden sm:inline">{t('nodes.logs.download')}</span>
               </Button>
             </div>
@@ -353,16 +353,16 @@ export default function NodeLogs() {
                 ref={scrollRef}
                 onScroll={handleScroll}
                 dir="ltr"
-                className="custom-logs-scrollbar h-[calc(100vh-280px)] max-h-[720px] min-h-[400px] space-y-0 overflow-y-auto overflow-x-hidden rounded bg-background/75 sm:h-[720px] sm:min-h-0"
+                className="custom-logs-scrollbar bg-background/75 h-[calc(100vh-280px)] max-h-[720px] min-h-[400px] space-y-0 overflow-x-hidden overflow-y-auto rounded sm:h-[720px] sm:min-h-0"
               >
                 {filteredLogs.length > 0 ? (
                   filteredLogs.map((filteredLog: LogLine, index: number) => <TerminalLine key={index} log={filteredLog} searchTerm={search} noTimestamp={!showTimestamp} />)
                 ) : isLoading ? (
-                  <div className="flex h-full items-center justify-center text-muted-foreground">
+                  <div className="text-muted-foreground flex h-full items-center justify-center">
                     <Loader2 className="h-6 w-6" />
                   </div>
                 ) : (
-                  <div className="flex h-full items-center justify-center text-muted-foreground">{t('nodes.logs.noLogs')}</div>
+                  <div className="text-muted-foreground flex h-full items-center justify-center">{t('nodes.logs.noLogs')}</div>
                 )}
               </div>
             </CardContent>

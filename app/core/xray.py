@@ -9,7 +9,16 @@ from typing import Union
 import commentjson
 
 from app.models.core import CoreType
+from app.models.protocol import ProxyProtocol
 from app.utils.crypto import get_cert_SANs, get_x25519_public_key
+
+
+def _protocols_from_inbounds_by_tag(inbounds_by_tag: dict[str, dict]) -> frozenset[ProxyProtocol]:
+    return frozenset(
+        protocol
+        for inbound in inbounds_by_tag.values()
+        if (protocol := ProxyProtocol.from_value(inbound["protocol"])) is not None
+    )
 
 
 class XRayConfig(dict):
@@ -45,6 +54,7 @@ class XRayConfig(dict):
         self._inbounds = []
         self._inbounds_by_tag = {}
         self._fallbacks_inbound = []
+        self._protocols: frozenset[ProxyProtocol] = frozenset()
 
         # Registery pattern for network handlers, making it easy to add support for new network types in the future
         self.network_handlers = {
@@ -136,6 +146,12 @@ class XRayConfig(dict):
         }
         return settings
 
+    @staticmethod
+    def _is_unix_socket(inbound: dict) -> bool:
+        """Return True if the inbound listens on a Unix domain socket instead of a TCP/UDP port."""
+        listen = inbound.get("listen", "")
+        return isinstance(listen, str) and (listen.startswith("/") or listen.startswith("@"))
+
     def _handle_port_settings(self, inbound: dict, settings: dict):
         """Handle port settings for an inbound."""
         port_found = True
@@ -144,26 +160,31 @@ class XRayConfig(dict):
         except KeyError:
             port_found = False
 
+        is_unix_socket = self._is_unix_socket(inbound)
+
         if self._fallbacks_inbound and "<=>" not in inbound["tag"]:
             if inbound.get("settings", {}).get("fallbacks", []):
-                if not port_found:
+                if not port_found and not is_unix_socket:
                     raise ValueError(f"{settings['tag']} inbound doesn't have port")
-                else:
-                    return
+                return
             fallbacks = self._find_fallback_inbound(inbound)
             if fallbacks:
                 settings["is_fallback"] = True
                 settings["fallbacks"] = fallbacks
-        elif not port_found:
+                return
+
+        if not port_found and not is_unix_socket:
             raise ValueError(f"{settings['tag']} inbound doesn't have port")
 
     def _handle_tls_settings(self, tls_settings: dict, settings: dict, inbound_tag: str):
         """Handle TLS security settings."""
         settings["tls"] = "tls"
+        if sni := tls_settings.get("serverName"):
+            settings["sni"].append(sni)
         for certificate in tls_settings.get("certificates", []):
-            if certificate.get("serveOnNode", False):
+            serve_on_node = certificate.pop("serveOnNode", False)
+            if serve_on_node:
                 # prevent error on parse by xray core
-                del certificate["serveOnNode"]
                 continue
             if certificate.get("certificateFile", None):
                 with open(certificate["certificateFile"], "rb") as file:
@@ -209,7 +230,7 @@ class XRayConfig(dict):
         try:
             settings["sids"] = tls_settings.get("shortIds")
             settings["sids"][0]  # check if there is any shortIds
-        except (IndexError, TypeError):
+        except IndexError, TypeError:
             raise ValueError(f"You need to define at least one shortID in realitySettings of {inbound_tag}")
         try:
             settings["spx"] = tls_settings.get("spiderX")
@@ -284,20 +305,23 @@ class XRayConfig(dict):
 
     def _handle_xhttp_settings(self, net_settings: dict, settings: dict, inbound_tag: str = ""):
         """Handle XHTTP network settings."""
-        extra = net_settings.get("extra", {})
-        if not isinstance(extra, dict):
+        extra = net_settings.get("extra")
+        has_extra = isinstance(extra, dict)
+        if not has_extra:
             extra = {}
 
         def get_xhttp_value(key: str):
-            value = extra.get(key)
-            if value is None:
-                value = net_settings.get(key)
-            return value
+            if has_extra:
+                return extra.get(key)
+            return net_settings.get(key)
 
         settings["path"] = net_settings.get("path", "")
         host = net_settings.get("host", "")
         settings["host"] = [host]
         settings["mode"] = net_settings.get("mode", "auto")
+        settings["no_grpc_header"] = get_xhttp_value("noGRPCHeader")
+        settings["sc_max_each_post_bytes"] = get_xhttp_value("scMaxEachPostBytes")
+        settings["sc_min_posts_interval_ms"] = get_xhttp_value("scMinPostsIntervalMs")
         settings["x_padding_bytes"] = get_xhttp_value("xPaddingBytes")
         settings["x_padding_obfs_mode"] = get_xhttp_value("xPaddingObfsMode")
         settings["x_padding_key"] = get_xhttp_value("xPaddingKey")
@@ -312,6 +336,12 @@ class XRayConfig(dict):
         settings["uplink_data_placement"] = get_xhttp_value("uplinkDataPlacement")
         settings["uplink_data_key"] = get_xhttp_value("uplinkDataKey")
         settings["uplink_chunk_size"] = get_xhttp_value("uplinkChunkSize")
+        settings["xmux"] = get_xhttp_value("xmux")
+        settings["download_settings"] = get_xhttp_value("downloadSettings")
+
+        headers = get_xhttp_value("headers")
+        if isinstance(headers, dict):
+            settings["http_headers"] = {k: v for k, v in headers.items() if isinstance(k, str) and isinstance(v, str)}
 
     def _handle_kcp_settings(self, net_settings: dict, settings: dict, inbound_tag: str = ""):
         """Handle KCP network settings."""
@@ -337,6 +367,26 @@ class XRayConfig(dict):
         elif host and isinstance(host, list):
             settings["host"] = host[0]
 
+    @staticmethod
+    def _hysteria_finalmask_from_stream(stream: dict, net_settings: dict) -> dict | None:
+        """Normalize Hysteria Salamander masks into finalmask for client generation."""
+        finalmask = stream.get("finalmask") or stream.get("finalMask")
+        if isinstance(finalmask, dict):
+            finalmask = deepcopy(finalmask)
+        else:
+            finalmask = {}
+
+        udpmasks = None
+        if isinstance(net_settings, dict):
+            udpmasks = net_settings.get("udpmasks")
+        if not isinstance(udpmasks, list):
+            udpmasks = stream.get("udpmasks")
+
+        if isinstance(udpmasks, list) and udpmasks and not finalmask.get("udp"):
+            finalmask["udp"] = deepcopy(udpmasks)
+
+        return finalmask or None
+
     def _handle_shadowsocks_settings(self, inbound_settings: dict, settings: dict):
         """Handle shadowsocks special settings."""
         settings["method"] = inbound_settings.get("method", "")
@@ -360,6 +410,7 @@ class XRayConfig(dict):
         """Resolve all inbounds and their settings."""
         for inbound in self["inbounds"]:
             self._read_inbound(inbound)
+        self._protocols = _protocols_from_inbounds_by_tag(self._inbounds_by_tag)
 
     def _read_inbound(self, inbound: dict):
         """Read an inbound and its settings."""
@@ -420,6 +471,8 @@ class XRayConfig(dict):
             self._handle_network_settings(net, net_settings, settings, inbound["tag"])
 
             finalmask = stream.get("finalmask") or stream.get("finalMask")
+            if net == "hysteria":
+                finalmask = self._hysteria_finalmask_from_stream(stream, net_settings)
             if finalmask is not None:
                 settings["finalmask"] = finalmask
 
@@ -472,6 +525,10 @@ class XRayConfig(dict):
         return self._inbounds
 
     @property
+    def protocols(self) -> frozenset[ProxyProtocol]:
+        return self._protocols
+
+    @property
     def type(self) -> str:
         return self._type
 
@@ -503,6 +560,7 @@ class XRayConfig(dict):
             instance._inbounds = data["inbounds"]
         if "inbounds_by_tag" in data:
             instance._inbounds_by_tag = data["inbounds_by_tag"]
+        instance._protocols = _protocols_from_inbounds_by_tag(instance._inbounds_by_tag)
         return instance
 
     def copy(self):

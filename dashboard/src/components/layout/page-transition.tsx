@@ -7,6 +7,7 @@ interface PageTransitionProps {
   duration?: number
   delay?: number
   isContentTransition?: boolean
+  className?: string
 }
 
 let mobileCache: boolean | null = null
@@ -41,13 +42,18 @@ const getMotion = () => {
 
 const isTab = (a: string, b: string) => (a.startsWith('/settings') && b.startsWith('/settings')) || (a.startsWith('/nodes') && b.startsWith('/nodes'))
 
-export default memo(function PageTransition({ children, duration = 300, delay = 0, isContentTransition = false }: PageTransitionProps) {
+export default memo(function PageTransition({ children, duration = 300, delay = 0, isContentTransition = false, className }: PageTransitionProps) {
   const location = useLocation()
   const navType = useNavigationType()
   const [displayChildren, setDisplayChildren] = useState(children)
   const [opacity, setOpacity] = useState(1)
   const [isShaking, setIsShaking] = useState(false)
-  const prev = useRef({ pathname: location.pathname, hash: location.hash, key: location.key })
+  const prev = useRef({
+    pathname: location.pathname,
+    hash: location.hash,
+    search: location.search,
+    key: location.key,
+  })
   const first = useRef(true)
   const timeout = useRef<number | null>(null)
 
@@ -61,7 +67,7 @@ export default memo(function PageTransition({ children, duration = 300, delay = 
   useEffect(() => {
     if (first.current) {
       first.current = false
-      prev.current = { pathname: location.pathname, hash: location.hash, key: location.key }
+      prev.current = { pathname: location.pathname, hash: location.hash, search: location.search, key: location.key }
       return
     }
 
@@ -70,7 +76,17 @@ export default memo(function PageTransition({ children, duration = 300, delay = 
     if (navType === 'POP') {
       setDisplayChildren(children)
       setOpacity(1)
-      prev.current = { pathname: location.pathname, hash: location.hash, key: location.key }
+      prev.current = { pathname: location.pathname, hash: location.hash, search: location.search, key: location.key }
+      return
+    }
+
+    const pathnameHashSame = location.pathname === prev.current.pathname && location.hash === prev.current.hash
+    /** Same route + only query changed (e.g. core editor `?kind=wg`); new location.key must not trigger shake. */
+    if (pathnameHashSame && location.search !== prev.current.search) {
+      setDisplayChildren(children)
+      setOpacity(1)
+      setIsShaking(false)
+      prev.current = { pathname: location.pathname, hash: location.hash, search: location.search, key: location.key }
       return
     }
 
@@ -84,7 +100,7 @@ export default memo(function PageTransition({ children, duration = 300, delay = 
     if ((tabNav && !isContentTransition) || noMotion) {
       setDisplayChildren(children)
       setOpacity(1)
-      prev.current = { pathname: location.pathname, hash: location.hash, key: location.key }
+      prev.current = { pathname: location.pathname, hash: location.hash, search: location.search, key: location.key }
       return
     }
 
@@ -95,7 +111,7 @@ export default memo(function PageTransition({ children, duration = 300, delay = 
       timeout.current = window.setTimeout(
         () => {
           setIsShaking(false)
-          prev.current = { pathname: location.pathname, hash: location.hash, key: location.key }
+          prev.current = { pathname: location.pathname, hash: location.hash, search: location.search, key: location.key }
         },
         Math.min(duration, 200),
       )
@@ -109,13 +125,13 @@ export default memo(function PageTransition({ children, duration = 300, delay = 
         requestAnimationFrame(() => {
           setOpacity(1)
           timeout.current = window.setTimeout(() => {
-            prev.current = { pathname: location.pathname, hash: location.hash, key: location.key }
+            prev.current = { pathname: location.pathname, hash: location.hash, search: location.search, key: location.key }
           }, ms)
         })
       })
     } else {
       setDisplayChildren(children)
-      prev.current = { pathname: location.pathname, hash: location.hash, key: location.key }
+      prev.current = { pathname: location.pathname, hash: location.hash, search: location.search, key: location.key }
     }
   }, [location, navType, children, isContentTransition, duration])
 
@@ -128,7 +144,7 @@ export default memo(function PageTransition({ children, duration = 300, delay = 
 
   return (
     <div
-      className={cn('w-full', isShaking && !noMotion && 'animate-telegram-shake')}
+      className={cn('w-full', className, isShaking && !noMotion && 'animate-telegram-shake')}
       style={{
         opacity,
         transform: 'translate3d(0, 0, 0)',

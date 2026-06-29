@@ -1,22 +1,24 @@
-from enum import Enum
-
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import CoreConfig, Node
-from app.models.core import CoreCreate
-
-CoreSortingOptionsSimple = Enum(
-    "CoreSortingOptionsSimple",
-    {
-        "id": CoreConfig.id.asc(),
-        "-id": CoreConfig.id.desc(),
-        "name": CoreConfig.name.asc(),
-        "-name": CoreConfig.name.desc(),
-        "created_at": CoreConfig.created_at.asc(),
-        "-created_at": CoreConfig.created_at.desc(),
-    },
+from app.models.core import (
+    CoreCreate,
+    CoreListQuery,
+    CoreSimpleListQuery,
+    CoreSimpleSortField,
+    CoreSimpleSortOption,
 )
+
+
+def _build_core_simple_sort_clause(sort_option: CoreSimpleSortOption):
+    field_map = {
+        CoreSimpleSortField.id: CoreConfig.id,
+        CoreSimpleSortField.core_name: CoreConfig.name,
+        CoreSimpleSortField.created_at: CoreConfig.created_at,
+    }
+    column = field_map[sort_option.field]
+    return column.desc() if sort_option.value.startswith("-") else column.asc()
 
 
 async def get_core_config_by_id(db: AsyncSession, core_id: int) -> CoreConfig | None:
@@ -93,7 +95,7 @@ async def remove_core_config(db: AsyncSession, db_core_config: CoreConfig) -> No
     await db.commit()
 
 
-async def get_core_configs(db: AsyncSession, offset: int = None, limit: int = None) -> tuple[int, list[CoreConfig]]:
+async def get_core_configs(db: AsyncSession, query: CoreListQuery) -> tuple[list[CoreConfig], int]:
     """
     Retrieves a list of core configurations with optional pagination.
 
@@ -107,23 +109,21 @@ async def get_core_configs(db: AsyncSession, offset: int = None, limit: int = No
             - list[CoreConfig]: A list of CoreConfig objects
             - int: The total count of core configurations
     """
-    query = select(CoreConfig).order_by(CoreConfig.created_at.asc())
-    if offset:
-        query = query.offset(offset)
-    if limit:
-        query = query.limit(limit)
+    stmt = select(CoreConfig).order_by(CoreConfig.created_at.asc())
+    if query.ids:
+        stmt = stmt.where(CoreConfig.id.in_(query.ids))
+    if query.offset:
+        stmt = stmt.offset(query.offset)
+    if query.limit:
+        stmt = stmt.limit(query.limit)
 
-    all_core_configs = (await db.execute(query)).scalars().all()
+    all_core_configs = (await db.execute(stmt)).scalars().all()
     return all_core_configs, len(all_core_configs)
 
 
 async def get_cores_simple(
     db: AsyncSession,
-    offset: int | None = None,
-    limit: int | None = None,
-    search: str | None = None,
-    sort: list[CoreSortingOptionsSimple] | None = None,
-    skip_pagination: bool = False,
+    query: CoreSimpleListQuery,
 ) -> tuple[list[tuple[int, str, str | None]], int]:
     """
     Retrieves lightweight core data with only id, name and type.
@@ -141,18 +141,15 @@ async def get_cores_simple(
     """
     stmt = select(CoreConfig.id, CoreConfig.name, CoreConfig.type)
 
-    if search:
-        stmt = stmt.where(CoreConfig.name.ilike(f"%{search}%"))
+    if query.ids:
+        stmt = stmt.where(CoreConfig.id.in_(query.ids))
+    if query.search:
+        stmt = stmt.where(CoreConfig.name.ilike(f"%{query.search}%"))
 
-    if sort:
-        sort_list = []
-        for s in sort:
-            if isinstance(s.value, tuple):
-                sort_list.extend(s.value)
-            else:
-                sort_list.append(s.value)
-        sort_list.append(CoreConfig.id.asc())
-        stmt = stmt.order_by(*sort_list)
+    if query.sort:
+        sort_clauses = [_build_core_simple_sort_clause(sort_option) for sort_option in query.sort]
+        sort_clauses.append(CoreConfig.id.asc())
+        stmt = stmt.order_by(*sort_clauses)
     else:
         stmt = stmt.order_by(CoreConfig.created_at.asc(), CoreConfig.id.asc())
 
@@ -161,11 +158,11 @@ async def get_cores_simple(
     total = (await db.execute(count_stmt)).scalar()
 
     # Apply pagination or safety limit
-    if not skip_pagination:
-        if offset:
-            stmt = stmt.offset(offset)
-        if limit:
-            stmt = stmt.limit(limit)
+    if not query.all:
+        if query.offset:
+            stmt = stmt.offset(query.offset)
+        if query.limit:
+            stmt = stmt.limit(query.limit)
     else:
         stmt = stmt.limit(10000)  # Safety limit when all=true
 

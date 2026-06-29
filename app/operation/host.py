@@ -4,7 +4,14 @@ from app.db import AsyncSession
 from app.db.models import ProxyHost
 from app.models.admin import AdminDetails
 from app.models.client_template import ClientTemplateType
-from app.models.host import BaseHost, BulkHostSelection, BulkHostsActionResponse, CreateHost, RemoveHostsResponse
+from app.models.host import (
+    BaseHost,
+    BulkHostSelection,
+    BulkHostsActionResponse,
+    CreateHost,
+    HostListQuery,
+    RemoveHostsResponse,
+)
 from app.operation import BaseOperation
 from app.db.crud.host import (
     create_host,
@@ -24,8 +31,8 @@ logger = get_logger("host-operation")
 
 
 class HostOperation(BaseOperation):
-    async def get_hosts(self, db: AsyncSession, offset: int = 0, limit: int = 0) -> list[BaseHost]:
-        return await get_hosts(db=db, offset=offset, limit=limit)
+    async def get_hosts(self, db: AsyncSession, query: HostListQuery) -> list[BaseHost]:
+        return await get_hosts(db=db, query=query)
 
     async def validate_subscription_templates(self, db: AsyncSession, host: CreateHost) -> None:
         if not host.subscription_templates or host.subscription_templates.xray is None:
@@ -132,10 +139,13 @@ class HostOperation(BaseOperation):
         self, db: AsyncSession, bulk_hosts: BulkHostSelection, admin: AdminDetails
     ) -> RemoveHostsResponse:
         """Remove multiple hosts by ID"""
-        db_hosts = []
-        for host_id in bulk_hosts.ids:
-            db_host = await self.get_validated_host(db, host_id)
-            db_hosts.append(db_host)
+        ids_list = list(bulk_hosts.ids)
+        db_hosts = await get_hosts(db, HostListQuery(ids=ids_list, limit=len(ids_list)))
+
+        found_ids = {h.id for h in db_hosts}
+        missing = set(ids_list) - found_ids
+        if missing:
+            await self.raise_error(message="Host not found", code=404)
 
         host_ids = [h.id for h in db_hosts]
 
@@ -164,9 +174,13 @@ class HostOperation(BaseOperation):
         *,
         is_disabled: bool,
     ) -> BulkHostsActionResponse:
-        db_hosts = []
-        for host_id in bulk_hosts.ids:
-            db_hosts.append(await self.get_validated_host(db, host_id))
+        ids_list = list(bulk_hosts.ids)
+        db_hosts = await get_hosts(db, HostListQuery(ids=ids_list, limit=len(ids_list)))
+
+        found_ids = {h.id for h in db_hosts}
+        missing = set(ids_list) - found_ids
+        if missing:
+            await self.raise_error(message="Host not found", code=404)
 
         hosts_to_update = [db_host for db_host in db_hosts if db_host.is_disabled != is_disabled]
 

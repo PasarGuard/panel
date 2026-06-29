@@ -263,28 +263,36 @@ class FinalMask(FinalMaskBaseModel):
 
 
 class XMuxSettings(BaseModel):
-    max_concurrency: str | int | None = Field(
-        None, pattern=r"^\d{1,16}(-\d{1,16})?$", serialization_alias="maxConcurrency"
-    )
-    max_connections: str | int | None = Field(
-        None, pattern=r"^\d{1,16}(-\d{1,16})?$", serialization_alias="maxConnections"
-    )
-    c_max_reuse_times: str | int | None = Field(
-        None, pattern=r"^\d{1,16}(-\d{1,16})?$", serialization_alias="cMaxReuseTimes"
-    )
-    h_max_reusable_secs: str | int | None = Field(
+    max_concurrency: str | None = Field(None, pattern=r"^\d{1,16}(-\d{1,16})?$", serialization_alias="maxConcurrency")
+    max_connections: str | None = Field(None, pattern=r"^\d{1,16}(-\d{1,16})?$", serialization_alias="maxConnections")
+    c_max_reuse_times: str | None = Field(None, pattern=r"^\d{1,16}(-\d{1,16})?$", serialization_alias="cMaxReuseTimes")
+    h_max_reusable_secs: str | None = Field(
         None, pattern=r"^\d{1,16}(-\d{1,16})?$", serialization_alias="hMaxReusableSecs"
     )
-    h_max_request_times: str | int | None = Field(
+    h_max_request_times: str | None = Field(
         None, pattern=r"^\d{1,16}(-\d{1,16})?$", serialization_alias="hMaxRequestTimes"
     )
     h_keep_alive_period: int | None = Field(None, serialization_alias="hKeepAlivePeriod")
+
+    @field_validator(
+        "max_concurrency",
+        "max_connections",
+        "c_max_reuse_times",
+        "h_max_reusable_secs",
+        "h_max_request_times",
+        mode="before",
+    )
+    @classmethod
+    def normalize_numeric_or_range_fields(cls, value):
+        if isinstance(value, int):
+            return str(value)
+        return value
 
 
 class XHttpSettings(BaseModel):
     mode: XHttpModes | None = Field(default=None)
     no_grpc_header: bool | None = Field(default=None)
-    x_padding_bytes: str | int | None = Field(default=None, pattern=r"^\d{1,16}(-\d{1,16})?$")
+    x_padding_bytes: str | None = Field(default=None, pattern=r"^\d{1,16}(-\d{1,16})?$")
     x_padding_obfs_mode: bool | None = Field(default=None)
     x_padding_key: str | None = Field(default=None)
     x_padding_header: str | None = Field(default=None)
@@ -297,9 +305,9 @@ class XHttpSettings(BaseModel):
     seq_key: str | None = Field(default=None)
     uplink_data_placement: str | None = Field(default=None, pattern=r"^$|^(body|cookie|header)$")
     uplink_data_key: str | None = Field(default=None)
-    uplink_chunk_size: int | None = Field(default=None)
-    sc_max_each_post_bytes: str | int | None = Field(default=None, pattern=r"^\d{1,16}(-\d{1,16})?$")
-    sc_min_posts_interval_ms: str | int | None = Field(default=None, pattern=r"^\d{1,16}(-\d{1,16})?$")
+    uplink_chunk_size: str | None = Field(default=None, pattern=r"^\d{1,16}(-\d{1,16})?$")
+    sc_max_each_post_bytes: str | None = Field(default=None, pattern=r"^\d{1,16}(-\d{1,16})?$")
+    sc_min_posts_interval_ms: str | None = Field(default=None, pattern=r"^\d{1,16}(-\d{1,16})?$")
     xmux: XMuxSettings | None = Field(default=None)
     download_settings: int | None = Field(default=None)
 
@@ -308,6 +316,21 @@ class XHttpSettings(BaseModel):
         if v == "":
             return None
         return v
+
+    @field_validator(
+        "x_padding_bytes",
+        "uplink_chunk_size",
+        "sc_max_each_post_bytes",
+        "sc_min_posts_interval_ms",
+        mode="before",
+    )
+    @classmethod
+    def normalize_numeric_or_range_fields(cls, value):
+        if value == "":
+            return None
+        if isinstance(value, int):
+            return str(value)
+        return value
 
     @field_validator(
         "x_padding_key",
@@ -321,6 +344,7 @@ class XHttpSettings(BaseModel):
         "seq_key",
         "uplink_data_placement",
         "uplink_data_key",
+        "uplink_chunk_size",
         mode="before",
     )
     def _empty_str_to_none(cls, v):
@@ -566,3 +590,9 @@ class BulkHostsActionResponse(BaseModel):
 
     hosts: list[str]
     count: int
+
+
+class HostListQuery(BaseModel):
+    ids: list[int] | None = None
+    offset: int = 0
+    limit: int = 0
