@@ -26,7 +26,7 @@ import { getInboundSecuritySelectOptions, getInboundTransportSelectOptions, tran
 import { profileDuplicateTagMessage, profileTagHasDuplicateUsage } from '@/features/core-editor/kit/profile-tag-uniqueness'
 import { remapIndexAfterArrayMove } from '@/features/core-editor/kit/remap-index-after-move'
 import { isPlaceholderTunnelRewriteAddress, normalizeTunnelNetworkForKit } from '@/features/core-editor/kit/sanitize-inbound'
-import { inferParityFieldMode, outboundSettingToString, parseOutboundSettingValue } from '@/features/core-editor/kit/xray-parity-value'
+import { inferParityFieldMode, outboundSettingToString, parseOutboundSettingValue, stringifyJsonFormRecord } from '@/features/core-editor/kit/xray-parity-value'
 import { useCoreEditorStore } from '@/features/core-editor/state/core-editor-store'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { cn } from '@/lib/utils'
@@ -1944,7 +1944,13 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
         if (!patch.masquerade || Object.keys(patch.masquerade).length === 0) {
           delete nextTransport.masquerade
         } else {
-          const mergedMasquerade = { ...(nextTransport.masquerade ?? {}), ...patch.masquerade } as Record<string, unknown>
+          const previousMasquerade =
+            nextTransport.masquerade && typeof nextTransport.masquerade === 'object' && !Array.isArray(nextTransport.masquerade)
+              ? (nextTransport.masquerade as Record<string, unknown>)
+              : {}
+          const patchType = typeof patch.masquerade.type === 'string' ? patch.masquerade.type : undefined
+          const previousType = typeof previousMasquerade.type === 'string' ? previousMasquerade.type : undefined
+          const mergedMasquerade = { ...(patchType && patchType !== previousType ? {} : previousMasquerade), ...patch.masquerade } as Record<string, unknown>
           for (const [k, v] of Object.entries(mergedMasquerade)) {
             if (v === undefined || (typeof v === 'string' && v.trim() === '')) delete mergedMasquerade[k]
           }
@@ -3315,7 +3321,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                                               }
                                             })()}
                                             onValueChange={next => {
-                                              const stringified = JSON.stringify(next, null, 2)
+                                              const stringified = stringifyJsonFormRecord(next as Record<string, unknown>)
                                               field.onChange(stringified)
                                               try {
                                                 patchTransport({ [jsonKey]: parseOutboundSettingValue(def, stringified) })
