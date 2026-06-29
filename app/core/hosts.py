@@ -192,7 +192,7 @@ async def _prepare_subscription_inbound_data(
     fms = final_mask_settings
     if final_mask_settings:
         if isinstance(final_mask_settings, FinalMask):
-            fms = final_mask_settings.model_dump()
+            fms = final_mask_settings.model_dump(by_alias=True)
         finalmask_link = json.dumps(fms, separators=(",", ":"))
 
     # Network comes from inbound, NOT from checking which transport exists on host!
