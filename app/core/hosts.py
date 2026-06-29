@@ -188,6 +188,7 @@ async def _prepare_subscription_inbound_data(
         inbound_flow = ""
 
     final_mask_settings = host.final_mask_settings if host.final_mask_settings else inbound_config.get("finalmask")
+    finalmask_link = None
     fms = final_mask_settings
     if final_mask_settings:
         if isinstance(final_mask_settings, FinalMask):
