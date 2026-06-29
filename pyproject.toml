@@ -5,7 +5,7 @@ description = "Unified GUI Censorship Resistant Solution"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
-    "apscheduler>=3.11.1",
+    "apscheduler>=3.11.3",
     "Deprecated==1.2.13",
     "Jinja2>=3.1.6",
     "PyJWT>=2.10.1",
