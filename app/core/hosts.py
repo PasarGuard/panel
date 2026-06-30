@@ -647,6 +647,10 @@ class HostManager:
             sorted_hosts = dict(sorted(self._hosts.items(), key=lambda x: x[1].priority))
             return deepcopy(sorted_hosts)
 
+    async def get_hosts_by_ids(self, host_ids: list[int]):
+        all_hosts = await self.get_hosts()
+        return [host for host in all_hosts if host.id in host_ids]
+
 
 host_manager: HostManager = HostManager()
 

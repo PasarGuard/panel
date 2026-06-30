@@ -25,7 +25,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import async_object_session
 from sqlalchemy.ext.hybrid import hybrid_property
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship, selectinload
 from sqlalchemy.sql.expression import select, text
 
 from app.db.base import Base
@@ -56,6 +56,13 @@ users_groups_association = Table(
     Base.metadata,
     fk_id_table_column("user_id", "users.id", primary_key=True),
     fk_id_table_column("groups_id", "groups.id", primary_key=True),
+)
+
+hosts_groups_association = Table(
+    "hosts_groups_association",
+    Base.metadata,
+    fk_id_table_column("host_id", "hosts.id", primary_key=True),
+    fk_id_table_column("group_id", "groups.id", primary_key=True),
 )
 
 
@@ -303,6 +310,57 @@ class User(Base, CreatedAtUTCMixin):
                 included_tags.add(inbound.tag)
         return list(included_tags)
 
+    async def inbound_host_ids(self) -> dict[str, set[int] | None]:
+        """Per-inbound host restrictions derived from the user's enabled groups.
+
+        Returns a dict mapping each inbound_tag to:
+          * ``None``  — all hosts of that inbound are allowed (no group restricts it)
+          * ``set``   — only these specific host IDs are allowed
+        """
+        session = async_object_session(self)
+        if session is not None:
+            stmt = (
+                select(Group)
+                .join(users_groups_association, Group.id == users_groups_association.c.groups_id)
+                .where(
+                    users_groups_association.c.user_id == self.id,
+                    Group.is_disabled.is_(False),
+                )
+                .options(
+                    selectinload(Group.hosts),
+                    selectinload(Group.inbounds),
+                )
+            )
+            result = await session.execute(stmt)
+            groups = result.scalars().unique().all()
+        else:
+            groups = [
+                g
+                for g in self.__dict__.get("groups") or []
+                if not g.is_disabled
+            ]
+
+        inbound_host_ids: dict[str, set[int] | None] = {}
+        for g in groups:
+            g_hosts = g.__dict__.get("hosts") or []
+            g_inbound_tags = {i.tag for i in (g.__dict__.get("inbounds") or [])}
+
+            hosts_by_inbound: dict[str, set[int]] = {}
+            for h in g_hosts:
+                if h.inbound_tag:
+                    hosts_by_inbound.setdefault(h.inbound_tag, set()).add(h.id)
+
+            for tag in g_inbound_tags:
+                if tag not in inbound_host_ids:
+                    inbound_host_ids[tag] = hosts_by_inbound.get(tag)
+                elif inbound_host_ids[tag] is not None:
+                    if tag in hosts_by_inbound:
+                        inbound_host_ids[tag].update(hosts_by_inbound[tag])
+                    else:
+                        inbound_host_ids[tag] = None
+
+        return inbound_host_ids
+
     @property
     def group_ids(self):
         return [group.id for group in self.groups]
@@ -542,6 +600,9 @@ class ProxyHost(Base, IdMixin):
         String(256), ForeignKey("inbounds.tag", ondelete="SET NULL", onupdate="CASCADE"), nullable=True, init=False
     )
     inbound: Mapped[Optional["ProxyInbound"]] = relationship(back_populates="hosts", init=False)
+    groups: Mapped[List["Group"]] = relationship(
+        secondary=hosts_groups_association, back_populates="hosts", init=False
+    )
     security: Mapped[ProxyHostSecurity] = mapped_column(
         SQLEnum(ProxyHostSecurity),
         unique=False,
@@ -774,6 +835,9 @@ class Group(Base, IdMixin):
     templates: Mapped[List["UserTemplate"]] = relationship(
         secondary=template_group_association, back_populates="groups", init=False
     )
+    hosts: Mapped[List["ProxyHost"]] = relationship(
+        secondary=hosts_groups_association, back_populates="groups"
+    )
     is_disabled: Mapped[bool] = mapped_column(server_default="0", default=False)
 
     @hybrid_property
@@ -804,6 +868,21 @@ class Group(Base, IdMixin):
             .where(inbounds_groups_association.c.group_id == cls.id)
             .scalar_subquery()
             .label("inbound_tags")
+        )
+
+    @hybrid_property
+    def host_ids(self) -> list[int]:
+        return [host.id for host in self.hosts]
+
+    @host_ids.expression
+    def host_ids(cls):
+        return (
+            select(func.aggregate_strings(ProxyHost.id, ","))
+            .select_from(hosts_groups_association)
+            .join(ProxyHost, hosts_groups_association.c.host_id == ProxyHost.id)
+            .where(hosts_groups_association.c.group_id == cls.id)
+            .scalar_subquery()
+            .label("host_ids")
         )
 
     @hybrid_property

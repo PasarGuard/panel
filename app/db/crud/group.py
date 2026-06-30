@@ -4,7 +4,9 @@ from sqlalchemy.orm import selectinload
 
 from app.db.models import (
     Group,
+    ProxyHost,
     ProxyInbound,
+    hosts_groups_association,
     inbounds_groups_association,
     template_group_association,
     users_groups_association,
@@ -39,11 +41,21 @@ async def get_inbounds_by_tags(db: AsyncSession, tags: list[str]) -> list[ProxyI
     return [inbounds_map[tag] for tag in tags]
 
 
-async def load_group_attrs(group: Group, *, load_users: bool = True, load_inbounds: bool = True):
+async def _get_hosts_by_ids(db: AsyncSession, host_ids: list[int]) -> list[ProxyHost]:
+    """Retrieves hosts by their IDs."""
+    if not host_ids:
+        return []
+    result = await db.execute(select(ProxyHost).where(ProxyHost.id.in_(host_ids)))
+    return list(result.scalars().all())
+
+
+async def load_group_attrs(group: Group, *, load_users: bool = True, load_inbounds: bool = True, load_hosts: bool = True):
     if load_users:
         await group.awaitable_attrs.users
     if load_inbounds:
         await group.awaitable_attrs.inbounds
+    if load_hosts:
+        await group.awaitable_attrs.hosts
 
 
 async def get_group_by_id(
@@ -52,6 +64,7 @@ async def get_group_by_id(
     *,
     load_users: bool = True,
     load_inbounds: bool = True,
+    load_hosts: bool = True,
 ) -> Group | None:
     """
     Retrieves a group by its ID.
@@ -65,7 +78,7 @@ async def get_group_by_id(
     """
     group = (await db.execute(select(Group).where(Group.id == group_id))).unique().scalar_one_or_none()
     if group:
-        await load_group_attrs(group, load_users=load_users, load_inbounds=load_inbounds)
+        await load_group_attrs(group, load_users=load_users, load_inbounds=load_inbounds, load_hosts=load_hosts)
     return group
 
 
@@ -80,9 +93,11 @@ async def create_group(db: AsyncSession, group: GroupCreate) -> Group:
     Returns:
         Group: The newly created Group object.
     """
+    hosts = await _get_hosts_by_ids(db, group.host_ids) if group.host_ids else []
     db_group = Group(
         name=group.name,
         inbounds=await get_inbounds_by_tags(db, group.inbound_tags),
+        hosts=hosts,
         is_disabled=group.is_disabled,
     )
     db.add(db_group)
@@ -176,6 +191,7 @@ async def get_groups_by_ids(
     *,
     load_users: bool = True,
     load_inbounds: bool = True,
+    load_hosts: bool = True,
 ) -> list[Group]:
     """
     Retrieves a list of groups by their IDs.
@@ -196,6 +212,8 @@ async def get_groups_by_ids(
         options.append(selectinload(Group.users))
     if load_inbounds:
         options.append(selectinload(Group.inbounds))
+    if load_hosts:
+        options.append(selectinload(Group.hosts))
     if options:
         stmt = stmt.options(*options)
 
@@ -222,6 +240,9 @@ async def modify_group(db: AsyncSession, db_group: Group, modified_group: GroupM
     if modified_group.inbound_tags is not None:
         inbounds = await get_inbounds_by_tags(db, modified_group.inbound_tags)
         db_group.inbounds = inbounds
+    if modified_group.host_ids is not None:
+        hosts = await _get_hosts_by_ids(db, modified_group.host_ids)
+        db_group.hosts = hosts
     if db_group.name != modified_group.name:
         db_group.name = modified_group.name
     if modified_group.is_disabled is not None:
@@ -256,6 +277,7 @@ async def remove_groups(db: AsyncSession, group_ids: list[int]) -> None:
     if not group_ids:
         return
 
+    await db.execute(delete(hosts_groups_association).where(hosts_groups_association.c.group_id.in_(group_ids)))
     await db.execute(delete(users_groups_association).where(users_groups_association.c.groups_id.in_(group_ids)))
     await db.execute(delete(template_group_association).where(template_group_association.c.group_id.in_(group_ids)))
     await db.execute(delete(inbounds_groups_association).where(inbounds_groups_association.c.group_id.in_(group_ids)))

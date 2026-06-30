@@ -393,5 +393,6 @@ class BulkHostsActionResponse(BaseModel):
 
 class HostListQuery(BaseModel):
     ids: list[int] | None = None
+    inbound_tag: str | None = None
     offset: int = 0
     limit: int = 0

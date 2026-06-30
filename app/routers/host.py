@@ -32,7 +32,24 @@ async def get_hosts(
 ):
     """
     Get proxy hosts.
+
+    Optionally filter by **inbound_tag** to return only hosts belonging to a specific inbound.
     """
+    return await host_operator.get_hosts(db=db, query=query)
+
+
+@router.get("s/by-inbound/{inbound_tag}", response_model=list[BaseHost])
+async def get_hosts_by_inbound_tag(
+    inbound_tag: str,
+    db: AsyncSession = Depends(get_db),
+    _: AdminDetails = Depends(require_permission("hosts", "read")),
+):
+    """
+    Get all hosts belonging to a specific **inbound_tag**.
+    """
+    from app.models.host import HostListQuery
+
+    query = HostListQuery(inbound_tag=inbound_tag)
     return await host_operator.get_hosts(db=db, query=query)
 
 

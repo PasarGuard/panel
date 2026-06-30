@@ -8,6 +8,7 @@ get_host_list_query = make_query_dependency(
     HostListQuery,
     field_overrides={
         "ids": Query(None),
+        "inbound_tag": Query(None),
         "offset": Query(0),
         "limit": Query(0),
     },

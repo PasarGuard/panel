@@ -92,6 +92,7 @@ class SubscriptionOperation(BaseOperation):
     async def validated_user(db_user: User) -> UsersResponseWithInbounds:
         user = UsersResponseWithInbounds.model_validate(db_user.__dict__)
         user.inbounds = await db_user.inbounds()
+        user.inbound_host_ids = await db_user.inbound_host_ids()
         user.expire = db_user.expire
         user.lifetime_used_traffic = db_user.lifetime_used_traffic
 

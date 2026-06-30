@@ -125,6 +125,8 @@ async def get_hosts(db: AsyncSession, query: HostListQuery | None = None) -> lis
 
     if query.ids:
         stmt = stmt.where(ProxyHost.id.in_(query.ids))
+    if query.inbound_tag:
+        stmt = stmt.where(ProxyHost.inbound_tag == query.inbound_tag)
     if query.offset:
         stmt = stmt.offset(query.offset)
     if query.limit:

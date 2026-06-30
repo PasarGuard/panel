@@ -170,7 +170,13 @@ def create_hosts_for_inbounds(access_token: str, *, address: list[str] | None = 
     return hosts
 
 
-def create_group(access_token: str, *, name: str | None = None, inbound_tags: Iterable[str] | None = None) -> dict:
+def create_group(
+    access_token: str,
+    *,
+    name: str | None = None,
+    inbound_tags: Iterable[str] | None = None,
+    host_ids: Iterable[int] | None = None,
+) -> dict:
     tags = list(inbound_tags or [])
     if not tags:
         tags = get_inbounds(access_token)
@@ -178,6 +184,8 @@ def create_group(access_token: str, *, name: str | None = None, inbound_tags: It
         "name": name or unique_name("group"),
         "inbound_tags": tags,
     }
+    if host_ids is not None:
+        payload["host_ids"] = list(host_ids)
     response = client.post("/api/group", headers=auth_headers(access_token), json=payload)
     assert response.status_code == status.HTTP_201_CREATED
     return response.json()

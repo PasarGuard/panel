@@ -8,6 +8,7 @@ from .validators import ListValidator
 class Group(BaseModel):
     name: str = Field(min_length=3, max_length=64)
     inbound_tags: list[str] | None = []
+    host_ids: list[int] | None = []
     is_disabled: bool = False
 
     model_config = ConfigDict(from_attributes=True)
@@ -15,6 +16,7 @@ class Group(BaseModel):
 
 class GroupCreate(Group):
     inbound_tags: list[str]
+    host_ids: list[int] | None = []
 
     @field_validator("inbound_tags", mode="after")
     @classmethod
@@ -23,6 +25,8 @@ class GroupCreate(Group):
 
 
 class GroupModify(Group):
+    host_ids: list[int] | None = None
+
     @field_validator("inbound_tags", mode="after")
     @classmethod
     def inbound_tags_validator(cls, v):

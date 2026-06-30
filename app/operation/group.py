@@ -4,6 +4,7 @@ from app import notification
 from app.db import AsyncSession
 from app.db.crud.bulk import add_groups_to_users, count_bulk_group_scope, remove_groups_from_users
 from app.db.crud.group import (
+    _get_hosts_by_ids,
     create_group,
     get_group,
     get_groups_by_ids,
@@ -49,8 +50,27 @@ class GroupOperation(BaseOperation):
         db_group = await self.get_validated_group(db, group_id)
         return db_group
 
+    async def _validate_host_ids(self, db: AsyncSession, inbound_tags: list[str], host_ids: list[int] | None) -> None:
+        """Validate that selected hosts belong to the group's inbounds."""
+        if not host_ids:
+            return
+        hosts = await _get_hosts_by_ids(db, host_ids)
+        found_ids = {h.id for h in hosts}
+        missing = set(host_ids) - found_ids
+        if missing:
+            await self.raise_error(f"Host(s) not found: {missing}", 400)
+        inbound_set = set(inbound_tags)
+        for h in hosts:
+            if h.inbound_tag and h.inbound_tag not in inbound_set:
+                await self.raise_error(
+                    f'Host "{h.remark}" (id={h.id}) belongs to inbound "{h.inbound_tag}" '
+                    f"which is not in this group's inbounds",
+                    400,
+                )
+
     async def create_group(self, db: AsyncSession, new_group: GroupCreate, admin: Admin) -> Group:
         await self.check_inbound_tags(new_group.inbound_tags)
+        await self._validate_host_ids(db, new_group.inbound_tags, new_group.host_ids)
         db_group = await create_group(db, new_group)
 
         group = GroupResponse.model_validate(db_group)
@@ -79,8 +99,11 @@ class GroupOperation(BaseOperation):
 
     async def modify_group(self, db: AsyncSession, group_id: int, modified_group: GroupModify, admin: Admin) -> Group:
         db_group = await self._get_group_with_access(db, group_id, admin)
+        effective_inbound_tags = modified_group.inbound_tags if modified_group.inbound_tags is not None else db_group.inbound_tags
         if modified_group.inbound_tags is not None:
             await self.check_inbound_tags(modified_group.inbound_tags)
+        if modified_group.host_ids is not None:
+            await self._validate_host_ids(db, effective_inbound_tags, modified_group.host_ids)
         db_group = await modify_group(db, db_group, modified_group)
 
         users = await get_users(

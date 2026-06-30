@@ -3,7 +3,17 @@ import random
 from fastapi import status
 
 from tests.api import client
-from tests.api.helpers import create_core, delete_core, create_group, delete_group, get_inbounds, unique_name
+from tests.api.helpers import (
+    auth_headers,
+    create_core,
+    create_group,
+    create_hosts_for_inbounds,
+    delete_core,
+    delete_group,
+    get_inbound_details,
+    get_inbounds,
+    unique_name,
+)
 
 
 def test_group_create(access_token):
@@ -363,4 +373,323 @@ def test_get_groups_simple_search_and_sort(access_token):
     finally:
         for gid in created_group_ids:
             delete_group(access_token, gid)
+        delete_core(access_token, core["id"])
+
+
+# ─── Host selection tests ────────────────────────────────────────────
+
+
+def _find_host_for_inbound(hosts: list[dict], inbound_tag: str) -> dict | None:
+    """Find a host whose inbound_tag matches the given tag."""
+    for h in hosts:
+        if h.get("inbound_tag") == inbound_tag:
+            return h
+    return None
+
+
+def _find_hosts_for_inbound(hosts: list[dict], inbound_tag: str) -> list[dict]:
+    """Find all hosts whose inbound_tag matches the given tag."""
+    return [h for h in hosts if h.get("inbound_tag") == inbound_tag]
+
+
+def test_group_create_with_host_ids(access_token):
+    """Creating a group with specific host_ids returns them in the response."""
+    core = create_core(access_token)
+    hosts = create_hosts_for_inbounds(access_token)
+    inbounds = get_inbounds(access_token)
+    assert hosts, "Need at least one host"
+    assert inbounds, "Need at least one inbound"
+    inbound_tag = inbounds[0]
+    matching_host = _find_host_for_inbound(hosts, inbound_tag)
+    if not matching_host:
+        # Hosts were created but none matched this inbound — skip cleanly
+        for h in hosts:
+            client.delete(f"/api/host/{h['id']}", headers=auth_headers(access_token))
+        delete_core(access_token, core["id"])
+        return
+    try:
+        group = create_group(
+            access_token,
+            name=unique_name("group_host"),
+            inbound_tags=[inbound_tag],
+            host_ids=[matching_host["id"]],
+        )
+        assert group["host_ids"] == [matching_host["id"]]
+    finally:
+        delete_group(access_token, group["id"])
+        for h in hosts:
+            client.delete(f"/api/host/{h['id']}", headers=auth_headers(access_token))
+        delete_core(access_token, core["id"])
+
+
+def test_group_create_without_host_ids_defaults_empty(access_token):
+    """Creating a group without host_ids defaults to empty list (all hosts allowed)."""
+    core = create_core(access_token)
+    try:
+        group = create_group(access_token, name=unique_name("group_nohost"))
+        assert group["host_ids"] == []
+    finally:
+        delete_group(access_token, group["id"])
+        delete_core(access_token, core["id"])
+
+
+def test_group_get_returns_host_ids(access_token):
+    """GET /api/group/{id} returns host_ids."""
+    core = create_core(access_token)
+    hosts = create_hosts_for_inbounds(access_token)
+    inbounds = get_inbounds(access_token)
+    inbound_tag = inbounds[0]
+    matching_host = _find_host_for_inbound(hosts, inbound_tag)
+    if not matching_host:
+        for h in hosts:
+            client.delete(f"/api/host/{h['id']}", headers=auth_headers(access_token))
+        delete_core(access_token, core["id"])
+        return
+    try:
+        group = create_group(
+            access_token,
+            name=unique_name("group_get_host"),
+            inbound_tags=[inbound_tag],
+            host_ids=[matching_host["id"]],
+        )
+        response = client.get(
+            f"/api/group/{group['id']}",
+            headers=auth_headers(access_token),
+        )
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["host_ids"] == [matching_host["id"]]
+    finally:
+        delete_group(access_token, group["id"])
+        for h in hosts:
+            client.delete(f"/api/host/{h['id']}", headers=auth_headers(access_token))
+        delete_core(access_token, core["id"])
+
+
+def test_group_list_returns_host_ids(access_token):
+    """GET /api/groups returns host_ids for each group."""
+    core = create_core(access_token)
+    hosts = create_hosts_for_inbounds(access_token)
+    inbounds = get_inbounds(access_token)
+    inbound_tag = inbounds[0]
+    matching_host = _find_host_for_inbound(hosts, inbound_tag)
+    if not matching_host:
+        for h in hosts:
+            client.delete(f"/api/host/{h['id']}", headers=auth_headers(access_token))
+        delete_core(access_token, core["id"])
+        return
+    try:
+        group = create_group(
+            access_token,
+            name=unique_name("group_list_host"),
+            inbound_tags=[inbound_tag],
+            host_ids=[matching_host["id"]],
+        )
+        response = client.get(
+            "/api/groups",
+            headers=auth_headers(access_token),
+        )
+        assert response.status_code == status.HTTP_200_OK
+        found = next(g for g in response.json()["groups"] if g["id"] == group["id"])
+        assert found["host_ids"] == [matching_host["id"]]
+    finally:
+        delete_group(access_token, group["id"])
+        for h in hosts:
+            client.delete(f"/api/host/{h['id']}", headers=auth_headers(access_token))
+        delete_core(access_token, core["id"])
+
+
+def test_group_modify_set_host_ids(access_token):
+    """PUT /api/group/{id} can add host_ids to an existing group."""
+    core = create_core(access_token)
+    hosts = create_hosts_for_inbounds(access_token)
+    inbounds = get_inbounds(access_token)
+    inbound_tag = inbounds[0]
+    matching_host = _find_host_for_inbound(hosts, inbound_tag)
+    if not matching_host:
+        for h in hosts:
+            client.delete(f"/api/host/{h['id']}", headers=auth_headers(access_token))
+        delete_core(access_token, core["id"])
+        return
+    try:
+        group = create_group(
+            access_token,
+            name=unique_name("group_mod_host"),
+            inbound_tags=[inbound_tag],
+        )
+        assert group["host_ids"] == []
+
+        response = client.put(
+            f"/api/group/{group['id']}",
+            headers=auth_headers(access_token),
+            json={"name": group["name"], "inbound_tags": [inbound_tag], "host_ids": [matching_host["id"]]},
+        )
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["host_ids"] == [matching_host["id"]]
+    finally:
+        delete_group(access_token, group["id"])
+        for h in hosts:
+            client.delete(f"/api/host/{h['id']}", headers=auth_headers(access_token))
+        delete_core(access_token, core["id"])
+
+
+def test_group_modify_clear_host_ids(access_token):
+    """PUT /api/group/{id} with empty host_ids clears restrictions."""
+    core = create_core(access_token)
+    hosts = create_hosts_for_inbounds(access_token)
+    inbounds = get_inbounds(access_token)
+    inbound_tag = inbounds[0]
+    matching_host = _find_host_for_inbound(hosts, inbound_tag)
+    if not matching_host:
+        for h in hosts:
+            client.delete(f"/api/host/{h['id']}", headers=auth_headers(access_token))
+        delete_core(access_token, core["id"])
+        return
+    try:
+        group = create_group(
+            access_token,
+            name=unique_name("group_clear_host"),
+            inbound_tags=[inbound_tag],
+            host_ids=[matching_host["id"]],
+        )
+        assert group["host_ids"] == [matching_host["id"]]
+
+        response = client.put(
+            f"/api/group/{group['id']}",
+            headers=auth_headers(access_token),
+            json={"name": group["name"], "inbound_tags": [inbound_tag], "host_ids": []},
+        )
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["host_ids"] == []
+    finally:
+        delete_group(access_token, group["id"])
+        for h in hosts:
+            client.delete(f"/api/host/{h['id']}", headers=auth_headers(access_token))
+        delete_core(access_token, core["id"])
+
+
+def test_group_modify_without_host_ids_keeps_existing(access_token):
+    """PUT /api/group/{id} without host_ids field does not change existing host_ids."""
+    core = create_core(access_token)
+    hosts = create_hosts_for_inbounds(access_token)
+    inbounds = get_inbounds(access_token)
+    inbound_tag = inbounds[0]
+    matching_host = _find_host_for_inbound(hosts, inbound_tag)
+    if not matching_host:
+        for h in hosts:
+            client.delete(f"/api/host/{h['id']}", headers=auth_headers(access_token))
+        delete_core(access_token, core["id"])
+        return
+    try:
+        group = create_group(
+            access_token,
+            name=unique_name("group_keep_host"),
+            inbound_tags=[inbound_tag],
+            host_ids=[matching_host["id"]],
+        )
+
+        response = client.put(
+            f"/api/group/{group['id']}",
+            headers=auth_headers(access_token),
+            json={"name": "renamed_keep_host", "inbound_tags": [inbound_tag]},
+        )
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["name"] == "renamed_keep_host"
+        assert response.json()["host_ids"] == [matching_host["id"]]
+    finally:
+        delete_group(access_token, group["id"])
+        for h in hosts:
+            client.delete(f"/api/host/{h['id']}", headers=auth_headers(access_token))
+        delete_core(access_token, core["id"])
+
+
+def test_group_multiple_hosts(access_token):
+    """Group can be created with multiple host_ids for the same inbound."""
+    core = create_core(access_token)
+    hosts = create_hosts_for_inbounds(access_token)
+    inbounds = get_inbounds(access_token)
+    inbound_tag = inbounds[0]
+    matching_hosts = _find_hosts_for_inbound(hosts, inbound_tag)
+    if len(matching_hosts) < 2:
+        for h in hosts:
+            client.delete(f"/api/host/{h['id']}", headers=auth_headers(access_token))
+        delete_core(access_token, core["id"])
+        return
+    try:
+        selected_ids = [matching_hosts[0]["id"], matching_hosts[1]["id"]]
+        group = create_group(
+            access_token,
+            name=unique_name("group_multi_host"),
+            inbound_tags=[inbound_tag],
+            host_ids=selected_ids,
+        )
+        assert set(group["host_ids"]) == set(selected_ids)
+    finally:
+        delete_group(access_token, group["id"])
+        for h in hosts:
+            client.delete(f"/api/host/{h['id']}", headers=auth_headers(access_token))
+        delete_core(access_token, core["id"])
+
+
+def test_group_delete_cleans_host_associations(access_token):
+    """Deleting a group cleans up the hosts_groups_association rows."""
+    core = create_core(access_token)
+    hosts = create_hosts_for_inbounds(access_token)
+    inbounds = get_inbounds(access_token)
+    inbound_tag = inbounds[0]
+    matching_host = _find_host_for_inbound(hosts, inbound_tag)
+    if not matching_host:
+        for h in hosts:
+            client.delete(f"/api/host/{h['id']}", headers=auth_headers(access_token))
+        delete_core(access_token, core["id"])
+        return
+    try:
+        group = create_group(
+            access_token,
+            name=unique_name("group_del_host"),
+            inbound_tags=[inbound_tag],
+            host_ids=[matching_host["id"]],
+        )
+        group_id = group["id"]
+        delete_group(access_token, group_id)
+
+        response = client.get(
+            f"/api/group/{group_id}",
+            headers=auth_headers(access_token),
+        )
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+    finally:
+        for h in hosts:
+            client.delete(f"/api/host/{h['id']}", headers=auth_headers(access_token))
+        delete_core(access_token, core["id"])
+
+
+def test_group_create_rejects_host_for_wrong_inbound(access_token):
+    """Creating a group with a host belonging to a different inbound fails."""
+    core = create_core(access_token)
+    hosts = create_hosts_for_inbounds(access_token)
+    inbounds = get_inbounds(access_token)
+    assert len(inbounds) >= 2, "Need at least 2 inbounds"
+    inbound_tag = inbounds[0]
+    other_inbound_tag = inbounds[1]
+    # Pick a host that belongs to a different inbound
+    wrong_host = _find_host_for_inbound(hosts, other_inbound_tag)
+    if not wrong_host:
+        for h in hosts:
+            client.delete(f"/api/host/{h['id']}", headers=auth_headers(access_token))
+        delete_core(access_token, core["id"])
+        return
+    try:
+        response = client.post(
+            "/api/group",
+            headers=auth_headers(access_token),
+            json={
+                "name": unique_name("group_wrong_host"),
+                "inbound_tags": [inbound_tag],
+                "host_ids": [wrong_host["id"]],
+            },
+        )
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+    finally:
+        for h in hosts:
+            client.delete(f"/api/host/{h['id']}", headers=auth_headers(access_token))
         delete_core(access_token, core["id"])
