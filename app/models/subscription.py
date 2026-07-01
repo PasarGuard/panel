@@ -10,6 +10,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field, computed_field, field_validator
 
+from app.models.host import FinalMask
 from app.models.stats import Period
 from app.utils.helpers import fix_datetime_timezone
 
@@ -278,7 +279,7 @@ class SubscriptionInboundData(BaseModel):
     # Fragment and noise settings
     fragment_settings: dict[str, Any] | None = Field(None)
     noise_settings: dict[str, Any] | None = Field(None)
-    finalmask: dict[str, Any] | None = Field(None)
+    finalmask: FinalMask | dict[str, Any] | None = Field(None)
     finalmask_link: str | None = Field(None)
 
     # Priority and status
