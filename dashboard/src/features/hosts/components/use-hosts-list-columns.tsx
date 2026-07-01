@@ -4,6 +4,7 @@ import { ListColumn } from '@/components/common/list-generator'
 import { BaseHost } from '@/service/api'
 import { cn } from '@/lib/utils'
 import HostActionsMenu from '@/features/hosts/components/host-actions-menu'
+import { TagChip } from '@/features/hosts/components/host-tag-picker'
 import { Settings } from 'lucide-react'
 
 interface UseHostsListColumnsProps {
@@ -46,6 +47,20 @@ export const useHostsListColumns = ({ onEdit, onDuplicate, onDataChanged, canUpd
         header: t('inbound'),
         width: '1fr',
         cell: host => <span className="text-muted-foreground truncate text-xs">{host.inbound_tag ?? ''}</span>,
+        hideOnMobile: true,
+      },
+      {
+        id: 'tags',
+        header: t('hostTags.label', { defaultValue: 'Tags' }),
+        width: '1.5fr',
+        cell: host =>
+          host.tags && host.tags.length > 0 ? (
+            <div className="flex min-w-0 flex-wrap items-center gap-1">
+              {host.tags.map(tag => (
+                <TagChip key={tag.id ?? tag.name} tag={tag} />
+              ))}
+            </div>
+          ) : null,
         hideOnMobile: true,
       },
       ...(canUpdate || canCreate

@@ -287,6 +287,57 @@ class SubscriptionTemplates(BaseModel):
         return v
 
 
+class HostTagColor(str, Enum):
+    """Curated, theme-aware palette keys for host tags (rendered on the dashboard)."""
+
+    slate = "slate"
+    red = "red"
+    orange = "orange"
+    amber = "amber"
+    green = "green"
+    teal = "teal"
+    sky = "sky"
+    blue = "blue"
+    violet = "violet"
+    pink = "pink"
+
+
+class HostTag(BaseModel):
+    id: int | None = Field(default=None)
+    name: str = Field(min_length=1, max_length=64)
+    color: HostTagColor
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class HostTagCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=64)
+    color: HostTagColor
+
+    @field_validator("name", mode="after")
+    @classmethod
+    def strip_name(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("Tag name cannot be empty")
+        return v
+
+
+class HostTagModify(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=64)
+    color: HostTagColor | None = Field(default=None)
+
+    @field_validator("name", mode="after")
+    @classmethod
+    def strip_name(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        v = v.strip()
+        if not v:
+            raise ValueError("Tag name cannot be empty")
+        return v
+
+
 class BaseHost(BaseModel):
     id: int | None = Field(default=None)
     remark: str
@@ -317,6 +368,8 @@ class BaseHost(BaseModel):
     verify_peer_cert_by_name: set[str] | None = Field(default_factory=set)
     wireguard_overrides: WireGuardHostOverrides | None = None
     subscription_templates: SubscriptionTemplates | None = None
+    tags: list[HostTag] = Field(default_factory=list)
+    tag_ids: list[int] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True)
 
