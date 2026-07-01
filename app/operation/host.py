@@ -1,25 +1,38 @@
 import asyncio
 
+from sqlalchemy.exc import IntegrityError
+
 from app.db import AsyncSession
 from app.db.models import ProxyHost
 from app.models.admin import AdminDetails
 from app.models.client_template import ClientTemplateType
+from app.db.models import HostTag as DBHostTag
 from app.models.host import (
     BaseHost,
     BulkHostSelection,
     BulkHostsActionResponse,
     CreateHost,
     HostListQuery,
+    HostTag,
+    HostTagCreate,
+    HostTagModify,
     RemoveHostsResponse,
 )
 from app.operation import BaseOperation
 from app.db.crud.host import (
     create_host,
+    create_host_tag,
     get_host_by_id,
+    get_host_tag_by_id,
+    get_host_tag_by_name,
+    get_host_tags,
     get_hosts,
     modify_host,
+    modify_host_tag,
     remove_host,
+    remove_host_tag,
     remove_hosts,
+    resolve_host_tags,
 )
 from app.core.hosts import host_manager
 from app.utils.logger import get_logger
@@ -60,11 +73,23 @@ class HostOperation(BaseOperation):
             ):
                 return await self.raise_error("download host cannot have a download host", 400, db=db)
 
+    async def validate_host_tags(self, db: AsyncSession, tag_ids: list[int]) -> None:
+        """Ensure every requested host-tag id actually exists."""
+        unique_ids = list(dict.fromkeys(tag_ids or []))
+        if not unique_ids:
+            return
+        resolved = await resolve_host_tags(db, unique_ids)
+        if len(resolved) != len(unique_ids):
+            found = {tag.id for tag in resolved}
+            missing = [tag_id for tag_id in unique_ids if tag_id not in found]
+            await self.raise_error(f"Host tag(s) not found: {missing}", 404, db=db)
+
     async def create_host(self, db: AsyncSession, new_host: CreateHost, admin: AdminDetails) -> BaseHost:
         await self.validate_subscription_templates(db, new_host)
         await self.validate_ds_host(db, new_host)
 
         await self.check_host_inbound_tags([new_host.inbound_tag])
+        await self.validate_host_tags(db, new_host.tag_ids)
 
         db_host = await create_host(db, new_host)
 
@@ -85,6 +110,7 @@ class HostOperation(BaseOperation):
 
         if modified_host.inbound_tag:
             await self.check_host_inbound_tags([modified_host.inbound_tag])
+        await self.validate_host_tags(db, modified_host.tag_ids)
 
         db_host = await self.get_validated_host(db, host_id)
 
@@ -109,6 +135,47 @@ class HostOperation(BaseOperation):
         asyncio.create_task(notification.remove_host(host, admin.username))
 
         await host_manager.remove_host(host.id)
+
+    async def get_validated_host_tag(self, db: AsyncSession, tag_id: int) -> DBHostTag:
+        db_tag = await get_host_tag_by_id(db, tag_id)
+        if not db_tag:
+            await self.raise_error("Host tag not found", 404, db=db)
+        return db_tag
+
+    async def get_host_tags(self, db: AsyncSession) -> list[HostTag]:
+        db_tags = await get_host_tags(db)
+        return [HostTag.model_validate(tag) for tag in db_tags]
+
+    async def create_host_tag(self, db: AsyncSession, new_tag: HostTagCreate, admin: AdminDetails) -> HostTag:
+        if await get_host_tag_by_name(db, new_tag.name):
+            await self.raise_error("A host tag with this name already exists", 409, db=db)
+        try:
+            db_tag = await create_host_tag(db, new_tag)
+        except IntegrityError:
+            await self.raise_error("A host tag with this name already exists", 409, db=db)
+        logger.info(f'Host tag "{db_tag.name}" created by admin "{admin.username}"')
+        return HostTag.model_validate(db_tag)
+
+    async def modify_host_tag(
+        self, db: AsyncSession, tag_id: int, modified_tag: HostTagModify, admin: AdminDetails
+    ) -> HostTag:
+        db_tag = await self.get_validated_host_tag(db, tag_id)
+        if modified_tag.name and modified_tag.name != db_tag.name:
+            existing = await get_host_tag_by_name(db, modified_tag.name)
+            if existing and existing.id != db_tag.id:
+                await self.raise_error("A host tag with this name already exists", 409, db=db)
+        try:
+            db_tag = await modify_host_tag(db, db_tag, modified_tag)
+        except IntegrityError:
+            await self.raise_error("A host tag with this name already exists", 409, db=db)
+        logger.info(f'Host tag "{db_tag.name}" ({db_tag.id}) modified by admin "{admin.username}"')
+        return HostTag.model_validate(db_tag)
+
+    async def remove_host_tag(self, db: AsyncSession, tag_id: int, admin: AdminDetails) -> None:
+        db_tag = await self.get_validated_host_tag(db, tag_id)
+        name = db_tag.name
+        await remove_host_tag(db, db_tag)
+        logger.info(f'Host tag "{name}" ({tag_id}) deleted by admin "{admin.username}"')
 
     async def modify_hosts(
         self, db: AsyncSession, modified_hosts: list[CreateHost], admin: AdminDetails

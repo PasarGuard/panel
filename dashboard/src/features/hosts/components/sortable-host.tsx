@@ -7,7 +7,9 @@ import { ChevronsLeftRightEllipsis, CloudCog, GripVertical, Settings } from 'luc
 import { useTranslation } from 'react-i18next'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { cn } from '@/lib/utils'
+import { getTagColorStyle } from '@/constants/hostTagColors'
 import HostActionsMenu from './host-actions-menu'
+import { TagChip } from './host-tag-picker'
 import type { ReactNode } from 'react'
 
 interface SortableHostProps {
@@ -43,10 +45,13 @@ export default function SortableHost({ host, onEdit, onDuplicate, onDataChanged,
   }
   const cursor = isDragging ? 'grabbing' : 'grab'
 
+  const tags = host.tags ?? []
+  const tint = tags.length > 0 ? getTagColorStyle(tags[0].color).tint : ''
+
   return (
-    <div ref={setNodeRef} className="cursor-default" style={style} {...attributes}>
+    <div ref={setNodeRef} className="h-full cursor-default" style={style} {...attributes}>
       <Card
-        className={cn('group relative h-full p-4 transition-colors', canUpdate && 'hover:bg-accent cursor-pointer', selected && 'border-primary/50 bg-accent/30')}
+        className={cn('group relative h-full p-4 transition-colors', !selected && tint, canUpdate && 'hover:bg-accent cursor-pointer', selected && 'border-primary/50 bg-accent/30')}
         onClick={() => {
           if (canUpdate) onEdit(host)
         }}
@@ -79,6 +84,13 @@ export default function SortableHost({ host, onEdit, onDuplicate, onDataChanged,
               <span>{t('inbound')}: </span>
               <span dir="ltr">{host.inbound_tag ?? ''}</span>
             </div>
+            {tags.length > 0 && (
+              <div className="mt-1.5 flex flex-wrap gap-1">
+                {tags.map(tag => (
+                  <TagChip key={tag.id ?? tag.name} tag={tag} />
+                ))}
+              </div>
+            )}
           </div>
           <HostActionsMenu host={host} onEdit={onEdit} onDuplicate={onDuplicate} onDataChanged={onDataChanged} canUpdate={canUpdate} canCreate={canCreate} />
         </div>

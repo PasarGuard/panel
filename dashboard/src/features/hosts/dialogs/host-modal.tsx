@@ -22,6 +22,7 @@ import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { hostFormDefaultValues, type HostFormValues } from '@/features/hosts/forms/host-form'
+import HostTagPicker from '@/features/hosts/components/host-tag-picker'
 import { LoaderButton } from '@/components/ui/loader-button'
 
 interface HostModalProps {
@@ -988,6 +989,20 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                     </div>
                     <FormControl>
                       <Input placeholder="Remark (e.g. PasarGuard-Host)" isError={!!form.formState.errors.remark} {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="tag_ids"
+                render={({ field }) => (
+                  <FormItem className="!mt-4">
+                    <FormLabel>{t('hostTags.label', { defaultValue: 'Tags' })}</FormLabel>
+                    <FormControl>
+                      <HostTagPicker value={field.value || []} onChange={field.onChange} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
