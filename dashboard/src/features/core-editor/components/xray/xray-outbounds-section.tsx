@@ -518,7 +518,6 @@ export function XrayOutboundsSection({ headerAddPulse, headerAddEpoch }: XrayOut
   const [detailOpen, setDetailOpen] = useState(false)
   const [dialogMode, setDialogMode] = useState<DialogMode>('edit')
   const [draftOutbound, setDraftOutbound] = useState<Outbound | null>(null)
-  const [initialDraftOutbound, setInitialDraftOutbound] = useState<Outbound | null>(null)
   const [editOriginalOutbound, setEditOriginalOutbound] = useState<Outbound | null>(null)
   const [discardDraftOpen, setDiscardDraftOpen] = useState(false)
   const [discardEditOpen, setDiscardEditOpen] = useState(false)
@@ -630,7 +629,6 @@ export function XrayOutboundsSection({ headerAddPulse, headerAddEpoch }: XrayOut
     }
     const created = stripSparseOutboundEnvelope(createDefaultOutbound({ protocol: 'vless', tag: '' }) as Record<string, unknown>) as Outbound
     setDraftOutbound(created)
-    setInitialDraftOutbound(sanitizeOutboundForState(created))
     setDialogMode('add')
     setOutboundDialogTab('form')
     setUriDraft('')
@@ -651,12 +649,8 @@ export function XrayOutboundsSection({ headerAddPulse, headerAddEpoch }: XrayOut
     setDetailOpen(false)
     setDialogMode('edit')
     setDraftOutbound(null)
-    setInitialDraftOutbound(null)
     setEditOriginalOutbound(null)
   }
-
-  const hasUnsavedDraftChanges = dialogMode === 'add' && draftOutbound !== null && initialDraftOutbound !== null && JSON.stringify(sanitizeOutboundForState(draftOutbound)) !== JSON.stringify(initialDraftOutbound)
-  const hasUnsavedEditChanges = dialogMode === 'edit' && ob && ob.protocol !== 'unmanaged' && editOriginalOutbound && JSON.stringify(ob) !== JSON.stringify(editOriginalOutbound)
 
   const patchOutbound = (next: Outbound) => {
     const sanitized = sanitizeOutboundForState(next)
@@ -710,11 +704,11 @@ export function XrayOutboundsSection({ headerAddPulse, headerAddEpoch }: XrayOut
         /* allow close; unsaved JSON may be lost */
       }
     }
-    if (dialogMode === 'add' && draftOutbound !== null && hasUnsavedDraftChanges) {
+    if (dialogMode === 'add' && draftOutbound !== null) {
       setDiscardDraftOpen(true)
       return
     }
-    if (hasUnsavedEditChanges) {
+    if (dialogMode === 'edit' && ob && ob.protocol !== 'unmanaged' && editOriginalOutbound && JSON.stringify(ob) !== JSON.stringify(editOriginalOutbound)) {
       setDiscardEditOpen(true)
       return
     }
@@ -863,7 +857,6 @@ export function XrayOutboundsSection({ headerAddPulse, headerAddEpoch }: XrayOut
             return
           }
           setDraftOutbound(null)
-          setInitialDraftOutbound(null)
           setDialogMode('edit')
           setEditOriginalOutbound(cloneOutbound(outbounds[rowIndex]))
           setSelected(rowIndex)
@@ -912,7 +905,6 @@ export function XrayOutboundsSection({ headerAddPulse, headerAddEpoch }: XrayOut
         leadingIcon={dialogMode === 'add' ? <Plus className="h-5 w-5 shrink-0" /> : <Pencil className="h-5 w-5 shrink-0" />}
         title={dialogMode === 'add' ? t('coreEditor.outbound.dialogTitleAdd', { defaultValue: 'Add outbound' }) : t('coreEditor.outbound.dialogTitleEdit', { defaultValue: 'Edit outbound' })}
         size="md"
-        cancelLabel={hasUnsavedDraftChanges || hasUnsavedEditChanges ? t('coreEditor.discard', { defaultValue: 'Discard' }) : undefined}
         footerExtra={
           dialogMode === 'add' && draftOutbound ? (
             <Button type="button" className="sm:min-w-[88px]" onClick={commitAddOutbound}>

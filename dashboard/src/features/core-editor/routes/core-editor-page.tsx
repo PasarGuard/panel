@@ -577,7 +577,6 @@ export default function CoreEditorPage() {
         saveLabel={isNew ? t('create', { defaultValue: 'Create' }) : undefined}
         onSave={handleSave}
         onDiscard={() => discardDraft()}
-        onCancel={handleBack}
         saving={saving || createMutation.isPending || modifyMutation.isPending}
         showRestart={!isNew}
         restartNodes={restartNodes}

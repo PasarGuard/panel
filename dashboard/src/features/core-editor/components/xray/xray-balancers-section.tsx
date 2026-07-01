@@ -72,10 +72,6 @@ function balancerSearchHaystack(b: RoutingBalancer): string {
   return parts.join(' ')
 }
 
-function cloneBalancer(b: RoutingBalancer): RoutingBalancer {
-  return JSON.parse(JSON.stringify(b)) as RoutingBalancer
-}
-
 function uniqueNonEmptyTags(tags: (string | undefined)[] | undefined): string[] {
   return [...new Set((tags ?? []).filter((t): t is string => typeof t === 'string' && t.trim() !== ''))]
 }
@@ -255,10 +251,7 @@ export function XrayBalancersSection({ headerAddPulse, headerAddEpoch }: XrayBal
   const [detailOpen, setDetailOpen] = useState(false)
   const [dialogMode, setDialogMode] = useState<DialogMode>('edit')
   const [draftBalancer, setDraftBalancer] = useState<RoutingBalancer | null>(null)
-  const [initialDraftBalancer, setInitialDraftBalancer] = useState<RoutingBalancer | null>(null)
-  const [editOriginalBalancer, setEditOriginalBalancer] = useState<RoutingBalancer | null>(null)
   const [discardDraftOpen, setDiscardDraftOpen] = useState(false)
-  const [discardEditOpen, setDiscardEditOpen] = useState(false)
   const [blockAddWhileDraftOpen, setBlockAddWhileDraftOpen] = useState(false)
   const [selectorCommitError, setSelectorCommitError] = useState<string | null>(null)
   const [observationTab, setObservationTab] = useState<ObservationTab>('observatory')
@@ -341,9 +334,7 @@ export function XrayBalancersSection({ headerAddPulse, headerAddEpoch }: XrayBal
       tag: `balancer-${(profile.routing?.balancers ?? []).length + 1}`,
     })
     // Kit defaults selector to ["proxy-"]; editor starts with no outbound tags selected.
-    const draft = { ...next, selector: [] }
-    setDraftBalancer(draft)
-    setInitialDraftBalancer(cloneBalancer(draft))
+    setDraftBalancer({ ...next, selector: [] })
     setDialogMode('add')
     setDetailOpen(true)
   }, [profile, detailOpen, dialogMode, draftBalancer])
@@ -406,24 +397,15 @@ export function XrayBalancersSection({ headerAddPulse, headerAddEpoch }: XrayBal
     setDetailOpen(false)
     setDialogMode('edit')
     setDraftBalancer(null)
-    setInitialDraftBalancer(null)
-    setEditOriginalBalancer(null)
   }
-
-  const hasUnsavedDraftChanges = dialogMode === 'add' && draftBalancer !== null && initialDraftBalancer !== null && JSON.stringify(draftBalancer) !== JSON.stringify(initialDraftBalancer)
-  const hasUnsavedEditChanges = dialogMode === 'edit' && b !== undefined && editOriginalBalancer !== null && JSON.stringify(b) !== JSON.stringify(editOriginalBalancer)
 
   const handleDetailOpenChange = (open: boolean) => {
     if (open) {
       setDetailOpen(true)
       return
     }
-    if (dialogMode === 'add' && draftBalancer !== null && hasUnsavedDraftChanges) {
+    if (dialogMode === 'add' && draftBalancer !== null) {
       setDiscardDraftOpen(true)
-      return
-    }
-    if (hasUnsavedEditChanges) {
-      setDiscardEditOpen(true)
       return
     }
     finalizeDetailClose()
@@ -626,9 +608,7 @@ export function XrayBalancersSection({ headerAddPulse, headerAddEpoch }: XrayBal
             return
           }
           setDraftBalancer(null)
-          setInitialDraftBalancer(null)
           setDialogMode('edit')
-          setEditOriginalBalancer(cloneBalancer(balancers[rowIndex]))
           setSelected(rowIndex)
           setDetailOpen(true)
         }}
@@ -675,7 +655,6 @@ export function XrayBalancersSection({ headerAddPulse, headerAddEpoch }: XrayBal
         leadingIcon={dialogMode === 'add' ? <Plus className="h-5 w-5 shrink-0" /> : <Pencil className="h-5 w-5 shrink-0" />}
         title={dialogMode === 'add' ? t('coreEditor.balancer.dialogTitleAdd', { defaultValue: 'Add balancer' }) : t('coreEditor.balancer.dialogTitleEdit', { defaultValue: 'Edit balancer' })}
         size="md"
-        cancelLabel={hasUnsavedDraftChanges || hasUnsavedEditChanges ? t('coreEditor.discard', { defaultValue: 'Discard' }) : undefined}
         footerExtra={
           dialogMode === 'add' && draftBalancer ? (
             <Button type="button" className="sm:min-w-[88px]" onClick={commitAddBalancer}>
@@ -1091,33 +1070,6 @@ export function XrayBalancersSection({ headerAddPulse, headerAddEpoch }: XrayBal
             <AlertDialogAction
               onClick={() => {
                 setDiscardDraftOpen(false)
-                finalizeDetailClose()
-              }}
-            >
-              {t('coreEditor.balancer.discardDraftAction', { defaultValue: 'Discard' })}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <AlertDialog open={discardEditOpen} onOpenChange={setDiscardEditOpen}>
-        <AlertDialogContent dir={dir}>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t('coreEditor.balancer.discardEditTitle', { defaultValue: 'Discard changes?' })}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {t('coreEditor.balancer.discardEditDescription', {
-                defaultValue: 'Your modifications to this balancer will be lost if you close now.',
-              })}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                if (dialogMode === 'edit' && editOriginalBalancer) {
-                  updateXrayProfile(p => replaceBalancer(p, selected, editOriginalBalancer))
-                }
-                setDiscardEditOpen(false)
                 finalizeDetailClose()
               }}
             >

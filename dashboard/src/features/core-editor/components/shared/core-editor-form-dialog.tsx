@@ -24,7 +24,6 @@ export interface CoreEditorFormDialogProps {
   size?: 'md' | 'lg' | 'xl'
   /** Primary action before Cancel (e.g. Add / Save), same order as `LoaderButton` in `HostModal`. */
   footerExtra?: ReactNode
-  cancelLabel?: ReactNode
   className?: string
   /**
    * When the dialog is open, show global Xray persist/strict validation (same as the editor footer).
@@ -55,7 +54,6 @@ export function CoreEditorFormDialog({
   children,
   size = 'lg',
   footerExtra,
-  cancelLabel,
   className,
   inlinePersistValidation = true,
   persistValidationPathPrefix,
@@ -83,7 +81,7 @@ export function CoreEditorFormDialog({
 
         <div className="flex justify-end gap-2">
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-            {cancelLabel ?? t('cancel')}
+            {t('cancel')}
           </Button>
           {footerExtra}
         </div>
