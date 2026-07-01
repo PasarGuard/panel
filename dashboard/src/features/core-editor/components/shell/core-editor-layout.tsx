@@ -13,6 +13,7 @@ interface CoreEditorLayoutProps {
   saveLabel?: string
   onSave: () => void
   onDiscard: () => void
+  onCancel: () => void
   saving: boolean
   showRestart?: boolean
   restartNodes: boolean
@@ -20,7 +21,7 @@ interface CoreEditorLayoutProps {
   className?: string
 }
 
-export function CoreEditorLayout({ header, sectionHeader, main, dirty, canSave, saveLabel, onSave, onDiscard, saving, showRestart, restartNodes, onRestartChange, className }: CoreEditorLayoutProps) {
+export function CoreEditorLayout({ header, sectionHeader, main, dirty, canSave, saveLabel, onSave, onDiscard, onCancel, saving, showRestart, restartNodes, onRestartChange, className }: CoreEditorLayoutProps) {
   return (
     <div className={cn('flex min-h-0 flex-1 flex-col gap-0', className)}>
       <CoreCommandMenu />
@@ -36,6 +37,7 @@ export function CoreEditorLayout({ header, sectionHeader, main, dirty, canSave, 
         saveLabel={saveLabel}
         onSave={onSave}
         onDiscard={onDiscard}
+        onCancel={onCancel}
         saving={saving}
         showRestart={showRestart}
         restartNodes={restartNodes}

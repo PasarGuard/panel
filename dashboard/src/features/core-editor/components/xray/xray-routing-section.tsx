@@ -55,6 +55,10 @@ function mergeRoutingRulePatch(rule: RoutingRule, patch: Partial<RoutingRule>): 
   return next as unknown as RoutingRule
 }
 
+function cloneRoutingRule(rule: RoutingRule): RoutingRule {
+  return JSON.parse(JSON.stringify(rule)) as RoutingRule
+}
+
 function routingRuleDomainSummary(r: RoutingRule): string {
   const o = routingRuleAsRecord(r)
   const domains = o.domains
@@ -210,7 +214,10 @@ export function XrayRoutingSection({ headerAddPulse, headerAddEpoch }: XrayRouti
   const [detailOpen, setDetailOpen] = useState(false)
   const [dialogMode, setDialogMode] = useState<DialogMode>('edit')
   const [draftRule, setDraftRule] = useState<RoutingRule | null>(null)
+  const [initialDraftRule, setInitialDraftRule] = useState<RoutingRule | null>(null)
+  const [editOriginalRule, setEditOriginalRule] = useState<RoutingRule | null>(null)
   const [discardDraftOpen, setDiscardDraftOpen] = useState(false)
+  const [discardEditOpen, setDiscardEditOpen] = useState(false)
   const [blockAddWhileDraftOpen, setBlockAddWhileDraftOpen] = useState(false)
   const [ruleDialogIssues, setRuleDialogIssues] = useState<Issue[]>([])
   const routing = profile?.routing ?? defaultRouting()
@@ -288,6 +295,7 @@ export function XrayRoutingSection({ headerAddPulse, headerAddEpoch }: XrayRouti
     }
     const nextRule = createDefaultRoutingRule({})
     setDraftRule(nextRule)
+    setInitialDraftRule(cloneRoutingRule(nextRule))
     setDialogMode('add')
     setDetailOpen(true)
   }, [profile, detailOpen, dialogMode, draftRule])
@@ -349,15 +357,24 @@ export function XrayRoutingSection({ headerAddPulse, headerAddEpoch }: XrayRouti
     setDetailOpen(false)
     setDialogMode('edit')
     setDraftRule(null)
+    setInitialDraftRule(null)
+    setEditOriginalRule(null)
   }
+
+  const hasUnsavedDraftChanges = dialogMode === 'add' && draftRule !== null && initialDraftRule !== null && JSON.stringify(draftRule) !== JSON.stringify(initialDraftRule)
+  const hasUnsavedEditChanges = dialogMode === 'edit' && rule !== undefined && editOriginalRule !== null && JSON.stringify(rule) !== JSON.stringify(editOriginalRule)
 
   const handleDetailOpenChange = (open: boolean) => {
     if (open) {
       setDetailOpen(true)
       return
     }
-    if (dialogMode === 'add' && draftRule !== null) {
+    if (dialogMode === 'add' && draftRule !== null && hasUnsavedDraftChanges) {
       setDiscardDraftOpen(true)
+      return
+    }
+    if (hasUnsavedEditChanges) {
+      setDiscardEditOpen(true)
       return
     }
     finalizeDetailClose()
@@ -498,7 +515,9 @@ export function XrayRoutingSection({ headerAddPulse, headerAddEpoch }: XrayRouti
             return
           }
           setDraftRule(null)
+          setInitialDraftRule(null)
           setDialogMode('edit')
+          setEditOriginalRule(cloneRoutingRule(rules[rowIndex]))
           setSelected(rowIndex)
           setDetailOpen(true)
         }}
@@ -533,6 +552,7 @@ export function XrayRoutingSection({ headerAddPulse, headerAddEpoch }: XrayRouti
         leadingIcon={dialogMode === 'add' ? <Plus className="h-5 w-5 shrink-0" /> : <Pencil className="h-5 w-5 shrink-0" />}
         title={dialogMode === 'add' ? t('coreEditor.routing.dialogTitleAdd', { defaultValue: 'Add routing rule' }) : t('coreEditor.routing.dialogTitleEdit', { defaultValue: 'Edit routing rule' })}
         size="lg"
+        cancelLabel={hasUnsavedDraftChanges || hasUnsavedEditChanges ? t('coreEditor.discard', { defaultValue: 'Discard' }) : undefined}
         footerExtra={
           dialogMode === 'add' && draftRule ? (
             <Button type="button" className="sm:min-w-[88px]" onClick={commitAddRule}>
@@ -670,6 +690,33 @@ export function XrayRoutingSection({ headerAddPulse, headerAddEpoch }: XrayRouti
             <AlertDialogAction
               onClick={() => {
                 setDiscardDraftOpen(false)
+                finalizeDetailClose()
+              }}
+            >
+              {t('coreEditor.routing.discardDraftAction', { defaultValue: 'Discard' })}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={discardEditOpen} onOpenChange={setDiscardEditOpen}>
+        <AlertDialogContent dir={dir}>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('coreEditor.routing.discardEditTitle', { defaultValue: 'Discard changes?' })}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t('coreEditor.routing.discardEditDescription', {
+                defaultValue: 'Your modifications to this rule will be lost if you close now.',
+              })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (dialogMode === 'edit' && editOriginalRule) {
+                  updateXrayProfile(p => replaceRule(p, selected, editOriginalRule))
+                }
+                setDiscardEditOpen(false)
                 finalizeDetailClose()
               }}
             >
