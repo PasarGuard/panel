@@ -204,7 +204,7 @@ rules = [
         "target": "clash_meta",
     },
     {"pattern": r"^([Cc]lash|[Ss]tash)", "target": "clash"},
-    {"pattern": r"^(SFA|SFI|SFM|SFT|[Kk]aring|[Hh]iddify[Nn]ext)|.*[Ss]ing[\-b]?ox.*", "target": "sing_box"},
+    {"pattern": r"^(SFA|SFI|SFM|SFT|[Kk]aring|[Hh]iddify[Nn]ext|[Ii]n[Hh]ive)|.*[Ss]ing[\-b]?ox.*", "target": "sing_box"},
     {"pattern": r"^(SS|SSR|SSD|SSS|Outline|Shadowsocks|SSconf)", "target": "outline"},
     {
         "pattern": r"^.*",  # Default catch-all pattern
