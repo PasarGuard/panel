@@ -32,17 +32,13 @@ class DatabaseSettings(EnvSettings):
     url: str = Field(default="sqlite+aiosqlite:///db.sqlite3", validation_alias="SQLALCHEMY_DATABASE_URL")
     pool_size: int = Field(default=25, validation_alias="SQLALCHEMY_POOL_SIZE")
     max_overflow: int = Field(default=60, validation_alias="SQLALCHEMY_MAX_OVERFLOW")
-    pool_recycle: int = Field(default=300, validation_alias="SQLALCHEMY_POOL_RECYCLE")
-    connect_timeout: int = Field(default=5, gt=0, validation_alias="SQLALCHEMY_CONNECT_TIMEOUT")
+    pool_recycle: int = Field(default=1800, ge=1, validation_alias="SQLALCHEMY_POOL_RECYCLE")
+    pool_timeout: int = Field(default=15, ge=1, validation_alias="SQLALCHEMY_POOL_TIMEOUT")
     echo_queries: bool = Field(default=False, validation_alias="ECHO_SQL_QUERIES")
 
     @cached_property
     def is_postgresql(self) -> bool:
         return self.url.startswith("postgresql")
-
-    @cached_property
-    def is_mysql(self) -> bool:
-        return self.url.startswith(("mysql", "mariadb"))
 
     @cached_property
     def is_sqlite(self) -> bool:

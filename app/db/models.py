@@ -196,6 +196,8 @@ class User(Base, CreatedAtUTCMixin):
         Index("idx_users_admin_online", "admin_id", "online_at"),
         Index("idx_users_admin_status", "admin_id", "status"),
         Index("idx_users_admin_created", "admin_id", "created_at"),
+        Index("idx_users_status_expire", "status", "expire"),
+        Index("idx_users_status_used_traffic", "status", "used_traffic"),
     )
     username: Mapped[str] = mapped_column(CaseSensitiveString(128), unique=True, index=True)
     node_usages: Mapped[List["NodeUserUsage"]] = relationship(
@@ -528,6 +530,10 @@ ProxyHostFingerprint = Enum(
 
 class ProxyHost(Base, IdMixin):
     __tablename__ = "hosts"
+    __table_args__ = (
+        Index("idx_hosts_inbound_tag", "inbound_tag"),
+        Index("idx_hosts_is_disabled", "is_disabled"),
+    )
     remark: Mapped[str] = mapped_column(String(256), unique=False, nullable=False)
     port: Mapped[Optional[int]] = mapped_column(nullable=True)
     path: Mapped[Optional[str]] = mapped_column(String(256), unique=False, nullable=True)
@@ -604,6 +610,7 @@ class NodeStatus(str, Enum):
 
 class Node(Base, CreatedAtUTCMixin):
     __tablename__ = "nodes"
+    __table_args__ = (Index("idx_nodes_status", "status"),)
     name: Mapped[str] = mapped_column(CaseSensitiveString(256), unique=True)
     address: Mapped[str] = mapped_column(String(256), unique=False, nullable=False)
     port: Mapped[int] = mapped_column(unique=False, nullable=False)
@@ -748,6 +755,7 @@ class NodeUsageResetLogs(Base, CreatedAtUTCMixin):
 
 class NotificationReminder(Base, CreatedAtUTCMixin):
     __tablename__ = "notification_reminders"
+    __table_args__ = (Index("idx_notification_reminders_user_id", "user_id"),)
     user_id: Mapped[int] = fk_id_column("users.id", ondelete="CASCADE")
     user: Mapped["User"] = relationship(back_populates="notification_reminders", init=False)
     type: Mapped[ReminderType] = mapped_column(SQLEnum(ReminderType))
