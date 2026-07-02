@@ -2270,6 +2270,7 @@
       "balancers": "Balancers",
       "dns": "DNS",
       "bindings": "Bindings",
+      "api": "API",
       "advanced": "Advanced",
       "interface": "Interface"
     },
@@ -2281,7 +2282,12 @@
       "routing": "Traffic rules and routing",
       "balancers": "Outbound load balancing setup",
       "dns": "DNS resolver and server config",
-      "bindings": "Inbound tag fallbacks and exclusions"
+      "bindings": "Inbound tag fallbacks and exclusions",
+      "api": "Xray gRPC API services"
+    },
+    "api": {
+      "title": "API Services",
+      "hint": "gRPC API services exposed by this core. The node always enables the required services; enable optional ones as needed."
     },
     "wg": {
       "interfaceBlurb": "WireGuard interface settings and key material for this core.",

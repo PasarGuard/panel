@@ -2228,6 +2228,7 @@
       "balancers": "负载均衡",
       "dns": "DNS",
       "bindings": "绑定",
+      "api": "API",
       "advanced": "高级",
       "interface": "接口"
     },
@@ -2239,7 +2240,12 @@
       "routing": "路由规则与流量策略",
       "balancers": "负载均衡与调度策略",
       "dns": "DNS 解析与解析器",
-      "bindings": "入站标签回退与排除"
+      "bindings": "入站标签回退与排除",
+      "api": "Xray gRPC API 服务"
+    },
+    "api": {
+      "title": "API 服务",
+      "hint": "此核心提供的 gRPC API 服务。节点始终启用必需的服务；可按需启用可选服务。"
     },
     "wg": {
       "interfaceBlurb": "此核心的 WireGuard 接口与密钥设置。",
