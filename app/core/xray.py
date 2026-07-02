@@ -412,6 +412,15 @@ class XRayConfig(dict):
             self._read_inbound(inbound)
         self._protocols = _protocols_from_inbounds_by_tag(self._inbounds_by_tag)
 
+    @staticmethod
+    def _validate_hysteria_tls(protocol, stream, tag):
+        if protocol != "hysteria":
+            return
+        if not isinstance(stream, dict) or not stream:
+            raise ValueError(f"{tag} hysteria inbound requires TLS")
+        if stream.get("security") != "tls" or not isinstance(stream.get("tlsSettings"), dict):
+            raise ValueError(f"{tag} hysteria inbound requires TLS")
+
     def _read_inbound(self, inbound: dict):
         """Read an inbound and its settings."""
         if inbound["protocol"] not in ("vmess", "vless", "trojan", "shadowsocks", "hysteria"):
@@ -439,7 +448,10 @@ class XRayConfig(dict):
         if inbound["protocol"] == "shadowsocks":
             self._handle_shadowsocks_settings(inbound["settings"], settings)
 
-        if stream := inbound.get("streamSettings"):
+        stream = inbound.get("streamSettings")
+        self._validate_hysteria_tls(inbound["protocol"], stream, inbound["tag"])
+
+        if stream:
             net = stream.get("network", "tcp")
             net_settings = stream.get(f"{net}Settings", {})
             security = stream.get("security")
