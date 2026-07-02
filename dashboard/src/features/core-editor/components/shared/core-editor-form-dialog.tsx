@@ -1,11 +1,12 @@
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { filterValidationListItemsByPathPrefix, ValidationSummary } from '@/features/core-editor/components/shared/validation-summary'
 import { useXrayPersistValidationItems } from '@/features/core-editor/hooks/use-xray-persist-validation-items'
 import { cn } from '@/lib/utils'
 import useDirDetection from '@/hooks/use-dir-detection'
 import type { ReactNode } from 'react'
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 export interface CoreEditorFormDialogProps {
@@ -24,7 +25,6 @@ export interface CoreEditorFormDialogProps {
   size?: 'md' | 'lg' | 'xl'
   /** Primary action before Cancel (e.g. Add / Save), same order as `LoaderButton` in `HostModal`. */
   footerExtra?: ReactNode
-  cancelLabel?: ReactNode
   className?: string
   /**
    * When the dialog is open, show global Xray persist/strict validation (same as the editor footer).
@@ -37,6 +37,14 @@ export interface CoreEditorFormDialogProps {
    * JSON pointers (first inbound is `/inbounds/1`).
    */
   persistValidationPathPrefix?: string
+  /** Optional initial snapshot for draft vs current comparison when cancelling. */
+  initialData?: unknown
+  /** Function that returns the current dialog data to compare against `initialData`. */
+  getCurrentData?: () => unknown
+  /** Optional overrides for discard dialog texts. */
+  discardTitle?: ReactNode
+  discardDescription?: ReactNode
+  discardActionLabel?: ReactNode
 }
 
 const sizeClass: Record<NonNullable<CoreEditorFormDialogProps['size']>, string> = {
@@ -55,18 +63,45 @@ export function CoreEditorFormDialog({
   children,
   size = 'lg',
   footerExtra,
-  cancelLabel,
   className,
   inlinePersistValidation = true,
   persistValidationPathPrefix,
+  initialData,
+  getCurrentData,
+  discardTitle,
+  discardDescription,
+  discardActionLabel,
 }: CoreEditorFormDialogProps) {
   const { t } = useTranslation()
   const dir = useDirDetection()
+  const [discardOpen, setDiscardOpen] = useState(false)
   const allPersistValidationItems = useXrayPersistValidationItems()
   const persistValidationItems = useMemo(() => filterValidationListItemsByPathPrefix(allPersistValidationItems, persistValidationPathPrefix), [allPersistValidationItems, persistValidationPathPrefix])
 
+  const handleDialogOpenChange = (open: boolean) => {
+    if (open) {
+      onOpenChange(true)
+      return
+    }
+    // Attempting to close: if no comparison provided, immediately close.
+    if (initialData === undefined || !getCurrentData) {
+      onOpenChange(false)
+      return
+    }
+    try {
+      const cur = getCurrentData()
+      if (initialData !== null && JSON.stringify(cur) !== JSON.stringify(initialData)) {
+        setDiscardOpen(true)
+        return
+      }
+    } catch {
+      // fall through to immediate close
+    }
+    onOpenChange(false)
+  }
+
   return (
-    <Dialog open={isDialogOpen} onOpenChange={onOpenChange}>
+    <Dialog open={isDialogOpen} onOpenChange={handleDialogOpenChange}>
       <DialogContent dir={dir} onOpenAutoFocus={e => e.preventDefault()} className={cn('h-auto w-full gap-4', sizeClass[size], className)}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -82,12 +117,37 @@ export function CoreEditorFormDialog({
         </div>
 
         <div className="flex justify-end gap-2">
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-            {cancelLabel ?? t('cancel')}
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => handleDialogOpenChange(false)}
+          >
+            {t('cancel')}
           </Button>
           {footerExtra}
         </div>
       </DialogContent>
+      <AlertDialog open={discardOpen} onOpenChange={setDiscardOpen}>
+        <AlertDialogContent dir={dir}>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{discardTitle ?? t('discardTitle', { defaultValue: 'Discard changes?' })}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {discardDescription ?? t('discardDesc', { defaultValue: 'You have unsaved edits. Leave without saving?' })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setDiscardOpen(false)}>{t('cancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setDiscardOpen(false)
+                onOpenChange(false)
+              }}
+            >
+              {discardActionLabel ?? t('discard', { defaultValue: 'Discard' })}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   )
 }

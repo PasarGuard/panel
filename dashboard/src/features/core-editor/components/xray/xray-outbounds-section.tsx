@@ -1,4 +1,4 @@
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
+import { AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { Button } from '@/components/ui/button'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
@@ -518,10 +518,7 @@ export function XrayOutboundsSection({ headerAddPulse, headerAddEpoch }: XrayOut
   const [detailOpen, setDetailOpen] = useState(false)
   const [dialogMode, setDialogMode] = useState<DialogMode>('edit')
   const [draftOutbound, setDraftOutbound] = useState<Outbound | null>(null)
-  const [initialDraftOutbound, setInitialDraftOutbound] = useState<Outbound | null>(null)
   const [editOriginalOutbound, setEditOriginalOutbound] = useState<Outbound | null>(null)
-  const [discardDraftOpen, setDiscardDraftOpen] = useState(false)
-  const [discardEditOpen, setDiscardEditOpen] = useState(false)
   const [blockAddWhileDraftOpen, setBlockAddWhileDraftOpen] = useState(false)
   const [outboundDialogTab, setOutboundDialogTab] = useState<OutboundDialogTab>('form')
   const [outboundJsonText, setOutboundJsonText] = useState('')
@@ -564,6 +561,8 @@ export function XrayOutboundsSection({ headerAddPulse, headerAddEpoch }: XrayOut
 
   const profileRef = useRef(profile)
   profileRef.current = profile
+  const initialDraftRef = useRef<Outbound | null>(null)
+  const initialCapturedRef = useRef(false)
 
   // ─── Settings field order (booleans last) ──────────────────────────────────
 
@@ -629,13 +628,14 @@ export function XrayOutboundsSection({ headerAddPulse, headerAddEpoch }: XrayOut
       return
     }
     const created = stripSparseOutboundEnvelope(createDefaultOutbound({ protocol: 'vless', tag: '' }) as Record<string, unknown>) as Outbound
+    initialDraftRef.current = created
     setDraftOutbound(created)
-    setInitialDraftOutbound(sanitizeOutboundForState(created))
     setDialogMode('add')
     setOutboundDialogTab('form')
     setUriDraft('')
     setOutboundJsonText('')
     setDetailOpen(true)
+    initialCapturedRef.current = false
   }, [profile, detailOpen, dialogMode, draftOutbound])
 
   useSectionHeaderAddPulseEffect(headerAddPulse, headerAddEpoch, 'outbounds', beginAddOutbound)
@@ -651,12 +651,10 @@ export function XrayOutboundsSection({ headerAddPulse, headerAddEpoch }: XrayOut
     setDetailOpen(false)
     setDialogMode('edit')
     setDraftOutbound(null)
-    setInitialDraftOutbound(null)
     setEditOriginalOutbound(null)
+    initialCapturedRef.current = false
   }
 
-  const hasUnsavedDraftChanges = dialogMode === 'add' && draftOutbound !== null && initialDraftOutbound !== null && JSON.stringify(sanitizeOutboundForState(draftOutbound)) !== JSON.stringify(initialDraftOutbound)
-  const hasUnsavedEditChanges = dialogMode === 'edit' && ob && ob.protocol !== 'unmanaged' && editOriginalOutbound && JSON.stringify(ob) !== JSON.stringify(editOriginalOutbound)
 
   const patchOutbound = (next: Outbound) => {
     const sanitized = sanitizeOutboundForState(next)
@@ -701,21 +699,6 @@ export function XrayOutboundsSection({ headerAddPulse, headerAddEpoch }: XrayOut
       setUriDraft('')
       setOutboundJsonText('')
       setDetailOpen(true)
-      return
-    }
-    if (ob && ob.protocol !== 'unmanaged' && outboundDialogTab === 'json') {
-      try {
-        patchOutbound(mergeEditorBodyIntoOutbound(ob, JSON.parse(outboundJsonText) as Record<string, unknown>))
-      } catch {
-        /* allow close; unsaved JSON may be lost */
-      }
-    }
-    if (dialogMode === 'add' && draftOutbound !== null && hasUnsavedDraftChanges) {
-      setDiscardDraftOpen(true)
-      return
-    }
-    if (hasUnsavedEditChanges) {
-      setDiscardEditOpen(true)
       return
     }
     finalizeDetailClose()
@@ -863,7 +846,6 @@ export function XrayOutboundsSection({ headerAddPulse, headerAddEpoch }: XrayOut
             return
           }
           setDraftOutbound(null)
-          setInitialDraftOutbound(null)
           setDialogMode('edit')
           setEditOriginalOutbound(cloneOutbound(outbounds[rowIndex]))
           setSelected(rowIndex)
@@ -909,10 +891,18 @@ export function XrayOutboundsSection({ headerAddPulse, headerAddEpoch }: XrayOut
       <CoreEditorFormDialog
         isDialogOpen={detailOpen}
         onOpenChange={handleDetailOpenChange}
+        initialData={
+          dialogMode === 'add'
+            ? { outbound: initialDraftRef.current, uriDraft: '', tab: 'form', json: '' }
+            : { outbound: editOriginalOutbound ?? ob, uriDraft: '', tab: outboundDialogTab, json: outboundJsonText }
+        }
+        getCurrentData={() => ({ outbound: dialogMode === 'add' ? draftOutbound : ob, uriDraft, tab: outboundDialogTab, json: outboundJsonText })}
+        discardTitle={dialogMode === 'add' ? t('coreEditor.outbound.discardDraftTitle', { defaultValue: 'Discard new outbound?' }) : t('coreEditor.outbound.discardEditTitle', { defaultValue: 'Discard changes?' })}
+        discardDescription={dialogMode === 'add' ? t('coreEditor.outbound.discardDraftDescription', { defaultValue: 'This outbound is not in the list yet. Closing without adding will discard your changes.' }) : t('coreEditor.outbound.discardEditDescription', { defaultValue: 'Your modifications to this outbound will be lost if you close now.' })}
+        discardActionLabel={t('coreEditor.outbound.discardDraftAction', { defaultValue: 'Discard' })}
         leadingIcon={dialogMode === 'add' ? <Plus className="h-5 w-5 shrink-0" /> : <Pencil className="h-5 w-5 shrink-0" />}
         title={dialogMode === 'add' ? t('coreEditor.outbound.dialogTitleAdd', { defaultValue: 'Add outbound' }) : t('coreEditor.outbound.dialogTitleEdit', { defaultValue: 'Edit outbound' })}
         size="md"
-        cancelLabel={hasUnsavedDraftChanges || hasUnsavedEditChanges ? t('coreEditor.discard', { defaultValue: 'Discard' }) : undefined}
         footerExtra={
           dialogMode === 'add' && draftOutbound ? (
             <Button type="button" className="sm:min-w-[88px]" onClick={commitAddOutbound}>
@@ -1150,59 +1140,7 @@ export function XrayOutboundsSection({ headerAddPulse, headerAddEpoch }: XrayOut
         )}
       </CoreEditorFormDialog>
 
-      {/* ── Discard draft ──────────────────────────────────────────────── */}
-      <AlertDialog open={discardDraftOpen} onOpenChange={setDiscardDraftOpen}>
-        <AlertDialogContent dir={dir}>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t('coreEditor.outbound.discardDraftTitle', { defaultValue: 'Discard new outbound?' })}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {t('coreEditor.outbound.discardDraftDescription', {
-                defaultValue: 'This outbound is not in the list yet. Closing without adding will discard your changes.',
-              })}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                setDiscardDraftOpen(false)
-                finalizeDetailClose()
-              }}
-            >
-              {t('coreEditor.outbound.discardDraftAction', { defaultValue: 'Discard' })}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* ── Discard unsaved edits ──────────────────────────────────────── */}
-      <AlertDialog open={discardEditOpen} onOpenChange={setDiscardEditOpen}>
-        <AlertDialogContent dir={dir}>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t('coreEditor.outbound.discardEditTitle', { defaultValue: 'Discard changes?' })}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {t('coreEditor.outbound.discardEditDescription', {
-                defaultValue: 'Your modifications to this outbound will be lost if you close now.',
-              })}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                if (dialogMode === 'edit' && editOriginalOutbound) {
-                  updateXrayProfile(p => replaceOutbound(p, selected, editOriginalOutbound))
-                }
-                setDiscardEditOpen(false)
-                finalizeDetailClose()
-              }}
-            >
-              {t('coreEditor.outbound.discardDraftAction', { defaultValue: 'Discard' })}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
+      
       {/* ── Block while draft open ─────────────────────────────────────── */}
       <AlertDialog open={blockAddWhileDraftOpen} onOpenChange={setBlockAddWhileDraftOpen}>
         <AlertDialogContent dir={dir}>
