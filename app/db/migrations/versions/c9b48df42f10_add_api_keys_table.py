@@ -20,10 +20,18 @@ depends_on = None
 
 
 def upgrade() -> None:
+    # Match the actual type of admins.id (may be INT or BIGINT depending on
+    # whether the bigint migration has run on this database).
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    admins_id_type = inspector.get_columns("admins")[0]["type"]
+    is_bigint = "BIGINT" in str(admins_id_type).upper()
+    col_type = app.db.compiles_types.SqliteCompatibleBigInteger() if is_bigint else sa.Integer()
+
     op.create_table(
         "api_keys",
-        sa.Column("id", app.db.compiles_types.SqliteCompatibleBigInteger(), autoincrement=True, nullable=False),
-        sa.Column("admin_id", app.db.compiles_types.SqliteCompatibleBigInteger(), nullable=False),
+        sa.Column("id", col_type, autoincrement=True, nullable=False),
+        sa.Column("admin_id", col_type, nullable=False),
         sa.Column("name", sa.String(length=128), nullable=False),
         sa.Column("note", sa.String(length=512), nullable=True),
         sa.Column("key_hash", sa.String(length=128), nullable=False),
