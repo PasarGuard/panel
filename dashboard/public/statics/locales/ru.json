@@ -1436,6 +1436,8 @@
       "sessionIdTablePlaceholder": "напр. Base62, HEX или свой набор символов",
       "sessionIdLength": "Длина Session ID",
       "sessionIdLengthPlaceholder": "напр. 8 или 8-16",
+      "customValue": "Своё значение",
+      "sessionIdTableCustomPlaceholder": "Введите свой набор символов (ASCII)",
       "seqPlacement": "Seq Placement",
       "seqKey": "Seq Key",
       "uplinkDataPlacement": "Uplink Data Placement",

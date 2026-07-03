@@ -1076,6 +1076,8 @@
       "sessionIdTablePlaceholder": "مثلاً Base62، HEX یا کاراکترهای دلخواه",
       "sessionIdLength": "طول Session ID",
       "sessionIdLengthPlaceholder": "مثلاً ۸ یا ۸-۱۶",
+      "customValue": "سفارشی",
+      "sessionIdTableCustomPlaceholder": "کاراکترهای دلخواه را وارد کنید (ASCII)",
       "seqPlacement": "Seq Placement",
       "seqKey": "Seq Key",
       "uplinkDataPlacement": "Uplink Data Placement",

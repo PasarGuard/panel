@@ -10,7 +10,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { CustomVariablesPopover, VariablesList, VariablesPopover } from '@/components/ui/variables-popover'
+import { VariablesList, VariablesPopover } from '@/components/ui/variables-popover'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
@@ -23,6 +23,73 @@ import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { hostFormDefaultValues, type HostFormValues } from '@/features/hosts/forms/host-form'
 import { LoaderButton } from '@/components/ui/loader-button'
+
+// Predefined sessionIDTable aliases recognized by Xray 26.6.22+.
+const SESSION_ID_TABLE_PRESETS = ['ALPHABET', 'Alphabet', 'BASE36', 'Base62', 'HEX', 'alphabet', 'base36', 'hex', 'number']
+
+// Select with predefined tables + a "Custom" option that reveals a free-text input.
+function SessionIdTableField({ control, t }: { control: any; t: (key: string, opts?: any) => string }) {
+  const [customMode, setCustomMode] = useState(false)
+  return (
+    <FormField
+      control={control}
+      name="transport_settings.xhttp_settings.session_id_table"
+      render={({ field }) => {
+        const value: string = field.value ?? ''
+        const isPreset = SESSION_ID_TABLE_PRESETS.includes(value)
+        const showCustom = customMode || (value !== '' && !isPreset)
+        const selectValue = showCustom ? '__custom' : value === '' ? '__default' : value
+        return (
+          <FormItem>
+            <FormLabel>{t('hostsDialog.xhttp.sessionIdTable', { defaultValue: 'Session ID Table' })}</FormLabel>
+            <Select
+              value={selectValue}
+              onValueChange={v => {
+                if (v === '__default') {
+                  setCustomMode(false)
+                  field.onChange(undefined)
+                } else if (v === '__custom') {
+                  setCustomMode(true)
+                  field.onChange('')
+                } else {
+                  setCustomMode(false)
+                  field.onChange(v)
+                }
+              }}
+            >
+              <FormControl>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+              </FormControl>
+              <SelectContent>
+                <SelectItem value="__default">{t('hostsDialog.xhttp.defaultMode', { defaultValue: 'Use default' })}</SelectItem>
+                {SESSION_ID_TABLE_PRESETS.map(preset => (
+                  <SelectItem key={preset} value={preset}>
+                    {preset}
+                  </SelectItem>
+                ))}
+                <SelectItem value="__custom">{t('hostsDialog.xhttp.customValue', { defaultValue: 'Custom' })}</SelectItem>
+              </SelectContent>
+            </Select>
+            {showCustom && (
+              <FormControl>
+                <Input
+                  className="mt-2"
+                  dir="ltr"
+                  value={value}
+                  onChange={e => field.onChange(e.target.value)}
+                  placeholder={t('hostsDialog.xhttp.sessionIdTableCustomPlaceholder', { defaultValue: 'Enter custom characters (ASCII)' })}
+                />
+              </FormControl>
+            )}
+            <FormMessage />
+          </FormItem>
+        )
+      }}
+    />
+  )
+}
 
 interface HostModalProps {
   isDialogOpen: boolean
@@ -190,10 +257,9 @@ interface ArrayInputProps {
   placeholder: string
   label: string
   infoContent?: React.ReactNode
-  customVariablesTrigger?: React.ReactNode
 }
 
-const ArrayInput = memo<ArrayInputProps>(({ field, placeholder, label, infoContent, customVariablesTrigger }) => {
+const ArrayInput = memo<ArrayInputProps>(({ field, placeholder, label, infoContent }) => {
   const { t } = useTranslation()
   const dir = useDirDetection()
   const isMobile = useIsMobile()
@@ -217,7 +283,6 @@ const ArrayInput = memo<ArrayInputProps>(({ field, placeholder, label, infoConte
             </PopoverContent>
           </Popover>
         )}
-        {customVariablesTrigger}
       </div>
       <StringArrayPopoverInput
         value={Array.isArray(field.value) ? field.value : []}
@@ -984,7 +1049,6 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                     <div className="flex items-center gap-2">
                       <FormLabel>{t('remark')}</FormLabel>
                       <VariablesPopover includeProtocolTransport />
-                      <CustomVariablesPopover />
                     </div>
                     <FormControl>
                       <Input placeholder="Remark (e.g. PasarGuard-Host)" isError={!!form.formState.errors.remark} {...field} />
@@ -1002,7 +1066,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                     render={({ field }) => {
                       const infoContent = <VariablesList includeProtocolTransport />
 
-                      return <ArrayInput field={field} placeholder="example.com" label={t('hostsDialog.address')} infoContent={infoContent} customVariablesTrigger={<CustomVariablesPopover />} />
+                      return <ArrayInput field={field} placeholder="example.com" label={t('hostsDialog.address')} infoContent={infoContent} />
                     }}
                   />
                 </div>
@@ -1180,7 +1244,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                 </div>
                               )
 
-                              return <ArrayInput field={field} placeholder="example.com" label={t('hostsDialog.host')} infoContent={infoContent} customVariablesTrigger={<CustomVariablesPopover />} />
+                              return <ArrayInput field={field} placeholder="example.com" label={t('hostsDialog.host')} infoContent={infoContent} />
                             }}
                           />
                           <FormField
@@ -1200,7 +1264,6 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                       <p className="text-muted-foreground text-[11px]">{t('hostsDialog.path.info')}</p>
                                     </PopoverContent>
                                   </Popover>
-                                  <CustomVariablesPopover />
                                 </div>
                                 <FormControl>
                                   <Input placeholder="Path (e.g. /xray)" {...field} />
@@ -1977,6 +2040,22 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                   )}
                                 />
 
+                                <SessionIdTableField control={form.control} t={t} />
+
+                                <FormField
+                                  control={form.control}
+                                  name="transport_settings.xhttp_settings.session_id_length"
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel>{t('hostsDialog.xhttp.sessionIdLength', { defaultValue: 'Session ID Length' })}</FormLabel>
+                                      <FormControl>
+                                        <Input {...field} value={field.value ?? ''} placeholder={t('hostsDialog.xhttp.sessionIdLengthPlaceholder', { defaultValue: 'e.g. 8 or 8-16' })} />
+                                      </FormControl>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+
                                 <FormField
                                   control={form.control}
                                   name="transport_settings.xhttp_settings.seq_placement"
@@ -2445,32 +2524,29 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                   <div className="space-y-2">
                                     <div className="flex items-center justify-between">
                                       <h4 className="text-sm font-medium">{t('hostsDialog.tcp.requestHeaders')}</h4>
-                                      <div className="flex items-center gap-2">
-                                        <CustomVariablesPopover />
-                                        <Button
-                                          type="button"
-                                          variant="outline"
-                                          size="icon"
-                                          className="h-6 w-6"
-                                          onClick={() => {
-                                            const currentHeaders = form.getValues('transport_settings.tcp_settings.request.headers') || {}
-                                            const newKey = `header_${Object.keys(currentHeaders).length}`
-                                            form.setValue(
-                                              'transport_settings.tcp_settings.request.headers',
-                                              {
-                                                ...currentHeaders,
-                                                [newKey]: [''],
-                                              },
-                                              {
-                                                shouldDirty: true,
-                                                shouldTouch: true,
-                                              },
-                                            )
-                                          }}
-                                        >
-                                          <Plus className="h-4 w-4" />
-                                        </Button>
-                                      </div>
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="icon"
+                                        className="h-6 w-6"
+                                        onClick={() => {
+                                          const currentHeaders = form.getValues('transport_settings.tcp_settings.request.headers') || {}
+                                          const newKey = `header_${Object.keys(currentHeaders).length}`
+                                          form.setValue(
+                                            'transport_settings.tcp_settings.request.headers',
+                                            {
+                                              ...currentHeaders,
+                                              [newKey]: [''],
+                                            },
+                                            {
+                                              shouldDirty: true,
+                                              shouldTouch: true,
+                                            },
+                                          )
+                                        }}
+                                      >
+                                        <Plus className="h-4 w-4" />
+                                      </Button>
                                     </div>
 
                                     {/* Render request headers */}
@@ -2670,32 +2746,29 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                   <div className="space-y-2">
                                     <div className="flex items-center justify-between">
                                       <h4 className="text-sm font-medium">{t('hostsDialog.tcp.responseHeaders')}</h4>
-                                      <div className="flex items-center gap-2">
-                                        <CustomVariablesPopover />
-                                        <Button
-                                          type="button"
-                                          variant="outline"
-                                          size="icon"
-                                          className="h-6 w-6"
-                                          onClick={() => {
-                                            const currentHeaders = form.getValues('transport_settings.tcp_settings.response.headers') || {}
-                                            const newKey = `header_${Object.keys(currentHeaders).length}`
-                                            form.setValue(
-                                              'transport_settings.tcp_settings.response.headers',
-                                              {
-                                                ...currentHeaders,
-                                                [newKey]: [''],
-                                              },
-                                              {
-                                                shouldDirty: true,
-                                                shouldTouch: true,
-                                              },
-                                            )
-                                          }}
-                                        >
-                                          <Plus className="h-4 w-4" />
-                                        </Button>
-                                      </div>
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="icon"
+                                        className="h-6 w-6"
+                                        onClick={() => {
+                                          const currentHeaders = form.getValues('transport_settings.tcp_settings.response.headers') || {}
+                                          const newKey = `header_${Object.keys(currentHeaders).length}`
+                                          form.setValue(
+                                            'transport_settings.tcp_settings.response.headers',
+                                            {
+                                              ...currentHeaders,
+                                              [newKey]: [''],
+                                            },
+                                            {
+                                              shouldDirty: true,
+                                              shouldTouch: true,
+                                            },
+                                          )
+                                        }}
+                                      >
+                                        <Plus className="h-4 w-4" />
+                                      </Button>
                                     </div>
 
                                     {/* Render response headers */}

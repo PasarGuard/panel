@@ -1224,6 +1224,8 @@
       "sessionIdTablePlaceholder": "e.g. Base62, HEX, or custom characters",
       "sessionIdLength": "Session ID Length",
       "sessionIdLengthPlaceholder": "e.g. 8 or 8-16",
+      "customValue": "Custom",
+      "sessionIdTableCustomPlaceholder": "Enter custom characters (ASCII)",
       "seqPlacement": "Seq Placement",
       "seqKey": "Seq Key",
       "uplinkDataPlacement": "Uplink Data Placement",
