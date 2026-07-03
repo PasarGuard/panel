@@ -8,15 +8,16 @@ export function useXrayPersistValidationItems(): ValidationListItem[] {
   const hydrated = useCoreEditorStore(s => s.hydrated)
   const kind = useCoreEditorStore(s => s.kind)
   const profile = useCoreEditorStore(s => s.xrayProfile)
+  const coreXrayVersion = useCoreEditorStore(s => s.coreXrayVersion)
 
   return useMemo(() => {
     if (!hydrated || kind !== 'xray' || !profile) return []
-    const r = validateProfileForPersist(profile)
+    const r = validateProfileForPersist(profile, coreXrayVersion)
     if (r.ok) return []
     const items: ValidationListItem[] = r.strictBlockers.map(issue => ({ source: 'xray' as const, issue }))
     for (const issue of r.coreKitIssues) {
       items.push({ source: 'core-kit' as const, issue })
     }
     return items
-  }, [hydrated, kind, profile])
+  }, [hydrated, kind, profile, coreXrayVersion])
 }

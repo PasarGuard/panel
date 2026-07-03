@@ -37,7 +37,7 @@ function currentConfigString(s: CoreEditorStoreState): string {
   }
   if (s.kind === 'xray' && s.xrayProfile) {
     const profile = s.xrayProfile
-    return safeConfigString('xray_current_config', () => profileToPersistedConfig(profile))
+    return safeConfigString('xray_current_config', () => profileToPersistedConfig(profile, s.coreXrayVersion))
   }
   return ''
 }
@@ -49,7 +49,7 @@ function baselineConfigString(s: CoreEditorStoreState): string {
   }
   if (s.kind === 'xray' && s.xrayBaseline) {
     const profile = s.xrayBaseline
-    return safeConfigString('xray_baseline_config', () => profileToPersistedConfig(profile))
+    return safeConfigString('xray_baseline_config', () => profileToPersistedConfig(profile, s.coreXrayVersion))
   }
   return ''
 }

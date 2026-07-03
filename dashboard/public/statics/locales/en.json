@@ -180,6 +180,7 @@
         "usageLimitWarning": "Usage Limit Warning",
         "modifyHosts": "Modify Hosts",
         "connect": "Connect",
+        "recovered": "Recovered",
         "error": "Error",
         "limited": "Limited",
         "statusChange": "Status Change",
@@ -258,6 +259,14 @@
         "headerName": "Header name",
         "headerValue": "Header value",
         "noHeaders": "No response headers configured. Add headers to include custom HTTP headers in subscription responses."
+      },
+      "customVariables": {
+        "title": "Custom Variables",
+        "description": "Create reusable placeholders for subscription and host output.",
+        "addVariable": "Add Variable",
+        "empty": "No custom variables configured.",
+        "duplicateKey": "Duplicate custom variable key.",
+        "builtinConflict": "This key is reserved for a built-in variable."
       },
       "rules": {
         "title": "Subscription Rules",
@@ -702,6 +711,14 @@
     "subDomain": "Subscription Domain",
     "profile": "Profile Title",
     "subTemplate": "Subscription Template Path",
+    "customVariables": {
+      "title": "Custom Variables",
+      "description": "Override global custom variables for users owned by this admin.",
+      "addVariable": "Add Variable",
+      "empty": "No custom variables configured.",
+      "duplicateKey": "Duplicate custom variable key.",
+      "builtinConflict": "This key is reserved for a built-in variable."
+    },
     "passwordConfirm": "Confirm Password",
     "enterPasswordConfirm": "Enter Confirm Password",
     "disableSuccess": "Admin «{{name}}» has been disabled successfully",
@@ -727,7 +744,54 @@
     "monitor": {
       "traffic": "Monitor admin traffic usage over time",
       "no_traffic": "No traffic data available"
-    }
+    },
+    "disabled": "Disabled"
+  },
+  "apiKeys": {
+    "title": "API Keys",
+    "description": "Manage API keys for programmatic access",
+    "createKey": "Create API Key",
+    "editKey": "Modify API Key",
+    "admin": "Admin",
+    "selectAdmin": "Select admin",
+    "adminDescription": "The key will authenticate as this admin.",
+    "name": "Name",
+    "key": "API Key",
+    "keyId": "Key ID",
+    "note": "Note",
+    "role": "Role",
+    "status": "Status",
+    "expireDate": "Expire Date",
+    "createdAt": "Created At",
+    "revokedAt": "Revoked At",
+    "revoke": "Revoke",
+    "delete": "Delete",
+    "apiKey": "API Key",
+    "apiKeyCopy": "Copy API Key",
+    "apiKeyCopySuccess": "API key copied to clipboard",
+    "apiKeyShowWarning": "This key will only be shown once. Please copy it now.",
+    "createSuccess": "API key created successfully",
+    "createFailed": "Failed to create API key",
+    "updateSuccess": "API key updated successfully",
+    "updateFailed": "Failed to update API key",
+    "revokeSuccess": "API key revoked and reissued successfully",
+    "revokeFailed": "Failed to revoke API key",
+    "deleteSuccess": "API key deleted successfully",
+    "deleteFailed": "Failed to delete API key",
+    "deletePrompt": "Are you sure you want to delete API key \"{{name}}\"?",
+    "revokePrompt": "Revoking will invalidate the current key and issue a new one. Are you sure?",
+    "revokeTitle": "Revoke & Reissue API Key",
+    "deleteTitle": "Delete API Key",
+    "inheritPermissions": "Inherit admin permissions",
+    "inheritPermissionsDescription": "Use the owning admin's current role permissions. Disable to store custom permissions on this key.",
+    "inherited": "Inherited",
+    "noKeys": "No API keys configured",
+    "noKeysDescription": "Create an API key to allow programmatic access.",
+    "noSearchResults": "No API keys match your search criteria. Try adjusting your search terms or filters.",
+    "bulkDeleteSuccess": "{{count}} API keys deleted successfully.",
+    "bulkDeleteFailed": "Failed to delete selected API keys.",
+    "bulkDeleteTitle": "Delete selected API keys",
+    "bulkDeletePrompt": "Are you sure you want to delete {{count}} selected API keys? This action cannot be undone."
   },
   "adminRoles": {
     "title": "Admin Roles",
@@ -748,7 +812,7 @@
     "limits": "Limits",
     "limitsAndFeatures": "Limits & Features",
     "limitsHint": "Leave empty to inherit defaults. Set to 0 to disable.",
-    "roleFormHint": "Scoped user actions use none, own, or all. Other actions are boolean toggles.",
+    "roleFormHint": "Scoped actions use none, own, or all. Other actions are boolean toggles.",
     "scopedActionInfo": "Choose ownership scope: none denies access, own limits to the admin's own users, all grants full access.",
     "allowAll": "Allow all",
     "features": "Features",
@@ -794,6 +858,7 @@
       "users": "Users",
       "admins": "Admins",
       "roles": "Roles",
+      "apiKeys": "API Keys",
       "nodes": "Nodes",
       "coreHosts": "Core and hosts",
       "groupsTemplates": "Groups and templates",
@@ -849,6 +914,7 @@
       "users": "Users",
       "admins": "Admins",
       "admin_roles": "Roles",
+      "api_keys": "API Keys",
       "nodes": "Nodes",
       "cores": "Cores",
       "hosts": "Hosts",
@@ -859,6 +925,7 @@
       "system": "System",
       "hwids": "HWIDs"
     },
+    "noAvailablePermissions": "No permissions available.",
     "scopedBadge": "Scoped",
     "scopes": {
       "none": "None",
@@ -1126,7 +1193,9 @@
   "header.nodeSettings": "Node Settings",
   "header.nodesUsage": "Nodes Usage",
   "loading": "Loading...",
+  "clear": "Clear",
   "never": "Never",
+  "resources": "resources",
   "noResults": "No results found",
   "noAdminsFound": "No admins found",
   "emptyState": {
@@ -1374,6 +1443,13 @@
       "url": "Subscription URL",
       "format": "Matched subscription format (e.g. links, sing_box)",
       "admin_username": "Admin username"
+    },
+    "customVariables": {
+      "title": "Custom variables",
+      "trigger": "Custom variables",
+      "preview": "Preview",
+      "empty": "No custom variables configured.",
+      "emptyValue": "Empty value"
     },
     "advancedOptions": "Advanced Options",
     "hos.info": "By default, if a request host is set in the XRAY configuration, it will be used. However, if needed, you can set a custom request host here.",
@@ -1635,6 +1711,7 @@
     "dataLimit": "Data Limit",
     "hwidLimit": "HWID Limit",
     "hwidLimitPlaceholder": "Empty = default, 0 = unlimited",
+    "hwidLimitHint": "Empty = use default policy. 0 = unlimited and exempt from HWID, even when the HWID header is forced.",
     "days": "Days",
     "editUser": "Modify user",
     "editUserTitle": "Modify user",
@@ -2467,6 +2544,9 @@
       },
       "tlsCertificateServeOnNode": "Serve on node",
       "tlsCertificateServeOnNodeHint": "Certificate files are only used on the node; the server will not read them for SNI.",
+      "tls": {
+        "allowInsecureRemoved": "This node's Xray-core no longer builds configs with allowInsecure enabled — it will refuse to start."
+      },
       "tlsCertificates": {
         "sectionLabel": "Certificates",
         "emptyHint": "No certificates yet. Click + to add one.",
@@ -3319,6 +3399,7 @@
   "timeSelector.pickDate": "Pick a date",
   "advanceSearch": {
     "title": "Advanced Search",
+    "description": "Filter API keys by identifier and status.",
     "searchMode": "Search mode",
     "searchModeDescription": "Choose how the main search field should be interpreted.",
     "byUsername": "Username and Notes",

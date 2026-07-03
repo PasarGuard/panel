@@ -204,6 +204,7 @@ export function XrayRoutingSection({ headerAddPulse, headerAddEpoch }: XrayRouti
   const { t } = useTranslation()
   const dir = useDirDetection()
   const profile = useCoreEditorStore(s => s.xrayProfile)
+  const coreXrayVersion = useCoreEditorStore(s => s.coreXrayVersion)
   const updateXrayProfile = useCoreEditorStore(s => s.updateXrayProfile)
   const { assertNoPersistBlockingErrors } = useXrayPersistModifyGuard()
   const [selected, setSelected] = useState(0)
@@ -221,7 +222,7 @@ export function XrayRoutingSection({ headerAddPulse, headerAddEpoch }: XrayRouti
   }, [dialogMode, draftRule, rules, selected])
 
   const routingCaps = useMemo(() => {
-    const caps = getRoutingRuleFormCapabilities(profile ? { profile } : undefined)
+    const caps = getRoutingRuleFormCapabilities({ ...(profile ? { profile } : {}), xrayVersion: coreXrayVersion ?? undefined })
     const sorted = [...caps.fieldOrder].sort((a, b) => {
       const defA = caps.fieldDefinitions[a]
       const defB = caps.fieldDefinitions[b]
@@ -233,7 +234,7 @@ export function XrayRoutingSection({ headerAddPulse, headerAddEpoch }: XrayRouti
     })
     const fieldOrder = mergeCriticalRoutingKeys(sorted, caps.fieldDefinitions)
     return { ...caps, fieldOrder }
-  }, [profile])
+  }, [profile, coreXrayVersion])
 
   const profileTagOptions = useMemo<XrayProfileTagOptions>(
     () => ({
@@ -383,6 +384,7 @@ export function XrayRoutingSection({ headerAddPulse, headerAddEpoch }: XrayRouti
       outboundTags: routingCaps.outboundTags,
       balancerTags: routingCaps.balancerTags,
       t,
+      xrayVersion: coreXrayVersion,
     })
     if (routingRuleDialogHasBlockingErrors(issues)) {
       setRuleDialogIssues(issues)
@@ -409,6 +411,7 @@ export function XrayRoutingSection({ headerAddPulse, headerAddEpoch }: XrayRouti
       outboundTags: routingCaps.outboundTags,
       balancerTags: routingCaps.balancerTags,
       t,
+      xrayVersion: coreXrayVersion,
     })
     if (routingRuleDialogHasBlockingErrors(issues)) {
       setRuleDialogIssues(issues)
