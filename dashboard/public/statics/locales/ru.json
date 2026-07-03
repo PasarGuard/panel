@@ -1956,7 +1956,9 @@
     "loadingReleases": "Загрузка релизов...",
     "breakingChangeTitle": "Ломающие изменения в Xray 26.6.22+",
     "breakingChangeWarning": "Начиная с Xray 26.6.22, параметры xhttp «sessionPlacement» и «sessionKey» переименованы в «sessionIDPlacement» и «sessionIDKey». Серверные конфиги мигрируют автоматически при установке новой версии. Однако пользователи, у которых в подписках с xhttp-инбаундами остались sessionPlacement/sessionKey, не смогут подключиться к серверу после обновления, пока не переимпортируют подписку. Продолжить?",
-    "breakingChangeConfirm": "Понимаю, всё равно обновить"
+    "breakingChangeConfirm": "Понимаю, всё равно обновить",
+    "prereleaseWarningTitle": "Выбрана pre-release версия",
+    "prereleaseWarningMessage": "Эта версия ещё не стала стабильным релизом. Некоторые параметры могут измениться или начать работать иначе, когда она станет стабильной — не используйте её на боевых нодах, если не понимаете риски."
   },
   "theme": {
     "title": "Тема",

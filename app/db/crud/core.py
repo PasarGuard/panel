@@ -21,53 +21,6 @@ def _build_core_simple_sort_clause(sort_option: CoreSimpleSortOption):
     return column.desc() if sort_option.value.startswith("-") else column.asc()
 
 
-def _migrate_xhttp_session_keys(config: dict) -> tuple[dict, bool]:
-    """Renames legacy xhttp `sessionPlacement`/`sessionKey` fields to `sessionIDPlacement`/
-    `sessionIDKey` in every inbound. Returns (possibly-new config, whether anything changed)."""
-    inbounds = config.get("inbounds")
-    if not isinstance(inbounds, list):
-        return config, False
-    changed = False
-    new_inbounds = []
-    for inbound in inbounds:
-        stream = inbound.get("streamSettings") if isinstance(inbound, dict) else None
-        xhttp = stream.get("xhttpSettings") if isinstance(stream, dict) else None
-        if not isinstance(xhttp, dict):
-            new_inbounds.append(inbound)
-            continue
-        new_xhttp = dict(xhttp)
-        inbound_changed = False
-        for old_key, new_key in (("sessionPlacement", "sessionIDPlacement"), ("sessionKey", "sessionIDKey")):
-            if old_key in new_xhttp and new_key not in new_xhttp:
-                new_xhttp[new_key] = new_xhttp.pop(old_key)
-                inbound_changed = True
-        if not inbound_changed:
-            new_inbounds.append(inbound)
-            continue
-        changed = True
-        new_inbounds.append({**inbound, "streamSettings": {**stream, "xhttpSettings": new_xhttp}})
-    if not changed:
-        return config, False
-    return {**config, "inbounds": new_inbounds}, True
-
-
-async def migrate_core_xhttp_session_keys_if_sole_node(db: AsyncSession, core_config_id: int) -> None:
-    """Called when a node just reported an Xray-core version that requires the sessionID*
-    rename. Only rewrites the stored core config when this is the only node using it —
-    a sibling node still on an older Xray-core would otherwise silently break."""
-    node_count = (await db.execute(select(func.count()).select_from(Node).where(Node.core_config_id == core_config_id))).scalar_one()
-    if node_count != 1:
-        return
-    db_core_config = await get_core_config_by_id(db, core_config_id)
-    if db_core_config is None:
-        return
-    new_config, changed = _migrate_xhttp_session_keys(db_core_config.config)
-    if not changed:
-        return
-    db_core_config.config = new_config
-    await db.commit()
-
-
 async def get_core_config_by_id(db: AsyncSession, core_id: int) -> CoreConfig | None:
     """
     Retrieves a core configuration by its ID.

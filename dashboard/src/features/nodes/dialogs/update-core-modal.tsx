@@ -39,6 +39,18 @@ function isBreakingUpgrade(current: string | null | undefined, target: string): 
   return !isAtLeast(current, SESSION_RENAME_VERSION) && isAtLeast(target, SESSION_RENAME_VERSION)
 }
 
+function isAboveLatestStable(target: string, latest: string | null): boolean {
+  if (!latest) return false
+  const t = parseVersion(target)
+  const l = parseVersion(latest)
+  if (!t || !l) return false
+  for (let i = 0; i < 3; i++) {
+    if (t[i] > l[i]) return true
+    if (t[i] < l[i]) return false
+  }
+  return false
+}
+
 interface UpdateCoreDialogProps {
   node: NodeResponse
   isOpen: boolean
@@ -61,6 +73,9 @@ export default function UpdateCoreDialog({ node, isOpen, onOpenChange }: UpdateC
   // Which concrete version would be sent (mirrors handleUpdate's resolution).
   const resolvedTargetVersion = versionMode === 'custom' ? customVersion.trim() : selectedVersion === 'latest' ? (latestVersion ?? '') : selectedVersion
   const isBreaking = isBreakingUpgrade(currentVersion, resolvedTargetVersion)
+  const isPrereleaseTarget = resolvedTargetVersion
+    ? (versions.find(r => r.version === resolvedTargetVersion.replace(/^v/, ''))?.isPrerelease ?? isAboveLatestStable(resolvedTargetVersion, latestVersion))
+    : false
 
   React.useEffect(() => {
     if (isOpen) {
@@ -308,6 +323,22 @@ export default function UpdateCoreDialog({ node, isOpen, onOpenChange }: UpdateC
               </div>
               <p dir={dir} className={cn('text-xs leading-relaxed', dir === 'rtl' && 'text-right')}>
                 {t('nodeModal.breakingChangeWarning')}
+              </p>
+            </div>
+          )}
+
+          {/* Pre-release warning — this version hasn't been promoted to a stable release yet */}
+          {isPrereleaseTarget && (
+            <div className="space-y-1.5 rounded-lg border border-blue-500/30 bg-blue-500/10 p-3 text-blue-700 dark:text-blue-300">
+              <div className={cn('flex items-center gap-2', dir === 'rtl' && 'flex-row-reverse')}>
+                <AlertTriangle className="h-4 w-4 shrink-0" />
+                <span className="text-sm font-semibold">{t('nodeModal.prereleaseWarningTitle', { defaultValue: 'Pre-release version selected' })}</span>
+              </div>
+              <p dir={dir} className={cn('text-xs leading-relaxed', dir === 'rtl' && 'text-right')}>
+                {t('nodeModal.prereleaseWarningMessage', {
+                  defaultValue:
+                    'This version has not been promoted to a stable release yet. Some parameters may change or behave differently once it reaches a stable release — avoid this on production nodes unless you understand the risk.',
+                })}
               </p>
             </div>
           )}

@@ -7,7 +7,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.functions import coalesce
 
 from app.db.compiles_types import DateDiff
-from app.db.crud.core import migrate_core_xhttp_session_keys_if_sole_node
 from app.db.models import (
     DataLimitResetStrategy,
     Node,
@@ -27,7 +26,6 @@ from app.models.node import (
     UsageTable,
 )
 from app.models.stats import NodeStats, NodeStatsList, NodeUsageStat, NodeUsageStatsList, Period
-from app.subscription.base import is_new_xray
 
 from .general import (
     MYSQL_FORMATS,
@@ -504,7 +502,6 @@ async def update_node_status(
     Returns:
         Node: The updated Node object.
     """
-    old_xray_version = db_node.xray_version
     values: dict = {
         "status": status,
         "message": message,
@@ -518,9 +515,6 @@ async def update_node_status(
     stmt = update(Node).where(Node.id == db_node.id).values(**values)
     await db.execute(stmt)
     await db.commit()
-
-    if xray_version and is_new_xray(xray_version) and not is_new_xray(old_xray_version):
-        await migrate_core_xhttp_session_keys_if_sole_node(db, db_node.core_config_id)
 
     try:
         # Prefer refreshing the existing instance to keep relationships loaded
