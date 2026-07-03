@@ -388,8 +388,8 @@ function getXhttpSessionIdRoomSizeIssues(profile: Profile): Issue[] {
     if (transport?.type !== 'xhttp') return
     const table = transport.extra?.sessionIDTable
     const length = transport.extra?.sessionIDLength
-    if (typeof table !== 'string' || typeof length !== 'string' || !table || !length) return
-    const problem = checkSessionIdRoomSize(table, length)
+    if (typeof table !== 'string' || !table) return
+    const problem = checkSessionIdRoomSize(table, typeof length === 'string' ? length : '')
     if (!problem) return
     issues.push({
       code: problem === 'length-not-positive' ? 'XCK_XHTTP_SESSION_ID_LENGTH_NOT_POSITIVE' : 'XCK_XHTTP_SESSION_ID_ROOM_TOO_SMALL',

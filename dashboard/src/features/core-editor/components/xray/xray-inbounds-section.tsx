@@ -3356,8 +3356,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                             const showCustomTable = sessionIdTableCustomMode || (sessionIdTableValue !== '' && !isPresetTable)
                             const tableSelectValue = showCustomTable ? '__custom' : sessionIdTableValue === '' ? '__default' : sessionIdTableValue
                             const sessionIdLengthValue = String(getTransportMetaValue(xhttpExtra, 'sessionidlength') ?? '')
-                            const sessionIdRoomSizeProblem =
-                              sessionIdTableValue && sessionIdLengthValue ? checkSessionIdRoomSize(sessionIdTableValue, sessionIdLengthValue) : null
+                            const sessionIdRoomSizeProblem = checkSessionIdRoomSize(sessionIdTableValue, sessionIdLengthValue)
                             return (
                               <div className="space-y-3 rounded-lg border px-3 py-2 sm:col-span-2">
                                 <div className="grid gap-3 sm:grid-cols-2">

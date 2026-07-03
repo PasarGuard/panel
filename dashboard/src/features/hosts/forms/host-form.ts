@@ -206,9 +206,10 @@ const transportSettingsSchema = z
       .superRefine((data, ctx) => {
         const table = data?.session_id_table
         const length = data?.session_id_length
-        // Nothing to check until both are set — either one alone means Xray's default applies.
-        if (!table || !length) return
-        const problem = checkSessionIdRoomSize(table, length)
+        // Nothing to check without a table — Xray only runs this check when sessionIDTable is set.
+        // But once a table is set, a missing length is itself a problem (see checkSessionIdRoomSize).
+        if (!table) return
+        const problem = checkSessionIdRoomSize(table, length ?? '')
         if (!problem) return
         ctx.addIssue({
           code: z.ZodIssueCode.custom,

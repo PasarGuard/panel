@@ -34,8 +34,17 @@ describe('checkSessionIdRoomSize', () => {
     expect(checkSessionIdRoomSize('Base62', '0')).toBe('length-not-positive')
   })
 
-  it('returns null for an unparseable length (format is checked elsewhere)', () => {
-    expect(checkSessionIdRoomSize('Base62', 'not-a-length')).toBeNull()
+  it('flags an unparseable length once a table is set (Xray has no default length)', () => {
+    expect(checkSessionIdRoomSize('Base62', 'not-a-length')).toBe('length-not-positive')
+  })
+
+  it('flags a missing length once a table is set', () => {
+    expect(checkSessionIdRoomSize('Base62', '')).toBe('length-not-positive')
+  })
+
+  it('has nothing to check without a table — Xray only validates sessionIDLength when sessionIDTable is set', () => {
+    expect(checkSessionIdRoomSize('', '20')).toBeNull()
+    expect(checkSessionIdRoomSize('', '')).toBeNull()
   })
 
   it('accepts a range whose upper bound alone clears the threshold', () => {

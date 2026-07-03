@@ -41,11 +41,16 @@ export type SessionIdRoomSizeProblem = 'length-not-positive' | 'room-too-small'
 
 /**
  * Mirrors Xray-core's Build()-time check on `sessionIDTable`/`sessionIDLength` (XHTTP transport).
- * Returns null when `length` doesn't parse (format is checked elsewhere) or the combination is safe.
+ * Xray only runs this check when `sessionIDTable` is set (`if c.SessionIDTable != ""` in
+ * infra/conf/transport_internet.go) — with no table, `sessionIDLength` is ignored entirely and
+ * Xray's own session-ID generation applies. But once a table IS set, `sessionIDLength` has no
+ * default: an unset/invalid length hits the same Build()-time error as a too-small range, so an
+ * admin-set table with no length must be flagged too, not silently treated as "nothing to check".
  */
 export function checkSessionIdRoomSize(table: string, length: string): SessionIdRoomSizeProblem | null {
+  if (!table) return null
   const range = parseLengthRange(length)
-  if (!range) return null
+  if (!range) return 'length-not-positive'
   const [from, to] = range
   if (from <= 0) return 'length-not-positive'
   const room = sessionIdRoomSize(sessionIdTableLength(table), from, to)
