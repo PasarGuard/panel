@@ -694,6 +694,39 @@ async def test_get_xray_version_by_core_id_prefers_known_version_over_never_conn
         await cleanup_nodes_simple(core_id, [node_a_id, node_b_id])
 
 
+async def test_get_xray_version_by_core_id_picks_highest_version_when_shared():
+    """When a core is shared by nodes on different Xray versions, the lookup must
+    deterministically prefer the highest reported version — not an arbitrary DB row
+    order, and not simply whichever node reported most recently"""
+    from app.db.crud.node import get_xray_version_by_core_id, update_node_status
+
+    async with TestSession() as session:
+        core = await create_core_config(session, core_create_model(unique_name("core_version_shared")))
+        core_id = inspect(core).identity[0]
+        node_a_model = NodeCreate(**node_create_payload(name=unique_name("node_a_shared"), core_config_id=core_id))
+        node_b_model = NodeCreate(**node_create_payload(name=unique_name("node_b_shared"), core_config_id=core_id))
+        db_node_a = await db_create_node(session, node_a_model)
+        db_node_b = await db_create_node(session, node_b_model)
+        node_a_id = inspect(db_node_a).identity[0]
+        node_b_id = inspect(db_node_b).identity[0]
+
+    async with TestSession() as session:
+        db_node_a = await session.get(Node, node_a_id)
+        # node_a (higher version) reports first...
+        await update_node_status(session, db_node_a, NodeStatus.connected, xray_version="26.6.27", node_version="0.5.3")
+
+    async with TestSession() as session:
+        db_node_b = await session.get(Node, node_b_id)
+        # ...node_b (lower version) reports later. The higher version must still win.
+        await update_node_status(session, db_node_b, NodeStatus.connected, xray_version="25.10.15", node_version="0.5.0")
+
+    async with TestSession() as session:
+        version = await get_xray_version_by_core_id(session, core_id)
+        assert version == "26.6.27"
+
+        await cleanup_nodes_simple(core_id, [node_a_id, node_b_id])
+
+
 async def test_modify_node_status_toggle_preserves_version():
     from app.db.crud.node import modify_node, update_node_status
 

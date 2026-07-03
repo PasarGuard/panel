@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 from typing import Optional
 
+from packaging.version import InvalidVersion, Version
 from sqlalchemy import and_, bindparam, case, delete, func, literal_column, or_, select, update
 from sqlalchemy.exc import InvalidRequestError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -87,14 +88,24 @@ async def get_node_by_id(db: AsyncSession, node_id: int) -> Optional[Node]:
     return node
 
 async def get_xray_version_by_core_id(db: AsyncSession, core_config_id: int) -> str | None:
-    return (
+    """Returns the highest reported xray_version among nodes on this core config."""
+    versions = (
         await db.execute(
-            select(Node.xray_version)
-            .where(Node.core_config_id == core_config_id)
-            .where(Node.xray_version.isnot(None))
-            .limit(1)
+            select(Node.xray_version).where(Node.core_config_id == core_config_id).where(Node.xray_version.isnot(None))
         )
-    ).scalar_one_or_none()
+    ).scalars().all()
+    if not versions:
+        return None
+
+    parsed: list[tuple[Version, str]] = []
+    for raw in versions:
+        try:
+            parsed.append((Version(raw.lstrip("v")), raw))
+        except InvalidVersion:
+            continue
+    if not parsed:
+        return versions[0]
+    return max(parsed, key=lambda item: item[0])[1]
 
 async def get_nodes(
     db: AsyncSession,
