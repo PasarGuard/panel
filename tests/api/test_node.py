@@ -476,6 +476,222 @@ async def cleanup_nodes_simple(core_id: int, node_ids: list[int]) -> None:
             await remove_core_config(session, db_core)
 
 
+async def test_update_node_status_preserves_version_when_not_provided():
+    from app.db.crud.node import update_node_status
+
+    async with TestSession() as session:
+        core = await create_core_config(session, core_create_model(unique_name("core_preserve_version")))
+        core_id = inspect(core).identity[0]
+        node_model = NodeCreate(**node_create_payload(name=unique_name("node_preserve_version"), core_config_id=core_id))
+        db_node = await db_create_node(session, node_model)
+        node_id = inspect(db_node).identity[0]
+
+    async with TestSession() as session:
+        db_node = await session.get(Node, node_id)
+        await update_node_status(session, db_node, NodeStatus.connected, xray_version="26.6.1", node_version="0.5.2")
+
+    async with TestSession() as session:
+        db_node = await session.get(Node, node_id)
+        assert db_node.xray_version == "26.6.1"
+        assert db_node.node_version == "0.5.2"
+
+        # Transition to error WITHOUT passing xray_version/node_version (the real-world
+        # call pattern from every error path in operation/node.py and jobs/node_checker.py) —
+        # the last-known version must survive.
+        await update_node_status(session, db_node, NodeStatus.error, message="Connection refused")
+
+    async with TestSession() as session:
+        db_node = await session.get(Node, node_id)
+        assert db_node.status == NodeStatus.error
+        assert db_node.message == "Connection refused"
+        assert db_node.xray_version == "26.6.1"
+        assert db_node.node_version == "0.5.2"
+
+    async with TestSession() as session:
+        core = await session.get(CoreConfig, core_id)
+        await cleanup_nodes_simple(core_id, [node_id])
+
+
+async def test_bulk_update_node_status_preserves_version_when_empty():
+    from app.db.crud.node import bulk_update_node_status, update_node_status
+
+    async with TestSession() as session:
+        core = await create_core_config(session, core_create_model(unique_name("core_bulk_preserve")))
+        core_id = inspect(core).identity[0]
+        node_a_model = NodeCreate(**node_create_payload(name=unique_name("node_bulk_a"), core_config_id=core_id))
+        node_b_model = NodeCreate(**node_create_payload(name=unique_name("node_bulk_b"), core_config_id=core_id))
+        node_c_model = NodeCreate(**node_create_payload(name=unique_name("node_bulk_c"), core_config_id=core_id))
+        db_node_a = await db_create_node(session, node_a_model)
+        db_node_b = await db_create_node(session, node_b_model)
+        db_node_c = await db_create_node(session, node_c_model)
+        node_a_id = inspect(db_node_a).identity[0]
+        node_b_id = inspect(db_node_b).identity[0]
+        node_c_id = inspect(db_node_c).identity[0]
+
+    async with TestSession() as session:
+        db_node_a = await session.get(Node, node_a_id)
+        db_node_b = await session.get(Node, node_b_id)
+        db_node_c = await session.get(Node, node_c_id)
+        await update_node_status(session, db_node_a, NodeStatus.connected, xray_version="26.6.1", node_version="0.5.2")
+        await update_node_status(session, db_node_b, NodeStatus.connected, xray_version="26.5.3", node_version="0.5.1")
+        await update_node_status(session, db_node_c, NodeStatus.connected, xray_version="26.5.9", node_version="0.4.9")
+
+    async with TestSession() as session:
+        # node_a: real error transition with a fresh reported version (should overwrite).
+        # node_b: error transition without a known version (should preserve "26.5.3").
+        # node_c: mismatched columns - xray_version reported (overwrite), node_version empty (preserve).
+        await bulk_update_node_status(
+            session,
+            [
+                {
+                    "node_id": node_a_id,
+                    "status": NodeStatus.error,
+                    "message": "boom",
+                    "xray_version": "26.6.22",
+                    "node_version": "0.5.3",
+                },
+                {
+                    "node_id": node_b_id,
+                    "status": NodeStatus.error,
+                    "message": "boom",
+                    "xray_version": "",
+                    "node_version": "",
+                },
+                {
+                    "node_id": node_c_id,
+                    "status": NodeStatus.error,
+                    "message": "boom",
+                    "xray_version": "26.6.27",
+                    "node_version": "",
+                },
+            ],
+        )
+
+    async with TestSession() as session:
+        db_node_a = await session.get(Node, node_a_id)
+        db_node_b = await session.get(Node, node_b_id)
+        db_node_c = await session.get(Node, node_c_id)
+        assert db_node_a.xray_version == "26.6.22"
+        assert db_node_a.node_version == "0.5.3"
+        assert db_node_b.xray_version == "26.5.3"
+        assert db_node_b.node_version == "0.5.1"
+        assert db_node_c.xray_version == "26.6.27"
+        assert db_node_c.node_version == "0.4.9"
+
+        await cleanup_nodes_simple(core_id, [node_a_id, node_b_id, node_c_id])
+
+
+async def test_get_xray_version_by_core_id_ignores_status():
+    from app.db.crud.node import get_xray_version_by_core_id, update_node_status
+
+    async with TestSession() as session:
+        core = await create_core_config(session, core_create_model(unique_name("core_version_lookup")))
+        core_id = inspect(core).identity[0]
+        node_model = NodeCreate(**node_create_payload(name=unique_name("node_version_lookup"), core_config_id=core_id))
+        db_node = await db_create_node(session, node_model)
+        node_id = inspect(db_node).identity[0]
+
+    async with TestSession() as session:
+        db_node = await session.get(Node, node_id)
+        await update_node_status(session, db_node, NodeStatus.connected, xray_version="26.6.1", node_version="0.5.2")
+
+    async with TestSession() as session:
+        db_node = await session.get(Node, node_id)
+        # Node errors out but keeps its last-known version (Task 1's behavior).
+        await update_node_status(session, db_node, NodeStatus.error, message="Connection refused")
+
+    async with TestSession() as session:
+        db_node = await session.get(Node, node_id)
+        assert db_node.status == NodeStatus.error
+
+        version = await get_xray_version_by_core_id(session, core_id)
+        assert version == "26.6.1"
+
+        await cleanup_nodes_simple(core_id, [node_id])
+
+
+async def test_get_xray_version_by_core_id_prefers_known_version_over_never_connected_sibling():
+    from app.db.crud.node import get_xray_version_by_core_id, update_node_status
+
+    async with TestSession() as session:
+        core = await create_core_config(session, core_create_model(unique_name("core_version_sibling")))
+        core_id = inspect(core).identity[0]
+        node_a_model = NodeCreate(**node_create_payload(name=unique_name("node_a_never_connected"), core_config_id=core_id))
+        node_b_model = NodeCreate(**node_create_payload(name=unique_name("node_b_known_version"), core_config_id=core_id))
+        db_node_a = await db_create_node(session, node_a_model)
+        db_node_b = await db_create_node(session, node_b_model)
+        node_a_id = inspect(db_node_a).identity[0]
+        node_b_id = inspect(db_node_b).identity[0]
+
+    async with TestSession() as session:
+        # node_a never gets a version set (simulates a freshly added, never-connected node).
+        db_node_b = await session.get(Node, node_b_id)
+        await update_node_status(session, db_node_b, NodeStatus.connected, xray_version="26.6.1", node_version="0.5.2")
+
+    async with TestSession() as session:
+        version = await get_xray_version_by_core_id(session, core_id)
+        assert version == "26.6.1"
+
+        await cleanup_nodes_simple(core_id, [node_a_id, node_b_id])
+
+
+async def test_modify_node_status_toggle_preserves_version():
+    from app.db.crud.node import modify_node, update_node_status
+
+    async with TestSession() as session:
+        core = await create_core_config(session, core_create_model(unique_name("core_modify_status_only")))
+        core_id = inspect(core).identity[0]
+        node_model = NodeCreate(**node_create_payload(name=unique_name("node_modify_status_only"), core_config_id=core_id))
+        db_node = await db_create_node(session, node_model)
+        node_id = inspect(db_node).identity[0]
+
+    async with TestSession() as session:
+        db_node = await session.get(Node, node_id)
+        await update_node_status(session, db_node, NodeStatus.connected, xray_version="26.6.1", node_version="0.5.2")
+
+    async with TestSession() as session:
+        db_node = await session.get(Node, node_id)
+        # Pure status toggle: disable the node without changing address/port/etc.
+        await modify_node(session, db_node, NodeModify(status=NodeStatus.disabled))
+
+    async with TestSession() as session:
+        db_node = await session.get(Node, node_id)
+        assert db_node.status == NodeStatus.disabled
+        assert db_node.xray_version == "26.6.1"
+        assert db_node.node_version == "0.5.2"
+
+        await cleanup_nodes_simple(core_id, [node_id])
+
+
+async def test_modify_node_address_change_clears_version():
+    from app.db.crud.node import modify_node, update_node_status
+
+    async with TestSession() as session:
+        core = await create_core_config(session, core_create_model(unique_name("core_modify_address_change")))
+        core_id = inspect(core).identity[0]
+        node_model = NodeCreate(**node_create_payload(name=unique_name("node_modify_address_change"), core_config_id=core_id))
+        db_node = await db_create_node(session, node_model)
+        node_id = inspect(db_node).identity[0]
+
+    async with TestSession() as session:
+        db_node = await session.get(Node, node_id)
+        await update_node_status(session, db_node, NodeStatus.connected, xray_version="26.6.1", node_version="0.5.2")
+
+    async with TestSession() as session:
+        db_node = await session.get(Node, node_id)
+        # Real identity change: pointing at a different address should reset the known version,
+        # since the panel can no longer assume the same physical instance is on the other end.
+        await modify_node(session, db_node, NodeModify(address="different-node.example.com"))
+
+    async with TestSession() as session:
+        db_node = await session.get(Node, node_id)
+        assert db_node.address == "different-node.example.com"
+        assert db_node.xray_version is None
+        assert db_node.node_version is None
+
+        await cleanup_nodes_simple(core_id, [node_id])
+
+
 def usage_stats_payload() -> NodeUsageStatsList:
     start = datetime(2024, 1, 1, tzinfo=timezone.utc)
     end = start + timedelta(days=1)

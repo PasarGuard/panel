@@ -86,6 +86,15 @@ async def get_node_by_id(db: AsyncSession, node_id: int) -> Optional[Node]:
         await load_node_attrs(node)
     return node
 
+async def get_xray_version_by_core_id(db: AsyncSession, core_config_id: int) -> str | None:
+    return (
+        await db.execute(
+            select(Node.xray_version)
+            .where(Node.core_config_id == core_config_id)
+            .where(Node.xray_version.isnot(None))
+            .limit(1)
+        )
+    ).scalar_one_or_none()
 
 async def get_nodes(
     db: AsyncSession,
@@ -427,6 +436,9 @@ async def remove_node(db: AsyncSession, db_node: Node) -> None:
     await db.commit()
 
 
+CONNECTION_IDENTITY_FIELDS = ("address", "port", "server_ca", "connection_type", "api_key")
+
+
 async def modify_node(db: AsyncSession, db_node: Node, modify: NodeModify) -> Node:
     """
     modify an existing node with new information.
@@ -444,12 +456,17 @@ async def modify_node(db: AsyncSession, db_node: Node, modify: NodeModify) -> No
     if "proxy_url" in modify.model_fields_set and modify.proxy_url is None:
         node_data["proxy_url"] = None
 
+    connection_identity_changed = any(
+        field in node_data and getattr(db_node, field) != node_data[field] for field in CONNECTION_IDENTITY_FIELDS
+    )
+
     for key, value in node_data.items():
         setattr(db_node, key, value)
 
-    db_node.xray_version = None
     db_node.message = None
-    db_node.node_version = None
+    if connection_identity_changed:
+        db_node.xray_version = None
+        db_node.node_version = None
 
     if db_node.is_limited:
         db_node.status = NodeStatus.limited
@@ -485,17 +502,17 @@ async def update_node_status(
     Returns:
         Node: The updated Node object.
     """
-    stmt = (
-        update(Node)
-        .where(Node.id == db_node.id)
-        .values(
-            status=status,
-            message=message,
-            xray_version=xray_version,
-            node_version=node_version,
-            last_status_change=datetime.now(timezone.utc),
-        )
-    )
+    values: dict = {
+        "status": status,
+        "message": message,
+        "last_status_change": datetime.now(timezone.utc),
+    }
+    if xray_version:
+        values["xray_version"] = xray_version
+    if node_version:
+        values["node_version"] = node_version
+
+    stmt = update(Node).where(Node.id == db_node.id).values(**values)
     await db.execute(stmt)
     await db.commit()
 
@@ -544,8 +561,14 @@ async def bulk_update_node_status(
         .values(
             status=bindparam("status"),
             message=bindparam("message"),
-            xray_version=bindparam("xray_version"),
-            node_version=bindparam("node_version"),
+            xray_version=case(
+                (bindparam("xray_version") != "", bindparam("xray_version")),
+                else_=Node.xray_version,
+            ),
+            node_version=case(
+                (bindparam("node_version") != "", bindparam("node_version")),
+                else_=Node.node_version,
+            ),
             last_status_change=bindparam("now"),
         )
     )

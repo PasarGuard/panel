@@ -2731,6 +2731,7 @@ export interface CoreResponse {
   fallbacks_inbound_tags: string[]
   id: number
   created_at: string
+  xray_version?: string | null
 }
 
 export type CoreCreateFallbacksInboundTags = unknown[] | null
