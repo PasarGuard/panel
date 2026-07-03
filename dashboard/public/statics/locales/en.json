@@ -2070,7 +2070,8 @@
     "breakingChangeWarning": "Starting with Xray 26.6.22, the xhttp parameters \"sessionPlacement\" and \"sessionKey\" are renamed to \"sessionIDPlacement\" and \"sessionIDKey\". Server configs are migrated automatically when the new version is installed. However, users whose xhttp inbound subscriptions still contain sessionPlacement/sessionKey will not be able to connect to the server after the upgrade until they re-import their subscription. Continue?",
     "breakingChangeConfirm": "I understand, update anyway",
     "prereleaseWarningTitle": "Pre-release version selected",
-    "prereleaseWarningMessage": "This version has not been promoted to a stable release yet. Some parameters may change or behave differently once it reaches a stable release — avoid this on production nodes unless you understand the risk."
+    "prereleaseWarningMessage": "This version has not been promoted to a stable release yet. Some parameters may change or behave differently once it reaches a stable release — avoid this on production nodes unless you understand the risk.",
+    "coreVersionMismatchWarning": "Other nodes already using this core config are running a different Xray version. This core is pushed to every node unmodified (except for a few fields the panel safely adapts per node's version) — some of the remaining settings may not work as expected."
   },
   "theme": {
     "title": "Theme",

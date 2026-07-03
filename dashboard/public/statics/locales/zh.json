@@ -2029,7 +2029,8 @@
     "breakingChangeWarning": "从 Xray 26.6.22 开始，xhttp 参数 “sessionPlacement” 和 “sessionKey” 已重命名为 “sessionIDPlacement” 和 “sessionIDKey”。安装新版本时，服务器配置会自动迁移。但是，订阅中 xhttp 入站仍包含 sessionPlacement/sessionKey 的用户在升级后将无法连接到服务器，直到他们重新导入订阅。是否继续？",
     "breakingChangeConfirm": "我已了解，仍然更新",
     "prereleaseWarningTitle": "已选择预发布版本",
-    "prereleaseWarningMessage": "该版本尚未成为稳定发行版。待其成为稳定版本时，部分参数可能会更改或表现不同——除非您了解其中风险，否则不要在生产节点上使用。"
+    "prereleaseWarningMessage": "该版本尚未成为稳定发行版。待其成为稳定版本时，部分参数可能会更改或表现不同——除非您了解其中风险，否则不要在生产节点上使用。",
+    "coreVersionMismatchWarning": "已使用此核心配置的其他节点运行的是不同的 Xray 版本。除少数由面板根据每个节点版本安全适配的字段外，该核心配置会原样推送到所有节点——其余部分设置可能无法按预期工作。"
   },
   "theme": {
     "title": "主题",
