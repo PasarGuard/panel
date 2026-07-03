@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import multiprocessing
 import random
 import time
@@ -41,6 +42,45 @@ USER_ADMIN_LOOKUP_BATCH_SIZE = 1_000
 # Distributes workload across threads/cores for data collection
 _thread_pool = None
 _thread_pool_lock = asyncio.Lock()
+
+# WireGuard user stats arrive keyed by the peer's hex public key (xray's
+# `user>>>{hex_pubkey}>>>traffic`), not by the panel's numeric `{id}` user id.
+# Cache a {hex_public_key -> user_id} map so those stats can be attributed to
+# the right user (otherwise WG traffic and online state are silently dropped).
+_wg_pubkey_map_cache: dict = {"data": {}, "ts": 0.0}
+_WG_PUBKEY_MAP_TTL = 30.0  # seconds
+
+
+async def _get_wg_pubkey_to_uid() -> dict:
+    """Return {hex_public_key: user_id} for all users that have a WireGuard key."""
+    now = time.time()
+    if _wg_pubkey_map_cache["data"] and (now - _wg_pubkey_map_cache["ts"]) < _WG_PUBKEY_MAP_TTL:
+        return _wg_pubkey_map_cache["data"]
+
+    mapping: dict[str, int] = {}
+    try:
+        async with GetDB() as db:
+            result = await db.execute(select(User.id, User.proxy_settings))
+            for uid, proxy_settings in result.all():
+                if not isinstance(proxy_settings, dict):
+                    continue
+                wg = proxy_settings.get("wireguard")
+                if not wg:
+                    continue
+                pub = wg.get("public_key")
+                if not pub:
+                    continue
+                try:
+                    mapping[base64.b64decode(pub).hex()] = uid
+                except Exception:
+                    continue
+    except Exception as e:
+        logger.warning("Failed to build WireGuard pubkey->uid map: %s", e)
+        return _wg_pubkey_map_cache["data"]
+
+    _wg_pubkey_map_cache["data"] = mapping
+    _wg_pubkey_map_cache["ts"] = now
+    return mapping
 
 
 async def _get_thread_pool():
@@ -480,15 +520,23 @@ async def record_node_stats_batched(all_node_params: dict):
         await asyncio.gather(*tasks, return_exceptions=True)
 
 
-def _process_users_stats_response(stats_response):
+def _process_users_stats_response(stats_response, wg_pubkey_map=None):
     """
     Process stats response (CPU-bound operation) - runs in thread pool.
     Pure function designed for thread-safe execution.
     Returns tuple: (validated_params, invalid_uids) for logging outside thread.
+
+    wg_pubkey_map maps a WireGuard peer's hex public key to its user id, so WG
+    stats (keyed by hex pubkey instead of `{id}.{username}`) attribute correctly.
     """
+    wg_pubkey_map = wg_pubkey_map or {}
     params = defaultdict(int)
     for stat in filter(attrgetter("value"), stats_response.stats):
-        params[stat.name] += stat.value
+        # WireGuard inbound reports stats keyed by the peer's hex public key;
+        # translate it to the panel user id so traffic/online are recorded.
+        # (Upstream identifier is plain `{id}`, so no split is needed.)
+        key = str(wg_pubkey_map.get(stat.name, stat.name))
+        params[key] += stat.value
 
     validated_params = []
     invalid_uids = []
@@ -501,7 +549,7 @@ def _process_users_stats_response(stats_response):
     return validated_params, invalid_uids
 
 
-async def get_users_stats(node: PasarGuardNode):
+async def get_users_stats(node: PasarGuardNode, wg_pubkey_map=None):
     """
     Get user stats from node using thread pool for CPU-bound processing.
     This distributes the heavy data processing workload across cores.
@@ -515,7 +563,7 @@ async def get_users_stats(node: PasarGuardNode):
         loop = asyncio.get_running_loop()
         thread_pool = await _get_thread_pool()
         validated_params, invalid_uids = await loop.run_in_executor(
-            thread_pool, _process_users_stats_response, stats_response
+            thread_pool, _process_users_stats_response, stats_response, wg_pubkey_map
         )
 
         if invalid_uids:
@@ -684,8 +732,13 @@ async def _record_user_usages_impl():
             else:
                 usage_coefficient[node_id] = data.get("usage_coefficient", 1) if data else 1.0
 
+        # Build WireGuard hex-pubkey -> user id map so WG stats attribute correctly
+        wg_pubkey_map = await _get_wg_pubkey_to_uid()
+
         # Gather stats directly - asyncio.gather accepts coroutines, no need for create_task
-        stats_results = await asyncio.gather(*[get_users_stats(node) for _, node in nodes], return_exceptions=True)
+        stats_results = await asyncio.gather(
+            *[get_users_stats(node, wg_pubkey_map) for _, node in nodes], return_exceptions=True
+        )
         api_params = {}
         for i, result in enumerate(stats_results):
             node_id = nodes[i][0]
