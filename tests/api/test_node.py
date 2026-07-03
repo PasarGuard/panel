@@ -694,7 +694,7 @@ async def test_get_xray_version_by_core_id_ignores_status():
 
     async with TestSession() as session:
         db_node = await session.get(Node, node_id)
-        # Node errors out but keeps its last-known version (Task 1's behavior).
+        # Node errors out but keeps its last-known version.
         await update_node_status(session, db_node, NodeStatus.error, message="Connection refused")
 
     async with TestSession() as session:

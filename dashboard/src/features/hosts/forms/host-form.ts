@@ -206,7 +206,7 @@ const transportSettingsSchema = z
       .superRefine((data, ctx) => {
         const table = data?.session_id_table
         const length = data?.session_id_length
-        // Only validate when a custom session ID table is configured.
+        // Nothing to check until both are set — either one alone means Xray's default applies.
         if (!table || !length) return
         const problem = checkSessionIdRoomSize(table, length)
         if (!problem) return
