@@ -314,22 +314,9 @@ export default function UpdateCoreDialog({ node, isOpen, onOpenChange }: UpdateC
             </Tabs>
           </div>
 
-          {/* Breaking change warning (xhttp session* -> sessionID* in Xray 26.6.22+) */}
-          {isBreaking && (
-            <div className="space-y-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-amber-700 dark:text-amber-300">
-              <div className={cn('flex items-center gap-2', dir === 'rtl' && 'flex-row-reverse')}>
-                <AlertTriangle className="h-4 w-4 shrink-0" />
-                <span className="text-sm font-semibold">{t('nodeModal.breakingChangeTitle', { defaultValue: 'Breaking changes in Xray 26.6.22+' })}</span>
-              </div>
-              <p dir={dir} className={cn('text-xs leading-relaxed', dir === 'rtl' && 'text-right')}>
-                {t('nodeModal.breakingChangeWarning')}
-              </p>
-            </div>
-          )}
-
           {/* Pre-release warning — this version hasn't been promoted to a stable release yet */}
           {isPrereleaseTarget && (
-            <div className="space-y-1.5 rounded-lg border border-blue-500/30 bg-blue-500/10 p-3 text-blue-700 dark:text-blue-300">
+            <div className="space-y-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-amber-700 dark:text-amber-300">
               <div className={cn('flex items-center gap-2', dir === 'rtl' && 'flex-row-reverse')}>
                 <AlertTriangle className="h-4 w-4 shrink-0" />
                 <span className="text-sm font-semibold">{t('nodeModal.prereleaseWarningTitle', { defaultValue: 'Pre-release version selected' })}</span>
@@ -355,7 +342,9 @@ export default function UpdateCoreDialog({ node, isOpen, onOpenChange }: UpdateC
             isLoading={updateCoreMutation.isPending}
             loadingText={t('nodeModal.updating', { defaultValue: 'Updating...' })}
           >
-            {isBreaking ? t('nodeModal.breakingChangeConfirm', { defaultValue: 'I understand, update anyway' }) : t('nodeModal.update', { defaultValue: 'Update' })}
+            {isBreaking || isPrereleaseTarget
+              ? t('nodeModal.breakingChangeConfirm', { defaultValue: 'I understand, update anyway' })
+              : t('nodeModal.update', { defaultValue: 'Update' })}
           </LoaderButton>
         </DialogFooter>
       </DialogContent>
