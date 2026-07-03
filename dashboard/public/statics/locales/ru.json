@@ -2433,6 +2433,10 @@
       "tls": {
         "allowInsecureRemoved": "Xray-core этой ноды больше не собирает конфиги с включённым allowInsecure — запуск будет отклонён."
       },
+      "xhttp": {
+        "sessionIdLengthNotPositive": "sessionIDLength должен быть больше 0.",
+        "sessionIdRoomTooSmall": "Слишком мало возможных session ID (нужно как минимум ~2,1 миллиарда). Увеличьте диапазон длины или используйте таблицу символов побольше."
+      },
       "tlsCertificates": {
         "sectionLabel": "Сертификаты",
         "emptyHint": "Сертификатов пока нет. Нажмите +, чтобы добавить.",

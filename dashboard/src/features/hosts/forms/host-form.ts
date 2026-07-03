@@ -1,4 +1,5 @@
 import * as z from 'zod'
+import { checkSessionIdRoomSize } from '@/lib/xray-session-id-room-size'
 
 interface Brutal {
   enable?: boolean
@@ -110,6 +111,8 @@ export interface HostFormValues {
       uplink_http_method?: string
       session_placement?: string
       session_key?: string
+      session_id_table?: string
+      session_id_length?: string
       seq_placement?: string
       seq_key?: string
       uplink_data_placement?: string
@@ -178,6 +181,8 @@ const transportSettingsSchema = z
         uplink_http_method: z.string().nullish().optional(),
         session_placement: z.string().nullish().optional(),
         session_key: z.string().nullish().optional(),
+        session_id_table: z.string().nullish().optional(),
+        session_id_length: z.string().nullish().optional(),
         seq_placement: z.string().nullish().optional(),
         seq_key: z.string().nullish().optional(),
         uplink_data_placement: z.string().nullish().optional(),
@@ -197,6 +202,22 @@ const transportSettingsSchema = z
           })
           .nullish()
           .optional(),
+      })
+      .superRefine((data, ctx) => {
+        const table = data?.session_id_table
+        const length = data?.session_id_length
+        // Only validate when a custom session ID table is configured.
+        if (!table || !length) return
+        const problem = checkSessionIdRoomSize(table, length)
+        if (!problem) return
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['session_id_length'],
+          message:
+            problem === 'length-not-positive'
+              ? 'sessionIDLength must be greater than 0'
+              : 'Too few possible session IDs (must be at least ~2.1 billion). Increase the length range or use a larger character table.',
+        })
       })
       .nullish()
       .optional(),

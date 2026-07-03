@@ -2504,6 +2504,10 @@
       "tls": {
         "allowInsecureRemoved": "该节点的 Xray-core 已不再构建启用 allowInsecure 的配置——它将拒绝启动。"
       },
+      "xhttp": {
+        "sessionIdLengthNotPositive": "sessionIDLength 必须大于 0。",
+        "sessionIdRoomTooSmall": "可能的 session ID 数量过少（至少需要约 21 亿个）。请增大长度范围或使用更大的字符表。"
+      },
       "tlsCertificates": {
         "sectionLabel": "证书",
         "emptyHint": "暂无证书。点击 + 添加。",

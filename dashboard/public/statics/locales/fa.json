@@ -2460,6 +2460,10 @@
       "tls": {
         "allowInsecureRemoved": "Xray-core این نود دیگر پیکربندی‌هایی با allowInsecure فعال نمی‌سازد — اجرا نخواهد شد."
       },
+      "xhttp": {
+        "sessionIdLengthNotPositive": "sessionIDLength باید بزرگ‌تر از ۰ باشد.",
+        "sessionIdRoomTooSmall": "تعداد session ID های ممکن خیلی کم است (باید حداقل حدود ۲.۱ میلیارد باشد). محدوده طول را افزایش دهید یا از جدول کاراکتری بزرگ‌تر استفاده کنید."
+      },
       "tlsCertificates": {
         "sectionLabel": "گواهی‌ها",
         "emptyHint": "هنوز گواهی‌ای نیست. برای افزودن روی + کلیک کنید.",

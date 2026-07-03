@@ -29,6 +29,7 @@ import { isPlaceholderTunnelRewriteAddress, normalizeTunnelNetworkForKit } from 
 import { inferParityFieldMode, outboundSettingToString, parseOutboundSettingValue, stringifyJsonFormRecord } from '@/features/core-editor/kit/xray-parity-value'
 import { useCoreEditorStore } from '@/features/core-editor/state/core-editor-store'
 import { isXrayVersionAtLeast, parseXrayVersion, XRAY_FEATURE_GATES } from '@/lib/xray-version-gates'
+import { checkSessionIdRoomSize } from '@/lib/xray-session-id-room-size'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { cn } from '@/lib/utils'
 import {
@@ -3354,6 +3355,9 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                             const isPresetTable = SESSION_ID_TABLE_PRESETS.includes(sessionIdTableValue)
                             const showCustomTable = sessionIdTableCustomMode || (sessionIdTableValue !== '' && !isPresetTable)
                             const tableSelectValue = showCustomTable ? '__custom' : sessionIdTableValue === '' ? '__default' : sessionIdTableValue
+                            const sessionIdLengthValue = String(getTransportMetaValue(xhttpExtra, 'sessionidlength') ?? '')
+                            const sessionIdRoomSizeProblem =
+                              sessionIdTableValue && sessionIdLengthValue ? checkSessionIdRoomSize(sessionIdTableValue, sessionIdLengthValue) : null
                             return (
                               <div className="space-y-3 rounded-lg border px-3 py-2 sm:col-span-2">
                                 <div className="grid gap-3 sm:grid-cols-2">
@@ -3408,13 +3412,25 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                                       <Input
                                         dir="ltr"
                                         className="h-10 text-xs"
-                                        value={String(getTransportMetaValue(xhttpExtra, 'sessionidlength') ?? '')}
+                                        value={sessionIdLengthValue}
                                         onChange={e => updateXhttpMeta('sessionidlength', e.target.value)}
                                         placeholder={t('hostsDialog.xhttp.sessionIdLengthPlaceholder', { defaultValue: 'e.g. 22-22' })}
                                       />
                                     </FormControl>
                                   </FormItem>
                                 </div>
+                                {sessionIdRoomSizeProblem && (
+                                  <p className="text-destructive text-xs leading-relaxed">
+                                    {sessionIdRoomSizeProblem === 'length-not-positive'
+                                      ? t('coreEditor.inbound.xhttp.sessionIdLengthNotPositive', {
+                                          defaultValue: 'sessionIDLength must be greater than 0.',
+                                        })
+                                      : t('coreEditor.inbound.xhttp.sessionIdRoomTooSmall', {
+                                          defaultValue:
+                                            'Too few possible session IDs (must be at least ~2.1 billion). Increase the length range or use a larger character table.',
+                                        })}
+                                  </p>
+                                )}
                               </div>
                             )
                           })()}
