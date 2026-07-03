@@ -17,7 +17,7 @@ from app.models.subscription import (
 from config import subscription_env_settings
 
 from . import BaseSubscription
-
+from .base import is_new_xray
 
 class StandardLinks(BaseSubscription):
     def __init__(
@@ -96,6 +96,7 @@ class StandardLinks(BaseSubscription):
     def _transport_xhttp(self, payload: dict, protocol: str, config: XHTTPTransportConfig, path: str):
         """Handle splithttp/xhttp transport - only gets xHTTP config"""
         host = config.host if isinstance(config.host, str) else ""
+        is_new = is_new_xray(config.core_version)
         payload["path"] = path
         payload["host"] = host
 
@@ -114,8 +115,8 @@ class StandardLinks(BaseSubscription):
             "xPaddingPlacement": config.x_padding_placement,
             "xPaddingMethod": config.x_padding_method,
             "uplinkHTTPMethod": config.uplink_http_method,
-            "sessionPlacement": config.session_placement,
-            "sessionKey": config.session_key,
+            ("sessionIDPlacement" if is_new else "sessionPlacement"): config.session_placement,
+            ("sessionIDKey" if is_new else "sessionKey"): config.session_key,
             "seqPlacement": config.seq_placement,
             "seqKey": config.seq_key,
             "uplinkDataPlacement": config.uplink_data_placement,
@@ -125,6 +126,7 @@ class StandardLinks(BaseSubscription):
             "xmux": config.xmux,
             "headers": config.http_headers if config.http_headers else {},
             "downloadSettings": config.download_settings,
+            **({"sessionIDTable": config.session_id_table, "sessionIDLength": config.session_id_length} if is_new else {}),
         }
 
         if config.random_user_agent:

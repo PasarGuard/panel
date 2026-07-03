@@ -12,6 +12,7 @@ from app import on_shutdown, on_startup
 from app.core.manager import core_manager
 from app.db import GetDB
 from app.db.crud.host import get_host_by_id, get_hosts, upsert_inbounds
+from app.db.crud.node import get_xray_version_by_core_id
 from app.db.models import ProxyHostSecurity
 from app.models.host import BaseHost, TransportSettings, WireGuardHostOverrides
 from app.models.subscription import (
@@ -49,6 +50,7 @@ def _string_list(value) -> list[str]:
 async def _prepare_subscription_inbound_data(
     host: BaseHost,
     down_settings: SubscriptionInboundData | None = None,
+    db: AsyncSession | None = None,
 ) -> SubscriptionInboundData:
     """
     Prepare host data - creates small config instances ONCE.
@@ -57,6 +59,10 @@ async def _prepare_subscription_inbound_data(
     """
     # Get inbound configuration
     inbound_config = await core_manager.get_inbound_by_tag(host.inbound_tag)
+    core_id = await core_manager.get_core_id_by_tag(host.inbound_tag)
+    xray_version = None
+    if core_id and db:
+        xray_version = await get_xray_version_by_core_id(db, core_id)
     protocol = inbound_config["protocol"]
 
     ts = host.transport_settings
@@ -260,6 +266,16 @@ async def _prepare_subscription_inbound_data(
                 else inbound_config.get("session_placement")
             ),
             session_key=xs.session_key if xs and xs.session_key is not None else inbound_config.get("session_key"),
+            session_id_table=(
+                xs.session_id_table
+                if xs and xs.session_id_table is not None
+                else inbound_config.get("session_id_table")
+            ),
+            session_id_length=(
+                xs.session_id_length
+                if xs and xs.session_id_length is not None
+                else inbound_config.get("session_id_length")
+            ),
             seq_placement=(
                 xs.seq_placement if xs and xs.seq_placement is not None else inbound_config.get("seq_placement")
             ),
@@ -281,6 +297,7 @@ async def _prepare_subscription_inbound_data(
             download_settings=down_settings if xs and down_settings else inbound_config.get("download_settings"),
             http_headers=host.http_headers if host.http_headers is not None else inbound_config.get("http_headers"),
             random_user_agent=host.random_user_agent,
+            core_version=xray_version,
         )
     elif network in ("grpc", "gun"):
         gs = ts.grpc_settings if ts else None
@@ -540,8 +557,8 @@ class HostManager:
             downstream = await get_host_by_id(db, ds_host)
             if downstream:
                 downstream_base = BaseHost.model_validate(downstream)
-                downstream_data: SubscriptionInboundData = await _prepare_subscription_inbound_data(downstream_base)
-        subscription_data = await _prepare_subscription_inbound_data(host, downstream_data)
+                downstream_data = await _prepare_subscription_inbound_data(downstream_base, db=db)
+        subscription_data = await _prepare_subscription_inbound_data(host, downstream_data, db=db)
 
         # Return subscription data directly
         return host.id, subscription_data

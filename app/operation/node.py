@@ -1,4 +1,6 @@
 import asyncio
+import json
+from copy import deepcopy
 from typing import AsyncIterator, Callable
 
 from fastapi import HTTPException
@@ -65,6 +67,8 @@ from app.node import core_users, node_manager
 from app.operation import BaseOperation, OperatorType
 from app.utils.logger import get_logger
 from config import runtime_settings
+from app.core.xray import rename_xhttp_session_keys
+from app.subscription.base import is_new_xray
 
 MAX_MESSAGE_LENGTH = 128
 
@@ -240,14 +244,19 @@ class NodeOperation(BaseOperation):
             return None
         if core is None:
             return None
-
+        if core.type == CoreType.xray and (is_new_xray(db_node.xray_version)):
+            copied = deepcopy(dict(core))
+            rename_xhttp_session_keys(copied)
+            config_str = json.dumps(copied)
+        else:
+            config_str = core.to_str()    
         old_status = db_node.status
         logger.info(f'Connecting to "{db_node.name}" node')
         type = service.BackendType.WIREGUARD if core.type == CoreType.wg else service.BackendType.XRAY
 
         try:
             start_kwargs = {
-                "config": core.to_str(),
+                "config": config_str,
                 "backend_type": type,
                 "users": users,
                 "keep_alive": db_node.keep_alive,
@@ -544,8 +553,18 @@ class NodeOperation(BaseOperation):
         return await self._update_node_api_impl(node_id)
 
     async def update_core(self, db: AsyncSession, node_id: int, node_core_update: NodeCoreUpdate) -> dict:
-        await self.get_validated_node(db, node_id)
+        db_node = await self.get_validated_node(db, node_id)
+
+        current = db_node.xray_version
+        target = node_core_update.core_version
+        if current and not is_new_xray(current) and is_new_xray(target) and not node_core_update.confirm:
+            raise HTTPException(
+                status_code=400,
+                detail="Upgrading to Xray 26.6.22+ renames xhttp session parameters (breaking change). Set confirm=true to proceed.",
+            )
+
         return await self._update_core_impl(node_id, node_core_update)
+
 
     async def update_geofiles(self, db: AsyncSession, node_id: int, node_geofiles_update: NodeGeoFilesUpdate) -> dict:
         await self.get_validated_node(db, node_id)

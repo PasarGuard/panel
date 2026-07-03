@@ -14,8 +14,7 @@ from app.models.subscription import (
 from app.utils.helpers import UUIDEncoder
 
 from . import BaseSubscription
-
-
+from .base import is_new_xray   
 class XrayConfiguration(BaseSubscription):
     def __init__(
         self,
@@ -130,6 +129,7 @@ class XrayConfiguration(BaseSubscription):
     def _transport_xhttp(self, config: XHTTPTransportConfig, path: str) -> dict:
         """Handle xHTTP/SplitHTTP transport - only gets xHTTP config"""
         host = config.host if isinstance(config.host, str) else (config.host[0] if config.host else "")
+        is_new = is_new_xray(config.core_version)
 
         xhttp_settings = {
             "mode": config.mode,
@@ -148,8 +148,8 @@ class XrayConfiguration(BaseSubscription):
             "xPaddingPlacement": config.x_padding_placement,
             "xPaddingMethod": config.x_padding_method,
             "uplinkHTTPMethod": config.uplink_http_method,
-            "sessionPlacement": config.session_placement,
-            "sessionKey": config.session_key,
+            ("sessionIDPlacement" if is_new else "sessionPlacement"): config.session_placement,
+            ("sessionIDKey" if is_new else "sessionKey"): config.session_key,  
             "seqPlacement": config.seq_placement,
             "seqKey": config.seq_key,
             "uplinkDataPlacement": config.uplink_data_placement,
@@ -160,6 +160,7 @@ class XrayConfiguration(BaseSubscription):
             "downloadSettings": self._xhttp_download_config(config.download_settings)
             if config.download_settings
             else None,
+            **({"sessionIDTable": config.session_id_table, "sessionIDLength": config.session_id_length} if is_new else {}),
         }
 
         if config.random_user_agent:

@@ -7,7 +7,15 @@ from typing import Any, Literal
 from urllib.parse import quote, urlencode
 
 from app.models.subscription import SubscriptionInboundData
+from packaging.version import Version
 
+def is_new_xray(version: str | None) -> bool:
+    if not version:
+        return False
+    try:
+        return Version(version.lstrip("v")) >= Version("26.6.22")
+    except Exception:
+        return False
 
 class BaseSubscription:
     def __init__(

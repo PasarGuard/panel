@@ -63,7 +63,6 @@
         "usageLimitWarning": "هشدار محدودیت مصرف",
         "modifyHosts": "ویرایش هاست‌ها",
         "connect": "اتصال",
-        "recovered": "بازیابی",
         "error": "خطا",
         "limited": "محدود شده",
         "statusChange": "تغییر وضعیت",
@@ -145,14 +144,6 @@
         "headerName": "نام هدر",
         "headerValue": "مقدار هدر",
         "noHeaders": "هیچ هدر پاسخی پیکربندی نشده است. هدرها را اضافه کنید تا هدرهای HTTP سفارشی در پاسخ‌های اشتراک قرار گیرند."
-      },
-      "customVariables": {
-        "title": "متغیرهای سفارشی",
-        "description": "جای‌نگهدارهای قابل استفاده مجدد برای خروجی اشتراک و هاست بسازید.",
-        "addVariable": "افزودن متغیر",
-        "empty": "هیچ متغیر سفارشی پیکربندی نشده است.",
-        "duplicateKey": "کلید متغیر سفارشی تکراری است.",
-        "builtinConflict": "این کلید برای یک متغیر داخلی رزرو شده است."
       },
       "rules": {
         "title": "قوانین اشتراک",
@@ -481,9 +472,7 @@
   "saving": "در حال ذخیره...",
   "general": "عمومی",
   "loading": "در حال بارگذاری...",
-  "clear": "پاک کردن",
   "never": "هرگز",
-  "resources": "منابع",
   "noResults": "نتیجه‌ای یافت نشد",
   "noAdminsFound": "مدیری یافت نشد",
   "emptyState": {
@@ -580,14 +569,6 @@
     "subDomain": "دامنه اشتراک",
     "profile": "عنوان پروفایل",
     "subTemplate": "مسیر قالب اشتراک",
-    "customVariables": {
-      "title": "متغیرهای سفارشی",
-      "description": "متغیرهای سفارشی سراسری را برای کاربران این ادمین بازنویسی کنید.",
-      "addVariable": "افزودن متغیر",
-      "empty": "هیچ متغیر سفارشی پیکربندی نشده است.",
-      "duplicateKey": "کلید متغیر سفارشی تکراری است.",
-      "builtinConflict": "این کلید برای یک متغیر داخلی رزرو شده است."
-    },
     "passwordConfirm": "تأیید رمز عبور",
     "enterPasswordConfirm": "رمز عبور را دوباره وارد کنید",
     "disableSuccess": "مدیر «{{name}}» با موفقیت غیرفعال شد",
@@ -613,54 +594,7 @@
     "monitor": {
       "traffic": "نظارت بر مصرف ترافیک مدیر در طول زمان",
       "no_traffic": "داده‌ای برای ترافیک موجود نیست"
-    },
-    "disabled": "???????"
-  },
-  "apiKeys": {
-    "title": "کلیدهای API",
-    "description": "مدیریت کلیدهای API برای دسترسی برنامه‌نویسی",
-    "createKey": "ایجاد کلید API",
-    "editKey": "ویرایش کلید API",
-    "admin": "مدیر",
-    "selectAdmin": "انتخاب مدیر",
-    "adminDescription": "این کلید با هویت این مدیر احراز هویت می‌شود.",
-    "name": "نام",
-    "key": "کلید API",
-    "keyId": "شناسه کلید",
-    "note": "یادداشت",
-    "role": "نقش",
-    "status": "وضعیت",
-    "expireDate": "تاریخ انقضا",
-    "createdAt": "تاریخ ایجاد",
-    "revokedAt": "تاریخ ابطال",
-    "revoke": "ابطال",
-    "delete": "حذف",
-    "apiKey": "کلید API",
-    "apiKeyCopy": "کپی کلید API",
-    "apiKeyCopySuccess": "کلید API در حافظه کپی شد",
-    "apiKeyShowWarning": "این کلید فقط یکبار نمایش داده می‌شود. لطفا همین الان آن را کپی کنید.",
-    "createSuccess": "کلید API با موفقیت ایجاد شد",
-    "createFailed": "ایجاد کلید API ناموفق بود",
-    "updateSuccess": "کلید API با موفقیت بروزرسانی شد",
-    "updateFailed": "بروزرسانی کلید API ناموفق بود",
-    "revokeSuccess": "کلید API با موفقیت ابطال و مجدداً صادر شد",
-    "revokeFailed": "ابطال کلید API ناموفق بود",
-    "deleteSuccess": "کلید API با موفقیت حذف شد",
-    "deleteFailed": "حذف کلید API ناموفق بود",
-    "deletePrompt": "آیا از حذف کلید API «{{name}}» اطمینان دارید؟",
-    "revokePrompt": "ابطال کلید باعث غیرفعال شدن کلید فعلی و صدور کلید جدید می‌شود. آیا مطمئن هستید؟",
-    "revokeTitle": "ابطال و صدور مجدد کلید API",
-    "deleteTitle": "حذف کلید API",
-    "inheritPermissions": "ارث‌بری مجوزهای مدیر",
-    "inheritPermissionsDescription": "از مجوزهای فعلی نقش مدیر مالک استفاده شود. برای ذخیره مجوزهای سفارشی روی این کلید غیرفعال کنید.",
-    "inherited": "ارث‌بری‌شده",
-    "noKeys": "هیچ کلید API تنظیم نشده است",
-    "noKeysDescription": "برای دسترسی برنامه‌نویسی یک کلید API ایجاد کنید.",
-    "noSearchResults": "هیچ کلید API با معیارهای جست‌وجوی شما مطابقت ندارد. عبارت جست‌وجو یا فیلترها را تغییر دهید.",
-    "bulkDeleteSuccess": "{{count}} کلید API با موفقیت حذف شد.",
-    "bulkDeleteFailed": "حذف کلیدهای API انتخاب‌شده ناموفق بود.",
-    "bulkDeleteTitle": "حذف کلیدهای API انتخاب‌شده",
-    "bulkDeletePrompt": "آیا از حذف {{count}} کلید API انتخاب‌شده مطمئن هستید؟ این عملیات قابل بازگشت نیست."
+    }
   },
   "adminRoles": {
     "title": "نقش‌های مدیر",
@@ -681,7 +615,7 @@
     "limits": "محدودیت‌ها",
     "limitsAndFeatures": "محدودیت‌ها و قابلیت‌ها",
     "limitsHint": "برای استفاده از پیش‌فرض، خالی بگذارید. برای غیرفعال‌سازی ۰ بگذارید.",
-    "roleFormHint": "اعمال دارای محدوده، مقدار «هیچ»، «خودی» یا «همه» می‌گیرند. سایر اعمال سوئیچ بولی هستند.",
+    "roleFormHint": "اعمال کاربر دارای محدوده، مقدار «هیچ»، «خودی» یا «همه» می‌گیرند. سایر اعمال سوئیچ بولی هستند.",
     "scopedActionInfo": "محدوده مالکیت را انتخاب کنید: «هیچ» دسترسی را رد می‌کند، «خودی» فقط کاربران خود مدیر را شامل می‌شود و «همه» دسترسی کامل می‌دهد.",
     "allowAll": "اجازه همه",
     "features": "قابلیت‌ها",
@@ -727,7 +661,6 @@
       "users": "کاربران",
       "admins": "مدیران",
       "roles": "نقش‌ها",
-      "apiKeys": "کلیدهای API",
       "nodes": "گره‌ها",
       "coreHosts": "هسته و هاست‌ها",
       "groupsTemplates": "گروه‌ها و قالب‌ها",
@@ -783,7 +716,6 @@
       "users": "کاربران",
       "admins": "مدیران",
       "admin_roles": "نقش‌ها",
-      "api_keys": "کلیدهای API",
       "nodes": "گره‌ها",
       "cores": "هسته‌ها",
       "hosts": "هاست‌ها",
@@ -794,7 +726,6 @@
       "system": "سیستم",
       "hwids": "HWID"
     },
-    "noAvailablePermissions": "هیچ مجوزی در دسترس نیست.",
     "scopedBadge": "محدوده‌دار",
     "scopes": {
       "none": "هیچ",
@@ -811,7 +742,8 @@
       "max_hwid_per_user": "حداکثر HWID برای هر کاربر",
       "on_hold_timeout_days_min": "حداقل زمان انتظار (روز)",
       "on_hold_timeout_days_max": "حداکثر زمان انتظار (روز)"
-    },
+      },
+
     "limitedBehavior": {
       "disabledWhenLimited": {
         "title": "مسدود کردن مدیران محدودشده",
@@ -909,7 +841,6 @@
     "dataLimit": "محدودیت داده",
     "hwidLimit": "محدودیت شناسه سخت‌افزار",
     "hwidLimitPlaceholder": "خالی = پیش‌فرض، ۰ = نامحدود",
-    "hwidLimitHint": "خالی = استفاده از سیاست پیش‌فرض. ۰ = نامحدود و معاف از شناسه سخت‌افزار، حتی زمانی که هدر شناسه سخت‌افزار الزامی شده باشد.",
     "expire": "مدت انقضا",
     "onHoldTimeout": "زمان انتظار توقف",
     "method": "روش",
@@ -1141,6 +1072,10 @@
       "uplinkHttpMethod": "Uplink HTTP Method",
       "sessionPlacement": "Session Placement",
       "sessionKey": "Session Key",
+      "sessionIdTable": "جدول Session ID",
+      "sessionIdTablePlaceholder": "مثلاً Base62، HEX یا کاراکترهای دلخواه",
+      "sessionIdLength": "طول Session ID",
+      "sessionIdLengthPlaceholder": "مثلاً ۸ یا ۸-۱۶",
       "seqPlacement": "Seq Placement",
       "seqKey": "Seq Key",
       "uplinkDataPlacement": "Uplink Data Placement",
@@ -1288,13 +1223,6 @@
       "url": "آدرس اشتراک",
       "format": "فرمت اشتراک منطبق‌شده (مثلاً links یا sing_box)",
       "admin_username": "نام کاربری ادمین"
-    },
-    "customVariables": {
-      "title": "متغیرهای سفارشی",
-      "trigger": "متغیرهای سفارشی",
-      "preview": "پیش‌نمایش",
-      "empty": "هیچ متغیر سفارشی پیکربندی نشده است.",
-      "emptyValue": "مقدار خالی"
     },
     "advancedOptions": "تنظیمات پیشرفته",
     "host.info": "به طور پیش‌فرض، اگر هاست درخواست در پیکربندی XRAY تنظیم شده باشد، از آن استفاده می‌شود. با این حال، در صورت نیاز، می‌توانید یک هاست درخواست سفارشی در اینجا تنظیم کنید.",
@@ -1871,7 +1799,10 @@
     "updating": "در حال به‌روزرسانی...",
     "updateAvailable": "به‌روزرسانی موجود است",
     "prerelease": "نسخه پیش‌انتشار",
-    "loadingReleases": "در حال بارگذاری نسخه‌ها..."
+    "loadingReleases": "در حال بارگذاری نسخه‌ها...",
+    "breakingChangeTitle": "تغییرات ناسازگار در Xray 26.6.22+",
+    "breakingChangeWarning": "از نسخه Xray 26.6.22 به بعد، پارامترهای xhttp یعنی «sessionPlacement» و «sessionKey» به «sessionIDPlacement» و «sessionIDKey» تغییر نام می‌یابند. پیکربندی‌های سرور هنگام نصب نسخه جدید به‌صورت خودکار مهاجرت می‌کنند. اما کاربرانی که در اشتراک‌های اینباند xhttp آن‌ها هنوز sessionPlacement/sessionKey وجود دارد، پس از به‌روزرسانی تا زمانی که اشتراک خود را دوباره وارد نکنند نمی‌توانند به سرور متصل شوند. ادامه می‌دهید؟",
+    "breakingChangeConfirm": "متوجه شدم، در هر صورت به‌روزرسانی شود"
   },
   "nodes": {
     "title": "گره‌ها",
@@ -3360,7 +3291,6 @@
   "timeSelector.pickDate": "انتخاب تاریخ",
   "advanceSearch": {
     "title": "جستجوی پیشرفته",
-    "description": "فیلتر کردن کلیدهای API بر اساس شناسه و وضعیت.",
     "searchMode": "حالت جست‌وجو",
     "searchModeDescription": "مشخص کنید فیلد جست‌وجوی اصلی چگونه تفسیر شود.",
     "byUsername": "نام کاربری و یادداشت‌ها",

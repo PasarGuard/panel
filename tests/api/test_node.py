@@ -581,6 +581,103 @@ async def test_bulk_update_node_status_preserves_version_when_empty():
         await cleanup_nodes_simple(core_id, [node_a_id, node_b_id, node_c_id])
 
 
+def _xhttp_core_config(tag: str) -> dict:
+    return {
+        "inbounds": [
+            {
+                "tag": tag,
+                "listen": "0.0.0.0",
+                "port": 8443,
+                "protocol": "vless",
+                "settings": {"clients": [], "decryption": "none"},
+                "streamSettings": {
+                    "network": "xhttp",
+                    "xhttpSettings": {
+                        "path": "/",
+                        "sessionPlacement": "header",
+                        "sessionKey": "X-Request-ID",
+                    },
+                },
+            }
+        ],
+        "outbounds": [{"tag": "DIRECT", "protocol": "freedom"}],
+    }
+
+
+async def test_update_node_status_migrates_session_keys_for_sole_node():
+    from app.db.crud.node import update_node_status
+
+    async with TestSession() as session:
+        core = await create_core_config(
+            session,
+            CoreCreate(name=unique_name("core_migrate_sole"), config=_xhttp_core_config("xhttp-sole"), exclude_inbound_tags=set(), fallbacks_inbound_tags=set()),
+        )
+        core_id = inspect(core).identity[0]
+        node_model = NodeCreate(**node_create_payload(name=unique_name("node_migrate_sole"), core_config_id=core_id))
+        db_node = await db_create_node(session, node_model)
+        node_id = inspect(db_node).identity[0]
+
+    async with TestSession() as session:
+        db_node = await session.get(Node, node_id)
+        # Starts below the sessionID-rename threshold — no migration yet.
+        await update_node_status(session, db_node, NodeStatus.connected, xray_version="26.5.9", node_version="0.5.0")
+
+    async with TestSession() as session:
+        db_core = await session.get(CoreConfig, core_id)
+        xhttp = db_core.config["inbounds"][0]["streamSettings"]["xhttpSettings"]
+        assert xhttp["sessionPlacement"] == "header"
+        assert xhttp["sessionKey"] == "X-Request-ID"
+
+    async with TestSession() as session:
+        db_node = await session.get(Node, node_id)
+        # Crossing the threshold on the sole node using this core triggers the migration.
+        await update_node_status(session, db_node, NodeStatus.connected, xray_version="26.6.22", node_version="0.5.3")
+
+    async with TestSession() as session:
+        db_core = await session.get(CoreConfig, core_id)
+        xhttp = db_core.config["inbounds"][0]["streamSettings"]["xhttpSettings"]
+        assert xhttp["sessionIDPlacement"] == "header"
+        assert xhttp["sessionIDKey"] == "X-Request-ID"
+        assert "sessionPlacement" not in xhttp
+        assert "sessionKey" not in xhttp
+
+        await cleanup_nodes_simple(core_id, [node_id])
+
+
+async def test_update_node_status_skips_migration_when_core_shared():
+    from app.db.crud.node import update_node_status
+
+    async with TestSession() as session:
+        core = await create_core_config(
+            session,
+            CoreCreate(name=unique_name("core_migrate_shared"), config=_xhttp_core_config("xhttp-shared"), exclude_inbound_tags=set(), fallbacks_inbound_tags=set()),
+        )
+        core_id = inspect(core).identity[0]
+        node_a_model = NodeCreate(**node_create_payload(name=unique_name("node_migrate_shared_a"), core_config_id=core_id))
+        node_b_model = NodeCreate(**node_create_payload(name=unique_name("node_migrate_shared_b"), core_config_id=core_id))
+        db_node_a = await db_create_node(session, node_a_model)
+        db_node_b = await db_create_node(session, node_b_model)
+        node_a_id = inspect(db_node_a).identity[0]
+        node_b_id = inspect(db_node_b).identity[0]
+
+    async with TestSession() as session:
+        db_node_a = await session.get(Node, node_a_id)
+        await update_node_status(session, db_node_a, NodeStatus.connected, xray_version="26.5.9", node_version="0.5.0")
+
+    async with TestSession() as session:
+        db_node_a = await session.get(Node, node_a_id)
+        # node_b (still on this core) is unaccounted for, so the shared config must not be rewritten.
+        await update_node_status(session, db_node_a, NodeStatus.connected, xray_version="26.6.22", node_version="0.5.3")
+
+    async with TestSession() as session:
+        db_core = await session.get(CoreConfig, core_id)
+        xhttp = db_core.config["inbounds"][0]["streamSettings"]["xhttpSettings"]
+        assert xhttp["sessionPlacement"] == "header"
+        assert xhttp["sessionKey"] == "X-Request-ID"
+
+        await cleanup_nodes_simple(core_id, [node_a_id, node_b_id])
+
+
 async def test_get_xray_version_by_core_id_ignores_status():
     from app.db.crud.node import get_xray_version_by_core_id, update_node_status
 

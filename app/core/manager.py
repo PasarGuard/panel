@@ -36,6 +36,7 @@ class CoreManager:
         self._lock = Lock()
         self._inbounds: list[str] = []
         self._inbounds_by_tag = {}
+        self._tag_to_core_id: dict[str, int] = {}
         self._nats_enabled = is_nats_enabled()
         self._multi_worker = runtime_settings.role.requires_nats
         self._nc: nats.NATS | None = None
@@ -222,9 +223,13 @@ class CoreManager:
     async def update_inbounds(self):
         async with self._lock:
             new_inbounds = {}
-            for core in self._cores.values():
+            new_tag_to_core_id = {}
+            for core_id, core in self._cores.items():
                 new_inbounds.update(core.inbounds_by_tag)
+                for tag in core.inbounds_by_tag:
+                    new_tag_to_core_id[tag] = core_id
 
+            self._tag_to_core_id = new_tag_to_core_id        
             self._inbounds_by_tag = new_inbounds
             self._inbounds = list(self._inbounds_by_tag.keys())
 
@@ -313,6 +318,9 @@ class CoreManager:
                 return None
             return deepcopy(inbound)
 
+    async def get_core_id_by_tag(self, tag: str) -> int | None:
+        async with self._lock:
+            return self._tag_to_core_id.get(tag)
 
 core_manager = CoreManager()
 

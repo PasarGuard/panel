@@ -101,6 +101,8 @@ class XHttpSettings(BaseModel):
     uplink_http_method: str | None = Field(default=None)
     session_placement: str | None = Field(default=None, pattern=r"^$|^(path|cookie|header|query)$")
     session_key: str | None = Field(default=None)
+    session_id_table: str | None = Field(default=None, pattern=r"^[\x20-\x7E]*$")
+    session_id_length: str | None = Field(default=None, pattern=r"^\d{1,16}(-\d{1,16})?$")
     seq_placement: str | None = Field(default=None, pattern=r"^$|^(path|cookie|header|query)$")
     seq_key: str | None = Field(default=None)
     uplink_data_placement: str | None = Field(default=None, pattern=r"^$|^(body|cookie|header)$")

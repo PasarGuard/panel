@@ -164,7 +164,6 @@
         "usageLimitWarning": "用量限制预警",
         "modifyHosts": "修改主机",
         "connect": "连接",
-        "recovered": "已恢复",
         "error": "错误",
         "limited": "受限",
         "statusChange": "状态变更",
@@ -243,14 +242,6 @@
         "headerName": "头名称",
         "headerValue": "头值",
         "noHeaders": "未配置响应头。添加头以在订阅响应中包含自定义 HTTP 头。"
-      },
-      "customVariables": {
-        "title": "自定义变量",
-        "description": "为订阅和主机输出创建可复用的占位符。",
-        "addVariable": "添加变量",
-        "empty": "未配置自定义变量。",
-        "duplicateKey": "自定义变量键重复。",
-        "builtinConflict": "此键已保留给内置变量。"
       },
       "rules": {
         "title": "订阅规则",
@@ -711,14 +702,6 @@
     "subDomain": "订阅域名",
     "profile": "个人资料标题",
     "subTemplate": "订阅模板路径",
-    "customVariables": {
-      "title": "自定义变量",
-      "description": "为此管理员名下的用户覆盖全局自定义变量。",
-      "addVariable": "添加变量",
-      "empty": "未配置自定义变量。",
-      "duplicateKey": "自定义变量键重复。",
-      "builtinConflict": "此键已保留给内置变量。"
-    },
     "passwordConfirm": "确认密码",
     "enterPasswordConfirm": "请输入确认密码",
     "disableSuccess": "管理员「{{name}}」已成功禁用",
@@ -744,54 +727,7 @@
     "monitor": {
       "traffic": "监控管理员使用情况",
       "no_traffic": "没有使用情况数据"
-    },
-    "disabled": "??"
-  },
-  "apiKeys": {
-    "title": "API 密钥",
-    "description": "管理用于编程访问的 API 密钥",
-    "createKey": "创建 API 密钥",
-    "editKey": "修改 API 密钥",
-    "admin": "管理员",
-    "selectAdmin": "选择管理员",
-    "adminDescription": "此密钥将以该管理员身份进行认证。",
-    "name": "名称",
-    "key": "API 密钥",
-    "keyId": "密钥 ID",
-    "note": "备注",
-    "role": "角色",
-    "status": "状态",
-    "expireDate": "过期日期",
-    "createdAt": "创建于",
-    "revokedAt": "吊销于",
-    "revoke": "吊销",
-    "delete": "删除",
-    "apiKey": "API 密钥",
-    "apiKeyCopy": "复制 API 密钥",
-    "apiKeyCopySuccess": "API 密钥已复制到剪贴板",
-    "apiKeyShowWarning": "此密钥仅显示一次。请立即复制。",
-    "createSuccess": "API 密钥创建成功",
-    "createFailed": "创建 API 密钥失败",
-    "updateSuccess": "API 密钥更新成功",
-    "updateFailed": "更新 API 密钥失败",
-    "revokeSuccess": "API 密钥已成功吊销并重新签发",
-    "revokeFailed": "吊销 API 密钥失败",
-    "deleteSuccess": "API 密钥删除成功",
-    "deleteFailed": "删除 API 密钥失败",
-    "deletePrompt": "您确定要删除 API 密钥「{{name}}」吗？",
-    "revokePrompt": "吊销将使当前密钥失效并签发新密钥。您确定吗？",
-    "revokeTitle": "吊销并重新签发 API 密钥",
-    "deleteTitle": "删除 API 密钥",
-    "inheritPermissions": "继承管理员权限",
-    "inheritPermissionsDescription": "使用拥有者管理员当前角色的权限。关闭后将在此密钥上保存自定义权限。",
-    "inherited": "已继承",
-    "noKeys": "未配置 API 密钥",
-    "noKeysDescription": "创建 API 密钥以允许程序化访问。",
-    "noSearchResults": "没有 API 密钥符合搜索条件。请调整搜索词或筛选器。",
-    "bulkDeleteSuccess": "已成功删除 {{count}} 个 API 密钥。",
-    "bulkDeleteFailed": "删除所选 API 密钥失败。",
-    "bulkDeleteTitle": "删除所选 API 密钥",
-    "bulkDeletePrompt": "确定要删除选中的 {{count}} 个 API 密钥吗？此操作无法撤销。"
+    }
   },
   "adminRoles": {
     "title": "管理员角色",
@@ -858,7 +794,6 @@
       "users": "用户",
       "admins": "管理员",
       "roles": "角色",
-      "apiKeys": "API 密钥",
       "nodes": "节点",
       "coreHosts": "核心和主机",
       "groupsTemplates": "组和模板",
@@ -914,7 +849,6 @@
       "users": "用户",
       "admins": "管理员",
       "admin_roles": "角色",
-      "api_keys": "API 密钥",
       "nodes": "节点",
       "cores": "核心",
       "hosts": "主机",
@@ -925,7 +859,6 @@
       "system": "系统",
       "hwids": "HWID"
     },
-    "noAvailablePermissions": "没有可用权限。",
     "scopedBadge": "带范围",
     "scopes": {
       "none": "无",
@@ -1042,7 +975,6 @@
     "dataLimit": "数据限制",
     "hwidLimit": "HWID 限制",
     "hwidLimitPlaceholder": "留空 = 默认，0 = 无限制",
-    "hwidLimitHint": "留空 = 使用默认策略。0 = 无限制并免除 HWID 校验，即使已强制要求 HWID 请求头。",
     "expire": "过期时间",
     "onHoldTimeout": "挂起超时",
     "method": "方法",
@@ -1262,6 +1194,10 @@
       "uplinkHttpMethod": "Uplink HTTP Method",
       "sessionPlacement": "Session Placement",
       "sessionKey": "Session Key",
+      "sessionIdTable": "Session ID 字符表",
+      "sessionIdTablePlaceholder": "例如 Base62、HEX 或自定义字符",
+      "sessionIdLength": "Session ID 长度",
+      "sessionIdLengthPlaceholder": "例如 8 或 8-16",
       "seqPlacement": "Seq Placement",
       "seqKey": "Seq Key",
       "uplinkDataPlacement": "Uplink Data Placement",
@@ -1410,13 +1346,6 @@
       "url": "订阅链接",
       "format": "匹配到的订阅格式（例如：links、sing_box）",
       "admin_username": "管理员用户名"
-    },
-    "customVariables": {
-      "title": "自定义变量",
-      "trigger": "自定义变量",
-      "preview": "预览",
-      "empty": "未配置自定义变量。",
-      "emptyValue": "空值"
     },
     "advancedOptions": "高级选项",
     "hos.info": "默认情况下，如果请求主机在 XRAY 配置中设置，则使用该主机。但是，如果需要，您可以在此处设置自定义请求主机。",
@@ -2018,7 +1947,10 @@
     "updating": "更新中...",
     "updateAvailable": "有更新可用",
     "prerelease": "预发布版本",
-    "loadingReleases": "正在加载版本..."
+    "loadingReleases": "正在加载版本...",
+    "breakingChangeTitle": "Xray 26.6.22+ 的重大变更",
+    "breakingChangeWarning": "从 Xray 26.6.22 开始，xhttp 参数 “sessionPlacement” 和 “sessionKey” 已重命名为 “sessionIDPlacement” 和 “sessionIDKey”。安装新版本时，服务器配置会自动迁移。但是，订阅中 xhttp 入站仍包含 sessionPlacement/sessionKey 的用户在升级后将无法连接到服务器，直到他们重新导入订阅。是否继续？",
+    "breakingChangeConfirm": "我已了解，仍然更新"
   },
   "theme": {
     "title": "主题",
@@ -3169,9 +3101,7 @@
   },
   "online": "在线",
   "loading": "加载中...",
-  "clear": "清除",
   "never": "从未",
-  "resources": "资源",
   "noResults": "未找到结果",
   "noAdminsFound": "未找到管理员",
   "emptyState": {
@@ -3384,7 +3314,6 @@
   "timeSelector.pickDate": "选择日期",
   "advanceSearch": {
     "title": "高级搜索",
-    "description": "按标识符和状态筛选 API 密钥。",
     "searchMode": "搜索模式",
     "searchModeDescription": "选择如何解释主搜索框中的内容。",
     "byUsername": "用户名和备注",
