@@ -854,6 +854,33 @@ def test_user_subscriptions(access_token):
         cleanup_groups(access_token, core, groups)
 
 
+def test_user_subscription_head_route(access_token):
+    """Test that HEAD /{token} returns headers without a body."""
+    core, groups = setup_groups(access_token, 1)
+    hosts = create_hosts_for_inbounds(access_token)
+    user = create_user(
+        access_token,
+        group_ids=[group["id"] for group in groups],
+        payload={"username": unique_name("test_head_sub")},
+    )
+    try:
+        url = user["subscription_url"]
+        for test_url in (url, f"{url}/"):
+            head_response = client.head(test_url)
+            assert head_response.status_code == status.HTTP_200_OK
+            assert head_response.content == b""
+            get_response = client.get(test_url)
+            assert get_response.status_code == status.HTTP_200_OK
+            for header in ("subscription-userinfo", "profile-title", "profile-update-interval"):
+                if header in get_response.headers:
+                    assert head_response.headers.get(header) == get_response.headers.get(header)
+    finally:
+        delete_user(access_token, user["username"])
+        for host in hosts:
+            client.delete(f"/api/host/{host['id']}", headers={"Authorization": f"Bearer {access_token}"})
+        cleanup_groups(access_token, core, groups)
+
+
 def test_user_routes_by_id_and_by_username(access_token):
     core, groups = setup_groups(access_token, 1)
     user = create_user(access_token, group_ids=[groups[0]["id"]], payload={"username": unique_name("id_routes_user")})

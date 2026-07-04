@@ -710,6 +710,62 @@ class SubscriptionOperation(BaseOperation):
 
         return apps_with_updated_urls
 
+    async def user_subscription_headers(
+        self,
+        db: AsyncSession,
+        token: str,
+        accept_header: str = "",
+        user_agent: str = "",
+        request_url: str = "",
+    ) -> dict[str, str]:
+        """
+        Retrieves only the headers for a subscription request, bypassing configuration generation.
+        """
+        sub_settings: SubSettings = await subscription_settings()
+        db_user = await self.get_validated_sub(db, token, load_admin_role=True)
+        user = await self.validated_user(db_user)
+        is_browser_request = "text/html" in accept_header
+        is_subscription_page_request = is_browser_request and not sub_settings.disable_sub_template
+        if is_subscription_page_request:
+            response_headers = {
+                "content-type": "text/html; charset=utf-8",
+            }
+        else:
+            matched_rule = self.detect_client_rule(user_agent, sub_settings.rules)
+            client_type = matched_rule.target if matched_rule else None
+            if client_type == ConfigFormat.block or not client_type:
+                await self.raise_error(message="Client not supported", code=406)
+
+            # If disable_sub_template is True and it's a browser request, use inline to view instead of download
+            inline_view = sub_settings.disable_sub_template and is_browser_request
+            response_headers = self.create_response_headers(
+                user,
+                request_url,
+                sub_settings,
+                inline=inline_view,
+                extra_headers={},
+            )
+            try:
+                response_headers.update(
+                    self._format_subscription_response_headers(
+                        sub_settings, await self._get_rule_response_header_variables(user, client_type)
+                    )
+                )
+                response_headers.update(
+                    self._format_rule_response_headers(
+                        matched_rule, await self._get_rule_response_header_variables(user, client_type)
+                    )
+                )
+                response_headers = self.sanitize_response_headers(response_headers)
+            except ValueError as exc:
+                await self.raise_error(message=str(exc), code=400)
+
+            config = client_config.get(client_type, {})
+            if "media_type" in config:
+                response_headers["content-type"] = config["media_type"]
+
+        return response_headers
+
     async def get_user_usage(
         self,
         db: AsyncSession,
