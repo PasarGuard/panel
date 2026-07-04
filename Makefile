@@ -3,19 +3,6 @@
 PYTHON_VERSION=3.14
 VENV_DIR=.venv
 
-# Check if Python 3.14 is installed, if not, install it
-.PHONY: check-python
-check-python:
-	@if ! python${PYTHON_VERSION} --version | grep -q "$(PYTHON_VERSION)"; then \
-		echo "Python $(PYTHON_VERSION) is not installed. Installing..."; \
-		sudo add-apt-repository -y ppa:deadsnakes/ppa && sudo apt update && sudo apt install -y python$(PYTHON_VERSION) python$(PYTHON_VERSION)-venv || { \
-			echo "Failed to install Python $(PYTHON_VERSION). Please install it manually."; \
-			exit 1; \
-		}; \
-	else \
-		echo "Python $(PYTHON_VERSION) is installed."; \
-	fi
-
 .PHONY: install_uv
 install_uv:
 	@if ! uv --help >/dev/null 2>&1; then \
@@ -143,10 +130,10 @@ clean:
 
 # Setup environment: check Python, install uv, and sync requirements
 .PHONY: setup
-setup: check-python install_uv requirements
+setup: install_uv requirements
 
 .PHONY: setup-test
-setup-test: check-python install_uv requirements-dev
+setup-test: install_uv requirements-dev
 
 # Format code (front-end)
 .PHONY: fformat
