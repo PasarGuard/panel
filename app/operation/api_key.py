@@ -55,9 +55,7 @@ def _check_permissions_not_exceed_admin(admin: AdminDetails, requested: RolePerm
                 continue
             admin_action = admin_resource.get(action) if admin_resource else None
             if admin_action is None:
-                raise ValueError(
-                    f"You don't have the '{action}' permission on '{resource_name}'"
-                )
+                raise ValueError(f"You don't have the '{action}' permission on '{resource_name}'")
             # True means unrestricted — cannot grant if admin only has scoped access
             if value is True and admin_action is not True:
                 raise ValueError(
@@ -70,8 +68,7 @@ def _check_permissions_not_exceed_admin(admin: AdminDetails, requested: RolePerm
                 admin_scope = admin_action.get("scope", 0)
                 if key_scope > admin_scope:
                     raise ValueError(
-                        f"Cannot grant '{resource_name}.{action}' with scope={key_scope}: "
-                        f"your scope is {admin_scope}"
+                        f"Cannot grant '{resource_name}.{action}' with scope={key_scope}: your scope is {admin_scope}"
                     )
 
 

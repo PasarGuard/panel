@@ -54,7 +54,6 @@ async def user_subscription_headers(
     return Response(headers=response_headers)
 
 
-
 @router.get("/{token}/info", response_model=SubscriptionUserResponse)
 async def user_subscription_info(request: Request, token: str, db: AsyncSession = Depends(get_db)):
     """Retrieves detailed information about the user's subscription."""
