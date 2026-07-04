@@ -275,6 +275,8 @@ export default function HostsList({
                   uplink_http_method: host.transport_settings.xhttp_settings.uplink_http_method ?? undefined,
                   session_placement: host.transport_settings.xhttp_settings.session_placement ?? undefined,
                   session_key: host.transport_settings.xhttp_settings.session_key ?? undefined,
+                  session_id_table: host.transport_settings.xhttp_settings.session_id_table ?? undefined,
+                  session_id_length: host.transport_settings.xhttp_settings.session_id_length ?? undefined,
                   seq_placement: host.transport_settings.xhttp_settings.seq_placement ?? undefined,
                   seq_key: host.transport_settings.xhttp_settings.seq_key ?? undefined,
                   uplink_data_placement: host.transport_settings.xhttp_settings.uplink_data_placement ?? undefined,
