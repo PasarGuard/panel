@@ -149,7 +149,8 @@ class XrayConfiguration(BaseSubscription):
             "xPaddingMethod": config.x_padding_method,
             "uplinkHTTPMethod": config.uplink_http_method,
             ("sessionIDPlacement" if is_new else "sessionPlacement"): config.session_placement,
-            ("sessionIDKey" if is_new else "sessionKey"): config.session_key,  
+            ("sessionIDKey" if is_new else "sessionKey"): config.session_key,
+            **({"sessionIDTable": config.session_id_table, "sessionIDLength": config.session_id_length} if is_new else {}),
             "seqPlacement": config.seq_placement,
             "seqKey": config.seq_key,
             "uplinkDataPlacement": config.uplink_data_placement,
@@ -160,7 +161,6 @@ class XrayConfiguration(BaseSubscription):
             "downloadSettings": self._xhttp_download_config(config.download_settings)
             if config.download_settings
             else None,
-            **({"sessionIDTable": config.session_id_table, "sessionIDLength": config.session_id_length} if is_new else {}),
         }
 
         if config.random_user_agent:

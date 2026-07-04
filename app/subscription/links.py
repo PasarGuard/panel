@@ -117,6 +117,7 @@ class StandardLinks(BaseSubscription):
             "uplinkHTTPMethod": config.uplink_http_method,
             ("sessionIDPlacement" if is_new else "sessionPlacement"): config.session_placement,
             ("sessionIDKey" if is_new else "sessionKey"): config.session_key,
+            **({"sessionIDTable": config.session_id_table, "sessionIDLength": config.session_id_length} if is_new else {}),
             "seqPlacement": config.seq_placement,
             "seqKey": config.seq_key,
             "uplinkDataPlacement": config.uplink_data_placement,
@@ -126,7 +127,6 @@ class StandardLinks(BaseSubscription):
             "xmux": config.xmux,
             "headers": config.http_headers if config.http_headers else {},
             "downloadSettings": config.download_settings,
-            **({"sessionIDTable": config.session_id_table, "sessionIDLength": config.session_id_length} if is_new else {}),
         }
 
         if config.random_user_agent:
