@@ -32,6 +32,7 @@ async def user_subscription(
         user_agent=user_agent,
         ip=request.client.host if request.client else None,
         request_url=str(request.url),
+        **headers.model_dump(),
     )
 
 
