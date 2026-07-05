@@ -1243,6 +1243,19 @@
       "randRange": "محدوده تصادفی",
       "randRangePlaceholder": "محدوده تصادفی را وارد کنید (مثلاً 10-20)"
     },
+    "finalmask": {
+      "title": "تنظیمات FinalMask",
+      "enable": "فعال‌سازی FinalMask",
+      "info": "پیکربندی تنظیمات کلاینت سفارشی finalmask (پارامترهای TCP، UDP و QUIC).",
+      "placeholder": "پیکربندی JSON برای FinalMask را وارد کنید",
+      "invalidJson": "JSON نامعتبر است: {{error}}",
+      "tcpLayers": "لایه‌های TCP",
+      "addTcpLayer": "افزودن لایه TCP",
+      "noTcpLayers": "هیچ لایه TCP پیکربندی نشده است",
+      "udpLayers": "لایه‌های UDP",
+      "addUdpLayer": "افزودن لایه UDP",
+      "noUdpLayers": "هیچ لایه UDP پیکربندی نشده است"
+    },
     "muxSettings": "تنظیمات Mux",
     "enableMux": "فعال‌سازی Mux",
     "xraySettings": "تنظیمات Xray",

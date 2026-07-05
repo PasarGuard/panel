@@ -161,6 +161,7 @@ export interface HostFormValues {
       heartbeatPeriod?: number
     }
   }
+  final_mask_settings?: any
 }
 
 const transportSettingsSchema = z
@@ -449,6 +450,7 @@ export const HostFormSchema = z.object({
       xray: z.number().int().positive().optional(),
     })
     .optional(),
+  final_mask_settings: z.any().optional(),
 })
 
 export const hostFormDefaultValues: HostFormValues = {
@@ -476,4 +478,5 @@ export const hostFormDefaultValues: HostFormValues = {
   verify_peer_cert_by_name: [],
   fragment_settings: undefined,
   subscription_templates: undefined,
+  final_mask_settings: undefined,
 }
