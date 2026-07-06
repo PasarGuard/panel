@@ -12,6 +12,7 @@ from app.db.crud.core import (
     remove_core_config,
     remove_cores,
 )
+from app.db.crud.host import get_hosts
 from app.models.admin import AdminDetails
 from app.models.core import (
     BulkCoreSelection,
