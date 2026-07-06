@@ -17,6 +17,7 @@ async def create_group(group: GroupResponse, by: str):
         name=name,
         inbound_tags=group.inbound_tags,
         is_disabled=group.is_disabled,
+        status="Disabled" if group.is_disabled else "Enabled",
     )
     message["footer"]["text"] = message["footer"]["text"].format(id=group.id, by=by)
     data = {
@@ -37,6 +38,7 @@ async def modify_group(group: GroupResponse, by: str):
         name=name,
         inbound_tags=group.inbound_tags,
         is_disabled=group.is_disabled,
+        status="Disabled" if group.is_disabled else "Enabled",
     )
     message["footer"]["text"] = message["footer"]["text"].format(id=group.id, by=by)
     data = {
