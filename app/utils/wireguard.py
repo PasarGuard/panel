@@ -328,6 +328,7 @@ async def bulk_reallocate_wireguard_peer_ips(
     users = list(target_users)
     eligible_users: list[tuple[User, list[str]]] = []
     to_touch: list[User] = []
+    reallocate_peer_ip_user_ids: set[int] = set()
     sample: list[str] = []
 
     for user in users:
@@ -364,20 +365,21 @@ async def bulk_reallocate_wireguard_peer_ips(
                 duplicated_public_key_user_ids.update(target_owner_ids)
 
     for user, peer_ips in eligible_users:
-        need = False
+        needs_peer_ip = False
+        needs_rekey = user.id in duplicated_public_key_user_ids
         if replace_all:
-            need = True
+            needs_peer_ip = True
         elif not peer_ips:
-            need = True
+            needs_peer_ip = True
         elif peer_ips_outside_global_pool(peer_ips):
-            need = True
+            needs_peer_ip = True
         elif user.id in duplicated_user_ids:
-            need = True
-        elif user.id in duplicated_public_key_user_ids:
-            need = True
+            needs_peer_ip = True
 
-        if not need:
+        if not needs_peer_ip and not needs_rekey:
             continue
+        if needs_peer_ip:
+            reallocate_peer_ip_user_ids.add(user.id)
         to_touch.append(user)
         if len(sample) < 20:
             sample.append(user.username)
@@ -403,8 +405,7 @@ async def bulk_reallocate_wireguard_peer_ips(
             "affected_users": 0,
         }
 
-    excluded_user_ids = {user.id for user in to_touch}
-    peer_ip_rows = [row for row in all_peer_ip_rows if row.get("id") not in excluded_user_ids]
+    peer_ip_rows = [row for row in all_peer_ip_rows if row.get("id") not in reallocate_peer_ip_user_ids]
     used_networks = collect_used_peer_networks_from_proxy_settings_rows(peer_ip_rows)
 
     updated = 0
@@ -420,10 +421,11 @@ async def bulk_reallocate_wireguard_peer_ips(
             private_key, public_key = generate_wireguard_keypair()
             prepared.wireguard.private_key = private_key
             prepared.wireguard.public_key = public_key
-        peer_ip = allocator.allocate()
-        if peer_ip is None:
-            continue
-        prepared.wireguard.peer_ips = [peer_ip]
+        if user.id in reallocate_peer_ip_user_ids:
+            peer_ip = allocator.allocate()
+            if peer_ip is None:
+                continue
+            prepared.wireguard.peer_ips = [peer_ip]
         user.proxy_settings = prepared.dict()
         updated_users.append(user)
         updated += 1

@@ -34,6 +34,7 @@ from app.models.user import BulkOperationDryRunResponse, UserListQuery
 from app.node.sync import sync_users
 from app.operation import BaseOperation, OperatorType
 from app.operation.permissions import apply_group_access
+from app.utils.wireguard import bulk_reallocate_wireguard_peer_ips
 from app.utils.logger import get_logger
 
 logger = get_logger("group-operation")
@@ -88,6 +89,7 @@ class GroupOperation(BaseOperation):
             query=UserListQuery(group_ids=[db_group.id], status=[UserStatus.active, UserStatus.on_hold]),
             load_admin_role=True,
         )
+        await bulk_reallocate_wireguard_peer_ips(db, users, dry_run=False, replace_all=False)
         await sync_users(users)
 
         group = GroupResponse.model_validate(db_group)
@@ -119,6 +121,7 @@ class GroupOperation(BaseOperation):
             return BulkOperationDryRunResponse(affected_users=n)
 
         users, users_count = await add_groups_to_users(db, bulk_model)
+        await bulk_reallocate_wireguard_peer_ips(db, users, dry_run=False, replace_all=False)
         await sync_users(users)
 
         if self.operator_type in (OperatorType.API, OperatorType.WEB):
