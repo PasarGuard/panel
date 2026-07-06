@@ -1,6 +1,7 @@
-import { useFieldArray, UseFormReturn } from 'react-hook-form'
+import { useFieldArray, type FieldArrayPath, type Path, type UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { HostFormValues } from '../forms/host-form'
+import type { FinalMaskTcpType, FinalMaskUdpType, XrayNoiseSettings } from '@/service/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
@@ -8,7 +9,7 @@ import { FormField, FormItem, FormLabel, FormControl } from '@/components/ui/for
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Plus, Trash2, Copy } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { CodeEditorPanel } from '@/components/common/code-editor-panel'
 import { StringArrayPopoverInput } from '@/components/common/string-array-popover-input'
 import useDirDetection from '@/hooks/use-dir-detection'
@@ -18,7 +19,6 @@ interface FinalMaskSettingsProps {
 }
 
 export function FinalMaskSettings({ form }: FinalMaskSettingsProps) {
-  const { t } = useTranslation()
   const dir = useDirDetection()
 
   return (
@@ -51,7 +51,7 @@ function TcpLayersForm({ form }: { form: UseFormReturn<HostFormValues> }) {
   const { t } = useTranslation()
   const { fields, append, remove } = useFieldArray({
     control: form.control,
-    name: 'final_mask_settings.tcp' as any,
+    name: 'final_mask_settings.tcp',
   })
 
   const handleAddLayer = () => {
@@ -65,16 +65,16 @@ function TcpLayersForm({ form }: { form: UseFormReturn<HostFormValues> }) {
     })
   }
 
-  const handleTypeChange = (index: number, newType: string) => {
-    form.setValue(`final_mask_settings.tcp.${index}.type` as any, newType)
+  const handleTypeChange = (index: number, newType: FinalMaskTcpType) => {
+    form.setValue(`final_mask_settings.tcp.${index}.type`, newType)
     if (newType === 'fragment') {
-      form.setValue(`final_mask_settings.tcp.${index}.settings` as any, {
+      form.setValue(`final_mask_settings.tcp.${index}.settings`, {
         packets: '',
         length: '',
         interval: '',
       })
     } else if (newType === 'sudoku') {
-      form.setValue(`final_mask_settings.tcp.${index}.settings` as any, {
+      form.setValue(`final_mask_settings.tcp.${index}.settings`, {
         password: '',
         ascii: '',
         customTable: '',
@@ -83,7 +83,7 @@ function TcpLayersForm({ form }: { form: UseFormReturn<HostFormValues> }) {
         paddingMax: undefined,
       })
     } else if (newType === 'header-custom') {
-      form.setValue(`final_mask_settings.tcp.${index}.settings` as any, {
+      form.setValue(`final_mask_settings.tcp.${index}.settings`, {
         clients: [],
         servers: [],
         errors: [],
@@ -104,7 +104,7 @@ function TcpLayersForm({ form }: { form: UseFormReturn<HostFormValues> }) {
       </div>
 
       <div className="space-y-4">
-        {fields.map((field: any, index) => {
+        {fields.map((field, index) => {
           const type = form.watch(`final_mask_settings.tcp.${index}.type`)
           return (
             <div key={field.id} className="relative rounded-lg border p-4 bg-muted/5 space-y-4">
@@ -116,7 +116,7 @@ function TcpLayersForm({ form }: { form: UseFormReturn<HostFormValues> }) {
                     name={`final_mask_settings.tcp.${index}.type`}
                     render={({ field: selectField }) => (
                       <FormItem className="w-48">
-                        <Select onValueChange={(val) => handleTypeChange(index, val)} value={selectField.value || ''}>
+                        <Select onValueChange={(val) => handleTypeChange(index, val as FinalMaskTcpType)} value={selectField.value || ''}>
                           <FormControl>
                             <SelectTrigger className="h-8">
                               <SelectValue placeholder="Select type" />
@@ -190,80 +190,20 @@ function TcpLayersForm({ form }: { form: UseFormReturn<HostFormValues> }) {
 
               {type === 'header-custom' && (
                 <div className="space-y-4 bg-background p-3 rounded-md border">
-                  <FormField
-                    control={form.control}
+                  <JsonArrayField
+                    form={form}
                     name={`final_mask_settings.tcp.${index}.settings.clients`}
-                    render={({ field: jsonField }) => {
-                      const [text, setText] = useState(() => JSON.stringify(jsonField.value || [], null, 2))
-                      return (
-                        <FormItem>
-                          <FormLabel className="text-xs">Clients (JSON array of noise arrays)</FormLabel>
-                          <FormControl>
-                            <CodeEditorPanel
-                              value={text}
-                              language="json"
-                              onChange={(val) => {
-                                setText(val)
-                                try {
-                                  jsonField.onChange(JSON.parse(val))
-                                } catch (e) {}
-                              }}
-                              embeddedContainerClassName="h-32"
-                            />
-                          </FormControl>
-                        </FormItem>
-                      )
-                    }}
+                    label="Clients (JSON array of noise arrays)"
                   />
-                  <FormField
-                    control={form.control}
+                  <JsonArrayField
+                    form={form}
                     name={`final_mask_settings.tcp.${index}.settings.servers`}
-                    render={({ field: jsonField }) => {
-                      const [text, setText] = useState(() => JSON.stringify(jsonField.value || [], null, 2))
-                      return (
-                        <FormItem>
-                          <FormLabel className="text-xs">Servers (JSON array of noise arrays)</FormLabel>
-                          <FormControl>
-                            <CodeEditorPanel
-                              value={text}
-                              language="json"
-                              onChange={(val) => {
-                                setText(val)
-                                try {
-                                  jsonField.onChange(JSON.parse(val))
-                                } catch (e) {}
-                              }}
-                              embeddedContainerClassName="h-32"
-                            />
-                          </FormControl>
-                        </FormItem>
-                      )
-                    }}
+                    label="Servers (JSON array of noise arrays)"
                   />
-                  <FormField
-                    control={form.control}
+                  <JsonArrayField
+                    form={form}
                     name={`final_mask_settings.tcp.${index}.settings.errors`}
-                    render={({ field: jsonField }) => {
-                      const [text, setText] = useState(() => JSON.stringify(jsonField.value || [], null, 2))
-                      return (
-                        <FormItem>
-                          <FormLabel className="text-xs">Errors (JSON array of noise arrays)</FormLabel>
-                          <FormControl>
-                            <CodeEditorPanel
-                              value={text}
-                              language="json"
-                              onChange={(val) => {
-                                setText(val)
-                                try {
-                                  jsonField.onChange(JSON.parse(val))
-                                } catch (e) {}
-                              }}
-                              embeddedContainerClassName="h-32"
-                            />
-                          </FormControl>
-                        </FormItem>
-                      )
-                    }}
+                    label="Errors (JSON array of noise arrays)"
                   />
                 </div>
               )}
@@ -288,7 +228,7 @@ function UdpLayersForm({ form }: { form: UseFormReturn<HostFormValues> }) {
   const { t } = useTranslation()
   const { fields, append, remove } = useFieldArray({
     control: form.control,
-    name: 'final_mask_settings.udp' as any,
+    name: 'final_mask_settings.udp',
   })
 
   const handleAddLayer = () => {
@@ -300,10 +240,10 @@ function UdpLayersForm({ form }: { form: UseFormReturn<HostFormValues> }) {
     })
   }
 
-  const handleTypeChange = (index: number, newType: string) => {
-    form.setValue(`final_mask_settings.udp.${index}.type` as any, newType)
+  const handleTypeChange = (index: number, newType: FinalMaskUdpType) => {
+    form.setValue(`final_mask_settings.udp.${index}.type`, newType)
     if (newType === 'header-dns' || newType === 'xdns') {
-      form.setValue(`final_mask_settings.udp.${index}.settings` as any, { domain: '' })
+      form.setValue(`final_mask_settings.udp.${index}.settings`, { domain: '' })
     } else if (
       [
         'header-dtls',
@@ -316,11 +256,11 @@ function UdpLayersForm({ form }: { form: UseFormReturn<HostFormValues> }) {
         'salamander',
       ].includes(newType)
     ) {
-      form.setValue(`final_mask_settings.udp.${index}.settings` as any, { password: '' })
+      form.setValue(`final_mask_settings.udp.${index}.settings`, { password: '' })
     } else if (newType === 'noise') {
-      form.setValue(`final_mask_settings.udp.${index}.settings` as any, { reset: undefined, noise: [] })
+      form.setValue(`final_mask_settings.udp.${index}.settings`, { reset: undefined, noise: [] })
     } else if (newType === 'sudoku') {
-      form.setValue(`final_mask_settings.udp.${index}.settings` as any, {
+      form.setValue(`final_mask_settings.udp.${index}.settings`, {
         password: '',
         ascii: '',
         customTable: '',
@@ -329,9 +269,9 @@ function UdpLayersForm({ form }: { form: UseFormReturn<HostFormValues> }) {
         paddingMax: undefined,
       })
     } else if (newType === 'xicmp') {
-      form.setValue(`final_mask_settings.udp.${index}.settings` as any, { listenIp: '', id: undefined })
+      form.setValue(`final_mask_settings.udp.${index}.settings`, { listenIp: '', id: undefined })
     } else if (newType === 'header-custom') {
-      form.setValue(`final_mask_settings.udp.${index}.settings` as any, { client: [], server: [] })
+      form.setValue(`final_mask_settings.udp.${index}.settings`, { client: [], server: [] })
     }
   }
 
@@ -348,7 +288,7 @@ function UdpLayersForm({ form }: { form: UseFormReturn<HostFormValues> }) {
       </div>
 
       <div className="space-y-4">
-        {fields.map((field: any, index) => {
+        {fields.map((field, index) => {
           const type = form.watch(`final_mask_settings.udp.${index}.type`)
           return (
             <div key={field.id} className="relative rounded-lg border p-4 bg-muted/5 space-y-4">
@@ -360,7 +300,7 @@ function UdpLayersForm({ form }: { form: UseFormReturn<HostFormValues> }) {
                     name={`final_mask_settings.udp.${index}.type`}
                     render={({ field: selectField }) => (
                       <FormItem className="w-56">
-                        <Select onValueChange={(val) => handleTypeChange(index, val)} value={selectField.value || ''}>
+                        <Select onValueChange={(val) => handleTypeChange(index, val as FinalMaskUdpType)} value={selectField.value || ''}>
                           <FormControl>
                             <SelectTrigger className="h-8">
                               <SelectValue placeholder="Select type" />
@@ -911,12 +851,69 @@ function SudokuSettingsForm({ prefix, form }: { prefix: string; form: UseFormRet
   )
 }
 
+interface JsonArrayFieldProps {
+  form: UseFormReturn<HostFormValues>
+  name: Path<HostFormValues>
+  label: string
+}
+
+function JsonArrayField({ form, name, label }: JsonArrayFieldProps) {
+  return (
+    <FormField
+      control={form.control}
+      name={name}
+      render={({ field }) => <JsonArrayEditor label={label} value={field.value} onChange={field.onChange} />}
+    />
+  )
+}
+
+function JsonArrayEditor({
+  label,
+  value,
+  onChange,
+}: {
+  label: string
+  value: unknown
+  onChange: (value: XrayNoiseSettings[][]) => void
+}) {
+  const serializedValue = JSON.stringify(Array.isArray(value) ? value : [], null, 2)
+  const [text, setText] = useState(serializedValue)
+
+  useEffect(() => {
+    setText(serializedValue)
+  }, [serializedValue])
+
+  return (
+    <FormItem>
+      <FormLabel className="text-xs">{label}</FormLabel>
+      <FormControl>
+        <CodeEditorPanel
+          value={text}
+          language="json"
+          onChange={(val) => {
+            setText(val)
+            try {
+              const parsed = JSON.parse(val)
+              if (Array.isArray(parsed)) {
+                onChange(parsed as XrayNoiseSettings[][])
+              }
+            } catch {
+              return
+            }
+          }}
+          embeddedContainerClassName="h-32"
+        />
+      </FormControl>
+    </FormItem>
+  )
+}
+
 // ==========================================
 // Noise Settings array editor helper
 // ==========================================
 interface XrayNoiseSettingsListProps {
   form: UseFormReturn<HostFormValues>
-  name: string
+  name: FieldArrayPath<HostFormValues>
   label: string
 }
 
@@ -924,11 +921,11 @@ function XrayNoiseSettingsList({ form, name, label }: XrayNoiseSettingsListProps
   const { t } = useTranslation()
   const { fields, append, remove, insert } = useFieldArray({
     control: form.control,
-    name: name as any,
+    name,
   })
 
   const handleDuplicate = (index: number) => {
-    const item = form.getValues(`${name}.${index}` as any)
+    const item = form.getValues(`${name}.${index}` as Path<HostFormValues>)
     if (item) {
       insert(index + 1, { ...item })
     }

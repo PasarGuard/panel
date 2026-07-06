@@ -2,7 +2,6 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { StringArrayPopoverInput } from '@/components/common/string-array-popover-input'
-import { CodeEditorPanel } from '@/components/common/code-editor-panel'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
