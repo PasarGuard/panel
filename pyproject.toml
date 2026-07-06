@@ -24,7 +24,7 @@ dependencies = [
     "python-multipart>=0.0.32",
     "qrcode>=8.1",
     "rich>=15.0.0",
-    "uvicorn==0.49.0",
+    "uvicorn==0.50.0",
     "sse-starlette>=3.4.5",
     "aiohttp>=3.14.1",
     "packaging>=26.2",
