@@ -1,12 +1,12 @@
 """
-Review admin data limits and flip active → limited for admins that exceeded their data_limit.
+Review admin data limits and flip active admins to limited when they exceed data_limit.
 
-The reverse (limited → active) happens synchronously in the operation layer:
+The reverse transition happens synchronously in the operation layer:
 - _modify_admin: when data_limit is raised or cleared
 - _reset_admin_usage: when used_traffic is zeroed
 
-This job only handles the active → limited transition that occurs via traffic accumulation
-(record_usages increments used_traffic but doesn't load admin objects).
+record_usages increments used_traffic without loading admin objects, so this job
+handles the active to limited transition and removes affected users from nodes.
 """
 
 from datetime import datetime as dt, timezone as tz
@@ -15,17 +15,13 @@ from app import notification, scheduler
 from app.db import GetDB
 from app.db.crud.admin import (
     create_admin_notification_reminder_if_absent,
-    get_active_to_limited_admins,
     get_usage_percentage_reached_admins,
-    update_admin_status,
 )
-from app.db.crud.user import get_users
-from app.db.models import Admin, AdminStatus, ReminderType, UserStatus
+from app.db.models import Admin, ReminderType
 from app.models.admin import AdminDetails, AdminRoleData
 from app.models.admin_role import RoleLimits
-from app.models.user import UserListQuery
 from app.models.validators import ListValidator
-from app.node.sync import remove_users as sync_remove_users
+from app.operation.admin_sync import limit_exceeded_admins
 from app.settings import notification_enable
 from app.utils.logger import get_logger
 from config import job_settings, runtime_settings
@@ -90,26 +86,10 @@ async def _send_usage_limit_warning_notifications(db):
 
 
 async def limit_admins_job():
-    """Send warning notifications and flip active → limited admins that exceeded data_limit."""
+    """Send warning notifications and flip active admins to limited when they exceed data_limit."""
     async with GetDB() as db:
         await _send_usage_limit_warning_notifications(db)
-
-        admins = await get_active_to_limited_admins(db)
-        if not admins:
-            return
-
-        for admin in admins:
-            await update_admin_status(db, admin, AdminStatus.limited)
-            logger.info(f'Admin "{admin.username}" status changed to limited')
-
-            if admin.role and admin.role.disconnect_users_when_limited:
-                users = await get_users(
-                    db,
-                    query=UserListQuery(status=[UserStatus.active, UserStatus.on_hold]),
-                    admin=admin,
-                )
-                await sync_remove_users(users)
-                logger.info(f'Admin "{admin.username}" — removed {len(users)} users from nodes')
+        await limit_exceeded_admins(db, logger=logger)
 
 
 if runtime_settings.role.runs_scheduler:
