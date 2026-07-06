@@ -219,7 +219,6 @@ class BaseSubscription:
 
         payload = self._normalize_and_remove_none_values(payload)
         uri_payload = dict(payload)
-        uri_payload.pop("dns", None)
 
         return {
             "remark": validated_remark,

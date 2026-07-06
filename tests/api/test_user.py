@@ -1184,6 +1184,9 @@ def test_wireguard_subscription_outputs_are_consistent(access_token):
             "port": 51820,
             "inbound_tag": interface_name,
             "priority": 1,
+            "wireguard_overrides": {
+                "dns": ["1.1.1.1", "8.8.8.8"],
+            },
         },
     )
     assert host_response.status_code == status.HTTP_201_CREATED
@@ -1214,6 +1217,7 @@ def test_wireguard_subscription_outputs_are_consistent(access_token):
         assert dynamic_address == user["proxy_settings"]["wireguard"]["peer_ips"][0]
         assert dynamic_address.endswith("/32")
         assert query["allowedips"] == ["0.0.0.0/0,::/0"]
+        assert query["dns"] == ["1.1.1.1,8.8.8.8"]
         assert unquote(parsed.fragment) == expected_remark
 
         config_bodies = extract_wireguard_config_bodies(wireguard_response)
@@ -1224,6 +1228,7 @@ def test_wireguard_subscription_outputs_are_consistent(access_token):
         assert f"Address = {dynamic_address}" in body
         assert f"PublicKey = {interface_public_key}" in body
         assert "AllowedIPs = 0.0.0.0/0, ::/0" in body
+        assert "DNS = 1.1.1.1, 8.8.8.8" in body
         assert f"Endpoint = {endpoint}:51820" in body
     finally:
         delete_user(access_token, user["username"])
