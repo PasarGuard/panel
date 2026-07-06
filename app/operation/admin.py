@@ -444,8 +444,6 @@ class AdminOperation(BaseOperation):
         await db.commit()
 
         for db_admin in admins_to_update:
-            await db.refresh(db_admin)
-            await db_admin.awaitable_attrs.role
             await sync_admin_users_for_block_transition(db, db_admin, old_sync_blocked[db_admin.id])
             modified_admin = build_admin_details(db_admin, include_loaded_metrics=True)
             asyncio.create_task(notification.modify_admin(modified_admin, current_admin.username))
