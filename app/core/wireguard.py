@@ -57,6 +57,8 @@ class WireGuardConfig(dict):
         interface_name = str(self.get("interface_name") or "").strip()
         if not interface_name:
             raise ValueError("interface_name is required")
+        if " " in interface_name:
+            raise ValueError("spaces are not allowed in interface_name")
         if "," in interface_name:
             raise ValueError("character ',' is not allowed in interface_name")
         if "<=>" in interface_name:
