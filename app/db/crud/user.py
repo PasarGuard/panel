@@ -68,6 +68,17 @@ def _safe_on_hold_expire_duration(duration: int | None) -> int | None:
     return min(duration, MAX_ON_HOLD_EXPIRE_DURATION_SECONDS)
 
 
+def _resolve_enabled_user_status(user: User) -> UserStatus:
+    now = datetime.now(timezone.utc)
+    if user.expire is not None and user.expire.replace(tzinfo=timezone.utc) <= now:
+        return UserStatus.expired
+    if user.data_limit is not None and user.data_limit > 0 and user.used_traffic >= user.data_limit:
+        return UserStatus.limited
+    if user.on_hold_expire_duration is not None:
+        return UserStatus.on_hold
+    return UserStatus.active
+
+
 def _build_user_select_stmt(
     *,
     load_admin: bool = True,
@@ -1008,7 +1019,10 @@ async def modify_user(
         db_user.groups = groups or await get_groups_by_ids(db, modify.group_ids, load_users=False, load_inbounds=True)
 
     if modify.status is not None:
-        db_user.status = modify.status
+        if modify.status == UserStatus.active and db_user.status == UserStatus.disabled:
+            db_user.status = _resolve_enabled_user_status(db_user)
+        else:
+            db_user.status = modify.status
 
     if modify.status is UserStatus.on_hold:
         db_user.expire = None
@@ -1128,7 +1142,7 @@ async def reset_user_data_usage(
     if clean_chart_data:
         await clear_user_node_usages(db, db_user.id)
 
-    if db_user.status not in [UserStatus.expired, UserStatus.disabled]:
+    if db_user.status == UserStatus.limited:
         db_user.status = UserStatus.active
 
     if commit:
@@ -1155,7 +1169,7 @@ async def bulk_reset_user_data_usage(
         await delete_user_passed_notification_reminders(db, db_user.id, ReminderType.data_usage, 0)
         if clean_chart_data:
             await clear_user_node_usages(db, db_user.id)
-        if db_user.status not in [UserStatus.expired, UserStatus.disabled]:
+        if db_user.status == UserStatus.limited:
             db_user.status = UserStatus.active
     if commit:
         await db.commit()

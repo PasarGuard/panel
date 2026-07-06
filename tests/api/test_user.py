@@ -15,7 +15,7 @@ from fastapi import status
 from sqlalchemy import func, select, update
 
 from app.db.crud.hwid import register_user_hwid
-from app.db.models import NodeUserUsage, User
+from app.db.models import NodeUserUsage, User, UserStatus
 from app.models.settings import ConfigFormat, SubRule, Subscription
 from app.models.stats import Period, UserCountMetric, UserCountMetricStat, UserCountMetricStatsList
 from app.models.validators import MAX_ON_HOLD_EXPIRE_DURATION_SECONDS
@@ -1980,6 +1980,42 @@ def test_reset_user_usage(access_token):
         cleanup_groups(access_token, core, groups)
 
 
+def test_reset_on_hold_user_usage_preserves_hold_state(access_token):
+    core, groups = setup_groups(access_token, 1)
+    user = create_user(
+        access_token,
+        group_ids=[groups[0]["id"]],
+        payload={
+            "username": unique_name("test_on_hold_reset"),
+            "status": "on_hold",
+            "on_hold_expire_duration": 3600,
+        },
+    )
+
+    async def _seed_usage():
+        async with TestSession() as session:
+            await session.execute(update(User).where(User.id == user["id"]).values(used_traffic=100))
+            await session.commit()
+
+    try:
+        asyncio.run(_seed_usage())
+
+        response = client.post(
+            f"/api/user/by-id/{user['id']}/reset",
+            headers=auth_headers(access_token),
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data["status"] == "on_hold"
+        assert data["on_hold_expire_duration"] == 3600
+        assert data["expire"] is None
+        assert data["used_traffic"] == 0
+    finally:
+        delete_user(access_token, user["username"])
+        cleanup_groups(access_token, core, groups)
+
+
 def test_reset_user_usage_only_cleans_chart_data_when_enabled(access_token):
     """Test that user reset preserves chart data unless env cleanup is enabled."""
     core, groups = setup_groups(access_token, 1)
@@ -2392,6 +2428,46 @@ def test_enable_disabled_user_resolves_expired_limited_on_hold_and_active_status
     finally:
         for user in users:
             delete_user(access_token, user["username"])
+        cleanup_groups(access_token, core, groups)
+
+
+def test_generic_disable_enable_on_hold_user_preserves_hold_state(access_token):
+    core, groups = setup_groups(access_token, 1)
+    user = create_user(
+        access_token,
+        group_ids=[groups[0]["id"]],
+        payload={"username": unique_name("modify_toggle_on_hold"), "status": "on_hold", "on_hold_expire_duration": 3600},
+    )
+
+    try:
+        disable_response = client.put(
+            f"/api/user/by-id/{user['id']}",
+            headers=auth_headers(access_token),
+            json={"status": "disabled"},
+        )
+        assert disable_response.status_code == status.HTTP_200_OK
+        assert disable_response.json()["status"] == "disabled"
+
+        enable_response = client.put(
+            f"/api/user/by-id/{user['id']}",
+            headers=auth_headers(access_token),
+            json={"status": "active"},
+        )
+        assert enable_response.status_code == status.HTTP_200_OK
+        assert enable_response.json()["status"] == "on_hold"
+        assert enable_response.json()["on_hold_expire_duration"] == 3600
+
+        async def _get_db_status():
+            async with TestSession() as session:
+                db_user = (await session.execute(select(User).where(User.id == user["id"]))).scalar_one()
+                return db_user.status, db_user.on_hold_expire_duration, db_user.expire
+
+        db_status, on_hold_expire_duration, expire = asyncio.run(_get_db_status())
+        assert db_status == UserStatus.on_hold
+        assert on_hold_expire_duration == 3600
+        assert expire is None
+    finally:
+        delete_user(access_token, user["username"])
         cleanup_groups(access_token, core, groups)
 
 
