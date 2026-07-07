@@ -58,6 +58,13 @@ users_groups_association = Table(
     fk_id_table_column("groups_id", "groups.id", primary_key=True),
 )
 
+hosts_tags_association = Table(
+    "hosts_tags_association",
+    Base.metadata,
+    fk_id_table_column("host_id", "hosts.id", primary_key=True, ondelete="CASCADE"),
+    fk_id_table_column("tag_id", "host_tags.id", primary_key=True, ondelete="CASCADE"),
+)
+
 
 class AdminStatus(str, Enum):
     active = "active"
@@ -574,6 +581,22 @@ class ProxyHost(Base, IdMixin):
     )
     wireguard_overrides: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON(none_as_null=True), default=None)
     subscription_templates: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON(none_as_null=True), default=None)
+    tags: Mapped[List["HostTag"]] = relationship(
+        secondary=hosts_tags_association, back_populates="hosts", init=False, order_by="HostTag.id"
+    )
+
+    @property
+    def tag_ids(self) -> list[int]:
+        return [tag.id for tag in self.tags]
+
+
+class HostTag(Base, IdMixin):
+    """User-defined, reusable, color-coded label that can be attached to hosts."""
+
+    __tablename__ = "host_tags"
+    name: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    color: Mapped[str] = mapped_column(String(32), nullable=False)
+    hosts: Mapped[List["ProxyHost"]] = relationship(secondary=hosts_tags_association, back_populates="tags", init=False)
 
 
 class System(Base, IdMixin):

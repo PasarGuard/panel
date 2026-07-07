@@ -2,7 +2,16 @@ from fastapi import APIRouter, Depends, status
 
 from app.db import AsyncSession, get_db
 from app.models.admin import AdminDetails
-from app.models.host import BaseHost, BulkHostSelection, BulkHostsActionResponse, CreateHost, RemoveHostsResponse
+from app.models.host import (
+    BaseHost,
+    BulkHostSelection,
+    BulkHostsActionResponse,
+    CreateHost,
+    HostTag,
+    HostTagCreate,
+    HostTagModify,
+    RemoveHostsResponse,
+)
 from app.operation import OperatorType
 from app.operation.host import HostOperation
 from app.utils import responses
@@ -12,6 +21,46 @@ from .dependencies import get_host_list_query
 
 host_operator = HostOperation(operator_type=OperatorType.API)
 router = APIRouter(tags=["Host"], prefix="/api/host", responses={401: responses._401, 403: responses._403})
+
+
+@router.get("/tags", response_model=list[HostTag])
+async def get_host_tags(
+    db: AsyncSession = Depends(get_db), _: AdminDetails = Depends(require_permission("hosts", "read"))
+):
+    """List all host tags."""
+    return await host_operator.get_host_tags(db=db)
+
+
+@router.post("/tags", response_model=HostTag, status_code=status.HTTP_201_CREATED, responses={409: responses._409})
+async def create_host_tag(
+    new_tag: HostTagCreate,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(require_permission("hosts", "create")),
+):
+    """Create a reusable, color-coded host tag."""
+    return await host_operator.create_host_tag(db, new_tag=new_tag, admin=admin)
+
+
+@router.put("/tags/{tag_id}", response_model=HostTag, responses={404: responses._404, 409: responses._409})
+async def modify_host_tag(
+    tag_id: int,
+    modified_tag: HostTagModify,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(require_permission("hosts", "update")),
+):
+    """Modify a host tag by **id**."""
+    return await host_operator.modify_host_tag(db, tag_id=tag_id, modified_tag=modified_tag, admin=admin)
+
+
+@router.delete("/tags/{tag_id}", status_code=status.HTTP_204_NO_CONTENT, responses={404: responses._404})
+async def remove_host_tag(
+    tag_id: int,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(require_permission("hosts", "update")),
+):
+    """Delete a host tag by **id** (also detaches it from any hosts)."""
+    await host_operator.remove_host_tag(db, tag_id=tag_id, admin=admin)
+    return {}
 
 
 @router.get("/{host_id}", response_model=BaseHost)

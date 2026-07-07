@@ -6,9 +6,20 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.mysql import insert as mysql_insert
 from sqlalchemy import insert
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
-from app.db.models import ProxyHost, ProxyInbound
-from app.models.host import CreateHost, HostListQuery
+from app.db.models import HostTag, ProxyHost, ProxyInbound, hosts_tags_association
+from app.models.host import CreateHost, HostListQuery, HostTagCreate, HostTagModify
+
+
+async def resolve_host_tags(db: AsyncSession, tag_ids: list[int]) -> list[HostTag]:
+    """Resolve a list of tag ids to HostTag rows, preserving the requested order."""
+    if not tag_ids:
+        return []
+    unique_ids = list(dict.fromkeys(tag_ids))
+    result = await db.execute(select(HostTag).where(HostTag.id.in_(unique_ids)))
+    by_id = {tag.id: tag for tag in result.scalars().all()}
+    return [by_id[tag_id] for tag_id in unique_ids if tag_id in by_id]
 
 
 async def upsert_inbounds(db: AsyncSession, inbound_tags: list[str]) -> dict[str, ProxyInbound]:
@@ -121,7 +132,7 @@ async def get_hosts(db: AsyncSession, query: HostListQuery | None = None) -> lis
         List[ProxyHost]: List of hosts sorted by the specified option.
     """
     query = query or HostListQuery()
-    stmt = select(ProxyHost).order_by(ProxyHost.priority.asc())
+    stmt = select(ProxyHost).options(selectinload(ProxyHost.tags)).order_by(ProxyHost.priority.asc())
 
     if query.ids:
         stmt = stmt.where(ProxyHost.id.in_(query.ids))
@@ -145,7 +156,7 @@ async def get_host_by_id(db: AsyncSession, id: int) -> ProxyHost:
     Returns:
         ProxyHost: The host if found.
     """
-    stmt = select(ProxyHost).where(ProxyHost.id == id)
+    stmt = select(ProxyHost).options(selectinload(ProxyHost.tags)).where(ProxyHost.id == id)
     result = await db.execute(stmt)
     return result.scalar_one_or_none()
 
@@ -161,17 +172,17 @@ async def create_host(db: AsyncSession, new_host: CreateHost) -> ProxyHost:
     Returns:
         ProxyHost: The retrieved or newly created proxy host.
     """
-    db_host = ProxyHost(**new_host.model_dump(exclude={"inbound_tag", "id"}))
+    db_host = ProxyHost(**new_host.model_dump(exclude={"inbound_tag", "id", "tags", "tag_ids"}))
     db_host.inbound = await get_or_create_inbound(db, new_host.inbound_tag)
+    db_host.tags = await resolve_host_tags(db, new_host.tag_ids)
 
     db.add(db_host)
     await db.commit()
-    await db.refresh(db_host)
-    return db_host
+    return await get_host_by_id(db, db_host.id)
 
 
 async def modify_host(db: AsyncSession, db_host: ProxyHost, modified_host: CreateHost) -> ProxyHost:
-    host_data = modified_host.model_dump(exclude={"id", "inbound_tag"})
+    host_data = modified_host.model_dump(exclude={"id", "inbound_tag", "tags", "tag_ids"})
 
     for key, value in host_data.items():
         setattr(db_host, key, value)
@@ -181,9 +192,49 @@ async def modify_host(db: AsyncSession, db_host: ProxyHost, modified_host: Creat
     else:
         db_host.inbound = await get_or_create_inbound(db, modified_host.inbound_tag)
 
+    db_host.tags = await resolve_host_tags(db, modified_host.tag_ids)
+
     await db.commit()
-    await db.refresh(db_host)
-    return db_host
+    return await get_host_by_id(db, db_host.id)
+
+
+async def get_host_tags(db: AsyncSession) -> list[HostTag]:
+    """Return all host tags ordered by name."""
+    result = await db.execute(select(HostTag).order_by(HostTag.name.asc()))
+    return list(result.scalars().all())
+
+
+async def get_host_tag_by_id(db: AsyncSession, id: int) -> HostTag | None:
+    result = await db.execute(select(HostTag).where(HostTag.id == id))
+    return result.scalar_one_or_none()
+
+
+async def get_host_tag_by_name(db: AsyncSession, name: str) -> HostTag | None:
+    result = await db.execute(select(HostTag).where(HostTag.name == name))
+    return result.scalar_one_or_none()
+
+
+async def create_host_tag(db: AsyncSession, new_tag: HostTagCreate) -> HostTag:
+    db_tag = HostTag(name=new_tag.name, color=new_tag.color.value)
+    db.add(db_tag)
+    await db.commit()
+    await db.refresh(db_tag)
+    return db_tag
+
+
+async def modify_host_tag(db: AsyncSession, db_tag: HostTag, modified_tag: HostTagModify) -> HostTag:
+    if modified_tag.name is not None:
+        db_tag.name = modified_tag.name
+    if modified_tag.color is not None:
+        db_tag.color = modified_tag.color.value
+    await db.commit()
+    await db.refresh(db_tag)
+    return db_tag
+
+
+async def remove_host_tag(db: AsyncSession, db_tag: HostTag) -> None:
+    await db.delete(db_tag)
+    await db.commit()
 
 
 async def remove_host(db: AsyncSession, db_host: ProxyHost) -> ProxyHost:
@@ -213,5 +264,6 @@ async def remove_hosts(db: AsyncSession, host_ids: list[int]) -> None:
     if not host_ids:
         return
 
+    await db.execute(delete(hosts_tags_association).where(hosts_tags_association.c.host_id.in_(host_ids)))
     await db.execute(delete(ProxyHost).where(ProxyHost.id.in_(host_ids)))
     await db.commit()

@@ -19,6 +19,7 @@ import { toast } from 'sonner'
 import { Power, PowerOff, Trash2 } from 'lucide-react'
 import HostModal from '../dialogs/host-modal'
 import SortableHost from './sortable-host'
+import { getTagColorStyle } from '@/constants/hostTagColors'
 import { BulkActionItem, BulkActionsBar } from '@/features/users/components/bulk-actions-bar'
 import { BulkActionAlertDialog } from '@/features/users/components/bulk-action-alert-dialog'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -180,6 +181,7 @@ export default function HostsList({
 
     const formData: HostFormValues = {
       remark: host.remark || '',
+      tag_ids: host.tags?.map(tag => tag.id).filter((id): id is number => typeof id === 'number') ?? [],
       address: Array.isArray(host.address) ? host.address : host.address ? [host.address] : [],
       port: host.port ? Number(host.port) : undefined,
       inbound_tag: host.inbound_tag || '',
@@ -367,6 +369,7 @@ export default function HostsList({
 
       const newHost: CreateHost = {
         remark: `${host.remark || ''} (copy)`,
+        tag_ids: host.tags?.map(tag => tag.id).filter((id): id is number => typeof id === 'number') ?? [],
         address: host.address || [],
         port: host.port,
         inbound_tag: host.inbound_tag || '',
@@ -570,6 +573,7 @@ export default function HostsList({
       const hostsToUpdate: CreateHost[] = updatedHosts.map((host, index) => ({
         id: host.id,
         remark: host.remark || '',
+        tag_ids: host.tags?.map(tag => tag.id).filter((id): id is number => typeof id === 'number') ?? [],
         address: host.address || [],
         port: host.port,
         inbound_tag: host.inbound_tag || '',
@@ -922,6 +926,7 @@ export default function HostsList({
               isLoading={isCurrentlyLoading}
               loadingRows={6}
               className="max-w-screen-[2000px] min-h-screen gap-4 overflow-hidden"
+              gridClassName="auto-rows-fr"
               enableSelection={canUpdate}
               injectSelectionProps={canUpdate}
               selectedRowIds={selectedHostIds}
@@ -976,6 +981,10 @@ export default function HostsList({
               isLoading={isCurrentlyLoading}
               loadingRows={6}
               className="max-w-screen-[2000px] min-h-screen gap-3 overflow-hidden"
+              rowClassName={host => {
+                const isSelected = typeof host.id === 'number' && selectedHostIds.includes(host.id)
+                return !isSelected && host.tags && host.tags.length > 0 ? getTagColorStyle(host.tags[0].color).tint : ''
+              }}
               enableSelection={canUpdate}
               selectedRowIds={selectedHostIds}
               onSelectionChange={ids => setSelectedHostIds(ids.map(id => Number(id)))}

@@ -2683,6 +2683,8 @@ export interface CreateHost {
   verify_peer_cert_by_name?: CreateHostVerifyPeerCertByName
   wireguard_overrides?: CreateHostWireguardOverrides
   subscription_templates?: CreateHostSubscriptionTemplates
+  tags?: HostTag[]
+  tag_ids?: number[]
 }
 
 export type CoreType = (typeof CoreType)[keyof typeof CoreType]
@@ -3188,6 +3190,46 @@ export interface BaseHost {
   verify_peer_cert_by_name?: BaseHostVerifyPeerCertByName
   wireguard_overrides?: BaseHostWireguardOverrides
   subscription_templates?: BaseHostSubscriptionTemplates
+  tags?: HostTag[]
+  tag_ids?: number[]
+}
+
+export type HostTagColor = (typeof HostTagColor)[keyof typeof HostTagColor]
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const HostTagColor = {
+  slate: 'slate',
+  red: 'red',
+  orange: 'orange',
+  amber: 'amber',
+  green: 'green',
+  teal: 'teal',
+  sky: 'sky',
+  blue: 'blue',
+  violet: 'violet',
+  pink: 'pink',
+} as const
+
+export type HostTagId = number | null
+
+export interface HostTag {
+  id?: HostTagId
+  name: string
+  color: HostTagColor
+}
+
+export interface HostTagCreate {
+  name: string
+  color: HostTagColor
+}
+
+export type HostTagModifyName = string | null
+
+export type HostTagModifyColor = HostTagColor | null
+
+export interface HostTagModify {
+  name?: HostTagModifyName
+  color?: HostTagModifyColor
 }
 
 export type ApplicationDescription = { [key: string]: string }
