@@ -1602,6 +1602,19 @@
       "randRange": "Случайный диапазон",
       "randRangePlaceholder": "Введите случайный диапазон (например 10-20)"
     },
+    "finalmask": {
+      "title": "Настройки FinalMask",
+      "enable": "Включить FinalMask",
+      "info": "Настройка пользовательских конфигураций клиента finalmask (параметры TCP, UDP и QUIC).",
+      "placeholder": "Введите конфигурацию FinalMask в формате JSON",
+      "invalidJson": "Неверный JSON: {{error}}",
+      "tcpLayers": "Слои TCP",
+      "addTcpLayer": "Добавить слой TCP",
+      "noTcpLayers": "Слои TCP не настроены",
+      "udpLayers": "Слои UDP",
+      "addUdpLayer": "Добавить слой UDP",
+      "noUdpLayers": "Слои UDP не настроены"
+    },
     "muxSettings": "Настройки Mux",
     "enableMux": "Включить Mux",
     "xraySettings": "Настройки Xray",

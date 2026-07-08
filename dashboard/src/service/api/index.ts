@@ -384,15 +384,22 @@ export type Health200 = { [key: string]: unknown }
 
 export type XrayNoiseSettingsRandRange = string | null
 
+export type XrayNoiseSettingsRand = number | string | null
+
+export type XrayNoiseSettingsDelay = string | number | null
+
+export type XrayNoiseSettingsPacket = string | number[] | null
+
 export interface XrayNoiseSettings {
-  /** @pattern ^(:?rand|str|base64|hex)$ */
+  /** @pattern ^$|^(:?rand|array|str|base64|hex)$ */
   type: string
-  packet: string
-  /** @pattern ^\d{1,16}(-\d{1,16})?$ */
-  delay: string
+  packet?: XrayNoiseSettingsPacket
+  delay?: XrayNoiseSettingsDelay
   /** @pattern ip|ipv4|ipv6 */
   apply_to?: string
-  rand_range?: XrayNoiseSettingsRandRange
+  rand?: XrayNoiseSettingsRand
+  randRange?: XrayNoiseSettingsRandRange
+  [key: string]: unknown
 }
 
 export type XrayMuxSettingsOutputXudpConcurrency = number | null
@@ -410,13 +417,30 @@ export type XrayMuxSettingsInputXudpConcurrency = number | null
 
 export type XrayMuxSettingsInputConcurrency = number | null
 
-export interface XrayFragmentSettings {
+export type XrayFragmentSettingsOutputMaxSplit = string | null
+
+export interface XrayFragmentSettingsOutput {
+  /** @pattern ^(:?tlshello|[\d-]{1,16})$ */
+  packets: string
+  /** @pattern ^[\d-]{1,16}$ */
+  length: string
+  /** @pattern ^[\d-]{1,16}$ */
+  delay: string
+  maxSplit?: XrayFragmentSettingsOutputMaxSplit
+  [key: string]: unknown
+}
+
+export type XrayFragmentSettingsInputMaxSplit = string | null
+
+export interface XrayFragmentSettingsInput {
   /** @pattern ^(:?tlshello|[\d-]{1,16})$ */
   packets: string
   /** @pattern ^[\d-]{1,16}$ */
   length: string
   /** @pattern ^[\d-]{1,16}$ */
   interval: string
+  maxSplit?: XrayFragmentSettingsInputMaxSplit
+  [key: string]: unknown
 }
 
 export type Xudp = (typeof Xudp)[keyof typeof Xudp]
@@ -738,10 +762,6 @@ export type UsersPermissionsRevokeSubAnyOf = { [key: string]: PermissionScope | 
 
 export type UsersPermissionsRevokeSub = boolean | UsersPermissionsRevokeSubAnyOf | null
 
-export type UsersPermissionsResetUsageAnyOf = { [key: string]: PermissionScope | number }
-
-export type UsersPermissionsResetUsage = boolean | UsersPermissionsResetUsageAnyOf | null
-
 export interface UsersPermissions {
   create?: UsersPermissionsCreate
   read?: UsersPermissionsRead
@@ -753,6 +773,10 @@ export interface UsersPermissions {
   set_owner?: UsersPermissionsSetOwner
   activate_next_plan?: UsersPermissionsActivateNextPlan
 }
+
+export type UsersPermissionsResetUsageAnyOf = { [key: string]: PermissionScope | number }
+
+export type UsersPermissionsResetUsage = boolean | UsersPermissionsResetUsageAnyOf | null
 
 export type UsersPermissionsDeleteAnyOf = { [key: string]: PermissionScope | number }
 
@@ -784,19 +808,19 @@ export const UsernameGenerationStrategy = {
 
 export type UserUsageStatsListPeriod = Period | null
 
-export interface UserUsageStat {
-  total_traffic: number
-  period_start: string
-}
-
-export type UserUsageStatsListStats = { [key: string]: UserUsageStat[] }
-
 export interface UserUsageStatsList {
   period?: UserUsageStatsListPeriod
   start: string
   end: string
   stats: UserUsageStatsListStats
 }
+
+export interface UserUsageStat {
+  total_traffic: number
+  period_start: string
+}
+
+export type UserUsageStatsListStats = { [key: string]: UserUsageStat[] }
 
 export type UserTemplateSimpleName = string | null
 
@@ -1130,13 +1154,6 @@ export interface UserModify {
   status?: UserModifyStatus
 }
 
-/**
- * User IP lists for all nodes
- */
-export interface UserIPListAll {
-  nodes: UserIPListAllNodes
-}
-
 export type UserIPListIps = { [key: string]: number }
 
 /**
@@ -1147,6 +1164,13 @@ export interface UserIPList {
 }
 
 export type UserIPListAllNodes = { [key: string]: UserIPList | null }
+
+/**
+ * User IP lists for all nodes
+ */
+export interface UserIPListAll {
+  nodes: UserIPListAllNodes
+}
 
 export type UserHWIDResponseDeviceModel = string | null
 
@@ -1215,23 +1239,9 @@ export interface UserCreate {
   status?: UserCreateStatus
 }
 
-export type UserCountMetricStatsListPeriod = Period | null
-
-export interface UserCountMetricStat {
-  count: number
-  period_start: string
-}
-
 export type UserCountMetricStatsListStats = { [key: string]: UserCountMetricStat[] }
 
-export type UserCountMetric = (typeof UserCountMetric)[keyof typeof UserCountMetric]
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
-export const UserCountMetric = {
-  online: 'online',
-  expired: 'expired',
-  limited: 'limited',
-} as const
+export type UserCountMetricStatsListPeriod = Period | null
 
 export interface UserCountMetricStatsList {
   period?: UserCountMetricStatsListPeriod
@@ -1241,6 +1251,20 @@ export interface UserCountMetricStatsList {
   count_during_period?: number
   stats: UserCountMetricStatsListStats
 }
+
+export interface UserCountMetricStat {
+  count: number
+  period_start: string
+}
+
+export type UserCountMetric = (typeof UserCountMetric)[keyof typeof UserCountMetric]
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const UserCountMetric = {
+  online: 'online',
+  expired: 'expired',
+  limited: 'limited',
+} as const
 
 export type UsageTable = (typeof UsageTable)[keyof typeof UsageTable]
 
@@ -1568,12 +1592,6 @@ export interface SettingsSchema {
   general?: SettingsSchemaGeneral
 }
 
-export interface SettingsPermissions {
-  read?: SettingsPermissionsRead
-  read_general?: SettingsPermissionsReadGeneral
-  update?: SettingsPermissionsUpdate
-}
-
 export type SettingsPermissionsUpdateAnyOf = { [key: string]: PermissionScope | number }
 
 export type SettingsPermissionsUpdate = boolean | SettingsPermissionsUpdateAnyOf | null
@@ -1585,6 +1603,12 @@ export type SettingsPermissionsReadGeneral = boolean | SettingsPermissionsReadGe
 export type SettingsPermissionsReadAnyOf = { [key: string]: PermissionScope | number }
 
 export type SettingsPermissionsRead = boolean | SettingsPermissionsReadAnyOf | null
+
+export interface SettingsPermissions {
+  read?: SettingsPermissionsRead
+  read_general?: SettingsPermissionsReadGeneral
+  update?: SettingsPermissionsUpdate
+}
 
 export type RunMethod = (typeof RunMethod)[keyof typeof RunMethod]
 
@@ -1877,6 +1901,19 @@ export type NotificationSettingsTelegramChatId = number | null
 
 export type NotificationSettingsTelegramApiToken = string | null
 
+export interface NotificationSettings {
+  notify_telegram?: boolean
+  notify_discord?: boolean
+  telegram_api_token?: NotificationSettingsTelegramApiToken
+  telegram_chat_id?: NotificationSettingsTelegramChatId
+  telegram_topic_id?: NotificationSettingsTelegramTopicId
+  discord_webhook_url?: NotificationSettingsDiscordWebhookUrl
+  channels?: NotificationChannels
+  proxy_url?: NotificationSettingsProxyUrl
+  /** */
+  max_retries: number
+}
+
 export interface NotificationEnable {
   admin?: AdminNotificationEnable
   admin_role?: BaseNotificationEnable
@@ -1904,19 +1941,6 @@ export interface NotificationChannels {
   user?: NotificationChannel
   user_template?: NotificationChannel
   api_key?: NotificationChannel
-}
-
-export interface NotificationSettings {
-  notify_telegram?: boolean
-  notify_discord?: boolean
-  telegram_api_token?: NotificationSettingsTelegramApiToken
-  telegram_chat_id?: NotificationSettingsTelegramChatId
-  telegram_topic_id?: NotificationSettingsTelegramTopicId
-  discord_webhook_url?: NotificationSettingsDiscordWebhookUrl
-  channels?: NotificationChannels
-  proxy_url?: NotificationSettingsProxyUrl
-  /** */
-  max_retries: number
 }
 
 export type NotificationChannelDiscordWebhookUrl = string | null
@@ -1997,18 +2021,6 @@ export type NodesPermissionsReadSimpleAnyOf = { [key: string]: PermissionScope |
 
 export type NodesPermissionsReadSimple = boolean | NodesPermissionsReadSimpleAnyOf | null
 
-export interface NodesPermissions {
-  create?: NodesPermissionsCreate
-  read?: NodesPermissionsRead
-  read_simple?: NodesPermissionsReadSimple
-  update?: NodesPermissionsUpdate
-  delete?: NodesPermissionsDelete
-  reconnect?: NodesPermissionsReconnect
-  update_core?: NodesPermissionsUpdateCore
-  logs?: NodesPermissionsLogs
-  stats?: NodesPermissionsStats
-}
-
 export type NodesPermissionsReadAnyOf = { [key: string]: PermissionScope | number }
 
 export type NodesPermissionsRead = boolean | NodesPermissionsReadAnyOf | null
@@ -2019,6 +2031,13 @@ export type NodesPermissionsCreate = boolean | NodesPermissionsCreateAnyOf | nul
 
 export type NodeUsageStatsListPeriod = Period | null
 
+export interface NodeUsageStatsList {
+  period?: NodeUsageStatsListPeriod
+  start: string
+  end: string
+  stats: NodeUsageStatsListStats
+}
+
 export interface NodeUsageStat {
   uplink: number
   downlink: number
@@ -2026,13 +2045,6 @@ export interface NodeUsageStat {
 }
 
 export type NodeUsageStatsListStats = { [key: string]: NodeUsageStat[] }
-
-export interface NodeUsageStatsList {
-  period?: NodeUsageStatsListPeriod
-  start: string
-  end: string
-  stats: NodeUsageStatsListStats
-}
 
 export type NodeStatus = (typeof NodeStatus)[keyof typeof NodeStatus]
 
@@ -2224,19 +2236,6 @@ export interface NodeGeoFilesUpdate {
 
 export type NodeCreateProxyUrl = string | null
 
-export interface NodeCoreUpdate {
-  /** @pattern ^(latest|v?\d+\.\d+\.\d+)$ */
-  core_version?: string
-}
-
-export type NodeConnectionType = (typeof NodeConnectionType)[keyof typeof NodeConnectionType]
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
-export const NodeConnectionType = {
-  grpc: 'grpc',
-  rest: 'rest',
-} as const
-
 export interface NodeCreate {
   name: string
   address: string
@@ -2264,6 +2263,19 @@ export interface NodeCreate {
   internal_timeout?: number
   proxy_url?: NodeCreateProxyUrl
 }
+
+export interface NodeCoreUpdate {
+  /** @pattern ^(latest|v?\d+\.\d+\.\d+)$ */
+  core_version?: string
+}
+
+export type NodeConnectionType = (typeof NodeConnectionType)[keyof typeof NodeConnectionType]
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const NodeConnectionType = {
+  grpc: 'grpc',
+  rest: 'rest',
+} as const
 
 export type NextPlanModelExpire = number | null
 
@@ -2369,24 +2381,18 @@ export type HwidsPermissionsDeleteAnyOf = { [key: string]: PermissionScope | num
 
 export type HwidsPermissionsDelete = boolean | HwidsPermissionsDeleteAnyOf | null
 
+export type HwidsPermissionsReadAnyOf = { [key: string]: PermissionScope | number }
+
+export type HwidsPermissionsRead = boolean | HwidsPermissionsReadAnyOf | null
+
 export interface HwidsPermissions {
   read?: HwidsPermissionsRead
   delete?: HwidsPermissionsDelete
 }
 
-export type HwidsPermissionsReadAnyOf = { [key: string]: PermissionScope | number }
-
-export type HwidsPermissionsRead = boolean | HwidsPermissionsReadAnyOf | null
-
 export type HostsPermissionsUpdateAnyOf = { [key: string]: PermissionScope | number }
 
 export type HostsPermissionsUpdate = boolean | HostsPermissionsUpdateAnyOf | null
-
-export interface HostsPermissions {
-  create?: HostsPermissionsCreate
-  read?: HostsPermissionsRead
-  update?: HostsPermissionsUpdate
-}
 
 export type HostsPermissionsReadAnyOf = { [key: string]: PermissionScope | number }
 
@@ -2395,6 +2401,12 @@ export type HostsPermissionsRead = boolean | HostsPermissionsReadAnyOf | null
 export type HostsPermissionsCreateAnyOf = { [key: string]: PermissionScope | number }
 
 export type HostsPermissionsCreate = boolean | HostsPermissionsCreateAnyOf | null
+
+export interface HostsPermissions {
+  create?: HostsPermissionsCreate
+  read?: HostsPermissionsRead
+  update?: HostsPermissionsUpdate
+}
 
 export interface HostNotificationEnable {
   create?: boolean
@@ -2461,11 +2473,6 @@ export interface HTTPException {
   detail: string
 }
 
-export interface GroupsResponse {
-  groups: GroupResponse[]
-  total: number
-}
-
 /**
  * Lightweight group model with only id and name for performance.
  */
@@ -2494,6 +2501,11 @@ export interface GroupResponse {
   is_disabled?: boolean
   id: number
   total_users?: number
+}
+
+export interface GroupsResponse {
+  groups: GroupResponse[]
+  total: number
 }
 
 export type GroupModifyInboundTags = string[] | null
@@ -2548,17 +2560,260 @@ export interface GRPCSettings {
   initial_windows_size?: GRPCSettingsInitialWindowsSize
 }
 
-export type FragmentSettingsSingBox = SingBoxFragmentSettings | null
+export type FragmentSettingsOutputSingBox = SingBoxFragmentSettings | null
 
-export type FragmentSettingsXray = XrayFragmentSettings | null
+export type FragmentSettingsOutputXray = XrayFragmentSettingsOutput | null
 
-export interface FragmentSettings {
-  xray?: FragmentSettingsXray
-  sing_box?: FragmentSettingsSingBox
+export interface FragmentSettingsOutput {
+  xray?: FragmentSettingsOutputXray
+  sing_box?: FragmentSettingsOutputSingBox
+}
+
+export type FragmentSettingsInputSingBox = SingBoxFragmentSettings | null
+
+export type FragmentSettingsInputXray = XrayFragmentSettingsInput | null
+
+export interface FragmentSettingsInput {
+  xray?: FragmentSettingsInputXray
+  sing_box?: FragmentSettingsInputSingBox
 }
 
 export interface Forbidden {
   detail?: string
+}
+
+export type FinalMaskXicmpSettingsId = number | null
+
+export type FinalMaskXicmpSettingsListenIp = string | null
+
+export interface FinalMaskXicmpSettings {
+  listenIp?: FinalMaskXicmpSettingsListenIp
+  id?: FinalMaskXicmpSettingsId
+  [key: string]: unknown
+}
+
+export type FinalMaskUdpType = (typeof FinalMaskUdpType)[keyof typeof FinalMaskUdpType]
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const FinalMaskUdpType = {
+  'header-custom': 'header-custom',
+  'header-dns': 'header-dns',
+  'header-dtls': 'header-dtls',
+  'header-srtp': 'header-srtp',
+  'header-utp': 'header-utp',
+  'header-wechat': 'header-wechat',
+  'header-wireguard': 'header-wireguard',
+  'mkcp-original': 'mkcp-original',
+  'mkcp-aes128gcm': 'mkcp-aes128gcm',
+  noise: 'noise',
+  salamander: 'salamander',
+  sudoku: 'sudoku',
+  xdns: 'xdns',
+  xicmp: 'xicmp',
+} as const
+
+export type FinalMaskUdpLayerSettingsAnyOf = { [key: string]: unknown }
+
+export type FinalMaskUdpLayerSettings =
+  | FinalMaskUdpHeaderCustomSettings
+  | FinalMaskPasswordSettings
+  | FinalMaskSudokuSettings
+  | FinalMaskDomainSettings
+  | FinalMaskXicmpSettings
+  | FinalMaskNoiseSettings
+  | FinalMaskUdpLayerSettingsAnyOf
+
+export interface FinalMaskUdpLayer {
+  type: FinalMaskUdpType
+  settings?: FinalMaskUdpLayerSettings
+  [key: string]: unknown
+}
+
+export type FinalMaskUdpHopInterval = string | number | null
+
+export type FinalMaskUdpHopPorts = string | null
+
+export interface FinalMaskUdpHop {
+  ports?: FinalMaskUdpHopPorts
+  interval?: FinalMaskUdpHopInterval
+  [key: string]: unknown
+}
+
+export type FinalMaskUdpHeaderCustomSettingsServer = XrayNoiseSettings[] | null
+
+export type FinalMaskUdpHeaderCustomSettingsClient = XrayNoiseSettings[] | null
+
+export interface FinalMaskUdpHeaderCustomSettings {
+  client?: FinalMaskUdpHeaderCustomSettingsClient
+  server?: FinalMaskUdpHeaderCustomSettingsServer
+  [key: string]: unknown
+}
+
+export type FinalMaskTcpType = (typeof FinalMaskTcpType)[keyof typeof FinalMaskTcpType]
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const FinalMaskTcpType = {
+  'header-custom': 'header-custom',
+  fragment: 'fragment',
+  sudoku: 'sudoku',
+} as const
+
+export type FinalMaskTcpLayerOutputSettingsAnyOf = { [key: string]: unknown }
+
+export type FinalMaskTcpLayerOutputSettings = FinalMaskTcpHeaderCustomSettings | XrayFragmentSettingsOutput | FinalMaskSudokuSettings | FinalMaskTcpLayerOutputSettingsAnyOf
+
+export interface FinalMaskTcpLayerOutput {
+  type: FinalMaskTcpType
+  settings?: FinalMaskTcpLayerOutputSettings
+  [key: string]: unknown
+}
+
+export type FinalMaskTcpLayerInputSettingsAnyOf = { [key: string]: unknown }
+
+export type FinalMaskTcpLayerInputSettings = FinalMaskTcpHeaderCustomSettings | XrayFragmentSettingsInput | FinalMaskSudokuSettings | FinalMaskTcpLayerInputSettingsAnyOf
+
+export interface FinalMaskTcpLayerInput {
+  type: FinalMaskTcpType
+  settings?: FinalMaskTcpLayerInputSettings
+  [key: string]: unknown
+}
+
+export type FinalMaskTcpHeaderCustomSettingsErrors = XrayNoiseSettings[][] | null
+
+export type FinalMaskTcpHeaderCustomSettingsServers = XrayNoiseSettings[][] | null
+
+export type FinalMaskTcpHeaderCustomSettingsClients = XrayNoiseSettings[][] | null
+
+export interface FinalMaskTcpHeaderCustomSettings {
+  clients?: FinalMaskTcpHeaderCustomSettingsClients
+  servers?: FinalMaskTcpHeaderCustomSettingsServers
+  errors?: FinalMaskTcpHeaderCustomSettingsErrors
+  [key: string]: unknown
+}
+
+export type FinalMaskSudokuSettingsPaddingMax = number | null
+
+export type FinalMaskSudokuSettingsPaddingMin = number | null
+
+export type FinalMaskSudokuSettingsCustomTables = string[] | null
+
+export type FinalMaskSudokuSettingsCustomTable = string | null
+
+export type FinalMaskSudokuSettingsAscii = string | null
+
+export type FinalMaskSudokuSettingsPassword = string | null
+
+export interface FinalMaskSudokuSettings {
+  password?: FinalMaskSudokuSettingsPassword
+  ascii?: FinalMaskSudokuSettingsAscii
+  customTable?: FinalMaskSudokuSettingsCustomTable
+  customTables?: FinalMaskSudokuSettingsCustomTables
+  paddingMin?: FinalMaskSudokuSettingsPaddingMin
+  paddingMax?: FinalMaskSudokuSettingsPaddingMax
+  [key: string]: unknown
+}
+
+export type FinalMaskQuicParamsMaxIncomingStreams = number | null
+
+export type FinalMaskQuicParamsDisablePathMTUDiscovery = boolean | null
+
+export type FinalMaskQuicParamsKeepAlivePeriod = number | null
+
+export type FinalMaskQuicParamsMaxIdleTimeout = number | null
+
+export type FinalMaskQuicParamsMaxConnectionReceiveWindow = number | null
+
+export type FinalMaskQuicParamsInitConnectionReceiveWindow = number | null
+
+export type FinalMaskQuicParamsMaxStreamReceiveWindow = number | null
+
+export type FinalMaskQuicParamsInitStreamReceiveWindow = number | null
+
+export type FinalMaskQuicParamsUdpHop = FinalMaskUdpHop | null
+
+export type FinalMaskQuicParamsBrutalDown = string | number | null
+
+export type FinalMaskQuicParamsBrutalUp = string | number | null
+
+export type FinalMaskQuicParamsDebug = boolean | null
+
+export interface FinalMaskQuicParams {
+  congestion?: FinalMaskQuicParamsCongestion
+  debug?: FinalMaskQuicParamsDebug
+  brutalUp?: FinalMaskQuicParamsBrutalUp
+  brutalDown?: FinalMaskQuicParamsBrutalDown
+  udpHop?: FinalMaskQuicParamsUdpHop
+  initStreamReceiveWindow?: FinalMaskQuicParamsInitStreamReceiveWindow
+  maxStreamReceiveWindow?: FinalMaskQuicParamsMaxStreamReceiveWindow
+  initConnectionReceiveWindow?: FinalMaskQuicParamsInitConnectionReceiveWindow
+  maxConnectionReceiveWindow?: FinalMaskQuicParamsMaxConnectionReceiveWindow
+  maxIdleTimeout?: FinalMaskQuicParamsMaxIdleTimeout
+  keepAlivePeriod?: FinalMaskQuicParamsKeepAlivePeriod
+  disablePathMTUDiscovery?: FinalMaskQuicParamsDisablePathMTUDiscovery
+  maxIncomingStreams?: FinalMaskQuicParamsMaxIncomingStreams
+  [key: string]: unknown
+}
+
+export type FinalMaskQuicCongestion = (typeof FinalMaskQuicCongestion)[keyof typeof FinalMaskQuicCongestion]
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const FinalMaskQuicCongestion = {
+  reno: 'reno',
+  bbr: 'bbr',
+  brutal: 'brutal',
+  'force-brutal': 'force-brutal',
+} as const
+
+export type FinalMaskQuicParamsCongestion = FinalMaskQuicCongestion | null
+
+export type FinalMaskPasswordSettingsPassword = string | null
+
+export interface FinalMaskPasswordSettings {
+  password?: FinalMaskPasswordSettingsPassword
+  [key: string]: unknown
+}
+
+export type FinalMaskNoiseSettingsNoise = XrayNoiseSettings[] | null
+
+export type FinalMaskNoiseSettingsReset = number | null
+
+export interface FinalMaskNoiseSettings {
+  reset?: FinalMaskNoiseSettingsReset
+  noise?: FinalMaskNoiseSettingsNoise
+  [key: string]: unknown
+}
+
+export type FinalMaskDomainSettingsDomain = string | null
+
+export interface FinalMaskDomainSettings {
+  domain?: FinalMaskDomainSettingsDomain
+  [key: string]: unknown
+}
+
+export type FinalMaskOutputQuicParams = FinalMaskQuicParams | null
+
+export type FinalMaskOutputUdp = FinalMaskUdpLayer[] | null
+
+export type FinalMaskOutputTcp = FinalMaskTcpLayerOutput[] | null
+
+export interface FinalMaskOutput {
+  tcp?: FinalMaskOutputTcp
+  udp?: FinalMaskOutputUdp
+  quicParams?: FinalMaskOutputQuicParams
+  [key: string]: unknown
+}
+
+export type FinalMaskInputQuicParams = FinalMaskQuicParams | null
+
+export type FinalMaskInputUdp = FinalMaskUdpLayer[] | null
+
+export type FinalMaskInputTcp = FinalMaskTcpLayerInput[] | null
+
+export interface FinalMaskInput {
+  tcp?: FinalMaskInputTcp
+  udp?: FinalMaskInputUdp
+  quicParams?: FinalMaskInputQuicParams
+  [key: string]: unknown
 }
 
 export type ExtraSettingsMethod = ShadowsocksMethods | null
@@ -2609,6 +2864,8 @@ export interface CreateUserFromTemplate {
   username: string
 }
 
+export type CreateHostFinalMaskSettings = FinalMaskInput | null
+
 export type CreateHostSubscriptionTemplates = SubscriptionTemplates | null
 
 export type CreateHostWireguardOverrides = WireGuardHostOverrides | null
@@ -2627,31 +2884,11 @@ export type CreateHostVlessRoute = string | null
 
 export type CreateHostNoiseSettings = NoiseSettings | null
 
-export type CreateHostFragmentSettings = FragmentSettings | null
+export type CreateHostFragmentSettings = FragmentSettingsInput | null
 
 export type CreateHostMuxSettings = MuxSettingsInput | null
 
 export type CreateHostTransportSettings = TransportSettingsInput | null
-
-export type CreateHostHttpHeadersAnyOf = { [key: string]: string }
-
-export type CreateHostHttpHeaders = CreateHostHttpHeadersAnyOf | null
-
-export type CreateHostAllowinsecure = boolean | null
-
-export type CreateHostAlpn = ProxyHostALPN[] | null
-
-export type CreateHostPath = string | null
-
-export type CreateHostHost = string[] | null
-
-export type CreateHostSni = string[] | null
-
-export type CreateHostPort = number | null
-
-export type CreateHostInboundTag = string | null
-
-export type CreateHostId = number | null
 
 export interface CreateHost {
   id?: CreateHostId
@@ -2683,6 +2920,35 @@ export interface CreateHost {
   verify_peer_cert_by_name?: CreateHostVerifyPeerCertByName
   wireguard_overrides?: CreateHostWireguardOverrides
   subscription_templates?: CreateHostSubscriptionTemplates
+  final_mask_settings?: CreateHostFinalMaskSettings
+}
+
+export type CreateHostHttpHeadersAnyOf = { [key: string]: string }
+
+export type CreateHostHttpHeaders = CreateHostHttpHeadersAnyOf | null
+
+export type CreateHostAllowinsecure = boolean | null
+
+export type CreateHostAlpn = ProxyHostALPN[] | null
+
+export type CreateHostPath = string | null
+
+export type CreateHostHost = string[] | null
+
+export type CreateHostSni = string[] | null
+
+export type CreateHostPort = number | null
+
+export type CreateHostInboundTag = string | null
+
+export type CreateHostId = number | null
+
+/**
+ * Response model for lightweight core list.
+ */
+export interface CoresSimpleResponse {
+  cores: CoreSimple[]
+  total: number
 }
 
 export type CoreType = (typeof CoreType)[keyof typeof CoreType]
@@ -2704,14 +2970,6 @@ export interface CoreSimple {
   id: number
   name: string
   type?: CoreSimpleType
-}
-
-/**
- * Response model for lightweight core list.
- */
-export interface CoresSimpleResponse {
-  cores: CoreSimple[]
-  total: number
 }
 
 export interface CoreResponseList {
@@ -2770,6 +3028,17 @@ export const ConfigFormat = {
   block: 'block',
 } as const
 
+export type ClientTemplateType = (typeof ClientTemplateType)[keyof typeof ClientTemplateType]
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const ClientTemplateType = {
+  clash_subscription: 'clash_subscription',
+  xray_subscription: 'xray_subscription',
+  singbox_subscription: 'singbox_subscription',
+  user_agent: 'user_agent',
+  grpc_user_agent: 'grpc_user_agent',
+} as const
+
 export interface ClientTemplateSimple {
   id: number
   name: string
@@ -2781,17 +3050,6 @@ export interface ClientTemplatesSimpleResponse {
   templates: ClientTemplateSimple[]
   total: number
 }
-
-export type ClientTemplateType = (typeof ClientTemplateType)[keyof typeof ClientTemplateType]
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
-export const ClientTemplateType = {
-  clash_subscription: 'clash_subscription',
-  xray_subscription: 'xray_subscription',
-  singbox_subscription: 'singbox_subscription',
-  user_agent: 'user_agent',
-  grpc_user_agent: 'grpc_user_agent',
-} as const
 
 export interface ClientTemplateResponse {
   id: number
@@ -2859,14 +3117,6 @@ export type CRUDPermissionsReadSimpleAnyOf = { [key: string]: PermissionScope | 
 
 export type CRUDPermissionsReadSimple = boolean | CRUDPermissionsReadSimpleAnyOf | null
 
-export type CRUDPermissionsReadAnyOf = { [key: string]: PermissionScope | number }
-
-export type CRUDPermissionsRead = boolean | CRUDPermissionsReadAnyOf | null
-
-export type CRUDPermissionsCreateAnyOf = { [key: string]: PermissionScope | number }
-
-export type CRUDPermissionsCreate = boolean | CRUDPermissionsCreateAnyOf | null
-
 /**
  * Standard create/read/read_simple/update/delete permissions.
 Used directly by: groups, templates, client_templates, cores, admin_roles.
@@ -2879,6 +3129,14 @@ export interface CRUDPermissions {
   update?: CRUDPermissionsUpdate
   delete?: CRUDPermissionsDelete
 }
+
+export type CRUDPermissionsReadAnyOf = { [key: string]: PermissionScope | number }
+
+export type CRUDPermissionsRead = boolean | CRUDPermissionsReadAnyOf | null
+
+export type CRUDPermissionsCreateAnyOf = { [key: string]: PermissionScope | number }
+
+export type CRUDPermissionsCreate = boolean | CRUDPermissionsCreateAnyOf | null
 
 export type BulkWireGuardPeerIPsExpireBefore = string | null
 
@@ -3114,6 +3372,8 @@ export interface BaseNotificationEnable {
   delete?: boolean
 }
 
+export type BaseHostFinalMaskSettings = FinalMaskOutput | null
+
 export type BaseHostSubscriptionTemplates = SubscriptionTemplates | null
 
 export type BaseHostWireguardOverrides = WireGuardHostOverrides | null
@@ -3132,7 +3392,7 @@ export type BaseHostVlessRoute = string | null
 
 export type BaseHostNoiseSettings = NoiseSettings | null
 
-export type BaseHostFragmentSettings = FragmentSettings | null
+export type BaseHostFragmentSettings = FragmentSettingsOutput | null
 
 export type BaseHostMuxSettings = MuxSettingsOutput | null
 
@@ -3188,6 +3448,7 @@ export interface BaseHost {
   verify_peer_cert_by_name?: BaseHostVerifyPeerCertByName
   wireguard_overrides?: BaseHostWireguardOverrides
   subscription_templates?: BaseHostSubscriptionTemplates
+  final_mask_settings?: BaseHostFinalMaskSettings
 }
 
 export type ApplicationDescription = { [key: string]: string }
@@ -3229,14 +3490,6 @@ export type AdminsPermissionsResetUsageAnyOf = { [key: string]: PermissionScope 
 
 export type AdminsPermissionsResetUsage = boolean | AdminsPermissionsResetUsageAnyOf | null
 
-export type AdminsPermissionsDeleteAnyOf = { [key: string]: PermissionScope | number }
-
-export type AdminsPermissionsDelete = boolean | AdminsPermissionsDeleteAnyOf | null
-
-export type AdminsPermissionsUpdateAnyOf = { [key: string]: PermissionScope | number }
-
-export type AdminsPermissionsUpdate = boolean | AdminsPermissionsUpdateAnyOf | null
-
 export interface AdminsPermissions {
   create?: AdminsPermissionsCreate
   read?: AdminsPermissionsRead
@@ -3245,6 +3498,14 @@ export interface AdminsPermissions {
   delete?: AdminsPermissionsDelete
   reset_usage?: AdminsPermissionsResetUsage
 }
+
+export type AdminsPermissionsDeleteAnyOf = { [key: string]: PermissionScope | number }
+
+export type AdminsPermissionsDelete = boolean | AdminsPermissionsDeleteAnyOf | null
+
+export type AdminsPermissionsUpdateAnyOf = { [key: string]: PermissionScope | number }
+
+export type AdminsPermissionsUpdate = boolean | AdminsPermissionsUpdateAnyOf | null
 
 export type AdminsPermissionsReadSimpleAnyOf = { [key: string]: PermissionScope | number }
 

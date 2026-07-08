@@ -574,6 +574,7 @@ class ProxyHost(Base, IdMixin):
     )
     wireguard_overrides: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON(none_as_null=True), default=None)
     subscription_templates: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON(none_as_null=True), default=None)
+    final_mask_settings: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON(none_as_null=True), default=None)
 
 
 class System(Base, IdMixin):
