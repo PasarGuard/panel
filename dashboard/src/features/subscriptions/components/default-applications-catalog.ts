@@ -59,6 +59,19 @@ const defaultApplicationsData: { operatingSystems: DefaultOperatingSystem[] } = 
       name: 'Android',
       apps: [
         {
+          name: 'InHive',
+          logo: 'https://cdn.jsdelivr.net/gh/TwilgateLabs/assets@main/inhive-logo.svg',
+          description:
+            'Invite-only universal VPN client built on a sing-box fork with Xray parity — VLESS(Reality), Hysteria2, TUIC, xHTTP, kcp, WireGuard. Uses per-install localhost auth.',
+          faDescription:
+            'کلاینت VPN جهانی مبتنی بر نسخه‌ی سفارشی sing-box با سازگاری Xray — VLESS(Reality)، Hysteria2، TUIC، xHTTP، kcp، WireGuard.',
+          ruDescription:
+            'Универсальный VPN‑клиент на форке sing-box с Xray‑совместимостью — VLESS(Reality), Hysteria2, TUIC, xHTTP, kcp, WireGuard. Аутентификация локального прокси per‑install.',
+          zhDescription: '基于 sing-box 分支并兼容 Xray 的通用 VPN 客户端 — VLESS(Reality)、Hysteria2、TUIC、xHTTP、kcp、WireGuard。',
+          configLink: 'inhive://import?sub={url}',
+          downloadLink: 'https://github.com/TwilgateLabs/inhive-android/releases/latest',
+        },
+        {
           name: 'V2rayNG',
           logo: 'https://raw.githubusercontent.com/2dust/v2rayNG/refs/heads/master/V2rayNG/app/src/main/ic_launcher-web.png',
           description: 'A V2Ray client for Android devices.',
@@ -83,6 +96,19 @@ const defaultApplicationsData: { operatingSystems: DefaultOperatingSystem[] } = 
     {
       name: 'Windows',
       apps: [
+        {
+          name: 'InHive',
+          logo: 'https://cdn.jsdelivr.net/gh/TwilgateLabs/assets@main/inhive-logo.svg',
+          description:
+            'Invite-only universal VPN client built on a sing-box fork with Xray parity — VLESS(Reality), Hysteria2, TUIC, xHTTP, kcp, WireGuard. Uses per-install localhost auth.',
+          faDescription:
+            'کلاینت VPN جهانی مبتنی بر نسخه‌ی سفارشی sing-box با سازگاری Xray — VLESS(Reality)، Hysteria2، TUIC، xHTTP، kcp، WireGuard.',
+          ruDescription:
+            'Универсальный VPN‑клиент на форке sing-box с Xray‑совместимостью — VLESS(Reality), Hysteria2, TUIC, xHTTP, kcp, WireGuard. Аутентификация локального прокси per‑install.',
+          zhDescription: '基于 sing-box 分支并兼容 Xray 的通用 VPN 客户端 — VLESS(Reality)、Hysteria2、TUIC、xHTTP、kcp、WireGuard。',
+          configLink: 'inhive://import?sub={url}',
+          downloadLink: 'https://github.com/TwilgateLabs/inhive-windows/releases/latest',
+        },
         {
           name: 'V2rayN',
           logo: 'https://raw.githubusercontent.com/2dust/v2rayN/refs/heads/master/v2rayN/v2rayN.Desktop/v2rayN.png',
