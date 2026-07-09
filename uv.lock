@@ -792,7 +792,7 @@ wheels = [
 
 [[package]]
 name = "pasarguard"
-version = "5.0.3"
+version = "5.1.0rc1"
 source = { virtual = "." }
 dependencies = [
     { name = "aiocache" },

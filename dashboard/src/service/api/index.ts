@@ -3,7 +3,7 @@
  * Do not edit manually.
  * PasarGuardAPI
  * Unified GUI Censorship Resistant Solution
- * OpenAPI spec version: 5.0.3
+ * OpenAPI spec version: 5.1.0-rc.1
  */
 import { useMutation, useQuery } from '@tanstack/react-query'
 import type {
@@ -13700,6 +13700,48 @@ export function useUserSubscription<TData = Awaited<ReturnType<typeof userSubscr
   query.queryKey = queryOptions.queryKey
 
   return query
+}
+
+/**
+ * Provides subscription headers without response body.
+ * @summary User Subscription Headers
+ */
+export const userSubscriptionHeaders = (token: string, signal?: AbortSignal) => {
+  return orvalFetcher<unknown>({ url: `/sub/${token}/`, method: 'HEAD', signal })
+}
+
+export const getUserSubscriptionHeadersMutationOptions = <TData = Awaited<ReturnType<typeof userSubscriptionHeaders>>, TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { token: string }, TContext>
+}) => {
+  const mutationKey = ['userSubscriptionHeaders']
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } }
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof userSubscriptionHeaders>>, { token: string }> = props => {
+    const { token } = props ?? {}
+
+    return userSubscriptionHeaders(token)
+  }
+
+  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { token: string }, TContext>
+}
+
+export type UserSubscriptionHeadersMutationResult = NonNullable<Awaited<ReturnType<typeof userSubscriptionHeaders>>>
+
+export type UserSubscriptionHeadersMutationError = ErrorType<HTTPValidationError>
+
+/**
+ * @summary User Subscription Headers
+ */
+export const useUserSubscriptionHeaders = <TData = Awaited<ReturnType<typeof userSubscriptionHeaders>>, TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { token: string }, TContext>
+}): UseMutationResult<TData, TError, { token: string }, TContext> => {
+  const mutationOptions = getUserSubscriptionHeadersMutationOptions(options)
+
+  return useMutation(mutationOptions)
 }
 
 /**
