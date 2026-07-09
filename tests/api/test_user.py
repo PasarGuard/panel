@@ -2441,7 +2441,11 @@ def test_generic_disable_enable_on_hold_user_preserves_hold_state(access_token):
     user = create_user(
         access_token,
         group_ids=[groups[0]["id"]],
-        payload={"username": unique_name("modify_toggle_on_hold"), "status": "on_hold", "on_hold_expire_duration": 3600},
+        payload={
+            "username": unique_name("modify_toggle_on_hold"),
+            "status": "on_hold",
+            "on_hold_expire_duration": 3600,
+        },
     )
 
     try:
