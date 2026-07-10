@@ -61,8 +61,7 @@ class WireGuardConfig(dict):
             raise ValueError("interface_name is required")
         if not _WIREGUARD_INTERFACE_NAME_RE.fullmatch(interface_name):
             raise ValueError(
-                "interface_name must start with a letter or digit "
-                "and contain only letters, digits, '_', '.', or '-'"
+                "interface_name must start with a letter or digit and contain only letters, digits, '_', '.', or '-'"
             )
         self["interface_name"] = interface_name
 
