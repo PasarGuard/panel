@@ -10,10 +10,10 @@ import { Textarea } from '@/components/ui/textarea'
 import useDirDetection from '@/hooks/use-dir-detection'
 import useDynamicErrorHandler from '@/hooks/use-dynamic-errors.ts'
 import { cn } from '@/lib/utils'
-import { CoresSimpleResponse, DataLimitResetStrategy, getNode, NodeConnectionType, NodeResponse, useCreateNode, useGetNode, useGetNodes, useModifyNode } from '@/service/api'
+import { CoresSimpleResponse, DataLimitResetStrategy, getNode, NodeConnectionType, NodeResponse, useCreateNode, useGetNode, useModifyNode } from '@/service/api'
 import { formatBytes, gbToBytes } from '@/utils/formatByte'
 import { queryClient } from '@/utils/query-client'
-import { Loader2, RefreshCw, Settings, Server, Pencil, AlertTriangle } from 'lucide-react'
+import { Loader2, RefreshCw, Settings, Server, Pencil } from 'lucide-react'
 import React, { useEffect, useRef, useState } from 'react'
 import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -67,20 +67,6 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
 
   const currentNode = node || initialNodeData
   const lastSyncedNodeRef = useRef<NodeResponse | null>(null)
-
-  // Warn (don't block) when the selected core config is already shared with nodes
-  // running a different Xray version — such a core is pushed unmodified to every
-  // node that uses it, so any version-specific field can behave inconsistently.
-  const selectedCoreConfigId = form.watch('core_config_id')
-  const { data: coreSiblingNodes } = useGetNodes(
-    { core_id: selectedCoreConfigId },
-    { query: { enabled: isDialogOpen && !!selectedCoreConfigId } },
-  )
-  const siblingVersions = (coreSiblingNodes?.nodes ?? [])
-    .filter(n => n.id !== editingNodeId)
-    .map(n => n.xray_version)
-    .filter((v): v is string => !!v)
-  const hasVersionMismatch = new Set(siblingVersions).size > 1
 
   useEffect(() => {
     if (isDialogOpen) {
@@ -540,21 +526,6 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
                       </FormItem>
                     )}
                   />
-
-                  {hasVersionMismatch && (
-                    <p
-                      dir={dir}
-                      className={cn('text-muted-foreground flex items-start gap-1.5 text-xs leading-relaxed', dir === 'rtl' && 'flex-row-reverse text-right')}
-                    >
-                      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                      <span>
-                        {t('nodeModal.coreVersionMismatchWarning', {
-                          defaultValue:
-                            "Other nodes already using this core config are running a different Xray version. This core is pushed to every node unmodified (except for a few fields the panel safely adapts per node's version) — some of the remaining settings may not work as expected.",
-                        })}
-                      </span>
-                    </p>
-                  )}
 
                   <FormField
                     control={form.control}

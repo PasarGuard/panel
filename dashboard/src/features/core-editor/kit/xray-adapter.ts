@@ -1,5 +1,4 @@
 import { DEFAULT_XRAY_CORE_CONFIG } from '@/lib/default-xray-core-config'
-import { checkSessionIdRoomSize } from '@/lib/xray-session-id-room-size'
 import { buildXrayConfig, importXrayConfig, normalizeProfile } from '@pasarguard/xray-config-kit'
 import type { Issue, JsonValue, Profile } from '@pasarguard/xray-config-kit'
 import type { CoreKitValidationIssue } from '@pasarguard/core-kit'
@@ -374,47 +373,13 @@ function applyHysteriaTransportUdpmasksToCompiledConfig(profile: Profile, config
 }
 
 /**
- * `sessionIDTable`/`sessionIDLength` (XHTTP transport) survive schema validation on any xray-config-kit
- * version — the field is present, just not semantically checked. Xray-core's own Build() hard-fails when
- * the table/length combination can't produce ~2.1B distinct session IDs, so this is checked here directly
- * rather than relying on the kit (same category as allowInsecure: a Build()-time value check, not a
- * schema fact). Runs over every inbound regardless of how it was edited — typed dialog or raw JSON —
- * since both end up as the same `Profile.inbounds` shape before persist.
+ * Issues from {@link buildXrayConfig} in strict mode when the profile does not compile (schema / semantic / unsafe patches, …).
  */
-function getXhttpSessionIdRoomSizeIssues(profile: Profile): Issue[] {
-  const issues: Issue[] = []
-  profile.inbounds.forEach((inbound, index) => {
-    const transport = 'transport' in inbound ? (inbound.transport as { type?: string; extra?: Record<string, unknown> } | undefined) : undefined
-    if (transport?.type !== 'xhttp') return
-    const table = transport.extra?.sessionIDTable
-    const length = transport.extra?.sessionIDLength
-    if (typeof table !== 'string' || !table) return
-    const problem = checkSessionIdRoomSize(table, typeof length === 'string' ? length : '')
-    if (!problem) return
-    issues.push({
-      code: problem === 'length-not-positive' ? 'XCK_XHTTP_SESSION_ID_LENGTH_NOT_POSITIVE' : 'XCK_XHTTP_SESSION_ID_ROOM_TOO_SMALL',
-      severity: 'error',
-      category: 'semantic',
-      path: `/inbounds/${index + 1}/transport/extra/sessionIDLength`,
-      message:
-        problem === 'length-not-positive'
-          ? 'sessionIDLength must be greater than 0.'
-          : 'Too few possible session IDs (must be at least ~2.1 billion). Increase the length range or use a larger character table.',
-    })
-  })
-  return issues
-}
-
-/**
- * Issues from {@link buildXrayConfig} in strict mode when the profile does not compile (schema / semantic / unsafe patches, …),
- * plus the sessionIDTable/sessionIDLength room-size check (not covered by the kit — see {@link getXhttpSessionIdRoomSizeIssues}).
- */
-export function getXrayStrictCompileBlockers(profile: Profile, xrayVersion?: string | null): Issue[] {
-  const roomSizeIssues = getXhttpSessionIdRoomSizeIssues(profile)
-  const { config, issues } = buildXrayConfig(prepareProfileForKit(profile), { mode: 'strict', xrayVersion: xrayVersion ?? undefined })
-  if (!isEmptyCompiledConfig(config)) return roomSizeIssues
+export function getXrayStrictCompileBlockers(profile: Profile): Issue[] {
+  const { config, issues } = buildXrayConfig(prepareProfileForKit(profile), { mode: 'strict' })
+  if (!isEmptyCompiledConfig(config)) return []
   const errors = issues.filter(i => i.severity === 'error')
-  return errors.length > 0 ? [...errors, ...roomSizeIssues] : [...issues, ...roomSizeIssues]
+  return errors.length > 0 ? errors : issues
 }
 
 export type XrayPersistValidationResult = { ok: true; config: Record<string, unknown> } | { ok: false; strictBlockers: Issue[]; coreKitIssues: CoreKitValidationIssue[] }
@@ -436,9 +401,9 @@ export function importRawToProfile(raw: unknown): { profile: Profile; issues: Is
   return { profile, issues: [...imported.issues] }
 }
 
-export function profileToPersistedConfig(profile: Profile, xrayVersion?: string | null): Record<string, unknown> {
+export function profileToPersistedConfig(profile: Profile): Record<string, unknown> {
   const prepared = prepareProfileForKit(profile)
-  const { config } = buildXrayConfig(prepared, { mode: 'permissive', xrayVersion: xrayVersion ?? undefined })
+  const { config } = buildXrayConfig(prepared, { mode: 'permissive' })
   const result = normalizeHysteriaSettingsForCore(
     applyHysteriaTransportUdpmasksToCompiledConfig(
       prepared,
@@ -449,19 +414,19 @@ export function profileToPersistedConfig(profile: Profile, xrayVersion?: string 
   return applyUnmodeledTopLevelSectionsToCompiledConfig(prepared, result)
 }
 
-export function validateProfileForSave(profile: Profile, xrayVersion?: string | null) {
-  const config = profileToPersistedConfig(profile, xrayVersion)
-  return validateCoreConfig('xray', config, { xrayVersion: xrayVersion ?? undefined })
+export function validateProfileForSave(profile: Profile) {
+  const config = profileToPersistedConfig(profile)
+  return validateCoreConfig('xray', config)
 }
 
 /**
  * Persist validation: strict-mode Xray compile blockers from xray-config-kit plus core-kit checks on permissive JSON
  * (inbound clients noise filtered out). Warnings and info-level issues do not block save.
  */
-export function validateProfileForPersist(profile: Profile, xrayVersion?: string | null): XrayPersistValidationResult {
-  const strictBlockers = getXrayStrictCompileBlockers(profile, xrayVersion)
-  const config = profileToPersistedConfig(profile, xrayVersion)
-  const r = validateCoreConfig('xray', config, { xrayVersion: xrayVersion ?? undefined })
+export function validateProfileForPersist(profile: Profile): XrayPersistValidationResult {
+  const strictBlockers = getXrayStrictCompileBlockers(profile)
+  const config = profileToPersistedConfig(profile)
+  const r = validateCoreConfig('xray', config)
   const coreKitIssues = r.ok ? [] : filterCoreKitIssuesHidingInboundClients([...r.issues])
 
   const blockingStrict = strictBlockers.filter(i => i.severity !== 'warning' && i.severity !== 'info')

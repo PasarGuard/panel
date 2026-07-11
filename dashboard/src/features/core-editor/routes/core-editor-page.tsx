@@ -189,7 +189,6 @@ export default function CoreEditorPage() {
   const fallbacksInboundTags = useCoreEditorStore(s => s.fallbacksInboundTags)
   const excludeInboundTags = useCoreEditorStore(s => s.excludeInboundTags)
   const xrayProfile = useCoreEditorStore(s => s.xrayProfile)
-  const coreXrayVersion = useCoreEditorStore(s => s.coreXrayVersion)
   const wgDraft = useCoreEditorStore(s => s.wgDraft)
   const xrayImportWarnings = useCoreEditorStore(s => s.xrayImportWarnings)
   const activeSection = useCoreEditorStore(s => s.activeSection)
@@ -324,7 +323,7 @@ export default function CoreEditorPage() {
       }
 
       if (kind === 'xray' && xrayProfile) {
-        const cfg = profileToPersistedConfig(xrayProfile, coreXrayVersion)
+        const cfg = profileToPersistedConfig(xrayProfile)
         if (isNew) {
           const res = await createMutation.mutateAsync({
             data: {
@@ -372,7 +371,6 @@ export default function CoreEditorPage() {
     kind,
     wgDraft,
     xrayProfile,
-    coreXrayVersion,
     preSaveIssues.length,
     isNew,
     validId,

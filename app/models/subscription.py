@@ -126,8 +126,7 @@ class XHTTPTransportConfig(BaseTransportConfig):
     download_settings: SubscriptionInboundData | dict | None = Field(None, serialization_alias="downloadSettings")
     http_headers: dict[str, str] | None = Field(None)
     random_user_agent: bool = Field(False)
-    core_version: str | None = Field(None, exclude=True)
-    
+
     @field_validator(
         "sc_max_each_post_bytes",
         "sc_min_posts_interval_ms",

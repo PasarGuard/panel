@@ -20,17 +20,6 @@ def _protocols_from_inbounds_by_tag(inbounds_by_tag: dict[str, dict]) -> frozens
         if (protocol := ProxyProtocol.from_value(inbound["protocol"])) is not None
     )
 
-def rename_xhttp_session_keys(obj):
-    if isinstance(obj, dict):
-        if "sessionPlacement" in obj:
-            obj["sessionIDPlacement"] = obj.pop("sessionPlacement")
-        if "sessionKey" in obj:
-            obj["sessionIDKey"] = obj.pop("sessionKey")
-        for value in obj.values():
-            rename_xhttp_session_keys(value)
-    elif isinstance(obj, list):
-        for item in obj:
-            rename_xhttp_session_keys(item)
 
 class XRayConfig(dict):
     def __init__(
@@ -340,7 +329,7 @@ class XRayConfig(dict):
         settings["x_padding_placement"] = get_xhttp_value("xPaddingPlacement")
         settings["x_padding_method"] = get_xhttp_value("xPaddingMethod")
         settings["uplink_http_method"] = get_xhttp_value("uplinkHTTPMethod")
-        settings["session_placement"] = get_xhttp_value("sessionIDPlacement") or get_xhttp_value("sessionPlacement")  
+        settings["session_placement"] = get_xhttp_value("sessionIDPlacement") or get_xhttp_value("sessionPlacement")
         settings["session_key"] = get_xhttp_value("sessionIDKey") or get_xhttp_value("sessionKey")
         settings["session_id_table"] = get_xhttp_value("sessionIDTable")
         settings["session_id_length"] = get_xhttp_value("sessionIDLength")

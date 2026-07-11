@@ -366,7 +366,7 @@ class UserIPListAll(BaseModel):
 
 class NodeCoreUpdate(BaseModel):
     core_version: str = Field(default="latest", pattern=r"^(latest|v?\d+\.\d+\.\d+)$", examples=["v25.8.31"])
-    confirm: bool = Field(default=False)
+
 
 class NodeGeoFilesUpdate(BaseModel):
     region: GeoFilseRegion = Field(default=GeoFilseRegion.iran, examples=["iran"])

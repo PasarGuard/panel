@@ -60,10 +60,9 @@ export function collectRoutingRuleDialogIssues(
     readonly outboundTags: readonly string[]
     readonly balancerTags: readonly string[]
     readonly t: TFunction
-    readonly xrayVersion?: string | null
   },
 ): Issue[] {
-  const issues: Issue[] = [...validateRoutingRuleDraft(rule, { xrayVersion: ctx.xrayVersion ?? undefined })]
+  const issues: Issue[] = [...validateRoutingRuleDraft(rule)]
 
   const outbound = String(rule.outboundTag ?? '').trim()
   const balancer = String(rule.balancerTag ?? '').trim()

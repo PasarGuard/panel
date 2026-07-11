@@ -102,7 +102,6 @@ export interface CoreEditorStoreState {
   hydrated: boolean
   isNew: boolean
   coreId: number | null
-  coreXrayVersion: string | null
   coreName: string
   kind: CoreKind
   restartNodes: boolean
@@ -147,7 +146,6 @@ export const useCoreEditorStore = create<CoreEditorStoreState>((set, get) => ({
   hydrated: false,
   isNew: false,
   coreId: null,
-  coreXrayVersion: null,
   coreName: '',
   kind: 'xray',
   restartNodes: true,
@@ -182,7 +180,6 @@ export const useCoreEditorStore = create<CoreEditorStoreState>((set, get) => ({
           hydrated: true,
           isNew: false,
           coreId: core.id,
-          coreXrayVersion: core.xray_version ?? null,
           coreName: core.name,
           kind,
           restartNodes: nav.restartNodes,
@@ -207,7 +204,6 @@ export const useCoreEditorStore = create<CoreEditorStoreState>((set, get) => ({
         hydrated: true,
         isNew: false,
         coreId: core.id,
-        coreXrayVersion: core.xray_version ?? null,
         coreName: core.name,
         kind,
         restartNodes: nav.restartNodes,
@@ -229,12 +225,10 @@ export const useCoreEditorStore = create<CoreEditorStoreState>((set, get) => ({
     }
     const { profile, issues } = importRawToProfile(core.config)
     const p = cloneProfile(profile)
-    const xrayVersion = core.xray_version ?? null
     set({
       hydrated: true,
       isNew: false,
       coreId: core.id,
-      coreXrayVersion: xrayVersion,
       coreName: core.name,
       kind,
       restartNodes: nav.restartNodes,
@@ -246,7 +240,7 @@ export const useCoreEditorStore = create<CoreEditorStoreState>((set, get) => ({
       wgBaseline: null,
       activeSection: nav.activeSection,
       dirty: false,
-      monacoJson: JSON.stringify(profileToPersistedConfig(p, xrayVersion), null, 2),
+      monacoJson: JSON.stringify(profileToPersistedConfig(p), null, 2),
       monacoDirty: false,
       xrayImportWarnings: issues.filter(i => i.severity !== 'error').map(i => i.message),
       serverHydratedConfigJson: serverJson,
@@ -261,7 +255,6 @@ export const useCoreEditorStore = create<CoreEditorStoreState>((set, get) => ({
         hydrated: true,
         isNew: true,
         coreId: null,
-        coreXrayVersion: null,
         coreName: name,
         kind,
         restartNodes: true,
@@ -286,7 +279,6 @@ export const useCoreEditorStore = create<CoreEditorStoreState>((set, get) => ({
       hydrated: true,
       isNew: true,
       coreId: null,
-      coreXrayVersion: null,
       coreName: name,
       kind,
       restartNodes: true,
@@ -311,7 +303,6 @@ export const useCoreEditorStore = create<CoreEditorStoreState>((set, get) => ({
       hydrated: false,
       isNew: false,
       coreId: null,
-      coreXrayVersion: null,
       coreName: '',
       kind: 'xray',
       restartNodes: true,
@@ -417,7 +408,7 @@ export const useCoreEditorStore = create<CoreEditorStoreState>((set, get) => ({
       wgBaseline: null,
       activeSection: defaultSection('xray'),
       dirty: true,
-      monacoJson: JSON.stringify(profileToPersistedConfig(p, get().coreXrayVersion), null, 2),
+      monacoJson: JSON.stringify(profileToPersistedConfig(p), null, 2),
       monacoDirty: false,
       xrayImportWarnings: [],
     })
@@ -426,12 +417,12 @@ export const useCoreEditorStore = create<CoreEditorStoreState>((set, get) => ({
   setMonacoJson: (monacoJson, opts) => set({ monacoJson, monacoDirty: opts?.dirty ?? true }),
 
   syncMonacoFromDraft: () => {
-    const { kind, xrayProfile, wgDraft, coreXrayVersion } = get()
+    const { kind, xrayProfile, wgDraft } = get()
     try {
       if (kind === 'wg' && wgDraft) {
         set({ monacoJson: JSON.stringify(draftToPersistedConfig(wgDraft), null, 2), monacoDirty: false })
       } else if (kind === 'xray' && xrayProfile) {
-        set({ monacoJson: JSON.stringify(profileToPersistedConfig(xrayProfile, coreXrayVersion), null, 2), monacoDirty: false })
+        set({ monacoJson: JSON.stringify(profileToPersistedConfig(xrayProfile), null, 2), monacoDirty: false })
       }
     } catch {
       /* keep previous monacoJson */

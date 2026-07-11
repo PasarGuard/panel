@@ -499,6 +499,10 @@ export type XHttpSettingsOutputSessionKey = string | null
 
 export type XHttpSettingsOutputSessionPlacement = string | null
 
+export type XHttpSettingsOutputSessionIdTable = string | null
+
+export type XHttpSettingsOutputSessionIdLength = string | null
+
 export type XHttpSettingsOutputUplinkHttpMethod = string | null
 
 export type XHttpSettingsOutputXPaddingMethod = string | null
@@ -529,6 +533,8 @@ export interface XHttpSettingsOutput {
   uplink_http_method?: XHttpSettingsOutputUplinkHttpMethod
   session_placement?: XHttpSettingsOutputSessionPlacement
   session_key?: XHttpSettingsOutputSessionKey
+  session_id_table?: XHttpSettingsOutputSessionIdTable
+  session_id_length?: XHttpSettingsOutputSessionIdLength
   seq_placement?: XHttpSettingsOutputSeqPlacement
   seq_key?: XHttpSettingsOutputSeqKey
   uplink_data_placement?: XHttpSettingsOutputUplinkDataPlacement
@@ -562,6 +568,10 @@ export type XHttpSettingsInputSessionKey = string | null
 
 export type XHttpSettingsInputSessionPlacement = string | null
 
+export type XHttpSettingsInputSessionIdTable = string | null
+
+export type XHttpSettingsInputSessionIdLength = string | null
+
 export type XHttpSettingsInputUplinkHttpMethod = string | null
 
 export type XHttpSettingsInputXPaddingMethod = string | null
@@ -590,6 +600,8 @@ export interface XHttpSettingsInput {
   uplink_http_method?: XHttpSettingsInputUplinkHttpMethod
   session_placement?: XHttpSettingsInputSessionPlacement
   session_key?: XHttpSettingsInputSessionKey
+  session_id_table?: XHttpSettingsInputSessionIdTable
+  session_id_length?: XHttpSettingsInputSessionIdLength
   seq_placement?: XHttpSettingsInputSeqPlacement
   seq_key?: XHttpSettingsInputSeqKey
   uplink_data_placement?: XHttpSettingsInputUplinkDataPlacement
@@ -2731,7 +2743,6 @@ export interface CoreResponse {
   fallbacks_inbound_tags: string[]
   id: number
   created_at: string
-  xray_version?: string | null
 }
 
 export type CoreCreateFallbacksInboundTags = unknown[] | null

@@ -20,21 +20,6 @@ def test_core_create(access_token):
     delete_core(access_token, core["id"])
 
 
-def test_core_get_includes_xray_version(access_token):
-    """Test that GET /api/core/{id} includes xray_version, defaulting to None when no node is attached to the core."""
-
-    core = create_core(access_token, name=unique_name("xray_version_field"))
-    response = client.get(
-        url=f"/api/core/{core['id']}",
-        headers={"Authorization": f"Bearer {access_token}"},
-    )
-    assert response.status_code == status.HTTP_200_OK
-    body = response.json()
-    assert "xray_version" in body
-    assert body["xray_version"] is None
-    delete_core(access_token, core["id"])
-
-
 def test_wireguard_core_create(access_token):
     """Test that a WireGuard core can be created."""
 

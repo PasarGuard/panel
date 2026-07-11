@@ -1,5 +1,4 @@
 import * as z from 'zod'
-import { checkSessionIdRoomSize } from '@/lib/xray-session-id-room-size'
 
 interface Brutal {
   enable?: boolean
@@ -202,23 +201,6 @@ const transportSettingsSchema = z
           })
           .nullish()
           .optional(),
-      })
-      .superRefine((data, ctx) => {
-        const table = data?.session_id_table
-        const length = data?.session_id_length
-        // Nothing to check without a table — Xray only runs this check when sessionIDTable is set.
-        // But once a table is set, a missing length is itself a problem (see checkSessionIdRoomSize).
-        if (!table) return
-        const problem = checkSessionIdRoomSize(table, length ?? '')
-        if (!problem) return
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ['session_id_length'],
-          message:
-            problem === 'length-not-positive'
-              ? 'sessionIDLength must be greater than 0'
-              : 'Too few possible session IDs (must be at least ~2.1 billion). Increase the length range or use a larger character table.',
-        })
       })
       .nullish()
       .optional(),

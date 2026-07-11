@@ -28,8 +28,6 @@ import { remapIndexAfterArrayMove } from '@/features/core-editor/kit/remap-index
 import { isPlaceholderTunnelRewriteAddress, normalizeTunnelNetworkForKit } from '@/features/core-editor/kit/sanitize-inbound'
 import { inferParityFieldMode, outboundSettingToString, parseOutboundSettingValue, stringifyJsonFormRecord } from '@/features/core-editor/kit/xray-parity-value'
 import { useCoreEditorStore } from '@/features/core-editor/state/core-editor-store'
-import { isXrayVersionAtLeast, parseXrayVersion, XRAY_FEATURE_GATES } from '@/lib/xray-version-gates'
-import { checkSessionIdRoomSize } from '@/lib/xray-session-id-room-size'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { cn } from '@/lib/utils'
 import {
@@ -902,10 +900,6 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
   const dir = useDirDetection()
   const profile = useCoreEditorStore(s => s.xrayProfile)
   const updateXrayProfile = useCoreEditorStore(s => s.updateXrayProfile)
-  const coreXrayVersion = useCoreEditorStore(s => s.coreXrayVersion)
-  const isAllowInsecureHardBlocked = isXrayVersionAtLeast(coreXrayVersion, XRAY_FEATURE_GATES.allowInsecureHardError)
-  const isSessionIdFieldsGated = isXrayVersionAtLeast(coreXrayVersion, XRAY_FEATURE_GATES.sessionIdFieldsRenamed)
-  const isSessionIdTableConfirmedUnsupported = coreXrayVersion !== null && !isSessionIdFieldsGated && parseXrayVersion(coreXrayVersion) !== null
   const { assertNoPersistBlockingErrors } = useXrayPersistModifyGuard()
   const [selected, setSelected] = useState(0)
   const [detailOpen, setDetailOpen] = useState(false)
@@ -943,10 +937,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
   }, [profile, dialogMode, draftInbound, selected])
 
   const visibility = useMemo(() => (inbound ? getInboundFieldVisibility(inbound) : null), [inbound])
-  const caps = useMemo(() => getInboundFormCapabilities({ xrayVersion: coreXrayVersion ?? undefined }), [coreXrayVersion])
-  // echForceQuery is a fully-removed struct field on 26.6.22+ (not a Build()-time check), so this
-  // is sourced from xray-config-kit's own per-release parity data instead of a hand-maintained cutoff.
-  const isEchForceQueryGated = !caps.securityFields.tls?.echForceQuery
+  const caps = useMemo(() => getInboundFormCapabilities(), [])
   const protocolSelectOptions = useMemo(() => {
     const visibleProtocols = caps.protocolOrder.filter(p => caps.protocols[p] && p !== 'dokodemo-door')
     // Keep legacy value selectable when editing an existing legacy inbound.
@@ -2398,13 +2389,6 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
     const generatedEchConfig = mutateBase64Seed(DEFAULT_ECH_CONFIG)
     form.setValue(securityFieldName('echServerKeys'), generatedEchServerKey)
     form.setValue(securityFieldName('echConfigList'), generatedEchConfig)
-    if (isEchForceQueryGated) {
-      applyTlsEchPatch({
-        echServerKeys: generatedEchServerKey,
-        echConfigList: generatedEchConfig,
-      })
-      return
-    }
     if (echUsageOption === 'required') {
       form.setValue(securityFieldName('echForceQuery'), 'full')
       applyTlsEchPatch({
@@ -3295,19 +3279,15 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                         {inboundTransportType === 'xhttp' &&
                           (() => {
                             const sessionPlacementValue = String(
-                              (isSessionIdFieldsGated
-                                ? (getTransportMetaValue(xhttpExtra, 'sessionidplacement') ?? getTransportMetaValue(xhttpExtra, 'sessionplacement'))
-                                : (getTransportMetaValue(xhttpExtra, 'sessionplacement') ?? getTransportMetaValue(xhttpExtra, 'sessionidplacement'))) ?? '',
+                              getTransportMetaValue(xhttpExtra, 'sessionidplacement') ?? getTransportMetaValue(xhttpExtra, 'sessionplacement') ?? '',
                             )
                             const sessionKeyValue = String(
-                              (isSessionIdFieldsGated
-                                ? (getTransportMetaValue(xhttpExtra, 'sessionidkey') ?? getTransportMetaValue(xhttpExtra, 'sessionkey'))
-                                : (getTransportMetaValue(xhttpExtra, 'sessionkey') ?? getTransportMetaValue(xhttpExtra, 'sessionidkey'))) ?? '',
+                              getTransportMetaValue(xhttpExtra, 'sessionidkey') ?? getTransportMetaValue(xhttpExtra, 'sessionkey') ?? '',
                             )
-                            const placementKey = isSessionIdFieldsGated ? 'sessionidplacement' : 'sessionplacement'
-                            const placementOtherKey = isSessionIdFieldsGated ? 'sessionplacement' : 'sessionidplacement'
-                            const keyKey = isSessionIdFieldsGated ? 'sessionidkey' : 'sessionkey'
-                            const keyOtherKey = isSessionIdFieldsGated ? 'sessionkey' : 'sessionidkey'
+                            const placementKey = 'sessionidplacement'
+                            const placementOtherKey = 'sessionplacement'
+                            const keyKey = 'sessionidkey'
+                            const keyOtherKey = 'sessionkey'
                             return (
                               <div className="grid gap-3 sm:grid-cols-2 sm:col-span-2">
                                 <FormItem>
@@ -3349,14 +3329,13 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                             )
                           })()}
 
-                        {inboundTransportType === 'xhttp' && !isSessionIdTableConfirmedUnsupported &&
+                        {inboundTransportType === 'xhttp' &&
                           (() => {
                             const sessionIdTableValue = String(getTransportMetaValue(xhttpExtra, 'sessionidtable') ?? '')
                             const isPresetTable = SESSION_ID_TABLE_PRESETS.includes(sessionIdTableValue)
                             const showCustomTable = sessionIdTableCustomMode || (sessionIdTableValue !== '' && !isPresetTable)
                             const tableSelectValue = showCustomTable ? '__custom' : sessionIdTableValue === '' ? '__default' : sessionIdTableValue
                             const sessionIdLengthValue = String(getTransportMetaValue(xhttpExtra, 'sessionidlength') ?? '')
-                            const sessionIdRoomSizeProblem = checkSessionIdRoomSize(sessionIdTableValue, sessionIdLengthValue)
                             return (
                               <div className="space-y-3 rounded-lg border px-3 py-2 sm:col-span-2">
                                 <div className="grid gap-3 sm:grid-cols-2">
@@ -3418,18 +3397,6 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                                     </FormControl>
                                   </FormItem>
                                 </div>
-                                {sessionIdRoomSizeProblem && (
-                                  <p className="text-destructive text-xs leading-relaxed">
-                                    {sessionIdRoomSizeProblem === 'length-not-positive'
-                                      ? t('coreEditor.inbound.xhttp.sessionIdLengthNotPositive', {
-                                          defaultValue: 'sessionIDLength must be greater than 0.',
-                                        })
-                                      : t('coreEditor.inbound.xhttp.sessionIdRoomTooSmall', {
-                                          defaultValue:
-                                            'Too few possible session IDs (must be at least ~2.1 billion). Increase the length range or use a larger character table.',
-                                        })}
-                                  </p>
-                                )}
                               </div>
                             )
                           })()}
@@ -4057,38 +4024,36 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                                           </Select>
                                         </FormItem>
 
-                                        {!isEchForceQueryGated && (
-                                          <FormField
-                                            control={form.control}
-                                            name={securityFieldName('echForceQuery')}
-                                            render={({ field }) => (
-                                              <FormItem className="w-full min-w-0">
-                                                <FormLabel className="text-muted-foreground text-xs font-medium">{t('coreEditor.inbound.ech.forceQuery', { defaultValue: 'ECH force query' })}</FormLabel>
-                                                <Select
-                                                  value={field.value && String(field.value).trim() !== '' ? field.value : '__default'}
-                                                  onValueChange={v => {
-                                                    const next = v === '__default' ? '' : v
-                                                    field.onChange(next)
-                                                    applyTlsEchPatch({ echForceQuery: next })
-                                                  }}
-                                                >
-                                                  <FormControl>
-                                                    <SelectTrigger className="h-10 w-full min-w-0">
-                                                      <SelectValue />
-                                                    </SelectTrigger>
-                                                  </FormControl>
-                                                  <SelectContent>
-                                                    <SelectItem value="__default">{t('coreEditor.inbound.ech.forceQueryDefault', { defaultValue: 'Default' })}</SelectItem>
-                                                    <SelectItem value="none">none</SelectItem>
-                                                    <SelectItem value="half">half</SelectItem>
-                                                    <SelectItem value="full">full</SelectItem>
-                                                  </SelectContent>
-                                                </Select>
-                                                <FormMessage />
-                                              </FormItem>
-                                            )}
-                                          />
-                                        )}
+                                        <FormField
+                                          control={form.control}
+                                          name={securityFieldName('echForceQuery')}
+                                          render={({ field }) => (
+                                            <FormItem className="w-full min-w-0">
+                                              <FormLabel className="text-muted-foreground text-xs font-medium">{t('coreEditor.inbound.ech.forceQuery', { defaultValue: 'ECH force query' })}</FormLabel>
+                                              <Select
+                                                value={field.value && String(field.value).trim() !== '' ? field.value : '__default'}
+                                                onValueChange={v => {
+                                                  const next = v === '__default' ? '' : v
+                                                  field.onChange(next)
+                                                  applyTlsEchPatch({ echForceQuery: next })
+                                                }}
+                                              >
+                                                <FormControl>
+                                                  <SelectTrigger className="h-10 w-full min-w-0">
+                                                    <SelectValue />
+                                                  </SelectTrigger>
+                                                </FormControl>
+                                                <SelectContent>
+                                                  <SelectItem value="__default">{t('coreEditor.inbound.ech.forceQueryDefault', { defaultValue: 'Default' })}</SelectItem>
+                                                  <SelectItem value="none">none</SelectItem>
+                                                  <SelectItem value="half">half</SelectItem>
+                                                  <SelectItem value="full">full</SelectItem>
+                                                </SelectContent>
+                                              </Select>
+                                              <FormMessage />
+                                            </FormItem>
+                                          )}
+                                        />
 
                                         <FormField
                                           control={form.control}
@@ -4230,13 +4195,6 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                                     }
                                   }}
                                 />
-                                {jsonKey === 'allowInsecure' && isAllowInsecureHardBlocked && String(field.value) === 'true' && (
-                                  <p className="text-destructive text-xs leading-relaxed">
-                                    {t('coreEditor.inbound.tls.allowInsecureRemoved', {
-                                      defaultValue: "This node's Xray-core no longer builds configs with allowInsecure enabled — it will refuse to start.",
-                                    })}
-                                  </p>
-                                )}
                                 <FormMessage />
                               </FormItem>
                             )}

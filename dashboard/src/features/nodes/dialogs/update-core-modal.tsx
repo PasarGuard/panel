@@ -8,48 +8,12 @@ import { queryClient } from '@/utils/query-client'
 import { useUpdateCore, NodeResponse } from '@/service/api'
 import { useXrayReleases } from '@/hooks/use-xray-releases'
 import { LoaderButton } from '@/components/ui/loader-button'
-import { Cpu, ExternalLink, AlertTriangle } from 'lucide-react'
+import { Cpu, ExternalLink } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Input } from '@/components/ui/input'
-
-// Xray 26.6.22 renamed xhttp session* params to sessionID* (breaking change).
-const SESSION_RENAME_VERSION = [26, 6, 22]
-
-function parseVersion(version: string): number[] | null {
-  const match = version.replace(/^v/, '').match(/^(\d+)\.(\d+)\.(\d+)/)
-  if (!match) return null
-  return [Number(match[1]), Number(match[2]), Number(match[3])]
-}
-
-function isAtLeast(version: string, target: number[]): boolean {
-  const parsed = parseVersion(version)
-  if (!parsed) return false
-  for (let i = 0; i < 3; i++) {
-    if (parsed[i] > target[i]) return true
-    if (parsed[i] < target[i]) return false
-  }
-  return true
-}
-
-function isBreakingUpgrade(current: string | null | undefined, target: string): boolean {
-  if (!current) return false
-  return !isAtLeast(current, SESSION_RENAME_VERSION) && isAtLeast(target, SESSION_RENAME_VERSION)
-}
-
-function isAboveLatestStable(target: string, latest: string | null): boolean {
-  if (!latest) return false
-  const t = parseVersion(target)
-  const l = parseVersion(latest)
-  if (!t || !l) return false
-  for (let i = 0; i < 3; i++) {
-    if (t[i] > l[i]) return true
-    if (t[i] < l[i]) return false
-  }
-  return false
-}
 
 interface UpdateCoreDialogProps {
   node: NodeResponse
@@ -69,13 +33,6 @@ export default function UpdateCoreDialog({ node, isOpen, onOpenChange }: UpdateC
 
   const currentVersion = node.xray_version ?? node.core_version
   const showUpdateBadge = currentVersion && latestVersion && hasUpdate(currentVersion)
-
-  // Which concrete version would be sent (mirrors handleUpdate's resolution).
-  const resolvedTargetVersion = versionMode === 'custom' ? customVersion.trim() : selectedVersion === 'latest' ? (latestVersion ?? '') : selectedVersion
-  const isBreaking = isBreakingUpgrade(currentVersion, resolvedTargetVersion)
-  const isPrereleaseTarget = resolvedTargetVersion
-    ? (versions.find(r => r.version === resolvedTargetVersion.replace(/^v/, ''))?.isPrerelease ?? isAboveLatestStable(resolvedTargetVersion, latestVersion))
-    : false
 
   React.useEffect(() => {
     if (isOpen) {
@@ -144,8 +101,7 @@ export default function UpdateCoreDialog({ node, isOpen, onOpenChange }: UpdateC
         nodeId: node.id,
         data: {
           core_version: versionToSend,
-          confirm: isBreaking,
-        } as any,
+        },
       })
       const message = (response as any)?.detail || t('nodeModal.updateCoreSuccess', { defaultValue: 'Xray core updated successfully' })
       toast.success(message)
@@ -313,22 +269,6 @@ export default function UpdateCoreDialog({ node, isOpen, onOpenChange }: UpdateC
               </TabsContent>
             </Tabs>
           </div>
-
-          {/* Pre-release warning — this version hasn't been promoted to a stable release yet */}
-          {isPrereleaseTarget && (
-            <div className="space-y-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-amber-700 dark:text-amber-300">
-              <div className={cn('flex items-center gap-2', dir === 'rtl' && 'flex-row-reverse')}>
-                <AlertTriangle className="h-4 w-4 shrink-0" />
-                <span className="text-sm font-semibold">{t('nodeModal.prereleaseWarningTitle', { defaultValue: 'Pre-release version selected' })}</span>
-              </div>
-              <p dir={dir} className={cn('text-xs leading-relaxed', dir === 'rtl' && 'text-right')}>
-                {t('nodeModal.prereleaseWarningMessage', {
-                  defaultValue:
-                    'This version has not been promoted to a stable release yet. Some parameters may change or behave differently once it reaches a stable release — avoid this on production nodes unless you understand the risk.',
-                })}
-              </p>
-            </div>
-          )}
         </div>
 
         <DialogFooter>
@@ -342,9 +282,7 @@ export default function UpdateCoreDialog({ node, isOpen, onOpenChange }: UpdateC
             isLoading={updateCoreMutation.isPending}
             loadingText={t('nodeModal.updating', { defaultValue: 'Updating...' })}
           >
-            {isBreaking || isPrereleaseTarget
-              ? t('nodeModal.breakingChangeConfirm', { defaultValue: 'I understand, update anyway' })
-              : t('nodeModal.update', { defaultValue: 'Update' })}
+            {t('nodeModal.update', { defaultValue: 'Update' })}
           </LoaderButton>
         </DialogFooter>
       </DialogContent>

@@ -49,7 +49,6 @@ class CoreCreate(CoreBase):
 class CoreResponse(CoreBase):
     id: int
     created_at: dt
-    xray_version: str | None = Field(default=None)
 
     model_config = ConfigDict(from_attributes=True)
 

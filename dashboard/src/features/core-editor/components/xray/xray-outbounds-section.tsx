@@ -511,7 +511,6 @@ export function XrayOutboundsSection({ headerAddPulse, headerAddEpoch }: XrayOut
   const dir = useDirDetection()
   const profile = useCoreEditorStore(s => s.xrayProfile)
   const coreId = useCoreEditorStore(s => s.coreId)
-  const coreXrayVersion = useCoreEditorStore(s => s.coreXrayVersion)
   const updateXrayProfile = useCoreEditorStore(s => s.updateXrayProfile)
   const { assertNoPersistBlockingErrors } = useXrayPersistModifyGuard()
 
@@ -537,7 +536,7 @@ export function XrayOutboundsSection({ headerAddPulse, headerAddEpoch }: XrayOut
     return outbounds[selected]
   }, [profile, dialogMode, draftOutbound, outbounds, selected])
 
-  const outboundCaps = useMemo(() => getOutboundFormCapabilities({ xrayVersion: coreXrayVersion ?? undefined }), [coreXrayVersion])
+  const outboundCaps = useMemo(() => getOutboundFormCapabilities(), [])
   const outboundCapsRef = useRef(outboundCaps)
   outboundCapsRef.current = outboundCaps
 

@@ -75,7 +75,6 @@ export function XrayAdvancedSection() {
   const xrayBaseline = useCoreEditorStore(s => s.xrayBaseline)
   const wgDraft = useCoreEditorStore(s => s.wgDraft)
   const wgBaseline = useCoreEditorStore(s => s.wgBaseline)
-  const coreXrayVersion = useCoreEditorStore(s => s.coreXrayVersion)
   const [showDiff, setShowDiff] = useState(false)
   const [activeTab, setActiveTab] = useState<AdvancedTab>('all')
   const [tabDraft, setTabDraft] = useState<string>('')
@@ -168,27 +167,27 @@ export function XrayAdvancedSection() {
     try {
       let full: unknown
       if (kind === 'wg' && wgBaseline) full = draftToPersistedConfig(wgBaseline)
-      else if (kind === 'xray' && xrayBaseline) full = profileToPersistedConfig(xrayBaseline, coreXrayVersion)
+      else if (kind === 'xray' && xrayBaseline) full = profileToPersistedConfig(xrayBaseline)
       else return {} as JsonValue
       const cloned = JSON.parse(JSON.stringify(full)) as Record<string, unknown>
       return (projectForTab(cloned, effectiveTab) ?? {}) as JsonValue
     } catch {
       return {} as JsonValue
     }
-  }, [kind, wgBaseline, xrayBaseline, effectiveTab, coreXrayVersion])
+  }, [kind, wgBaseline, xrayBaseline, effectiveTab])
 
   const afterJson = useMemo<JsonValue>(() => {
     try {
       let full: unknown
       if (kind === 'wg' && wgDraft) full = draftToPersistedConfig(wgDraft)
-      else if (kind === 'xray' && xrayProfile) full = profileToPersistedConfig(xrayProfile, coreXrayVersion)
+      else if (kind === 'xray' && xrayProfile) full = profileToPersistedConfig(xrayProfile)
       else return {} as JsonValue
       const cloned = JSON.parse(JSON.stringify(full)) as Record<string, unknown>
       return (projectForTab(cloned, effectiveTab) ?? {}) as JsonValue
     } catch {
       return {} as JsonValue
     }
-  }, [kind, wgDraft, xrayProfile, effectiveTab, coreXrayVersion])
+  }, [kind, wgDraft, xrayProfile, effectiveTab])
 
   const editorValue = effectiveTab === 'all' ? monacoJson : tabDraft
   const editorOnChange = effectiveTab === 'all' ? handleAllJsonChange : handleTabJsonChange

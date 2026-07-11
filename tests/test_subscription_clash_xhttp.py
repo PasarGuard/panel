@@ -1,4 +1,4 @@
-from app.core.xray import XRayConfig, rename_xhttp_session_keys
+from app.core.xray import XRayConfig
 from app.models.host import XHttpSettings, XMuxSettings
 from app.models.subscription import SubscriptionInboundData, TLSConfig, XHTTPTransportConfig
 from app.subscription.clash import ClashConfiguration, ClashMetaConfiguration
@@ -313,28 +313,7 @@ def test_xray_parser_does_not_mix_top_level_advanced_fields_when_extra_exists():
     assert inbound["uplink_http_method"] is None
 
 
-def test_xray_xhttp_old_version_uses_legacy_session_keys():
-    conf = XrayConfiguration()
-    cfg = XHTTPTransportConfig(
-        path="/up",
-        host="cdn.example.com",
-        mode="stream-up",
-        session_placement="query",
-        session_key="sid",
-        core_version="v26.6.1",
-    )
-
-    extra = conf._transport_xhttp(cfg, "/up")["extra"]
-
-    assert extra["sessionPlacement"] == "query"
-    assert extra["sessionKey"] == "sid"
-    assert "sessionIDPlacement" not in extra
-    assert "sessionIDKey" not in extra
-    assert "sessionIDTable" not in extra
-    assert "sessionIDLength" not in extra
-
-
-def test_xray_xhttp_new_version_uses_session_id_keys_and_new_fields():
+def test_xray_xhttp_always_uses_session_id_keys():
     conf = XrayConfiguration()
     cfg = XHTTPTransportConfig(
         path="/up",
@@ -344,7 +323,6 @@ def test_xray_xhttp_new_version_uses_session_id_keys_and_new_fields():
         session_key="sid",
         session_id_table="Base62",
         session_id_length="8-16",
-        core_version="v26.6.22",
     )
 
     extra = conf._transport_xhttp(cfg, "/up")["extra"]
@@ -353,44 +331,5 @@ def test_xray_xhttp_new_version_uses_session_id_keys_and_new_fields():
     assert extra["sessionIDKey"] == "sid"
     assert extra["sessionIDTable"] == "Base62"
     assert extra["sessionIDLength"] == "8-16"
-    assert "sessionPlacement" not in extra
-    assert "sessionKey" not in extra
-
-
-def test_xray_xhttp_unknown_version_keeps_legacy_keys():
-    conf = XrayConfiguration()
-    cfg = XHTTPTransportConfig(
-        path="/up",
-        host="cdn.example.com",
-        mode="stream-up",
-        session_placement="query",
-        session_key="sid",
-        core_version=None,
-    )
-
-    extra = conf._transport_xhttp(cfg, "/up")["extra"]
-
-    assert extra["sessionPlacement"] == "query"
-    assert "sessionIDPlacement" not in extra
-
-
-def test_rename_xhttp_session_keys_renames_nested_keys():
-    config = {
-        "inbounds": [
-            {
-                "streamSettings": {
-                    "xhttpSettings": {
-                        "extra": {"sessionPlacement": "query", "sessionKey": "sid"},
-                    },
-                },
-            }
-        ],
-    }
-
-    rename_xhttp_session_keys(config)
-
-    extra = config["inbounds"][0]["streamSettings"]["xhttpSettings"]["extra"]
-    assert extra["sessionIDPlacement"] == "query"
-    assert extra["sessionIDKey"] == "sid"
     assert "sessionPlacement" not in extra
     assert "sessionKey" not in extra

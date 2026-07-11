@@ -2065,11 +2065,7 @@
     "updating": "Updating...",
     "updateAvailable": "Update Available",
     "prerelease": "Pre-release",
-    "loadingReleases": "Loading releases...",
-    "breakingChangeConfirm": "I understand, update anyway",
-    "prereleaseWarningTitle": "Pre-release version selected",
-    "prereleaseWarningMessage": "This version has not been promoted to a stable release yet. Some parameters may change or behave differently once it reaches a stable release — avoid this on production nodes unless you understand the risk.",
-    "coreVersionMismatchWarning": "Other nodes already using this core config are running a different Xray version. This core is pushed to every node unmodified (except for a few fields the panel safely adapts per node's version) — some of the remaining settings may not work as expected."
+    "loadingReleases": "Loading releases..."
   },
   "theme": {
     "title": "Theme",
@@ -2545,13 +2541,6 @@
       },
       "tlsCertificateServeOnNode": "Serve on node",
       "tlsCertificateServeOnNodeHint": "Certificate files are only used on the node; the server will not read them for SNI.",
-      "tls": {
-        "allowInsecureRemoved": "This node's Xray-core no longer builds configs with allowInsecure enabled — it will refuse to start."
-      },
-      "xhttp": {
-        "sessionIdLengthNotPositive": "sessionIDLength must be greater than 0.",
-        "sessionIdRoomTooSmall": "Too few possible session IDs (must be at least ~2.1 billion). Increase the length range or use a larger character table."
-      },
       "tlsCertificates": {
         "sectionLabel": "Certificates",
         "emptyHint": "No certificates yet. Click + to add one.",

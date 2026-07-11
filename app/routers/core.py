@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Depends, status
 
 from app.db import AsyncSession, get_db
-from app.db.crud.node import get_xray_version_by_core_id
 from app.models.admin import AdminDetails
 from app.models.core import (
     BulkCoreSelection,
@@ -37,12 +36,9 @@ async def create_core_config(
 @router.get("/{core_id}", response_model=CoreResponse)
 async def get_core_config(
     core_id: int, _: AdminDetails = Depends(require_permission("cores", "read")), db: AsyncSession = Depends(get_db)
-) -> CoreResponse:
+) -> dict:
     """Get a core configuration by its ID."""
-    db_core_config = await core_operator.get_validated_core_config(db, core_id)
-    xray_version = await get_xray_version_by_core_id(db, core_id)
-    core = CoreResponse.model_validate(db_core_config)
-    return core.model_copy(update={"xray_version": xray_version})
+    return await core_operator.get_validated_core_config(db, core_id)
 
 
 @router.put("/{core_id}", response_model=CoreResponse)
