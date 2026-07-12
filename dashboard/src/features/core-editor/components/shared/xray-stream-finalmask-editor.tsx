@@ -62,7 +62,7 @@ export function XrayStreamFinalmaskFields({ value, onChange }: XrayStreamFinalma
   const dir = useDirDetection()
   
   const form = useForm<any>({
-    defaultValues: value || {
+    values: value || {
       tcp: [],
       udp: [],
       quicParams: {}
@@ -71,8 +71,12 @@ export function XrayStreamFinalmaskFields({ value, onChange }: XrayStreamFinalma
 
   const watched = form.watch()
   useEffect(() => {
-    onChange(pruneFinalmask(watched))
-  }, [watched, onChange])
+    const nextPruned = pruneFinalmask(watched)
+    const currentPruned = pruneFinalmask(value)
+    if (JSON.stringify(nextPruned) !== JSON.stringify(currentPruned)) {
+      onChange(nextPruned)
+    }
+  }, [watched, onChange, value])
 
   return (
     <FormProvider {...form}>
