@@ -150,7 +150,7 @@ async def test_record_user_usages_updates_users_and_admins(monkeypatch: pytest.M
         node_two_id: [{"uid": str(user_one_id), "value": 75}],
     }
 
-    async def fake_get_users_stats(node: DummyNode, wg_pubkey_map=None):
+    async def fake_get_users_stats(node: DummyNode):
         return stats_map[node.node_id]
 
     monkeypatch.setattr(record_usages, "get_users_stats", fake_get_users_stats)
@@ -324,7 +324,7 @@ async def test_record_user_usages_returns_when_no_usage(monkeypatch: pytest.Monk
     nodes = [(node_id, DummyNode(node_id))]
     monkeypatch.setattr(record_usages.node_manager, "get_healthy_nodes", AsyncMock(return_value=nodes))
 
-    async def fake_get_users_stats(_: DummyNode, wg_pubkey_map=None):
+    async def fake_get_users_stats(_: DummyNode):
         return []
 
     monkeypatch.setattr(record_usages, "get_users_stats", fake_get_users_stats)
