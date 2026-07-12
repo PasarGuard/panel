@@ -197,6 +197,37 @@ function isXhttpExtraMetaKey(normalizedKey: string): boolean {
   return XHTTP_EXTRA_META_KEYS.has(normalizedKey)
 }
 
+const XHTTP_META_FALLBACK_BY_KEY: Readonly<Record<string, string>> = {
+  headers: 'headers',
+  xpaddingobfsmode: 'xPaddingObfsMode',
+  xpaddingbytes: 'xPaddingBytes',
+  xpaddingkey: 'xPaddingKey',
+  xpaddingheader: 'xPaddingHeader',
+  xpaddingplacement: 'xPaddingPlacement',
+  xpaddingmethod: 'xPaddingMethod',
+  uplinkhttpmethod: 'uplinkHTTPMethod',
+  sessionplacement: 'sessionPlacement',
+  sessionkey: 'sessionKey',
+  sessionidplacement: 'sessionIDPlacement',
+  sessionidkey: 'sessionIDKey',
+  sessionidtable: 'sessionIDTable',
+  sessionidlength: 'sessionIDLength',
+  seqplacement: 'seqPlacement',
+  seqkey: 'seqKey',
+  uplinkdataplacement: 'uplinkDataPlacement',
+  uplinkdatakey: 'uplinkDataKey',
+  uplinkchunksize: 'uplinkChunkSize',
+  scmaxeachpostbytes: 'scMaxEachPostBytes',
+  scminpostsintervalms: 'scMinPostsIntervalMs',
+  scmaxbufferedposts: 'scMaxBufferedPosts',
+  scstreamupserversecs: 'scStreamUpServerSecs',
+  servermaxheaderbytes: 'serverMaxHeaderBytes',
+  nogrpcheader: 'noGRPCHeader',
+  nosseheader: 'noSSEHeader',
+  xmux: 'xmux',
+  downloadsettings: 'downloadSettings',
+}
+
 function resolveTransportMetaKey(transport: Record<string, unknown> | null, normalizedKey: string, fallback: string): string {
   if (!transport) return fallback
   for (const k of Object.keys(transport)) {
@@ -1398,22 +1429,8 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
   const updateXhttpMeta = useCallback(
     (normalizedKey: string, value: unknown) => {
       if (inboundTransportType !== 'xhttp') return
-      const fallbackByKey: Record<string, string> = {
-        xpaddingobfsmode: 'xPaddingObfsMode',
-        xpaddingbytes: 'xPaddingBytes',
-        xpaddingkey: 'xPaddingKey',
-        xpaddingheader: 'xPaddingHeader',
-        xpaddingplacement: 'xPaddingPlacement',
-        xpaddingmethod: 'xPaddingMethod',
-        sessionidtable: 'sessionIDTable',
-        sessionidlength: 'sessionIDLength',
-        sessionplacement: 'sessionPlacement',
-        sessionkey: 'sessionKey',
-        sessionidplacement: 'sessionIDPlacement',
-        sessionidkey: 'sessionIDKey',
-      }
       const nextExtra = { ...(xhttpExtra ?? {}) }
-      const fallback = fallbackByKey[normalizedKey] ?? normalizedKey
+      const fallback = XHTTP_META_FALLBACK_BY_KEY[normalizedKey] ?? normalizedKey
       const resolved = resolveTransportMetaKey(xhttpExtra, normalizedKey, fallback)
       if (value === undefined || String(value).trim() === '') delete nextExtra[resolved]
       else nextExtra[resolved] = value
@@ -1422,7 +1439,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
       patch.extra = Object.keys(nextExtra).length > 0 ? nextExtra : undefined
 
       // Clean up any legacy root-level xPadding keys that fail strict schema.
-      for (const [legacyNormalized, legacyFallback] of Object.entries(fallbackByKey)) {
+      for (const [legacyNormalized, legacyFallback] of Object.entries(XHTTP_META_FALLBACK_BY_KEY)) {
         const legacyRootKey = resolveTransportMetaKey(inboundTransport, legacyNormalized, legacyFallback)
         patch[legacyRootKey] = undefined
       }
@@ -1435,30 +1452,16 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
   const updateXhttpMetaBatch = useCallback(
     (updates: Record<string, unknown>) => {
       if (inboundTransportType !== 'xhttp') return
-      const fallbackByKey: Record<string, string> = {
-        xpaddingobfsmode: 'xPaddingObfsMode',
-        xpaddingbytes: 'xPaddingBytes',
-        xpaddingkey: 'xPaddingKey',
-        xpaddingheader: 'xPaddingHeader',
-        xpaddingplacement: 'xPaddingPlacement',
-        xpaddingmethod: 'xPaddingMethod',
-        sessionidtable: 'sessionIDTable',
-        sessionidlength: 'sessionIDLength',
-        sessionplacement: 'sessionPlacement',
-        sessionkey: 'sessionKey',
-        sessionidplacement: 'sessionIDPlacement',
-        sessionidkey: 'sessionIDKey',
-      }
       const nextExtra = { ...(xhttpExtra ?? {}) }
       for (const [normalizedKey, value] of Object.entries(updates)) {
-        const fallback = fallbackByKey[normalizedKey] ?? normalizedKey
+        const fallback = XHTTP_META_FALLBACK_BY_KEY[normalizedKey] ?? normalizedKey
         const resolved = resolveTransportMetaKey(xhttpExtra, normalizedKey, fallback)
         if (value === undefined || String(value).trim() === '') delete nextExtra[resolved]
         else nextExtra[resolved] = value
       }
       const patch: Record<string, unknown> = {}
       patch.extra = Object.keys(nextExtra).length > 0 ? nextExtra : undefined
-      for (const [legacyNormalized, legacyFallback] of Object.entries(fallbackByKey)) {
+      for (const [legacyNormalized, legacyFallback] of Object.entries(XHTTP_META_FALLBACK_BY_KEY)) {
         const legacyRootKey = resolveTransportMetaKey(inboundTransport, legacyNormalized, legacyFallback)
         patch[legacyRootKey] = undefined
       }
@@ -1477,40 +1480,10 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
 
   useEffect(() => {
     if (inboundTransportType !== 'xhttp' || !inboundTransport) return
-    const xhttpMetaFallbacks: Record<string, string> = {
-      headers: 'headers',
-      xpaddingobfsmode: 'xPaddingObfsMode',
-      xpaddingbytes: 'xPaddingBytes',
-      xpaddingkey: 'xPaddingKey',
-      xpaddingheader: 'xPaddingHeader',
-      xpaddingplacement: 'xPaddingPlacement',
-      xpaddingmethod: 'xPaddingMethod',
-      uplinkhttpmethod: 'uplinkHTTPMethod',
-      sessionplacement: 'sessionPlacement',
-      sessionkey: 'sessionKey',
-      sessionidplacement: 'sessionIDPlacement',
-      sessionidkey: 'sessionIDKey',
-      sessionidtable: 'sessionIDTable',
-      sessionidlength: 'sessionIDLength',
-      seqplacement: 'seqPlacement',
-      seqkey: 'seqKey',
-      uplinkdataplacement: 'uplinkDataPlacement',
-      uplinkdatakey: 'uplinkDataKey',
-      uplinkchunksize: 'uplinkChunkSize',
-      scmaxeachpostbytes: 'scMaxEachPostBytes',
-      scminpostsintervalms: 'scMinPostsIntervalMs',
-      scmaxbufferedposts: 'scMaxBufferedPosts',
-      scstreamupserversecs: 'scStreamUpServerSecs',
-      servermaxheaderbytes: 'serverMaxHeaderBytes',
-      nogrpcheader: 'noGRPCHeader',
-      nosseheader: 'noSSEHeader',
-      xmux: 'xmux',
-      downloadsettings: 'downloadSettings',
-    }
     const nextExtra = { ...(xhttpExtra ?? {}) }
     let changed = false
 
-    for (const [normalizedKey, fallbackKey] of Object.entries(xhttpMetaFallbacks)) {
+    for (const [normalizedKey, fallbackKey] of Object.entries(XHTTP_META_FALLBACK_BY_KEY)) {
       const rootKey = resolveTransportMetaKey(inboundTransport, normalizedKey, fallbackKey)
       const hasRootKey = Object.prototype.hasOwnProperty.call(inboundTransport, rootKey)
       if (!hasRootKey || rootKey === 'extra') continue
@@ -1528,7 +1501,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
 
     const patch: Record<string, unknown> = {}
     patch.extra = Object.keys(nextExtra).length > 0 ? nextExtra : undefined
-    for (const [normalizedKey, fallbackKey] of Object.entries(xhttpMetaFallbacks)) {
+    for (const [normalizedKey, fallbackKey] of Object.entries(XHTTP_META_FALLBACK_BY_KEY)) {
       const rootKey = resolveTransportMetaKey(inboundTransport, normalizedKey, fallbackKey)
       if (Object.prototype.hasOwnProperty.call(inboundTransport, rootKey) && rootKey !== 'extra') {
         patch[rootKey] = undefined

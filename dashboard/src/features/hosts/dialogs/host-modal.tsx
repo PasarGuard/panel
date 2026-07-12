@@ -27,8 +27,13 @@ import { LoaderButton } from '@/components/ui/loader-button'
 // Predefined sessionIDTable aliases recognized by Xray 26.6.22+.
 const SESSION_ID_TABLE_PRESETS = ['ALPHABET', 'Alphabet', 'BASE36', 'Base62', 'HEX', 'alphabet', 'base36', 'hex', 'number']
 
-function SessionIdTableField({ control, t }: { control: any; t: (key: string, opts?: any) => string }) {
+function SessionIdTableField({ control, t, isDialogOpen }: { control: any; t: (key: string, opts?: any) => string; isDialogOpen: boolean }) {
   const [customMode, setCustomMode] = useState(false)
+
+  useEffect(() => {
+    if (isDialogOpen) setCustomMode(false)
+  }, [isDialogOpen])
+
   return (
     <FormField
       control={control}
@@ -2043,7 +2048,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                   )}
                                 />
 
-                                <SessionIdTableField control={form.control} t={t} />
+                                <SessionIdTableField control={form.control} t={t} isDialogOpen={isDialogOpen} />
 
                                 <FormField
                                   control={form.control}

@@ -124,6 +124,7 @@ class XHttpSettings(BaseModel):
         "uplink_chunk_size",
         "sc_max_each_post_bytes",
         "sc_min_posts_interval_ms",
+        "session_id_length",
         mode="before",
     )
     @classmethod
