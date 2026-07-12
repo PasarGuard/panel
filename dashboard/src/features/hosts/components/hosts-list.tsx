@@ -206,6 +206,7 @@ export default function HostsList({
             xray: host.subscription_templates.xray ?? undefined,
           }
         : undefined,
+      final_mask_settings: host.final_mask_settings ?? undefined,
       fragment_settings: host.fragment_settings
         ? {
             xray: host.fragment_settings.xray ?? undefined,
@@ -396,6 +397,7 @@ export default function HostsList({
         http_headers: host.http_headers || {},
         wireguard_overrides: host.wireguard_overrides ?? undefined,
         subscription_templates: host.subscription_templates ?? undefined,
+        final_mask_settings: host.final_mask_settings ?? undefined,
       }
 
       await createHost(newHost)

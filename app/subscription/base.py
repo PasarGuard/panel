@@ -216,10 +216,11 @@ class BaseSubscription:
             payload["dns"] = ",".join(inbound.wireguard_dns)
         if inbound.wireguard_pre_shared_key:
             payload["presharedkey"] = inbound.wireguard_pre_shared_key
+        if inbound.finalmask_link:
+            payload["fm"] = inbound.finalmask_link
 
         payload = self._normalize_and_remove_none_values(payload)
         uri_payload = dict(payload)
-        uri_payload.pop("dns", None)
 
         return {
             "remark": validated_remark,

@@ -12,6 +12,7 @@ from app.db.crud.core import (
     remove_core_config,
     remove_cores,
 )
+from app.db.crud.host import get_hosts
 from app.models.admin import AdminDetails
 from app.models.core import (
     BulkCoreSelection,
@@ -31,6 +32,10 @@ logger = get_logger("core-operation")
 
 
 class CoreOperation(BaseOperation):
+    async def _refresh_hosts_from_db(self, db: AsyncSession) -> None:
+        db_hosts = await get_hosts(db=db)
+        await host_manager.add_hosts(db, db_hosts)
+
     async def create_core(self, db: AsyncSession, new_core: CoreCreate, admin: AdminDetails) -> CoreResponse:
         try:
             validated_core = core_manager.validate_core(
@@ -49,7 +54,7 @@ class CoreOperation(BaseOperation):
         core = CoreResponse.model_validate(db_core)
         asyncio.create_task(notification.create_core(core, admin.username))
 
-        await host_manager.setup_local(db)
+        await self._refresh_hosts_from_db(db)
 
         return core
 
@@ -87,7 +92,7 @@ class CoreOperation(BaseOperation):
         core = CoreResponse.model_validate(db_core)
         asyncio.create_task(notification.modify_core(core, admin.username))
 
-        await host_manager.setup_local(db)
+        await self._refresh_hosts_from_db(db)
 
         return core
 
@@ -104,7 +109,7 @@ class CoreOperation(BaseOperation):
 
         logger.info(f'core config "{db_core.name}" deleted by admin "{admin.username}"')
 
-        await host_manager.setup_local(db)
+        await self._refresh_hosts_from_db(db)
 
     async def bulk_remove_cores(
         self, db: AsyncSession, bulk_cores: BulkCoreSelection, admin: AdminDetails
@@ -134,6 +139,6 @@ class CoreOperation(BaseOperation):
             asyncio.create_task(notification.remove_core(core_id, admin.username))
             logger.info(f'core config "{core_name}" deleted by admin "{admin.username}"')
 
-        await host_manager.setup_local(db)
+        await self._refresh_hosts_from_db(db)
 
         return RemoveCoresResponse(cores=core_names, count=len(db_cores_list))

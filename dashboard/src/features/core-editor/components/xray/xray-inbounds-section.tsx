@@ -18,6 +18,7 @@ import { TcpHeaderObfuscationForm } from '@/features/core-editor/components/shar
 import { VlessAdvancedGenerationModal } from '@/features/core-editor/components/shared/vless-advanced-generation-modal'
 import { isBooleanParityField, isJsonRawMessageField, transportParityFieldLabel, XrayParityFormControl } from '@/features/core-editor/components/shared/xray-parity-form-control'
 import { pruneSockoptObject, XrayStreamSockoptInboundAccordion } from '@/features/core-editor/components/shared/xray-stream-sockopt-editor'
+import { XrayStreamFinalmaskInboundAccordion } from '@/features/core-editor/components/shared/xray-stream-finalmask-editor'
 import { InboundTlsFallbacksEditor } from '@/features/core-editor/components/xray/inbound-tls-fallbacks-editor'
 import { useSectionHeaderAddPulseEffect, type SectionHeaderAddPulse } from '@/features/core-editor/hooks/use-section-header-add-pulse'
 import { useXrayPersistModifyGuard } from '@/features/core-editor/hooks/use-xray-persist-modify-guard'
@@ -1764,6 +1765,25 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
     const raw = (inbound as { streamAdvanced?: { sockopt?: Record<string, unknown> } }).streamAdvanced?.sockopt
     const sockValue = raw && typeof raw === 'object' && !Array.isArray(raw) ? ({ ...raw } as Record<string, unknown>) : undefined
     return <XrayStreamSockoptInboundAccordion accordionItemClassName={INBOUND_SECURITY_SUBACCORDION_ITEM_CLASS} value={sockValue} onChange={patchInboundSockopt} t={t} />
+  }
+
+  function patchInboundFinalmask(next: Record<string, unknown> | undefined) {
+    if (!inbound || inbound.protocol === 'unmanaged' || inbound.protocol === 'tun') return
+    const baseRec = { ...(inbound as Record<string, unknown>) }
+    const prevSa = (baseRec.streamAdvanced as Record<string, unknown> | undefined) ?? {}
+    const sa = { ...prevSa }
+    if (next === undefined) delete sa.finalmask
+    else sa.finalmask = next
+    if (Object.keys(sa).length === 0) delete baseRec.streamAdvanced
+    else baseRec.streamAdvanced = sa
+    replaceEffectiveInbound(baseRec as Inbound)
+  }
+
+  function renderInboundFinalmask() {
+    if (!inbound || inbound.protocol === 'unmanaged' || inbound.protocol === 'tun') return null
+    const raw = (inbound as { streamAdvanced?: { finalmask?: Record<string, unknown> } }).streamAdvanced?.finalmask
+    const finalmaskValue = raw && typeof raw === 'object' && !Array.isArray(raw) ? ({ ...raw } as Record<string, unknown>) : undefined
+    return <XrayStreamFinalmaskInboundAccordion accordionItemClassName={INBOUND_SECURITY_SUBACCORDION_ITEM_CLASS} value={finalmaskValue} onChange={patchInboundFinalmask} t={t} />
   }
 
   const patchInbound = (patch: Partial<Inbound>) => {
@@ -4178,6 +4198,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                   </div>
                 ) : null}
                 {renderInboundSockopt()}
+                {renderInboundFinalmask()}
                 {inbound.protocol !== 'hysteria' ? renderSniffingAccordion() : null}
               </div>
             </form>
@@ -4591,6 +4612,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                 />
 
                 {renderInboundSockopt()}
+                {renderInboundFinalmask()}
                 {renderSniffingAccordion()}
               </div>
             </form>
@@ -5408,6 +5430,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                 )}
 
                 {renderInboundSockopt()}
+                {renderInboundFinalmask()}
                 {renderSniffingAccordion()}
               </div>
             </form>

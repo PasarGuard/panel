@@ -21,7 +21,7 @@ from app.db.crud.admin import (
 )
 from app.db.crud.bulk import activate_all_disabled_users, disable_all_active_users
 from app.db.crud.user import get_users, remove_users
-from app.db.models import Admin, AdminStatus, UserStatus
+from app.db.models import Admin, AdminStatus
 from app.models.admin import (
     AdminCreate,
     AdminDetails,
@@ -38,8 +38,9 @@ from app.models.admin import (
 )
 from app.models.stats import Period, UserUsageStatsList
 from app.models.user import UserListQuery
-from app.node.sync import remove_user as sync_remove_user, remove_users as sync_remove_users, sync_users
+from app.node.sync import remove_user as sync_remove_user, sync_users
 from app.operation import BaseOperation
+from app.operation.admin_sync import admin_users_sync_blocked, sync_admin_users_for_block_transition
 from app.operation.permissions import PermissionDenied, enforce_permission
 from app.operation.user import UserOperation
 from app.utils.logger import get_logger
@@ -130,19 +131,11 @@ class AdminOperation(BaseOperation):
             if existing_admins:
                 await self.raise_error(message="Telegram ID is already assigned to another admin.", code=409, db=db)
 
-        old_users_sync_blocked = db_admin.users_sync_blocked
+        old_users_sync_blocked = await admin_users_sync_blocked(db_admin)
         db_admin = await update_admin(db, db_admin, modified_admin)
 
         # Sync users to nodes if this admin's role/status starts or stops blocking user sync.
-        if old_users_sync_blocked != db_admin.users_sync_blocked:
-            if db_admin.users_sync_blocked:
-                users = await get_users(
-                    db, query=UserListQuery(status=[UserStatus.active, UserStatus.on_hold]), admin=db_admin
-                )
-                await sync_remove_users(users)
-            else:
-                users = await get_users(db, query=UserListQuery(), admin=db_admin, load_admin_role=True)
-                await sync_users(users)
+        await sync_admin_users_for_block_transition(db, db_admin, old_users_sync_blocked)
 
         logger.info(f'Admin "{db_admin.username}" with id "{db_admin.id}" modified by admin "{current_admin.username}"')
 
@@ -304,8 +297,7 @@ class AdminOperation(BaseOperation):
 
         # If admin was limited and is now active, re-sync all users to nodes
         if old_status == AdminStatus.limited and db_admin.status == AdminStatus.active:
-            users = await get_users(db, query=UserListQuery(), admin=db_admin, load_admin_role=True)
-            await sync_users(users)
+            await sync_admin_users_for_block_transition(db, db_admin, was_blocked=True)
 
         logger.info(f'Admin "{db_admin.username}" usage has been reset by admin "{admin.username}"')
         reseted_admin_details = build_admin_details(db_admin, include_loaded_metrics=True)
@@ -421,7 +413,7 @@ class AdminOperation(BaseOperation):
 
         ids_list = list(ids)
 
-        admins = await get_admins(db, AdminListQuery(ids=ids_list, limit=len(ids_list)), load_role=False)
+        admins = await get_admins(db, AdminListQuery(ids=ids_list, limit=len(ids_list)))
 
         # Verify every requested ID was found (mirrors the 404 in get_validated_admin_by_id)
         found_ids = {a.id for a in admins}
@@ -446,11 +438,13 @@ class AdminOperation(BaseOperation):
                 await self.raise_error(message="You're not allowed to disable your own account.", code=403)
 
         admins_to_update = [a for a in db_admins if a.status != target_status]
+        old_sync_blocked = {a.id: await admin_users_sync_blocked(a) for a in admins_to_update}
         for db_admin in admins_to_update:
             db_admin.status = target_status
         await db.commit()
 
         for db_admin in admins_to_update:
+            await sync_admin_users_for_block_transition(db, db_admin, old_sync_blocked[db_admin.id])
             modified_admin = build_admin_details(db_admin, include_loaded_metrics=True)
             asyncio.create_task(notification.modify_admin(modified_admin, current_admin.username))
             logger.info(
@@ -465,7 +459,9 @@ class AdminOperation(BaseOperation):
         """Reset usage for selected admins by ID."""
         db_admins = await self._get_validated_bulk_admins(db, bulk_admins.ids, admin)
         for db_admin in db_admins:
+            old_users_sync_blocked = await admin_users_sync_blocked(db_admin)
             db_admin = await reset_admin_usage(db, db_admin=db_admin)
+            await sync_admin_users_for_block_transition(db, db_admin, old_users_sync_blocked)
             reseted_admin = build_admin_details(db_admin, include_loaded_metrics=True)
             asyncio.create_task(notification.admin_usage_reset(reseted_admin, admin.username))
             logger.info(f'Admin "{db_admin.username}" usage has been reset by admin "{admin.username}"')

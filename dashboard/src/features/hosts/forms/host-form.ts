@@ -1,4 +1,5 @@
 import * as z from 'zod'
+import type { FinalMaskInput } from '@/service/api'
 
 interface Brutal {
   enable?: boolean
@@ -163,6 +164,7 @@ export interface HostFormValues {
       heartbeatPeriod?: number
     }
   }
+  final_mask_settings?: FinalMaskInput
 }
 
 const transportSettingsSchema = z
@@ -465,6 +467,7 @@ export const HostFormSchema = z.object({
       xray: z.number().int().positive().optional(),
     })
     .optional(),
+  final_mask_settings: z.custom<FinalMaskInput>().optional(),
 })
 
 export const hostFormDefaultValues: HostFormValues = {
@@ -492,4 +495,5 @@ export const hostFormDefaultValues: HostFormValues = {
   verify_peer_cert_by_name: [],
   fragment_settings: undefined,
   subscription_templates: undefined,
+  final_mask_settings: undefined,
 }

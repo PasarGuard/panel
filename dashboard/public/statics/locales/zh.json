@@ -1370,6 +1370,19 @@
       "randRange": "随机范围",
       "randRangePlaceholder": "输入随机范围（例如 10-20）"
     },
+    "finalmask": {
+      "title": "FinalMask 设置",
+      "enable": "启用 FinalMask",
+      "info": "配置自定义 finalmask 客户端配置 (TCP, UDP, 和 QUIC 参数)。",
+      "placeholder": "输入 FinalMask JSON 配置",
+      "invalidJson": "无效的 JSON: {{error}}",
+      "tcpLayers": "TCP 层",
+      "addTcpLayer": "添加 TCP 层",
+      "noTcpLayers": "未配置 TCP 层",
+      "udpLayers": "UDP 层",
+      "addUdpLayer": "添加 UDP 层",
+      "noUdpLayers": "未配置 UDP 层"
+    },
     "muxSettings": "Mux 设置",
     "enableMux": "启用 Mux",
     "xraySettings": "Xray 设置",

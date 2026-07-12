@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from copy import deepcopy
 from ipaddress import ip_interface
 from pathlib import PosixPath
@@ -13,6 +14,7 @@ from app.models.protocol import ProxyProtocol
 from app.utils.crypto import get_wireguard_public_key, validate_wireguard_key
 
 _WIREGUARD_PROTOCOLS = frozenset((ProxyProtocol.wireguard,))
+_WIREGUARD_INTERFACE_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
 
 
 class WireGuardConfig(dict):
@@ -57,10 +59,10 @@ class WireGuardConfig(dict):
         interface_name = str(self.get("interface_name") or "").strip()
         if not interface_name:
             raise ValueError("interface_name is required")
-        if "," in interface_name:
-            raise ValueError("character ',' is not allowed in interface_name")
-        if "<=>" in interface_name:
-            raise ValueError("character '<=>' is not allowed in interface_name")
+        if not _WIREGUARD_INTERFACE_NAME_RE.fullmatch(interface_name):
+            raise ValueError(
+                "interface_name must start with a letter or digit and contain only letters, digits, '_', '.', or '-'"
+            )
         self["interface_name"] = interface_name
 
         private_key = str(self.get("private_key") or "").strip()

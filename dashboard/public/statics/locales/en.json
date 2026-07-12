@@ -1397,6 +1397,19 @@
       "randRange": "Rand Range",
       "randRangePlaceholder": "Enter rand range (e.g. 10-20)"
     },
+    "finalmask": {
+      "title": "FinalMask Settings",
+      "enable": "Enable FinalMask",
+      "info": "Configure custom finalmask client configurations (TCP, UDP, and QUIC params).",
+      "placeholder": "Enter FinalMask JSON configuration",
+      "invalidJson": "Invalid JSON: {{error}}",
+      "tcpLayers": "TCP Layers",
+      "addTcpLayer": "Add TCP Layer",
+      "noTcpLayers": "No TCP layers configured",
+      "udpLayers": "UDP Layers",
+      "addUdpLayer": "Add UDP Layer",
+      "noUdpLayers": "No UDP layers configured"
+    },
     "muxSettings": "Mux Settings",
     "enableMux": "Enable Mux",
     "xraySettings": "Xray Settings",

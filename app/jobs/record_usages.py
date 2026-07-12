@@ -21,6 +21,7 @@ from app.db import GetDB
 from app.db.base import engine
 from app.db.models import Admin, Node, NodeUsage, NodeUserUsage, System, User
 from app.node import node_manager
+from app.operation.admin_sync import enforce_admin_limits_now
 from app.utils.logger import get_logger
 from config import job_settings, runtime_settings, usage_settings
 
@@ -733,6 +734,10 @@ async def _record_user_usages_impl():
             async with JOB_SEM:
                 await safe_execute(admin_stmt, admin_data)
             logger.debug(f"Updated {len(admin_data)} admins")
+            try:
+                await enforce_admin_limits_now(logger=logger)
+            except Exception:
+                logger.exception("Failed to enforce admin limits after usage recording")
         if usage_settings.disable_recording_node_usage:
             return
 
