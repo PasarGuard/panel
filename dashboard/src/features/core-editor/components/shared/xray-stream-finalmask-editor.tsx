@@ -62,12 +62,26 @@ export function XrayStreamFinalmaskFields({ value, onChange }: XrayStreamFinalma
   const dir = useDirDetection()
   
   const form = useForm<any>({
-    values: value || {
+    defaultValues: value || {
       tcp: [],
       udp: [],
       quicParams: {}
     },
   })
+
+  // Sync external value changes into form state without disrupting active typing focus
+  useEffect(() => {
+    const currentFormValues = form.getValues()
+    const nextPruned = pruneFinalmask(currentFormValues)
+    const currentPruned = pruneFinalmask(value)
+    if (JSON.stringify(currentPruned) !== JSON.stringify(nextPruned)) {
+      form.reset(value || {
+        tcp: [],
+        udp: [],
+        quicParams: {}
+      })
+    }
+  }, [value, form])
 
   const watched = form.watch()
   useEffect(() => {
