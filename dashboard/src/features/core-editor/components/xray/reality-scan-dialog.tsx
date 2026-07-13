@@ -359,16 +359,20 @@ export function RealityScanDialog({ open, onOpenChange, initialTarget, initialSn
   const abortRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
-    if (open) {
+    if (!open) {
       abortRef.current?.abort()
       abortRef.current = null
-      setTargets(initialTarget?.trim() ? [initialTarget.trim()] : [])
-      setSni(initialSni?.trim() ?? '')
-      setRows([])
-      setExpanded(null)
-      setFeasibleOnly(false)
       setIsScanning(false)
+      return
     }
+    abortRef.current?.abort()
+    abortRef.current = null
+    setTargets(initialTarget?.trim() ? [initialTarget.trim()] : [])
+    setSni(initialSni?.trim() ?? '')
+    setRows([])
+    setExpanded(null)
+    setFeasibleOnly(false)
+    setIsScanning(false)
   }, [open, initialTarget, initialSni])
 
   useEffect(() => () => abortRef.current?.abort(), [])
