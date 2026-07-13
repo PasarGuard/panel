@@ -267,7 +267,6 @@ function TargetsInput({ value, onChange, disabled, max }: { value: string[]; onC
   const { t } = useTranslation()
   const [draft, setDraft] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
-  const atMax = value.length >= max
 
   const addTokens = (raw: string) => {
     const next = [...value]
@@ -300,6 +299,7 @@ function TargetsInput({ value, onChange, disabled, max }: { value: string[]; onC
           <span className="truncate">{tag}</span>
           <button
             type="button"
+            disabled={disabled}
             className="hover:bg-muted-foreground/20 inline-flex shrink-0 rounded p-0.5"
             onClick={() => onChange(value.filter(item => item !== tag))}
             aria-label={t('coreEditor.realityScan.removeTarget', { defaultValue: 'Remove {{tag}}', tag })}
@@ -312,7 +312,7 @@ function TargetsInput({ value, onChange, disabled, max }: { value: string[]; onC
         ref={inputRef}
         className="placeholder:text-muted-foreground min-w-[8rem] flex-1 bg-transparent outline-none"
         value={draft}
-        disabled={atMax}
+        disabled={disabled}
         dir="ltr"
         autoComplete="off"
         spellCheck={false}
@@ -434,7 +434,15 @@ export function RealityScanDialog({ open, onOpenChange, initialTarget, initialSn
       inlinePersistValidation={false}
       footerExtra={
         isScanning ? (
-          <Button type="button" variant="outline" onClick={() => abortRef.current?.abort()}>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              abortRef.current?.abort()
+              abortRef.current = null
+              setIsScanning(false)
+            }}
+          >
             <Loader2 className="h-4 w-4 animate-spin" />
             <span>{t('coreEditor.realityScan.stop', { defaultValue: 'Stop' })}</span>
           </Button>
@@ -450,7 +458,7 @@ export function RealityScanDialog({ open, onOpenChange, initialTarget, initialSn
       }
     >
       <div className="space-y-4">
-        <p className="text-muted-foreground text-sm">{t('coreEditor.realityScan.description', { defaultValue: 'Probe a target to check it works as a REALITY decoy. REALITY needs HTTP/2 and TLS 1.3.' })}</p>
+        <p className="text-muted-foreground text-sm">{t('coreEditor.realityScan.description', { defaultValue: 'Probe one or more targets to check they work as REALITY decoys. REALITY needs HTTP/2 and TLS 1.3.' })}</p>
 
         <form id="reality-scan-form" onSubmit={handleSubmit} className="grid items-start gap-4 sm:grid-cols-[minmax(0,1fr)_140px]">
           <div className="flex min-w-0 flex-col gap-2">
@@ -464,6 +472,9 @@ export function RealityScanDialog({ open, onOpenChange, initialTarget, initialSn
               disabled={isScanning}
               max={MAX_TARGETS}
             />
+            {targets.length >= MAX_TARGETS ? (
+              <p className="text-muted-foreground text-xs">{t('coreEditor.realityScan.maxTargets', { defaultValue: 'Up to {{max}} targets can be scanned.', max: MAX_TARGETS })}</p>
+            ) : null}
           </div>
           <div className="flex min-w-0 flex-col gap-2">
             <Label>{t('coreEditor.realityScan.timeout', { defaultValue: 'Timeout (s)' })}</Label>
