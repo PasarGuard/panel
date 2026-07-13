@@ -446,7 +446,8 @@ class XRayConfig(dict):
             self._handle_shadowsocks_settings(inbound["settings"], settings)
 
         if stream := inbound.get("streamSettings"):
-            net = stream.get("network", "tcp")
+            method = stream.get("method")
+            net = method if method is not None else stream.get("network", "tcp")
             net_settings = stream.get(f"{net}Settings", {})
             security = stream.get("security")
             tls_settings = stream.get(f"{security}Settings")
