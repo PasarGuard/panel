@@ -25,8 +25,10 @@ from app.models.core import (
     CoresSimpleResponse,
     RemoveCoresResponse,
 )
+from app.models.reality_scan import RealityScanRequest, RealityScanResult
 from app.operation import BaseOperation
 from app.utils.logger import get_logger
+from app.utils.reality_scan import RealityScanError, scan_reality_target
 
 logger = get_logger("core-operation")
 
@@ -35,6 +37,16 @@ class CoreOperation(BaseOperation):
     async def _refresh_hosts_from_db(self, db: AsyncSession) -> None:
         db_hosts = await get_hosts(db=db)
         await host_manager.add_hosts(db, db_hosts)
+
+    async def scan_reality_target(self, request: RealityScanRequest) -> RealityScanResult:
+        try:
+            result = await scan_reality_target(target=request.target, sni=request.sni, timeout=request.timeout)
+        except RealityScanError as e:
+            await self.raise_error(message=str(e), code=400)
+        except Exception as e:
+            logger.warning("reality scan failed for %r: %s", request.target, e)
+            await self.raise_error(message=f"Reality scan failed: {e}", code=502)
+        return RealityScanResult.model_validate(result)
 
     async def create_core(self, db: AsyncSession, new_core: CoreCreate, admin: AdminDetails) -> CoreResponse:
         try:
