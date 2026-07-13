@@ -38,6 +38,14 @@ def test_parse_target_invalid(bad):
         rs.parse_target(bad)
 
 
+@pytest.mark.parametrize("bad", ["a\r\nX-Smuggled: 1", "host\nfoo", "h\x00st", "a\tb"])
+def test_parse_target_rejects_control_chars(bad):
+    with pytest.raises(RealityScanError):
+        rs.parse_target(bad)
+    with pytest.raises(RealityScanError):
+        rs.parse_target("example.com", sni_override=bad)
+
+
 @pytest.mark.parametrize(
     "ip",
     ["127.0.0.1", "10.0.0.1", "192.168.1.1", "169.254.169.254", "0.0.0.0", "::1", "fd00::1", "224.0.0.1"],

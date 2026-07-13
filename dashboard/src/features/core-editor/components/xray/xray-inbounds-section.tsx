@@ -108,7 +108,7 @@ function firstConfiguredServerName(raw: unknown): string {
   } else {
     parts = trimmed.split(/[\n,]/).map(part => part.trim())
   }
-  return parts.find(p => p && !p.startsWith('*')) || parts.find(Boolean) || ''
+  return parts.find(p => p && !p.startsWith('*')) || ''
 }
 
 /** Plain English only — Xray REALITY / TLS / ECH field hints (not i18n). */

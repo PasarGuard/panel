@@ -22,8 +22,17 @@ interface RealityScanDialogProps {
 
 const getErrorMessage = (error: unknown, fallback: string) => {
   if (!error || typeof error !== 'object') return fallback
-  const maybeError = error as { data?: { detail?: string }; message?: string }
-  return maybeError.data?.detail || maybeError.message || fallback
+  const maybeError = error as { data?: { detail?: unknown }; message?: string }
+  const detail = maybeError.data?.detail
+  if (typeof detail === 'string' && detail) return detail
+  if (Array.isArray(detail)) {
+    const joined = detail
+      .map(item => (item && typeof item === 'object' && 'msg' in item ? String((item as { msg?: unknown }).msg ?? '') : String(item)))
+      .filter(Boolean)
+      .join('; ')
+    if (joined) return joined
+  }
+  return maybeError.message || fallback
 }
 
 type TriState = boolean | null | undefined

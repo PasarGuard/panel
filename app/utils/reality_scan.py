@@ -52,9 +52,15 @@ class RealityScanError(ValueError):
     pass
 
 
+def _has_control_chars(value: str) -> bool:
+    return any(ord(ch) < 0x20 or ord(ch) == 0x7F for ch in value)
+
+
 def parse_target(target: str, sni_override: str | None = None) -> tuple[str, int, str | None]:
     if not target or not target.strip():
         raise RealityScanError("A target host is required.")
+    if _has_control_chars(target) or (sni_override and _has_control_chars(sni_override)):
+        raise RealityScanError("Target and SNI must not contain control characters.")
 
     value = target.strip()
     if "://" in value:
@@ -481,6 +487,7 @@ def _h3_probe(host: str, ip: str, port: int, sni: str | None, timeout: float) ->
         ctx.verify_mode = ssl.CERT_NONE
         ctx.set_alpn_protocols(["http/1.1"])
         request_host = sni or host
+        deadline = time.monotonic() + timeout
         with socket.create_connection((ip, port), timeout=timeout) as sock:
             with ctx.wrap_socket(sock, server_hostname=sni) as tls:
                 tls.settimeout(timeout)
@@ -491,6 +498,10 @@ def _h3_probe(host: str, ip: str, port: int, sni: str | None, timeout: float) ->
                 tls.sendall(request.encode("ascii", "ignore"))
                 data = b""
                 while len(data) < 32768:
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        break
+                    tls.settimeout(remaining)
                     chunk = tls.recv(4096)
                     if not chunk:
                         break
@@ -554,4 +565,7 @@ async def scan_reality_target(target: str, sni: str | None = None, timeout: floa
     clamped = _clamp_timeout(timeout)
     async with _get_scan_semaphore():
         ip = await _resolve_public_ip_async(host, min(clamped, DNS_TIMEOUT))
-        return await asyncio.to_thread(_scan_sync, host, ip, port, resolved_sni, clamped)
+        try:
+            return await asyncio.wait_for(asyncio.to_thread(_scan_sync, host, ip, port, resolved_sni, clamped), timeout=clamped * 6 + 15)
+        except TimeoutError:
+            raise RealityScanError("Scan timed out.")
