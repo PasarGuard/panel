@@ -263,6 +263,8 @@ class FinalMask(FinalMaskBaseModel):
 
 
 class XMuxSettings(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
     max_concurrency: str | None = Field(None, pattern=r"^\d{1,16}(-\d{1,16})?$", alias="maxConcurrency")
     max_connections: str | None = Field(None, pattern=r"^\d{1,16}(-\d{1,16})?$", alias="maxConnections")
     c_max_reuse_times: str | None = Field(None, pattern=r"^\d{1,16}(-\d{1,16})?$", alias="cMaxReuseTimes")
