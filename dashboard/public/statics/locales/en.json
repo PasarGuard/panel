@@ -2164,6 +2164,9 @@
     "excludedInbound": "Excluded inbound",
     "selectInbound": "Select inbound",
     "inbound": "Inbound",
+    "apiServices": "API Services",
+    "apiServiceAlwaysOn": "always on",
+    "apiServicesUnknown": "Unrecognized API service(s): {{names}}. Remove or fix them to save.",
     "generateKeyPair": "Key Pair",
     "generateShortId": "Short ID",
     "backendType": "Type",
@@ -2300,7 +2303,9 @@
     },
     "api": {
       "title": "API Services",
-      "hint": "gRPC API services exposed by this core. The node always enables the required services; enable optional ones as needed."
+      "hint": "gRPC API services exposed by this core. The node always enables the required services; enable optional ones as needed.",
+      "alwaysOn": "always on",
+      "unknown": "Unrecognized API service(s): {{names}}. Fix them in the Advanced tab."
     },
     "wg": {
       "interfaceBlurb": "WireGuard interface settings and key material for this core.",

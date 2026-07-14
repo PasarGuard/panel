@@ -2123,6 +2123,9 @@
     "excludedInbound": "排除的入站",
     "selectInbound": "选择入站",
     "inbound": "入站",
+    "apiServices": "API 服务",
+    "apiServiceAlwaysOn": "始终启用",
+    "apiServicesUnknown": "无法识别的 API 服务：{{names}}。请删除或修复后再保存。",
     "generateKeyPair": "密钥对",
     "backendType": "类型",
     "generateWireGuardKeyPair": "WireGuard 密钥对",
@@ -2258,7 +2261,9 @@
     },
     "api": {
       "title": "API 服务",
-      "hint": "此核心提供的 gRPC API 服务。节点始终启用必需的服务；可按需启用可选服务。"
+      "hint": "此核心提供的 gRPC API 服务。节点始终启用必需的服务；可按需启用可选服务。",
+      "alwaysOn": "始终启用",
+      "unknown": "无法识别的 API 服务：{{names}}。请在“高级”选项卡中修复。"
     },
     "wg": {
       "interfaceBlurb": "此核心的 WireGuard 接口与密钥设置。",
