@@ -2,6 +2,9 @@
   "name": "pasarguard-dashboard",
   "private": true,
   "version": "5.1.0",
+  "engines": {
+    "node": ">=22.18.0"
+  },
   "scripts": {
     "dev": "vite dev",
     "build": "vite build",
