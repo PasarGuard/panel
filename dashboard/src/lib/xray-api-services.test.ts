@@ -71,6 +71,17 @@ test('setOptionalService: unknown service name is a no-op', () => {
   assert.deepEqual(setOptionalService({ api: { services: [] } }, 'Nope', true), { api: { services: [] } })
 })
 
+// Required services are node-injected; the panel must never write (or strip) them.
+test('setOptionalService: enabling a required service is a no-op', () => {
+  const config = { api: { services: ['RoutingService'] } }
+  assert.equal(setOptionalService(config, 'HandlerService', true), config)
+})
+
+test('setOptionalService: disabling a required service is a no-op', () => {
+  const config = { api: { services: ['StatsService'] } }
+  assert.equal(setOptionalService(config, 'StatsService', false), config)
+})
+
 test('allowlist constants are exactly the expected canonical names (drift guard)', () => {
   assert.deepEqual([...REQUIRED_API_SERVICES], ['HandlerService', 'LoggerService', 'StatsService'])
   assert.deepEqual([...OPTIONAL_API_SERVICES], ['RoutingService', 'ObservatoryService', 'ReflectionService'])

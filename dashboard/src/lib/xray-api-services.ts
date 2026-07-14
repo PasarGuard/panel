@@ -64,7 +64,9 @@ export function setOptionalService(
   enabled: boolean,
 ): Record<string, unknown> {
   const key = service.trim().toLowerCase()
-  const canonical = CANONICAL_API_SERVICES[key]
+  // Only optional services may be written: required ones are node-injected and the
+  // panel never writes them, so a required (or unknown) name is a no-op.
+  const canonical = OPTIONAL_API_SERVICES.find(candidate => candidate.toLowerCase() === key)
   if (!canonical) return config
 
   const next: Record<string, unknown> = { ...config }
