@@ -149,8 +149,12 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
   )
 
   // Optional Xray API services derived from the config JSON (the JSON is the source of truth).
+  // api.services is Xray-only, so WireGuard configs are never derived or validated against it.
   const watchedConfig = form.watch('config')
   const { selectedApiServices, unknownApiServices } = useMemo(() => {
+    if (!isXrayBackend) {
+      return { selectedApiServices: [], unknownApiServices: [] }
+    }
     let parsed: unknown = null
     try {
       parsed = JSON.parse(watchedConfig || '{}')
@@ -161,13 +165,19 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
       selectedApiServices: getSelectedOptional(parsed),
       unknownApiServices: findUnknownApiServices(parsed),
     }
-  }, [watchedConfig])
+  }, [isXrayBackend, watchedConfig])
 
   const handleToggleApiService = useCallback(
     (service: string, enabled: boolean) => {
       let parsed: Record<string, unknown>
       try {
-        parsed = JSON.parse(form.getValues('config') || '{}') as Record<string, unknown>
+        // Valid-but-non-object JSON (null/array/primitive) would be silently replaced
+        // or mangled by the re-serialize below, so only plain objects are toggled.
+        const candidate: unknown = JSON.parse(form.getValues('config') || '{}')
+        if (typeof candidate !== 'object' || candidate === null || Array.isArray(candidate)) {
+          return
+        }
+        parsed = candidate as Record<string, unknown>
       } catch {
         return
       }
@@ -365,15 +375,19 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
         return
       }
 
-      const unknownServices = findUnknownApiServices(configObj)
-      if (unknownServices.length > 0) {
-        const message = apiServicesUnknownMessage(unknownServices)
-        form.setError('config', { type: 'manual', message })
-        toast.error(message)
-        return
+      const backendType = values.type ?? 'xray'
+
+      // api.services is Xray-only; never block a WireGuard config on Xray rules.
+      if (backendType !== 'wg') {
+        const unknownServices = findUnknownApiServices(configObj)
+        if (unknownServices.length > 0) {
+          const message = apiServicesUnknownMessage(unknownServices)
+          form.setError('config', { type: 'manual', message })
+          toast.error(message)
+          return
+        }
       }
 
-      const backendType = values.type ?? 'xray'
       const fallbackTags = backendType !== 'wg' ? values.fallback_id || [] : []
       const excludeInboundTags = backendType !== 'wg' ? values.excluded_inbound_ids || [] : []
 
