@@ -4,7 +4,7 @@ import type { FinalMaskTcpType, FinalMaskUdpType, XrayNoiseSettings } from '@/se
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
-import { FormField, FormItem, FormLabel, FormControl, FormMessage } from '@/components/ui/form'
+import { FormField, FormItem, FormLabel, FormControl } from '@/components/ui/form'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Plus, Trash2, Copy, SlidersHorizontal } from 'lucide-react'
@@ -41,31 +41,40 @@ function pruneQuicParams(q: any): any | undefined {
 function pruneFinalmask(raw: any): any | undefined {
   if (!raw || typeof raw !== 'object') return undefined
   const out: any = {}
-  
+
   if (Array.isArray(raw.tcp) && raw.tcp.length > 0) {
     out.tcp = raw.tcp
   }
-  
+
   if (Array.isArray(raw.udp) && raw.udp.length > 0) {
     out.udp = raw.udp
   }
-  
+
   if (raw.quicParams && typeof raw.quicParams === 'object') {
     const q = pruneQuicParams(raw.quicParams)
     if (q) out.quicParams = q
   }
-  
+
   return Object.keys(out).length > 0 ? out : undefined
+}
+
+function hasFinalmaskContent(value: Record<string, any> | undefined): boolean {
+  return Boolean(
+    value &&
+    ((Array.isArray(value.tcp) && value.tcp.length > 0) ||
+      (Array.isArray(value.udp) && value.udp.length > 0) ||
+      (value.quicParams && typeof value.quicParams === 'object' && Object.keys(value.quicParams).length > 0)),
+  )
 }
 
 export function XrayStreamFinalmaskFields({ value, onChange }: XrayStreamFinalmaskFieldsProps) {
   const dir = useDirDetection()
-  
+
   const form = useForm<any>({
     defaultValues: value || {
       tcp: [],
       udp: [],
-      quicParams: {}
+      quicParams: {},
     },
   })
 
@@ -75,11 +84,13 @@ export function XrayStreamFinalmaskFields({ value, onChange }: XrayStreamFinalma
     const nextPruned = pruneFinalmask(currentFormValues)
     const currentPruned = pruneFinalmask(value)
     if (JSON.stringify(currentPruned) !== JSON.stringify(nextPruned)) {
-      form.reset(value || {
-        tcp: [],
-        udp: [],
-        quicParams: {}
-      })
+      form.reset(
+        value || {
+          tcp: [],
+          udp: [],
+          quicParams: {},
+        },
+      )
     }
   }, [value, form])
 
@@ -167,9 +178,7 @@ function TcpLayersForm({ form }: { form: UseFormReturn<any> }) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h4 className="text-xs font-semibold text-muted-foreground">
-          {t('hostsDialog.finalmask.tcpLayers', { defaultValue: 'TCP Layers' })}
-        </h4>
+        <h4 className="text-muted-foreground text-xs font-semibold">{t('hostsDialog.finalmask.tcpLayers', { defaultValue: 'TCP Layers' })}</h4>
         <Button type="button" variant="outline" size="sm" onClick={handleAddLayer}>
           <Plus className="mr-1 h-3.5 w-3.5" />
           {t('hostsDialog.finalmask.addTcpLayer', { defaultValue: 'Add TCP Layer' })}
@@ -180,16 +189,16 @@ function TcpLayersForm({ form }: { form: UseFormReturn<any> }) {
         {fields.map((field, index) => {
           const type = form.watch(`tcp.${index}.type`)
           return (
-            <div key={field.id} className="relative rounded-lg border p-4 bg-muted/5 space-y-4">
+            <div key={field.id} className="bg-muted/5 relative space-y-4 rounded-lg border p-4">
               <div className="flex items-center justify-between gap-4">
-                <div className="flex items-center gap-2 flex-1">
-                  <span className="text-xs font-semibold text-muted-foreground w-6">#{index + 1}</span>
+                <div className="flex flex-1 items-center gap-2">
+                  <span className="text-muted-foreground w-6 text-xs font-semibold">#{index + 1}</span>
                   <FormField
                     control={form.control}
                     name={`tcp.${index}.type`}
                     render={({ field: selectField }) => (
                       <FormItem className="w-48">
-                        <Select onValueChange={(val) => handleTypeChange(index, val as FinalMaskTcpType)} value={selectField.value || ''}>
+                        <Select onValueChange={val => handleTypeChange(index, val as FinalMaskTcpType)} value={selectField.value || ''}>
                           <FormControl>
                             <SelectTrigger className="h-8">
                               <SelectValue placeholder="Select type" />
@@ -205,19 +214,13 @@ function TcpLayersForm({ form }: { form: UseFormReturn<any> }) {
                     )}
                   />
                 </div>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 text-destructive hover:bg-destructive/10"
-                  onClick={() => remove(index)}
-                >
+                <Button type="button" variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10 h-8 w-8" onClick={() => remove(index)}>
                   <Trash2 className="h-4 w-4" />
                 </Button>
               </div>
 
               {type === 'fragment' && (
-                <div className="grid grid-cols-3 gap-3 bg-background p-3 rounded-md border">
+                <div className="bg-background grid grid-cols-3 gap-3 rounded-md border p-3">
                   <FormField
                     control={form.control}
                     name={`tcp.${index}.settings.packets`}
@@ -257,27 +260,13 @@ function TcpLayersForm({ form }: { form: UseFormReturn<any> }) {
                 </div>
               )}
 
-              {type === 'sudoku' && (
-                <SudokuSettingsForm prefix={`tcp.${index}.settings`} form={form} />
-              )}
+              {type === 'sudoku' && <SudokuSettingsForm prefix={`tcp.${index}.settings`} form={form} />}
 
               {type === 'header-custom' && (
-                <div className="space-y-4 bg-background p-3 rounded-md border">
-                  <JsonArrayField
-                    form={form}
-                    name={`tcp.${index}.settings.clients`}
-                    label="Clients (JSON array of noise arrays)"
-                  />
-                  <JsonArrayField
-                    form={form}
-                    name={`tcp.${index}.settings.servers`}
-                    label="Servers (JSON array of noise arrays)"
-                  />
-                  <JsonArrayField
-                    form={form}
-                    name={`tcp.${index}.settings.errors`}
-                    label="Errors (JSON array of noise arrays)"
-                  />
+                <div className="bg-background space-y-4 rounded-md border p-3">
+                  <JsonArrayField form={form} name={`tcp.${index}.settings.clients`} label="Clients (JSON array of noise arrays)" />
+                  <JsonArrayField form={form} name={`tcp.${index}.settings.servers`} label="Servers (JSON array of noise arrays)" />
+                  <JsonArrayField form={form} name={`tcp.${index}.settings.errors`} label="Errors (JSON array of noise arrays)" />
                 </div>
               )}
             </div>
@@ -285,7 +274,7 @@ function TcpLayersForm({ form }: { form: UseFormReturn<any> }) {
         })}
 
         {fields.length === 0 && (
-          <div className="text-muted-foreground py-8 text-center text-xs border border-dashed rounded-lg bg-muted/10">
+          <div className="text-muted-foreground bg-muted/10 rounded-lg border border-dashed py-8 text-center text-xs">
             {t('hostsDialog.finalmask.noTcpLayers', { defaultValue: 'No TCP layers configured' })}
           </div>
         )}
@@ -317,18 +306,7 @@ function UdpLayersForm({ form }: { form: UseFormReturn<any> }) {
     form.setValue(`udp.${index}.type`, newType)
     if (newType === 'header-dns' || newType === 'xdns') {
       form.setValue(`udp.${index}.settings`, { domain: '' })
-    } else if (
-      [
-        'header-dtls',
-        'header-srtp',
-        'header-utp',
-        'header-wechat',
-        'header-wireguard',
-        'mkcp-original',
-        'mkcp-aes128gcm',
-        'salamander',
-      ].includes(newType)
-    ) {
+    } else if (['header-dtls', 'header-srtp', 'header-utp', 'header-wechat', 'header-wireguard', 'mkcp-original', 'mkcp-aes128gcm', 'salamander'].includes(newType)) {
       form.setValue(`udp.${index}.settings`, { password: '' })
     } else if (newType === 'noise') {
       form.setValue(`udp.${index}.settings`, { reset: undefined, noise: [] })
@@ -351,9 +329,7 @@ function UdpLayersForm({ form }: { form: UseFormReturn<any> }) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h4 className="text-xs font-semibold text-muted-foreground">
-          {t('hostsDialog.finalmask.udpLayers', { defaultValue: 'UDP Layers' })}
-        </h4>
+        <h4 className="text-muted-foreground text-xs font-semibold">{t('hostsDialog.finalmask.udpLayers', { defaultValue: 'UDP Layers' })}</h4>
         <Button type="button" variant="outline" size="sm" onClick={handleAddLayer}>
           <Plus className="mr-1 h-3.5 w-3.5" />
           {t('hostsDialog.finalmask.addUdpLayer', { defaultValue: 'Add UDP Layer' })}
@@ -364,16 +340,16 @@ function UdpLayersForm({ form }: { form: UseFormReturn<any> }) {
         {fields.map((field, index) => {
           const type = form.watch(`udp.${index}.type`)
           return (
-            <div key={field.id} className="relative rounded-lg border p-4 bg-muted/5 space-y-4">
+            <div key={field.id} className="bg-muted/5 relative space-y-4 rounded-lg border p-4">
               <div className="flex items-center justify-between gap-4">
-                <div className="flex items-center gap-2 flex-1">
-                  <span className="text-xs font-semibold text-muted-foreground w-6">#{index + 1}</span>
+                <div className="flex flex-1 items-center gap-2">
+                  <span className="text-muted-foreground w-6 text-xs font-semibold">#{index + 1}</span>
                   <FormField
                     control={form.control}
                     name={`udp.${index}.type`}
                     render={({ field: selectField }) => (
                       <FormItem className="w-56">
-                        <Select onValueChange={(val) => handleTypeChange(index, val as FinalMaskUdpType)} value={selectField.value || ''}>
+                        <Select onValueChange={val => handleTypeChange(index, val as FinalMaskUdpType)} value={selectField.value || ''}>
                           <FormControl>
                             <SelectTrigger className="h-8">
                               <SelectValue placeholder="Select type" />
@@ -400,19 +376,13 @@ function UdpLayersForm({ form }: { form: UseFormReturn<any> }) {
                     )}
                   />
                 </div>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 text-destructive hover:bg-destructive/10"
-                  onClick={() => remove(index)}
-                >
+                <Button type="button" variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10 h-8 w-8" onClick={() => remove(index)}>
                   <Trash2 className="h-4 w-4" />
                 </Button>
               </div>
 
               {(type === 'header-dns' || type === 'xdns') && (
-                <div className="bg-background p-3 rounded-md border">
+                <div className="bg-background rounded-md border p-3">
                   <FormField
                     control={form.control}
                     name={`udp.${index}.settings.domain`}
@@ -428,17 +398,8 @@ function UdpLayersForm({ form }: { form: UseFormReturn<any> }) {
                 </div>
               )}
 
-              {[
-                'header-dtls',
-                'header-srtp',
-                'header-utp',
-                'header-wechat',
-                'header-wireguard',
-                'mkcp-original',
-                'mkcp-aes128gcm',
-                'salamander',
-              ].includes(type) && (
-                <div className="bg-background p-3 rounded-md border">
+              {['header-dtls', 'header-srtp', 'header-utp', 'header-wechat', 'header-wireguard', 'mkcp-original', 'mkcp-aes128gcm', 'salamander'].includes(type) && (
+                <div className="bg-background rounded-md border p-3">
                   <FormField
                     control={form.control}
                     name={`udp.${index}.settings.password`}
@@ -454,12 +415,10 @@ function UdpLayersForm({ form }: { form: UseFormReturn<any> }) {
                 </div>
               )}
 
-              {type === 'sudoku' && (
-                <SudokuSettingsForm prefix={`udp.${index}.settings`} form={form} />
-              )}
+              {type === 'sudoku' && <SudokuSettingsForm prefix={`udp.${index}.settings`} form={form} />}
 
               {type === 'xicmp' && (
-                <div className="grid grid-cols-2 gap-3 bg-background p-3 rounded-md border">
+                <div className="bg-background grid grid-cols-2 gap-3 rounded-md border p-3">
                   <FormField
                     control={form.control}
                     name={`udp.${index}.settings.listenIp`}
@@ -484,7 +443,7 @@ function UdpLayersForm({ form }: { form: UseFormReturn<any> }) {
                             placeholder="ID number"
                             {...inputField}
                             value={inputField.value ?? ''}
-                            onChange={(e) => inputField.onChange(e.target.value === '' ? undefined : Number(e.target.value))}
+                            onChange={e => inputField.onChange(e.target.value === '' ? undefined : Number(e.target.value))}
                             className="h-8 text-xs"
                           />
                         </FormControl>
@@ -495,7 +454,7 @@ function UdpLayersForm({ form }: { form: UseFormReturn<any> }) {
               )}
 
               {type === 'noise' && (
-                <div className="space-y-4 bg-background p-3 rounded-md border">
+                <div className="bg-background space-y-4 rounded-md border p-3">
                   <FormField
                     control={form.control}
                     name={`udp.${index}.settings.reset`}
@@ -508,33 +467,21 @@ function UdpLayersForm({ form }: { form: UseFormReturn<any> }) {
                             placeholder="Reset"
                             {...inputField}
                             value={inputField.value ?? ''}
-                            onChange={(e) => inputField.onChange(e.target.value === '' ? undefined : Number(e.target.value))}
+                            onChange={e => inputField.onChange(e.target.value === '' ? undefined : Number(e.target.value))}
                             className="h-8 text-xs"
                           />
                         </FormControl>
                       </FormItem>
                     )}
                   />
-                  <XrayNoiseSettingsList
-                    form={form}
-                    name={`udp.${index}.settings.noise`}
-                    label="Noise Settings"
-                  />
+                  <XrayNoiseSettingsList form={form} name={`udp.${index}.settings.noise`} label="Noise Settings" />
                 </div>
               )}
 
               {type === 'header-custom' && (
-                <div className="space-y-4 bg-background p-3 rounded-md border">
-                  <XrayNoiseSettingsList
-                    form={form}
-                    name={`udp.${index}.settings.client`}
-                    label="Client Settings"
-                  />
-                  <XrayNoiseSettingsList
-                    form={form}
-                    name={`udp.${index}.settings.server`}
-                    label="Server Settings"
-                  />
+                <div className="bg-background space-y-4 rounded-md border p-3">
+                  <XrayNoiseSettingsList form={form} name={`udp.${index}.settings.client`} label="Client Settings" />
+                  <XrayNoiseSettingsList form={form} name={`udp.${index}.settings.server`} label="Server Settings" />
                 </div>
               )}
             </div>
@@ -542,7 +489,7 @@ function UdpLayersForm({ form }: { form: UseFormReturn<any> }) {
         })}
 
         {fields.length === 0 && (
-          <div className="text-muted-foreground py-8 text-center text-xs border border-dashed rounded-lg bg-muted/10">
+          <div className="text-muted-foreground bg-muted/10 rounded-lg border border-dashed py-8 text-center text-xs">
             {t('hostsDialog.finalmask.noUdpLayers', { defaultValue: 'No UDP layers configured' })}
           </div>
         )}
@@ -585,8 +532,8 @@ function QuicParamsForm({ form }: { form: UseFormReturn<any> }) {
           control={form.control}
           name="quicParams.debug"
           render={({ field }) => (
-            <FormItem className="flex flex-row items-center justify-between rounded-lg border p-2 h-8 mt-6">
-              <FormLabel className="text-xs cursor-pointer">Debug</FormLabel>
+            <FormItem dir="ltr" className="mt-6 flex min-h-9 items-center justify-between gap-3 rounded-md border px-3 py-2">
+              <FormLabel className="min-w-0 cursor-pointer truncate text-left text-xs font-normal">Debug</FormLabel>
               <FormControl>
                 <Switch checked={!!field.value} onCheckedChange={field.onChange} className="scale-75" />
               </FormControl>
@@ -622,8 +569,8 @@ function QuicParamsForm({ form }: { form: UseFormReturn<any> }) {
       </div>
 
       <div className="border-t pt-3">
-        <h5 className="text-xs font-semibold mb-2">UDP Hop</h5>
-        <div className="grid grid-cols-2 gap-3 bg-muted/5 p-3 rounded-md border">
+        <h5 className="mb-2 text-xs font-semibold">UDP Hop</h5>
+        <div className="bg-muted/5 grid grid-cols-2 gap-3 rounded-md border p-3">
           <FormField
             control={form.control}
             name="quicParams.udpHop.ports"
@@ -653,7 +600,7 @@ function QuicParamsForm({ form }: { form: UseFormReturn<any> }) {
       </div>
 
       <div className="border-t pt-3">
-        <h5 className="text-xs font-semibold mb-2">Windows & Stream settings</h5>
+        <h5 className="mb-2 text-xs font-semibold">Windows & Stream settings</h5>
         <div className="grid grid-cols-2 gap-3">
           <FormField
             control={form.control}
@@ -667,7 +614,7 @@ function QuicParamsForm({ form }: { form: UseFormReturn<any> }) {
                     placeholder="Bytes"
                     {...field}
                     value={field.value ?? ''}
-                    onChange={(e) => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))}
+                    onChange={e => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))}
                     className="h-8 text-xs"
                   />
                 </FormControl>
@@ -687,7 +634,7 @@ function QuicParamsForm({ form }: { form: UseFormReturn<any> }) {
                     placeholder="Bytes"
                     {...field}
                     value={field.value ?? ''}
-                    onChange={(e) => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))}
+                    onChange={e => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))}
                     className="h-8 text-xs"
                   />
                 </FormControl>
@@ -707,7 +654,7 @@ function QuicParamsForm({ form }: { form: UseFormReturn<any> }) {
                     placeholder="Bytes"
                     {...field}
                     value={field.value ?? ''}
-                    onChange={(e) => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))}
+                    onChange={e => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))}
                     className="h-8 text-xs"
                   />
                 </FormControl>
@@ -727,7 +674,7 @@ function QuicParamsForm({ form }: { form: UseFormReturn<any> }) {
                     placeholder="Bytes"
                     {...field}
                     value={field.value ?? ''}
-                    onChange={(e) => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))}
+                    onChange={e => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))}
                     className="h-8 text-xs"
                   />
                 </FormControl>
@@ -747,7 +694,7 @@ function QuicParamsForm({ form }: { form: UseFormReturn<any> }) {
                     placeholder="Streams count"
                     {...field}
                     value={field.value ?? ''}
-                    onChange={(e) => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))}
+                    onChange={e => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))}
                     className="h-8 text-xs"
                   />
                 </FormControl>
@@ -767,7 +714,7 @@ function QuicParamsForm({ form }: { form: UseFormReturn<any> }) {
                     placeholder="e.g. 30000"
                     {...field}
                     value={field.value ?? ''}
-                    onChange={(e) => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))}
+                    onChange={e => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))}
                     className="h-8 text-xs"
                   />
                 </FormControl>
@@ -787,7 +734,7 @@ function QuicParamsForm({ form }: { form: UseFormReturn<any> }) {
                     placeholder="e.g. 10000"
                     {...field}
                     value={field.value ?? ''}
-                    onChange={(e) => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))}
+                    onChange={e => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))}
                     className="h-8 text-xs"
                   />
                 </FormControl>
@@ -799,8 +746,8 @@ function QuicParamsForm({ form }: { form: UseFormReturn<any> }) {
             control={form.control}
             name="quicParams.disablePathMTUDiscovery"
             render={({ field }) => (
-              <FormItem className="flex flex-row items-center justify-between rounded-lg border p-2 h-8 mt-6">
-                <FormLabel className="text-xs cursor-pointer">Disable PMTU Discovery</FormLabel>
+              <FormItem dir="ltr" className="mt-6 flex min-h-9 items-center justify-between gap-3 rounded-md border px-3 py-2">
+                <FormLabel className="min-w-0 cursor-pointer truncate text-left text-xs font-normal">Disable PMTU Discovery</FormLabel>
                 <FormControl>
                   <Switch checked={!!field.value} onCheckedChange={field.onChange} className="scale-75" />
                 </FormControl>
@@ -819,7 +766,7 @@ function QuicParamsForm({ form }: { form: UseFormReturn<any> }) {
 function SudokuSettingsForm({ prefix, form }: { prefix: string; form: UseFormReturn<any> }) {
   const { t } = useTranslation()
   return (
-    <div className="grid grid-cols-2 gap-3 bg-background p-3 rounded-md border">
+    <div className="bg-background grid grid-cols-2 gap-3 rounded-md border p-3">
       <FormField
         control={form.control}
         name={`${prefix}.password`}
@@ -894,7 +841,7 @@ function SudokuSettingsForm({ prefix, form }: { prefix: string; form: UseFormRet
                 placeholder="0"
                 {...inputField}
                 value={inputField.value ?? ''}
-                onChange={(e) => inputField.onChange(e.target.value === '' ? undefined : Number(e.target.value))}
+                onChange={e => inputField.onChange(e.target.value === '' ? undefined : Number(e.target.value))}
                 className="h-8 text-xs"
               />
             </FormControl>
@@ -913,7 +860,7 @@ function SudokuSettingsForm({ prefix, form }: { prefix: string; form: UseFormRet
                 placeholder="0"
                 {...inputField}
                 value={inputField.value ?? ''}
-                onChange={(e) => inputField.onChange(e.target.value === '' ? undefined : Number(e.target.value))}
+                onChange={e => inputField.onChange(e.target.value === '' ? undefined : Number(e.target.value))}
                 className="h-8 text-xs"
               />
             </FormControl>
@@ -931,24 +878,10 @@ interface JsonArrayFieldProps {
 }
 
 function JsonArrayField({ form, name, label }: JsonArrayFieldProps) {
-  return (
-    <FormField
-      control={form.control}
-      name={name}
-      render={({ field }) => <JsonArrayEditor label={label} value={field.value} onChange={field.onChange} />}
-    />
-  )
+  return <FormField control={form.control} name={name} render={({ field }) => <JsonArrayEditor label={label} value={field.value} onChange={field.onChange} />} />
 }
 
-function JsonArrayEditor({
-  label,
-  value,
-  onChange,
-}: {
-  label: string
-  value: unknown
-  onChange: (value: XrayNoiseSettings[][]) => void
-}) {
+function JsonArrayEditor({ label, value, onChange }: { label: string; value: unknown; onChange: (value: XrayNoiseSettings[][]) => void }) {
   const serializedValue = JSON.stringify(Array.isArray(value) ? value : [], null, 2)
   const [text, setText] = useState(serializedValue)
 
@@ -963,7 +896,7 @@ function JsonArrayEditor({
         <CodeEditorPanel
           value={text}
           language="json"
-          onChange={(val) => {
+          onChange={val => {
             setText(val)
             try {
               const parsed = JSON.parse(val)
@@ -1002,16 +935,10 @@ function XrayNoiseSettingsList({ form, name, label }: XrayNoiseSettingsListProps
   }
 
   return (
-    <div className="space-y-3 rounded-md border p-3 bg-muted/10">
+    <div className="bg-muted/10 space-y-3 rounded-md border p-3">
       <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold text-muted-foreground">{label}</span>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="h-7 px-2 text-xs"
-          onClick={() => append({ type: 'rand', apply_to: 'ip', packet: '', delay: '', randRange: '' })}
-        >
+        <span className="text-muted-foreground text-xs font-semibold">{label}</span>
+        <Button type="button" variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => append({ type: 'rand', apply_to: 'ip', packet: '', delay: '', randRange: '' })}>
           <Plus className="mr-1 h-3.5 w-3.5" />
           {t('hostsDialog.noise.addNoise', { defaultValue: 'Add' })}
         </Button>
@@ -1019,7 +946,7 @@ function XrayNoiseSettingsList({ form, name, label }: XrayNoiseSettingsListProps
 
       <div className="space-y-2">
         {fields.map((field, index) => (
-          <div key={field.id} className="space-y-2 rounded-md border bg-background p-2">
+          <div key={field.id} className="bg-background space-y-2 rounded-md border p-2">
             <div className="flex items-center gap-2">
               <span className="text-muted-foreground w-5 shrink-0 text-center text-xs">{index + 1}</span>
               <FormField
@@ -1069,19 +996,13 @@ function XrayNoiseSettingsList({ form, name, label }: XrayNoiseSettingsListProps
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="h-7 w-7 transition-colors hover:bg-muted"
+                  className="hover:bg-muted h-7 w-7 transition-colors"
                   onClick={() => handleDuplicate(index)}
                   title={t('hostsDialog.noise.duplicateNoise')}
                 >
                   <Copy className="h-3.5 w-3.5" />
                 </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 text-destructive hover:bg-destructive/10"
-                  onClick={() => remove(index)}
-                >
+                <Button type="button" variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10 h-7 w-7" onClick={() => remove(index)}>
                   <Trash2 className="h-3.5 w-3.5" />
                 </Button>
               </div>
@@ -1135,11 +1056,7 @@ function XrayNoiseSettingsList({ form, name, label }: XrayNoiseSettingsListProps
             </div>
           </div>
         ))}
-        {fields.length === 0 && (
-          <div className="text-muted-foreground py-4 text-center text-xs">
-            {t('hostsDialog.noise.noNoiseSettings', { defaultValue: 'No noise items' })}
-          </div>
-        )}
+        {fields.length === 0 && <div className="text-muted-foreground py-4 text-center text-xs">{t('hostsDialog.noise.noNoiseSettings', { defaultValue: 'No noise items' })}</div>}
       </div>
     </div>
   )
@@ -1153,12 +1070,9 @@ export interface XrayStreamFinalmaskAccordionProps {
 }
 
 export function XrayStreamFinalmaskInboundAccordion({ accordionItemClassName, value, onChange, t }: XrayStreamFinalmaskAccordionProps) {
-  const configured = value && (
-    (Array.isArray(value.tcp) && value.tcp.length > 0) || 
-    (Array.isArray(value.udp) && value.udp.length > 0) || 
-    value.quicParams
-  )
-  
+  const enabled = value !== undefined && value !== null
+  const configured = hasFinalmaskContent(value)
+
   return (
     <Accordion type="single" collapsible className="mt-0! sm:col-span-2">
       <AccordionItem value="finalmask" className={accordionItemClassName}>
@@ -1169,8 +1083,19 @@ export function XrayStreamFinalmaskInboundAccordion({ accordionItemClassName, va
             {configured && <span className="bg-muted text-muted-foreground rounded px-1.5 py-0.5 text-[10px] font-medium">{t('enabled', { defaultValue: 'on' })}</span>}
           </div>
         </AccordionTrigger>
-        <AccordionContent className="pt-0 pb-3">
-          <XrayStreamFinalmaskFields value={value} onChange={onChange} t={t} />
+        <AccordionContent className="space-y-4 pt-0 pb-3">
+          <div className="flex items-center justify-between gap-3 rounded-md border p-3">
+            <div className="min-w-0 space-y-1">
+              <p className="text-xs font-medium">{t('enabled', { defaultValue: 'Enabled' })}</p>
+            </div>
+            <Switch
+              checked={enabled}
+              onCheckedChange={checked => {
+                onChange(checked ? { tcp: [], udp: [], quicParams: {} } : undefined)
+              }}
+            />
+          </div>
+          {enabled && <XrayStreamFinalmaskFields value={value} onChange={onChange} t={t} />}
         </AccordionContent>
       </AccordionItem>
     </Accordion>
