@@ -75,26 +75,33 @@ class NodeManager:
         async with self._lock.reader_lock:
             return self._nodes
 
-    async def get_healthy_nodes(self) -> list[tuple[int, PasarGuardNode]]:
+    async def _get_nodes_by_health(self, expected: Health) -> list[tuple[int, PasarGuardNode]]:
         async with self._lock.reader_lock:
-            nodes: list[tuple[int, PasarGuardNode]] = [
-                (id, node) for id, node in self._nodes.items() if (await node.get_health() == Health.HEALTHY)
-            ]
-            return nodes
+            items = list(self._nodes.items())
+
+        health_results = await asyncio.gather(
+            *(node.get_health() for _, node in items),
+            return_exceptions=True,
+        )
+
+        async with self._lock.reader_lock:
+            matched = []
+            for (node_id, node), health in zip(items, health_results):
+                if isinstance(health, Exception):
+                    self.logger.warning("Failed to get health for node %s: %s", node_id, health)
+                    continue
+                if health == expected and self._nodes.get(node_id) is node:
+                    matched.append((node_id, node))
+            return matched
+
+    async def get_healthy_nodes(self) -> list[tuple[int, PasarGuardNode]]:
+        return await self._get_nodes_by_health(Health.HEALTHY)
 
     async def get_broken_nodes(self) -> list[tuple[int, PasarGuardNode]]:
-        async with self._lock.reader_lock:
-            nodes: list[tuple[int, PasarGuardNode]] = [
-                (id, node) for id, node in self._nodes.items() if (await node.get_health() == Health.BROKEN)
-            ]
-            return nodes
+        return await self._get_nodes_by_health(Health.BROKEN)
 
     async def get_not_connected_nodes(self) -> list[tuple[int, PasarGuardNode]]:
-        async with self._lock.reader_lock:
-            nodes: list[tuple[int, PasarGuardNode]] = [
-                (id, node) for id, node in self._nodes.items() if (await node.get_health() == Health.NOT_CONNECTED)
-            ]
-            return nodes
+        return await self._get_nodes_by_health(Health.NOT_CONNECTED)
 
     async def _snapshot_nodes(self) -> list[PasarGuardNode]:
         async with self._lock.reader_lock:
