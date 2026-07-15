@@ -86,6 +86,7 @@ class FinalMaskTcpType(str, Enum):
     header_custom = "header-custom"
     fragment = "fragment"
     sudoku = "sudoku"
+    xmc = "xmc"
 
 
 class FinalMaskUdpType(str, Enum):
@@ -135,6 +136,12 @@ class FinalMaskSudokuSettings(FinalMaskPasswordSettings):
     padding_max: int | None = Field(default=None, alias="paddingMax")
 
 
+class FinalMaskXmcSettings(FinalMaskBaseModel):
+    hostname: str | None = Field(default=None)
+    usernames: list[str] | None = Field(default=None)
+    password: str | None = Field(default=None)
+
+
 class FinalMaskDomainSettings(FinalMaskBaseModel):
     domain: str | None = Field(default=None)
 
@@ -171,7 +178,11 @@ class FinalMaskQuicParams(FinalMaskBaseModel):
 
 
 FinalMaskTcpSettings = (
-    FinalMaskTcpHeaderCustomSettings | XrayFragmentSettings | FinalMaskSudokuSettings | dict[str, Any]
+    FinalMaskTcpHeaderCustomSettings
+    | XrayFragmentSettings
+    | FinalMaskSudokuSettings
+    | FinalMaskXmcSettings
+    | dict[str, Any]
 )
 FinalMaskUdpSettings = (
     FinalMaskUdpHeaderCustomSettings
@@ -188,6 +199,7 @@ FINAL_MASK_TCP_SETTINGS_MODELS = {
     FinalMaskTcpType.header_custom: FinalMaskTcpHeaderCustomSettings,
     FinalMaskTcpType.fragment: XrayFragmentSettings,
     FinalMaskTcpType.sudoku: FinalMaskSudokuSettings,
+    FinalMaskTcpType.xmc: FinalMaskXmcSettings,
 }
 
 FINAL_MASK_UDP_SETTINGS_MODELS = {

@@ -2554,11 +2554,12 @@ export const FinalMaskTcpType = {
   'header-custom': 'header-custom',
   fragment: 'fragment',
   sudoku: 'sudoku',
+  xmc: 'xmc',
 } as const
 
 export type FinalMaskTcpLayerOutputSettingsAnyOf = { [key: string]: unknown }
 
-export type FinalMaskTcpLayerOutputSettings = FinalMaskTcpHeaderCustomSettings | XrayFragmentSettingsOutput | FinalMaskSudokuSettings | FinalMaskTcpLayerOutputSettingsAnyOf
+export type FinalMaskTcpLayerOutputSettings = FinalMaskTcpHeaderCustomSettings | XrayFragmentSettingsOutput | FinalMaskSudokuSettings | FinalMaskXmcSettings | FinalMaskTcpLayerOutputSettingsAnyOf
 
 export interface FinalMaskTcpLayerOutput {
   type: FinalMaskTcpType
@@ -2568,7 +2569,7 @@ export interface FinalMaskTcpLayerOutput {
 
 export type FinalMaskTcpLayerInputSettingsAnyOf = { [key: string]: unknown }
 
-export type FinalMaskTcpLayerInputSettings = FinalMaskTcpHeaderCustomSettings | XrayFragmentSettingsInput | FinalMaskSudokuSettings | FinalMaskTcpLayerInputSettingsAnyOf
+export type FinalMaskTcpLayerInputSettings = FinalMaskTcpHeaderCustomSettings | XrayFragmentSettingsInput | FinalMaskSudokuSettings | FinalMaskXmcSettings | FinalMaskTcpLayerInputSettingsAnyOf
 
 export interface FinalMaskTcpLayerInput {
   type: FinalMaskTcpType
@@ -2608,6 +2609,19 @@ export interface FinalMaskSudokuSettings {
   customTables?: FinalMaskSudokuSettingsCustomTables
   paddingMin?: FinalMaskSudokuSettingsPaddingMin
   paddingMax?: FinalMaskSudokuSettingsPaddingMax
+  [key: string]: unknown
+}
+
+export type FinalMaskXmcSettingsPassword = string | null
+
+export type FinalMaskXmcSettingsUsernames = string[] | null
+
+export type FinalMaskXmcSettingsHostname = string | null
+
+export interface FinalMaskXmcSettings {
+  hostname?: FinalMaskXmcSettingsHostname
+  usernames?: FinalMaskXmcSettingsUsernames
+  password?: FinalMaskXmcSettingsPassword
   [key: string]: unknown
 }
 
