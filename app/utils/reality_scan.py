@@ -1,10 +1,13 @@
 import asyncio
 import ipaddress
 import os
+import select
 import socket
 import ssl
 import struct
 import time
+import weakref
+from concurrent.futures import ThreadPoolExecutor
 
 from cryptography import x509
 from cryptography.hazmat.primitives.asymmetric import x25519 as _x25519
@@ -21,14 +24,26 @@ MAX_TIMEOUT = 20.0
 DNS_TIMEOUT = 5.0
 MAX_CONCURRENT_SCANS = 4
 
-_scan_semaphore: "asyncio.Semaphore | None" = None
+_scan_semaphores: "weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, asyncio.Semaphore]" = weakref.WeakKeyDictionary()
+
+_scan_executor: "ThreadPoolExecutor | None" = None
 
 
 def _get_scan_semaphore() -> "asyncio.Semaphore":
-    global _scan_semaphore
-    if _scan_semaphore is None:
-        _scan_semaphore = asyncio.Semaphore(MAX_CONCURRENT_SCANS)
-    return _scan_semaphore
+    loop = asyncio.get_running_loop()
+    sem = _scan_semaphores.get(loop)
+    if sem is None:
+        sem = asyncio.Semaphore(MAX_CONCURRENT_SCANS)
+        _scan_semaphores[loop] = sem
+    return sem
+
+
+def _get_scan_executor() -> "ThreadPoolExecutor":
+    global _scan_executor
+    if _scan_executor is None:
+        _scan_executor = ThreadPoolExecutor(max_workers=MAX_CONCURRENT_SCANS + 2, thread_name_prefix="reality-scan")
+    return _scan_executor
+
 
 GROUP_X25519 = 0x001D
 GROUP_X25519MLKEM768 = 0x11EC
@@ -235,6 +250,17 @@ def _parse_certificate(der: bytes | None) -> dict:
     return out
 
 
+def _looks_like_hostname(name: str) -> bool:
+    if not name or len(name) > 253 or _has_control_chars(name):
+        return False
+    if any(ch.isspace() for ch in name):
+        return False
+    labels = name.rstrip(".").split(".")
+    if len(labels) < 2:
+        return False
+    return all(0 < len(label) <= 63 for label in labels)
+
+
 def _first_usable_name(der: bytes | None) -> str | None:
     if not der:
         return None
@@ -243,17 +269,61 @@ def _first_usable_name(der: bytes | None) -> str | None:
     except Exception:
         return None
     cn = _name_common_name(cert.subject)
-    if cn and not cn.startswith("*."):
-        return cn.strip()
+    if cn:
+        cn = cn.strip()
+        if not cn.startswith("*.") and _looks_like_hostname(cn):
+            return cn
     try:
         san = cert.extensions.get_extension_for_oid(ExtensionOID.SUBJECT_ALTERNATIVE_NAME)
         for name in san.value.get_values_for_type(x509.DNSName):
             name = name.strip()
-            if name and not name.startswith("*."):
+            if name and not name.startswith("*.") and _looks_like_hostname(name):
                 return name
     except Exception:
         pass
     return None
+
+
+def _wait_io(tls: ssl.SSLSocket, deadline: float, *, want_read: bool) -> bool:
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        return False
+    if want_read:
+        ready, _, _ = select.select([tls], [], [], remaining)
+    else:
+        _, ready, _ = select.select([], [tls], [], remaining)
+    return bool(ready)
+
+
+def _drive_handshake(tls: ssl.SSLSocket, deadline: float) -> None:
+    while True:
+        try:
+            tls.do_handshake()
+            return
+        except ssl.SSLWantReadError:
+            if not _wait_io(tls, deadline, want_read=True):
+                raise TimeoutError("TLS handshake timed out")
+        except ssl.SSLWantWriteError:
+            if not _wait_io(tls, deadline, want_read=False):
+                raise TimeoutError("TLS handshake timed out")
+
+
+def _tls_wrap_with_deadline(ctx: ssl.SSLContext, ip: str, port: int, server_hostname: str | None, timeout: float) -> tuple[ssl.SSLSocket, float]:
+    started = time.monotonic()
+    deadline = started + timeout
+    sock = socket.create_connection((ip, port), timeout=timeout)
+    try:
+        sock.setblocking(False)
+        tls = ctx.wrap_socket(sock, server_hostname=server_hostname, do_handshake_on_connect=False)
+    except BaseException:
+        sock.close()
+        raise
+    try:
+        _drive_handshake(tls, deadline)
+    except BaseException:
+        tls.close()
+        raise
+    return tls, (time.monotonic() - started) * 1000.0
 
 
 def _make_verify_ctx() -> ssl.SSLContext:
@@ -294,11 +364,9 @@ def _tls_probe(ip: str, port: int, sni: str | None, timeout: float) -> dict:
     der: bytes | None = None
 
     def _handshake(ctx: ssl.SSLContext, server_hostname: str | None) -> tuple[str | None, str | None, bytes | None, float]:
-        started = time.monotonic()
-        with socket.create_connection((ip, port), timeout=timeout) as sock:
-            with ctx.wrap_socket(sock, server_hostname=server_hostname) as tls:
-                latency = (time.monotonic() - started) * 1000.0
-                return tls.version(), tls.selected_alpn_protocol(), tls.getpeercert(binary_form=True), latency
+        tls, latency = _tls_wrap_with_deadline(ctx, ip, port, server_hostname, timeout)
+        with tls:
+            return tls.version(), tls.selected_alpn_protocol(), tls.getpeercert(binary_form=True), latency
 
     try:
         if sni is not None:
@@ -308,8 +376,12 @@ def _tls_probe(ip: str, port: int, sni: str | None, timeout: float) -> dict:
                 result["latency_ms"] = round(latency)
             except ssl.SSLCertVerificationError as exc:
                 result["reason"] = f"Certificate did not validate: {getattr(exc, 'verify_message', None) or exc}"
-                version, alpn, der, latency = _handshake(_make_permissive_ctx(), sni)
-                result["latency_ms"] = round(latency)
+                try:
+                    version, alpn, der, latency = _handshake(_make_permissive_ctx(), sni)
+                    result["latency_ms"] = round(latency)
+                except (ssl.SSLError, socket.timeout, TimeoutError, OSError, UnicodeError) as exc2:
+                    logger.debug("reality-scan: permissive fallback handshake failed for %s: %s", sni, exc2)
+                    return result
         else:
             version, alpn, der, latency = _handshake(_make_permissive_ctx(), None)
             result["latency_ms"] = round(latency)
@@ -325,7 +397,7 @@ def _tls_probe(ip: str, port: int, sni: str | None, timeout: float) -> dict:
                     result["latency_ms"] = round(latency)
                 except ssl.SSLCertVerificationError as exc:
                     result["reason"] = f"Certificate did not validate: {getattr(exc, 'verify_message', None) or exc}"
-                except (ssl.SSLError, socket.timeout, TimeoutError, OSError) as exc:
+                except (ssl.SSLError, socket.timeout, TimeoutError, OSError, UnicodeError) as exc:
                     result["reason"] = f"Certificate re-validation failed: {exc}"
     except (socket.timeout, TimeoutError):
         result["reason"] = "Connection timed out."
@@ -335,6 +407,9 @@ def _tls_probe(ip: str, port: int, sni: str | None, timeout: float) -> dict:
         return result
     except (ConnectionRefusedError, ConnectionResetError, OSError) as exc:
         result["reason"] = f"Connection failed: {exc}"
+        return result
+    except UnicodeError as exc:
+        result["reason"] = f"Server name could not be encoded for TLS: {exc}"
         return result
 
     if version is None:
@@ -526,27 +601,27 @@ def _h3_probe(host: str, ip: str, port: int, sni: str | None, timeout: float) ->
         ctx.verify_mode = ssl.CERT_NONE
         ctx.set_alpn_protocols(["http/1.1"])
         request_host = sni or host
+        tls, _ = _tls_wrap_with_deadline(ctx, ip, port, sni, timeout)
         deadline = time.monotonic() + timeout
-        with socket.create_connection((ip, port), timeout=timeout) as sock:
-            with ctx.wrap_socket(sock, server_hostname=sni) as tls:
-                tls.settimeout(timeout)
-                request = (
-                    f"GET / HTTP/1.1\r\nHost: {request_host}\r\n"
-                    "User-Agent: PasarGuard-RealityScan/1.0\r\nAccept: */*\r\nConnection: close\r\n\r\n"
-                )
-                tls.sendall(request.encode("ascii", "ignore"))
-                data = b""
-                while len(data) < 32768:
-                    remaining = deadline - time.monotonic()
-                    if remaining <= 0:
-                        break
-                    tls.settimeout(remaining)
-                    chunk = tls.recv(4096)
-                    if not chunk:
-                        break
-                    data += chunk
-                    if b"\r\n\r\n" in data:
-                        break
+        with tls:
+            tls.settimeout(timeout)
+            request = (
+                f"GET / HTTP/1.1\r\nHost: {request_host}\r\n"
+                "User-Agent: PasarGuard-RealityScan/1.0\r\nAccept: */*\r\nConnection: close\r\n\r\n"
+            )
+            tls.sendall(request.encode("ascii", "ignore"))
+            data = b""
+            while len(data) < 32768:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    break
+                tls.settimeout(remaining)
+                chunk = tls.recv(4096)
+                if not chunk:
+                    break
+                data += chunk
+                if b"\r\n\r\n" in data:
+                    break
         header_blob = data.split(b"\r\n\r\n", 1)[0].decode("latin-1", "ignore")
         for line in header_blob.split("\r\n"):
             lower = line.lower()
@@ -606,7 +681,12 @@ async def scan_reality_target(target: str, timeout: float | None = None) -> dict
     clamped = _clamp_timeout(timeout)
     async with _get_scan_semaphore():
         ip = await _resolve_public_ip_async(host, min(clamped, DNS_TIMEOUT))
+        loop = asyncio.get_running_loop()
+        executor = _get_scan_executor()
         try:
-            return await asyncio.wait_for(asyncio.to_thread(_scan_sync, host, ip, port, sni, clamped), timeout=clamped * 6 + 15)
+            return await asyncio.wait_for(
+                loop.run_in_executor(executor, _scan_sync, host, ip, port, sni, clamped),
+                timeout=clamped * 6 + 15,
+            )
         except TimeoutError:
             raise RealityScanError("Scan timed out.")
