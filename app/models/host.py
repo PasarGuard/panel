@@ -357,6 +357,7 @@ class XHttpSettings(BaseModel):
         "uplink_http_method",
         "session_placement",
         "session_key",
+        "session_id_table",
         "seq_placement",
         "seq_key",
         "uplink_data_placement",

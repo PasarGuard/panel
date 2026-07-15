@@ -331,10 +331,10 @@ class XRayConfig(dict):
         settings["uplink_http_method"] = get_xhttp_value("uplinkHTTPMethod")
         session_id_placement = get_xhttp_value("sessionIDPlacement")
         settings["session_placement"] = (
-            session_id_placement if session_id_placement is not None else get_xhttp_value("sessionPlacement")
+            session_id_placement if session_id_placement else get_xhttp_value("sessionPlacement")
         )
         session_id_key = get_xhttp_value("sessionIDKey")
-        settings["session_key"] = session_id_key if session_id_key is not None else get_xhttp_value("sessionKey")
+        settings["session_key"] = session_id_key if session_id_key else get_xhttp_value("sessionKey")
         settings["session_id_table"] = get_xhttp_value("sessionIDTable")
         settings["session_id_length"] = get_xhttp_value("sessionIDLength")
         settings["seq_placement"] = get_xhttp_value("seqPlacement")
@@ -447,7 +447,7 @@ class XRayConfig(dict):
 
         if stream := inbound.get("streamSettings"):
             method = stream.get("method")
-            net = method if method is not None else stream.get("network", "tcp")
+            net = method if method else stream.get("network", "tcp")
             net_settings = stream.get(f"{net}Settings", {})
             security = stream.get("security")
             tls_settings = stream.get(f"{security}Settings")
