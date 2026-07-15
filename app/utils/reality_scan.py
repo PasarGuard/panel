@@ -268,19 +268,21 @@ def _first_usable_name(der: bytes | None) -> str | None:
         cert = x509.load_der_x509_certificate(der)
     except Exception:
         return None
-    cn = _name_common_name(cert.subject)
-    if cn:
-        cn = cn.strip()
-        if not cn.startswith("*.") and _looks_like_hostname(cn):
-            return cn
     try:
         san = cert.extensions.get_extension_for_oid(ExtensionOID.SUBJECT_ALTERNATIVE_NAME)
-        for name in san.value.get_values_for_type(x509.DNSName):
-            name = name.strip()
-            if name and not name.startswith("*.") and _looks_like_hostname(name):
-                return name
+        dns_names = list(san.value.get_values_for_type(x509.DNSName))
     except Exception:
-        pass
+        dns_names = []
+    for name in dns_names:
+        name = name.strip()
+        if name and not name.startswith("*.") and _looks_like_hostname(name):
+            return name
+    if not dns_names:
+        cn = _name_common_name(cert.subject)
+        if cn:
+            cn = cn.strip()
+            if not cn.startswith("*.") and _looks_like_hostname(cn):
+                return cn
     return None
 
 
@@ -671,8 +673,13 @@ def _scan_sync(host: str, ip: str, port: int, sni: str | None, timeout: float) -
     result["curve"] = group["curve"]
     result["h3"] = _h3_probe(host, ip, port, effective_sni, timeout)
 
-    definitely_not_x25519 = group["x25519"] is False and group["post_quantum"] is False and group["curve"] is not None
-    result["feasible"] = bool(result["tls13"] and result["h2"] and result["cert_valid"] and not definitely_not_x25519)
+    base_ok = bool(result["tls13"] and result["h2"] and result["cert_valid"])
+    result["feasible"] = base_ok and result["x25519"] is True
+    if base_ok and result["x25519"] is not True and not result["reason"]:
+        if result["x25519"] is False:
+            result["reason"] = f"Key exchange is {result['curve'] or 'not X25519'}; REALITY needs X25519 or X25519MLKEM768."
+        else:
+            result["reason"] = "Could not confirm an X25519 key exchange."
     return result
 
 

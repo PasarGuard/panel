@@ -198,9 +198,31 @@ def test_parse_certificate_handles_none():
     assert rs._parse_certificate(None)["server_names"] == []
 
 
-def test_first_usable_name_prefers_common_name():
-    der = _self_signed_der("cloudflare-dns.com", ["cloudflare-dns.com", "one.one.one.one"])
-    assert rs._first_usable_name(der) == "cloudflare-dns.com"
+def test_first_usable_name_prefers_san_over_cn():
+    der = _self_signed_der("legacy-cn.example", ["real.example.com", "one.one.one.one"])
+    assert rs._first_usable_name(der) == "real.example.com"
+
+
+def test_first_usable_name_ignores_cn_when_san_present_but_unusable():
+    der = _self_signed_der("apex.example.com", ["*.example.com"])
+    assert rs._first_usable_name(der) is None
+
+
+def test_first_usable_name_falls_back_to_cn_without_san():
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "cn-only.example.com")])
+    now = datetime.datetime.now(datetime.timezone.utc)
+    cert = (
+        x509.CertificateBuilder()
+        .subject_name(name)
+        .issuer_name(name)
+        .public_key(key.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(now - datetime.timedelta(days=1))
+        .not_valid_after(now + datetime.timedelta(days=90))
+        .sign(key, hashes.SHA256())
+    )
+    assert rs._first_usable_name(cert.public_bytes(serialization.Encoding.DER)) == "cn-only.example.com"
 
 
 def test_first_usable_name_skips_wildcard_cn_uses_san():
@@ -248,10 +270,11 @@ def test_scan_sync_feasible_when_all_pass(monkeypatch):
     assert out["h3"] is True
 
 
-def test_scan_sync_feasible_when_group_unknown(monkeypatch):
+def test_scan_sync_not_feasible_when_group_unknown(monkeypatch):
     _patch_probes(monkeypatch, tls=dict(_GOOD_TLS), group={"x25519": None, "post_quantum": None, "curve": None}, h3=False)
     out = rs._scan_sync("example.com", "93.184.216.34", 443, "example.com", 5)
-    assert out["feasible"] is True
+    assert out["feasible"] is False
+    assert "X25519" in out["reason"]
 
 
 def test_scan_sync_carries_discovered_sni(monkeypatch):
@@ -267,6 +290,7 @@ def test_scan_sync_not_feasible_when_definitely_not_x25519(monkeypatch):
     _patch_probes(monkeypatch, tls=dict(_GOOD_TLS), group={"x25519": False, "post_quantum": False, "curve": "secp256r1"}, h3=False)
     out = rs._scan_sync("example.com", "93.184.216.34", 443, "example.com", 5)
     assert out["feasible"] is False
+    assert "secp256r1" in out["reason"]
 
 
 def test_scan_sync_not_feasible_without_tls13(monkeypatch):
