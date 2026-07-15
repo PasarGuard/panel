@@ -171,7 +171,7 @@ def _self_signed_der(cn: str, sans: list[str]) -> bytes:
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, cn), x509.NameAttribute(NameOID.ORGANIZATION_NAME, "Test Org")])
     now = datetime.datetime.now(datetime.timezone.utc)
-    cert = (
+    builder = (
         x509.CertificateBuilder()
         .subject_name(name)
         .issuer_name(name)
@@ -179,10 +179,10 @@ def _self_signed_der(cn: str, sans: list[str]) -> bytes:
         .serial_number(x509.random_serial_number())
         .not_valid_before(now - datetime.timedelta(days=1))
         .not_valid_after(now + datetime.timedelta(days=90))
-        .add_extension(x509.SubjectAlternativeName([x509.DNSName(s) for s in sans]), critical=False)
-        .sign(key, hashes.SHA256())
     )
-    return cert.public_bytes(serialization.Encoding.DER)
+    if sans:
+        builder = builder.add_extension(x509.SubjectAlternativeName([x509.DNSName(s) for s in sans]), critical=False)
+    return builder.sign(key, hashes.SHA256()).public_bytes(serialization.Encoding.DER)
 
 
 def test_parse_certificate_extracts_sans_and_filters_wildcards():
@@ -209,20 +209,7 @@ def test_first_usable_name_ignores_cn_when_san_present_but_unusable():
 
 
 def test_first_usable_name_falls_back_to_cn_without_san():
-    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-    name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "cn-only.example.com")])
-    now = datetime.datetime.now(datetime.timezone.utc)
-    cert = (
-        x509.CertificateBuilder()
-        .subject_name(name)
-        .issuer_name(name)
-        .public_key(key.public_key())
-        .serial_number(x509.random_serial_number())
-        .not_valid_before(now - datetime.timedelta(days=1))
-        .not_valid_after(now + datetime.timedelta(days=90))
-        .sign(key, hashes.SHA256())
-    )
-    assert rs._first_usable_name(cert.public_bytes(serialization.Encoding.DER)) == "cn-only.example.com"
+    assert rs._first_usable_name(_self_signed_der("cn-only.example.com", [])) == "cn-only.example.com"
 
 
 def test_first_usable_name_skips_wildcard_cn_uses_san():
@@ -418,20 +405,7 @@ def test_group_probe_non_x25519_group(monkeypatch):
 
 
 def test_parse_certificate_without_sans():
-    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-    name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "no-san.example")])
-    now = datetime.datetime.now(datetime.timezone.utc)
-    cert = (
-        x509.CertificateBuilder()
-        .subject_name(name)
-        .issuer_name(name)
-        .public_key(key.public_key())
-        .serial_number(x509.random_serial_number())
-        .not_valid_before(now - datetime.timedelta(days=1))
-        .not_valid_after(now + datetime.timedelta(days=90))
-        .sign(key, hashes.SHA256())
-    )
-    out = rs._parse_certificate(cert.public_bytes(serialization.Encoding.DER))
+    out = rs._parse_certificate(_self_signed_der("no-san.example", []))
     assert out["cert_subject"] == "no-san.example"
     assert out["server_names"] == []
 
@@ -515,20 +489,7 @@ def test_first_usable_name_skips_non_hostname_cn_uses_san():
 
 
 def test_first_usable_name_none_for_org_string_cn_no_san():
-    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-    name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "Some Org CA")])
-    now = datetime.datetime.now(datetime.timezone.utc)
-    cert = (
-        x509.CertificateBuilder()
-        .subject_name(name)
-        .issuer_name(name)
-        .public_key(key.public_key())
-        .serial_number(x509.random_serial_number())
-        .not_valid_before(now - datetime.timedelta(days=1))
-        .not_valid_after(now + datetime.timedelta(days=90))
-        .sign(key, hashes.SHA256())
-    )
-    assert rs._first_usable_name(cert.public_bytes(serialization.Encoding.DER)) is None
+    assert rs._first_usable_name(_self_signed_der("Some Org CA", [])) is None
 
 
 def test_wait_io_false_on_select_timeout(monkeypatch):
