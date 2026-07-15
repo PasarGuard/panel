@@ -2,7 +2,6 @@ import { orvalFetcher } from './http'
 
 export interface RealityScanRequest {
   target: string
-  sni?: string | null
   timeout?: number | null
 }
 
@@ -12,6 +11,7 @@ export interface RealityScanResult {
   ip: string | null
   port: number
   sni: string | null
+  sni_discovered: boolean
   feasible: boolean
   tls13: boolean
   tls_version: string | null

@@ -40,7 +40,7 @@ class CoreOperation(BaseOperation):
 
     async def scan_reality_target(self, request: RealityScanRequest) -> RealityScanResult:
         try:
-            result = await scan_reality_target(target=request.target, sni=request.sni, timeout=request.timeout)
+            result = await scan_reality_target(target=request.target, timeout=request.timeout)
         except RealityScanError as e:
             await self.raise_error(message=str(e), code=400)
         except Exception as e:

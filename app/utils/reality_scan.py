@@ -56,11 +56,11 @@ def _has_control_chars(value: str) -> bool:
     return any(ord(ch) < 0x20 or ord(ch) == 0x7F for ch in value)
 
 
-def parse_target(target: str, sni_override: str | None = None) -> tuple[str, int, str | None]:
+def parse_target(target: str) -> tuple[str, int, str | None]:
     if not target or not target.strip():
         raise RealityScanError("A target host is required.")
-    if _has_control_chars(target) or (sni_override and _has_control_chars(sni_override)):
-        raise RealityScanError("Target and SNI must not contain control characters.")
+    if _has_control_chars(target):
+        raise RealityScanError("Target must not contain control characters.")
 
     value = target.strip()
     if "://" in value:
@@ -87,12 +87,7 @@ def parse_target(target: str, sni_override: str | None = None) -> tuple[str, int
     if not host:
         raise RealityScanError("A target host is required.")
 
-    sni: str | None
-    if sni_override and sni_override.strip():
-        sni = sni_override.strip()
-    else:
-        sni = None if _is_ip_literal(host) else host
-
+    sni = None if _is_ip_literal(host) else host
     return host, port, sni
 
 
@@ -240,6 +235,43 @@ def _parse_certificate(der: bytes | None) -> dict:
     return out
 
 
+def _first_usable_name(der: bytes | None) -> str | None:
+    if not der:
+        return None
+    try:
+        cert = x509.load_der_x509_certificate(der)
+    except Exception:
+        return None
+    cn = _name_common_name(cert.subject)
+    if cn and not cn.startswith("*."):
+        return cn.strip()
+    try:
+        san = cert.extensions.get_extension_for_oid(ExtensionOID.SUBJECT_ALTERNATIVE_NAME)
+        for name in san.value.get_values_for_type(x509.DNSName):
+            name = name.strip()
+            if name and not name.startswith("*."):
+                return name
+    except Exception:
+        pass
+    return None
+
+
+def _make_verify_ctx() -> ssl.SSLContext:
+    ctx = ssl.create_default_context()
+    ctx.minimum_version = ssl.TLSVersion.TLSv1_2
+    ctx.set_alpn_protocols(["h2", "http/1.1"])
+    return ctx
+
+
+def _make_permissive_ctx() -> ssl.SSLContext:
+    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    ctx.minimum_version = ssl.TLSVersion.TLSv1_2
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    ctx.set_alpn_protocols(["h2", "http/1.1"])
+    return ctx
+
+
 def _tls_probe(ip: str, port: int, sni: str | None, timeout: float) -> dict:
     result: dict = {
         "tls13": False,
@@ -253,44 +285,48 @@ def _tls_probe(ip: str, port: int, sni: str | None, timeout: float) -> dict:
         "server_names": [],
         "latency_ms": None,
         "reason": None,
+        "sni": sni,
+        "sni_discovered": False,
     }
 
-    verify_ctx = ssl.create_default_context()
-    verify_ctx.minimum_version = ssl.TLSVersion.TLSv1_2
-    verify_ctx.set_alpn_protocols(["h2", "http/1.1"])
-    if sni is None:
-        verify_ctx.check_hostname = False
-        verify_ctx.verify_mode = ssl.CERT_NONE
-
-    permissive_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-    permissive_ctx.minimum_version = ssl.TLSVersion.TLSv1_2
-    permissive_ctx.check_hostname = False
-    permissive_ctx.verify_mode = ssl.CERT_NONE
-    permissive_ctx.set_alpn_protocols(["h2", "http/1.1"])
-
-    der: bytes | None = None
     version: str | None = None
     alpn: str | None = None
+    der: bytes | None = None
 
-    def _handshake(ctx: ssl.SSLContext) -> tuple[str | None, str | None, bytes | None, float]:
+    def _handshake(ctx: ssl.SSLContext, server_hostname: str | None) -> tuple[str | None, str | None, bytes | None, float]:
         started = time.monotonic()
         with socket.create_connection((ip, port), timeout=timeout) as sock:
-            with ctx.wrap_socket(sock, server_hostname=sni) as tls:
+            with ctx.wrap_socket(sock, server_hostname=server_hostname) as tls:
                 latency = (time.monotonic() - started) * 1000.0
                 return tls.version(), tls.selected_alpn_protocol(), tls.getpeercert(binary_form=True), latency
 
     try:
-        version, alpn, der, latency = _handshake(verify_ctx)
-        result["cert_valid"] = sni is not None
-        result["latency_ms"] = round(latency)
-    except ssl.SSLCertVerificationError as exc:
-        result["reason"] = f"Certificate did not validate: {getattr(exc, 'verify_message', None) or exc}"
-        try:
-            version, alpn, der, latency = _handshake(permissive_ctx)
+        if sni is not None:
+            try:
+                version, alpn, der, latency = _handshake(_make_verify_ctx(), sni)
+                result["cert_valid"] = True
+                result["latency_ms"] = round(latency)
+            except ssl.SSLCertVerificationError as exc:
+                result["reason"] = f"Certificate did not validate: {getattr(exc, 'verify_message', None) or exc}"
+                version, alpn, der, latency = _handshake(_make_permissive_ctx(), sni)
+                result["latency_ms"] = round(latency)
+        else:
+            version, alpn, der, latency = _handshake(_make_permissive_ctx(), None)
             result["latency_ms"] = round(latency)
-        except Exception as exc2:
-            result["reason"] = f"TLS handshake failed: {exc2}"
-            return result
+            discovered = _first_usable_name(der)
+            if not discovered:
+                result["reason"] = "No usable domain name found in the certificate."
+            else:
+                result["sni"] = discovered
+                result["sni_discovered"] = True
+                try:
+                    version, alpn, der, latency = _handshake(_make_verify_ctx(), discovered)
+                    result["cert_valid"] = True
+                    result["latency_ms"] = round(latency)
+                except ssl.SSLCertVerificationError as exc:
+                    result["reason"] = f"Certificate did not validate: {getattr(exc, 'verify_message', None) or exc}"
+                except (ssl.SSLError, socket.timeout, TimeoutError, OSError) as exc:
+                    result["reason"] = f"Certificate re-validation failed: {exc}"
     except (socket.timeout, TimeoutError):
         result["reason"] = "Connection timed out."
         return result
@@ -299,6 +335,9 @@ def _tls_probe(ip: str, port: int, sni: str | None, timeout: float) -> dict:
         return result
     except (ConnectionRefusedError, ConnectionResetError, OSError) as exc:
         result["reason"] = f"Connection failed: {exc}"
+        return result
+
+    if version is None:
         return result
 
     result["tls_version"] = _pretty_tls_version(version)
@@ -521,13 +560,15 @@ def _h3_probe(host: str, ip: str, port: int, sni: str | None, timeout: float) ->
 
 def _scan_sync(host: str, ip: str, port: int, sni: str | None, timeout: float) -> dict:
     tls = _tls_probe(ip, port, sni, timeout)
+    effective_sni = tls["sni"]
 
     result: dict = {
         "target": f"{host}:{port}",
         "host": host,
         "ip": ip,
         "port": port,
-        "sni": sni,
+        "sni": effective_sni,
+        "sni_discovered": tls["sni_discovered"],
         "feasible": False,
         "tls13": tls["tls13"],
         "tls_version": tls["tls_version"],
@@ -549,23 +590,23 @@ def _scan_sync(host: str, ip: str, port: int, sni: str | None, timeout: float) -
     if tls["tls_version"] is None:
         return result
 
-    group = _group_probe(ip, port, sni, timeout)
+    group = _group_probe(ip, port, effective_sni, timeout)
     result["x25519"] = group["x25519"]
     result["post_quantum"] = group["post_quantum"]
     result["curve"] = group["curve"]
-    result["h3"] = _h3_probe(host, ip, port, sni, timeout)
+    result["h3"] = _h3_probe(host, ip, port, effective_sni, timeout)
 
     definitely_not_x25519 = group["x25519"] is False and group["post_quantum"] is False and group["curve"] is not None
     result["feasible"] = bool(result["tls13"] and result["h2"] and result["cert_valid"] and not definitely_not_x25519)
     return result
 
 
-async def scan_reality_target(target: str, sni: str | None = None, timeout: float | None = None) -> dict:
-    host, port, resolved_sni = parse_target(target, sni)
+async def scan_reality_target(target: str, timeout: float | None = None) -> dict:
+    host, port, sni = parse_target(target)
     clamped = _clamp_timeout(timeout)
     async with _get_scan_semaphore():
         ip = await _resolve_public_ip_async(host, min(clamped, DNS_TIMEOUT))
         try:
-            return await asyncio.wait_for(asyncio.to_thread(_scan_sync, host, ip, port, resolved_sni, clamped), timeout=clamped * 6 + 15)
+            return await asyncio.wait_for(asyncio.to_thread(_scan_sync, host, ip, port, sni, clamped), timeout=clamped * 6 + 15)
         except TimeoutError:
             raise RealityScanError("Scan timed out.")

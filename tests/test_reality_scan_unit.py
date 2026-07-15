@@ -27,11 +27,6 @@ def test_parse_target_ok(target, expected):
     assert rs.parse_target(target) == expected
 
 
-def test_parse_target_sni_override():
-    host, port, sni = rs.parse_target("1.1.1.1:443", sni_override="example.org")
-    assert (host, port, sni) == ("1.1.1.1", 443, "example.org")
-
-
 @pytest.mark.parametrize("bad", ["", "   ", "host:0", "host:70000", "host:abc"])
 def test_parse_target_invalid(bad):
     with pytest.raises(RealityScanError):
@@ -42,8 +37,6 @@ def test_parse_target_invalid(bad):
 def test_parse_target_rejects_control_chars(bad):
     with pytest.raises(RealityScanError):
         rs.parse_target(bad)
-    with pytest.raises(RealityScanError):
-        rs.parse_target("example.com", sni_override=bad)
 
 
 @pytest.mark.parametrize(
@@ -205,6 +198,25 @@ def test_parse_certificate_handles_none():
     assert rs._parse_certificate(None)["server_names"] == []
 
 
+def test_first_usable_name_prefers_common_name():
+    der = _self_signed_der("cloudflare-dns.com", ["cloudflare-dns.com", "one.one.one.one"])
+    assert rs._first_usable_name(der) == "cloudflare-dns.com"
+
+
+def test_first_usable_name_skips_wildcard_cn_uses_san():
+    der = _self_signed_der("*.example.com", ["*.example.com", "www.example.com"])
+    assert rs._first_usable_name(der) == "www.example.com"
+
+
+def test_first_usable_name_none_when_all_wildcard():
+    der = _self_signed_der("*.example.com", ["*.example.com"])
+    assert rs._first_usable_name(der) is None
+
+
+def test_first_usable_name_none_when_no_cert():
+    assert rs._first_usable_name(None) is None
+
+
 def _patch_probes(monkeypatch, *, tls, group, h3):
     monkeypatch.setattr(rs, "_tls_probe", lambda *a, **k: tls)
     monkeypatch.setattr(rs, "_group_probe", lambda *a, **k: group)
@@ -223,6 +235,8 @@ _GOOD_TLS = {
     "server_names": ["example.com"],
     "latency_ms": 42,
     "reason": None,
+    "sni": "example.com",
+    "sni_discovered": False,
 }
 
 
@@ -237,6 +251,15 @@ def test_scan_sync_feasible_when_all_pass(monkeypatch):
 def test_scan_sync_feasible_when_group_unknown(monkeypatch):
     _patch_probes(monkeypatch, tls=dict(_GOOD_TLS), group={"x25519": None, "post_quantum": None, "curve": None}, h3=False)
     out = rs._scan_sync("example.com", "93.184.216.34", 443, "example.com", 5)
+    assert out["feasible"] is True
+
+
+def test_scan_sync_carries_discovered_sni(monkeypatch):
+    tls = dict(_GOOD_TLS, sni="cloudflare-dns.com", sni_discovered=True)
+    _patch_probes(monkeypatch, tls=tls, group={"x25519": True, "post_quantum": True, "curve": "X25519MLKEM768"}, h3=False)
+    out = rs._scan_sync("1.0.0.1", "1.0.0.1", 443, None, 5)
+    assert out["sni"] == "cloudflare-dns.com"
+    assert out["sni_discovered"] is True
     assert out["feasible"] is True
 
 
@@ -281,6 +304,17 @@ async def test_scan_reality_target_live_example():
     assert result["h2"] is True
     assert result["cert_valid"] is True
     assert result["latency_ms"] is not None
+    assert result["sni"] == "example.com"
+    assert result["sni_discovered"] is False
+
+
+@pytest.mark.skipif(os.environ.get("REALITY_SCAN_NETWORK_TEST") != "1", reason="network test opt-in")
+@pytest.mark.asyncio
+async def test_scan_reality_target_bare_ip_discovers_sni():
+    result = await rs.scan_reality_target("1.0.0.1:443", timeout=8)
+    assert result["sni_discovered"] is True
+    assert result["sni"]
+    assert result["cert_valid"] is True
 
 
 def _frame(payload: bytes, rtype: int = 0x16) -> bytes:
