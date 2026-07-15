@@ -2522,9 +2522,9 @@
       "securityAdvanced": {
         "title": "Security details"
       },
-      "tlsFallbacks": {
-        "title": "TLS fallbacks",
-        "hint": "For VLESS or Trojan with TCP and TLS. Xray matches SNI, ALPN, and path on the first bytes after TLS, then forwards to dest (port, host:port, or UDS path). Rows without dest are ignored.",
+      "fallbacks": {
+        "title": "Fallbacks",
+        "hint": "For VLESS or Trojan TCP inbounds. Xray forwards matching traffic to dest (port, host:port, or UDS path). SNI and ALPN only apply when TLS is enabled. Rows without dest are ignored.",
         "rowLabel": "Rule {{index}}",
         "remove": "Remove rule",
         "name": "SNI (name)",

@@ -7,6 +7,7 @@ from PasarGuardNodeBridge.common.service_pb2 import User as ProtoUser
 from app.db.models import Node, NodeConnectionType
 from app.node.user import core_users
 from app.utils.logger import get_logger
+from config import nats_settings
 
 type_map = {
     NodeConnectionType.rest: NodeType.rest,
@@ -17,6 +18,7 @@ type_map = {
 class NodeManager:
     def __init__(self):
         self._nodes: dict[int, PasarGuardNode] = {}
+        self._user_sync_locks: dict[int, asyncio.Lock] = {}
         self._lock = RWLock(fast=True)
         self.logger = get_logger("node-manager")
 
@@ -50,6 +52,7 @@ class NodeManager:
             )
 
             self._nodes[node.id] = new_node
+            self._user_sync_locks.setdefault(node.id, asyncio.Lock())
 
         # Stop the old node after releasing the lock.
         await self._shutdown_node(old_node)
@@ -59,6 +62,7 @@ class NodeManager:
     async def remove_node(self, id: int) -> None:
         async with self._lock.writer_lock:
             old_node: PasarGuardNode | None = self._nodes.pop(id, None)
+            self._user_sync_locks.pop(id, None)
 
         # Do cleanup without holding the lock to avoid slow delete operations.
         asyncio.create_task(self._shutdown_node(old_node))
@@ -96,12 +100,56 @@ class NodeManager:
         async with self._lock.reader_lock:
             return list(self._nodes.values())
 
+    async def _snapshot_node_items(self) -> list[tuple[int, PasarGuardNode]]:
+        async with self._lock.reader_lock:
+            return list(self._nodes.items())
+
+    @staticmethod
+    def _chunk_users(users: list[ProtoUser], size: int) -> list[list[ProtoUser]]:
+        return [users[start : start + size] for start in range(0, len(users), size)]
+
+    async def _sync_user_batch_to_node(self, node: PasarGuardNode, batch: list[ProtoUser]) -> int:
+        users_to_sync = batch
+        supports_chunked = True
+        supports_chunked_check = getattr(node, "_supports_chunked_sync", None)
+        if callable(supports_chunked_check):
+            supports_chunked, _ = await supports_chunked_check()
+
+        if supports_chunked:
+            users_to_sync = await node.sync_users_chunked(
+                batch,
+                chunk_size=len(batch),
+                flush_pending=False,
+            )
+            if not users_to_sync:
+                return 0
+
+        sync_batch_users = getattr(node, "_sync_batch_users", None)
+        if callable(sync_batch_users):
+            users_to_sync = await sync_batch_users(users_to_sync)
+
+        return len(users_to_sync)
+
+    async def _sync_users_to_node(self, node_id: int, node: PasarGuardNode, users: list[ProtoUser]):
+        batch_size = max(1, nats_settings.node_update_users_batch_size)
+        lock = self._user_sync_locks.setdefault(node_id, asyncio.Lock())
+        failed_count = 0
+
+        async with lock:
+            for batch in self._chunk_users(users, batch_size):
+                failed_count += await self._sync_user_batch_to_node(node, batch)
+
+        if failed_count:
+            raise RuntimeError(f"failed to sync {failed_count}/{len(users)} users to node {node_id}")
+
     async def _update_users(self, users: list[ProtoUser]):
-        nodes = await self._snapshot_nodes()
+        nodes = await self._snapshot_node_items()
         if not nodes:
             return
 
-        results = await asyncio.gather(*(node.update_users(users) for node in nodes), return_exceptions=True)
+        results = await asyncio.gather(
+            *(self._sync_users_to_node(node_id, node, users) for node_id, node in nodes), return_exceptions=True
+        )
         for result in results:
             if isinstance(result, Exception):
                 self.logger.error("Failed to sync users to one of the nodes: %s", result)

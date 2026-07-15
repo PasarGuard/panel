@@ -445,6 +445,9 @@ class XRayConfig(dict):
             security = stream.get("security")
             tls_settings = stream.get(f"{security}Settings")
 
+            if inbound["protocol"] == "hysteria" and security != "tls":
+                raise ValueError(f"{inbound['tag']} hysteria inbound requires TLS")
+
             if settings["is_fallback"] is True:
                 for fallback in settings["fallbacks"]:
                     fallback_tag = f"{inbound['tag']}<=>{fallback['tag']}"  # Fake inbound tag
