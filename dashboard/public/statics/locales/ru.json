@@ -2121,7 +2121,8 @@
     "shadowsocksPasswordGenerated": "Пароль успешно сгенерирован",
     "shadowsocksPasswordGenerationFailed": "Не удалось сгенерировать пароль",
     "discardChangesTitle": "Отменить изменения?",
-    "discardChangesDescription": "Несохранённые изменения конфигурации ядра будут потеряны, если закрыть редактор."
+    "discardChangesDescription": "Несохранённые изменения конфигурации ядра будут потеряны, если закрыть редактор.",
+    "scanRealityTarget": "Сканировать цель"
   },
   "coreEditor": {
     "nameRequired": "Укажите имя",
@@ -2923,6 +2924,39 @@
     "bulkRemove": {
       "title": "Удалить выбранные записи",
       "description": "Удалить {{count}} выбранных элементов? Они будут исключены из конфигурации."
+    },
+    "realityScan": {
+      "title": "Сканирование цели Reality",
+      "description": "Проверьте одну или несколько целей, чтобы убедиться, что они подходят как маскировочные сайты REALITY. Для REALITY требуются HTTP/2 и TLS 1.3.",
+      "targets": "Цели",
+      "maxTargets": "Можно просканировать до {{max}} целей.",
+      "timeout": "Тайм-аут (с)",
+      "scan": "Сканировать",
+      "stop": "Остановить",
+      "empty": "Введите одну или несколько целей и запустите сканирование.",
+      "loading": "Сканирование цели...",
+      "summary": "{{feasible}} / {{total}} подходят",
+      "suitableOnly": "Только подходящие",
+      "removeTarget": "Удалить {{tag}}",
+      "scanningShort": "Сканирование",
+      "scanFailed": "Ошибка",
+      "errorDescription": "Не удалось просканировать эту цель.",
+      "feasible": "Подходящая цель Reality",
+      "notFeasible": "Неподходящая цель Reality",
+      "tls13": "TLS 1.3",
+      "h2": "HTTP/2 (ALPN)",
+      "keyExchange": "Обмен ключами X25519",
+      "postQuantum": "Постквантовый (X25519MLKEM768)",
+      "h3": "HTTP/3 (объявлен)",
+      "advertised": "Alt-Svc",
+      "notAdvertised": "Не объявлен",
+      "supported": "Поддерживается",
+      "certificate": "Действительный сертификат",
+      "subject": "Субъект",
+      "expires": "Истекает",
+      "serverNames": "Имена серверов сертификата (действительные SNI)",
+      "unknown": "Неизвестно",
+      "other": "Другое"
     }
   },
   "settings.cores.title": "Ядра",

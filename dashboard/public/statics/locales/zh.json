@@ -2192,7 +2192,8 @@
     "shadowsocksPasswordGenerated": "密码生成成功",
     "shadowsocksPasswordGenerationFailed": "密码生成失败",
     "discardChangesTitle": "放弃更改？",
-    "discardChangesDescription": "如果关闭此编辑器，未保存的内核配置更改将会丢失。"
+    "discardChangesDescription": "如果关闭此编辑器，未保存的内核配置更改将会丢失。",
+    "scanRealityTarget": "扫描目标"
   },
   "coreEditor": {
     "nameRequired": "名称为必填项",
@@ -2994,6 +2995,39 @@
     "bulkRemove": {
       "title": "删除所选条目",
       "description": "删除所选的 {{count}} 项？它们将从配置中移除。"
+    },
+    "realityScan": {
+      "title": "扫描 Reality 目标",
+      "description": "探测一个或多个目标，检查它们是否适合用作 REALITY 伪装。REALITY 需要 HTTP/2 和 TLS 1.3。",
+      "targets": "目标",
+      "maxTargets": "最多可扫描 {{max}} 个目标。",
+      "timeout": "超时（秒）",
+      "scan": "扫描",
+      "stop": "停止",
+      "empty": "输入一个或多个目标并运行扫描。",
+      "loading": "正在扫描目标...",
+      "summary": "{{feasible}} / {{total}} 个适合",
+      "suitableOnly": "仅显示适合的",
+      "removeTarget": "删除 {{tag}}",
+      "scanningShort": "扫描中",
+      "scanFailed": "失败",
+      "errorDescription": "无法扫描此目标。",
+      "feasible": "适合的 Reality 目标",
+      "notFeasible": "不适合的 Reality 目标",
+      "tls13": "TLS 1.3",
+      "h2": "HTTP/2 (ALPN)",
+      "keyExchange": "X25519 密钥交换",
+      "postQuantum": "后量子 (X25519MLKEM768)",
+      "h3": "HTTP/3 (已通告)",
+      "advertised": "Alt-Svc",
+      "notAdvertised": "未通告",
+      "supported": "支持",
+      "certificate": "有效证书",
+      "subject": "主题",
+      "expires": "过期时间",
+      "serverNames": "证书服务器名称（有效 SNI）",
+      "unknown": "未知",
+      "other": "其他"
     }
   },
   "settings.cores.title": "核心",

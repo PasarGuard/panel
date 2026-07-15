@@ -2148,7 +2148,8 @@
     "shadowsocksPasswordGenerated": "رمز عبور با موفقیت تولید شد",
     "shadowsocksPasswordGenerationFailed": "تولید رمز عبور ناموفق بود",
     "discardChangesTitle": "لغو تغییرات؟",
-    "discardChangesDescription": "اگر این ویرایشگر را ببندید، تغییرات ذخیره‌نشدهٔ پیکربندی هسته از بین خواهد رفت."
+    "discardChangesDescription": "اگر این ویرایشگر را ببندید، تغییرات ذخیره‌نشدهٔ پیکربندی هسته از بین خواهد رفت.",
+    "scanRealityTarget": "اسکن هدف"
   },
   "coreEditor": {
     "nameRequired": "نام الزامی است",
@@ -2950,6 +2951,39 @@
     "bulkRemove": {
       "title": "حذف موارد انتخاب‌شده",
       "description": "{{count}} مورد انتخاب‌شده حذف شود؟ از پیکربندی حذف خواهند شد."
+    },
+    "realityScan": {
+      "title": "اسکن هدف Reality",
+      "description": "یک یا چند هدف را بررسی کنید تا مطمئن شوید به عنوان استتار REALITY کار می‌کنند. REALITY به HTTP/2 و TLS 1.3 نیاز دارد.",
+      "targets": "هدف‌ها",
+      "maxTargets": "حداکثر {{max}} هدف قابل اسکن است.",
+      "timeout": "مهلت (ثانیه)",
+      "scan": "اسکن",
+      "stop": "توقف",
+      "empty": "یک یا چند هدف وارد کنید و اسکن را اجرا کنید.",
+      "loading": "در حال اسکن هدف...",
+      "summary": "{{feasible}} / {{total}} مناسب",
+      "suitableOnly": "فقط موارد مناسب",
+      "removeTarget": "حذف {{tag}}",
+      "scanningShort": "در حال اسکن",
+      "scanFailed": "ناموفق",
+      "errorDescription": "اسکن این هدف امکان‌پذیر نیست.",
+      "feasible": "هدف مناسب Reality",
+      "notFeasible": "هدف نامناسب برای Reality",
+      "tls13": "TLS 1.3",
+      "h2": "HTTP/2 (ALPN)",
+      "keyExchange": "تبادل کلید X25519",
+      "postQuantum": "پساکوانتومی (X25519MLKEM768)",
+      "h3": "HTTP/3 (اعلام‌شده)",
+      "advertised": "Alt-Svc",
+      "notAdvertised": "اعلام‌نشده",
+      "supported": "پشتیبانی می‌شود",
+      "certificate": "گواهی معتبر",
+      "subject": "موضوع",
+      "expires": "انقضا",
+      "serverNames": "نام‌های سرور گواهی (SNIهای معتبر)",
+      "unknown": "نامشخص",
+      "other": "سایر"
     }
   },
   "settings.cores.title": "هسته‌ها",
