@@ -6,14 +6,46 @@ from sqlalchemy.ext.asyncio import async_object_session
 from app.db.models import Admin, AdminRole, AdminStatus
 from app.db.models import User
 from app.models.user import UserNotificationResponse
-from app.nats.node_rpc import node_nats_client
+from app.nats.node_rpc import encode_node_command, node_nats_client
 from app.nats.proto_utils import serialize_proto_message, serialize_proto_messages
 from app.node import node_manager
 from app.node.user import _serialize_user_for_node, serialize_user, serialize_users_for_node
 from app.utils.logger import get_logger
-from config import runtime_settings
+from config import nats_settings, runtime_settings
 
 logger = get_logger("node-sync")
+
+
+def _chunk_serialized_users_for_nats(users: list[dict]) -> list[list[dict]]:
+    if not users:
+        return []
+
+    max_payload_bytes = max(1024, nats_settings.node_command_max_payload_bytes)
+    max_batch_size = max(1, nats_settings.node_update_users_batch_size)
+    chunks: list[list[dict]] = []
+    current: list[dict] = []
+
+    for user in users:
+        candidate = [*current, user]
+        if current and (
+            len(candidate) > max_batch_size
+            or len(encode_node_command("update_users", {"users": candidate})) > max_payload_bytes
+        ):
+            chunks.append(current)
+            current = [user]
+        else:
+            current = candidate
+
+        if len(current) == 1 and len(encode_node_command("update_users", {"users": current})) > max_payload_bytes:
+            logger.warning(
+                "Single serialized user update exceeds configured NATS node command payload limit: user=%s",
+                user.get("email") or user.get("id") or "unknown",
+            )
+
+    if current:
+        chunks.append(current)
+
+    return chunks
 
 
 def _loaded_admin_sync_blocked(admin: Admin) -> bool | None:
@@ -110,7 +142,8 @@ else:
 
     async def _dispatch_users_update(proto_users):
         users_dicts = serialize_proto_messages(proto_users)
-        await node_nats_client.publish("update_users", {"users": users_dicts})
+        for users_chunk in _chunk_serialized_users_for_nats(users_dicts):
+            await node_nats_client.publish("update_users", {"users": users_chunk})
 
 
 async def sync_user(db_user: User) -> None:
