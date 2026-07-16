@@ -745,7 +745,7 @@
       "traffic": "监控管理员使用情况",
       "no_traffic": "没有使用情况数据"
     },
-    "disabled": "??"
+    "disabled": "已禁用"
   },
   "apiKeys": {
     "title": "API 密钥",
