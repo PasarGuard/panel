@@ -16,7 +16,7 @@ dependencies = [
     "commentjson==0.9.0",
     "cryptography==49.0.0",
     "fastapi>=0.139.0",
-    "jdatetime>=6.0.0",
+    "jdatetime>=6.0.1",
     "psutil>=7.2.2",
     "pydantic>=2.13.4",
     "pydantic-settings>=2.14.2",
