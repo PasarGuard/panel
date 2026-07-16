@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from PasarGuardNodeBridge import NodeAPIError
 from sse_starlette.sse import EventSourceResponse
 
-from app.db import AsyncSession, get_db
+from app.db import AsyncSession, GetDB, get_db
 from app.db.models import NodeStatus
 from app.models.admin import AdminDetails
 from app.models.node import (
@@ -45,7 +45,7 @@ from app.utils import responses
 from app.utils.logger import get_logger
 from config import runtime_settings
 
-from .authentication import require_permission
+from .authentication import oauth2_scheme, require_permission, require_permission_for_request
 from .dependencies import (
     get_node_clear_usage_query,
     get_node_list_query,
@@ -313,10 +313,13 @@ async def remove_node(
 
 
 @router.get("/{node_id}/logs")
-async def node_logs(node_id: int, request: Request, _: AdminDetails = Depends(require_permission("nodes", "logs"))):
+async def node_logs(node_id: int, request: Request, token: str | None = Depends(oauth2_scheme)):
     """
     Stream logs for a specific node as Server-Sent Events.
     """
+    async with GetDB() as db:
+        await require_permission_for_request(request, db, token, "nodes", "logs")
+
     return await _node_logs_handler(node_id, request)
 
 

@@ -89,8 +89,8 @@ class CoreManager:
             for core_id, core_data in cached_state.get("cores", {}).items():
                 try:
                     cores[int(core_id)] = self._core_from_json(core_data)
-                except Exception:
-                    self._logger.warning(f"Failed to reconstruct core {core_id} from JSON")
+                except Exception as exc:
+                    self._logger.warning(f"Failed to reconstruct core {core_id} from JSON: {exc}")
                     continue
 
             async with self._lock:

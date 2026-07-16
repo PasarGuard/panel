@@ -18,7 +18,8 @@ import { TcpHeaderObfuscationForm } from '@/features/core-editor/components/shar
 import { VlessAdvancedGenerationModal } from '@/features/core-editor/components/shared/vless-advanced-generation-modal'
 import { isBooleanParityField, isJsonRawMessageField, transportParityFieldLabel, XrayParityFormControl } from '@/features/core-editor/components/shared/xray-parity-form-control'
 import { pruneSockoptObject, XrayStreamSockoptInboundAccordion } from '@/features/core-editor/components/shared/xray-stream-sockopt-editor'
-import { InboundTlsFallbacksEditor } from '@/features/core-editor/components/xray/inbound-tls-fallbacks-editor'
+import { XrayStreamFinalmaskInboundAccordion } from '@/features/core-editor/components/shared/xray-stream-finalmask-editor'
+import { InboundFallbacksEditor } from '@/features/core-editor/components/xray/inbound-fallbacks-editor'
 import { useSectionHeaderAddPulseEffect, type SectionHeaderAddPulse } from '@/features/core-editor/hooks/use-section-header-add-pulse'
 import { useXrayPersistModifyGuard } from '@/features/core-editor/hooks/use-xray-persist-modify-guard'
 import { createInboundDialogSchema, realityInboundZodTriggerFieldNames } from '@/features/core-editor/kit/inbound-dialog-schema'
@@ -82,10 +83,10 @@ const SECURITY_FIELD_PREFIX = 'sec_'
 const TRANSPORT_FIELD_PREFIX = 'tr_'
 const REALITY_XVER_FIELD: XrayGeneratedFormField = { json: 'xver', go: 'Xver', type: 'uint64' }
 
-/** Inbound TLS booleans: shown in a 2-column grid after TLS fallbacks (see xray-config-kit `securityFieldOrderByType.tls`). */
+/** Inbound TLS booleans: shown in a 2-column grid after fallback rules (see xray-config-kit `securityFieldOrderByType.tls`). */
 const INBOUND_TLS_BOOLEAN_GRID_KEYS = new Set<string>(['allowInsecure', 'enableSessionResumption', 'disableSystemRoot', 'rejectUnknownSni'])
 
-/** Matches outbound DNS-rules / TLS fallbacks sub-accordion chrome. */
+/** Matches outbound DNS-rules / fallback sub-accordion chrome. */
 const INBOUND_SECURITY_SUBACCORDION_ITEM_CLASS = 'rounded-sm border px-4 [&_[data-state=closed]]:no-underline [&_[data-state=open]]:no-underline'
 
 function securityFieldName(jsonKey: string): string {
@@ -195,6 +196,37 @@ const XHTTP_EXTRA_META_KEYS = new Set<string>([
 
 function isXhttpExtraMetaKey(normalizedKey: string): boolean {
   return XHTTP_EXTRA_META_KEYS.has(normalizedKey)
+}
+
+const XHTTP_META_FALLBACK_BY_KEY: Readonly<Record<string, string>> = {
+  headers: 'headers',
+  xpaddingobfsmode: 'xPaddingObfsMode',
+  xpaddingbytes: 'xPaddingBytes',
+  xpaddingkey: 'xPaddingKey',
+  xpaddingheader: 'xPaddingHeader',
+  xpaddingplacement: 'xPaddingPlacement',
+  xpaddingmethod: 'xPaddingMethod',
+  uplinkhttpmethod: 'uplinkHTTPMethod',
+  sessionplacement: 'sessionPlacement',
+  sessionkey: 'sessionKey',
+  sessionidplacement: 'sessionIDPlacement',
+  sessionidkey: 'sessionIDKey',
+  sessionidtable: 'sessionIDTable',
+  sessionidlength: 'sessionIDLength',
+  seqplacement: 'seqPlacement',
+  seqkey: 'seqKey',
+  uplinkdataplacement: 'uplinkDataPlacement',
+  uplinkdatakey: 'uplinkDataKey',
+  uplinkchunksize: 'uplinkChunkSize',
+  scmaxeachpostbytes: 'scMaxEachPostBytes',
+  scminpostsintervalms: 'scMinPostsIntervalMs',
+  scmaxbufferedposts: 'scMaxBufferedPosts',
+  scstreamupserversecs: 'scStreamUpServerSecs',
+  servermaxheaderbytes: 'serverMaxHeaderBytes',
+  nogrpcheader: 'noGRPCHeader',
+  nosseheader: 'noSSEHeader',
+  xmux: 'xmux',
+  downloadsettings: 'downloadSettings',
 }
 
 function resolveTransportMetaKey(transport: Record<string, unknown> | null, normalizedKey: string, fallback: string): string {
@@ -771,8 +803,8 @@ function syncVlessFieldsFromInboundForm(form: { setValue: (n: string, v: string)
   form.setValue('vlessFlow', vlessInboundFlowForForm(row))
 }
 
-function inboundSupportsTlsFallbacksModel(next: Inbound): boolean {
-  return 'transport' in next && next.transport?.type === 'tcp' && 'security' in next && next.security?.type === 'tls'
+function inboundSupportsFallbacksModel(next: Inbound): boolean {
+  return 'transport' in next && next.transport?.type === 'tcp'
 }
 
 function mergeVlessInboundStreamFields(prev: Inbound, next: Inbound): Inbound {
@@ -782,7 +814,7 @@ function mergeVlessInboundStreamFields(prev: Inbound, next: Inbound): Inbound {
   if (p.encryption !== undefined) merged.encryption = p.encryption
   if (p.decryption !== undefined) merged.decryption = p.decryption
   if (p.flow !== undefined) merged.flow = p.flow
-  if (p.fallbacks !== undefined && p.fallbacks.length > 0 && inboundSupportsTlsFallbacksModel(next)) {
+  if (p.fallbacks !== undefined && p.fallbacks.length > 0 && inboundSupportsFallbacksModel(next)) {
     merged.fallbacks = p.fallbacks
   }
   return merged as Inbound
@@ -792,7 +824,7 @@ function mergeTrojanInboundStreamFields(prev: Inbound, next: Inbound): Inbound {
   if (prev.protocol !== 'trojan' || next.protocol !== 'trojan') return next
   const p = prev as { fallbacks?: Fallback[] }
   const merged = { ...next } as { fallbacks?: Fallback[] }
-  if (p.fallbacks !== undefined && p.fallbacks.length > 0 && inboundSupportsTlsFallbacksModel(next)) {
+  if (p.fallbacks !== undefined && p.fallbacks.length > 0 && inboundSupportsFallbacksModel(next)) {
     merged.fallbacks = p.fallbacks
   }
   return merged as Inbound
@@ -910,12 +942,17 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
   const [echUsageOption, setEchUsageOption] = useState<'default' | 'required' | 'preferred'>('default')
   const [draftInbound, setDraftInbound] = useState<Inbound | null>(null)
   const [editOriginalInbound, setEditOriginalInbound] = useState<Inbound | null>(null)
-  
+
   const [blockAddWhileDraftOpen, setBlockAddWhileDraftOpen] = useState(false)
   const [isGeneratingShadowsocksPassword, setIsGeneratingShadowsocksPassword] = useState(false)
   const [shadowsocksPasswordJustGenerated, setShadowsocksPasswordJustGenerated] = useState(false)
   const [vlessDecryptionJustGenerated, setVlessDecryptionJustGenerated] = useState(false)
   const [sessionIdTableCustomMode, setSessionIdTableCustomMode] = useState(false)
+
+  useEffect(() => {
+    if (detailOpen) setSessionIdTableCustomMode(false)
+  }, [detailOpen])
+
   const [vlessAdvancedOpen, setVlessAdvancedOpen] = useState(false)
   const [vlessAdvancedSeed, setVlessAdvancedSeed] = useState<VlessBuilderOptions | undefined>(undefined)
   const [isTagAutoGenerated, setIsTagAutoGenerated] = useState(true)
@@ -1338,15 +1375,14 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
   )
   const showTransportSection = useMemo(() => Boolean(showTransportTypeSelect || showTransportSettings || inbound?.protocol === 'hysteria'), [showTransportTypeSelect, showTransportSettings, inbound])
 
-  const showTlsFallbacksEditor = useMemo(() => {
+  const showFallbacksEditor = useMemo(() => {
     if (!inbound) return false
     if (inbound.protocol !== 'vless' && inbound.protocol !== 'trojan') return false
     if (inboundTransportType !== 'tcp') return false
-    if (inboundSecurityType !== 'tls') return false
     return true
-  }, [inbound, inboundTransportType, inboundSecurityType])
+  }, [inbound, inboundTransportType])
 
-  const inboundTlsFallbacks = useMemo((): Fallback[] | undefined => {
+  const inboundFallbacks = useMemo((): Fallback[] | undefined => {
     if (!inbound) return undefined
     if (inbound.protocol === 'vless' || inbound.protocol === 'trojan') return inbound.fallbacks
     return undefined
@@ -1398,22 +1434,8 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
   const updateXhttpMeta = useCallback(
     (normalizedKey: string, value: unknown) => {
       if (inboundTransportType !== 'xhttp') return
-      const fallbackByKey: Record<string, string> = {
-        xpaddingobfsmode: 'xPaddingObfsMode',
-        xpaddingbytes: 'xPaddingBytes',
-        xpaddingkey: 'xPaddingKey',
-        xpaddingheader: 'xPaddingHeader',
-        xpaddingplacement: 'xPaddingPlacement',
-        xpaddingmethod: 'xPaddingMethod',
-        sessionidtable: 'sessionIDTable',
-        sessionidlength: 'sessionIDLength',
-        sessionplacement: 'sessionPlacement',
-        sessionkey: 'sessionKey',
-        sessionidplacement: 'sessionIDPlacement',
-        sessionidkey: 'sessionIDKey',
-      }
       const nextExtra = { ...(xhttpExtra ?? {}) }
-      const fallback = fallbackByKey[normalizedKey] ?? normalizedKey
+      const fallback = XHTTP_META_FALLBACK_BY_KEY[normalizedKey] ?? normalizedKey
       const resolved = resolveTransportMetaKey(xhttpExtra, normalizedKey, fallback)
       if (value === undefined || String(value).trim() === '') delete nextExtra[resolved]
       else nextExtra[resolved] = value
@@ -1422,7 +1444,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
       patch.extra = Object.keys(nextExtra).length > 0 ? nextExtra : undefined
 
       // Clean up any legacy root-level xPadding keys that fail strict schema.
-      for (const [legacyNormalized, legacyFallback] of Object.entries(fallbackByKey)) {
+      for (const [legacyNormalized, legacyFallback] of Object.entries(XHTTP_META_FALLBACK_BY_KEY)) {
         const legacyRootKey = resolveTransportMetaKey(inboundTransport, legacyNormalized, legacyFallback)
         patch[legacyRootKey] = undefined
       }
@@ -1435,30 +1457,16 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
   const updateXhttpMetaBatch = useCallback(
     (updates: Record<string, unknown>) => {
       if (inboundTransportType !== 'xhttp') return
-      const fallbackByKey: Record<string, string> = {
-        xpaddingobfsmode: 'xPaddingObfsMode',
-        xpaddingbytes: 'xPaddingBytes',
-        xpaddingkey: 'xPaddingKey',
-        xpaddingheader: 'xPaddingHeader',
-        xpaddingplacement: 'xPaddingPlacement',
-        xpaddingmethod: 'xPaddingMethod',
-        sessionidtable: 'sessionIDTable',
-        sessionidlength: 'sessionIDLength',
-        sessionplacement: 'sessionPlacement',
-        sessionkey: 'sessionKey',
-        sessionidplacement: 'sessionIDPlacement',
-        sessionidkey: 'sessionIDKey',
-      }
       const nextExtra = { ...(xhttpExtra ?? {}) }
       for (const [normalizedKey, value] of Object.entries(updates)) {
-        const fallback = fallbackByKey[normalizedKey] ?? normalizedKey
+        const fallback = XHTTP_META_FALLBACK_BY_KEY[normalizedKey] ?? normalizedKey
         const resolved = resolveTransportMetaKey(xhttpExtra, normalizedKey, fallback)
         if (value === undefined || String(value).trim() === '') delete nextExtra[resolved]
         else nextExtra[resolved] = value
       }
       const patch: Record<string, unknown> = {}
       patch.extra = Object.keys(nextExtra).length > 0 ? nextExtra : undefined
-      for (const [legacyNormalized, legacyFallback] of Object.entries(fallbackByKey)) {
+      for (const [legacyNormalized, legacyFallback] of Object.entries(XHTTP_META_FALLBACK_BY_KEY)) {
         const legacyRootKey = resolveTransportMetaKey(inboundTransport, legacyNormalized, legacyFallback)
         patch[legacyRootKey] = undefined
       }
@@ -1477,40 +1485,10 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
 
   useEffect(() => {
     if (inboundTransportType !== 'xhttp' || !inboundTransport) return
-    const xhttpMetaFallbacks: Record<string, string> = {
-      headers: 'headers',
-      xpaddingobfsmode: 'xPaddingObfsMode',
-      xpaddingbytes: 'xPaddingBytes',
-      xpaddingkey: 'xPaddingKey',
-      xpaddingheader: 'xPaddingHeader',
-      xpaddingplacement: 'xPaddingPlacement',
-      xpaddingmethod: 'xPaddingMethod',
-      uplinkhttpmethod: 'uplinkHTTPMethod',
-      sessionplacement: 'sessionPlacement',
-      sessionkey: 'sessionKey',
-      sessionidplacement: 'sessionIDPlacement',
-      sessionidkey: 'sessionIDKey',
-      sessionidtable: 'sessionIDTable',
-      sessionidlength: 'sessionIDLength',
-      seqplacement: 'seqPlacement',
-      seqkey: 'seqKey',
-      uplinkdataplacement: 'uplinkDataPlacement',
-      uplinkdatakey: 'uplinkDataKey',
-      uplinkchunksize: 'uplinkChunkSize',
-      scmaxeachpostbytes: 'scMaxEachPostBytes',
-      scminpostsintervalms: 'scMinPostsIntervalMs',
-      scmaxbufferedposts: 'scMaxBufferedPosts',
-      scstreamupserversecs: 'scStreamUpServerSecs',
-      servermaxheaderbytes: 'serverMaxHeaderBytes',
-      nogrpcheader: 'noGRPCHeader',
-      nosseheader: 'noSSEHeader',
-      xmux: 'xmux',
-      downloadsettings: 'downloadSettings',
-    }
     const nextExtra = { ...(xhttpExtra ?? {}) }
     let changed = false
 
-    for (const [normalizedKey, fallbackKey] of Object.entries(xhttpMetaFallbacks)) {
+    for (const [normalizedKey, fallbackKey] of Object.entries(XHTTP_META_FALLBACK_BY_KEY)) {
       const rootKey = resolveTransportMetaKey(inboundTransport, normalizedKey, fallbackKey)
       const hasRootKey = Object.prototype.hasOwnProperty.call(inboundTransport, rootKey)
       if (!hasRootKey || rootKey === 'extra') continue
@@ -1528,7 +1506,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
 
     const patch: Record<string, unknown> = {}
     patch.extra = Object.keys(nextExtra).length > 0 ? nextExtra : undefined
-    for (const [normalizedKey, fallbackKey] of Object.entries(xhttpMetaFallbacks)) {
+    for (const [normalizedKey, fallbackKey] of Object.entries(XHTTP_META_FALLBACK_BY_KEY)) {
       const rootKey = resolveTransportMetaKey(inboundTransport, normalizedKey, fallbackKey)
       if (Object.prototype.hasOwnProperty.call(inboundTransport, rootKey) && rootKey !== 'extra') {
         patch[rootKey] = undefined
@@ -1545,7 +1523,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
     initialCapturedRef.current = false
   }
 
-    const isTagDuplicate = useCallback(
+  const isTagDuplicate = useCallback(
     (candidateRaw: string): boolean => {
       if (!profile) return false
       return profileTagHasDuplicateUsage(profile, candidateRaw, dialogMode === 'edit' ? { owner: 'inbound', index: selected } : undefined)
@@ -1663,11 +1641,6 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
     if ('security' in nextInbound && nextInbound.security && form.getValues('security') === 'none') {
       // When switching from TLS/Reality to none, force-drop advanced security keys.
       nextInbound = { ...nextInbound, security: { type: 'none' } } as unknown as Inbound
-      if (nextInbound.protocol === 'vless' || nextInbound.protocol === 'trojan') {
-        const copy = { ...nextInbound } as Record<string, unknown>
-        delete copy.fallbacks
-        nextInbound = copy as Inbound
-      }
     }
 
     const selectedTransport = form.getValues('transport') as Transport['type'] | undefined
@@ -1791,6 +1764,25 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
     const raw = (inbound as { streamAdvanced?: { sockopt?: Record<string, unknown> } }).streamAdvanced?.sockopt
     const sockValue = raw && typeof raw === 'object' && !Array.isArray(raw) ? ({ ...raw } as Record<string, unknown>) : undefined
     return <XrayStreamSockoptInboundAccordion accordionItemClassName={INBOUND_SECURITY_SUBACCORDION_ITEM_CLASS} value={sockValue} onChange={patchInboundSockopt} t={t} />
+  }
+
+  function patchInboundFinalmask(next: Record<string, unknown> | undefined) {
+    if (!inbound || inbound.protocol === 'unmanaged' || inbound.protocol === 'tun') return
+    const baseRec = { ...(inbound as Record<string, unknown>) }
+    const prevSa = (baseRec.streamAdvanced as Record<string, unknown> | undefined) ?? {}
+    const sa = { ...prevSa }
+    if (next === undefined) delete sa.finalmask
+    else sa.finalmask = next
+    if (Object.keys(sa).length === 0) delete baseRec.streamAdvanced
+    else baseRec.streamAdvanced = sa
+    replaceEffectiveInbound(baseRec as Inbound)
+  }
+
+  function renderInboundFinalmask() {
+    if (!inbound || inbound.protocol === 'unmanaged' || inbound.protocol === 'tun') return null
+    const raw = (inbound as { streamAdvanced?: { finalmask?: Record<string, unknown> } }).streamAdvanced?.finalmask
+    const finalmaskValue = raw && typeof raw === 'object' && !Array.isArray(raw) ? ({ ...raw } as Record<string, unknown>) : undefined
+    return <XrayStreamFinalmaskInboundAccordion accordionItemClassName={INBOUND_SECURITY_SUBACCORDION_ITEM_CLASS} value={finalmaskValue} onChange={patchInboundFinalmask} t={t} />
   }
 
   const patchInbound = (patch: Partial<Inbound>) => {
@@ -1967,9 +1959,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
           delete nextTransport.masquerade
         } else {
           const previousMasquerade =
-            nextTransport.masquerade && typeof nextTransport.masquerade === 'object' && !Array.isArray(nextTransport.masquerade)
-              ? (nextTransport.masquerade as Record<string, unknown>)
-              : {}
+            nextTransport.masquerade && typeof nextTransport.masquerade === 'object' && !Array.isArray(nextTransport.masquerade) ? (nextTransport.masquerade as Record<string, unknown>) : {}
           const patchType = typeof patch.masquerade.type === 'string' ? patch.masquerade.type : undefined
           const previousType = typeof previousMasquerade.type === 'string' ? previousMasquerade.type : undefined
           const mergedMasquerade = { ...(patchType && patchType !== previousType ? {} : previousMasquerade), ...patch.masquerade } as Record<string, unknown>
@@ -2466,7 +2456,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                 }
                 return init
               })()
-            : editOriginalInbound ?? null
+            : (editOriginalInbound ?? null)
         }
         getCurrentData={() => {
           const cur = dialogMode === 'add' ? draftInbound : inbound
@@ -2477,8 +2467,14 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
           }
           return copy
         }}
-        discardTitle={dialogMode === 'add' ? t('coreEditor.inbound.discardDraftTitle', { defaultValue: 'Discard new inbound?' }) : t('coreEditor.inbound.discardEditTitle', { defaultValue: 'Discard changes?' })}
-        discardDescription={dialogMode === 'add' ? t('coreEditor.inbound.discardDraftDescription', { defaultValue: 'This inbound is not in the list yet. Close without adding it will discard your changes.' }) : t('coreEditor.inbound.discardEditDescription', { defaultValue: 'Your modifications to this inbound will be lost if you close now.' })}
+        discardTitle={
+          dialogMode === 'add' ? t('coreEditor.inbound.discardDraftTitle', { defaultValue: 'Discard new inbound?' }) : t('coreEditor.inbound.discardEditTitle', { defaultValue: 'Discard changes?' })
+        }
+        discardDescription={
+          dialogMode === 'add'
+            ? t('coreEditor.inbound.discardDraftDescription', { defaultValue: 'This inbound is not in the list yet. Close without adding it will discard your changes.' })
+            : t('coreEditor.inbound.discardEditDescription', { defaultValue: 'Your modifications to this inbound will be lost if you close now.' })
+        }
         discardActionLabel={t('coreEditor.inbound.discardDraftAction', { defaultValue: 'Discard' })}
         inlinePersistValidation={!(detailOpen && dialogMode === 'add')}
         persistValidationPathPrefix={detailOpen && dialogMode === 'edit' ? `/inbounds/${selected + 1}` : undefined}
@@ -4163,9 +4159,9 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                     </div>
                   </>
                 )}
-                {showTlsFallbacksEditor && inbound ? (
+                {showFallbacksEditor && inbound ? (
                   <div className="sm:col-span-2">
-                    <InboundTlsFallbacksEditor fallbacks={inboundTlsFallbacks} onPersist={fb => patchInbound({ fallbacks: fb } as Partial<Inbound>)} />
+                    <InboundFallbacksEditor fallbacks={inboundFallbacks} onPersist={fb => patchInbound({ fallbacks: fb } as Partial<Inbound>)} />
                   </div>
                 ) : null}
                 {inboundSecurityType === 'tls' && inboundTlsBooleanGridFieldOrder.length > 0 ? (
@@ -4205,6 +4201,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                   </div>
                 ) : null}
                 {renderInboundSockopt()}
+                {renderInboundFinalmask()}
                 {inbound.protocol !== 'hysteria' ? renderSniffingAccordion() : null}
               </div>
             </form>
@@ -4618,6 +4615,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                 />
 
                 {renderInboundSockopt()}
+                {renderInboundFinalmask()}
                 {renderSniffingAccordion()}
               </div>
             </form>
@@ -5435,6 +5433,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                 )}
 
                 {renderInboundSockopt()}
+                {renderInboundFinalmask()}
                 {renderSniffingAccordion()}
               </div>
             </form>
@@ -5459,8 +5458,6 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
           toast.success(t('coreConfigModal.vlessEncryptionGenerated'))
         }}
       />
-
-      
 
       <AlertDialog open={blockAddWhileDraftOpen} onOpenChange={setBlockAddWhileDraftOpen}>
         <AlertDialogContent dir={dir}>

@@ -57,7 +57,8 @@ async def reset_all_users_data_usage(
     if not user_ids:
         return
 
-    await db.execute(update(User).where(User.id.in_(user_ids)).values(used_traffic=0, status=UserStatus.active))
+    reset_status = case((User.status == UserStatus.limited, UserStatus.active), else_=User.status)
+    await db.execute(update(User).where(User.id.in_(user_ids)).values(used_traffic=0, status=reset_status))
 
     await db.execute(delete(UserUsageResetLogs).where(UserUsageResetLogs.user_id.in_(user_ids)))
     if clean_chart_data:

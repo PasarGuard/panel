@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions and support
+    url: https://github.com/PasarGuard/panel/discussions
+    about: Please use discussions for setup questions, troubleshooting help, or ideas that are not ready as issues.
+  - name: Telegram support group
+    url: https://t.me/PasarGuardGP
+    about: Join the community group for support questions and discussion.
+  - name: Telegram channel
+    url: https://t.me/Pasar_Guard
+    about: Follow the official channel for PasarGuard news and announcements.

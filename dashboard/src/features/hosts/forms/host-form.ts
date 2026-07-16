@@ -1,4 +1,5 @@
 import * as z from 'zod'
+import type { FinalMaskInput } from '@/service/api'
 
 interface Brutal {
   enable?: boolean
@@ -163,6 +164,7 @@ export interface HostFormValues {
       heartbeatPeriod?: number
     }
   }
+  final_mask_settings?: FinalMaskInput
 }
 
 const transportSettingsSchema = z
@@ -180,8 +182,20 @@ const transportSettingsSchema = z
         uplink_http_method: z.string().nullish().optional(),
         session_placement: z.string().nullish().optional(),
         session_key: z.string().nullish().optional(),
-        session_id_table: z.string().nullish().optional(),
-        session_id_length: z.string().nullish().optional(),
+        session_id_table: z
+          .string()
+          .nullish()
+          .optional()
+          .refine(val => !val || /^[\x20-\x7E]*$/.test(val), {
+            message: 'Session ID Table must contain only printable ASCII characters',
+          }),
+        session_id_length: z
+          .string()
+          .nullish()
+          .optional()
+          .refine(val => !val || /^\d{1,16}(-\d{1,16})?$/.test(val), {
+            message: "Session ID Length must be in format like '10-20' or '10'",
+          }),
         seq_placement: z.string().nullish().optional(),
         seq_key: z.string().nullish().optional(),
         uplink_data_placement: z.string().nullish().optional(),
@@ -453,6 +467,7 @@ export const HostFormSchema = z.object({
       xray: z.number().int().positive().optional(),
     })
     .optional(),
+  final_mask_settings: z.custom<FinalMaskInput>().optional(),
 })
 
 export const hostFormDefaultValues: HostFormValues = {
@@ -480,4 +495,5 @@ export const hostFormDefaultValues: HostFormValues = {
   verify_peer_cert_by_name: [],
   fragment_settings: undefined,
   subscription_templates: undefined,
+  final_mask_settings: undefined,
 }

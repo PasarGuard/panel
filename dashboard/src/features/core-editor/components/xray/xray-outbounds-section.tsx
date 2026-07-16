@@ -17,6 +17,7 @@ import { CoreEditorFormDialog } from '@/features/core-editor/components/shared/c
 import { JsonCodeEditorPanel } from '@/features/core-editor/components/shared/json-code-editor-panel'
 import { OutboundLatencyTestDialog } from '@/features/core-editor/components/xray/outbound-latency-test-dialog'
 import { pruneSockoptObject, XrayStreamSockoptFields } from '@/features/core-editor/components/shared/xray-stream-sockopt-editor'
+import { XrayStreamFinalmaskFields } from '@/features/core-editor/components/shared/xray-stream-finalmask-editor'
 import { inferParityFieldMode, outboundScalarParityFieldPrefersFullGridWidth, outboundSettingToString, parseOutboundSettingValue } from '@/features/core-editor/kit/xray-parity-value'
 import { useCoreEditorStore } from '@/features/core-editor/state/core-editor-store'
 import { useSectionHeaderAddPulseEffect, type SectionHeaderAddPulse } from '@/features/core-editor/hooks/use-section-header-add-pulse'
@@ -328,9 +329,39 @@ function patchOutboundSockopt(ob: Outbound, patchOutbound: (next: Outbound) => v
   patchOutbound(stripEmptyStreamSettingsFromRecord(base) as Outbound)
 }
 
+function outboundFinalmaskValue(ob: Outbound): Record<string, unknown> | undefined {
+  const streamSettings = getOutboundStreamSettingsRecord(ob)
+  const raw = streamSettings?.finalmask
+  return raw && typeof raw === 'object' && !Array.isArray(raw) ? ({ ...raw } as Record<string, unknown>) : undefined
+}
+
+function finalmaskHasContent(value: Record<string, unknown> | undefined): boolean {
+  return Boolean(
+    value &&
+    ((Array.isArray(value.tcp) && value.tcp.length > 0) ||
+      (Array.isArray(value.udp) && value.udp.length > 0) ||
+      (value.quicParams && typeof value.quicParams === 'object' && !Array.isArray(value.quicParams) && Object.keys(value.quicParams).length > 0)),
+  )
+}
+
+function patchOutboundFinalmask(ob: Outbound, patchOutbound: (next: Outbound) => void, next: Record<string, unknown> | undefined) {
+  const base = { ...(ob as Record<string, unknown>) }
+  const streamSettings = { ...(getOutboundStreamSettingsRecord(ob) ?? {}) }
+  if (next === undefined) delete streamSettings.finalmask
+  else streamSettings.finalmask = next
+
+  if (Object.keys(streamSettings).length === 0) delete base.streamSettings
+  else base.streamSettings = streamSettings
+  patchOutbound(stripEmptyStreamSettingsFromRecord(base) as Outbound)
+}
+
 function simpleOutboundStreamSettingsForProtocolSwitch(ob: Outbound): Record<string, unknown> | undefined {
   const sockopt = pruneSockoptObject(outboundSockoptValue(ob))
-  return sockopt ? { sockopt } : undefined
+  const finalmask = outboundFinalmaskValue(ob)
+  const out: Record<string, unknown> = {}
+  if (sockopt) out.sockopt = sockopt
+  if (finalmask) out.finalmask = finalmask
+  return Object.keys(out).length > 0 ? out : undefined
 }
 
 /** Merge into flattened settings, then canonicalize (`vnext` / `servers`) for storage. */
@@ -552,9 +583,12 @@ export function XrayOutboundsSection({ headerAddPulse, headerAddEpoch }: XrayOut
     [ob, visibility?.streamSettings],
   )
 
+  const showOutboundFinalmaskAccordion = useMemo(() => Boolean(visibility?.streamSettings) && !!ob && ob.protocol !== 'unmanaged', [ob, visibility?.streamSettings])
+
   const showOutboundStackedAccordions = useMemo(
-    () => !!ob && ob.protocol !== 'unmanaged' && (showOutboundStreamSettingsAccordion || showStandaloneOutboundSockoptAccordion || 'mux' in ob || 'proxySettings' in ob),
-    [ob, showOutboundStreamSettingsAccordion, showStandaloneOutboundSockoptAccordion],
+    () =>
+      !!ob && ob.protocol !== 'unmanaged' && (showOutboundStreamSettingsAccordion || showStandaloneOutboundSockoptAccordion || showOutboundFinalmaskAccordion || 'mux' in ob || 'proxySettings' in ob),
+    [ob, showOutboundStreamSettingsAccordion, showStandaloneOutboundSockoptAccordion, showOutboundFinalmaskAccordion],
   )
 
   const form = useForm<Record<string, string>>({})
@@ -654,7 +688,6 @@ export function XrayOutboundsSection({ headerAddPulse, headerAddEpoch }: XrayOut
     setEditOriginalOutbound(null)
     initialCapturedRef.current = false
   }
-
 
   const patchOutbound = (next: Outbound) => {
     const sanitized = sanitizeOutboundForState(next)
@@ -897,8 +930,14 @@ export function XrayOutboundsSection({ headerAddPulse, headerAddEpoch }: XrayOut
             : { outbound: editOriginalOutbound ?? ob, uriDraft: '', tab: outboundDialogTab, json: outboundJsonText }
         }
         getCurrentData={() => ({ outbound: dialogMode === 'add' ? draftOutbound : ob, uriDraft, tab: outboundDialogTab, json: outboundJsonText })}
-        discardTitle={dialogMode === 'add' ? t('coreEditor.outbound.discardDraftTitle', { defaultValue: 'Discard new outbound?' }) : t('coreEditor.outbound.discardEditTitle', { defaultValue: 'Discard changes?' })}
-        discardDescription={dialogMode === 'add' ? t('coreEditor.outbound.discardDraftDescription', { defaultValue: 'This outbound is not in the list yet. Closing without adding will discard your changes.' }) : t('coreEditor.outbound.discardEditDescription', { defaultValue: 'Your modifications to this outbound will be lost if you close now.' })}
+        discardTitle={
+          dialogMode === 'add' ? t('coreEditor.outbound.discardDraftTitle', { defaultValue: 'Discard new outbound?' }) : t('coreEditor.outbound.discardEditTitle', { defaultValue: 'Discard changes?' })
+        }
+        discardDescription={
+          dialogMode === 'add'
+            ? t('coreEditor.outbound.discardDraftDescription', { defaultValue: 'This outbound is not in the list yet. Closing without adding will discard your changes.' })
+            : t('coreEditor.outbound.discardEditDescription', { defaultValue: 'Your modifications to this outbound will be lost if you close now.' })
+        }
         discardActionLabel={t('coreEditor.outbound.discardDraftAction', { defaultValue: 'Discard' })}
         leadingIcon={dialogMode === 'add' ? <Plus className="h-5 w-5 shrink-0" /> : <Pencil className="h-5 w-5 shrink-0" />}
         title={dialogMode === 'add' ? t('coreEditor.outbound.dialogTitleAdd', { defaultValue: 'Add outbound' }) : t('coreEditor.outbound.dialogTitleEdit', { defaultValue: 'Edit outbound' })}
@@ -1125,6 +1164,7 @@ export function XrayOutboundsSection({ headerAddPulse, headerAddEpoch }: XrayOut
                             dialerProxyTagOptions={outbounds.map(o => o.tag).filter((tag): tag is string => typeof tag === 'string' && tag !== ob.tag)}
                           />
                         )}
+                        {showOutboundFinalmaskAccordion && <OutboundFinalmaskAccordion ob={ob} patchOutbound={patchOutbound} t={t} />}
                         <OutboundAdvancedAccordion ob={ob} patchOutbound={patchOutbound} t={t} />
                       </Accordion>
                     )}
@@ -1140,7 +1180,6 @@ export function XrayOutboundsSection({ headerAddPulse, headerAddEpoch }: XrayOut
         )}
       </CoreEditorFormDialog>
 
-      
       {/* ── Block while draft open ─────────────────────────────────────── */}
       <AlertDialog open={blockAddWhileDraftOpen} onOpenChange={setBlockAddWhileDraftOpen}>
         <AlertDialogContent dir={dir}>
@@ -2091,6 +2130,44 @@ function OutboundSockoptAccordion({ ob, patchOutbound, t, dialerProxyTagOptions 
       </AccordionTrigger>
       <AccordionContent className="px-2 pb-4">
         <XrayStreamSockoptFields variant="outbound" value={sockoptValue} onChange={next => patchOutboundSockopt(ob, patchOutbound, next)} t={t} dialerProxyTags={dialerProxyTagOptions} />
+      </AccordionContent>
+    </AccordionItem>
+  )
+}
+
+interface OutboundFinalmaskAccordionProps {
+  ob: Outbound
+  patchOutbound: (next: Outbound) => void
+  t: (key: string, opts?: Record<string, unknown>) => string
+}
+
+function OutboundFinalmaskAccordion({ ob, patchOutbound, t }: OutboundFinalmaskAccordionProps) {
+  const finalmaskValue = outboundFinalmaskValue(ob)
+  const finalmaskEnabled = finalmaskValue !== undefined
+  const finalmaskConfigured = finalmaskHasContent(finalmaskValue)
+
+  return (
+    <AccordionItem value="finalmask" className="rounded-sm border px-4 [&_[data-state=closed]]:no-underline [&_[data-state=open]]:no-underline">
+      <AccordionTrigger>
+        <div className="flex flex-wrap items-center gap-2">
+          <SlidersHorizontal className="text-muted-foreground h-4 w-4 shrink-0" aria-hidden />
+          <span>{t('hostsDialog.finalmask.title', { defaultValue: 'FinalMask Settings' })}</span>
+          {finalmaskConfigured && <span className="bg-muted text-muted-foreground rounded px-1.5 py-0.5 text-[10px] font-medium">{t('enabled', { defaultValue: 'on' })}</span>}
+        </div>
+      </AccordionTrigger>
+      <AccordionContent className="space-y-4 px-2 pb-4">
+        <div className="flex items-center justify-between gap-3 rounded-md border p-3">
+          <div className="min-w-0 space-y-1">
+            <p className="text-xs font-medium">{t('enabled', { defaultValue: 'Enabled' })}</p>
+          </div>
+          <Switch
+            checked={finalmaskEnabled}
+            onCheckedChange={checked => {
+              patchOutboundFinalmask(ob, patchOutbound, checked ? { tcp: [], udp: [], quicParams: {} } : undefined)
+            }}
+          />
+        </div>
+        {finalmaskEnabled && <XrayStreamFinalmaskFields value={finalmaskValue} onChange={next => patchOutboundFinalmask(ob, patchOutbound, next)} t={t} />}
       </AccordionContent>
     </AccordionItem>
   )

@@ -23,12 +23,18 @@ import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { hostFormDefaultValues, type HostFormValues } from '@/features/hosts/forms/host-form'
 import { LoaderButton } from '@/components/ui/loader-button'
+import { FinalMaskSettings } from '../components/finalmask-settings'
 
 // Predefined sessionIDTable aliases recognized by Xray 26.6.22+.
 const SESSION_ID_TABLE_PRESETS = ['ALPHABET', 'Alphabet', 'BASE36', 'Base62', 'HEX', 'alphabet', 'base36', 'hex', 'number']
 
-function SessionIdTableField({ control, t }: { control: any; t: (key: string, opts?: any) => string }) {
+function SessionIdTableField({ control, t, isDialogOpen }: { control: any; t: (key: string, opts?: any) => string; isDialogOpen: boolean }) {
   const [customMode, setCustomMode] = useState(false)
+
+  useEffect(() => {
+    if (isDialogOpen) setCustomMode(false)
+  }, [isDialogOpen])
+
   return (
     <FormField
       control={control}
@@ -437,6 +443,44 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                     ))}
                     {(selectedNoiseSettings || []).length === 0 && <div className="text-muted-foreground py-8 text-center text-sm">{t('hostsDialog.noise.noNoiseSettings')}</div>}
                   </div>
+                </div>
+
+                {/* FinalMask Settings */}
+                <div className="space-y-4 pt-4 border-t">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-sm font-medium">{t('hostsDialog.finalmask.title', { defaultValue: 'FinalMask Settings' })}</h4>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button type="button" variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent">
+                            <Info className="text-muted-foreground h-4 w-4" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
+                          <div className="space-y-1.5">
+                            <p className="text-muted-foreground text-[11px]">{t('hostsDialog.finalmask.info', { defaultValue: 'Configure custom finalmask client configurations (TCP, UDP, and QUIC params).' })}</p>
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                    <Switch
+                      checked={form.watch('final_mask_settings') !== undefined && form.watch('final_mask_settings') !== null}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          form.setValue('final_mask_settings', {
+                            tcp: [],
+                            udp: [],
+                            quicParams: {}
+                          }, { shouldDirty: true, shouldTouch: true })
+                        } else {
+                          form.setValue('final_mask_settings', undefined, { shouldDirty: true, shouldTouch: true })
+                        }
+                      }}
+                    />
+                  </div>
+                  {form.watch('final_mask_settings') !== undefined && form.watch('final_mask_settings') !== null && (
+                    <FinalMaskSettings form={form} />
+                  )}
                 </div>
               </div>
             </TabsContent>
@@ -2043,7 +2087,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                   )}
                                 />
 
-                                <SessionIdTableField control={form.control} t={t} />
+                                <SessionIdTableField control={form.control} t={t} isDialogOpen={isDialogOpen} />
 
                                 <FormField
                                   control={form.control}

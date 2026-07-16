@@ -84,7 +84,7 @@ class UserCreate(UserWithValidator):
     @field_validator("group_ids", mode="after")
     @classmethod
     def group_ids_validator(cls, v):
-        return ListValidator.not_null_list(v, "group")
+        return ListValidator.nullable_list(v, "group")
 
 
 class UserModify(UserWithValidator):

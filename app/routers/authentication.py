@@ -215,7 +215,17 @@ async def _get_admin_from_request_credentials(
 
 
 async def get_current(request: Request, db: AsyncSession = Depends(get_db), token: str | None = Depends(oauth2_scheme)):
-    admin = await _get_admin_from_request_credentials(request, db, token)
+    return await get_current_for_request(request, db, token)
+
+
+async def get_current_for_request(
+    request: Request,
+    db: AsyncSession,
+    token: str | None,
+    *,
+    with_metrics: bool = False,
+) -> AdminDetails:
+    admin = await _get_admin_from_request_credentials(request, db, token, with_metrics=with_metrics)
 
     if not admin:
         raise HTTPException(
@@ -251,6 +261,21 @@ async def get_current_with_metrics(
             detail="your account has been disabled",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    return admin
+
+
+async def require_permission_for_request(
+    request: Request,
+    db: AsyncSession,
+    token: str | None,
+    resource: str,
+    action: str,
+) -> AdminDetails:
+    admin = await get_current_for_request(request, db, token)
+    try:
+        enforce_permission(admin, resource, action)
+    except PermissionDenied as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
     return admin
 
 

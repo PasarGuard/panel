@@ -47,12 +47,46 @@ from app.models.stats import (
 )
 from app.operation import OperatorType
 from app.operation.node import NodeOperation
+from app.routers import node as node_router
 from app.node import user as node_user_module
 from app.node.sync import _blocked_admin_ids_for_users
 from app.models.proxy import ProxyTable
 from tests.api import TestSession, client, engine
 from tests.api.helpers import auth_headers, unique_name
 from tests.api.sample_data import XRAY_CONFIG
+
+
+@pytest.mark.asyncio
+async def test_node_logs_closes_auth_db_before_stream(monkeypatch: pytest.MonkeyPatch):
+    events: list[str] = []
+
+    class FakeDBContext:
+        async def __aenter__(self):
+            events.append("db_enter")
+            return object()
+
+        async def __aexit__(self, exc_type, exc_value, traceback):
+            events.append("db_exit")
+
+    async def fake_require_permission_for_request(request, db, token, resource, action):
+        events.append("auth_checked")
+        assert resource == "nodes"
+        assert action == "logs"
+
+    async def fake_node_logs_handler(node_id, request):
+        events.append("stream_started")
+        assert "db_exit" in events
+        return "stream-response"
+
+    monkeypatch.setattr(node_router, "GetDB", FakeDBContext)
+    monkeypatch.setattr(node_router, "require_permission_for_request", fake_require_permission_for_request)
+    monkeypatch.setattr(node_router, "_node_logs_handler", fake_node_logs_handler)
+
+    response = await node_router.node_logs(1, MagicMock(), "token")
+
+    assert response == "stream-response"
+    assert events == ["db_enter", "auth_checked", "db_exit", "stream_started"]
+
 
 VALID_CERTIFICATE = """-----BEGIN CERTIFICATE-----
 MIIBvTCCAWOgAwIBAgIRAIY9Lzn0T3VFedUnT9idYkEwCgYIKoZIzj0EAwIwJjER

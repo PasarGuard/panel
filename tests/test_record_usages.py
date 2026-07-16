@@ -12,9 +12,10 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool, StaticPool
 
 from app.db import base
-from app.db.models import Admin, Node, NodeUsage, NodeUserUsage, System, User
+from app.db.models import Admin, AdminRole, AdminStatus, Node, NodeUsage, NodeUserUsage, System, User
 from app.jobs import record_usages
 from app.models.proxy import ProxyTable
+from app.operation import admin_sync
 from config import database_settings
 
 
@@ -64,8 +65,6 @@ async def session_factory(monkeypatch: pytest.MonkeyPatch):
         await conn.run_sync(base.Base.metadata.create_all)
 
     # Seed the 3 default roles so FK constraints on admins.role_id are satisfied
-    from app.db.models import AdminRole
-
     async with async_sessionmaker(bind=engine, expire_on_commit=False)() as seed_session:
         seed_session.add_all(
             [
@@ -92,6 +91,7 @@ async def session_factory(monkeypatch: pytest.MonkeyPatch):
 
     monkeypatch.setattr(record_usages, "engine", engine)
     monkeypatch.setattr(record_usages, "GetDB", TestGetDB)
+    monkeypatch.setattr(admin_sync, "GetDB", TestGetDB)
 
     yield session_factory
 
@@ -191,6 +191,50 @@ async def test_record_user_usages_updates_users_and_admins(monkeypatch: pytest.M
 
         for user_id, (total_usage, _) in user_totals.items():
             assert aggregated_usage[user_id] == total_usage
+
+
+@pytest.mark.asyncio
+async def test_record_user_usages_limits_overused_admin(monkeypatch: pytest.MonkeyPatch, session_factory):
+    async with session_factory() as session:
+        admin = Admin(username="limited-admin", hashed_password="secret", role_id=3, data_limit=100)
+        session.add(admin)
+        await session.flush()
+        admin_id = admin.id
+
+        user = User(username="limited-user", admin_id=admin_id, proxy_settings=ProxyTable().dict(no_obj=True))
+        node = Node(
+            name="node-1",
+            address="10.0.0.1",
+            port=1000,
+            api_port=1001,
+            server_ca="ca1",
+            api_key="key1",
+            core_config_id=None,
+        )
+        session.add_all([user, node])
+        await session.flush()
+        user_id, node_id = user.id, node.id
+        await session.commit()
+
+    monkeypatch.setattr(
+        record_usages.node_manager, "get_healthy_nodes", AsyncMock(return_value=[(node_id, DummyNode(node_id))])
+    )
+
+    async def fake_get_users_stats(_: DummyNode):
+        return [{"uid": str(user_id), "value": 150}]
+
+    remove_users = AsyncMock()
+    monkeypatch.setattr(record_usages, "get_users_stats", fake_get_users_stats)
+    monkeypatch.setattr(record_usages.usage_settings, "disable_recording_node_usage", True)
+    monkeypatch.setattr("app.operation.admin_sync.sync_remove_users", remove_users)
+
+    await record_usages.record_user_usages()
+
+    async with session_factory() as session:
+        admin_status = await session.execute(select(Admin.status).where(Admin.id == admin_id))
+        assert admin_status.scalar_one() == AdminStatus.limited
+
+    remove_users.assert_awaited_once()
 
 
 @pytest.mark.asyncio
