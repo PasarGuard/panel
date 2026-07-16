@@ -3071,7 +3071,9 @@
       "expires": "Expires",
       "serverNames": "Certificate server names (valid SNIs)",
       "unknown": "Unknown",
-      "other": "Other"
+      "other": "Other",
+      "sniLabel": "SNI",
+      "sniDiscovered": "discovered from IP"
     }
   },
   "settings.cores.title": "Cores",

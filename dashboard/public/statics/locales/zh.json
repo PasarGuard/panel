@@ -3027,7 +3027,9 @@
       "expires": "过期时间",
       "serverNames": "证书服务器名称（有效 SNI）",
       "unknown": "未知",
-      "other": "其他"
+      "other": "其他",
+      "sniLabel": "SNI",
+      "sniDiscovered": "从 IP 发现"
     }
   },
   "settings.cores.title": "核心",

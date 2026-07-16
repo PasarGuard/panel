@@ -2983,7 +2983,9 @@
       "expires": "انقضا",
       "serverNames": "نام‌های سرور گواهی (SNIهای معتبر)",
       "unknown": "نامشخص",
-      "other": "سایر"
+      "other": "سایر",
+      "sniLabel": "SNI",
+      "sniDiscovered": "کشف‌شده از IP"
     }
   },
   "settings.cores.title": "هسته‌ها",

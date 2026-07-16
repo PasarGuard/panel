@@ -2956,7 +2956,9 @@
       "expires": "Истекает",
       "serverNames": "Имена серверов сертификата (действительные SNI)",
       "unknown": "Неизвестно",
-      "other": "Другое"
+      "other": "Другое",
+      "sniLabel": "SNI",
+      "sniDiscovered": "обнаружено по IP"
     }
   },
   "settings.cores.title": "Ядра",

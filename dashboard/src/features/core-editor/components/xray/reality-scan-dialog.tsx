@@ -17,7 +17,6 @@ interface RealityScanDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   initialTarget?: string
-  initialSni?: string
 }
 
 const MAX_TARGETS = 25
@@ -147,6 +146,20 @@ function ScanResultDetail({ result }: { result: RealityScanResult }) {
           ) : null}
         </div>
       </div>
+
+      {result.sni ? (
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <span className="text-muted-foreground">{t('coreEditor.realityScan.sniLabel', { defaultValue: 'SNI' })}:</span>
+          <span className="text-foreground font-mono break-all" dir="ltr">
+            {result.sni}
+          </span>
+          {result.sni_discovered ? (
+            <Badge variant="outline" className="text-[10px]">
+              {t('coreEditor.realityScan.sniDiscovered', { defaultValue: 'discovered from IP' })}
+            </Badge>
+          ) : null}
+        </div>
+      ) : null}
 
       {result.reason ? (
         <Alert>
@@ -347,10 +360,9 @@ function TargetsInput({ value, onChange, disabled, max }: { value: string[]; onC
   )
 }
 
-export function RealityScanDialog({ open, onOpenChange, initialTarget, initialSni }: RealityScanDialogProps) {
+export function RealityScanDialog({ open, onOpenChange, initialTarget }: RealityScanDialogProps) {
   const { t } = useTranslation()
   const [targets, setTargets] = useState<string[]>([])
-  const [sni, setSni] = useState('')
   const [timeoutInput, setTimeoutInput] = useState('10')
   const [rows, setRows] = useState<ScanRow[]>([])
   const [expanded, setExpanded] = useState<string | null>(null)
@@ -368,12 +380,11 @@ export function RealityScanDialog({ open, onOpenChange, initialTarget, initialSn
     abortRef.current?.abort()
     abortRef.current = null
     setTargets(initialTarget?.trim() ? [initialTarget.trim()] : [])
-    setSni(initialSni?.trim() ?? '')
     setRows([])
     setExpanded(null)
     setFeasibleOnly(false)
     setIsScanning(false)
-  }, [open, initialTarget, initialSni])
+  }, [open, initialTarget])
 
   useEffect(() => () => abortRef.current?.abort(), [])
 
@@ -387,7 +398,6 @@ export function RealityScanDialog({ open, onOpenChange, initialTarget, initialSn
     abortRef.current = controller
     const parsedTimeout = Number(timeoutInput)
     const timeout = Number.isFinite(parsedTimeout) && parsedTimeout > 0 ? parsedTimeout : undefined
-    const useSni = list.length === 1 ? sni.trim() || undefined : undefined
     setExpanded(list.length === 1 ? list[0] : null)
     setFeasibleOnly(false)
     setRows(list.map(target => ({ target, status: 'pending' as RowStatus })))
@@ -403,7 +413,7 @@ export function RealityScanDialog({ open, onOpenChange, initialTarget, initialSn
         if (controller.signal.aborted) return
         patch(target, { status: 'scanning' })
         try {
-          const res = await scanRealityTarget({ target, sni: useSni, timeout }, controller.signal)
+          const res = await scanRealityTarget({ target, timeout }, controller.signal)
           if (controller.signal.aborted) return
           patch(target, { status: 'done', result: res })
         } catch (error) {
@@ -467,15 +477,7 @@ export function RealityScanDialog({ open, onOpenChange, initialTarget, initialSn
         <form id="reality-scan-form" onSubmit={handleSubmit} className="grid items-start gap-4 sm:grid-cols-[minmax(0,1fr)_140px]">
           <div className="flex min-w-0 flex-col gap-2">
             <Label>{t('coreEditor.realityScan.targets', { defaultValue: 'Targets' })}</Label>
-            <TargetsInput
-              value={targets}
-              onChange={next => {
-                setTargets(next)
-                setSni('')
-              }}
-              disabled={isScanning}
-              max={MAX_TARGETS}
-            />
+            <TargetsInput value={targets} onChange={setTargets} disabled={isScanning} max={MAX_TARGETS} />
             {targets.length >= MAX_TARGETS ? (
               <p className="text-muted-foreground text-xs">{t('coreEditor.realityScan.maxTargets', { defaultValue: 'Up to {{max}} targets can be scanned.', max: MAX_TARGETS })}</p>
             ) : null}

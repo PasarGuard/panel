@@ -27,11 +27,6 @@ def test_parse_target_ok(target, expected):
     assert rs.parse_target(target) == expected
 
 
-def test_parse_target_sni_override():
-    host, port, sni = rs.parse_target("1.1.1.1:443", sni_override="example.org")
-    assert (host, port, sni) == ("1.1.1.1", 443, "example.org")
-
-
 @pytest.mark.parametrize("bad", ["", "   ", "host:0", "host:70000", "host:abc"])
 def test_parse_target_invalid(bad):
     with pytest.raises(RealityScanError):
@@ -42,8 +37,6 @@ def test_parse_target_invalid(bad):
 def test_parse_target_rejects_control_chars(bad):
     with pytest.raises(RealityScanError):
         rs.parse_target(bad)
-    with pytest.raises(RealityScanError):
-        rs.parse_target("example.com", sni_override=bad)
 
 
 @pytest.mark.parametrize(
@@ -178,7 +171,7 @@ def _self_signed_der(cn: str, sans: list[str]) -> bytes:
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, cn), x509.NameAttribute(NameOID.ORGANIZATION_NAME, "Test Org")])
     now = datetime.datetime.now(datetime.timezone.utc)
-    cert = (
+    builder = (
         x509.CertificateBuilder()
         .subject_name(name)
         .issuer_name(name)
@@ -186,10 +179,10 @@ def _self_signed_der(cn: str, sans: list[str]) -> bytes:
         .serial_number(x509.random_serial_number())
         .not_valid_before(now - datetime.timedelta(days=1))
         .not_valid_after(now + datetime.timedelta(days=90))
-        .add_extension(x509.SubjectAlternativeName([x509.DNSName(s) for s in sans]), critical=False)
-        .sign(key, hashes.SHA256())
     )
-    return cert.public_bytes(serialization.Encoding.DER)
+    if sans:
+        builder = builder.add_extension(x509.SubjectAlternativeName([x509.DNSName(s) for s in sans]), critical=False)
+    return builder.sign(key, hashes.SHA256()).public_bytes(serialization.Encoding.DER)
 
 
 def test_parse_certificate_extracts_sans_and_filters_wildcards():
@@ -203,6 +196,34 @@ def test_parse_certificate_extracts_sans_and_filters_wildcards():
 
 def test_parse_certificate_handles_none():
     assert rs._parse_certificate(None)["server_names"] == []
+
+
+def test_first_usable_name_prefers_san_over_cn():
+    der = _self_signed_der("legacy-cn.example", ["real.example.com", "one.one.one.one"])
+    assert rs._first_usable_name(der) == "real.example.com"
+
+
+def test_first_usable_name_ignores_cn_when_san_present_but_unusable():
+    der = _self_signed_der("apex.example.com", ["*.example.com"])
+    assert rs._first_usable_name(der) is None
+
+
+def test_first_usable_name_falls_back_to_cn_without_san():
+    assert rs._first_usable_name(_self_signed_der("cn-only.example.com", [])) == "cn-only.example.com"
+
+
+def test_first_usable_name_skips_wildcard_cn_uses_san():
+    der = _self_signed_der("*.example.com", ["*.example.com", "www.example.com"])
+    assert rs._first_usable_name(der) == "www.example.com"
+
+
+def test_first_usable_name_none_when_all_wildcard():
+    der = _self_signed_der("*.example.com", ["*.example.com"])
+    assert rs._first_usable_name(der) is None
+
+
+def test_first_usable_name_none_when_no_cert():
+    assert rs._first_usable_name(None) is None
 
 
 def _patch_probes(monkeypatch, *, tls, group, h3):
@@ -223,6 +244,8 @@ _GOOD_TLS = {
     "server_names": ["example.com"],
     "latency_ms": 42,
     "reason": None,
+    "sni": "example.com",
+    "sni_discovered": False,
 }
 
 
@@ -234,9 +257,19 @@ def test_scan_sync_feasible_when_all_pass(monkeypatch):
     assert out["h3"] is True
 
 
-def test_scan_sync_feasible_when_group_unknown(monkeypatch):
+def test_scan_sync_not_feasible_when_group_unknown(monkeypatch):
     _patch_probes(monkeypatch, tls=dict(_GOOD_TLS), group={"x25519": None, "post_quantum": None, "curve": None}, h3=False)
     out = rs._scan_sync("example.com", "93.184.216.34", 443, "example.com", 5)
+    assert out["feasible"] is False
+    assert "X25519" in out["reason"]
+
+
+def test_scan_sync_carries_discovered_sni(monkeypatch):
+    tls = dict(_GOOD_TLS, sni="cloudflare-dns.com", sni_discovered=True)
+    _patch_probes(monkeypatch, tls=tls, group={"x25519": True, "post_quantum": True, "curve": "X25519MLKEM768"}, h3=False)
+    out = rs._scan_sync("1.0.0.1", "1.0.0.1", 443, None, 5)
+    assert out["sni"] == "cloudflare-dns.com"
+    assert out["sni_discovered"] is True
     assert out["feasible"] is True
 
 
@@ -244,6 +277,7 @@ def test_scan_sync_not_feasible_when_definitely_not_x25519(monkeypatch):
     _patch_probes(monkeypatch, tls=dict(_GOOD_TLS), group={"x25519": False, "post_quantum": False, "curve": "secp256r1"}, h3=False)
     out = rs._scan_sync("example.com", "93.184.216.34", 443, "example.com", 5)
     assert out["feasible"] is False
+    assert "secp256r1" in out["reason"]
 
 
 def test_scan_sync_not_feasible_without_tls13(monkeypatch):
@@ -281,6 +315,17 @@ async def test_scan_reality_target_live_example():
     assert result["h2"] is True
     assert result["cert_valid"] is True
     assert result["latency_ms"] is not None
+    assert result["sni"] == "example.com"
+    assert result["sni_discovered"] is False
+
+
+@pytest.mark.skipif(os.environ.get("REALITY_SCAN_NETWORK_TEST") != "1", reason="network test opt-in")
+@pytest.mark.asyncio
+async def test_scan_reality_target_bare_ip_discovers_sni():
+    result = await rs.scan_reality_target("1.0.0.1:443", timeout=8)
+    assert result["sni_discovered"] is True
+    assert result["sni"]
+    assert result["cert_valid"] is True
 
 
 def _frame(payload: bytes, rtype: int = 0x16) -> bytes:
@@ -360,20 +405,7 @@ def test_group_probe_non_x25519_group(monkeypatch):
 
 
 def test_parse_certificate_without_sans():
-    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-    name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "no-san.example")])
-    now = datetime.datetime.now(datetime.timezone.utc)
-    cert = (
-        x509.CertificateBuilder()
-        .subject_name(name)
-        .issuer_name(name)
-        .public_key(key.public_key())
-        .serial_number(x509.random_serial_number())
-        .not_valid_before(now - datetime.timedelta(days=1))
-        .not_valid_after(now + datetime.timedelta(days=90))
-        .sign(key, hashes.SHA256())
-    )
-    out = rs._parse_certificate(cert.public_bytes(serialization.Encoding.DER))
+    out = rs._parse_certificate(_self_signed_der("no-san.example", []))
     assert out["cert_subject"] == "no-san.example"
     assert out["server_names"] == []
 
@@ -391,7 +423,8 @@ async def test_scan_concurrency_is_capped(monkeypatch):
     import threading
     import time as _time
 
-    rs._scan_semaphore = None
+    rs._scan_semaphores.clear()
+    rs._scan_executor = None
     lock = threading.Lock()
     state = {"live": 0, "peak": 0}
     resolver = {"live": 0, "peak": 0}
@@ -418,3 +451,150 @@ async def test_scan_concurrency_is_capped(monkeypatch):
     await asyncio.gather(*[rs.scan_reality_target("example.com:443") for _ in range(12)])
     assert state["peak"] <= rs.MAX_CONCURRENT_SCANS
     assert resolver["peak"] <= rs.MAX_CONCURRENT_SCANS
+
+
+
+
+class _FakeTLS:
+
+    def __init__(self, version="TLSv1.3", alpn="h2", der=b"DER"):
+        self._version, self._alpn, self._der = version, alpn, der
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+    def version(self):
+        return self._version
+
+    def selected_alpn_protocol(self):
+        return self._alpn
+
+    def getpeercert(self, binary_form=False):
+        return self._der
+
+
+def test_looks_like_hostname_cases():
+    good = ["example.com", "www.a.b.co", "one.one.one.one", "cloudflare-dns.com", "example.com."]
+    bad = ["", "localhost", "a b.com", "a" * 70 + ".com", "x." + "a" * 64, "h\x01st.com"]
+    assert all(rs._looks_like_hostname(n) for n in good), [n for n in good if not rs._looks_like_hostname(n)]
+    assert not any(rs._looks_like_hostname(n) for n in bad), [n for n in bad if rs._looks_like_hostname(n)]
+
+
+def test_first_usable_name_skips_non_hostname_cn_uses_san():
+    der = _self_signed_der("localhost", ["localhost", "good.example.com"])
+    assert rs._first_usable_name(der) == "good.example.com"
+
+
+def test_first_usable_name_none_for_org_string_cn_no_san():
+    assert rs._first_usable_name(_self_signed_der("Some Org CA", [])) is None
+
+
+def test_wait_io_false_on_select_timeout(monkeypatch):
+    import time as _t
+
+    monkeypatch.setattr(rs.select, "select", lambda r, w, x, t: ([], [], []))
+    assert rs._wait_io(object(), deadline=_t.monotonic() + 5, want_read=True) is False
+
+
+def test_drive_handshake_times_out_when_deadline_passed():
+    import time as _t
+
+    class T:
+        def do_handshake(self):
+            raise rs.ssl.SSLWantReadError()
+
+    with pytest.raises(TimeoutError):
+        rs._drive_handshake(T(), deadline=_t.monotonic() - 1)
+
+
+def test_drive_handshake_retries_then_succeeds(monkeypatch):
+    import time as _t
+
+    calls = {"n": 0}
+
+    class T:
+        def do_handshake(self):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise rs.ssl.SSLWantReadError()
+
+    monkeypatch.setattr(rs.select, "select", lambda r, w, x, t: ([object()], [], []))
+    rs._drive_handshake(T(), deadline=_t.monotonic() + 5)
+    assert calls["n"] == 2
+
+
+def test_get_scan_executor_is_bounded():
+    rs._scan_executor = None
+    ex = rs._get_scan_executor()
+    assert ex._max_workers == rs.MAX_CONCURRENT_SCANS + 2
+    rs._scan_executor = None
+
+
+@pytest.mark.asyncio
+async def test_get_scan_semaphore_same_within_loop():
+    rs._scan_semaphores.clear()
+    assert rs._get_scan_semaphore() is rs._get_scan_semaphore()
+
+
+def test_get_scan_semaphore_distinct_across_sequential_loops():
+    import asyncio
+
+    async def get():
+        return rs._get_scan_semaphore()
+
+    rs._scan_semaphores.clear()
+    s1 = asyncio.run(get())
+    s2 = asyncio.run(get())
+    assert s1 is not s2
+
+
+def test_get_scan_semaphore_requires_running_loop():
+    with pytest.raises(RuntimeError):
+        rs._get_scan_semaphore()
+
+
+def test_tls_probe_hostname_fallback_preserves_cert_reason(monkeypatch):
+    calls = {"n": 0}
+
+    def fake_wrap(ctx, ip, port, server_hostname, timeout):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise rs.ssl.SSLCertVerificationError("hostname mismatch")
+        raise OSError("connection reset")
+
+    monkeypatch.setattr(rs, "_tls_wrap_with_deadline", fake_wrap)
+    out = rs._tls_probe("1.2.3.4", 443, "example.com", 2)
+    assert out["cert_valid"] is False
+    assert out["reason"].startswith("Certificate did not validate")
+
+
+def test_tls_probe_bare_ip_revalidation_unicodeerror_is_graceful(monkeypatch):
+    calls = {"n": 0}
+
+    def fake_wrap(ctx, ip, port, server_hostname, timeout):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return _FakeTLS(), 12.0
+        raise UnicodeError("label empty or too long")
+
+    monkeypatch.setattr(rs, "_tls_wrap_with_deadline", fake_wrap)
+    monkeypatch.setattr(rs, "_first_usable_name", lambda der: "cloudflare-dns.com")
+    out = rs._tls_probe("1.0.0.1", 443, None, 2)
+    assert out["sni"] == "cloudflare-dns.com"
+    assert out["sni_discovered"] is True
+    assert out["cert_valid"] is False
+    assert out["tls_version"] == "1.3"
+    assert out["reason"].startswith("Certificate re-validation failed")
+
+
+def test_tls_probe_outer_unicodeerror_on_target_sni(monkeypatch):
+    def fake_wrap(ctx, ip, port, server_hostname, timeout):
+        raise UnicodeError("label too long")
+
+    monkeypatch.setattr(rs, "_tls_wrap_with_deadline", fake_wrap)
+    out = rs._tls_probe("1.2.3.4", 443, "a" * 70 + ".com", 2)
+    assert out["tls_version"] is None
+    assert out["reason"].startswith("Server name could not be encoded for TLS")

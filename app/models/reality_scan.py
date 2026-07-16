@@ -3,7 +3,6 @@ from pydantic import BaseModel, ConfigDict, Field
 
 class RealityScanRequest(BaseModel):
     target: str = Field(min_length=1, max_length=253, description="host or host:port to probe (port defaults to 443)")
-    sni: str | None = Field(default=None, max_length=253, description="Override the SNI sent during the handshake")
     timeout: float | None = Field(default=None, ge=1, le=20, description="Per-probe timeout in seconds (1-20, default 10)")
 
 
@@ -15,6 +14,7 @@ class RealityScanResult(BaseModel):
     ip: str | None = None
     port: int
     sni: str | None = None
+    sni_discovered: bool = False
 
     feasible: bool
     tls13: bool
