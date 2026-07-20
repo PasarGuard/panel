@@ -22,7 +22,6 @@ const BulkDataPage = lazyWithChunkRecovery(() => import('../pages/_dashboard.bul
 const BulkExpirePage = lazyWithChunkRecovery(() => import('../pages/_dashboard.bulk.expire'))
 const BulkGroupsPage = lazyWithChunkRecovery(() => import('../pages/_dashboard.bulk.groups'))
 const BulkProxyPage = lazyWithChunkRecovery(() => import('../pages/_dashboard.bulk.proxy'))
-const BulkWireguardPage = lazyWithChunkRecovery(() => import('../pages/_dashboard.bulk.wireguard'))
 const Groups = lazyWithChunkRecovery(() => import('../pages/_dashboard.groups'))
 const Hosts = lazyWithChunkRecovery(() => import('../pages/_dashboard.hosts'))
 const Nodes = lazyWithChunkRecovery(() => import('../pages/_dashboard.nodes'))
@@ -369,14 +368,6 @@ export const router = createHashRouter([
             element: (
               <Suspense fallback={<LoadingSpinner />}>
                 <BulkDataPage />
-              </Suspense>
-            ),
-          },
-          {
-            path: '/bulk/wireguard',
-            element: (
-              <Suspense fallback={<LoadingSpinner />}>
-                <BulkWireguardPage />
               </Suspense>
             ),
           },

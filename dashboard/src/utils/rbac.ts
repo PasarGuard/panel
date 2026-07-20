@@ -95,7 +95,6 @@ export const canAccessRoute = (admin: AdminDetails | null | undefined, pathname:
   }
   if (pathname.startsWith('/bulk/create') || pathname === '/bulk') return hasPermission(admin, 'users', 'create') && canReadResourcePage(admin, 'templates')
   if (pathname.startsWith('/bulk/groups')) return hasScopeAll(admin, 'users', 'update') && hasPermission(admin, 'groups', 'read')
-  if (pathname.startsWith('/bulk/expire') || pathname.startsWith('/bulk/data') || pathname.startsWith('/bulk/proxy') || pathname.startsWith('/bulk/wireguard'))
-    return hasScopeAll(admin, 'users', 'update')
+  if (pathname.startsWith('/bulk/expire') || pathname.startsWith('/bulk/data') || pathname.startsWith('/bulk/proxy')) return hasScopeAll(admin, 'users', 'update')
   return true
 }

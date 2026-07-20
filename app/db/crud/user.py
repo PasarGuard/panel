@@ -48,6 +48,13 @@ from app.models.user import (
 from app.models.validators import MAX_ON_HOLD_EXPIRE_DURATION_SECONDS
 from config import user_cleanup_settings
 
+from .wireguard import (
+    release_allocations_by_user_ids,
+    release_users_allocations,
+    sync_user_allocations,
+    sync_users_allocations,
+    tags_from_groups,
+)
 from .general import (
     _build_trunc_expression,
     attach_timezone_to_period_start,
@@ -261,33 +268,6 @@ async def get_users_with_proxy_settings(
 
     result = await db.execute(stmt)
     return list(result.scalars().all())
-
-
-async def get_all_wireguard_peer_ips_raw(
-    db: AsyncSession,
-    *,
-    exclude_user_id: int | None = None,
-) -> dict[int, dict]:
-    """
-    Retrieve only id and proxy_settings for all users (lightweight variant).
-
-    Returns a dict mapping user_id -> {'proxy_settings': ...} for IP pool operations.
-    This avoids loading full ORM objects, related collections, and unnecessary columns.
-
-    Args:
-        db: Database session
-        exclude_user_id: User ID to exclude from results
-
-    Returns:
-        Dict mapping user_id to dict containing proxy_settings
-    """
-    stmt = select(User.id, User.proxy_settings)
-    if exclude_user_id is not None:
-        stmt = stmt.where(User.id != exclude_user_id)
-
-    result = await db.execute(stmt)
-    rows = result.all()
-    return {row[0]: {"proxy_settings": row[1]} for row in rows}
 
 
 def _build_user_sort_clause(sort_option: UserSortOption):
@@ -557,6 +537,7 @@ async def remove_expired_users(
 
     for start in range(0, len(user_ids), 1000):
         chunk = user_ids[start : start + 1000]
+        await release_allocations_by_user_ids(db, chunk)
         await _delete_user_dependencies(db, chunk)
         await db.execute(delete(User).where(User.id.in_(chunk)))
     await db.commit()
@@ -896,6 +877,7 @@ async def create_user(
 
     db.add(db_user)
     await db.flush()
+    await sync_user_allocations(db, db_user, accessible_tags=await tags_from_groups(groups))
 
     if new_user.next_plan:
         db_user.next_plan = NextPlan(user_id=db_user.id, **new_user.next_plan.model_dump())
@@ -930,6 +912,8 @@ async def create_users_bulk(
 
     db.add_all(db_users)
     await db.flush()
+    group_tags = await tags_from_groups(groups)
+    await sync_users_allocations(db, db_users, tags_by_user={user.id: group_tags for user in db_users})
 
     next_plans: list[NextPlan] = []
     for db_user, new_user in zip(db_users, new_users):
@@ -967,6 +951,7 @@ async def remove_user(db: AsyncSession, db_user: User) -> User:
     Returns:
         User: Removed user object.
     """
+    await release_users_allocations(db, [db_user])
     await _delete_user_dependencies(db, [db_user.id])
     await db.execute(delete(User).where(User.id == db_user.id))
     await db.commit()
@@ -986,6 +971,7 @@ async def remove_users(db: AsyncSession, db_users: list[User]):
 
     user_ids = list({user.id for user in db_users})
 
+    await release_users_allocations(db, db_users)
     await _delete_user_dependencies(db, user_ids)
     await db.execute(delete(User).where(User.id.in_(user_ids)))
     await db.commit()
@@ -1015,8 +1001,9 @@ async def modify_user(
 
     if modify.proxy_settings is not None:
         db_user.proxy_settings = modify.proxy_settings.dict()
-    if modify.group_ids:
+    if modify.group_ids is not None:
         db_user.groups = groups or await get_groups_by_ids(db, modify.group_ids, load_users=False, load_inbounds=True)
+        await sync_user_allocations(db, db_user, accessible_tags=await tags_from_groups(db_user.groups))
 
     if modify.status is not None:
         if modify.status == UserStatus.active and db_user.status == UserStatus.disabled:
@@ -1210,6 +1197,7 @@ async def reset_user_by_next(db: AsyncSession, db_user: User, *, clean_chart_dat
         await db_user.next_plan.awaitable_attrs.user_template
         await db_user.next_plan.user_template.awaitable_attrs.groups
         db_user.groups = db_user.next_plan.user_template.groups
+        await sync_user_allocations(db, db_user, accessible_tags=await tags_from_groups(db_user.groups))
         db_user.data_limit = db_user.next_plan.user_template.data_limit + (
             0 if not db_user.next_plan.add_remaining_traffic else remaining_traffic
         )

@@ -268,21 +268,6 @@ async def count_bulk_group_scope(db: AsyncSession, bulk_model: BulkGroup) -> int
     return (await db.execute(select(func.count(User.id)).where(final_filter))).scalar_one_or_none() or 0
 
 
-async def get_bulk_wireguard_peer_ip_users(
-    db: AsyncSession,
-    bulk_model: BulkUserFilter,
-    admin_id: int | None = None,
-) -> list[User]:
-    final_filter = _create_final_filter(bulk_model)
-    if admin_id is not None:
-        final_filter = and_(final_filter, User.admin_id == admin_id)
-
-    result = await db.execute(
-        select(User).options(selectinload(User.groups).selectinload(Group.inbounds)).where(final_filter)
-    )
-    return list(result.unique().scalars().all())
-
-
 def _create_final_filter(bulk_model: BulkUserFilter):
     """Create a comprehensive SQLAlchemy filter condition from a bulk model."""
     other_conditions = []

@@ -578,15 +578,6 @@ export interface WireGuardSettings {
   peer_ips?: string[]
 }
 
-export interface WireGuardPeerIPsReallocateResponse {
-  wireguard_inbound_tags: number
-  candidates: number
-  updated: number
-  dry_run: boolean
-  sample_usernames: string[]
-  affected_users: number
-}
-
 export type WireGuardHostOverridesDns = string[] | null
 
 export type WireGuardHostOverridesKeepaliveSeconds = number | null
@@ -3035,25 +3026,6 @@ export type CRUDPermissionsRead = boolean | CRUDPermissionsReadAnyOf | null
 export type CRUDPermissionsCreateAnyOf = { [key: string]: PermissionScope | number }
 
 export type CRUDPermissionsCreate = boolean | CRUDPermissionsCreateAnyOf | null
-
-export type BulkWireGuardPeerIPsExpireBefore = string | null
-
-export type BulkWireGuardPeerIPsExpireAfter = string | null
-
-/**
- * Re-seat WireGuard peer IPs (same scoping as BulkUser: users, admins, group_ids, status).
- */
-export interface BulkWireGuardPeerIPs {
-  dry_run?: boolean
-  group_ids?: number[]
-  admins?: number[]
-  users?: number[]
-  status?: UserStatus[]
-  expire_after?: BulkWireGuardPeerIPsExpireAfter
-  expire_before?: BulkWireGuardPeerIPsExpireBefore
-  confirm?: boolean
-  replace_all?: boolean
-}
 
 export interface BulkUsersSetOwner {
   ids?: number[]
@@ -13477,62 +13449,6 @@ export const useBulkModifyUsersProxySettings = <
   mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkUsersProxy> }, TContext>
 }): UseMutationResult<TData, TError, { data: BodyType<BulkUsersProxy> }, TContext> => {
   const mutationOptions = getBulkModifyUsersProxySettingsMutationOptions(options)
-
-  return useMutation(mutationOptions)
-}
-
-/**
- * Same scoping as other bulk user actions (users, admins, group_ids, optional status filter). non-owner admins only affect their own users.
- * @summary Bulk reallocate WireGuard peer IPs
- */
-export const bulkReallocateWireguardPeerIps = (bulkWireGuardPeerIPs: BodyType<BulkWireGuardPeerIPs>, signal?: AbortSignal) => {
-  return orvalFetcher<WireGuardPeerIPsReallocateResponse>({
-    url: `/api/users/bulk/wireguard/reallocate-peer-ips`,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    data: bulkWireGuardPeerIPs,
-    signal,
-  })
-}
-
-export const getBulkReallocateWireguardPeerIpsMutationOptions = <
-  TData = Awaited<ReturnType<typeof bulkReallocateWireguardPeerIps>>,
-  TError = ErrorType<Unauthorized | HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkWireGuardPeerIPs> }, TContext>
-}) => {
-  const mutationKey = ['bulkReallocateWireguardPeerIps']
-  const { mutation: mutationOptions } = options
-    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey } }
-
-  const mutationFn: MutationFunction<Awaited<ReturnType<typeof bulkReallocateWireguardPeerIps>>, { data: BodyType<BulkWireGuardPeerIPs> }> = props => {
-    const { data } = props ?? {}
-
-    return bulkReallocateWireguardPeerIps(data)
-  }
-
-  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { data: BodyType<BulkWireGuardPeerIPs> }, TContext>
-}
-
-export type BulkReallocateWireguardPeerIpsMutationResult = NonNullable<Awaited<ReturnType<typeof bulkReallocateWireguardPeerIps>>>
-export type BulkReallocateWireguardPeerIpsMutationBody = BodyType<BulkWireGuardPeerIPs>
-export type BulkReallocateWireguardPeerIpsMutationError = ErrorType<Unauthorized | HTTPValidationError>
-
-/**
- * @summary Bulk reallocate WireGuard peer IPs
- */
-export const useBulkReallocateWireguardPeerIps = <
-  TData = Awaited<ReturnType<typeof bulkReallocateWireguardPeerIps>>,
-  TError = ErrorType<Unauthorized | HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkWireGuardPeerIPs> }, TContext>
-}): UseMutationResult<TData, TError, { data: BodyType<BulkWireGuardPeerIPs> }, TContext> => {
-  const mutationOptions = getBulkReallocateWireguardPeerIpsMutationOptions(options)
 
   return useMutation(mutationOptions)
 }

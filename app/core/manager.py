@@ -80,7 +80,7 @@ class CoreManager:
             # Deserialize state using JSON
             try:
                 cached_state = json.loads(entry.value.decode("utf-8"))
-            except json.JSONDecodeError, UnicodeDecodeError:
+            except (json.JSONDecodeError, UnicodeDecodeError):
                 self._logger.warning("Failed to decode CoreManager state as JSON, ignoring...")
                 return False
 
@@ -205,12 +205,23 @@ class CoreManager:
         core_configs, _ = await get_core_configs(db, CoreListQuery())
         cores: dict[int, AbstractCore] = {}
         for config in core_configs:
-            core_config = self.validate_core(
-                config.config,
-                config.exclude_inbound_tags,
-                config.fallbacks_inbound_tags,
-                config.type,
-            )
+            try:
+                core_config = self.validate_core(
+                    config.config,
+                    config.exclude_inbound_tags,
+                    config.fallbacks_inbound_tags,
+                    config.type,
+                )
+            except Exception as exc:
+                # Broken DB cores must not take down the process (restart loop).
+                self._logger.error(
+                    "Skipping broken core id=%s name=%r type=%s: %s",
+                    config.id,
+                    getattr(config, "name", None),
+                    config.type,
+                    exc,
+                )
+                continue
             cores[config.id] = core_config
 
         async with self._lock:
@@ -233,12 +244,21 @@ class CoreManager:
 
     async def _update_core_local(self, db_core_config: CoreConfig, core_config: AbstractCore | None = None):
         if core_config is None:
-            core_config = self.validate_core(
-                db_core_config.config,
-                db_core_config.exclude_inbound_tags,
-                db_core_config.fallbacks_inbound_tags,
-                db_core_config.type,
-            )
+            try:
+                core_config = self.validate_core(
+                    db_core_config.config,
+                    db_core_config.exclude_inbound_tags,
+                    db_core_config.fallbacks_inbound_tags,
+                    db_core_config.type,
+                )
+            except Exception as exc:
+                self._logger.error(
+                    "Skipping broken core id=%s type=%s: %s",
+                    getattr(db_core_config, "id", None),
+                    getattr(db_core_config, "type", None),
+                    exc,
+                )
+                return
 
         async with self._lock:
             self._cores.update({db_core_config.id: core_config})

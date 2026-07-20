@@ -18,7 +18,6 @@ import {
   Lock,
   Logs,
   LucideIcon,
-  Network,
   Palette,
   Send,
   Settings as SettingsIcon,
@@ -55,7 +54,6 @@ const BULK_SUDO_TABS: TabDef[] = [
   { id: 'expire', labelKey: 'bulk.expireDate', icon: Calendar, url: '/bulk/expire' },
   { id: 'data', labelKey: 'bulk.dataLimit', icon: ArrowUpDown, url: '/bulk/data' },
   { id: 'proxy', labelKey: 'bulk.proxySettings', icon: Lock, url: '/bulk/proxy' },
-  { id: 'wireguard', labelKey: 'bulk.wireguardPeerIps', icon: Network, url: '/bulk/wireguard' },
 ]
 
 const BULK_NON_SUDO_TABS: TabDef[] = [{ id: 'create', labelKey: 'bulk.createUsers', icon: UserPlus, url: '/bulk' }]
@@ -102,7 +100,6 @@ function bulkHeader(pathname: string): { title: string; description: string } {
     '/bulk/expire': { title: 'bulk.expireDate', description: 'bulk.expireDateDesc' },
     '/bulk/data': { title: 'bulk.dataLimit', description: 'bulk.dataLimitDesc' },
     '/bulk/proxy': { title: 'bulk.proxySettings', description: 'bulk.proxySettingsDesc' },
-    '/bulk/wireguard': { title: 'bulk.wireguardPeerIps', description: 'bulk.wireguardPeerIpsDesc' },
   }
   return pathToHeader[pathname] ?? pathToHeader['/bulk']!
 }

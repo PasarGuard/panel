@@ -41,7 +41,6 @@ import {
   ListTodo,
   Lock,
   Logs,
-  Network,
   Palette,
   PieChart,
   RssIcon,
@@ -315,11 +314,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                         title: 'bulk.proxySettings',
                         url: '/bulk/proxy',
                         icon: Lock,
-                      },
-                      {
-                        title: 'bulk.wireguardPeerIps',
-                        url: '/bulk/wireguard',
-                        icon: Network,
                       },
                     ]
                   : []),
