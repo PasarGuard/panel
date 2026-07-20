@@ -114,6 +114,18 @@
         "2h": "2小时"
       }
     },
+    "wireguard": {
+      "title": "WireGuard",
+      "description": "WireGuard 核心的对端 IP 池 — 用量、空闲地址与接口标签",
+      "empty": "尚无 WireGuard 子网。请创建带接口地址的 WireGuard 核心以开始分配对端 IP。",
+      "used": "已用",
+      "free": "空闲",
+      "capacity": "容量",
+      "usage": "使用率",
+      "freeIps": "空闲 IP",
+      "noTags": "无接口标签",
+      "refresh": "刷新"
+    },
     "reconnectinfo": "刷新所有节点连接以解决连接问题",
     "reconnectAll": "重新连接所有节点",
     "reconnectingAll": "重新连接中...",

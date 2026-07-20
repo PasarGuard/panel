@@ -27,6 +27,7 @@ const Hosts = lazyWithChunkRecovery(() => import('../pages/_dashboard.hosts'))
 const Nodes = lazyWithChunkRecovery(() => import('../pages/_dashboard.nodes'))
 const NodesPage = lazyWithChunkRecovery(() => import('../pages/_dashboard.nodes._index'))
 const NodeLogs = lazyWithChunkRecovery(() => import('../pages/_dashboard.nodes.logs'))
+const NodeWireGuard = lazyWithChunkRecovery(() => import('../pages/_dashboard.nodes.wireguard'))
 const Settings = lazyWithChunkRecovery(() => import('../pages/_dashboard.settings'))
 const CleanupSettings = lazyWithChunkRecovery(() => import('../pages/_dashboard.settings.cleanup'))
 const GeneralSettings = lazyWithChunkRecovery(() => import('../pages/_dashboard.settings.general'))
@@ -164,6 +165,14 @@ export const router = createHashRouter([
             element: (
               <Suspense fallback={<LoadingSpinner />}>
                 <NodeLogs />
+              </Suspense>
+            ),
+          },
+          {
+            path: '/nodes/wireguard',
+            element: (
+              <Suspense fallback={<LoadingSpinner />}>
+                <NodeWireGuard />
               </Suspense>
             ),
           },

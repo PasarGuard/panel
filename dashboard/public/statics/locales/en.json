@@ -118,6 +118,18 @@
         "2h": "2 hours"
       }
     },
+    "wireguard": {
+      "title": "WireGuard",
+      "description": "Peer IP pools for WireGuard cores — usage, free addresses, and interface tags",
+      "empty": "No WireGuard subnets yet. Create a WireGuard core with an interface address to start allocating peer IPs.",
+      "used": "Used",
+      "free": "Free",
+      "capacity": "Capacity",
+      "usage": "Usage",
+      "freeIps": "Free IPs",
+      "noTags": "No interface tags",
+      "refresh": "Refresh"
+    },
     "reconnectinfo": "Refresh all nodes connections to resolve connectivity issues",
     "reconnectAll": "Reconnect All Nodes",
     "reconnectingAll": "Reconnecting...",

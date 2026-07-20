@@ -83,7 +83,7 @@ async def get_inbound_details(_: AdminDetails = Depends(require_permission("syst
 @router.get("/wireguard/subnets", response_model=list[WireGuardSubnetUsage])
 async def get_wireguard_subnets(
     db: AsyncSession = Depends(get_db),
-    _: AdminDetails = Depends(require_permission("system", "read")),
+    _: AdminDetails = Depends(require_permission("cores", "read")),
 ):
     """Per-subnet WireGuard address usage: capacity, used/free counts and the first free IPs."""
     return await get_subnet_usage(db)

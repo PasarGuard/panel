@@ -41,6 +41,7 @@ import {
   ListTodo,
   Lock,
   Logs,
+  Network,
   Palette,
   PieChart,
   RssIcon,
@@ -92,6 +93,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             url: '/nodes/cores',
             icon: Cpu,
             matchPrefix: true,
+          },
+          {
+            title: 'nodes.wireguard.title',
+            url: '/nodes/wireguard',
+            icon: Network,
           },
         ]
       : []),
