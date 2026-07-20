@@ -549,7 +549,10 @@ async def get_subnet_usage(db: AsyncSession, *, free_limit: int = FREE_IPS_LIMIT
         used = max(0, (next_offset - 1) - reserved_below - len(free_list))
         capacity = _usable_capacity(ns)
 
-        free_ips = [str(_host_address(ns.subnet.version, int(ns.subnet.network_address) + offset)) for offset in free_list[:free_limit]]
+        free_ips = [
+            str(_host_address(ns.subnet.version, int(ns.subnet.network_address) + offset))
+            for offset in free_list[:free_limit]
+        ]
         offset = next_offset
         last_host = ns.subnet.num_addresses - 1
         while len(free_ips) < free_limit and offset < last_host:

@@ -17,9 +17,7 @@ async def wireguard_public_key_in_use(
     *,
     exclude_user_id: int | None = None,
 ) -> bool:
-    stmt = (
-        select(User.id).where(User.proxy_settings["wireguard"]["public_key"].as_string() == public_key).limit(1)
-    )
+    stmt = select(User.id).where(User.proxy_settings["wireguard"]["public_key"].as_string() == public_key).limit(1)
     if exclude_user_id is not None:
         stmt = stmt.where(User.id != exclude_user_id)
     return (await db.execute(stmt)).first() is not None

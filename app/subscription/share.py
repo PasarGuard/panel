@@ -296,9 +296,7 @@ async def process_host(
 
     # Each WG interface only gets the user's peer IP from its own subnet.
     if inbound.protocol == "wireguard":
-        settings["peer_ips"] = pick_peer_ip_for_inbound(
-            inbound.wireguard_local_address, settings.get("peer_ips") or []
-        )
+        settings["peer_ips"] = pick_peer_ip_for_inbound(inbound.wireguard_local_address, settings.get("peer_ips") or [])
 
     # Update format variables
     format_variables.update({"PROTOCOL": inbound.protocol})

@@ -2858,9 +2858,7 @@ def test_wireguard_pool_allocation_ignores_manual_input(access_token):
         assert link.startswith("wireguard://")
         assert parse_qs(urlsplit(link).query)["address"] == ["10.88.0.2/32"]
 
-        user2 = create_user(
-            access_token, group_ids=[group["id"]], payload={"username": unique_name("wg_pool_user2")}
-        )
+        user2 = create_user(access_token, group_ids=[group["id"]], payload={"username": unique_name("wg_pool_user2")})
         assert user2["proxy_settings"]["wireguard"]["peer_ips"] == ["10.88.0.3/32"]
 
         usage = _subnet_usage(access_token, "10.88.0.0/24")
@@ -2878,9 +2876,7 @@ def test_wireguard_pool_allocation_ignores_manual_input(access_token):
         assert "10.88.0.2" in usage["free_ips"]
 
         # ...and the freed IP is handed out again
-        user3 = create_user(
-            access_token, group_ids=[group["id"]], payload={"username": unique_name("wg_pool_user3")}
-        )
+        user3 = create_user(access_token, group_ids=[group["id"]], payload={"username": unique_name("wg_pool_user3")})
         assert user3["proxy_settings"]["wireguard"]["peer_ips"] == ["10.88.0.2/32"]
     finally:
         for user in (user1, user2, user3):

@@ -52,9 +52,7 @@ class CoreOperation(BaseOperation):
         are rejected; identical CIDRs may be shared across cores (one allocation namespace)."""
         subnets = wg_core_subnets(config)
         if not subnets:
-            await self.raise_error(
-                message="WireGuard core needs an IPv4 or IPv6 interface address", code=400, db=db
-            )
+            await self.raise_error(message="WireGuard core needs an IPv4 or IPv6 interface address", code=400, db=db)
         for other in await get_wg_cores(db):
             if other.id == exclude_core_id:
                 continue

@@ -169,7 +169,9 @@ class _FakeSock:
 
 def _self_signed_der(cn: str, sans: list[str]) -> bytes:
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-    name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, cn), x509.NameAttribute(NameOID.ORGANIZATION_NAME, "Test Org")])
+    name = x509.Name(
+        [x509.NameAttribute(NameOID.COMMON_NAME, cn), x509.NameAttribute(NameOID.ORGANIZATION_NAME, "Test Org")]
+    )
     now = datetime.datetime.now(datetime.timezone.utc)
     builder = (
         x509.CertificateBuilder()
@@ -250,7 +252,12 @@ _GOOD_TLS = {
 
 
 def test_scan_sync_feasible_when_all_pass(monkeypatch):
-    _patch_probes(monkeypatch, tls=dict(_GOOD_TLS), group={"x25519": True, "post_quantum": True, "curve": "X25519MLKEM768"}, h3=True)
+    _patch_probes(
+        monkeypatch,
+        tls=dict(_GOOD_TLS),
+        group={"x25519": True, "post_quantum": True, "curve": "X25519MLKEM768"},
+        h3=True,
+    )
     out = rs._scan_sync("example.com", "93.184.216.34", 443, "example.com", 5)
     assert out["feasible"] is True
     assert out["post_quantum"] is True
@@ -258,7 +265,9 @@ def test_scan_sync_feasible_when_all_pass(monkeypatch):
 
 
 def test_scan_sync_not_feasible_when_group_unknown(monkeypatch):
-    _patch_probes(monkeypatch, tls=dict(_GOOD_TLS), group={"x25519": None, "post_quantum": None, "curve": None}, h3=False)
+    _patch_probes(
+        monkeypatch, tls=dict(_GOOD_TLS), group={"x25519": None, "post_quantum": None, "curve": None}, h3=False
+    )
     out = rs._scan_sync("example.com", "93.184.216.34", 443, "example.com", 5)
     assert out["feasible"] is False
     assert "X25519" in out["reason"]
@@ -266,7 +275,9 @@ def test_scan_sync_not_feasible_when_group_unknown(monkeypatch):
 
 def test_scan_sync_carries_discovered_sni(monkeypatch):
     tls = dict(_GOOD_TLS, sni="cloudflare-dns.com", sni_discovered=True)
-    _patch_probes(monkeypatch, tls=tls, group={"x25519": True, "post_quantum": True, "curve": "X25519MLKEM768"}, h3=False)
+    _patch_probes(
+        monkeypatch, tls=tls, group={"x25519": True, "post_quantum": True, "curve": "X25519MLKEM768"}, h3=False
+    )
     out = rs._scan_sync("1.0.0.1", "1.0.0.1", 443, None, 5)
     assert out["sni"] == "cloudflare-dns.com"
     assert out["sni_discovered"] is True
@@ -274,7 +285,9 @@ def test_scan_sync_carries_discovered_sni(monkeypatch):
 
 
 def test_scan_sync_not_feasible_when_definitely_not_x25519(monkeypatch):
-    _patch_probes(monkeypatch, tls=dict(_GOOD_TLS), group={"x25519": False, "post_quantum": False, "curve": "secp256r1"}, h3=False)
+    _patch_probes(
+        monkeypatch, tls=dict(_GOOD_TLS), group={"x25519": False, "post_quantum": False, "curve": "secp256r1"}, h3=False
+    )
     out = rs._scan_sync("example.com", "93.184.216.34", 443, "example.com", 5)
     assert out["feasible"] is False
     assert "secp256r1" in out["reason"]
@@ -412,7 +425,9 @@ def test_parse_certificate_without_sans():
 
 def test_scan_sync_not_feasible_without_h2(monkeypatch):
     tls = dict(_GOOD_TLS, h2=False, alpn="http/1.1")
-    _patch_probes(monkeypatch, tls=tls, group={"x25519": True, "post_quantum": True, "curve": "X25519MLKEM768"}, h3=False)
+    _patch_probes(
+        monkeypatch, tls=tls, group={"x25519": True, "post_quantum": True, "curve": "X25519MLKEM768"}, h3=False
+    )
     out = rs._scan_sync("example.com", "93.184.216.34", 443, "example.com", 5)
     assert out["feasible"] is False
 
@@ -453,10 +468,7 @@ async def test_scan_concurrency_is_capped(monkeypatch):
     assert resolver["peak"] <= rs.MAX_CONCURRENT_SCANS
 
 
-
-
 class _FakeTLS:
-
     def __init__(self, version="TLSv1.3", alpn="h2", der=b"DER"):
         self._version, self._alpn, self._der = version, alpn, der
 
