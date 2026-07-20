@@ -33,7 +33,7 @@ dependencies = [
     "asyncpg>=0.31.0",
     "asyncmy>=0.2.10; sys_platform != 'win32'",
     "aiocache>=0.12.3",
-    "aiogram>=3.29.1",
+    "aiogram>=3.30.0",
     "aiohttp-socks>=0.10.1",
     "uvloop>=0.22.1; sys_platform != 'win32'",
     "aiorwlock>=1.5.0",
