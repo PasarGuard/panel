@@ -159,7 +159,7 @@ def upgrade() -> None:
     core_rows = [
         _load_json(config)
         for (config,) in bind.execute(
-            sa.select(core_configs.c.config).where(core_configs.c.type == "wg")
+            sa.select(core_configs.c.config).where(sa.cast(core_configs.c.type, sa.String) == "wg")
         ).fetchall()
     ]
     namespaces = _build_namespaces(core_rows)
