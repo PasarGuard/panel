@@ -1,5 +1,6 @@
 import asyncio
 import json
+from pathlib import Path
 
 from alembic.command import upgrade
 from alembic.config import Config
@@ -103,17 +104,13 @@ async def create_tables():
 
 if TEST_FROM == "local":
     if IS_SQLITE:
-        from sqlalchemy.engine import make_url
-        import os
         try:
-            db_path = make_url(DATABASE_URL).database
-            if db_path and db_path != ":memory:":
-                for f in [db_path, f"{db_path}-shm", f"{db_path}-wal"]:
-                    if os.path.exists(f):
-                        try:
-                            os.remove(f)
-                        except Exception:
-                            pass
+            database_file = Path(DATABASE_URL.partition("///")[2].split("?", 1)[0])
+            for suffix in ("", "-shm", "-wal"):
+                try:
+                    database_file.with_name(f"{database_file.name}{suffix}").unlink()
+                except FileNotFoundError:
+                    pass
         except Exception:
             pass
     run_migrations()
