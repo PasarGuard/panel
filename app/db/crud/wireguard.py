@@ -379,7 +379,10 @@ async def sync_users_allocations(
         for key in sorted(targets - set(kept)):
             kept[key] = _take_offset(namespaces[key], rows[key])
 
-        new_ips = [render_peer_ip(namespaces[key].subnet, offset) for key, offset in sorted(kept.items())]
+        new_ips = sorted(
+            (render_peer_ip(namespaces[key].subnet, offset) for key, offset in kept.items()),
+            key=_peer_sort_key,
+        )
         user_changed = False
         if new_ips != old_ips:
             _set_user_peer_ips(user, new_ips)

@@ -5,6 +5,7 @@ import pytest
 
 from app.db.crud.wireguard import (
     _give_back,
+    _peer_sort_key,
     _take_offset,
     _usable_capacity,
     match_namespace,
@@ -143,3 +144,16 @@ def test_pick_peer_ip_for_inbound():
     assert pick_peer_ip_for_inbound(["10.2.0.1/24", "fd00::1/64"], peer_ips) == ["10.2.0.9/32", "fd00::5/128"]
     assert pick_peer_ip_for_inbound(["10.3.0.1/24"], peer_ips) == []
     assert pick_peer_ip_for_inbound(["fd00::1/64"], peer_ips) == ["fd00::5/128"]
+
+
+def test_peer_sort_key_orders_by_host_not_cidr_string():
+    """sync/reconcile must compare peer_ips in host order, not lexical CIDR key order."""
+    namespaces = wg_namespaces([core("WG_A", ["10.10.0.1/24"]), core("WG_B", ["10.2.0.1/24"])])
+    kept = {"10.10.0.0/24": 2, "10.2.0.0/24": 2}
+    by_key = [render_peer_ip(namespaces[key].subnet, offset) for key, offset in sorted(kept.items())]
+    by_peer = sorted(
+        (render_peer_ip(namespaces[key].subnet, offset) for key, offset in kept.items()),
+        key=_peer_sort_key,
+    )
+    assert by_key == ["10.10.0.2/32", "10.2.0.2/32"]
+    assert by_peer == ["10.2.0.2/32", "10.10.0.2/32"]

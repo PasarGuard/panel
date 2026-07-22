@@ -50,6 +50,12 @@ class GroupOperation(BaseOperation):
         db_group = await self.get_validated_group(db, group_id)
         return db_group
 
+    async def _sync_users_allocations(self, db: AsyncSession, users) -> None:
+        try:
+            await sync_users_allocations(db, users)
+        except ValueError as exc:  # WireGuard subnet exhausted
+            await self.raise_error(message=str(exc), code=400, db=db)
+
     async def create_group(self, db: AsyncSession, new_group: GroupCreate, admin: Admin) -> Group:
         await self.check_inbound_tags(new_group.inbound_tags)
         db_group = await create_group(db, new_group)
@@ -89,7 +95,7 @@ class GroupOperation(BaseOperation):
             query=UserListQuery(group_ids=[db_group.id]),
             load_admin_role=True,
         )
-        await sync_users_allocations(db, users)
+        await self._sync_users_allocations(db, users)
         await db.commit()
         await sync_users(users)
 
@@ -109,7 +115,7 @@ class GroupOperation(BaseOperation):
         await remove_group(db, db_group)
 
         users = await get_users(db, query=UserListQuery(username=username_list), load_admin_role=True)
-        await sync_users_allocations(db, users)
+        await self._sync_users_allocations(db, users)
         await db.commit()
         await sync_users(users)
 
@@ -124,7 +130,7 @@ class GroupOperation(BaseOperation):
             return BulkOperationDryRunResponse(affected_users=n)
 
         users, users_count = await add_groups_to_users(db, bulk_model)
-        await sync_users_allocations(db, users)
+        await self._sync_users_allocations(db, users)
         await db.commit()
         await sync_users(users)
 
@@ -139,7 +145,7 @@ class GroupOperation(BaseOperation):
             return BulkOperationDryRunResponse(affected_users=n)
 
         users, users_count = await remove_groups_from_users(db, bulk_model)
-        await sync_users_allocations(db, users)
+        await self._sync_users_allocations(db, users)
         await db.commit()
         await sync_users(users)
 
@@ -175,7 +181,7 @@ class GroupOperation(BaseOperation):
             users = await get_users(
                 db, query=UserListQuery(username=list(all_affected_usernames)), load_admin_role=True
             )
-            await sync_users_allocations(db, users)
+            await self._sync_users_allocations(db, users)
             await db.commit()
             await sync_users(users)
 
@@ -223,7 +229,7 @@ class GroupOperation(BaseOperation):
                 query=UserListQuery(group_ids=[group.id for group in groups_to_update]),
                 load_admin_role=True,
             )
-            await sync_users_allocations(db, users)
+            await self._sync_users_allocations(db, users)
             await db.commit()
             await sync_users(users)
 
