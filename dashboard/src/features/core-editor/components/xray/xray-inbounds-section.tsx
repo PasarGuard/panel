@@ -1192,9 +1192,10 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
       let tag = watchedProtocol
       let network = watchedTransport
       if (watchedProtocol === 'shadowsocks') network = watchedShadowsocksNetwork
+      if (isWireguardInboundProtocol(watchedProtocol)) network = 'udp'
 
       if (network) tag += `${tagSeparator}${network}`
-      if (watchedSecurity && watchedSecurity !== 'none') tag += `${tagSeparator}${watchedSecurity}`
+      if (!isWireguardInboundProtocol(watchedProtocol) && watchedSecurity && watchedSecurity !== 'none') tag += `${tagSeparator}${watchedSecurity}`
       if (watchedPort) tag += `${tagSeparator}${watchedPort}`
 
       tag = tag.toUpperCase()
@@ -1622,7 +1623,10 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
       setDuplicateTagError(tagValue)
       return
     }
-    if (inbound.protocol !== 'unmanaged' && 'transport' in inbound && 'security' in inbound) {
+    if (isWireguardInboundProtocol(inbound.protocol)) {
+      const ok = await form.trigger(['protocol', 'tag', 'port', 'wgSecretKey'], { shouldFocus: true })
+      if (!ok) return
+    } else if (inbound.protocol !== 'unmanaged' && 'transport' in inbound && 'security' in inbound) {
       const fields = ['protocol', 'tag', 'port', ...(form.getValues('security') === 'reality' ? realityInboundZodTriggerFieldNames() : [])]
       const ok = await form.trigger(fields, { shouldFocus: true })
       if (!ok) return
@@ -1631,9 +1635,6 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
       if (!ok) return
     } else if (inbound.protocol === 'tun') {
       const ok = await form.trigger(['protocol', 'tag', 'tunName', 'tunMtu'], { shouldFocus: true })
-      if (!ok) return
-    } else if (inbound.protocol === 'wireguard') {
-      const ok = await form.trigger(['protocol', 'tag', 'port', 'wgSecretKey'], { shouldFocus: true })
       if (!ok) return
     }
     if (!validateWireguardInboundForCommit(inbound)) return
@@ -2498,7 +2499,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
           <p className="text-muted-foreground text-sm">{t('coreEditor.inbound.unmanagedHint', { defaultValue: 'This inbound is managed as raw JSON in Advanced.' })}</p>
         )}
 
-        {inbound && inbound.protocol !== 'unmanaged' && 'transport' in inbound && 'security' in inbound && (
+        {inbound && inbound.protocol !== 'unmanaged' && !isWireguardInboundProtocol(inbound.protocol) && 'transport' in inbound && 'security' in inbound && (
           <Form {...form}>
             <form className="flex flex-col gap-4 pb-6" onSubmit={e => e.preventDefault()}>
               <div className="grid gap-4 sm:grid-cols-2">
@@ -4509,7 +4510,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
           </Form>
         )}
 
-        {inbound && inbound.protocol !== 'unmanaged' && !('transport' in inbound) && !isTunnelInboundProtocol(inbound.protocol) && (
+        {inbound && inbound.protocol !== 'unmanaged' && (isWireguardInboundProtocol(inbound.protocol) || !('transport' in inbound)) && !isTunnelInboundProtocol(inbound.protocol) && (
           <Form {...form}>
             <form className="space-y-4" onSubmit={e => e.preventDefault()}>
               <div className="grid gap-3 sm:grid-cols-2">
