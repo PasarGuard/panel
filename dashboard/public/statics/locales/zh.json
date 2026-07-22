@@ -745,7 +745,7 @@
       "traffic": "监控管理员使用情况",
       "no_traffic": "没有使用情况数据"
     },
-    "disabled": "??"
+    "disabled": "已禁用"
   },
   "apiKeys": {
     "title": "API 密钥",
@@ -2123,6 +2123,9 @@
     "excludedInbound": "排除的入站",
     "selectInbound": "选择入站",
     "inbound": "入站",
+    "apiServices": "API 服务",
+    "apiServiceAlwaysOn": "始终启用",
+    "apiServicesUnknown": "无法识别的 API 服务：{{names}}。请删除或修复后再保存。",
     "generateKeyPair": "密钥对",
     "backendType": "类型",
     "generateWireGuardKeyPair": "WireGuard 密钥对",
@@ -2242,6 +2245,7 @@
       "balancers": "负载均衡",
       "dns": "DNS",
       "bindings": "绑定",
+      "api": "API",
       "advanced": "高级",
       "interface": "接口"
     },
@@ -2253,7 +2257,14 @@
       "routing": "路由规则与流量策略",
       "balancers": "负载均衡与调度策略",
       "dns": "DNS 解析与解析器",
-      "bindings": "入站标签回退与排除"
+      "bindings": "入站标签回退与排除",
+      "api": "Xray gRPC API 服务"
+    },
+    "api": {
+      "title": "API 服务",
+      "hint": "此核心提供的 gRPC API 服务。节点始终启用必需的服务；可按需启用可选服务。",
+      "alwaysOn": "始终启用",
+      "unknown": "无法识别的 API 服务：{{names}}。请在“高级”选项卡中修复。"
     },
     "wg": {
       "interfaceBlurb": "此核心的 WireGuard 接口与密钥设置。",
