@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from ipaddress import IPv4Address, IPv6Address, ip_interface, ip_network
+from ipaddress import IPv4Address, IPv4Network, IPv6Address, IPv6Network, ip_interface, ip_network
 from typing import Iterable
 
 from sqlalchemy import and_, delete, insert, select
@@ -30,6 +30,8 @@ FREE_IPS_LIMIT = 10000
 # reclaimable on reconcile (upgrade: sparse bitmap / run-length encoding).
 FREE_OFFSETS_CAP = FREE_IPS_LIMIT
 
+IpNetwork = IPv4Network | IPv6Network
+IpAddress = IPv4Address | IPv6Address
 
 # --- pure helpers -----------------------------------------------------------
 
@@ -41,9 +43,9 @@ def core_config_dict(core: CoreConfig) -> dict:
     return cfg
 
 
-def wg_core_subnets(config: dict) -> list:
+def wg_core_subnets(config: dict) -> list[IpNetwork]:
     """Unique client subnets of a WG core (IPv4 and/or IPv6), from interface addresses."""
-    seen: dict[str, object] = {}
+    seen: dict[str, IpNetwork] = {}
     for cidr in (config or {}).get("address") or []:
         try:
             net = ip_interface(str(cidr).strip()).network
@@ -53,7 +55,7 @@ def wg_core_subnets(config: dict) -> list:
     return list(seen.values())
 
 
-def render_peer_ip(subnet, offset: int) -> str:
+def render_peer_ip(subnet: IpNetwork, offset: int) -> str:
     host = type(subnet.network_address)(int(subnet.network_address) + offset)
     return f"{host}/{'32' if subnet.version == 4 else '128'}"
 
@@ -67,7 +69,7 @@ def peer_host(entry: str) -> tuple[int, int] | None:
     return net.version, int(net.network_address)
 
 
-def _host_address(version: int, host_int: int):
+def _host_address(version: int, host_int: int) -> IpAddress:
     return IPv4Address(host_int) if version == 4 else IPv6Address(host_int)
 
 
@@ -76,13 +78,13 @@ class WgNamespace:
     """One allocation namespace: an exact client subnet shared by every WG core that uses it."""
 
     key: str  # canonical str(subnet), e.g. "10.0.0.0/24" or "fd00::/64"
-    subnet: object  # IPv4Network | IPv6Network
+    subnet: IpNetwork
     tags: frozenset[str]
     reserved: frozenset[int]  # network, last, and server interface offsets
 
 
 def wg_namespaces(cores: Iterable[CoreConfig]) -> dict[str, WgNamespace]:
-    by_key: dict[str, list[tuple[dict, object]]] = {}
+    by_key: dict[str, list[tuple[dict, IpNetwork]]] = {}
     for core in cores:
         cfg = core_config_dict(core)
         for subnet in wg_core_subnets(cfg):
@@ -367,7 +369,9 @@ async def sync_users_allocations(
         kept: dict[str, int] = {}
         for entry in old_ips:
             host = peer_host(entry)
-            ns = match_namespace(namespaces, *host) if host is not None else None
+            if host is None:
+                continue
+            ns = match_namespace(namespaces, *host)
             if ns is None:
                 continue  # foreign/legacy entry: drop, nothing to give back
             offset = host[1] - int(ns.subnet.network_address)
@@ -473,7 +477,9 @@ async def reconcile_wireguard_subnets(db: AsyncSession) -> list[int]:
         kept: dict[str, int] = {}
         for entry in old_ips:
             host = peer_host(entry)
-            ns = match_namespace(namespaces, *host) if host is not None else None
+            if host is None:
+                continue
+            ns = match_namespace(namespaces, *host)
             if ns is None:
                 continue
             offset = host[1] - int(ns.subnet.network_address)
