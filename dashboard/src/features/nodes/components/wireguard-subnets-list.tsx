@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useGetWireGuardSubnets, type WireGuardSubnetUsage } from '@/service/api'
+import { useGetWireguardSubnets, type WireGuardSubnetUsage } from '@/service/api'
 import { cn } from '@/lib/utils'
 import { ChevronDown, RefreshCw } from 'lucide-react'
 import { useMemo, useState } from 'react'
@@ -95,7 +95,7 @@ function SubnetCard({ row }: { row: WireGuardSubnetUsage }) {
 
 export default function WireGuardSubnetsList() {
   const { t } = useTranslation()
-  const { data, isLoading, isFetching, refetch } = useGetWireGuardSubnets()
+  const { data, isLoading, isFetching, refetch } = useGetWireguardSubnets()
   const rows = useMemo(() => data ?? [], [data])
 
   return (
