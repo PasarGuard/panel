@@ -10,6 +10,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field, computed_field, field_validator
 
+from app.models.host import FinalMask
 from app.models.stats import Period
 from app.utils.helpers import fix_datetime_timezone
 
@@ -98,13 +99,13 @@ class XHTTPTransportConfig(BaseTransportConfig):
 
     mode: str = Field("auto")
     no_grpc_header: bool | None = Field(None)
-    sc_max_each_post_bytes: str | int | None = Field(
+    sc_max_each_post_bytes: str | None = Field(
         None, serialization_alias="scMaxEachPostBytes", pattern=r"^\d{1,16}(?:-\d{1,16})?$"
     )
-    sc_min_posts_interval_ms: str | int | None = Field(
+    sc_min_posts_interval_ms: str | None = Field(
         None, serialization_alias="scMinPostsIntervalMs", pattern=r"^\d{1,16}(?:-\d{1,16})?$"
     )
-    x_padding_bytes: str | None = Field(None, serialization_alias="xPaddingBytes")
+    x_padding_bytes: str | None = Field(None, serialization_alias="xPaddingBytes", pattern=r"^\d{1,16}(?:-\d{1,16})?$")
     x_padding_obfs_mode: bool | None = Field(None, serialization_alias="xPaddingObfsMode")
     x_padding_key: str | None = Field(None, serialization_alias="xPaddingKey")
     x_padding_header: str | None = Field(None, serialization_alias="xPaddingHeader")
@@ -117,13 +118,28 @@ class XHTTPTransportConfig(BaseTransportConfig):
     seq_key: str | None = Field(None, serialization_alias="seqKey")
     uplink_data_placement: str | None = Field(None, serialization_alias="uplinkDataPlacement")
     uplink_data_key: str | None = Field(None, serialization_alias="uplinkDataKey")
-    uplink_chunk_size: str | int | None = Field(
+    uplink_chunk_size: str | None = Field(
         None, serialization_alias="uplinkChunkSize", pattern=r"^\d{1,16}(?:-\d{1,16})?$"
     )
     xmux: dict[str, Any] | None = Field(None)
     download_settings: SubscriptionInboundData | dict | None = Field(None, serialization_alias="downloadSettings")
     http_headers: dict[str, str] | None = Field(None)
     random_user_agent: bool = Field(False)
+
+    @field_validator(
+        "sc_max_each_post_bytes",
+        "sc_min_posts_interval_ms",
+        "x_padding_bytes",
+        "uplink_chunk_size",
+        mode="before",
+    )
+    @classmethod
+    def normalize_numeric_or_range_fields(cls, value):
+        if value == "":
+            return None
+        if isinstance(value, int):
+            return str(value)
+        return value
 
 
 class KCPTransportConfig(BaseTransportConfig):
@@ -256,7 +272,6 @@ class SubscriptionInboundData(BaseModel):
 
     # Flow (from inbound, user can override)
     inbound_flow: str = Field("")
-    flow_enabled: bool = Field(False)  # Computed once: if this inbound supports flow
 
     # Additional settings
     random_user_agent: bool = Field(False)
@@ -264,7 +279,8 @@ class SubscriptionInboundData(BaseModel):
     # Fragment and noise settings
     fragment_settings: dict[str, Any] | None = Field(None)
     noise_settings: dict[str, Any] | None = Field(None)
-    finalmask: dict[str, Any] | None = Field(None)
+    finalmask: FinalMask | dict[str, Any] | None = Field(None)
+    finalmask_link: str | None = Field(None)
 
     # Priority and status
     priority: int = Field(0)
@@ -285,3 +301,12 @@ class SubscriptionUsageQuery(BaseModel):
         if not value:
             return value
         return fix_datetime_timezone(value)
+
+
+class SubscriptionHeaders(BaseModel):
+    x_hwid: str | None = Field(default=None, alias="X-HWID")
+    x_device_os: str | None = Field(default=None, alias="X-Device-OS")
+    x_ver_os: str | None = Field(default=None, alias="X-Ver-OS")
+    x_device_model: str | None = Field(default=None, alias="X-Device-Model")
+
+    model_config = {"populate_by_name": True}

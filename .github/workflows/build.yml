@@ -1,188 +1,205 @@
 name: Build-Docker
 
 on:
-  release:
-    types: [created]
+    release:
+        types: [created]
+    workflow_dispatch:
 
 permissions:
-  contents: write
-  packages: write
+    contents: write
+    packages: write
 
 env:
-  IMAGE_NAME: pasarguard/${{ github.event.repository.name }}
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    IMAGE_NAME: pasarguard/${{ github.event.repository.name }}
+    FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  generate-changelog:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
+    generate-changelog:
+        if: ${{ github.event_name == 'release' }}
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v7
+              with:
+                  fetch-depth: 0
 
-      - name: Determine version range
-        id: tags
-        run: |
-          current_tag="${GITHUB_REF_NAME}"
-          prev_tag="$(git describe --tags --abbrev=0 "${current_tag}^" 2>/dev/null || true)"
-          if [ -z "$prev_tag" ]; then
-            prev_tag="$(git rev-list --max-parents=0 HEAD)"
-          fi
-          echo "previous=$prev_tag" >> "$GITHUB_OUTPUT"
-          echo "current=$current_tag" >> "$GITHUB_OUTPUT"
+            - name: Determine version range
+              id: tags
+              env:
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  CURRENT_IS_PRERELEASE: ${{ github.event.release.prerelease }}
+              run: |
+                  current_tag="${GITHUB_REF_NAME}"
+                  prev_tag=""
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
+                  if [ "${CURRENT_IS_PRERELEASE}" != "true" ]; then
+                    prev_tag="$(gh api --paginate "repos/${GITHUB_REPOSITORY}/releases" \
+                      | jq -rs --arg current_tag "$current_tag" '
+                          [.[][] | select(.draft == false and .prerelease == false and .tag_name != $current_tag) | .tag_name][0] // empty
+                        ')"
+                  fi
 
-      - name: Generate changelog
-        run: |
-          bunx changelogen@latest --from "${{ steps.tags.outputs.previous }}" --to "${{ steps.tags.outputs.current }}" \
-            | grep -v "Generating changelog for " > CHANGELOG.md
+                  if [ -z "$prev_tag" ]; then
+                    prev_tag="$(git describe --tags --abbrev=0 "${current_tag}^" 2>/dev/null || true)"
+                  fi
 
-      - name: Update release notes
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh release edit "${{ github.event.release.tag_name }}" --notes-file CHANGELOG.md
+                  if [ -z "$prev_tag" ]; then
+                    prev_tag="$(git rev-list --max-parents=0 HEAD)"
+                  fi
 
-      - name: Upload changelog artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: changelog
-          path: CHANGELOG.md
-          retention-days: 7
+                  echo "previous=$prev_tag" >> "$GITHUB_OUTPUT"
+                  echo "current=$current_tag" >> "$GITHUB_OUTPUT"
 
-  build-dashboard:
-    needs: generate-changelog
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
+            - name: Setup Bun
+              uses: oven-sh/setup-bun@v2
+              with:
+                  bun-version: latest
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
+            - name: Generate changelog
+              run: |
+                  bunx changelogen@latest --from "${{ steps.tags.outputs.previous }}" --to "${{ steps.tags.outputs.current }}" \
+                    | grep -v "Generating changelog for " > CHANGELOG.md
 
-      - name: Install dependencies
-        working-directory: ./dashboard
-        run: bun install --frozen-lockfile
+            - name: Update release notes
+              env:
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              run: |
+                  gh release edit "${{ github.event.release.tag_name }}" --notes-file CHANGELOG.md
 
-      - name: Build dashboard
-        run: ./build_dashboard.sh
-        
-      - name: Upload dashboard build
-        uses: actions/upload-artifact@v7
-        with:
-          name: dashboard-build
-          path: ./dashboard/build/
-          retention-days: 1
+            - name: Upload changelog artifact
+              uses: actions/upload-artifact@v7
+              with:
+                  name: changelog
+                  path: CHANGELOG.md
+                  retention-days: 7
 
-  build-images:
-    needs: build-dashboard
-    strategy:
-      matrix:
-        arch: [amd64, arm64]
-        include:
-          - arch: amd64
-            platform: linux/amd64
-            runner: ubuntu-24.04
-          - arch: arm64
-            platform: linux/arm64
-            runner: ubuntu-24.04-arm
-    runs-on: ${{ matrix.runner }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
+    build-dashboard:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v7
 
-      - name: Download dashboard build
-        uses: actions/download-artifact@v8
-        with:
-          name: dashboard-build
-          path: ./dashboard/build/
+            - name: Setup Bun
+              uses: oven-sh/setup-bun@v2
+              with:
+                  bun-version: latest
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
+            - name: Install dependencies
+              working-directory: ./dashboard
+              run: bun install --frozen-lockfile
 
-      - name: Login to Docker Hub
-        uses: docker/login-action@v4
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+            - name: Build dashboard
+              run: ./build_dashboard.sh
 
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+            - name: Upload dashboard build
+              uses: actions/upload-artifact@v7
+              with:
+                  name: dashboard-build
+                  path: ./dashboard/build/
+                  retention-days: 1
 
-      - name: Build and push ${{ matrix.arch }} image
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          platforms: ${{ matrix.platform }}
-          push: true
-          file: ./Dockerfile
-          tags: |
-            ${{ env.IMAGE_NAME }}:${{ github.ref_name }}-${{ matrix.arch }}
-            ghcr.io/${{ env.IMAGE_NAME }}:${{ github.ref_name }}-${{ matrix.arch }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+    build-images:
+        needs: build-dashboard
+        strategy:
+            matrix:
+                arch: [amd64, arm64]
+                include:
+                    - arch: amd64
+                      platform: linux/amd64
+                      runner: ubuntu-24.04
+                    - arch: arm64
+                      platform: linux/arm64
+                      runner: ubuntu-24.04-arm
+        runs-on: ${{ matrix.runner }}
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v7
 
-  push-manifest:
-    needs: [build-images]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Login to Docker Hub
-        uses: docker/login-action@v4
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+            - name: Download dashboard build
+              uses: actions/download-artifact@v8
+              with:
+                  name: dashboard-build
+                  path: ./dashboard/build/
 
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+            - name: Set up Docker Buildx
+              uses: docker/setup-buildx-action@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
+            - name: Login to Docker Hub
+              uses: docker/login-action@v4
+              with:
+                  username: ${{ secrets.DOCKERHUB_USERNAME }}
+                  password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Create tagged manifest
-        run: |
-          docker buildx imagetools create \
-            -t "${{ env.IMAGE_NAME }}:${{ github.ref_name }}" \
-            "${{ env.IMAGE_NAME }}:${{ github.ref_name }}-amd64" \
-            "${{ env.IMAGE_NAME }}:${{ github.ref_name }}-arm64"
-          docker buildx imagetools inspect "${{ env.IMAGE_NAME }}:${{ github.ref_name }}"
+            - name: Login to GitHub Container Registry
+              uses: docker/login-action@v4
+              with:
+                  registry: ghcr.io
+                  username: ${{ github.repository_owner }}
+                  password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Create tagged manifest for GitHub
-        run: |
-          docker buildx imagetools create \
-            -t "ghcr.io/${{ env.IMAGE_NAME }}:${{ github.ref_name }}" \
-            "ghcr.io/${{ env.IMAGE_NAME }}:${{ github.ref_name }}-amd64" \
-            "ghcr.io/${{ env.IMAGE_NAME }}:${{ github.ref_name }}-arm64"
-          docker buildx imagetools inspect "ghcr.io/${{ env.IMAGE_NAME }}:${{ github.ref_name }}"
+            - name: Build and push ${{ matrix.arch }} image
+              uses: docker/build-push-action@v7
+              with:
+                  context: .
+                  platforms: ${{ matrix.platform }}
+                  push: true
+                  file: ./Dockerfile
+                  tags: |
+                      ${{ env.IMAGE_NAME }}:${{ github.ref_name }}-${{ matrix.arch }}
+                      ghcr.io/${{ env.IMAGE_NAME }}:${{ github.ref_name }}-${{ matrix.arch }}
+                  cache-from: type=gha
+                  cache-to: type=gha,mode=max
 
-      - name: Create latest manifest if not prerelease
-        if: ${{ github.event.release.prerelease != true }}
-        run: |
-          docker buildx imagetools create \
-            -t "${{ env.IMAGE_NAME }}:latest" \
-            "${{ env.IMAGE_NAME }}:${{ github.ref_name }}-amd64" \
-            "${{ env.IMAGE_NAME }}:${{ github.ref_name }}-arm64"
-          docker buildx imagetools inspect "${{ env.IMAGE_NAME }}:latest"
+    push-manifest:
+        needs: [build-images]
+        runs-on: ubuntu-latest
+        steps:
+            - name: Login to Docker Hub
+              uses: docker/login-action@v4
+              with:
+                  username: ${{ secrets.DOCKERHUB_USERNAME }}
+                  password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Create latest manifest for GitHub if not prerelease
-        if: ${{ github.event.release.prerelease != true }}
-        run: |
-          docker buildx imagetools create \
-            -t "ghcr.io/${{ env.IMAGE_NAME }}:latest" \
-            "ghcr.io/${{ env.IMAGE_NAME }}:${{ github.ref_name }}-amd64" \
-            "ghcr.io/${{ env.IMAGE_NAME }}:${{ github.ref_name }}-arm64"
-          docker buildx imagetools inspect "ghcr.io/${{ env.IMAGE_NAME }}:latest"
+            - name: Login to GitHub Container Registry
+              uses: docker/login-action@v4
+              with:
+                  registry: ghcr.io
+                  username: ${{ github.repository_owner }}
+                  password: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Set up Docker Buildx
+              uses: docker/setup-buildx-action@v4
+
+            - name: Create tagged manifest
+              run: |
+                  docker buildx imagetools create \
+                    -t "${{ env.IMAGE_NAME }}:${{ github.ref_name }}" \
+                    "${{ env.IMAGE_NAME }}:${{ github.ref_name }}-amd64" \
+                    "${{ env.IMAGE_NAME }}:${{ github.ref_name }}-arm64"
+                  docker buildx imagetools inspect "${{ env.IMAGE_NAME }}:${{ github.ref_name }}"
+
+            - name: Create tagged manifest for GitHub
+              run: |
+                  docker buildx imagetools create \
+                    -t "ghcr.io/${{ env.IMAGE_NAME }}:${{ github.ref_name }}" \
+                    "ghcr.io/${{ env.IMAGE_NAME }}:${{ github.ref_name }}-amd64" \
+                    "ghcr.io/${{ env.IMAGE_NAME }}:${{ github.ref_name }}-arm64"
+                  docker buildx imagetools inspect "ghcr.io/${{ env.IMAGE_NAME }}:${{ github.ref_name }}"
+
+            - name: Create latest manifest if not prerelease
+              if: ${{ github.event_name == 'release' && github.event.release.prerelease != true }}
+              run: |
+                  docker buildx imagetools create \
+                    -t "${{ env.IMAGE_NAME }}:latest" \
+                    "${{ env.IMAGE_NAME }}:${{ github.ref_name }}-amd64" \
+                    "${{ env.IMAGE_NAME }}:${{ github.ref_name }}-arm64"
+                  docker buildx imagetools inspect "${{ env.IMAGE_NAME }}:latest"
+
+            - name: Create latest manifest for GitHub if not prerelease
+              if: ${{ github.event_name == 'release' && github.event.release.prerelease != true }}
+              run: |
+                  docker buildx imagetools create \
+                    -t "ghcr.io/${{ env.IMAGE_NAME }}:latest" \
+                    "ghcr.io/${{ env.IMAGE_NAME }}:${{ github.ref_name }}-amd64" \
+                    "ghcr.io/${{ env.IMAGE_NAME }}:${{ github.ref_name }}-arm64"
+                  docker buildx imagetools inspect "ghcr.io/${{ env.IMAGE_NAME }}:latest"

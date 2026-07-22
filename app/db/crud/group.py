@@ -16,7 +16,6 @@ from app.models.group import (
     GroupSimpleListQuery,
     GroupSimpleSortField,
     GroupSimpleSortOption,
-    SortDirection,
 )
 
 from .host import upsert_inbounds

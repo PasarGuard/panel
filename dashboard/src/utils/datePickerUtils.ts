@@ -12,8 +12,7 @@ type DatePickerSerializeOptions = {
 const UTC_SUFFIX_PATTERN = /Z$/i
 
 /** True when the app language is Persian (e.g. `fa`, `fa-IR` from i18next or the browser). */
-export const isPersianLocaleLanguage = (language: string | undefined): boolean =>
-  (language ?? '').toLowerCase().startsWith('fa')
+export const isPersianLocaleLanguage = (language: string | undefined): boolean => (language ?? '').toLowerCase().startsWith('fa')
 
 export const serializeDatePickerValue = (value: DateInput, { useUtcTimestamp = false }: DatePickerSerializeOptions = {}): string | number => {
   return useUtcTimestamp ? toUnixSeconds(value) : formatOffsetDateTime(value)

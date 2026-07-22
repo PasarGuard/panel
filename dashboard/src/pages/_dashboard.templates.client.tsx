@@ -1,9 +1,9 @@
-import ClientTemplate from '@/components/templates/client-template'
+import ClientTemplate from '@/features/templates/components/client-template'
 import { useBulkDeleteClientTemplates, useGetClientTemplates, ClientTemplateResponse } from '@/service/api'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Card, CardContent } from '@/components/ui/card'
-import ClientTemplateModal from '@/components/dialogs/client-template-modal'
-import { clientTemplateFormDefaultValues, clientTemplateFormSchema, type ClientTemplateFormValues } from '@/components/forms/client-template-form'
+import ClientTemplateModal from '@/features/templates/dialogs/client-template-modal'
+import { clientTemplateFormDefaultValues, clientTemplateFormSchema, type ClientTemplateFormValues } from '@/features/templates/forms/client-template-form'
 import { useState, useMemo, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -15,14 +15,21 @@ import useDirDetection from '@/hooks/use-dir-detection'
 import { cn } from '@/lib/utils'
 import ViewToggle from '@/components/common/view-toggle'
 import { ListGenerator } from '@/components/common/list-generator'
-import { useClientTemplatesListColumns } from '@/components/templates/use-client-templates-list-columns'
+import { ListGeneratorGrid } from '@/components/common/list-generator-grid'
+import { useClientTemplatesListColumns } from '@/features/templates/components/use-client-templates-list-columns'
 import { usePersistedViewMode } from '@/hooks/use-persisted-view-mode'
-import { BulkActionsBar } from '@/components/users/bulk-actions-bar'
-import { BulkActionAlertDialog } from '@/components/users/bulk-action-alert-dialog'
+import { BulkActionsBar } from '@/features/users/components/bulk-actions-bar'
+import { BulkActionAlertDialog } from '@/features/users/components/bulk-action-alert-dialog'
 import { toast } from 'sonner'
 import { queryClient } from '@/utils/query-client'
+import { useAdmin } from '@/hooks/use-admin'
+import { hasPermission } from '@/utils/rbac'
 
 export default function ClientTemplates() {
+  const { admin } = useAdmin()
+  const canCreateTemplates = hasPermission(admin, 'client_templates', 'create')
+  const canUpdateTemplates = hasPermission(admin, 'client_templates', 'update')
+  const canDeleteTemplates = hasPermission(admin, 'client_templates', 'delete')
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingTemplate, setEditingTemplate] = useState<ClientTemplateResponse | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
@@ -40,15 +47,18 @@ export default function ClientTemplates() {
 
   useEffect(() => {
     const handleOpenDialog = () => {
+      if (!canCreateTemplates) return
       setEditingTemplate(null)
       form.reset(clientTemplateFormDefaultValues as ClientTemplateFormValues)
       setIsDialogOpen(true)
     }
     window.addEventListener('openClientTemplateDialog', handleOpenDialog)
     return () => window.removeEventListener('openClientTemplateDialog', handleOpenDialog)
-  }, [form])
+  }, [canCreateTemplates, form])
 
   const handleEdit = (template: ClientTemplateResponse) => {
+    if (!canUpdateTemplates) return
+
     setEditingTemplate(template)
     form.reset({
       name: template.name,
@@ -66,13 +76,18 @@ export default function ClientTemplates() {
     return templates.filter((t: ClientTemplateResponse) => t.name?.toLowerCase().includes(query) || t.template_type?.toLowerCase().includes(query))
   }, [data, searchQuery])
 
-  const listColumns = useClientTemplatesListColumns({ onEdit: handleEdit })
+  const listColumns = useClientTemplatesListColumns({
+    onEdit: handleEdit,
+    canCreate: canCreateTemplates,
+    canUpdate: canUpdateTemplates,
+    canDelete: canDeleteTemplates,
+  })
   const clearSelection = () => {
     setSelectedTemplateIds([])
   }
 
   const handleBulkDelete = async () => {
-    if (!selectedTemplateIds.length) return
+    if (!canDeleteTemplates || !selectedTemplateIds.length) return
 
     try {
       const response = await bulkDeleteClientTemplatesMutation.mutateAsync({
@@ -110,10 +125,14 @@ export default function ClientTemplates() {
       <div className="w-full flex-1 space-y-4 px-4">
         <div dir={dir} className="flex items-center gap-2 pt-4 md:gap-4">
           <div className="relative min-w-0 flex-1 md:w-[calc(100%/3-10px)] md:flex-none">
-            <Search className={cn('absolute', dir === 'rtl' ? 'right-2' : 'left-2', 'top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground')} />
-            <Input placeholder={t('search')} value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className={cn('pl-8 pr-10', dir === 'rtl' && 'pl-10 pr-8')} />
+            <Search className={cn('absolute', dir === 'rtl' ? 'right-2' : 'left-2', 'text-muted-foreground top-1/2 h-4 w-4 -translate-y-1/2')} />
+            <Input placeholder={t('search')} value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className={cn('pr-10 pl-8', dir === 'rtl' && 'pr-8 pl-10')} />
             {searchQuery && (
-              <button type="button" onClick={() => setSearchQuery('')} className={cn('absolute', dir === 'rtl' ? 'left-2' : 'right-2', 'top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground')}>
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className={cn('absolute', dir === 'rtl' ? 'left-2' : 'right-2', 'text-muted-foreground hover:text-foreground top-1/2 -translate-y-1/2')}
+              >
                 <X className="h-4 w-4" />
               </button>
             )}
@@ -133,51 +152,66 @@ export default function ClientTemplates() {
             <ViewToggle value={viewMode} onChange={setViewMode} />
           </div>
         </div>
-        <BulkActionsBar selectedCount={selectedTemplateIds.length} onClear={clearSelection} onDelete={selectedTemplateIds.length > 0 ? () => setBulkAction('delete') : undefined} />
-
-        {(isCurrentlyLoading || filteredTemplates.length > 0) && (
-          <ListGenerator
-            data={filteredTemplates}
-            columns={listColumns}
-            getRowId={template => template.id}
-            isLoading={isCurrentlyLoading}
-            loadingRows={6}
-            className={viewMode === 'grid' ? 'gap-4' : 'gap-3'}
-            onRowClick={handleEdit}
-            mode={viewMode}
-            enableSelection
-            enableGridSelection
-            selectedRowIds={selectedTemplateIds}
-            onSelectionChange={ids => setSelectedTemplateIds(ids.map(id => Number(id)))}
-            isRowSelectable={template => !template.is_system}
-            showEmptyState={false}
-            gridClassName="transform-gpu animate-slide-up"
-            gridStyle={{ animationDuration: '500ms', animationDelay: '100ms', animationFillMode: 'both' }}
-            renderGridItem={template => <ClientTemplate onEdit={handleEdit} template={template} />}
-            renderGridSkeleton={i => (
-              <Card key={i} className="px-4 py-5 sm:px-5 sm:py-6">
-                <div className="flex items-start justify-between gap-2 sm:gap-3">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-x-2">
-                      <Skeleton className="h-5 w-24 sm:w-32" />
-                    </div>
-                    <div className="mt-2">
-                      <Skeleton className="h-4 w-16" />
-                    </div>
-                  </div>
-                  <Skeleton className="h-8 w-8 shrink-0" />
-                </div>
-              </Card>
-            )}
-          />
+        {canDeleteTemplates && (
+          <BulkActionsBar selectedCount={selectedTemplateIds.length} onClear={clearSelection} onDelete={selectedTemplateIds.length > 0 ? () => setBulkAction('delete') : undefined} />
         )}
+
+        {(isCurrentlyLoading || filteredTemplates.length > 0) &&
+          (viewMode === 'grid' ? (
+            <ListGeneratorGrid
+              data={filteredTemplates}
+              getRowId={template => template.id}
+              isLoading={isCurrentlyLoading}
+              loadingRows={6}
+              className="gap-4"
+              gridClassName="transform-gpu animate-slide-up"
+              gridStyle={{ animationDuration: '500ms', animationDelay: '100ms', animationFillMode: 'both' }}
+              enableSelection={canDeleteTemplates}
+              injectSelectionProps={canDeleteTemplates}
+              selectedRowIds={selectedTemplateIds}
+              onSelectionChange={ids => setSelectedTemplateIds(ids.map(id => Number(id)))}
+              isRowSelectable={template => !template.is_system}
+              showEmptyState={false}
+              renderItem={template => <ClientTemplate onEdit={handleEdit} template={template} canCreate={canCreateTemplates} canUpdate={canUpdateTemplates} canDelete={canDeleteTemplates} />}
+              renderSkeleton={i => (
+                <Card key={i} className="px-4 py-5 sm:px-5 sm:py-6">
+                  <div className="flex items-start justify-between gap-2 sm:gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-x-2">
+                        <Skeleton className="h-5 w-24 sm:w-32" />
+                      </div>
+                      <div className="mt-2">
+                        <Skeleton className="h-4 w-16" />
+                      </div>
+                    </div>
+                    <Skeleton className="h-8 w-8 shrink-0" />
+                  </div>
+                </Card>
+              )}
+            />
+          ) : (
+            <ListGenerator
+              data={filteredTemplates}
+              columns={listColumns}
+              getRowId={template => template.id}
+              isLoading={isCurrentlyLoading}
+              loadingRows={6}
+              className="gap-3"
+              onRowClick={canUpdateTemplates ? handleEdit : undefined}
+              enableSelection={canDeleteTemplates}
+              selectedRowIds={selectedTemplateIds}
+              onSelectionChange={ids => setSelectedTemplateIds(ids.map(id => Number(id)))}
+              isRowSelectable={template => !template.is_system}
+              showEmptyState={false}
+            />
+          ))}
 
         {isEmpty && !isCurrentlyLoading && (
           <Card className="mb-12">
             <CardContent className="p-8 text-center">
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold">{t('clientTemplates.noTemplates', { defaultValue: 'No client templates' })}</h3>
-                <p className="mx-auto max-w-2xl text-muted-foreground">
+                <p className="text-muted-foreground mx-auto max-w-2xl">
                   {t('clientTemplates.noTemplatesDescription', { defaultValue: 'Create a client template to customize subscription output formats.' })}
                 </p>
               </div>
@@ -190,39 +224,45 @@ export default function ClientTemplates() {
             <CardContent className="p-8 text-center">
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold">{t('noResults')}</h3>
-                <p className="mx-auto max-w-2xl text-muted-foreground">{t('clientTemplates.noSearchResults', { defaultValue: 'No client templates match your search.' })}</p>
+                <p className="text-muted-foreground mx-auto max-w-2xl">{t('clientTemplates.noSearchResults', { defaultValue: 'No client templates match your search.' })}</p>
               </div>
             </CardContent>
           </Card>
         )}
       </div>
 
-      <ClientTemplateModal
-        isDialogOpen={isDialogOpen}
-        onOpenChange={open => {
-          if (!open) {
-            setEditingTemplate(null)
-            form.reset(clientTemplateFormDefaultValues as ClientTemplateFormValues)
-          }
-          setIsDialogOpen(open)
-        }}
-        form={form}
-        editingTemplate={!!editingTemplate}
-        editingTemplateId={editingTemplate?.id}
-      />
-      <BulkActionAlertDialog
-        open={bulkAction === 'delete'}
-        onOpenChange={open => setBulkAction(open ? 'delete' : null)}
-        title={t('clientTemplates.bulkDeleteTitle', { defaultValue: 'Delete Selected Client Templates' })}
-        description={t('clientTemplates.bulkDeletePrompt', {
-          count: selectedTemplateIds.length,
-          defaultValue: 'Are you sure you want to delete {{count}} selected client templates? This action cannot be undone.',
-        })}
-        actionLabel={t('delete')}
-        onConfirm={handleBulkDelete}
-        isPending={bulkDeleteClientTemplatesMutation.isPending}
-        destructive
-      />
+      {(canCreateTemplates || canUpdateTemplates) && (
+        <ClientTemplateModal
+          isDialogOpen={isDialogOpen}
+          onOpenChange={open => {
+            if (open && editingTemplate && !canUpdateTemplates) return
+            if (open && !editingTemplate && !canCreateTemplates) return
+            if (!open) {
+              setEditingTemplate(null)
+              form.reset(clientTemplateFormDefaultValues as ClientTemplateFormValues)
+            }
+            setIsDialogOpen(open)
+          }}
+          form={form}
+          editingTemplate={!!editingTemplate}
+          editingTemplateId={editingTemplate?.id}
+        />
+      )}
+      {canDeleteTemplates && (
+        <BulkActionAlertDialog
+          open={bulkAction === 'delete'}
+          onOpenChange={open => setBulkAction(open ? 'delete' : null)}
+          title={t('clientTemplates.bulkDeleteTitle', { defaultValue: 'Delete Selected Client Templates' })}
+          description={t('clientTemplates.bulkDeletePrompt', {
+            count: selectedTemplateIds.length,
+            defaultValue: 'Are you sure you want to delete {{count}} selected client templates? This action cannot be undone.',
+          })}
+          actionLabel={t('delete')}
+          onConfirm={handleBulkDelete}
+          isPending={bulkDeleteClientTemplatesMutation.isPending}
+          destructive
+        />
+      )}
     </div>
   )
 }

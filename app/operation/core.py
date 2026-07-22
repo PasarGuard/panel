@@ -12,6 +12,7 @@ from app.db.crud.core import (
     remove_core_config,
     remove_cores,
 )
+from app.db.crud.host import get_hosts
 from app.models.admin import AdminDetails
 from app.models.core import (
     BulkCoreSelection,
@@ -24,13 +25,29 @@ from app.models.core import (
     CoresSimpleResponse,
     RemoveCoresResponse,
 )
+from app.models.reality_scan import RealityScanRequest, RealityScanResult
 from app.operation import BaseOperation
 from app.utils.logger import get_logger
+from app.utils.reality_scan import RealityScanError, scan_reality_target
 
 logger = get_logger("core-operation")
 
 
 class CoreOperation(BaseOperation):
+    async def _refresh_hosts_from_db(self, db: AsyncSession) -> None:
+        db_hosts = await get_hosts(db=db)
+        await host_manager.add_hosts(db, db_hosts)
+
+    async def scan_reality_target(self, request: RealityScanRequest) -> RealityScanResult:
+        try:
+            result = await scan_reality_target(target=request.target, timeout=request.timeout)
+        except RealityScanError as e:
+            await self.raise_error(message=str(e), code=400)
+        except Exception as e:
+            logger.warning("reality scan failed for %r: %s", request.target, e)
+            await self.raise_error(message=f"Reality scan failed: {e}", code=502)
+        return RealityScanResult.model_validate(result)
+
     async def create_core(self, db: AsyncSession, new_core: CoreCreate, admin: AdminDetails) -> CoreResponse:
         try:
             validated_core = core_manager.validate_core(
@@ -49,7 +66,7 @@ class CoreOperation(BaseOperation):
         core = CoreResponse.model_validate(db_core)
         asyncio.create_task(notification.create_core(core, admin.username))
 
-        await host_manager.setup_local(db)
+        await self._refresh_hosts_from_db(db)
 
         return core
 
@@ -87,7 +104,7 @@ class CoreOperation(BaseOperation):
         core = CoreResponse.model_validate(db_core)
         asyncio.create_task(notification.modify_core(core, admin.username))
 
-        await host_manager.setup_local(db)
+        await self._refresh_hosts_from_db(db)
 
         return core
 
@@ -104,21 +121,26 @@ class CoreOperation(BaseOperation):
 
         logger.info(f'core config "{db_core.name}" deleted by admin "{admin.username}"')
 
-        await host_manager.setup_local(db)
+        await self._refresh_hosts_from_db(db)
 
     async def bulk_remove_cores(
         self, db: AsyncSession, bulk_cores: BulkCoreSelection, admin: AdminDetails
     ) -> RemoveCoresResponse:
         """Remove multiple cores by ID"""
-        db_cores = []
-        for core_id in bulk_cores.ids:
-            if core_id == 1:
-                await self.raise_error(message="Cannot delete default core config", code=403)
-            db_core = await self.get_validated_core_config(db, core_id)
-            db_cores.append(db_core)
+        ids_list = list(bulk_cores.ids)
+        db_cores_list, _ = await get_core_configs(db, CoreListQuery(ids=ids_list, limit=len(ids_list)))
 
-        core_ids = [c.id for c in db_cores]
-        core_names = [c.name for c in db_cores]
+        found_ids = {c.id for c in db_cores_list}
+        missing = set(ids_list) - found_ids
+        if missing:
+            await self.raise_error(message="Core not found", code=404)
+
+        for db_core in db_cores_list:
+            if db_core.id == 1:
+                await self.raise_error(message="Cannot delete default core config", code=403)
+
+        core_ids = [c.id for c in db_cores_list]
+        core_names = [c.name for c in db_cores_list]
 
         # Batch delete using CRUD function
         await remove_cores(db, core_ids)
@@ -129,6 +151,6 @@ class CoreOperation(BaseOperation):
             asyncio.create_task(notification.remove_core(core_id, admin.username))
             logger.info(f'core config "{core_name}" deleted by admin "{admin.username}"')
 
-        await host_manager.setup_local(db)
+        await self._refresh_hosts_from_db(db)
 
-        return RemoveCoresResponse(cores=core_names, count=len(db_cores))
+        return RemoveCoresResponse(cores=core_names, count=len(db_cores_list))

@@ -1,15 +1,24 @@
 import { useTranslation } from 'react-i18next'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Label } from '@/components/ui/label'
-import { useTheme, colorThemes, type ColorTheme, type Radius } from '@/components/common/theme-provider'
+import { useTheme, colorThemes, type ColorTheme, type Radius } from '@/app/providers/theme-provider'
 import { useEffect, useState, type ReactNode } from 'react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
-import { CheckCircle2, SunMoon, Palette, Ruler, Eye, RotateCcw, Sun, Moon, Monitor, CalendarClock, Languages, BarChart3, TrendingUp } from 'lucide-react'
+import { CheckCircle2, SunMoon, Palette, Ruler, Eye, RotateCcw, Sun, Moon, Monitor, CalendarClock, Languages, BarChart3, TrendingUp, FileJson2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { Switch } from '@/components/ui/switch'
-import { getDatePickerPreference, getChartViewTypePreference, setDatePickerPreference, setChartViewTypePreference, type DatePickerPreference, type ChartViewType } from '@/utils/userPreferenceStorage'
+import {
+  getCoresListUseConfigModal,
+  getDatePickerPreference,
+  getChartViewTypePreference,
+  setCoresListUseConfigModal,
+  setDatePickerPreference,
+  setChartViewTypePreference,
+  type DatePickerPreference,
+  type ChartViewType,
+} from '@/utils/userPreferenceStorage'
 import { isPersianLocaleLanguage } from '@/utils/datePickerUtils'
 
 const colorThemeData = [
@@ -33,16 +42,16 @@ const radiusOptions = [
 const modeOptions = ['light', 'dark', 'system'] as const
 
 const modeIcons: Record<(typeof modeOptions)[number], ReactNode> = {
-  light: <Sun className="h-4 w-4 text-primary" />,
-  dark: <Moon className="h-4 w-4 text-primary" />,
-  system: <Monitor className="h-4 w-4 text-primary" />,
+  light: <Sun className="text-primary h-4 w-4" />,
+  dark: <Moon className="text-primary h-4 w-4" />,
+  system: <Monitor className="text-primary h-4 w-4" />,
 }
 
 const chartViewOptions = ['bar', 'area'] as const
 
 const chartViewIcons: Record<(typeof chartViewOptions)[number], ReactNode> = {
-  bar: <BarChart3 className="h-4 w-4 text-primary" />,
-  area: <TrendingUp className="h-4 w-4 text-primary" />,
+  bar: <BarChart3 className="text-primary h-4 w-4" />,
+  area: <TrendingUp className="text-primary h-4 w-4" />,
 }
 
 export default function ThemeSettings() {
@@ -52,12 +61,9 @@ export default function ThemeSettings() {
   const [isResetting, setIsResetting] = useState(false)
   const [datePickerPreference, setDatePickerPreferenceState] = useState<DatePickerPreference>('locale')
   const [chartViewType, setChartViewTypeState] = useState<ChartViewType>('bar')
+  const [coresListUseConfigModal, setCoresListUseConfigModalState] = useState(false)
   const isDatePickerFollowingLocale = datePickerPreference === 'locale'
-  const defaultManualDatePreference: Exclude<DatePickerPreference, 'locale'> = isPersianLocaleLanguage(
-    i18n.resolvedLanguage ?? i18n.language,
-  )
-    ? 'persian'
-    : 'gregorian'
+  const defaultManualDatePreference: Exclude<DatePickerPreference, 'locale'> = isPersianLocaleLanguage(i18n.resolvedLanguage ?? i18n.language) ? 'persian' : 'gregorian'
   const datePickerModeCopy: Record<DatePickerPreference, string> = {
     locale: t('theme.datePickerModeLocale'),
     gregorian: t('theme.datePickerModeGregorian'),
@@ -71,6 +77,7 @@ export default function ThemeSettings() {
   useEffect(() => {
     setDatePickerPreferenceState(getDatePickerPreference())
     setChartViewTypeState(getChartViewTypePreference())
+    setCoresListUseConfigModalState(getCoresListUseConfigModal())
   }, [])
 
   const handleThemeChange = (newTheme: 'light' | 'dark' | 'system') => {
@@ -155,6 +162,15 @@ export default function ThemeSettings() {
     })
   }
 
+  const handleCoresListUseConfigModalChange = (checked: boolean) => {
+    setCoresListUseConfigModalState(checked)
+    setCoresListUseConfigModal(checked)
+    toast.success(t('success'), {
+      description: `🧩 ${t('theme.coresListEditorSaved')} • ${checked ? t('theme.coresListEditorModal') : t('theme.coresListEditorFullPage')}`,
+      duration: 2000,
+    })
+  }
+
   const handleResetToDefaults = async () => {
     setIsResetting(true)
     try {
@@ -163,6 +179,8 @@ export default function ThemeSettings() {
       setDatePickerPreference('locale')
       setChartViewTypeState('bar')
       setChartViewTypePreference('bar')
+      setCoresListUseConfigModalState(false)
+      setCoresListUseConfigModal(false)
       toast.success(t('success'), {
         description: '🔄 ' + t('theme.resetSuccess'),
         duration: 3000,
@@ -178,18 +196,18 @@ export default function ThemeSettings() {
   }
 
   return (
-    <div className="space-y-10 px-4 pb-12 pt-6 sm:pt-8">
+    <div className="space-y-10 px-4 pt-6 pb-12 sm:pt-8">
       <section className="space-y-3">
         <div className="flex items-start justify-between gap-3">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <SunMoon className="h-4 w-4 text-primary" />
+              <SunMoon className="text-primary h-4 w-4" />
               <p className="text-base font-semibold sm:text-lg">{t('theme.mode')}</p>
             </div>
-            <p className="text-xs leading-relaxed text-muted-foreground sm:text-sm">{t('theme.modeDescription')}</p>
+            <p className="text-muted-foreground text-xs leading-relaxed sm:text-sm">{t('theme.modeDescription')}</p>
           </div>
           {isSystemTheme && (
-            <span className="text-xs text-muted-foreground sm:text-sm rtl:text-left">
+            <span className="text-muted-foreground text-xs sm:text-sm rtl:text-left">
               {t('theme.system')}: {resolvedTheme === 'dark' ? t('theme.dark') : t('theme.light')}
             </span>
           )}
@@ -203,19 +221,19 @@ export default function ThemeSettings() {
                 htmlFor={option}
                 dir={dir}
                 className={cn(
-                  'flex cursor-pointer items-start justify-between gap-3 rounded-lg border border-border/70 bg-background px-3 py-3 text-xs transition-colors sm:px-4 sm:text-sm',
+                  'border-border/70 bg-background flex cursor-pointer items-start justify-between gap-3 rounded-lg border px-3 py-3 text-xs transition-colors sm:px-4 sm:text-sm',
                   'hover:border-primary/60 hover:bg-accent/40',
                   'peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/5',
                 )}
               >
-                <div className="space-y-1 min-w-0 flex-1">
+                <div className="min-w-0 flex-1 space-y-1">
                   <div className="flex items-center gap-2">
                     {modeIcons[option]}
                     <span className="font-medium">{t(`theme.${option}`)}</span>
                   </div>
-                  <span className="block text-xs leading-relaxed text-muted-foreground">{t(`theme.${option}Description`)}</span>
+                  <span className="text-muted-foreground block text-xs leading-relaxed">{t(`theme.${option}Description`)}</span>
                 </div>
-                {theme === option && <CheckCircle2 className="h-4 w-4 flex-shrink-0 text-primary ltr:ml-auto rtl:mr-auto" />}
+                {theme === option && <CheckCircle2 className="text-primary h-4 w-4 flex-shrink-0 ltr:ml-auto rtl:mr-auto" />}
               </Label>
             </div>
           ))}
@@ -225,10 +243,10 @@ export default function ThemeSettings() {
       <section className="space-y-3">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <Palette className="h-4 w-4 text-primary" />
+            <Palette className="text-primary h-4 w-4" />
             <p className="text-base font-semibold sm:text-lg">{t('theme.color')}</p>
           </div>
-          <p className="text-xs leading-relaxed text-muted-foreground sm:text-sm">{t('theme.colorDescription')}</p>
+          <p className="text-muted-foreground text-xs leading-relaxed sm:text-sm">{t('theme.colorDescription')}</p>
         </div>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
           {colorThemeData.map(color => (
@@ -237,21 +255,18 @@ export default function ThemeSettings() {
               onClick={() => handleColorChange(color.name)}
               dir={dir}
               className={cn(
-                'group flex items-center gap-3 rounded-md border border-border/70 px-3 py-3 text-left transition-colors sm:px-4',
+                'group border-border/70 flex items-center gap-3 rounded-md border px-3 py-3 text-left transition-colors sm:px-4',
                 'hover:border-primary/60 hover:bg-accent/40',
                 colorTheme === color.name ? 'border-primary bg-primary/5' : 'bg-background',
               )}
               aria-label={color.label}
             >
               <span
-                className={cn(
-                  'h-8 w-8 rounded-full border shadow-sm transition-transform group-hover:scale-105',
-                  colorTheme === color.name ? 'border-primary' : 'border-border',
-                )}
+                className={cn('h-8 w-8 rounded-full border shadow-sm transition-transform group-hover:scale-105', colorTheme === color.name ? 'border-primary' : 'border-border')}
                 style={{ background: color.dot }}
               />
               <span className="text-xs font-medium sm:text-sm">{t(color.label)}</span>
-              {colorTheme === color.name && <CheckCircle2 className="h-4 w-4 text-primary ltr:ml-auto rtl:mr-auto" />}
+              {colorTheme === color.name && <CheckCircle2 className="text-primary h-4 w-4 ltr:ml-auto rtl:mr-auto" />}
             </button>
           ))}
         </div>
@@ -260,10 +275,10 @@ export default function ThemeSettings() {
       <section className="space-y-3">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <Ruler className="h-4 w-4 text-primary" />
+            <Ruler className="text-primary h-4 w-4" />
             <p className="text-base font-semibold sm:text-lg">{t('theme.radius')}</p>
           </div>
-          <p className="text-xs leading-relaxed text-muted-foreground sm:text-sm">{t('theme.radiusDescription')}</p>
+          <p className="text-muted-foreground text-xs leading-relaxed sm:text-sm">{t('theme.radiusDescription')}</p>
         </div>
         <RadioGroup value={radius} onValueChange={handleRadiusChange} className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
           {radiusOptions.map(option => (
@@ -273,20 +288,20 @@ export default function ThemeSettings() {
                 htmlFor={`radius-${option.value}`}
                 dir={dir}
                 className={cn(
-                  'flex cursor-pointer flex-wrap items-start gap-3 rounded-lg border border-border/70 bg-background px-3 py-3 text-xs transition-colors sm:px-4 sm:text-sm',
+                  'border-border/70 bg-background flex cursor-pointer flex-wrap items-start gap-3 rounded-lg border px-3 py-3 text-xs transition-colors sm:px-4 sm:text-sm',
                   'hover:border-primary/50 hover:bg-accent/40',
                   'peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/5',
                   'sm:flex-nowrap sm:items-center',
                 )}
               >
-                <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded border bg-muted" style={{ borderRadius: option.value }}>
-                  <div className="h-4 w-4 bg-primary/30" style={{ borderRadius: option.value }} />
+                <div className="bg-muted flex h-10 w-10 flex-shrink-0 items-center justify-center rounded border" style={{ borderRadius: option.value }}>
+                  <div className="bg-primary/30 h-4 w-4" style={{ borderRadius: option.value }} />
                 </div>
                 <div className="min-w-0 flex-1 space-y-0.5">
                   <span className="block font-medium">{t(option.label)}</span>
-                  <span className="block text-xs leading-relaxed text-muted-foreground break-words">{option.description}</span>
+                  <span className="text-muted-foreground block text-xs leading-relaxed break-words">{option.description}</span>
                 </div>
-                {radius === option.value && <CheckCircle2 className="h-4 w-4 flex-shrink-0 text-primary ltr:ml-auto rtl:mr-auto" />}
+                {radius === option.value && <CheckCircle2 className="text-primary h-4 w-4 flex-shrink-0 ltr:ml-auto rtl:mr-auto" />}
               </Label>
             </div>
           ))}
@@ -294,27 +309,24 @@ export default function ThemeSettings() {
       </section>
 
       <section className="space-y-3">
-        <div className="flex flex-col gap-3 rounded-lg border border-border/70 bg-background/60 p-3 sm:flex-row sm:items-center sm:justify-between sm:p-4">
+        <div className="border-border/70 bg-background/60 flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between sm:p-4">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <CalendarClock className="h-4 w-4 text-primary" />
+              <CalendarClock className="text-primary h-4 w-4" />
               <p className="text-base font-semibold sm:text-lg">{t('theme.datePicker')}</p>
             </div>
-            <p className="text-xs leading-relaxed text-muted-foreground sm:text-sm">{t('theme.datePickerDescription')}</p>
+            <p className="text-muted-foreground text-xs leading-relaxed sm:text-sm">{t('theme.datePickerDescription')}</p>
           </div>
-          <div className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-muted/40 px-3 py-2">
+          <div className="border-border/70 bg-muted/40 flex items-center justify-between gap-3 rounded-lg border px-3 py-2">
             <div className="space-y-0.5">
-              <p className="text-xs font-medium text-foreground">{t('theme.datePickerFollowLocale')}</p>
-              <p className="text-[11px] leading-relaxed text-muted-foreground">{t('theme.datePickerManualHint')}</p>
+              <p className="text-foreground text-xs font-medium">{t('theme.datePickerFollowLocale')}</p>
+              <p className="text-muted-foreground text-[11px] leading-relaxed">{t('theme.datePickerManualHint')}</p>
             </div>
             <Switch checked={isDatePickerFollowingLocale} onCheckedChange={handleDatePickerAutoToggle} aria-label={t('theme.datePickerFollowLocale')} />
           </div>
         </div>
 
-        <div
-          className="grid grid-cols-1 gap-2 rounded-lg border border-dashed border-border/70 bg-muted/30 px-3 py-2 pb-6 sm:pb-2 sm:flex sm:flex-wrap sm:items-center"
-          dir={dir}
-        >
+        <div className="border-border/70 bg-muted/30 grid grid-cols-1 gap-2 rounded-lg border border-dashed px-3 py-2 pb-6 sm:flex sm:flex-wrap sm:items-center sm:pb-2" dir={dir}>
           {(['gregorian', 'persian'] as const).map(option => (
             <Button
               key={option}
@@ -329,9 +341,9 @@ export default function ThemeSettings() {
               <span className="text-xs font-medium sm:text-sm">{datePickerModeCopy[option]}</span>
             </Button>
           ))}
-          <div className="mt-3 flex items-center justify-start gap-2 text-xs text-muted-foreground sm:mt-0">
-            <Languages className="h-3.5 w-3.5 text-primary" />
-            <span className="font-medium text-foreground">{datePickerModeCopy[datePickerPreference]}</span>
+          <div className="text-muted-foreground mt-3 flex items-center justify-start gap-2 text-xs sm:mt-0">
+            <Languages className="text-primary h-3.5 w-3.5" />
+            <span className="text-foreground font-medium">{datePickerModeCopy[datePickerPreference]}</span>
           </div>
         </div>
       </section>
@@ -339,10 +351,10 @@ export default function ThemeSettings() {
       <section className="space-y-3">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <BarChart3 className="h-4 w-4 text-primary" />
+            <BarChart3 className="text-primary h-4 w-4" />
             <p className="text-base font-semibold sm:text-lg">{t('theme.chartViewType')}</p>
           </div>
-          <p className="text-xs leading-relaxed text-muted-foreground sm:text-sm">{t('theme.chartViewDescription')}</p>
+          <p className="text-muted-foreground text-xs leading-relaxed sm:text-sm">{t('theme.chartViewDescription')}</p>
         </div>
         <RadioGroup value={chartViewType} onValueChange={value => handleChartViewTypeChange(value as ChartViewType)} className="grid gap-2 sm:grid-cols-2">
           {chartViewOptions.map(option => (
@@ -351,21 +363,19 @@ export default function ThemeSettings() {
               <Label
                 htmlFor={`chart-view-${option}`}
                 className={cn(
-                  'flex cursor-pointer items-start justify-between gap-3 rounded-lg border border-border/70 bg-background px-3 py-3 text-xs transition-colors sm:px-4 sm:text-sm',
+                  'border-border/70 bg-background flex cursor-pointer items-start justify-between gap-3 rounded-lg border px-3 py-3 text-xs transition-colors sm:px-4 sm:text-sm',
                   'hover:border-primary/50 hover:bg-accent/40',
                   'peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/5',
                 )}
               >
-                <div className="space-y-1 min-w-0 flex-1">
+                <div className="min-w-0 flex-1 space-y-1">
                   <div className="flex items-center gap-2">
                     {chartViewIcons[option]}
                     <span className="font-medium">{option === 'bar' ? t('theme.chartViewBar') : t('theme.chartViewArea')}</span>
                   </div>
-                  <span className="block text-xs leading-relaxed text-muted-foreground">
-                    {option === 'bar' ? t('theme.chartViewBarDescription') : t('theme.chartViewAreaDescription')}
-                  </span>
+                  <span className="text-muted-foreground block text-xs leading-relaxed">{option === 'bar' ? t('theme.chartViewBarDescription') : t('theme.chartViewAreaDescription')}</span>
                 </div>
-                {chartViewType === option && <CheckCircle2 className="h-4 w-4 flex-shrink-0 text-primary ltr:ml-auto rtl:mr-auto" />}
+                {chartViewType === option && <CheckCircle2 className="text-primary h-4 w-4 flex-shrink-0 ltr:ml-auto rtl:mr-auto" />}
               </Label>
             </div>
           ))}
@@ -373,38 +383,57 @@ export default function ThemeSettings() {
       </section>
 
       <section className="space-y-3">
+        <div className="border-border/70 bg-background/60 flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between sm:p-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <FileJson2 className="text-primary h-4 w-4" />
+              <p className="text-base font-semibold sm:text-lg">{t('theme.coresListEditor')}</p>
+            </div>
+            <p className="text-muted-foreground text-xs leading-relaxed sm:text-sm">{t('theme.coresListEditorDescription')}</p>
+          </div>
+          <div className="border-border/70 bg-muted/40 flex items-center justify-between gap-3 rounded-lg border px-3 py-2">
+            <div className="space-y-0.5">
+              <p className="text-foreground text-xs font-medium">{t('theme.coresListEditorModal')}</p>
+              <p className="text-muted-foreground text-[11px] leading-relaxed">{t('theme.coresListEditorModalHint')}</p>
+            </div>
+            <Switch checked={coresListUseConfigModal} onCheckedChange={handleCoresListUseConfigModalChange} aria-label={t('theme.coresListEditorModal')} />
+          </div>
+        </div>
+      </section>
+
+      <section className="space-y-3">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <Eye className="h-4 w-4 text-primary" />
+            <Eye className="text-primary h-4 w-4" />
             <p className="text-base font-semibold sm:text-lg">{t('theme.preview')}</p>
           </div>
-          <p className="text-xs leading-relaxed text-muted-foreground sm:text-sm">{t('theme.previewDescription')}</p>
+          <p className="text-muted-foreground text-xs leading-relaxed sm:text-sm">{t('theme.previewDescription')}</p>
         </div>
-        <div className="space-y-3 rounded-lg border border-border/70 bg-muted/30 p-3 sm:space-y-4 sm:p-4" style={{ borderRadius: radius }}>
+        <div className="border-border/70 bg-muted/30 space-y-3 rounded-lg border p-3 sm:space-y-4 sm:p-4" style={{ borderRadius: radius }}>
           <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-xs font-medium sm:text-sm">{t('theme.dashboardPreview')}</p>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-muted-foreground text-xs">
                 {t('theme.currentTheme')}: {t(colorThemeData.find(c => c.name === colorTheme)?.label || '')} • {resolvedTheme === 'dark' ? t('theme.dark') : t('theme.light')}
               </p>
             </div>
             <div className="flex gap-2">
-              <span className="h-2.5 w-2.5 rounded-full bg-primary" />
-              <span className="h-2.5 w-2.5 rounded-full bg-border" />
-              <span className="h-2.5 w-2.5 rounded-full bg-accent" />
+              <span className="bg-primary h-2.5 w-2.5 rounded-full" />
+              <span className="bg-border h-2.5 w-2.5 rounded-full" />
+              <span className="bg-accent h-2.5 w-2.5 rounded-full" />
             </div>
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-2">
-              <div className="h-3 rounded bg-primary/80" style={{ borderRadius: radius }} />
-              <div className="h-3 rounded bg-muted" style={{ borderRadius: radius }} />
-              <div className="h-3 rounded bg-accent" style={{ borderRadius: radius }} />
+              <div className="bg-primary/80 h-3 rounded" style={{ borderRadius: radius }} />
+              <div className="bg-muted h-3 rounded" style={{ borderRadius: radius }} />
+              <div className="bg-accent h-3 rounded" style={{ borderRadius: radius }} />
             </div>
             <div className="space-y-2">
-              <div className="flex h-9 items-center rounded border bg-background px-3 text-xs text-muted-foreground" style={{ borderRadius: radius }}>
+              <div className="bg-background text-muted-foreground flex h-9 items-center rounded border px-3 text-xs" style={{ borderRadius: radius }}>
                 {t('theme.sampleInput')}
               </div>
-              <div className="flex h-9 items-center justify-center rounded bg-primary text-xs font-medium text-primary-foreground" style={{ borderRadius: radius }}>
+              <div className="bg-primary text-primary-foreground flex h-9 items-center justify-center rounded text-xs font-medium" style={{ borderRadius: radius }}>
                 {t('theme.primaryButton')}
               </div>
             </div>
@@ -415,10 +444,10 @@ export default function ThemeSettings() {
       <section className="flex flex-col gap-2 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="flex items-center gap-2">
-            <RotateCcw className="h-4 w-4 text-primary" />
+            <RotateCcw className="text-primary h-4 w-4" />
             <p className="text-base font-semibold sm:text-lg">{t('theme.resetToDefaults')}</p>
           </div>
-          <p className="text-xs leading-relaxed text-muted-foreground sm:text-sm">{t('theme.resetDescription')}</p>
+          <p className="text-muted-foreground text-xs leading-relaxed sm:text-sm">{t('theme.resetDescription')}</p>
         </div>
         <Button variant="outline" onClick={handleResetToDefaults} disabled={isResetting} className="w-full sm:w-auto">
           {isResetting ? t('theme.resetting') : t('theme.reset')}

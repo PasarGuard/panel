@@ -1,12 +1,14 @@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
-import { SubscriptionFormActions } from '@/components/subscriptions/subscription-form-actions'
+import { SubscriptionFormActions } from '@/features/subscriptions/components/subscription-form-actions'
+import { SubscriptionCustomVariablesSection } from '@/features/subscriptions/components/subscription-custom-variables-section'
+import { customVariablesSchema, normalizeCustomVariablesForPayload } from '@/features/subscriptions/components/subscription-settings-schema'
 import { Button } from '@/components/ui/button'
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { DEFAULT_SHADOWSOCKS_METHOD } from '@/constants/Proxies'
-import { ShadowsocksMethods, XTLSFlows, useGetGeneralSettings, useReconnectAllNode } from '@/service/api'
+import { ShadowsocksMethods, useGetGeneralSettings, useReconnectAllNode } from '@/service/api'
 import { queryClient } from '@/utils/query-client'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Loader2, RefreshCcw } from 'lucide-react'
@@ -17,13 +19,10 @@ import { toast } from 'sonner'
 import { z } from 'zod'
 import { useSettingsContext } from './_dashboard.settings'
 
-/** Radix Select forbids `SelectItem value=""`; map API empty flow to this UI value. */
-const DEFAULT_FLOW_SELECT_NONE = '__pg_default_flow_none__'
-
 // general settings validation schema
 const generalSettingsSchema = z.object({
-  default_flow: z.string().default(''),
   default_method: z.string().default(''),
+  custom_variables: customVariablesSchema,
 })
 
 type GeneralSettingsFormInput = z.input<typeof generalSettingsSchema>
@@ -31,11 +30,7 @@ type GeneralSettingsFormInput = z.input<typeof generalSettingsSchema>
 export default function General() {
   const { t } = useTranslation()
   const { isLoading, error, updateSettings, isSaving } = useSettingsContext()
-  const {
-    data: generalSettings,
-    isLoading: isGeneralLoading,
-    error: generalError,
-  } = useGetGeneralSettings()
+  const { data: generalSettings, isLoading: isGeneralLoading, error: generalError } = useGetGeneralSettings()
   const [isReconnectAllDialogOpen, setIsReconnectAllDialogOpen] = useState(false)
   const reconnectAllNodeMutation = useReconnectAllNode()
 
@@ -43,14 +38,14 @@ export default function General() {
     () =>
       generalSettings
         ? {
-            default_flow: generalSettings.default_flow || '',
             default_method: generalSettings.default_method || DEFAULT_SHADOWSOCKS_METHOD,
+            custom_variables: generalSettings.custom_variables || [],
           }
         : {
-            default_flow: '',
             default_method: '',
+            custom_variables: [],
           },
-    [generalSettings?.default_flow, generalSettings?.default_method],
+    [generalSettings?.default_method, generalSettings?.custom_variables],
   )
 
   const form = useForm<GeneralSettingsFormInput>({
@@ -63,9 +58,8 @@ export default function General() {
       // Filter out empty values and prepare the payload
       const filteredData: any = {
         general: {
-          ...data,
-          default_flow: data.default_flow || undefined,
           default_method: data.default_method || DEFAULT_SHADOWSOCKS_METHOD,
+          custom_variables: normalizeCustomVariablesForPayload(data.custom_variables),
         },
       }
 
@@ -78,8 +72,8 @@ export default function General() {
   const handleCancel = () => {
     if (!generalSettings) return
     form.reset({
-      default_flow: generalSettings.default_flow ?? '',
       default_method: generalSettings.default_method || DEFAULT_SHADOWSOCKS_METHOD,
+      custom_variables: generalSettings.custom_variables || [],
     })
     toast.success(t('settings.general.cancelSuccess'))
   }
@@ -173,39 +167,6 @@ export default function General() {
             <div className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2">
               <FormField
                 control={form.control}
-                name="default_flow"
-                render={({ field }) => (
-                  <FormItem className="space-y-2">
-                    <FormLabel className="flex items-center gap-2 text-xs font-medium sm:text-sm">{t('settings.general.defaultFlow.title')}</FormLabel>
-                    <FormControl>
-                      <Select
-                        value={field.value ? field.value : DEFAULT_FLOW_SELECT_NONE}
-                        onValueChange={v => field.onChange(v === DEFAULT_FLOW_SELECT_NONE ? '' : v)}
-                      >
-                        <SelectTrigger className="text-xs sm:text-sm">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value={DEFAULT_FLOW_SELECT_NONE} className="text-xs sm:text-sm">
-                            {t('settings.general.defaultFlow.none')}
-                          </SelectItem>
-                          {Object.values(XTLSFlows)
-                            .filter((flow): flow is Exclude<typeof flow, ''> => flow !== '')
-                            .map(flow => (
-                              <SelectItem value={flow} key={flow} className="text-xs sm:text-sm">
-                                {flow}
-                              </SelectItem>
-                            ))}
-                        </SelectContent>
-                      </Select>
-                    </FormControl>
-                    <FormDescription className="text-xs text-muted-foreground sm:text-sm">{t('settings.general.defaultFlow.description')}</FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
                 name="default_method"
                 render={({ field }) => (
                   <FormItem className="space-y-2">
@@ -228,7 +189,7 @@ export default function General() {
                         </SelectContent>
                       </Select>
                     </FormControl>
-                    <FormDescription className="text-xs text-muted-foreground sm:text-sm">{t('settings.general.defaultMethod.description')}</FormDescription>
+                    <FormDescription className="text-muted-foreground text-xs sm:text-sm">{t('settings.general.defaultMethod.description')}</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -238,13 +199,26 @@ export default function General() {
 
           <Separator className="my-3" />
 
+          <div className="py-3">
+            <SubscriptionCustomVariablesSection form={form} />
+          </div>
+
+          <Separator className="my-3" />
+
           {/* Reconnect All Nodes Section */}
           <div className="flex flex-col gap-3 py-3 sm:gap-4 md:flex-row md:items-start md:justify-between">
             <div className="space-y-1">
               <h3 className="text-base font-semibold sm:text-lg">{t('nodes.title', { defaultValue: 'Reconnect All Nodes' })}</h3>
-              <p className="text-xs text-muted-foreground sm:text-sm">{t('nodes.reconnectinfo', { defaultValue: 'Refresh all nodes connections' })}</p>
+              <p className="text-muted-foreground text-xs sm:text-sm">{t('nodes.reconnectinfo', { defaultValue: 'Refresh all nodes connections' })}</p>
             </div>
-            <Button variant="destructive" size="sm" type="button" onClick={() => setIsReconnectAllDialogOpen(true)} disabled={reconnectAllNodeMutation.isPending} className="w-full shrink-0 gap-2 sm:w-auto">
+            <Button
+              variant="destructive"
+              size="sm"
+              type="button"
+              onClick={() => setIsReconnectAllDialogOpen(true)}
+              disabled={reconnectAllNodeMutation.isPending}
+              className="w-full shrink-0 gap-2 sm:w-auto"
+            >
               {reconnectAllNodeMutation.isPending ? (
                 <>
                   <Loader2 className="h-3 w-3 animate-spin" />

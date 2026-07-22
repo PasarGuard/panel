@@ -109,6 +109,7 @@
 - **چند inbound** روی **یک پورت** (پشتیبانی از fallbacks)
 - محدودیت‌های **ترافیک** و **تاریخ انقضا**
 - محدودیت ترافیک **دوره‌ای** (روزانه، هفتگی و غیره)
+- محدودیت **HWID/دستگاه** برای کنترل دسترسی مبتنی بر سخت‌افزار
 
 **🔗 اشتراک‌ها و اشتراک‌گذاری**
 - **لینک اشتراک** سازگار با **V2ray**، **Clash** و **ClashMeta**
@@ -120,7 +121,7 @@
 - **ربات تلگرام** یکپارچه
 - **رابط خط فرمان (CLI)**
 - پشتیبانی از **چند زبان**
-- پشتیبانی از **چند ادمین** (در حال توسعه)
+- پشتیبانی از **چند ادمین** با **RBAC** برای دسترسی‌های دقیق و محدوده‌بندی‌شده
 
 </div>
 
@@ -136,32 +137,27 @@
 
 **TimescaleDB (توصیه شده):**
 ```bash
-curl -fsSL https://github.com/PasarGuard/scripts/raw/main/pasarguard.sh -o /tmp/pg.sh \
-  && sudo bash /tmp/pg.sh install --database timescaledb
+sudo bash -c "$(curl -fsSL https://github.com/PasarGuard/scripts/raw/main/pasarguard.sh)" @ install --database timescaledb
 ```
 
 **SQLite:**
 ```bash
-curl -fsSL https://github.com/PasarGuard/scripts/raw/main/pasarguard.sh -o /tmp/pg.sh \
-  && sudo bash /tmp/pg.sh install
+sudo bash -c "$(curl -fsSL https://github.com/PasarGuard/scripts/raw/main/pasarguard.sh)" @ install
 ```
 
 **MySQL:**
 ```bash
-curl -fsSL https://github.com/PasarGuard/scripts/raw/main/pasarguard.sh -o /tmp/pg.sh \
-  && sudo bash /tmp/pg.sh install --database mysql
+sudo bash -c "$(curl -fsSL https://github.com/PasarGuard/scripts/raw/main/pasarguard.sh)" @ install --database mysql
 ```
 
 **MariaDB:**
 ```bash
-curl -fsSL https://github.com/PasarGuard/scripts/raw/main/pasarguard.sh -o /tmp/pg.sh \
-  && sudo bash /tmp/pg.sh install --database mariadb
+sudo bash -c "$(curl -fsSL https://github.com/PasarGuard/scripts/raw/main/pasarguard.sh)" @ install --database mariadb
 ```
 
 **PostgreSQL:**
 ```bash
-curl -fsSL https://github.com/PasarGuard/scripts/raw/main/pasarguard.sh -o /tmp/pg.sh \
-  && sudo bash /tmp/pg.sh install --database postgresql
+sudo bash -c "$(curl -fsSL https://github.com/PasarGuard/scripts/raw/main/pasarguard.sh)" @ install --database postgresql
 ```
 
 ### 📋 پس از نصب:
@@ -197,8 +193,10 @@ ssh -L 8000:localhost:8000 user@serverip
 ### 🔧 مراحل بعدی:
 
 ```bash
-# ایجاد حساب ادمین
-pasarguard cli admins --create <username>
+# ایجاد کلید موقت یک‌بارمصرف برای راه‌اندازی حساب owner
+pasarguard cli generate-temp-key
+
+# از این کلید در صفحه ورود داشبورد برای ایجاد حساب owner استفاده کنید
 
 # دریافت راهنما
 pasarguard --help

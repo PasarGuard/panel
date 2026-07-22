@@ -2,6 +2,7 @@ from random import choice
 from uuid import UUID
 
 import yaml
+from pydantic import BaseModel
 
 from app.models.subscription import (
     GRPCTransportConfig,
@@ -153,7 +154,7 @@ class ClashConfiguration(BaseSubscription):
 
     def _transport_xhttp(self, config: XHTTPTransportConfig, path: str, random_user_agent: bool = False):
         """Build XHTTP transport config for Clash Meta"""
-        host = config.host if isinstance(config.host, str) else ""
+        host = self._select_host(config.host)
         http_headers = {k: v for k, v in (config.http_headers or {}).items() if k not in ("Host", "host")}
 
         result = {
@@ -163,15 +164,214 @@ class ClashConfiguration(BaseSubscription):
             "headers": http_headers if http_headers else None,
             "no-grpc-header": config.no_grpc_header,
             "x-padding-bytes": config.x_padding_bytes,
-            "download-settings": config.download_settings,
+            "x-padding-obfs-mode": config.x_padding_obfs_mode,
+            "x-padding-key": config.x_padding_key,
+            "x-padding-header": config.x_padding_header,
+            "x-padding-placement": config.x_padding_placement,
+            "x-padding-method": config.x_padding_method,
+            "uplink-http-method": config.uplink_http_method,
+            "session-placement": config.session_placement,
+            "session-key": config.session_key,
+            "seq-placement": config.seq_placement,
+            "seq-key": config.seq_key,
+            "uplink-data-placement": config.uplink_data_placement,
+            "uplink-data-key": config.uplink_data_key,
+            "uplink-chunk-size": config.uplink_chunk_size,
+            "sc-max-each-post-bytes": config.sc_max_each_post_bytes,
+            "sc-min-posts-interval-ms": config.sc_min_posts_interval_ms,
+            "reuse-settings": self._mihomo_reuse_settings(config.xmux),
+            "download-settings": self._mihomo_download_settings(config.download_settings),
         }
 
         if random_user_agent:
             headers = result.get("headers") or {}
-            headers["User-Agent"] = choice(self.user_agent_list)
-            result["headers"] = headers
+            user_agents = (
+                self.grpc_user_agent_data
+                if config.mode in ("stream-one", "stream-up") and not config.no_grpc_header
+                else self.user_agent_list
+            )
+            if user_agents:
+                headers["User-Agent"] = choice(user_agents)
+                result["headers"] = headers
 
-        return self._normalize_and_remove_none_values(result)
+        return self._normalize_mihomo_xhttp_opts(result)
+
+    @staticmethod
+    def _select_host(host: list[str] | str) -> str:
+        if isinstance(host, str):
+            return host
+        if host:
+            return host[0]
+        return ""
+
+    def _mihomo_download_settings(self, download_settings: SubscriptionInboundData | dict | None) -> dict | None:
+        if isinstance(download_settings, SubscriptionInboundData):
+            return self._mihomo_download_settings_from_inbound(download_settings)
+
+        if isinstance(download_settings, dict):
+            if "streamSettings" in download_settings or "address" in download_settings:
+                return self._mihomo_download_settings_from_xray(download_settings)
+            return self._normalize_mihomo_xhttp_opts(download_settings)
+
+        return None
+
+    def _mihomo_download_settings_from_xray(self, download_settings: dict) -> dict:
+        stream_settings = download_settings.get("streamSettings") or {}
+        if not isinstance(stream_settings, dict):
+            stream_settings = {}
+
+        xhttp_settings = download_settings.get("xhttpSettings") or stream_settings.get("xhttpSettings") or {}
+        if not isinstance(xhttp_settings, dict):
+            xhttp_settings = {}
+
+        extra = xhttp_settings.get("extra") or {}
+        if not isinstance(extra, dict):
+            extra = {}
+
+        security = download_settings.get("security") or stream_settings.get("security")
+        tls_settings = download_settings.get(f"{security}Settings") or stream_settings.get(f"{security}Settings") or {}
+        if not isinstance(tls_settings, dict):
+            tls_settings = {}
+
+        result = {
+            "path": xhttp_settings.get("path"),
+            "host": xhttp_settings.get("host"),
+            "headers": self._mihomo_http_headers(extra.get("headers")),
+            "reuse-settings": self._mihomo_reuse_settings(extra.get("xmux")),
+            "server": download_settings.get("address"),
+            "port": self._select_port(download_settings.get("port")),
+            "tls": True if security and security != "none" else None,
+            "alpn": tls_settings.get("alpn"),
+            "skip-cert-verify": tls_settings.get("allowInsecure"),
+            "servername": tls_settings.get("serverName"),
+            "client-fingerprint": tls_settings.get("fingerprint"),
+            "reality-opts": {
+                "public-key": tls_settings.get("publicKey"),
+                "short-id": tls_settings.get("shortId") or "",
+                "support-x25519mlkem768": bool(tls_settings.get("mldsa65Verify")),
+            }
+            if security == "reality" and tls_settings.get("publicKey")
+            else None,
+        }
+
+        return self._normalize_mihomo_xhttp_opts(result)
+
+    def _mihomo_download_settings_from_inbound(self, inbound: SubscriptionInboundData) -> dict:
+        transport_config = inbound.transport_config
+        result = {
+            "server": self._select_address(inbound.address),
+            "port": self._select_port(inbound.port),
+        }
+
+        if inbound.network in ("xhttp", "splithttp") and isinstance(transport_config, XHTTPTransportConfig):
+            result.update(
+                {
+                    "path": transport_config.path or "/",
+                    "host": self._select_host(transport_config.host),
+                    "headers": self._mihomo_http_headers(transport_config.http_headers),
+                    "reuse-settings": self._mihomo_reuse_settings(transport_config.xmux),
+                }
+            )
+
+        self._apply_mihomo_download_tls(result, inbound.tls_config)
+
+        return self._normalize_mihomo_xhttp_opts(result)
+
+    @staticmethod
+    def _mihomo_http_headers(headers: dict | None) -> dict | None:
+        if not headers:
+            return None
+
+        filtered_headers = {k: v for k, v in headers.items() if k not in ("Host", "host")}
+        return filtered_headers or None
+
+    @staticmethod
+    def _select_address(address: list[str] | str) -> str:
+        if isinstance(address, str):
+            return address
+        if address:
+            return address[0]
+        return ""
+
+    def _apply_mihomo_download_tls(self, node: dict, tls_config: TLSConfig):
+        if not tls_config.tls:
+            return
+
+        node["tls"] = True
+        sni = tls_config.sni if isinstance(tls_config.sni, str) else (tls_config.sni[0] if tls_config.sni else "")
+        node["servername"] = sni
+
+        if tls_config.alpn_list:
+            node["alpn"] = tls_config.alpn_list
+
+        node["skip-cert-verify"] = tls_config.allowinsecure
+
+        if tls_config.fingerprint:
+            node["client-fingerprint"] = tls_config.fingerprint
+
+        if tls_config.tls == "reality" and tls_config.reality_public_key:
+            node["reality-opts"] = {
+                "public-key": tls_config.reality_public_key,
+                "short-id": tls_config.reality_short_id or "",
+                "support-x25519mlkem768": bool(tls_config.mldsa65_verify),
+            }
+
+    @staticmethod
+    def _mihomo_reuse_settings(xmux: dict | BaseModel | None) -> dict | None:
+        """Convert Xray XMUX settings to Mihomo reuse-settings."""
+        if not xmux:
+            return None
+
+        if isinstance(xmux, BaseModel):
+            xmux = xmux.model_dump(by_alias=True, exclude_none=True)
+
+        key_map = {
+            "maxConcurrency": "max-concurrency",
+            "max_concurrency": "max-concurrency",
+            "maxConnections": "max-connections",
+            "max_connections": "max-connections",
+            "cMaxReuseTimes": "c-max-reuse-times",
+            "c_max_reuse_times": "c-max-reuse-times",
+            "hMaxRequestTimes": "h-max-request-times",
+            "h_max_request_times": "h-max-request-times",
+            "hMaxReusableSecs": "h-max-reusable-secs",
+            "h_max_reusable_secs": "h-max-reusable-secs",
+            "hKeepAlivePeriod": "h-keep-alive-period",
+            "h_keep_alive_period": "h-keep-alive-period",
+        }
+        result = {key_map.get(key, key): value for key, value in xmux.items()}
+
+        return ClashConfiguration._normalize_mihomo_xhttp_opts(result)
+
+    @staticmethod
+    def _normalize_mihomo_xhttp_opts(data: dict) -> dict:
+        """Remove empty values while preserving explicit False and 0 values supported by Mihomo."""
+
+        def clean_dict(value: dict) -> dict:
+            cleaned = {}
+            for key, item in value.items():
+                if item is None or item == "":
+                    continue
+                if key == "headers" and isinstance(item, dict):
+                    headers = {
+                        header_key: header_value
+                        for header_key, header_value in item.items()
+                        if header_value is not None
+                    }
+                    if headers:
+                        cleaned[key] = headers
+                    continue
+                if isinstance(item, dict):
+                    nested = clean_dict(item)
+                    if nested:
+                        cleaned[key] = nested
+                    continue
+                if isinstance(item, BaseModel):
+                    item = item.model_dump(by_alias=True, exclude_none=True)
+                cleaned[key] = item
+            return cleaned
+
+        return clean_dict(data)
 
     def _apply_tls(self, node: dict, tls_config: TLSConfig, protocol: str):
         """Apply TLS settings to node"""
@@ -181,7 +381,7 @@ class ClashConfiguration(BaseSubscription):
         node["tls"] = True
         sni = tls_config.sni if isinstance(tls_config.sni, str) else ""
 
-        if protocol == "trojan":
+        if protocol in ("trojan", "hysteria"):
             node["sni"] = sni
         else:
             node["servername"] = sni
@@ -228,6 +428,8 @@ class ClashConfiguration(BaseSubscription):
         if network == "ws":
             net_opts = handler(inbound.transport_config, path, is_httpupgrade, random_user_agent)
         elif network == "http":
+            net_opts = handler(inbound.transport_config, path, random_user_agent)
+        elif network == "xhttp":
             net_opts = handler(inbound.transport_config, path, random_user_agent)
         else:
             net_opts = handler(inbound.transport_config, path)
@@ -345,8 +547,14 @@ class ClashConfiguration(BaseSubscription):
         return self._normalize_and_remove_none_values(node)
 
     @staticmethod
-    def _select_port(port: int | str) -> int:
+    def _select_port(port: int | str | list[int] | list[str] | None) -> int | None:
         """Normalize port values from subscription data."""
+        if port is None:
+            return None
+        if isinstance(port, list):
+            if not port:
+                return None
+            port = port[0]
         if isinstance(port, str):
             try:
                 return int(port)
@@ -432,8 +640,7 @@ class ClashMetaConfiguration(ClashConfiguration):
         if inbound.encryption != "none":
             node["encryption"] = inbound.encryption
 
-        # Only add flow if inbound supports it
-        if inbound.flow_enabled and (flow := settings.get("flow", "")):
+        if flow := inbound.inbound_flow:
             node["flow"] = flow
 
         self._apply_tls(node, inbound.tls_config, "vless")
@@ -544,7 +751,9 @@ class ClashMetaConfiguration(ClashConfiguration):
 
     def add(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict):
         # not supported by clash-meta
-        if inbound.network in ("kcp"):
+        if inbound.network == "kcp":
+            return
+        if inbound.network in ("splithttp", "xhttp") and inbound.protocol != "vless":
             return
 
         # QUIC with header not supported

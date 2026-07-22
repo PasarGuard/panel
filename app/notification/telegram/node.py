@@ -49,6 +49,16 @@ async def connect_node(node: NodeNotification):
         await send_telegram_message(data, chat_id, topic_id)
 
 
+async def recovered_node(node: NodeNotification):
+    data = messages.RECOVERED_NODE.format(
+        name=escape(node.name), node_version=node.node_version, core_version=node.core_version, id=node.id
+    )
+    settings: NotificationSettings = await notification_settings()
+    if settings.notify_telegram:
+        chat_id, topic_id = get_telegram_channel(settings, ENTITY)
+        await send_telegram_message(data, chat_id, topic_id)
+
+
 async def error_node(node: NodeNotification):
     name, message = escape_tg_html((node.name, node.message))
     data = messages.ERROR_NODE.format(name=name, error=message, id=node.id)

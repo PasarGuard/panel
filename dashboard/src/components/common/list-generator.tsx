@@ -9,18 +9,19 @@ import useDirDetection from '@/hooks/use-dir-detection'
 import { useTranslation } from 'react-i18next'
 
 export type ListColumnAlign = 'start' | 'center' | 'end'
-export type ListLayoutMode = 'list' | 'grid'
 
 export interface ListColumn<T> {
   id: string
   header: React.ReactNode
   cell: (item: T) => React.ReactNode
   width?: string
+  mobileWidth?: string
   className?: string
   headerClassName?: string
   skeletonClassName?: string
   align?: ListColumnAlign
   hideOnMobile?: boolean
+  hideInMobileDetails?: boolean
 }
 
 interface ListGeneratorProps<T> {
@@ -36,15 +37,11 @@ interface ListGeneratorProps<T> {
   rowClassName?: string | ((item: T, index: number) => string)
   hideHeader?: boolean
   onRowClick?: (item: T) => void
-  mode?: ListLayoutMode
-  gridClassName?: string
-  gridStyle?: React.CSSProperties
-  renderGridItem?: (item: T, index: number) => React.ReactNode
-  renderGridSkeleton?: (index: number) => React.ReactNode
   enableSorting?: boolean
+  /** When true with {@link enableSorting}, rows snap to new positions with no reorder transition animation. */
+  instantSortReorder?: boolean
   sortingDisabled?: boolean
   enableSelection?: boolean
-  enableGridSelection?: boolean
   selectedRowIds?: Array<string | number>
   onSelectionChange?: (ids: Array<string | number>) => void
   isRowSelectable?: (item: T) => boolean
@@ -53,18 +50,20 @@ interface ListGeneratorProps<T> {
 interface SortableListRowProps {
   rowId: string | number
   sortingDisabled: boolean
+  instantSortReorder?: boolean
   renderRow: (props: { attributes: ReturnType<typeof useSortable>['attributes']; listeners: ReturnType<typeof useSortable>['listeners']; style: React.CSSProperties }) => React.ReactNode
 }
 
-function SortableListRow({ rowId, sortingDisabled, renderRow }: SortableListRowProps) {
+function SortableListRow({ rowId, sortingDisabled, instantSortReorder = false, renderRow }: SortableListRowProps) {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({
     id: rowId,
     disabled: sortingDisabled,
+    ...(instantSortReorder ? { animateLayoutChanges: () => false, transition: null } : {}),
   })
 
   const style = {
     transform: CSS.Transform.toString(transform),
-    transition,
+    ...(instantSortReorder ? {} : { transition }),
   }
 
   return <div ref={setNodeRef}>{renderRow({ attributes, listeners, style })}</div>
@@ -94,15 +93,10 @@ export function ListGenerator<T>({
   rowClassName,
   hideHeader = false,
   onRowClick,
-  mode = 'list',
-  gridClassName,
-  gridStyle,
-  renderGridItem,
-  renderGridSkeleton,
   enableSorting = false,
+  instantSortReorder = false,
   sortingDisabled = false,
   enableSelection = false,
-  enableGridSelection = false,
   selectedRowIds = [],
   onSelectionChange,
   isRowSelectable,
@@ -127,15 +121,14 @@ export function ListGenerator<T>({
   const shouldShowEmptyState = showEmptyState && !isLoading && !hasData
   const showRows = !isLoading && hasData
   const mobileDetailsColumns = useMemo(() => columns.filter(column => column.hideOnMobile), [columns])
-  const mobileDetailDataColumns = useMemo(() => mobileDetailsColumns.filter(column => !!column.header), [mobileDetailsColumns])
+  const mobileDetailDataColumns = useMemo(() => mobileDetailsColumns.filter(column => !!column.header && !column.hideInMobileDetails), [mobileDetailsColumns])
   const mobileDetailActionColumns = useMemo(() => mobileDetailsColumns.filter(column => !column.header), [mobileDetailsColumns])
   const hasMobileExpandableDetails = mobileDetailDataColumns.length > 0
   const hasMobileTrailingWidth = mobileDetailsColumns.length > 0
   const isAllVisibleSelected = visibleSelectableRowIds.length > 0 && visibleSelectableRowIds.every(id => selectedRowSet.has(id))
   const isSomeVisibleSelected = !isAllVisibleSelected && visibleSelectableRowIds.some(id => selectedRowSet.has(id))
-  const selectedVisibleRowCount = visibleSelectableRowIds.filter(id => selectedRowSet.has(id)).length
   const mobileTemplateColumns = useMemo(() => {
-    const visibleColumns = columns.filter(column => !column.hideOnMobile).map(column => column.width ?? 'minmax(0, 1fr)')
+    const visibleColumns = columns.filter(column => !column.hideOnMobile).map(column => column.mobileWidth ?? column.width ?? 'minmax(0, 1fr)')
 
     if (hasMobileTrailingWidth) {
       visibleColumns.push(mobileDetailActionColumns.length > 0 ? 'max-content' : '32px')
@@ -159,9 +152,8 @@ export function ListGenerator<T>({
       }) as React.CSSProperties,
     [listTemplateColumnsMobile, listTemplateColumnsDesktop],
   )
-  const listTemplateClassName = 'grid [grid-template-columns:var(--list-cols-mobile)] md:[grid-template-columns:var(--list-cols-desktop)]'
+  const listTemplateClassName = 'grid items-center [grid-template-columns:var(--list-cols-mobile)] md:[grid-template-columns:var(--list-cols-desktop)]'
   const dir = useDirDetection()
-  const gridContent = (showRows || isLoading) && renderGridItem
   const headerSelectionCheckboxClassName = 'h-3.5 w-3.5 rounded-[3px] border-muted-foreground/40 data-[state=checked]:border-primary'
   const selectionCheckboxClassName =
     'h-3.5 w-3.5 rounded-[3px] border-muted-foreground/40 bg-background data-[state=checked]:border-primary data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground data-[state=indeterminate]:border-primary data-[state=indeterminate]:bg-primary data-[state=indeterminate]:text-primary-foreground'
@@ -206,101 +198,6 @@ export function ListGenerator<T>({
     onSelectionChange(nextSelectedRowIds)
   }
 
-  const handleGridSelectionToolbarClick = () => {
-    handleToggleAllVisibleSelection(!isAllVisibleSelected)
-  }
-
-  const handleGridSelectionToolbarKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    if (event.key !== 'Enter' && event.key !== ' ') {
-      return
-    }
-
-    event.preventDefault()
-    handleGridSelectionToolbarClick()
-  }
-
-  if (mode === 'grid') {
-    return (
-      <div className={cn('flex w-full flex-col gap-2', className)}>
-        {enableSelection && enableGridSelection && visibleSelectableRowIds.length > 0 && (
-          <div
-            role="button"
-            tabIndex={0}
-            className="bg-background hover:bg-muted/40 focus-visible:ring-ring flex w-full items-center justify-between gap-3 rounded-md border px-3 py-2 text-left transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
-            onClick={handleGridSelectionToolbarClick}
-            onKeyDown={handleGridSelectionToolbarKeyDown}
-          >
-            <div className="flex min-w-0 items-center gap-2 text-sm font-medium">
-              <Checkbox
-                aria-label={t('selectAll', { defaultValue: 'Select all' })}
-                className={headerSelectionCheckboxClassName}
-                checked={isAllVisibleSelected || (isSomeVisibleSelected && 'indeterminate')}
-                onCheckedChange={value => handleToggleAllVisibleSelection(!!value)}
-                onClick={stopSelectionClick}
-                onPointerDown={stopSelectionClick}
-                onKeyDown={stopSelectionClick}
-              />
-              <span className="truncate">{t('selectAll', { defaultValue: 'Select all' })}</span>
-            </div>
-            <span className="text-muted-foreground shrink-0 text-xs">
-              {selectedVisibleRowCount}/{visibleSelectableRowIds.length}
-            </span>
-          </div>
-        )}
-        {gridContent ? (
-          <div className={cn('grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3', gridClassName)} style={gridStyle}>
-            {isLoading &&
-              Array.from({ length: loadingRows }).map((_, index) =>
-                renderGridSkeleton ? (
-                  <div key={`grid-skeleton-${index}`}>{renderGridSkeleton(index)}</div>
-                ) : (
-                  <div key={`grid-skeleton-${index}`} className="bg-background rounded-md border p-4">
-                    <div className="space-y-2">
-                      <Skeleton className="h-4 w-2/3" />
-                      <Skeleton className="h-3 w-full" />
-                      <Skeleton className="h-3 w-4/5" />
-                    </div>
-                  </div>
-                ),
-              )}
-            {showRows &&
-              data.map((item, index) => {
-                const rowId = getRowId(item)
-                const canSelectRow = enableSelection && enableGridSelection && (isRowSelectable ? isRowSelectable(item) : true)
-                const isSelected = selectedRowSet.has(rowId)
-                const gridItem = renderGridItem(item, index)
-                const selectionLabel = t(isSelected ? 'selected' : 'select', {
-                  defaultValue: isSelected ? 'Selected' : 'Select',
-                })
-                const selectionControl = canSelectRow ? (
-                  <div className="flex shrink-0 items-center" onClick={stopSelectionClick} onMouseDown={stopSelectionPointer} onPointerDown={stopSelectionPointer} onKeyDown={stopSelectionClick}>
-                    <Checkbox aria-label={selectionLabel} className={selectionCheckboxClassName} checked={isSelected} onCheckedChange={() => handleToggleRowSelection(rowId, item)} />
-                  </div>
-                ) : undefined
-
-                const renderedGridItem =
-                  enableGridSelection && React.isValidElement(gridItem)
-                    ? React.cloneElement(gridItem as React.ReactElement<{ selected?: boolean; selectionControl?: React.ReactNode }>, {
-                        selected: isSelected,
-                        selectionControl,
-                      })
-                    : gridItem
-
-                return (
-                  <div key={rowId} className="relative">
-                    {renderedGridItem}
-                  </div>
-                )
-              })}
-          </div>
-        ) : (
-          <div className="bg-background text-muted-foreground rounded-md border px-3 py-6 text-center text-sm">Provide `renderGridItem` to render grid mode.</div>
-        )}
-        {shouldShowEmptyState && (emptyState ?? <div className="bg-background text-muted-foreground rounded-md border px-3 py-6 text-center text-sm">No results.</div>)}
-      </div>
-    )
-  }
-
   return (
     <div className={cn('flex w-full flex-col gap-2', className)}>
       {!hideHeader && (
@@ -331,8 +228,16 @@ export function ListGenerator<T>({
       {isLoading &&
         Array.from({ length: loadingRows }).map((_, rowIndex) => (
           <div key={`list-skeleton-${rowIndex}`} className={cn(listTemplateClassName, 'bg-background gap-3 rounded-md border px-3 py-3')} style={listTemplateStyleVars}>
-            {enableSorting && <div aria-hidden="true" />}
-            {enableSelection && <div aria-hidden="true" />}
+            {enableSorting && (
+              <div className="flex items-center justify-center">
+                <Skeleton className="size-5 shrink-0 rounded-md" aria-hidden />
+              </div>
+            )}
+            {enableSelection && (
+              <div className="flex items-center justify-center">
+                <Skeleton className="h-3.5 w-3.5 shrink-0 rounded-[3px]" aria-hidden />
+              </div>
+            )}
             {columns.map(column => (
               <div key={`${column.id}-${rowIndex}`} className={cn('flex min-w-0 items-center', getAlignClass(column.align), column.hideOnMobile && 'hidden md:flex', column.className)}>
                 <Skeleton className={cn('h-4 w-full', column.skeletonClassName)} />
@@ -360,17 +265,21 @@ export function ListGenerator<T>({
               )}
               style={{ ...listTemplateStyleVars, ...props?.style }}
               onClick={() => onRowClick?.(item)}
-              {...props?.attributes}
             >
               {enableSorting && (
                 <button
                   type="button"
-                  className={cn('text-muted-foreground flex touch-none items-center justify-center', sortingDisabled ? 'cursor-not-allowed opacity-40' : 'z-50 cursor-grab')}
+                  className={cn(
+                    'text-muted-foreground focus-visible:ring-ring focus-visible:ring-offset-background flex size-full max-h-9 touch-none items-center justify-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-offset-2',
+                    sortingDisabled ? 'cursor-not-allowed opacity-40' : 'z-50 cursor-grab active:cursor-grabbing',
+                  )}
                   onClick={event => event.stopPropagation()}
-                  {...props?.listeners}
+                  disabled={sortingDisabled}
+                  {...(!sortingDisabled ? props?.attributes : {})}
+                  {...(!sortingDisabled ? props?.listeners : {})}
                   aria-label="Drag to reorder"
                 >
-                  <GripVertical className="h-5 w-5" />
+                  <GripVertical className="size-5 shrink-0" />
                   <span className="sr-only">Drag to reorder</span>
                 </button>
               )}
@@ -389,7 +298,10 @@ export function ListGenerator<T>({
                 </div>
               )}
               {columns.map(column => (
-                <div key={`${column.id}-${rowId}`} className={cn('flex min-w-0 items-center justify-end', getAlignClass(column.align), column.hideOnMobile && 'hidden md:flex', column.className)}>
+                <div
+                  key={`${column.id}-${rowId}`}
+                  className={cn('flex min-w-0 items-center overflow-x-hidden', getAlignClass(column.align), column.hideOnMobile && 'hidden md:flex', column.className)}
+                >
                   {column.cell(item)}
                 </div>
               ))}
@@ -424,9 +336,9 @@ export function ListGenerator<T>({
                         if (cellContent === null || cellContent === undefined) return null
 
                         return (
-                          <div key={`mobile-${column.id}-${rowId}`} className={cn('flex items-start justify-between gap-3 px-1.5 py-1.5', dir === 'rtl' && 'flex-row-reverse')}>
-                            <div className="text-muted-foreground shrink-0 text-[10px] font-medium tracking-wide uppercase">{column.header}</div>
-                            <div className={cn('min-w-0 text-sm leading-5', dir === 'rtl' ? 'text-left' : 'text-right')}>{cellContent}</div>
+                          <div key={`mobile-${column.id}-${rowId}`} dir={dir} className="flex items-start justify-between gap-3 px-1.5 py-1.5">
+                            <div className="text-muted-foreground shrink-0 text-start text-[10px] font-medium tracking-wide uppercase">{column.header}</div>
+                            <div className="min-w-0 text-end text-sm leading-5">{cellContent}</div>
                           </div>
                         )
                       })}
@@ -441,7 +353,7 @@ export function ListGenerator<T>({
             return renderRowContent()
           }
 
-          return <SortableListRow key={rowId} rowId={rowId} sortingDisabled={sortingDisabled} renderRow={props => renderRowContent(props)} />
+          return <SortableListRow key={rowId} rowId={rowId} sortingDisabled={sortingDisabled} instantSortReorder={instantSortReorder} renderRow={props => renderRowContent(props)} />
         })}
 
       {shouldShowEmptyState && (emptyState ?? <div className="bg-background text-muted-foreground rounded-md border px-3 py-6 text-center text-sm">No results.</div>)}

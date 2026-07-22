@@ -3,15 +3,21 @@ import os
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime as dt
 from enum import Enum
+from typing import Literal
 
 import bcrypt
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
 
+from app.db.models import AdminStatus
+from app.models.admin_role import RoleAccess, RoleFeatures, RoleHWIDSettings, RoleLimits, RolePermissions
+from app.models.settings import CustomVariable, validate_custom_variables
 from app.models.stats import Period
 from app.utils.helpers import fix_datetime_timezone
 
 from .notification_enable import UserNotificationEnable
 from .validators import DiscordValidator, ListValidator, NumericValidatorMixin, PasswordValidator
+
+AdminStatusModify = Literal[AdminStatus.active, AdminStatus.disabled]
 
 BCRYPT_ROUNDS = 12
 _PASSWORD_WORKERS = max(2, min(os.cpu_count() or 1, 8))
@@ -43,6 +49,24 @@ async def verify_password(raw: str, hashed: str) -> bool:
         return await loop.run_in_executor(_password_executor, _verify_password_sync, raw, hashed)
 
 
+class AdminRoleData(BaseModel):
+    """Runtime role data carried on AdminDetails — only the fields needed for permission checks."""
+
+    id: int | None = None
+    name: str = ""
+    is_owner: bool = False
+    permissions: RolePermissions = Field(default_factory=RolePermissions)
+    limits: RoleLimits = Field(default_factory=RoleLimits)
+    features: RoleFeatures = Field(default_factory=RoleFeatures)
+    access: RoleAccess = Field(default_factory=RoleAccess)
+    hwid: RoleHWIDSettings = Field(default_factory=RoleHWIDSettings)
+    disabled_when_limited: bool = False
+    disconnect_users_when_limited: bool = True
+    disconnect_users_when_disabled: bool = True
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"
@@ -51,6 +75,7 @@ class Token(BaseModel):
 class AdminBase(BaseModel):
     """Minimal admin model containing only the username."""
 
+    id: int | None = None
     username: str
 
     model_config = ConfigDict(from_attributes=True)
@@ -64,9 +89,20 @@ class AdminContactInfo(AdminBase):
     sub_domain: str | None = None
     profile_title: str | None = None
     support_url: str | None = None
+    custom_variables: list[CustomVariable] = Field(default_factory=list)
     notification_enable: UserNotificationEnable | None = None
 
     model_config = ConfigDict(from_attributes=True)
+
+    @field_validator("custom_variables", mode="before")
+    @classmethod
+    def normalize_custom_variables(cls, value):
+        return value or []
+
+    @field_validator("custom_variables")
+    @classmethod
+    def validate_admin_custom_variables(cls, value: list[CustomVariable]) -> list[CustomVariable]:
+        return validate_custom_variables(value)
 
     @field_validator("notification_enable", mode="before")
     @classmethod
@@ -84,15 +120,29 @@ class AdminContactInfo(AdminBase):
 class AdminDetails(AdminContactInfo):
     """Complete admin model with all fields for database representation and API responses."""
 
-    id: int | None = None
-    is_sudo: bool
     total_users: int = 0
     used_traffic: int = 0
-    is_disabled: bool = False
-    discord_id: int | None = None
+    data_limit: int | None = None
+    status: AdminStatus = AdminStatus.active
     sub_template: str | None = None
     lifetime_used_traffic: int | None = None
     note: str | None = None
+    role: AdminRoleData | None = None
+    permission_overrides: RoleLimits | None = None
+
+    @property
+    def is_owner(self) -> bool:
+        return self.role.is_owner if self.role is not None else False
+
+    @computed_field
+    @property
+    def is_disabled(self) -> bool:
+        return self.status == AdminStatus.disabled
+
+    @computed_field
+    @property
+    def is_limited(self) -> bool:
+        return self.status == AdminStatus.limited
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -103,22 +153,31 @@ class AdminDetails(AdminContactInfo):
 
 class AdminModify(BaseModel):
     password: str | None = None
-    is_sudo: bool
     telegram_id: int | None = None
     discord_webhook: str | None = None
-    discord_id: int | None = None
-    is_disabled: bool | None = None
+    status: AdminStatusModify | None = None
+    data_limit: int | None = None
     sub_template: str | None = None
     sub_domain: str | None = None
     profile_title: str | None = None
     support_url: str | None = None
+    custom_variables: list[CustomVariable] | None = None
     note: str | None = None
     notification_enable: UserNotificationEnable | None = None
+    role_id: int | None = None
+    permission_overrides: RoleLimits | None = None
 
     @field_validator("discord_webhook")
     @classmethod
     def validate_discord_webhook(cls, value):
         return DiscordValidator.validate_webhook(value)
+
+    @field_validator("custom_variables")
+    @classmethod
+    def validate_admin_custom_variables(cls, value: list[CustomVariable] | None) -> list[CustomVariable] | None:
+        if value is None:
+            return value
+        return validate_custom_variables(value)
 
     @field_validator("password")
     @classmethod
@@ -131,6 +190,7 @@ class AdminCreate(AdminModify):
 
     username: str
     password: str
+    role_id: int
 
 
 class AdminInDB(AdminDetails):
@@ -146,8 +206,7 @@ class AdminInDB(AdminDetails):
 class AdminValidationResult(BaseModel):
     id: int | None = None
     username: str
-    is_sudo: bool
-    is_disabled: bool
+    status: AdminStatus = Field(default=AdminStatus.active)
 
 
 class AdminsResponse(BaseModel):
@@ -157,6 +216,7 @@ class AdminsResponse(BaseModel):
     total: int
     active: int
     disabled: int
+    limited: int
 
 
 class AdminSimple(BaseModel):
@@ -267,13 +327,13 @@ class AdminUsageQuery(BaseModel):
 
 
 class BulkAdminSelection(BaseModel):
-    """Model for bulk admin selection by usernames"""
+    """Model for bulk admin selection by IDs"""
 
-    usernames: set[str] = Field(default_factory=set)
+    ids: set[int] = Field(default_factory=set)
 
-    @field_validator("usernames", mode="after")
+    @field_validator("ids", mode="after")
     @classmethod
-    def usernames_validator(cls, v):
+    def ids_validator(cls, v):
         return ListValidator.not_null_list(list(v), "admin")
 
 

@@ -95,7 +95,13 @@ class HostOperation(BaseOperation):
         host = BaseHost.model_validate(db_host)
         asyncio.create_task(notification.modify_host(host, admin.username))
 
-        await host_manager.add_host(db, db_host)
+        db_hosts = await get_hosts(db=db)
+        dependents = [
+            h
+            for h in db_hosts
+            if ((h.transport_settings or {}).get("xhttp_settings") or {}).get("download_settings") == host_id
+        ]
+        await host_manager.add_hosts(db, [db_host, *dependents])
 
         return host
 
@@ -139,10 +145,13 @@ class HostOperation(BaseOperation):
         self, db: AsyncSession, bulk_hosts: BulkHostSelection, admin: AdminDetails
     ) -> RemoveHostsResponse:
         """Remove multiple hosts by ID"""
-        db_hosts = []
-        for host_id in bulk_hosts.ids:
-            db_host = await self.get_validated_host(db, host_id)
-            db_hosts.append(db_host)
+        ids_list = list(bulk_hosts.ids)
+        db_hosts = await get_hosts(db, HostListQuery(ids=ids_list, limit=len(ids_list)))
+
+        found_ids = {h.id for h in db_hosts}
+        missing = set(ids_list) - found_ids
+        if missing:
+            await self.raise_error(message="Host not found", code=404)
 
         host_ids = [h.id for h in db_hosts]
 
@@ -171,9 +180,13 @@ class HostOperation(BaseOperation):
         *,
         is_disabled: bool,
     ) -> BulkHostsActionResponse:
-        db_hosts = []
-        for host_id in bulk_hosts.ids:
-            db_hosts.append(await self.get_validated_host(db, host_id))
+        ids_list = list(bulk_hosts.ids)
+        db_hosts = await get_hosts(db, HostListQuery(ids=ids_list, limit=len(ids_list)))
+
+        found_ids = {h.id for h in db_hosts}
+        missing = set(ids_list) - found_ids
+        if missing:
+            await self.raise_error(message="Host not found", code=404)
 
         hosts_to_update = [db_host for db_host in db_hosts if db_host.is_disabled != is_disabled]
 

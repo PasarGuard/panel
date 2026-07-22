@@ -3,9 +3,9 @@ from enum import StrEnum
 from ipaddress import ip_network
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from app.utils.crypto import generate_wireguard_keypair, get_wireguard_public_key, validate_wireguard_key
+from app.utils.crypto import get_wireguard_public_key, validate_wireguard_key
 from app.utils.system import random_password
 
 
@@ -13,15 +13,8 @@ class VMessSettings(BaseModel):
     id: UUID = Field(default_factory=uuid4)
 
 
-class XTLSFlows(StrEnum):
-    NONE = ""
-    VISION = "xtls-rprx-vision"
-    VISION_UDP = "xtls-rprx-vision-udp443"
-
-
 class VlessSettings(BaseModel):
     id: UUID = Field(default_factory=uuid4)
-    flow: XTLSFlows = XTLSFlows.NONE
 
 
 class TrojanSettings(BaseModel):
@@ -38,6 +31,7 @@ class ShadowsocksMethods(StrEnum):
 class ShadowsocksSettings(BaseModel):
     password: str = Field(default_factory=random_password, min_length=22)
     method: ShadowsocksMethods = ShadowsocksMethods.CHACHA20_POLY1305
+    model_config = ConfigDict(validate_assignment=True)
 
 
 class HysteriaSettings(BaseModel):
@@ -99,9 +93,7 @@ class WireGuardSettings(BaseModel):
 
     @model_validator(mode="after")
     def handle_keys(self):
-        if not self.private_key:
-            self.private_key, self.public_key = generate_wireguard_keypair()
-        elif not self.public_key:
+        if self.private_key and not self.public_key:
             self.public_key = get_wireguard_public_key(self.private_key)
         return self
 

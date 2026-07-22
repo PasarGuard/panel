@@ -6,11 +6,11 @@ from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
 
 from app.db.models import DataLimitResetStrategy, UserStatus
 from app.models.admin import AdminBase, AdminContactInfo
-from app.models.proxy import ProxyTable, ShadowsocksMethods, XTLSFlows
+from app.models.proxy import ProxyTable, ShadowsocksMethods
 from app.models.stats import Period
 from app.utils.helpers import fix_datetime_timezone
 
-from .validators import ListValidator, NumericValidatorMixin, UserValidator
+from .validators import MAX_ON_HOLD_EXPIRE_DURATION_SECONDS, ListValidator, NumericValidatorMixin, UserValidator
 
 
 class UserStatusModify(str, Enum):
@@ -33,10 +33,16 @@ class User(BaseModel):
     data_limit: int | None = Field(ge=0, default=None, description="data_limit can be 0 or greater")
     data_limit_reset_strategy: DataLimitResetStrategy | None = Field(default=None)
     note: str | None = Field(max_length=500, default=None)
-    on_hold_expire_duration: int | None = Field(default=None)
+    on_hold_expire_duration: int | None = Field(
+        ge=0,
+        le=MAX_ON_HOLD_EXPIRE_DURATION_SECONDS,
+        default=None,
+        description="on_hold_expire_duration can be 0 or greater in seconds",
+    )
     on_hold_timeout: dt | int | None = Field(default=None)
     group_ids: list[int] | None = Field(default_factory=list)
     auto_delete_in_days: int | None = Field(default=None)
+    hwid_limit: int | None = Field(default=None)
     next_plan: NextPlanModel | None = Field(default=None)
 
 
@@ -78,7 +84,7 @@ class UserCreate(UserWithValidator):
     @field_validator("group_ids", mode="after")
     @classmethod
     def group_ids_validator(cls, v):
-        return ListValidator.not_null_list(v, "group")
+        return ListValidator.nullable_list(v, "group")
 
 
 class UserModify(UserWithValidator):
@@ -95,6 +101,10 @@ class UserModify(UserWithValidator):
     @classmethod
     def group_ids_validator(cls, v):
         return ListValidator.nullable_list(v, "group")
+
+
+class UserStatusToggle(BaseModel):
+    disabled: bool
 
 
 class UserNotificationResponse(User):
@@ -318,6 +328,7 @@ class UserSubscriptionUpdateSchema(BaseModel):
     created_at: dt
     user_agent: str
     ip: str | None = Field(default=None)
+    hwid: str | None = Field(default=None)
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -343,6 +354,22 @@ class UserSubscriptionUpdateChartSegment(BaseModel):
 class UserSubscriptionUpdateChart(BaseModel):
     total: int
     segments: list[UserSubscriptionUpdateChartSegment] = Field(default_factory=list)
+
+
+class UserHWIDResponse(BaseModel):
+    id: int
+    hwid: str
+    device_os: str | None = None
+    os_version: str | None = None
+    device_model: str | None = None
+    created_at: dt
+    last_used_at: dt
+    model_config = ConfigDict(from_attributes=True)
+
+
+class UserHWIDListResponse(BaseModel):
+    hwids: list[UserHWIDResponse]
+    count: int
 
 
 class RemoveUsersResponse(BaseModel):
@@ -413,7 +440,6 @@ class BulkUser(BulkUserFilter):
 
 
 class BulkUsersProxy(BulkUserFilter):
-    flow: XTLSFlows | None = Field(default=None)
     method: ShadowsocksMethods | None = Field(default=None)
 
 

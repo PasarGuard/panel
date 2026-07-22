@@ -1,4 +1,4 @@
-import { useTheme } from '@/components/common/theme-provider'
+import { useTheme } from '@/app/providers/theme-provider'
 import { Button } from '@/components/ui/button'
 import { getGradientByColorTheme } from '@/constants/ThemeGradients'
 import useDirDetection from '@/hooks/use-dir-detection'
@@ -233,7 +233,7 @@ export default function TopbarAd() {
   return (
     <div
       className={cn(
-        'relative z-[25] w-full border-b border-border/40 backdrop-blur-sm lg:z-30',
+        'border-border/40 relative z-[25] w-full border-b backdrop-blur-sm lg:z-30',
         gradientBg,
         'overflow-hidden',
         isClosing ? 'max-h-0 -translate-y-2 border-0 py-0 opacity-0' : 'max-h-32 sm:max-h-36',
@@ -259,13 +259,13 @@ export default function TopbarAd() {
               <img
                 src={iconUrl}
                 alt=""
-                className="h-5 w-5 shrink-0 rounded object-contain text-foreground/75"
+                className="text-foreground/75 h-5 w-5 shrink-0 rounded object-contain"
                 onLoad={() => setIconLoaded(true)}
                 onError={() => setIconError(true)}
                 style={{ display: iconLoaded ? 'block' : 'none' }}
               />
             )}
-            <span className={cn('line-clamp-2 flex-1 text-foreground/75', isRTL ? 'text-center sm:text-right' : 'text-center sm:text-left')}>
+            <span className={cn('text-foreground/75 line-clamp-2 flex-1', isRTL ? 'text-center sm:text-right' : 'text-center sm:text-left')}>
               <span className="hidden sm:inline">{translations.text}</span>
               <span className="sm:hidden">{translations.textMobile}</span>
             </span>
@@ -304,7 +304,7 @@ export default function TopbarAd() {
         className={cn(
           'absolute top-1/2 -translate-y-1/2',
           isRTL ? 'left-3 sm:left-4' : 'right-3 sm:right-4',
-          'z-10 h-7 w-7 shrink-0 rounded transition-all hover:bg-muted/40',
+          'hover:bg-muted/40 z-10 h-7 w-7 shrink-0 rounded transition-all',
           'text-muted-foreground/70 hover:text-foreground',
           'touch-manipulation',
         )}

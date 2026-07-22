@@ -44,7 +44,7 @@ async def command_start_handler(
                 return await message.edit_text(
                     text=Texts.start(stats),
                     reply_markup=AdminPanel(
-                        is_sudo=admin.is_sudo,
+                        admin=admin,
                         panel_url=settings.mini_app_web_url if settings.mini_app_login else None,
                     ).as_markup(),
                 )
@@ -53,7 +53,7 @@ async def command_start_handler(
         await message.answer(
             text=Texts.start(stats),
             reply_markup=AdminPanel(
-                is_sudo=admin.is_sudo, panel_url=settings.mini_app_web_url if settings.mini_app_login else None
+                admin=admin, panel_url=settings.mini_app_web_url if settings.mini_app_login else None
             ).as_markup(),
         )
     else:

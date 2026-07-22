@@ -10,12 +10,13 @@ from app.models.core import (
     CoresSimpleResponse,
     RemoveCoresResponse,
 )
+from app.models.reality_scan import RealityScanRequest, RealityScanResult
 from app.operation import OperatorType
 from app.operation.core import CoreOperation
 from app.operation.node import NodeOperation
 from app.utils import responses
 
-from .authentication import check_sudo_admin
+from .authentication import require_permission
 from .dependencies import get_core_list_query, get_core_simple_list_query
 
 core_operator = CoreOperation(operator_type=OperatorType.API)
@@ -25,15 +26,25 @@ router = APIRouter(tags=["Core"], prefix="/api/core", responses={401: responses.
 
 @router.post("", response_model=CoreResponse, status_code=status.HTTP_201_CREATED)
 async def create_core_config(
-    new_core: CoreCreate, admin: AdminDetails = Depends(check_sudo_admin), db: AsyncSession = Depends(get_db)
+    new_core: CoreCreate,
+    admin: AdminDetails = Depends(require_permission("cores", "create")),
+    db: AsyncSession = Depends(get_db),
 ):
     """Create a new core configuration."""
     return await core_operator.create_core(db, new_core, admin)
 
 
+@router.post("/reality-scan", response_model=RealityScanResult)
+async def scan_reality_target(
+    request: RealityScanRequest,
+    _: AdminDetails = Depends(require_permission("cores", "read")),
+):
+    return await core_operator.scan_reality_target(request)
+
+
 @router.get("/{core_id}", response_model=CoreResponse)
 async def get_core_config(
-    core_id: int, _: AdminDetails = Depends(check_sudo_admin), db: AsyncSession = Depends(get_db)
+    core_id: int, _: AdminDetails = Depends(require_permission("cores", "read")), db: AsyncSession = Depends(get_db)
 ) -> dict:
     """Get a core configuration by its ID."""
     return await core_operator.get_validated_core_config(db, core_id)
@@ -44,7 +55,7 @@ async def modify_core_config(
     core_id: int,
     restart_nodes: bool,
     modified_core: CoreCreate,
-    admin: AdminDetails = Depends(check_sudo_admin),
+    admin: AdminDetails = Depends(require_permission("cores", "update")),
     db: AsyncSession = Depends(get_db),
 ):
     """Update an existing core configuration."""
@@ -60,7 +71,7 @@ async def modify_core_config(
 async def delete_core_config(
     core_id: int,
     restart_nodes: bool = False,
-    admin: AdminDetails = Depends(check_sudo_admin),
+    admin: AdminDetails = Depends(require_permission("cores", "delete")),
     db: AsyncSession = Depends(get_db),
 ):
     """Delete a core configuration."""
@@ -75,7 +86,7 @@ async def delete_core_config(
 @router.get("s", response_model=CoreResponseList)
 async def get_all_cores(
     query=Depends(get_core_list_query),
-    _: AdminDetails = Depends(check_sudo_admin),
+    _: AdminDetails = Depends(require_permission("cores", "read")),
     db: AsyncSession = Depends(get_db),
 ):
     """Get a list of all core configurations."""
@@ -90,7 +101,7 @@ async def get_all_cores(
 )
 async def get_cores_simple(
     query=Depends(get_core_simple_list_query),
-    _: AdminDetails = Depends(check_sudo_admin),
+    _: AdminDetails = Depends(require_permission("cores", "read_simple")),
     db: AsyncSession = Depends(get_db),
 ):
     """Get lightweight core list with only id and name"""
@@ -99,7 +110,9 @@ async def get_cores_simple(
 
 @router.post("/{core_id}/restart", status_code=status.HTTP_204_NO_CONTENT)
 async def restart_core(
-    core_id: int, admin: AdminDetails = Depends(check_sudo_admin), db: AsyncSession = Depends(get_db)
+    core_id: int,
+    admin: AdminDetails = Depends(require_permission("cores", "update")),
+    db: AsyncSession = Depends(get_db),
 ):
     """restart nodes related to the core config"""
 
@@ -115,7 +128,7 @@ async def restart_core(
 async def bulk_delete_cores(
     bulk_cores: BulkCoreSelection,
     db: AsyncSession = Depends(get_db),
-    admin: AdminDetails = Depends(check_sudo_admin),
+    admin: AdminDetails = Depends(require_permission("cores", "delete")),
 ):
     """Delete selected cores by ID."""
     return await core_operator.bulk_remove_cores(db, bulk_cores, admin)

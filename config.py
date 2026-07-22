@@ -33,11 +33,16 @@ class DatabaseSettings(EnvSettings):
     pool_size: int = Field(default=25, validation_alias="SQLALCHEMY_POOL_SIZE")
     max_overflow: int = Field(default=60, validation_alias="SQLALCHEMY_MAX_OVERFLOW")
     pool_recycle: int = Field(default=300, validation_alias="SQLALCHEMY_POOL_RECYCLE")
+    connect_timeout: int = Field(default=5, gt=0, validation_alias="SQLALCHEMY_CONNECT_TIMEOUT")
     echo_queries: bool = Field(default=False, validation_alias="ECHO_SQL_QUERIES")
 
     @cached_property
     def is_postgresql(self) -> bool:
         return self.url.startswith("postgresql")
+
+    @cached_property
+    def is_mysql(self) -> bool:
+        return self.url.startswith(("mysql", "mariadb"))
 
     @cached_property
     def is_sqlite(self) -> bool:
@@ -83,6 +88,10 @@ class NatsSettings(EnvSettings):
     node_log_subject: str = Field(default="pasarguard.node.logs", validation_alias="NATS_NODE_LOG_SUBJECT")
     node_rpc_timeout: float = Field(default=30.0, validation_alias="NATS_NODE_RPC_TIMEOUT")
     scheduler_rpc_timeout: float = Field(default=5.0, validation_alias="NATS_SCHEDULER_RPC_TIMEOUT")
+    node_command_max_payload_bytes: int = Field(
+        default=900000, validation_alias="NATS_NODE_COMMAND_MAX_PAYLOAD_BYTES"
+    )
+    node_update_users_batch_size: int = Field(default=100, validation_alias="NATS_NODE_UPDATE_USERS_BATCH_SIZE")
     core_pubsub_channel: str = Field(default="core_hosts_updates", validation_alias="CORE_PUBSUB_CHANNEL")
     host_pubsub_channel: str = Field(default="host_manager_updates", validation_alias="HOST_PUBSUB_CHANNEL")
     telegram_kv_bucket: str = Field(default="pasarguard_telegram", validation_alias="NATS_TELEGRAM_KV_BUCKET")
@@ -177,6 +186,7 @@ class JobSettings(EnvSettings):
     record_node_usages_interval: int = Field(default=30, validation_alias="JOB_RECORD_NODE_USAGES_INTERVAL")
     record_user_usages_interval: int = Field(default=10, validation_alias="JOB_RECORD_USER_USAGES_INTERVAL")
     review_users_interval: int = Field(default=30, validation_alias="JOB_REVIEW_USERS_INTERVAL")
+    review_admin_limits_interval: int = Field(default=10, validation_alias="JOB_REVIEW_ADMIN_LIMITS_INTERVAL")
     send_notifications_interval: int = Field(default=30, validation_alias="JOB_SEND_NOTIFICATIONS_INTERVAL")
     gather_nodes_stats_interval: int = Field(default=25, validation_alias="JOB_GATHER_NODES_STATS_INTERVAL")
     remove_old_inbounds_interval: int = Field(default=600, validation_alias="JOB_REMOVE_OLD_INBOUNDS_INTERVAL")

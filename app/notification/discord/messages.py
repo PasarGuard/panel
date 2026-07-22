@@ -95,8 +95,8 @@ USER_SUBSCRIPTION_REVOKED = {
 CREATE_ADMIN = {
     "title": "Create Admin",
     "description": "**Username:** {username}\n"
-    + "**Is Sudo:** {is_sudo}\n"
-    + "**Is Disabled:** {is_disabled}\n"
+    + "**Role:** {role}\n"
+    + "**Status:** {status}\n"
     + "**Used Traffic:** {used_traffic}\n",
     "footer": {"text": "By: {by}"},
 }
@@ -104,8 +104,8 @@ CREATE_ADMIN = {
 MODIFY_ADMIN = {
     "title": "Modify Admin",
     "description": "**Username:** {username}\n"
-    + "**Is Sudo:** {is_sudo}\n"
-    + "**Is Disabled:** {is_disabled}\n"
+    + "**Role:** {role}\n"
+    + "**Status:** {status}\n"
     + "**Used Traffic:** {used_traffic}\n",
     "footer": {"text": "By: {by}"},
 }
@@ -120,6 +120,15 @@ ADMIN_RESET_USAGE = {
     "title": "Admin Reset Usage",
     "description": "**Username:** {username}\n",
     "footer": {"text": "By: {by}"},
+}
+
+ADMIN_USAGE_LIMIT_REACHED = {
+    "title": "⚠️ Admin Usage Limit Warning",
+    "description": "**Username:** {username}\n"
+    + "**Used Traffic:** {used_traffic}\n"
+    + "**Data Limit:** {data_limit}\n"
+    + "**Usage:** {usage_percentage}%\n"
+    + "**Reached Threshold:** {threshold}%",
 }
 
 ADMIN_LOGIN = {
@@ -177,6 +186,12 @@ REMOVE_NODE = {
 
 CONNECT_NODE = {
     "title": "Connect Node",
+    "description": "**Name:** {name}\n" + "**Node Version:** {node_version}\n" + "**Core Version:** {core_version}",
+    "footer": {"text": "ID: {id}"},
+}
+
+RECOVERED_NODE = {
+    "title": "✅ Recovered Node",
     "description": "**Name:** {name}\n" + "**Node Version:** {node_version}\n" + "**Core Version:** {core_version}",
     "footer": {"text": "ID: {id}"},
 }
@@ -249,13 +264,13 @@ REMOVE_CORE = {
 
 CREATE_GROUP = {
     "title": "Create Group",
-    "description": "**Name:** {name}\n" + "**Inbound Tags:** {inbound_tags}\n" + "**Is Disabled:** {is_disabled}\n",
+    "description": "**Name:** {name}\n" + "**Inbound Tags:** {inbound_tags}\n" + "**Status:** {status}\n",
     "footer": {"text": "ID: {id}\nBy: {by}"},
 }
 
 MODIFY_GROUP = {
     "title": "Modify Group",
-    "description": "**Name:** {name}\n" + "**Inbound Tags:** {inbound_tags}\n" + "**Is Disabled:** {is_disabled}\n",
+    "description": "**Name:** {name}\n" + "**Inbound Tags:** {inbound_tags}\n" + "**Status:** {status}\n",
     "footer": {"text": "ID: {id}\nBy: {by}"},
 }
 
@@ -263,4 +278,40 @@ REMOVE_GROUP = {
     "title": "Remove Group",
     "description": "**ID:** {id}",
     "footer": {"text": "By: {by}"},
+}
+
+CREATE_ADMIN_ROLE = {
+    "title": "Create Admin Role",
+    "description": "**Name:** {name}\n**Is Owner:** {is_owner}\n",
+    "footer": {"text": "ID: {id}\nBy: {by}"},
+}
+
+MODIFY_ADMIN_ROLE = {
+    "title": "Modify Admin Role",
+    "description": "**Name:** {name}\n**Is Owner:** {is_owner}\n",
+    "footer": {"text": "ID: {id}\nBy: {by}"},
+}
+
+REMOVE_ADMIN_ROLE = {
+    "title": "Remove Admin Role",
+    "description": "**Name:** {name}\n",
+    "footer": {"text": "ID: {id}\nBy: {by}"},
+}
+
+CREATE_API_KEY = {
+    "title": "🆕 Create API Key",
+    "description": "**Name:** {name}\n**Expire Date:** {expire_date}",
+    "footer": {"text": "ID: {id}\nBelongs To: {admin_username}\nBy: {by}"},
+}
+
+MODIFY_API_KEY = {
+    "title": "✏️ Modify API Key",
+    "description": "**Name:** {name}\n**Expire Date:** {expire_date}\n**Status:** {status}",
+    "footer": {"text": "ID: {id}\nBelongs To: {admin_username}\nBy: {by}"},
+}
+
+REMOVE_API_KEY = {
+    "title": "🗑️ Remove API Key",
+    "description": "**Name:** {name}\n",
+    "footer": {"text": "ID: {id}\nBelongs To: {admin_username}\nBy: {by}"},
 }

@@ -13,7 +13,6 @@ from app.models.client_template import (
     ClientTemplateSimpleSortField,
     ClientTemplateSimpleSortOption,
     ClientTemplateType,
-    SortDirection,
 )
 
 TEMPLATE_TYPE_TO_LEGACY_KEY: dict[ClientTemplateType, str] = {

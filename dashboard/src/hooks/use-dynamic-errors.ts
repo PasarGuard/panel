@@ -19,13 +19,27 @@ const useDynamicErrorHandler = () => {
     // Reset all previous errors
     form.clearErrors()
 
-    const responseData = error?.response?._data || error?.response?.data
+    const responseData = error?.response?._data || error?.response?.data || error?.data
 
     // Handle validation errors
     if (responseData && !isEmptyObject(responseData)) {
       const detail = responseData.detail
 
-      if (typeof detail === 'object' && detail !== null && !Array.isArray(detail)) {
+      if (Array.isArray(detail)) {
+        detail.forEach((err: any) => {
+          const field = err?.loc?.[1]
+          if (field && fields.includes(field)) {
+            form.setError(field, {
+              type: 'manual',
+              message: err.msg,
+            })
+          }
+        })
+
+        const firstError = detail[0]
+        const firstPath = Array.isArray(firstError?.loc) ? firstError.loc.filter((part: unknown) => part !== 'body').join('.') : ''
+        toast.error(firstError?.msg ? `${firstPath ? `${firstPath}: ` : ''}${firstError.msg}` : 'Validation error')
+      } else if (typeof detail === 'object' && detail !== null) {
         const firstField = Object.keys(detail)[0]
         const firstMessage = detail[firstField]
 

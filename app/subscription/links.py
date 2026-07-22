@@ -135,7 +135,7 @@ class StandardLinks(BaseSubscription):
 
         extra = self._normalize_and_remove_none_values(extra)
         if extra:
-            payload["extra"] = json.dumps(extra).replace(" ", "")
+            payload["extra"] = json.dumps(extra, separators=(",", ":"))
 
     def _transport_ws(self, payload: dict, protocol: str, config: WebSocketTransportConfig, path: str):
         """Handle websocket transport - only gets WS config"""
@@ -167,7 +167,7 @@ class StandardLinks(BaseSubscription):
     def _apply_finalmask(self, payload: dict, protocol: str, inbound: SubscriptionInboundData):
         """Apply finalMask for vmess if needed"""
         if inbound.finalmask:
-            payload["fm"] = json.dumps(inbound.finalmask)
+            payload["fm"] = inbound.finalmask_link
 
     def _transport_tcp(self, payload: dict, protocol: str, config: TCPTransportConfig, path: str):
         """Handle tcp/raw/http transport - only gets TCP config"""
@@ -188,6 +188,7 @@ class StandardLinks(BaseSubscription):
         payload["sni"] = sni
         payload["fp"] = tls_config.fingerprint
         payload["pcs"] = tls_config.pinned_peer_cert_sha256
+        payload["pinSHA256"] = tls_config.pinned_peer_cert_sha256  # some clients read this property
         payload["vcn"] = ",".join(tls_config.verify_peer_cert_by_name) if tls_config.verify_peer_cert_by_name else ""
 
         # Use pre-formatted alpn for links (comma-separated string)
@@ -268,8 +269,7 @@ class StandardLinks(BaseSubscription):
             "headerType": getattr(inbound.transport_config, "header_type", "none"),
         }
 
-        # Only add flow if inbound supports it
-        if inbound.flow_enabled and (flow := settings.get("flow", "")):
+        if flow := inbound.inbound_flow:
             payload["flow"] = flow
 
         self._apply_transport_settings(payload, "vless", inbound, path)
@@ -280,7 +280,7 @@ class StandardLinks(BaseSubscription):
             self._apply_tls_settings(payload, inbound.tls_config, inbound.fragment_settings)
 
         payload = self._normalize_and_remove_none_values(payload)
-        return f"vless://{id}@{address}:{inbound.port}?{urlparse.urlencode(payload)}#{urlparse.quote(remark)}"
+        return f"vless://{id}@{address}:{inbound.port}?{urlparse.urlencode(payload, quote_via=urlparse.quote)}#{urlparse.quote(remark)}"
 
     def _build_trojan(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict) -> str:
         """Build Trojan link"""
@@ -302,7 +302,7 @@ class StandardLinks(BaseSubscription):
 
         payload = self._normalize_and_remove_none_values(payload)
         password = urlparse.quote(settings["password"], safe=":")
-        return f"trojan://{password}@{address}:{inbound.port}?{urlparse.urlencode(payload)}#{urlparse.quote(remark)}"
+        return f"trojan://{password}@{address}:{inbound.port}?{urlparse.urlencode(payload, quote_via=urlparse.quote)}#{urlparse.quote(remark)}"
 
     def _build_shadowsocks(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict) -> str:
         """Build Shadowsocks link"""
@@ -332,7 +332,7 @@ class StandardLinks(BaseSubscription):
             self._apply_tls_settings(payload, inbound.tls_config, inbound.fragment_settings)
 
         payload = self._normalize_and_remove_none_values(payload)
-        return f"hysteria2://{settings['auth']}@{address}:{inbound.port}?{urlparse.urlencode(payload)}#{urlparse.quote(remark)}"
+        return f"hysteria2://{settings['auth']}@{address}:{inbound.port}?{urlparse.urlencode(payload, quote_via=urlparse.quote)}#{urlparse.quote(remark)}"
 
     def _build_wireguard(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict) -> str:
         """Build WireGuard link"""

@@ -23,7 +23,6 @@ from app.models.node import (
     NodeSimpleListQuery,
     NodeSimpleSortField,
     NodeSimpleSortOption,
-    SortDirection,
     UsageTable,
 )
 from app.models.stats import NodeStats, NodeStatsList, NodeUsageStat, NodeUsageStatsList, Period
@@ -117,7 +116,10 @@ async def get_nodes(
         stmt = stmt.where(Node.status.not_in([NodeStatus.disabled, NodeStatus.limited]))
 
     if params.core_id:
-        stmt = stmt.where(Node.core_config_id == params.core_id)
+        if params.core_id == 1:
+            stmt = stmt.where(or_(Node.core_config_id == params.core_id, Node.core_config_id.is_(None)))
+        else:
+            stmt = stmt.where(Node.core_config_id == params.core_id)
 
     if params.ids:
         stmt = stmt.where(Node.id.in_(params.ids))

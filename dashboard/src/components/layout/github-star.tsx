@@ -1,4 +1,4 @@
-import { useTheme } from '@/components/common/theme-provider'
+import { useTheme } from '@/app/providers/theme-provider'
 import { REPO_URL } from '@/constants/Project'
 import GitHubButton from 'react-github-btn'
 

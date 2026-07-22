@@ -11,7 +11,6 @@ from app.models.subscription import (
     WebSocketTransportConfig,
     XHTTPTransportConfig,
 )
-from app.templates import render_template_string
 from app.utils.helpers import UUIDEncoder
 
 from . import BaseSubscription
@@ -29,7 +28,7 @@ class XrayConfiguration(BaseSubscription):
             grpc_user_agent_template_content=grpc_user_agent_template_content,
         )
         self.config = []
-        self.template = render_template_string(xray_template_content)
+        self.template = json.loads(xray_template_content) if xray_template_content else {}
 
         # Registry for transport handlers
         self.transport_handlers = {
@@ -57,8 +56,7 @@ class XrayConfiguration(BaseSubscription):
         }
 
     def add_config(self, remarks, outbounds, template_content: str | None = None):
-        rendered_template = render_template_string(template_content) if template_content is not None else self.template
-        json_template = json.loads(rendered_template)
+        json_template = json.loads(template_content) if template_content is not None else self.template.copy()
         json_template["remarks"] = remarks
         json_template["outbounds"] = outbounds + json_template["outbounds"]
         self.config.append(json_template)
@@ -88,11 +86,10 @@ class XrayConfiguration(BaseSubscription):
 
         # Handle different return types
         if isinstance(result, tuple):
-            # VMess, VLESS, Trojan return (main_outbound, extra_outbounds_list)
+            # VMess, VLESS, Trojan, Shadowsocks, WireGuard return (main_outbound, extra_outbounds_list)
             main_outbound, extra_outbounds = result
             all_outbounds = [main_outbound] + extra_outbounds
         else:
-            # Shadowsocks returns just a dict
             all_outbounds = [result]
 
         self.add_config(remarks=remark, outbounds=all_outbounds, template_content=template_content)
@@ -160,7 +157,9 @@ class XrayConfiguration(BaseSubscription):
             "uplinkChunkSize": config.uplink_chunk_size,
             "noGRPCHeader": config.no_grpc_header,
             "xmux": config.xmux,
-            "downloadSettings": self._download_config(config.download_settings) if config.download_settings else None,
+            "downloadSettings": self._xhttp_download_config(config.download_settings)
+            if config.download_settings
+            else None,
         }
 
         if config.random_user_agent:
@@ -171,6 +170,11 @@ class XrayConfiguration(BaseSubscription):
 
         xhttp_settings["extra"] = extra
         return self._normalize_and_remove_none_values(xhttp_settings)
+
+    def _xhttp_download_config(self, download_settings: SubscriptionInboundData | dict) -> dict:
+        if isinstance(download_settings, dict):
+            return download_settings
+        return self._download_config(download_settings)
 
     def _transport_grpc(self, config: GRPCTransportConfig, path: str) -> dict:
         """Handle GRPC transport - only gets GRPC config"""
@@ -419,8 +423,7 @@ class XrayConfiguration(BaseSubscription):
 
         user_settings = {"id": id, "encryption": inbound.encryption}
 
-        # Only add flow if inbound supports it
-        if inbound.flow_enabled and (flow := settings.get("flow", "")):
+        if flow := inbound.inbound_flow:
             user_settings["flow"] = flow
 
         return self._build_outbound(
@@ -441,7 +444,7 @@ class XrayConfiguration(BaseSubscription):
             user_settings=user_settings,
         )
 
-    def _build_shadowsocks(self, address: str, inbound: SubscriptionInboundData, settings: dict) -> dict:
+    def _build_shadowsocks(self, address: str, inbound: SubscriptionInboundData, settings: dict) -> tuple:
         """Build Shadowsocks outbound"""
         method, password = self.detect_shadowsocks_2022(
             inbound.is_2022,
@@ -466,12 +469,23 @@ class XrayConfiguration(BaseSubscription):
             },
         }
 
-        if inbound.finalmask is not None:
+        # Handle fragment/noise - create dialer outbound
+        extra_outbounds = []
+        sockopt = None
+        if inbound.fragment_settings or inbound.noise_settings:
+            dialer_outbound = self.make_dialer_outbound(inbound.fragment_settings, inbound.noise_settings, "dialer")
+            if dialer_outbound:
+                extra_outbounds.append(dialer_outbound)
+                sockopt = {"dialerProxy": "dialer"}
+
+        if sockopt or inbound.finalmask:
             outbound["streamSettings"] = self._stream_setting_config(
-                network=inbound.network, finalmask=inbound.finalmask
+                network=inbound.network,
+                sockopt=sockopt,
+                finalmask=inbound.finalmask,
             )
 
-        return self._normalize_and_remove_none_values(outbound)
+        return self._normalize_and_remove_none_values(outbound), extra_outbounds
 
     def _build_hysteria(self, address: str, inbound: SubscriptionInboundData, settings: dict) -> tuple:
         """Build Hysteria outbound - returns (main_outbound, extra_outbounds_list)"""
@@ -482,7 +496,7 @@ class XrayConfiguration(BaseSubscription):
             user_settings={"auth": str(settings["auth"])},
         )
 
-    def _build_wireguard(self, address: str, inbound: SubscriptionInboundData, settings: dict) -> dict:
+    def _build_wireguard(self, address: str, inbound: SubscriptionInboundData, settings: dict) -> tuple:
         """Build WireGuard outbound for Xray subscriptions."""
         private_key = settings.get("private_key", "")
         peer_ips = list(settings.get("peer_ips") or [])
@@ -511,7 +525,23 @@ class XrayConfiguration(BaseSubscription):
             },
         }
 
-        return self._normalize_and_remove_none_values(outbound)
+        # Handle fragment/noise - create dialer outbound
+        extra_outbounds = []
+        sockopt = None
+        if inbound.fragment_settings or inbound.noise_settings:
+            dialer_outbound = self.make_dialer_outbound(inbound.fragment_settings, inbound.noise_settings, "dialer")
+            if dialer_outbound:
+                extra_outbounds.append(dialer_outbound)
+                sockopt = {"dialerProxy": "dialer"}
+
+        # Use streamSettings for sockopt and finalmask
+        if sockopt or inbound.finalmask:
+            outbound["streamSettings"] = self._stream_setting_config(
+                sockopt=sockopt,
+                finalmask=inbound.finalmask,
+            )
+
+        return self._normalize_and_remove_none_values(outbound), extra_outbounds
 
     def _build_outbound(
         self,

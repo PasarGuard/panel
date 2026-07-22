@@ -15,7 +15,7 @@ const FooterContent = () => {
 
 export const Footer: FC = ({ ...props }) => {
   return (
-    <div className="relative flex w-full pb-3 pt-1" {...props}>
+    <div className="relative flex w-full pt-1 pb-3" {...props}>
       <FooterContent />
     </div>
   )

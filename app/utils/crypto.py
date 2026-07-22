@@ -1,5 +1,7 @@
 import base64
 import binascii
+import hashlib
+import hmac
 
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
@@ -97,3 +99,39 @@ def generate_wireguard_keypair() -> tuple[str, str]:
         base64.b64encode(private_key_bytes).decode("ascii"),
         base64.b64encode(public_key_bytes).decode("ascii"),
     )
+
+
+API_KEY_HASH_VERSION = "v1"
+API_KEY_SHA256_ALGORITHM = "sha256"
+API_KEY_LOOKUP_BYTES = 16
+
+
+def api_key_lookup_id(raw_api_key: str) -> str:
+    digest = hashlib.sha256(raw_api_key.encode("utf-8")).digest()[:API_KEY_LOOKUP_BYTES]
+    return base64.urlsafe_b64encode(digest).decode("ascii").rstrip("=")
+
+
+def hash_api_key(raw_api_key: str) -> str:
+    lookup_id = api_key_lookup_id(raw_api_key)
+
+    hash_hex = _sha256_api_key_digest(raw_api_key)
+    return f"{API_KEY_HASH_VERSION}${lookup_id}${API_KEY_SHA256_ALGORITHM}${hash_hex}"
+
+
+def _sha256_api_key_digest(raw_api_key: str) -> str:
+    return hashlib.sha256(raw_api_key.encode("utf-8")).hexdigest()
+
+
+def verify_api_key(raw_api_key: str, stored_hash: str) -> bool:
+    parts = stored_hash.split("$")
+
+    if len(parts) != 4:
+        return False
+
+    version, lookup_id, algorithm, hash_hex = parts
+    if version != API_KEY_HASH_VERSION or algorithm != API_KEY_SHA256_ALGORITHM:
+        return False
+    if not hmac.compare_digest(lookup_id, api_key_lookup_id(raw_api_key)):
+        return False
+
+    return hmac.compare_digest(_sha256_api_key_digest(raw_api_key), hash_hex)

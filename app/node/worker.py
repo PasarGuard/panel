@@ -54,6 +54,7 @@ class NodeWorkerService(BaseRpcService):
 
         self.register_rpc_handler("get_node_system_stats", self._get_node_system_stats)
         self.register_rpc_handler("get_nodes_system_stats", self._get_nodes_system_stats)
+        self.register_rpc_handler("get_outbounds_latency", self._get_outbounds_latency)
         self.register_rpc_handler("get_user_online_stats", self._get_user_online_stats_by_node)
         self.register_rpc_handler("get_user_ip_list", self._get_user_ip_list_by_node)
         self.register_rpc_handler("get_user_ip_list_all", self._get_user_ip_list_all_nodes)
@@ -201,6 +202,8 @@ class NodeWorkerService(BaseRpcService):
         flush_users = data.get("flush_users", False)
         if not node_id:
             return
+        # Refresh from KV before syncing to avoid stale core/inbound cache races.
+        await core_manager._reload_from_cache()
         async with GetDB() as db:
             await self._node_operator.sync_node_users(db, node_id=node_id, flush_users=flush_users)
 
@@ -215,29 +218,41 @@ class NodeWorkerService(BaseRpcService):
         stats = await self._node_operator.get_nodes_system_stats()
         return {node_id: value.model_dump() if value else None for node_id, value in stats.items()}
 
+    async def _get_outbounds_latency(self, data: dict) -> dict:
+        node_id = data.get("node_id")
+        if not node_id:
+            raise RuntimeError("node_id is required")
+
+        latency = await self._node_operator.get_outbounds_latency(
+            node_id=node_id,
+            name=data.get("name", ""),
+            timeout=data.get("timeout"),
+        )
+        return latency.model_dump()
+
     async def _get_user_online_stats_by_node(self, data: dict) -> dict:
         node_id = data.get("node_id")
-        username = data.get("username")
-        if not node_id or not username:
-            raise RuntimeError("node_id and username are required")
+        user_id = data.get("user_id")
+        if not node_id or not user_id:
+            raise RuntimeError("node_id and user_id are required")
         async with GetDB() as db:
-            return await self._node_operator.get_user_online_stats_by_node(db, node_id, username)
+            return await self._node_operator.get_user_online_stats_by_node(db, node_id, user_id)
 
     async def _get_user_ip_list_by_node(self, data: dict) -> dict:
         node_id = data.get("node_id")
-        username = data.get("username")
-        if not node_id or not username:
-            raise RuntimeError("node_id and username are required")
+        user_id = data.get("user_id")
+        if not node_id or not user_id:
+            raise RuntimeError("node_id and user_id are required")
         async with GetDB() as db:
-            user_ips = await self._node_operator.get_user_ip_list_by_node(db, node_id, username)
+            user_ips = await self._node_operator.get_user_ip_list_by_node(db, node_id, user_id)
         return user_ips.model_dump()
 
     async def _get_user_ip_list_all_nodes(self, data: dict) -> dict:
-        username = data.get("username")
-        if not username:
-            raise RuntimeError("username is required")
+        user_id = data.get("user_id")
+        if not user_id:
+            raise RuntimeError("user_id is required")
         async with GetDB() as db:
-            user_ips = await self._node_operator.get_user_ip_list_all_nodes(db, username)
+            user_ips = await self._node_operator.get_user_ip_list_all_nodes(db, user_id)
         return user_ips.model_dump()
 
     async def _update_node_api(self, data: dict) -> dict:

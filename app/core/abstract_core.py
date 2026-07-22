@@ -1,5 +1,7 @@
 from abc import ABC, abstractmethod
 
+from app.models.protocol import ProxyProtocol
+
 
 class AbstractCore(ABC):
     @abstractmethod
@@ -34,4 +36,9 @@ class AbstractCore(ABC):
     @property
     @abstractmethod
     def inbounds(self) -> list[str]:
+        raise NotImplementedError
+
+    @property
+    @abstractmethod
+    def protocols(self) -> frozenset[ProxyProtocol]:
         raise NotImplementedError

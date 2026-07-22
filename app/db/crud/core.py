@@ -8,7 +8,6 @@ from app.models.core import (
     CoreSimpleListQuery,
     CoreSimpleSortField,
     CoreSimpleSortOption,
-    SortDirection,
 )
 
 

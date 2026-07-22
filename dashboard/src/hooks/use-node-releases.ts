@@ -18,8 +18,18 @@ const CACHE_KEY = 'pg_node_release'
 const CACHE_DURATION = 10 * 60 * 1000
 
 function compareVersions(current: string, latest: string): number {
-  const currentParts = current.replace(/^v/, '').split('.').map(Number)
-  const latestParts = latest.replace(/^v/, '').split('.').map(Number)
+  const currentParts = current
+    .trim()
+    .replace(/^v/i, '')
+    .split(/[\.-]/)
+    .filter(p => !isNaN(Number(p)))
+    .map(Number)
+  const latestParts = latest
+    .trim()
+    .replace(/^v/i, '')
+    .split(/[\.-]/)
+    .filter(p => !isNaN(Number(p)))
+    .map(Number)
 
   for (let i = 0; i < Math.max(currentParts.length, latestParts.length); i++) {
     const curr = currentParts[i] || 0
@@ -67,7 +77,7 @@ async function fetchLatestNodeRelease(): Promise<{ version: string; url: string 
     }
 
     const data = await response.json()
-    const version = data.tag_name?.replace(/^v/, '') || ''
+    const version = data.tag_name?.trim().replace(/^v/i, '') || ''
     const url = data.html_url || ''
 
     if (version) setCache(version, url)
@@ -91,8 +101,8 @@ export function useNodeReleases(): NodeReleaseResult {
 
   const hasUpdate = (currentVersion: string | null) => {
     if (!currentVersion || !data?.version) return false
-    const cleanCurrent = currentVersion.replace(/^v/, '')
-    const cleanLatest = data.version.replace(/^v/, '')
+    const cleanCurrent = currentVersion.trim().replace(/^v/i, '')
+    const cleanLatest = data.version.trim().replace(/^v/i, '')
     return compareVersions(cleanCurrent, cleanLatest) < 0
   }
 
@@ -103,4 +113,3 @@ export function useNodeReleases(): NodeReleaseResult {
     hasUpdate,
   }
 }
-

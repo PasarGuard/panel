@@ -102,6 +102,20 @@ DEFAULT_XRAY_SUBSCRIPTION_TEMPLATE = """{
     "error": "",
     "loglevel": "warning"
   },
+ "policy": {
+    "system": {
+        "statsOutboundDownlink": true,
+        "statsOutboundUplink": true
+    },
+	"levels": {
+     "8": {
+       "connIdle": 300,
+       "downlinkOnly": 1,
+       "handshake": 4,
+       "uplinkOnly": 1
+     }
+   }
+   },
   "inbounds": [
     {
       "tag": "socks",

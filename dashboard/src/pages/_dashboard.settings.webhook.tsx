@@ -3,7 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useTranslation } from 'react-i18next'
 import { useEffect } from 'react'
-import { SubscriptionFormActions } from '@/components/subscriptions/subscription-form-actions'
+import { SubscriptionFormActions } from '@/features/subscriptions/components/subscription-form-actions'
 import { Button } from '@/components/ui/button'
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
@@ -209,7 +209,7 @@ export default function WebhookSettings() {
             <div className="space-y-3">
               <div className="space-y-2">
                 <h3 className="text-base font-semibold sm:text-lg">{t('settings.webhook.general.title')}</h3>
-                <p className="text-xs text-muted-foreground sm:text-sm">{t('settings.webhook.general.description')}</p>
+                <p className="text-muted-foreground text-xs sm:text-sm">{t('settings.webhook.general.description')}</p>
               </div>
 
               {/* Enable Webhook */}
@@ -217,13 +217,13 @@ export default function WebhookSettings() {
                 control={form.control}
                 name="enable"
                 render={({ field }) => (
-                  <FormItem className="flex items-center justify-between gap-x-3 space-y-0 rounded-lg border bg-card p-3 transition-colors hover:bg-accent/50 sm:p-4">
+                  <FormItem className="bg-card hover:bg-accent/50 flex flex-row items-center justify-between space-y-0 gap-x-3 rounded-lg border p-3 transition-colors sm:p-4">
                     <div className="space-y-0.5">
                       <FormLabel className="flex cursor-pointer items-center gap-2 text-xs font-medium sm:text-sm">
                         <Webhook className="h-4 w-4" />
                         {t('settings.webhook.general.enable')}
                       </FormLabel>
-                      <FormDescription className="text-xs text-muted-foreground sm:text-sm">{t('settings.webhook.general.enableDescription')}</FormDescription>
+                      <FormDescription className="text-muted-foreground text-xs sm:text-sm">{t('settings.webhook.general.enableDescription')}</FormDescription>
                     </div>
                     <FormControl>
                       <Switch checked={field.value} onCheckedChange={field.onChange} />
@@ -247,7 +247,7 @@ export default function WebhookSettings() {
                         <FormControl>
                           <Input type="number" min="1" max="300" placeholder="30" {...field} onChange={e => field.onChange(parseInt(e.target.value) || 30)} className="text-xs sm:text-sm" />
                         </FormControl>
-                        <FormDescription className="text-xs text-muted-foreground sm:text-sm">{t('settings.webhook.general.timeoutDescription')}</FormDescription>
+                        <FormDescription className="text-muted-foreground text-xs sm:text-sm">{t('settings.webhook.general.timeoutDescription')}</FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -265,7 +265,7 @@ export default function WebhookSettings() {
                         <FormControl>
                           <Input type="number" min="1" max="24" placeholder="3" {...field} onChange={e => field.onChange(parseInt(e.target.value) || 3)} className="text-xs sm:text-sm" />
                         </FormControl>
-                        <FormDescription className="text-xs text-muted-foreground sm:text-sm">{t('settings.webhook.general.recurrentDescription')}</FormDescription>
+                        <FormDescription className="text-muted-foreground text-xs sm:text-sm">{t('settings.webhook.general.recurrentDescription')}</FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -283,7 +283,7 @@ export default function WebhookSettings() {
                         <FormControl>
                           <Input type="url" placeholder="http://proxy.example.com:8080" {...field} className="text-xs sm:text-sm" />
                         </FormControl>
-                        <FormDescription className="text-xs text-muted-foreground sm:text-sm">{t('settings.webhook.general.proxyUrlDescription')}</FormDescription>
+                        <FormDescription className="text-muted-foreground text-xs sm:text-sm">{t('settings.webhook.general.proxyUrlDescription')}</FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -298,7 +298,7 @@ export default function WebhookSettings() {
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="space-y-2">
                     <h3 className="text-base font-semibold sm:text-lg">{t('settings.webhook.webhooks.title')}</h3>
-                    <p className="text-xs text-muted-foreground sm:text-sm">{t('settings.webhook.webhooks.description')}</p>
+                    <p className="text-muted-foreground text-xs sm:text-sm">{t('settings.webhook.webhooks.description')}</p>
                   </div>
                   <Button type="button" variant="outline" size="sm" onClick={addWebhook} className="flex w-full items-center justify-center gap-2 sm:w-auto">
                     <Plus className="h-4 w-4" />
@@ -311,7 +311,7 @@ export default function WebhookSettings() {
                     <Card key={field.id} className="p-3 sm:p-4">
                       <div className="mb-3 flex items-start justify-between sm:mb-4">
                         <div className="flex items-center gap-2">
-                          <Target className="h-4 w-4 text-muted-foreground" />
+                          <Target className="text-muted-foreground h-4 w-4" />
                           <span className="text-xs font-medium sm:text-sm">
                             {t('settings.webhook.webhooks.webhook')} #{index + 1}
                           </span>
@@ -355,8 +355,8 @@ export default function WebhookSettings() {
 
                   {webhookFields.length === 0 && (
                     <Card className="border-dashed p-4 text-center sm:p-6">
-                      <Target className="mx-auto mb-2 h-8 w-8 text-muted-foreground" />
-                      <p className="mb-3 text-xs text-muted-foreground sm:mb-4 sm:text-sm">{t('settings.webhook.webhooks.empty')}</p>
+                      <Target className="text-muted-foreground mx-auto mb-2 h-8 w-8" />
+                      <p className="text-muted-foreground mb-3 text-xs sm:mb-4 sm:text-sm">{t('settings.webhook.webhooks.empty')}</p>
                       <Button type="button" variant="outline" size="sm" onClick={addWebhook} className="flex w-full items-center justify-center gap-2 sm:w-auto">
                         <Plus className="h-4 w-4" />
                         {t('settings.webhook.webhooks.addFirst')}
@@ -375,7 +375,7 @@ export default function WebhookSettings() {
                   <div className="flex items-center justify-between">
                     <div className="space-y-1">
                       <h4 className="text-xs font-medium sm:text-sm">{t('settings.webhook.triggers.daysLeft.title')}</h4>
-                      <p className="text-xs text-muted-foreground sm:text-sm">{t('settings.webhook.triggers.daysLeft.description')}</p>
+                      <p className="text-muted-foreground text-xs sm:text-sm">{t('settings.webhook.triggers.daysLeft.description')}</p>
                     </div>
                     <Button type="button" variant="outline" size="sm" onClick={addDaysLeft}>
                       <Plus className="h-4 w-4" />
@@ -414,7 +414,7 @@ export default function WebhookSettings() {
                   <div className="flex items-center justify-between">
                     <div className="space-y-1">
                       <h4 className="text-xs font-medium sm:text-sm">{t('settings.webhook.triggers.usagePercent.title')}</h4>
-                      <p className="text-xs text-muted-foreground sm:text-sm">{t('settings.webhook.triggers.usagePercent.description')}</p>
+                      <p className="text-muted-foreground text-xs sm:text-sm">{t('settings.webhook.triggers.usagePercent.description')}</p>
                     </div>
                     <Button type="button" variant="outline" size="sm" onClick={addUsagePercent}>
                       <Plus className="h-4 w-4" />
@@ -435,7 +435,7 @@ export default function WebhookSettings() {
                             </FormItem>
                           )}
                         />
-                        <span className="text-xs text-muted-foreground">%</span>
+                        <span className="text-muted-foreground text-xs">%</span>
                         <Button type="button" variant="ghost" size="sm" onClick={() => removeUsagePercent(index)} className="h-8 w-8 p-0 text-red-500 hover:text-red-700">
                           <Trash2 className="h-3 w-3" />
                         </Button>

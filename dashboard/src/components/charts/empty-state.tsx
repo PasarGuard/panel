@@ -17,31 +17,31 @@ export function EmptyState({ type, title, description, icon, className = 'max-h-
     switch (type) {
       case 'no-data':
         return {
-          icon: icon || <TrendingUp className="h-12 w-12 text-muted-foreground/50" />,
+          icon: icon || <TrendingUp className="text-muted-foreground/50 h-12 w-12" />,
           title: title || t('statistics.noDataAvailable'),
           description: description || t('statistics.noDataDescription'),
         }
       case 'no-nodes':
         return {
-          icon: icon || <Database className="h-12 w-12 text-muted-foreground/50" />,
+          icon: icon || <Database className="text-muted-foreground/50 h-12 w-12" />,
           title: title || t('statistics.noNodesAvailable'),
           description: description || t('statistics.noNodesDescription'),
         }
       case 'loading':
         return {
-          icon: icon || <Activity className="h-12 w-12 animate-pulse text-muted-foreground/50" />,
+          icon: icon || <Activity className="text-muted-foreground/50 h-12 w-12 animate-pulse" />,
           title: title || t('loading'),
           description: description || t('statistics.loadingDescription'),
         }
       case 'error':
         return {
-          icon: icon || <Wifi className="h-12 w-12 text-destructive/50" />,
+          icon: icon || <Wifi className="text-destructive/50 h-12 w-12" />,
           title: title || t('errors.failedToLoad'),
           description: description || t('errors.connectionFailed'),
         }
       default:
         return {
-          icon: <TrendingUp className="h-12 w-12 text-muted-foreground/50" />,
+          icon: <TrendingUp className="text-muted-foreground/50 h-12 w-12" />,
           title: t('statistics.noDataAvailable'),
           description: t('statistics.noDataDescription'),
         }
@@ -53,10 +53,10 @@ export function EmptyState({ type, title, description, icon, className = 'max-h-
   return (
     <div className={`flex h-full w-full flex-col items-center justify-center ${className}`}>
       <div className="flex max-w-md flex-col items-center gap-4 text-center">
-        <div className="flex h-20 w-20 items-center justify-center rounded-full bg-muted/30">{content.icon}</div>
+        <div className="bg-muted/30 flex h-20 w-20 items-center justify-center rounded-full">{content.icon}</div>
         <div className="space-y-2">
-          <h3 className="text-lg font-semibold text-foreground">{content.title}</h3>
-          <p className="text-sm leading-relaxed text-muted-foreground">{content.description}</p>
+          <h3 className="text-foreground text-lg font-semibold">{content.title}</h3>
+          <p className="text-muted-foreground text-sm leading-relaxed">{content.description}</p>
         </div>
       </div>
     </div>

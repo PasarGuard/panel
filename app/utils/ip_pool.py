@@ -210,6 +210,39 @@ class WireGuardPeerIPAllocator:
             return f"{ip_address(raw_candidate)}/32"
         return None
 
+    def is_reserved(self, peer_ip: str) -> bool:
+        """Whether the given IP/network falls inside the WireGuard reserved ranges."""
+        try:
+            candidate = ip_network(peer_ip, strict=False)
+        except ValueError:
+            return False
+        candidate_ip = ip_address(candidate.network_address)
+        return any(candidate_ip in net for net in WIREGUARD_RESERVED)
+
+    def conflicts(self, peer_ip: str) -> bool:
+        """Whether the given IP/network overlaps already-blocked addresses (used or reserved)."""
+        try:
+            candidate = ip_network(peer_ip, strict=False)
+        except ValueError:
+            return False
+        if candidate.version != 4:
+            return False
+        for addr in candidate:
+            if int(addr) in self._blocked:
+                return True
+        return False
+
+    def reserve(self, peer_ip: str) -> None:
+        """Mark every address in the given IPv4 network as blocked so future allocations skip it."""
+        try:
+            candidate = ip_network(peer_ip, strict=False)
+        except ValueError:
+            return
+        if candidate.version != 4:
+            return
+        for addr in candidate:
+            self._blocked.add(int(addr))
+
 
 async def allocate_from_global_pool(
     db: AsyncSession,

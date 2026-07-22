@@ -1,5 +1,3 @@
-import copy
-
 from app.notification.client import send_discord_webhook
 from app.notification.helpers import get_discord_webhook
 from app.models.group import GroupResponse
@@ -14,11 +12,12 @@ ENTITY = "group"
 
 async def create_group(group: GroupResponse, by: str):
     name, by = escape_ds_markdown_list((group.name, by))
-    message = copy.deepcopy(messages.CREATE_GROUP)
+    message = {**messages.CREATE_GROUP, "footer": dict(messages.CREATE_GROUP["footer"])}
     message["description"] = message["description"].format(
         name=name,
         inbound_tags=group.inbound_tags,
         is_disabled=group.is_disabled,
+        status="Disabled" if group.is_disabled else "Enabled",
     )
     message["footer"]["text"] = message["footer"]["text"].format(id=group.id, by=by)
     data = {
@@ -34,11 +33,12 @@ async def create_group(group: GroupResponse, by: str):
 
 async def modify_group(group: GroupResponse, by: str):
     name, by = escape_ds_markdown_list((group.name, by))
-    message = copy.deepcopy(messages.MODIFY_GROUP)
+    message = {**messages.MODIFY_GROUP, "footer": dict(messages.MODIFY_GROUP["footer"])}
     message["description"] = message["description"].format(
         name=name,
         inbound_tags=group.inbound_tags,
         is_disabled=group.is_disabled,
+        status="Disabled" if group.is_disabled else "Enabled",
     )
     message["footer"]["text"] = message["footer"]["text"].format(id=group.id, by=by)
     data = {
@@ -54,7 +54,7 @@ async def modify_group(group: GroupResponse, by: str):
 
 async def remove_group(group_id: int, by: str):
     by = escape_ds_markdown(by)
-    message = copy.deepcopy(messages.REMOVE_GROUP)
+    message = {**messages.REMOVE_GROUP, "footer": dict(messages.REMOVE_GROUP["footer"])}
     message["description"] = message["description"].format(id=group_id)
     message["footer"]["text"] = message["footer"]["text"].format(by=by)
     data = {

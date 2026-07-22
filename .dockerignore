@@ -22,3 +22,35 @@ venv*
 LICENSE
 install_service.sh
 PasarGuard.code-workspace
+scripts
+
+# Dev tooling / CI (not used at runtime)
+Makefile
+.github
+.pre-commit-config.yaml
+.editorconfig
+
+# Caches and local artifacts
+.pytest_cache
+.ruff_cache
+.uv-cache
+.mypy_cache
+
+# Tests config and local databases
+pytest.ini
+test.db
+*.db-journal
+
+# AI / planning scratch output
+.AGENT
+graphify-out
+
+# Dashboard: the frontend is prebuilt in CI (build.yml / build-dev.yml) and the
+# compiled output is copied into the context as dashboard/build/. At runtime only
+# the Python integration module and the compiled assets are used (build() never
+# runs because dashboard/build/ already exists), so exclude all source/tooling.
+# Excluding+re-including direct children avoids Docker's "can't re-include a file
+# under an excluded parent directory" limitation.
+dashboard/*
+!dashboard/__init__.py
+!dashboard/build

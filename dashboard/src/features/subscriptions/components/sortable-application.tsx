@@ -1,0 +1,144 @@
+import { SubscriptionApplicationSheet } from '@/features/subscriptions/components/subscription-application-sheet'
+import type { SubscriptionFormData } from '@/features/subscriptions/components/subscription-settings-schema'
+import { platformOptions, PlatformIcon } from '@/features/subscriptions/components/subscription-application-shared'
+import { Button } from '@/components/ui/button'
+import { FormField } from '@/components/ui/form'
+import { useSortable } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
+import { GripVertical, Pencil, ShieldCheck, Star, Trash2 } from 'lucide-react'
+import { useState } from 'react'
+import { UseFormReturn } from 'react-hook-form'
+import { useTranslation } from 'react-i18next'
+
+interface SortableApplicationProps {
+  index: number
+  onRemove: (index: number) => void
+  form: UseFormReturn<SubscriptionFormData>
+  id: string
+}
+
+export function SortableApplication({ index, onRemove, form, id }: SortableApplicationProps) {
+  const { t } = useTranslation()
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
+  const [isSheetOpen, setIsSheetOpen] = useState(false)
+  const [iconBroken, setIconBroken] = useState(false)
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 2 : 1,
+    opacity: isDragging ? 0.8 : 1,
+  }
+  const cursor = isDragging ? 'grabbing' : 'grab'
+
+  return (
+    <>
+      <div ref={setNodeRef} style={style} className="cursor-default">
+        <div className="group bg-card hover:bg-accent/20 relative cursor-pointer rounded-md border transition-colors" dir="ltr" onClick={() => setIsSheetOpen(true)}>
+          <div className="flex items-center gap-2 p-3 sm:gap-3 sm:p-4">
+            <button
+              type="button"
+              style={{ cursor: cursor }}
+              className="shrink-0 touch-none opacity-50 transition-opacity group-hover:opacity-100"
+              onClick={e => e.stopPropagation()}
+              {...attributes}
+              {...listeners}
+            >
+              <GripVertical className="h-4 w-4 sm:h-5 sm:w-5" />
+              <span className="sr-only">Drag to reorder</span>
+            </button>
+
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5 sm:flex-nowrap sm:gap-2">
+              {(() => {
+                const iconUrl = form.watch(`applications.${index}.icon_url`)
+                const name = (form.watch(`applications.${index}.name`) || '').trim()
+                const initial = name ? name.charAt(0).toUpperCase() : ''
+                const platform = form.watch(`applications.${index}.platform`) ?? ''
+                if (iconUrl && !iconBroken) {
+                  return <img src={iconUrl} alt={name || 'icon'} className="h-4 w-4 shrink-0 rounded-sm object-cover sm:h-5 sm:w-5" onError={() => setIconBroken(true)} />
+                }
+                return (
+                  <span aria-label="app-icon-fallback" className="bg-muted text-muted-foreground/90 inline-flex h-4 w-4 shrink-0 items-center justify-center overflow-hidden rounded-sm sm:h-5 sm:w-5">
+                    {initial ? (
+                      <span className="text-[10px] leading-none font-medium">{initial}</span>
+                    ) : (
+                      <span className="text-[10px] leading-none">
+                        <PlatformIcon platform={platform} />
+                      </span>
+                    )}
+                  </span>
+                )
+              })()}
+              <FormField
+                control={form.control}
+                name={`applications.${index}.platform`}
+                render={({ field }) => <span className="text-muted-foreground hidden text-xs sm:inline">{t(platformOptions.find(o => o.value === field.value)?.label || '')}</span>}
+              />
+              <FormField
+                control={form.control}
+                name={`applications.${index}.platform`}
+                render={({ field }) => (
+                  <span className="text-muted-foreground/80 shrink-0">
+                    <PlatformIcon platform={field.value ?? ''} />
+                  </span>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name={`applications.${index}.name`}
+                render={({ field }) => (
+                  <h4 className="flex min-w-0 items-center gap-1.5 truncate text-xs font-medium sm:text-sm">
+                    {field.value || t('settings.subscriptions.applications.application', { defaultValue: 'Application' })}
+                    {form.watch(`applications.${index}.recommended`) ? (
+                      <span title={t('settings.subscriptions.applications.recommended')} className="inline-flex shrink-0 items-center text-amber-500/90">
+                        <Star className="h-3 w-3 fill-amber-500/30 sm:h-3.5 sm:w-3.5" />
+                      </span>
+                    ) : null}
+                    {form.watch(`applications.${index}.show_when_hwid_enabled`) ? (
+                      <span title={t('settings.subscriptions.applications.showWhenHwidEnabled')} className="inline-flex shrink-0 items-center text-blue-500/90">
+                        <ShieldCheck className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                      </span>
+                    ) : null}
+                  </h4>
+                )}
+              />
+            </div>
+
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 shrink-0 sm:h-8 sm:w-8"
+              onClick={e => {
+                e.preventDefault()
+                e.stopPropagation()
+                setIsSheetOpen(true)
+              }}
+              aria-label={t('settings.subscriptions.applications.editApplication')}
+            >
+              <Pencil className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+            </Button>
+
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={e => {
+                e.preventDefault()
+                e.stopPropagation()
+                onRemove(index)
+              }}
+              className="text-destructive hover:bg-destructive/10 hover:text-destructive h-7 w-7 shrink-0 p-0 opacity-70 transition-opacity hover:opacity-100 sm:h-8 sm:w-8"
+            >
+              <Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+            </Button>
+          </div>
+
+          {isDragging && <div className="border-primary/20 bg-primary/5 pointer-events-none absolute inset-0 rounded-md border" />}
+        </div>
+      </div>
+
+      <SubscriptionApplicationSheet variant="edit" form={form} applicationIndex={index} rowId={id} open={isSheetOpen} onOpenChange={setIsSheetOpen} />
+    </>
+  )
+}

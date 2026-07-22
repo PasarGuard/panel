@@ -1,6 +1,7 @@
 import asyncio
 from typing import AsyncIterator, Callable
 
+from fastapi import HTTPException
 from PasarGuardNodeBridge import NodeAPIError, PasarGuardNode
 from PasarGuardNodeBridge.common import service_pb2 as service
 from sqlalchemy.exc import IntegrityError
@@ -24,7 +25,7 @@ from app.db.crud.node import (
     reset_node_usage,
     update_node_status,
 )
-from app.db.crud.user import get_user, get_user_count_metric_stats
+from app.db.crud.user import get_user_by_id, get_user_count_metric_stats
 from app.db.models import Node, NodeStatus
 from app.models.admin import AdminDetails
 from app.models.core import CoreType
@@ -51,6 +52,7 @@ from app.models.node import (
     UserIPListAll,
 )
 from app.models.stats import (
+    NodeOutboundsLatencyResponse,
     NodeRealtimeStats,
     NodeStatsList,
     NodeUsageStatsList,
@@ -81,6 +83,7 @@ class NodeOperation(BaseOperation):
             self._sync_node_users_impl = self._sync_node_users_local
             self._get_node_stats_impl = self._get_node_system_stats_local
             self._get_nodes_stats_impl = self._get_nodes_system_stats_local
+            self._get_outbounds_latency_impl = self._get_outbounds_latency_local
             self._get_user_online_stats_impl = self._get_user_online_stats_local
             self._get_user_ip_list_impl = self._get_user_ip_list_local
             self._get_user_ip_list_all_impl = self._get_user_ip_list_all_local
@@ -98,6 +101,7 @@ class NodeOperation(BaseOperation):
             self._sync_node_users_impl = self._sync_node_users_remote
             self._get_node_stats_impl = self._get_node_system_stats_remote
             self._get_nodes_stats_impl = self._get_nodes_system_stats_remote
+            self._get_outbounds_latency_impl = self._get_outbounds_latency_remote
             self._get_user_online_stats_impl = self._get_user_online_stats_remote
             self._get_user_ip_list_impl = self._get_user_ip_list_remote
             self._get_user_ip_list_all_impl = self._get_user_ip_list_all_remote
@@ -209,7 +213,11 @@ class NodeOperation(BaseOperation):
                 users_by_core[core_id] = []
                 continue
 
-            users_by_core[core_id] = await core_users(db=db, inbound_tags=core.inbounds)
+            users_by_core[core_id] = await core_users(
+                db=db,
+                inbound_tags=core.inbounds,
+                allowed_protocols=core.protocols,
+            )
 
         return cores_by_id, users_by_core
 
@@ -479,6 +487,11 @@ class NodeOperation(BaseOperation):
     async def get_nodes_system_stats(self) -> dict[int, NodeRealtimeStats | None]:
         return await self._get_nodes_stats_impl()
 
+    async def get_outbounds_latency(
+        self, node_id: int, name: str = "", timeout: int | None = None
+    ) -> NodeOutboundsLatencyResponse:
+        return await self._get_outbounds_latency_impl(node_id, name, timeout)
+
     async def _get_node_stats_safe(self, node_id: int) -> NodeRealtimeStats | None:
         """Wrapper method that returns None instead of raising exceptions"""
         try:
@@ -487,14 +500,14 @@ class NodeOperation(BaseOperation):
             logger.error(f"Error getting system stats for node {node_id}: {e}")
             return None
 
-    async def get_user_online_stats_by_node(self, db: AsyncSession, node_id: int, username: str) -> dict[int, int]:
-        return await self._get_user_online_stats_impl(db, node_id, username)
+    async def get_user_online_stats_by_node(self, db: AsyncSession, node_id: int, user_id: int) -> dict[int, int]:
+        return await self._get_user_online_stats_impl(db, node_id, user_id)
 
-    async def get_user_ip_list_by_node(self, db: AsyncSession, node_id: int, username: str) -> UserIPList:
-        return await self._get_user_ip_list_impl(db, node_id, username)
+    async def get_user_ip_list_by_node(self, db: AsyncSession, node_id: int, user_id: int) -> UserIPList:
+        return await self._get_user_ip_list_impl(db, node_id, user_id)
 
-    async def get_user_ip_list_all_nodes(self, db: AsyncSession, username: str) -> UserIPListAll:
-        return await self._get_user_ip_list_all_impl(db, username)
+    async def get_user_ip_list_all_nodes(self, db: AsyncSession, user_id: int) -> UserIPListAll:
+        return await self._get_user_ip_list_all_impl(db, user_id)
 
     async def _get_node_user_ip_list_safe(self, node_id: int, email: str) -> dict[str, int] | None:
         """Wrapper method that returns None instead of raising exceptions"""
@@ -772,8 +785,52 @@ class NodeOperation(BaseOperation):
         except RuntimeError as exc:
             await self.handle_rpc_error(exc)
 
-    async def _get_user_online_stats_local(self, db: AsyncSession, node_id: int, username: str) -> dict[int, int]:
-        db_user = await get_user(db, username=username)
+    async def _get_outbounds_latency_local(
+        self, node_id: int, name: str = "", timeout: int | None = None
+    ) -> NodeOutboundsLatencyResponse:
+        node = await node_manager.get_node(node_id)
+
+        if node is None:
+            await self.raise_error(message="Node not found", code=404)
+
+        try:
+            latency = await node.get_outbounds_latency(name=name, timeout=timeout)
+        except NodeAPIError as e:
+            await self.raise_error(message=e.detail, code=e.code)
+
+        if latency is None:
+            await self.raise_error(message="Latency not found", code=404)
+
+        return NodeOutboundsLatencyResponse(
+            latencies=[
+                {
+                    "name": item.name,
+                    "alive": item.alive,
+                    "delay": item.delay,
+                    "link": item.link,
+                    "last_seen_time": item.last_seen_time,
+                    "last_try_time": item.last_try_time,
+                    "source": item.source,
+                }
+                for item in latency.latencies
+            ]
+        )
+
+    async def _get_outbounds_latency_remote(
+        self, node_id: int, name: str = "", timeout: int | None = None
+    ) -> NodeOutboundsLatencyResponse:
+        try:
+            data = await node_nats_client.request(
+                "get_outbounds_latency",
+                {"node_id": node_id, "name": name, "timeout": timeout},
+                timeout=timeout,
+            )
+            return NodeOutboundsLatencyResponse.model_validate(data)
+        except RuntimeError as exc:
+            await self.handle_rpc_error(exc)
+
+    async def _get_user_online_stats_local(self, db: AsyncSession, node_id: int, user_id: int) -> dict[int, int]:
+        db_user = await get_user_by_id(db, user_id)
         if db_user is None:
             await self.raise_error(message="User not found", code=404)
 
@@ -783,7 +840,7 @@ class NodeOperation(BaseOperation):
             await self.raise_error(message="Node not found", code=404)
 
         try:
-            stats = await node.get_user_online_stats(email=f"{db_user.id}.{db_user.username}")
+            stats = await node.get_user_online_stats(email=f"{db_user.id}")
         except NodeAPIError as e:
             await self.raise_error(message=e.detail, code=e.code)
 
@@ -792,18 +849,18 @@ class NodeOperation(BaseOperation):
 
         return {node_id: stats.value}
 
-    async def _get_user_online_stats_remote(self, db: AsyncSession, node_id: int, username: str) -> dict[int, int]:
+    async def _get_user_online_stats_remote(self, db: AsyncSession, node_id: int, user_id: int) -> dict[int, int]:
         try:
-            return await node_nats_client.request("get_user_online_stats", {"node_id": node_id, "username": username})
+            return await node_nats_client.request("get_user_online_stats", {"node_id": node_id, "user_id": user_id})
         except RuntimeError as exc:
             await self.handle_rpc_error(exc)
 
-    async def _get_user_ip_list_local(self, db: AsyncSession, node_id: int, username: str) -> UserIPList:
-        db_user = await get_user(db, username=username)
+    async def _get_user_ip_list_local(self, db: AsyncSession, node_id: int, user_id: int) -> UserIPList:
+        db_user = await get_user_by_id(db, user_id)
         if db_user is None:
             await self.raise_error(message="User not found", code=404)
 
-        email = f"{db_user.id}.{db_user.username}"
+        email = f"{db_user.id}"
         ips = await self._get_node_user_ip_list_safe(node_id, email)
 
         if ips is None:
@@ -811,20 +868,20 @@ class NodeOperation(BaseOperation):
 
         return UserIPList(ips=ips)
 
-    async def _get_user_ip_list_remote(self, db: AsyncSession, node_id: int, username: str) -> UserIPList:
+    async def _get_user_ip_list_remote(self, db: AsyncSession, node_id: int, user_id: int) -> UserIPList:
         try:
-            data = await node_nats_client.request("get_user_ip_list", {"node_id": node_id, "username": username})
+            data = await node_nats_client.request("get_user_ip_list", {"node_id": node_id, "user_id": user_id})
             return UserIPList.model_validate(data)
         except RuntimeError as exc:
             await self.handle_rpc_error(exc)
 
-    async def _get_user_ip_list_all_local(self, db: AsyncSession, username: str) -> UserIPListAll:
-        db_user = await get_user(db, username=username)
+    async def _get_user_ip_list_all_local(self, db: AsyncSession, user_id: int) -> UserIPListAll:
+        db_user = await get_user_by_id(db, user_id)
         if db_user is None:
             await self.raise_error(message="User not found", code=404)
 
         nodes = await node_manager.get_healthy_nodes()
-        email = f"{db_user.id}.{db_user.username}"
+        email = f"{db_user.id}"
 
         ip_list_tasks = {id: asyncio.create_task(self._get_node_user_ip_list_safe(id, email)) for id, _ in nodes}
 
@@ -839,9 +896,9 @@ class NodeOperation(BaseOperation):
 
         return UserIPListAll(nodes=results)
 
-    async def _get_user_ip_list_all_remote(self, db: AsyncSession, username: str) -> UserIPListAll:
+    async def _get_user_ip_list_all_remote(self, db: AsyncSession, user_id: int) -> UserIPListAll:
         try:
-            data = await node_nats_client.request("get_user_ip_list_all", {"username": username})
+            data = await node_nats_client.request("get_user_ip_list_all", {"user_id": user_id})
             return UserIPListAll.model_validate(data)
         except RuntimeError as exc:
             await self.handle_rpc_error(exc)
@@ -950,10 +1007,18 @@ class NodeOperation(BaseOperation):
         return RemoveNodesResponse(nodes=node_names, count=len(db_nodes))
 
     async def _get_validated_nodes(self, db: AsyncSession, node_ids: list[int] | set[int]) -> list[Node]:
-        nodes: list[Node] = []
-        for node_id in node_ids:
-            nodes.append(await self.get_validated_node(db, node_id))
-        return nodes
+        if not node_ids:
+            return []
+
+        ids_list = list(node_ids)
+        db_nodes, _ = await get_nodes(db, NodeListQuery(ids=ids_list, limit=len(ids_list)))
+
+        found_ids = {n.id for n in db_nodes}
+        missing = set(ids_list) - found_ids
+        if missing:
+            await self.raise_error(message="Node not found", code=404)
+
+        return list(db_nodes)
 
     @staticmethod
     def _build_bulk_action_response(nodes: list[Node | NodeResponse]) -> BulkNodesActionResponse:
@@ -1040,8 +1105,20 @@ class NodeOperation(BaseOperation):
     ) -> BulkNodesActionResponse:
         db_nodes = await self._get_validated_nodes(db, bulk_nodes.ids)
 
+        updated_nodes = []
+        errors = []
         for db_node in db_nodes:
-            await self.update_node(db, db_node.id)
+            try:
+                await self.update_node(db, db_node.id)
+            except HTTPException as exc:
+                errors.append(exc)
+                logger.warning(f'Node "{db_node.name}" bulk update failed by admin "{admin.username}": {exc}')
+                continue
+
+            updated_nodes.append(db_node)
             logger.info(f'Node "{db_node.name}" updated by admin "{admin.username}"')
 
-        return self._build_bulk_action_response(db_nodes)
+        if not updated_nodes and errors:
+            raise errors[0]
+
+        return self._build_bulk_action_response(updated_nodes)

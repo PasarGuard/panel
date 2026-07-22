@@ -23,6 +23,19 @@ NODE_CHECK_SEM = asyncio.Semaphore(5)  # Max 5 concurrent node health checks
 ACTIVE_NODE_STATUSES = [NodeStatus.connected, NodeStatus.connecting, NodeStatus.error]
 
 
+def should_reconnect_after_health_error(error_code: int | None, error_message: str | None) -> bool:
+    if error_code is None:
+        return False
+
+    detail = (error_message or "").lower()
+    if error_code in {500, 502, 503, 504} and (
+        "failed to get sys stats" in detail or "core is not started yet" in detail
+    ):
+        return False
+
+    return error_code > -1
+
+
 async def verify_node_backend_health(node: PasarGuardNode, node_name: str) -> tuple[Health, int | None, str | None]:
     """
     Verify node health by checking backend stats.
@@ -134,8 +147,8 @@ async def process_node_health_check(db_node: Node, node: PasarGuardNode):
             # Record actual error in database
             async with GetDB() as db:
                 await NodeOperation._update_single_node_status(db, db_node.id, NodeStatus.error, message=error_message)
-            # Only reconnect for non-timeout errors (code > -1)
-            if error_code is not None and error_code > -1:
+            # Let pg-node recover transient Xray API/core failures internally.
+            if should_reconnect_after_health_error(error_code, error_message):
                 async with GetDB() as db:
                     await node_operator.connect_single_node(db, db_node.id)
             # For timeout (code=-1 or None), just wait - don't reconnect
@@ -146,13 +159,25 @@ async def process_node_health_check(db_node: Node, node: PasarGuardNode):
             async with GetDB() as db:
                 logger.info(f"Node '{db_node.name}' have been recovered")
                 node_version, core_version = await node.get_versions()
+                # Connection restored without a hard reset. Suppress the default
+                # connect notification and send a distinct "recovered" one instead,
+                # so a self-recovery is visibly different from a full reconnect.
                 await NodeOperation._update_single_node_status(
                     db,
                     db_node.id,
                     NodeStatus.connected,
                     xray_version=core_version,
                     node_version=node_version,
+                    send_notification=False,
                 )
+            await notification.recovered_node(
+                NodeNotification(
+                    id=db_node.id,
+                    name=db_node.name,
+                    xray_version=core_version,
+                    node_version=node_version,
+                )
+            )
             return
 
 

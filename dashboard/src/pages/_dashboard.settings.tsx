@@ -1,13 +1,14 @@
 import PageHeader from '@/components/layout/page-header'
 import { useAdmin } from '@/hooks/use-admin'
 import { cn } from '@/lib/utils'
-import { useGetSettings, useModifySettings } from '@/service/api'
+import { getGetGeneralSettingsQueryKey, getGetSettingsQueryKey, useGetSettings, useModifySettings } from '@/service/api'
 import { useQueryClient } from '@tanstack/react-query'
-import { Bell, Database, ListTodo, LucideIcon, MessageCircle, Palette, Send, Settings as SettingsIcon, Webhook } from 'lucide-react'
+import { Bell, Database, Fingerprint, ListTodo, LucideIcon, Palette, Send, Settings as SettingsIcon, Webhook } from 'lucide-react'
 import { createContext, useCallback, useContext, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Outlet, useLocation, useNavigate } from 'react-router'
 import { toast } from 'sonner'
+import { hasPermission } from '@/utils/rbac'
 
 interface Tab {
   id: string
@@ -35,32 +36,34 @@ export const useSettingsContext = () => {
   return context!
 }
 
-// Define tabs for sudo admins
-const sudoTabs: Tab[] = [
+const allTabs: Tab[] = [
   { id: 'general', label: 'settings.general.title', icon: SettingsIcon, url: '/settings/general' },
   { id: 'notifications', label: 'settings.notifications.title', icon: Bell, url: '/settings/notifications' },
   { id: 'subscriptions', label: 'settings.subscriptions.title', icon: ListTodo, url: '/settings/subscriptions' },
+  { id: 'hwid', label: 'settings.hwid.title', icon: Fingerprint, url: '/settings/hwid' },
   { id: 'telegram', label: 'settings.telegram.title', icon: Send, url: '/settings/telegram' },
-  { id: 'discord', label: 'settings.discord.title', icon: MessageCircle, url: '/settings/discord' },
   { id: 'webhook', label: 'settings.webhook.title', icon: Webhook, url: '/settings/webhook' },
   { id: 'cleanup', label: 'settings.cleanup.title', icon: Database, url: '/settings/cleanup' },
   { id: 'theme', label: 'theme.title', icon: Palette, url: '/settings/theme' },
 ]
-
-// Define tabs for non-sudo admins (only theme settings)
-const nonSudoTabs: Tab[] = [{ id: 'theme', label: 'theme.title', icon: Palette, url: '/settings/theme' }]
 
 export default function Settings() {
   const { t } = useTranslation()
   const location = useLocation()
   const navigate = useNavigate()
   const { admin } = useAdmin()
-  const is_sudo = admin?.is_sudo || false
-  const tabs = is_sudo ? sudoTabs : nonSudoTabs
+  const canUpdateSettings = hasPermission(admin, 'settings', 'update')
+  const canReadSettings = hasPermission(admin, 'settings', 'read') && canUpdateSettings
+  const canReadGeneral = hasPermission(admin, 'settings', 'read_general') && canUpdateSettings
+  const tabs = allTabs.filter(tab => {
+    if (tab.id === 'theme') return true
+    if (tab.id === 'general') return canReadGeneral
+    return canReadSettings
+  })
 
   // Derive activeTab from current location instead of state
   const currentTab = tabs.find(tab => location.pathname === tab.url)
-  const activeTab = currentTab?.id || (is_sudo ? 'general' : 'theme')
+  const activeTab = currentTab?.id || (canReadGeneral ? 'general' : 'theme')
 
   const queryClient = useQueryClient()
 
@@ -71,13 +74,17 @@ export default function Settings() {
     error,
   } = useGetSettings({
     query: {
-      enabled: is_sudo, // Only fetch for sudo admins
+      enabled: canReadSettings,
     },
   })
   const { mutateAsync: modifySettingsAsync, isPending: isSaving } = useModifySettings({
     mutation: {
-      onSuccess: () => {
+      onSuccess: updatedSettings => {
         toast.success(t(`settings.${activeTab}.saveSuccess`))
+        queryClient.setQueryData(getGetSettingsQueryKey(), updatedSettings)
+        if (updatedSettings?.general) {
+          queryClient.setQueryData(getGetGeneralSettingsQueryKey(), updatedSettings.general)
+        }
         // Invalidate settings query to refresh with new data from API response
         queryClient.invalidateQueries({ queryKey: ['/api/settings'] })
         queryClient.invalidateQueries({ queryKey: ['/api/settings/general'] })
@@ -137,7 +144,7 @@ export default function Settings() {
   // Wrapper function to filter data based on active tab (only for sudo admins)
   const handleUpdateSettings = useCallback(
     async (data: any) => {
-      if (!is_sudo) return // No-op for non-sudo admins
+      if (!canReadSettings && !canReadGeneral) return
 
       let filteredData: any = {}
 
@@ -170,12 +177,11 @@ export default function Settings() {
             filteredData = data
           }
           break
+        case 'hwid':
+          filteredData = data.hwid ? { data: { hwid: data.hwid } } : data
+          break
         case 'telegram':
           // Add telegram specific filtering if needed
-          filteredData = { data: data }
-          break
-        case 'discord':
-          // Add discord specific filtering if needed
           filteredData = { data: data }
           break
         case 'webhook':
@@ -195,19 +201,19 @@ export default function Settings() {
 
       await modifySettingsAsync(filteredData)
     },
-    [is_sudo, activeTab, modifySettingsAsync],
+    [canReadSettings, canReadGeneral, activeTab, modifySettingsAsync],
   )
 
   // Memoize context value to ensure stability during HMR
   const settingsContextValue: SettingsContextType = useMemo(
     () => ({
-      settings: is_sudo ? settings || {} : {}, // Non-sudo admins don't need settings data
-      isLoading: is_sudo ? isLoading : false,
-      error: is_sudo ? error : null,
-      updateSettings: is_sudo ? handleUpdateSettings : async () => {}, // No-op for non-sudo admins
-      isSaving: is_sudo ? isSaving : false,
+      settings: canReadSettings ? settings || {} : {},
+      isLoading: canReadSettings ? isLoading : false,
+      error: canReadSettings ? error : null,
+      updateSettings: canReadSettings || canReadGeneral ? handleUpdateSettings : async () => {},
+      isSaving: canReadSettings || canReadGeneral ? isSaving : false,
     }),
-    [is_sudo, settings, isLoading, error, isSaving, handleUpdateSettings],
+    [canReadSettings, canReadGeneral, settings, isLoading, error, isSaving, handleUpdateSettings],
   )
 
   // Always render the provider to ensure context is available for child routes
@@ -228,8 +234,8 @@ export default function Settings() {
                       key={tab.id}
                       onClick={() => navigate(tab.url)}
                       className={cn(
-                        'relative flex-shrink-0 whitespace-nowrap px-3 py-2 text-sm font-medium transition-colors',
-                        isActive ? 'border-b-2 border-primary text-foreground' : 'text-muted-foreground hover:text-foreground',
+                        'relative flex-shrink-0 px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors',
+                        isActive ? 'border-primary text-foreground border-b-2' : 'text-muted-foreground hover:text-foreground',
                       )}
                     >
                       <div className="flex items-center gap-1.5">

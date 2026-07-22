@@ -10,6 +10,7 @@ from sqlalchemy import select
 
 from app.db.crud.admin import get_admin_by_telegram_id
 from app.db.models import Admin, AdminUsageLogs, NodeUserUsage
+from app.models.admin import hash_password
 from app.models.settings import RunMethod, Telegram
 from app.routers.authentication import validate_mini_app_admin
 from app.utils.jwt import get_admin_payload
@@ -37,22 +38,24 @@ def admin_username(label: str = "admin") -> str:
 
 
 def create_admin(
-    access_token: str, *, username: str | None = None, password: str | None = None, is_sudo: bool = False
+    access_token: str, *, username: str | None = None, password: str | None = None, role_id: int = 3
 ) -> dict:
     return _create_admin(
         access_token,
         username=username or admin_username("admin"),
         password=password,
-        is_sudo=is_sudo,
+        role_id=role_id,
     )
 
 
-def set_admin_sudo(username: str, is_sudo: bool) -> None:
+def set_admin_role(username: str, role_id: int) -> None:
+    """Set admin role by role_id (2=administrator, 3=operator)."""
+
     async def _set_flag():
         async with TestSession() as session:
             result = await session.execute(select(Admin).where(Admin.username == username))
             db_admin = result.scalar_one()
-            db_admin.is_sudo = is_sudo
+            db_admin.role_id = role_id
             await session.commit()
 
     asyncio.run(_set_flag())
@@ -67,6 +70,32 @@ def set_admin_used_traffic(username: str, used_traffic: int) -> None:
             await session.commit()
 
     asyncio.run(_set_usage())
+
+
+def create_owner_admin_row() -> dict:
+    username = admin_username("owner")
+    password = strong_password("OwnerAdmin")
+
+    async def _create_owner():
+        async with TestSession() as session:
+            db_admin = Admin(username=username, hashed_password=await hash_password(password), role_id=1)
+            session.add(db_admin)
+            await session.commit()
+            return db_admin.id
+
+    return {"id": asyncio.run(_create_owner()), "username": username, "password": password}
+
+
+def delete_admin_row(username: str) -> None:
+    async def _delete():
+        async with TestSession() as session:
+            result = await session.execute(select(Admin).where(Admin.username == username))
+            db_admin = result.scalar_one_or_none()
+            if db_admin is not None:
+                await session.delete(db_admin)
+                await session.commit()
+
+    asyncio.run(_delete())
 
 
 def test_admin_login():
@@ -181,18 +210,22 @@ def test_admin_create(access_token):
     password = strong_password("TestAdmincreate")
     admin = create_admin(access_token, username=username, password=password)
     assert admin["username"] == username
-    assert admin["is_sudo"] is False
+    # Verify role data is present in create response
+    assert admin["role"] is not None
+    assert admin["role"]["id"] == 3  # default operator role
+    assert admin["role"]["name"] == "operator"
+    assert admin["role"]["is_owner"] is False
     delete_admin(access_token, username)
 
 
-def test_admin_create_sudo_forbidden_via_api(access_token):
-    """Creating sudo admin via API should be forbidden."""
+def test_admin_create_owner_forbidden_via_api(access_token):
+    """Creating an admin with owner role (role_id=1) via API should be forbidden."""
     username = admin_username("forbidden")
-    password = strong_password("ForbiddenSudo")
+    password = strong_password("ForbiddenOwner")
 
     response = client.post(
         url="/api/admin",
-        json={"username": username, "password": password, "is_sudo": True},
+        json={"username": username, "password": password, "role_id": 1},
         headers={"Authorization": f"Bearer {access_token}"},
     )
 
@@ -208,7 +241,7 @@ def test_admin_create_with_note(access_token):
 
     response = client.post(
         url="/api/admin",
-        json={"username": username, "password": password, "is_sudo": False, "note": note},
+        json={"username": username, "password": password, "note": note, "role_id": 3},
         headers={"Authorization": f"Bearer {access_token}"},
     )
 
@@ -227,7 +260,7 @@ def test_admin_create_duplicate_telegram_id_conflict(access_token):
     try:
         response_a = client.put(
             url=f"/api/admin/{admin_a['username']}",
-            json={"is_sudo": False, "telegram_id": telegram_id},
+            json={"telegram_id": telegram_id},
             headers={"Authorization": f"Bearer {access_token}"},
         )
         assert response_a.status_code == status.HTTP_200_OK
@@ -237,8 +270,8 @@ def test_admin_create_duplicate_telegram_id_conflict(access_token):
             json={
                 "username": admin_b_username,
                 "password": admin_b_password,
-                "is_sudo": False,
                 "telegram_id": telegram_id,
+                "role_id": 3,
             },
             headers={"Authorization": f"Bearer {access_token}"},
         )
@@ -262,24 +295,56 @@ def test_admin_db_login(access_token):
 
 
 def test_update_admin(access_token):
-    """Test that the admin update route is accessible."""
+    """Test that the admin update route is accessible and applies role_id changes."""
 
-    admin = create_admin(access_token)
+    admin = create_admin(access_token)  # role_id=3 (operator)
     password = strong_password("TestAdminupdate")
     response = client.put(
         url=f"/api/admin/{admin['username']}",
         json={
             "password": password,
-            "is_sudo": False,
-            "is_disabled": True,
+            "status": "disabled",
         },
         headers={"Authorization": f"Bearer {access_token}"},
     )
     assert response.status_code == status.HTTP_200_OK
     assert response.json()["username"] == admin["username"]
-    assert response.json()["is_sudo"] is False
-    assert response.json()["is_disabled"] is True
+    assert response.json()["status"] == "disabled"
+
+    # Verify role_id change is applied
+    role_change_response = client.put(
+        url=f"/api/admin/{admin['username']}",
+        json={"role_id": 2},  # promote to administrator
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+    assert role_change_response.status_code == status.HTTP_200_OK
+    updated = role_change_response.json()
+    assert updated["role"]["id"] == 2
+    assert updated["role"]["name"] == "administrator"
+
     delete_admin(access_token, admin["username"])
+
+
+def test_admin_limited_status_not_assignable(access_token):
+    """Limited admin status is reserved for automatic data-limit enforcement."""
+    password = strong_password("TestAdminLimited")
+    create_response = client.post(
+        url="/api/admin",
+        json={"username": admin_username("limited"), "password": password, "role_id": 3, "status": "limited"},
+        headers=auth_headers(access_token),
+    )
+    assert create_response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+
+    admin = create_admin(access_token)
+    try:
+        update_response = client.put(
+            url=f"/api/admin/{admin['username']}",
+            json={"status": "limited"},
+            headers=auth_headers(access_token),
+        )
+        assert update_response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+    finally:
+        delete_admin(access_token, admin["username"])
 
 
 def test_admin_routes_by_id_and_by_username(access_token):
@@ -287,7 +352,7 @@ def test_admin_routes_by_id_and_by_username(access_token):
     try:
         by_username_update = client.put(
             url=f"/api/admin/by-username/{admin['username']}",
-            json={"is_sudo": False, "note": "by-username note"},
+            json={"note": "by-username note"},
             headers=auth_headers(access_token),
         )
         assert by_username_update.status_code == status.HTTP_200_OK
@@ -295,7 +360,7 @@ def test_admin_routes_by_id_and_by_username(access_token):
 
         by_id_update = client.put(
             url=f"/api/admin/by-id/{admin['id']}",
-            json={"is_sudo": False, "note": "by-id note"},
+            json={"note": "by-id note"},
             headers=auth_headers(access_token),
         )
         assert by_id_update.status_code == status.HTTP_200_OK
@@ -325,7 +390,7 @@ def test_update_admin_note(access_token):
 
     response = client.put(
         url=f"/api/admin/{admin['username']}",
-        json={"is_sudo": False, "note": note},
+        json={"note": note},
         headers={"Authorization": f"Bearer {access_token}"},
     )
 
@@ -343,14 +408,14 @@ def test_update_admin_duplicate_telegram_id_conflict(access_token):
     try:
         first_update = client.put(
             url=f"/api/admin/{admin_a['username']}",
-            json={"is_sudo": False, "telegram_id": telegram_id},
+            json={"telegram_id": telegram_id},
             headers={"Authorization": f"Bearer {access_token}"},
         )
         assert first_update.status_code == status.HTTP_200_OK
 
         second_update = client.put(
             url=f"/api/admin/{admin_b['username']}",
-            json={"is_sudo": False, "telegram_id": telegram_id},
+            json={"telegram_id": telegram_id},
             headers={"Authorization": f"Bearer {access_token}"},
         )
         assert second_update.status_code == status.HTTP_409_CONFLICT
@@ -360,15 +425,15 @@ def test_update_admin_duplicate_telegram_id_conflict(access_token):
         delete_admin(access_token, admin_b["username"])
 
 
-def test_promote_admin_to_sudo_forbidden_via_api(access_token):
-    """Promoting non-sudo admin to sudo via API should be forbidden."""
-    admin = create_admin(access_token, is_sudo=False)
+def test_promote_admin_to_owner_forbidden_via_api(access_token):
+    """Assigning owner role (role_id=1) to an admin via API should be forbidden."""
+    admin = create_admin(access_token)
     try:
         response = client.put(
             url=f"/api/admin/{admin['username']}",
             json={
-                "is_sudo": True,
-                "is_disabled": False,
+                "status": "active",
+                "role_id": 1,
             },
             headers={"Authorization": f"Bearer {access_token}"},
         )
@@ -378,110 +443,121 @@ def test_promote_admin_to_sudo_forbidden_via_api(access_token):
         delete_admin(access_token, admin["username"])
 
 
-def test_sudo_admin_can_modify_self(access_token):
-    """A sudo admin can edit their own account."""
-    sudo_admin = create_admin(access_token)
-    set_admin_sudo(sudo_admin["username"], True)
+def test_administrator_can_modify_self(access_token):
+    """An administrator (role_id=2) can edit their own account."""
+    # Create admin with administrator role so they have admins.update permission
+    administrator_username = admin_username("admin")
+    administrator_password = strong_password("TestAdminPass")
+    create_response = client.post(
+        url="/api/admin",
+        json={"username": administrator_username, "password": administrator_password, "role_id": 2},
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+    assert create_response.status_code == status.HTTP_201_CREATED
+    administrator_admin = create_response.json()
+    administrator_admin["password"] = administrator_password
     try:
         login_response = client.post(
             url="/api/admin/token",
             data={
-                "username": sudo_admin["username"],
-                "password": sudo_admin["password"],
+                "username": administrator_admin["username"],
+                "password": administrator_admin["password"],
                 "grant_type": "password",
             },
         )
         assert login_response.status_code == status.HTTP_200_OK
-        sudo_token = login_response.json()["access_token"]
+        administrator_token = login_response.json()["access_token"]
 
         response = client.put(
-            url=f"/api/admin/{sudo_admin['username']}",
+            url=f"/api/admin/{administrator_admin['username']}",
             json={
-                "is_sudo": True,
-                "is_disabled": False,
+                "status": "active",
                 "note": "self-updated",
             },
-            headers={"Authorization": f"Bearer {sudo_token}"},
+            headers={"Authorization": f"Bearer {administrator_token}"},
         )
 
         assert response.status_code == status.HTTP_200_OK
-        assert response.json()["username"] == sudo_admin["username"]
+        assert response.json()["username"] == administrator_admin["username"]
         assert response.json()["note"] == "self-updated"
     finally:
-        set_admin_sudo(sudo_admin["username"], False)
-        delete_admin(access_token, sudo_admin["username"])
+        delete_admin(access_token, administrator_admin["username"])
 
 
-def test_sudo_admin_cannot_disable_self(access_token):
-    """A sudo admin cannot disable their own account."""
-    sudo_admin = create_admin(access_token)
-    set_admin_sudo(sudo_admin["username"], True)
+def test_administrator_cannot_disable_self(access_token):
+    """An administrator (role_id=2) cannot disable their own account."""
+    administrator_username = admin_username("admin")
+    administrator_password = strong_password("TestAdminPass")
+    create_response = client.post(
+        url="/api/admin",
+        json={"username": administrator_username, "password": administrator_password, "role_id": 2},
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+    assert create_response.status_code == status.HTTP_201_CREATED
+    administrator_admin = create_response.json()
+    administrator_admin["password"] = administrator_password
     try:
         login_response = client.post(
             url="/api/admin/token",
             data={
-                "username": sudo_admin["username"],
-                "password": sudo_admin["password"],
+                "username": administrator_admin["username"],
+                "password": administrator_admin["password"],
                 "grant_type": "password",
             },
         )
         assert login_response.status_code == status.HTTP_200_OK
-        sudo_token = login_response.json()["access_token"]
+        administrator_token = login_response.json()["access_token"]
 
         response = client.put(
-            url=f"/api/admin/{sudo_admin['username']}",
+            url=f"/api/admin/{administrator_admin['username']}",
             json={
-                "is_sudo": True,
-                "is_disabled": True,
+                "status": "disabled",
             },
-            headers={"Authorization": f"Bearer {sudo_token}"},
+            headers={"Authorization": f"Bearer {administrator_token}"},
         )
 
         assert response.status_code == status.HTTP_403_FORBIDDEN
         assert response.json()["detail"] == "You're not allowed to disable your own account."
     finally:
-        set_admin_sudo(sudo_admin["username"], False)
-        delete_admin(access_token, sudo_admin["username"])
+        delete_admin(access_token, administrator_admin["username"])
 
 
-def test_sudo_admin_cannot_modify_other_sudo_admin(access_token):
-    """A sudo admin cannot edit another sudo admin account."""
-    sudo_admin_a = create_admin(access_token)
-    sudo_admin_b = create_admin(access_token)
-    set_admin_sudo(sudo_admin_a["username"], True)
-    set_admin_sudo(sudo_admin_b["username"], True)
+def test_administrator_can_modify_other_non_owner_admin(access_token):
+    """An admin with admins.update can edit another non-owner admin, regardless of role id."""
+    admin_a = create_admin(access_token)
+    admin_b = create_admin(access_token)
+    set_admin_role(admin_a["username"], 2)
+    set_admin_role(admin_b["username"], 2)
     try:
         login_response = client.post(
             url="/api/admin/token",
             data={
-                "username": sudo_admin_a["username"],
-                "password": sudo_admin_a["password"],
+                "username": admin_a["username"],
+                "password": admin_a["password"],
                 "grant_type": "password",
             },
         )
         assert login_response.status_code == status.HTTP_200_OK
-        sudo_a_token = login_response.json()["access_token"]
+        admin_a_token = login_response.json()["access_token"]
 
         response = client.put(
-            url=f"/api/admin/{sudo_admin_b['username']}",
+            url=f"/api/admin/{admin_b['username']}",
             json={
-                "is_sudo": True,
-                "is_disabled": False,
-                "note": "should-fail",
+                "status": "active",
+                "note": "updated-by-admin",
             },
-            headers={"Authorization": f"Bearer {sudo_a_token}"},
+            headers={"Authorization": f"Bearer {admin_a_token}"},
         )
 
-        assert response.status_code == status.HTTP_403_FORBIDDEN
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["note"] == "updated-by-admin"
     finally:
-        set_admin_sudo(sudo_admin_a["username"], False)
-        set_admin_sudo(sudo_admin_b["username"], False)
-        delete_admin(access_token, sudo_admin_a["username"])
-        delete_admin(access_token, sudo_admin_b["username"])
+        delete_admin(access_token, admin_a["username"])
+        delete_admin(access_token, admin_b["username"])
 
 
 def test_get_admins(access_token):
-    """Test that the admins get route is accessible."""
+    """Test that the admins get route is accessible and returns role data."""
 
     admin = create_admin(access_token)
     response = client.get(
@@ -496,6 +572,16 @@ def test_get_admins(access_token):
     assert "active" in response_data
     assert "disabled" in response_data
     assert admin["username"] in [record["username"] for record in response_data["admins"]]
+
+    # Verify role data is present in the list response
+    created_record = next(r for r in response_data["admins"] if r["username"] == admin["username"])
+    assert created_record["role"] is not None
+    assert "id" in created_record["role"]
+    assert "name" in created_record["role"]
+    assert "is_owner" in created_record["role"]
+    assert created_record["role"]["id"] == 3  # operator role
+    assert created_record["role"]["name"] == "operator"
+
     delete_admin(access_token, admin["username"])
 
 
@@ -508,7 +594,7 @@ def test_get_admins_returns_admin_note(access_token):
 
     create_response = client.post(
         url="/api/admin",
-        json={"username": username, "password": password, "is_sudo": False, "note": note},
+        json={"username": username, "password": password, "note": note, "role_id": 3},
         headers={"Authorization": f"Bearer {access_token}"},
     )
     assert create_response.status_code == status.HTTP_201_CREATED
@@ -528,6 +614,84 @@ def test_get_admins_returns_admin_note(access_token):
         delete_admin(access_token, username)
 
 
+def test_non_owner_admin_list_hides_owner(access_token):
+    owner = create_owner_admin_row()
+    administrator = create_admin(access_token, role_id=2)
+    try:
+        login_response = client.post(
+            url="/api/admin/token",
+            data={
+                "username": administrator["username"],
+                "password": administrator["password"],
+                "grant_type": "password",
+            },
+        )
+        assert login_response.status_code == status.HTTP_200_OK
+        administrator_token = login_response.json()["access_token"]
+
+        response = client.get(
+            "/api/admins",
+            params={"username": owner["username"]},
+            headers=auth_headers(administrator_token),
+        )
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["admins"] == []
+        assert response.json()["total"] == 0
+
+        simple_response = client.get(
+            "/api/admins/simple",
+            params={"search": owner["username"], "all": True},
+            headers=auth_headers(administrator_token),
+        )
+        assert simple_response.status_code == status.HTTP_200_OK
+        assert simple_response.json()["admins"] == []
+        assert simple_response.json()["total"] == 0
+    finally:
+        delete_admin(access_token, administrator["username"])
+        delete_admin_row(owner["username"])
+
+
+def test_non_owner_admin_cannot_target_owner_with_admin_permissions(access_token):
+    owner = create_owner_admin_row()
+    administrator = create_admin(access_token, role_id=2)
+    try:
+        login_response = client.post(
+            url="/api/admin/token",
+            data={
+                "username": administrator["username"],
+                "password": administrator["password"],
+                "grant_type": "password",
+            },
+        )
+        assert login_response.status_code == status.HTTP_200_OK
+        administrator_token = login_response.json()["access_token"]
+        headers = auth_headers(administrator_token)
+
+        modify_response = client.put(
+            f"/api/admin/by-id/{owner['id']}",
+            json={"note": "should not update"},
+            headers=headers,
+        )
+        assert modify_response.status_code == status.HTTP_403_FORBIDDEN
+
+        usage_response = client.get(
+            f"/api/admin/by-id/{owner['id']}/usage",
+            params={"period": "hour"},
+            headers=headers,
+        )
+        assert usage_response.status_code == status.HTTP_403_FORBIDDEN
+
+        bulk_delete_response = client.post(
+            "/api/admins/bulk/delete",
+            json={"ids": [owner["id"]]},
+            headers=headers,
+        )
+        assert bulk_delete_response.status_code == status.HTTP_403_FORBIDDEN
+    finally:
+        delete_admin(access_token, administrator["username"])
+        delete_admin_row(owner["username"])
+
+
 def test_disable_admin(access_token):
     """Test that the admin disable route is accessible."""
 
@@ -535,7 +699,7 @@ def test_disable_admin(access_token):
     password = admin["password"]
     disable_response = client.put(
         url=f"/api/admin/{admin['username']}",
-        json={"password": password, "is_sudo": False, "is_disabled": True},
+        json={"password": password, "status": "disabled"},
         headers={"Authorization": f"Bearer {access_token}"},
     )
     assert disable_response.status_code == status.HTTP_200_OK
@@ -707,8 +871,12 @@ async def test_admin_usage_forbidden_for_other_admin(access_token):
 async def test_get_admin_by_telegram_id_handles_duplicate_rows(access_token):
     telegram_id = 7766554433
     async with TestSession() as session:
-        admin_a = Admin(username=admin_username("tg_read_a"), hashed_password="secret", telegram_id=telegram_id)
-        admin_b = Admin(username=admin_username("tg_read_b"), hashed_password="secret", telegram_id=telegram_id)
+        admin_a = Admin(
+            username=admin_username("tg_read_a"), hashed_password="secret", telegram_id=telegram_id, role_id=3
+        )
+        admin_b = Admin(
+            username=admin_username("tg_read_b"), hashed_password="secret", telegram_id=telegram_id, role_id=3
+        )
         session.add_all([admin_a, admin_b])
         await session.commit()
 
@@ -723,8 +891,8 @@ async def test_get_admin_by_telegram_id_handles_duplicate_rows(access_token):
 @pytest.mark.asyncio
 async def test_validate_mini_app_admin_duplicate_telegram_id_conflict(access_token, monkeypatch: pytest.MonkeyPatch):
     telegram_id = 6655443322
-    admin_a = Admin(username=admin_username("mini_dup_a"), hashed_password="secret", telegram_id=telegram_id)
-    admin_b = Admin(username=admin_username("mini_dup_b"), hashed_password="secret", telegram_id=telegram_id)
+    admin_a = Admin(username=admin_username("mini_dup_a"), hashed_password="secret", telegram_id=telegram_id, role_id=3)
+    admin_b = Admin(username=admin_username("mini_dup_b"), hashed_password="secret", telegram_id=telegram_id, role_id=3)
     async with TestSession() as session:
         session.add_all(
             [
@@ -948,32 +1116,32 @@ def test_get_admins_simple_skip_pagination(access_token):
             delete_admin(access_token, username)
 
 
-def test_get_admins_simple_requires_sudo(access_token):
-    """Test that non-sudo admin cannot access admins/simple."""
-    non_sudo_admin = create_admin(access_token, is_sudo=False)
+def test_get_admins_simple_requires_permission(access_token):
+    """Test that operator admin cannot access admins/simple."""
+    non_administrator_admin = create_admin(access_token)
     try:
-        # Login as non-sudo admin
+        # Login as operator admin
         login_response = client.post(
             url="/api/admin/token",
             data={
-                "username": non_sudo_admin["username"],
-                "password": non_sudo_admin["password"],
+                "username": non_administrator_admin["username"],
+                "password": non_administrator_admin["password"],
                 "grant_type": "password",
             },
         )
         assert login_response.status_code == status.HTTP_200_OK
-        non_sudo_token = login_response.json()["access_token"]
+        non_administrator_token = login_response.json()["access_token"]
 
         # Try to access admins/simple
         response = client.get(
             "/api/admins/simple",
-            headers={"Authorization": f"Bearer {non_sudo_token}"},
+            headers={"Authorization": f"Bearer {non_administrator_token}"},
         )
 
         # Assert 403 Forbidden
         assert response.status_code == status.HTTP_403_FORBIDDEN
     finally:
-        delete_admin(access_token, non_sudo_admin["username"])
+        delete_admin(access_token, non_administrator_admin["username"])
 
 
 def test_get_admins_simple_empty_search(access_token):
@@ -1012,3 +1180,358 @@ def test_get_admins_simple_invalid_sort(access_token):
 
     # Assert
     assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+
+def test_create_admin_with_custom_role(access_token):
+    """Create a custom role (id > 3), assign it to a new admin, verify the admin has that role."""
+    # Step 1: create a custom role via the owner token
+    role_name = unique_name("custom_role")
+    role_response = client.post(
+        "/api/admin-role",
+        headers={"Authorization": f"Bearer {access_token}"},
+        json={
+            "name": role_name,
+            "permissions": {},
+            "limits": {
+                "max_users": None,
+                "data_limit_min": None,
+                "data_limit_max": None,
+                "expire_min": None,
+                "expire_max": None,
+                "max_hwid_per_user": None,
+            },
+            "features": {"can_use_reset_strategy": True, "can_use_next_plan": True},
+            "access": {"require_template": False, "allowed_template_ids": None, "allowed_group_ids": None},
+        },
+    )
+    assert role_response.status_code == status.HTTP_201_CREATED
+    role = role_response.json()
+    assert role["id"] > 3  # must not be one of the 3 built-in roles
+
+    # Step 2: create an admin assigned to the custom role
+    username = admin_username("custom_role_admin")
+    password = strong_password("CustomRoleAdmin")
+    try:
+        admin_response = client.post(
+            "/api/admin",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={"username": username, "password": password, "role_id": role["id"]},
+        )
+        assert admin_response.status_code == status.HTTP_201_CREATED
+        admin_data = admin_response.json()
+        assert admin_data["username"] == username
+        assert admin_data["role"]["id"] == role["id"]
+        assert admin_data["role"]["name"] == role_name
+        assert admin_data["role"]["is_owner"] is False
+
+        # Step 3: verify the admin can log in
+        login_response = client.post(
+            "/api/admin/token",
+            data={"username": username, "password": password, "grant_type": "password"},
+        )
+        assert login_response.status_code == status.HTTP_200_OK
+    finally:
+        delete_admin(access_token, username)
+        client.delete(f"/api/admin-role/{role['id']}", headers={"Authorization": f"Bearer {access_token}"})
+
+
+def test_custom_role_with_admin_update_can_modify_administrator(access_token):
+    """A custom role with admins.update can modify role_id=2 admins."""
+    role_response = client.post(
+        "/api/admin-role",
+        headers=auth_headers(access_token),
+        json={
+            "name": unique_name("admin_update_role"),
+            "permissions": {"admins": {"update": True}},
+            "limits": {
+                "max_users": None,
+                "data_limit_min": None,
+                "data_limit_max": None,
+                "expire_min": None,
+                "expire_max": None,
+                "max_hwid_per_user": None,
+            },
+            "features": {"can_use_reset_strategy": True, "can_use_next_plan": True},
+            "access": {"require_template": False, "allowed_template_ids": None, "allowed_group_ids": None},
+        },
+    )
+    assert role_response.status_code == status.HTTP_201_CREATED
+    role = role_response.json()
+
+    actor = create_admin(access_token, role_id=role["id"])
+    target = create_admin(access_token, role_id=2)
+    try:
+        actor_token = _login(actor["username"], actor["password"])
+
+        response = client.put(
+            f"/api/admin/{target['username']}",
+            json={"note": "custom-role-update"},
+            headers=auth_headers(actor_token),
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["note"] == "custom-role-update"
+    finally:
+        delete_admin(access_token, actor["username"])
+        delete_admin(access_token, target["username"])
+        client.delete(f"/api/admin-role/{role['id']}", headers=auth_headers(access_token))
+
+
+# ---------------------------------------------------------------------------
+# Admin data_limit, status, and limited-access tests
+# ---------------------------------------------------------------------------
+
+
+def _set_admin_traffic(username: str, used_traffic: int, data_limit: int | None = None) -> None:
+    """Directly set used_traffic and optionally data_limit on an admin."""
+
+    async def _set():
+        async with TestSession() as session:
+            result = await session.execute(select(Admin).where(Admin.username == username))
+            db_admin = result.scalar_one()
+            db_admin.used_traffic = used_traffic
+            if data_limit is not None:
+                db_admin.data_limit = data_limit
+            await session.commit()
+
+    asyncio.run(_set())
+
+
+def _set_admin_status(username: str, status_value: str) -> None:
+    """Directly set admin status in DB."""
+
+    async def _set():
+        async with TestSession() as session:
+            result = await session.execute(select(Admin).where(Admin.username == username))
+            db_admin = result.scalar_one()
+            db_admin.status = status_value
+            await session.commit()
+
+    asyncio.run(_set())
+
+
+def _login(username: str, password: str) -> str:
+    response = client.post(
+        "/api/admin/token",
+        data={"username": username, "password": password, "grant_type": "password"},
+    )
+    assert response.status_code == status.HTTP_200_OK
+    return response.json()["access_token"]
+
+
+def test_admin_data_limit_set_and_returned(access_token):
+    """Setting data_limit on an admin is persisted and returned in the response."""
+    admin = create_admin(access_token)
+    try:
+        response = client.put(
+            f"/api/admin/{admin['username']}",
+            json={"data_limit": 1073741824},  # 1 GiB
+            headers=auth_headers(access_token),
+        )
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data["data_limit"] == 1073741824
+        assert data["status"] == "active"
+    finally:
+        delete_admin(access_token, admin["username"])
+
+
+def test_admin_data_limit_zero_means_unlimited(access_token):
+    """Setting data_limit=0 clears the limit (treated as unlimited)."""
+    admin = create_admin(access_token)
+    try:
+        # Set a limit first
+        client.put(
+            f"/api/admin/{admin['username']}",
+            json={"data_limit": 1073741824},
+            headers=auth_headers(access_token),
+        )
+        # Clear it with 0
+        response = client.put(
+            f"/api/admin/{admin['username']}",
+            json={"data_limit": 0},
+            headers=auth_headers(access_token),
+        )
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["data_limit"] is None
+    finally:
+        delete_admin(access_token, admin["username"])
+
+
+def test_admin_status_defaults_to_active(access_token):
+    """Newly created admin has status=active."""
+    admin = create_admin(access_token)
+    try:
+        response = client.get("/api/admins", headers=auth_headers(access_token), params={"username": admin["username"]})
+        assert response.status_code == status.HTTP_200_OK
+        rows = response.json()["admins"]
+        target = next(r for r in rows if r["username"] == admin["username"])
+        assert target["status"] == "active"
+    finally:
+        delete_admin(access_token, admin["username"])
+
+
+def test_admin_status_becomes_limited_when_traffic_exceeds_limit(access_token):
+    """When used_traffic >= data_limit, status flips to limited via update_admin."""
+    admin = create_admin(access_token)
+    try:
+        # Set data_limit=100 bytes, then simulate traffic=100 bytes
+        client.put(
+            f"/api/admin/{admin['username']}",
+            json={"data_limit": 100},
+            headers=auth_headers(access_token),
+        )
+        _set_admin_traffic(admin["username"], used_traffic=100)
+        # Trigger status recompute by calling update_admin with any field
+        response = client.put(
+            f"/api/admin/{admin['username']}",
+            json={"data_limit": 100},  # same value, triggers recompute in CRUD
+            headers=auth_headers(access_token),
+        )
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["status"] == "limited"
+    finally:
+        delete_admin(access_token, admin["username"])
+
+
+def test_admin_status_returns_to_active_after_limit_raised(access_token):
+    """Raising data_limit above used_traffic flips status back to active."""
+    admin = create_admin(access_token)
+    try:
+        # Set limit=100, traffic=100 → limited
+        client.put(f"/api/admin/{admin['username']}", json={"data_limit": 100}, headers=auth_headers(access_token))
+        _set_admin_traffic(admin["username"], used_traffic=100)
+        client.put(f"/api/admin/{admin['username']}", json={"data_limit": 100}, headers=auth_headers(access_token))
+
+        # Raise limit → active
+        response = client.put(
+            f"/api/admin/{admin['username']}",
+            json={"data_limit": 1073741824},
+            headers=auth_headers(access_token),
+        )
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["status"] == "active"
+    finally:
+        delete_admin(access_token, admin["username"])
+
+
+def test_admin_status_returns_to_active_after_reset_usage(access_token):
+    """Resetting usage on a limited admin flips status back to active."""
+    admin = create_admin(access_token)
+    try:
+        # Set limit=100, traffic=100 → limited
+        client.put(f"/api/admin/{admin['username']}", json={"data_limit": 100}, headers=auth_headers(access_token))
+        _set_admin_traffic(admin["username"], used_traffic=100)
+        client.put(f"/api/admin/{admin['username']}", json={"data_limit": 100}, headers=auth_headers(access_token))
+
+        # Reset usage → active
+        response = client.post(f"/api/admin/{admin['username']}/reset", headers=auth_headers(access_token))
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["status"] == "active"
+        assert response.json()["used_traffic"] == 0
+    finally:
+        delete_admin(access_token, admin["username"])
+
+
+def test_limited_admin_write_blocked_by_default(access_token):
+    """A limited admin cannot perform write operations (default: disabled_when_limited=False blocks writes)."""
+    admin = create_admin(access_token)
+    try:
+        # Set limit and exceed it
+        client.put(f"/api/admin/{admin['username']}", json={"data_limit": 100}, headers=auth_headers(access_token))
+        _set_admin_traffic(admin["username"], used_traffic=100)
+        _set_admin_status(admin["username"], "limited")
+
+        token = _login(admin["username"], admin["password"])
+
+        # Write operation should be blocked
+        response = client.post(
+            "/api/user",
+            headers=auth_headers(token),
+            json={
+                "username": unique_name("limited_user"),
+                "proxy_settings": {},
+                "data_limit": 0,
+                "data_limit_reset_strategy": "no_reset",
+                "status": "active",
+            },
+        )
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+    finally:
+        delete_admin(access_token, admin["username"])
+
+
+def test_limited_admin_read_allowed_when_disabled_when_limited_false(access_token):
+    """A limited admin can still read when disabled_when_limited=False (default)."""
+    admin = create_admin(access_token)
+    try:
+        client.put(f"/api/admin/{admin['username']}", json={"data_limit": 100}, headers=auth_headers(access_token))
+        _set_admin_traffic(admin["username"], used_traffic=100)
+        _set_admin_status(admin["username"], "limited")
+
+        token = _login(admin["username"], admin["password"])
+
+        # Read operation should be allowed
+        response = client.get("/api/users", headers=auth_headers(token))
+        assert response.status_code == status.HTTP_200_OK
+    finally:
+        delete_admin(access_token, admin["username"])
+
+
+def test_limited_admin_all_blocked_when_disabled_when_limited_true(access_token):
+    """A limited admin is fully blocked when disabled_when_limited=True on their role."""
+    # Create a custom role with disabled_when_limited=True
+    role_response = client.post(
+        "/api/admin-role",
+        headers=auth_headers(access_token),
+        json={
+            "name": unique_name("limited_role"),
+            "permissions": {"users": {"read": True, "create": True}},
+            "limits": {},
+            "features": {"can_use_reset_strategy": True, "can_use_next_plan": True},
+            "access": {},
+        },
+    )
+    assert role_response.status_code == status.HTTP_201_CREATED
+    role = role_response.json()
+
+    # Set disabled_when_limited=True directly in DB
+    async def _set_role_flag():
+        async with TestSession() as session:
+            from app.db.models import AdminRole
+
+            result = await session.execute(select(AdminRole).where(AdminRole.id == role["id"]))
+            db_role = result.scalar_one()
+            db_role.disabled_when_limited = True
+            await session.commit()
+
+    asyncio.run(_set_role_flag())
+
+    admin = create_admin(access_token, role_id=role["id"])
+    try:
+        client.put(f"/api/admin/{admin['username']}", json={"data_limit": 100}, headers=auth_headers(access_token))
+        _set_admin_traffic(admin["username"], used_traffic=100)
+        _set_admin_status(admin["username"], "limited")
+
+        token = _login(admin["username"], admin["password"])
+
+        # Even read should be blocked
+        response = client.get("/api/users", headers=auth_headers(token))
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+    finally:
+        delete_admin(access_token, admin["username"])
+        client.delete(f"/api/admin-role/{role['id']}", headers=auth_headers(access_token))
+
+
+def test_admins_list_includes_limited_count(access_token):
+    """GET /api/admins response includes a 'limited' count field."""
+    admin = create_admin(access_token)
+    try:
+        _set_admin_status(admin["username"], "limited")
+        response = client.get("/api/admins", headers=auth_headers(access_token))
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert "limited" in data
+        assert data["limited"] >= 1
+    finally:
+        delete_admin(access_token, admin["username"])

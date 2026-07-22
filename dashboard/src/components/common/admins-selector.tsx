@@ -26,15 +26,18 @@ export default function AdminsSelector<T extends FieldValues>({ control, name, o
     name,
   })
 
-  const { data: adminsData, isLoading: adminsLoading } = useGetAdminsSimple({ all: true }, {
-    query: {
-      staleTime: 5 * 60 * 1000, // 5 minutes
-      gcTime: 10 * 60 * 1000, // 10 minutes
-      refetchOnWindowFocus: true,
-      refetchOnMount: true,
-      refetchOnReconnect: true,
+  const { data: adminsData, isLoading: adminsLoading } = useGetAdminsSimple(
+    { all: true },
+    {
+      query: {
+        staleTime: 5 * 60 * 1000, // 5 minutes
+        gcTime: 10 * 60 * 1000, // 10 minutes
+        refetchOnWindowFocus: true,
+        refetchOnMount: true,
+        refetchOnReconnect: true,
+      },
     },
-  })
+  )
 
   const selectedAdmins = (field.value as string[]) || []
   const filteredAdmins = (adminsData?.admins || []).filter((admin: any) => admin.username.toLowerCase().includes(searchQuery.toLowerCase()))
@@ -57,7 +60,7 @@ export default function AdminsSelector<T extends FieldValues>({ control, name, o
       <FormItem>
         <div className="space-y-4 pt-4">
           <div className="relative">
-            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Search className="text-muted-foreground absolute top-2.5 left-2 h-4 w-4" />
             <Skeleton className="h-10 w-full pl-8" />
           </div>
           <Skeleton className="h-12 w-full" />
@@ -78,7 +81,7 @@ export default function AdminsSelector<T extends FieldValues>({ control, name, o
     <FormItem>
       <div className="space-y-4 pt-4">
         <div className="relative">
-          <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Search className="text-muted-foreground absolute top-2.5 left-2 h-4 w-4" />
           <Input
             placeholder={t('search', { defaultValue: 'Search' }) + ' ' + t('admins.title', { defaultValue: 'Admins' })}
             value={searchQuery}
@@ -87,7 +90,7 @@ export default function AdminsSelector<T extends FieldValues>({ control, name, o
             disabled={disabled}
           />
         </div>
-        <label className="flex cursor-pointer items-center gap-2 rounded-md border border-border p-3 hover:bg-accent">
+        <label className="border-border hover:bg-accent flex cursor-pointer items-center gap-2 rounded-md border p-3">
           <Checkbox checked={filteredAdmins.length > 0 && selectedAdmins.length === filteredAdmins.length} onCheckedChange={handleSelectAll} disabled={disabled} />
           <span className="text-sm font-medium">{t('selectAll', { defaultValue: 'Select All' })}</span>
         </label>
@@ -95,14 +98,14 @@ export default function AdminsSelector<T extends FieldValues>({ control, name, o
           {filteredAdmins.length === 0 ? (
             <div className="flex w-full flex-col gap-4 rounded-md border border-yellow-500 p-4">
               <span className="text-sm font-bold text-yellow-500">{t('warning')}</span>
-              <span className="text-sm font-medium text-foreground">
+              <span className="text-foreground text-sm font-medium">
                 <Trans
                   i18nKey={'admins.adminsExistingWarning'}
                   components={{
                     a: (
                       <a
                         href="/admins"
-                        className="font-bold text-primary hover:underline"
+                        className="text-primary font-bold hover:underline"
                         onClick={e => {
                           e.preventDefault()
                           navigate('/admins')
@@ -115,7 +118,7 @@ export default function AdminsSelector<T extends FieldValues>({ control, name, o
             </div>
           ) : (
             filteredAdmins.map((admin: any) => (
-              <label key={admin.username} className="flex cursor-pointer items-center gap-2 rounded-md p-2 hover:bg-accent">
+              <label key={admin.username} className="hover:bg-accent flex cursor-pointer items-center gap-2 rounded-md p-2">
                 <Checkbox checked={selectedAdmins.includes(admin.username)} onCheckedChange={checked => handleAdminChange(!!checked, admin.username)} disabled={disabled} />
                 <span className="text-sm">{admin.username}</span>
               </label>
@@ -123,7 +126,7 @@ export default function AdminsSelector<T extends FieldValues>({ control, name, o
           )}
         </div>
         {selectedAdmins.length > 0 && (
-          <div className="text-sm text-muted-foreground">
+          <div className="text-muted-foreground text-sm">
             {t('admins.selectedAdmins', {
               count: selectedAdmins.length,
               defaultValue: '{{count}} admins selected',

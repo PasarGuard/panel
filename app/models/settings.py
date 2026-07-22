@@ -4,12 +4,33 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from app.models.proxy import ShadowsocksMethods, XTLSFlows
+from app.models.proxy import ShadowsocksMethods
 
 from .notification_enable import NotificationEnable
 from .validators import DiscordValidator, ProxyValidator, URLValidator
 
 TELEGRAM_TOKEN_PATTERN = r"^\d{8,12}:[A-Za-z0-9_-]{35}$"
+BUILTIN_FORMAT_VARIABLES = {
+    "SERVER_IP",
+    "SERVER_IPV6",
+    "USERNAME",
+    "DATA_USAGE",
+    "DATA_LIMIT",
+    "DATA_LEFT",
+    "DAYS_LEFT",
+    "EXPIRE_DATE",
+    "JALALI_EXPIRE_DATE",
+    "TIME_LEFT",
+    "STATUS_EMOJI",
+    "USAGE_PERCENTAGE",
+    "ADMIN_USERNAME",
+    "PROFILE_TITLE",
+    "PROTOCOL",
+    "TRANSPORT",
+    "url",
+    "format",
+}
+BUILTIN_CUSTOM_VARIABLE_KEYS = {variable.upper() for variable in BUILTIN_FORMAT_VARIABLES}
 
 
 class RunMethod(StrEnum):
@@ -68,23 +89,6 @@ class Telegram(BaseModel):
         return self
 
 
-class Discord(BaseModel):
-    enable: bool = Field(default=False)
-    token: str | None = Field(default=None)
-    proxy_url: str | None = Field(default=None)
-
-    @field_validator("proxy_url")
-    @classmethod
-    def validate_proxy_url(cls, v):
-        return ProxyValidator.validate_proxy_url(v)
-
-    @model_validator(mode="after")
-    def check_enable_requires_token(self):
-        if self.enable and not self.token:
-            raise ValueError("Discord bot cannot be enabled without token.")
-        return self
-
-
 class WebhookInfo(BaseModel):
     url: str
     secret: str
@@ -128,12 +132,14 @@ class NotificationChannels(BaseModel):
     """Per-object notification channels"""
 
     admin: NotificationChannel = Field(default_factory=NotificationChannel)
+    admin_role: NotificationChannel = Field(default_factory=NotificationChannel)
     core: NotificationChannel = Field(default_factory=NotificationChannel)
     group: NotificationChannel = Field(default_factory=NotificationChannel)
     host: NotificationChannel = Field(default_factory=NotificationChannel)
     node: NotificationChannel = Field(default_factory=NotificationChannel)
     user: NotificationChannel = Field(default_factory=NotificationChannel)
     user_template: NotificationChannel = Field(default_factory=NotificationChannel)
+    api_key: NotificationChannel = Field(default_factory=NotificationChannel)
 
 
 class NotificationSettings(BaseModel):
@@ -242,6 +248,7 @@ class Application(BaseModel):
     import_url: str = Field(default="", max_length=256)
     description: dict[Language, str] = Field(default_factory=dict)
     recommended: bool = Field(False)
+    show_when_hwid_enabled: bool = Field(False)
     platform: Platform
     download_links: list[DownloadLink]
 
@@ -254,6 +261,50 @@ class Application(BaseModel):
         return v
 
 
+class CustomVariable(BaseModel):
+    key: str = Field(max_length=64)
+    value: str = Field(default="", max_length=512)
+
+    @field_validator("key", mode="before")
+    @classmethod
+    def normalize_key(cls, value):
+        if not isinstance(value, str):
+            raise ValueError("Variable key must be a string")
+        value = value.strip()
+        if value.startswith("{") and value.endswith("}"):
+            value = value[1:-1].strip()
+        return value.upper()
+
+    @field_validator("key")
+    @classmethod
+    def validate_key(cls, value: str) -> str:
+        if not re.fullmatch(r"[A-Z][A-Z0-9_]{0,63}", value):
+            raise ValueError("Variable key must use uppercase letters, numbers, and underscores")
+        return value
+
+    @field_validator("value")
+    @classmethod
+    def validate_value_format(cls, value: str) -> str:
+        try:
+            value.format_map({key: "" for key in BUILTIN_FORMAT_VARIABLES})
+        except ValueError:
+            raise ValueError("Invalid formatting variables")
+        except KeyError:
+            pass
+        return value
+
+
+def validate_custom_variables(value: list[CustomVariable]) -> list[CustomVariable]:
+    seen: set[str] = set()
+    for variable in value:
+        if variable.key.upper() in BUILTIN_CUSTOM_VARIABLE_KEYS:
+            raise ValueError(f"Custom variable {variable.key} conflicts with a built-in variable")
+        if variable.key in seen:
+            raise ValueError(f"Duplicate custom variable {variable.key}")
+        seen.add(variable.key)
+    return value
+
+
 class Subscription(BaseModel):
     url_prefix: str = Field(default="")
     update_interval: int = Field(default=12)
@@ -262,6 +313,7 @@ class Subscription(BaseModel):
     # only supported by v2RayTun and Happ apps
     announce: str = Field(default="", max_length=128)
     announce_url: str = Field(default="")
+    response_headers: dict[str, Any] = Field(default_factory=dict)
     # Rules To Seperate Clients And Send Config As Needed
     rules: list[SubRule]
     manual_sub_request: SubFormatEnable = Field(default_factory=SubFormatEnable)
@@ -269,34 +321,60 @@ class Subscription(BaseModel):
     allow_browser_config: bool = Field(default=True)
     disable_sub_template: bool = Field(default=False)
     randomize_order: bool = Field(default=False)
+    custom_variables: list[CustomVariable] = Field(default_factory=list)
+
+    @field_validator("custom_variables")
+    @classmethod
+    def validate_custom_variables(cls, value: list[CustomVariable]) -> list[CustomVariable]:
+        return validate_custom_variables(value)
 
     @field_validator("applications")
     @classmethod
     def validate_recommended_apps(cls, v: list[Application]) -> list[Application]:
-        """Validate that each platform has at most one recommended application"""
+        """Validate that each platform has at most one recommended app per subscription type."""
         platform_recommended = {}
 
         for app in v:
             if app.recommended:
-                if app.platform in platform_recommended:
-                    raise ValueError(f"Multiple recommended applications found for platform '{app.platform}'.")
-                platform_recommended[app.platform] = app.name
+                recommendation_key = (app.platform, app.show_when_hwid_enabled)
+                if recommendation_key in platform_recommended:
+                    subscription_type = "device-bound" if app.show_when_hwid_enabled else "standard"
+                    raise ValueError(
+                        f"Multiple recommended {subscription_type} applications found for platform '{app.platform}'."
+                    )
+                platform_recommended[recommendation_key] = app.name
 
         return v
 
 
+class HWIDSettings(BaseModel):
+    enabled: bool = Field(default=True)
+    forced: bool = Field(default=False)
+    require_hwid_for_manual_sub: bool = Field(default=True)
+    fallback_limit: int | None = Field(default=None, ge=0)
+    min_limit: int | None = Field(default=None, ge=0)
+    max_limit: int | None = Field(default=None, ge=0)
+
+
 class General(BaseModel):
-    default_flow: XTLSFlows = Field(default=XTLSFlows.NONE)
     default_method: ShadowsocksMethods = Field(default=ShadowsocksMethods.CHACHA20_POLY1305)
+    custom_variables: list[CustomVariable] | None = Field(default=None)
+
+    @field_validator("custom_variables")
+    @classmethod
+    def validate_custom_variables(cls, value: list[CustomVariable] | None) -> list[CustomVariable] | None:
+        if value is None:
+            return None
+        return validate_custom_variables(value)
 
 
 class SettingsSchema(BaseModel):
     telegram: Telegram | None = Field(default=None)
-    discord: Discord | None = Field(default=None)
     webhook: Webhook | None = Field(default=None)
     notification_settings: NotificationSettings | None = Field(default=None)
     notification_enable: NotificationEnable | None = Field(default=None)
     subscription: Subscription | None = Field(default=None)
+    hwid: HWIDSettings | None = Field(default=None)
     general: General | None = Field(default=None)
 
     model_config = ConfigDict(from_attributes=True)

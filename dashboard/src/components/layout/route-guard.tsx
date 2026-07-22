@@ -1,4 +1,5 @@
 import { useAdmin } from '@/hooks/use-admin'
+import { canAccessRoute, firstAllowedRoute } from '@/utils/rbac'
 import { useEffect, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router'
 
@@ -6,7 +7,6 @@ export default function RouteGuard({ children }: { children: React.ReactNode }) 
   const { admin } = useAdmin()
   const location = useLocation()
   const navigate = useNavigate()
-  const is_sudo = admin?.is_sudo || false
   const hasNavigatedRef = useRef(false)
 
   useEffect(() => {
@@ -15,66 +15,18 @@ export default function RouteGuard({ children }: { children: React.ReactNode }) 
       return // Wait for admin data to load
     }
 
-    if (!is_sudo) {
-      const currentPath = location.pathname
-
-      // Define allowed routes for non-sudo admins
-      const allowedRoutes = ['/', '/users', '/settings', '/settings/theme', '/bulk', '/bulk/create']
-      const isAllowedRoute = allowedRoutes.some(
-        route =>
-          currentPath === route ||
-          (route === '/settings' && currentPath.startsWith('/settings/theme')),
-      )
-
-      // If current route is allowed, don't redirect
-      if (isAllowedRoute) {
-        hasNavigatedRef.current = false
-        return
-      }
-
-      // Prevent multiple navigations for the same route change
-      if (hasNavigatedRef.current) {
-        return
-      }
-
-      // Define restricted routes for non-sudo admins
-      const restrictedRoutes = ['/statistics', '/hosts', '/groups', '/templates', '/admins', '/nodes']
-      const isRestrictedRoute = restrictedRoutes.some(route => currentPath.startsWith(route))
-
-      if (isRestrictedRoute) {
-        hasNavigatedRef.current = true
-        navigate('/users', { replace: true })
-        return
-      }
-
-      // Handle settings routes
-      if (currentPath === '/settings') {
-        hasNavigatedRef.current = true
-        navigate('/settings/theme', { replace: true })
-        return
-      }
-
-      // Redirect from restricted settings pages
-      const restrictedSettingsRoutes = ['/settings/general', '/settings/notifications', '/settings/subscriptions', '/settings/telegram', '/settings/discord', '/settings/webhook', '/settings/cleanup']
-
-      if (restrictedSettingsRoutes.includes(currentPath)) {
-        // Redirecting non-sudo admin from restricted settings
-        hasNavigatedRef.current = true
-        navigate('/settings/theme', { replace: true })
-        return
-      }
-
-      const restrictedBulkRoutes = ['/bulk/wireguard', '/bulk/groups', '/bulk/expire', '/bulk/data', '/bulk/proxy']
-
-      if (restrictedBulkRoutes.some(route => currentPath.startsWith(route))) {
-        hasNavigatedRef.current = true
-        navigate('/bulk', { replace: true })
-        return
-      }
-    } else {
+    if (canAccessRoute(admin, location.pathname)) {
       hasNavigatedRef.current = false
+      return
     }
-  }, [admin, is_sudo, location.pathname, navigate])
+
+    if (hasNavigatedRef.current) {
+      return
+    }
+
+    hasNavigatedRef.current = true
+    navigate(firstAllowedRoute(admin), { replace: true })
+  }, [admin, location.pathname, navigate])
 
   // Reset navigation flag when pathname changes (after navigation completes)
   useEffect(() => {

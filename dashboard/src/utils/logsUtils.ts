@@ -4,6 +4,7 @@ export type LogVariant = 'red' | 'yellow' | 'blue' | 'orange'
 export interface LogLine {
   rawTimestamp: string | null
   timestamp: Date | null
+  type: LogType
   message: string
 }
 
@@ -77,13 +78,17 @@ export function parseLogs(logString: string): LogLine[] {
         }
       }
 
+      const type = getLogType(message).type
+
       // Remove duplicate status indicators from message text since they're shown in badges
       let cleanedMessage = message.trim()
-      cleanedMessage = cleanedMessage.replace(/^\[(Debug|Info|Warning|Error)\]\s*/i, '')
+      cleanedMessage = cleanedMessage.replace(/^\[(Debug|Info|Warn|Warning|Error)\]\s*/i, '')
+      cleanedMessage = cleanedMessage.replace(/^(Debug|Info|Warn|Warning|Error):\s*/i, '')
 
       return {
         rawTimestamp: timestamp ?? null,
         timestamp: parsedTimestamp,
+        type,
         message: cleanedMessage,
       }
     })
@@ -96,7 +101,15 @@ export const getLogType = (message: string): LogStyle => {
     return LOG_STYLES.error
   }
 
+  if (/^\s*(error|fatal)\b/i.test(message)) {
+    return LOG_STYLES.error
+  }
+
   if (/\[warning\]/i.test(message) || /\[warn\]/i.test(message)) {
+    return LOG_STYLES.warning
+  }
+
+  if (/^\s*(warning|warn)\b/i.test(message)) {
     return LOG_STYLES.warning
   }
 
@@ -104,7 +117,15 @@ export const getLogType = (message: string): LogStyle => {
     return LOG_STYLES.info
   }
 
+  if (/^\s*info\b/i.test(message)) {
+    return LOG_STYLES.info
+  }
+
   if (/\[debug\]/i.test(message)) {
+    return LOG_STYLES.debug
+  }
+
+  if (/^\s*debug\b/i.test(message)) {
     return LOG_STYLES.debug
   }
 
@@ -116,3 +137,5 @@ export const getLogType = (message: string): LogStyle => {
   // Default to info
   return LOG_STYLES.info
 }
+
+export const getLogStyle = (type: LogType): LogStyle => LOG_STYLES[type]

@@ -1,11 +1,15 @@
 import asyncio
 from logging.config import fileConfig
+from sqlalchemy import JSON
+from sqlalchemy import BigInteger
 from sqlalchemy import pool
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 from alembic import context
 
 from app.db.base import Base
+from app.db.compiles_types import SqliteCompatibleBigInteger
 from config import database_settings
 
 # this is the Alembic Config object, which provides
@@ -31,6 +35,37 @@ target_metadata = Base.metadata
 # ... etc.
 
 
+def _compare_type(context, inspected_column, metadata_column, inspected_type, metadata_type) -> bool | None:
+    """Treat BIGINT and SqliteCompatibleBigInteger as equivalent on SQLite.
+
+    The custom type compiles to INTEGER for SQLite but may be reflected back as
+    BIGINT depending on how the table was originally created, which can produce
+    false-positive autogenerate diffs.
+    """
+    if context.dialect.name == "sqlite":
+        sqlite_bigint_equivalent = (
+            (isinstance(inspected_type, BigInteger) and isinstance(metadata_type, SqliteCompatibleBigInteger))
+            or (isinstance(inspected_type, SqliteCompatibleBigInteger) and isinstance(metadata_type, BigInteger))
+        )
+        if sqlite_bigint_equivalent:
+            return False
+
+    # PostgreSQL reflection can report JSON with explicit astext_type while
+    # metadata often renders as bare JSON(), which is not a schema change.
+    # Keep JSON vs JSONB detection intact by only bypassing plain JSON pairs.
+    if context.dialect.name == "postgresql":
+        is_plain_json_pair = (
+            isinstance(inspected_type, JSON)
+            and isinstance(metadata_type, JSON)
+            and not isinstance(inspected_type, JSONB)
+            and not isinstance(metadata_type, JSONB)
+        )
+        if is_plain_json_pair:
+            return False
+
+    return None
+
+
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode.
 
@@ -49,13 +84,23 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         render_as_batch=True,
+        compare_type=_compare_type,
         dialect_opts={"paramstyle": "named"},
+        transaction_per_migration=True,
+        transactional_ddl=True,
     )
 
     with context.begin_transaction():
         context.run_migrations()
 def do_run_migrations(connection: Connection) -> None:
-    context.configure(connection=connection, target_metadata=target_metadata, render_as_batch=True)
+    context.configure(
+        connection=connection,
+        target_metadata=target_metadata,
+        render_as_batch=True,
+        compare_type=_compare_type,
+        transaction_per_migration=True,
+        transactional_ddl=True,
+    )
 
     with context.begin_transaction():
         context.run_migrations()

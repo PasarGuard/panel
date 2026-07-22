@@ -186,12 +186,21 @@ class ClientTemplateOperation(BaseOperation):
         self, db: AsyncSession, bulk_templates: BulkClientTemplateSelection, admin: AdminDetails
     ) -> RemoveClientTemplatesResponse:
         """Remove multiple client templates by ID - fast batch delete"""
-        db_templates = []
+        ids_list = list(bulk_templates.ids)
+        db_templates_list, _ = await get_client_templates(
+            db, ClientTemplateListQuery(ids=ids_list, limit=len(ids_list))
+        )
+
+        found_ids = {t.id for t in db_templates_list}
+        missing = set(ids_list) - found_ids
+        if missing:
+            await self.raise_error(message="Client template not found", code=404)
+
+        db_templates = list(db_templates_list)
         templates_by_type = {}
 
-        # Validate all templates exist and can be deleted
-        for template_id in bulk_templates.ids:
-            db_template = await self.get_validated_client_template(db, template_id)
+        # Validate all templates can be deleted
+        for db_template in db_templates:
             template_type = ClientTemplateType(db_template.template_type)
 
             if db_template.is_system:
@@ -201,7 +210,6 @@ class ClientTemplateOperation(BaseOperation):
             if template_type not in templates_by_type:
                 templates_by_type[template_type] = []
             templates_by_type[template_type].append(db_template)
-            db_templates.append(db_template)
 
         # Validate we won't leave any type without templates
         for template_type, templates_of_type in templates_by_type.items():

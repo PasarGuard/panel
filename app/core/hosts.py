@@ -13,7 +13,7 @@ from app.core.manager import core_manager
 from app.db import GetDB
 from app.db.crud.host import get_host_by_id, get_hosts, upsert_inbounds
 from app.db.models import ProxyHostSecurity
-from app.models.host import BaseHost, TransportSettings, WireGuardHostOverrides
+from app.models.host import BaseHost, FinalMask, TransportSettings, WireGuardHostOverrides
 from app.models.subscription import (
     GRPCTransportConfig,
     KCPTransportConfig,
@@ -31,6 +31,19 @@ from app.nats.router import router
 from app.utils.logger import get_logger
 from config import runtime_settings
 from role import Role
+
+
+def _string_list(value) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, dict):
+        value = value.keys()
+    try:
+        return [str(item) for item in value]
+    except TypeError:
+        return [str(value)]
 
 
 async def _prepare_subscription_inbound_data(
@@ -52,6 +65,14 @@ async def _prepare_subscription_inbound_data(
 
     network = inbound_config.get("network", "tcp")
     path = host.path or inbound_config.get("path", "")
+
+    final_mask_settings = host.final_mask_settings if host.final_mask_settings else inbound_config.get("finalmask")
+    finalmask_link = None
+    fms = final_mask_settings
+    if final_mask_settings:
+        if isinstance(final_mask_settings, FinalMask):
+            fms = final_mask_settings.model_dump(by_alias=True)
+        finalmask_link = json.dumps(fms, separators=(",", ":"))
 
     if protocol == "wireguard":
         wg_over: WireGuardHostOverrides | None = host.wireguard_overrides
@@ -91,6 +112,10 @@ async def _prepare_subscription_inbound_data(
             wireguard_mtu=wg_over.mtu,
             wireguard_reserved=reserved,
             wireguard_dns=dns,
+            fragment_settings=host.fragment_settings.model_dump() if host.fragment_settings else None,
+            noise_settings=host.noise_settings.model_dump() if host.noise_settings else None,
+            finalmask=final_mask_settings,
+            finalmask_link=finalmask_link,
             priority=host.priority,
             status=list(host.status) if host.status else None,
             subscription_templates=host.subscription_templates.model_dump(exclude_none=True)
@@ -98,9 +123,9 @@ async def _prepare_subscription_inbound_data(
             else None,
         )
 
-    sni_list = list(host.sni) if host.sni else inbound_config.get("sni", [])
-    host_list = list(host.host) if host.host else inbound_config.get("host", [])
-    address_list = list(host.address) if host.address else []
+    sni_list = _string_list(host.sni) if host.sni else _string_list(inbound_config.get("sni", []))
+    host_list = _string_list(host.host) if host.host else _string_list(inbound_config.get("host", []))
+    address_list = _string_list(host.address) if host.address else []
 
     # Get Reality fields from inbound if applicable
     reality_pbk = inbound_config.get("pbk", "")
@@ -115,7 +140,7 @@ async def _prepare_subscription_inbound_data(
         tls_value = inbound_config.get("tls", "none")
 
     pinned_peer_cert_sha256 = host.pinned_peer_cert_sha256
-    verify_peer_cert_by_name = host.verify_peer_cert_by_name
+    verify_peer_cert_by_name = _string_list(host.verify_peer_cert_by_name) if host.verify_peer_cert_by_name else []
     ech_query_strategy = host.ech_query_strategy or inbound_config.get("echForceQuery")
     alpn_list = [alpn.value for alpn in host.alpn] if host.alpn else inbound_config.get("alpn", [])
     fp = host.fingerprint.value if host.fingerprint.value != "none" else inbound_config.get("fp")
@@ -167,12 +192,10 @@ async def _prepare_subscription_inbound_data(
     # Get VLESS encryption from inbound
     encryption = inbound_config.get("encryption", "none")
 
-    # Get flow from inbound (user can override later in share.py)
+    # Get flow from inbound for subscription generation.
     inbound_flow = inbound_config.get("flow", "")
     if inbound_flow == "none":
         inbound_flow = ""
-
-    finalmask = inbound_config.get("finalmask")
 
     # Network comes from inbound, NOT from checking which transport exists on host!
     # Host can have ALL transport configs, inbound determines which one is used
@@ -194,9 +217,19 @@ async def _prepare_subscription_inbound_data(
             path=path,
             host=host_list,
             mode=mode,
-            no_grpc_header=xs.no_grpc_header if xs else None,
-            sc_max_each_post_bytes=xs.sc_max_each_post_bytes if xs else None,
-            sc_min_posts_interval_ms=xs.sc_min_posts_interval_ms if xs else None,
+            no_grpc_header=xs.no_grpc_header
+            if xs and xs.no_grpc_header is not None
+            else inbound_config.get("no_grpc_header"),
+            sc_max_each_post_bytes=(
+                xs.sc_max_each_post_bytes
+                if xs and xs.sc_max_each_post_bytes is not None
+                else inbound_config.get("sc_max_each_post_bytes")
+            ),
+            sc_min_posts_interval_ms=(
+                xs.sc_min_posts_interval_ms
+                if xs and xs.sc_min_posts_interval_ms is not None
+                else inbound_config.get("sc_min_posts_interval_ms")
+            ),
             x_padding_bytes=xs.x_padding_bytes
             if xs and xs.x_padding_bytes is not None
             else inbound_config.get("x_padding_bytes"),
@@ -251,9 +284,9 @@ async def _prepare_subscription_inbound_data(
                 if xs and xs.uplink_chunk_size is not None
                 else inbound_config.get("uplink_chunk_size")
             ),
-            xmux=xs.xmux.model_dump(by_alias=True, exclude_none=True) if xs and xs.xmux else None,
-            download_settings=down_settings if xs and down_settings else None,
-            http_headers=host.http_headers,
+            xmux=xs.xmux.model_dump(by_alias=True, exclude_none=True) if xs and xs.xmux else inbound_config.get("xmux"),
+            download_settings=down_settings if xs and down_settings else inbound_config.get("download_settings"),
+            http_headers=host.http_headers if host.http_headers is not None else inbound_config.get("http_headers"),
             random_user_agent=host.random_user_agent,
         )
     elif network in ("grpc", "gun"):
@@ -342,15 +375,6 @@ async def _prepare_subscription_inbound_data(
             random_user_agent=host.random_user_agent,
         )
 
-    # Compute flow_enabled: only for VLESS with specific conditions
-    header_type = getattr(transport_config, "header_type", "none")
-    flow_enabled = (
-        protocol == "vless"
-        and tls_value in ("tls", "reality")
-        and network in ("tcp", "raw", "kcp")
-        and header_type != "http"
-    )
-
     return SubscriptionInboundData(
         remark=host.remark,
         inbound_tag=host.inbound_tag,
@@ -367,12 +391,12 @@ async def _prepare_subscription_inbound_data(
         encryption=encryption,
         vless_route=host.vless_route,
         inbound_flow=inbound_flow,
-        flow_enabled=flow_enabled,
         random_user_agent=host.random_user_agent,
         use_sni_as_host=host.use_sni_as_host,
         fragment_settings=host.fragment_settings.model_dump() if host.fragment_settings else None,
         noise_settings=host.noise_settings.model_dump() if host.noise_settings else None,
-        finalmask=finalmask,
+        finalmask=final_mask_settings,
+        finalmask_link=finalmask_link,
         priority=host.priority,
         status=list(host.status) if host.status else None,
         subscription_templates=host.subscription_templates.model_dump(exclude_none=True)
@@ -403,7 +427,7 @@ class HostManager:
 
     async def _snapshot_state(self) -> dict[int, dict]:
         async with self._lock:
-            return deepcopy(self._hosts)
+            return dict(self._hosts)
 
     async def _persist_state(self):
         if not self._kv:

@@ -80,22 +80,35 @@ FormControl.displayName = 'FormControl'
 const FormDescription = React.forwardRef<HTMLParagraphElement, React.HTMLAttributes<HTMLParagraphElement>>(({ className, ...props }, ref) => {
   const { formDescriptionId } = useFormField()
 
-  return <p ref={ref} id={formDescriptionId} className={cn('text-[0.8rem] text-muted-foreground', className)} {...props} />
+  return <p ref={ref} id={formDescriptionId} className={cn('text-muted-foreground text-[0.8rem]', className)} {...props} />
 })
 FormDescription.displayName = 'FormDescription'
 
 const FormMessage = React.forwardRef<HTMLParagraphElement, React.HTMLAttributes<HTMLParagraphElement>>(({ className, children, ...props }, ref) => {
   const { error, formMessageId } = useFormField()
-  const body = error ? String(error?.message) : children
   const { t } = useTranslation()
 
-  if (!body) {
+  let body: React.ReactNode = children
+  if (error) {
+    const m = error.message
+    if (typeof m === 'string') {
+      const trimmed = m.trim()
+      if (trimmed !== '' && trimmed !== '{}' && trimmed !== '[object Object]') body = m
+      else body = undefined
+    } else if (m != null && typeof m !== 'object') {
+      body = String(m)
+    } else {
+      body = undefined
+    }
+  }
+
+  if (body == null || body === '') {
     return null
   }
 
   return (
-    <p ref={ref} id={formMessageId} className={cn('text-[0.8rem] font-medium text-destructive', className)} {...props}>
-      {t(body.toString())}
+    <p ref={ref} id={formMessageId} className={cn('text-destructive text-[0.8rem] font-medium', className)} {...props}>
+      {typeof body === 'string' ? t(body, { defaultValue: body }) : body}
     </p>
   )
 })
