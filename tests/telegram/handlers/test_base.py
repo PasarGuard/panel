@@ -21,6 +21,11 @@ def patch_texts(monkeypatch, fake_message, fake_callback):
     monkeypatch.setattr(base, "Texts", _DummyTexts())
     monkeypatch.setattr(base.types, "Message", type(fake_message))
     monkeypatch.setattr(base.types, "CallbackQuery", type(fake_callback))
+    monkeypatch.setattr(
+        base,
+        "telegram_settings",
+        AsyncMock(return_value=type("S", (), {"mini_app_login": False, "mini_app_web_url": "https://panel"})()),
+    )
 
 
 @pytest.mark.asyncio
