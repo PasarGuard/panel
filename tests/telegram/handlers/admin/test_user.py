@@ -81,46 +81,46 @@ async def test_process_data_limit_validation(fake_state, fake_message):
 
 
 @pytest.mark.asyncio
-async def test_process_expire_zero(monkeypatch, fake_state, groups_response, fake_message):
+async def test_process_expire_zero(monkeypatch, fake_state, admin, groups_response, fake_message):
     event = type(fake_message)(text="0")
     monkeypatch.setattr(user_h, "delete_messages", AsyncMock())
     monkeypatch.setattr(user_h, "add_to_messages_to_delete", AsyncMock())
     monkeypatch.setattr(user_h.group_operations, "get_all_groups", AsyncMock(return_value=groups_response))
 
-    await user_h.process_expire(event, fake_state, db=object())
+    await user_h.process_expire(event, fake_state, db=object(), admin=admin)
 
     assert await fake_state.get_state() == user_h.forms.CreateUser.group_ids
 
 
 @pytest.mark.asyncio
-async def test_process_status_on_hold(monkeypatch, fake_state, fake_message, fake_callback):
+async def test_process_status_on_hold(monkeypatch, fake_state, admin, fake_message, fake_callback):
     event = type(fake_callback)(message=type(fake_message)())
     callback_data = ChooseStatus.Callback(status=UserStatus.on_hold.value)
     monkeypatch.setattr(user_h, "delete_messages", AsyncMock())
     monkeypatch.setattr(user_h, "add_to_messages_to_delete", AsyncMock())
 
-    await user_h.process_status(event, db=object(), state=fake_state, callback_data=callback_data)
+    await user_h.process_status(event, db=object(), state=fake_state, callback_data=callback_data, admin=admin)
 
     assert await fake_state.get_state() == user_h.forms.CreateUser.on_hold_timeout
 
 
 @pytest.mark.asyncio
-async def test_process_on_hold_timeout_invalid(fake_state, fake_message):
+async def test_process_on_hold_timeout_invalid(fake_state, admin, fake_message):
     event = type(fake_message)(text="bad")
 
-    await user_h.process_on_hold_timeout(event, fake_state, db=object())
+    await user_h.process_on_hold_timeout(event, fake_state, db=object(), admin=admin)
 
     event.reply.assert_awaited_once()
 
 
 @pytest.mark.asyncio
-async def test_select_groups_toggles(monkeypatch, fake_state, groups_response, fake_message, fake_callback):
+async def test_select_groups_toggles(monkeypatch, fake_state, admin, groups_response, fake_message, fake_callback):
     event = type(fake_callback)(message=type(fake_message)())
     callback_data = GroupsSelector.Callback(action=SelectGroupAction.select, group_id=1, user_id=0)
     monkeypatch.setattr(user_h.group_operations, "get_all_groups", AsyncMock(return_value=groups_response))
 
-    await user_h.select_groups(event, db=object(), state=fake_state, callback_data=callback_data)
-    await user_h.select_groups(event, db=object(), state=fake_state, callback_data=callback_data)
+    await user_h.select_groups(event, db=object(), state=fake_state, callback_data=callback_data, admin=admin)
+    await user_h.select_groups(event, db=object(), state=fake_state, callback_data=callback_data, admin=admin)
 
     assert await fake_state.get_value("group_ids") == []
 
@@ -266,12 +266,12 @@ async def test_direct_user_actions(monkeypatch, admin, fake_user, func_name, act
 
 
 @pytest.mark.asyncio
-async def test_modify_with_template_no_templates(monkeypatch, fake_message, fake_callback):
+async def test_modify_with_template_no_templates(monkeypatch, admin, fake_message, fake_callback):
     event = type(fake_callback)(message=type(fake_message)())
     callback_data = UserPanel.Callback(user_id=11, action=UserPanelAction.modify_with_template)
     monkeypatch.setattr(user_h.user_templates, "get_user_templates", AsyncMock(return_value=[]))
 
-    await user_h.modify_with_template(event, db=object(), callback_data=callback_data)
+    await user_h.modify_with_template(event, db=object(), admin=admin, callback_data=callback_data)
 
     event.answer.assert_awaited_once()
 
@@ -290,11 +290,11 @@ async def test_modify_with_template_done(monkeypatch, admin, fake_user, fake_mes
 
 
 @pytest.mark.asyncio
-async def test_create_user_from_template_no_templates(monkeypatch, fake_message, fake_callback):
+async def test_create_user_from_template_no_templates(monkeypatch, admin, fake_message, fake_callback):
     event = type(fake_callback)(message=type(fake_message)())
     monkeypatch.setattr(user_h.user_templates, "get_user_templates", AsyncMock(return_value=[]))
 
-    await user_h.create_user_from_template(event, db=object())
+    await user_h.create_user_from_template(event, db=object(), admin=admin)
 
     event.answer.assert_awaited_once()
 

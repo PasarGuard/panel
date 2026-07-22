@@ -44,20 +44,20 @@ async def test_helpers_message_target_and_chunking(fake_message, fake_callback):
 
 
 @pytest.mark.asyncio
-async def test_bulk_actions_menu(fake_message, fake_callback):
+async def test_bulk_actions_menu(admin, fake_message, fake_callback):
     event = type(fake_callback)(message=type(fake_message)())
 
-    await bulk_h.bulk_actions(event)
+    await bulk_h.bulk_actions(event, admin=admin)
 
     event.message.edit_text.assert_awaited_once()
 
 
 @pytest.mark.asyncio
-async def test_bulk_create_from_template_no_templates(monkeypatch, fake_state, fake_message, fake_callback):
+async def test_bulk_create_from_template_no_templates(monkeypatch, fake_state, admin, fake_message, fake_callback):
     event = type(fake_callback)(message=type(fake_message)())
     monkeypatch.setattr(bulk_h.user_templates, "get_user_templates", AsyncMock(return_value=[]))
 
-    await bulk_h.bulk_create_from_template(event, db=object(), state=fake_state)
+    await bulk_h.bulk_create_from_template(event, db=object(), state=fake_state, admin=admin)
 
     event.answer.assert_awaited_once()
 
@@ -187,12 +187,12 @@ async def test_process_expiry_invalid(fake_state, fake_message):
 
 
 @pytest.mark.asyncio
-async def test_modify_expiry_done(monkeypatch, fake_message, fake_callback):
+async def test_modify_expiry_done(monkeypatch, admin, fake_message, fake_callback):
     event = type(fake_callback)(message=type(fake_message)())
     callback_data = BulkActionPanel.Callback(action=BulkAction.modify_expiry, amount="5")
     monkeypatch.setattr(bulk_h.user_operations, "bulk_modify_expire", AsyncMock(return_value=7))
 
-    await bulk_h.modify_expiry_done(event, db=object(), callback_data=callback_data)
+    await bulk_h.modify_expiry_done(event, db=object(), admin=admin, callback_data=callback_data)
 
     event.message.edit_text.assert_awaited_once()
 
@@ -216,11 +216,11 @@ async def test_process_data_limit_invalid(fake_state, fake_message):
 
 
 @pytest.mark.asyncio
-async def test_modify_data_limit_done(monkeypatch, fake_message, fake_callback):
+async def test_modify_data_limit_done(monkeypatch, admin, fake_message, fake_callback):
     event = type(fake_callback)(message=type(fake_message)())
     callback_data = BulkActionPanel.Callback(action=BulkAction.modify_data_limit, amount="4")
     monkeypatch.setattr(bulk_h.user_operations, "bulk_modify_datalimit", AsyncMock(return_value=9))
 
-    await bulk_h.modify_data_limit_done(event, db=object(), callback_data=callback_data)
+    await bulk_h.modify_data_limit_done(event, db=object(), admin=admin, callback_data=callback_data)
 
     event.message.edit_text.assert_awaited_once()

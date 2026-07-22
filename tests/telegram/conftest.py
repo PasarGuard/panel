@@ -57,6 +57,7 @@ class FakeMessage:
         self.edit_text = AsyncMock()
         self.edit_reply_markup = AsyncMock()
         self.answer_document = AsyncMock()
+        self.answer_photo = AsyncMock()
         self.delete = AsyncMock()
 
     async def _new_message(self, *args, **kwargs):

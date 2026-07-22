@@ -6,7 +6,7 @@ from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool, StaticPool
@@ -61,8 +61,19 @@ async def session_factory(monkeypatch: pytest.MonkeyPatch):
 
     engine = create_async_engine(database_url, connect_args=connect_args, **engine_kwargs)
     async with engine.begin() as conn:
-        await conn.run_sync(base.Base.metadata.drop_all)
-        await conn.run_sync(base.Base.metadata.create_all)
+        if is_sqlite:
+            await conn.run_sync(base.Base.metadata.drop_all)
+            await conn.run_sync(base.Base.metadata.create_all)
+        else:
+            if database_url.startswith("postgresql"):
+                table_names = ", ".join(f'"{table.name}"' for table in base.Base.metadata.sorted_tables)
+                if table_names:
+                    await conn.execute(text(f"TRUNCATE TABLE {table_names} CASCADE;"))
+            elif database_url.startswith("mysql"):
+                await conn.execute(text("SET FOREIGN_KEY_CHECKS = 0;"))
+                for table in base.Base.metadata.sorted_tables:
+                    await conn.execute(text(f"TRUNCATE TABLE `{table.name}`;"))
+                await conn.execute(text("SET FOREIGN_KEY_CHECKS = 1;"))
 
     # Seed the 3 default roles so FK constraints on admins.role_id are satisfied
     async with async_sessionmaker(bind=engine, expire_on_commit=False)() as seed_session:
@@ -96,7 +107,18 @@ async def session_factory(monkeypatch: pytest.MonkeyPatch):
     yield session_factory
 
     async with engine.begin() as conn:
-        await conn.run_sync(base.Base.metadata.drop_all)
+        if is_sqlite:
+            await conn.run_sync(base.Base.metadata.drop_all)
+        else:
+            if database_url.startswith("postgresql"):
+                table_names = ", ".join(f'"{table.name}"' for table in base.Base.metadata.sorted_tables)
+                if table_names:
+                    await conn.execute(text(f"TRUNCATE TABLE {table_names} CASCADE;"))
+            elif database_url.startswith("mysql"):
+                await conn.execute(text("SET FOREIGN_KEY_CHECKS = 0;"))
+                for table in base.Base.metadata.sorted_tables:
+                    await conn.execute(text(f"TRUNCATE TABLE `{table.name}`;"))
+                await conn.execute(text("SET FOREIGN_KEY_CHECKS = 1;"))
     await engine.dispose()
     if needs_json_default_fix and proxy_column is not None:
         proxy_column.server_default = proxy_default

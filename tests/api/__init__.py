@@ -102,6 +102,14 @@ async def create_tables():
 
 
 if TEST_FROM == "local":
+    if "test.db" in DATABASE_URL:
+        import os
+        for f in ["test.db", "test.db-shm", "test.db-wal"]:
+            if os.path.exists(f):
+                try:
+                    os.remove(f)
+                except Exception:
+                    pass
     run_migrations()
 
 
