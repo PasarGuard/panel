@@ -257,6 +257,94 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
   const infoPopoverSide = isMobile ? 'bottom' : dir === 'rtl' ? 'left' : 'right'
   const infoPopoverAlign = isMobile ? 'center' : 'start'
 
+  const setWgAmneziaDefaults = () => {
+    form.setValue('wireguard_amnezia', {
+      jc: 4,
+      jmin: 40,
+      jmax: 70,
+      s1: 0,
+      s2: 0,
+      s3: 0,
+      s4: 0,
+      h1: '1',
+      h2: '2',
+      h3: '3',
+      h4: '4',
+      i1: '',
+      i2: '',
+      i3: '',
+      i4: '',
+      i5: '',
+    }, { shouldDirty: true, shouldTouch: true })
+  }
+
+  const setWgAmneziaQuicMimic = () => {
+    form.setValue('wireguard_amnezia', {
+      jc: form.getValues('wireguard_amnezia.jc') || 4,
+      jmin: form.getValues('wireguard_amnezia.jmin') || 40,
+      jmax: form.getValues('wireguard_amnezia.jmax') || 70,
+      s1: form.getValues('wireguard_amnezia.s1') ?? 0,
+      s2: form.getValues('wireguard_amnezia.s2') ?? 0,
+      s3: form.getValues('wireguard_amnezia.s3') ?? 0,
+      s4: form.getValues('wireguard_amnezia.s4') ?? 0,
+      h1: form.getValues('wireguard_amnezia.h1') || '1',
+      h2: form.getValues('wireguard_amnezia.h2') || '2',
+      h3: form.getValues('wireguard_amnezia.h3') || '3',
+      h4: form.getValues('wireguard_amnezia.h4') || '4',
+      i1: '<b 0xc1ff000012508394c8f03e51570800449f0dbc195a0000f3a694c75775b4e546172ce9e047cd0b5bee5181648c727adc87f7eae54473ec6cba6bdad4f59823174b769f12358abd292d4f3286934484fb8b239c38732e1f3bbbc6a003056487eb8b5c88b9fd9279ffff3b0f4ecf95c4624db6d65d4113329ee9b0bf8cdd7c8a8d72806d55df25ecb66488bc119d7c9a29abaf99bb33c56b08ad8c26995f838bb3b7a3d5c1858b8ec06b839db2dcf918d5ea9317f1acd6b663cc8925868e2f6a1bda546695f3c3f33175944db4a11a346afb07e78489e509b02add51b7b203eda5c330b03641179a31fbba9b56ce00f3d5b5e3d7d9c5429aebb9576f2f7eacbe27bc1b8082aaf68fb69c921aa5d33ec0c8510410865a178d86d7e54122d55ef2c2bbc040be46d7fece73fe8a1b24495ec160df2da9b20a7ba2f26dfa2a44366dbc63de5cd7d7c94c57172fe6d79c901f025c0010b02c89b395402c009f62dc053b8067a1e0ed0a1e0cf5087d7f78cbd94afe0c3dd55d2d4b1a5cfe2b68b86264e351d1dcd858783a240f893f008ceed743d969b8f735a1677ead960b1fb1ecc5ac83c273b49288d02d7286207e663c45e1a7baf50640c91e762941cf380ce8d79f3e86767fbbcd25b42ef70ec334835a3a6d792e170a432ce0cb7bde9aaa1e75637c1c34ae5fef4338f53db8b13a4d2df594efbfa08784543815c9c0d487bddfa1539bc252cf43ec3686e9802d651cfd2a829a06a9f332a733a4a8aed80efe3478093fbc69c8608146b3f16f1a5c4eac9320da49f1afa5f538ddecbbe7888f435512d0dd74fd9b8c99e3145ba84410d8ca9a36dd884109e76e5fb8222a52e1473da168519ce7a8a3c32e9149671b16724c6c5c51bb5cd64fb591e567fb78b10f9f6fee62c276f282a7df6bcf7c17747bc9a81e6c9c3b032fdd0e1c3ac9eaa5077de3ded18b2ed4faf328f49875af2e36ad5ce5f6cc99ef4b60e57b3b5b9c9fcbcd4cfb3975e70ce4c2506bcd71fef0e53592461504e3d42c885caab21b782e26294c6a9d61118cc40a26f378441ceb48f31a362bf8502a723a36c63502229a462cc2a3796279a5e3a7f81a68c7f81312c381cc16a4ab03513a51ad5b54306ec1d78a5e47e2b15e5b7a1438e5b8b2882dbdad13d6a4a8c3558cae043501b68eb3b040067152>',
+      i2: '<b 0x0000000000010000000000000000000000000000000000000000000000000000>',
+      i3: form.getValues('wireguard_amnezia.i3') || '',
+      i4: form.getValues('wireguard_amnezia.i4') || '',
+      i5: form.getValues('wireguard_amnezia.i5') || '',
+    }, { shouldDirty: true, shouldTouch: true })
+  }
+
+  const setWgAmneziaDnsMimic = () => {
+    form.setValue('wireguard_amnezia', {
+      jc: form.getValues('wireguard_amnezia.jc') || 4,
+      jmin: form.getValues('wireguard_amnezia.jmin') || 40,
+      jmax: form.getValues('wireguard_amnezia.jmax') || 70,
+      s1: form.getValues('wireguard_amnezia.s1') ?? 0,
+      s2: form.getValues('wireguard_amnezia.s2') ?? 0,
+      s3: form.getValues('wireguard_amnezia.s3') ?? 0,
+      s4: form.getValues('wireguard_amnezia.s4') ?? 0,
+      h1: form.getValues('wireguard_amnezia.h1') || '1',
+      h2: form.getValues('wireguard_amnezia.h2') || '2',
+      h3: form.getValues('wireguard_amnezia.h3') || '3',
+      h4: form.getValues('wireguard_amnezia.h4') || '4',
+      i1: '<b 0x123401000001000000000000076578616d706c6503636f6d0000010001>',
+      i2: '',
+      i3: form.getValues('wireguard_amnezia.i3') || '',
+      i4: form.getValues('wireguard_amnezia.i4') || '',
+      i5: form.getValues('wireguard_amnezia.i5') || '',
+    }, { shouldDirty: true, shouldTouch: true })
+  }
+
+  const setWgAmneziaSipMimic = () => {
+    form.setValue('wireguard_amnezia', {
+      jc: form.getValues('wireguard_amnezia.jc') || 4,
+      jmin: form.getValues('wireguard_amnezia.jmin') || 40,
+      jmax: form.getValues('wireguard_amnezia.jmax') || 70,
+      s1: form.getValues('wireguard_amnezia.s1') ?? 0,
+      s2: form.getValues('wireguard_amnezia.s2') ?? 0,
+      s3: form.getValues('wireguard_amnezia.s3') ?? 0,
+      s4: form.getValues('wireguard_amnezia.s4') ?? 0,
+      h1: form.getValues('wireguard_amnezia.h1') || '1',
+      h2: form.getValues('wireguard_amnezia.h2') || '2',
+      h3: form.getValues('wireguard_amnezia.h3') || '3',
+      h4: form.getValues('wireguard_amnezia.h4') || '4',
+      i1: '<b 0x494e56495445207369703a626f624062696c6f78692e636f6d205349502f322e300d0a5669613a205349502f322e302f55445020706333332e61746c616e74612e636f6d3b6272616e63683d7a39684734624b3737366173646864730d0a4d61782d466f7277617264733a2037300d0a546f3a20426f62203c7369703a626f624062696c6f78692e636f6d3e0d0a46726f6d3a20416c696365203c7369703a616c6963654061746c616e74612e636f6d3e3b7461673d313932383330313737340d0a43616c6c2d49443a20613834623463373665363637313040706333332e61746c616e74612e636f6d0d0a435365713a2033313431353920494e564954450d0a436f6e746163743a203c7369703a616c69636540706333332e61746c616e74612e636f6d3e0d0a436f6e74656e742d547970653a206170706c69636174696f6e2f7364700d0a436f6e74656e742d4c656e6774683a20300d0a0d0a>',
+      i2: '<b 0x5349502f322e302031303020547279696e670d0a5669613a205349502f322e302f55445020706333332e61746c616e74612e636f6d3b6272616e63683d7a39684734624b3737366173646864730d0a546f3a20426f62203c7369703a626f624062696c6f78692e636f6d3e0d0a46726f6d3a20416c696365203c7369703a616c6963654061746c616e74612e636f6d3e3b7461673d313932383330313737340d0a43616c6c2d49443a20613834623463373665363637313040706333332e61746c616e74612e636f6d0d0a435365713a2033313431353920494e564954450d0a436f6e74656e742d4c656e6774683a20300d0a0d0a>',
+      i3: form.getValues('wireguard_amnezia.i3') || '',
+      i4: form.getValues('wireguard_amnezia.i4') || '',
+      i5: form.getValues('wireguard_amnezia.i5') || '',
+    }, { shouldDirty: true, shouldTouch: true })
+  }
+
+  const clearWgAmnezia = () => {
+    form.setValue('wireguard_amnezia', undefined, { shouldDirty: true, shouldTouch: true })
+  }
+
   const renderCamouflageSection = () => {
     return (
       <AccordionItem className="rounded-sm border px-4 [&_[data-state=closed]]:no-underline [&_[data-state=open]]:no-underline" value="camouflag">
@@ -267,194 +355,48 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
           </div>
         </AccordionTrigger>
         <AccordionContent className="px-2">
-          <Tabs dir={dir} defaultValue="xray" className="w-full">
-            <TabsList className="mb-4 grid w-full grid-cols-2">
-              <TabsTrigger value="xray">Xray</TabsTrigger>
-              <TabsTrigger value="singbox">SingBox</TabsTrigger>
+          <Tabs key={isWireGuardInbound ? 'wg' : 'non-wg'} dir={dir} defaultValue={isWireGuardInbound ? 'amneziawg' : 'xray'} className="w-full">
+            <TabsList className={`mb-4 grid w-full ${isWireGuardInbound ? 'grid-cols-1' : 'grid-cols-2'}`}>
+              {!isWireGuardInbound && <TabsTrigger value="xray">Xray</TabsTrigger>}
+              {!isWireGuardInbound && <TabsTrigger value="singbox">SingBox</TabsTrigger>}
+              {isWireGuardInbound && <TabsTrigger value="amneziawg">AmneziaWG</TabsTrigger>}
             </TabsList>
-            <TabsContent dir={dir} value="xray">
-              <div className="space-y-6">
-                {/* Fragment Settings */}
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h4 className="flex items-center gap-2 text-sm font-medium">
-                      {t('hostsDialog.fragment.title')}
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button type="button" variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent">
-                            <Info className="text-muted-foreground h-4 w-4" />
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
-                          <div className="space-y-1.5">
-                            <p className="text-muted-foreground text-[11px]">{t('hostsDialog.fragment.info')}</p>
-                            <p className="text-muted-foreground text-[11px]">{t('hostsDialog.fragment.info.attention')}</p>
-                            <p className="text-muted-foreground text-[11px]">{t('hostsDialog.fragment.info.examples')}</p>
-                            <p className="text-muted-foreground overflow-hidden text-[11px]">100-200,10-20,tlshello 100-200,10-20,1-3</p>
-                          </div>
-                        </PopoverContent>
-                      </Popover>
-                    </h4>
-                  </div>
-                  <div className="grid grid-cols-3 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="fragment_settings.xray.packets"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>{t('hostsDialog.fragment.packets')}</FormLabel>
-                          <FormControl>
-                            <Input placeholder={t('hostsDialog.fragment.packetsPlaceholder')} {...field} value={field.value || ''} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="fragment_settings.xray.length"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>{t('hostsDialog.fragment.length')}</FormLabel>
-                          <FormControl>
-                            <Input placeholder={t('hostsDialog.fragment.lengthPlaceholder')} {...field} value={field.value || ''} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="fragment_settings.xray.interval"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>{t('hostsDialog.fragment.interval')}</FormLabel>
-                          <FormControl>
-                            <Input placeholder={t('hostsDialog.fragment.intervalPlaceholder')} {...field} value={field.value || ''} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                </div>
-
-                {/* Noise Settings */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <h4 className="text-sm font-medium">{t('hostsDialog.noise.title')}</h4>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button type="button" variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent">
-                            <Info className="text-muted-foreground h-4 w-4" />
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
-                          <div className="space-y-1.5">
-                            <p className="text-muted-foreground text-[11px]">{t('hostsDialog.noise.info')}</p>
-                            <p className="text-muted-foreground text-[11px]">{t('hostsDialog.noise.info.attention')}</p>
-                            <p className="text-muted-foreground text-[11px]">{t('hostsDialog.noise.info.examples')}</p>
-                            <p className="text-muted-foreground overflow-hidden text-[11px]">
-                              rand:10-20,10-20 rand:10-20,10-20 &base64:7nQBAAABAAAAAAAABnQtcmluZwZtc2VkZ2UDbmV0AAABAAE=,10-25
-                            </p>
-                          </div>
-                        </PopoverContent>
-                      </Popover>
-                    </div>
-                    <Button type="button" variant="outline" size="icon" className="h-6 w-6" onClick={addNoiseSetting} title={t('hostsDialog.noise.addNoise')}>
-                      <Plus className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  <div className="space-y-2">
-                    {(selectedNoiseSettings || []).map((_, index) => (
-                      <NoiseItem key={index} index={index} form={form} onRemove={removeNoiseSetting} onDuplicate={duplicateNoiseSetting} t={t} />
-                    ))}
-                    {(selectedNoiseSettings || []).length === 0 && <div className="text-muted-foreground py-8 text-center text-sm">{t('hostsDialog.noise.noNoiseSettings')}</div>}
-                  </div>
-                </div>
-
-                {/* FinalMask Settings */}
-                <div className="space-y-4 pt-4 border-t">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <h4 className="text-sm font-medium">{t('hostsDialog.finalmask.title', { defaultValue: 'FinalMask Settings' })}</h4>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button type="button" variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent">
-                            <Info className="text-muted-foreground h-4 w-4" />
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
-                          <div className="space-y-1.5">
-                            <p className="text-muted-foreground text-[11px]">{t('hostsDialog.finalmask.info', { defaultValue: 'Configure custom finalmask client configurations (TCP, UDP, and QUIC params).' })}</p>
-                          </div>
-                        </PopoverContent>
-                      </Popover>
-                    </div>
-                    <Switch
-                      checked={form.watch('final_mask_settings') !== undefined && form.watch('final_mask_settings') !== null}
-                      onCheckedChange={(checked) => {
-                        if (checked) {
-                          form.setValue('final_mask_settings', {
-                            tcp: [],
-                            udp: [],
-                            quicParams: {}
-                          }, { shouldDirty: true, shouldTouch: true })
-                        } else {
-                          form.setValue('final_mask_settings', undefined, { shouldDirty: true, shouldTouch: true })
-                        }
-                      }}
-                    />
-                  </div>
-                  {form.watch('final_mask_settings') !== undefined && form.watch('final_mask_settings') !== null && (
-                    <FinalMaskSettings form={form} />
-                  )}
-                </div>
-              </div>
-            </TabsContent>
-            <TabsContent dir={dir} value="singbox">
-              <div className="space-y-6">
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h4 className="flex items-center gap-2 text-sm font-medium">{t('hostsDialog.fragment.title')}</h4>
-                  </div>
-                  <div className="grid grid-cols-1 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="fragment_settings.sing_box.fragment"
-                      render={({ field }) => (
-                        <FormItem className="flex cursor-pointer flex-row items-center justify-between space-y-0 rounded-lg border p-4" onClick={() => field.onChange(!field.value)}>
-                          <div className="space-y-0.5">
-                            <FormLabel className="text-base">{t('hostsDialog.fragment.fragment')}</FormLabel>
-                          </div>
-                          <FormControl>
-                            <div onClick={e => e.stopPropagation()}>
-                              <Switch checked={field.value} onCheckedChange={field.onChange} />
-                            </div>
-                          </FormControl>
-                        </FormItem>
-                      )}
-                    />
-                    {form.watch('fragment_settings.sing_box.fragment') && (
-                      <>
+            
+            {!isWireGuardInbound && (
+              <>
+                <TabsContent dir={dir} value="xray">
+                  <div className="space-y-6">
+                    {/* Fragment Settings */}
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h4 className="flex items-center gap-2 text-sm font-medium">
+                          {t('hostsDialog.fragment.title')}
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button type="button" variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent">
+                                <Info className="text-muted-foreground h-4 w-4" />
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
+                              <div className="space-y-1.5">
+                                <p className="text-muted-foreground text-[11px]">{t('hostsDialog.fragment.info')}</p>
+                                <p className="text-muted-foreground text-[11px]">{t('hostsDialog.fragment.info.attention')}</p>
+                                <p className="text-muted-foreground text-[11px]">{t('hostsDialog.fragment.info.examples')}</p>
+                                <p className="text-muted-foreground overflow-hidden text-[11px]">100-200,10-20,tlshello 100-200,10-20,1-3</p>
+                              </div>
+                            </PopoverContent>
+                          </Popover>
+                        </h4>
+                      </div>
+                      <div className="grid grid-cols-3 gap-4">
                         <FormField
                           control={form.control}
-                          name="fragment_settings.sing_box.fragment_fallback_delay"
+                          name="fragment_settings.xray.packets"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>{t('hostsDialog.fragment.fallbackDelay')}</FormLabel>
+                              <FormLabel>{t('hostsDialog.fragment.packets')}</FormLabel>
                               <FormControl>
-                                <Input
-                                  placeholder="e.g. 100"
-                                  {...field}
-                                  value={field.value ? field.value.replace('ms', '') : ''}
-                                  onChange={e => {
-                                    const value = e.target.value
-                                    field.onChange(value)
-                                  }}
-                                  title="Enter a number (e.g., 100)"
-                                />
+                                <Input placeholder={t('hostsDialog.fragment.packetsPlaceholder')} {...field} value={field.value || ''} />
                               </FormControl>
                               <FormMessage />
                             </FormItem>
@@ -462,11 +404,121 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                         />
                         <FormField
                           control={form.control}
-                          name="fragment_settings.sing_box.record_fragment"
+                          name="fragment_settings.xray.length"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>{t('hostsDialog.fragment.length')}</FormLabel>
+                              <FormControl>
+                                <Input placeholder={t('hostsDialog.fragment.lengthPlaceholder')} {...field} value={field.value || ''} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="fragment_settings.xray.interval"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>{t('hostsDialog.fragment.interval')}</FormLabel>
+                              <FormControl>
+                                <Input placeholder={t('hostsDialog.fragment.intervalPlaceholder')} {...field} value={field.value || ''} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Noise Settings */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-sm font-medium">{t('hostsDialog.noise.title')}</h4>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button type="button" variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent">
+                                <Info className="text-muted-foreground h-4 w-4" />
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
+                              <div className="space-y-1.5">
+                                <p className="text-muted-foreground text-[11px]">{t('hostsDialog.noise.info')}</p>
+                                <p className="text-muted-foreground text-[11px]">{t('hostsDialog.noise.info.attention')}</p>
+                                <p className="text-muted-foreground text-[11px]">{t('hostsDialog.noise.info.examples')}</p>
+                                <p className="text-muted-foreground overflow-hidden text-[11px]">
+                                  rand:10-20,10-20 rand:10-20,10-20 &base64:7nQBAAABAAAAAAAABnQtcmluZwZtc2VkZ2UDbmV0AAABAAE=,10-25
+                                </p>
+                              </div>
+                            </PopoverContent>
+                          </Popover>
+                        </div>
+                        <Button type="button" variant="outline" size="icon" className="h-6 w-6" onClick={addNoiseSetting} title={t('hostsDialog.noise.addNoise')}>
+                          <Plus className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      <div className="space-y-2">
+                        {(selectedNoiseSettings || []).map((_, index) => (
+                          <NoiseItem key={index} index={index} form={form} onRemove={removeNoiseSetting} onDuplicate={duplicateNoiseSetting} t={t} />
+                        ))}
+                        {(selectedNoiseSettings || []).length === 0 && <div className="text-muted-foreground py-8 text-center text-sm">{t('hostsDialog.noise.noNoiseSettings')}</div>}
+                      </div>
+                    </div>
+
+                    {/* FinalMask Settings */}
+                    <div className="space-y-4 pt-4 border-t">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-sm font-medium">{t('hostsDialog.finalmask.title', { defaultValue: 'FinalMask Settings' })}</h4>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button type="button" variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent">
+                                <Info className="text-muted-foreground h-4 w-4" />
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
+                              <div className="space-y-1.5">
+                                <p className="text-muted-foreground text-[11px]">{t('hostsDialog.finalmask.info', { defaultValue: 'Configure custom finalmask client configurations (TCP, UDP, and QUIC params).' })}</p>
+                              </div>
+                            </PopoverContent>
+                          </Popover>
+                        </div>
+                        <Switch
+                          checked={form.watch('final_mask_settings') !== undefined && form.watch('final_mask_settings') !== null}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              form.setValue('final_mask_settings', {
+                                tcp: [],
+                                udp: [],
+                                quicParams: {}
+                              }, { shouldDirty: true, shouldTouch: true })
+                            } else {
+                              form.setValue('final_mask_settings', undefined, { shouldDirty: true, shouldTouch: true })
+                            }
+                          }}
+                        />
+                      </div>
+                      {form.watch('final_mask_settings') !== undefined && form.watch('final_mask_settings') !== null && (
+                        <FinalMaskSettings form={form} />
+                      )}
+                    </div>
+                  </div>
+                </TabsContent>
+                <TabsContent dir={dir} value="singbox">
+                  <div className="space-y-6">
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h4 className="flex items-center gap-2 text-sm font-medium">{t('hostsDialog.fragment.title')}</h4>
+                      </div>
+                      <div className="grid grid-cols-1 gap-4">
+                        <FormField
+                          control={form.control}
+                          name="fragment_settings.sing_box.fragment"
                           render={({ field }) => (
                             <FormItem className="flex cursor-pointer flex-row items-center justify-between space-y-0 rounded-lg border p-4" onClick={() => field.onChange(!field.value)}>
                               <div className="space-y-0.5">
-                                <FormLabel className="text-base">{t('hostsDialog.fragment.recordFragment')}</FormLabel>
+                                <FormLabel className="text-base">{t('hostsDialog.fragment.fragment')}</FormLabel>
                               </div>
                               <FormControl>
                                 <div onClick={e => e.stopPropagation()}>
@@ -476,12 +528,401 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                             </FormItem>
                           )}
                         />
-                      </>
-                    )}
+                        {form.watch('fragment_settings.sing_box.fragment') && (
+                          <>
+                            <FormField
+                              control={form.control}
+                              name="fragment_settings.sing_box.fragment_fallback_delay"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>{t('hostsDialog.fragment.fallbackDelay')}</FormLabel>
+                                  <FormControl>
+                                    <Input
+                                      placeholder="e.g. 100"
+                                      {...field}
+                                      value={field.value ? field.value.replace('ms', '') : ''}
+                                      onChange={e => {
+                                        const value = e.target.value
+                                        field.onChange(value)
+                                      }}
+                                      title="Enter a number (e.g., 100)"
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name="fragment_settings.sing_box.record_fragment"
+                              render={({ field }) => (
+                                <FormItem className="flex cursor-pointer flex-row items-center justify-between space-y-0 rounded-lg border p-4" onClick={() => field.onChange(!field.value)}>
+                                  <div className="space-y-0.5">
+                                    <FormLabel className="text-base">{t('hostsDialog.fragment.recordFragment')}</FormLabel>
+                                  </div>
+                                  <FormControl>
+                                    <div onClick={e => e.stopPropagation()}>
+                                      <Switch checked={field.value} onCheckedChange={field.onChange} />
+                                    </div>
+                                  </FormControl>
+                                </FormItem>
+                              )}
+                            />
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </TabsContent>
+              </>
+            )}
+
+            {isWireGuardInbound && (
+              <TabsContent dir={dir} value="amneziawg">
+                <div className="space-y-6">
+                  {/* Action Generator Buttons */}
+                  <div className="flex flex-wrap gap-2 pt-1 pb-3">
+                    <Button type="button" variant="outline" size="sm" onClick={setWgAmneziaDefaults}>
+                      {t('hostsDialog.amneziawg.setDefaults', { defaultValue: 'Set Defaults' })}
+                    </Button>
+                    <Button type="button" variant="outline" size="sm" onClick={setWgAmneziaQuicMimic}>
+                      {t('hostsDialog.amneziawg.quicMimic', { defaultValue: 'QUIC Mimic' })}
+                    </Button>
+                    <Button type="button" variant="outline" size="sm" onClick={setWgAmneziaDnsMimic}>
+                      {t('hostsDialog.amneziawg.dnsMimic', { defaultValue: 'DNS Mimic' })}
+                    </Button>
+                    <Button type="button" variant="outline" size="sm" onClick={setWgAmneziaSipMimic}>
+                      {t('hostsDialog.amneziawg.sipMimic', { defaultValue: 'SIP Mimic' })}
+                    </Button>
+                    <Button type="button" variant="ghost" size="sm" className="text-destructive hover:text-destructive hover:bg-destructive/10" onClick={clearWgAmnezia}>
+                      {t('hostsDialog.amneziawg.clear', { defaultValue: 'Clear' })}
+                    </Button>
+                  </div>
+
+                  {/* Group 1: Junk Packet Settings */}
+                  <div className="space-y-4">
+                    <h4 className="text-sm font-medium text-muted-foreground">
+                      {t('hostsDialog.amneziawg.junkPacketsTitle', { defaultValue: 'Junk Packet Settings' })}
+                    </h4>
+                    <div className="grid grid-cols-3 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="wireguard_amnezia.jc"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Jc (count)</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                placeholder="4"
+                                {...field}
+                                value={field.value ?? ''}
+                                onChange={e => field.onChange(e.target.value === '' ? '' : Number(e.target.value))}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="wireguard_amnezia.jmin"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Jmin (min size)</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                placeholder="40"
+                                {...field}
+                                value={field.value ?? ''}
+                                onChange={e => field.onChange(e.target.value === '' ? '' : Number(e.target.value))}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="wireguard_amnezia.jmax"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Jmax (max size)</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                placeholder="70"
+                                {...field}
+                                value={field.value ?? ''}
+                                onChange={e => field.onChange(e.target.value === '' ? '' : Number(e.target.value))}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Group 2: Obfuscation Sizes */}
+                  <div className="space-y-4 pt-2 border-t">
+                    <h4 className="text-sm font-medium text-muted-foreground">
+                      {t('hostsDialog.amneziawg.junkSizesTitle', { defaultValue: 'Junk Size Settings (S1 - S4)' })}
+                    </h4>
+                    <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+                      <FormField
+                        control={form.control}
+                        name="wireguard_amnezia.s1"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>S1 (init junk)</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                placeholder="0"
+                                {...field}
+                                value={field.value ?? ''}
+                                onChange={e => field.onChange(e.target.value === '' ? '' : Number(e.target.value))}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="wireguard_amnezia.s2"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>S2 (resp junk)</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                placeholder="0"
+                                {...field}
+                                value={field.value ?? ''}
+                                onChange={e => field.onChange(e.target.value === '' ? '' : Number(e.target.value))}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="wireguard_amnezia.s3"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>S3 (transport junk)</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                placeholder="0"
+                                {...field}
+                                value={field.value ?? ''}
+                                onChange={e => field.onChange(e.target.value === '' ? '' : Number(e.target.value))}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="wireguard_amnezia.s4"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>S4 (cookie junk)</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                placeholder="0"
+                                {...field}
+                                value={field.value ?? ''}
+                                onChange={e => field.onChange(e.target.value === '' ? '' : Number(e.target.value))}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Group 3: Magic Headers */}
+                  <div className="space-y-4 pt-2 border-t">
+                    <h4 className="text-sm font-medium text-muted-foreground">
+                      {t('hostsDialog.amneziawg.magicHeadersTitle', { defaultValue: 'Magic Header Settings (H1 - H4)' })}
+                    </h4>
+                    <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+                      <FormField
+                        control={form.control}
+                        name="wireguard_amnezia.h1"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>H1 (init magic)</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="1"
+                                {...field}
+                                value={field.value || ''}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="wireguard_amnezia.h2"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>H2 (resp magic)</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="2"
+                                {...field}
+                                value={field.value || ''}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="wireguard_amnezia.h3"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>H3 (underload magic)</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="3"
+                                {...field}
+                                value={field.value || ''}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="wireguard_amnezia.h4"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>H4 (transport magic)</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="4"
+                                {...field}
+                                value={field.value || ''}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Group 4: Mimic/Special Packets */}
+                  <div className="space-y-4 pt-2 border-t">
+                    <h4 className="text-sm font-medium text-muted-foreground">
+                      {t('hostsDialog.amneziawg.mimicPacketsTitle', { defaultValue: 'Mimic Packet Settings (I1 - I5)' })}
+                    </h4>
+                    <div className="space-y-3">
+                      <FormField
+                        control={form.control}
+                        name="wireguard_amnezia.i1"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>I1 (special junk packet 1)</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="e.g. <b 0x1A2B3C>"
+                                {...field}
+                                value={field.value || ''}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="wireguard_amnezia.i2"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>I2 (special junk packet 2)</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="e.g. <b 0x1A2B3C>"
+                                {...field}
+                                value={field.value || ''}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="wireguard_amnezia.i3"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>I3 (special junk packet 3)</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="e.g. <b 0x1A2B3C>"
+                                {...field}
+                                value={field.value || ''}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="wireguard_amnezia.i4"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>I4 (special junk packet 4)</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="e.g. <b 0x1A2B3C>"
+                                {...field}
+                                value={field.value || ''}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="wireguard_amnezia.i5"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>I5 (special junk packet 5)</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="e.g. <b 0x1A2B3C>"
+                                {...field}
+                                value={field.value || ''}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
                   </div>
                 </div>
-              </div>
-            </TabsContent>
+              </TabsContent>
+            )}
           </Tabs>
         </AccordionContent>
       </AccordionItem>

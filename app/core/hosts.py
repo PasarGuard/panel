@@ -116,6 +116,7 @@ async def _prepare_subscription_inbound_data(
             noise_settings=host.noise_settings.model_dump() if host.noise_settings else None,
             finalmask=final_mask_settings,
             finalmask_link=finalmask_link,
+            wireguard_amnezia=host.wireguard_amnezia.model_dump(exclude_none=True) if host.wireguard_amnezia else None,
             priority=host.priority,
             status=list(host.status) if host.status else None,
             subscription_templates=host.subscription_templates.model_dump(exclude_none=True)

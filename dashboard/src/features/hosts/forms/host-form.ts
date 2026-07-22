@@ -42,6 +42,25 @@ interface MuxSettings {
   clash?: ClashMuxSettings
 }
 
+interface AmneziaProperties {
+  jc?: number | ''
+  jmin?: number | ''
+  jmax?: number | ''
+  s1?: number | ''
+  s2?: number | ''
+  s3?: number | ''
+  s4?: number | ''
+  h1?: string
+  h2?: string
+  h3?: string
+  h4?: string
+  i1?: string
+  i2?: string
+  i3?: string
+  i4?: string
+  i5?: string
+}
+
 export interface HostFormValues {
   id?: number
   remark: string
@@ -163,6 +182,7 @@ export interface HostFormValues {
     }
   }
   final_mask_settings?: FinalMaskInput
+  wireguard_amnezia?: AmneziaProperties
 }
 
 const transportSettingsSchema = z
@@ -452,6 +472,26 @@ export const HostFormSchema = z.object({
     })
     .optional(),
   final_mask_settings: z.custom<FinalMaskInput>().optional(),
+  wireguard_amnezia: z
+    .object({
+      jc: z.number().optional().or(z.literal('')),
+      jmin: z.number().optional().or(z.literal('')),
+      jmax: z.number().optional().or(z.literal('')),
+      s1: z.number().optional().or(z.literal('')),
+      s2: z.number().optional().or(z.literal('')),
+      s3: z.number().optional().or(z.literal('')),
+      s4: z.number().optional().or(z.literal('')),
+      h1: z.string().optional(),
+      h2: z.string().optional(),
+      h3: z.string().optional(),
+      h4: z.string().optional(),
+      i1: z.string().optional(),
+      i2: z.string().optional(),
+      i3: z.string().optional(),
+      i4: z.string().optional(),
+      i5: z.string().optional(),
+    })
+    .optional(),
 })
 
 export const hostFormDefaultValues: HostFormValues = {
@@ -480,4 +520,5 @@ export const hostFormDefaultValues: HostFormValues = {
   fragment_settings: undefined,
   subscription_templates: undefined,
   final_mask_settings: undefined,
+  wireguard_amnezia: undefined,
 }

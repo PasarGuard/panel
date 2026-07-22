@@ -487,6 +487,52 @@ class SubscriptionTemplates(BaseModel):
         return v
 
 
+class AmneziaProperties(BaseModel):
+    """AmneziaWG properties for the host."""
+
+    jc: int | None = Field(default=None)
+    jmin: int | None = Field(default=None)
+    jmax: int | None = Field(default=None)
+    s1: int | None = Field(default=None)
+    s2: int | None = Field(default=None)
+    s3: int | None = Field(default=None)
+    s4: int | None = Field(default=None)
+    h1: str | None = Field(default=None)
+    h2: str | None = Field(default=None)
+    h3: str | None = Field(default=None)
+    h4: str | None = Field(default=None)
+    i1: str | None = Field(default=None)
+    i2: str | None = Field(default=None)
+    i3: str | None = Field(default=None)
+    i4: str | None = Field(default=None)
+    i5: str | None = Field(default=None)
+
+    @field_validator(
+        "jc",
+        "jmin",
+        "jmax",
+        "s1",
+        "s2",
+        "s3",
+        "s4",
+        "h1",
+        "h2",
+        "h3",
+        "h4",
+        "i1",
+        "i2",
+        "i3",
+        "i4",
+        "i5",
+        mode="before",
+    )
+    @classmethod
+    def empty_to_none(cls, v: Any) -> Any:
+        if v == "" or v is None:
+            return None
+        return v
+
+
 class BaseHost(BaseModel):
     id: int | None = Field(default=None)
     remark: str
@@ -518,6 +564,7 @@ class BaseHost(BaseModel):
     wireguard_overrides: WireGuardHostOverrides | None = None
     subscription_templates: SubscriptionTemplates | None = None
     final_mask_settings: FinalMask | None = None
+    wireguard_amnezia: AmneziaProperties | None = None
 
     model_config = ConfigDict(from_attributes=True)
 

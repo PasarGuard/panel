@@ -53,6 +53,30 @@ class WireGuardConfiguration(BaseSubscription):
             else:
                 config_data["Interface"]["DNS"] = ", ".join(dns_servers)
 
+        # Optional AmneziaWG settings under Interface
+        if inbound.wireguard_amnezia:
+            for key, val in inbound.wireguard_amnezia.items():
+                if val is not None:
+                    conf_key = {
+                        "jc": "Jc",
+                        "jmin": "Jmin",
+                        "jmax": "Jmax",
+                        "s1": "S1",
+                        "s2": "S2",
+                        "s3": "S3",
+                        "s4": "S4",
+                        "h1": "H1",
+                        "h2": "H2",
+                        "h3": "H3",
+                        "h4": "H4",
+                        "i1": "I1",
+                        "i2": "I2",
+                        "i3": "I3",
+                        "i4": "I4",
+                        "i5": "I5",
+                    }.get(key, key)
+                    config_data["Interface"][conf_key] = str(val)
+
         # Optional Peer settings
         if preshared_key := payload.get("presharedkey"):
             config_data["Peer"]["PresharedKey"] = preshared_key

@@ -395,6 +395,17 @@ class SingBoxConfiguration(BaseSubscription):
             "peers": [self._normalize_and_remove_none_values(peer)],
         }
 
+        if inbound.wireguard_amnezia:
+            for key, val in inbound.wireguard_amnezia.items():
+                if val is not None:
+                    if key in ("jc", "jmin", "jmax", "s1", "s2", "s3", "s4"):
+                        try:
+                            endpoint[key] = int(val)
+                        except (ValueError, TypeError):
+                            endpoint[key] = val
+                    else:
+                        endpoint[key] = val
+
         return self._normalize_and_remove_none_values(endpoint)
 
     def _build_outbound(

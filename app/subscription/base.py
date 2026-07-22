@@ -218,6 +218,10 @@ class BaseSubscription:
             payload["presharedkey"] = inbound.wireguard_pre_shared_key
         if inbound.finalmask_link:
             payload["fm"] = inbound.finalmask_link
+        if inbound.wireguard_amnezia:
+            for key, val in inbound.wireguard_amnezia.items():
+                if val is not None:
+                    payload[key] = val
 
         payload = self._normalize_and_remove_none_values(payload)
         uri_payload = dict(payload)

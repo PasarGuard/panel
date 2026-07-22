@@ -602,6 +602,18 @@ export type XHttpSettingsInputXPaddingBytes = string | null
 
 export type XHttpSettingsInputNoGrpcHeader = boolean | null
 
+export type XHttpModes = (typeof XHttpModes)[keyof typeof XHttpModes]
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const XHttpModes = {
+  auto: 'auto',
+  'packet-up': 'packet-up',
+  'stream-up': 'stream-up',
+  'stream-one': 'stream-one',
+} as const
+
+export type XHttpSettingsInputMode = XHttpModes | null
+
 export interface XHttpSettingsInput {
   mode?: XHttpSettingsInputMode
   no_grpc_header?: XHttpSettingsInputNoGrpcHeader
@@ -624,18 +636,6 @@ export interface XHttpSettingsInput {
   xmux?: XHttpSettingsInputXmux
   download_settings?: XHttpSettingsInputDownloadSettings
 }
-
-export type XHttpModes = (typeof XHttpModes)[keyof typeof XHttpModes]
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
-export const XHttpModes = {
-  auto: 'auto',
-  'packet-up': 'packet-up',
-  'stream-up': 'stream-up',
-  'stream-one': 'stream-one',
-} as const
-
-export type XHttpSettingsInputMode = XHttpModes | null
 
 export type WorkerHealthError = string | null
 
@@ -762,18 +762,6 @@ export type UsersPermissionsRevokeSubAnyOf = { [key: string]: PermissionScope | 
 
 export type UsersPermissionsRevokeSub = boolean | UsersPermissionsRevokeSubAnyOf | null
 
-export interface UsersPermissions {
-  create?: UsersPermissionsCreate
-  read?: UsersPermissionsRead
-  read_simple?: UsersPermissionsReadSimple
-  update?: UsersPermissionsUpdate
-  delete?: UsersPermissionsDelete
-  reset_usage?: UsersPermissionsResetUsage
-  revoke_sub?: UsersPermissionsRevokeSub
-  set_owner?: UsersPermissionsSetOwner
-  activate_next_plan?: UsersPermissionsActivateNextPlan
-}
-
 export type UsersPermissionsResetUsageAnyOf = { [key: string]: PermissionScope | number }
 
 export type UsersPermissionsResetUsage = boolean | UsersPermissionsResetUsageAnyOf | null
@@ -785,6 +773,18 @@ export type UsersPermissionsDelete = boolean | UsersPermissionsDeleteAnyOf | nul
 export type UsersPermissionsUpdateAnyOf = { [key: string]: PermissionScope | number }
 
 export type UsersPermissionsUpdate = boolean | UsersPermissionsUpdateAnyOf | null
+
+export interface UsersPermissions {
+  create?: UsersPermissionsCreate
+  read?: UsersPermissionsRead
+  read_simple?: UsersPermissionsReadSimple
+  update?: UsersPermissionsUpdate
+  delete?: UsersPermissionsDelete
+  reset_usage?: UsersPermissionsResetUsage
+  revoke_sub?: UsersPermissionsRevokeSub
+  set_owner?: UsersPermissionsSetOwner
+  activate_next_plan?: UsersPermissionsActivateNextPlan
+}
 
 export type UsersPermissionsReadSimpleAnyOf = { [key: string]: PermissionScope | number }
 
@@ -1154,6 +1154,13 @@ export interface UserModify {
   status?: UserModifyStatus
 }
 
+/**
+ * User IP lists for all nodes
+ */
+export interface UserIPListAll {
+  nodes: UserIPListAllNodes
+}
+
 export type UserIPListIps = { [key: string]: number }
 
 /**
@@ -1164,13 +1171,6 @@ export interface UserIPList {
 }
 
 export type UserIPListAllNodes = { [key: string]: UserIPList | null }
-
-/**
- * User IP lists for all nodes
- */
-export interface UserIPListAll {
-  nodes: UserIPListAllNodes
-}
 
 export type UserHWIDResponseDeviceModel = string | null
 
@@ -1239,23 +1239,14 @@ export interface UserCreate {
   status?: UserCreateStatus
 }
 
-export type UserCountMetricStatsListStats = { [key: string]: UserCountMetricStat[] }
-
 export type UserCountMetricStatsListPeriod = Period | null
-
-export interface UserCountMetricStatsList {
-  period?: UserCountMetricStatsListPeriod
-  start: string
-  end: string
-  metric: UserCountMetric
-  count_during_period?: number
-  stats: UserCountMetricStatsListStats
-}
 
 export interface UserCountMetricStat {
   count: number
   period_start: string
 }
+
+export type UserCountMetricStatsListStats = { [key: string]: UserCountMetricStat[] }
 
 export type UserCountMetric = (typeof UserCountMetric)[keyof typeof UserCountMetric]
 
@@ -1265,6 +1256,15 @@ export const UserCountMetric = {
   expired: 'expired',
   limited: 'limited',
 } as const
+
+export interface UserCountMetricStatsList {
+  period?: UserCountMetricStatsListPeriod
+  start: string
+  end: string
+  metric: UserCountMetric
+  count_during_period?: number
+  stats: UserCountMetricStatsListStats
+}
 
 export type UsageTable = (typeof UsageTable)[keyof typeof UsageTable]
 
@@ -1301,8 +1301,6 @@ export interface TransportSettingsOutput {
 }
 
 export type TransportSettingsInputWebsocketSettings = WebSocketSettings | null
-
-export type TransportSettingsInputTcpSettings = TcpSettings | null
 
 export type TransportSettingsInputKcpSettings = KCPSettings | null
 
@@ -1355,6 +1353,8 @@ export interface TcpSettings {
   request?: TcpSettingsRequest
   response?: TcpSettingsResponse
 }
+
+export type TransportSettingsInputTcpSettings = TcpSettings | null
 
 export interface SystemUsersStats {
   total_user: number
@@ -1901,19 +1901,6 @@ export type NotificationSettingsTelegramChatId = number | null
 
 export type NotificationSettingsTelegramApiToken = string | null
 
-export interface NotificationSettings {
-  notify_telegram?: boolean
-  notify_discord?: boolean
-  telegram_api_token?: NotificationSettingsTelegramApiToken
-  telegram_chat_id?: NotificationSettingsTelegramChatId
-  telegram_topic_id?: NotificationSettingsTelegramTopicId
-  discord_webhook_url?: NotificationSettingsDiscordWebhookUrl
-  channels?: NotificationChannels
-  proxy_url?: NotificationSettingsProxyUrl
-  /** */
-  max_retries: number
-}
-
 export interface NotificationEnable {
   admin?: AdminNotificationEnable
   admin_role?: BaseNotificationEnable
@@ -1941,6 +1928,19 @@ export interface NotificationChannels {
   user?: NotificationChannel
   user_template?: NotificationChannel
   api_key?: NotificationChannel
+}
+
+export interface NotificationSettings {
+  notify_telegram?: boolean
+  notify_discord?: boolean
+  telegram_api_token?: NotificationSettingsTelegramApiToken
+  telegram_chat_id?: NotificationSettingsTelegramChatId
+  telegram_topic_id?: NotificationSettingsTelegramTopicId
+  discord_webhook_url?: NotificationSettingsDiscordWebhookUrl
+  channels?: NotificationChannels
+  proxy_url?: NotificationSettingsProxyUrl
+  /** */
+  max_retries: number
 }
 
 export type NotificationChannelDiscordWebhookUrl = string | null
@@ -1997,18 +1997,6 @@ export type NodesPermissionsReconnectAnyOf = { [key: string]: PermissionScope | 
 
 export type NodesPermissionsReconnect = boolean | NodesPermissionsReconnectAnyOf | null
 
-export interface NodesPermissions {
-  create?: NodesPermissionsCreate
-  read?: NodesPermissionsRead
-  read_simple?: NodesPermissionsReadSimple
-  update?: NodesPermissionsUpdate
-  delete?: NodesPermissionsDelete
-  reconnect?: NodesPermissionsReconnect
-  update_core?: NodesPermissionsUpdateCore
-  logs?: NodesPermissionsLogs
-  stats?: NodesPermissionsStats
-}
-
 export type NodesPermissionsDeleteAnyOf = { [key: string]: PermissionScope | number }
 
 export type NodesPermissionsDelete = boolean | NodesPermissionsDeleteAnyOf | null
@@ -2029,6 +2017,20 @@ export type NodesPermissionsCreateAnyOf = { [key: string]: PermissionScope | num
 
 export type NodesPermissionsCreate = boolean | NodesPermissionsCreateAnyOf | null
 
+export interface NodesPermissions {
+  create?: NodesPermissionsCreate
+  read?: NodesPermissionsRead
+  read_simple?: NodesPermissionsReadSimple
+  update?: NodesPermissionsUpdate
+  delete?: NodesPermissionsDelete
+  reconnect?: NodesPermissionsReconnect
+  update_core?: NodesPermissionsUpdateCore
+  logs?: NodesPermissionsLogs
+  stats?: NodesPermissionsStats
+}
+
+export type NodeUsageStatsListStats = { [key: string]: NodeUsageStat[] }
+
 export type NodeUsageStatsListPeriod = Period | null
 
 export interface NodeUsageStatsList {
@@ -2043,8 +2045,6 @@ export interface NodeUsageStat {
   downlink: number
   period_start: string
 }
-
-export type NodeUsageStatsListStats = { [key: string]: NodeUsageStat[] }
 
 export type NodeStatus = (typeof NodeStatus)[keyof typeof NodeStatus]
 
@@ -2236,6 +2236,19 @@ export interface NodeGeoFilesUpdate {
 
 export type NodeCreateProxyUrl = string | null
 
+export interface NodeCoreUpdate {
+  /** @pattern ^(latest|v?\d+\.\d+\.\d+)$ */
+  core_version?: string
+}
+
+export type NodeConnectionType = (typeof NodeConnectionType)[keyof typeof NodeConnectionType]
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const NodeConnectionType = {
+  grpc: 'grpc',
+  rest: 'rest',
+} as const
+
 export interface NodeCreate {
   name: string
   address: string
@@ -2263,19 +2276,6 @@ export interface NodeCreate {
   internal_timeout?: number
   proxy_url?: NodeCreateProxyUrl
 }
-
-export interface NodeCoreUpdate {
-  /** @pattern ^(latest|v?\d+\.\d+\.\d+)$ */
-  core_version?: string
-}
-
-export type NodeConnectionType = (typeof NodeConnectionType)[keyof typeof NodeConnectionType]
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
-export const NodeConnectionType = {
-  grpc: 'grpc',
-  rest: 'rest',
-} as const
 
 export type NextPlanModelExpire = number | null
 
@@ -2381,18 +2381,24 @@ export type HwidsPermissionsDeleteAnyOf = { [key: string]: PermissionScope | num
 
 export type HwidsPermissionsDelete = boolean | HwidsPermissionsDeleteAnyOf | null
 
-export type HwidsPermissionsReadAnyOf = { [key: string]: PermissionScope | number }
-
-export type HwidsPermissionsRead = boolean | HwidsPermissionsReadAnyOf | null
-
 export interface HwidsPermissions {
   read?: HwidsPermissionsRead
   delete?: HwidsPermissionsDelete
 }
 
+export type HwidsPermissionsReadAnyOf = { [key: string]: PermissionScope | number }
+
+export type HwidsPermissionsRead = boolean | HwidsPermissionsReadAnyOf | null
+
 export type HostsPermissionsUpdateAnyOf = { [key: string]: PermissionScope | number }
 
 export type HostsPermissionsUpdate = boolean | HostsPermissionsUpdateAnyOf | null
+
+export interface HostsPermissions {
+  create?: HostsPermissionsCreate
+  read?: HostsPermissionsRead
+  update?: HostsPermissionsUpdate
+}
 
 export type HostsPermissionsReadAnyOf = { [key: string]: PermissionScope | number }
 
@@ -2401,12 +2407,6 @@ export type HostsPermissionsRead = boolean | HostsPermissionsReadAnyOf | null
 export type HostsPermissionsCreateAnyOf = { [key: string]: PermissionScope | number }
 
 export type HostsPermissionsCreate = boolean | HostsPermissionsCreateAnyOf | null
-
-export interface HostsPermissions {
-  create?: HostsPermissionsCreate
-  read?: HostsPermissionsRead
-  update?: HostsPermissionsUpdate
-}
 
 export interface HostNotificationEnable {
   create?: boolean
@@ -2612,22 +2612,13 @@ export const FinalMaskUdpType = {
   xicmp: 'xicmp',
 } as const
 
-export type FinalMaskUdpLayerSettingsAnyOf = { [key: string]: unknown }
-
-export type FinalMaskUdpLayerSettings =
-  | FinalMaskUdpHeaderCustomSettings
-  | FinalMaskPasswordSettings
-  | FinalMaskSudokuSettings
-  | FinalMaskDomainSettings
-  | FinalMaskXicmpSettings
-  | FinalMaskNoiseSettings
-  | FinalMaskUdpLayerSettingsAnyOf
-
 export interface FinalMaskUdpLayer {
   type: FinalMaskUdpType
   settings?: FinalMaskUdpLayerSettings
   [key: string]: unknown
 }
+
+export type FinalMaskUdpLayerSettingsAnyOf = { [key: string]: unknown }
 
 export type FinalMaskUdpHopInterval = string | number | null
 
@@ -2668,15 +2659,13 @@ export interface FinalMaskTcpLayerOutput {
   [key: string]: unknown
 }
 
-export type FinalMaskTcpLayerInputSettingsAnyOf = { [key: string]: unknown }
-
-export type FinalMaskTcpLayerInputSettings = FinalMaskTcpHeaderCustomSettings | XrayFragmentSettingsInput | FinalMaskSudokuSettings | FinalMaskTcpLayerInputSettingsAnyOf
-
 export interface FinalMaskTcpLayerInput {
   type: FinalMaskTcpType
   settings?: FinalMaskTcpLayerInputSettings
   [key: string]: unknown
 }
+
+export type FinalMaskTcpLayerInputSettingsAnyOf = { [key: string]: unknown }
 
 export type FinalMaskTcpHeaderCustomSettingsErrors = XrayNoiseSettings[][] | null
 
@@ -2690,6 +2679,8 @@ export interface FinalMaskTcpHeaderCustomSettings {
   errors?: FinalMaskTcpHeaderCustomSettingsErrors
   [key: string]: unknown
 }
+
+export type FinalMaskTcpLayerInputSettings = FinalMaskTcpHeaderCustomSettings | XrayFragmentSettingsInput | FinalMaskSudokuSettings | FinalMaskTcpLayerInputSettingsAnyOf
 
 export type FinalMaskSudokuSettingsPaddingMax = number | null
 
@@ -2712,6 +2703,15 @@ export interface FinalMaskSudokuSettings {
   paddingMax?: FinalMaskSudokuSettingsPaddingMax
   [key: string]: unknown
 }
+
+export type FinalMaskUdpLayerSettings =
+  | FinalMaskUdpHeaderCustomSettings
+  | FinalMaskPasswordSettings
+  | FinalMaskSudokuSettings
+  | FinalMaskDomainSettings
+  | FinalMaskXicmpSettings
+  | FinalMaskNoiseSettings
+  | FinalMaskUdpLayerSettingsAnyOf
 
 export type FinalMaskQuicParamsMaxIncomingStreams = number | null
 
@@ -2737,6 +2737,18 @@ export type FinalMaskQuicParamsBrutalUp = string | number | null
 
 export type FinalMaskQuicParamsDebug = boolean | null
 
+export type FinalMaskQuicCongestion = (typeof FinalMaskQuicCongestion)[keyof typeof FinalMaskQuicCongestion]
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const FinalMaskQuicCongestion = {
+  reno: 'reno',
+  bbr: 'bbr',
+  brutal: 'brutal',
+  'force-brutal': 'force-brutal',
+} as const
+
+export type FinalMaskQuicParamsCongestion = FinalMaskQuicCongestion | null
+
 export interface FinalMaskQuicParams {
   congestion?: FinalMaskQuicParamsCongestion
   debug?: FinalMaskQuicParamsDebug
@@ -2753,18 +2765,6 @@ export interface FinalMaskQuicParams {
   maxIncomingStreams?: FinalMaskQuicParamsMaxIncomingStreams
   [key: string]: unknown
 }
-
-export type FinalMaskQuicCongestion = (typeof FinalMaskQuicCongestion)[keyof typeof FinalMaskQuicCongestion]
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
-export const FinalMaskQuicCongestion = {
-  reno: 'reno',
-  bbr: 'bbr',
-  brutal: 'brutal',
-  'force-brutal': 'force-brutal',
-} as const
-
-export type FinalMaskQuicParamsCongestion = FinalMaskQuicCongestion | null
 
 export type FinalMaskPasswordSettingsPassword = string | null
 
@@ -2864,6 +2864,8 @@ export interface CreateUserFromTemplate {
   username: string
 }
 
+export type CreateHostWireguardAmnezia = AmneziaProperties | null
+
 export type CreateHostFinalMaskSettings = FinalMaskInput | null
 
 export type CreateHostSubscriptionTemplates = SubscriptionTemplates | null
@@ -2889,6 +2891,26 @@ export type CreateHostFragmentSettings = FragmentSettingsInput | null
 export type CreateHostMuxSettings = MuxSettingsInput | null
 
 export type CreateHostTransportSettings = TransportSettingsInput | null
+
+export type CreateHostHttpHeadersAnyOf = { [key: string]: string }
+
+export type CreateHostHttpHeaders = CreateHostHttpHeadersAnyOf | null
+
+export type CreateHostAllowinsecure = boolean | null
+
+export type CreateHostAlpn = ProxyHostALPN[] | null
+
+export type CreateHostPath = string | null
+
+export type CreateHostHost = string[] | null
+
+export type CreateHostSni = string[] | null
+
+export type CreateHostPort = number | null
+
+export type CreateHostInboundTag = string | null
+
+export type CreateHostId = number | null
 
 export interface CreateHost {
   id?: CreateHostId
@@ -2921,34 +2943,7 @@ export interface CreateHost {
   wireguard_overrides?: CreateHostWireguardOverrides
   subscription_templates?: CreateHostSubscriptionTemplates
   final_mask_settings?: CreateHostFinalMaskSettings
-}
-
-export type CreateHostHttpHeadersAnyOf = { [key: string]: string }
-
-export type CreateHostHttpHeaders = CreateHostHttpHeadersAnyOf | null
-
-export type CreateHostAllowinsecure = boolean | null
-
-export type CreateHostAlpn = ProxyHostALPN[] | null
-
-export type CreateHostPath = string | null
-
-export type CreateHostHost = string[] | null
-
-export type CreateHostSni = string[] | null
-
-export type CreateHostPort = number | null
-
-export type CreateHostInboundTag = string | null
-
-export type CreateHostId = number | null
-
-/**
- * Response model for lightweight core list.
- */
-export interface CoresSimpleResponse {
-  cores: CoreSimple[]
-  total: number
+  wireguard_amnezia?: CreateHostWireguardAmnezia
 }
 
 export type CoreType = (typeof CoreType)[keyof typeof CoreType]
@@ -2970,6 +2965,14 @@ export interface CoreSimple {
   id: number
   name: string
   type?: CoreSimpleType
+}
+
+/**
+ * Response model for lightweight core list.
+ */
+export interface CoresSimpleResponse {
+  cores: CoreSimple[]
+  total: number
 }
 
 export interface CoreResponseList {
@@ -3028,6 +3031,11 @@ export const ConfigFormat = {
   block: 'block',
 } as const
 
+export interface ClientTemplatesSimpleResponse {
+  templates: ClientTemplateSimple[]
+  total: number
+}
+
 export type ClientTemplateType = (typeof ClientTemplateType)[keyof typeof ClientTemplateType]
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
@@ -3044,11 +3052,6 @@ export interface ClientTemplateSimple {
   name: string
   template_type: ClientTemplateType
   is_default: boolean
-}
-
-export interface ClientTemplatesSimpleResponse {
-  templates: ClientTemplateSimple[]
-  total: number
 }
 
 export interface ClientTemplateResponse {
@@ -3117,6 +3120,10 @@ export type CRUDPermissionsReadSimpleAnyOf = { [key: string]: PermissionScope | 
 
 export type CRUDPermissionsReadSimple = boolean | CRUDPermissionsReadSimpleAnyOf | null
 
+export type CRUDPermissionsReadAnyOf = { [key: string]: PermissionScope | number }
+
+export type CRUDPermissionsRead = boolean | CRUDPermissionsReadAnyOf | null
+
 /**
  * Standard create/read/read_simple/update/delete permissions.
 Used directly by: groups, templates, client_templates, cores, admin_roles.
@@ -3129,10 +3136,6 @@ export interface CRUDPermissions {
   update?: CRUDPermissionsUpdate
   delete?: CRUDPermissionsDelete
 }
-
-export type CRUDPermissionsReadAnyOf = { [key: string]: PermissionScope | number }
-
-export type CRUDPermissionsRead = boolean | CRUDPermissionsReadAnyOf | null
 
 export type CRUDPermissionsCreateAnyOf = { [key: string]: PermissionScope | number }
 
@@ -3372,6 +3375,8 @@ export interface BaseNotificationEnable {
   delete?: boolean
 }
 
+export type BaseHostWireguardAmnezia = AmneziaProperties | null
+
 export type BaseHostFinalMaskSettings = FinalMaskOutput | null
 
 export type BaseHostSubscriptionTemplates = SubscriptionTemplates | null
@@ -3449,6 +3454,7 @@ export interface BaseHost {
   wireguard_overrides?: BaseHostWireguardOverrides
   subscription_templates?: BaseHostSubscriptionTemplates
   final_mask_settings?: BaseHostFinalMaskSettings
+  wireguard_amnezia?: BaseHostWireguardAmnezia
 }
 
 export type ApplicationDescription = { [key: string]: string }
@@ -3465,6 +3471,60 @@ export interface Application {
   show_when_hwid_enabled?: boolean
   platform: Platform
   download_links: DownloadLink[]
+}
+
+export type AmneziaPropertiesI5 = string | null
+
+export type AmneziaPropertiesI4 = string | null
+
+export type AmneziaPropertiesI3 = string | null
+
+export type AmneziaPropertiesI2 = string | null
+
+export type AmneziaPropertiesI1 = string | null
+
+export type AmneziaPropertiesH4 = string | null
+
+export type AmneziaPropertiesH3 = string | null
+
+export type AmneziaPropertiesH2 = string | null
+
+export type AmneziaPropertiesH1 = string | null
+
+export type AmneziaPropertiesS4 = number | null
+
+export type AmneziaPropertiesS3 = number | null
+
+export type AmneziaPropertiesS2 = number | null
+
+export type AmneziaPropertiesS1 = number | null
+
+export type AmneziaPropertiesJmax = number | null
+
+export type AmneziaPropertiesJmin = number | null
+
+export type AmneziaPropertiesJc = number | null
+
+/**
+ * AmneziaWG properties for the host.
+ */
+export interface AmneziaProperties {
+  jc?: AmneziaPropertiesJc
+  jmin?: AmneziaPropertiesJmin
+  jmax?: AmneziaPropertiesJmax
+  s1?: AmneziaPropertiesS1
+  s2?: AmneziaPropertiesS2
+  s3?: AmneziaPropertiesS3
+  s4?: AmneziaPropertiesS4
+  h1?: AmneziaPropertiesH1
+  h2?: AmneziaPropertiesH2
+  h3?: AmneziaPropertiesH3
+  h4?: AmneziaPropertiesH4
+  i1?: AmneziaPropertiesI1
+  i2?: AmneziaPropertiesI2
+  i3?: AmneziaPropertiesI3
+  i4?: AmneziaPropertiesI4
+  i5?: AmneziaPropertiesI5
 }
 
 /**

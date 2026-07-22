@@ -268,3 +268,64 @@ def create_simple_host(access_token: str, inbound_tag: str, *, remark: str, prio
     )
     assert response.status_code == status.HTTP_201_CREATED
     return response.json()["id"]
+
+
+def test_host_with_wireguard_amnezia(access_token):
+    core = create_core(access_token)
+    inbound_list = get_inbounds(access_token)
+    assert inbound_list, "No inbounds available for host updates"
+    inbound = inbound_list[0]
+    create_response = client.post(
+        "/api/host",
+        headers={"Authorization": f"Bearer {access_token}"},
+        json={
+            "remark": unique_name("test_host_wireguard_amnezia"),
+            "address": ["127.0.0.1"],
+            "port": 443,
+            "sni": ["test_sni.com"],
+            "inbound_tag": inbound,
+            "priority": 1,
+            "wireguard_amnezia": {
+                "jc": 4,
+                "jmin": 40,
+                "jmax": 70,
+                "s1": 0,
+                "h1": "1",
+                "i1": "some_mimic_data"
+            }
+        },
+    )
+    assert create_response.status_code == status.HTTP_201_CREATED
+    host_id = create_response.json()["id"]
+    assert create_response.json()["wireguard_amnezia"]["jc"] == 4
+    assert create_response.json()["wireguard_amnezia"]["jmin"] == 40
+    assert create_response.json()["wireguard_amnezia"]["h1"] == "1"
+    assert create_response.json()["wireguard_amnezia"]["i1"] == "some_mimic_data"
+    assert create_response.json()["wireguard_amnezia"]["s2"] is None
+
+    # test update
+    update_response = client.put(
+        f"/api/host/{host_id}",
+        headers={"Authorization": f"Bearer {access_token}"},
+        json={
+            "remark": unique_name("test_host_wireguard_amnezia_updated"),
+            "address": ["127.0.0.2"],
+            "port": 443,
+            "sni": ["test_sni_updated.com"],
+            "inbound_tag": inbound,
+            "priority": 2,
+            "wireguard_amnezia": {
+                "jc": 8,
+                "jmin": 50,
+                "h1": "2",
+            }
+        },
+    )
+    assert update_response.status_code == status.HTTP_200_OK
+    assert update_response.json()["wireguard_amnezia"]["jc"] == 8
+    assert update_response.json()["wireguard_amnezia"]["jmin"] == 50
+    assert update_response.json()["wireguard_amnezia"]["h1"] == "2"
+    assert update_response.json()["wireguard_amnezia"]["i1"] is None
+
+    client.delete(f"/api/host/{host_id}", headers={"Authorization": f"Bearer {access_token}"})
+    delete_core(access_token, core["id"])
