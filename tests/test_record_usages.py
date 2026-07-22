@@ -68,7 +68,7 @@ async def session_factory(monkeypatch: pytest.MonkeyPatch):
             if database_url.startswith("postgresql"):
                 table_names = ", ".join(f'"{table.name}"' for table in base.Base.metadata.sorted_tables)
                 if table_names:
-                    await conn.execute(text(f"TRUNCATE TABLE {table_names} CASCADE;"))
+                    await conn.execute(text(f"TRUNCATE TABLE {table_names} RESTART IDENTITY CASCADE;"))
             elif database_url.startswith("mysql"):
                 await conn.execute(text("SET FOREIGN_KEY_CHECKS = 0;"))
                 for table in base.Base.metadata.sorted_tables:
@@ -113,7 +113,7 @@ async def session_factory(monkeypatch: pytest.MonkeyPatch):
             if database_url.startswith("postgresql"):
                 table_names = ", ".join(f'"{table.name}"' for table in base.Base.metadata.sorted_tables)
                 if table_names:
-                    await conn.execute(text(f"TRUNCATE TABLE {table_names} CASCADE;"))
+                    await conn.execute(text(f"TRUNCATE TABLE {table_names} RESTART IDENTITY CASCADE;"))
             elif database_url.startswith("mysql"):
                 await conn.execute(text("SET FOREIGN_KEY_CHECKS = 0;"))
                 for table in base.Base.metadata.sorted_tables:
