@@ -102,14 +102,20 @@ async def create_tables():
 
 
 if TEST_FROM == "local":
-    if "test.db" in DATABASE_URL:
+    if IS_SQLITE:
+        from sqlalchemy.engine import make_url
         import os
-        for f in ["test.db", "test.db-shm", "test.db-wal"]:
-            if os.path.exists(f):
-                try:
-                    os.remove(f)
-                except Exception:
-                    pass
+        try:
+            db_path = make_url(DATABASE_URL).database
+            if db_path and db_path != ":memory:":
+                for f in [db_path, f"{db_path}-shm", f"{db_path}-wal"]:
+                    if os.path.exists(f):
+                        try:
+                            os.remove(f)
+                        except Exception:
+                            pass
+        except Exception:
+            pass
     run_migrations()
 
 
