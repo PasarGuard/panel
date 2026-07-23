@@ -34,6 +34,7 @@ type TabDef = { id: string; labelKey: string; icon: LucideIcon; url: string }
 const NODES_TABS: TabDef[] = [
   { id: 'nodes.title', labelKey: 'nodes.title', icon: Share2, url: '/nodes' },
   { id: 'core', labelKey: 'core', icon: Cpu, url: '/nodes/cores' },
+  { id: 'nodes.wireguard.title', labelKey: 'nodes.wireguard.title', icon: Network, url: '/nodes/wireguard' },
   { id: 'nodes.logs.title', labelKey: 'nodes.logs.title', icon: Logs, url: '/nodes/logs' },
 ]
 
@@ -55,7 +56,6 @@ const BULK_SUDO_TABS: TabDef[] = [
   { id: 'expire', labelKey: 'bulk.expireDate', icon: Calendar, url: '/bulk/expire' },
   { id: 'data', labelKey: 'bulk.dataLimit', icon: ArrowUpDown, url: '/bulk/data' },
   { id: 'proxy', labelKey: 'bulk.proxySettings', icon: Lock, url: '/bulk/proxy' },
-  { id: 'wireguard', labelKey: 'bulk.wireguardPeerIps', icon: Network, url: '/bulk/wireguard' },
 ]
 
 const BULK_NON_SUDO_TABS: TabDef[] = [{ id: 'create', labelKey: 'bulk.createUsers', icon: UserPlus, url: '/bulk' }]
@@ -67,6 +67,7 @@ const TEMPLATES_TABS: TabDef[] = [
 
 function nodesActiveTabId(pathname: string): string {
   if (pathname.startsWith('/nodes/cores')) return 'core'
+  if (pathname.startsWith('/nodes/wireguard')) return 'nodes.wireguard.title'
   if (pathname.startsWith('/nodes/logs')) return 'nodes.logs.title'
   return 'nodes.title'
 }
@@ -74,6 +75,9 @@ function nodesActiveTabId(pathname: string): string {
 function nodesHeader(pathname: string): { title: string; description: string } {
   if (pathname.startsWith('/nodes/cores')) {
     return { title: 'settings.cores.title', description: 'settings.cores.description' }
+  }
+  if (pathname.startsWith('/nodes/wireguard')) {
+    return { title: 'nodes.wireguard.title', description: 'nodes.wireguard.description' }
   }
   if (pathname.startsWith('/nodes/logs')) {
     return { title: 'nodes.logs.title', description: 'nodes.logs.description' }
@@ -102,7 +106,6 @@ function bulkHeader(pathname: string): { title: string; description: string } {
     '/bulk/expire': { title: 'bulk.expireDate', description: 'bulk.expireDateDesc' },
     '/bulk/data': { title: 'bulk.dataLimit', description: 'bulk.dataLimitDesc' },
     '/bulk/proxy': { title: 'bulk.proxySettings', description: 'bulk.proxySettingsDesc' },
-    '/bulk/wireguard': { title: 'bulk.wireguardPeerIps', description: 'bulk.wireguardPeerIpsDesc' },
   }
   return pathToHeader[pathname] ?? pathToHeader['/bulk']!
 }

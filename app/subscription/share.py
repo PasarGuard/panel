@@ -7,6 +7,7 @@ from datetime import datetime as dt, timedelta, timezone
 from jdatetime import date as jd
 
 from app.core.hosts import host_manager
+from app.db.crud.wireguard import pick_peer_ip_for_inbound
 from app.db.models import UserStatus
 from app.models.status_emojis import STATUS_EMOJIS
 from app.models.subscription import SubscriptionInboundData
@@ -14,8 +15,6 @@ from app.models.user import UsersResponseWithInbounds
 from app.settings import subscription_settings
 from app.subscription.client_templates import subscription_client_templates, subscription_xray_templates
 from app.utils.system import readable_size
-from config import wireguard_settings
-
 from . import (
     ClashConfiguration,
     ClashMetaConfiguration,
@@ -295,6 +294,10 @@ async def process_host(
     if user_id is not None:
         settings["_user_id"] = user_id
 
+    # Each WG interface only gets the user's peer IP from its own subnet.
+    if inbound.protocol == "wireguard":
+        settings["peer_ips"] = pick_peer_ip_for_inbound(inbound.wireguard_local_address, settings.get("peer_ips") or [])
+
     # Update format variables
     format_variables.update({"PROTOCOL": inbound.protocol})
     format_variables.update({"TRANSPORT": inbound.network})
@@ -436,9 +439,6 @@ async def process_inbounds_and_tags(
         return xray_template_overrides.get(template_id)
 
     for host_data in hosts:
-        if host_data.protocol == "wireguard" and not wireguard_settings.enabled:
-            continue
-
         result = await process_host(host_data, format_variables, user.inbounds, proxy_settings, custom_variables)
         if not result:
             continue

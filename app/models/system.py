@@ -43,3 +43,12 @@ class WorkerHealth(BaseModel):
 class WorkersHealth(BaseModel):
     scheduler: WorkerHealth
     node: WorkerHealth
+
+
+class WireGuardSubnetUsage(BaseModel):
+    subnet: str
+    interface_tags: list[str]
+    capacity: int
+    used: int
+    free: int
+    free_ips: list[str]

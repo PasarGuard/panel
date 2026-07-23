@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, Request, status
 
 from app.db import AsyncSession, get_db
 from app.models.admin import AdminDetails
@@ -19,7 +19,6 @@ from app.models.user import (
     BulkUsersApplyTemplate,
     BulkUsersSelection,
     BulkUsersSetOwner,
-    BulkWireGuardPeerIPs,
     CreateUserFromTemplate,
     ExpiredUsersQuery,
     ModifyUserByTemplate,
@@ -36,7 +35,6 @@ from app.models.user import (
     UsersUsageQuery,
     UserSubscriptionUpdateChart,
     UserSubscriptionUpdateList,
-    WireGuardPeerIPsReallocateResponse,
 )
 from app.operation import OperatorType
 from app.operation.node import NodeOperation
@@ -837,22 +835,3 @@ async def bulk_modify_users_proxy_settings(
     _: AdminDetails = Depends(require_scope_all("users", "update")),
 ):
     return await user_operator.bulk_modify_proxy_settings(db, bulk_model)
-
-
-@router.post(
-    "s/bulk/wireguard/reallocate-peer-ips",
-    response_model=WireGuardPeerIPsReallocateResponse,
-    summary="Bulk reallocate WireGuard peer IPs",
-    description="Same scoping as other bulk user actions (users, admins, group_ids, optional status filter). non-owner admins only affect their own users.",
-)
-async def bulk_reallocate_wireguard_peer_ips(
-    body: BulkWireGuardPeerIPs,
-    db: AsyncSession = Depends(get_db),
-    admin: AdminDetails = Depends(require_scope_all("users", "update")),
-):
-    if not body.dry_run and not body.confirm:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Set confirm=true to apply changes, or use dry_run=true to preview.",
-        )
-    return await user_operator.bulk_reallocate_wireguard_peer_ips(db, body, admin)

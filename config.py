@@ -88,9 +88,7 @@ class NatsSettings(EnvSettings):
     node_log_subject: str = Field(default="pasarguard.node.logs", validation_alias="NATS_NODE_LOG_SUBJECT")
     node_rpc_timeout: float = Field(default=30.0, validation_alias="NATS_NODE_RPC_TIMEOUT")
     scheduler_rpc_timeout: float = Field(default=5.0, validation_alias="NATS_SCHEDULER_RPC_TIMEOUT")
-    node_command_max_payload_bytes: int = Field(
-        default=900000, validation_alias="NATS_NODE_COMMAND_MAX_PAYLOAD_BYTES"
-    )
+    node_command_max_payload_bytes: int = Field(default=900000, validation_alias="NATS_NODE_COMMAND_MAX_PAYLOAD_BYTES")
     node_update_users_batch_size: int = Field(default=100, validation_alias="NATS_NODE_UPDATE_USERS_BATCH_SIZE")
     core_pubsub_channel: str = Field(default="core_hosts_updates", validation_alias="CORE_PUBSUB_CHANNEL")
     host_pubsub_channel: str = Field(default="host_manager_updates", validation_alias="HOST_PUBSUB_CHANNEL")
@@ -203,12 +201,6 @@ class FeatureSettings(EnvSettings):
     stop_nodes_on_shutdown: bool = Field(default=True, validation_alias="STOP_NODES_ON_SHUTDOWN")
 
 
-class WireGuardSettings(EnvSettings):
-    enabled: bool = Field(default=True, validation_alias="WIREGUARD_ENABLED")
-    global_pool: str = Field(default="10.0.0.0/8", validation_alias="WIREGUARD_GLOBAL_POOL")
-    reserved: str = Field(default="10.0.0.0/31", validation_alias="WIREGUARD_RESERVED")
-
-
 database_settings = DatabaseSettings()
 server_settings = ServerSettings()
 dashboard_settings = DashboardSettings()
@@ -224,7 +216,6 @@ auth_settings = AuthSettings()
 usage_settings = UsageSettings()
 job_settings = JobSettings()
 feature_settings = FeatureSettings()
-wireguard_settings = WireGuardSettings()
 
 if not database_settings.is_postgresql:
     usage_settings.enable_recording_nodes_stats = False

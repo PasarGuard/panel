@@ -16,7 +16,6 @@ from app.db.crud.bulk import (
     count_bulk_datalimit_targets,
     count_bulk_expire_targets,
     count_bulk_proxy_targets,
-    get_bulk_wireguard_peer_ip_users,
     reset_all_users_data_usage,
     update_users_datalimit,
     update_users_expire,
@@ -74,7 +73,6 @@ from app.models.user import (
     BulkUsersProxy,
     BulkUsersSelection,
     BulkUsersSetOwner,
-    BulkWireGuardPeerIPs,
     CreateUserFromTemplate,
     ExpiredUsersQuery,
     ModifyUserByTemplate,
@@ -95,7 +93,6 @@ from app.models.user import (
     UserSubscriptionUpdateList,
     UsersUsageQuery,
     UserUsageQuery,
-    WireGuardPeerIPsReallocateResponse,
 )
 from app.node.sync import remove_user as sync_remove_user, sync_user, sync_users
 from app.operation import BaseOperation, OperatorType
@@ -113,16 +110,8 @@ from app.utils.hwid import resolve_effective_hwid_settings
 from app.utils.jwt import create_subscription_token
 from app.utils.logger import get_logger
 from app.utils.system import readable_duration, readable_size
-from app.utils.wireguard import (
-    build_wireguard_peer_ip_allocator,
-    bulk_reallocate_wireguard_peer_ips as run_bulk_reallocate_wireguard_peer_ips,
-    ensure_unique_wireguard_public_key,
-    get_wireguard_tags_from_groups,
-    prepare_wireguard_keys_only,
-    prepare_wireguard_proxy_settings,
-    prepare_wireguard_proxy_settings_with_allocator,
-)
-from config import subscription_env_settings, usage_settings, wireguard_settings
+from app.utils.wireguard import ensure_unique_wireguard_public_key, prepare_wireguard_keys
+from config import subscription_env_settings, usage_settings
 
 
 def _has_permission(admin: AdminDetails, resource: str, action: str) -> bool:
@@ -379,26 +368,14 @@ class UserOperation(BaseOperation):
                     next_plan=user_to_create.next_plan,
                 )
 
-        wireguard_tags = await get_wireguard_tags_from_groups(groups)
-        use_shared_allocator = bool(wireguard_tags) and wireguard_settings.enabled
-
-        if use_shared_allocator:
-            allocator = await build_wireguard_peer_ip_allocator(db)
-            for user_to_create in users_to_create:
-                try:
-                    user_to_create.proxy_settings = prepare_wireguard_proxy_settings_with_allocator(
-                        user_to_create.proxy_settings,
-                        allocator,
-                    )
-                except ValueError as exc:
-                    await self.raise_error(message=str(exc), code=400, db=db)
-        else:
-            for user_to_create in users_to_create:
-                user_to_create.proxy_settings = await self._prepare_user_proxy_settings(
-                    db,
-                    groups,
-                    user_to_create.proxy_settings,
-                )
+        for user_to_create in users_to_create:
+            # peer IPs are never taken from input; the subnet pool assigns them at creation
+            user_to_create.proxy_settings.wireguard.peer_ips = []
+            user_to_create.proxy_settings = await self._prepare_user_proxy_settings(
+                db,
+                groups,
+                user_to_create.proxy_settings,
+            )
 
         duplicate_key = _duplicate_wireguard_public_key_usernames(users_to_create)
         if duplicate_key is not None:
@@ -416,7 +393,10 @@ class UserOperation(BaseOperation):
             except ValueError as exc:
                 await self.raise_error(message=str(exc), code=400, db=db)
 
-        db_users = await create_users_bulk(db, users_to_create, groups, db_admin, commit=commit)
+        try:
+            db_users = await create_users_bulk(db, users_to_create, groups, db_admin, commit=commit)
+        except ValueError as exc:  # WireGuard subnet exhausted
+            await self.raise_error(message=str(exc), code=400, db=db)
         if not commit:
             for user in db_users:
                 await load_user_attrs(user, load_admin_role=True)
@@ -451,23 +431,14 @@ class UserOperation(BaseOperation):
         proxy_settings: ProxyTable,
         *,
         exclude_user_id: int | None = None,
-        skip_peer_ip_validation: bool = False,
     ) -> ProxyTable:
         try:
-            if skip_peer_ip_validation:
-                return await prepare_wireguard_keys_only(
-                    db,
-                    proxy_settings,
-                    groups,
-                    exclude_user_id=exclude_user_id,
-                )
-            else:
-                return await prepare_wireguard_proxy_settings(
-                    db,
-                    proxy_settings,
-                    groups,
-                    exclude_user_id=exclude_user_id,
-                )
+            return await prepare_wireguard_keys(
+                db,
+                proxy_settings,
+                groups,
+                exclude_user_id=exclude_user_id,
+            )
         except ValueError as exc:
             await self.raise_error(message=str(exc), code=400, db=db)
 
@@ -481,7 +452,6 @@ class UserOperation(BaseOperation):
             groups,
             ProxyTable.model_validate(build_revoked_proxy_settings(db_user)),
             exclude_user_id=db_user.id,
-            skip_peer_ip_validation=True,
         )
 
     async def _get_validated_template_with_access(
@@ -702,12 +672,16 @@ class UserOperation(BaseOperation):
 
         all_groups = await self.validate_all_groups(db, new_user)
         db_admin = await get_admin(db, admin.username, load_users=False, load_usage_logs=False)
+        # peer IPs are never taken from input; the subnet pool assigns them at creation
+        new_user.proxy_settings.wireguard.peer_ips = []
         new_user.proxy_settings = await self._prepare_user_proxy_settings(db, all_groups, new_user.proxy_settings)
 
         try:
             db_user = await create_user(db, new_user, all_groups, db_admin)
         except IntegrityError:
             await self.raise_error(message="User already exists", code=409, db=db)
+        except ValueError as exc:  # WireGuard subnet exhausted
+            await self.raise_error(message=str(exc), code=400, db=db)
 
         user = await self.update_user(db_user)
 
@@ -813,7 +787,7 @@ class UserOperation(BaseOperation):
                     )
 
         validated_groups = None
-        if modified_user.group_ids:
+        if modified_user.group_ids is not None:
             validated_groups = await self.validate_all_groups(db, modified_user)
 
         if modified_user.next_plan is not None and modified_user.next_plan.user_template_id is not None:
@@ -828,16 +802,14 @@ class UserOperation(BaseOperation):
             else ProxyTable.model_validate(current_proxy_settings_data)
         )
 
-        old_peer_ips = set(current_proxy_settings.wireguard.peer_ips or [])
-        new_peer_ips = set(proxy_settings_to_prepare.wireguard.peer_ips or [])
-        peer_ips_changed = old_peer_ips != new_peer_ips
+        # peer IPs are pool-managed: whatever the client sent, keep the stored allocation
+        proxy_settings_to_prepare.wireguard.peer_ips = list(current_proxy_settings.wireguard.peer_ips or [])
 
         prepared_proxy_settings = await self._prepare_user_proxy_settings(
             db,
             effective_groups,
             proxy_settings_to_prepare,
             exclude_user_id=db_user.id,
-            skip_peer_ip_validation=not peer_ips_changed,
         )
         if modified_user.proxy_settings is not None or prepared_proxy_settings.dict() != current_proxy_settings_data:
             modified_user.proxy_settings = prepared_proxy_settings
@@ -856,7 +828,10 @@ class UserOperation(BaseOperation):
         old_status = db_user.status
 
         self._apply_explicit_null_hwid_limit(db_user, modified_user)
-        db_user = await crud_modify_user(db, db_user, modified_user, groups=validated_groups)
+        try:
+            db_user = await crud_modify_user(db, db_user, modified_user, groups=validated_groups)
+        except ValueError as exc:  # WireGuard subnet exhausted
+            await self.raise_error(message=str(exc), code=400, db=db)
         user = await self.update_user(db_user)
 
         logger.info(f'User "{user.username}" with id "{db_user.id}" modified by admin "{admin.username}"')
@@ -1943,23 +1918,6 @@ class UserOperation(BaseOperation):
         if self.operator_type in (OperatorType.API, OperatorType.WEB):
             return {"detail": f"operation has been successfuly done on {users_count} users"}
         return users_count
-
-    async def bulk_reallocate_wireguard_peer_ips(
-        self, db: AsyncSession, body: BulkWireGuardPeerIPs, admin: AdminDetails
-    ) -> WireGuardPeerIPsReallocateResponse:
-        users = await get_bulk_wireguard_peer_ip_users(
-            db,
-            body,
-            admin_id=get_scope_admin_id(admin, "users", "update"),
-        )
-
-        out = await run_bulk_reallocate_wireguard_peer_ips(
-            db,
-            users,
-            dry_run=body.dry_run,
-            replace_all=body.replace_all,
-        )
-        return WireGuardPeerIPsReallocateResponse(**out)
 
     async def _get_users_sub_update_list(
         self, db: AsyncSession, db_user: User, offset: int = 0, limit: int = 10
