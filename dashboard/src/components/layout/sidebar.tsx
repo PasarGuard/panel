@@ -94,6 +94,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             icon: Cpu,
             matchPrefix: true,
           },
+          {
+            title: 'nodes.wireguard.title',
+            url: '/nodes/wireguard',
+            icon: Network,
+          },
         ]
       : []),
     ...(canReadNodeLogs
@@ -315,11 +320,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                         title: 'bulk.proxySettings',
                         url: '/bulk/proxy',
                         icon: Lock,
-                      },
-                      {
-                        title: 'bulk.wireguardPeerIps',
-                        url: '/bulk/wireguard',
-                        icon: Network,
                       },
                     ]
                   : []),

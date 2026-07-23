@@ -29,6 +29,7 @@ import { remapIndexAfterArrayMove } from '@/features/core-editor/kit/remap-index
 import { isPlaceholderTunnelRewriteAddress, normalizeTunnelNetworkForKit } from '@/features/core-editor/kit/sanitize-inbound'
 import { inferParityFieldMode, outboundSettingToString, parseOutboundSettingValue, stringifyJsonFormRecord } from '@/features/core-editor/kit/xray-parity-value'
 import { useCoreEditorStore } from '@/features/core-editor/state/core-editor-store'
+import { RealityScanDialog } from '@/features/core-editor/components/xray/reality-scan-dialog'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { cn } from '@/lib/utils'
 import {
@@ -939,6 +940,8 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
   const [isGeneratingRealityKeyPair, setIsGeneratingRealityKeyPair] = useState(false)
   const [isGeneratingRealityShortId, setIsGeneratingRealityShortId] = useState(false)
   const [isGeneratingMldsa65, setIsGeneratingMldsa65] = useState(false)
+  const [isRealityScanOpen, setIsRealityScanOpen] = useState(false)
+  const [realityScanTarget, setRealityScanTarget] = useState('')
   const [echUsageOption, setEchUsageOption] = useState<'default' | 'required' | 'preferred'>('default')
   const [draftInbound, setDraftInbound] = useState<Inbound | null>(null)
   const [editOriginalInbound, setEditOriginalInbound] = useState<Inbound | null>(null)
@@ -4152,6 +4155,23 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                                   </LoaderButton>
                                 </div>
                               )}
+                              {isReality && jsonKey === 'target' && (
+                                <div className="sm:col-span-2">
+                                  <LoaderButton
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => {
+                                      const destValue = form.getValues(securityFieldName('target'))
+                                      setRealityScanTarget(typeof destValue === 'string' ? destValue : '')
+                                      setIsRealityScanOpen(true)
+                                    }}
+                                    className="h-10 w-full text-sm font-medium transition-all hover:shadow-md sm:h-11"
+                                    isLoading={false}
+                                  >
+                                    <span className="flex items-center gap-2 truncate">{t('coreConfigModal.scanRealityTarget', { defaultValue: 'Scan target' })}</span>
+                                  </LoaderButton>
+                                </div>
+                              )}
                             </Fragment>
                           )
                         })}
@@ -5458,6 +5478,10 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
           toast.success(t('coreConfigModal.vlessEncryptionGenerated'))
         }}
       />
+
+
+
+      <RealityScanDialog open={isRealityScanOpen} onOpenChange={setIsRealityScanOpen} initialTarget={realityScanTarget} />
 
       <AlertDialog open={blockAddWhileDraftOpen} onOpenChange={setBlockAddWhileDraftOpen}>
         <AlertDialogContent dir={dir}>

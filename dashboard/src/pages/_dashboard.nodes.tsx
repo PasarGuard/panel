@@ -3,7 +3,7 @@ import PageTransition from '@/components/layout/page-transition'
 import { useAdmin } from '@/hooks/use-admin'
 import { getDocsUrl } from '@/utils/docs-url'
 import { hasPermission } from '@/utils/rbac'
-import { Cpu, LucideIcon, Share2, Plus, Logs } from 'lucide-react'
+import { Cpu, LucideIcon, Share2, Plus, Logs, Network } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Outlet, useLocation, useNavigate } from 'react-router'
@@ -18,6 +18,7 @@ interface Tab {
 const tabs: Tab[] = [
   { id: 'nodes.title', label: 'nodes.title', icon: Share2, url: '/nodes' },
   { id: 'core', label: 'core', icon: Cpu, url: '/nodes/cores' },
+  { id: 'nodes.wireguard.title', label: 'nodes.wireguard.title', icon: Network, url: '/nodes/wireguard' },
   { id: 'nodes.logs.title', label: 'nodes.logs.title', icon: Logs, url: '/nodes/logs' },
 ]
 
@@ -34,6 +35,7 @@ const Settings = () => {
   const visibleTabs = tabs.filter(tab => {
     if (tab.url === '/nodes') return canReadNodes
     if (tab.url === '/nodes/cores') return canReadCores
+    if (tab.url === '/nodes/wireguard') return canReadCores
     if (tab.url === '/nodes/logs') return canReadNodeLogs
     return false
   })
@@ -71,6 +73,15 @@ const Settings = () => {
               navigate('/nodes/cores/new')
             }
           : undefined,
+      }
+    }
+    if (location.pathname === '/nodes/wireguard') {
+      return {
+        title: 'nodes.wireguard.title',
+        description: 'nodes.wireguard.description',
+        buttonIcon: undefined,
+        buttonText: undefined,
+        onButtonClick: undefined,
       }
     }
     if (location.pathname === '/nodes/logs') {

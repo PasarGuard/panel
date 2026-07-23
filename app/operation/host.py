@@ -95,7 +95,13 @@ class HostOperation(BaseOperation):
         host = BaseHost.model_validate(db_host)
         asyncio.create_task(notification.modify_host(host, admin.username))
 
-        await host_manager.add_host(db, db_host)
+        db_hosts = await get_hosts(db=db)
+        dependents = [
+            h
+            for h in db_hosts
+            if ((h.transport_settings or {}).get("xhttp_settings") or {}).get("download_settings") == host_id
+        ]
+        await host_manager.add_hosts(db, [db_host, *dependents])
 
         return host
 

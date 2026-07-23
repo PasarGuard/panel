@@ -837,6 +837,21 @@ class CoreConfig(Base, CreatedAtUTCMixin):
     fallbacks_inbound_tags: Mapped[Optional[set[str]]] = mapped_column(StringArray(2048), default_factory=set)
 
 
+class WireGuardSubnet(Base, IdMixin):
+    """Allocation state of one WireGuard client subnet: a free-list plus a high-water offset.
+
+    One row per exact client network (identical CIDRs across cores share the row). Allocating
+    pops the free-list or takes next_offset; releasing pushes the offset back. Users' assigned
+    IPs stay in their proxy_settings; this row only guarantees no offset is handed out twice.
+    Resizing changes the network key — reconcile rebuilds the row and keeps peer IPs that still fit.
+    """
+
+    __tablename__ = "wireguard_subnets"
+    network: Mapped[str] = mapped_column(String(64), unique=True)  # canonical CIDR, e.g. 10.0.0.0/24 or fd00::/64
+    next_offset: Mapped[int] = mapped_column(SqliteCompatibleBigInteger, default=1)
+    free_offsets: Mapped[list] = mapped_column(JSON(True), default_factory=list)
+
+
 class ClientTemplate(Base):
     __tablename__ = "client_templates"
     __table_args__ = (

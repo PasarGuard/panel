@@ -68,12 +68,12 @@ check-bun: check-nodejs
 # Install frontend dependencies (Node.js packages)
 .PHONY: install-front
 install-front: check-bun
-	@cd dashboard && bun install 
+	@cd dashboard && bun install
 
 # Run database migrations using Alembic
 .PHONY: run-migration
 run-migration:
-	@uv run alembic upgrade head 
+	@uv run alembic upgrade head
 
 .PHONY: check-migrations
 check-migrations:

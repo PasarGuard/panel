@@ -8,11 +8,13 @@ from fastapi.responses import JSONResponse
 from app.db import AsyncSession, get_db
 from app.models.admin import AdminDetails
 from app.models.settings import Telegram
+from app.db.crud.wireguard import get_subnet_usage
 from app.models.system import (
     InboundSummary,
     SystemResourceStats,
     SystemStats,
     SystemUsersStats,
+    WireGuardSubnetUsage,
     WorkerHealth,
     WorkersHealth,
 )
@@ -76,6 +78,15 @@ async def get_inbounds(_: AdminDetails = Depends(require_permission("system", "r
 async def get_inbound_details(_: AdminDetails = Depends(require_permission("system", "read"))):
     """Retrieve lightweight inbound metadata for dashboard forms."""
     return await system_operator.get_inbound_details()
+
+
+@router.get("/wireguard/subnets", response_model=list[WireGuardSubnetUsage])
+async def get_wireguard_subnets(
+    db: AsyncSession = Depends(get_db),
+    _: AdminDetails = Depends(require_permission("cores", "read")),
+):
+    """Per-subnet WireGuard address usage: capacity, used/free counts and the first free IPs."""
+    return await get_subnet_usage(db)
 
 
 async def _measure_worker_health(request_coro) -> WorkerHealth:
