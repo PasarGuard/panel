@@ -328,8 +328,14 @@ class XRayConfig(dict):
         settings["x_padding_placement"] = get_xhttp_value("xPaddingPlacement")
         settings["x_padding_method"] = get_xhttp_value("xPaddingMethod")
         settings["uplink_http_method"] = get_xhttp_value("uplinkHTTPMethod")
-        settings["session_placement"] = get_xhttp_value("sessionPlacement")
-        settings["session_key"] = get_xhttp_value("sessionKey")
+        session_id_placement = get_xhttp_value("sessionIDPlacement")
+        settings["session_placement"] = (
+            session_id_placement if session_id_placement else get_xhttp_value("sessionPlacement")
+        )
+        session_id_key = get_xhttp_value("sessionIDKey")
+        settings["session_key"] = session_id_key if session_id_key else get_xhttp_value("sessionKey")
+        settings["session_id_table"] = get_xhttp_value("sessionIDTable")
+        settings["session_id_length"] = get_xhttp_value("sessionIDLength")
         settings["seq_placement"] = get_xhttp_value("seqPlacement")
         settings["seq_key"] = get_xhttp_value("seqKey")
         settings["uplink_data_placement"] = get_xhttp_value("uplinkDataPlacement")
@@ -439,7 +445,8 @@ class XRayConfig(dict):
             self._handle_shadowsocks_settings(inbound["settings"], settings)
 
         if stream := inbound.get("streamSettings"):
-            net = stream.get("network", "tcp")
+            method = stream.get("method")
+            net = method if method else stream.get("network", "tcp")
             net_settings = stream.get(f"{net}Settings", {})
             security = stream.get("security")
             tls_settings = stream.get(f"{security}Settings")

@@ -267,6 +267,16 @@ async def _prepare_subscription_inbound_data(
                 else inbound_config.get("session_placement")
             ),
             session_key=xs.session_key if xs and xs.session_key is not None else inbound_config.get("session_key"),
+            session_id_table=(
+                xs.session_id_table
+                if xs and xs.session_id_table is not None
+                else inbound_config.get("session_id_table")
+            ),
+            session_id_length=(
+                xs.session_id_length
+                if xs and xs.session_id_length is not None
+                else inbound_config.get("session_id_length")
+            ),
             seq_placement=(
                 xs.seq_placement if xs and xs.seq_placement is not None else inbound_config.get("seq_placement")
             ),
