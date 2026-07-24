@@ -1,6 +1,6 @@
 import asyncio
 import json
-from typing import Awaitable, Callable
+from collections.abc import Awaitable, Callable
 
 import nats
 
@@ -56,15 +56,15 @@ class NatsMessageRouter:
                 if handler:
                     try:
                         await handler(message.data)
-                    except Exception as exc:
-                        logger.error(f"Handler error for topic {message.topic.value}: {exc}", exc_info=True)
+                    except Exception:
+                        logger.exception(f"Handler error for topic {message.topic.value}")
                 else:
                     logger.warning(f"No handler registered for topic: {message.topic.value}")
 
         except asyncio.CancelledError:
             raise
-        except Exception as exc:
-            logger.error(f"NATS router listener stopped: {exc}", exc_info=True)
+        except Exception:
+            logger.exception("NATS router listener stopped")
         finally:
             self._running = False
             logger.info("NATS message router stopped")
@@ -89,7 +89,7 @@ class NatsMessageRouter:
             self._listener_task.cancel()
             try:
                 await asyncio.wait_for(self._listener_task, timeout=2.0)
-            except asyncio.CancelledError, asyncio.TimeoutError:
+            except TimeoutError, asyncio.CancelledError:
                 pass
 
         if self._nc:

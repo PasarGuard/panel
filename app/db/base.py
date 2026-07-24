@@ -1,6 +1,6 @@
+from sqlalchemy import MetaData
 from sqlalchemy.ext.asyncio import AsyncAttrs, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, MappedAsDataclass
-from sqlalchemy import MetaData
 
 from config import database_settings
 

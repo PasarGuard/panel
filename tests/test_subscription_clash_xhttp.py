@@ -3,7 +3,6 @@ from app.models.host import XHttpSettings, XMuxSettings
 from app.models.subscription import SubscriptionInboundData, TLSConfig, XHTTPTransportConfig
 from app.subscription.clash import ClashConfiguration, ClashMetaConfiguration
 
-
 USER_ID = "11111111-1111-1111-1111-111111111111"
 
 

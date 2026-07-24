@@ -52,6 +52,17 @@ fix = true
 
 [tool.ruff.lint]
 fixable = ["ALL"]
+# Intentional resilience / no-op catch patterns across the codebase.
+ignore = ["BLE001", "S110"]
+
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI dependency injection is the standard Depends()/factory pattern.
+extend-immutable-calls = [
+    "fastapi.Depends",
+    "fastapi.params.Depends",
+    "app.routers.authentication.require_permission",
+    "app.routers.authentication.require_scope_all",
+]
 
 [tool.ruff.lint.isort]
 combine-as-imports = true

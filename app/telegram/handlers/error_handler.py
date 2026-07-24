@@ -1,8 +1,8 @@
-from aiogram import Router, F
+from aiogram import F, Router
+from aiogram.exceptions import TelegramAPIError
 from aiogram.filters import ExceptionTypeFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.types import ErrorEvent
-from aiogram.exceptions import TelegramAPIError
 from pydantic import ValidationError
 
 from app.utils.helpers import format_validation_error

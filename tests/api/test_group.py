@@ -3,7 +3,7 @@ import random
 from fastapi import status
 
 from tests.api import client
-from tests.api.helpers import create_core, delete_core, create_group, delete_group, get_inbounds, unique_name
+from tests.api.helpers import create_core, create_group, delete_core, delete_group, get_inbounds, unique_name
 
 
 def test_group_create(access_token):

@@ -2,7 +2,7 @@ import base64
 import random
 import secrets
 from collections import defaultdict
-from datetime import datetime as dt, timedelta, timezone
+from datetime import UTC, datetime as dt, timedelta
 
 from jdatetime import date as jd
 
@@ -15,6 +15,7 @@ from app.models.user import UsersResponseWithInbounds
 from app.settings import subscription_settings
 from app.subscription.client_templates import subscription_client_templates, subscription_xray_templates
 from app.utils.system import readable_size
+
 from . import (
     ClashConfiguration,
     ClashMetaConfiguration,
@@ -188,7 +189,7 @@ def setup_format_variables(user: UsersResponseWithInbounds, custom_variables: li
     user_status = user.status
     expire = user.expire
     on_hold_expire_duration = user.on_hold_expire_duration
-    now = dt.now(timezone.utc)
+    now = dt.now(UTC)
 
     admin_username = ""
     if admin_data := user.admin:
@@ -231,8 +232,7 @@ def setup_format_variables(user: UsersResponseWithInbounds, custom_variables: li
         data_left = user.data_limit - user.used_traffic
         usage_Percentage = round((user.used_traffic / user.data_limit) * 100.0, 2)
 
-        if data_left < 0:
-            data_left = 0
+        data_left = max(data_left, 0)
         data_left = readable_size(data_left)
     else:
         data_limit = "∞"

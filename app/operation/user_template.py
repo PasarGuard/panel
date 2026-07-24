@@ -1,9 +1,9 @@
-from sqlalchemy.exc import IntegrityError
-
-from app.db import AsyncSession
 import asyncio
 
-from app.db.models import Admin, UserTemplate
+from sqlalchemy.exc import IntegrityError
+
+from app import notification
+from app.db import AsyncSession
 from app.db.crud.user_template import (
     create_user_template,
     get_user_templates,
@@ -13,8 +13,7 @@ from app.db.crud.user_template import (
     remove_user_template,
     remove_user_templates,
 )
-from app.operation import BaseOperation
-from app.operation.permissions import apply_template_access
+from app.db.models import Admin, UserTemplate
 from app.models.user_template import (
     BulkUserTemplatesActionResponse,
     BulkUserTemplateSelection,
@@ -23,12 +22,13 @@ from app.models.user_template import (
     UserTemplateListQuery,
     UserTemplateModify,
     UserTemplateResponse,
-    UserTemplateSimpleListQuery,
     UserTemplateSimple,
+    UserTemplateSimpleListQuery,
     UserTemplatesSimpleResponse,
 )
+from app.operation import BaseOperation
+from app.operation.permissions import apply_template_access
 from app.utils.logger import get_logger
-from app import notification
 
 logger = get_logger("user-template-operation")
 

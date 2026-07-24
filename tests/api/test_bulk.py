@@ -1,13 +1,12 @@
 import asyncio
-from datetime import datetime as dt, timedelta as td, timezone as tz
+from datetime import UTC, datetime as dt, timedelta as td
 
 from fastapi import status
 from sqlalchemy import select
 
 from app.db.models import User
 from app.utils.crypto import generate_wireguard_keypair, get_wireguard_public_key
-from tests.api import TestSession
-from tests.api import client
+from tests.api import TestSession, client
 from tests.api.helpers import (
     create_admin,
     create_core,
@@ -277,7 +276,7 @@ def test_bulk_expire_with_range(access_token):
     # User 1: expired 2 days ago
     # User 2: expired 10 days ago
 
-    now = dt.now(tz.utc).replace(microsecond=0)
+    now = dt.now(UTC).replace(microsecond=0)
     expire1 = now - td(days=2)
     expire2 = now - td(days=10)
 
@@ -315,13 +314,13 @@ def test_bulk_expire_with_range(access_token):
 
         # Verify user1 was updated
         resp1 = client.get(f"/api/user/{user1['username']}", headers={"Authorization": f"Bearer {access_token}"})
-        new_expire1 = dt.fromisoformat(resp1.json()["expire"].replace("Z", "+00:00"))
+        new_expire1 = dt.fromisoformat(resp1.json()["expire"])
         # Should be approximately expire1 + 1 hour
         assert (new_expire1 - expire1).total_seconds() == 3600
 
         # Verify user2 was NOT updated
         resp2 = client.get(f"/api/user/{user2['username']}", headers={"Authorization": f"Bearer {access_token}"})
-        new_expire2 = dt.fromisoformat(resp2.json()["expire"].replace("Z", "+00:00"))
+        new_expire2 = dt.fromisoformat(resp2.json()["expire"])
         # Should be exactly expire2 (or very close)
         assert abs((new_expire2 - expire2).total_seconds()) < 1
 
@@ -336,7 +335,7 @@ def test_bulk_data_limit_with_expire_range_without_expired_status(access_token):
     core = create_core(access_token)
     group = create_group(access_token, name=unique_name("bulk_data_range_group"))
 
-    now = dt.now(tz.utc).replace(microsecond=0)
+    now = dt.now(UTC).replace(microsecond=0)
     expire1 = now - td(days=2)
     expire2 = now - td(days=10)
 

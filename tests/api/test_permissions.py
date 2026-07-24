@@ -1,6 +1,7 @@
 """Unit tests for app/operation/permissions.py"""
 
 import pytest
+
 from app.models.admin import AdminDetails
 from app.operation.permissions import (
     PermissionDenied,

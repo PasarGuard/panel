@@ -3,7 +3,7 @@ Tests for /api/setup endpoints (owner create / reset / delete via temp key).
 """
 
 import asyncio
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from fastapi import status
 from sqlalchemy import select
@@ -22,15 +22,15 @@ def _make_temp_key(*, used: bool = False, expired: bool = False) -> str:
     async def _insert():
         async with TestSession() as session:
             if expired:
-                expires_at = datetime.now(timezone.utc) - timedelta(minutes=10)
+                expires_at = datetime.now(UTC) - timedelta(minutes=10)
             else:
-                expires_at = datetime.now(timezone.utc) + timedelta(minutes=5)
+                expires_at = datetime.now(UTC) + timedelta(minutes=5)
 
             key = TempKey(
                 key=__import__("uuid").uuid4().__str__(),
                 action="setup",
                 expires_at=expires_at,
-                used_at=datetime.now(timezone.utc) if used else None,
+                used_at=datetime.now(UTC) if used else None,
                 used_by_ip="127.0.0.1" if used else None,
             )
             session.add(key)

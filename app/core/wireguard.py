@@ -5,7 +5,6 @@ import re
 from copy import deepcopy
 from ipaddress import ip_interface
 from pathlib import PosixPath
-from typing import Union
 
 import commentjson
 
@@ -20,7 +19,7 @@ _WIREGUARD_INTERFACE_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
 class WireGuardConfig(dict):
     def __init__(
         self,
-        config: Union[dict, str, PosixPath] | None = None,
+        config: dict | str | PosixPath | None = None,
         exclude_inbound_tags: set[str] | None = None,
         fallbacks_inbound_tags: set[str] | None = None,
         skip_validation: bool = False,
@@ -83,7 +82,7 @@ class WireGuardConfig(dict):
 
         addresses = self.get("address")
         if not isinstance(addresses, list):
-            raise ValueError("address must be a list")
+            raise TypeError("address must be a list")
 
         normalized_addresses: list[str] = []
         for cidr in addresses:
@@ -135,7 +134,7 @@ class WireGuardConfig(dict):
         }
 
     @classmethod
-    def from_json(cls, data: dict) -> "WireGuardConfig":
+    def from_json(cls, data: dict) -> WireGuardConfig:
         instance = cls(config=data.get("config", {}), skip_validation=True)
         if "inbounds" in data:
             instance._inbounds = data["inbounds"]

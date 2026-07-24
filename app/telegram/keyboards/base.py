@@ -1,6 +1,7 @@
 from enum import StrEnum
-from aiogram.utils.keyboard import InlineKeyboardBuilder
+
 from aiogram.filters.callback_data import CallbackData
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from app.telegram.utils.texts import Button as Texts
 

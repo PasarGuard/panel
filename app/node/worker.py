@@ -13,8 +13,8 @@ from app.db import GetDB
 from app.db.crud.node import get_node_by_id, get_nodes
 from app.db.models import NodeStatus
 from app.models.node import NodeCoreUpdate, NodeGeoFilesUpdate, NodeListQuery
-from app.nats.rpc_service import BaseRpcService
 from app.nats.proto_utils import deserialize_proto_message, deserialize_proto_messages
+from app.nats.rpc_service import BaseRpcService
 from app.node import node_manager
 from app.operation import OperatorType
 from app.operation.node import NodeOperation
@@ -109,8 +109,8 @@ class NodeWorkerService(BaseRpcService):
         async with self._command_semaphore:
             try:
                 await self._dispatch_command(action, data)
-            except Exception as exc:
-                logger.error(f"Node command failed: {action} - {exc}", exc_info=True)
+            except Exception:
+                logger.exception(f"Node command failed: {action}")
 
     async def _run_rpc(self, msg, action: str | None, data: dict):
         async with self._rpc_semaphore:
@@ -214,7 +214,7 @@ class NodeWorkerService(BaseRpcService):
         stats = await self._node_operator.get_node_system_stats(node_id)
         return stats.model_dump()
 
-    async def _get_nodes_system_stats(self, data: dict = None) -> dict:
+    async def _get_nodes_system_stats(self, data: dict | None = None) -> dict:
         stats = await self._node_operator.get_nodes_system_stats()
         return {node_id: value.model_dump() if value else None for node_id, value in stats.items()}
 

@@ -71,13 +71,13 @@ def readable_size(size_bytes):
     if not size_bytes or size_bytes <= 0:
         return "0 B"
     size_name = ("B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB")
-    i = int(math.floor(math.log(size_bytes, 1024)))
+    i = math.floor(math.log(size_bytes, 1024))
     p = math.pow(1024, i)
     s = round(size_bytes / p, 2)
     return f"{s} {size_name[i]}"
 
 
-def readable_duration(seconds: int | float) -> str:
+def readable_duration(seconds: float) -> str:
     """Format a duration (in seconds) as a human-readable string.
 
     Mirrors :func:`readable_size`: caller always passes seconds, this picks the

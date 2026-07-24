@@ -1,5 +1,5 @@
 import asyncio
-from typing import AsyncIterator, Callable
+from collections.abc import AsyncIterator, Callable
 
 from fastapi import HTTPException
 from PasarGuardNodeBridge import NodeAPIError, PasarGuardNode
@@ -537,7 +537,7 @@ class NodeOperation(BaseOperation):
             await clear_usage_data(db, table, query.start, query.end)
             return {"detail": f"All data from '{table}' has been deleted successfully."}
         except Exception as e:
-            await self.raise_error(code=400, message=f"Deletion failed due to server error: {str(e)}")
+            await self.raise_error(code=400, message=f"Deletion failed due to server error: {e!s}")
 
     async def update_node(self, db: AsyncSession, node_id: int) -> dict:
         await self.get_validated_node(db, node_id)

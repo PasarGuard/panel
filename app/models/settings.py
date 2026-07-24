@@ -269,7 +269,7 @@ class CustomVariable(BaseModel):
     @classmethod
     def normalize_key(cls, value):
         if not isinstance(value, str):
-            raise ValueError("Variable key must be a string")
+            raise TypeError("Variable key must be a string")
         value = value.strip()
         if value.startswith("{") and value.endswith("}"):
             value = value[1:-1].strip()

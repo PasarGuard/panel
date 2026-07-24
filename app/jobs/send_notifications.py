@@ -1,5 +1,5 @@
 import asyncio
-from datetime import datetime as dt, timedelta as td, timezone as tz
+from datetime import UTC, datetime as dt, timedelta as td
 
 import aiohttp
 from sqlalchemy import delete
@@ -58,7 +58,7 @@ async def send_notifications():
     processed = 0
     failed_to_requeue = []
     ready_notifications = []
-    current_time = dt.now(tz.utc).timestamp()
+    current_time = dt.now(UTC).timestamp()
     should_requeue = settings.enable
 
     try:
@@ -103,7 +103,7 @@ async def send_notifications():
                     success = await send_to_all_webhooks(client, payloads, settings.webhooks)
 
                     if not success:
-                        retry_at = dt.now(tz.utc).timestamp()
+                        retry_at = dt.now(UTC).timestamp()
                         for notification in batch:
                             notification.tries += 1
                             if notification.tries < settings.recurrent:
@@ -125,7 +125,7 @@ async def send_notifications():
 async def delete_expired_reminders() -> None:
     async with GetDB() as db:
         # Get current UTC time and convert to naive datetime
-        now_utc = dt.now(tz=tz.utc)
+        now_utc = dt.now(tz=UTC)
         now_naive = now_utc.replace(tzinfo=None)
 
         result = await db.execute(delete(NotificationReminder).where(NotificationReminder.expires_at < now_naive))
@@ -151,7 +151,7 @@ if runtime_settings.role.runs_scheduler:
         delete_expired_reminders,
         "interval",
         hours=6,
-        start_date=dt.now(tz.utc) + td(minutes=5),
+        start_date=dt.now(UTC) + td(minutes=5),
         id="delete_expired_notification_reminders",
         replace_existing=True,
     )

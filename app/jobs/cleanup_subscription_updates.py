@@ -1,4 +1,4 @@
-from sqlalchemy import func, select, delete
+from sqlalchemy import delete, func, select
 
 from app import scheduler
 from app.db import GetDB

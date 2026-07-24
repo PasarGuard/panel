@@ -1,6 +1,7 @@
 import json
 from asyncio import Lock
 from copy import deepcopy
+from typing import ClassVar
 
 import nats
 from aiocache import cached
@@ -26,7 +27,7 @@ from config import runtime_settings
 class CoreManager:
     STATE_CACHE_KEY = "state"
     KV_BUCKET_NAME = "core_manager_state"
-    CORE_CLASSES = {
+    CORE_CLASSES: ClassVar[dict] = {
         CoreType.xray: XRayConfig,
         CoreType.wg: WireGuardConfig,
     }

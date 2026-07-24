@@ -9,7 +9,6 @@ from app.node import node_manager
 from app.utils.logger import get_logger
 from config import job_settings, runtime_settings, usage_settings
 
-
 logger = get_logger("jobs")
 
 

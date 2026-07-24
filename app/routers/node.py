@@ -1,5 +1,6 @@
 import asyncio
-from typing import Annotated, AsyncGenerator
+from collections.abc import AsyncGenerator
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from PasarGuardNodeBridge import NodeAPIError
@@ -62,7 +63,7 @@ router = APIRouter(tags=["Node"], prefix="/api/node", responses={401: responses.
 async def _node_logs_local(node_id: int, request: Request) -> EventSourceResponse:
     context_manager = await node_operator.get_logs(node_id=node_id)
 
-    async def event_generator() -> AsyncGenerator[str, None]:
+    async def event_generator() -> AsyncGenerator[str]:
         try:
             async with context_manager() as log_queue:
                 while True:
@@ -84,7 +85,7 @@ async def _node_logs_local(node_id: int, request: Request) -> EventSourceRespons
 
 
 async def _node_logs_remote(node_id: int, request: Request) -> EventSourceResponse:
-    async def event_generator() -> AsyncGenerator[str, None]:
+    async def event_generator() -> AsyncGenerator[str]:
         sub = None
         stop_subject = None
         nc = await node_nats_client.get_client()
@@ -107,7 +108,7 @@ async def _node_logs_remote(node_id: int, request: Request) -> EventSourceRespon
                     break
                 try:
                     msg = await sub.next_msg(timeout=1)
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     continue
                 yield msg.data.decode()
         except asyncio.CancelledError:

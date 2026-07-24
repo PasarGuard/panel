@@ -1,15 +1,14 @@
 import asyncio
-from datetime import datetime as dt, timedelta as td, timezone as tz
+from datetime import UTC, datetime as dt, timedelta as td
 
-from app import scheduler
+from app import notification, scheduler
 from app.db import GetDB
+from app.db.crud.node import bulk_reset_node_usage, get_nodes_to_reset_usage
 from app.db.models import NodeStatus
-from app.db.crud.node import get_nodes_to_reset_usage, bulk_reset_node_usage
+from app.jobs.dependencies import SYSTEM_ADMIN
 from app.models.node import NodeResponse
 from app.operation import OperatorType
 from app.operation.node import NodeOperation
-from app import notification
-from app.jobs.dependencies import SYSTEM_ADMIN
 from app.utils.logger import get_logger
 from config import job_settings, runtime_settings
 
@@ -49,7 +48,7 @@ if runtime_settings.role.runs_scheduler:
         "interval",
         seconds=job_settings.reset_node_usage_interval,
         coalesce=True,
-        start_date=dt.now(tz.utc) + td(minutes=1),
+        start_date=dt.now(UTC) + td(minutes=1),
         max_instances=1,
         id="reset_node_usage",
         replace_existing=True,

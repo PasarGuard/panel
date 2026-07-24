@@ -6,8 +6,8 @@ from fastapi.routing import APIRoute
 from sqlalchemy.exc import DBAPIError
 
 from app.lifecycle import on_shutdown, on_startup
-from app.nats import is_nats_enabled
 from app.middlewares import setup_middleware
+from app.nats import is_nats_enabled
 from app.nats.message import MessageTopic
 from app.nats.router import router
 from app.settings import handle_settings_message
@@ -15,7 +15,6 @@ from app.subscription.client_templates import handle_client_template_message
 from app.utils.logger import get_logger
 from app.version import __version__
 from config import runtime_settings, subscription_env_settings
-
 
 logger = get_logger("app-factory")
 
@@ -164,7 +163,7 @@ def create_app() -> FastAPI:
 
     app.add_exception_handler(DBAPIError, database_operational_error_handler)
 
-    from app.operation.permissions import LimitExceeded, PermissionDenied  # noqa: F401
+    from app.operation.permissions import LimitExceeded, PermissionDenied
 
     @app.exception_handler(PermissionDenied)
     async def permission_denied_handler(request: Request, exc: PermissionDenied):

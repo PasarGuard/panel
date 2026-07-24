@@ -63,7 +63,7 @@ class StandardLinks(BaseSubscription):
     def render(self):
         if subscription_env_settings.external_config:
             self.links.append(subscription_env_settings.external_config)
-        return "\n".join((self.links))
+        return "\n".join(self.links)
 
     def add(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict):
         """
@@ -196,11 +196,8 @@ class StandardLinks(BaseSubscription):
             payload["alpn"] = tls_config.alpn_links
 
         # Fragment settings (from inbound, not TLS)
-        if fragment_settings:
-            if xray_fragment := fragment_settings.get("xray"):
-                payload["fragment"] = (
-                    f"{xray_fragment['length']},{xray_fragment['interval']},{xray_fragment['packets']}"
-                )
+        if fragment_settings and (xray_fragment := fragment_settings.get("xray")):
+            payload["fragment"] = f"{xray_fragment['length']},{xray_fragment['interval']},{xray_fragment['packets']}"
 
         if tls_config.ech_config_list:
             payload["ech"] = tls_config.ech_config_list

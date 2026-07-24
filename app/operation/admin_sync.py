@@ -3,8 +3,7 @@ from app.db.crud.admin import get_active_to_limited_admins, update_admin_status
 from app.db.crud.user import get_users
 from app.db.models import Admin, AdminStatus, UserStatus
 from app.models.user import UserListQuery
-from app.node.sync import remove_users as sync_remove_users
-from app.node.sync import sync_users
+from app.node.sync import remove_users as sync_remove_users, sync_users
 
 
 async def admin_users_sync_blocked(admin: Admin) -> bool:

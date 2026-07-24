@@ -24,14 +24,12 @@ MAX_TIMEOUT = 20.0
 DNS_TIMEOUT = 5.0
 MAX_CONCURRENT_SCANS = 4
 
-_scan_semaphores: "weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, asyncio.Semaphore]" = (
-    weakref.WeakKeyDictionary()
-)
+_scan_semaphores: weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, asyncio.Semaphore] = weakref.WeakKeyDictionary()
 
-_scan_executor: "ThreadPoolExecutor | None" = None
+_scan_executor: ThreadPoolExecutor | None = None
 
 
-def _get_scan_semaphore() -> "asyncio.Semaphore":
+def _get_scan_semaphore() -> asyncio.Semaphore:
     loop = asyncio.get_running_loop()
     sem = _scan_semaphores.get(loop)
     if sem is None:
@@ -40,7 +38,7 @@ def _get_scan_semaphore() -> "asyncio.Semaphore":
     return sem
 
 
-def _get_scan_executor() -> "ThreadPoolExecutor":
+def _get_scan_executor() -> ThreadPoolExecutor:
     global _scan_executor
     if _scan_executor is None:
         _scan_executor = ThreadPoolExecutor(max_workers=MAX_CONCURRENT_SCANS + 2, thread_name_prefix="reality-scan")
@@ -181,7 +179,7 @@ async def _resolve_public_ip_async(host: str, timeout: float) -> str:
     loop = asyncio.get_running_loop()
     try:
         infos = await asyncio.wait_for(loop.getaddrinfo(host, None, type=socket.SOCK_STREAM), timeout=timeout)
-    except asyncio.TimeoutError, TimeoutError:
+    except TimeoutError:
         raise RealityScanError(f"DNS lookup for {host} timed out.")
     except socket.gaierror:
         raise RealityScanError(f"Could not resolve host: {host}")
@@ -391,7 +389,7 @@ def _tls_probe(ip: str, port: int, sni: str | None, timeout: float) -> dict:
                 try:
                     version, alpn, der, latency = _handshake(_make_permissive_ctx(), sni)
                     result["latency_ms"] = round(latency)
-                except (ssl.SSLError, socket.timeout, TimeoutError, OSError, UnicodeError) as exc2:
+                except (ssl.SSLError, TimeoutError, OSError, UnicodeError) as exc2:
                     logger.debug("reality-scan: permissive fallback handshake failed for %s: %s", sni, exc2)
                     return result
         else:
@@ -409,9 +407,9 @@ def _tls_probe(ip: str, port: int, sni: str | None, timeout: float) -> dict:
                     result["latency_ms"] = round(latency)
                 except ssl.SSLCertVerificationError as exc:
                     result["reason"] = f"Certificate did not validate: {getattr(exc, 'verify_message', None) or exc}"
-                except (ssl.SSLError, socket.timeout, TimeoutError, OSError, UnicodeError) as exc:
+                except (ssl.SSLError, TimeoutError, OSError, UnicodeError) as exc:
                     result["reason"] = f"Certificate re-validation failed: {exc}"
-    except socket.timeout, TimeoutError:
+    except TimeoutError:
         result["reason"] = "Connection timed out."
         return result
     except ssl.SSLError as exc:
@@ -513,7 +511,7 @@ def _recv_exact(sock: socket.socket, count: int, deadline: float) -> bytes | Non
         sock.settimeout(remaining)
         try:
             chunk = sock.recv(count - len(buf))
-        except socket.timeout, TimeoutError:
+        except TimeoutError:
             return None
         if not chunk:
             return None

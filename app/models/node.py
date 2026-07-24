@@ -120,7 +120,6 @@ class NodeCreate(Node):
 
         try:
             load_pem_x509_certificate(v.encode("utf-8"))
-            pass
         except Exception:
             raise ValueError("Invalid certificate structure")
 

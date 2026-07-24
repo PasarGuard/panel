@@ -4,7 +4,6 @@ import base64
 import json
 from copy import deepcopy
 from pathlib import PosixPath
-from typing import Union
 
 import commentjson
 
@@ -24,7 +23,7 @@ def _protocols_from_inbounds_by_tag(inbounds_by_tag: dict[str, dict]) -> frozens
 class XRayConfig(dict):
     def __init__(
         self,
-        config: Union[dict, str, PosixPath] | None = None,
+        config: dict | str | PosixPath | None = None,
         exclude_inbound_tags: set[str] | None = None,
         fallbacks_inbound_tags: set[str] | None = None,
         skip_validation: bool = False,
@@ -150,7 +149,7 @@ class XRayConfig(dict):
     def _is_unix_socket(inbound: dict) -> bool:
         """Return True if the inbound listens on a Unix domain socket instead of a TCP/UDP port."""
         listen = inbound.get("listen", "")
-        return isinstance(listen, str) and (listen.startswith("/") or listen.startswith("@"))
+        return isinstance(listen, str) and (listen.startswith(("/", "@")))
 
     def _handle_port_settings(self, inbound: dict, settings: dict):
         """Handle port settings for an inbound."""
@@ -254,7 +253,7 @@ class XRayConfig(dict):
         settings["header_type"] = header.get("type", "none")
 
         if isinstance(path, str) or isinstance(host, str):
-            raise ValueError(
+            raise TypeError(
                 f"Settings of {inbound_tag} for path and host must be list, not str\n"
                 "https://xtls.github.io/config/transports/tcp.html#httpheaderobject"
             )
@@ -273,7 +272,7 @@ class XRayConfig(dict):
         settings["header_type"] = ""
 
         if isinstance(path, list) or isinstance(host, list):
-            raise ValueError(
+            raise TypeError(
                 "Settings for path and host must be str, not list\n"
                 "https://xtls.github.io/config/transports/websocket.html#websocketobject"
             )
@@ -547,7 +546,7 @@ class XRayConfig(dict):
         }
 
     @classmethod
-    def from_json(cls, data: dict) -> "XRayConfig":
+    def from_json(cls, data: dict) -> XRayConfig:
         """Reconstruct the config from a dictionary."""
         fallback_tags = data.get("fallbacks_inbound_tags")
         if fallback_tags is None:

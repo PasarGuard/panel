@@ -1,7 +1,7 @@
 import re
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Any, Optional
+from typing import Any
 from urllib.parse import urlparse
 
 from app.db.models import UserStatus, UserStatusCreate
@@ -26,7 +26,7 @@ class NumericValidatorMixin:
         """
         if v is None:  # Allow None values
             return v
-        elif isinstance(v, float) or isinstance(v, Decimal):  # Allow float or Decimal to int conversion
+        elif isinstance(v, (float, Decimal)):  # Allow float or Decimal to int conversion
             return int(v)
         elif isinstance(v, int):  # Allow integers directly
             return v
@@ -49,7 +49,7 @@ class NumericValidatorMixin:
         """
         if v is None:
             return v
-        elif isinstance(v, int) or isinstance(v, Decimal):
+        elif isinstance(v, (int, Decimal)):
             return float(v)
         elif isinstance(v, float):
             return v
@@ -200,7 +200,7 @@ class UserValidator:
         if value == 0 or value is None:
             return None
         if isinstance(value, int):
-            return datetime.now(timezone.utc) + timedelta(seconds=value)
+            return datetime.now(UTC) + timedelta(seconds=value)
         if isinstance(value, datetime):
             return value
         raise ValueError("on_hold_timeout can be datetime or int (seconds)")
@@ -258,7 +258,7 @@ class DiscordValidator:
 
 class URLValidator:
     @staticmethod
-    def validate_url(value: Optional[str]) -> Optional[str]:
+    def validate_url(value: str | None) -> str | None:
         """
         Validates a general-purpose URL.
         Examples:

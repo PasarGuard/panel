@@ -80,7 +80,7 @@ class TelegramBotManager:
         try:
             # Set up KV connection if not already done
             if not self._kv:
-                self._nats_conn, js, self._kv = await setup_nats_kv(nats_settings.telegram_kv_bucket)
+                self._nats_conn, _js, self._kv = await setup_nats_kv(nats_settings.telegram_kv_bucket)
                 if not self._kv:
                     logger.warning("NATS KV unavailable, allowing this worker to set webhook")
                     return True

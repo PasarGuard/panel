@@ -4,14 +4,13 @@ from PasarGuardNodeBridge import Health, NodeAPIError, PasarGuardNode
 
 from app import notification, on_shutdown, on_startup, scheduler
 from app.db import GetDB
+from app.db.crud.node import get_limited_nodes, get_nodes
 from app.db.models import Node, NodeStatus
 from app.models.node import NodeListQuery, NodeNotification
 from app.node import node_manager
 from app.operation import OperatorType
-from app.db.crud.node import get_limited_nodes, get_nodes
-from app.utils.logger import get_logger
 from app.operation.node import NodeOperation
-
+from app.utils.logger import get_logger
 from config import feature_settings, job_settings, runtime_settings
 
 node_operator = NodeOperation(operator_type=OperatorType.SYSTEM)
@@ -62,22 +61,18 @@ async def verify_node_backend_health(node: PasarGuardNode, node_name: str) -> tu
             return Health.BROKEN, e.code, e.detail
         except Exception as e_set_health:
             error_type_set = type(e_set_health).__name__
-            logger.error(
-                f"[{node_name}] Failed to set health to BROKEN | Error: {error_type_set} - {str(e_set_health)}"
-            )
+            logger.error(f"[{node_name}] Failed to set health to BROKEN | Error: {error_type_set} - {e_set_health!s}")
             return current_health, e.code, e.detail
     except Exception as e:
         error_type = type(e).__name__
-        error_message = f"{error_type}: {str(e)}"
+        error_message = f"{error_type}: {e!s}"
         logger.error(f"[{node_name}] Health check failed, setting health to BROKEN | Error: {error_message}")
         try:
             await node.set_health(Health.BROKEN)
             return Health.BROKEN, None, error_message
         except Exception as e_set_health:
             error_type_set = type(e_set_health).__name__
-            logger.error(
-                f"[{node_name}] Failed to set health to BROKEN | Error: {error_type_set} - {str(e_set_health)}"
-            )
+            logger.error(f"[{node_name}] Failed to set health to BROKEN | Error: {error_type_set} - {e_set_health!s}")
             return current_health, None, error_message
 
 
@@ -107,7 +102,7 @@ async def process_node_health_check(db_node: Node, node: PasarGuardNode):
 
         try:
             health, error_code, error_message = await verify_node_backend_health(node, db_node.name)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             # Record timeout error in database but don't reconnect
             logger.warning(f"[{db_node.name}] Health check timed out")
             async with GetDB() as db:

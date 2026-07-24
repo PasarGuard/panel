@@ -9,7 +9,7 @@ record_usages increments used_traffic without loading admin objects, so this job
 handles the active to limited transition and removes affected users from nodes.
 """
 
-from datetime import datetime as dt, timezone as tz
+from datetime import UTC, datetime as dt
 
 from app import notification, scheduler
 from app.db import GetDB
@@ -99,7 +99,7 @@ if runtime_settings.role.runs_scheduler:
         seconds=job_settings.review_admin_limits_interval,
         coalesce=True,
         max_instances=1,
-        start_date=dt.now(tz.utc),
+        start_date=dt.now(UTC),
         id="limit_admins",
         replace_existing=True,
     )

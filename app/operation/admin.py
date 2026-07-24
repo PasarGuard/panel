@@ -120,9 +120,13 @@ class AdminOperation(BaseOperation):
         ):
             await self.raise_error(message="You're not allowed to change your own role.", code=403)
 
-        if not current_admin.is_owner and is_self:
-            if modified_admin.status is not None and modified_admin.status == AdminStatus.disabled:
-                await self.raise_error(message="You're not allowed to disable your own account.", code=403)
+        if (
+            not current_admin.is_owner
+            and is_self
+            and modified_admin.status is not None
+            and modified_admin.status == AdminStatus.disabled
+        ):
+            await self.raise_error(message="You're not allowed to disable your own account.", code=403)
 
         if modified_admin.telegram_id:
             existing_admins = await find_admins_by_telegram_id(
@@ -335,8 +339,8 @@ class AdminOperation(BaseOperation):
         db: AsyncSession,
         db_admin: Admin,
         admin: AdminDetails,
-        start: dt = None,
-        end: dt = None,
+        start: dt | None = None,
+        end: dt | None = None,
         period: Period = Period.hour,
         node_id: int | None = None,
         group_by_node: bool = False,

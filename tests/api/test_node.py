@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock
 from uuid import UUID, uuid4
 
@@ -31,26 +31,26 @@ from app.db.models import (
     UserStatus,
     users_groups_association,
 )
-from app.models.core import CoreCreate
 from app.models.admin import AdminDetails, AdminRoleData
+from app.models.core import CoreCreate
 from app.models.node import NodeCreate, NodeModify, NodeResponse, NodeSettings, NodesResponse
+from app.models.proxy import ProxyTable
 from app.models.stats import (
     NodeRealtimeStats,
     NodeStats,
     NodeStatsList,
-    UserCountMetric,
-    UserCountMetricStat,
-    UserCountMetricStatsList,
     NodeUsageStat,
     NodeUsageStatsList,
     Period,
+    UserCountMetric,
+    UserCountMetricStat,
+    UserCountMetricStatsList,
 )
+from app.node import user as node_user_module
+from app.node.sync import _blocked_admin_ids_for_users
 from app.operation import OperatorType
 from app.operation.node import NodeOperation
 from app.routers import node as node_router
-from app.node import user as node_user_module
-from app.node.sync import _blocked_admin_ids_for_users
-from app.models.proxy import ProxyTable
 from tests.api import TestSession, client, engine
 from tests.api.helpers import auth_headers, unique_name
 from tests.api.sample_data import XRAY_CONFIG
@@ -511,7 +511,7 @@ async def cleanup_nodes_simple(core_id: int, node_ids: list[int]) -> None:
 
 
 def usage_stats_payload() -> NodeUsageStatsList:
-    start = datetime(2024, 1, 1, tzinfo=timezone.utc)
+    start = datetime(2024, 1, 1, tzinfo=UTC)
     end = start + timedelta(days=1)
     return NodeUsageStatsList(
         start=start,
@@ -527,7 +527,7 @@ def usage_stats_payload() -> NodeUsageStatsList:
 
 
 def user_count_metric_stats_payload() -> UserCountMetricStatsList:
-    start = datetime(2024, 1, 1, tzinfo=timezone.utc)
+    start = datetime(2024, 1, 1, tzinfo=UTC)
     end = start + timedelta(days=1)
     return UserCountMetricStatsList(
         metric=UserCountMetric.online,
@@ -539,7 +539,7 @@ def user_count_metric_stats_payload() -> UserCountMetricStatsList:
 
 
 def node_stats_payload() -> NodeStatsList:
-    start = datetime(2024, 1, 1, tzinfo=timezone.utc)
+    start = datetime(2024, 1, 1, tzinfo=UTC)
     end = start + timedelta(hours=2)
     return NodeStatsList(
         start=start,
@@ -623,7 +623,7 @@ def test_get_node_settings_returns_defaults(access_token):
 def test_get_usage_passes_filters(access_token, node_operator_mock):
     usage = usage_stats_payload()
     node_operator_mock.get_usage.return_value = usage
-    start = datetime(2024, 2, 1, tzinfo=timezone.utc)
+    start = datetime(2024, 2, 1, tzinfo=UTC)
     end = start + timedelta(days=7)
     response = client.get(
         "/api/node/usage",
@@ -651,7 +651,7 @@ def test_get_usage_passes_filters(access_token, node_operator_mock):
 def test_get_user_count_metric_passes_filters(access_token, node_operator_mock):
     counts = user_count_metric_stats_payload()
     node_operator_mock.get_user_count_metric.return_value = counts
-    start = datetime(2024, 2, 1, tzinfo=timezone.utc)
+    start = datetime(2024, 2, 1, tzinfo=UTC)
     end = start + timedelta(days=7)
     response = client.get(
         "/api/node/user_counts/online",
@@ -913,7 +913,7 @@ def test_bulk_update_nodes(access_token, node_operator_mock):
 def test_get_node_stats(access_token, node_operator_mock):
     stats = node_stats_payload()
     node_operator_mock.get_node_stats_periodic.return_value = stats
-    start = datetime(2024, 3, 1, tzinfo=timezone.utc)
+    start = datetime(2024, 3, 1, tzinfo=UTC)
     end = start + timedelta(days=1)
     response = client.get(
         "/api/node/8/stats",
@@ -1209,7 +1209,7 @@ async def test_remove_node_deletes_associated_usage_tables():
         await session.commit()
         await session.refresh(user)
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         user_usages = [
             NodeUserUsage(
                 user_id=user.id,

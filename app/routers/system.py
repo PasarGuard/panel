@@ -6,9 +6,9 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
 
 from app.db import AsyncSession, get_db
+from app.db.crud.wireguard import get_subnet_usage
 from app.models.admin import AdminDetails
 from app.models.settings import Telegram
-from app.db.crud.wireguard import get_subnet_usage
 from app.models.system import (
     InboundSummary,
     SystemResourceStats,

@@ -1,6 +1,7 @@
+from collections.abc import Sequence
 from copy import deepcopy
-from datetime import UTC, datetime, timedelta, timezone
-from typing import List, Literal, Optional, Sequence
+from datetime import UTC, datetime, timedelta
+from typing import Literal
 
 from sqlalchemy import and_, case, delete, desc, func, literal, not_, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -48,13 +49,6 @@ from app.models.user import (
 from app.models.validators import MAX_ON_HOLD_EXPIRE_DURATION_SECONDS
 from config import user_cleanup_settings
 
-from .wireguard import (
-    release_allocations_by_user_ids,
-    release_users_allocations,
-    sync_user_allocations,
-    sync_users_allocations,
-    tags_from_groups,
-)
 from .general import (
     _build_trunc_expression,
     attach_timezone_to_period_start,
@@ -63,6 +57,13 @@ from .general import (
     to_utc_for_filter,
 )
 from .group import get_groups_by_ids
+from .wireguard import (
+    release_allocations_by_user_ids,
+    release_users_allocations,
+    sync_user_allocations,
+    sync_users_allocations,
+    tags_from_groups,
+)
 
 _USER_AGENT_MAX_LEN = UserSubscriptionUpdate.__table__.columns.user_agent.type.length or 512
 _SUBSCRIPTION_UPDATE_IP_MAX_LEN = UserSubscriptionUpdate.__table__.columns.ip.type.length or 64
@@ -76,8 +77,8 @@ def _safe_on_hold_expire_duration(duration: int | None) -> int | None:
 
 
 def _resolve_enabled_user_status(user: User) -> UserStatus:
-    now = datetime.now(timezone.utc)
-    if user.expire is not None and user.expire.replace(tzinfo=timezone.utc) <= now:
+    now = datetime.now(UTC)
+    if user.expire is not None and user.expire.replace(tzinfo=UTC) <= now:
         return UserStatus.expired
     if user.data_limit is not None and user.data_limit > 0 and user.used_traffic >= user.data_limit:
         return UserStatus.limited
@@ -165,7 +166,7 @@ async def get_user(
     load_usage_logs: bool = True,
     load_groups: bool = True,
     admin_id: int | None = None,
-) -> Optional[User]:
+) -> User | None:
     """
     Retrieves a user by username.
 
@@ -384,9 +385,7 @@ async def get_users(
     if query.online_before is not None:
         filters.append(and_(User.online_at.is_not(None), User.online_at <= query.online_before))
     if query.online:
-        filters.append(
-            and_(User.online_at.is_not(None), User.online_at >= datetime.now(timezone.utc) - _ONLINE_USERS_WINDOW)
-        )
+        filters.append(and_(User.online_at.is_not(None), User.online_at >= datetime.now(UTC) - _ONLINE_USERS_WINDOW))
 
     if query.group_ids:
         filters.append(User.groups.any(Group.id.in_(query.group_ids)))
@@ -788,7 +787,7 @@ async def get_users_by_ids(
     return [users_by_id[user_id] for user_id in user_ids if user_id in users_by_id]
 
 
-async def get_users_count(db: AsyncSession, status: UserStatus = None, admin_id: int = None) -> int:
+async def get_users_count(db: AsyncSession, status: UserStatus = None, admin_id: int | None = None) -> int:
     """
     Gets the total count of users with optional filters.
 
@@ -815,7 +814,7 @@ async def get_users_count(db: AsyncSession, status: UserStatus = None, admin_id:
 
 
 async def get_users_count_by_status(
-    db: AsyncSession, statuses: list[UserStatus], admin_id: int = None
+    db: AsyncSession, statuses: list[UserStatus], admin_id: int | None = None
 ) -> dict[str, int]:
     """
     Gets count of users grouped by status in a single query.
@@ -1024,7 +1023,7 @@ async def modify_user(
     elif modify.expire is not None:
         db_user.expire = modify.expire
         if db_user.status in [UserStatus.active, UserStatus.expired]:
-            if not db_user.expire or db_user.expire.replace(tzinfo=timezone.utc) > datetime.now(timezone.utc):
+            if not db_user.expire or db_user.expire.replace(tzinfo=UTC) > datetime.now(UTC):
                 db_user.status = UserStatus.active
 
                 remove_expiration_reminder = True
@@ -1070,7 +1069,7 @@ async def modify_user(
     elif db_user.next_plan is not None:
         await db.delete(db_user.next_plan)
 
-    db_user.edit_at = datetime.now(timezone.utc)
+    db_user.edit_at = datetime.now(UTC)
 
     if remove_usage_reminder or remove_expiration_reminder:
         id = db_user.id
@@ -1245,7 +1244,7 @@ async def revoke_user_sub(db: AsyncSession, db_user: User, *, proxy_settings: di
     Returns:
         User: The updated user object.
     """
-    db_user.sub_revoked_at = datetime.now(timezone.utc)
+    db_user.sub_revoked_at = datetime.now(UTC)
     db_user.proxy_settings = proxy_settings if proxy_settings is not None else build_revoked_proxy_settings(db_user)
     await db.commit()
     await refresh_and_load_user(db, db_user)
@@ -1265,7 +1264,7 @@ async def bulk_revoke_user_sub(
     Returns:
         list[User]: The refreshed users.
     """
-    revoked_at = datetime.now(timezone.utc)
+    revoked_at = datetime.now(UTC)
     for user in users:
         user.sub_revoked_at = revoked_at
         user.proxy_settings = (
@@ -1378,8 +1377,7 @@ async def autodelete_expired_users(
     expired_users = [
         user
         for (user, auto_delete) in (await db.execute(query)).unique()
-        if user.last_status_change.replace(tzinfo=timezone.utc) + timedelta(days=auto_delete)
-        <= datetime.now(timezone.utc)
+        if user.last_status_change.replace(tzinfo=UTC) + timedelta(days=auto_delete) <= datetime.now(UTC)
     ]
 
     result: list[UserNotificationResponse] = []
@@ -1606,7 +1604,7 @@ async def update_users_status(db: AsyncSession, users: list[User], status: UserS
         User: The updated user object.
     """
     user_ids = [user.id for user in users]
-    changed_at = datetime.now(timezone.utc)
+    changed_at = datetime.now(UTC)
     stmt = update(User).where(User.id.in_(user_ids)).values(status=status, last_status_change=changed_at)
     await db.execute(stmt)
     await db.commit()
@@ -1696,7 +1694,7 @@ async def start_users_expire(db: AsyncSession, users: list[User]) -> list[User]:
     Returns:
         list[User]: The updated users list.
     """
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     for user in users:
         duration = _safe_on_hold_expire_duration(user.on_hold_expire_duration)
         expire_time = now + timedelta(seconds=duration) if duration is not None else None
@@ -1741,7 +1739,7 @@ async def create_notification_reminder(
     return reminder
 
 
-async def bulk_create_notification_reminders(db: AsyncSession, reminder_data: List[dict]) -> None:
+async def bulk_create_notification_reminders(db: AsyncSession, reminder_data: list[dict]) -> None:
     """
     Bulk creates notification reminders.
 
@@ -1798,7 +1796,7 @@ async def count_online_users(db: AsyncSession, time_delta: timedelta, admin_id: 
     Returns:
         int: The number of users who have been online within the specified time period.
     """
-    twenty_four_hours_ago = datetime.now(timezone.utc) - time_delta
+    twenty_four_hours_ago = datetime.now(UTC) - time_delta
     query = select(func.count(User.id)).where(User.online_at.isnot(None), User.online_at >= twenty_four_hours_ago)
     if admin_id:
         query = query.where(User.admin_id == admin_id)

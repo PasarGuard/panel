@@ -1,18 +1,8 @@
 import asyncio
 
+from app import notification
+from app.core.hosts import host_manager
 from app.db import AsyncSession
-from app.db.models import ProxyHost
-from app.models.admin import AdminDetails
-from app.models.client_template import ClientTemplateType
-from app.models.host import (
-    BaseHost,
-    BulkHostSelection,
-    BulkHostsActionResponse,
-    CreateHost,
-    HostListQuery,
-    RemoveHostsResponse,
-)
-from app.operation import BaseOperation
 from app.db.crud.host import (
     create_host,
     get_host_by_id,
@@ -21,11 +11,19 @@ from app.db.crud.host import (
     remove_host,
     remove_hosts,
 )
-from app.core.hosts import host_manager
+from app.db.models import ProxyHost
+from app.models.admin import AdminDetails
+from app.models.client_template import ClientTemplateType
+from app.models.host import (
+    BaseHost,
+    BulkHostsActionResponse,
+    BulkHostSelection,
+    CreateHost,
+    HostListQuery,
+    RemoveHostsResponse,
+)
+from app.operation import BaseOperation
 from app.utils.logger import get_logger
-
-from app import notification
-
 
 logger = get_logger("host-operation")
 

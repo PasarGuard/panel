@@ -1,5 +1,4 @@
-from datetime import datetime, timezone, timedelta
-from typing import Optional
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import String, func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -26,7 +25,7 @@ def _build_trunc_expression(
     db: AsyncSession,
     period: Period,
     column,
-    start: Optional[datetime] = None,
+    start: datetime | None = None,
 ):
     """
     Builds the appropriate truncation SQL expression based on dialect and period.
@@ -159,7 +158,7 @@ def _get_next_period_boundary(dt: datetime, period: Period) -> datetime:
     return dt
 
 
-def get_complete_period_start_for_filter(start: Optional[datetime], period: Period) -> Optional[datetime]:
+def get_complete_period_start_for_filter(start: datetime | None, period: Period) -> datetime | None:
     """
     Convert start datetime to the first complete period boundary in UTC for DB filtering.
 
@@ -175,7 +174,7 @@ def get_complete_period_start_for_filter(start: Optional[datetime], period: Peri
     return to_utc_for_filter(start)
 
 
-def attach_timezone_to_period_start(row_dict: dict, target_tz, dialect: str = None) -> None:
+def attach_timezone_to_period_start(row_dict: dict, target_tz, dialect: str | None = None) -> None:
     """
     Attach timezone info to period_start in the row dictionary.
 
@@ -207,7 +206,7 @@ def attach_timezone_to_period_start(row_dict: dict, target_tz, dialect: str = No
                 "%Y-01-01 00:00:00",
             ]:
                 try:
-                    period_start = datetime.strptime(clean_str, fmt)
+                    period_start = datetime.strptime(clean_str, fmt).replace(tzinfo=UTC)
                     break
                 except ValueError:
                     continue
@@ -238,7 +237,7 @@ def attach_timezone_to_period_start(row_dict: dict, target_tz, dialect: str = No
         row_dict["period_start"] = period_start
 
 
-def to_utc_for_filter(dt: Optional[datetime]) -> Optional[datetime]:
+def to_utc_for_filter(dt: datetime | None) -> datetime | None:
     """
     Convert a timezone-aware datetime to UTC for database filtering.
 
@@ -262,7 +261,7 @@ def to_utc_for_filter(dt: Optional[datetime]) -> Optional[datetime]:
 
     # Convert to UTC
     if dt.tzinfo is not None:
-        utc_dt = dt.astimezone(timezone.utc)
+        utc_dt = dt.astimezone(UTC)
         # Return as naive datetime (remove tzinfo) for database comparison
         return utc_dt.replace(tzinfo=None)
 
