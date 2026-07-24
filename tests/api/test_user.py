@@ -5,7 +5,7 @@ import time
 import zipfile
 from base64 import b64encode
 from copy import deepcopy
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 from hashlib import sha256
 from math import ceil
 from unittest.mock import AsyncMock, MagicMock
@@ -188,7 +188,7 @@ def test_user_create_active(access_token):
     """Test that the user create active route is accessible."""
     core, groups = setup_groups(access_token, 2)
     group_ids = [group["id"] for group in groups]
-    expire = datetime.now(timezone.utc).replace(microsecond=0) + timedelta(days=30)
+    expire = datetime.now(UTC).replace(microsecond=0) + timedelta(days=30)
     user = create_user(
         access_token,
         group_ids=group_ids,
@@ -220,7 +220,7 @@ def test_user_create_active(access_token):
 def test_user_hwid_limit_stays_null_on_create_and_null_modify_clears(access_token):
     core, groups = setup_groups(access_token, 1)
     group_ids = [group["id"] for group in groups]
-    expire = datetime.now(timezone.utc).replace(microsecond=0) + timedelta(days=30)
+    expire = datetime.now(UTC).replace(microsecond=0) + timedelta(days=30)
     usernames: list[str] = []
 
     try:
@@ -281,7 +281,7 @@ def test_limited_admin_cannot_create_or_modify_user_to_unlimited_data_or_expire(
     admin = create_admin(access_token, role_id=role["id"])
     admin_token = _login(admin["username"], admin["password"])
     username = unique_name("bounded_limit_user")
-    finite_expire = (datetime.now(timezone.utc).replace(microsecond=0) + timedelta(hours=1)).isoformat()
+    finite_expire = (datetime.now(UTC).replace(microsecond=0) + timedelta(hours=1)).isoformat()
 
     try:
         response = client.post(
@@ -369,7 +369,7 @@ def test_user_create_expire_timezone_offset_normalized_to_utc(access_token):
     """Expire with non-UTC offset should be persisted as the same UTC instant."""
     core, groups = setup_groups(access_token, 1)
     tehran_tz = timezone(timedelta(hours=3, minutes=30))
-    expire_utc = datetime.now(timezone.utc).replace(microsecond=0) + timedelta(days=30)
+    expire_utc = datetime.now(UTC).replace(microsecond=0) + timedelta(days=30)
     expire_tehran = expire_utc.astimezone(tehran_tz)
     user = create_user(
         access_token,
@@ -383,7 +383,7 @@ def test_user_create_expire_timezone_offset_normalized_to_utc(access_token):
     )
     try:
         response_expire = datetime.fromisoformat(user["expire"])
-        assert response_expire.astimezone(timezone.utc).replace(microsecond=0) == expire_utc
+        assert response_expire.astimezone(UTC).replace(microsecond=0) == expire_utc
     finally:
         delete_user(access_token, user["username"])
         cleanup_groups(access_token, core, groups)
@@ -393,7 +393,7 @@ def test_user_create_on_hold(access_token):
     """Test that the user create on hold route is accessible."""
     core, groups = setup_groups(access_token, 2)
     group_ids = [group["id"] for group in groups]
-    expire = datetime.now(timezone.utc).replace(microsecond=0) + timedelta(days=30)
+    expire = datetime.now(UTC).replace(microsecond=0) + timedelta(days=30)
     user = create_user(
         access_token,
         group_ids=group_ids,
@@ -570,7 +570,7 @@ def test_users_get_filters_by_no_data_limit(access_token):
 
 def test_users_get_filters_by_expire_date_range(access_token):
     core, groups = setup_groups(access_token, 1)
-    now = datetime.now(timezone.utc).replace(microsecond=0)
+    now = datetime.now(UTC).replace(microsecond=0)
     early_expire = now + timedelta(days=5)
     late_expire = now + timedelta(days=45)
     early_user = create_user(
@@ -612,7 +612,7 @@ def test_users_get_filters_by_expire_date_range(access_token):
 
 def test_users_get_filters_by_online_date_range(access_token):
     core, groups = setup_groups(access_token, 1)
-    now = datetime.now(timezone.utc).replace(microsecond=0)
+    now = datetime.now(UTC).replace(microsecond=0)
     recent_online_at = now - timedelta(days=2)
     old_online_at = now - timedelta(days=20)
     recent_user = create_user(
@@ -658,7 +658,7 @@ def test_users_get_filters_by_online_date_range(access_token):
 
 def test_users_get_filters_by_online_users(access_token):
     core, groups = setup_groups(access_token, 1)
-    now = datetime.now(timezone.utc).replace(microsecond=0)
+    now = datetime.now(UTC).replace(microsecond=0)
     online_user = create_user(
         access_token,
         group_ids=[groups[0]["id"]],
@@ -711,7 +711,7 @@ def test_users_get_filters_by_no_expire(access_token):
         group_ids=[groups[0]["id"]],
         payload={
             "username": unique_name("test_user_with_expire"),
-            "expire": (datetime.now(timezone.utc).replace(microsecond=0) + timedelta(days=30)).isoformat(),
+            "expire": (datetime.now(UTC).replace(microsecond=0) + timedelta(days=30)).isoformat(),
         },
     )
 
@@ -914,7 +914,7 @@ def test_user_routes_by_id_and_by_username(access_token):
 
 
 def test_get_users_count_metric_passes_filters(access_token, monkeypatch):
-    start = datetime(2024, 2, 1, tzinfo=timezone.utc)
+    start = datetime(2024, 2, 1, tzinfo=UTC)
     end = start + timedelta(days=7)
     counts = UserCountMetricStatsList(
         metric=UserCountMetric.online,
@@ -1827,7 +1827,7 @@ def test_reset_user_usage_only_cleans_chart_data_when_enabled(access_token):
                 NodeUserUsage(
                     user_id=user["id"],
                     node_id=None,
-                    created_at=datetime.now(timezone.utc) - timedelta(minutes=10),
+                    created_at=datetime.now(UTC) - timedelta(minutes=10),
                     used_traffic=123,
                 )
             )
@@ -2170,7 +2170,7 @@ def test_enable_disabled_user_resolves_expired_limited_on_hold_and_active_status
         group_ids=[groups[0]["id"]],
         payload={
             "username": unique_name("toggle_expired"),
-            "expire": (datetime.now(timezone.utc) - timedelta(days=1)).isoformat(),
+            "expire": (datetime.now(UTC) - timedelta(days=1)).isoformat(),
         },
     )
     limited_user = create_user(
@@ -2740,7 +2740,7 @@ def test_get_users_simple_invalid_sort(access_token):
 
 def test_get_users_simple_search_and_sort(access_token):
     """Test combining search and sort parameters."""
-    core, groups = setup_groups(access_token, 1)
+    _core, _groups = setup_groups(access_token, 1)
     created_usernames = []
     try:
         # Create 4 users

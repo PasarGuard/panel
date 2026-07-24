@@ -1,4 +1,4 @@
-from datetime import timezone as tz
+from datetime import UTC
 from uuid import UUID
 
 from aiogram.utils.web_app import WebAppInitData, safe_parse_webapp_init_data
@@ -42,7 +42,7 @@ def _is_token_valid_for_admin(db_admin: Admin, payload: dict) -> bool:
         return True
     if not payload.get("created_at"):
         return False
-    return db_admin.password_reset_at.astimezone(tz.utc) <= payload.get("created_at")
+    return db_admin.password_reset_at.astimezone(UTC) <= payload.get("created_at")
 
 
 def _extract_api_key(request: Request) -> str | None:

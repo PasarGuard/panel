@@ -239,16 +239,13 @@ class XrayConfiguration(BaseSubscription):
         else:
             tcp_settings = {"header": {"type": headers}}
 
-        if any((path, host, config.random_user_agent)):
-            if "request" not in tcp_settings["header"]:
-                tcp_settings["header"]["request"] = {}
+        if any((path, host, config.random_user_agent)) and "request" not in tcp_settings["header"]:
+            tcp_settings["header"]["request"] = {}
 
-        if any((config.random_user_agent, host)):
-            if (
-                "headers" not in tcp_settings["header"]["request"]
-                or tcp_settings["header"]["request"]["headers"] is None
-            ):
-                tcp_settings["header"]["request"]["headers"] = {}
+        if any((config.random_user_agent, host)) and (
+            "headers" not in tcp_settings["header"]["request"] or tcp_settings["header"]["request"]["headers"] is None
+        ):
+            tcp_settings["header"]["request"]["headers"] = {}
 
         if path:
             tcp_settings["header"]["request"]["path"] = [path]

@@ -465,7 +465,7 @@ class WireGuardHostOverrides(BaseModel):
         if value in (None, "", []):
             return None
         if not isinstance(value, list):
-            raise ValueError("allowed_ips must be a list of CIDR strings")
+            raise TypeError("allowed_ips must be a list of CIDR strings")
         normalized: list[str] = []
         for cidr in value:
             if not isinstance(cidr, str) or not cidr.strip():

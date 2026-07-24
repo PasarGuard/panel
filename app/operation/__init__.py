@@ -1,6 +1,6 @@
-from datetime import datetime as dt, timedelta as td, timezone as tz
-from enum import IntEnum
 import re
+from datetime import UTC, datetime as dt, timedelta as td
+from enum import IntEnum
 from typing import Any
 
 from fastapi import HTTPException
@@ -9,8 +9,8 @@ from app.core.manager import core_manager
 from app.db import AsyncSession
 from app.db.crud import (
     get_admin,
-    get_core_config_by_id,
     get_client_template_by_id,
+    get_core_config_by_id,
     get_group_by_id,
     get_host_by_id,
     get_node_by_id,
@@ -20,12 +20,12 @@ from app.db.crud import (
 from app.db.crud.admin import get_admin_by_id
 from app.db.crud.group import get_groups_by_ids
 from app.db.crud.user import get_user_by_id
-from app.db.models import Admin as DBAdmin, CoreConfig, ClientTemplate, Group, Node, ProxyHost, User, UserTemplate
+from app.db.models import Admin as DBAdmin, ClientTemplate, CoreConfig, Group, Node, ProxyHost, User, UserTemplate
 from app.models.admin import AdminDetails
 from app.models.group import BulkGroup
 from app.models.user import UserCreate, UserModify
-from app.utils.helpers import ensure_datetime_timezone
 from app.operation.permissions import get_scope_admin_id
+from app.utils.helpers import ensure_datetime_timezone
 from app.utils.jwt import get_subscription_payload
 
 
@@ -115,9 +115,9 @@ class BaseOperation:
 
             if set_default_values:
                 if not start_date:
-                    start_date = dt.now(tz.utc) - td(days=30)
+                    start_date = dt.now(UTC) - td(days=30)
                 if not end_date:
-                    end_date = dt.now(tz.utc)
+                    end_date = dt.now(UTC)
 
             # Validate that start and end have the same timezone
             if start_date and end_date:
@@ -130,7 +130,7 @@ class BaseOperation:
 
             return start_date, end_date
         except ValueError as e:
-            await self.raise_error(message=f"Invalid date range or format: {str(e)}", code=400)
+            await self.raise_error(message=f"Invalid date range or format: {e!s}", code=400)
 
     async def get_validated_host(self, db: AsyncSession, host_id: int) -> ProxyHost:
         db_host = await get_host_by_id(db, host_id)
@@ -150,8 +150,8 @@ class BaseOperation:
 
         if (
             not db_user
-            or db_user.created_at.astimezone(tz.utc) > sub["created_at"]
-            or (db_user.sub_revoked_at and db_user.sub_revoked_at.astimezone(tz.utc) > sub["created_at"])
+            or db_user.created_at.astimezone(UTC) > sub["created_at"]
+            or (db_user.sub_revoked_at and db_user.sub_revoked_at.astimezone(UTC) > sub["created_at"])
         ):
             await self.raise_error(message="Not Found", code=404)
 

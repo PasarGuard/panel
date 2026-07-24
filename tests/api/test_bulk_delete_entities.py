@@ -1,17 +1,16 @@
 import asyncio
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
 from fastapi import status
 from sqlalchemy import func, select, update
 
-from app.db.crud.node import create_node as db_create_node
-from app.db.crud.node import remove_node as db_remove_node
+from app.db.crud.node import create_node as db_create_node, remove_node as db_remove_node
 from app.db.models import (
-    APIKey,
     Admin,
     AdminUsageLogs,
+    APIKey,
     NextPlan,
     Node,
     NodeStat,
@@ -215,7 +214,7 @@ def get_node_core_config_id(node_id: int) -> int | None:
 def seed_node_usage_rows(node_id: int, user_id: int) -> None:
     async def _seed():
         async with TestSession() as session:
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
             session.add_all(
                 [
                     NodeUserUsage(user_id=user_id, node_id=node_id, created_at=now, used_traffic=1),

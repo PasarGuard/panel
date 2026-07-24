@@ -13,10 +13,10 @@ from app.models.stats import (
 from app.models.user import (
     BulkUser,
     BulkUsersActionResponse,
+    BulkUsersApplyTemplate,
     BulkUsersCreateResponse,
     BulkUsersFromTemplate,
     BulkUsersProxy,
-    BulkUsersApplyTemplate,
     BulkUsersSelection,
     BulkUsersSetOwner,
     CreateUserFromTemplate,
@@ -28,19 +28,21 @@ from app.models.user import (
     UserModify,
     UserResponse,
     UserSimpleListQuery,
-    UserStatusToggle,
-    UserUsageQuery,
     UsersResponse,
     UsersSimpleResponse,
-    UsersUsageQuery,
+    UserStatusToggle,
     UserSubscriptionUpdateChart,
     UserSubscriptionUpdateList,
+    UsersUsageQuery,
+    UserUsageQuery,
 )
 from app.operation import OperatorType
 from app.operation.node import NodeOperation
 from app.operation.subscription import SubscriptionOperation
 from app.operation.user import UserOperation
 from app.utils import responses
+
+from .authentication import require_permission, require_scope_all
 from .dependencies import (
     get_expired_users_query,
     get_user_list_query,
@@ -48,8 +50,6 @@ from .dependencies import (
     get_user_usage_query,
     get_users_usage_query,
 )
-
-from .authentication import require_permission, require_scope_all
 
 user_operator = UserOperation(operator_type=OperatorType.API)
 node_operator = NodeOperation(operator_type=OperatorType.API)

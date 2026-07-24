@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Iterable
 from dataclasses import dataclass
 from ipaddress import IPv4Address, IPv4Network, IPv6Address, IPv6Network, ip_interface, ip_network
-from typing import Iterable
 
 from sqlalchemy import and_, delete, insert, select
 from sqlalchemy.dialects.mysql import insert as mysql_insert

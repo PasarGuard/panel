@@ -1,12 +1,13 @@
 from html import escape
 
-from app.notification.client import send_telegram_message
-from app.notification.helpers import get_telegram_channel
 from app.models.node import NodeNotification, NodeResponse
 from app.models.settings import NotificationSettings
+from app.notification.client import send_telegram_message
+from app.notification.helpers import get_telegram_channel
 from app.settings import notification_settings
 from app.utils.helpers import escape_tg_html
 from app.utils.system import readable_size
+
 from . import messages
 
 ENTITY = "node"

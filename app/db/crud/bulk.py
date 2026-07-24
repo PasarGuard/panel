@@ -1,5 +1,4 @@
-from datetime import datetime as dt, timezone as tz
-from typing import Optional
+from datetime import UTC, datetime as dt
 
 from sqlalchemy import and_, case, cast, delete, func, or_, select, text, update
 from sqlalchemy.dialects.postgresql import JSONB
@@ -24,7 +23,7 @@ from .user import load_user_attrs
 
 async def reset_all_users_data_usage(
     db: AsyncSession,
-    admin: Optional[Admin] = None,
+    admin: Admin | None = None,
     *,
     clean_chart_data: bool = False,
 ):
@@ -81,7 +80,7 @@ async def disable_all_active_users(db: AsyncSession, admin: Admin | None = None)
 
     await db.execute(
         query.values(
-            {User.status: UserStatus.disabled, User.last_status_change: dt.now(tz.utc)},
+            {User.status: UserStatus.disabled, User.last_status_change: dt.now(UTC)},
         )
     )
 
@@ -111,12 +110,12 @@ async def activate_all_disabled_users(db: AsyncSession, admin: Admin | None = No
 
     await db.execute(
         query_for_on_hold_users.values(
-            {User.status: UserStatus.on_hold, User.last_status_change: dt.now(tz.utc)},
+            {User.status: UserStatus.on_hold, User.last_status_change: dt.now(UTC)},
         )
     )
     await db.execute(
         query_for_active_users.values(
-            {User.status: UserStatus.active, User.last_status_change: dt.now(tz.utc)},
+            {User.status: UserStatus.active, User.last_status_change: dt.now(UTC)},
         )
     )
 
@@ -308,7 +307,7 @@ async def update_users_expire(db: AsyncSession, bulk_model: BulkUser) -> tuple[l
     ).scalar_one_or_none() or 0
     # Get database-specific datetime addition expression
     new_expire = get_datetime_add_expression(db, User.expire, bulk_model.amount)
-    current_time = dt.now(tz.utc)
+    current_time = dt.now(UTC)
 
     # First, get the users that will have status changes BEFORE updating
     status_change_conditions = or_(

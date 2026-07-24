@@ -62,7 +62,7 @@ def run_orval(schema_path: Path) -> None:
     cmd = ["bun", "run", "gen:api"]
     print(f"Running orval: {' '.join(cmd)} (cwd={DASHBOARD_DIR})")
     try:
-        proc = subprocess.run(cmd, cwd=DASHBOARD_DIR, env=env)
+        proc = subprocess.run(cmd, cwd=DASHBOARD_DIR, env=env, check=False)
     except FileNotFoundError:
         raise SystemExit("`bun` was not found on PATH. Install bun or run `make install-front` first.")
     if proc.returncode != 0:

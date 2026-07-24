@@ -1,5 +1,4 @@
-from datetime import datetime as dt, timezone as tz
-from typing import Union
+from datetime import UTC, datetime as dt
 
 from jinja2 import Environment, FileSystemLoader
 from jinja2.sandbox import SandboxedEnvironment
@@ -15,16 +14,16 @@ if template_settings.custom_templates_directory:
 
 env = Environment(loader=FileSystemLoader(template_directories))
 env.filters.update(CUSTOM_FILTERS)
-env.globals["now"] = lambda: dt.now(tz.utc)
+env.globals["now"] = lambda: dt.now(UTC)
 
 sandbox_env = SandboxedEnvironment()
 sandbox_env.filters.update(CUSTOM_FILTERS)
-sandbox_env.globals["now"] = lambda: dt.now(tz.utc)
+sandbox_env.globals["now"] = lambda: dt.now(UTC)
 
 
-def render_template(template: str, context: Union[dict, None] = None) -> str:
+def render_template(template: str, context: dict | None = None) -> str:
     return env.get_template(template).render(context or {})
 
 
-def render_template_string(template_content: str, context: Union[dict, None] = None) -> str:
+def render_template_string(template_content: str, context: dict | None = None) -> str:
     return sandbox_env.from_string(template_content).render(context or {})

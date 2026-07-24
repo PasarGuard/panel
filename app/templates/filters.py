@@ -1,5 +1,5 @@
 import os
-from datetime import datetime
+from datetime import UTC, datetime
 
 import yaml
 
@@ -23,7 +23,7 @@ def only_keys(obj, *target_keys):
 
 def datetimeformat(dt):
     if isinstance(dt, int):
-        dt = datetime.fromtimestamp(dt)
+        dt = datetime.fromtimestamp(dt, tz=UTC)
     formatted_datetime = dt.strftime("%Y-%m-%d %H:%M:%S")
     return formatted_datetime
 

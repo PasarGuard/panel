@@ -19,4 +19,4 @@ def require_nats_if_multiworker(multi_worker: bool):
         )
 
 
-__all__ = ["is_nats_enabled", "get_nats_config", "require_nats_if_multiworker"]
+__all__ = ["get_nats_config", "is_nats_enabled", "require_nats_if_multiworker"]

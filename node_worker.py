@@ -1,14 +1,15 @@
 import asyncio
 import signal
-from config import runtime_settings  # noqa: E402
-from role import Role  # noqa: E402
+
+from config import runtime_settings
+from role import Role
 
 runtime_settings.role = Role.NODE
 
-from app import create_app  # noqa: E402
-from app.lifecycle import lifespan  # noqa: E402
-from app.nats import is_nats_enabled  # noqa: E402
-from app.utils.logger import get_logger  # noqa: E402
+from app import create_app
+from app.lifecycle import lifespan
+from app.nats import is_nats_enabled
+from app.utils.logger import get_logger
 
 logger = get_logger("node-worker")
 app = create_app()

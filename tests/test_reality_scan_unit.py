@@ -120,7 +120,7 @@ def test_parse_server_hello_x25519():
 
 
 def test_parse_server_hello_post_quantum_hrr():
-    is_hrr, group, tls13 = rs._parse_server_hello(_server_hello(rs.GROUP_X25519MLKEM768, hrr=True))
+    is_hrr, group, _tls13 = rs._parse_server_hello(_server_hello(rs.GROUP_X25519MLKEM768, hrr=True))
     assert is_hrr is True
     assert group == rs.GROUP_X25519MLKEM768
 
@@ -172,7 +172,7 @@ def _self_signed_der(cn: str, sans: list[str]) -> bytes:
     name = x509.Name(
         [x509.NameAttribute(NameOID.COMMON_NAME, cn), x509.NameAttribute(NameOID.ORGANIZATION_NAME, "Test Org")]
     )
-    now = datetime.datetime.now(datetime.timezone.utc)
+    now = datetime.datetime.now(datetime.UTC)
     builder = (
         x509.CertificateBuilder()
         .subject_name(name)

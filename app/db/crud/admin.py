@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import and_, case, delete, func, not_, select, update
 from sqlalchemy.exc import InvalidRequestError
@@ -13,11 +13,11 @@ from app.db.crud.general import (
     to_utc_for_filter,
 )
 from app.db.models import (
-    APIKey,
     Admin,
     AdminNotificationReminder,
     AdminRole,
     AdminUsageLogs,
+    APIKey,
     NodeUserUsage,
     ReminderType,
     User,
@@ -187,10 +187,9 @@ async def update_admin(db: AsyncSession, db_admin: Admin, modified_admin: AdminM
     Returns:
         Admin: The updated admin object.
     """
-    if modified_admin.status is not None:
-        if modified_admin.status != db_admin.status:
-            db_admin.status = modified_admin.status
-            db_admin.last_status_change = datetime.now(timezone.utc)
+    if modified_admin.status is not None and modified_admin.status != db_admin.status:
+        db_admin.status = modified_admin.status
+        db_admin.last_status_change = datetime.now(UTC)
     if modified_admin.data_limit is not None:
         db_admin.data_limit = modified_admin.data_limit if modified_admin.data_limit > 0 else None
         # Recompute limited/active based on new data_limit — never touch disabled
@@ -203,10 +202,10 @@ async def update_admin(db: AsyncSession, db_admin: Admin, modified_admin: AdminM
             new_status = AdminStatus.limited if should_be_limited else AdminStatus.active
             if db_admin.status != new_status:
                 db_admin.status = new_status
-                db_admin.last_status_change = datetime.now(timezone.utc)
+                db_admin.last_status_change = datetime.now(UTC)
     if modified_admin.password is not None:
         db_admin.hashed_password = await hash_password(modified_admin.password)
-        db_admin.password_reset_at = datetime.now(timezone.utc)
+        db_admin.password_reset_at = datetime.now(UTC)
     if modified_admin.role_id is not None:
         db_admin.role_id = modified_admin.role_id
     if modified_admin.permission_overrides is not None:
@@ -615,7 +614,7 @@ async def update_admin_status(db: AsyncSession, db_admin: Admin, new_status: Adm
         Admin: The updated admin object.
     """
     db_admin.status = new_status
-    db_admin.last_status_change = datetime.now(timezone.utc)
+    db_admin.last_status_change = datetime.now(UTC)
     await db.commit()
     await db.refresh(db_admin)
     await load_admin_attrs(db_admin)
@@ -644,7 +643,7 @@ async def reset_admin_usage(db: AsyncSession, db_admin: Admin) -> Admin:
     # After reset, used_traffic = 0 so the admin is no longer limited
     if db_admin.status == AdminStatus.limited:
         db_admin.status = AdminStatus.active
-        db_admin.last_status_change = datetime.now(timezone.utc)
+        db_admin.last_status_change = datetime.now(UTC)
 
     await db.commit()
     await db.refresh(db_admin)
@@ -743,7 +742,7 @@ async def get_admin_usages(
 async def update_owner_password(db: AsyncSession, owner: Admin, new_password: str) -> Admin:
     """Reset the owner's password. All DB work stays in the CRUD layer."""
     owner.hashed_password = await hash_password(new_password)
-    owner.password_reset_at = datetime.now(timezone.utc)
+    owner.password_reset_at = datetime.now(UTC)
     await db.commit()
     await db.refresh(owner)
     await load_admin_attrs(owner)

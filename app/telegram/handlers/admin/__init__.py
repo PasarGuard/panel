@@ -1,8 +1,8 @@
 from aiogram import Router
 
 from app.telegram.utils.filters import IsAdminFilter
-from . import main_menu, user, confirm_action, bulk_actions
 
+from . import bulk_actions, confirm_action, main_menu, user
 
 router = Router(name="admin")
 

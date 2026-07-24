@@ -3,7 +3,7 @@ import re
 import secrets
 import warnings
 from collections import Counter
-from datetime import datetime, datetime as dt, timedelta as td, timezone, timezone as tz
+from datetime import UTC, datetime, datetime as dt, timedelta as td
 
 from fastapi import HTTPException
 from pydantic import ValidationError
@@ -83,11 +83,11 @@ from app.models.user import (
     UsernameGenerationStrategy,
     UserNotificationResponse,
     UserResponse,
-    UserStatusToggle,
     UserSimple,
     UserSimpleListQuery,
     UsersResponse,
     UsersSimpleResponse,
+    UserStatusToggle,
     UserSubscriptionUpdateChart,
     UserSubscriptionUpdateChartSegment,
     UserSubscriptionUpdateList,
@@ -170,9 +170,9 @@ def _duplicate_wireguard_public_key_usernames(users: list[UserCreate]) -> tuple[
 
 
 def _resolve_enabled_user_status(user: User) -> UserStatus:
-    now = dt.now(tz.utc)
+    now = dt.now(UTC)
     expire = user.expire
-    if expire is not None and expire.replace(tzinfo=tz.utc) <= now:
+    if expire is not None and expire.replace(tzinfo=UTC) <= now:
         return UserStatus.expired
     if user.data_limit is not None and user.data_limit > 0 and user.used_traffic >= user.data_limit:
         return UserStatus.limited
@@ -532,7 +532,7 @@ class UserOperation(BaseOperation):
 
         if expire is not None and expire != 0:
             expire_dt = fix_datetime_timezone(expire)
-            seconds = (expire_dt - datetime.now(timezone.utc)).total_seconds()
+            seconds = (expire_dt - datetime.now(UTC)).total_seconds()
             if limits.expire_min is not None and seconds < limits.expire_min:
                 await self.raise_error(
                     message=f"Expire must be at least {readable_duration(limits.expire_min)} from now",
@@ -573,7 +573,7 @@ class UserOperation(BaseOperation):
 
         if on_hold_timeout is not None and on_hold_timeout != 0:
             if isinstance(on_hold_timeout, dt):
-                timeout_seconds = (fix_datetime_timezone(on_hold_timeout) - datetime.now(timezone.utc)).total_seconds()
+                timeout_seconds = (fix_datetime_timezone(on_hold_timeout) - datetime.now(UTC)).total_seconds()
             else:
                 timeout_seconds = on_hold_timeout
 
@@ -771,20 +771,24 @@ class UserOperation(BaseOperation):
                 require_finite_hwid_limit=hwid_limit_was_changed,
             )
 
-        if hwid_limit_was_changed and effective_hwid_limit is not None and not admin.is_owner:
-            if effective_hwid_conf is not None:
-                if effective_hwid_conf.min_limit is not None and effective_hwid_limit < effective_hwid_conf.min_limit:
-                    await self.raise_error(
-                        message=f"HWID limit cannot be less than {effective_hwid_conf.min_limit}", code=400, db=db
-                    )
-                if (
-                    effective_hwid_conf.max_limit is not None
-                    and effective_hwid_conf.max_limit > 0
-                    and (effective_hwid_limit > effective_hwid_conf.max_limit or effective_hwid_limit == 0)
-                ):
-                    await self.raise_error(
-                        message=f"HWID limit cannot exceed {effective_hwid_conf.max_limit}", code=400, db=db
-                    )
+        if (
+            hwid_limit_was_changed
+            and effective_hwid_limit is not None
+            and not admin.is_owner
+            and effective_hwid_conf is not None
+        ):
+            if effective_hwid_conf.min_limit is not None and effective_hwid_limit < effective_hwid_conf.min_limit:
+                await self.raise_error(
+                    message=f"HWID limit cannot be less than {effective_hwid_conf.min_limit}", code=400, db=db
+                )
+            if (
+                effective_hwid_conf.max_limit is not None
+                and effective_hwid_conf.max_limit > 0
+                and (effective_hwid_limit > effective_hwid_conf.max_limit or effective_hwid_limit == 0)
+            ):
+                await self.raise_error(
+                    message=f"HWID limit cannot exceed {effective_hwid_conf.max_limit}", code=400, db=db
+                )
 
         validated_groups = None
         if modified_user.group_ids is not None:
@@ -859,7 +863,7 @@ class UserOperation(BaseOperation):
 
         if db_user.status != new_status:
             db_user.status = new_status
-            db_user.last_status_change = dt.now(tz.utc)
+            db_user.last_status_change = dt.now(UTC)
             await db.commit()
             await load_user_attrs(db_user, load_admin_role=True)
 
@@ -1180,7 +1184,7 @@ class UserOperation(BaseOperation):
 
         changed_user_ids: list[int] = []
         original_statuses: dict[int, UserStatus] = {}
-        changed_at = dt.now(tz.utc)
+        changed_at = dt.now(UTC)
 
         try:
             for db_user in db_users:
@@ -1333,8 +1337,8 @@ class UserOperation(BaseOperation):
         db: AsyncSession,
         db_user: User,
         admin: AdminDetails,
-        start: dt = None,
-        end: dt = None,
+        start: dt | None = None,
+        end: dt | None = None,
         period: Period = Period.hour,
         node_id: int | None = None,
         group_by_node: bool = False,
@@ -1597,14 +1601,14 @@ class UserOperation(BaseOperation):
 
         if template.status == UserStatus.active:
             if template.expire_duration:
-                user_args["expire"] = dt.now(tz.utc) + td(seconds=template.expire_duration)
+                user_args["expire"] = dt.now(UTC) + td(seconds=template.expire_duration)
             else:
                 user_args["expire"] = 0
         else:
             user_args["expire"] = 0
             user_args["on_hold_expire_duration"] = template.expire_duration
             if template.on_hold_timeout:
-                user_args["on_hold_timeout"] = dt.now(tz.utc) + td(seconds=template.on_hold_timeout)
+                user_args["on_hold_timeout"] = dt.now(UTC) + td(seconds=template.on_hold_timeout)
             else:
                 user_args["on_hold_timeout"] = 0
 
@@ -1657,10 +1661,7 @@ class UserOperation(BaseOperation):
         if user_template.is_disabled:
             await self.raise_error("this template is disabled", 403)
 
-        try:
-            new_user = self._build_user_create_from_template(user_template, new_template_user)
-        except HTTPException as exc:
-            raise exc
+        new_user = self._build_user_create_from_template(user_template, new_template_user)
 
         # Template defines data_limit/expire/etc — only check max_users
         await self._enforce_user_limits(

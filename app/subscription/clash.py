@@ -427,9 +427,7 @@ class ClashConfiguration(BaseSubscription):
         # Build transport config
         if network == "ws":
             net_opts = handler(inbound.transport_config, path, is_httpupgrade, random_user_agent)
-        elif network == "http":
-            net_opts = handler(inbound.transport_config, path, random_user_agent)
-        elif network == "xhttp":
+        elif network == "http" or network == "xhttp":
             net_opts = handler(inbound.transport_config, path, random_user_agent)
         else:
             net_opts = handler(inbound.transport_config, path)

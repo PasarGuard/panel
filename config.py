@@ -164,7 +164,7 @@ class AuthSettings(EnvSettings):
     sudoers: dict[str, str] = Field(default_factory=dict)
 
     @model_validator(mode="after")
-    def build_sudoers(self) -> "AuthSettings":
+    def build_sudoers(self) -> AuthSettings:
         if self.sudo_username and self.sudo_password and not self.sudoers:
             self.sudoers[self.sudo_username] = self.sudo_password
         return self

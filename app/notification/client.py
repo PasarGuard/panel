@@ -68,7 +68,7 @@ async def _send_discord_webhook_direct(json_data, webhook, max_retries: int) -> 
                 logger.error(f"Discord webhook failed: {response.status} - {response_text}")
                 return False
         except Exception as err:
-            logger.error(f"Discord webhook failed Exception: {str(err)}")
+            logger.error(f"Discord webhook failed Exception: {err!s}")
             return False
 
     logger.error(f"Discord webhook failed after {max_retries} retries")
@@ -129,7 +129,7 @@ async def _send_telegram_message_direct(
                 logger.error(f"Telegram message failed: {response.status} - {response_text}")
                 return False
         except Exception as err:
-            logger.error(f"Telegram message failed: {str(err)}")
+            logger.error(f"Telegram message failed: {err!s}")
             return False
 
     logger.error(f"Telegram message failed after {max_retries} retries")

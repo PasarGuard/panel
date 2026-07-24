@@ -20,9 +20,9 @@ from app.models.group import (
 from app.operation import OperatorType
 from app.operation.group import GroupOperation
 from app.utils import responses
-from .dependencies import get_group_list_query, get_group_simple_list_query
 
 from .authentication import require_permission
+from .dependencies import get_group_list_query, get_group_simple_list_query
 
 router = APIRouter(prefix="/api/group", tags=["Groups"], responses={401: responses._401, 403: responses._403})
 group_operator = GroupOperation(OperatorType.API)

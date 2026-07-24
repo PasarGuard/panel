@@ -9,7 +9,6 @@ from app.telegram.keyboards.confim_action import ConfirmAction
 from app.telegram.keyboards.user import UserPanel, UserPanelAction
 from app.telegram.utils.texts import Message as Texts
 
-
 router = Router(name="confirm_action")
 
 user_operations = UserOperation(OperatorType.TELEGRAM)

@@ -1,6 +1,6 @@
 import re
 from json import dumps as json_dumps
-from typing import Any
+from typing import Any, ClassVar
 
 from fastapi import Response
 from fastapi.responses import HTMLResponse
@@ -86,7 +86,7 @@ client_config = {
 
 
 class SubscriptionOperation(BaseOperation):
-    _ENCODED_RULE_RESPONSE_HEADERS = {"announce", "profile-title"}
+    _ENCODED_RULE_RESPONSE_HEADERS: ClassVar[set[str]] = {"announce", "profile-title"}
 
     @staticmethod
     async def validated_user(db_user: User) -> UsersResponseWithInbounds:

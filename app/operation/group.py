@@ -14,24 +14,24 @@ from app.db.crud.group import (
     remove_groups,
 )
 from app.db.crud.user import get_users
+from app.db.crud.wireguard import sync_users_allocations
 from app.db.models import Admin
 from app.models.group import (
-    BulkGroupsActionResponse,
     BulkGroup,
+    BulkGroupsActionResponse,
     BulkGroupSelection,
     Group,
     GroupCreate,
     GroupListQuery,
     GroupModify,
     GroupResponse,
+    GroupSimple,
     GroupSimpleListQuery,
     GroupsResponse,
-    GroupSimple,
     GroupsSimpleResponse,
     RemoveGroupsResponse,
 )
 from app.models.user import BulkOperationDryRunResponse, UserListQuery
-from app.db.crud.wireguard import sync_users_allocations
 from app.node.sync import sync_users
 from app.operation import BaseOperation, OperatorType
 from app.operation.permissions import apply_group_access

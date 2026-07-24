@@ -1,12 +1,12 @@
 import asyncio
-from datetime import datetime as dt, timedelta as td, timezone as tz
+from datetime import UTC, datetime as dt, timedelta as td
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import notification, scheduler
 from app.db import GetDB
-from app.db.models import User, UserStatus, ReminderType
 from app.db.crud.user import (
+    bulk_create_notification_reminders,
     get_active_to_expire_users,
     get_active_to_limited_users,
     get_days_left_reached_users,
@@ -15,14 +15,13 @@ from app.db.crud.user import (
     reset_user_by_next,
     start_users_expire,
     update_users_status,
-    bulk_create_notification_reminders,
 )
-from app.operation import OperatorType
-from app.operation.user import UserOperation
+from app.db.models import ReminderType, User, UserStatus
 from app.jobs.dependencies import SYSTEM_ADMIN
 from app.models.settings import Webhook
 from app.models.user import UserNotificationResponse
-from app.node import node_manager as node_manager
+from app.operation import OperatorType
+from app.operation.user import UserOperation
 from app.settings import webhook_settings
 from app.utils.logger import get_logger
 from config import job_settings, runtime_settings, usage_settings
@@ -155,7 +154,7 @@ async def days_left_notification_job():
 
 
 if runtime_settings.role.runs_scheduler:
-    now = dt.now(tz.utc)
+    now = dt.now(UTC)
     interval = int(job_settings.review_users_interval / 5)
 
     # Register each job separately

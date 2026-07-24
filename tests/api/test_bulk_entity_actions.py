@@ -5,8 +5,7 @@ from uuid import uuid4
 from fastapi import status
 from sqlalchemy import func, select, update
 
-from app.db.crud.node import create_node as db_create_node
-from app.db.crud.node import remove_node as db_remove_node
+from app.db.crud.node import create_node as db_create_node, remove_node as db_remove_node
 from app.db.models import Admin, AdminUsageLogs, Node
 from app.models.node import NodeCreate
 from tests.api import TestSession, client

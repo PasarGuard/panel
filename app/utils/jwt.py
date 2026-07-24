@@ -1,12 +1,13 @@
 import hmac
 import time
-import jwt
 from base64 import b64decode, b64encode
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 from math import ceil
 
+import jwt
 from aiocache import cached
+
 from app.db import GetDB
 from app.db.crud.general import get_jwt_secret_key
 from config import jwt_settings
@@ -20,11 +21,11 @@ async def get_secret_key():
 
 
 async def create_admin_token(admin_id: int | None, username: str) -> str:
-    data = {"sub": username, "access": "admin", "iat": datetime.now(timezone.utc)}
+    data = {"sub": username, "access": "admin", "iat": datetime.now(UTC)}
     if admin_id is not None:
         data["aid"] = int(admin_id)
     if jwt_settings.access_token_expire_minutes > 0:
-        expire = datetime.now(timezone.utc) + timedelta(minutes=jwt_settings.access_token_expire_minutes)
+        expire = datetime.now(UTC) + timedelta(minutes=jwt_settings.access_token_expire_minutes)
         data["exp"] = expire
     encoded_jwt = jwt.encode(data, await get_secret_key(), algorithm="HS256")
     return encoded_jwt
@@ -44,7 +45,7 @@ async def get_admin_payload(token: str) -> dict | None:
         if not username or access not in ("admin", "sudo"):
             return
         try:
-            created_at = datetime.fromtimestamp(payload["iat"], tz=timezone.utc)
+            created_at = datetime.fromtimestamp(payload["iat"], tz=UTC)
         except KeyError:
             created_at = None
 
@@ -87,7 +88,7 @@ def _parse_subscription_data(data_str: str) -> dict | None:
             return
         return {
             "user_id": u_user_id,
-            "created_at": datetime.fromtimestamp(u_created_at, tz=timezone.utc),
+            "created_at": datetime.fromtimestamp(u_created_at, tz=UTC),
         }
 
     if len(parts) == 2:
@@ -98,7 +99,7 @@ def _parse_subscription_data(data_str: str) -> dict | None:
             return
         return {
             "username": u_username,
-            "created_at": datetime.fromtimestamp(u_created_at, tz=timezone.utc),
+            "created_at": datetime.fromtimestamp(u_created_at, tz=UTC),
         }
     return
 
@@ -128,7 +129,7 @@ async def get_subscription_payload(token: str) -> dict | None:
                     return
                 return {
                     "username": username,
-                    "created_at": datetime.fromtimestamp(payload["iat"], tz=timezone.utc),
+                    "created_at": datetime.fromtimestamp(payload["iat"], tz=UTC),
                 }
             else:
                 return

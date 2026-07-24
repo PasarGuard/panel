@@ -1,8 +1,7 @@
 import html
 import json
 import re
-from datetime import datetime as dt, timezone as tz
-from typing import Union
+from datetime import UTC, datetime as dt, timezone as tz
 from uuid import UUID
 
 from pydantic import ValidationError
@@ -12,7 +11,7 @@ def yml_uuid_representer(dumper, data):
     return dumper.represent_scalar("tag:yaml.org,2002:str", str(data))
 
 
-def readable_datetime(date_time: Union[dt, int, None], include_date: bool = True, include_time: bool = True):
+def readable_datetime(date_time: dt | int | None, include_date: bool = True, include_time: bool = True):
     def get_datetime_format():
         dt_format = ""
         if include_date:
@@ -25,7 +24,7 @@ def readable_datetime(date_time: Union[dt, int, None], include_date: bool = True
         return dt_format
 
     if isinstance(date_time, int):
-        date_time = dt.fromtimestamp(date_time)
+        date_time = dt.fromtimestamp(date_time, tz=UTC)
 
     return date_time.strftime(get_datetime_format()) if date_time else "-"
 
@@ -34,22 +33,22 @@ def fix_datetime_timezone(value: dt | int | str):
     if isinstance(value, dt):
         # If datetime is naive (no timezone), assume it's UTC
         if value.tzinfo is None:
-            return value.replace(tzinfo=tz.utc)
+            return value.replace(tzinfo=UTC)
         return value  # Already has timezone info
     elif isinstance(value, int):
         # Timestamp will be assume it's UTC
-        return dt.fromtimestamp(value, tz=tz.utc)
+        return dt.fromtimestamp(value, tz=UTC)
     elif isinstance(value, str):
         # SQLite strftime returns naive ISO strings; treat them as UTC.
         parsed = dt.fromisoformat(value)
         if parsed.tzinfo is None:
-            return parsed.replace(tzinfo=tz.utc)
+            return parsed.replace(tzinfo=UTC)
         return parsed
 
     raise ValueError("input can be datetime or timestamp")
 
 
-def ensure_datetime_timezone(value: dt | int | str, default_tz: tz = tz.utc) -> dt:
+def ensure_datetime_timezone(value: dt | int | str, default_tz: tz = UTC) -> dt:
     """
     Ensures datetime has timezone info WITHOUT converting to UTC.
 
@@ -145,7 +144,7 @@ def convert_to_utc_for_filtering(dt_value: dt | None) -> dt | None:
     if dt_value is None:
         return None
     if dt_value.tzinfo is not None:
-        return dt_value.astimezone(tz.utc)
+        return dt_value.astimezone(UTC)
     return dt_value
 
 

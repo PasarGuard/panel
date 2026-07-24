@@ -5,8 +5,7 @@ import zlib
 
 import qrcode
 from aiogram.exceptions import TelegramAPIError
-from aiogram.types import BufferedInputFile
-from aiogram.types import Message
+from aiogram.types import BufferedInputFile, Message
 
 
 def _png_chunk(chunk_type: bytes, data: bytes) -> bytes:

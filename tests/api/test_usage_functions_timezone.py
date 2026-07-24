@@ -5,30 +5,31 @@ Tests verify that the UTC conversion fix correctly filters records by timezone-a
 This includes strict testing with multiple data rows, edge cases for each period, and expected responses.
 """
 
-from datetime import datetime, timedelta, timezone
-import pytest
+from datetime import UTC, datetime, timedelta, timezone
 from uuid import uuid4
+
+import pytest
 from sqlalchemy import select
 
+from app.db.crud.admin import get_admin_usages
+from app.db.crud.node import get_nodes_usage
+from app.db.crud.user import get_all_users_usages, get_user_count_metric_stats, get_user_usages
 from app.db.models import (
+    Admin,
+    Node,
     NodeUsage,
     NodeUserUsage,
     User,
     UserStatus,
-    Admin,
-    Node,
 )
+from app.models.proxy import ProxyTable
 from app.models.stats import (
-    Period,
     NodeUsageStatsList,
+    Period,
     UserCountMetric,
     UserCountMetricStatsList,
     UserUsageStatsList,
 )
-from app.models.proxy import ProxyTable
-from app.db.crud.node import get_nodes_usage
-from app.db.crud.user import get_user_count_metric_stats, get_user_usages, get_all_users_usages
-from app.db.crud.admin import get_admin_usages
 from tests.api import TestSession
 
 
@@ -86,23 +87,23 @@ class TestGetNodesUsageTimezone:
         - Period grouping works correctly in Tehran timezone
         """
         async with TestSession() as session:
-            admin_id, user_id, node_id = await setup_test_data(session)
+            _admin_id, _user_id, node_id = await setup_test_data(session)
 
             # Inject 10 data points: 3 before, 6 in range, 1 after
             # Tehran timezone is UTC+03:30
             # Request range: 2026-02-10 00:00:00+03:30 to 03:00:00+03:30
             # Which equals: 2026-02-09 20:30:00 UTC to 2026-02-09 23:30:00 UTC
             timestamps_utc = [
-                datetime(2026, 2, 9, 19, 45, 0, tzinfo=timezone.utc),  # 23:15 Tehran - BEFORE
-                datetime(2026, 2, 9, 20, 0, 0, tzinfo=timezone.utc),  # 23:30 Tehran - BEFORE
-                datetime(2026, 2, 9, 20, 15, 0, tzinfo=timezone.utc),  # 23:45 Tehran - BEFORE
-                datetime(2026, 2, 9, 20, 30, 0, tzinfo=timezone.utc),  # 00:00 Tehran - IN RANGE ✓
-                datetime(2026, 2, 9, 20, 45, 0, tzinfo=timezone.utc),  # 00:15 Tehran - IN RANGE ✓
-                datetime(2026, 2, 9, 21, 0, 0, tzinfo=timezone.utc),  # 00:30 Tehran - IN RANGE ✓
-                datetime(2026, 2, 9, 21, 30, 0, tzinfo=timezone.utc),  # 01:00 Tehran - IN RANGE ✓
-                datetime(2026, 2, 9, 22, 30, 0, tzinfo=timezone.utc),  # 02:00 Tehran - IN RANGE ✓
-                datetime(2026, 2, 9, 23, 15, 0, tzinfo=timezone.utc),  # 02:45 Tehran - IN RANGE ✓
-                datetime(2026, 2, 10, 0, 0, 0, tzinfo=timezone.utc),  # 03:30 Tehran - AFTER
+                datetime(2026, 2, 9, 19, 45, 0, tzinfo=UTC),  # 23:15 Tehran - BEFORE
+                datetime(2026, 2, 9, 20, 0, 0, tzinfo=UTC),  # 23:30 Tehran - BEFORE
+                datetime(2026, 2, 9, 20, 15, 0, tzinfo=UTC),  # 23:45 Tehran - BEFORE
+                datetime(2026, 2, 9, 20, 30, 0, tzinfo=UTC),  # 00:00 Tehran - IN RANGE ✓
+                datetime(2026, 2, 9, 20, 45, 0, tzinfo=UTC),  # 00:15 Tehran - IN RANGE ✓
+                datetime(2026, 2, 9, 21, 0, 0, tzinfo=UTC),  # 00:30 Tehran - IN RANGE ✓
+                datetime(2026, 2, 9, 21, 30, 0, tzinfo=UTC),  # 01:00 Tehran - IN RANGE ✓
+                datetime(2026, 2, 9, 22, 30, 0, tzinfo=UTC),  # 02:00 Tehran - IN RANGE ✓
+                datetime(2026, 2, 9, 23, 15, 0, tzinfo=UTC),  # 02:45 Tehran - IN RANGE ✓
+                datetime(2026, 2, 10, 0, 0, 0, tzinfo=UTC),  # 03:30 Tehran - AFTER
             ]
 
             for idx, ts in enumerate(timestamps_utc):
@@ -183,19 +184,19 @@ class TestGetNodesUsageTimezone:
         Verifies correct filtering with negative timezone offset.
         """
         async with TestSession() as session:
-            admin_id, user_id, node_id = await setup_test_data(session)
+            _admin_id, _user_id, node_id = await setup_test_data(session)
 
             # New York timezone is UTC-05:00
             # Request: 2026-03-10 00:00:00-05:00 = 2026-03-10 05:00:00 UTC
             timestamps_utc = [
-                datetime(2026, 3, 10, 4, 0, 0, tzinfo=timezone.utc),  # BEFORE
-                datetime(2026, 3, 10, 4, 30, 0, tzinfo=timezone.utc),  # BEFORE
-                datetime(2026, 3, 10, 5, 15, 0, tzinfo=timezone.utc),  # IN RANGE (00:15 NY)
-                datetime(2026, 3, 10, 6, 15, 0, tzinfo=timezone.utc),  # IN RANGE (01:15 NY)
-                datetime(2026, 3, 10, 7, 15, 0, tzinfo=timezone.utc),  # IN RANGE (02:15 NY)
-                datetime(2026, 3, 10, 8, 0, 0, tzinfo=timezone.utc),  # IN RANGE (03:00 NY boundary)
-                datetime(2026, 3, 10, 8, 30, 0, tzinfo=timezone.utc),  # AFTER
-                datetime(2026, 3, 10, 9, 0, 0, tzinfo=timezone.utc),  # AFTER
+                datetime(2026, 3, 10, 4, 0, 0, tzinfo=UTC),  # BEFORE
+                datetime(2026, 3, 10, 4, 30, 0, tzinfo=UTC),  # BEFORE
+                datetime(2026, 3, 10, 5, 15, 0, tzinfo=UTC),  # IN RANGE (00:15 NY)
+                datetime(2026, 3, 10, 6, 15, 0, tzinfo=UTC),  # IN RANGE (01:15 NY)
+                datetime(2026, 3, 10, 7, 15, 0, tzinfo=UTC),  # IN RANGE (02:15 NY)
+                datetime(2026, 3, 10, 8, 0, 0, tzinfo=UTC),  # IN RANGE (03:00 NY boundary)
+                datetime(2026, 3, 10, 8, 30, 0, tzinfo=UTC),  # AFTER
+                datetime(2026, 3, 10, 9, 0, 0, tzinfo=UTC),  # AFTER
             ]
 
             for ts in timestamps_utc:
@@ -255,7 +256,7 @@ class TestGetNodesUsageTimezone:
         the response must start from 2026-02-04, not 2026-02-03.
         """
         async with TestSession() as session:
-            admin_id, user_id, node_id = await setup_test_data(session)
+            _admin_id, _user_id, node_id = await setup_test_data(session)
 
             tehran_tz = timezone(timedelta(hours=3, minutes=30))
             start = datetime(2026, 4, 4, 0, 0, 0, tzinfo=tehran_tz)
@@ -275,7 +276,7 @@ class TestGetNodesUsageTimezone:
             for idx, ts_local in enumerate(local_timestamps):
                 session.add(
                     NodeUsage(
-                        created_at=ts_local.astimezone(timezone.utc),
+                        created_at=ts_local.astimezone(UTC),
                         node_id=node_id,
                         uplink=1000 + idx,
                         downlink=2000 + idx,
@@ -304,7 +305,7 @@ class TestGetNodesUsageTimezone:
         Regression test for extra first hour bucket when start is not hour-aligned.
         """
         async with TestSession() as session:
-            admin_id, user_id, node_id = await setup_test_data(session)
+            _admin_id, _user_id, node_id = await setup_test_data(session)
 
             tehran_tz = timezone(timedelta(hours=3, minutes=30))
             start = datetime(2026, 5, 9, 14, 2, 37, tzinfo=tehran_tz)
@@ -319,7 +320,7 @@ class TestGetNodesUsageTimezone:
             for idx, ts_local in enumerate(local_timestamps):
                 session.add(
                     NodeUsage(
-                        created_at=ts_local.astimezone(timezone.utc),
+                        created_at=ts_local.astimezone(UTC),
                         node_id=node_id,
                         uplink=10000 + idx,
                         downlink=20000 + idx,
@@ -353,23 +354,23 @@ class TestGetNodesUsageTimezone:
         requested start time is included in the response.
         """
         async with TestSession() as session:
-            admin_id, user_id, node_id = await setup_test_data(session)
+            _admin_id, _user_id, node_id = await setup_test_data(session)
 
             # UTC timestamps spanning a range
-            start_utc = datetime(2026, 6, 10, 0, 0, 0, tzinfo=timezone.utc)
-            end_utc = datetime(2026, 6, 11, 0, 0, 0, tzinfo=timezone.utc)
+            start_utc = datetime(2026, 6, 10, 0, 0, 0, tzinfo=UTC)
+            end_utc = datetime(2026, 6, 11, 0, 0, 0, tzinfo=UTC)
 
             # Inject data BEFORE the range (this is what was being returned before the fix)
             before_timestamps = [
-                datetime(2026, 6, 9, 20, 0, 0, tzinfo=timezone.utc),
-                datetime(2026, 6, 9, 22, 0, 0, tzinfo=timezone.utc),
+                datetime(2026, 6, 9, 20, 0, 0, tzinfo=UTC),
+                datetime(2026, 6, 9, 22, 0, 0, tzinfo=UTC),
             ]
 
             # Inject data IN the range
             in_range_timestamps = [
-                datetime(2026, 6, 10, 6, 0, 0, tzinfo=timezone.utc),
-                datetime(2026, 6, 10, 12, 0, 0, tzinfo=timezone.utc),
-                datetime(2026, 6, 10, 18, 0, 0, tzinfo=timezone.utc),
+                datetime(2026, 6, 10, 6, 0, 0, tzinfo=UTC),
+                datetime(2026, 6, 10, 12, 0, 0, tzinfo=UTC),
+                datetime(2026, 6, 10, 18, 0, 0, tzinfo=UTC),
             ]
 
             all_timestamps = before_timestamps + in_range_timestamps
@@ -437,18 +438,18 @@ class TestGetUserUsagesTimezone:
         Verifies correct filtering for user usage statistics.
         """
         async with TestSession() as session:
-            admin_id, user_id, node_id = await setup_test_data(session)
+            _admin_id, user_id, node_id = await setup_test_data(session)
 
             # Inject 8 data points: 2 before, 5 in range, 1 after
             timestamps_utc = [
-                datetime(2026, 7, 9, 20, 0, 0, tzinfo=timezone.utc),  # BEFORE
-                datetime(2026, 7, 9, 20, 15, 0, tzinfo=timezone.utc),  # BEFORE
-                datetime(2026, 7, 9, 20, 30, 0, tzinfo=timezone.utc),  # IN RANGE ✓
-                datetime(2026, 7, 9, 20, 45, 0, tzinfo=timezone.utc),  # IN RANGE ✓
-                datetime(2026, 7, 9, 21, 30, 0, tzinfo=timezone.utc),  # IN RANGE ✓
-                datetime(2026, 7, 9, 22, 15, 0, tzinfo=timezone.utc),  # IN RANGE ✓
-                datetime(2026, 7, 9, 23, 15, 0, tzinfo=timezone.utc),  # IN RANGE ✓
-                datetime(2026, 7, 10, 0, 0, 0, tzinfo=timezone.utc),  # AFTER
+                datetime(2026, 7, 9, 20, 0, 0, tzinfo=UTC),  # BEFORE
+                datetime(2026, 7, 9, 20, 15, 0, tzinfo=UTC),  # BEFORE
+                datetime(2026, 7, 9, 20, 30, 0, tzinfo=UTC),  # IN RANGE ✓
+                datetime(2026, 7, 9, 20, 45, 0, tzinfo=UTC),  # IN RANGE ✓
+                datetime(2026, 7, 9, 21, 30, 0, tzinfo=UTC),  # IN RANGE ✓
+                datetime(2026, 7, 9, 22, 15, 0, tzinfo=UTC),  # IN RANGE ✓
+                datetime(2026, 7, 9, 23, 15, 0, tzinfo=UTC),  # IN RANGE ✓
+                datetime(2026, 7, 10, 0, 0, 0, tzinfo=UTC),  # AFTER
             ]
 
             for ts in timestamps_utc:
@@ -511,11 +512,11 @@ class TestGetUserUsagesTimezone:
         Strict test: Multiple periods with proper data distribution.
         """
         async with TestSession() as session:
-            admin_id, user_id, node_id = await setup_test_data(session)
+            _admin_id, user_id, node_id = await setup_test_data(session)
 
             # Create data spanning 3 months
-            start_utc = datetime(2026, 8, 1, 0, 0, 0, tzinfo=timezone.utc)
-            end_utc = datetime(2026, 11, 1, 0, 0, 0, tzinfo=timezone.utc)
+            start_utc = datetime(2026, 8, 1, 0, 0, 0, tzinfo=UTC)
+            end_utc = datetime(2026, 11, 1, 0, 0, 0, tzinfo=UTC)
 
             # Add records at various points
             current = start_utc
@@ -577,14 +578,14 @@ class TestGetAllUsersUsagesTimezone:
 
             # Inject data with mixture of before and in-range records
             before_timestamps = [
-                datetime(2026, 9, 9, 20, 0, 0, tzinfo=timezone.utc),
-                datetime(2026, 9, 9, 20, 30, 0, tzinfo=timezone.utc),
+                datetime(2026, 9, 9, 20, 0, 0, tzinfo=UTC),
+                datetime(2026, 9, 9, 20, 30, 0, tzinfo=UTC),
             ]
 
             in_range_timestamps = [
-                datetime(2026, 9, 9, 20, 45, 0, tzinfo=timezone.utc),
-                datetime(2026, 9, 9, 21, 30, 0, tzinfo=timezone.utc),
-                datetime(2026, 9, 9, 22, 15, 0, tzinfo=timezone.utc),
+                datetime(2026, 9, 9, 20, 45, 0, tzinfo=UTC),
+                datetime(2026, 9, 9, 21, 30, 0, tzinfo=UTC),
+                datetime(2026, 9, 9, 22, 15, 0, tzinfo=UTC),
             ]
 
             all_timestamps = before_timestamps + in_range_timestamps
@@ -668,14 +669,14 @@ class TestGetAdminUsagesTimezone:
 
             # Inject 8 data points for each user
             timestamps_utc = [
-                datetime(2026, 10, 9, 20, 0, 0, tzinfo=timezone.utc),  # BEFORE
-                datetime(2026, 10, 9, 20, 15, 0, tzinfo=timezone.utc),  # BEFORE
-                datetime(2026, 10, 9, 20, 30, 0, tzinfo=timezone.utc),  # IN RANGE
-                datetime(2026, 10, 9, 20, 45, 0, tzinfo=timezone.utc),  # IN RANGE
-                datetime(2026, 10, 9, 21, 30, 0, tzinfo=timezone.utc),  # IN RANGE
-                datetime(2026, 10, 9, 22, 15, 0, tzinfo=timezone.utc),  # IN RANGE
-                datetime(2026, 10, 9, 23, 15, 0, tzinfo=timezone.utc),  # IN RANGE
-                datetime(2026, 10, 10, 0, 0, 0, tzinfo=timezone.utc),  # AFTER
+                datetime(2026, 10, 9, 20, 0, 0, tzinfo=UTC),  # BEFORE
+                datetime(2026, 10, 9, 20, 15, 0, tzinfo=UTC),  # BEFORE
+                datetime(2026, 10, 9, 20, 30, 0, tzinfo=UTC),  # IN RANGE
+                datetime(2026, 10, 9, 20, 45, 0, tzinfo=UTC),  # IN RANGE
+                datetime(2026, 10, 9, 21, 30, 0, tzinfo=UTC),  # IN RANGE
+                datetime(2026, 10, 9, 22, 15, 0, tzinfo=UTC),  # IN RANGE
+                datetime(2026, 10, 9, 23, 15, 0, tzinfo=UTC),  # IN RANGE
+                datetime(2026, 10, 10, 0, 0, 0, tzinfo=UTC),  # AFTER
             ]
 
             for ts in timestamps_utc:
@@ -750,8 +751,8 @@ class TestGetAdminUsagesTimezone:
         async with TestSession() as session:
             admin_id, user_id, node_id = await setup_test_data(session)
 
-            start_utc = datetime(2026, 11, 1, 0, 0, 0, tzinfo=timezone.utc)
-            end_utc = datetime(2026, 11, 15, 0, 0, 0, tzinfo=timezone.utc)
+            start_utc = datetime(2026, 11, 1, 0, 0, 0, tzinfo=UTC)
+            end_utc = datetime(2026, 11, 15, 0, 0, 0, tzinfo=UTC)
 
             # Create records spanning the range
             current = start_utc
@@ -838,7 +839,7 @@ class TestGetUserCountMetricStats:
             for idx, (user_id, local_ts) in enumerate(rows):
                 session.add(
                     NodeUserUsage(
-                        created_at=local_ts.astimezone(timezone.utc),
+                        created_at=local_ts.astimezone(UTC),
                         user_id=user_id,
                         node_id=node_id,
                         used_traffic=idx + 1,
@@ -901,8 +902,8 @@ class TestGetUserCountMetricStats:
             session.add_all([expired_user, limited_user])
             await session.flush()
 
-            start = datetime(2026, 12, 12, 0, 0, 0, tzinfo=timezone.utc)
-            end = datetime(2026, 12, 12, 1, 0, 0, tzinfo=timezone.utc)
+            start = datetime(2026, 12, 12, 0, 0, 0, tzinfo=UTC)
+            end = datetime(2026, 12, 12, 1, 0, 0, tzinfo=UTC)
             rows = [
                 (active_user_id, start + timedelta(minutes=5)),
                 (active_user_id, start + timedelta(minutes=15)),
@@ -969,7 +970,7 @@ class TestGetUserCountMetricStats:
             for idx, local_ts in enumerate(local_timestamps):
                 session.add(
                     NodeUserUsage(
-                        created_at=local_ts.astimezone(timezone.utc),
+                        created_at=local_ts.astimezone(UTC),
                         user_id=user_id,
                         node_id=node_id,
                         used_traffic=idx + 1,
@@ -1021,8 +1022,8 @@ class TestGetUserCountMetricStats:
             session.add(other_user)
             await session.flush()
 
-            start = datetime(2026, 12, 11, 0, 0, 0, tzinfo=timezone.utc)
-            end = datetime(2026, 12, 11, 1, 0, 0, tzinfo=timezone.utc)
+            start = datetime(2026, 12, 11, 0, 0, 0, tzinfo=UTC)
+            end = datetime(2026, 12, 11, 1, 0, 0, tzinfo=UTC)
             rows = [
                 (user_id, node_id, start + timedelta(minutes=10)),
                 (user_id, node_two.id, start + timedelta(minutes=20)),
@@ -1081,8 +1082,8 @@ class TestGetUserCountMetricStats:
         async with TestSession() as session:
             _admin_id, _user_id, node_id = await setup_test_data(session)
 
-            start = datetime(2026, 12, 11, 0, 0, 0, tzinfo=timezone.utc)
-            end = datetime(2026, 12, 11, 1, 0, 0, tzinfo=timezone.utc)
+            start = datetime(2026, 12, 11, 0, 0, 0, tzinfo=UTC)
+            end = datetime(2026, 12, 11, 1, 0, 0, tzinfo=UTC)
 
             with pytest.raises(ValueError, match="Only online user counts"):
                 await get_user_count_metric_stats(
