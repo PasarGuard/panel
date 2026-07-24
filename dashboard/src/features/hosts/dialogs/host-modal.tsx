@@ -551,7 +551,8 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
     // Helper function to check if an object has any non-empty values
     const hasNonEmptyValues = (obj: any): boolean => {
       if (!obj || typeof obj !== 'object') return false
-      return Object.values(obj).some(value => {
+      return Object.entries(obj).some(([key, value]) => {
+        if (key === 'header' && value === '') return true
         if (value === null || value === undefined || value === '') return false
         if (typeof value === 'object') return hasNonEmptyValues(value)
         return true
@@ -576,7 +577,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
           return
         }
 
-        if (value === null || value === undefined || value === '') return
+        if ((value === null || value === undefined || value === '') && key !== 'header') return
 
         if (typeof value === 'object' && !Array.isArray(value)) {
           const cleanedNested = cleanObject(value, currentPath)
@@ -1589,7 +1590,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                   </PopoverContent>
                                 </Popover>
                               </div>
-                              <Select onValueChange={value => field.onChange(value === '__default' ? undefined : value)} value={field.value ?? '__default'}>
+                              <Select onValueChange={value => field.onChange(value === '__default' ? undefined : value)} value={field.value || '__default'}>
                                 <FormControl>
                                   <SelectTrigger>
                                     <SelectValue />
@@ -1709,14 +1710,14 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                 render={({ field }) => (
                                   <FormItem>
                                     <FormLabel>{t('hostsDialog.xhttp.mode')}</FormLabel>
-                                    <Select onValueChange={value => field.onChange(value === '__default' ? undefined : value)} value={field.value ?? '__default'}>
+                                    <Select onValueChange={value => field.onChange(value === '__default' ? undefined : value)} value={field.value || '__default'}>
                                       <FormControl>
                                         <SelectTrigger>
                                           <SelectValue />
                                         </SelectTrigger>
                                       </FormControl>
                                       <SelectContent>
-                                        <SelectItem value="__default">{t('hostsDialog.xhttp.defaultMode', { defaultValue: 'Use default' })}</SelectItem>
+                                        <SelectItem value="__default">{t('hostsDialog.xhttp.defaultMode', { defaultValue: 'Inbound default' })}</SelectItem>
                                         <SelectItem value="auto">Auto</SelectItem>
                                         <SelectItem value="packet-up">Packet Up</SelectItem>
                                         <SelectItem value="stream-up">Stream Up</SelectItem>
@@ -1850,14 +1851,14 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                     render={({ field }) => (
                                       <FormItem>
                                         <FormLabel>{t('hostsDialog.xhttp.xPaddingPlacement')}</FormLabel>
-                                        <Select onValueChange={value => field.onChange(value === '__default' ? undefined : value)} value={field.value ?? '__default'}>
+                                        <Select onValueChange={value => field.onChange(value === '__default' ? undefined : value)} value={field.value || '__default'}>
                                           <FormControl>
                                             <SelectTrigger>
                                               <SelectValue />
                                             </SelectTrigger>
                                           </FormControl>
                                           <SelectContent>
-                                            <SelectItem value="__default">{t('hostsDialog.xhttp.defaultMode', { defaultValue: 'Use default' })}</SelectItem>
+                                            <SelectItem value="__default">{t('hostsDialog.xhttp.defaultMode', { defaultValue: 'Inbound default' })}</SelectItem>
                                             <SelectItem value="queryInHeader">Query In Header</SelectItem>
                                             <SelectItem value="query">Query</SelectItem>
                                             <SelectItem value="header">Header</SelectItem>
@@ -1875,14 +1876,14 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                     render={({ field }) => (
                                       <FormItem>
                                         <FormLabel>{t('hostsDialog.xhttp.xPaddingMethod')}</FormLabel>
-                                        <Select onValueChange={value => field.onChange(value === '__default' ? undefined : value)} value={field.value ?? '__default'}>
+                                        <Select onValueChange={value => field.onChange(value === '__default' ? undefined : value)} value={field.value || '__default'}>
                                           <FormControl>
                                             <SelectTrigger>
                                               <SelectValue />
                                             </SelectTrigger>
                                           </FormControl>
                                           <SelectContent>
-                                            <SelectItem value="__default">{t('hostsDialog.xhttp.defaultMode', { defaultValue: 'Use default' })}</SelectItem>
+                                            <SelectItem value="__default">{t('hostsDialog.xhttp.defaultMode', { defaultValue: 'Inbound default' })}</SelectItem>
                                             <SelectItem value="repeat-x">Repeat-X</SelectItem>
                                             <SelectItem value="tokenish">Tokenish</SelectItem>
                                           </SelectContent>
@@ -1918,14 +1919,14 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                   render={({ field }) => (
                                     <FormItem>
                                       <FormLabel>{t('hostsDialog.xhttp.uplinkDataPlacement')}</FormLabel>
-                                      <Select onValueChange={value => field.onChange(value === '__default' ? undefined : value)} value={field.value ?? '__default'}>
+                                      <Select onValueChange={value => field.onChange(value === '__default' ? undefined : value)} value={field.value || '__default'}>
                                         <FormControl>
                                           <SelectTrigger>
                                             <SelectValue />
                                           </SelectTrigger>
                                         </FormControl>
                                         <SelectContent>
-                                          <SelectItem value="__default">{t('hostsDialog.xhttp.defaultMode', { defaultValue: 'Use default' })}</SelectItem>
+                                          <SelectItem value="__default">{t('hostsDialog.xhttp.defaultMode', { defaultValue: 'Inbound default' })}</SelectItem>
                                           <SelectItem value="body">Body</SelectItem>
                                           <SelectItem value="header">Header</SelectItem>
                                           <SelectItem value="cookie">Cookie</SelectItem>
@@ -1983,14 +1984,14 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                   render={({ field }) => (
                                     <FormItem>
                                       <FormLabel>{t('hostsDialog.xhttp.sessionPlacement')}</FormLabel>
-                                      <Select onValueChange={value => field.onChange(value === '__default' ? undefined : value)} value={field.value ?? '__default'}>
+                                      <Select onValueChange={value => field.onChange(value === '__default' ? undefined : value)} value={field.value || '__default'}>
                                         <FormControl>
                                           <SelectTrigger>
                                             <SelectValue />
                                           </SelectTrigger>
                                         </FormControl>
                                         <SelectContent>
-                                          <SelectItem value="__default">{t('hostsDialog.xhttp.defaultMode', { defaultValue: 'Use default' })}</SelectItem>
+                                          <SelectItem value="__default">{t('hostsDialog.xhttp.defaultMode', { defaultValue: 'Inbound default' })}</SelectItem>
                                           <SelectItem value="path">Path</SelectItem>
                                           <SelectItem value="query">Query</SelectItem>
                                           <SelectItem value="header">Header</SelectItem>
@@ -2022,14 +2023,14 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                   render={({ field }) => (
                                     <FormItem>
                                       <FormLabel>{t('hostsDialog.xhttp.seqPlacement')}</FormLabel>
-                                      <Select onValueChange={value => field.onChange(value === '__default' ? undefined : value)} value={field.value ?? '__default'}>
+                                      <Select onValueChange={value => field.onChange(value === '__default' ? undefined : value)} value={field.value || '__default'}>
                                         <FormControl>
                                           <SelectTrigger>
                                             <SelectValue />
                                           </SelectTrigger>
                                         </FormControl>
                                         <SelectContent>
-                                          <SelectItem value="__default">{t('hostsDialog.xhttp.defaultMode', { defaultValue: 'Use default' })}</SelectItem>
+                                          <SelectItem value="__default">{t('hostsDialog.xhttp.defaultMode', { defaultValue: 'Inbound default' })}</SelectItem>
                                           <SelectItem value="path">Path</SelectItem>
                                           <SelectItem value="query">Query</SelectItem>
                                           <SelectItem value="header">Header</SelectItem>
@@ -2403,14 +2404,14 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                 render={({ field }) => (
                                   <FormItem className="col-span-2">
                                     <FormLabel>{t('hostsDialog.tcp.header')}</FormLabel>
-                                    <Select onValueChange={value => field.onChange(value === '__default' ? '' : value)} value={field.value === '' || field.value == null ? '__default' : field.value}>
+                                    <Select onValueChange={value => field.onChange(value === '__default' ? '' : value)} value={field.value || '__default'}>
                                       <FormControl>
                                         <SelectTrigger>
                                           <SelectValue />
                                         </SelectTrigger>
                                       </FormControl>
                                       <SelectContent>
-                                        <SelectItem value="__default">{t('hostsDialog.tcp.defaultHeader', { defaultValue: 'Use default' })}</SelectItem>
+                                        <SelectItem value="__default">{t('hostsDialog.tcp.defaultHeader', { defaultValue: 'Inbound default' })}</SelectItem>
                                         <SelectItem value="none">None</SelectItem>
                                         <SelectItem value="http">HTTP</SelectItem>
                                       </SelectContent>
