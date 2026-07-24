@@ -105,7 +105,7 @@ async def _prepare_subscription_inbound_data(
             transport_config=TCPTransportConfig(path="", host=[]),
             mux_settings=None,
             wireguard_public_key=inbound_config.get("public_key", ""),
-            wireguard_pre_shared_key=inbound_config.get("pre_shared_key", None),
+            wireguard_pre_shared_key=inbound_config.get("pre_shared_key") or "",
             wireguard_local_address=inbound_config.get("address", []) or [],
             wireguard_allowed_ips=allowed_ips,
             wireguard_keepalive=keepalive,

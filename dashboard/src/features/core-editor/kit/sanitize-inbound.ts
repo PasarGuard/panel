@@ -168,6 +168,8 @@ function sanitizeWireguardEmptyAddress(inbound: Inbound): Inbound {
   if (Array.isArray(draft.address) && draft.address.length === 0) {
     delete draft.address
   }
+  delete draft.transport
+  delete draft.security
   return draft as unknown as Inbound
 }
 

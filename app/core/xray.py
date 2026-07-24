@@ -10,7 +10,7 @@ import commentjson
 
 from app.models.core import CoreType
 from app.models.protocol import ProxyProtocol
-from app.utils.crypto import get_cert_SANs, get_x25519_public_key
+from app.utils.crypto import get_cert_SANs, get_wireguard_public_key, get_x25519_public_key
 
 
 def _protocols_from_inbounds_by_tag(inbounds_by_tag: dict[str, dict]) -> frozenset[ProxyProtocol]:
@@ -412,8 +412,31 @@ class XRayConfig(dict):
             self._read_inbound(inbound)
         self._protocols = _protocols_from_inbounds_by_tag(self._inbounds_by_tag)
 
+    def _read_wireguard_inbound(self, inbound: dict):
+        """Register a WireGuard-in-Xray inbound so its tag appears in /api/inbounds."""
+        wg = inbound.get("settings", {})
+        secret_key = wg.get("secretKey", "")
+        try:
+            public_key = get_wireguard_public_key(secret_key) if secret_key else ""
+        except Exception:
+            public_key = ""
+        settings = self._create_base_settings(inbound)
+        settings["listen_port"] = inbound.get("port")
+        settings["public_key"] = public_key
+        settings["address"] = wg.get("address", [])
+        settings["mtu"] = wg.get("mtu", 1420)
+        settings["network"] = "udp"
+        tag = inbound["tag"]
+        if tag not in self._inbounds:
+            self._inbounds.append(tag)
+            self._inbounds_by_tag[tag] = settings
+
     def _read_inbound(self, inbound: dict):
         """Read an inbound and its settings."""
+        if inbound["protocol"] == "wireguard":
+            self._read_wireguard_inbound(inbound)
+            return
+
         if inbound["protocol"] not in ("vmess", "vless", "trojan", "shadowsocks", "hysteria"):
             return
 
