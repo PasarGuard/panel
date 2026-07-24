@@ -1,5 +1,6 @@
 import asyncio
 import json
+from pathlib import Path
 
 from alembic.command import upgrade
 from alembic.config import Config
@@ -102,6 +103,16 @@ async def create_tables():
 
 
 if TEST_FROM == "local":
+    if IS_SQLITE:
+        try:
+            database_file = Path(DATABASE_URL.partition("///")[2].split("?", 1)[0])
+            for suffix in ("", "-shm", "-wal"):
+                try:
+                    database_file.with_name(f"{database_file.name}{suffix}").unlink()
+                except FileNotFoundError:
+                    pass
+        except Exception:
+            pass
     run_migrations()
 
 
