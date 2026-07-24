@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { type ChartConfig, ChartContainer, ChartTooltip } from '@/components/ui/chart'
 import { useTranslation } from 'react-i18next'
 import useDirDetection from '@/hooks/use-dir-detection'
+import { useDocumentVisibility } from '@/hooks/use-document-visibility'
 import { useChartViewType } from '@/hooks/use-chart-view-type'
 import { Period, type NodeUsageStat, type UserUsageStat, useGetAdminUsageById, useGetAdminUsageByUsername, useGetUsage } from '@/service/api'
 import { formatBytes } from '@/utils/formatByte'
@@ -118,7 +119,11 @@ export function CostumeBarChart({ nodeId }: CostumeBarChartProps) {
   const { t, i18n } = useTranslation()
   const dir = useDirDetection()
   const chartViewType = useChartViewType()
+  const isTabVisible = useDocumentVisibility()
   const shouldUseNodeUsage = selectedAdmin === 'all'
+
+  // When tab is hidden, reduce polling frequency to save VPS resources
+  const pollingInterval = isTabVisible ? 1000 * 60 * 15 : 1000 * 60 * 60
 
   const activeQueryRange = useMemo(() => {
     if (showCustomRange && customRange?.from && customRange?.to) {
@@ -157,7 +162,7 @@ export function CostumeBarChart({ nodeId }: CostumeBarChartProps) {
   } = useGetUsage(nodeUsageParams, {
     query: {
       enabled: shouldUseNodeUsage,
-      refetchInterval: 1000 * 60 * 5,
+      refetchInterval: pollingInterval,
     },
   })
 
@@ -168,7 +173,7 @@ export function CostumeBarChart({ nodeId }: CostumeBarChartProps) {
   } = useGetAdminUsageById(selectedAdminId ?? 0, adminUsageParams, {
     query: {
       enabled: !shouldUseNodeUsage && selectedAdmin !== 'all' && selectedAdminId != null,
-      refetchInterval: 1000 * 60 * 5,
+      refetchInterval: pollingInterval,
     },
   })
 
@@ -179,7 +184,7 @@ export function CostumeBarChart({ nodeId }: CostumeBarChartProps) {
   } = useGetAdminUsageByUsername(selectedAdmin, adminUsageParams, {
     query: {
       enabled: !shouldUseNodeUsage && selectedAdmin !== 'all' && selectedAdminId == null,
-      refetchInterval: 1000 * 60 * 5,
+      refetchInterval: pollingInterval,
     },
   })
 

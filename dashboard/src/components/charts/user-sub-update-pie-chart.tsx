@@ -4,6 +4,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
 import useDirDetection from '@/hooks/use-dir-detection'
+import { useDocumentVisibility } from '@/hooks/use-document-visibility'
 import { useTheme } from 'next-themes'
 import { type GetUsersSubUpdateChartParams, useGetAdminsSimple, useGetUsersSubUpdateChart, type UserSubscriptionUpdateChartSegment } from '@/service/api'
 import { numberWithCommas } from '@/utils/formatByte'
@@ -136,6 +137,7 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
   const { t } = useTranslation()
   const dir = useDirDetection()
   const { resolvedTheme } = useTheme()
+  const isTabVisible = useDocumentVisibility()
   const [selectedAdmin, setSelectedAdmin] = useState(() => (adminId != null ? String(adminId) : 'all'))
 
   useEffect(() => {
@@ -170,7 +172,7 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
 
   const { data, isLoading, error } = useGetUsersSubUpdateChart(params, {
     query: {
-      refetchInterval: 60_000,
+      refetchInterval: isTabVisible ? 1000 * 60 * 15 : 1000 * 60 * 60,
     },
   })
 
