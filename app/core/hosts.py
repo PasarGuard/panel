@@ -139,7 +139,9 @@ async def _prepare_subscription_inbound_data(
     if tls_value is None:
         tls_value = inbound_config.get("tls", "none")
 
-    pinned_peer_cert_sha256 = host.pinned_peer_cert_sha256
+    pinned_peer_cert_sha256 = (
+        host.pinned_peer_cert_sha256 if host.pinned_peer_cert_sha256 else inbound_config.get("pinnedPeerCertSha256", "")
+    )
     verify_peer_cert_by_name = _string_list(host.verify_peer_cert_by_name) if host.verify_peer_cert_by_name else []
     ech_query_strategy = host.ech_query_strategy or inbound_config.get("echForceQuery")
     alpn_list = [alpn.value for alpn in host.alpn] if host.alpn else inbound_config.get("alpn", [])

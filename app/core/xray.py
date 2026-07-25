@@ -178,6 +178,8 @@ class XRayConfig(dict):
     def _handle_tls_settings(self, tls_settings: dict, settings: dict, inbound_tag: str):
         """Handle TLS security settings."""
         settings["tls"] = "tls"
+        settings["pinnedPeerCertSha256"] = tls_settings.get("pinnedPeerCertSha256", "")
+        settings["fp"] = tls_settings.get("fingerprint", "chrome")
         if sni := tls_settings.get("serverName"):
             settings["sni"].append(sni)
         for certificate in tls_settings.get("certificates", []):
@@ -214,7 +216,7 @@ class XRayConfig(dict):
 
     def _handle_reality_settings(self, tls_settings: dict, settings: dict, inbound_tag: str):
         """Handle Reality security settings."""
-        settings["fp"] = "chrome"
+        settings["fp"] = tls_settings.get("fingerprint", "chrome")
         settings["tls"] = "reality"
         settings["sni"] = tls_settings.get("serverNames", [])
 
