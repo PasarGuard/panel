@@ -44,10 +44,39 @@ No need to ask for permission!
 .
 ├── app          # Backend code (FastAPI - Python)
 ├── cli          # CLI code (Typer - Python)
-├── tui          # TUI code (Textual - Python)
-├── dashboard    # Frontend code (React - TypeScript)
+├── dashboard    # Frontend code (React Router - TypeScript)
 └── tests        # API tests
 ```
+
+---
+
+## ⚙️ Development Setup
+
+The project uses [uv](https://github.com/astral-sh/uv) for Python dependency management and [bun](https://bun.sh/) for frontend dependencies.
+
+### 🐍 Backend Setup
+
+1. Install `uv` if you haven't already.
+2. Initialize the virtual environment and install dependencies:
+   ```bash
+   make setup
+   ```
+3. Run database migrations:
+   ```bash
+   make run-migration
+   ```
+4. Start the application:
+   ```bash
+   make run
+   ```
+
+### 💻 Frontend Setup
+
+1. Install `bun` if you haven't already.
+2. Install frontend dependencies:
+   ```bash
+   make install-front
+   ```
 
 ---
 
@@ -55,12 +84,15 @@ No need to ask for permission!
 
 The backend is built with **FastAPI** and **SQLAlchemy**:
 
--   **Pydantic models**: `app/models`
--   **Database models & operations**: `app/db`
--   **backend logic should go in**: `app/operations`
--   **Migrations (Alembic)**: `app/db/migrations`
+-   **Pydantic models**: [app/models/](file:///home/coder/panel/app/models)
+-   **Database structure**: [app/db/](file:///home/coder/panel/app/db)
+    -   SQLAlchemy models: [app/db/models.py](file:///home/coder/panel/app/db/models.py)
+    -   Database CRUD operations: [app/db/crud/](file:///home/coder/panel/app/db/crud)
+    -   Alembic migrations: [app/db/migrations/](file:///home/coder/panel/app/db/migrations)
+-   **Core backend logic**: [app/operation/](file:///home/coder/panel/app/operation)
+-   **API Routers**: [app/routers/](file:///home/coder/panel/app/routers)
 
-🧩 **Note**: Ensure **all backend logic is organized and implemented in the `operations` module**. This keeps route handling, database access, and service logic clearly separated and easier to maintain.
+🧩 **Note**: Ensure **all core backend business logic is organized and implemented in the `app/operation` module**. This keeps route handling, database access, and service logic clearly separated and easier to maintain.
 
 ### 📘 API Docs (Swagger / ReDoc)
 
@@ -69,9 +101,9 @@ Enable the `DOCS` flag in your `.env` file to access:
 -   Swagger UI: [http://localhost:8000/docs](http://localhost:8000/docs)
 -   ReDoc: [http://localhost:8000/redoc](http://localhost:8000/redoc)
 
-### 🎯 Code Formatting
+### 🎯 Code Formatting & Linting
 
-Format and lint code with:
+Format and lint backend Python code with:
 
 ```bash
 make check
@@ -80,10 +112,16 @@ make format
 
 ### 🗃️ Database Migrations
 
-To apply Alembic migrations to your database, run:
+Apply Alembic migrations to your database:
 
 ```bash
 make run-migration
+```
+
+Check migrations integrity:
+
+```bash
+make check-migrations
 ```
 
 ---
@@ -92,24 +130,33 @@ make run-migration
 
 > ⚠️ **We no longer upload pre-built frontend files.**
 
-The frontend is located in the `dashboard` directory and is built using:
+The frontend is located in the [dashboard/](file:///home/coder/panel/dashboard) directory and is built using:
 
--   **React + TypeScript**
--   **Tailwind CSS (Shadcn UI)**
+-   **React Router 7 + TypeScript**
+-   **Tailwind CSS v4 + Shadcn UI**
+-   **Orval** (for API client generation)
 
-To build:
+### 🔄 API Client Generation
+
+The frontend uses generated API clients via Orval. If you change backend routes or models, regenerate the TypeScript client by running:
 
 ```bash
-bun install
+make gen-api
 ```
 
-Remove the `dashboard/build` directory and restart the Python backend — the frontend will auto-rebuild (except in debug mode).
+### 🎯 Code Formatting
+
+Format frontend code using Prettier:
+
+```bash
+make fformat
+```
 
 ### 🧩 Component Guidelines
 
--   Follow **Tailwind + Shadcn** best practices
--   Keep components **single-purpose**
--   Prioritize **readability** and **maintainability**
+-   Follow **Tailwind + Shadcn** best practices.
+-   Keep components **single-purpose**.
+-   Prioritize **readability** and **maintainability**.
 
 ---
 
@@ -117,33 +164,45 @@ Remove the `dashboard/build` directory and restart the Python backend — the fr
 
 PasarGuard’s CLI is built using [Typer](https://typer.tiangolo.com/).
 
--   CLI codebase: `cli/`
+-   CLI codebase: [cli/](file:///home/coder/panel/cli) and the entrypoint script [pasarguard-cli.py](file:///home/coder/panel/pasarguard-cli.py).
+-   To run the CLI in development:
+    ```bash
+    make run-cli
+    ```
 
 ---
 
-## 🛠️ PasarGuard TUI
+## 🧪 Testing
 
-PasarGuard’s TUI is built using [Textual](https://textual.textualize.io/).
+We use [pytest](https://docs.pytest.org/) for backend tests.
 
--   TUI codebase: `tui/`
+-   Run tests:
+    ```bash
+    make test
+    ```
+-   Run tests in watch mode:
+    ```bash
+    make test-whatch
+    ```
 
 ---
 
 ## 🐛 Debug Mode
 
-To run the project in debug mode with auto-reload, you can set the environment variable DEBUG to true. then by running the main.py, the backend and frontend will run separately on different ports.
+To run the project in debug mode with auto-reload, set `DEBUG=true` in your `.env` file.
 
-Note that you must first install the necessary npm packages by running npm install inside the dashboard directory before running in debug mode.
+When you run `make run` (or `uv run main.py`) with `DEBUG=true`:
+1. The backend FastAPI server starts in reload mode via Uvicorn.
+2. The frontend Vite dev server (`bun run dev`) automatically spins up on a separate port.
+3. The API client generator runs in the background to keep the frontend types in sync.
 
-Install frontend dependencies:
+Install frontend dependencies first before running in debug mode:
 
 ```bash
 make install-front
 ```
 
-Run the backend (`main.py`)
-
-> ⚠️ In debug mode, the frontend will **not rebuild automatically** if you delete `dashboard/build`.
+> 💡 **Note**: In production mode (`DEBUG=false`), the backend will check if the `dashboard/build` directory exists. If it doesn't, it will build the frontend once using `bun run build` and then mount and serve the static files from `dashboard/build/` at `/dashboard/`.
 
 ---
 
