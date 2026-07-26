@@ -1,4 +1,5 @@
 import pytest
+from uuid import uuid4
 from sqlalchemy import select
 from app.db.models import Admin, AdminNotificationReminder, ReminderType
 from app.db.crud.admin import bulk_create_admin_notification_reminders
@@ -10,7 +11,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 async def test_bulk_create_admin_notification_reminders_idempotency():
     async with TestSession() as session:
         # Create an admin to associate reminders with
-        admin = Admin(username="idempotent_admin", hashed_password="secret", role_id=3)
+        admin = Admin(username=f"idempotent_{uuid4().hex[:8]}", hashed_password="secret", role_id=3)
         session.add(admin)
         await session.flush()
         
@@ -55,7 +56,7 @@ async def test_send_usage_limit_warning_notifications_idempotent(
     async with TestSession() as session:
         # Create test admin
         admin = Admin(
-            username="notif_admin",
+            username=f"notif_{uuid4().hex[:8]}",
             hashed_password="secret",
             role_id=3,
             data_limit=1000,
@@ -97,14 +98,14 @@ async def test_send_usage_limit_warning_notifications_failure_handling(
     async with TestSession() as session:
         # Create test admins
         admin_ok = Admin(
-            username="admin_ok",
+            username=f"ok_{uuid4().hex[:8]}",
             hashed_password="secret",
             role_id=3,
             data_limit=1000,
             used_traffic=850,
         )
         admin_fail = Admin(
-            username="admin_fail",
+            username=f"fail_{uuid4().hex[:8]}",
             hashed_password="secret",
             role_id=3,
             data_limit=1000,
@@ -124,7 +125,7 @@ async def test_send_usage_limit_warning_notifications_failure_handling(
         # Succeed for admin_ok, raise exception for admin_fail
         async def side_effect(admin_model, usage_percentage, threshold):
             if admin_model.id == admin_fail.id:
-                raise Exception("Network failure")
+                raise RuntimeError("Network failure")
             return
 
         mock_notification.admin_usage_limit_reached = AsyncMock(side_effect=side_effect)
