@@ -89,6 +89,7 @@ const INBOUND_TLS_BOOLEAN_GRID_KEYS = new Set<string>(['allowInsecure', 'enableS
 
 /** Matches outbound DNS-rules / fallback sub-accordion chrome. */
 const INBOUND_SECURITY_SUBACCORDION_ITEM_CLASS = 'rounded-sm border px-4 [&_[data-state=closed]]:no-underline [&_[data-state=open]]:no-underline'
+const INBOUND_SECURITY_ACTION_GRID_ITEM_CLASS = 'flex w-full min-w-0 self-end'
 
 function securityFieldName(jsonKey: string): string {
   return `${SECURITY_FIELD_PREFIX}${jsonKey}`
@@ -3822,7 +3823,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                           const wide = inferParityFieldMode(def) !== 'scalar'
                           const isBoolean = isBooleanParityField(def)
                           const isReality = inboundSecurityType === 'reality'
-                          const securityFieldFullWidth = wide || isBoolean || jsonKey === 'xver' || jsonKey === 'serverName' || jsonKey === 'serverNames'
+                          const securityFieldFullWidth = wide || isBoolean || jsonKey === 'xver' || jsonKey === 'serverName' || jsonKey === 'serverNames' || (isReality && jsonKey === 'fingerprint')
 
                           return (
                             <Fragment key={jsonKey}>
@@ -3997,7 +3998,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                                 </div>
                               )}
                               {isReality && jsonKey === 'publicKey' && (
-                                <div className="sm:col-span-2">
+                                <div className={INBOUND_SECURITY_ACTION_GRID_ITEM_CLASS}>
                                   <LoaderButton
                                     type="button"
                                     onClick={() => void generateShortId()}
@@ -4010,7 +4011,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                                 </div>
                               )}
                               {isReality && jsonKey === 'fingerprint' && (
-                                <div className="sm:col-span-2">
+                                <div className="w-full min-w-0 sm:col-span-2">
                                   <LoaderButton
                                     type="button"
                                     onClick={() => void handleGenerateMldsa65()}
@@ -4023,7 +4024,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                                 </div>
                               )}
                               {isReality && jsonKey === 'target' && (
-                                <div className="sm:col-span-2">
+                                <div className={INBOUND_SECURITY_ACTION_GRID_ITEM_CLASS}>
                                   <LoaderButton
                                     type="button"
                                     variant="outline"
