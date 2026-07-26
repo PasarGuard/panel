@@ -10,8 +10,23 @@ from unittest.mock import AsyncMock, MagicMock, patch
 @pytest.fixture(autouse=True)
 async def setup_database():
     from app.db import base
-    async with engine.begin() as conn:
-        await conn.run_sync(base.Base.metadata.create_all)
+    
+    # MySQL/MariaDB do not allow defaults on JSON columns; strip them temporarily
+    proxy_default = None
+    proxy_column = None
+    is_mysql = engine.dialect.name == "mysql"
+    if is_mysql:
+        users_table = base.Base.metadata.tables["users"]
+        proxy_column = users_table.c.proxy_settings
+        proxy_default = proxy_column.server_default
+        proxy_column.server_default = None
+
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(base.Base.metadata.create_all)
+    finally:
+        if is_mysql and proxy_column is not None:
+            proxy_column.server_default = proxy_default
         
     async with TestSession() as session:
         # Seed default roles if they do not exist (to satisfy FK constraints)
