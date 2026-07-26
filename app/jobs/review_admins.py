@@ -71,7 +71,7 @@ async def _send_usage_limit_warning_notifications(db):
         threshold_admins = await get_usage_percentage_reached_admins(db, threshold)
 
         reminder_data = []
-        notifications_to_send = []
+        admin_info_map = {}
 
         for admin in threshold_admins:
             if not admin.data_limit or admin.data_limit <= 0:
@@ -81,10 +81,17 @@ async def _send_usage_limit_warning_notifications(db):
             reminder_data.append(
                 {"admin_id": admin.id, "type": ReminderType.data_usage, "threshold": threshold}
             )
-            notifications_to_send.append((admin_model, usage_percentage, threshold))
+            admin_info_map[admin.id] = (admin_model, usage_percentage)
 
         # Bulk-insert all reminders for this threshold in one query
-        await bulk_create_admin_notification_reminders(db, reminder_data)
+        inserted_reminders = await bulk_create_admin_notification_reminders(db, reminder_data)
+
+        notifications_to_send = []
+        for item in inserted_reminders:
+            admin_id = item["admin_id"]
+            if admin_id in admin_info_map:
+                admin_model, usage_percentage = admin_info_map[admin_id]
+                notifications_to_send.append((admin_model, usage_percentage, threshold))
 
         # Send notifications after the bulk insert succeeds
         for admin_model, usage_percentage, threshold in notifications_to_send:
