@@ -93,31 +93,48 @@ def test_add_groups_to_users(access_token):
 
 
 def test_bulk_add_wireguard_group_allocates_existing_user_peer_ips(access_token):
-    interface_private_key, _ = generate_wireguard_keypair()
-    interface_name = unique_name("wg_bulk_add_group")
-    core = create_core(
-        access_token,
-        name=unique_name("wireguard_bulk_add_group_core"),
-        config={
-            "interface_name": interface_name,
-            "private_key": interface_private_key,
-            "listen_port": 51820,
-            "address": ["10.61.0.1/24"],
-        },
-        type="wg",
-        fallbacks=[],
-    )
-    group = create_group(access_token, name=unique_name("wg_bulk_add_group"), inbound_tags=[interface_name])
-    users = [
-        create_user(access_token, group_ids=[], payload={"username": unique_name("wg_bulk_add_existing_a")}),
-        create_user(access_token, group_ids=[], payload={"username": unique_name("wg_bulk_add_existing_b")}),
-    ]
-
+    # Users must belong to a group at create time; start with a non-WG group, then bulk-add WG.
+    starter_core, starter_groups = setup_groups(access_token, 1)
+    starter_group = starter_groups[0]
+    users: list[dict] = []
+    wg_core = None
+    wg_group = None
     try:
+        users = [
+            create_user(
+                access_token,
+                group_ids=[starter_group["id"]],
+                payload={"username": unique_name("wg_bulk_add_existing_a")},
+            ),
+            create_user(
+                access_token,
+                group_ids=[starter_group["id"]],
+                payload={"username": unique_name("wg_bulk_add_existing_b")},
+            ),
+        ]
+
+        interface_private_key, _ = generate_wireguard_keypair()
+        interface_name = unique_name("wg_bulk_add_group")
+        wg_core = create_core(
+            access_token,
+            name=unique_name("wireguard_bulk_add_group_core"),
+            config={
+                "interface_name": interface_name,
+                "private_key": interface_private_key,
+                "listen_port": 51820,
+                "address": ["10.61.0.1/24"],
+            },
+            type="wg",
+            fallbacks=[],
+        )
+        wg_group = create_group(
+            access_token, name=unique_name("wg_bulk_add_group"), inbound_tags=[interface_name]
+        )
+
         response = client.post(
             "/api/groups/bulk/add",
             headers={"Authorization": f"Bearer {access_token}"},
-            json={"group_ids": [group["id"]], "users": [user["id"] for user in users]},
+            json={"group_ids": [wg_group["id"]], "users": [user["id"] for user in users]},
         )
 
         assert response.status_code == status.HTTP_200_OK
@@ -137,7 +154,13 @@ def test_bulk_add_wireguard_group_allocates_existing_user_peer_ips(access_token)
 
         assert len(set(allocated_peer_ips)) == len(users)
     finally:
-        cleanup(access_token, core, [group], users)
+        for user in users:
+            delete_user(access_token, user["username"])
+        if wg_group is not None:
+            delete_group(access_token, wg_group["id"])
+        if wg_core is not None:
+            delete_core(access_token, wg_core["id"])
+        cleanup(access_token, starter_core, starter_groups, [])
 
 
 def test_remove_groups_from_users(access_token):
