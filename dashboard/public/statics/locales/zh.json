@@ -123,6 +123,11 @@
       "capacity": "容量",
       "usage": "使用率",
       "freeIps": "空闲 IP",
+      "usedCount": "已用 {{value}}",
+      "freeIpsPreview": "显示前 {{count}} 个可用地址",
+      "showPreview": "显示预览",
+      "hidePreview": "隐藏预览",
+      "noFreeIps": "没有可用的空闲 IP",
       "noTags": "无接口标签",
       "refresh": "刷新"
     },

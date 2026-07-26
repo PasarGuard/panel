@@ -1986,6 +1986,11 @@
       "capacity": "ظرفیت",
       "usage": "مصرف",
       "freeIps": "IPهای آزاد",
+      "usedCount": "مصرف‌شده: {{value}}",
+      "freeIpsPreview": "نمایش {{count}} آدرس آزاد اول",
+      "showPreview": "نمایش پیش‌نمایش",
+      "hidePreview": "مخفی کردن پیش‌نمایش",
+      "noFreeIps": "IP آزاد موجود نیست",
       "noTags": "بدون تگ اینترفیس",
       "refresh": "بازنشانی"
     },

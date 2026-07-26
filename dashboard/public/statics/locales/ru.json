@@ -154,6 +154,11 @@
       "capacity": "Ёмкость",
       "usage": "Использование",
       "freeIps": "Свободные IP",
+      "usedCount": "занято: {{value}}",
+      "freeIpsPreview": "Показаны первые {{count}} свободных адресов",
+      "showPreview": "Показать превью",
+      "hidePreview": "Скрыть превью",
+      "noFreeIps": "Свободных IP нет",
       "noTags": "Нет тегов интерфейса",
       "refresh": "Обновить"
     },

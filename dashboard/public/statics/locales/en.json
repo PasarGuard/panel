@@ -127,6 +127,11 @@
       "capacity": "Capacity",
       "usage": "Usage",
       "freeIps": "Free IPs",
+      "usedCount": "{{value}} used",
+      "freeIpsPreview": "Showing first {{count}} available addresses",
+      "showPreview": "Show preview",
+      "hidePreview": "Hide preview",
+      "noFreeIps": "No free IPs available",
       "noTags": "No interface tags",
       "refresh": "Refresh"
     },
