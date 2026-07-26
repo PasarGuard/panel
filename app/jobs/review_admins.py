@@ -14,7 +14,7 @@ from datetime import UTC, datetime as dt
 from app import notification, scheduler
 from app.db import GetDB
 from app.db.crud.admin import (
-    create_admin_notification_reminder_if_absent,
+    bulk_create_admin_notification_reminders,
     get_usage_percentage_reached_admins,
 )
 from app.db.models import Admin, ReminderType
@@ -69,19 +69,25 @@ async def _send_usage_limit_warning_notifications(db):
 
     for threshold in default_thresholds:
         threshold_admins = await get_usage_percentage_reached_admins(db, threshold)
+
+        reminder_data = []
+        notifications_to_send = []
+
         for admin in threshold_admins:
             if not admin.data_limit or admin.data_limit <= 0:
                 continue
-            reminder_created = await create_admin_notification_reminder_if_absent(
-                db,
-                admin.id,
-                ReminderType.data_usage,
-                threshold,
-            )
-            if not reminder_created:
-                continue
             usage_percentage = int((admin.used_traffic * 100) / admin.data_limit)
             admin_model = _admin_usage_warning_details(admin)
+            reminder_data.append(
+                {"admin_id": admin.id, "type": ReminderType.data_usage, "threshold": threshold}
+            )
+            notifications_to_send.append((admin_model, usage_percentage, threshold))
+
+        # Bulk-insert all reminders for this threshold in one query
+        await bulk_create_admin_notification_reminders(db, reminder_data)
+
+        # Send notifications after the bulk insert succeeds
+        for admin_model, usage_percentage, threshold in notifications_to_send:
             await notification.admin_usage_limit_reached(admin_model, usage_percentage, threshold)
 
 

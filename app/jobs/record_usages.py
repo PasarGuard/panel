@@ -100,9 +100,17 @@ def _chunked(items: list, size: int):
 
 
 async def get_dialect() -> str:
-    """Get the database dialect name without holding the session open."""
+    """Get the database dialect name. Cached after first call since the dialect never changes."""
+    if _dialect_cache:
+        return _dialect_cache[0]
     async with GetDB() as db:
-        return db.bind.dialect.name
+        dialect = db.bind.dialect.name
+    _dialect_cache.append(dialect)
+    return dialect
+
+
+# Simple one-element list used as a mutable cache container (set once, read many times)
+_dialect_cache: list[str] = []
 
 
 def build_node_user_usage_upsert(dialect: str, upsert_params: list[dict]):

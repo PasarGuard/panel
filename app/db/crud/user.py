@@ -619,17 +619,15 @@ async def get_usage_percentage_reached_users(db: AsyncSession, percentage: int) 
     )
 
     stmt = (
-        select(User)
+        _build_user_select_stmt()
         .options(joinedload(User.notification_reminders))
         .where(User.status == UserStatus.active)
         .where(User.usage_percentage >= percentage)
         .where(not_(existing_reminder_subq))  # Only users without existing reminders
     )
 
-    users = list((await db.execute(stmt)).unique().scalars().all())
-    for user in users:
-        await load_user_attrs(user)
-    return users
+    # All relations (admin, next_plan, usage_logs, groups) eagerly loaded via _build_user_select_stmt
+    return list((await db.execute(stmt)).unique().scalars().all())
 
 
 async def get_days_left_reached_users(db: AsyncSession, days: int) -> list[User]:
@@ -649,7 +647,7 @@ async def get_days_left_reached_users(db: AsyncSession, days: int) -> list[User]
     )
 
     stmt = (
-        select(User)
+        _build_user_select_stmt()
         .options(joinedload(User.notification_reminders))
         .where(User.status == UserStatus.active)
         .where(User.expire.isnot(None))
@@ -657,10 +655,8 @@ async def get_days_left_reached_users(db: AsyncSession, days: int) -> list[User]
         .where(not_(existing_reminder_subq))  # Only users without existing reminders
     )
 
-    users = list((await db.execute(stmt)).unique().scalars().all())
-    for user in users:
-        await load_user_attrs(user)
-    return users
+    # All relations (admin, next_plan, usage_logs, groups) eagerly loaded via _build_user_select_stmt
+    return list((await db.execute(stmt)).unique().scalars().all())
 
 
 async def get_user_usages(

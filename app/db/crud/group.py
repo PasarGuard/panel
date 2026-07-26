@@ -105,11 +105,15 @@ async def get_group(db: AsyncSession, query: GroupListQuery) -> tuple[list[Group
             - list[Group]: A list of Group objects
             - int: The total count of groups
     """
-    groups = select(Group)
+    groups = select(Group).options(selectinload(Group.users), selectinload(Group.inbounds))
     if query.ids:
         groups = groups.where(Group.id.in_(query.ids))
 
-    count_query = select(func.count()).select_from(groups.subquery())
+    # Build count on the base filter before adding pagination or eager loads
+    base_stmt = select(Group)
+    if query.ids:
+        base_stmt = base_stmt.where(Group.id.in_(query.ids))
+    count_query = select(func.count()).select_from(base_stmt.subquery())
 
     if query.offset:
         groups = groups.offset(query.offset)
@@ -118,10 +122,8 @@ async def get_group(db: AsyncSession, query: GroupListQuery) -> tuple[list[Group
 
     count = (await db.execute(count_query)).scalar_one()
 
-    all_groups = (await db.execute(groups)).scalars().all()
-
-    for group in all_groups:
-        await load_group_attrs(group)
+    # users and inbounds already eagerly loaded via selectinload above
+    all_groups = (await db.execute(groups)).unique().scalars().all()
 
     return all_groups, count
 

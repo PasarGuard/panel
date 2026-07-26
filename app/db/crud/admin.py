@@ -379,6 +379,13 @@ async def get_admins(
     if load_role:
         stmt = stmt.options(selectinload(Admin.role))
 
+    # For non-compact path, eagerly load users and usage_logs to avoid N+1 queries
+    if not compact:
+        stmt = stmt.options(
+            selectinload(Admin.users),
+            selectinload(Admin.usage_logs),
+        )
+
     # Apply filters consistently
     if params.ids:
         stmt = stmt.where(Admin.id.in_(params.ids))
@@ -405,9 +412,8 @@ async def get_admins(
         for admin, total_users, reseted_usage in rows:
             admins.append(build_admin_details(admin, total_users=total_users, reseted_usage=reseted_usage))
     else:
-        admins = list((await db.execute(stmt)).scalars().all())
-        for admin in admins:
-            await load_admin_attrs(admin, load_role=load_role)
+        # users, usage_logs, and role already eagerly loaded via selectinload above
+        admins = list((await db.execute(stmt)).unique().scalars().all())
 
     if return_with_count:
         return admins, total, active, disabled, limited

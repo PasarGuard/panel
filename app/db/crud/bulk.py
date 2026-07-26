@@ -443,9 +443,11 @@ async def update_users_proxy_settings(
     await db.execute(update_stmt)
     await db.commit()
 
-    # Refresh the user objects to get updated values
-    for user in users_to_update:
-        await db.refresh(user)
+    # Re-fetch all updated users in a single query instead of N individual refreshes
+    updated_user_ids = [u.id for u in users_to_update]
+    result = await db.execute(select(User).where(User.id.in_(updated_user_ids)))
+    refreshed_users = result.scalars().all()
+    for user in refreshed_users:
         await load_user_attrs(user, load_admin_role=True)
 
-    return users_to_update, count_effctive_users
+    return refreshed_users, count_effctive_users
