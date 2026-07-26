@@ -114,6 +114,10 @@ class XHTTPTransportConfig(BaseTransportConfig):
     uplink_http_method: str | None = Field(None, serialization_alias="uplinkHTTPMethod")
     session_placement: str | None = Field(None, serialization_alias="sessionPlacement")
     session_key: str | None = Field(None, serialization_alias="sessionKey")
+    session_id_table: str | None = Field(None, serialization_alias="sessionIDTable")
+    session_id_length: str | None = Field(
+        None, serialization_alias="sessionIDLength", pattern=r"^\d{1,16}(?:-\d{1,16})?$"
+    )
     seq_placement: str | None = Field(None, serialization_alias="seqPlacement")
     seq_key: str | None = Field(None, serialization_alias="seqKey")
     uplink_data_placement: str | None = Field(None, serialization_alias="uplinkDataPlacement")
@@ -131,6 +135,7 @@ class XHTTPTransportConfig(BaseTransportConfig):
         "sc_min_posts_interval_ms",
         "x_padding_bytes",
         "uplink_chunk_size",
+        "session_id_length",
         mode="before",
     )
     @classmethod

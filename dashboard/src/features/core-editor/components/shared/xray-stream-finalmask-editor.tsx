@@ -172,6 +172,12 @@ function TcpLayersForm({ form }: { form: UseFormReturn<any> }) {
         servers: [],
         errors: [],
       })
+    } else if (newType === 'xmc') {
+      form.setValue(`tcp.${index}.settings`, {
+        hostname: '',
+        usernames: [],
+        password: '',
+      })
     }
   }
 
@@ -208,6 +214,7 @@ function TcpLayersForm({ form }: { form: UseFormReturn<any> }) {
                             <SelectItem value="fragment">fragment</SelectItem>
                             <SelectItem value="sudoku">sudoku</SelectItem>
                             <SelectItem value="header-custom">header-custom</SelectItem>
+                            <SelectItem value="xmc">xmc</SelectItem>
                           </SelectContent>
                         </Select>
                       </FormItem>
@@ -269,6 +276,8 @@ function TcpLayersForm({ form }: { form: UseFormReturn<any> }) {
                   <JsonArrayField form={form} name={`tcp.${index}.settings.errors`} label="Errors (JSON array of noise arrays)" />
                 </div>
               )}
+
+              {type === 'xmc' && <XmcSettingsForm prefix={`tcp.${index}.settings`} form={form} />}
             </div>
           )
         })}
@@ -862,6 +871,64 @@ function SudokuSettingsForm({ prefix, form }: { prefix: string; form: UseFormRet
                 value={inputField.value ?? ''}
                 onChange={e => inputField.onChange(e.target.value === '' ? undefined : Number(e.target.value))}
                 className="h-8 text-xs"
+              />
+            </FormControl>
+          </FormItem>
+        )}
+      />
+    </div>
+  )
+}
+
+function XmcSettingsForm({ prefix, form }: { prefix: string; form: UseFormReturn<any> }) {
+  const { t } = useTranslation()
+  return (
+    <div className="grid grid-cols-2 gap-3 bg-background p-3 rounded-md border">
+      <FormField
+        control={form.control}
+        name={`${prefix}.hostname`}
+        render={({ field: inputField }) => (
+          <FormItem>
+            <FormLabel className="text-xs">Hostname</FormLabel>
+            <FormControl>
+              <Input placeholder="Hostname" {...inputField} value={inputField.value || ''} className="h-8 text-xs" />
+            </FormControl>
+          </FormItem>
+        )}
+      />
+      <FormField
+        control={form.control}
+        name={`${prefix}.password`}
+        render={({ field: inputField }) => (
+          <FormItem>
+            <FormLabel className="text-xs">Password</FormLabel>
+            <FormControl>
+              <Input placeholder="Password" {...inputField} value={inputField.value || ''} className="h-8 text-xs" />
+            </FormControl>
+          </FormItem>
+        )}
+      />
+      <FormField
+        control={form.control}
+        name={`${prefix}.usernames`}
+        render={({ field: inputField }) => (
+          <FormItem className="col-span-2">
+            <FormLabel className="text-xs">Usernames</FormLabel>
+            <FormControl>
+              <StringArrayPopoverInput
+                value={Array.isArray(inputField.value) ? inputField.value : []}
+                onChange={(next: string[]) => inputField.onChange(next)}
+                placeholder="Add Username"
+                addPlaceholder={t('arrayInput.addPlaceholder')}
+                addButtonLabel={t('arrayInput.addButton')}
+                itemsLabel={t('arrayInput.items')}
+                emptyMessage={t('arrayInput.noItems')}
+                duplicateErrorMessage={t('arrayInput.duplicateError')}
+                clickToEditTitle={t('arrayInput.clickToEdit')}
+                editItemTitle={t('arrayInput.editItem')}
+                removeItemTitle={t('arrayInput.removeItem')}
+                saveEditTitle={t('arrayInput.saveEdit')}
+                cancelEditTitle={t('arrayInput.cancelEdit')}
               />
             </FormControl>
           </FormItem>

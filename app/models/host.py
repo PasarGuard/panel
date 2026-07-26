@@ -86,6 +86,7 @@ class FinalMaskTcpType(str, Enum):
     header_custom = "header-custom"
     fragment = "fragment"
     sudoku = "sudoku"
+    xmc = "xmc"
 
 
 class FinalMaskUdpType(str, Enum):
@@ -135,6 +136,12 @@ class FinalMaskSudokuSettings(FinalMaskPasswordSettings):
     padding_max: int | None = Field(default=None, alias="paddingMax")
 
 
+class FinalMaskXmcSettings(FinalMaskBaseModel):
+    hostname: str | None = Field(default=None)
+    usernames: list[str] | None = Field(default=None)
+    password: str | None = Field(default=None)
+
+
 class FinalMaskDomainSettings(FinalMaskBaseModel):
     domain: str | None = Field(default=None)
 
@@ -171,7 +178,11 @@ class FinalMaskQuicParams(FinalMaskBaseModel):
 
 
 FinalMaskTcpSettings = (
-    FinalMaskTcpHeaderCustomSettings | XrayFragmentSettings | FinalMaskSudokuSettings | dict[str, Any]
+    FinalMaskTcpHeaderCustomSettings
+    | XrayFragmentSettings
+    | FinalMaskSudokuSettings
+    | FinalMaskXmcSettings
+    | dict[str, Any]
 )
 FinalMaskUdpSettings = (
     FinalMaskUdpHeaderCustomSettings
@@ -188,6 +199,7 @@ FINAL_MASK_TCP_SETTINGS_MODELS = {
     FinalMaskTcpType.header_custom: FinalMaskTcpHeaderCustomSettings,
     FinalMaskTcpType.fragment: XrayFragmentSettings,
     FinalMaskTcpType.sudoku: FinalMaskSudokuSettings,
+    FinalMaskTcpType.xmc: FinalMaskXmcSettings,
 }
 
 FINAL_MASK_UDP_SETTINGS_MODELS = {
@@ -299,6 +311,8 @@ class XHttpSettings(BaseModel):
     uplink_http_method: str | None = Field(default=None)
     session_placement: str | None = Field(default=None, pattern=r"^$|^(path|cookie|header|query)$")
     session_key: str | None = Field(default=None)
+    session_id_table: str | None = Field(default=None, pattern=r"^[\x20-\x7E]*$")
+    session_id_length: str | None = Field(default=None, pattern=r"^\d{1,16}(-\d{1,16})?$")
     seq_placement: str | None = Field(default=None, pattern=r"^$|^(path|cookie|header|query)$")
     seq_key: str | None = Field(default=None)
     uplink_data_placement: str | None = Field(default=None, pattern=r"^$|^(body|cookie|header)$")
@@ -320,6 +334,7 @@ class XHttpSettings(BaseModel):
         "uplink_chunk_size",
         "sc_max_each_post_bytes",
         "sc_min_posts_interval_ms",
+        "session_id_length",
         mode="before",
     )
     @classmethod
@@ -338,6 +353,7 @@ class XHttpSettings(BaseModel):
         "uplink_http_method",
         "session_placement",
         "session_key",
+        "session_id_table",
         "seq_placement",
         "seq_key",
         "uplink_data_placement",
