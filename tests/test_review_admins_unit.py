@@ -85,3 +85,58 @@ async def test_send_usage_limit_warning_notifications_idempotent(
         # Second call: should NOT send notification (since reminder exists)
         await _send_usage_limit_warning_notifications(session)
         assert mock_notification.admin_usage_limit_reached.call_count == 0
+
+@pytest.mark.asyncio
+@patch("app.jobs.review_admins.notification")
+@patch("app.jobs.review_admins.notification_enable")
+@patch("app.jobs.review_admins.get_usage_percentage_reached_admins")
+@patch("app.jobs.review_admins._admin_usage_warning_details")
+async def test_send_usage_limit_warning_notifications_failure_handling(
+    mock_details, mock_get_admins, mock_notif_enable, mock_notification
+):
+    async with TestSession() as session:
+        # Create test admins
+        admin_ok = Admin(
+            username="admin_ok",
+            hashed_password="secret",
+            role_id=3,
+            data_limit=1000,
+            used_traffic=850,
+        )
+        admin_fail = Admin(
+            username="admin_fail",
+            hashed_password="secret",
+            role_id=3,
+            data_limit=1000,
+            used_traffic=850,
+        )
+        session.add_all([admin_ok, admin_fail])
+        await session.flush()
+
+        mock_details.side_effect = lambda admin: MagicMock(id=admin.id)
+
+        mock_notif_enable.return_value = AsyncMock()
+        mock_notif_enable.return_value.admin.usage_limit_warning = True
+        mock_notif_enable.return_value.admin.usage_limit_warning_percentages = [80]
+
+        mock_get_admins.return_value = [admin_ok, admin_fail]
+
+        # Succeed for admin_ok, raise exception for admin_fail
+        async def side_effect(admin_model, usage_percentage, threshold):
+            if admin_model.id == admin_fail.id:
+                raise Exception("Network failure")
+            return
+
+        mock_notification.admin_usage_limit_reached = AsyncMock(side_effect=side_effect)
+
+        # Call notifications
+        await _send_usage_limit_warning_notifications(session)
+
+        # Query DB to verify reminders
+        reminders = (await session.execute(
+            select(AdminNotificationReminder)
+        )).scalars().all()
+
+        admin_ids_with_reminders = {r.admin_id for r in reminders}
+        assert admin_ok.id in admin_ids_with_reminders
+        assert admin_fail.id not in admin_ids_with_reminders
