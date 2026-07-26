@@ -149,16 +149,27 @@ export const Login: FC = () => {
     // The Telegram MiniApp flow below owns its own auth exchange - let it run
     // undisturbed rather than racing it over the stored token.
     if (isTelegram) return
+
+    const token = getAuthToken()
     // No token: nothing to verify, show the login form
-    if (!getAuthToken()) return
+    if (!token) return
+
+    const controller = new AbortController()
 
     // A token exists - check whether it's still valid before deciding
     // whether to redirect to the dashboard or drop the stale session
-    getCurrentAdmin()
+    getCurrentAdmin(controller.signal)
       .then(() => {
         navigate('/', { replace: true })
       })
-      .catch(() => {
+      .catch((error: any) => {
+        if (error?.name === 'AbortError') return
+        // Another flow (e.g. a manual login) already replaced the token - don't clobber it
+        if (getAuthToken() !== token) return
+        // Only drop the session on a confirmed auth failure; transient/network
+        // errors shouldn't log out an otherwise-valid session
+        if (error?.status !== 401 && error?.status !== 403) return
+
         // Cancel all ongoing queries first to stop any in-flight requests
         queryClient.cancelQueries()
         // Remove the auth token
@@ -166,6 +177,8 @@ export const Login: FC = () => {
         // Clear all React Query cache to ensure fresh state after logout
         queryClient.clear()
       })
+
+    return () => controller.abort()
   }, [navigate, isTelegram])
 
   const {
