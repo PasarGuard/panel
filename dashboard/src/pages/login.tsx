@@ -8,9 +8,9 @@ import { Input } from '@/components/ui/input'
 import { LoaderButton } from '@/components/ui/loader-button'
 import { PasswordInput } from '@/components/ui/password-input'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { useAdminMiniAppToken, useAdminToken, useCreateOwner, useDeleteOwner, useResetOwnerPassword, useUpgradeOwner } from '@/service/api'
+import { getCurrentAdmin, useAdminMiniAppToken, useAdminToken, useCreateOwner, useDeleteOwner, useResetOwnerPassword, useUpgradeOwner } from '@/service/api'
 import { $fetch } from '@/service/http'
-import { removeAuthToken, setAuthToken } from '@/utils/authStorage'
+import { getAuthToken, removeAuthToken, setAuthToken } from '@/utils/authStorage'
 import { queryClient } from '@/utils/query-client'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { retrieveRawInitData } from '@telegram-apps/sdk'
@@ -129,18 +129,6 @@ export const Login: FC = () => {
     resolver: zodResolver(schema),
   })
 
-  useEffect(() => {
-    // Cancel all ongoing queries first to stop any in-flight requests
-    queryClient.cancelQueries()
-    // Remove the auth token
-    removeAuthToken()
-    // Clear all React Query cache to ensure fresh state after logout
-    queryClient.clear()
-    if (location.pathname !== '/login') {
-      navigate('/login', { replace: true })
-    }
-  }, [location.pathname, navigate])
-
   let isTelegram = false
   let initDataRaw = ''
   try {
@@ -150,6 +138,48 @@ export const Login: FC = () => {
     isTelegram = false
     initDataRaw = ''
   }
+
+  useEffect(() => {
+    if (location.pathname !== '/login') {
+      navigate('/login', { replace: true })
+    }
+  }, [location.pathname, navigate])
+
+  useEffect(() => {
+    // The Telegram MiniApp flow below owns its own auth exchange - let it run
+    // undisturbed rather than racing it over the stored token.
+    if (isTelegram) return
+
+    const token = getAuthToken()
+    // No token: nothing to verify, show the login form
+    if (!token) return
+
+    const controller = new AbortController()
+
+    // A token exists - check whether it's still valid before deciding
+    // whether to redirect to the dashboard or drop the stale session
+    getCurrentAdmin(controller.signal)
+      .then(() => {
+        navigate('/', { replace: true })
+      })
+      .catch((error: any) => {
+        if (error?.name === 'AbortError') return
+        // Another flow (e.g. a manual login) already replaced the token - don't clobber it
+        if (getAuthToken() !== token) return
+        // Only drop the session on a confirmed auth failure; transient/network
+        // errors shouldn't log out an otherwise-valid session
+        if (error?.status !== 401 && error?.status !== 403) return
+
+        // Cancel all ongoing queries first to stop any in-flight requests
+        queryClient.cancelQueries()
+        // Remove the auth token
+        removeAuthToken()
+        // Clear all React Query cache to ensure fresh state after logout
+        queryClient.clear()
+      })
+
+    return () => controller.abort()
+  }, [navigate, isTelegram])
 
   const {
     mutate: login,
