@@ -17,13 +17,13 @@ async def setup_database():
         # Seed default roles if they do not exist (to satisfy FK constraints)
         existing_roles = (await session.execute(select(AdminRole))).scalars().all()
         if not existing_roles:
-            session.add_all(
-                [
-                    AdminRole(id=1, name="owner", is_owner=True, permissions={}, limits={}, features={}, access={}),
-                    AdminRole(id=2, name="administrator", is_owner=False, permissions={}, limits={}, features={}, access={}),
-                    AdminRole(id=3, name="operator", is_owner=False, permissions={}, limits={}, features={}, access={}),
-                ]
-            )
+            owner = AdminRole(name="owner", is_owner=True, permissions={}, limits={}, features={}, access={})
+            owner.id = 1
+            administrator = AdminRole(name="administrator", is_owner=False, permissions={}, limits={}, features={}, access={})
+            administrator.id = 2
+            operator = AdminRole(name="operator", is_owner=False, permissions={}, limits={}, features={}, access={})
+            operator.id = 3
+            session.add_all([owner, administrator, operator])
             await session.commit()
 
 @pytest.mark.asyncio
