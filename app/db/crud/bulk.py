@@ -3,6 +3,7 @@ from datetime import UTC, datetime as dt
 from sqlalchemy import and_, case, cast, delete, func, or_, select, text, update
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload, selectinload
 
 from app.db.models import (
     Admin,
@@ -445,9 +446,16 @@ async def update_users_proxy_settings(
 
     # Re-fetch all updated users in a single query instead of N individual refreshes
     updated_user_ids = [u.id for u in users_to_update]
-    result = await db.execute(select(User).where(User.id.in_(updated_user_ids)))
+    result = await db.execute(
+        select(User)
+        .where(User.id.in_(updated_user_ids))
+        .options(
+            joinedload(User.admin).selectinload(Admin.role),
+            joinedload(User.next_plan),
+            selectinload(User.usage_logs),
+            selectinload(User.groups),
+        )
+    )
     refreshed_users = result.scalars().all()
-    for user in refreshed_users:
-        await load_user_attrs(user, load_admin_role=True)
 
     return refreshed_users, count_effctive_users
