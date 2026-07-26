@@ -457,5 +457,7 @@ async def update_users_proxy_settings(
         )
     )
     refreshed_users = result.scalars().all()
+    refreshed_users_map = {user.id: user for user in refreshed_users}
+    ordered_refreshed_users = [refreshed_users_map[uid] for uid in updated_user_ids if uid in refreshed_users_map]
 
-    return refreshed_users, count_effctive_users
+    return ordered_refreshed_users, count_effctive_users
