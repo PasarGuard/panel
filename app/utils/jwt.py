@@ -147,7 +147,7 @@ async def get_subscription_payload(token: str) -> dict | None:
                 .decode("utf-8")
                 .rstrip("=")
             )
-            if not hmac.compare_digest(u_signature, expected):
+            if not hmac.compare_digest(u_signature.encode("utf-8"), expected.encode("utf-8")):
                 return
             data_str = _decode_b64_token(data_b64_str)
             if data_str is None:
