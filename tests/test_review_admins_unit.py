@@ -1,11 +1,30 @@
 import pytest
 from uuid import uuid4
 from sqlalchemy import select
-from app.db.models import Admin, AdminNotificationReminder, ReminderType
+from app.db.models import Admin, AdminNotificationReminder, AdminRole, ReminderType
 from app.db.crud.admin import bulk_create_admin_notification_reminders
 from app.jobs.review_admins import _send_usage_limit_warning_notifications
-from tests.api import TestSession
+from tests.api import TestSession, engine
 from unittest.mock import AsyncMock, MagicMock, patch
+
+@pytest.fixture(autouse=True)
+async def setup_database():
+    from app.db import base
+    async with engine.begin() as conn:
+        await conn.run_sync(base.Base.metadata.create_all)
+        
+    async with TestSession() as session:
+        # Seed default roles if they do not exist (to satisfy FK constraints)
+        existing_roles = (await session.execute(select(AdminRole))).scalars().all()
+        if not existing_roles:
+            session.add_all(
+                [
+                    AdminRole(id=1, name="owner", is_owner=True, permissions={}, limits={}, features={}, access={}),
+                    AdminRole(id=2, name="administrator", is_owner=False, permissions={}, limits={}, features={}, access={}),
+                    AdminRole(id=3, name="operator", is_owner=False, permissions={}, limits={}, features={}, access={}),
+                ]
+            )
+            await session.commit()
 
 @pytest.mark.asyncio
 async def test_bulk_create_admin_notification_reminders_idempotency():
