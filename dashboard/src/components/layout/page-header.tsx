@@ -10,7 +10,11 @@ import { useLocation } from 'react-router'
 
 interface PageHeaderProps {
   title: string
+  /** Fallback text when the `title` i18n key is missing (e.g. a stale cached locale bundle). */
+  titleDefault?: string
   description?: string
+  /** Fallback text when the `description` i18n key is missing. */
+  descriptionDefault?: string
   buttonText?: string
   onButtonClick?: () => void
   buttonIcon?: LucideIcon
@@ -19,7 +23,7 @@ interface PageHeaderProps {
   className?: string
 }
 
-export default function PageHeader({ title, description, buttonText, onButtonClick, buttonIcon: Icon = Plus, buttonTooltip, tutorialUrl, className }: PageHeaderProps) {
+export default function PageHeader({ title, titleDefault, description, descriptionDefault, buttonText, onButtonClick, buttonIcon: Icon = Plus, buttonTooltip, tutorialUrl, className }: PageHeaderProps) {
   const { t } = useTranslation()
   const dir = useDirDetection()
   const location = useLocation()
@@ -32,7 +36,7 @@ export default function PageHeader({ title, description, buttonText, onButtonCli
       <Snowfall className="snowfall--header" />
       <div className="relative z-10 flex min-w-0 flex-1 flex-col gap-y-1">
         <div className="flex min-w-0 items-center gap-2.5">
-          <h1 className="truncate text-lg font-medium sm:text-xl">{t(title)}</h1>
+          <h1 className="truncate text-lg font-medium sm:text-xl">{t(title, titleDefault ? { defaultValue: titleDefault } : undefined)}</h1>
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -52,7 +56,7 @@ export default function PageHeader({ title, description, buttonText, onButtonCli
             </Tooltip>
           </TooltipProvider>
         </div>
-        {description && <span className="text-muted-foreground text-xs whitespace-normal sm:text-sm">{t(description)}</span>}
+        {description && <span className="text-muted-foreground text-xs whitespace-normal sm:text-sm">{t(description, descriptionDefault ? { defaultValue: descriptionDefault } : undefined)}</span>}
       </div>
       {buttonText && onButtonClick && (
         <div className="relative z-10 shrink-0">

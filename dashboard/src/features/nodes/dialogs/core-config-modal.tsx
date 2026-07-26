@@ -21,6 +21,7 @@ import {
   type VlessBuilderOptions,
 } from '@/lib/xray-generation'
 import { cn } from '@/lib/utils'
+import { findUnknownApiServices, getSelectedOptional, OPTIONAL_API_SERVICES, REQUIRED_API_SERVICES, setOptionalService } from '@/lib/xray-api-services'
 import { useCreateCoreConfig, useModifyCoreConfig } from '@/service/api'
 import { isEmptyObject } from '@/utils/isEmptyObject.ts'
 import { generateMldsa65 } from '@/utils/mldsa65'
@@ -30,7 +31,7 @@ import { encodeURLSafe } from '@stablelib/base64'
 import { generateKeyPair } from '@stablelib/x25519'
 import { debounce } from 'es-toolkit'
 import { Sparkles, Pencil, Cpu } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { FieldErrors, UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -146,6 +147,55 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
     },
     [validateJsonContent],
   )
+
+  // Optional Xray API services derived from the config JSON (the JSON is the source of truth).
+  // api.services is Xray-only, so WireGuard configs are never derived or validated against it.
+  const watchedConfig = form.watch('config')
+  const { selectedApiServices, unknownApiServices } = useMemo(() => {
+    if (!isXrayBackend) {
+      return { selectedApiServices: [], unknownApiServices: [] }
+    }
+    let parsed: unknown = null
+    try {
+      parsed = JSON.parse(watchedConfig || '{}')
+    } catch {
+      parsed = null
+    }
+    return {
+      selectedApiServices: getSelectedOptional(parsed),
+      unknownApiServices: findUnknownApiServices(parsed),
+    }
+  }, [isXrayBackend, watchedConfig])
+
+  const handleToggleApiService = useCallback(
+    (service: string, enabled: boolean) => {
+      let parsed: Record<string, unknown>
+      try {
+        // Valid-but-non-object JSON (null/array/primitive) would be silently replaced
+        // or mangled by the re-serialize below, so only plain objects are toggled.
+        const candidate: unknown = JSON.parse(form.getValues('config') || '{}')
+        if (typeof candidate !== 'object' || candidate === null || Array.isArray(candidate)) {
+          return
+        }
+        parsed = candidate as Record<string, unknown>
+      } catch {
+        return
+      }
+      const nextJson = JSON.stringify(setOptionalService(parsed, service, enabled), null, 2)
+      form.setValue('config', nextJson, { shouldDirty: true, shouldValidate: true })
+      // ponytail: re-serializing pretty-prints the whole config (2-space) and normalizes
+      // number literals — accepted per the "edit api.services in the JSON" design;
+      // setOptionalService preserves all other keys.
+      validateJsonContent(nextJson)
+    },
+    [form, validateJsonContent],
+  )
+
+  const apiServicesUnknownMessage = (names: string[]) =>
+    t('coreConfigModal.apiServicesUnknown', {
+      defaultValue: 'Unrecognized API service(s): {{names}}. Remove or fix them to save.',
+      names: names.join(', '),
+    })
 
   // Debounce config changes to improve performance
   const debouncedConfigChange = useCallback(
@@ -326,6 +376,18 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
       }
 
       const backendType = values.type ?? 'xray'
+
+      // api.services is Xray-only; never block a WireGuard config on Xray rules.
+      if (backendType !== 'wg') {
+        const unknownServices = findUnknownApiServices(configObj)
+        if (unknownServices.length > 0) {
+          const message = apiServicesUnknownMessage(unknownServices)
+          form.setError('config', { type: 'manual', message })
+          toast.error(message)
+          return
+        }
+      }
+
       const fallbackTags = backendType !== 'wg' ? values.fallback_id || [] : []
       const excludeInboundTags = backendType !== 'wg' ? values.excluded_inbound_ids || [] : []
 
@@ -968,6 +1030,36 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
                           )}
                         />
 
+                        {/* API services: opt into optional Xray API services.
+                            The node always injects the required ones regardless. */}
+                        <div className="space-y-2">
+                          <FormLabel>{t('coreConfigModal.apiServices', { defaultValue: 'API Services' })}</FormLabel>
+                          <div className="space-y-2 rounded-md border p-3">
+                            {REQUIRED_API_SERVICES.map(svc => (
+                              <label key={svc} className="flex items-center gap-2 opacity-60">
+                                <Checkbox checked disabled />
+                                <span className="text-sm">{svc}</span>
+                                <span className="text-muted-foreground text-xs">
+                                  {t('coreConfigModal.apiServiceAlwaysOn', { defaultValue: 'always on' })}
+                                </span>
+                              </label>
+                            ))}
+                            {OPTIONAL_API_SERVICES.map(svc => (
+                              <label key={svc} className="flex cursor-pointer items-center gap-2">
+                                <Checkbox
+                                  checked={selectedApiServices.includes(svc)}
+                                  onCheckedChange={checked => handleToggleApiService(svc, checked === true)}
+                                  disabled={!validation.isValid}
+                                />
+                                <span className="text-sm">{svc}</span>
+                              </label>
+                            ))}
+                            {unknownApiServices.length > 0 && (
+                              <p className="text-destructive text-xs">{apiServicesUnknownMessage(unknownApiServices)}</p>
+                            )}
+                          </div>
+                        </div>
+
                         <Tabs dir={dir} defaultValue="reality" className="w-full pb-6">
                           {/* Enhanced TabsList with Text Overflow */}
                           <TabsList dir="ltr" className="bg-muted/50 grid h-auto w-full grid-cols-3 gap-1 p-1">
@@ -1127,7 +1219,7 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
                     </Button>
                     <LoaderButton
                       type="submit"
-                      disabled={!validation.isValid || createCoreMutation.isPending || modifyCoreMutation.isPending || form.formState.isSubmitting}
+                      disabled={!validation.isValid || unknownApiServices.length > 0 || createCoreMutation.isPending || modifyCoreMutation.isPending || form.formState.isSubmitting}
                       isLoading={createCoreMutation.isPending || modifyCoreMutation.isPending}
                       loadingText={editingCore ? t('modifying') : t('creating')}
                     >
