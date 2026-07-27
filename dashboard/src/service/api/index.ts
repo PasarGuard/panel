@@ -3,7 +3,7 @@
  * Do not edit manually.
  * PasarGuardAPI
  * Unified GUI Censorship Resistant Solution
- * OpenAPI spec version: 5.1.0
+ * OpenAPI spec version: 5.2.0-rc.2
  */
 import { useMutation, useQuery } from '@tanstack/react-query'
 import type {
@@ -57,7 +57,7 @@ export type DeleteExpiredUsersParams = {
   target?: DeleteExpiredUsersTarget
   expired_after?: string | null
   expired_before?: string | null
-  dry_run?: boolean | null
+  dry_run?: boolean
 }
 
 export type GetExpiredUsersTarget = (typeof GetExpiredUsersTarget)[keyof typeof GetExpiredUsersTarget]
@@ -75,7 +75,7 @@ export type GetExpiredUsersParams = {
   target?: GetExpiredUsersTarget
   expired_after?: string | null
   expired_before?: string | null
-  dry_run?: boolean | null
+  dry_run?: boolean
 }
 
 export type GetUsersCountMetricParams = {
@@ -682,18 +682,6 @@ export type UsersPermissionsActivateNextPlanAnyOf = { [key: string]: PermissionS
 
 export type UsersPermissionsActivateNextPlan = boolean | UsersPermissionsActivateNextPlanAnyOf | null
 
-export interface UsersPermissions {
-  create?: UsersPermissionsCreate
-  read?: UsersPermissionsRead
-  read_simple?: UsersPermissionsReadSimple
-  update?: UsersPermissionsUpdate
-  delete?: UsersPermissionsDelete
-  reset_usage?: UsersPermissionsResetUsage
-  revoke_sub?: UsersPermissionsRevokeSub
-  set_owner?: UsersPermissionsSetOwner
-  activate_next_plan?: UsersPermissionsActivateNextPlan
-}
-
 export type UsersPermissionsSetOwnerAnyOf = { [key: string]: PermissionScope | number }
 
 export type UsersPermissionsSetOwner = boolean | UsersPermissionsSetOwnerAnyOf | null
@@ -713,6 +701,18 @@ export type UsersPermissionsDelete = boolean | UsersPermissionsDeleteAnyOf | nul
 export type UsersPermissionsUpdateAnyOf = { [key: string]: PermissionScope | number }
 
 export type UsersPermissionsUpdate = boolean | UsersPermissionsUpdateAnyOf | null
+
+export interface UsersPermissions {
+  create?: UsersPermissionsCreate
+  read?: UsersPermissionsRead
+  read_simple?: UsersPermissionsReadSimple
+  update?: UsersPermissionsUpdate
+  delete?: UsersPermissionsDelete
+  reset_usage?: UsersPermissionsResetUsage
+  revoke_sub?: UsersPermissionsRevokeSub
+  set_owner?: UsersPermissionsSetOwner
+  activate_next_plan?: UsersPermissionsActivateNextPlan
+}
 
 export type UsersPermissionsReadSimpleAnyOf = { [key: string]: PermissionScope | number }
 
@@ -736,19 +736,19 @@ export const UsernameGenerationStrategy = {
 
 export type UserUsageStatsListPeriod = Period | null
 
-export interface UserUsageStatsList {
-  period?: UserUsageStatsListPeriod
-  start: string
-  end: string
-  stats: UserUsageStatsListStats
-}
-
 export interface UserUsageStat {
   total_traffic: number
   period_start: string
 }
 
 export type UserUsageStatsListStats = { [key: string]: UserUsageStat[] }
+
+export interface UserUsageStatsList {
+  period?: UserUsageStatsListPeriod
+  start: string
+  end: string
+  stats: UserUsageStatsListStats
+}
 
 export type UserTemplateSimpleName = string | null
 
@@ -1506,6 +1506,12 @@ export type SettingsPermissionsUpdateAnyOf = { [key: string]: PermissionScope | 
 
 export type SettingsPermissionsUpdate = boolean | SettingsPermissionsUpdateAnyOf | null
 
+export interface SettingsPermissions {
+  read?: SettingsPermissionsRead
+  read_general?: SettingsPermissionsReadGeneral
+  update?: SettingsPermissionsUpdate
+}
+
 export type SettingsPermissionsReadGeneralAnyOf = { [key: string]: PermissionScope | number }
 
 export type SettingsPermissionsReadGeneral = boolean | SettingsPermissionsReadGeneralAnyOf | null
@@ -1513,12 +1519,6 @@ export type SettingsPermissionsReadGeneral = boolean | SettingsPermissionsReadGe
 export type SettingsPermissionsReadAnyOf = { [key: string]: PermissionScope | number }
 
 export type SettingsPermissionsRead = boolean | SettingsPermissionsReadAnyOf | null
-
-export interface SettingsPermissions {
-  read?: SettingsPermissionsRead
-  read_general?: SettingsPermissionsReadGeneral
-  update?: SettingsPermissionsUpdate
-}
 
 export type RunMethod = (typeof RunMethod)[keyof typeof RunMethod]
 
@@ -1960,18 +1960,6 @@ export type NodesPermissionsStatsAnyOf = { [key: string]: PermissionScope | numb
 
 export type NodesPermissionsStats = boolean | NodesPermissionsStatsAnyOf | null
 
-export interface NodesPermissions {
-  create?: NodesPermissionsCreate
-  read?: NodesPermissionsRead
-  read_simple?: NodesPermissionsReadSimple
-  update?: NodesPermissionsUpdate
-  delete?: NodesPermissionsDelete
-  reconnect?: NodesPermissionsReconnect
-  update_core?: NodesPermissionsUpdateCore
-  logs?: NodesPermissionsLogs
-  stats?: NodesPermissionsStats
-}
-
 export type NodesPermissionsLogsAnyOf = { [key: string]: PermissionScope | number }
 
 export type NodesPermissionsLogs = boolean | NodesPermissionsLogsAnyOf | null
@@ -1983,6 +1971,18 @@ export type NodesPermissionsUpdateCore = boolean | NodesPermissionsUpdateCoreAny
 export type NodesPermissionsReconnectAnyOf = { [key: string]: PermissionScope | number }
 
 export type NodesPermissionsReconnect = boolean | NodesPermissionsReconnectAnyOf | null
+
+export interface NodesPermissions {
+  create?: NodesPermissionsCreate
+  read?: NodesPermissionsRead
+  read_simple?: NodesPermissionsReadSimple
+  update?: NodesPermissionsUpdate
+  delete?: NodesPermissionsDelete
+  reconnect?: NodesPermissionsReconnect
+  update_core?: NodesPermissionsUpdateCore
+  logs?: NodesPermissionsLogs
+  stats?: NodesPermissionsStats
+}
 
 export type NodesPermissionsDeleteAnyOf = { [key: string]: PermissionScope | number }
 
@@ -2004,6 +2004,8 @@ export type NodesPermissionsCreateAnyOf = { [key: string]: PermissionScope | num
 
 export type NodesPermissionsCreate = boolean | NodesPermissionsCreateAnyOf | null
 
+export type NodeUsageStatsListStats = { [key: string]: NodeUsageStat[] }
+
 export type NodeUsageStatsListPeriod = Period | null
 
 export interface NodeUsageStatsList {
@@ -2018,8 +2020,6 @@ export interface NodeUsageStat {
   downlink: number
   period_start: string
 }
-
-export type NodeUsageStatsListStats = { [key: string]: NodeUsageStat[] }
 
 export type NodeStatus = (typeof NodeStatus)[keyof typeof NodeStatus]
 
@@ -2211,19 +2211,6 @@ export interface NodeGeoFilesUpdate {
 
 export type NodeCreateProxyUrl = string | null
 
-export interface NodeCoreUpdate {
-  /** @pattern ^(latest|v?\d+\.\d+\.\d+)$ */
-  core_version?: string
-}
-
-export type NodeConnectionType = (typeof NodeConnectionType)[keyof typeof NodeConnectionType]
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
-export const NodeConnectionType = {
-  grpc: 'grpc',
-  rest: 'rest',
-} as const
-
 export interface NodeCreate {
   name: string
   address: string
@@ -2251,6 +2238,19 @@ export interface NodeCreate {
   internal_timeout?: number
   proxy_url?: NodeCreateProxyUrl
 }
+
+export interface NodeCoreUpdate {
+  /** @pattern ^(latest|v?\d+\.\d+\.\d+)$ */
+  core_version?: string
+}
+
+export type NodeConnectionType = (typeof NodeConnectionType)[keyof typeof NodeConnectionType]
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const NodeConnectionType = {
+  grpc: 'grpc',
+  rest: 'rest',
+} as const
 
 export type NextPlanModelExpire = number | null
 
@@ -2369,6 +2369,12 @@ export type HostsPermissionsUpdateAnyOf = { [key: string]: PermissionScope | num
 
 export type HostsPermissionsUpdate = boolean | HostsPermissionsUpdateAnyOf | null
 
+export interface HostsPermissions {
+  create?: HostsPermissionsCreate
+  read?: HostsPermissionsRead
+  update?: HostsPermissionsUpdate
+}
+
 export type HostsPermissionsReadAnyOf = { [key: string]: PermissionScope | number }
 
 export type HostsPermissionsRead = boolean | HostsPermissionsReadAnyOf | null
@@ -2376,12 +2382,6 @@ export type HostsPermissionsRead = boolean | HostsPermissionsReadAnyOf | null
 export type HostsPermissionsCreateAnyOf = { [key: string]: PermissionScope | number }
 
 export type HostsPermissionsCreate = boolean | HostsPermissionsCreateAnyOf | null
-
-export interface HostsPermissions {
-  create?: HostsPermissionsCreate
-  read?: HostsPermissionsRead
-  update?: HostsPermissionsUpdate
-}
 
 export interface HostNotificationEnable {
   create?: boolean
@@ -2448,11 +2448,6 @@ export interface HTTPException {
   detail: string
 }
 
-export interface GroupsResponse {
-  groups: GroupResponse[]
-  total: number
-}
-
 /**
  * Lightweight group model with only id and name for performance.
  */
@@ -2481,6 +2476,11 @@ export interface GroupResponse {
   is_disabled?: boolean
   id: number
   total_users?: number
+}
+
+export interface GroupsResponse {
+  groups: GroupResponse[]
+  total: number
 }
 
 export type GroupModifyInboundTags = string[] | null
@@ -2555,6 +2555,19 @@ export interface FragmentSettingsInput {
 
 export interface Forbidden {
   detail?: string
+}
+
+export type FinalMaskXmcSettingsPassword = string | null
+
+export type FinalMaskXmcSettingsUsernames = string[] | null
+
+export type FinalMaskXmcSettingsHostname = string | null
+
+export interface FinalMaskXmcSettings {
+  hostname?: FinalMaskXmcSettingsHostname
+  usernames?: FinalMaskXmcSettingsUsernames
+  password?: FinalMaskXmcSettingsPassword
+  [key: string]: unknown
 }
 
 export type FinalMaskXicmpSettingsId = number | null
@@ -2640,14 +2653,6 @@ export interface FinalMaskTcpLayerOutput {
 
 export type FinalMaskTcpLayerInputSettingsAnyOf = { [key: string]: unknown }
 
-export type FinalMaskTcpLayerInputSettings = FinalMaskTcpHeaderCustomSettings | XrayFragmentSettingsInput | FinalMaskSudokuSettings | FinalMaskXmcSettings | FinalMaskTcpLayerInputSettingsAnyOf
-
-export interface FinalMaskTcpLayerInput {
-  type: FinalMaskTcpType
-  settings?: FinalMaskTcpLayerInputSettings
-  [key: string]: unknown
-}
-
 export type FinalMaskTcpHeaderCustomSettingsErrors = XrayNoiseSettings[][] | null
 
 export type FinalMaskTcpHeaderCustomSettingsServers = XrayNoiseSettings[][] | null
@@ -2683,16 +2688,11 @@ export interface FinalMaskSudokuSettings {
   [key: string]: unknown
 }
 
-export type FinalMaskXmcSettingsPassword = string | null
+export type FinalMaskTcpLayerInputSettings = FinalMaskTcpHeaderCustomSettings | XrayFragmentSettingsInput | FinalMaskSudokuSettings | FinalMaskXmcSettings | FinalMaskTcpLayerInputSettingsAnyOf
 
-export type FinalMaskXmcSettingsUsernames = string[] | null
-
-export type FinalMaskXmcSettingsHostname = string | null
-
-export interface FinalMaskXmcSettings {
-  hostname?: FinalMaskXmcSettingsHostname
-  usernames?: FinalMaskXmcSettingsUsernames
-  password?: FinalMaskXmcSettingsPassword
+export interface FinalMaskTcpLayerInput {
+  type: FinalMaskTcpType
+  settings?: FinalMaskTcpLayerInputSettings
   [key: string]: unknown
 }
 
@@ -12787,10 +12787,10 @@ export function useGetUsersCountMetric<TData = Awaited<ReturnType<typeof getUser
 /**
  * Get cleanup-target users in the specified scope.
 
-- **target**: `expired` (time-based) or `limited` (usage-based)
-- **expired_after** UTC datetime (optional)
-- **expired_before** UTC datetime (optional)
-- Date range filters are applied only when target is `expired`
+- **target**: `expired` | `limited` | `on_hold` | `disabled`
+- **expired_after** / **expired_before** UTC datetime (optional)
+- For `expired`: filters by expiration date.
+- For `limited` / `on_hold` / `disabled`: filters by last_status_change (when they entered that status).
  * @summary Get Expired Users
  */
 export const getExpiredUsers = (params?: GetExpiredUsersParams, signal?: AbortSignal) => {
@@ -12855,10 +12855,11 @@ export function useGetExpiredUsers<TData = Awaited<ReturnType<typeof getExpiredU
 /**
  * Delete cleanup-target users in the specified scope.
 
-- **target**: `expired` (time-based) or `limited` (usage-based)
-- **expired_after** UTC datetime (optional)
-- **expired_before** UTC datetime (optional)
-- Date range filters are applied only when target is `expired`
+- **target**: `expired` | `limited` | `on_hold` | `disabled`
+- **expired_after** / **expired_before** UTC datetime (optional)
+- For `expired`: filters by expiration date.
+- For `limited` / `on_hold` / `disabled`: filters by last_status_change (when they entered that status).
+- **dry_run**: if true, returns users that would be deleted without deleting them.
  * @summary Delete Expired Users
  */
 export const deleteExpiredUsers = (params?: DeleteExpiredUsersParams) => {
