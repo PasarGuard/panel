@@ -583,7 +583,7 @@ async def create_admin_notification_reminder_if_absent(
     db: AsyncSession,
     admin_id: int,
     reminder_type: ReminderType,
-    threshold: int | None = None,
+    threshold: int = 0,
 ) -> bool:
     """Create an admin reminder row and return whether this call claimed it."""
     existing_reminder_id = await db.scalar(
