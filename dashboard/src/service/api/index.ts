@@ -48,6 +48,8 @@ export type DeleteExpiredUsersTarget = (typeof DeleteExpiredUsersTarget)[keyof t
 export const DeleteExpiredUsersTarget = {
   expired: 'expired',
   limited: 'limited',
+  on_hold: 'on_hold',
+  disabled: 'disabled',
 } as const
 
 export type DeleteExpiredUsersParams = {
@@ -55,6 +57,7 @@ export type DeleteExpiredUsersParams = {
   target?: DeleteExpiredUsersTarget
   expired_after?: string | null
   expired_before?: string | null
+  dry_run?: boolean | null
 }
 
 export type GetExpiredUsersTarget = (typeof GetExpiredUsersTarget)[keyof typeof GetExpiredUsersTarget]
@@ -63,6 +66,8 @@ export type GetExpiredUsersTarget = (typeof GetExpiredUsersTarget)[keyof typeof 
 export const GetExpiredUsersTarget = {
   expired: 'expired',
   limited: 'limited',
+  on_hold: 'on_hold',
+  disabled: 'disabled',
 } as const
 
 export type GetExpiredUsersParams = {
@@ -70,6 +75,7 @@ export type GetExpiredUsersParams = {
   target?: GetExpiredUsersTarget
   expired_after?: string | null
   expired_before?: string | null
+  dry_run?: boolean | null
 }
 
 export type GetUsersCountMetricParams = {

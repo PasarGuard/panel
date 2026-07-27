@@ -597,10 +597,10 @@ async def get_expired_users(
     """
     Get cleanup-target users in the specified scope.
 
-    - **target**: `expired` (time-based) or `limited` (usage-based)
-    - **expired_after** UTC datetime (optional)
-    - **expired_before** UTC datetime (optional)
-    - Date range filters are applied only when target is `expired`
+    - **target**: `expired` | `limited` | `on_hold` | `disabled`
+    - **expired_after** / **expired_before** UTC datetime (optional)
+    - For `expired`: filters by expiration date.
+    - For `limited` / `on_hold` / `disabled`: filters by last_status_change (when they entered that status).
     """
 
     return await user_operator.get_expired_users(db, query=query)
@@ -615,10 +615,11 @@ async def delete_expired_users(
     """
     Delete cleanup-target users in the specified scope.
 
-    - **target**: `expired` (time-based) or `limited` (usage-based)
-    - **expired_after** UTC datetime (optional)
-    - **expired_before** UTC datetime (optional)
-    - Date range filters are applied only when target is `expired`
+    - **target**: `expired` | `limited` | `on_hold` | `disabled`
+    - **expired_after** / **expired_before** UTC datetime (optional)
+    - For `expired`: filters by expiration date.
+    - For `limited` / `on_hold` / `disabled`: filters by last_status_change (when they entered that status).
+    - **dry_run**: if true, returns users that would be deleted without deleting them.
     """
     return await user_operator.delete_expired_users(db, admin, query=query)
 

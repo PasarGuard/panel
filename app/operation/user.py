@@ -1536,12 +1536,12 @@ class UserOperation(BaseOperation):
         query: ExpiredUsersQuery,
     ) -> list[str]:
         """
-        Get users who have expired within the specified date range.
+        Get users who match the cleanup target within the specified date range.
 
-        - **target**: `expired` (time-based) or `limited` (usage-based).
-        - **expired_after** UTC datetime (optional)
-        - **expired_before** UTC datetime (optional)
-        - Date range filters are applied only when target is `expired`.
+        - **target**: `expired` | `limited` | `on_hold` | `disabled`
+        - **expired_after** / **expired_before** UTC datetime (optional)
+        - For `expired`: filters by expiration date.
+        - For `limited` / `on_hold` / `disabled`: filters by last_status_change.
         - If both dates are omitted, returns all users matching target.
         """
 
@@ -1564,12 +1564,13 @@ class UserOperation(BaseOperation):
         query: ExpiredUsersQuery,
     ) -> RemoveUsersResponse:
         """
-        Delete users who have expired within the specified date range.
+        Delete users who match the cleanup target within the specified date range.
 
-        - **target**: `expired` (time-based) or `limited` (usage-based).
-        - **expired_after** UTC datetime (optional)
-        - **expired_before** UTC datetime (optional)
-        - Date range filters are applied only when target is `expired`.
+        - **target**: `expired` | `limited` | `on_hold` | `disabled`
+        - **expired_after** / **expired_before** UTC datetime (optional)
+        - For `expired`: filters by expiration date.
+        - For `limited` / `on_hold` / `disabled`: filters by last_status_change.
+        - **dry_run**: if true, returns the list of users that would be deleted without deleting them.
         """
 
         expired_after, expired_before = await self.validate_dates(query.expired_after, query.expired_before, False)
@@ -1584,8 +1585,10 @@ class UserOperation(BaseOperation):
             expired_before,
             admin_id,
             target=query.target,
+            dry_run=query.dry_run,
         )
-        await self.remove_users_logger(users=username_list, by=admin.username)
+        if not query.dry_run:
+            await self.remove_users_logger(users=username_list, by=admin.username)
 
         return RemoveUsersResponse(users=username_list, count=len(username_list))
 

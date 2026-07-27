@@ -34,7 +34,7 @@ export type BodyType<BodyData> = BodyData
 
 type OvalFetcherParams = FetchOptions<'json'> & {
   url: string
-  method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'HEAD'
   params?: Record<string, unknown>
   data?: FetchOptions<'json'>['body']
 }

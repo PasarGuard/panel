@@ -313,9 +313,13 @@ class UsersUsageQuery(UserUsageQuery):
 
 class ExpiredUsersQuery(BaseModel):
     admin_username: str | None = Field(default=None)
-    target: Literal["expired", "limited"] = Field(default="expired")
+    target: Literal["expired", "limited", "on_hold", "disabled"] = Field(default="expired")
     expired_after: dt | None = Field(default=None, examples=["2024-01-01T00:00:00+03:30"])
     expired_before: dt | None = Field(default=None, examples=["2024-01-31T23:59:59+03:30"])
+    dry_run: bool = Field(
+        default=False,
+        description="If true, returns users that would be deleted without actually deleting them.",
+    )
 
     @field_validator("expired_after", "expired_before", mode="before")
     @classmethod

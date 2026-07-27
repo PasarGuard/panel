@@ -500,17 +500,28 @@ def _cleanup_target_user_conditions(
     expired_after: datetime | None = None,
     expired_before: datetime | None = None,
     admin_id: int | None = None,
-    target: Literal["expired", "limited"] = "expired",
+    target: Literal["expired", "limited", "on_hold", "disabled"] = "expired",
 ):
-    if target == "limited":
-        conditions = [User.is_limited]
-    else:
-        # Time-expired users support expiration date range filtering.
+    if target == "expired":
+        # Time-expired users: date range filters on the expiration date.
         conditions = [User.is_expired]
         if expired_after:
             conditions.append(User.expire >= expired_after)
         if expired_before:
             conditions.append(User.expire <= expired_before)
+    else:
+        # For limited / on_hold / disabled: date range filters apply to
+        # last_status_change (i.e. when the user entered that status).
+        status_map = {
+            "limited": UserStatus.limited,
+            "on_hold": UserStatus.on_hold,
+            "disabled": UserStatus.disabled,
+        }
+        conditions = [User.status == status_map[target]]
+        if expired_after:
+            conditions.append(User.last_status_change >= expired_after.replace(tzinfo=None))
+        if expired_before:
+            conditions.append(User.last_status_change <= expired_before.replace(tzinfo=None))
 
     if admin_id is not None:
         conditions.append(User.admin_id == admin_id)
@@ -523,7 +534,8 @@ async def remove_expired_users(
     expired_after: datetime | None = None,
     expired_before: datetime | None = None,
     admin_id: int | None = None,
-    target: Literal["expired", "limited"] = "expired",
+    target: Literal["expired", "limited", "on_hold", "disabled"] = "expired",
+    dry_run: bool = False,
 ) -> list[str]:
     conditions = _cleanup_target_user_conditions(expired_after, expired_before, admin_id, target)
 
@@ -531,8 +543,12 @@ async def remove_expired_users(
     if not rows:
         return []
 
-    user_ids = [user_id for user_id, _ in rows]
     usernames = [username for _, username in rows]
+
+    if dry_run:
+        return usernames
+
+    user_ids = [user_id for user_id, _ in rows]
 
     for start in range(0, len(user_ids), 1000):
         chunk = user_ids[start : start + 1000]
