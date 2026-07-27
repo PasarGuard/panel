@@ -379,6 +379,13 @@ async def get_admins(
     if load_role:
         stmt = stmt.options(selectinload(Admin.role))
 
+    # For non-compact path, eagerly load users and usage_logs to avoid N+1 queries
+    if not compact:
+        stmt = stmt.options(
+            selectinload(Admin.users),
+            selectinload(Admin.usage_logs),
+        )
+
     # Apply filters consistently
     if params.ids:
         stmt = stmt.where(Admin.id.in_(params.ids))
@@ -405,9 +412,8 @@ async def get_admins(
         for admin, total_users, reseted_usage in rows:
             admins.append(build_admin_details(admin, total_users=total_users, reseted_usage=reseted_usage))
     else:
-        admins = list((await db.execute(stmt)).scalars().all())
-        for admin in admins:
-            await load_admin_attrs(admin, load_role=load_role)
+        # users, usage_logs, and role already eagerly loaded via selectinload above
+        admins = list((await db.execute(stmt)).unique().scalars().all())
 
     if return_with_count:
         return admins, total, active, disabled, limited
@@ -524,20 +530,60 @@ async def get_usage_percentage_reached_admins(
     return list((await db.execute(stmt)).scalars().all())
 
 
-async def bulk_create_admin_notification_reminders(db: AsyncSession, reminder_data: list[dict]) -> None:
+async def bulk_create_admin_notification_reminders(
+    db: AsyncSession, reminder_data: list[dict]
+) -> list[dict]:
     """Bulk-insert admin reminder rows after successful sends."""
     if not reminder_data:
-        return
+        return []
 
-    db.add_all([AdminNotificationReminder(**data) for data in reminder_data])
-    await db.commit()
+    # De-duplicate input list to preserve only the first occurrence
+    seen_input = set()
+    unique_reminder_data = []
+    for data in reminder_data:
+        key = (data["admin_id"], data["type"], data["threshold"])
+        if key not in seen_input:
+            seen_input.add(key)
+            unique_reminder_data.append(data)
+
+    admin_ids = {d["admin_id"] for d in unique_reminder_data}
+    types = {d["type"] for d in unique_reminder_data}
+
+    # Lock the Admin rows to serialize reminder checks/creation for these admins
+    await db.execute(
+        select(Admin.id)
+        .where(Admin.id.in_(list(admin_ids)))
+        .with_for_update()
+    )
+
+    # Fetch existing reminders that match these criteria
+    stmt = select(AdminNotificationReminder).where(
+        AdminNotificationReminder.admin_id.in_(list(admin_ids)),
+        AdminNotificationReminder.type.in_(list(types)),
+    )
+    result = await db.execute(stmt)
+    existing = {(r.admin_id, r.type, r.threshold) for r in result.scalars().all()}
+
+    to_insert = []
+    inserted_data = []
+    for data in unique_reminder_data:
+        key = (data["admin_id"], data["type"], data["threshold"])
+        if key not in existing:
+            to_insert.append(AdminNotificationReminder(**data))
+            inserted_data.append(data)
+
+    if to_insert:
+        db.add_all(to_insert)
+        await db.commit()
+
+    return inserted_data
 
 
 async def create_admin_notification_reminder_if_absent(
     db: AsyncSession,
     admin_id: int,
     reminder_type: ReminderType,
-    threshold: int | None = None,
+    threshold: int = 0,
 ) -> bool:
     """Create an admin reminder row and return whether this call claimed it."""
     existing_reminder_id = await db.scalar(

@@ -11,13 +11,15 @@ handles the active to limited transition and removes affected users from nodes.
 
 from datetime import UTC, datetime as dt
 
+from sqlalchemy import select
+
 from app import notification, scheduler
 from app.db import GetDB
 from app.db.crud.admin import (
-    create_admin_notification_reminder_if_absent,
+    bulk_create_admin_notification_reminders,
     get_usage_percentage_reached_admins,
 )
-from app.db.models import Admin, ReminderType
+from app.db.models import Admin, AdminNotificationReminder, ReminderType
 from app.models.admin import AdminDetails, AdminRoleData
 from app.models.admin_role import RoleLimits
 from app.models.validators import ListValidator
@@ -69,20 +71,51 @@ async def _send_usage_limit_warning_notifications(db):
 
     for threshold in default_thresholds:
         threshold_admins = await get_usage_percentage_reached_admins(db, threshold)
-        for admin in threshold_admins:
-            if not admin.data_limit or admin.data_limit <= 0:
-                continue
-            reminder_created = await create_admin_notification_reminder_if_absent(
-                db,
-                admin.id,
-                ReminderType.data_usage,
-                threshold,
+
+        candidate_admins = [admin for admin in threshold_admins if admin.data_limit and admin.data_limit > 0]
+        if not candidate_admins:
+            continue
+
+        candidate_ids = [admin.id for admin in candidate_admins]
+
+        # Lock the Admin rows to serialize reminder checks/creation for these admins
+        await db.execute(
+            select(Admin.id)
+            .where(Admin.id.in_(candidate_ids))
+            .with_for_update()
+        )
+
+        # Fetch existing reminders for this threshold to avoid duplicate notifications
+        result = await db.execute(
+            select(AdminNotificationReminder.admin_id)
+            .where(
+                AdminNotificationReminder.admin_id.in_(candidate_ids),
+                AdminNotificationReminder.type == ReminderType.data_usage,
+                AdminNotificationReminder.threshold == threshold,
             )
-            if not reminder_created:
+        )
+        existing_ids = set(result.scalars().all())
+
+        successfully_sent = []
+        for admin in candidate_admins:
+            if admin.id in existing_ids:
                 continue
+
             usage_percentage = int((admin.used_traffic * 100) / admin.data_limit)
             admin_model = _admin_usage_warning_details(admin)
-            await notification.admin_usage_limit_reached(admin_model, usage_percentage, threshold)
+
+            try:
+                # Send the notification first
+                await notification.admin_usage_limit_reached(admin_model, usage_percentage, threshold)
+                successfully_sent.append(
+                    {"admin_id": admin.id, "type": ReminderType.data_usage, "threshold": threshold}
+                )
+            except Exception as e:
+                logger.error(f"Failed to send usage limit warning to admin {admin.id}: {e}")
+
+        # Bulk-insert only successfully sent reminders after sending
+        if successfully_sent:
+            await bulk_create_admin_notification_reminders(db, successfully_sent)
 
 
 async def limit_admins_job():

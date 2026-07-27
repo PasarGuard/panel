@@ -749,11 +749,14 @@ class NotificationReminder(Base, CreatedAtUTCMixin):
 
 class AdminNotificationReminder(Base, CreatedAtUTCMixin):
     __tablename__ = "admin_notification_reminders"
-    __table_args__ = (Index("ix_admin_notification_reminders_admin_id_type", "admin_id", "type"),)
+    __table_args__ = (
+        Index("ix_admin_notification_reminders_admin_id_type", "admin_id", "type"),
+        UniqueConstraint("admin_id", "type", "threshold", name="uq_admin_notification_reminders_admin_id_type_threshold"),
+    )
     admin_id: Mapped[int] = fk_id_column("admins.id", ondelete="CASCADE")
     admin: Mapped[Admin] = relationship(back_populates="notification_reminders", init=False)
     type: Mapped[ReminderType] = mapped_column(SQLEnum(ReminderType))
-    threshold: Mapped[int | None] = mapped_column(default=None)
+    threshold: Mapped[int] = mapped_column(server_default="0", default=0)
 
 
 class Group(Base, IdMixin):

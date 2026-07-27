@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 from sqlalchemy import and_, bindparam, case, delete, func, literal_column, or_, select, update
 from sqlalchemy.exc import InvalidRequestError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 from sqlalchemy.sql.functions import coalesce
 
 from app.db.compiles_types import DateDiff
@@ -142,9 +143,10 @@ async def get_nodes(
     # Order by created_at and id for consistent results
     stmt = stmt.order_by(Node.created_at.asc(), Node.id.asc())
 
-    db_nodes = (await db.execute(stmt)).scalars().all()
-    for node in db_nodes:
-        await load_node_attrs(node)
+    # Eagerly load usage_logs to avoid N+1 queries (one extra SELECT per node)
+    stmt = stmt.options(selectinload(Node.usage_logs))
+
+    db_nodes = (await db.execute(stmt)).unique().scalars().all()
 
     return db_nodes, count
 
@@ -206,15 +208,13 @@ async def get_limited_nodes(db: AsyncSession) -> list[Node]:
     Returns:
         list[Node]: Nodes that should be limited
     """
-    query = select(Node).where(
+    query = select(Node).options(selectinload(Node.usage_logs)).where(
         and_(
             Node.status.in_([NodeStatus.error, NodeStatus.connected, NodeStatus.connecting]),
             Node.is_limited,
         )
     )
-    nodes = (await db.execute(query)).scalars().all()
-    for node in nodes:
-        await load_node_attrs(node)
+    nodes = (await db.execute(query)).unique().scalars().all()
     return nodes
 
 
@@ -611,6 +611,7 @@ async def get_nodes_to_reset_usage(db: AsyncSession) -> list[Node]:
 
     stmt = (
         select(Node)
+        .options(selectinload(Node.usage_logs))
         .outerjoin(last_reset_subq, Node.id == last_reset_subq.c.node_id)
         .where(
             Node.status.in_([NodeStatus.connected, NodeStatus.limited, NodeStatus.error, NodeStatus.connecting]),
@@ -626,9 +627,7 @@ async def get_nodes_to_reset_usage(db: AsyncSession) -> list[Node]:
 
     nodes = list((await db.execute(stmt)).unique().scalars().all())
 
-    # Load node attributes to avoid greenlet errors
-    for node in nodes:
-        await load_node_attrs(node)
+    # usage_logs already eagerly loaded via selectinload — no extra queries needed
 
     # For nodes with reset_time >= 0, filter based on absolute time
 
@@ -796,10 +795,17 @@ async def bulk_reset_node_usage(db: AsyncSession, nodes: list[Node]) -> list[Nod
             db_node.status = NodeStatus.connecting
 
     await db.commit()
-    for node in nodes:
-        await db.refresh(node)
-        await load_node_attrs(node)
-    return nodes
+
+    # Re-fetch all nodes in a single query instead of N individual refreshes
+    node_ids = [node.id for node in nodes]
+    refreshed = (
+        await db.execute(
+            select(Node).options(selectinload(Node.usage_logs)).where(Node.id.in_(node_ids))
+        )
+    ).unique().scalars().all()
+    # Preserve input order
+    refreshed_by_id = {n.id: n for n in refreshed}
+    return [refreshed_by_id[nid] for nid in node_ids if nid in refreshed_by_id]
 
 
 async def remove_nodes(db: AsyncSession, node_ids: list[int]) -> None:
