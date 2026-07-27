@@ -373,7 +373,7 @@ class User(Base, CreatedAtUTCMixin):
 
     @days_left.expression
     def days_left(cls):
-        return case((cls.expire.isnot(None), func.floor(DaysDiff())), else_=0)
+        return case((cls.expire.isnot(None), func.floor(DaysDiff(cls.expire))), else_=0)
 
 
 class UserSubscriptionUpdate(Base, CreatedAtUTCMixin):

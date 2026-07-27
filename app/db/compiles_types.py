@@ -85,20 +85,27 @@ class DaysDiff(FunctionElement):
     name = "days_diff"
     inherit_cache = True
 
+    def __init__(self, column, **kwargs):
+        super().__init__(**kwargs)
+        self.column = column
+
 
 @compiles(DaysDiff, "postgresql")
 def compile_days_diff_postgresql(element, compiler, **kw):
-    return "EXTRACT(EPOCH FROM (expire - CURRENT_TIMESTAMP)) / 86400"
+    col = compiler.process(element.column)
+    return f"EXTRACT(EPOCH FROM ({col} - CURRENT_TIMESTAMP)) / 86400"
 
 
 @compiles(DaysDiff, "mysql")
 def compile_days_diff_mysql(element, compiler, **kw):
-    return "DATEDIFF(expire, UTC_TIMESTAMP())"
+    col = compiler.process(element.column)
+    return f"DATEDIFF({col}, UTC_TIMESTAMP())"
 
 
 @compiles(DaysDiff, "sqlite")
 def compile_days_diff_sqlite(element, compiler, **kw):
-    return "(julianday(expire) - julianday('now'))"
+    col = compiler.process(element.column)
+    return f"(julianday({col}) - julianday('now'))"
 
 
 class DateDiff(FunctionElement):
