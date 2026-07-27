@@ -389,3 +389,38 @@ async def test_search_user_and_debug(monkeypatch, admin, fake_user, fake_inline_
 
     inline.answer.assert_awaited_once()
     callback.answer.assert_awaited_once_with("any:payload", show_alert=True)
+
+
+@pytest.mark.asyncio
+async def test_get_subscription_qr(monkeypatch, admin, fake_user, fake_message, fake_callback):
+    event = type(fake_callback)(message=type(fake_message)())
+    callback_data = UserPanel.Callback(user_id=11, action=UserPanelAction.subscription_qr)
+
+    mock_get_validated_user_by_id = AsyncMock(return_value=fake_user)
+    mock_validate_user = AsyncMock(return_value=fake_user)
+    mock_send_subscription_qr = AsyncMock()
+
+    monkeypatch.setattr(user_h.user_operations, "get_validated_user_by_id", mock_get_validated_user_by_id)
+    monkeypatch.setattr(user_h.user_operations, "validate_user", mock_validate_user)
+    monkeypatch.setattr(user_h, "send_subscription_qr", mock_send_subscription_qr)
+
+    await user_h.get_subscription_qr(event, db=object(), admin=admin, callback_data=callback_data)
+
+    mock_get_validated_user_by_id.assert_awaited_once()
+    mock_validate_user.assert_awaited_once()
+    mock_send_subscription_qr.assert_awaited_once_with(event.message, fake_user.subscription_url, fake_user.username)
+    event.answer.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_get_subscription_qr_not_found(monkeypatch, admin, fake_message, fake_callback):
+    event = type(fake_callback)(message=type(fake_message)())
+    callback_data = UserPanel.Callback(user_id=11, action=UserPanelAction.subscription_qr)
+
+    mock_get_validated_user_by_id = AsyncMock(side_effect=ValueError("user not found"))
+    monkeypatch.setattr(user_h.user_operations, "get_validated_user_by_id", mock_get_validated_user_by_id)
+
+    await user_h.get_subscription_qr(event, db=object(), admin=admin, callback_data=callback_data)
+
+    event.answer.assert_awaited_once_with(user_h.Texts.user_not_found, show_alert=True)
+
