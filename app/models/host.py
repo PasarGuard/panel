@@ -91,6 +91,15 @@ class FinalMaskTcpType(str, Enum):
 
 class FinalMaskUdpType(str, Enum):
     header_custom = "header-custom"
+    mkcp_legacy = "mkcp-legacy"
+    noise = "noise"
+    salamander = "salamander"
+    sudoku = "sudoku"
+    xdns = "xdns"
+    xicmp = "xicmp"
+    realm = "realm"
+
+    # Legacy aliases
     header_dns = "header-dns"
     header_dtls = "header-dtls"
     header_srtp = "header-srtp"
@@ -99,11 +108,6 @@ class FinalMaskUdpType(str, Enum):
     header_wireguard = "header-wireguard"
     mkcp_original = "mkcp-original"
     mkcp_aes128gcm = "mkcp-aes128gcm"
-    noise = "noise"
-    salamander = "salamander"
-    sudoku = "sudoku"
-    xdns = "xdns"
-    xicmp = "xicmp"
 
 
 class FinalMaskQuicCongestion(str, Enum):
@@ -136,19 +140,50 @@ class FinalMaskSudokuSettings(FinalMaskPasswordSettings):
     padding_max: int | None = Field(default=None, alias="paddingMax")
 
 
+class FinalMaskXmcProfile(FinalMaskBaseModel):
+    username: str
+    uuid: str
+    textures_value: str = Field(alias="texturesValue")
+    textures_signature: str = Field(alias="texturesSignature")
+
+
 class FinalMaskXmcSettings(FinalMaskBaseModel):
     hostname: str | None = Field(default=None)
-    usernames: list[str] | None = Field(default=None)
     password: str | None = Field(default=None)
+    profiles: list[FinalMaskXmcProfile] | None = Field(default=None)
+    usernames: list[str] | None = Field(default=None)
 
 
 class FinalMaskDomainSettings(FinalMaskBaseModel):
     domain: str | None = Field(default=None)
 
 
+class FinalMaskXdnsSettings(FinalMaskBaseModel):
+    domains: list[str] | None = Field(default=None)
+    resolvers: list[str] | None = Field(default=None)
+    domain: str | None = Field(default=None)
+
+
 class FinalMaskXicmpSettings(FinalMaskBaseModel):
+    dgram: bool | None = Field(default=None)
+    ips: list[str] | None = Field(default=None)
     listen_ip: str | None = Field(default=None, alias="listenIp")
     id: int | None = Field(default=None)
+
+
+class FinalMaskSalamanderSettings(FinalMaskPasswordSettings):
+    packet_size: Any | None = Field(default=None, alias="packetSize")
+
+
+class FinalMaskRealmSettings(FinalMaskBaseModel):
+    url: str | None = Field(default=None)
+    stun_servers: list[str] | None = Field(default=None, alias="stunServers")
+    tls_config: dict[str, Any] | None = Field(default=None, alias="tlsConfig")
+
+
+class FinalMaskMkcpLegacySettings(FinalMaskBaseModel):
+    header: str | None = Field(default=None)
+    value: str | None = Field(default=None)
 
 
 class FinalMaskNoiseSettings(FinalMaskBaseModel):
@@ -164,8 +199,9 @@ class FinalMaskUdpHop(FinalMaskBaseModel):
 class FinalMaskQuicParams(FinalMaskBaseModel):
     congestion: FinalMaskQuicCongestion | None = Field(default=None)
     debug: bool | None = Field(default=None)
-    brutal_up: str | int | None = Field(default=None, alias="brutalUp")
-    brutal_down: str | int | None = Field(default=None, alias="brutalDown")
+    bbr_profile: str | None = Field(default=None, alias="bbrProfile")
+    brutal_up: str | int | float | None = Field(default=None, alias="brutalUp")
+    brutal_down: str | int | float | None = Field(default=None, alias="brutalDown")
     udp_hop: FinalMaskUdpHop | None = Field(default=None, alias="udpHop")
     init_stream_receive_window: int | None = Field(default=None, alias="initStreamReceiveWindow")
     max_stream_receive_window: int | None = Field(default=None, alias="maxStreamReceiveWindow")
@@ -189,8 +225,12 @@ FinalMaskUdpSettings = (
     | FinalMaskPasswordSettings
     | FinalMaskSudokuSettings
     | FinalMaskDomainSettings
+    | FinalMaskXdnsSettings
     | FinalMaskXicmpSettings
     | FinalMaskNoiseSettings
+    | FinalMaskSalamanderSettings
+    | FinalMaskRealmSettings
+    | FinalMaskMkcpLegacySettings
     | dict[str, Any]
 )
 
@@ -204,7 +244,8 @@ FINAL_MASK_TCP_SETTINGS_MODELS = {
 
 FINAL_MASK_UDP_SETTINGS_MODELS = {
     FinalMaskUdpType.header_custom: FinalMaskUdpHeaderCustomSettings,
-    FinalMaskUdpType.header_dns: FinalMaskDomainSettings,
+    FinalMaskUdpType.mkcp_legacy: FinalMaskMkcpLegacySettings,
+    FinalMaskUdpType.header_dns: FinalMaskXdnsSettings,
     FinalMaskUdpType.header_dtls: FinalMaskPasswordSettings,
     FinalMaskUdpType.header_srtp: FinalMaskPasswordSettings,
     FinalMaskUdpType.header_utp: FinalMaskPasswordSettings,
@@ -213,10 +254,11 @@ FINAL_MASK_UDP_SETTINGS_MODELS = {
     FinalMaskUdpType.mkcp_original: FinalMaskPasswordSettings,
     FinalMaskUdpType.mkcp_aes128gcm: FinalMaskPasswordSettings,
     FinalMaskUdpType.noise: FinalMaskNoiseSettings,
-    FinalMaskUdpType.salamander: FinalMaskPasswordSettings,
+    FinalMaskUdpType.salamander: FinalMaskSalamanderSettings,
     FinalMaskUdpType.sudoku: FinalMaskSudokuSettings,
-    FinalMaskUdpType.xdns: FinalMaskDomainSettings,
+    FinalMaskUdpType.xdns: FinalMaskXdnsSettings,
     FinalMaskUdpType.xicmp: FinalMaskXicmpSettings,
+    FinalMaskUdpType.realm: FinalMaskRealmSettings,
 }
 
 

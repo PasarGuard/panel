@@ -311,12 +311,32 @@ function UdpLayersForm({ form }: { form: UseFormReturn<any> }) {
     })
   }
 
+  const handleAddLayer = () => {
+    append({
+      type: 'mkcp-legacy',
+      settings: {
+        header: 'wechat',
+        value: '',
+      },
+    })
+  }
+
   const handleTypeChange = (index: number, newType: FinalMaskUdpType) => {
     form.setValue(`udp.${index}.type`, newType)
-    if (newType === 'header-dns' || newType === 'xdns') {
+    if (newType === 'mkcp-legacy') {
+      form.setValue(`udp.${index}.settings`, { header: 'wechat', value: '' })
+    } else if (newType === 'realm') {
+      form.setValue(`udp.${index}.settings`, { url: '', stunServers: [] })
+    } else if (newType === 'xdns') {
+      form.setValue(`udp.${index}.settings`, { domains: [], resolvers: [] })
+    } else if (newType === 'xicmp') {
+      form.setValue(`udp.${index}.settings`, { dgram: false, ips: [] })
+    } else if (newType === 'header-dns') {
       form.setValue(`udp.${index}.settings`, { domain: '' })
-    } else if (['header-dtls', 'header-srtp', 'header-utp', 'header-wechat', 'header-wireguard', 'mkcp-original', 'mkcp-aes128gcm', 'salamander'].includes(newType)) {
+    } else if (['header-dtls', 'header-srtp', 'header-utp', 'header-wechat', 'header-wireguard', 'mkcp-original', 'mkcp-aes128gcm'].includes(newType)) {
       form.setValue(`udp.${index}.settings`, { password: '' })
+    } else if (newType === 'salamander') {
+      form.setValue(`udp.${index}.settings`, { password: '', packetSize: '' })
     } else if (newType === 'noise') {
       form.setValue(`udp.${index}.settings`, { reset: undefined, noise: [] })
     } else if (newType === 'sudoku') {
@@ -328,8 +348,6 @@ function UdpLayersForm({ form }: { form: UseFormReturn<any> }) {
         paddingMin: undefined,
         paddingMax: undefined,
       })
-    } else if (newType === 'xicmp') {
-      form.setValue(`udp.${index}.settings`, { listenIp: '', id: undefined })
     } else if (newType === 'header-custom') {
       form.setValue(`udp.${index}.settings`, { client: [], server: [] })
     }
@@ -365,20 +383,22 @@ function UdpLayersForm({ form }: { form: UseFormReturn<any> }) {
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem value="header-dns">header-dns</SelectItem>
+                            <SelectItem value="mkcp-legacy">mkcp-legacy</SelectItem>
+                            <SelectItem value="realm">realm</SelectItem>
                             <SelectItem value="xdns">xdns</SelectItem>
-                            <SelectItem value="header-dtls">header-dtls</SelectItem>
-                            <SelectItem value="header-srtp">header-srtp</SelectItem>
-                            <SelectItem value="header-utp">header-utp</SelectItem>
-                            <SelectItem value="header-wechat">header-wechat</SelectItem>
-                            <SelectItem value="header-wireguard">header-wireguard</SelectItem>
-                            <SelectItem value="mkcp-original">mkcp-original</SelectItem>
-                            <SelectItem value="mkcp-aes128gcm">mkcp-aes128gcm</SelectItem>
-                            <SelectItem value="noise">noise</SelectItem>
-                            <SelectItem value="salamander">salamander</SelectItem>
-                            <SelectItem value="sudoku">sudoku</SelectItem>
                             <SelectItem value="xicmp">xicmp</SelectItem>
+                            <SelectItem value="salamander">salamander</SelectItem>
+                            <SelectItem value="noise">noise</SelectItem>
+                            <SelectItem value="sudoku">sudoku</SelectItem>
                             <SelectItem value="header-custom">header-custom</SelectItem>
+                            <SelectItem value="header-dns">header-dns (legacy)</SelectItem>
+                            <SelectItem value="header-dtls">header-dtls (legacy)</SelectItem>
+                            <SelectItem value="header-srtp">header-srtp (legacy)</SelectItem>
+                            <SelectItem value="header-utp">header-utp (legacy)</SelectItem>
+                            <SelectItem value="header-wechat">header-wechat (legacy)</SelectItem>
+                            <SelectItem value="header-wireguard">header-wireguard (legacy)</SelectItem>
+                            <SelectItem value="mkcp-original">mkcp-original (legacy)</SelectItem>
+                            <SelectItem value="mkcp-aes128gcm">mkcp-aes128gcm (legacy)</SelectItem>
                           </SelectContent>
                         </Select>
                       </FormItem>
@@ -390,7 +410,149 @@ function UdpLayersForm({ form }: { form: UseFormReturn<any> }) {
                 </Button>
               </div>
 
-              {(type === 'header-dns' || type === 'xdns') && (
+              {type === 'mkcp-legacy' && (
+                <div className="bg-background grid grid-cols-2 gap-3 rounded-md border p-3">
+                  <FormField
+                    control={form.control}
+                    name={`udp.${index}.settings.header`}
+                    render={({ field: selectField }) => (
+                      <FormItem>
+                        <FormLabel className="text-xs">Header</FormLabel>
+                        <Select onValueChange={selectField.onChange} value={selectField.value || 'wechat'}>
+                          <FormControl>
+                            <SelectTrigger className="h-8 text-xs">
+                              <SelectValue placeholder="Header" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent side="top">
+                            <SelectItem value="dns">dns</SelectItem>
+                            <SelectItem value="dtls">dtls</SelectItem>
+                            <SelectItem value="srtp">srtp</SelectItem>
+                            <SelectItem value="utp">utp</SelectItem>
+                            <SelectItem value="wechat">wechat</SelectItem>
+                            <SelectItem value="wireguard">wireguard</SelectItem>
+                            <SelectItem value="">none (original/aes128gcm)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name={`udp.${index}.settings.value`}
+                    render={({ field: inputField }) => (
+                      <FormItem>
+                        <FormLabel className="text-xs">Value / Domain / Password</FormLabel>
+                        <FormControl>
+                          <Input placeholder="e.g. www.baidu.com or password" {...inputField} value={inputField.value || ''} className="h-8 text-xs" />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              )}
+
+              {type === 'realm' && (
+                <div className="bg-background space-y-3 rounded-md border p-3">
+                  <FormField
+                    control={form.control}
+                    name={`udp.${index}.settings.url`}
+                    render={({ field: inputField }) => (
+                      <FormItem>
+                        <FormLabel className="text-xs">Realm URL</FormLabel>
+                        <FormControl>
+                          <Input placeholder="realm://token@host:port/id" {...inputField} value={inputField.value || ''} className="h-8 text-xs" />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name={`udp.${index}.settings.stunServers`}
+                    render={({ field: inputField }) => (
+                      <FormItem>
+                        <FormLabel className="text-xs">STUN Servers</FormLabel>
+                        <FormControl>
+                          <StringArrayPopoverInput
+                            value={Array.isArray(inputField.value) ? inputField.value : []}
+                            onChange={(next: string[]) => inputField.onChange(next)}
+                            placeholder="Add STUN server (e.g. stun.l.google.com:19302)"
+                            addPlaceholder={t('arrayInput.addPlaceholder')}
+                            addButtonLabel={t('arrayInput.addButton')}
+                            itemsLabel={t('arrayInput.items')}
+                            emptyMessage={t('arrayInput.noItems')}
+                            duplicateErrorMessage={t('arrayInput.duplicateError')}
+                            clickToEditTitle={t('arrayInput.clickToEdit')}
+                            editItemTitle={t('arrayInput.editItem')}
+                            removeItemTitle={t('arrayInput.removeItem')}
+                            saveEditTitle={t('arrayInput.saveEdit')}
+                            cancelEditTitle={t('arrayInput.cancelEdit')}
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              )}
+
+              {type === 'xdns' && (
+                <div className="bg-background grid grid-cols-2 gap-3 rounded-md border p-3">
+                  <FormField
+                    control={form.control}
+                    name={`udp.${index}.settings.domains`}
+                    render={({ field: inputField }) => (
+                      <FormItem>
+                        <FormLabel className="text-xs">Server Domains</FormLabel>
+                        <FormControl>
+                          <StringArrayPopoverInput
+                            value={Array.isArray(inputField.value) ? inputField.value : []}
+                            onChange={(next: string[]) => inputField.onChange(next)}
+                            placeholder="Add Server Domain"
+                            addPlaceholder={t('arrayInput.addPlaceholder')}
+                            addButtonLabel={t('arrayInput.addButton')}
+                            itemsLabel={t('arrayInput.items')}
+                            emptyMessage={t('arrayInput.noItems')}
+                            duplicateErrorMessage={t('arrayInput.duplicateError')}
+                            clickToEditTitle={t('arrayInput.clickToEdit')}
+                            editItemTitle={t('arrayInput.editItem')}
+                            removeItemTitle={t('arrayInput.removeItem')}
+                            saveEditTitle={t('arrayInput.saveEdit')}
+                            cancelEditTitle={t('arrayInput.cancelEdit')}
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name={`udp.${index}.settings.resolvers`}
+                    render={({ field: inputField }) => (
+                      <FormItem>
+                        <FormLabel className="text-xs">Client Resolvers</FormLabel>
+                        <FormControl>
+                          <StringArrayPopoverInput
+                            value={Array.isArray(inputField.value) ? inputField.value : []}
+                            onChange={(next: string[]) => inputField.onChange(next)}
+                            placeholder="Add Resolver (+udp://...)"
+                            addPlaceholder={t('arrayInput.addPlaceholder')}
+                            addButtonLabel={t('arrayInput.addButton')}
+                            itemsLabel={t('arrayInput.items')}
+                            emptyMessage={t('arrayInput.noItems')}
+                            duplicateErrorMessage={t('arrayInput.duplicateError')}
+                            clickToEditTitle={t('arrayInput.clickToEdit')}
+                            editItemTitle={t('arrayInput.editItem')}
+                            removeItemTitle={t('arrayInput.removeItem')}
+                            saveEditTitle={t('arrayInput.saveEdit')}
+                            cancelEditTitle={t('arrayInput.cancelEdit')}
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              )}
+
+              {type === 'header-dns' && (
                 <div className="bg-background rounded-md border p-3">
                   <FormField
                     control={form.control}
@@ -407,7 +569,7 @@ function UdpLayersForm({ form }: { form: UseFormReturn<any> }) {
                 </div>
               )}
 
-              {['header-dtls', 'header-srtp', 'header-utp', 'header-wechat', 'header-wireguard', 'mkcp-original', 'mkcp-aes128gcm', 'salamander'].includes(type) && (
+              {['header-dtls', 'header-srtp', 'header-utp', 'header-wechat', 'header-wireguard', 'mkcp-original', 'mkcp-aes128gcm'].includes(type) && (
                 <div className="bg-background rounded-md border p-3">
                   <FormField
                     control={form.control}
@@ -424,36 +586,72 @@ function UdpLayersForm({ form }: { form: UseFormReturn<any> }) {
                 </div>
               )}
 
-              {type === 'sudoku' && <SudokuSettingsForm prefix={`udp.${index}.settings`} form={form} />}
-
-              {type === 'xicmp' && (
+              {type === 'salamander' && (
                 <div className="bg-background grid grid-cols-2 gap-3 rounded-md border p-3">
                   <FormField
                     control={form.control}
-                    name={`udp.${index}.settings.listenIp`}
+                    name={`udp.${index}.settings.password`}
                     render={({ field: inputField }) => (
                       <FormItem>
-                        <FormLabel className="text-xs">Listen IP</FormLabel>
+                        <FormLabel className="text-xs">Password</FormLabel>
                         <FormControl>
-                          <Input placeholder="e.g. 127.0.0.1" {...inputField} value={inputField.value || ''} className="h-8 text-xs" />
+                          <Input placeholder="Password" {...inputField} value={inputField.value || ''} className="h-8 text-xs" />
                         </FormControl>
                       </FormItem>
                     )}
                   />
                   <FormField
                     control={form.control}
-                    name={`udp.${index}.settings.id`}
+                    name={`udp.${index}.settings.packetSize`}
                     render={({ field: inputField }) => (
                       <FormItem>
-                        <FormLabel className="text-xs">ID</FormLabel>
+                        <FormLabel className="text-xs">Packet Size (Range e.g. 100-200)</FormLabel>
                         <FormControl>
-                          <Input
-                            type="number"
-                            placeholder="ID number"
-                            {...inputField}
-                            value={inputField.value ?? ''}
-                            onChange={e => inputField.onChange(e.target.value === '' ? undefined : Number(e.target.value))}
-                            className="h-8 text-xs"
+                          <Input placeholder="e.g. 100-200" {...inputField} value={inputField.value || ''} className="h-8 text-xs" />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              )}
+
+              {type === 'sudoku' && <SudokuSettingsForm prefix={`udp.${index}.settings`} form={form} />}
+
+              {type === 'xicmp' && (
+                <div className="bg-background space-y-3 rounded-md border p-3">
+                  <FormField
+                    control={form.control}
+                    name={`udp.${index}.settings.dgram`}
+                    render={({ field: inputField }) => (
+                      <FormItem dir="ltr" className="flex min-h-8 items-center justify-between gap-3 rounded-md border px-3 py-1">
+                        <FormLabel className="min-w-0 cursor-pointer truncate text-left text-xs font-normal">DGRAM Mode</FormLabel>
+                        <FormControl>
+                          <Switch checked={!!inputField.value} onCheckedChange={inputField.onChange} className="scale-75" />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name={`udp.${index}.settings.ips`}
+                    render={({ field: inputField }) => (
+                      <FormItem>
+                        <FormLabel className="text-xs">IPs</FormLabel>
+                        <FormControl>
+                          <StringArrayPopoverInput
+                            value={Array.isArray(inputField.value) ? inputField.value : []}
+                            onChange={(next: string[]) => inputField.onChange(next)}
+                            placeholder="Add IP (e.g. 1.1.1.1)"
+                            addPlaceholder={t('arrayInput.addPlaceholder')}
+                            addButtonLabel={t('arrayInput.addButton')}
+                            itemsLabel={t('arrayInput.items')}
+                            emptyMessage={t('arrayInput.noItems')}
+                            duplicateErrorMessage={t('arrayInput.duplicateError')}
+                            clickToEditTitle={t('arrayInput.clickToEdit')}
+                            editItemTitle={t('arrayInput.editItem')}
+                            removeItemTitle={t('arrayInput.removeItem')}
+                            saveEditTitle={t('arrayInput.saveEdit')}
+                            cancelEditTitle={t('arrayInput.cancelEdit')}
                           />
                         </FormControl>
                       </FormItem>
@@ -533,6 +731,19 @@ function QuicParamsForm({ form }: { form: UseFormReturn<any> }) {
                   <SelectItem value="force-brutal">force-brutal</SelectItem>
                 </SelectContent>
               </Select>
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="quicParams.bbrProfile"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel className="text-xs">BBR Profile</FormLabel>
+              <FormControl>
+                <Input placeholder="e.g. desktop, mobile, server" {...field} value={field.value || ''} className="h-8 text-xs" />
+              </FormControl>
             </FormItem>
           )}
         />
@@ -883,37 +1094,40 @@ function SudokuSettingsForm({ prefix, form }: { prefix: string; form: UseFormRet
 function XmcSettingsForm({ prefix, form }: { prefix: string; form: UseFormReturn<any> }) {
   const { t } = useTranslation()
   return (
-    <div className="grid grid-cols-2 gap-3 bg-background p-3 rounded-md border">
-      <FormField
-        control={form.control}
-        name={`${prefix}.hostname`}
-        render={({ field: inputField }) => (
-          <FormItem>
-            <FormLabel className="text-xs">Hostname</FormLabel>
-            <FormControl>
-              <Input placeholder="Hostname" {...inputField} value={inputField.value || ''} className="h-8 text-xs" />
-            </FormControl>
-          </FormItem>
-        )}
-      />
-      <FormField
-        control={form.control}
-        name={`${prefix}.password`}
-        render={({ field: inputField }) => (
-          <FormItem>
-            <FormLabel className="text-xs">Password</FormLabel>
-            <FormControl>
-              <Input placeholder="Password" {...inputField} value={inputField.value || ''} className="h-8 text-xs" />
-            </FormControl>
-          </FormItem>
-        )}
-      />
+    <div className="space-y-3 bg-background p-3 rounded-md border">
+      <div className="grid grid-cols-2 gap-3">
+        <FormField
+          control={form.control}
+          name={`${prefix}.hostname`}
+          render={({ field: inputField }) => (
+            <FormItem>
+              <FormLabel className="text-xs">Hostname</FormLabel>
+              <FormControl>
+                <Input placeholder="Hostname" {...inputField} value={inputField.value || ''} className="h-8 text-xs" />
+              </FormControl>
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name={`${prefix}.password`}
+          render={({ field: inputField }) => (
+            <FormItem>
+              <FormLabel className="text-xs">Password</FormLabel>
+              <FormControl>
+                <Input placeholder="Password" {...inputField} value={inputField.value || ''} className="h-8 text-xs" />
+              </FormControl>
+            </FormItem>
+          )}
+        />
+      </div>
+      <JsonArrayField form={form} name={`${prefix}.profiles`} label="Profiles (JSON array of {username, uuid, texturesValue, texturesSignature})" />
       <FormField
         control={form.control}
         name={`${prefix}.usernames`}
         render={({ field: inputField }) => (
           <FormItem className="col-span-2">
-            <FormLabel className="text-xs">Usernames</FormLabel>
+            <FormLabel className="text-xs">Legacy Usernames List (Optional)</FormLabel>
             <FormControl>
               <StringArrayPopoverInput
                 value={Array.isArray(inputField.value) ? inputField.value : []}

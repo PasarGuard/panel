@@ -268,3 +268,107 @@ def create_simple_host(access_token: str, inbound_tag: str, *, remark: str, prio
     )
     assert response.status_code == status.HTTP_201_CREATED
     return response.json()["id"]
+
+
+def test_host_finalmask_new_types(access_token):
+    """Test host creation and serialization with new Xray-core FinalMask settings."""
+    core = create_core(access_token)
+    inbound_list = get_inbounds(access_token)
+    assert inbound_list
+    inbound = inbound_list[0]
+
+    finalmask_payload = {
+        "tcp": [
+            {
+                "type": "xmc",
+                "settings": {
+                    "hostname": "mc.example.com",
+                    "password": "secretpassword",
+                    "profiles": [
+                        {
+                            "username": "User1",
+                            "uuid": "00112233-4455-6677-8899-aabbccddeeff",
+                            "texturesValue": "val1",
+                            "texturesSignature": "sig1",
+                        }
+                    ],
+                },
+            }
+        ],
+        "udp": [
+            {
+                "type": "realm",
+                "settings": {
+                    "url": "realm://token@example.com:443/id123",
+                    "stunServers": ["stun.l.google.com:19302"],
+                },
+            },
+            {
+                "type": "mkcp-legacy",
+                "settings": {
+                    "header": "wechat",
+                    "value": "pass123",
+                },
+            },
+            {
+                "type": "xdns",
+                "settings": {
+                    "domains": ["dns1.com", "dns2.com"],
+                    "resolvers": ["+udp://1.1.1.1:53"],
+                },
+            },
+            {
+                "type": "xicmp",
+                "settings": {
+                    "dgram": True,
+                    "ips": ["1.1.1.1", "8.8.8.8"],
+                },
+            },
+            {
+                "type": "salamander",
+                "settings": {
+                    "password": "salamanderpass",
+                    "packetSize": "100-200",
+                },
+            },
+        ],
+        "quicParams": {
+            "congestion": "bbr",
+            "bbrProfile": "desktop",
+            "debug": True,
+            "brutalUp": 100,
+            "brutalDown": 100,
+            "udpHop": {"ports": "50000-60000", "interval": "10s"},
+        },
+    }
+
+    create_response = client.post(
+        "/api/host",
+        headers={"Authorization": f"Bearer {access_token}"},
+        json={
+            "remark": unique_name("test_host_finalmask_new"),
+            "address": ["127.0.0.1"],
+            "port": 443,
+            "sni": ["test_fm_new.example.com"],
+            "inbound_tag": inbound,
+            "priority": 1,
+            "final_mask_settings": finalmask_payload,
+        },
+    )
+    assert create_response.status_code == status.HTTP_201_CREATED, create_response.text
+    host_data = create_response.json()
+    host_id = host_data["id"]
+
+    try:
+        get_res = client.get(f"/api/host/{host_id}", headers={"Authorization": f"Bearer {access_token}"})
+        assert get_res.status_code == status.HTTP_200_OK
+        data = get_res.json()
+        fm = data.get("final_mask_settings") or {}
+        assert fm.get("quicParams", {}).get("bbrProfile") == "desktop"
+        assert len(fm.get("udp", [])) == 5
+        assert fm["udp"][0]["type"] == "realm"
+        assert fm["udp"][1]["type"] == "mkcp-legacy"
+    finally:
+        client.delete(f"/api/host/{host_id}", headers={"Authorization": f"Bearer {access_token}"})
+        delete_core(access_token, core["id"])
+

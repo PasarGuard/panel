@@ -2563,10 +2563,19 @@ export type FinalMaskXmcSettingsUsernames = string[] | null
 
 export type FinalMaskXmcSettingsHostname = string | null
 
+export interface FinalMaskXmcProfile {
+  username: string
+  uuid: string
+  texturesValue: string
+  texturesSignature: string
+  [key: string]: unknown
+}
+
 export interface FinalMaskXmcSettings {
   hostname?: FinalMaskXmcSettingsHostname
-  usernames?: FinalMaskXmcSettingsUsernames
   password?: FinalMaskXmcSettingsPassword
+  profiles?: FinalMaskXmcProfile[] | null
+  usernames?: FinalMaskXmcSettingsUsernames
   [key: string]: unknown
 }
 
@@ -2575,8 +2584,36 @@ export type FinalMaskXicmpSettingsId = number | null
 export type FinalMaskXicmpSettingsListenIp = string | null
 
 export interface FinalMaskXicmpSettings {
+  dgram?: boolean | null
+  ips?: string[] | null
   listenIp?: FinalMaskXicmpSettingsListenIp
   id?: FinalMaskXicmpSettingsId
+  [key: string]: unknown
+}
+
+export interface FinalMaskXdnsSettings {
+  domains?: string[] | null
+  resolvers?: string[] | null
+  domain?: string | null
+  [key: string]: unknown
+}
+
+export interface FinalMaskSalamanderSettings {
+  password?: string | null
+  packetSize?: unknown
+  [key: string]: unknown
+}
+
+export interface FinalMaskRealmSettings {
+  url?: string | null
+  stunServers?: string[] | null
+  tlsConfig?: Record<string, unknown> | null
+  [key: string]: unknown
+}
+
+export interface FinalMaskMkcpLegacySettings {
+  header?: string | null
+  value?: string | null
   [key: string]: unknown
 }
 
@@ -2585,6 +2622,13 @@ export type FinalMaskUdpType = (typeof FinalMaskUdpType)[keyof typeof FinalMaskU
 // eslint-disable-next-line @typescript-eslint/no-redeclare
 export const FinalMaskUdpType = {
   'header-custom': 'header-custom',
+  'mkcp-legacy': 'mkcp-legacy',
+  noise: 'noise',
+  salamander: 'salamander',
+  sudoku: 'sudoku',
+  xdns: 'xdns',
+  xicmp: 'xicmp',
+  realm: 'realm',
   'header-dns': 'header-dns',
   'header-dtls': 'header-dtls',
   'header-srtp': 'header-srtp',
@@ -2593,17 +2637,22 @@ export const FinalMaskUdpType = {
   'header-wireguard': 'header-wireguard',
   'mkcp-original': 'mkcp-original',
   'mkcp-aes128gcm': 'mkcp-aes128gcm',
-  noise: 'noise',
-  salamander: 'salamander',
-  sudoku: 'sudoku',
-  xdns: 'xdns',
-  xicmp: 'xicmp',
 } as const
 
 export type FinalMaskUdpLayerSettingsAnyOf = { [key: string]: unknown }
 
 export type FinalMaskUdpLayerSettings =
-  FinalMaskUdpHeaderCustomSettings | FinalMaskPasswordSettings | FinalMaskSudokuSettings | FinalMaskDomainSettings | FinalMaskXicmpSettings | FinalMaskNoiseSettings | FinalMaskUdpLayerSettingsAnyOf
+  | FinalMaskUdpHeaderCustomSettings
+  | FinalMaskPasswordSettings
+  | FinalMaskSudokuSettings
+  | FinalMaskDomainSettings
+  | FinalMaskXdnsSettings
+  | FinalMaskXicmpSettings
+  | FinalMaskNoiseSettings
+  | FinalMaskSalamanderSettings
+  | FinalMaskRealmSettings
+  | FinalMaskMkcpLegacySettings
+  | FinalMaskUdpLayerSettingsAnyOf
 
 export interface FinalMaskUdpLayer {
   type: FinalMaskUdpType
