@@ -154,7 +154,7 @@ class NodeWorkerService(BaseRpcService):
         if not node_id:
             return
         async with GetDB() as db:
-            db_node = await get_node_by_id(db, node_id)
+            db_node = await get_node_by_id(db, node_id, load_usage_logs=False)
         if db_node:
             await node_manager.update_node(db_node)
 
@@ -180,7 +180,7 @@ class NodeWorkerService(BaseRpcService):
         await core_manager._reload_from_cache()
         async with GetDB() as db:
             if node_ids:
-                nodes, _ = await get_nodes(db, query=NodeListQuery(ids=node_ids))
+                nodes, _ = await get_nodes(db, query=NodeListQuery(ids=node_ids), load_usage_logs=False)
             else:
                 nodes, _ = await get_nodes(
                     db,
@@ -188,6 +188,7 @@ class NodeWorkerService(BaseRpcService):
                         core_id=core_id,
                         status=[NodeStatus.connected, NodeStatus.connecting, NodeStatus.error],
                     ),
+                    load_usage_logs=False,
                 )
             await self._node_operator.connect_nodes_bulk(db, nodes)
 

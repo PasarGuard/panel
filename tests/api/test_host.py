@@ -371,4 +371,3 @@ def test_host_finalmask_new_types(access_token):
     finally:
         client.delete(f"/api/host/{host_id}", headers={"Authorization": f"Bearer {access_token}"})
         delete_core(access_token, core["id"])
-

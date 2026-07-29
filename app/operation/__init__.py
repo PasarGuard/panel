@@ -254,9 +254,9 @@ class BaseOperation:
             await self.raise_error("User Template not found", 404)
         return dbuser_template
 
-    async def get_validated_node(self, db: AsyncSession, node_id) -> Node:
+    async def get_validated_node(self, db: AsyncSession, node_id, *, load_usage_logs: bool = True) -> Node:
         """Dependency: Fetch node or return not found error."""
-        db_node = await get_node_by_id(db, node_id)
+        db_node = await get_node_by_id(db, node_id, load_usage_logs=load_usage_logs)
         if not db_node:
             await self.raise_error(message="Node not found", code=404)
         return db_node

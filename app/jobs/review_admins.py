@@ -79,16 +79,11 @@ async def _send_usage_limit_warning_notifications(db):
         candidate_ids = [admin.id for admin in candidate_admins]
 
         # Lock the Admin rows to serialize reminder checks/creation for these admins
-        await db.execute(
-            select(Admin.id)
-            .where(Admin.id.in_(candidate_ids))
-            .with_for_update()
-        )
+        await db.execute(select(Admin.id).where(Admin.id.in_(candidate_ids)).with_for_update())
 
         # Fetch existing reminders for this threshold to avoid duplicate notifications
         result = await db.execute(
-            select(AdminNotificationReminder.admin_id)
-            .where(
+            select(AdminNotificationReminder.admin_id).where(
                 AdminNotificationReminder.admin_id.in_(candidate_ids),
                 AdminNotificationReminder.type == ReminderType.data_usage,
                 AdminNotificationReminder.threshold == threshold,

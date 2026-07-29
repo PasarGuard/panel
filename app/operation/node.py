@@ -154,7 +154,7 @@ class NodeOperation(BaseOperation):
             node_version (str): Node version.
             send_notification (bool): Whether to send notification.
         """
-        db_node = await get_node_by_id(db, node_id)
+        db_node = await get_node_by_id(db, node_id, load_usage_logs=False)
         if not db_node:
             return
 
@@ -540,15 +540,15 @@ class NodeOperation(BaseOperation):
             await self.raise_error(code=400, message=f"Deletion failed due to server error: {e!s}")
 
     async def update_node(self, db: AsyncSession, node_id: int) -> dict:
-        await self.get_validated_node(db, node_id)
+        await self.get_validated_node(db, node_id, load_usage_logs=False)
         return await self._update_node_api_impl(node_id)
 
     async def update_core(self, db: AsyncSession, node_id: int, node_core_update: NodeCoreUpdate) -> dict:
-        await self.get_validated_node(db, node_id)
+        await self.get_validated_node(db, node_id, load_usage_logs=False)
         return await self._update_core_impl(node_id, node_core_update)
 
     async def update_geofiles(self, db: AsyncSession, node_id: int, node_geofiles_update: NodeGeoFilesUpdate) -> dict:
-        await self.get_validated_node(db, node_id)
+        await self.get_validated_node(db, node_id, load_usage_logs=False)
         return await self._update_geofiles_impl(node_id, node_geofiles_update)
 
     async def _update_node_local(self, db_node: Node) -> None:
@@ -635,7 +635,7 @@ class NodeOperation(BaseOperation):
         await node_nats_client.publish("connect_nodes_bulk", {"node_ids": [node.id for node in nodes]})
 
     async def _connect_single_node_local(self, db: AsyncSession, node_id: int) -> None:
-        db_node = await get_node_by_id(db, node_id)
+        db_node = await get_node_by_id(db, node_id, load_usage_logs=False)
         if db_node is None or db_node.status in (NodeStatus.disabled, NodeStatus.limited):
             return
 
@@ -714,6 +714,7 @@ class NodeOperation(BaseOperation):
                 core_id=core_id,
                 status=[NodeStatus.connected, NodeStatus.connecting, NodeStatus.error],
             ),
+            load_usage_logs=False,
         )
         await self.connect_nodes_bulk(db, nodes)
 
@@ -1011,7 +1012,7 @@ class NodeOperation(BaseOperation):
             return []
 
         ids_list = list(node_ids)
-        db_nodes, _ = await get_nodes(db, NodeListQuery(ids=ids_list, limit=len(ids_list)))
+        db_nodes, _ = await get_nodes(db, NodeListQuery(ids=ids_list, limit=len(ids_list)), load_usage_logs=False)
 
         found_ids = {n.id for n in db_nodes}
         missing = set(ids_list) - found_ids

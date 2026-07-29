@@ -209,7 +209,7 @@ async def node_health_check():
     if not runtime_settings.role.runs_node:
         return
     async with GetDB() as db:
-        db_nodes, _ = await get_nodes(db=db, query=NodeListQuery(status=ACTIVE_NODE_STATUSES))
+        db_nodes, _ = await get_nodes(db=db, query=NodeListQuery(status=ACTIVE_NODE_STATUSES), load_usage_logs=False)
 
     dict_nodes = await node_manager.get_nodes()
     check_tasks = [process_node_health_check(db_node, dict_nodes.get(db_node.id)) for db_node in db_nodes]
@@ -224,7 +224,7 @@ async def initialize_nodes():
     logger.info("Starting nodes' cores...")
 
     async with GetDB() as db:
-        db_nodes, _ = await get_nodes(db=db, query=NodeListQuery(status=ACTIVE_NODE_STATUSES))
+        db_nodes, _ = await get_nodes(db=db, query=NodeListQuery(status=ACTIVE_NODE_STATUSES), load_usage_logs=False)
 
         if not db_nodes:
             logger.warning("Attention: You have no node, you need to have at least one node")

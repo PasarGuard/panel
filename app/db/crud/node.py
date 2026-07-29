@@ -46,14 +46,16 @@ def _build_node_simple_sort_clause(sort_option: NodeSimpleSortOption):
     return column.desc() if sort_option.value.startswith("-") else column.asc()
 
 
-async def load_node_attrs(node: Node):
+async def load_node_attrs(node: Node, *, load_usage_logs: bool = True):
+    if not load_usage_logs:
+        return
     try:
         await node.awaitable_attrs.usage_logs
     except AttributeError:
         pass
 
 
-async def get_node(db: AsyncSession, name: str) -> Node | None:
+async def get_node(db: AsyncSession, name: str, *, load_usage_logs: bool = True) -> Node | None:
     """
     Retrieves a node by its name.
 
@@ -66,11 +68,11 @@ async def get_node(db: AsyncSession, name: str) -> Node | None:
     """
     node = (await db.execute(select(Node).where(Node.name == name))).unique().scalar_one_or_none()
     if node:
-        await load_node_attrs(node)
+        await load_node_attrs(node, load_usage_logs=load_usage_logs)
     return node
 
 
-async def get_node_by_id(db: AsyncSession, node_id: int) -> Node | None:
+async def get_node_by_id(db: AsyncSession, node_id: int, *, load_usage_logs: bool = True) -> Node | None:
     """
     Retrieves a node by its ID.
 
@@ -83,13 +85,15 @@ async def get_node_by_id(db: AsyncSession, node_id: int) -> Node | None:
     """
     node = (await db.execute(select(Node).where(Node.id == node_id))).unique().scalar_one_or_none()
     if node:
-        await load_node_attrs(node)
+        await load_node_attrs(node, load_usage_logs=load_usage_logs)
     return node
 
 
 async def get_nodes(
     db: AsyncSession,
     query: NodeListQuery,
+    *,
+    load_usage_logs: bool = True,
 ) -> tuple[list[Node], int]:
     """
     Retrieves nodes based on optional status, enabled, id, and search filters.
@@ -143,8 +147,9 @@ async def get_nodes(
     # Order by created_at and id for consistent results
     stmt = stmt.order_by(Node.created_at.asc(), Node.id.asc())
 
-    # Eagerly load usage_logs to avoid N+1 queries (one extra SELECT per node)
-    stmt = stmt.options(selectinload(Node.usage_logs))
+    # Eagerly load usage_logs for API lifetime_* fields (skip for jobs/connect)
+    if load_usage_logs:
+        stmt = stmt.options(selectinload(Node.usage_logs))
 
     db_nodes = (await db.execute(stmt)).unique().scalars().all()
 
@@ -208,7 +213,7 @@ async def get_limited_nodes(db: AsyncSession) -> list[Node]:
     Returns:
         list[Node]: Nodes that should be limited
     """
-    query = select(Node).options(selectinload(Node.usage_logs)).where(
+    query = select(Node).where(
         and_(
             Node.status.in_([NodeStatus.error, NodeStatus.connected, NodeStatus.connecting]),
             Node.is_limited,
@@ -503,7 +508,6 @@ async def update_node_status(
         # If the instance was detached (e.g., used across sessions), re-fetch it
         db_node = (await db.execute(select(Node).where(Node.id == db_node.id))).scalar_one()
 
-    await load_node_attrs(db_node)
     return db_node
 
 
@@ -799,10 +803,11 @@ async def bulk_reset_node_usage(db: AsyncSession, nodes: list[Node]) -> list[Nod
     # Re-fetch all nodes in a single query instead of N individual refreshes
     node_ids = [node.id for node in nodes]
     refreshed = (
-        await db.execute(
-            select(Node).options(selectinload(Node.usage_logs)).where(Node.id.in_(node_ids))
-        )
-    ).unique().scalars().all()
+        (await db.execute(select(Node).options(selectinload(Node.usage_logs)).where(Node.id.in_(node_ids))))
+        .unique()
+        .scalars()
+        .all()
+    )
     # Preserve input order
     refreshed_by_id = {n.id: n for n in refreshed}
     return [refreshed_by_id[nid] for nid in node_ids if nid in refreshed_by_id]

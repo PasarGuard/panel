@@ -127,9 +127,7 @@ def test_bulk_add_wireguard_group_allocates_existing_user_peer_ips(access_token)
             type="wg",
             fallbacks=[],
         )
-        wg_group = create_group(
-            access_token, name=unique_name("wg_bulk_add_group"), inbound_tags=[interface_name]
-        )
+        wg_group = create_group(access_token, name=unique_name("wg_bulk_add_group"), inbound_tags=[interface_name])
 
         response = client.post(
             "/api/groups/bulk/add",

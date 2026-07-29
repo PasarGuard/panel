@@ -530,9 +530,7 @@ async def get_usage_percentage_reached_admins(
     return list((await db.execute(stmt)).scalars().all())
 
 
-async def bulk_create_admin_notification_reminders(
-    db: AsyncSession, reminder_data: list[dict]
-) -> list[dict]:
+async def bulk_create_admin_notification_reminders(db: AsyncSession, reminder_data: list[dict]) -> list[dict]:
     """Bulk-insert admin reminder rows after successful sends."""
     if not reminder_data:
         return []
@@ -550,11 +548,7 @@ async def bulk_create_admin_notification_reminders(
     types = {d["type"] for d in unique_reminder_data}
 
     # Lock the Admin rows to serialize reminder checks/creation for these admins
-    await db.execute(
-        select(Admin.id)
-        .where(Admin.id.in_(list(admin_ids)))
-        .with_for_update()
-    )
+    await db.execute(select(Admin.id).where(Admin.id.in_(list(admin_ids))).with_for_update())
 
     # Fetch existing reminders that match these criteria
     stmt = select(AdminNotificationReminder).where(
