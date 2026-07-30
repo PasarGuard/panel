@@ -304,15 +304,6 @@ function UdpLayersForm({ form }: { form: UseFormReturn<any> }) {
 
   const handleAddLayer = () => {
     append({
-      type: 'header-dns',
-      settings: {
-        domain: '',
-      },
-    })
-  }
-
-  const handleAddLayer = () => {
-    append({
       type: 'mkcp-legacy',
       settings: {
         header: 'wechat',
