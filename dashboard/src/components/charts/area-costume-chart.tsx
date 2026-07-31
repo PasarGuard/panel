@@ -22,6 +22,7 @@ import {
   toChartQueryEndDate,
 } from '@/utils/chart-period-utils'
 import useDirDetection from '@/hooks/use-dir-detection'
+import { useDocumentVisibility } from '@/hooks/use-document-visibility'
 
 type DataPoint = {
   time: string
@@ -75,6 +76,7 @@ export function AreaCostumeChart({ nodeId, currentStats, realtimeStats, realtime
   const { t, i18n } = useTranslation()
   const { resolvedTheme } = useTheme()
   const dir = useDirDetection()
+  const isTabVisible = useDocumentVisibility()
   const [realtimeHistory, setRealtimeHistory] = useState<DataPoint[]>([])
   const [realtimeError, setRealtimeError] = useState<Error | null>(null)
   const [viewMode, setViewMode] = useState<'realtime' | 'historical'>(() => (realtimeAvailable ? 'realtime' : 'historical'))
@@ -208,7 +210,7 @@ export function AreaCostumeChart({ nodeId, currentStats, realtimeStats, realtime
   } = useGetNodeStatsPeriodic(nodeId ?? 0, historicalParams, {
     query: {
       enabled: viewMode === 'historical' && nodeId !== undefined,
-      refetchInterval: 1000 * 60 * 5,
+      refetchInterval: isTabVisible ? 1000 * 60 * 15 : 1000 * 60 * 60,
     },
   })
 

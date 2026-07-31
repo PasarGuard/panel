@@ -18,6 +18,7 @@ import { HostFormSchema, hostFormDefaultValues, type HostFormValues } from '@/fe
 import { Separator } from '@/components/ui/separator'
 import { useAdmin } from '@/hooks/use-admin'
 import { useClipboard } from '@/hooks/use-clipboard'
+import { useDocumentVisibility } from '@/hooks/use-document-visibility'
 import type { AdminDetails, UserResponse } from '@/service/api'
 import { useGetSystemResourceStats, useGetSystemUsersStats } from '@/service/api'
 import { getInboundDetails } from '@/service/api'
@@ -101,6 +102,8 @@ const Dashboard = () => {
 
   const queryClient = useQueryClient()
   const { copy } = useClipboard()
+  const isTabVisible = useDocumentVisibility()
+  const dashboardPollingInterval = isTabVisible ? 5000 : 60000
 
   /** Match nodes list: delayed refetch so backend can settle after create/update (see nodes-list NodeModal onSuccess). */
   const handleNodeModalSuccess = () => {
@@ -216,13 +219,13 @@ const Dashboard = () => {
 
   const { data: systemResourceStatsData } = useGetSystemResourceStats({
     query: {
-      refetchInterval: 5000,
+      refetchInterval: dashboardPollingInterval,
     },
   })
 
   const { data: systemUsersStatsData } = useGetSystemUsersStats(systemUsersStatsParams, {
     query: {
-      refetchInterval: 5000,
+      refetchInterval: dashboardPollingInterval,
     },
   })
 
