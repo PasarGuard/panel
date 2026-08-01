@@ -29,6 +29,7 @@ test-sqlite:
   variables:
     SQLALCHEMY_DATABASE_URL: sqlite+aiosqlite:///./test.db
   script:
+    - uv run python scripts/regenerate_node_bridge_proto.py
     - uv run alembic upgrade head
     - uv run alembic check
     - uv run pytest tests/
@@ -45,6 +46,7 @@ test-postgres:
     POSTGRES_PASSWORD: postgres
     SQLALCHEMY_DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/pasarguard_test
   script:
+    - uv run python scripts/regenerate_node_bridge_proto.py
     - uv run alembic upgrade head
     - uv run alembic check
     - uv run pytest tests/
