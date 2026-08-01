@@ -1,0 +1,70 @@
+stages:
+  - lint
+  - test
+  - frontend
+  - image
+
+variables:
+  UV_LINK_MODE: copy
+  UV_PYTHON_DOWNLOADS: "0"
+  TESTING: "1"
+
+.python:
+  image: ghcr.io/astral-sh/uv:python3.14-bookworm-slim@sha256:7cf77f594be8042dab6daa9fe326f90962252268b4f120a7f5dccce4d947e6c1
+  before_script:
+    - uv sync --frozen --group dev
+
+lint:
+  extends: .python
+  stage: lint
+  script:
+    - uv run ruff check --no-fix .
+    - uv run ruff format --check .
+    - uv run python scripts/regenerate_node_bridge_proto.py
+    - uv run python -c "from PasarGuardNodeBridge.common.service_pb2 import Wireguard; assert any(field.name == 'pre_shared_key' and field.number == 3 for field in Wireguard.DESCRIPTOR.fields); print('bridge PSK OK')"
+
+test-sqlite:
+  extends: .python
+  stage: test
+  variables:
+    SQLALCHEMY_DATABASE_URL: sqlite+aiosqlite:///./test.db
+  script:
+    - uv run alembic upgrade head
+    - uv run alembic check
+    - uv run pytest tests/
+
+test-postgres:
+  extends: .python
+  stage: test
+  services:
+    - name: postgres:17.5-alpine
+      alias: postgres
+  variables:
+    POSTGRES_DB: pasarguard_test
+    POSTGRES_USER: postgres
+    POSTGRES_PASSWORD: postgres
+    SQLALCHEMY_DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/pasarguard_test
+  script:
+    - uv run alembic upgrade head
+    - uv run alembic check
+    - uv run pytest tests/
+
+dashboard:
+  image: oven/bun:1.3.7-alpine
+  stage: frontend
+  script:
+    - cd dashboard
+    - bun install --frozen-lockfile
+    - bun run tsc --noEmit
+    - bun run build
+
+docker-ci:
+  image: docker:28.5.1-cli
+  stage: image
+  services:
+    - docker:28.5.1-dind
+  variables:
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ""
+  script:
+    - docker build --file Dockerfile.ci --tag pasarguard-ci:$CI_COMMIT_SHA .

@@ -201,6 +201,12 @@ class FeatureSettings(EnvSettings):
     stop_nodes_on_shutdown: bool = Field(default=True, validation_alias="STOP_NODES_ON_SHUTDOWN")
 
 
+class WireGuardSettings(EnvSettings):
+    enabled: bool = Field(default=True, validation_alias="WIREGUARD_ENABLED")
+    global_pool: str = Field(default="10.0.0.0/8", validation_alias="WIREGUARD_GLOBAL_POOL")
+    reserved: str = Field(default="10.0.0.0/31", validation_alias="WIREGUARD_RESERVED")
+
+
 database_settings = DatabaseSettings()
 server_settings = ServerSettings()
 dashboard_settings = DashboardSettings()
@@ -216,6 +222,7 @@ auth_settings = AuthSettings()
 usage_settings = UsageSettings()
 job_settings = JobSettings()
 feature_settings = FeatureSettings()
+wireguard_settings = WireGuardSettings()
 
 if not database_settings.is_postgresql:
     usage_settings.enable_recording_nodes_stats = False

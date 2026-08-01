@@ -1,0 +1,194 @@
+// Vendored copy of the node's gRPC contract, kept in sync with
+// pasarguard-node/common/service.proto.
+//
+// Why it lives here: the panel talks to the node via the PasarGuardNodeBridge
+// package, and the WireGuard `pre_shared_key` field (Wireguard.pre_shared_key)
+// is NOT present in the published pasarguard-node-bridge wheel. Dockerfile.ci
+// regenerates the bridge's service_pb2 from this file at build time so the
+// panel can send PSK to patched nodes. Keep the Wireguard message in sync.
+syntax = "proto3";
+
+package service;
+
+option go_package = "github.com/pasarguard/node/common";
+
+message Empty {}
+
+// Base info response message
+message BaseInfoResponse {
+  bool started = 1;
+  string core_version = 2;
+  string node_version = 3;
+}
+
+enum BackendType {
+  XRAY = 0;
+  WIREGUARD = 1;
+}
+
+message Backend {
+  BackendType type = 1;
+  string config = 2;
+  repeated User users = 3;
+  uint64 keep_alive = 4;
+  repeated string exclude_inbounds = 5;
+}
+
+// log
+message Log {
+    string detail = 1;
+}
+
+// stats
+message Stat {
+  string name = 1;
+  string type = 2;
+  string link = 3;
+  int64 value = 4;
+}
+
+message StatResponse {
+  repeated Stat stats = 1;
+}
+
+enum StatType {
+  Outbounds = 0;
+  Outbound = 1;
+  Inbounds = 2;
+  Inbound = 3;
+  UsersStat = 4;
+  UserStat = 5;
+}
+
+message StatRequest {
+  string name = 1;
+  bool reset = 2;
+  StatType type = 3;
+}
+
+message OnlineStatResponse {
+  string name = 1;
+  int64 value = 2;
+}
+
+message StatsOnlineIpListResponse {
+  string name = 1;
+  map<string, int64> ips = 2;
+}
+
+message Latency {
+  string name = 1;
+  bool alive = 2;
+  int64 delay = 3;
+  string link = 4;
+  int64 last_seen_time = 5;
+  int64 last_try_time = 6;
+  string source = 7;
+}
+
+message LatencyRequest {
+  string name = 1;
+}
+
+message LatencyResponse {
+  repeated Latency latencies = 1;
+}
+
+message BackendStatsResponse {
+    uint32 num_goroutine = 1;
+    uint32 num_gc = 2;
+    uint64 alloc = 3;
+    uint64 total_alloc = 4;
+    uint64 sys = 5;
+    uint64 mallocs = 6;
+    uint64 frees = 7;
+    uint64 live_objects = 8;
+    uint64 pause_total_ns = 9;
+    uint32 uptime = 10;
+}
+
+message SystemStatsResponse {
+    uint64 mem_total = 1;
+    uint64 mem_used = 2;
+    uint64 cpu_cores = 3;
+    double cpu_usage = 4;
+    uint64 incoming_bandwidth_speed = 5;
+    uint64 outgoing_bandwidth_speed = 6;
+    uint64 uptime = 7;
+}
+
+// User
+message Vmess {
+    string id = 1;
+}
+
+message Vless {
+    string id = 1;
+    string flow = 2;
+}
+
+message Trojan {
+    string password = 1;
+}
+
+message Shadowsocks {
+    string password = 1;
+    string method = 2;
+}
+
+message Wireguard {
+    string public_key = 1;
+    repeated string peer_ips = 2;
+    string pre_shared_key = 3;
+}
+
+message Hysteria {
+    string auth = 1;
+}
+
+message Proxy {
+    Vmess vmess = 1;
+    Vless vless = 2;
+    Trojan trojan = 3;
+    Shadowsocks shadowsocks = 4;
+    Wireguard wireguard = 5;
+    Hysteria hysteria = 6;
+}
+
+message User {
+    string email = 1;
+    Proxy proxies = 2;
+    repeated string inbounds = 3;
+}
+
+message Users {
+  repeated User users = 1;
+}
+
+message UsersChunk {
+  repeated User users = 1;
+  uint64 index = 2;
+  bool last = 3;
+}
+
+// Service for node management and connection
+service NodeService {
+  rpc Start (Backend) returns (BaseInfoResponse) {}
+  rpc Stop (Empty) returns (Empty) {}
+  rpc GetBaseInfo (Empty) returns (BaseInfoResponse) {}
+
+  rpc GetLogs (Empty) returns (stream Log) {}
+
+  rpc GetSystemStats (Empty) returns (SystemStatsResponse) {}
+  rpc GetBackendStats (Empty) returns (BackendStatsResponse) {}
+
+  rpc GetStats (StatRequest) returns (StatResponse) {}
+  rpc GetOutboundsLatency (LatencyRequest) returns (LatencyResponse) {}
+
+  rpc GetUserOnlineStats (StatRequest) returns (OnlineStatResponse) {}
+  rpc GetUserOnlineIpListStats(StatRequest) returns (StatsOnlineIpListResponse) {}
+
+  rpc SyncUser (stream User) returns (Empty) {}
+  rpc SyncUsers (Users) returns (Empty) {}
+  rpc SyncUsersChunked (stream UsersChunk) returns (Empty) {}
+}
