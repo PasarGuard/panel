@@ -9,6 +9,8 @@ from pydantic import PydanticDeprecatedSince20
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, project_root)
 
+os.environ.setdefault("SQLALCHEMY_DATABASE_URL", "sqlite+aiosqlite:///./test.db")
+
 # Override settings for tests
 from config import auth_settings, runtime_settings, server_settings
 

@@ -12,7 +12,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import (
     CoreConfig,
-    CoreType,
     Group,
     ProxyInbound,
     User,
@@ -83,10 +82,45 @@ class WgNamespace:
     reserved: frozenset[int]  # network, last, and server interface offsets
 
 
-def wg_namespaces(cores: Iterable[CoreConfig]) -> dict[str, WgNamespace]:
-    by_key: dict[str, list[tuple[dict, IpNetwork]]] = {}
+def wg_interface_configs(cores: Iterable[CoreConfig]) -> list[dict]:
+    """WG interfaces of every core, in the shape wg_namespaces expects.
+
+    A WireGuard interface can live in two places:
+
+    * a native core of type ``wg`` — its config already carries
+      ``interface_name`` and ``address`` at the top level;
+    * a ``wireguard`` inbound inside an ``xray`` core — WireGuard served by
+      Xray itself. There the interface name is the inbound tag and the client
+      subnet comes from ``settings.address``.
+
+    Both are normalized to the same dict so peer provisioning (keys and
+    peer IP allocation) works for Xray-hosted interfaces too, not only for
+    native cores.
+    """
+    configs: list[dict] = []
     for core in cores:
         cfg = core_config_dict(core)
+        # Различаем по форме конфига, а не по core.type: у нативного wg-ядра
+        # interface_name лежит на верхнем уровне (и обязателен по валидатору),
+        # у xray-ядра его нет, зато есть inbounds.
+        if cfg.get("interface_name"):
+            configs.append(cfg)
+            continue
+        for inbound in cfg.get("inbounds") or []:
+            if not isinstance(inbound, dict) or inbound.get("protocol") != "wireguard":
+                continue
+            tag = str(inbound.get("tag") or "").strip()
+            if not tag:
+                continue
+            settings = inbound.get("settings")
+            addresses = (settings or {}).get("address") or []
+            configs.append({"interface_name": tag, "address": addresses})
+    return configs
+
+
+def wg_namespaces(cores: Iterable[CoreConfig]) -> dict[str, WgNamespace]:
+    by_key: dict[str, list[tuple[dict, IpNetwork]]] = {}
+    for cfg in wg_interface_configs(cores):
         for subnet in wg_core_subnets(cfg):
             by_key.setdefault(str(subnet), []).append((cfg, subnet))
 
@@ -153,10 +187,14 @@ def _collapse_overlapping_namespaces(namespaces: dict[str, WgNamespace]) -> dict
 
 
 def wg_core_tags(cores: Iterable[CoreConfig]) -> set[str]:
-    """Interface names (= inbound tags) of all WG cores, subnet or not."""
+    """Interface names (= inbound tags) of all WG interfaces, subnet or not.
+
+    Covers both native ``wg`` cores and ``wireguard`` inbounds of ``xray``
+    cores (see wg_interface_configs).
+    """
     tags: set[str] = set()
-    for core in cores:
-        tag = str(core_config_dict(core).get("interface_name") or "").strip()
+    for cfg in wg_interface_configs(cores):
+        tag = str(cfg.get("interface_name") or "").strip()
         if tag:
             tags.add(tag)
     return tags
@@ -277,7 +315,13 @@ def _peer_sort_key(entry: str) -> tuple[int, int]:
 
 
 async def get_wg_cores(db: AsyncSession) -> list[CoreConfig]:
-    result = await db.execute(select(CoreConfig).where(CoreConfig.type == CoreType.wg))
+    """Cores that may carry a WireGuard interface.
+
+    Not filtered by type: WireGuard can also be served by Xray through a
+    ``wireguard`` inbound, and those interfaces must take part in peer
+    provisioning too. wg_interface_configs() picks the WG parts out.
+    """
+    result = await db.execute(select(CoreConfig))
     return list(result.scalars().all())
 
 

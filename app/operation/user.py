@@ -16,6 +16,7 @@ from app.db.crud.bulk import (
     count_bulk_datalimit_targets,
     count_bulk_expire_targets,
     count_bulk_proxy_targets,
+    get_bulk_wireguard_peer_ip_users,
     reset_all_users_data_usage,
     update_users_datalimit,
     update_users_expire,
@@ -73,6 +74,7 @@ from app.models.user import (
     BulkUsersProxy,
     BulkUsersSelection,
     BulkUsersSetOwner,
+    BulkWireGuardPeerIPs,
     CreateUserFromTemplate,
     ExpiredUsersQuery,
     ModifyUserByTemplate,
@@ -93,6 +95,7 @@ from app.models.user import (
     UserSubscriptionUpdateList,
     UsersUsageQuery,
     UserUsageQuery,
+    WireGuardPeerIPsReallocateResponse,
 )
 from app.node.sync import remove_user as sync_remove_user, sync_user, sync_users
 from app.operation import BaseOperation, OperatorType
@@ -110,7 +113,11 @@ from app.utils.hwid import resolve_effective_hwid_settings
 from app.utils.jwt import create_subscription_token
 from app.utils.logger import get_logger
 from app.utils.system import readable_duration, readable_size
-from app.utils.wireguard import ensure_unique_wireguard_public_key, prepare_wireguard_keys
+from app.utils.wireguard import (
+    bulk_reallocate_wireguard_peer_ips as run_bulk_reallocate_wireguard_peer_ips,
+    ensure_unique_wireguard_public_key,
+    prepare_wireguard_keys,
+)
 from config import subscription_env_settings, usage_settings
 
 
@@ -1922,6 +1929,23 @@ class UserOperation(BaseOperation):
         if self.operator_type in (OperatorType.API, OperatorType.WEB):
             return {"detail": f"operation has been successfuly done on {users_count} users"}
         return users_count
+
+    async def bulk_reallocate_wireguard_peer_ips(
+        self, db: AsyncSession, body: BulkWireGuardPeerIPs, admin: AdminDetails
+    ) -> WireGuardPeerIPsReallocateResponse:
+        users = await get_bulk_wireguard_peer_ip_users(
+            db,
+            body,
+            admin_id=get_scope_admin_id(admin, "users", "update"),
+        )
+
+        out = await run_bulk_reallocate_wireguard_peer_ips(
+            db,
+            users,
+            dry_run=body.dry_run,
+            replace_all=body.replace_all,
+        )
+        return WireGuardPeerIPsReallocateResponse(**out)
 
     async def _get_users_sub_update_list(
         self, db: AsyncSession, db_user: User, offset: int = 0, limit: int = 10
