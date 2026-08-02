@@ -146,6 +146,28 @@ export function SubscriptionGeneralSettingsSection({ form }: SubscriptionGeneral
 
         <FormField
           control={form.control}
+          name="external_config"
+          render={({ field }) => (
+            <FormItem className="space-y-2 lg:col-span-2">
+              <div className="flex items-center gap-1.5">
+                <FormLabel className="flex items-center gap-2 text-xs font-medium sm:text-sm">
+                  <Link className="h-4 w-4 shrink-0" />
+                  {t('settings.subscriptions.general.externalConfig')}
+                </FormLabel>
+                <VariablesPopover customVariables={form.watch('custom_variables') || []} />
+                <CustomVariablesPopover customVariables={form.watch('custom_variables') || []} />
+              </div>
+              <FormControl>
+                <Textarea placeholder={'vless://...\nss://...\ntrojan://...'} rows={5} className="font-mono text-xs sm:text-sm" {...field} />
+              </FormControl>
+              <FormDescription className="text-muted-foreground text-xs sm:text-sm">{t('settings.subscriptions.general.externalConfigDescription')}</FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
           name="allow_browser_config"
           render={({ field }) => (
             <FormItem className="bg-card hover:bg-accent/50 flex flex-row items-center justify-between space-y-0 rounded-lg border p-3 transition-colors sm:p-4 lg:col-span-2">

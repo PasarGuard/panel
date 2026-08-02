@@ -131,6 +131,8 @@
         "announceUrl": "آدرس اطلاعیه",
         "announceUrlPlaceholder": "https://status.example.com",
         "announceUrlDescription": "لینک اختیاری برای جزئیات بیشتر اطلاعیه",
+        "externalConfig": "کانفیگ‌های خارجی",
+        "externalConfigDescription": "لینک‌های اشتراک خارجی را هر کدام در یک خط به خروجی لینک ساده و Base64 اضافه کنید. متغیرهای قالب پشتیبانی می‌شوند.",
         "allowBrowserConfig": "نمایش لینک‌ها در صفحه اشتراک",
         "allowBrowserConfigDescription": "نمایش لینک‌های اشتراک در قالب صفحه اشتراک هنگام دسترسی از طریق مرورگر",
         "disableSubTemplate": "غیرفعال کردن قالب اشتراک",

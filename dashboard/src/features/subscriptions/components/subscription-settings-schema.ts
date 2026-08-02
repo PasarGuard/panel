@@ -106,6 +106,7 @@ export const subscriptionSchema = z.object({
   allow_browser_config: z.boolean().optional(),
   disable_sub_template: z.boolean().optional(),
   randomize_order: z.boolean().optional(),
+  external_config: z.string().max(65535, 'External configurations must be 65535 characters or less').optional(),
   custom_variables: customVariablesSchema,
   response_headers: z.record(z.string()).optional(),
   rules: z.array(
