@@ -111,6 +111,47 @@ def test_client_template_can_delete_non_first_template(access_token):
     assert response.status_code == status.HTTP_204_NO_CONTENT
 
 
+def test_standalone_xray_template_can_be_the_only_template_and_deleted(access_token):
+    content = (
+        '{"remarks":"Serverless","inbounds":[{"tag":"socks","protocol":"socks","port":10808,'
+        '"settings":{}}],"outbounds":[{"tag":"DIRECT","protocol":"freedom","settings":{}}]}'
+    )
+    created = create_client_template(
+        access_token,
+        name=unique_name("tmpl_xray_standalone"),
+        template_type="xray_standalone",
+        content=content,
+    )
+
+    assert created["template_type"] == "xray_standalone"
+    assert created["is_default"] is False
+    assert created["is_system"] is False
+
+    response = client.delete(
+        f"/api/client_template/{created['id']}",
+        headers=auth_headers(access_token),
+    )
+    assert response.status_code == status.HTTP_204_NO_CONTENT
+
+
+def test_standalone_xray_template_requires_remarks(access_token):
+    response = client.post(
+        "/api/client_template",
+        headers=auth_headers(access_token),
+        json={
+            "name": unique_name("tmpl_xray_standalone_no_remarks"),
+            "template_type": "xray_standalone",
+            "content": (
+                '{"inbounds":[{"tag":"socks","protocol":"socks","port":10808,"settings":{}}],'
+                '"outbounds":[{"tag":"DIRECT","protocol":"freedom","settings":{}}]}'
+            ),
+        },
+    )
+
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert "remarks" in response.json()["detail"]
+
+
 def test_client_template_delete_clears_associated_host_override(access_token):
     core = create_core(access_token)
     inbound_list = get_inbounds(access_token)
