@@ -1337,16 +1337,11 @@ async def get_users_sub_update_list(
     return result, count
 
 
-async def get_users_subscription_agent_counts(
-    db: AsyncSession,
+def _subscription_update_from_clause(
     user_id: int | None = None,
     admin_id: int | None = None,
-    start: datetime | None = None,
-    end: datetime | None = None,
-) -> list[tuple[str, int]]:
-    stmt = select(UserSubscriptionUpdate.user_agent, func.count().label("count"))
+):
     conditions = []
-
     if user_id is not None:
         conditions.append(UserSubscriptionUpdate.user_id == user_id)
         from_clause = UserSubscriptionUpdate.__table__
@@ -1354,9 +1349,23 @@ async def get_users_subscription_agent_counts(
         from_clause = UserSubscriptionUpdate.__table__.join(User, UserSubscriptionUpdate.user_id == User.id)
         if admin_id:
             conditions.append(User.admin_id == admin_id)
+    return from_clause, conditions
+
+
+async def get_users_subscription_agent_counts(
+    db: AsyncSession,
+    user_id: int | None = None,
+    admin_id: int | None = None,
+    start: datetime | None = None,
+    end: datetime | None = None,
+    period: Period | None = None,
+) -> list[tuple[str, int]]:
+    stmt = select(UserSubscriptionUpdate.user_agent, func.count().label("count"))
+    from_clause, conditions = _subscription_update_from_clause(user_id=user_id, admin_id=admin_id)
 
     if start is not None:
-        conditions.append(UserSubscriptionUpdate.created_at >= to_utc_for_filter(start))
+        start_utc = get_complete_period_start_for_filter(start, period) if period is not None else to_utc_for_filter(start)
+        conditions.append(UserSubscriptionUpdate.created_at >= start_utc)
     if end is not None:
         conditions.append(UserSubscriptionUpdate.created_at < to_utc_for_filter(end))
 
@@ -1381,18 +1390,13 @@ async def get_users_subscription_agent_stats(
     trunc_expr = _build_trunc_expression(db, period, UserSubscriptionUpdate.created_at, start)
     start_utc = get_complete_period_start_for_filter(start, period)
     end_utc = to_utc_for_filter(end)
-    conditions = [
-        UserSubscriptionUpdate.created_at >= start_utc,
-        UserSubscriptionUpdate.created_at < end_utc,
-    ]
-
-    if user_id is not None:
-        conditions.append(UserSubscriptionUpdate.user_id == user_id)
-        from_clause = UserSubscriptionUpdate.__table__
-    else:
-        from_clause = UserSubscriptionUpdate.__table__.join(User, UserSubscriptionUpdate.user_id == User.id)
-        if admin_id:
-            conditions.append(User.admin_id == admin_id)
+    from_clause, conditions = _subscription_update_from_clause(user_id=user_id, admin_id=admin_id)
+    conditions.extend(
+        [
+            UserSubscriptionUpdate.created_at >= start_utc,
+            UserSubscriptionUpdate.created_at < end_utc,
+        ]
+    )
 
     stmt = (
         select(

@@ -1998,6 +1998,7 @@ class UserOperation(BaseOperation):
             admin_id=resolved_admin_id,
             start=start,
             end=end,
+            period=period,
         )
         agent_stats = await get_users_subscription_agent_stats(
             db,

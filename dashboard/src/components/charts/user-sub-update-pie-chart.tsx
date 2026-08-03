@@ -223,7 +223,7 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
   const [chartView, setChartView] = useState<'bar' | 'pie'>('pie')
   const [selectedAdmin, setSelectedAdmin] = useState<string>('all')
   const [selectedAdminId, setSelectedAdminId] = useState<number | null>(() => (adminId != null ? adminId : null))
-  const [selectedTime, setSelectedTime] = useState<TrafficShortcutKey>('all')
+  const [selectedTime, setSelectedTime] = useState<TrafficShortcutKey>('1w')
   const [showCustomRange, setShowCustomRange] = useState(false)
   const [customRange, setCustomRange] = useState<DateRange | undefined>(undefined)
   const [windowWidth, setWindowWidth] = useState<number>(() => (typeof window !== 'undefined' ? window.innerWidth : 1024))
@@ -291,15 +291,33 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
     })
   }, [data?.segments, resolvedTheme])
 
-  const series = useMemo<AgentSeries[]>(
-    () =>
-      segments.map(segment => ({
+  const series = useMemo<AgentSeries[]>(() => {
+    if (segments.length > 0) {
+      return segments.map(segment => ({
         key: segment.key,
         label: segment.name,
         color: segment.color,
-      })),
-    [segments],
-  )
+      }))
+    }
+
+    // Fall back to agents present in the time-series when segments are missing.
+    if (!data?.stats?.length) return []
+
+    const isDark = resolvedTheme === 'dark'
+    const seen = new Map<string, AgentSeries>()
+    data.stats.forEach(stat => {
+      const name = stat.agent || 'Unknown'
+      const key = buildSegmentKey(name, seen.size)
+      if (!seen.has(key)) {
+        seen.set(key, {
+          key,
+          label: name,
+          color: getSegmentColor(seen.size, isDark),
+        })
+      }
+    })
+    return Array.from(seen.values())
+  }, [data?.stats, resolvedTheme, segments])
 
   const seriesByKey = useMemo(
     () =>
@@ -311,10 +329,10 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
   )
 
   const chartConfig = useMemo<ChartConfig>(() => {
-    const dynamicConfig = segments.reduce<ChartConfig>((config, segment) => {
-      config[segment.key] = {
-        label: segment.name,
-        color: segment.color,
+    const dynamicConfig = series.reduce<ChartConfig>((config, item) => {
+      config[item.key] = {
+        label: item.label,
+        color: item.color,
       }
       return config
     }, {})
@@ -325,7 +343,7 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
       },
       ...dynamicConfig,
     }
-  }, [segments, t])
+  }, [series, t])
 
   const pieChartData = useMemo(
     () =>
@@ -340,14 +358,15 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
   )
 
   const timeSeriesData = useMemo<ChartDataPoint[]>(() => {
-    if (!data?.stats?.length || segments.length === 0) return []
+    if (!data?.stats?.length || series.length === 0) return []
 
-    const keyByAgent = new Map(segments.map(segment => [segment.name.toLowerCase(), segment.key]))
+    const keyByAgent = new Map(series.map(item => [item.label.toLowerCase(), item.key]))
     const periods = new Map<string, ChartDataPoint>()
 
     data.stats.forEach(stat => {
       const periodStart = String(stat.period_start)
-      const seriesKey = keyByAgent.get(stat.agent.toLowerCase())
+      const agentName = (stat.agent || 'Unknown').toLowerCase()
+      const seriesKey = keyByAgent.get(agentName)
       if (!seriesKey) return
 
       let row = periods.get(periodStart)
@@ -366,7 +385,7 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
     })
 
     return Array.from(periods.values()).sort((a, b) => String(a._period_start).localeCompare(String(b._period_start)))
-  }, [activePeriod, data?.stats, i18n.language, segments, series])
+  }, [activePeriod, data?.stats, i18n.language, series])
 
   const piePaddingAngle = useMemo(() => {
     if (pieChartData.length <= 1) return 0
@@ -405,8 +424,18 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
     return getXAxisIntervalForShortcut(selectedTime, timeSeriesData.length, { minuteForOneHour: true })
   }, [activePeriod, customRange, selectedTime, showCustomRange, timeSeriesData.length, windowWidth])
 
-  const hasData = segments.some(segment => segment.count > 0)
+  const hasPieData = segments.some(segment => segment.count > 0)
+  const hasBarData = timeSeriesData.length > 0
   const total = data?.total ?? 0
+  const periodTotal = useMemo(() => {
+    // Match other charts: only show a period total when the active view has data.
+    if (chartView === 'bar') {
+      if (!hasBarData) return null
+      return timeSeriesData.reduce((sum, row) => sum + series.reduce((rowSum, item) => rowSum + Number(row[item.key] || 0), 0), 0)
+    }
+
+    return hasPieData ? total : null
+  }, [chartView, hasBarData, hasPieData, series, timeSeriesData, total])
   const leadingSegment = useMemo(() => [...segments].sort((a, b) => b.count - a.count)[0], [segments])
 
   useEffect(() => {
@@ -505,7 +534,7 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
           ) : (
             <span dir="ltr" className="text-foreground flex items-center justify-center gap-2 text-lg">
               <Users className="text-muted-foreground h-4 w-4" />
-              {hasData ? numberWithCommas(total) : <span className="text-muted-foreground">—</span>}
+              {periodTotal != null ? numberWithCommas(periodTotal) : <span className="text-muted-foreground">—</span>}
             </span>
           )}
         </div>
@@ -521,7 +550,9 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
           )
         ) : error ? (
           <EmptyState type="error" className="max-h-[400px] min-h-[200px]" />
-        ) : !hasData ? (
+        ) : chartView === 'pie' && !hasPieData ? (
+          <EmptyState type="no-data" title={t('statistics.noDataInRange')} description={t('statistics.noDataInRangeDescription')} className="max-h-[400px] min-h-[200px]" />
+        ) : chartView === 'bar' && !hasBarData ? (
           <EmptyState type="no-data" title={t('statistics.noDataInRange')} description={t('statistics.noDataInRangeDescription')} className="max-h-[400px] min-h-[200px]" />
         ) : chartView === 'pie' ? (
           <div className="flex flex-col items-center gap-6 lg:flex-row">
@@ -570,87 +601,81 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
         ) : (
           <div className="mx-auto w-full">
             <ChartContainer dir="ltr" config={chartConfig} className="h-[200px] w-full sm:h-[320px] lg:h-[400px]">
-              {timeSeriesData.length > 0 ? (
-                chartViewType === 'area' ? (
-                  <AreaChart accessibilityLayer data={timeSeriesData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
-                    <defs>
-                      {series.map(item => (
-                        <linearGradient key={item.key} id={`sub-update-area-gradient-${item.key}`} x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor={item.color} stopOpacity={0.45} />
-                          <stop offset="100%" stopColor={item.color} stopOpacity={0.05} />
-                        </linearGradient>
-                      ))}
-                    </defs>
-                    <CartesianGrid direction="ltr" vertical={false} />
-                    <XAxis direction="ltr" dataKey="time" tickLine={false} tickMargin={10} axisLine={false} minTickGap={5} interval={xAxisInterval} />
-                    <YAxis
-                      direction="ltr"
-                      tickLine={false}
-                      axisLine={false}
-                      allowDecimals={false}
-                      domain={[0, 'auto']}
-                      tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 9, fontWeight: 500 }}
-                      width={32}
-                      tickMargin={2}
-                    />
-                    <ChartTooltip cursor={false} content={props => <SeriesTooltip {...(props as TooltipProps<number, string>)} period={activePeriod} seriesByKey={seriesByKey} />} />
+              {chartViewType === 'area' ? (
+                <AreaChart accessibilityLayer data={timeSeriesData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
+                  <defs>
                     {series.map(item => (
-                      <Area
-                        key={item.key}
-                        type="monotone"
-                        dataKey={item.key}
-                        stackId="a"
-                        fill={`url(#sub-update-area-gradient-${item.key})`}
-                        stroke={item.color}
-                        strokeWidth={1.5}
-                        dot={false}
-                        activeDot={{ r: 4 }}
-                      />
+                      <linearGradient key={item.key} id={`sub-update-area-gradient-${item.key}`} x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor={item.color} stopOpacity={0.45} />
+                        <stop offset="100%" stopColor={item.color} stopOpacity={0.05} />
+                      </linearGradient>
                     ))}
-                  </AreaChart>
-                ) : (
-                  <BarChart accessibilityLayer data={timeSeriesData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
-                    <CartesianGrid direction="ltr" vertical={false} />
-                    <XAxis direction="ltr" dataKey="time" tickLine={false} tickMargin={10} axisLine={false} minTickGap={5} interval={xAxisInterval} />
-                    <YAxis
-                      direction="ltr"
-                      tickLine={false}
-                      axisLine={false}
-                      allowDecimals={false}
-                      tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 9, fontWeight: 500 }}
-                      width={32}
-                      tickMargin={2}
+                  </defs>
+                  <CartesianGrid direction="ltr" vertical={false} />
+                  <XAxis direction="ltr" dataKey="time" tickLine={false} tickMargin={10} axisLine={false} minTickGap={5} interval={xAxisInterval} />
+                  <YAxis
+                    direction="ltr"
+                    tickLine={false}
+                    axisLine={false}
+                    allowDecimals={false}
+                    domain={[0, 'auto']}
+                    tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 9, fontWeight: 500 }}
+                    width={32}
+                    tickMargin={2}
+                  />
+                  <ChartTooltip cursor={false} content={props => <SeriesTooltip {...(props as TooltipProps<number, string>)} period={activePeriod} seriesByKey={seriesByKey} />} />
+                  {series.map(item => (
+                    <Area
+                      key={item.key}
+                      type="monotone"
+                      dataKey={item.key}
+                      stackId="a"
+                      fill={`url(#sub-update-area-gradient-${item.key})`}
+                      stroke={item.color}
+                      strokeWidth={1.5}
+                      dot={false}
+                      activeDot={{ r: 4 }}
                     />
-                    <ChartTooltip cursor={false} content={props => <SeriesTooltip {...(props as TooltipProps<number, string>)} period={activePeriod} seriesByKey={seriesByKey} />} />
-                    {series.map(item => (
-                      <Bar key={item.key} dataKey={item.key} stackId="a" fill={item.color} radius={SQUARE_RADIUS}>
-                        {timeSeriesData.map(row => (
-                          <Cell key={`${item.key}-${row._period_start}`} {...getCellRadiusProps(getStackedBarRadius(row, item.key, series))} />
-                        ))}
-                      </Bar>
-                    ))}
-                  </BarChart>
-                )
+                  ))}
+                </AreaChart>
               ) : (
-                <EmptyState type="no-data" title={t('statistics.noDataInRange')} description={t('statistics.noDataInRangeDescription')} className="max-h-[400px] min-h-[200px]" />
+                <BarChart accessibilityLayer data={timeSeriesData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
+                  <CartesianGrid direction="ltr" vertical={false} />
+                  <XAxis direction="ltr" dataKey="time" tickLine={false} tickMargin={10} axisLine={false} minTickGap={5} interval={xAxisInterval} />
+                  <YAxis
+                    direction="ltr"
+                    tickLine={false}
+                    axisLine={false}
+                    allowDecimals={false}
+                    tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 9, fontWeight: 500 }}
+                    width={32}
+                    tickMargin={2}
+                  />
+                  <ChartTooltip cursor={false} content={props => <SeriesTooltip {...(props as TooltipProps<number, string>)} period={activePeriod} seriesByKey={seriesByKey} />} />
+                  {series.map(item => (
+                    <Bar key={item.key} dataKey={item.key} stackId="a" fill={item.color} radius={SQUARE_RADIUS}>
+                      {timeSeriesData.map(row => (
+                        <Cell key={`${item.key}-${row._period_start}`} {...getCellRadiusProps(getStackedBarRadius(row, item.key, series))} />
+                      ))}
+                    </Bar>
+                  ))}
+                </BarChart>
               )}
             </ChartContainer>
-            {timeSeriesData.length > 0 && (
-              <div className="overflow-x-auto pt-3">
-                <div className="flex min-w-max items-center justify-center gap-4">
-                  {series.map(item => (
-                    <div dir="ltr" key={item.key} className="flex items-center gap-1.5">
-                      <div className="h-2 w-2 shrink-0 rounded-[2px]" style={{ backgroundColor: item.color }} />
-                      <span className="text-xs whitespace-nowrap">{item.label}</span>
-                    </div>
-                  ))}
-                </div>
+            <div className="overflow-x-auto pt-3">
+              <div className="flex min-w-max items-center justify-center gap-4">
+                {series.map(item => (
+                  <div dir="ltr" key={item.key} className="flex items-center gap-1.5">
+                    <div className="h-2 w-2 shrink-0 rounded-[2px]" style={{ backgroundColor: item.color }} />
+                    <span className="text-xs whitespace-nowrap">{item.label}</span>
+                  </div>
+                ))}
               </div>
-            )}
+            </div>
           </div>
         )}
       </CardContent>
-      {chartView === 'pie' && leadingSegment && hasData && (
+      {chartView === 'pie' && leadingSegment && hasPieData && (
         <CardFooter className="flex-col gap-1.5 pt-4">
           <div className="border-primary/20 from-primary/10 via-primary/5 flex items-center gap-2 rounded-lg border bg-gradient-to-r to-transparent px-3 py-2 text-xs">
             <div className="text-primary flex items-center gap-1.5 font-semibold">
