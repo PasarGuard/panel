@@ -2137,6 +2137,7 @@
     "copyMldsa65Verify": "Копировать Verify",
     "mldsa65SeedCopied": "Seed скопирован в буфер обмена",
     "mldsa65VerifyCopied": "Verify скопирован в буфер обмена",
+    "mldsa65DestCertHint": "Необязательно. Нужна согласованная пара seed+verify. Цель REALITY должна использовать крупный (обычно RSA) сертификат — цели с ECDSA часто молча ломаются без полезных логов на клиенте и сервере.",
     "vlessHandshakeLabel": "Метод рукопожатия",
     "vlessEncryptionLabel": "Метод шифрования",
     "vlessEncryptionHint": "Выберите формат для зашифрованных данных.",
@@ -2594,7 +2595,12 @@
         "destinationPortRange": "Порт назначения должен быть целым числом от 0 до 65535.",
         "realityServerNamesRequired": "Для REALITY нужно хотя бы одно имя сервера (server name).",
         "realityServerNamesFormat": "Имена серверов REALITY должны быть списком непустых строк.",
-        "realityServerNamesNoEmpty": "Каждое имя сервера REALITY должно быть непустым; удалите пустые строки или лишние запятые."
+        "realityServerNamesNoEmpty": "Каждое имя сервера REALITY должно быть непустым; удалите пустые строки или лишние запятые.",
+        "mldsa65SeedInvalid": "Seed ML-DSA-65 должен быть URL-safe Base64 длиной 32 байта.",
+        "mldsa65VerifyInvalid": "Verify ML-DSA-65 должен быть URL-safe Base64 публичным ключом длиной 1952 байта.",
+        "mldsa65VerifyRequiresSeed": "Verify ML-DSA-65 требует matching seed на сервере. Создайте пару или очистите verify.",
+        "mldsa65SeedReusesPrivateKey": "Seed ML-DSA-65 не должен совпадать с private key REALITY.",
+        "mldsa65PairMismatch": "Verify ML-DSA-65 не соответствует seed. Создайте новую пару или вставьте согласованные значения."
       },
       "discardDraftTitle": "Отменить новый входящий?",
       "discardDraftDescription": "Этот входящий ещё не в списке. Закрытие без добавления отменит изменения.",

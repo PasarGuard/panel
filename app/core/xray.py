@@ -9,7 +9,7 @@ import commentjson
 
 from app.models.core import CoreType
 from app.models.protocol import ProxyProtocol
-from app.utils.crypto import get_cert_SANs, get_x25519_public_key
+from app.utils.crypto import get_cert_SANs, get_x25519_public_key, validate_mldsa65_seed, validate_mldsa65_verify
 
 
 def _protocols_from_inbounds_by_tag(inbounds_by_tag: dict[str, dict]) -> frozenset[ProxyProtocol]:
@@ -238,7 +238,27 @@ class XRayConfig(dict):
         except Exception:
             settings["spx"] = ""
 
-        settings["mldsa65Verify"] = tls_settings.get("mldsa65Verify")
+        mldsa65_seed = tls_settings.get("mldsa65Seed")
+        mldsa65_verify = tls_settings.get("mldsa65Verify")
+        seed_set = isinstance(mldsa65_seed, str) and bool(mldsa65_seed.strip())
+        verify_set = isinstance(mldsa65_verify, str) and bool(mldsa65_verify.strip())
+
+        if seed_set or verify_set:
+            # Client pqv without a matching server seed causes silent REALITY auth failure.
+            if verify_set and not seed_set:
+                raise ValueError(
+                    f"mldsa65Verify is set without mldsa65Seed in realitySettings of {inbound_tag}. "
+                    "Set both (matching pair) or clear both."
+                )
+            if seed_set:
+                validate_mldsa65_seed(mldsa65_seed)
+            if verify_set:
+                settings["mldsa65Verify"] = validate_mldsa65_verify(mldsa65_verify)
+            else:
+                # Seed-only is valid (server signs; clients without pqv still connect).
+                settings["mldsa65Verify"] = None
+        else:
+            settings["mldsa65Verify"] = None
 
     def _handle_network_settings(self, net: str, net_settings: dict, settings: dict, inbound_tag: str):
         """Handle network-specific settings."""

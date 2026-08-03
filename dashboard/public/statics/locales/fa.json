@@ -2162,6 +2162,7 @@
     "copyMldsa65Verify": "کپی Verify",
     "mldsa65SeedCopied": "Seed در کلیپ‌بورد کپی شد",
     "mldsa65VerifyCopied": "Verify در کلیپ‌بورد کپی شد",
+    "mldsa65DestCertHint": "اختیاری. به جفت seed+verify هم‌خوان نیاز دارد. هدف REALITY باید گواهی بزرگ (معمولاً RSA) داشته باشد — اهداف ECDSA اغلب بدون لاگ مفید در کلاینت/سرور به‌صورت خاموش شکست می‌خورند.",
     "vlessHandshakeLabel": "روش دست‌دهی",
     "vlessEncryptionLabel": "روش رمزنگاری",
     "vlessEncryptionHint": "قالب داده‌ی رمزگذاری‌شده را انتخاب کنید.",
@@ -2619,7 +2620,12 @@
         "destinationPortRange": "پورت مقصد باید عدد صحیح از ۰ تا ۶۵۵۳۵ باشد.",
         "realityServerNamesRequired": "REALITY حداقل به یک نام سرور نیاز دارد.",
         "realityServerNamesFormat": "نام‌های سرور REALITY باید فهرستی از رشته‌های غیرخالی باشد.",
-        "realityServerNamesNoEmpty": "هر نام سرور REALITY باید غیرخالی باشد؛ خطوط خالی یا ویرگول‌های اضافی را حذف کنید."
+        "realityServerNamesNoEmpty": "هر نام سرور REALITY باید غیرخالی باشد؛ خطوط خالی یا ویرگول‌های اضافی را حذف کنید.",
+        "mldsa65SeedInvalid": "Seed مربوط به ML-DSA-65 باید مقدار Base64 URL-safe به‌طول ۳۲ بایت باشد.",
+        "mldsa65VerifyInvalid": "Verify مربوط به ML-DSA-65 باید کلید عمومی Base64 URL-safe به‌طول ۱۹۵۲ بایت باشد.",
+        "mldsa65VerifyRequiresSeed": "Verify مربوط به ML-DSA-65 به seed هم‌خوان در سرور نیاز دارد. جفت را تولید کنید یا Verify را پاک کنید.",
+        "mldsa65SeedReusesPrivateKey": "Seed مربوط به ML-DSA-65 نباید با کلید خصوصی REALITY یکی باشد.",
+        "mldsa65PairMismatch": "Verify مربوط به ML-DSA-65 با seed هم‌خوان نیست. جفت جدید تولید کنید یا مقادیر هم‌خوان وارد کنید."
       },
       "discardDraftTitle": "ورودی جدید را دور بیندازید؟",
       "discardDraftDescription": "این ورودی هنوز در فهرست نیست. بستن بدون افزودن، تغییرات را دور می‌اندازد.",

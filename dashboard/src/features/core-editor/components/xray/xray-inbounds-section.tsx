@@ -22,7 +22,12 @@ import { XrayStreamFinalmaskInboundAccordion } from '@/features/core-editor/comp
 import { InboundFallbacksEditor } from '@/features/core-editor/components/xray/inbound-fallbacks-editor'
 import { useSectionHeaderAddPulseEffect, type SectionHeaderAddPulse } from '@/features/core-editor/hooks/use-section-header-add-pulse'
 import { useXrayPersistModifyGuard } from '@/features/core-editor/hooks/use-xray-persist-modify-guard'
-import { createInboundDialogSchema, realityInboundZodTriggerFieldNames } from '@/features/core-editor/kit/inbound-dialog-schema'
+import {
+  createInboundDialogSchema,
+  INBOUND_FORM_FIELD_SEC_MLDSA65_SEED,
+  INBOUND_FORM_FIELD_SEC_MLDSA65_VERIFY,
+  realityInboundZodTriggerFieldNames,
+} from '@/features/core-editor/kit/inbound-dialog-schema'
 import { getInboundSecuritySelectOptions, getInboundTransportSelectOptions, transportCompatibleWithReality } from '@/features/core-editor/kit/inbound-form-options'
 import { profileDuplicateTagMessage, profileTagHasDuplicateUsage } from '@/features/core-editor/kit/profile-tag-uniqueness'
 import { remapIndexAfterArrayMove } from '@/features/core-editor/kit/remap-index-after-move'
@@ -46,6 +51,7 @@ import {
   vlessInboundEncryptionRawForForm,
   type VlessBuilderOptions,
 } from '@/lib/xray-generation'
+import { mldsa65PairMatches, validateMldsa65Seed, validateMldsa65Verify } from '@/utils/mldsa65'
 import { generateWireGuardKeyPair, getWireGuardPublicKey } from '@/utils/wireguard'
 import { arrayMove } from '@dnd-kit/sortable'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -1589,6 +1595,28 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
     finalizeDetailClose()
   }
 
+  const assertMldsa65PairForCommit = async (): Promise<boolean> => {
+    if (form.getValues('security') !== 'reality') return true
+    const seed = String(form.getValues(INBOUND_FORM_FIELD_SEC_MLDSA65_SEED) ?? '').trim()
+    const verify = String(form.getValues(INBOUND_FORM_FIELD_SEC_MLDSA65_VERIFY) ?? '').trim()
+    if (!seed && !verify) return true
+    if (!seed || !verify) return true // Zod covers verify-without-seed / empty half-pairs
+    if (!validateMldsa65Seed(seed).ok || !validateMldsa65Verify(verify).ok) return true
+
+    const matches = await mldsa65PairMatches(seed, verify)
+    if (matches) {
+      form.clearErrors(INBOUND_FORM_FIELD_SEC_MLDSA65_VERIFY)
+      return true
+    }
+    form.setError(INBOUND_FORM_FIELD_SEC_MLDSA65_VERIFY, {
+      type: 'manual',
+      message: t('coreEditor.inbound.validation.mldsa65PairMismatch', {
+        defaultValue: 'ML-DSA-65 verify does not match the seed. Generate a new pair or paste matching values.',
+      }),
+    })
+    return false
+  }
+
   const commitAddInbound = async () => {
     if (!profile) return
     if (!draftInbound || draftInbound.protocol === 'unmanaged') return
@@ -1611,6 +1639,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
     ]
     const ok = await form.trigger(fields, { shouldFocus: true })
     if (!ok) return
+    if (!(await assertMldsa65PairForCommit())) return
     if (!validateWireguardInboundForCommit(draftInbound)) return
     const insertAt = profile.inbounds.length
     updateXrayProfile(p => ({ ...p, inbounds: [...p.inbounds, draftInbound] }))
@@ -1629,6 +1658,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
       const fields = ['protocol', 'tag', 'port', ...(form.getValues('security') === 'reality' ? realityInboundZodTriggerFieldNames() : [])]
       const ok = await form.trigger(fields, { shouldFocus: true })
       if (!ok) return
+      if (!(await assertMldsa65PairForCommit())) return
     } else if (inbound.protocol !== 'unmanaged' && isTunnelInboundProtocol(inbound.protocol)) {
       const ok = await form.trigger(['protocol', 'tag', 'port', 'tunnelRewriteAddress', 'tunnelRewritePort'], { shouldFocus: true })
       if (!ok) return
@@ -4144,7 +4174,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                                 </div>
                               )}
                               {isReality && jsonKey === 'fingerprint' && (
-                                <div className="w-full min-w-0 sm:col-span-2">
+                                <div className="w-full min-w-0 space-y-2 sm:col-span-2">
                                   <LoaderButton
                                     type="button"
                                     onClick={() => void handleGenerateMldsa65()}
@@ -4154,6 +4184,12 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                                   >
                                     <span className="flex items-center gap-2 truncate">{t('coreConfigModal.generateMldsa65')}</span>
                                   </LoaderButton>
+                                  <p className="text-muted-foreground text-xs leading-relaxed">
+                                    {t('coreConfigModal.mldsa65DestCertHint', {
+                                      defaultValue:
+                                        'Optional. Requires a matching seed+verify pair. The REALITY target should use a large (typically RSA) certificate — ECDSA targets often fail silently with no useful client/server logs.',
+                                    })}
+                                  </p>
                                 </div>
                               )}
                               {isReality && jsonKey === 'target' && (

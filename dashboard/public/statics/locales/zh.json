@@ -2206,6 +2206,7 @@
     "copyMldsa65Verify": "复制 Verify",
     "mldsa65SeedCopied": "Seed 已复制到剪贴板",
     "mldsa65VerifyCopied": "Verify 已复制到剪贴板",
+    "mldsa65DestCertHint": "可选。需要匹配的 seed+verify 密钥对。REALITY 目标站点应使用较大（通常为 RSA）的证书——ECDSA 目标常会静默失败，且客户端/服务端几乎没有有用日志。",
     "vlessHandshakeLabel": "握手方式",
     "vlessEncryptionLabel": "加密方式",
     "vlessEncryptionHint": "选择加密负载使用的线路格式。",
@@ -2663,7 +2664,12 @@
         "destinationPortRange": "目标端口必须为 0 至 65535 之间的整数。",
         "realityServerNamesRequired": "REALITY 至少需要填写一个 server name。",
         "realityServerNamesFormat": "REALITY 的 server names 必须为非空字符串的列表。",
-        "realityServerNamesNoEmpty": "每个 REALITY server name 都必须非空；请删除空行或多余逗号。"
+        "realityServerNamesNoEmpty": "每个 REALITY server name 都必须非空；请删除空行或多余逗号。",
+        "mldsa65SeedInvalid": "ML-DSA-65 seed 必须是 32 字节的 URL-safe Base64 值。",
+        "mldsa65VerifyInvalid": "ML-DSA-65 verify 必须是 1952 字节的 URL-safe Base64 公钥。",
+        "mldsa65VerifyRequiresSeed": "ML-DSA-65 verify 需要服务端有匹配的 seed。请生成密钥对或清空 verify。",
+        "mldsa65SeedReusesPrivateKey": "ML-DSA-65 seed 不能与 REALITY 私钥相同。",
+        "mldsa65PairMismatch": "ML-DSA-65 verify 与 seed 不匹配。请重新生成密钥对或粘贴匹配的值。"
       },
       "discardDraftTitle": "放弃新入站？",
       "discardDraftDescription": "此入站尚未加入列表。关闭而不添加将丢弃更改。",

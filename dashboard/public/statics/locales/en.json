@@ -2247,6 +2247,7 @@
     "copyMldsa65Verify": "Copy Verify Key",
     "mldsa65SeedCopied": "Seed copied to clipboard",
     "mldsa65VerifyCopied": "Verify key copied to clipboard",
+    "mldsa65DestCertHint": "Optional. Requires a matching seed+verify pair. The REALITY target should use a large (typically RSA) certificate — ECDSA targets often fail silently with no useful client/server logs.",
     "vlessHandshakeLabel": "Handshake method",
     "vlessEncryptionLabel": "Encryption method",
     "vlessEncryptionHint": "Choose the wire format for encrypted payloads.",
@@ -2706,7 +2707,12 @@
         "destinationPortRange": "Destination port must be a whole number from 0 to 65535.",
         "realityServerNamesRequired": "REALITY requires at least one server name.",
         "realityServerNamesFormat": "REALITY server names must be a list of non-empty strings.",
-        "realityServerNamesNoEmpty": "Each REALITY server name must be non-empty; remove blank lines or extra commas."
+        "realityServerNamesNoEmpty": "Each REALITY server name must be non-empty; remove blank lines or extra commas.",
+        "mldsa65SeedInvalid": "ML-DSA-65 seed must be a 32-byte URL-safe Base64 value.",
+        "mldsa65VerifyInvalid": "ML-DSA-65 verify must be a 1952-byte URL-safe Base64 public key.",
+        "mldsa65VerifyRequiresSeed": "ML-DSA-65 verify requires a matching seed on the server. Generate a pair or clear verify.",
+        "mldsa65SeedReusesPrivateKey": "ML-DSA-65 seed must not be the same as the REALITY private key.",
+        "mldsa65PairMismatch": "ML-DSA-65 verify does not match the seed. Generate a new pair or paste matching values."
       },
       "discardDraftTitle": "Discard new inbound?",
       "discardDraftDescription": "This inbound is not in the list yet. Close without adding it will discard your changes.",

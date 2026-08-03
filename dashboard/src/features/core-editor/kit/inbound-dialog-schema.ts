@@ -2,6 +2,7 @@ import { getInboundFormCapabilities } from '@pasarguard/xray-config-kit'
 import type { TFunction } from 'i18next'
 import { z } from 'zod'
 import { isValidXrayPortList } from '@/features/core-editor/kit/xray-port-list-validation'
+import { validateMldsa65Seed, validateMldsa65Verify } from '@/utils/mldsa65'
 type Caps = ReturnType<typeof getInboundFormCapabilities>
 
 /** Must match `securityFieldName('serverNames')` in xray-inbounds-section (`sec_${jsonKey}`). */
@@ -10,9 +11,21 @@ export const INBOUND_FORM_FIELD_SEC_SERVER_NAMES = 'sec_serverNames' as const
 /** Must match `securityFieldName('target')` for REALITY. */
 export const INBOUND_FORM_FIELD_SEC_TARGET = 'sec_target' as const
 
+export const INBOUND_FORM_FIELD_SEC_MLDSA65_SEED = 'sec_mldsa65Seed' as const
+export const INBOUND_FORM_FIELD_SEC_MLDSA65_VERIFY = 'sec_mldsa65Verify' as const
+
 /** Form keys to `form.trigger` when validating REALITY before commit (matches Zod `path` entries). */
 export function realityInboundZodTriggerFieldNames(): string[] {
-  return [INBOUND_FORM_FIELD_SEC_SERVER_NAMES, 'sec_privateKey', 'sec_shortIds', 'sec_shortId', INBOUND_FORM_FIELD_SEC_TARGET, 'sec_xver']
+  return [
+    INBOUND_FORM_FIELD_SEC_SERVER_NAMES,
+    'sec_privateKey',
+    'sec_shortIds',
+    'sec_shortId',
+    INBOUND_FORM_FIELD_SEC_TARGET,
+    'sec_xver',
+    INBOUND_FORM_FIELD_SEC_MLDSA65_SEED,
+    INBOUND_FORM_FIELD_SEC_MLDSA65_VERIFY,
+  ]
 }
 
 /**
@@ -151,6 +164,55 @@ export function createInboundDialogSchema(caps: Caps, t: TFunction) {
               defaultValue: 'REALITY xver must be a non-negative whole number.',
             }),
             path: ['sec_xver'],
+          })
+        }
+      }
+
+      const mldsaSeedValue = typeof raw[INBOUND_FORM_FIELD_SEC_MLDSA65_SEED] === 'string' ? String(raw[INBOUND_FORM_FIELD_SEC_MLDSA65_SEED]).trim() : ''
+      const mldsaVerifyValue =
+        typeof raw[INBOUND_FORM_FIELD_SEC_MLDSA65_VERIFY] === 'string' ? String(raw[INBOUND_FORM_FIELD_SEC_MLDSA65_VERIFY]).trim() : ''
+
+      if (mldsaVerifyValue && !mldsaSeedValue) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: t('coreEditor.inbound.validation.mldsa65VerifyRequiresSeed', {
+            defaultValue: 'ML-DSA-65 verify requires a matching seed on the server. Generate a pair or clear verify.',
+          }),
+          path: [INBOUND_FORM_FIELD_SEC_MLDSA65_VERIFY],
+        })
+      }
+
+      if (mldsaSeedValue) {
+        const seedCheck = validateMldsa65Seed(mldsaSeedValue)
+        if (!seedCheck.ok) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: t('coreEditor.inbound.validation.mldsa65SeedInvalid', {
+              defaultValue: 'ML-DSA-65 seed must be a 32-byte URL-safe Base64 value.',
+            }),
+            path: [INBOUND_FORM_FIELD_SEC_MLDSA65_SEED],
+          })
+        }
+        if (mldsaSeedValue === privateKeyValue) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: t('coreEditor.inbound.validation.mldsa65SeedReusesPrivateKey', {
+              defaultValue: 'ML-DSA-65 seed must not be the same as the REALITY private key.',
+            }),
+            path: [INBOUND_FORM_FIELD_SEC_MLDSA65_SEED],
+          })
+        }
+      }
+
+      if (mldsaVerifyValue) {
+        const verifyCheck = validateMldsa65Verify(mldsaVerifyValue)
+        if (!verifyCheck.ok) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: t('coreEditor.inbound.validation.mldsa65VerifyInvalid', {
+              defaultValue: 'ML-DSA-65 verify must be a 1952-byte URL-safe Base64 public key.',
+            }),
+            path: [INBOUND_FORM_FIELD_SEC_MLDSA65_VERIFY],
           })
         }
       }
