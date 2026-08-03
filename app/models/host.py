@@ -82,6 +82,34 @@ class FinalMaskBaseModel(BaseModel):
     model_config = ConfigDict(extra="allow", populate_by_name=True, use_enum_values=True)
 
 
+class FinalMaskFragmentSettings(FinalMaskBaseModel):
+    packets: str | None = Field(default=None, pattern=r"^$|^(:?tlshello|[\d-]{1,16})$")
+    lengths: list[str | int] | None = Field(default=None)
+    delays: list[str | int] | None = Field(default=None)
+    max_split: str | int | None = Field(default=None, alias="maxSplit")
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_legacy_fields(cls, value):
+        if not isinstance(value, dict):
+            return value
+
+        value = {**value}
+
+        length = value.pop("length", None)
+        if length is not None and "lengths" not in value:
+            value["lengths"] = [length]
+
+        # FinalMask uses "delay"; older UI used Freedom-style "interval"
+        delay = value.pop("delay", None)
+        interval = value.pop("interval", None)
+        legacy_delay = delay if delay is not None else interval
+        if legacy_delay is not None and "delays" not in value:
+            value["delays"] = [legacy_delay]
+
+        return value
+
+
 class FinalMaskTcpType(str, Enum):
     header_custom = "header-custom"
     fragment = "fragment"
@@ -187,7 +215,7 @@ class FinalMaskMkcpLegacySettings(FinalMaskBaseModel):
 
 
 class FinalMaskNoiseSettings(FinalMaskBaseModel):
-    reset: int | None = Field(default=None)
+    reset: str | int | None = Field(default=None)
     noise: list[XrayNoiseSettings] | None = Field(default=None)
 
 
@@ -215,7 +243,7 @@ class FinalMaskQuicParams(FinalMaskBaseModel):
 
 FinalMaskTcpSettings = (
     FinalMaskTcpHeaderCustomSettings
-    | XrayFragmentSettings
+    | FinalMaskFragmentSettings
     | FinalMaskSudokuSettings
     | FinalMaskXmcSettings
     | dict[str, Any]
@@ -237,7 +265,7 @@ FinalMaskUdpSettings = (
 
 FINAL_MASK_TCP_SETTINGS_MODELS = {
     FinalMaskTcpType.header_custom: FinalMaskTcpHeaderCustomSettings,
-    FinalMaskTcpType.fragment: XrayFragmentSettings,
+    FinalMaskTcpType.fragment: FinalMaskFragmentSettings,
     FinalMaskTcpType.sudoku: FinalMaskSudokuSettings,
     FinalMaskTcpType.xmc: FinalMaskXmcSettings,
 }

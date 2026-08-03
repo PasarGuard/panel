@@ -280,6 +280,15 @@ def test_host_finalmask_new_types(access_token):
     finalmask_payload = {
         "tcp": [
             {
+                "type": "fragment",
+                "settings": {
+                    "packets": "tlshello",
+                    "lengths": ["3-5", "6-8", "10-20"],
+                    "delays": ["10-20"],
+                    "maxSplit": "3-6",
+                },
+            },
+            {
                 "type": "xmc",
                 "settings": {
                     "hostname": "mc.example.com",
@@ -293,7 +302,7 @@ def test_host_finalmask_new_types(access_token):
                         }
                     ],
                 },
-            }
+            },
         ],
         "udp": [
             {
@@ -331,10 +340,17 @@ def test_host_finalmask_new_types(access_token):
                     "packetSize": "100-200",
                 },
             },
+            {
+                "type": "noise",
+                "settings": {
+                    "reset": "30-60",
+                    "noise": [{"type": "rand", "rand": "1-8192", "delay": "10-20"}],
+                },
+            },
         ],
         "quicParams": {
             "congestion": "bbr",
-            "bbrProfile": "desktop",
+            "bbrProfile": "standard",
             "debug": True,
             "brutalUp": 100,
             "brutalDown": 100,
@@ -364,10 +380,15 @@ def test_host_finalmask_new_types(access_token):
         assert get_res.status_code == status.HTTP_200_OK
         data = get_res.json()
         fm = data.get("final_mask_settings") or {}
-        assert fm.get("quicParams", {}).get("bbrProfile") == "desktop"
-        assert len(fm.get("udp", [])) == 5
+        assert fm.get("quicParams", {}).get("bbrProfile") == "standard"
+        assert len(fm.get("tcp", [])) == 2
+        assert fm["tcp"][0]["type"] == "fragment"
+        assert fm["tcp"][0]["settings"].get("lengths") == ["3-5", "6-8", "10-20"]
+        assert fm["tcp"][0]["settings"].get("delays") == ["10-20"]
+        assert len(fm.get("udp", [])) == 6
         assert fm["udp"][0]["type"] == "realm"
         assert fm["udp"][1]["type"] == "mkcp-legacy"
+        assert fm["udp"][5]["settings"].get("reset") == "30-60"
     finally:
         client.delete(f"/api/host/{host_id}", headers={"Authorization": f"Bearer {access_token}"})
         delete_core(access_token, core["id"])

@@ -2692,7 +2692,19 @@ export const FinalMaskTcpType = {
 
 export type FinalMaskTcpLayerOutputSettingsAnyOf = { [key: string]: unknown }
 
-export type FinalMaskTcpLayerOutputSettings = FinalMaskTcpHeaderCustomSettings | XrayFragmentSettingsOutput | FinalMaskSudokuSettings | FinalMaskXmcSettings | FinalMaskTcpLayerOutputSettingsAnyOf
+export type FinalMaskFragmentSettingsMaxSplit = string | number | null
+
+export type FinalMaskFragmentSettingsPackets = string | null
+
+export interface FinalMaskFragmentSettings {
+  packets?: FinalMaskFragmentSettingsPackets
+  lengths?: (string | number)[] | null
+  delays?: (string | number)[] | null
+  maxSplit?: FinalMaskFragmentSettingsMaxSplit
+  [key: string]: unknown
+}
+
+export type FinalMaskTcpLayerOutputSettings = FinalMaskTcpHeaderCustomSettings | FinalMaskFragmentSettings | FinalMaskSudokuSettings | FinalMaskXmcSettings | FinalMaskTcpLayerOutputSettingsAnyOf
 
 export interface FinalMaskTcpLayerOutput {
   type: FinalMaskTcpType
@@ -2737,7 +2749,7 @@ export interface FinalMaskSudokuSettings {
   [key: string]: unknown
 }
 
-export type FinalMaskTcpLayerInputSettings = FinalMaskTcpHeaderCustomSettings | XrayFragmentSettingsInput | FinalMaskSudokuSettings | FinalMaskXmcSettings | FinalMaskTcpLayerInputSettingsAnyOf
+export type FinalMaskTcpLayerInputSettings = FinalMaskTcpHeaderCustomSettings | FinalMaskFragmentSettings | FinalMaskSudokuSettings | FinalMaskXmcSettings | FinalMaskTcpLayerInputSettingsAnyOf
 
 export interface FinalMaskTcpLayerInput {
   type: FinalMaskTcpType
@@ -2769,9 +2781,12 @@ export type FinalMaskQuicParamsBrutalUp = string | number | null
 
 export type FinalMaskQuicParamsDebug = boolean | null
 
+export type FinalMaskQuicParamsBbrProfile = string | null
+
 export interface FinalMaskQuicParams {
   congestion?: FinalMaskQuicParamsCongestion
   debug?: FinalMaskQuicParamsDebug
+  bbrProfile?: FinalMaskQuicParamsBbrProfile
   brutalUp?: FinalMaskQuicParamsBrutalUp
   brutalDown?: FinalMaskQuicParamsBrutalDown
   udpHop?: FinalMaskQuicParamsUdpHop
@@ -2807,7 +2822,7 @@ export interface FinalMaskPasswordSettings {
 
 export type FinalMaskNoiseSettingsNoise = XrayNoiseSettings[] | null
 
-export type FinalMaskNoiseSettingsReset = number | null
+export type FinalMaskNoiseSettingsReset = string | number | null
 
 export interface FinalMaskNoiseSettings {
   reset?: FinalMaskNoiseSettingsReset
