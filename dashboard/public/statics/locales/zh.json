@@ -391,7 +391,7 @@
       },
       "manualSubscription": {
         "title": "手动订阅要求 HWID",
-        "description": "将强制 HWID 请求头策略应用到手动订阅格式请求。"
+        "description": "将 HWID 策略应用于手动订阅格式，并在订阅页面隐藏配置链接。"
       },
       "limits": {
         "title": "设备限制",

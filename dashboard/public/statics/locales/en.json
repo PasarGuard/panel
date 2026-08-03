@@ -409,7 +409,7 @@
       },
       "manualSubscription": {
         "title": "Require HWID for manual subscriptions",
-        "description": "Apply the forced HWID header policy to manual subscription format requests."
+        "description": "Apply HWID policy to manual subscription formats and hide config links on the subscription page."
       },
       "limits": {
         "title": "Device limits",

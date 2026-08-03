@@ -416,7 +416,10 @@ class SubscriptionOperation(BaseOperation):
                 if db_user.admin and db_user.admin.sub_template
                 else template_settings.subscription_page_template
             )
-            is_allow_browser_config = sub_settings.allow_browser_config and not is_hwid_enabled
+            global_hwid_conf: HWIDSettings = await hwid_settings()
+            is_allow_browser_config = sub_settings.allow_browser_config and (
+                not is_hwid_enabled or not global_hwid_conf.require_hwid_for_manual_sub
+            )
             links = []
             if is_allow_browser_config:
                 conf, media_type = await self.fetch_config(
