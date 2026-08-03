@@ -1,4 +1,5 @@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { StringArrayPopoverInput } from '@/components/common/string-array-popover-input'
@@ -17,7 +18,7 @@ import { cn } from '@/lib/utils'
 import { ClientTemplateType, UserStatus, getHosts, useGetClientTemplatesSimple } from '@/service/api'
 import { queryClient } from '@/utils/query-client'
 import { useQuery } from '@tanstack/react-query'
-import { Cable, ChevronsLeftRightEllipsis, Copy, Pencil, GlobeLock, Info, Loader2, Lock, Network, Plus, Route, Trash2, X, ListTodo } from 'lucide-react'
+import { AlertTriangle, Cable, ChevronsLeftRightEllipsis, Copy, Pencil, GlobeLock, Info, Loader2, Lock, Network, Plus, Route, Trash2, X, ListTodo } from 'lucide-react'
 import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -324,9 +325,17 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
   const [_isSubmitting, setIsSubmitting] = useState(false)
   const selectedInboundTag = form.watch('inbound_tag')
   const selectedNoiseSettings = form.watch('noise_settings.xray')
+  const selectedFragmentSettings = form.watch('fragment_settings.xray')
   const xPaddingObfsEnabled = form.watch('transport_settings.xhttp_settings.x_padding_obfs_mode') === true
   const infoPopoverSide = isMobile ? 'bottom' : dir === 'rtl' ? 'left' : 'right'
   const infoPopoverAlign = isMobile ? 'center' : 'start'
+  const hasFragmentPopulated = Boolean(
+    String(selectedFragmentSettings?.packets ?? '').trim() || String(selectedFragmentSettings?.length ?? '').trim() || String(selectedFragmentSettings?.interval ?? '').trim(),
+  )
+  const hasNoisePopulated = (selectedNoiseSettings || []).some(
+    noise => noise && (String(noise.packet ?? '').trim() || String(noise.delay ?? '').trim() || String(noise.rand_range ?? '').trim()),
+  )
+  const showFragmentNoiseDeprecatedWarning = hasFragmentPopulated || hasNoisePopulated
 
   const renderCamouflageSection = () => {
     return (
@@ -345,6 +354,16 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
             </TabsList>
             <TabsContent dir={dir} value="xray">
               <div className="space-y-6">
+                {showFragmentNoiseDeprecatedWarning && (
+                  <Alert className="border-amber-500/40 bg-amber-500/10 text-amber-900 dark:text-amber-100">
+                    <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                    <AlertDescription className="text-xs sm:text-sm">
+                      {t('hostsDialog.fragmentNoiseDeprecated', {
+                        defaultValue: '`noise` and `fragment` are being removed in newer versions — use `finalMask` instead.',
+                      })}
+                    </AlertDescription>
+                  </Alert>
+                )}
                 {/* Fragment Settings */}
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">

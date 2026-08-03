@@ -1649,6 +1649,7 @@
       "randRange": "Случайный диапазон",
       "randRangePlaceholder": "Введите случайный диапазон (например 10-20)"
     },
+    "fragmentNoiseDeprecated": "`noise` и `fragment` удаляются в новых версиях — используйте `finalMask`.",
     "finalmask": {
       "title": "Настройки FinalMask",
       "enable": "Включить FinalMask",
@@ -2655,6 +2656,7 @@
         "noiseDelay": "Задержка (мс)",
         "addNoise": "Добавить шум",
         "removeNoise": "Удалить шум",
+        "fragmentNoiseDeprecated": "`noise` и `fragment` удаляются в новых версиях — используйте `finalMask`.",
         "finalRulesTitle": "Финальные правила",
         "finalRulesHint": "Применяются на финальной стадии Freedom. IP: по одному CIDR или geoip на строку.",
         "addRule": "Добавить правило",

@@ -1431,6 +1431,7 @@
       "randRange": "Rand Range",
       "randRangePlaceholder": "Enter rand range (e.g. 10-20)"
     },
+    "fragmentNoiseDeprecated": "`noise` and `fragment` are being removed in newer versions — use `finalMask` instead.",
     "finalmask": {
       "title": "FinalMask Settings",
       "enable": "Enable FinalMask",
@@ -2797,6 +2798,7 @@
         "noiseDelay": "Delay (ms)",
         "addNoise": "Add noise",
         "removeNoise": "Remove noise",
+        "fragmentNoiseDeprecated": "`noise` and `fragment` are being removed in newer versions — use `finalMask` instead.",
         "finalRulesTitle": "Final rules",
         "finalRulesHint": "Applied at Freedom’s final outbound stage. IP: one CIDR or geoip tag per line.",
         "addRule": "Add rule",

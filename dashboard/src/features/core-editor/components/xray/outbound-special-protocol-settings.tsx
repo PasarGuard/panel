@@ -1,4 +1,5 @@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { StringArrayPopoverInput } from '@/components/common/string-array-popover-input'
 import { Input } from '@/components/ui/input'
@@ -10,7 +11,7 @@ import { normalizeSettingsFromEditor } from '@/features/core-editor/kit/outbound
 import { useCoreEditorStore } from '@/features/core-editor/state/core-editor-store'
 import type { Outbound } from '@pasarguard/xray-config-kit'
 import type { TFunction } from 'i18next'
-import { Globe2, ListOrdered, Plus, Radio, Scissors, Trash2 } from 'lucide-react'
+import { AlertTriangle, Globe2, ListOrdered, Plus, Radio, Scissors, Trash2 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 
 type PatchOutbound = (next: Outbound) => void
@@ -186,6 +187,10 @@ function OutboundFreedomSettings({ ob, patchOutbound, t }: { ob: Outbound; patch
     commitFreedom(next)
   }
 
+  const hasFragmentPopulated = Boolean(fragPackets.trim() || fragLength.trim() || fragInterval.trim())
+  const hasNoisePopulated = noiseRows.some(row => row.packet.trim() || row.delay.trim())
+  const showFragmentNoiseDeprecatedWarning = hasFragmentPopulated || hasNoisePopulated
+
   return (
     <div className="flex flex-col gap-4">
       <p className="text-muted-foreground text-xs">
@@ -193,6 +198,17 @@ function OutboundFreedomSettings({ ob, patchOutbound, t }: { ob: Outbound; patch
           defaultValue: 'Freedom forwards traffic as-is. Fragment, noises, and final rules are optional; use JSON tab for edge cases.',
         })}
       </p>
+
+      {showFragmentNoiseDeprecatedWarning && (
+        <Alert className="border-amber-500/40 bg-amber-500/10 text-amber-900 dark:text-amber-100">
+          <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+          <AlertDescription className="text-xs sm:text-sm">
+            {t('coreEditor.outbound.freedom.fragmentNoiseDeprecated', {
+              defaultValue: '`noise` and `fragment` are being removed in newer versions — use `finalMask` instead.',
+            })}
+          </AlertDescription>
+        </Alert>
+      )}
 
       <div className="grid w-full gap-4 sm:grid-cols-2">
         <div className="flex w-full min-w-0 flex-col gap-2">

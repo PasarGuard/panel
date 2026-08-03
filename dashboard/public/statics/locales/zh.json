@@ -1404,6 +1404,7 @@
       "randRange": "随机范围",
       "randRangePlaceholder": "输入随机范围（例如 10-20）"
     },
+    "fragmentNoiseDeprecated": "`noise` 和 `fragment` 将在新版本中移除 — 请改用 `finalMask`。",
     "finalmask": {
       "title": "FinalMask 设置",
       "enable": "启用 FinalMask",
@@ -2724,6 +2725,7 @@
         "noiseDelay": "延迟（毫秒）",
         "addNoise": "添加噪声",
         "removeNoise": "删除噪声",
+        "fragmentNoiseDeprecated": "`noise` 和 `fragment` 将在新版本中移除 — 请改用 `finalMask`。",
         "finalRulesTitle": "最终规则 (finalRules)",
         "finalRulesHint": "在 Freedom 最终出站阶段匹配。IP：每行一个 CIDR 或 geoip 标签。",
         "addRule": "添加规则",
