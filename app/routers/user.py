@@ -1,7 +1,7 @@
 from datetime import datetime as dt
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, Request, status
+from fastapi import APIRouter, Depends, Request, status
 
 from app.db import AsyncSession, get_db
 from app.models.admin import AdminDetails
@@ -320,8 +320,8 @@ async def get_users_sub_update_chart(
     username: str | None = None,
     admin_id: int | None = None,
     period: Period = Period.hour,
-    start: dt | None = Query(None, examples=["2024-01-01T00:00:00+03:30"]),
-    end: dt | None = Query(None, examples=["2024-01-31T23:59:59+03:30"]),
+    start: dt | None = None,
+    end: dt | None = None,
     db: AsyncSession = Depends(get_db),
     admin: AdminDetails = Depends(require_permission("users", "read")),
 ):
