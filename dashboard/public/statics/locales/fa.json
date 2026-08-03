@@ -2146,6 +2146,7 @@
     "selectEncryptionMethod": "انتخاب روش رمزنگاری",
     "regeneratePassword": "تولید مجدد رمز عبور",
     "generateVLESSEncryption": "رمزنگاری VLESS",
+    "clearVLESSEncryption": "حذف رمزنگاری",
     "generatingVLESSEncryption": "در حال تولید رمزنگاری VLESS...",
     "vlessEncryptionGenerated": "رمزنگاری VLESS با موفقیت تولید شد",
     "vlessEncryptionGenerationFailed": "خطا در تولید رمزنگاری VLESS",

@@ -2121,6 +2121,7 @@
     "selectEncryptionMethod": "Выберите метод шифрования",
     "regeneratePassword": "Сгенерировать пароль заново",
     "generateVLESSEncryption": "Шифрование VLESS",
+    "clearVLESSEncryption": "Удалить шифрование",
     "generatingVLESSEncryption": "Генерация шифрования VLESS...",
     "vlessEncryptionGenerated": "Шифрование VLESS успешно сгенерировано",
     "vlessEncryptionGenerationFailed": "Не удалось сгенерировать шифрование VLESS",

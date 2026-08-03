@@ -2190,6 +2190,7 @@
     "selectEncryptionMethod": "选择加密方法",
     "regeneratePassword": "重新生成密码",
     "generateVLESSEncryption": "VLESS 加密",
+    "clearVLESSEncryption": "移除加密",
     "generatingVLESSEncryption": "正在生成 VLESS 加密...",
     "vlessEncryptionGenerated": "VLESS 加密生成成功",
     "vlessEncryptionGenerationFailed": "VLESS 加密生成失败",

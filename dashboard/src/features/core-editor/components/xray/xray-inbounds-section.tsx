@@ -2224,6 +2224,14 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
     setVlessAdvancedOpen(true)
   }
 
+  const clearInboundVlessEncryption = () => {
+    form.setValue('encryption', 'none')
+    form.setValue('decryption', '')
+    form.setValue('vlessEncryptionMethod', 'none')
+    setVlessDecryptionJustGenerated(false)
+    patchInbound({ encryption: 'none', decryption: '' } as Partial<Inbound>)
+  }
+
   const generateRealityKeys = async () => {
     try {
       setIsGeneratingRealityKeyPair(true)
@@ -2779,13 +2787,30 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                 )}
 
                 {inbound.protocol === 'vless' && (
-                  <div className="sm:col-span-2">
-                    <LoaderButton type="button" onClick={openInboundVlessGenerator} className="h-10 w-full text-sm font-medium transition-all hover:shadow-md sm:h-11" isLoading={false}>
+                  <div className="flex flex-col gap-2 sm:col-span-2 sm:flex-row">
+                    <LoaderButton
+                      type="button"
+                      onClick={openInboundVlessGenerator}
+                      className="h-10 w-full flex-1 text-sm font-medium transition-all hover:shadow-md sm:h-11"
+                      isLoading={false}
+                    >
                       <span className="flex items-center gap-2 truncate">
                         {vlessDecryptionJustGenerated && <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-green-500 ring-2 ring-green-500/20" />}
                         {t('coreConfigModal.generateVLESSEncryption')}
                       </span>
                     </LoaderButton>
+                    {vlessInboundEncryptionEnabled(watchedVlessEncryption) && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="h-10 w-full shrink-0 text-sm font-medium sm:h-11 sm:w-auto"
+                        onClick={clearInboundVlessEncryption}
+                        title={t('coreConfigModal.clearVLESSEncryption', { defaultValue: 'Remove encryption' })}
+                      >
+                        <Trash2 className="size-4 text-red-500" />
+                        {t('coreConfigModal.clearVLESSEncryption', { defaultValue: 'Remove encryption' })}
+                      </Button>
+                    )}
                   </div>
                 )}
 

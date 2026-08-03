@@ -2231,6 +2231,7 @@
     "selectEncryptionMethod": "Select Encryption Method",
     "regeneratePassword": "Regenerate Password",
     "generateVLESSEncryption": "VLESS Encryption",
+    "clearVLESSEncryption": "Remove encryption",
     "generatingVLESSEncryption": "Generating VLESS Encryption...",
     "vlessEncryptionGenerated": "VLESS encryption generated successfully",
     "vlessEncryptionGenerationFailed": "Failed to generate VLESS encryption",
