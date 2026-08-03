@@ -4161,7 +4161,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                                 </div>
                               )}
                               {isReality && jsonKey === 'publicKey' && (
-                                <div className={INBOUND_SECURITY_ACTION_GRID_ITEM_CLASS}>
+                                <div className="sm:col-span-2">
                                   <LoaderButton
                                     type="button"
                                     onClick={() => void generateShortId()}
