@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ComponentProps } from 'react'
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, XAxis, YAxis, type TooltipProps } from 'recharts'
 import { DateRange } from 'react-day-picker'
-import { BarChart3, Calendar, PieChart as PieChartIcon, TrendingUp, Users } from 'lucide-react'
+import { AlertTriangle, BarChart3, Calendar, PieChart as PieChartIcon, TrendingUp, Users } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useTheme } from 'next-themes'
 
@@ -22,16 +22,23 @@ import {
   useGetUsersSubUpdateChart,
 } from '@/service/api'
 import {
+  CHART_PERIOD_OVERRIDE_AUTO,
+  type ChartPeriodOverride,
   formatPeriodLabelForPeriod,
   formatTooltipDate,
   getChartQueryRangeFromDateRange,
   getChartQueryRangeFromShortcut,
-  getXAxisIntervalForShortcut,
+  getChartXAxisInterval,
+  resolvePeriodOverride,
   TrafficShortcutKey,
 } from '@/utils/chart-period-utils'
+import { getChartBrushWindow, getChartRenderFlags } from '@/utils/chart-performance'
 import { numberWithCommas } from '@/utils/formatByte'
 
+import ChartBrush from './chart-brush'
+import DenseChartAreaHint from './dense-chart-area-hint'
 import { EmptyState } from './empty-state'
+import PeriodSelector from './period-selector'
 import TimeSelector, { TRAFFIC_TIME_SELECTOR_SHORTCUTS } from './time-selector'
 
 interface UserSubUpdatePieChartProps {
@@ -225,6 +232,7 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
   const [selectedAdmin, setSelectedAdmin] = useState<string>('all')
   const [selectedAdminId, setSelectedAdminId] = useState<number | null>(() => (adminId != null ? adminId : null))
   const [selectedTime, setSelectedTime] = useState<TrafficShortcutKey>('all')
+  const [periodOverride, setPeriodOverride] = useState<ChartPeriodOverride>(CHART_PERIOD_OVERRIDE_AUTO)
   const [showCustomRange, setShowCustomRange] = useState(false)
   const [customRange, setCustomRange] = useState<DateRange | undefined>(undefined)
   const [windowWidth, setWindowWidth] = useState<number>(() => (typeof window !== 'undefined' ? window.innerWidth : 1024))
@@ -239,16 +247,19 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
   }, [adminId])
 
   const activeQueryRange = useMemo(() => {
+    const resolvedOverride = resolvePeriodOverride(periodOverride)
+    const periodOptions = { minuteForOneHour: true, periodOverride: resolvedOverride }
+
     if (showCustomRange && customRange?.from && customRange?.to) {
-      return getChartQueryRangeFromDateRange(customRange, selectedTime)
+      return getChartQueryRangeFromDateRange(customRange, selectedTime, periodOptions)
     }
 
-    const range = getChartQueryRangeFromShortcut(selectedTime, new Date(), { minuteForOneHour: true })
-    if (selectedTime === 'all') {
+    const range = getChartQueryRangeFromShortcut(selectedTime, new Date(), periodOptions)
+    if (!resolvedOverride && selectedTime === 'all') {
       return { ...range, period: Period.month }
     }
     return range
-  }, [showCustomRange, customRange, selectedTime])
+  }, [showCustomRange, customRange, selectedTime, periodOverride])
 
   const activePeriod = activeQueryRange.period
 
@@ -361,6 +372,14 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
     [segments],
   )
 
+  const labelRangeHint = useMemo(
+    () => ({
+      shortcut: showCustomRange ? undefined : selectedTime,
+      customRange: showCustomRange ? customRange : undefined,
+    }),
+    [customRange, selectedTime, showCustomRange],
+  )
+
   const timeSeriesData = useMemo<ChartDataPoint[]>(() => {
     if (!data?.stats?.length || series.length === 0) return []
 
@@ -376,7 +395,7 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
       let row = periods.get(periodStart)
       if (!row) {
         row = {
-          time: formatPeriodLabelForPeriod(periodStart, activePeriod, i18n.language),
+          time: formatPeriodLabelForPeriod(periodStart, activePeriod, i18n.language, labelRangeHint),
           _period_start: periodStart,
         }
         series.forEach(item => {
@@ -389,7 +408,7 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
     })
 
     return Array.from(periods.values()).sort((a, b) => String(a._period_start).localeCompare(String(b._period_start)))
-  }, [activePeriod, data?.stats, i18n.language, series])
+  }, [activePeriod, data?.stats, i18n.language, labelRangeHint, series])
 
   const piePaddingAngle = useMemo(() => {
     if (pieChartData.length <= 1) return 0
@@ -409,24 +428,24 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
 
   const pieStrokeWidth = pieChartData.length > 16 ? 1 : 2
 
-  const xAxisInterval = useMemo(() => {
-    if (showCustomRange && customRange?.from && customRange?.to) {
-      if (activePeriod === Period.hour || activePeriod === Period.minute) {
-        return Math.max(1, Math.floor(timeSeriesData.length / 8))
-      }
+  const xAxisInterval = useMemo(
+    () =>
+      getChartXAxisInterval({
+        dataLength: timeSeriesData.length,
+        period: activePeriod,
+        shortcut: selectedTime,
+        windowWidth,
+        customRange: showCustomRange ? customRange : undefined,
+        periodOverride: resolvePeriodOverride(periodOverride),
+      }),
+    [activePeriod, customRange, selectedTime, showCustomRange, timeSeriesData.length, windowWidth, periodOverride],
+  )
 
-      const daysDiff = Math.ceil(Math.abs(customRange.to.getTime() - customRange.from.getTime()) / (1000 * 60 * 60 * 24))
-      if (daysDiff > 30) return Math.max(1, Math.floor(timeSeriesData.length / 5))
-      if (daysDiff > 7) return Math.max(1, Math.floor(timeSeriesData.length / 8))
-      return 0
-    }
-
-    if (windowWidth < 500 && selectedTime === '1w') {
-      return timeSeriesData.length <= 4 ? 0 : Math.max(1, Math.floor(timeSeriesData.length / 4))
-    }
-
-    return getXAxisIntervalForShortcut(selectedTime, timeSeriesData.length, { minuteForOneHour: true })
-  }, [activePeriod, customRange, selectedTime, showCustomRange, timeSeriesData.length, windowWidth])
+  const { isAnimationActive, usePerBarRadius, useAccessibilityLayer, areaCurveType } = useMemo(
+    () => getChartRenderFlags(timeSeriesData.length, series.length),
+    [timeSeriesData.length, series.length],
+  )
+  const brushWindow = useMemo(() => getChartBrushWindow(timeSeriesData.length, series.length), [series.length, timeSeriesData.length])
 
   const hasPieData = segments.some(segment => segment.count > 0)
   const hasBarData = timeSeriesData.length > 0
@@ -495,31 +514,45 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
       <CardHeader className="flex flex-col items-stretch space-y-0 border-b p-0 xl:flex-row">
         <div className="flex flex-1 flex-col gap-2 border-b px-4 py-3 xl:px-6 xl:py-4">
           <div className="flex min-w-0 flex-col justify-center gap-1 pt-2">
-            <CardTitle className="mb-0.5 flex items-center gap-2">
+            <CardTitle className="mb-0.5 flex min-w-0 items-center gap-2">
               <Users className="text-muted-foreground h-4 w-4 shrink-0" />
-              <span>{t('statistics.subscriptionDistribution')}</span>
+              <span className="truncate">{t('statistics.subscriptionDistribution')}</span>
             </CardTitle>
-            <CardDescription>{t('statistics.subscriptionDistributionDescription')}</CardDescription>
+            <CardDescription className="text-pretty">{t('statistics.subscriptionDistributionDescription')}</CardDescription>
+            <p className="text-muted-foreground flex items-start gap-1.5 text-xs">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              <span>
+                {t('statistics.subscriptionDistributionRetentionNote', {
+                  limit: 10,
+                  env: 'USER_SUBSCRIPTION_CLIENTS_LIMIT',
+                  defaultValue:
+                    'By default only the latest {{limit}} subscription updates are kept per user. Change this with {{env}} in your environment.',
+                })}
+              </span>
+            </p>
           </div>
-          <div className="flex w-full min-w-0 flex-wrap items-center gap-2">
-            <div className="flex w-full min-w-0 items-center gap-2 sm:w-auto sm:flex-none">
+          <div className="flex w-full min-w-0 flex-col gap-2">
+            <div className="flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
               <TimeSelector selectedTime={selectedTime} setSelectedTime={handleTimeSelect} shortcuts={TRAFFIC_TIME_SELECTOR_SHORTCUTS} maxVisible={5} className="w-full sm:w-fit" />
-              <button
-                type="button"
-                aria-label={t('statistics.customRange', { defaultValue: 'Custom Range' })}
-                className={`shrink-0 rounded border p-1 ${showCustomRange ? 'bg-muted' : ''}`}
-                onClick={() => {
-                  const next = !showCustomRange
-                  setShowCustomRange(next)
-                  if (!next) {
-                    setCustomRange(undefined)
-                  }
-                }}
-              >
-                <Calendar className="h-4 w-4" />
-              </button>
+              <div className="flex w-full items-center gap-2 sm:w-auto">
+                <PeriodSelector value={periodOverride} onValueChange={setPeriodOverride} className="min-w-0 flex-1 sm:w-[7rem] sm:flex-none" />
+                <button
+                  type="button"
+                  aria-label={t('statistics.customRange', { defaultValue: 'Custom Range' })}
+                  className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border ${showCustomRange ? 'bg-muted' : ''}`}
+                  onClick={() => {
+                    const next = !showCustomRange
+                    setShowCustomRange(next)
+                    if (!next) {
+                      setCustomRange(undefined)
+                    }
+                  }}
+                >
+                  <Calendar className="h-4 w-4" />
+                </button>
+              </div>
             </div>
-            <div className="flex w-full items-center gap-2 sm:w-auto sm:shrink-0">
+            <div className="flex w-full items-center gap-2">
               <AdminFilterCombobox
                 value={selectedAdmin}
                 onValueChange={adminUsername => {
@@ -557,7 +590,7 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
             </div>
           )}
         </div>
-        <div className="m-0 flex min-w-[180px] flex-col justify-center gap-2 p-4 xl:border-l xl:p-5 xl:px-6">
+        <div className="m-0 flex w-full flex-col justify-center gap-2 p-4 xl:w-auto xl:min-w-[180px] xl:border-l xl:p-5 xl:px-6">
           <span className="text-muted-foreground text-sm">{t('statistics.subscriptionsDuringPeriod', { defaultValue: 'Updates During Period' })}</span>
           {isLoading ? (
             <div className="flex justify-center">
@@ -632,9 +665,10 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
           </div>
         ) : (
           <div className="mx-auto w-full">
+            <DenseChartAreaHint pointCount={timeSeriesData.length} />
             <ChartContainer dir="ltr" config={chartConfig} className="h-[200px] w-full sm:h-[320px] lg:h-[400px]">
               {chartViewType === 'area' ? (
-                <AreaChart accessibilityLayer data={timeSeriesData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }} onClick={handleChartPointClick}>
+                <AreaChart {...(useAccessibilityLayer ? { accessibilityLayer: true } : {})} data={timeSeriesData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }} onClick={handleChartPointClick}>
                   <defs>
                     {series.map(item => (
                       <linearGradient key={item.key} id={`sub-update-area-gradient-${item.key}`} x1="0" y1="0" x2="0" y2="1">
@@ -644,7 +678,7 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
                     ))}
                   </defs>
                   <CartesianGrid direction="ltr" vertical={false} />
-                  <XAxis direction="ltr" dataKey="time" tickLine={false} tickMargin={10} axisLine={false} minTickGap={5} interval={xAxisInterval} />
+                  <XAxis direction="ltr" dataKey="time" tickLine={false} tickMargin={10} axisLine={false} minTickGap={28} interval={xAxisInterval} />
                   <YAxis
                     direction="ltr"
                     tickLine={false}
@@ -659,22 +693,24 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
                   {series.map(item => (
                     <Area
                       key={item.key}
-                      type="monotone"
+                      type={areaCurveType}
                       dataKey={item.key}
                       stackId="a"
                       fill={`url(#sub-update-area-gradient-${item.key})`}
                       stroke={item.color}
                       strokeWidth={1.5}
                       dot={false}
-                      activeDot={{ r: 4 }}
+                      activeDot={false}
+                      isAnimationActive={isAnimationActive}
                       cursor="pointer"
                     />
                   ))}
+                  {brushWindow && <ChartBrush startIndex={brushWindow.startIndex} endIndex={brushWindow.endIndex} />}
                 </AreaChart>
               ) : (
-                <BarChart accessibilityLayer data={timeSeriesData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }} onClick={handleChartPointClick}>
+                <BarChart {...(useAccessibilityLayer ? { accessibilityLayer: true } : {})} data={timeSeriesData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }} onClick={handleChartPointClick}>
                   <CartesianGrid direction="ltr" vertical={false} />
-                  <XAxis direction="ltr" dataKey="time" tickLine={false} tickMargin={10} axisLine={false} minTickGap={5} interval={xAxisInterval} />
+                  <XAxis direction="ltr" dataKey="time" tickLine={false} tickMargin={10} axisLine={false} minTickGap={28} interval={xAxisInterval} />
                   <YAxis
                     direction="ltr"
                     tickLine={false}
@@ -686,12 +722,14 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
                   />
                   <ChartTooltip cursor={false} content={props => <SeriesTooltip {...(props as TooltipProps<number, string>)} period={activePeriod} seriesByKey={seriesByKey} />} />
                   {series.map(item => (
-                    <Bar key={item.key} dataKey={item.key} stackId="a" fill={item.color} radius={SQUARE_RADIUS} cursor="pointer">
-                      {timeSeriesData.map(row => (
-                        <Cell key={`${item.key}-${row._period_start}`} {...getCellRadiusProps(getStackedBarRadius(row, item.key, series))} />
-                      ))}
+                    <Bar key={item.key} dataKey={item.key} stackId="a" fill={item.color} radius={SQUARE_RADIUS} cursor="pointer" isAnimationActive={isAnimationActive}>
+                      {usePerBarRadius &&
+                        timeSeriesData.map(row => (
+                          <Cell key={`${item.key}-${row._period_start}`} {...getCellRadiusProps(getStackedBarRadius(row, item.key, series))} />
+                        ))}
                     </Bar>
                   ))}
+                  {brushWindow && <ChartBrush startIndex={brushWindow.startIndex} endIndex={brushWindow.endIndex} />}
                 </BarChart>
               )}
             </ChartContainer>

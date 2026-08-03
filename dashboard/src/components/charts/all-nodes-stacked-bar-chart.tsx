@@ -10,22 +10,29 @@ import { useChartViewType } from '@/hooks/use-chart-view-type'
 import { Period, type NodeUsageStat, type UserUsageStat, useGetAdminUsageById, useGetAdminUsageByUsername, useGetNodesSimple, type NodeSimple, useGetUsage } from '@/service/api'
 import { formatBytes, formatGigabytes } from '@/utils/formatByte'
 import { Skeleton } from '@/components/ui/skeleton'
+import ChartBrush from './chart-brush'
+import DenseChartAreaHint from './dense-chart-area-hint'
 import { EmptyState } from './empty-state'
 import { BarChart3, Calendar, Download, Info, PieChart as PieChartIcon, Upload } from 'lucide-react'
 import { useTheme } from '@/app/providers/theme-provider'
 import NodeStatsModal from '@/features/nodes/dialogs/node-stats-modal'
 import AdminFilterCombobox from '@/components/common/admin-filter-combobox'
 import TimeSelector, { TRAFFIC_TIME_SELECTOR_SHORTCUTS } from './time-selector'
+import PeriodSelector from './period-selector'
 import { TimeRangeSelector } from '@/components/common/time-range-selector'
 import {
+  CHART_PERIOD_OVERRIDE_AUTO,
+  type ChartPeriodOverride,
   formatTooltipDate,
   getChartQueryRangeFromDateRange,
   getChartQueryRangeFromShortcut,
   formatPeriodLabelForPeriod,
-  getXAxisIntervalForShortcut,
+  getChartXAxisInterval,
+  resolvePeriodOverride,
   toStatsRecord,
   TrafficShortcutKey,
 } from '@/utils/chart-period-utils'
+import { getChartBrushWindow, getChartRenderFlags } from '@/utils/chart-performance'
 
 type NodeChartDataPoint = {
   time: string
@@ -206,6 +213,7 @@ export function AllNodesStackedBarChart() {
   const [selectedAdmin, setSelectedAdmin] = useState<string>('all')
   const [selectedAdminId, setSelectedAdminId] = useState<number | null>(null)
   const [selectedTime, setSelectedTime] = useState<TrafficShortcutKey>('1w')
+  const [periodOverride, setPeriodOverride] = useState<ChartPeriodOverride>(CHART_PERIOD_OVERRIDE_AUTO)
   const [showCustomRange, setShowCustomRange] = useState(false)
   const [customRange, setCustomRange] = useState<DateRange | undefined>(undefined)
   const [windowWidth, setWindowWidth] = useState<number>(() => (typeof window !== 'undefined' ? window.innerWidth : 1024))
@@ -220,12 +228,6 @@ export function AllNodesStackedBarChart() {
   const { data: nodesResponse } = useGetNodesSimple({ all: true }, { query: { enabled: true } })
   const { resolvedTheme } = useTheme()
   const shouldUseNodeUsage = selectedAdmin === 'all'
-
-  const handleModalNavigate = (index: number) => {
-    if (!chartData[index]) return
-    setCurrentDataIndex(index)
-    setSelectedData(chartData[index])
-  }
 
   const nodeList: NodeSimple[] = useMemo(() => nodesResponse?.nodes || [], [nodesResponse])
 
@@ -259,12 +261,14 @@ export function AllNodesStackedBarChart() {
   }, [generateDistinctColor, nodeList, resolvedTheme])
 
   const activeQueryRange = useMemo(() => {
+    const periodOptions = { minuteForOneHour: true, periodOverride: resolvePeriodOverride(periodOverride) }
+
     if (showCustomRange && customRange?.from && customRange?.to) {
-      return getChartQueryRangeFromDateRange(customRange, selectedTime)
+      return getChartQueryRangeFromDateRange(customRange, selectedTime, periodOptions)
     }
 
-    return getChartQueryRangeFromShortcut(selectedTime, new Date(), { minuteForOneHour: true })
-  }, [showCustomRange, customRange, selectedTime])
+    return getChartQueryRangeFromShortcut(selectedTime, new Date(), periodOptions)
+  }, [showCustomRange, customRange, selectedTime, periodOverride])
 
   const activePeriod = activeQueryRange.period
 
@@ -316,6 +320,14 @@ export function AllNodesStackedBarChart() {
   const error = shouldUseNodeUsage ? nodesUsageError : selectedAdminId != null ? adminUsageByIdError : adminUsageByUsernameError
   const statsByNode = useMemo(() => toStatsRecord<NodeUsageStat | UserUsageStat>(usageData?.stats), [usageData?.stats])
 
+  const labelRangeHint = useMemo(
+    () => ({
+      shortcut: showCustomRange ? undefined : selectedTime,
+      customRange: showCustomRange ? customRange : undefined,
+    }),
+    [customRange, selectedTime, showCustomRange],
+  )
+
   const { chartData, totalUsage } = useMemo(() => {
     const statsKeys = Object.keys(statsByNode)
     if (statsKeys.length === 0) {
@@ -333,7 +345,7 @@ export function AllNodesStackedBarChart() {
         const usagePerNodeInGb = usageBytes / nodeCount / (1024 * 1024 * 1024)
 
         const entry: NodeChartDataPoint = {
-          time: formatPeriodLabelForPeriod(point.period_start, activePeriod, i18n.language),
+          time: formatPeriodLabelForPeriod(point.period_start, activePeriod, i18n.language, labelRangeHint),
           _period_start: point.period_start,
         }
 
@@ -361,7 +373,7 @@ export function AllNodesStackedBarChart() {
     const sortedPeriods = Array.from(allPeriods).sort()
     const chartRows = sortedPeriods.map(periodStart => {
       const row: NodeChartDataPoint = {
-        time: formatPeriodLabelForPeriod(periodStart, activePeriod, i18n.language),
+        time: formatPeriodLabelForPeriod(periodStart, activePeriod, i18n.language, labelRangeHint),
         _period_start: periodStart,
       }
 
@@ -395,32 +407,26 @@ export function AllNodesStackedBarChart() {
       chartData: chartRows,
       totalUsage: totalBytes > 0 ? String(formatBytes(totalBytes, 2)) : null,
     }
-  }, [statsByNode, nodeList, activePeriod, i18n.language])
+  }, [statsByNode, nodeList, activePeriod, i18n.language, labelRangeHint])
 
-  const xAxisInterval = useMemo(() => {
-    if (showCustomRange && customRange?.from && customRange?.to) {
-      if (activePeriod === Period.hour || activePeriod === Period.minute) {
-        return Math.max(1, Math.floor(chartData.length / 8))
-      }
+  const xAxisInterval = useMemo(
+    () =>
+      getChartXAxisInterval({
+        dataLength: chartData.length,
+        period: activePeriod,
+        shortcut: selectedTime,
+        windowWidth,
+        customRange: showCustomRange ? customRange : undefined,
+        periodOverride: resolvePeriodOverride(periodOverride),
+      }),
+    [showCustomRange, customRange, activePeriod, selectedTime, chartData.length, windowWidth, periodOverride],
+  )
 
-      const daysDiff = Math.ceil(Math.abs(customRange.to.getTime() - customRange.from.getTime()) / (1000 * 60 * 60 * 24))
-      if (daysDiff > 30) {
-        return Math.max(1, Math.floor(chartData.length / 5))
-      }
-
-      if (daysDiff > 7) {
-        return Math.max(1, Math.floor(chartData.length / 8))
-      }
-
-      return 0
-    }
-
-    if (windowWidth < 500 && selectedTime === '1w') {
-      return chartData.length <= 4 ? 0 : Math.max(1, Math.floor(chartData.length / 4))
-    }
-
-    return getXAxisIntervalForShortcut(selectedTime, chartData.length, { minuteForOneHour: true })
-  }, [showCustomRange, customRange, activePeriod, selectedTime, chartData.length, windowWidth])
+  const { isAnimationActive, usePerBarRadius, useAccessibilityLayer, areaCurveType } = useMemo(
+    () => getChartRenderFlags(chartData.length, nodeList.length),
+    [chartData.length, nodeList.length],
+  )
+  const brushWindow = useMemo(() => getChartBrushWindow(chartData.length, nodeList.length), [chartData.length, nodeList.length])
 
   const pieData = useMemo<NodePieChartDataPoint[]>(() => {
     if (chartData.length === 0 || nodeList.length === 0) return []
@@ -482,6 +488,15 @@ export function AllNodesStackedBarChart() {
     }
   }, [])
 
+  const handleModalNavigate = useCallback(
+    (index: number) => {
+      if (!chartData[index]) return
+      setCurrentDataIndex(index)
+      setSelectedData(chartData[index])
+    },
+    [chartData],
+  )
+
   const handleChartPointClick = useCallback(
     (data: unknown) => {
       const chartClick = data as { activeTooltipIndex?: unknown; activePayload?: Array<{ payload?: unknown }> } | null
@@ -513,31 +528,34 @@ export function AllNodesStackedBarChart() {
         <CardHeader className="flex flex-col items-stretch space-y-0 border-b p-0 xl:flex-row">
           <div className="flex flex-1 flex-col gap-2 border-b px-4 py-3 xl:px-6 xl:py-4">
             <div className="flex min-w-0 flex-col justify-center gap-1 pt-2">
-              <CardTitle className="mb-0.5 flex items-center gap-2">
+              <CardTitle className="mb-0.5 flex min-w-0 items-center gap-2">
                 <BarChart3 className="text-muted-foreground h-4 w-4 shrink-0" />
-                <span>{t('statistics.trafficUsage')}</span>
+                <span className="truncate">{t('statistics.trafficUsage')}</span>
               </CardTitle>
-              <CardDescription>{t('statistics.trafficUsageDescription')}</CardDescription>
+              <CardDescription className="text-pretty">{t('statistics.trafficUsageDescription')}</CardDescription>
             </div>
-            <div className="flex w-full min-w-0 flex-wrap items-center gap-2">
-              <div className="flex w-full min-w-0 items-center gap-2 sm:w-auto sm:flex-none">
+            <div className="flex w-full min-w-0 flex-col gap-2">
+              <div className="flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
                 <TimeSelector selectedTime={selectedTime} setSelectedTime={handleTimeSelect} shortcuts={TRAFFIC_TIME_SELECTOR_SHORTCUTS} maxVisible={5} className="w-full sm:w-fit" />
-                <button
-                  type="button"
-                  aria-label="Custom Range"
-                  className={`shrink-0 rounded border p-1 ${showCustomRange ? 'bg-muted' : ''}`}
-                  onClick={() => {
-                    const next = !showCustomRange
-                    setShowCustomRange(next)
-                    if (!next) {
-                      setCustomRange(undefined)
-                    }
-                  }}
-                >
-                  <Calendar className="h-4 w-4" />
-                </button>
+                <div className="flex w-full items-center gap-2 sm:w-auto">
+                  <PeriodSelector value={periodOverride} onValueChange={setPeriodOverride} className="min-w-0 flex-1 sm:w-[7rem] sm:flex-none" />
+                  <button
+                    type="button"
+                    aria-label="Custom Range"
+                    className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border ${showCustomRange ? 'bg-muted' : ''}`}
+                    onClick={() => {
+                      const next = !showCustomRange
+                      setShowCustomRange(next)
+                      if (!next) {
+                        setCustomRange(undefined)
+                      }
+                    }}
+                  >
+                    <Calendar className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
-              <div className="flex w-full items-center gap-2 sm:w-auto sm:shrink-0">
+              <div className="flex w-full items-center gap-2">
                 <AdminFilterCombobox
                   value={selectedAdmin}
                   onValueChange={username => {
@@ -592,10 +610,11 @@ export function AllNodesStackedBarChart() {
             <EmptyState type="no-nodes" className="max-h-[400px] min-h-[200px]" />
           ) : (
             <div className="mx-auto w-full">
+              {chartView === 'bar' && <DenseChartAreaHint pointCount={chartData.length} />}
               <ChartContainer dir="ltr" config={chartView === 'pie' ? pieChartConfig : chartConfig} className="h-[200px] w-full sm:h-[320px] lg:h-[400px]">
                 {chartData.length > 0 && chartView === 'bar' ? (
                   chartViewType === 'area' ? (
-                    <AreaChart accessibilityLayer data={chartData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }} onClick={handleChartPointClick}>
+                    <AreaChart {...(useAccessibilityLayer ? { accessibilityLayer: true } : {})} data={chartData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }} onClick={handleChartPointClick}>
                       <defs>
                         {nodeList.map((node, index) => {
                           const color = chartConfig[node.name]?.color || `hsl(var(--chart-${(index % 5) + 1}))`
@@ -608,7 +627,7 @@ export function AllNodesStackedBarChart() {
                         })}
                       </defs>
                       <CartesianGrid direction="ltr" vertical={false} />
-                      <XAxis direction="ltr" dataKey="time" tickLine={false} tickMargin={10} axisLine={false} minTickGap={5} interval={xAxisInterval} />
+                      <XAxis direction="ltr" dataKey="time" tickLine={false} tickMargin={10} axisLine={false} minTickGap={28} interval={xAxisInterval} />
                       <YAxis
                         direction="ltr"
                         tickLine={false}
@@ -627,22 +646,26 @@ export function AllNodesStackedBarChart() {
                       {nodeList.map((node, index) => (
                         <Area
                           key={node.id}
-                          type="monotone"
+                          type={areaCurveType}
                           dataKey={node.name}
                           stackId="a"
                           fill={`url(#node-area-gradient-${node.id})`}
                           stroke={chartConfig[node.name]?.color || `hsl(var(--chart-${(index % 5) + 1}))`}
                           strokeWidth={1.5}
                           dot={false}
-                          activeDot={{ r: 4 }}
+                          activeDot={false}
+                          isAnimationActive={isAnimationActive}
                           cursor="pointer"
                         />
                       ))}
+                      {brushWindow && (
+                        <ChartBrush startIndex={brushWindow.startIndex} endIndex={brushWindow.endIndex} />
+                      )}
                     </AreaChart>
                   ) : (
-                    <BarChart accessibilityLayer data={chartData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }} onClick={handleChartPointClick}>
+                    <BarChart {...(useAccessibilityLayer ? { accessibilityLayer: true } : {})} data={chartData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }} onClick={handleChartPointClick}>
                       <CartesianGrid direction="ltr" vertical={false} />
-                      <XAxis direction="ltr" dataKey="time" tickLine={false} tickMargin={10} axisLine={false} minTickGap={5} interval={xAxisInterval} />
+                      <XAxis direction="ltr" dataKey="time" tickLine={false} tickMargin={10} axisLine={false} minTickGap={28} interval={xAxisInterval} />
                       <YAxis
                         direction="ltr"
                         tickLine={false}
@@ -658,12 +681,24 @@ export function AllNodesStackedBarChart() {
                       />
                       <ChartTooltip cursor={false} content={props => <CustomTooltip {...(props as TooltipProps<number, string>)} chartConfig={chartConfig} dir={dir} period={activePeriod} />} />
                       {nodeList.map((node, index) => (
-                        <Bar key={node.id} dataKey={node.name} stackId="a" fill={chartConfig[node.name]?.color || `hsl(var(--chart-${(index % 5) + 1}))`} radius={SQUARE_STACK_RADIUS} cursor="pointer">
-                          {chartData.map(row => (
-                            <Cell key={`${node.id}-${row._period_start}`} {...getCellRadiusProps(getStackedNodeRadius(row, node.name, nodeList))} />
-                          ))}
+                        <Bar
+                          key={node.id}
+                          dataKey={node.name}
+                          stackId="a"
+                          fill={chartConfig[node.name]?.color || `hsl(var(--chart-${(index % 5) + 1}))`}
+                          radius={SQUARE_STACK_RADIUS}
+                          cursor="pointer"
+                          isAnimationActive={isAnimationActive}
+                        >
+                          {usePerBarRadius &&
+                            chartData.map(row => (
+                              <Cell key={`${node.id}-${row._period_start}`} {...getCellRadiusProps(getStackedNodeRadius(row, node.name, nodeList))} />
+                            ))}
                         </Bar>
                       ))}
+                      {brushWindow && (
+                        <ChartBrush startIndex={brushWindow.startIndex} endIndex={brushWindow.endIndex} />
+                      )}
                     </BarChart>
                   )
                 ) : chartData.length > 0 && chartView === 'pie' ? (
