@@ -1,5 +1,4 @@
 import re
-from datetime import datetime as dt
 from enum import Enum
 from ipaddress import ip_address
 from uuid import UUID
@@ -9,9 +8,8 @@ from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validat
 
 from app.db.models import DataLimitResetStrategy, NodeConnectionType, NodeStatus
 from app.models.stats import Period
-from app.utils.helpers import fix_datetime_timezone
 
-from .validators import ListValidator, ProxyValidator
+from .validators import ListValidator, OptionalAwareDatetime, ProxyValidator
 
 # Basic PEM format validation
 CERT_PATTERN = r"-----BEGIN CERTIFICATE-----(.*?)-----END CERTIFICATE-----"
@@ -298,40 +296,19 @@ class NodeUsageQuery(BaseModel):
     period: Period = Field(default=Period.hour)
     node_id: int | None = None
     group_by_node: bool = False
-    start: dt | None = Field(default=None, examples=["2024-01-01T00:00:00+03:30"])
-    end: dt | None = Field(default=None, examples=["2024-01-31T23:59:59+03:30"])
-
-    @field_validator("start", "end", mode="before")
-    @classmethod
-    def validate_datetimes(cls, value):
-        if not value:
-            return value
-        return fix_datetime_timezone(value)
+    start: OptionalAwareDatetime = Field(default=None, examples=["2024-01-01T00:00:00+03:30"])
+    end: OptionalAwareDatetime = Field(default=None, examples=["2024-01-31T23:59:59+03:30"])
 
 
 class NodeStatsPeriodQuery(BaseModel):
     period: Period = Field(default=Period.hour)
-    start: dt | None = Field(default=None, examples=["2024-01-01T00:00:00+03:30"])
-    end: dt | None = Field(default=None, examples=["2024-01-31T23:59:59+03:30"])
-
-    @field_validator("start", "end", mode="before")
-    @classmethod
-    def validate_datetimes(cls, value):
-        if not value:
-            return value
-        return fix_datetime_timezone(value)
+    start: OptionalAwareDatetime = Field(default=None, examples=["2024-01-01T00:00:00+03:30"])
+    end: OptionalAwareDatetime = Field(default=None, examples=["2024-01-31T23:59:59+03:30"])
 
 
 class NodeClearUsageQuery(BaseModel):
-    start: dt | None = Field(default=None)
-    end: dt | None = Field(default=None)
-
-    @field_validator("start", "end", mode="before")
-    @classmethod
-    def validate_datetimes(cls, value):
-        if not value:
-            return value
-        return fix_datetime_timezone(value)
+    start: OptionalAwareDatetime = Field(default=None)
+    end: OptionalAwareDatetime = Field(default=None)
 
 
 class NodeNotification(BaseModel):

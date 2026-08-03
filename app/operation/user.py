@@ -41,6 +41,7 @@ from app.db.crud.user import (
     get_users_simple,
     get_users_sub_update_list,
     get_users_subscription_agent_counts,
+    get_users_subscription_agent_stats,
     load_user_attrs,
     lock_admin_quota_row,
     modify_user as crud_modify_user,
@@ -90,6 +91,7 @@ from app.models.user import (
     UserStatusToggle,
     UserSubscriptionUpdateChart,
     UserSubscriptionUpdateChartSegment,
+    UserSubscriptionUpdateChartStat,
     UserSubscriptionUpdateList,
     UsersUsageQuery,
     UserUsageQuery,
@@ -1954,13 +1956,18 @@ class UserOperation(BaseOperation):
         user_id: int | None = None,
         username: str | None = None,
         admin_id: int | None = None,
+        period: Period = Period.hour,
+        start: dt | None = None,
+        end: dt | None = None,
     ) -> UserSubscriptionUpdateChart:
+        start, end = await self.validate_dates(start, end, True)
+        resolved_user_id: int | None = None
+        resolved_admin_id: int | None = None
+
         if user_id is not None:
             db_user = await self.get_validated_user_by_id(db, user_id, admin)
-            agent_counts = await get_users_subscription_agent_counts(db, user_id=db_user.id)
-            return self._build_user_agent_chart(agent_counts)
-
-        if username:
+            resolved_user_id = db_user.id
+        elif username:
             warnings.warn(
                 "username filter for get_users_sub_update_chart(...) is deprecated and will be removed in v6.0.0. "
                 "Use user_id instead.",
@@ -1968,31 +1975,56 @@ class UserOperation(BaseOperation):
                 stacklevel=2,
             )
             db_user = await self.get_validated_user(db, username, admin)
-            agent_counts = await get_users_subscription_agent_counts(db, user_id=db_user.id)
-            return self._build_user_agent_chart(agent_counts)
-
-        if admin_id:
-            can_read_admins = False
-            try:
-                enforce_permission(admin, "admins", "read")
-                can_read_admins = True
-            except PermissionDenied:
-                pass
-            if not can_read_admins and admin_id != admin.id:
-                await self.raise_error(message="You're not allowed", code=403)
-            elif can_read_admins and admin_id != admin.id:
-                await self.get_validated_admin_by_id(db, admin_id)
+            resolved_user_id = db_user.id
         else:
-            admin_id = get_scope_admin_id(admin, "users", "read")
+            if admin_id:
+                can_read_admins = False
+                try:
+                    enforce_permission(admin, "admins", "read")
+                    can_read_admins = True
+                except PermissionDenied:
+                    pass
+                if not can_read_admins and admin_id != admin.id:
+                    await self.raise_error(message="You're not allowed", code=403)
+                elif can_read_admins and admin_id != admin.id:
+                    await self.get_validated_admin_by_id(db, admin_id)
+                resolved_admin_id = admin_id
+            else:
+                resolved_admin_id = get_scope_admin_id(admin, "users", "read")
 
-        agent_counts = await get_users_subscription_agent_counts(db, admin_id=admin_id)
-        return self._build_user_agent_chart(agent_counts)
+        agent_counts = await get_users_subscription_agent_counts(
+            db,
+            user_id=resolved_user_id,
+            admin_id=resolved_admin_id,
+            start=start,
+            end=end,
+        )
+        agent_stats = await get_users_subscription_agent_stats(
+            db,
+            start=start,
+            end=end,
+            period=period,
+            user_id=resolved_user_id,
+            admin_id=resolved_admin_id,
+        )
+        return self._build_user_agent_chart(
+            agent_counts,
+            start=start,
+            end=end,
+            agent_stats=agent_stats,
+            period=period,
+        )
 
     @classmethod
-    def _build_user_agent_chart(cls, agent_counts: list[tuple[str, int]]) -> UserSubscriptionUpdateChart:
-        if not agent_counts:
-            return UserSubscriptionUpdateChart(total=0, segments=[])
-
+    def _build_user_agent_chart(
+        cls,
+        agent_counts: list[tuple[str, int]],
+        *,
+        start: dt,
+        end: dt,
+        agent_stats: list[dict] | None = None,
+        period: Period | None = None,
+    ) -> UserSubscriptionUpdateChart:
         counts = Counter()
         display_names: dict[str, str] = {}
 
@@ -2012,7 +2044,35 @@ class UserOperation(BaseOperation):
             for key, count in counts.most_common()
         ]
 
-        return UserSubscriptionUpdateChart(total=total, segments=segments)
+        stats: list[UserSubscriptionUpdateChartStat] = []
+        if agent_stats:
+            period_counts: Counter[tuple[dt, str]] = Counter()
+            for row in agent_stats:
+                normalized = cls._normalize_user_agent(row.get("agent") or "")
+                key = normalized.lower()
+                display_names.setdefault(key, normalized)
+                period_start = row.get("period_start")
+                if period_start is None:
+                    continue
+                period_counts[(period_start, key)] += int(row.get("count") or 0)
+
+            stats = [
+                UserSubscriptionUpdateChartStat(
+                    agent=display_names[key],
+                    count=count,
+                    period_start=period_start,
+                )
+                for (period_start, key), count in sorted(period_counts.items(), key=lambda item: item[0][0])
+            ]
+
+        return UserSubscriptionUpdateChart(
+            total=total,
+            segments=segments,
+            period=period,
+            start=start,
+            end=end,
+            stats=stats,
+        )
 
     @staticmethod
     def _normalize_user_agent(user_agent: str) -> str:

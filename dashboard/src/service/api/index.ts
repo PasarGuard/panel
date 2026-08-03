@@ -187,6 +187,21 @@ export type GetUsersSubUpdateChartParams = {
   user_id?: number | null
   username?: string | null
   admin_id?: number | null
+  /**
+   * * `minute`
+   * * `hour`
+   * * `day`
+   * * `month`
+   */
+  period?: Period
+  /**
+   * @nullable
+   */
+  start?: string | null
+  /**
+   * @nullable
+   */
+  end?: string | null
 }
 
 export type ClearUsageDataParams = {
@@ -931,9 +946,28 @@ export interface UserSubscriptionUpdateChartSegment {
   percentage: number
 }
 
+export interface UserSubscriptionUpdateChartStat {
+  agent: string
+  count: number
+  period_start: string
+}
+
 export interface UserSubscriptionUpdateChart {
   total: number
   segments?: UserSubscriptionUpdateChartSegment[]
+  /**
+   * * `minute`
+   * * `hour`
+   * * `day`
+   * * `month`
+   * @nullable
+   */
+  period?: Period | null
+  /** @nullable */
+  start?: string | null
+  /** @nullable */
+  end?: string | null
+  stats?: UserSubscriptionUpdateChartStat[]
 }
 
 export interface UserStatusToggle {

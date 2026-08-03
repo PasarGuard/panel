@@ -1,12 +1,10 @@
-from datetime import datetime as dt
 from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.db.models import CoreType
-from app.utils.helpers import fix_datetime_timezone
 
-from .validators import ListValidator, StringArrayValidator
+from .validators import AwareDatetime, ListValidator, StringArrayValidator
 
 
 class CoreBase(BaseModel):
@@ -48,16 +46,9 @@ class CoreCreate(CoreBase):
 
 class CoreResponse(CoreBase):
     id: int
-    created_at: dt
+    created_at: AwareDatetime
 
     model_config = ConfigDict(from_attributes=True)
-
-    @field_validator("created_at", mode="before")
-    @classmethod
-    def validator_date(cls, v):
-        if not v:
-            return v
-        return fix_datetime_timezone(v)
 
 
 class CoreResponseList(BaseModel):

@@ -1,12 +1,25 @@
 import re
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, datetime as dt, timedelta
 from decimal import Decimal
-from typing import Any
+from typing import Annotated, Any
 from urllib.parse import urlparse
 
+from pydantic import BeforeValidator
+
 from app.db.models import UserStatus, UserStatusCreate
+from app.utils.helpers import fix_datetime_timezone
 
 MAX_ON_HOLD_EXPIRE_DURATION_SECONDS = 2_147_483_647
+
+
+def optional_aware_datetime(value: Any):
+    if not value:
+        return value
+    return fix_datetime_timezone(value)
+
+
+AwareDatetime = Annotated[dt, BeforeValidator(optional_aware_datetime)]
+OptionalAwareDatetime = Annotated[dt | None, BeforeValidator(optional_aware_datetime)]
 
 
 class NumericValidatorMixin:

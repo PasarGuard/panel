@@ -1,7 +1,6 @@
 import asyncio
 import os
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime as dt
 from enum import Enum
 from typing import Literal
 
@@ -12,10 +11,15 @@ from app.db.models import AdminStatus
 from app.models.admin_role import RoleAccess, RoleFeatures, RoleHWIDSettings, RoleLimits, RolePermissions
 from app.models.settings import CustomVariable, validate_custom_variables
 from app.models.stats import Period
-from app.utils.helpers import fix_datetime_timezone
 
 from .notification_enable import UserNotificationEnable
-from .validators import DiscordValidator, ListValidator, NumericValidatorMixin, PasswordValidator
+from .validators import (
+    DiscordValidator,
+    ListValidator,
+    NumericValidatorMixin,
+    OptionalAwareDatetime,
+    PasswordValidator,
+)
 
 AdminStatusModify = Literal[AdminStatus.active, AdminStatus.disabled]
 
@@ -315,15 +319,8 @@ class AdminUsageQuery(BaseModel):
     period: Period = Field(default=Period.hour)
     node_id: int | None = None
     group_by_node: bool = False
-    start: dt | None = Field(default=None, examples=["2024-01-01T00:00:00+03:30"])
-    end: dt | None = Field(default=None, examples=["2024-01-31T23:59:59+03:30"])
-
-    @field_validator("start", "end", mode="before")
-    @classmethod
-    def validate_datetimes(cls, value):
-        if not value:
-            return value
-        return fix_datetime_timezone(value)
+    start: OptionalAwareDatetime = Field(default=None, examples=["2024-01-01T00:00:00+03:30"])
+    end: OptionalAwareDatetime = Field(default=None, examples=["2024-01-31T23:59:59+03:30"])
 
 
 class BulkAdminSelection(BaseModel):

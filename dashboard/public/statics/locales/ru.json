@@ -32,6 +32,7 @@
   "statistics.adminFilterPlaceholder": "Выберите администратора",
   "statistics.adminFilterAll": "Все администраторы",
   "statistics.leadingClientMessage": "{{client}} лидирует с долей {{percentage}}% обновлений подписки",
+  "statistics.subscriptionsDuringPeriod": "Обновления за период",
   "statistics.date": "Дата",
   "statistics.totalUsage": "Общий трафик",
   "statistics.uplink": "Входящий",

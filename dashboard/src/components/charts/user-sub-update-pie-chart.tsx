@@ -1,17 +1,37 @@
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import type { ComponentProps } from 'react'
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, XAxis, YAxis, type TooltipProps } from 'recharts'
+import { DateRange } from 'react-day-picker'
+import { BarChart3, Calendar, PieChart as PieChartIcon, TrendingUp, Users } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+import { useTheme } from 'next-themes'
+
+import AdminFilterCombobox from '@/components/common/admin-filter-combobox'
+import { TimeRangeSelector } from '@/components/common/time-range-selector'
+import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { type ChartConfig, ChartContainer, ChartTooltip } from '@/components/ui/chart'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Badge } from '@/components/ui/badge'
 import useDirDetection from '@/hooks/use-dir-detection'
-import { useTheme } from 'next-themes'
-import { type GetUsersSubUpdateChartParams, useGetAdminsSimple, useGetUsersSubUpdateChart, type UserSubscriptionUpdateChartSegment } from '@/service/api'
+import { useChartViewType } from '@/hooks/use-chart-view-type'
+import {
+  Period,
+  type GetUsersSubUpdateChartParams,
+  type UserSubscriptionUpdateChartSegment,
+  useGetUsersSubUpdateChart,
+} from '@/service/api'
+import {
+  formatPeriodLabelForPeriod,
+  formatTooltipDate,
+  getChartQueryRangeFromDateRange,
+  getChartQueryRangeFromShortcut,
+  getXAxisIntervalForShortcut,
+  TrafficShortcutKey,
+} from '@/utils/chart-period-utils'
 import { numberWithCommas } from '@/utils/formatByte'
-import { TrendingUp, Users } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
-import { Cell, Pie, PieChart } from 'recharts'
-import { ChartEmptyState } from './empty-state'
+
+import { EmptyState } from './empty-state'
+import TimeSelector, { TRAFFIC_TIME_SELECTOR_SHORTCUTS } from './time-selector'
 
 interface UserSubUpdatePieChartProps {
   username?: string
@@ -25,6 +45,25 @@ type SegmentWithColor = UserSubscriptionUpdateChartSegment & {
   percentage: number
 }
 
+type ChartDataPoint = {
+  time: string
+  _period_start: string
+  [key: string]: string | number
+}
+
+type AgentSeries = {
+  key: string
+  label: string
+  color: string
+}
+
+type BarRadius = [number, number, number, number]
+type CellRadiusProps = Partial<ComponentProps<typeof Cell>>
+
+const BAR_RADIUS = 4
+const SQUARE_RADIUS: BarRadius = [0, 0, 0, 0]
+const getCellRadiusProps = (radius: BarRadius) => ({ radius }) as unknown as CellRadiusProps
+
 const buildSegmentKey = (name: string, index: number) => {
   const sanitized = name
     .toLowerCase()
@@ -35,46 +74,44 @@ const buildSegmentKey = (name: string, index: number) => {
   return sanitized || `segment-${index}`
 }
 
-// Generate distinct colors for segments beyond the palette
-const generateDistinctColor = (index: number, _totalNodes: number, isDark: boolean): string => {
-  // Define a more distinct color palette with better contrast
-  const distinctHues = [
-    0, // Red
-    30, // Orange
-    60, // Yellow
-    120, // Green
-    180, // Cyan
-    210, // Blue
-    240, // Indigo
-    270, // Purple
-    300, // Magenta
-    330, // Pink
-    15, // Red-orange
-    45, // Yellow-orange
-    75, // Yellow-green
-    150, // Green-cyan
-    200, // Cyan-blue
-    225, // Blue-indigo
-    255, // Indigo-purple
-    285, // Purple-magenta
-    315, // Magenta-pink
-    345, // Pink-red
-  ]
-
+const generateDistinctColor = (index: number, isDark: boolean): string => {
+  const distinctHues = [0, 30, 60, 120, 180, 210, 240, 270, 300, 330, 15, 45, 75, 150, 200, 225, 255, 285, 315, 345]
   const hue = distinctHues[index % distinctHues.length]
-
-  // Create more distinct saturation and lightness values
   const saturationVariations = [65, 75, 85, 70, 80, 60, 90, 55, 95, 50]
   const lightnessVariations = isDark ? [45, 55, 35, 50, 40, 60, 30, 65, 25, 70] : [40, 50, 30, 45, 35, 55, 25, 60, 20, 65]
-
   const saturation = saturationVariations[index % saturationVariations.length]
   const lightness = lightnessVariations[index % lightnessVariations.length]
-
   return `hsl(${hue}, ${saturation}%, ${lightness}%)`
 }
 
-// Custom tooltip component with shadcn styling
-interface CustomTooltipProps {
+const getSegmentColor = (index: number, isDark: boolean) => {
+  if (index === 0) return 'hsl(var(--primary))'
+  if (index < 5) return `hsl(var(--chart-${index + 1}))`
+  return generateDistinctColor(index, isDark)
+}
+
+const formatPercentage = (value: number) => {
+  if (value > 0 && value < 0.1) return '<0.1%'
+  return `${value.toFixed(1)}%`
+}
+
+const getStackedBarRadius = (row: ChartDataPoint, seriesKey: string, stackSeries: AgentSeries[]): BarRadius => {
+  const visibleSeries = stackSeries.filter(item => Number(row[item.key] || 0) > 0)
+  const visibleIndex = visibleSeries.findIndex(item => item.key === seriesKey)
+
+  if (visibleIndex < 0) return SQUARE_RADIUS
+  if (visibleSeries.length === 1) return [BAR_RADIUS, BAR_RADIUS, BAR_RADIUS, BAR_RADIUS]
+
+  const isBottomSegment = visibleIndex === 0
+  const isTopSegment = visibleIndex === visibleSeries.length - 1
+
+  return [isTopSegment ? BAR_RADIUS : 0, isTopSegment ? BAR_RADIUS : 0, isBottomSegment ? BAR_RADIUS : 0, isBottomSegment ? BAR_RADIUS : 0]
+}
+
+function PieTooltip({
+  active,
+  payload,
+}: {
   active?: boolean
   payload?: Array<{
     payload: {
@@ -84,23 +121,10 @@ interface CustomTooltipProps {
       fill: string
     }
   }>
-  label?: string
-}
-
-const formatPercentage = (value: number) => {
-  if (value > 0 && value < 0.1) {
-    return '<0.1%'
-  }
-
-  return `${value.toFixed(1)}%`
-}
-
-function CustomTooltip({ active, payload }: CustomTooltipProps) {
+}) {
   const { t } = useTranslation()
 
-  if (!active || !payload || !payload.length) {
-    return null
-  }
+  if (!active || !payload || !payload.length) return null
 
   const data = payload[0].payload
   const { agent, updates, percentage, fill } = data
@@ -111,7 +135,6 @@ function CustomTooltip({ active, payload }: CustomTooltipProps) {
         <div className="border-border/20 h-3 w-3 rounded-full border" style={{ backgroundColor: fill }} />
         <span className="text-foreground text-sm font-medium">{agent}</span>
       </div>
-
       <div className="mt-2 space-y-1">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-1.5">
@@ -120,7 +143,6 @@ function CustomTooltip({ active, payload }: CustomTooltipProps) {
           </div>
           <span className="text-foreground font-mono text-sm font-semibold">{numberWithCommas(updates)}</span>
         </div>
-
         <div className="flex items-center justify-between gap-3">
           <span className="text-muted-foreground text-xs">{t('statistics.percentage')}</span>
           <Badge variant="secondary" className="text-xs font-medium">
@@ -132,41 +154,117 @@ function CustomTooltip({ active, payload }: CustomTooltipProps) {
   )
 }
 
+function SeriesTooltip({
+  active,
+  payload,
+  period,
+  seriesByKey,
+}: TooltipProps<number, string> & {
+  period: Period
+  seriesByKey: Record<string, AgentSeries>
+}) {
+  const { t, i18n } = useTranslation()
+
+  if (!active || !payload || !payload.length) return null
+
+  const data = payload[0].payload as ChartDataPoint
+  const formattedDate = data._period_start ? formatTooltipDate(data._period_start, period, i18n.language) : data.time
+  const rows = payload
+    .map(item => {
+      const key = String(item.dataKey || '')
+      return {
+        key,
+        label: seriesByKey[key]?.label || key,
+        color: item.color || seriesByKey[key]?.color || 'hsl(var(--primary))',
+        value: Number(item.value || 0),
+      }
+    })
+    .filter(item => item.value > 0)
+    .sort((a, b) => b.value - a.value)
+
+  const total = rows.reduce((sum, item) => sum + item.value, 0)
+  const visibleRows = rows.slice(0, 8)
+
+  return (
+    <div className="border-border bg-background max-w-[300px] min-w-[180px] rounded border p-2 text-xs shadow">
+      <div className="text-muted-foreground mb-1 text-center font-semibold">
+        <span dir="ltr">{formattedDate}</span>
+      </div>
+      <div className="text-muted-foreground mb-2 flex items-center justify-center gap-1">
+        <span>{t('statistics.totalSubscriptions')}:</span>
+        <span dir="ltr" className="text-foreground font-mono font-semibold">
+          {total.toLocaleString()}
+        </span>
+      </div>
+      <div className="grid gap-1">
+        {visibleRows.map(item => (
+          <div key={item.key} className="flex items-center justify-between gap-3">
+            <span className="flex min-w-0 items-center gap-1.5">
+              <span className="h-2 w-2 shrink-0 rounded-[2px]" style={{ backgroundColor: item.color }} />
+              <span className="truncate">{item.label}</span>
+            </span>
+            <span dir="ltr" className="shrink-0 font-mono font-semibold">
+              {item.value.toLocaleString()}
+            </span>
+          </div>
+        ))}
+        {rows.length > visibleRows.length && <div className="text-muted-foreground pt-1 text-center text-[10px]">{t('statistics.clickForMore', { defaultValue: 'Click for more details' })}</div>}
+      </div>
+    </div>
+  )
+}
+
 function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const dir = useDirDetection()
   const { resolvedTheme } = useTheme()
-  const [selectedAdmin, setSelectedAdmin] = useState(() => (adminId != null ? String(adminId) : 'all'))
+  const chartViewType = useChartViewType()
+
+  const [chartView, setChartView] = useState<'bar' | 'pie'>('pie')
+  const [selectedAdmin, setSelectedAdmin] = useState<string>('all')
+  const [selectedAdminId, setSelectedAdminId] = useState<number | null>(() => (adminId != null ? adminId : null))
+  const [selectedTime, setSelectedTime] = useState<TrafficShortcutKey>('all')
+  const [showCustomRange, setShowCustomRange] = useState(false)
+  const [customRange, setCustomRange] = useState<DateRange | undefined>(undefined)
+  const [windowWidth, setWindowWidth] = useState<number>(() => (typeof window !== 'undefined' ? window.innerWidth : 1024))
 
   useEffect(() => {
     if (adminId != null) {
-      setSelectedAdmin(String(adminId))
+      setSelectedAdminId(adminId)
     }
   }, [adminId])
 
-  const { data: admins, isLoading: isLoadingAdmins } = useGetAdminsSimple(
-    { all: true },
-    {
-      query: {
-        enabled: true,
-        staleTime: 5 * 60 * 1000,
-      },
-    },
-  )
+  const activeQueryRange = useMemo(() => {
+    if (showCustomRange && customRange?.from && customRange?.to) {
+      return getChartQueryRangeFromDateRange(customRange, selectedTime)
+    }
+
+    const range = getChartQueryRangeFromShortcut(selectedTime, new Date(), { minuteForOneHour: true })
+    if (selectedTime === 'all') {
+      return { ...range, period: Period.month }
+    }
+    return range
+  }, [showCustomRange, customRange, selectedTime])
+
+  const activePeriod = activeQueryRange.period
 
   const params = useMemo(() => {
-    const payload: GetUsersSubUpdateChartParams = {}
+    const payload: GetUsersSubUpdateChartParams = {
+      period: activePeriod,
+      start: activeQueryRange.startDate,
+      end: activeQueryRange.endDate,
+    }
+
     if (username) {
       payload.username = username
     }
 
-    const parsedAdminId = selectedAdmin !== 'all' ? Number(selectedAdmin) : undefined
-    if (typeof parsedAdminId === 'number' && Number.isFinite(parsedAdminId)) {
-      payload.admin_id = parsedAdminId
+    if (selectedAdminId != null) {
+      payload.admin_id = selectedAdminId
     }
 
-    return Object.keys(payload).length > 0 ? payload : undefined
-  }, [username, selectedAdmin])
+    return payload
+  }, [username, selectedAdminId, activePeriod, activeQueryRange.startDate, activeQueryRange.endDate])
 
   const { data, isLoading, error } = useGetUsersSubUpdateChart(params, {
     query: {
@@ -175,75 +273,42 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
   })
 
   const segments = useMemo<SegmentWithColor[]>(() => {
-    if (!data?.segments?.length) {
-      return []
-    }
+    if (!data?.segments?.length) return []
 
+    const isDark = resolvedTheme === 'dark'
     return data.segments.map((segment, index) => {
       const safePercentage = typeof segment.percentage === 'number' && !Number.isNaN(segment.percentage) ? segment.percentage : 0
       const safeCount = typeof segment.count === 'number' && !Number.isNaN(segment.count) ? segment.count : 0
       const key = buildSegmentKey(segment.name, index)
-
-      // Color assignment logic similar to AllNodesStackedBarChart
-      let color
-      if (index === 0) {
-        // First segment uses primary color
-        color = 'hsl(var(--primary))'
-      } else if (index < 5) {
-        // Use palette colors for segments 2-5: --chart-2, --chart-3, ...
-        color = `hsl(var(--chart-${index + 1}))`
-      } else {
-        // Generate distinct colors for segments beyond palette
-        color = generateDistinctColor(index, data?.segments?.length || 0, resolvedTheme === 'dark')
-      }
 
       return {
         ...segment,
         key,
         percentage: safePercentage,
         count: safeCount,
-        color,
+        color: getSegmentColor(index, isDark),
       }
     })
   }, [data?.segments, resolvedTheme])
 
-  const chartData = useMemo(
+  const series = useMemo<AgentSeries[]>(
     () =>
       segments.map(segment => ({
-        segmentKey: segment.key,
-        agent: segment.name,
-        updates: segment.count,
-        percentage: segment.percentage,
-        fill: segment.color,
+        key: segment.key,
+        label: segment.name,
+        color: segment.color,
       })),
     [segments],
   )
 
-  const piePaddingAngle = useMemo(() => {
-    if (chartData.length <= 1) {
-      return 0
-    }
-
-    const validSlices = chartData.filter(segment => segment.updates > 0)
-    if (validSlices.length <= 1) {
-      return 0
-    }
-
-    const totalUpdates = validSlices.reduce((sum, segment) => sum + segment.updates, 0)
-    if (totalUpdates <= 0) {
-      return 0
-    }
-
-    const smallestSliceAngle = Math.min(...validSlices.map(segment => (segment.updates / totalUpdates) * 360))
-
-    // Keep total gap budget reasonable and avoid gap larger than tiny slices.
-    const bySegmentDensity = 36 / validSlices.length
-    const bySmallestSlice = smallestSliceAngle * 0.7
-
-    return Math.max(0, Math.min(3, bySegmentDensity, bySmallestSlice))
-  }, [chartData])
-
-  const pieStrokeWidth = chartData.length > 16 ? 1 : 2
+  const seriesByKey = useMemo(
+    () =>
+      series.reduce<Record<string, AgentSeries>>((acc, item) => {
+        acc[item.key] = item
+        return acc
+      }, {}),
+    [series],
+  )
 
   const chartConfig = useMemo<ChartConfig>(() => {
     const dynamicConfig = segments.reduce<ChartConfig>((config, segment) => {
@@ -262,48 +327,203 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
     }
   }, [segments, t])
 
+  const pieChartData = useMemo(
+    () =>
+      segments.map(segment => ({
+        segmentKey: segment.key,
+        agent: segment.name,
+        updates: segment.count,
+        percentage: segment.percentage,
+        fill: segment.color,
+      })),
+    [segments],
+  )
+
+  const timeSeriesData = useMemo<ChartDataPoint[]>(() => {
+    if (!data?.stats?.length || segments.length === 0) return []
+
+    const keyByAgent = new Map(segments.map(segment => [segment.name.toLowerCase(), segment.key]))
+    const periods = new Map<string, ChartDataPoint>()
+
+    data.stats.forEach(stat => {
+      const periodStart = String(stat.period_start)
+      const seriesKey = keyByAgent.get(stat.agent.toLowerCase())
+      if (!seriesKey) return
+
+      let row = periods.get(periodStart)
+      if (!row) {
+        row = {
+          time: formatPeriodLabelForPeriod(periodStart, activePeriod, i18n.language),
+          _period_start: periodStart,
+        }
+        series.forEach(item => {
+          row![item.key] = 0
+        })
+        periods.set(periodStart, row)
+      }
+
+      row[seriesKey] = Number(row[seriesKey] || 0) + Number(stat.count || 0)
+    })
+
+    return Array.from(periods.values()).sort((a, b) => String(a._period_start).localeCompare(String(b._period_start)))
+  }, [activePeriod, data?.stats, i18n.language, segments, series])
+
+  const piePaddingAngle = useMemo(() => {
+    if (pieChartData.length <= 1) return 0
+
+    const validSlices = pieChartData.filter(segment => segment.updates > 0)
+    if (validSlices.length <= 1) return 0
+
+    const totalUpdates = validSlices.reduce((sum, segment) => sum + segment.updates, 0)
+    if (totalUpdates <= 0) return 0
+
+    const smallestSliceAngle = Math.min(...validSlices.map(segment => (segment.updates / totalUpdates) * 360))
+    const bySegmentDensity = 36 / validSlices.length
+    const bySmallestSlice = smallestSliceAngle * 0.7
+
+    return Math.max(0, Math.min(3, bySegmentDensity, bySmallestSlice))
+  }, [pieChartData])
+
+  const pieStrokeWidth = pieChartData.length > 16 ? 1 : 2
+
+  const xAxisInterval = useMemo(() => {
+    if (showCustomRange && customRange?.from && customRange?.to) {
+      if (activePeriod === Period.hour || activePeriod === Period.minute) {
+        return Math.max(1, Math.floor(timeSeriesData.length / 8))
+      }
+
+      const daysDiff = Math.ceil(Math.abs(customRange.to.getTime() - customRange.from.getTime()) / (1000 * 60 * 60 * 24))
+      if (daysDiff > 30) return Math.max(1, Math.floor(timeSeriesData.length / 5))
+      if (daysDiff > 7) return Math.max(1, Math.floor(timeSeriesData.length / 8))
+      return 0
+    }
+
+    if (windowWidth < 500 && selectedTime === '1w') {
+      return timeSeriesData.length <= 4 ? 0 : Math.max(1, Math.floor(timeSeriesData.length / 4))
+    }
+
+    return getXAxisIntervalForShortcut(selectedTime, timeSeriesData.length, { minuteForOneHour: true })
+  }, [activePeriod, customRange, selectedTime, showCustomRange, timeSeriesData.length, windowWidth])
+
   const hasData = segments.some(segment => segment.count > 0)
   const total = data?.total ?? 0
-  const errorDescription = error && typeof error === 'object' && 'message' in error ? String((error as { message?: string }).message) : undefined
   const leadingSegment = useMemo(() => [...segments].sort((a, b) => b.count - a.count)[0], [segments])
+
+  useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth)
+    handleResize()
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
+  const handleTimeSelect = useCallback((value: string) => {
+    setSelectedTime(value as TrafficShortcutKey)
+    setShowCustomRange(false)
+    setCustomRange(undefined)
+  }, [])
+
+  const handleCustomRangeChange = useCallback((range: DateRange | undefined) => {
+    setCustomRange(range)
+    if (range?.from && range?.to) {
+      setShowCustomRange(true)
+    }
+  }, [])
 
   return (
     <Card>
-      <CardHeader className="flex flex-col gap-4 px-4 py-6 lg:flex-row lg:items-start lg:justify-between xl:px-6">
-        <div>
-          <CardTitle className="mb-1 flex items-center gap-2">
-            <Users className="text-muted-foreground h-4 w-4 shrink-0" />
-            <span>{t('statistics.subscriptionDistribution')}</span>
-          </CardTitle>
-          <CardDescription>{t('statistics.subscriptionDistributionDescription')}</CardDescription>
+      <CardHeader className="flex flex-col items-stretch space-y-0 border-b p-0 xl:flex-row">
+        <div className="flex flex-1 flex-col gap-2 border-b px-4 py-3 xl:px-6 xl:py-4">
+          <div className="flex min-w-0 flex-col justify-center gap-1 pt-2">
+            <CardTitle className="mb-0.5 flex items-center gap-2">
+              <Users className="text-muted-foreground h-4 w-4 shrink-0" />
+              <span>{t('statistics.subscriptionDistribution')}</span>
+            </CardTitle>
+            <CardDescription>{t('statistics.subscriptionDistributionDescription')}</CardDescription>
+          </div>
+          <div className="flex w-full min-w-0 flex-wrap items-center gap-2">
+            <div className="flex w-full min-w-0 items-center gap-2 sm:w-auto sm:flex-none">
+              <TimeSelector selectedTime={selectedTime} setSelectedTime={handleTimeSelect} shortcuts={TRAFFIC_TIME_SELECTOR_SHORTCUTS} maxVisible={5} className="w-full sm:w-fit" />
+              <button
+                type="button"
+                aria-label={t('statistics.customRange', { defaultValue: 'Custom Range' })}
+                className={`shrink-0 rounded border p-1 ${showCustomRange ? 'bg-muted' : ''}`}
+                onClick={() => {
+                  const next = !showCustomRange
+                  setShowCustomRange(next)
+                  if (!next) {
+                    setCustomRange(undefined)
+                  }
+                }}
+              >
+                <Calendar className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="flex w-full items-center gap-2 sm:w-auto sm:shrink-0">
+              <AdminFilterCombobox
+                value={selectedAdmin}
+                onValueChange={adminUsername => {
+                  setSelectedAdmin(adminUsername)
+                  if (adminUsername === 'all') {
+                    setSelectedAdminId(null)
+                  }
+                }}
+                onAdminSelect={admin => setSelectedAdminId(admin?.id ?? null)}
+                className="min-w-0 flex-1 sm:w-[220px] sm:flex-none"
+              />
+              <div className="bg-muted/30 inline-flex h-8 shrink-0 items-center gap-1 rounded-md border p-1">
+                <button
+                  type="button"
+                  aria-label={chartViewType === 'area' ? t('theme.chartViewArea', { defaultValue: 'Area chart' }) : t('statistics.barChart', { defaultValue: 'Bar chart' })}
+                  className={`inline-flex h-6 w-6 items-center justify-center rounded ${chartView === 'bar' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`}
+                  onClick={() => setChartView('bar')}
+                >
+                  <BarChart3 className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  aria-label={t('statistics.pieChart', { defaultValue: 'Pie chart' })}
+                  className={`inline-flex h-6 w-6 items-center justify-center rounded ${chartView === 'pie' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`}
+                  onClick={() => setChartView('pie')}
+                >
+                  <PieChartIcon className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+          </div>
+          {showCustomRange && (
+            <div className="flex w-full">
+              <TimeRangeSelector onRangeChange={handleCustomRangeChange} initialRange={customRange} className="w-full" />
+            </div>
+          )}
         </div>
-        <div className="flex w-full flex-col gap-2 lg:max-w-xs">
-          <span className="text-muted-foreground text-xs font-medium">{t('statistics.adminFilterLabel')}</span>
-          <Select value={selectedAdmin} onValueChange={setSelectedAdmin} disabled={isLoadingAdmins}>
-            <SelectTrigger className="h-9">
-              <SelectValue placeholder={t('statistics.adminFilterPlaceholder')} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">{t('statistics.adminFilterAll')}</SelectItem>
-              {(admins?.admins || [])
-                .filter(admin => admin.id != null)
-                .map(admin => (
-                  <SelectItem key={admin.id} value={String(admin.id)}>
-                    {admin.username}
-                  </SelectItem>
-                ))}
-            </SelectContent>
-          </Select>
+        <div className="m-0 flex min-w-[180px] flex-col justify-center gap-2 p-4 xl:border-l xl:p-5 xl:px-6">
+          <span className="text-muted-foreground text-sm">{t('statistics.subscriptionsDuringPeriod', { defaultValue: 'Updates During Period' })}</span>
+          {isLoading ? (
+            <div className="flex justify-center">
+              <Skeleton className="h-5 w-24" />
+            </div>
+          ) : (
+            <span dir="ltr" className="text-foreground flex items-center justify-center gap-2 text-lg">
+              <Users className="text-muted-foreground h-4 w-4" />
+              {hasData ? numberWithCommas(total) : <span className="text-muted-foreground">—</span>}
+            </span>
+          )}
         </div>
       </CardHeader>
-      <CardContent className="pt-4">
+      <CardContent className="pt-4 sm:pt-8">
         {isLoading ? (
-          <LoadingState />
+          chartView === 'pie' ? (
+            <LoadingState />
+          ) : (
+            <div className="flex max-h-[400px] min-h-[200px] w-full items-center justify-center">
+              <Skeleton className="h-[300px] w-full" />
+            </div>
+          )
         ) : error ? (
-          <ChartEmptyState type="error" title={t('errors.statisticsLoadFailed')} description={errorDescription || t('errors.connectionFailed')} className="max-h-[340px] min-h-[260px]" />
+          <EmptyState type="error" className="max-h-[400px] min-h-[200px]" />
         ) : !hasData ? (
-          <ChartEmptyState type="no-data" className="max-h-[340px] min-h-[260px]" />
-        ) : (
+          <EmptyState type="no-data" title={t('statistics.noDataInRange')} description={t('statistics.noDataInRangeDescription')} className="max-h-[400px] min-h-[200px]" />
+        ) : chartView === 'pie' ? (
           <div className="flex flex-col items-center gap-6 lg:flex-row">
             <div className="w-full lg:w-1/2">
               <ChartContainer
@@ -311,9 +531,9 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
                 className="mx-auto h-[220px] max-h-[320px] w-[220px] max-w-[320px] sm:h-[280px] sm:w-[280px] lg:h-[320px] lg:w-[320px] [&_.recharts-text]:fill-transparent"
               >
                 <PieChart>
-                  <ChartTooltip content={<CustomTooltip />} />
-                  <Pie data={chartData} dataKey="updates" nameKey="agent" innerRadius="55%" outerRadius="95%" paddingAngle={piePaddingAngle} strokeWidth={pieStrokeWidth} isAnimationActive>
-                    {chartData.map(segment => (
+                  <ChartTooltip content={<PieTooltip />} />
+                  <Pie data={pieChartData} dataKey="updates" nameKey="agent" innerRadius="55%" outerRadius="95%" paddingAngle={piePaddingAngle} strokeWidth={pieStrokeWidth} isAnimationActive>
+                    {pieChartData.map(segment => (
                       <Cell key={segment.segmentKey} fill={segment.fill} />
                     ))}
                   </Pie>
@@ -347,9 +567,90 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
               </div>
             </div>
           </div>
+        ) : (
+          <div className="mx-auto w-full">
+            <ChartContainer dir="ltr" config={chartConfig} className="h-[200px] w-full sm:h-[320px] lg:h-[400px]">
+              {timeSeriesData.length > 0 ? (
+                chartViewType === 'area' ? (
+                  <AreaChart accessibilityLayer data={timeSeriesData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
+                    <defs>
+                      {series.map(item => (
+                        <linearGradient key={item.key} id={`sub-update-area-gradient-${item.key}`} x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor={item.color} stopOpacity={0.45} />
+                          <stop offset="100%" stopColor={item.color} stopOpacity={0.05} />
+                        </linearGradient>
+                      ))}
+                    </defs>
+                    <CartesianGrid direction="ltr" vertical={false} />
+                    <XAxis direction="ltr" dataKey="time" tickLine={false} tickMargin={10} axisLine={false} minTickGap={5} interval={xAxisInterval} />
+                    <YAxis
+                      direction="ltr"
+                      tickLine={false}
+                      axisLine={false}
+                      allowDecimals={false}
+                      domain={[0, 'auto']}
+                      tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 9, fontWeight: 500 }}
+                      width={32}
+                      tickMargin={2}
+                    />
+                    <ChartTooltip cursor={false} content={props => <SeriesTooltip {...(props as TooltipProps<number, string>)} period={activePeriod} seriesByKey={seriesByKey} />} />
+                    {series.map(item => (
+                      <Area
+                        key={item.key}
+                        type="monotone"
+                        dataKey={item.key}
+                        stackId="a"
+                        fill={`url(#sub-update-area-gradient-${item.key})`}
+                        stroke={item.color}
+                        strokeWidth={1.5}
+                        dot={false}
+                        activeDot={{ r: 4 }}
+                      />
+                    ))}
+                  </AreaChart>
+                ) : (
+                  <BarChart accessibilityLayer data={timeSeriesData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
+                    <CartesianGrid direction="ltr" vertical={false} />
+                    <XAxis direction="ltr" dataKey="time" tickLine={false} tickMargin={10} axisLine={false} minTickGap={5} interval={xAxisInterval} />
+                    <YAxis
+                      direction="ltr"
+                      tickLine={false}
+                      axisLine={false}
+                      allowDecimals={false}
+                      tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 9, fontWeight: 500 }}
+                      width={32}
+                      tickMargin={2}
+                    />
+                    <ChartTooltip cursor={false} content={props => <SeriesTooltip {...(props as TooltipProps<number, string>)} period={activePeriod} seriesByKey={seriesByKey} />} />
+                    {series.map(item => (
+                      <Bar key={item.key} dataKey={item.key} stackId="a" fill={item.color} radius={SQUARE_RADIUS}>
+                        {timeSeriesData.map(row => (
+                          <Cell key={`${item.key}-${row._period_start}`} {...getCellRadiusProps(getStackedBarRadius(row, item.key, series))} />
+                        ))}
+                      </Bar>
+                    ))}
+                  </BarChart>
+                )
+              ) : (
+                <EmptyState type="no-data" title={t('statistics.noDataInRange')} description={t('statistics.noDataInRangeDescription')} className="max-h-[400px] min-h-[200px]" />
+              )}
+            </ChartContainer>
+            {timeSeriesData.length > 0 && (
+              <div className="overflow-x-auto pt-3">
+                <div className="flex min-w-max items-center justify-center gap-4">
+                  {series.map(item => (
+                    <div dir="ltr" key={item.key} className="flex items-center gap-1.5">
+                      <div className="h-2 w-2 shrink-0 rounded-[2px]" style={{ backgroundColor: item.color }} />
+                      <span className="text-xs whitespace-nowrap">{item.label}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         )}
       </CardContent>
-      {leadingSegment && (
+      {chartView === 'pie' && leadingSegment && hasData && (
         <CardFooter className="flex-col gap-1.5 pt-4">
           <div className="border-primary/20 from-primary/10 via-primary/5 flex items-center gap-2 rounded-lg border bg-gradient-to-r to-transparent px-3 py-2 text-xs">
             <div className="text-primary flex items-center gap-1.5 font-semibold">

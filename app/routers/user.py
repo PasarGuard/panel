@@ -1,11 +1,13 @@
+from datetime import datetime as dt
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Request, status
+from fastapi import APIRouter, Depends, Query, Request, status
 
 from app.db import AsyncSession, get_db
 from app.models.admin import AdminDetails
 from app.models.settings import ConfigFormat
 from app.models.stats import (
+    Period,
     UserCountMetric,
     UserCountMetricStatsList,
     UserUsageStatsList,
@@ -317,16 +319,22 @@ async def get_users_sub_update_chart(
     user_id: int | None = None,
     username: str | None = None,
     admin_id: int | None = None,
+    period: Period = Period.hour,
+    start: dt | None = Query(None, examples=["2024-01-01T00:00:00+03:30"]),
+    end: dt | None = Query(None, examples=["2024-01-31T23:59:59+03:30"]),
     db: AsyncSession = Depends(get_db),
     admin: AdminDetails = Depends(require_permission("users", "read")),
 ):
-    """Get subscription agent distribution percentages (optionally filtered by user_id/username)."""
+    """Get subscription agent distribution over a period (optionally filtered by user_id/username)."""
     return await user_operator.get_users_sub_update_chart(
         db,
         admin=admin,
         user_id=user_id,
         username=username,
         admin_id=admin_id,
+        period=period,
+        start=start,
+        end=end,
     )
 
 

@@ -1853,6 +1853,7 @@
   "statistics.adminFilterPlaceholder": "选择管理员",
   "statistics.adminFilterAll": "所有管理员",
   "statistics.leadingClientMessage": "{{client}} 以 {{percentage}}% 的更新占比领先",
+  "statistics.subscriptionsDuringPeriod": "期间更新次数",
   "statistics.selectTimeRange": "选择时间范围",
   "statistics.selectTimeRangeDescription": "选择用于历史数据分析的时间段",
   "statistics.selectTimeRangeToView": "请选择一个时间范围来查看历史数据",

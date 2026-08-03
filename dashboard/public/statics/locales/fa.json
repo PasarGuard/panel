@@ -1703,6 +1703,7 @@
   "statistics.adminFilterPlaceholder": "یک ادمین را انتخاب کنید",
   "statistics.adminFilterAll": "همه ادمین‌ها",
   "statistics.leadingClientMessage": "{{client}} با سهم {{percentage}}٪ پیشتاز به‌روزرسانی‌ها است",
+  "statistics.subscriptionsDuringPeriod": "به‌روزرسانی در دوره زمانی",
   "statistics.selectTimeRange": "انتخاب بازه زمانی",
   "statistics.selectTimeRangeDescription": "دوره مورد نظر را برای تجزیه و تحلیل داده‌های تاریخی انتخاب کنید",
   "statistics.selectTimeRangeToView": "لطفاً یک بازه زمانی برای مشاهده داده‌های تاریخی انتخاب کنید",
