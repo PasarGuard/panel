@@ -25,6 +25,7 @@
   "statistics.historicalDescription": "Исторические данные о производительности сервера за выбранный период времени",
   "statistics.subscriptions": "Подписки",
   "statistics.subscriptionDistribution": "Распределение клиентов подписки",
+  "statistics.subscriptionDistributionDetails": "Детали клиентов подписки",
   "statistics.subscriptionDistributionDescription": "Доля обновлений подписки по агентам и приложениям.",
   "statistics.totalSubscriptions": "Всего обновлений",
   "statistics.percentage": "Процент",

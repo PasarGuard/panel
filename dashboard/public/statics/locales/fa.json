@@ -1696,6 +1696,7 @@
   "statistics.historicalDescription": "داده‌های عملکرد تاریخی سرور برای بازه زمانی انتخاب شده",
   "statistics.subscriptions": "اشتراک‌ها",
   "statistics.subscriptionDistribution": "توزیع کلاینت‌های اشتراک",
+  "statistics.subscriptionDistributionDetails": "جزئیات کلاینت‌های اشتراک",
   "statistics.subscriptionDistributionDescription": "سهم به‌روزرسانی‌های لینک اشتراک بین عامل‌ها و برنامه‌ها.",
   "statistics.totalSubscriptions": "مجموع به‌روزرسانی‌ها",
   "statistics.percentage": "درصد",

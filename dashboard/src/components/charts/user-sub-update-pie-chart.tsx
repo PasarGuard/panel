@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { type ChartConfig, ChartContainer, ChartTooltip } from '@/components/ui/chart'
 import { Skeleton } from '@/components/ui/skeleton'
+import UserSubUpdateStatsModal from '@/features/users/dialogs/user-sub-update-stats-modal'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { useChartViewType } from '@/hooks/use-chart-view-type'
 import {
@@ -208,7 +209,7 @@ function SeriesTooltip({
             </span>
           </div>
         ))}
-        {rows.length > visibleRows.length && <div className="text-muted-foreground pt-1 text-center text-[10px]">{t('statistics.clickForMore', { defaultValue: 'Click for more details' })}</div>}
+        {rows.length > 0 && <div className="text-muted-foreground pt-1 text-center text-[10px]">{t('statistics.clickForMore', { defaultValue: 'Click for more details' })}</div>}
       </div>
     </div>
   )
@@ -223,10 +224,13 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
   const [chartView, setChartView] = useState<'bar' | 'pie'>('pie')
   const [selectedAdmin, setSelectedAdmin] = useState<string>('all')
   const [selectedAdminId, setSelectedAdminId] = useState<number | null>(() => (adminId != null ? adminId : null))
-  const [selectedTime, setSelectedTime] = useState<TrafficShortcutKey>('1w')
+  const [selectedTime, setSelectedTime] = useState<TrafficShortcutKey>('all')
   const [showCustomRange, setShowCustomRange] = useState(false)
   const [customRange, setCustomRange] = useState<DateRange | undefined>(undefined)
   const [windowWidth, setWindowWidth] = useState<number>(() => (typeof window !== 'undefined' ? window.innerWidth : 1024))
+  const [modalOpen, setModalOpen] = useState(false)
+  const [selectedData, setSelectedData] = useState<ChartDataPoint | null>(null)
+  const [currentDataIndex, setCurrentDataIndex] = useState(0)
 
   useEffect(() => {
     if (adminId != null) {
@@ -458,8 +462,36 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
     }
   }, [])
 
+  const handleModalNavigate = useCallback(
+    (index: number) => {
+      if (!timeSeriesData[index]) return
+      setCurrentDataIndex(index)
+      setSelectedData(timeSeriesData[index])
+    },
+    [timeSeriesData],
+  )
+
+  const handleChartPointClick = useCallback(
+    (data: unknown) => {
+      const chartClick = data as { activeTooltipIndex?: unknown; activePayload?: Array<{ payload?: unknown }> } | null
+      const clickedIndex = typeof chartClick?.activeTooltipIndex === 'number' ? chartClick.activeTooltipIndex : -1
+      const clickedData = (chartClick?.activePayload?.[0]?.payload ?? (clickedIndex >= 0 ? timeSeriesData[clickedIndex] : undefined)) as ChartDataPoint | undefined
+      if (!clickedData) return
+
+      const activeSeriesCount = series.filter(item => Number(clickedData[item.key] || 0) > 0).length
+      if (activeSeriesCount <= 0) return
+
+      const resolvedIndex = clickedIndex >= 0 ? clickedIndex : timeSeriesData.findIndex(item => item._period_start === clickedData._period_start)
+      setCurrentDataIndex(resolvedIndex >= 0 ? resolvedIndex : 0)
+      setSelectedData(clickedData)
+      setModalOpen(true)
+    },
+    [series, timeSeriesData],
+  )
+
   return (
-    <Card>
+    <>
+      <Card>
       <CardHeader className="flex flex-col items-stretch space-y-0 border-b p-0 xl:flex-row">
         <div className="flex flex-1 flex-col gap-2 border-b px-4 py-3 xl:px-6 xl:py-4">
           <div className="flex min-w-0 flex-col justify-center gap-1 pt-2">
@@ -602,7 +634,7 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
           <div className="mx-auto w-full">
             <ChartContainer dir="ltr" config={chartConfig} className="h-[200px] w-full sm:h-[320px] lg:h-[400px]">
               {chartViewType === 'area' ? (
-                <AreaChart accessibilityLayer data={timeSeriesData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
+                <AreaChart accessibilityLayer data={timeSeriesData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }} onClick={handleChartPointClick}>
                   <defs>
                     {series.map(item => (
                       <linearGradient key={item.key} id={`sub-update-area-gradient-${item.key}`} x1="0" y1="0" x2="0" y2="1">
@@ -635,11 +667,12 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
                       strokeWidth={1.5}
                       dot={false}
                       activeDot={{ r: 4 }}
+                      cursor="pointer"
                     />
                   ))}
                 </AreaChart>
               ) : (
-                <BarChart accessibilityLayer data={timeSeriesData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
+                <BarChart accessibilityLayer data={timeSeriesData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }} onClick={handleChartPointClick}>
                   <CartesianGrid direction="ltr" vertical={false} />
                   <XAxis direction="ltr" dataKey="time" tickLine={false} tickMargin={10} axisLine={false} minTickGap={5} interval={xAxisInterval} />
                   <YAxis
@@ -653,7 +686,7 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
                   />
                   <ChartTooltip cursor={false} content={props => <SeriesTooltip {...(props as TooltipProps<number, string>)} period={activePeriod} seriesByKey={seriesByKey} />} />
                   {series.map(item => (
-                    <Bar key={item.key} dataKey={item.key} stackId="a" fill={item.color} radius={SQUARE_RADIUS}>
+                    <Bar key={item.key} dataKey={item.key} stackId="a" fill={item.color} radius={SQUARE_RADIUS} cursor="pointer">
                       {timeSeriesData.map(row => (
                         <Cell key={`${item.key}-${row._period_start}`} {...getCellRadiusProps(getStackedBarRadius(row, item.key, series))} />
                       ))}
@@ -692,6 +725,18 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
         </CardFooter>
       )}
     </Card>
+
+    <UserSubUpdateStatsModal
+      open={modalOpen}
+      onClose={() => setModalOpen(false)}
+      data={selectedData}
+      period={activePeriod}
+      series={series}
+      allChartData={timeSeriesData}
+      currentIndex={currentDataIndex}
+      onNavigate={handleModalNavigate}
+    />
+    </>
   )
 }
 
