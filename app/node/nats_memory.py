@@ -308,21 +308,24 @@ class NatsNodeLifecycleCoordinator:
             doc["lease"] = None
             if await kv_cas_json(self._kv, key, doc, rev):
                 return
+        logger.warning("Lifecycle release CAS exhausted for node_id=%s key=%s", lease.node_id, key)
 
-    async def heartbeat(self, lease: LifecycleLease) -> None:
+    async def heartbeat(self, lease: LifecycleLease) -> bool:
         key = self._key(lease.node_id)
         for _ in range(32):
             now = time.time()
             doc, rev = await kv_get_json(self._kv, key)
             if doc is None:
-                return
+                return False
             lease_data = doc.get("lease")
             if lease_data is None or lease_data.get("token") != lease.token:
-                return
+                return False
             lease_data["expires_at"] = now + lease.lease_seconds
             doc["lease"] = lease_data
             if await kv_cas_json(self._kv, key, doc, rev):
-                return
+                return True
+        logger.warning("Lifecycle heartbeat CAS exhausted for node_id=%s key=%s", lease.node_id, key)
+        return False
 
     async def get_state(self, node_id: str) -> NodeLifecycleState | None:
         doc, _ = await kv_get_json(self._kv, self._key(node_id))
@@ -355,6 +358,7 @@ class NatsNodeLifecycleCoordinator:
             doc["state"] = _state_to_dict(state)
             if await kv_cas_json(self._kv, key, doc, rev):
                 return
+        logger.warning("Lifecycle update_observed CAS exhausted for node_id=%s key=%s", node_id, key)
 
 
 async def ensure_bridge_memory() -> tuple[NatsUserSyncStore | None, NatsNodeLifecycleCoordinator | None]:

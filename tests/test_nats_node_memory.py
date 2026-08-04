@@ -80,9 +80,11 @@ async def test_lifecycle_has_active_lease_tracks_expiry():
     lease = await coordinator.try_acquire("1", "worker-a", LifecycleOperation.START, 30)
     assert lease is not None
     assert await coordinator.has_active_lease("1") is True
+    assert await coordinator.heartbeat(lease) is True
 
     await coordinator.release(lease)
     assert await coordinator.has_active_lease("1") is False
+    assert await coordinator.heartbeat(lease) is False
 
     expired = await coordinator.try_acquire("1", "worker-a", LifecycleOperation.RECONNECT, 0)
     assert expired is not None
