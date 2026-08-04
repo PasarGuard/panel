@@ -180,6 +180,14 @@ class NatsUserSyncStore:
                 await self._kv.delete(pending_key, last=rev)
             except Exception as exc:
                 logger.debug("Claim race for pending key=%s: %s", pending_key, exc)
+                try:
+                    await self._kv.delete(claimed_key)
+                except Exception as cleanup_exc:
+                    logger.debug(
+                        "Failed to cleanup claimed key=%s after claim race: %s",
+                        claimed_key,
+                        cleanup_exc,
+                    )
                 continue
             result.append(ClaimedUser(token=token, user=_user_from_b64(user_b64)))
         return result

@@ -73,6 +73,27 @@ async def test_user_sync_enqueue_shards_per_email_key():
 
 
 @pytest.mark.asyncio
+async def test_claim_cleans_up_claimed_key_when_pending_delete_fails():
+    kv = MemoryCasKv()
+    store = NatsUserSyncStore(kv)
+    await store.enqueue_users("1", [_user("a@example.com")])
+
+    original_delete = kv.delete
+
+    async def _delete(key: str, last: int | None = None) -> bool:
+        if key.startswith("p.1."):
+            raise RuntimeError("pending delete race")
+        return await original_delete(key, last=last)
+
+    kv.delete = _delete  # type: ignore[method-assign]
+
+    claimed = await store.claim_users("1", "worker-a", limit=10, lease_seconds=30)
+    assert claimed == []
+    assert not any(key.startswith("c.1.") for key in kv._data)
+    assert any(key.startswith("p.1.") for key in kv._data)
+
+
+@pytest.mark.asyncio
 async def test_lifecycle_has_active_lease_tracks_expiry():
     coordinator = NatsNodeLifecycleCoordinator(MemoryCasKv())
     assert await coordinator.has_active_lease("1") is False

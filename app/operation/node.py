@@ -64,8 +64,8 @@ from app.models.stats import (
 from app.nats import is_multi_worker, is_nats_enabled
 from app.nats.node_rpc import node_nats_client
 from app.node import core_users, node_manager
-from app.node.nats_memory import clear_bridge_memory_for_node
 from app.node.manager_sync import publish_node_sync
+from app.node.nats_memory import clear_bridge_memory_for_node
 from app.operation import BaseOperation, OperatorType
 from app.utils.logger import get_logger
 from config import runtime_settings

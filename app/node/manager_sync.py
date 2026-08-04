@@ -59,14 +59,17 @@ async def handle_node_message(data: dict) -> None:
             db_node = await get_node_by_id(db, node_id, load_usage_logs=False)
             if db_node is None or db_node.status in (NodeStatus.disabled, NodeStatus.limited):
                 return
-            try:
-                await node_manager.update_node(db_node)
-            except Exception:
-                logger.exception("Node sync connect update_node failed for node_id=%s", node_id)
-                return
             core_id = db_node.core_config_id or 1
             cores_by_id, users_by_core = await NodeOperation._get_core_users_map(db, {core_id})
-            await NodeOperation.connect_node(db_node, cores_by_id.get(core_id), users_by_core.get(core_id, []))
+            core = cores_by_id.get(core_id)
+            users = users_by_core.get(core_id, [])
+
+        try:
+            await node_manager.update_node(db_node)
+        except Exception:
+            logger.exception("Node sync connect update_node failed for node_id=%s", node_id)
+            return
+        await NodeOperation.connect_node(db_node, core, users)
         return
 
     logger.warning("Unknown node sync action: %s", action)
