@@ -154,9 +154,9 @@ jobs:
               run: make check-migrations
 
             - name: Run Tests (multi-worker all-in-one)
-              run: |
-                  echo "ROLE=all-in-one" >> $GITHUB_ENV
-                  make test
+              env:
+                  ROLE: all-in-one
+              run: make test
 
     test-mysql:
         runs-on: ubuntu-latest
@@ -318,6 +318,6 @@ jobs:
               run: make check-migrations
 
             - name: Run Tests (multi-worker all-in-one)
-              run: |
-                  echo "ROLE=all-in-one" >> $GITHUB_ENV
-                  make test
+              env:
+                  ROLE: all-in-one
+              run: make test
