@@ -123,13 +123,25 @@ export default defineConfig({
     },
   },
   resolve: {
+    dedupe: ['react', 'react-dom'],
     tsconfigPaths: true,
     alias: [
       {
         find: '@',
         replacement: path.resolve(__dirname, 'src'),
       },
+      {
+        find: 'react',
+        replacement: path.resolve(__dirname, 'node_modules/react'),
+      },
+      {
+        find: 'react-dom',
+        replacement: path.resolve(__dirname, 'node_modules/react-dom'),
+      },
     ],
+  },
+  optimizeDeps: {
+    include: ['react', 'react-dom', '@tanstack/react-query'],
   },
   plugins: [
     tailwindcss(),
