@@ -1364,7 +1364,9 @@ async def get_users_subscription_agent_counts(
     from_clause, conditions = _subscription_update_from_clause(user_id=user_id, admin_id=admin_id)
 
     if start is not None:
-        start_utc = get_complete_period_start_for_filter(start, period) if period is not None else to_utc_for_filter(start)
+        start_utc = (
+            get_complete_period_start_for_filter(start, period) if period is not None else to_utc_for_filter(start)
+        )
         conditions.append(UserSubscriptionUpdate.created_at >= start_utc)
     if end is not None:
         conditions.append(UserSubscriptionUpdate.created_at < to_utc_for_filter(end))
