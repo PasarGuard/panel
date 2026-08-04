@@ -283,17 +283,11 @@ async def initialize_nodes():
     from app.nats.leader import needs_job_leader
 
     if needs_job_leader():
-        # Every uvicorn worker must keep local node attachments healthy; jobs stay leader-only.
+        # Every uvicorn worker must keep local node attachments healthy.
         _node_loop_tasks.append(
             asyncio.create_task(
                 _interval_loop(node_health_check, job_settings.core_health_check_interval, "health"),
                 name="node_health_loop",
-            )
-        )
-        _node_loop_tasks.append(
-            asyncio.create_task(
-                _interval_loop(check_node_limits, job_settings.check_node_limits_interval, "limits"),
-                name="node_limits_loop",
             )
         )
     else:
@@ -306,15 +300,17 @@ async def initialize_nodes():
             id="node_health_check",
             replace_existing=True,
         )
-        scheduler.add_job(
-            check_node_limits,
-            "interval",
-            seconds=job_settings.check_node_limits_interval,
-            coalesce=True,
-            max_instances=1,
-            id="check_node_limits",
-            replace_existing=True,
-        )
+
+    # Limit checks mutate node status / disconnect; run only on the leader scheduler.
+    scheduler.add_job(
+        check_node_limits,
+        "interval",
+        seconds=job_settings.check_node_limits_interval,
+        coalesce=True,
+        max_instances=1,
+        id="check_node_limits",
+        replace_existing=True,
+    )
 
     # Multi-uvicorn workers must not Stop remote cores / clear shared sync queues on exit.
     if feature_settings.stop_nodes_on_shutdown and server_settings.workers <= 1:
