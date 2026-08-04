@@ -93,6 +93,15 @@ class NatsSettings(EnvSettings):
     core_pubsub_channel: str = Field(default="core_hosts_updates", validation_alias="CORE_PUBSUB_CHANNEL")
     host_pubsub_channel: str = Field(default="host_manager_updates", validation_alias="HOST_PUBSUB_CHANNEL")
     telegram_kv_bucket: str = Field(default="pasarguard_telegram", validation_alias="NATS_TELEGRAM_KV_BUCKET")
+    node_user_sync_kv_bucket: str = Field(
+        default="pasarguard_node_user_sync", validation_alias="NATS_NODE_USER_SYNC_KV_BUCKET"
+    )
+    node_lifecycle_kv_bucket: str = Field(
+        default="pasarguard_node_lifecycle", validation_alias="NATS_NODE_LIFECYCLE_KV_BUCKET"
+    )
+    scheduler_leader_kv_bucket: str = Field(
+        default="pasarguard_scheduler_leader", validation_alias="NATS_SCHEDULER_LEADER_KV_BUCKET"
+    )
     notification_stream: str = Field(default="NOTIFICATIONS", validation_alias="NATS_NOTIFICATION_STREAM")
     notification_subject: str = Field(default="notifications.queue", validation_alias="NATS_NOTIFICATION_SUBJECT")
     notification_consumer: str = Field(default="notification_workers", validation_alias="NATS_NOTIFICATION_CONSUMER")

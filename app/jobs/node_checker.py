@@ -1,17 +1,20 @@
 import asyncio
 
 from PasarGuardNodeBridge import Health, NodeAPIError, PasarGuardNode
+from PasarGuardNodeBridge.storage import LifecycleStatus
 
 from app import notification, on_shutdown, on_startup, scheduler
 from app.db import GetDB
 from app.db.crud.node import get_limited_nodes, get_nodes
 from app.db.models import Node, NodeStatus
 from app.models.node import NodeListQuery, NodeNotification
+from app.nats import is_multi_worker
 from app.node import node_manager
+from app.node.nats_memory import ensure_bridge_memory, shutdown_bridge_memory
 from app.operation import OperatorType
 from app.operation.node import NodeOperation
 from app.utils.logger import get_logger
-from config import feature_settings, job_settings, runtime_settings
+from config import feature_settings, job_settings, runtime_settings, server_settings
 
 node_operator = NodeOperation(operator_type=OperatorType.SYSTEM)
 logger = get_logger("node-checker")
@@ -131,6 +134,19 @@ async def process_node_health_check(db_node: Node, node: PasarGuardNode):
             logger.warning(f"[{db_node.name}] Node health is INVALID, ignoring...")
             return
 
+        # Prefer shared lifecycle state so multi-worker local NOT_CONNECTED does not thrash Start.
+        shared_state = await node.get_lifecycle_state()
+        if (
+            health is Health.NOT_CONNECTED
+            and shared_state is not None
+            and shared_state.observed is LifecycleStatus.HEALTHY
+        ):
+            attached = await NodeOperation._attach_if_running(node, db_node.name)
+            if attached is not None:
+                return
+            # Another worker owns a healthy core; do not Start from this process.
+            return
+
         # Handle NOT_CONNECTED - reconnect immediately
         if health is Health.NOT_CONNECTED:
             async with GetDB() as db:
@@ -142,6 +158,8 @@ async def process_node_health_check(db_node: Node, node: PasarGuardNode):
             # Record actual error in database
             async with GetDB() as db:
                 await NodeOperation._update_single_node_status(db, db_node.id, NodeStatus.error, message=error_message)
+            if shared_state is not None:
+                await node.update_observed_lifecycle(LifecycleStatus.BROKEN, expected_epoch=shared_state.epoch)
             # Let pg-node recover transient Xray API/core failures internally.
             if should_reconnect_after_health_error(error_code, error_message):
                 async with GetDB() as db:
@@ -165,6 +183,8 @@ async def process_node_health_check(db_node: Node, node: PasarGuardNode):
                     node_version=node_version,
                     send_notification=False,
                 )
+            if shared_state is not None:
+                await node.update_observed_lifecycle(LifecycleStatus.HEALTHY, expected_epoch=shared_state.epoch)
             await notification.recovered_node(
                 NodeNotification(
                     id=db_node.id,
@@ -216,10 +236,25 @@ async def node_health_check():
     await asyncio.gather(*check_tasks, return_exceptions=True)
 
 
+_node_loop_tasks: list[asyncio.Task] = []
+
+
+async def _interval_loop(coro, seconds: float, name: str):
+    """Run node maintenance on every worker (APScheduler may be leader-only)."""
+    while True:
+        try:
+            await coro()
+        except Exception as exc:
+            logger.error("Node loop %s failed: %s", name, exc)
+        await asyncio.sleep(seconds)
+
+
 @on_startup
 async def initialize_nodes():
     if not runtime_settings.role.runs_node:
         return
+
+    await ensure_bridge_memory()
 
     logger.info("Starting nodes' cores...")
 
@@ -232,34 +267,63 @@ async def initialize_nodes():
             await node_operator.connect_nodes_bulk(db, db_nodes)
             logger.info("All nodes' cores have been started.")
 
-    # Schedule node health check job (runs frequently)
-    scheduler.add_job(
-        node_health_check,
-        "interval",
-        seconds=job_settings.core_health_check_interval,
-        coalesce=True,
-        max_instances=1,
-        id="node_health_check",
-        replace_existing=True,
-    )
+    from app.nats.leader import needs_job_leader
 
-    # Schedule node limits check job (runs less frequently)
-    scheduler.add_job(
-        check_node_limits,
-        "interval",
-        seconds=job_settings.check_node_limits_interval,
-        coalesce=True,
-        max_instances=1,
-        id="check_node_limits",
-        replace_existing=True,
-    )
+    if needs_job_leader():
+        # Every uvicorn worker must keep local node attachments healthy; jobs stay leader-only.
+        _node_loop_tasks.append(
+            asyncio.create_task(
+                _interval_loop(node_health_check, job_settings.core_health_check_interval, "health"),
+                name="node_health_loop",
+            )
+        )
+        _node_loop_tasks.append(
+            asyncio.create_task(
+                _interval_loop(check_node_limits, job_settings.check_node_limits_interval, "limits"),
+                name="node_limits_loop",
+            )
+        )
+    else:
+        scheduler.add_job(
+            node_health_check,
+            "interval",
+            seconds=job_settings.core_health_check_interval,
+            coalesce=True,
+            max_instances=1,
+            id="node_health_check",
+            replace_existing=True,
+        )
+        scheduler.add_job(
+            check_node_limits,
+            "interval",
+            seconds=job_settings.check_node_limits_interval,
+            coalesce=True,
+            max_instances=1,
+            id="check_node_limits",
+            replace_existing=True,
+        )
 
-    if feature_settings.stop_nodes_on_shutdown:
+    # Multi-uvicorn workers must not Stop remote cores / clear shared sync queues on exit.
+    if feature_settings.stop_nodes_on_shutdown and server_settings.workers <= 1:
         on_shutdown(shutdown_nodes)
+
+    on_shutdown(_stop_node_loops)
+    on_shutdown(shutdown_bridge_memory)
+
+
+async def _stop_node_loops():
+    for task in _node_loop_tasks:
+        task.cancel()
+    if _node_loop_tasks:
+        await asyncio.gather(*_node_loop_tasks, return_exceptions=True)
+    _node_loop_tasks.clear()
 
 
 async def shutdown_nodes():
     if not runtime_settings.role.runs_node:
+        return
+    if is_multi_worker() and server_settings.workers > 1:
+        logger.info("Skipping remote node stop on multi-worker shutdown")
         return
 
     logger.info("Stopping nodes' cores...")

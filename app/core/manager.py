@@ -16,12 +16,11 @@ from app.db import GetDB
 from app.db.crud.core import get_core_configs
 from app.db.models import CoreConfig, CoreType
 from app.models.core import CoreListQuery
-from app.nats import is_nats_enabled
+from app.nats import is_multi_worker, is_nats_enabled
 from app.nats.client import setup_nats_kv
 from app.nats.message import MessageTopic
 from app.nats.router import router
 from app.utils.logger import get_logger
-from config import runtime_settings
 
 
 class CoreManager:
@@ -38,7 +37,7 @@ class CoreManager:
         self._inbounds: list[str] = []
         self._inbounds_by_tag = {}
         self._nats_enabled = is_nats_enabled()
-        self._multi_worker = runtime_settings.role.requires_nats
+        self._multi_worker = is_multi_worker()
         self._nc: nats.NATS | None = None
         self._js: JetStreamContext | None = None
         self._kv: KeyValue | None = None

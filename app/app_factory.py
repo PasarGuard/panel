@@ -1,3 +1,5 @@
+import warnings
+
 from fastapi import FastAPI, Request, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
@@ -15,8 +17,11 @@ from app.subscription.client_templates import handle_client_template_message
 from app.utils.logger import get_logger
 from app.version import __version__
 from config import runtime_settings, subscription_env_settings
+from role import Role
 
 logger = get_logger("app-factory")
+
+_DEPRECATED_ROLES = frozenset({Role.BACKEND, Role.NODE, Role.SCHEDULER})
 
 
 async def _ignore_worker_sync_message(_: dict):
@@ -81,19 +86,40 @@ def _register_scheduler_hooks():
     if not (runtime_settings.role.runs_node or runtime_settings.role.runs_scheduler):
         return
 
+    from app.nats.leader import is_job_leader, start_job_leader, stop_job_leader
     from app.scheduler import scheduler
 
-    on_startup(scheduler.start)
-    on_shutdown(scheduler.shutdown)
+    started_notifications = {"value": False}
 
-    # Notification dispatcher (consumer loop) is only needed by scheduler role
-    if not runtime_settings.role.runs_scheduler:
-        return
+    async def _start_scheduler_if_leader():
+        if await start_job_leader():
+            scheduler.start()
 
-    from app.notification.client import start_notification_dispatcher, stop_notification_dispatcher
+    on_startup(_start_scheduler_if_leader)
 
-    on_startup(start_notification_dispatcher)
-    on_shutdown(stop_notification_dispatcher)
+    # Notification dispatcher (consumer loop) is only needed by scheduler role + leader
+    if runtime_settings.role.runs_scheduler:
+        from app.notification.client import start_notification_dispatcher, stop_notification_dispatcher
+
+        async def _start_notification_dispatcher_if_leader():
+            if is_job_leader():
+                await start_notification_dispatcher()
+                started_notifications["value"] = True
+
+        async def _stop_notification_dispatcher_if_started():
+            if started_notifications["value"]:
+                await stop_notification_dispatcher()
+                started_notifications["value"] = False
+
+        on_startup(_start_notification_dispatcher_if_leader)
+        on_shutdown(_stop_notification_dispatcher_if_started)
+
+    async def _stop_scheduler_and_leader():
+        if scheduler.running:
+            scheduler.shutdown()
+        await stop_job_leader()
+
+    on_shutdown(_stop_scheduler_and_leader)
 
 
 def _register_jobs():
@@ -102,11 +128,25 @@ def _register_jobs():
     from app import jobs  # noqa: F401
 
 
+def _warn_deprecated_role():
+    role = runtime_settings.role
+    if role not in _DEPRECATED_ROLES:
+        return
+    message = (
+        f"ROLE={role.value} is deprecated and will be removed in PasarGuard 7.0.0. "
+        "Use ROLE=all-in-one with NATS_ENABLED=1 and UVICORN_WORKERS>1 for multi-worker deployments."
+    )
+    warnings.warn(message, DeprecationWarning, stacklevel=2)
+    logger.warning(message)
+
+
 def create_app() -> FastAPI:
     from app.lifecycle import lifespan
 
     if runtime_settings.role.requires_nats and not is_nats_enabled():
         raise RuntimeError("NATS must be enabled for backend / node / scheduler roles.")
+
+    _warn_deprecated_role()
 
     app = FastAPI(
         title="PasarGuardAPI",

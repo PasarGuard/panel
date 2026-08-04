@@ -4,6 +4,7 @@ from collections.abc import AsyncIterator, Callable
 from fastapi import HTTPException
 from PasarGuardNodeBridge import NodeAPIError, PasarGuardNode
 from PasarGuardNodeBridge.common import service_pb2 as service
+from PasarGuardNodeBridge.storage import LifecycleStatus
 from sqlalchemy.exc import IntegrityError
 
 from app import notification
@@ -222,6 +223,52 @@ class NodeOperation(BaseOperation):
         return cores_by_id, users_by_core
 
     @staticmethod
+    async def _attach_if_running(pg_node: PasarGuardNode, node_name: str):
+        """Attach to an already-started remote core without calling Start RPC."""
+        try:
+            state = await pg_node.get_lifecycle_state()
+            if (
+                state is not None
+                and state.observed not in (LifecycleStatus.HEALTHY, LifecycleStatus.STARTING)
+                and state.desired is not LifecycleStatus.HEALTHY
+            ):
+                return None
+
+            info = await pg_node.info()
+            if info is None or not info.node_version or not info.core_version:
+                return None
+
+            await pg_node.connect(info.node_version, info.core_version)
+            if state is not None:
+                await pg_node.update_observed_lifecycle(LifecycleStatus.HEALTHY, expected_epoch=state.epoch)
+            logger.info(
+                f'Attached to already-running "{node_name}" node v{info.node_version}, core v{info.core_version}'
+            )
+            return info
+        except Exception as exc:
+            logger.debug(f'Attach skipped for "{node_name}": {exc}')
+            return None
+
+    @staticmethod
+    async def _start_or_attach_node(pg_node: PasarGuardNode, db_node: Node, core, users: list, backend_type):
+        state = await pg_node.get_lifecycle_state()
+        if state is not None and state.observed is LifecycleStatus.HEALTHY:
+            attached = await NodeOperation._attach_if_running(pg_node, db_node.name)
+            if attached is not None:
+                return attached
+
+        start_kwargs = {
+            "config": core.to_str(),
+            "backend_type": backend_type,
+            "users": users,
+            "keep_alive": db_node.keep_alive,
+        }
+        if core.type == CoreType.xray:
+            start_kwargs["exclude_inbounds"] = core.exclude_inbound_tags
+
+        return await pg_node.start(**start_kwargs)
+
+    @staticmethod
     async def connect_node(db_node: Node, core, users: list) -> dict | None:
         """
         Connect to a node and return status result (does NOT update database).
@@ -246,16 +293,10 @@ class NodeOperation(BaseOperation):
         type = service.BackendType.WIREGUARD if core.type == CoreType.wg else service.BackendType.XRAY
 
         try:
-            start_kwargs = {
-                "config": core.to_str(),
-                "backend_type": type,
-                "users": users,
-                "keep_alive": db_node.keep_alive,
-            }
-            if core.type == CoreType.xray:
-                start_kwargs["exclude_inbounds"] = core.exclude_inbound_tags
+            info = await NodeOperation._start_or_attach_node(pg_node, db_node, core, users, type)
+            if info is None:
+                return None
 
-            info = await pg_node.start(**start_kwargs)
             logger.info(f'Connected to "{db_node.name}" node v{info.node_version}, core run on v{info.core_version}')
 
             return {
@@ -269,6 +310,18 @@ class NodeOperation(BaseOperation):
         except NodeAPIError as e:
             if e.code == -4:
                 return None
+            if e.code == 409:
+                # Another worker holds the lifecycle lease; try attach once more.
+                attached = await NodeOperation._attach_if_running(pg_node, db_node.name)
+                if attached is not None:
+                    return {
+                        "node_id": db_node.id,
+                        "status": NodeStatus.connected,
+                        "message": "",
+                        "xray_version": attached.core_version,
+                        "node_version": attached.node_version,
+                        "old_status": old_status,
+                    }
 
             detail = e.detail[:1020] + "..." if len(e.detail) > 1024 else e.detail
 
