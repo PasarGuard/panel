@@ -9,7 +9,7 @@ from sqlalchemy.exc import DBAPIError
 
 from app.lifecycle import on_shutdown, on_startup
 from app.middlewares import setup_middleware
-from app.nats import is_nats_enabled
+from app.nats import is_multi_worker, require_nats_if_multiworker
 from app.nats.message import MessageTopic
 from app.nats.router import router
 from app.settings import handle_settings_message
@@ -17,11 +17,8 @@ from app.subscription.client_templates import handle_client_template_message
 from app.utils.logger import get_logger
 from app.version import __version__
 from config import runtime_settings, subscription_env_settings
-from role import Role
 
 logger = get_logger("app-factory")
-
-_DEPRECATED_ROLES = frozenset({Role.BACKEND, Role.NODE, Role.SCHEDULER})
 
 
 async def _ignore_worker_sync_message(_: dict):
@@ -141,7 +138,7 @@ def _register_jobs():
 
 def _warn_deprecated_role():
     role = runtime_settings.role
-    if role not in _DEPRECATED_ROLES:
+    if not role.is_deprecated:
         return
     message = (
         f"ROLE={role.value} is deprecated and will be removed in PasarGuard 7.0.0. "
@@ -154,8 +151,8 @@ def _warn_deprecated_role():
 def create_app() -> FastAPI:
     from app.lifecycle import lifespan
 
-    if runtime_settings.role.requires_nats and not is_nats_enabled():
-        raise RuntimeError("NATS must be enabled for backend / node / scheduler roles.")
+    # Fail fast before NATS handlers / queues register (covers all-in-one + UVICORN_WORKERS>1).
+    require_nats_if_multiworker(is_multi_worker())
 
     _warn_deprecated_role()
 

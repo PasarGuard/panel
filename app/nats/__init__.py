@@ -12,14 +12,14 @@ def get_nats_config():
 
 
 def is_multi_worker() -> bool:
-    """True when process-local state must be shared via NATS across processes."""
-    return is_nats_enabled() and (runtime_settings.role.requires_nats or server_settings.workers > 1)
+    """True when process-local state must be shared across processes (needs NATS)."""
+    return runtime_settings.role.requires_nats or server_settings.workers > 1
 
 
 def require_nats_if_multiworker(multi_worker: bool):
     if multi_worker and not is_nats_enabled():
         raise RuntimeError(
-            "NATS is required when running more than 1 worker. "
+            "NATS is required for multi-worker / split-role deployments. "
             "Set NATS_ENABLED=1 and provide proper NATS configuration."
         )
 
