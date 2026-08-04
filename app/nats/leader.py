@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import inspect
 import json
 import time
+from collections.abc import Awaitable, Callable
 from uuid import uuid4
 
 import nats
@@ -23,17 +25,26 @@ logger = get_logger("nats-leader")
 LEADER_KEY = "scheduler_leader"
 DEFAULT_LEASE_SECONDS = 15.0
 HEARTBEAT_INTERVAL = 5.0
+HEARTBEAT_MAX_RETRIES = 3
+HEARTBEAT_RETRY_DELAY = 1.0
 
 _nc: nats.NATS | None = None
 _kv: KeyValue | None = None
 _token: str | None = None
 _heartbeat_task: asyncio.Task | None = None
 _is_leader = False
+_on_leadership_lost: Callable[[], Awaitable[None] | None] | None = None
 
 
 def needs_job_leader() -> bool:
     """Leader election is only needed when multiple uvicorn workers share one role."""
     return is_nats_enabled() and server_settings.workers > 1
+
+
+def set_on_leadership_lost(callback: Callable[[], Awaitable[None] | None] | None) -> None:
+    """Register a callback invoked when this process loses leadership at runtime."""
+    global _on_leadership_lost
+    _on_leadership_lost = callback
 
 
 async def _ensure_kv() -> KeyValue | None:
@@ -64,6 +75,28 @@ def _parse(raw: bytes | None) -> tuple[str, float] | None:
         return str(data["token"]), float(data["expires_at"])
     except (TypeError, ValueError, KeyError, json.JSONDecodeError):
         return None
+
+
+async def _concede_leadership(reason: str) -> None:
+    """Mark leadership lost and pause scheduler/notification work via callback."""
+    global _is_leader, _token
+    if not _is_leader:
+        _token = None
+        return
+
+    _is_leader = False
+    _token = None
+    logger.warning("Lost scheduler leadership: %s", reason)
+
+    callback = _on_leadership_lost
+    if callback is None:
+        return
+    try:
+        result = callback()
+        if inspect.isawaitable(result):
+            await result
+    except Exception as exc:
+        logger.warning("Leadership lost callback failed: %s", exc)
 
 
 async def try_become_leader(lease_seconds: float = DEFAULT_LEASE_SECONDS) -> bool:
@@ -128,25 +161,38 @@ async def try_become_leader(lease_seconds: float = DEFAULT_LEASE_SECONDS) -> boo
 
 
 async def _heartbeat_loop(lease_seconds: float = DEFAULT_LEASE_SECONDS) -> None:
-    global _is_leader
+    consecutive_failures = 0
     while _is_leader and _token is not None:
         await asyncio.sleep(HEARTBEAT_INTERVAL)
         kv = _kv
-        if kv is None or _token is None:
-            _is_leader = False
+        token = _token
+        if kv is None or token is None:
+            await _concede_leadership("kv or token unavailable")
             return
+
         try:
             entry = await kv.get(LEADER_KEY)
             info = _parse(entry.value)
-            if info is None or info[0] != _token:
-                logger.warning("Lost scheduler leadership")
-                _is_leader = False
+            if info is None or info[0] != token:
+                await _concede_leadership("lease token invalid or replaced")
                 return
-            await kv.update(LEADER_KEY, _payload(_token, time.time() + lease_seconds), last=entry.revision)
-        except Exception as exc:
-            logger.warning("Scheduler leader heartbeat failed: %s", exc)
-            _is_leader = False
+            await kv.update(LEADER_KEY, _payload(token, time.time() + lease_seconds), last=entry.revision)
+            consecutive_failures = 0
+        except (nats_js_errors.KeyNotFoundError, nats_js_errors.KeyDeletedError) as exc:
+            await _concede_leadership(f"lease key unavailable: {exc}")
             return
+        except Exception as exc:
+            consecutive_failures += 1
+            logger.warning(
+                "Scheduler leader heartbeat renewal failed (%s/%s): %s",
+                consecutive_failures,
+                HEARTBEAT_MAX_RETRIES,
+                exc,
+            )
+            if consecutive_failures >= HEARTBEAT_MAX_RETRIES:
+                await _concede_leadership("renewal exhausted")
+                return
+            await asyncio.sleep(HEARTBEAT_RETRY_DELAY)
 
 
 async def start_job_leader() -> bool:

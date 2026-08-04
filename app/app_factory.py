@@ -86,10 +86,21 @@ def _register_scheduler_hooks():
     if not (runtime_settings.role.runs_node or runtime_settings.role.runs_scheduler):
         return
 
-    from app.nats.leader import is_job_leader, start_job_leader, stop_job_leader
+    from app.nats.leader import is_job_leader, set_on_leadership_lost, start_job_leader, stop_job_leader
     from app.scheduler import scheduler
 
     started_notifications = {"value": False}
+
+    async def _pause_jobs_on_leadership_lost():
+        if started_notifications["value"]:
+            from app.notification.client import stop_notification_dispatcher
+
+            await stop_notification_dispatcher()
+            started_notifications["value"] = False
+        if scheduler.running:
+            scheduler.shutdown()
+
+    set_on_leadership_lost(_pause_jobs_on_leadership_lost)
 
     async def _start_scheduler_if_leader():
         if await start_job_leader():
