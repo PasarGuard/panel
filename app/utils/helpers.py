@@ -1,8 +1,6 @@
 import html
-import json
 import re
 from datetime import UTC, datetime as dt, timezone as tz
-from uuid import UUID
 
 from pydantic import ValidationError
 
@@ -146,14 +144,6 @@ def convert_to_utc_for_filtering(dt_value: dt | None) -> dt | None:
     if dt_value.tzinfo is not None:
         return dt_value.astimezone(UTC)
     return dt_value
-
-
-class UUIDEncoder(json.JSONEncoder):
-    def default(self, obj):
-        if isinstance(obj, UUID):
-            # if the obj is uuid, we simply return the value of uuid
-            return str(obj)
-        return super().default(self, obj)
 
 
 def format_validation_error(error: ValidationError) -> str:
