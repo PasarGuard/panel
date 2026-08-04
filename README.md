@@ -1,4 +1,4 @@
-<p align="center">
+            <p align="center">
   <a href="https://github.com/PasarGuard/panel" target="_blank" rel="noopener noreferrer">
     <picture>
       <source media="(prefers-color-scheme: dark)" srcset="https://github.com/PasarGuard/PasarGuard.github.io/raw/main/public/logos/PasarGuard-white-logo.png">
@@ -236,4 +236,8 @@ If PasarGuard helps you, consider supporting its development:
 <p align="center">
   Made with ❤️ for Internet freedom
 </p>
+
+
+
+
 
