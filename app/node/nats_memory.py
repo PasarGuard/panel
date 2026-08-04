@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import hashlib
+import json
 import os
 import time
 from typing import Any
@@ -23,13 +25,15 @@ from PasarGuardNodeBridge.storage import (
 
 from app.nats import is_nats_enabled
 from app.nats.client import create_nats_client, get_jetstream_context, get_or_create_kv_bucket
-from app.nats.kv_cas import CasKv, kv_cas_json, kv_get_json
+from app.nats.kv_cas import CasKv, kv_cas_json, kv_get_json, kv_list_keys, kv_put_json
 from app.utils.logger import get_logger
 from config import nats_settings
 
 logger = get_logger("node-nats-memory")
 
 WORKER_ID = f"{os.getpid()}:{uuid4().hex[:8]}"
+# Stay under default NATS max_payload (1MiB) with headroom for JSON framing.
+_MAX_USER_SYNC_VALUE_BYTES = min(900_000, nats_settings.node_command_max_payload_bytes)
 
 _nc: nats.NATS | None = None
 _user_sync_kv: KeyValue | None = None
@@ -49,8 +53,8 @@ def _user_from_b64(data: str) -> User:
     return user
 
 
-def _empty_sync_doc() -> dict[str, Any]:
-    return {"pending": {}, "claimed": {}}
+def _digest(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()[:32]
 
 
 def _empty_lifecycle_doc() -> dict[str, Any]:
@@ -87,102 +91,145 @@ def _state_to_dict(state: NodeLifecycleState) -> dict[str, Any]:
 
 
 class NatsUserSyncStore:
+    """Per-user pending / per-token claimed keys so each KV value stays payload-safe."""
+
     def __init__(self, kv: CasKv):
         self._kv = kv
 
-    def _key(self, node_id: str) -> str:
-        return f"sync.{node_id}"
+    def _pending_prefix(self, node_id: str) -> str:
+        return f"p.{node_id}."
+
+    def _claimed_prefix(self, node_id: str) -> str:
+        return f"c.{node_id}."
+
+    def _pending_key(self, node_id: str, email: str) -> str:
+        return f"{self._pending_prefix(node_id)}{_digest(email)}"
+
+    def _claimed_key(self, node_id: str, token: str) -> str:
+        return f"{self._claimed_prefix(node_id)}{_digest(token)}"
+
+    def _ensure_value_size(self, key: str, value: dict[str, Any]) -> None:
+        size = len(json.dumps(value, separators=(",", ":")).encode())
+        if size > _MAX_USER_SYNC_VALUE_BYTES:
+            raise RuntimeError(
+                f"user sync KV value for key={key} is {size} bytes; exceeds limit {_MAX_USER_SYNC_VALUE_BYTES}"
+            )
 
     async def enqueue_users(self, node_id: str, users: list[User]) -> None:
         if not users:
             return
-        key = self._key(node_id)
-        for _ in range(32):
+        # Latest payload per email wins (dedupe across the batch first).
+        by_email = {user.email: user for user in users}
+        for email, user in by_email.items():
+            key = self._pending_key(node_id, email)
+            value = {"email": email, "user": _b64_user(user)}
+            self._ensure_value_size(key, value)
+            await kv_put_json(self._kv, key, value)
+
+    async def _requeue_expired_claims(self, node_id: str) -> None:
+        now = time.time()
+        for key in await kv_list_keys(self._kv, self._claimed_prefix(node_id)):
             doc, rev = await kv_get_json(self._kv, key)
             if doc is None:
-                doc = _empty_sync_doc()
-            pending = doc.setdefault("pending", {})
-            for user in users:
-                pending[user.email] = _b64_user(user)
-            if await kv_cas_json(self._kv, key, doc, rev):
-                return
-        raise RuntimeError(f"failed to enqueue users for node {node_id} after CAS retries")
+                continue
+            if float(doc.get("expires_at", 0)) > now:
+                continue
+            email = doc.get("email")
+            user_b64 = doc.get("user")
+            if isinstance(email, str) and isinstance(user_b64, str):
+                pending_key = self._pending_key(node_id, email)
+                pending_value = {"email": email, "user": user_b64}
+                await kv_put_json(self._kv, pending_key, pending_value)
+            try:
+                await self._kv.delete(key, last=rev)
+            except Exception as exc:
+                logger.debug("Failed to delete expired claim key=%s: %s", key, exc)
 
     async def claim_users(self, node_id: str, worker_id: str, limit: int, lease_seconds: float) -> list[ClaimedUser]:
         if limit <= 0:
             return []
-        key = self._key(node_id)
-        for _ in range(32):
-            now = time.time()
-            doc, rev = await kv_get_json(self._kv, key)
+        await self._requeue_expired_claims(node_id)
+
+        result: list[ClaimedUser] = []
+        now = time.time()
+        for pending_key in await kv_list_keys(self._kv, self._pending_prefix(node_id)):
+            if len(result) >= limit:
+                break
+            doc, rev = await kv_get_json(self._kv, pending_key)
             if doc is None:
-                return []
-            pending: dict[str, str] = doc.setdefault("pending", {})
-            claimed: dict[str, dict[str, Any]] = doc.setdefault("claimed", {})
+                continue
+            email = doc.get("email")
+            user_b64 = doc.get("user")
+            if not isinstance(email, str) or not isinstance(user_b64, str):
+                continue
 
-            for token, item in list(claimed.items()):
-                if float(item.get("expires_at", 0)) <= now:
-                    user_b64 = item.get("user")
-                    if isinstance(user_b64, str):
-                        user = _user_from_b64(user_b64)
-                        pending.setdefault(user.email, user_b64)
-                    del claimed[token]
-
-            result: list[ClaimedUser] = []
-            for email, user_b64 in list(pending.items()):
-                token = f"{worker_id}:{uuid4()}"
-                claimed[token] = {"user": user_b64, "expires_at": now + lease_seconds}
-                result.append(ClaimedUser(token=token, user=_user_from_b64(user_b64)))
-                del pending[email]
-                if len(result) >= limit:
-                    break
-
-            if await kv_cas_json(self._kv, key, doc, rev):
-                return result
-        raise RuntimeError(f"failed to claim users for node {node_id} after CAS retries")
+            token = f"{worker_id}:{uuid4()}"
+            claimed_key = self._claimed_key(node_id, token)
+            claimed_value = {
+                "token": token,
+                "email": email,
+                "user": user_b64,
+                "expires_at": now + lease_seconds,
+            }
+            self._ensure_value_size(claimed_key, claimed_value)
+            try:
+                # Create-only so two workers cannot claim into the same token key.
+                if not await kv_cas_json(self._kv, claimed_key, claimed_value, 0):
+                    continue
+                await self._kv.delete(pending_key, last=rev)
+            except Exception as exc:
+                logger.debug("Claim race for pending key=%s: %s", pending_key, exc)
+                continue
+            result.append(ClaimedUser(token=token, user=_user_from_b64(user_b64)))
+        return result
 
     async def ack_users(self, node_id: str, tokens: list[str]) -> None:
         if not tokens:
             return
-        key = self._key(node_id)
-        token_set = set(tokens)
-        for _ in range(32):
+        for token in tokens:
+            key = self._claimed_key(node_id, token)
             doc, rev = await kv_get_json(self._kv, key)
             if doc is None:
-                return
-            claimed = doc.setdefault("claimed", {})
-            for token in token_set:
-                claimed.pop(token, None)
-            if await kv_cas_json(self._kv, key, doc, rev):
-                return
-        raise RuntimeError(f"failed to ack users for node {node_id} after CAS retries")
+                continue
+            try:
+                await self._kv.delete(key, last=rev)
+            except Exception as exc:
+                logger.debug("Failed to ack claim key=%s: %s", key, exc)
 
     async def requeue_users(self, node_id: str, claimed_users: list[ClaimedUser]) -> None:
         if not claimed_users:
             return
-        key = self._key(node_id)
-        for _ in range(32):
-            doc, rev = await kv_get_json(self._kv, key)
+        for item in claimed_users:
+            pending_key = self._pending_key(node_id, item.user.email)
+            pending_value = {"email": item.user.email, "user": _b64_user(item.user)}
+            self._ensure_value_size(pending_key, pending_value)
+            await kv_put_json(self._kv, pending_key, pending_value)
+            claimed_key = self._claimed_key(node_id, item.token)
+            doc, rev = await kv_get_json(self._kv, claimed_key)
             if doc is None:
-                doc = _empty_sync_doc()
-            pending = doc.setdefault("pending", {})
-            claimed = doc.setdefault("claimed", {})
-            for item in claimed_users:
-                claimed.pop(item.token, None)
-                pending.setdefault(item.user.email, _b64_user(item.user))
-            if await kv_cas_json(self._kv, key, doc, rev):
-                return
-        raise RuntimeError(f"failed to requeue users for node {node_id} after CAS retries")
+                continue
+            try:
+                await self._kv.delete(claimed_key, last=rev)
+            except Exception as exc:
+                logger.debug("Failed to delete requeued claim key=%s: %s", claimed_key, exc)
 
     async def clear(self, node_id: str) -> None:
-        key = self._key(node_id)
-        for _ in range(32):
+        for key in await kv_list_keys(self._kv, self._pending_prefix(node_id)):
             doc, rev = await kv_get_json(self._kv, key)
             if doc is None:
-                return
-            if await kv_cas_json(self._kv, key, _empty_sync_doc(), rev):
-                return
-        raise RuntimeError(f"failed to clear users for node {node_id} after CAS retries")
+                continue
+            try:
+                await self._kv.delete(key, last=rev)
+            except Exception as exc:
+                logger.debug("Failed to clear pending key=%s: %s", key, exc)
+        for key in await kv_list_keys(self._kv, self._claimed_prefix(node_id)):
+            doc, rev = await kv_get_json(self._kv, key)
+            if doc is None:
+                continue
+            try:
+                await self._kv.delete(key, last=rev)
+            except Exception as exc:
+                logger.debug("Failed to clear claimed key=%s: %s", key, exc)
 
 
 class NatsNodeLifecycleCoordinator:

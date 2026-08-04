@@ -57,6 +57,22 @@ async def test_user_sync_expired_claim_becomes_available():
 
 
 @pytest.mark.asyncio
+async def test_user_sync_enqueue_shards_per_email_key():
+    kv = MemoryCasKv()
+    store = NatsUserSyncStore(kv)
+    users = [_user(f"user{i}@example.com") for i in range(50)]
+    await store.enqueue_users("1", users)
+
+    pending_keys = [key for key in kv._data if key.startswith("p.1.")]
+    assert len(pending_keys) == 50
+
+    claimed = await store.claim_users("1", "worker-a", limit=50, lease_seconds=30)
+    assert len(claimed) == 50
+    await store.clear("1")
+    assert kv._data == {}
+
+
+@pytest.mark.asyncio
 async def test_lifecycle_has_active_lease_tracks_expiry():
     coordinator = NatsNodeLifecycleCoordinator(MemoryCasKv())
     assert await coordinator.has_active_lease("1") is False

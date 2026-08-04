@@ -22,6 +22,8 @@ class CasKv(Protocol):
 
     async def delete(self, key: str, last: int | None = None) -> bool: ...
 
+    async def keys(self, filters: list[str] | None = None) -> list[str]: ...
+
 
 async def kv_get_json(kv: CasKv, key: str) -> tuple[dict[str, Any] | None, int]:
     try:
@@ -45,6 +47,23 @@ async def kv_cas_json(kv: CasKv, key: str, value: dict[str, Any], revision: int)
     except nats_js_errors.KeyWrongLastSequenceError as exc:
         logger.debug("NATS KV CAS conflict for key=%s revision=%s: %s", key, revision, exc)
         return False
+
+
+async def kv_put_json(kv: CasKv, key: str, value: dict[str, Any]) -> None:
+    """Upsert JSON with CAS retries (latest value wins)."""
+    for _ in range(32):
+        _, rev = await kv_get_json(kv, key)
+        if await kv_cas_json(kv, key, value, rev):
+            return
+    raise RuntimeError(f"failed to put NATS KV key={key} after CAS retries")
+
+
+async def kv_list_keys(kv: CasKv, prefix: str) -> list[str]:
+    try:
+        keys = await kv.keys(filters=[prefix])
+    except nats_js_errors.NoKeysError:
+        return []
+    return [key for key in keys if key.startswith(prefix)]
 
 
 class MemoryCasKv:
@@ -95,3 +114,14 @@ class MemoryCasKv:
             raise nats_js_errors.KeyWrongLastSequenceError("wrong last sequence")
         del self._data[key]
         return True
+
+    async def keys(self, filters: list[str] | None = None) -> list[str]:
+        keys = list(self._data)
+        if not filters:
+            if not keys:
+                raise nats_js_errors.NoKeysError
+            return keys
+        matched = [key for key in keys if any(f in key for f in filters)]
+        if not matched:
+            raise nats_js_errors.NoKeysError
+        return matched
