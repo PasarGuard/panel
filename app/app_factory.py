@@ -62,6 +62,7 @@ def _register_nats_handlers(
     enable_settings: bool,
     enable_client_templates: bool,
     ignore_host_messages: bool = False,
+    enable_node_sync: bool = False,
 ):
     if enable_router:
         on_startup(router.start)
@@ -72,6 +73,10 @@ def _register_nats_handlers(
         router.register_handler(MessageTopic.CLIENT_TEMPLATE, handle_client_template_message)
     if ignore_host_messages:
         router.register_handler(MessageTopic.HOST, _ignore_worker_sync_message)
+    if enable_node_sync:
+        from app.node.manager_sync import register_node_sync_handler
+
+        register_node_sync_handler()
 
 
 def _register_scheduler_hooks():
@@ -191,7 +196,10 @@ def create_app() -> FastAPI:
     enable_settings = runtime_settings.role.runs_panel or runtime_settings.role.runs_scheduler
     enable_client_templates = runtime_settings.role.runs_panel or runtime_settings.role.runs_scheduler
     ignore_host_messages = not runtime_settings.role.runs_panel
-    _register_nats_handlers(enable_router, enable_settings, enable_client_templates, ignore_host_messages)
+    enable_node_sync = runtime_settings.role.runs_node
+    _register_nats_handlers(
+        enable_router, enable_settings, enable_client_templates, ignore_host_messages, enable_node_sync
+    )
     _register_scheduler_hooks()
     _register_jobs()
 

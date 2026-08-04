@@ -75,13 +75,13 @@ class NodeManager:
 
         return new_node
 
-    async def remove_node(self, id: int) -> None:
+    async def remove_node(self, id: int, *, remote_stop: bool = True) -> None:
         async with self._lock.writer_lock:
             old_node: PasarGuardNode | None = self._nodes.pop(id, None)
             self._user_sync_locks.pop(id, None)
 
         # Do cleanup without holding the lock to avoid slow delete operations.
-        asyncio.create_task(self._shutdown_node(old_node))
+        asyncio.create_task(self._shutdown_node(old_node, remote_stop=remote_stop))
 
     async def get_node(self, id: int) -> PasarGuardNode | None:
         async with self._lock.reader_lock:

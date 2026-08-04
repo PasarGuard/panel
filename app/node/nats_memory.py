@@ -361,6 +361,25 @@ class NatsNodeLifecycleCoordinator:
                 return
         logger.warning("Lifecycle update_observed CAS exhausted for node_id=%s key=%s", node_id, key)
 
+    async def clear(self, node_id: str) -> None:
+        key = self._key(node_id)
+        doc, rev = await kv_get_json(self._kv, key)
+        if doc is None:
+            return
+        try:
+            await self._kv.delete(key, last=rev)
+        except Exception as exc:
+            logger.debug("Failed to clear lifecycle key=%s: %s", key, exc)
+
+
+async def clear_bridge_memory_for_node(node_id: int | str) -> None:
+    store, coordinator, _ = get_bridge_memory()
+    nid = str(node_id)
+    if store is not None:
+        await store.clear(nid)
+    if coordinator is not None:
+        await coordinator.clear(nid)
+
 
 async def ensure_bridge_memory() -> tuple[NatsUserSyncStore | None, NatsNodeLifecycleCoordinator | None]:
     """Initialize shared bridge memory when NATS is enabled. Idempotent."""

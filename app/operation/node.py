@@ -61,8 +61,11 @@ from app.models.stats import (
     UserCountMetricStatsList,
     validate_user_count_metric_scope,
 )
+from app.nats import is_multi_worker, is_nats_enabled
 from app.nats.node_rpc import node_nats_client
 from app.node import core_users, node_manager
+from app.node.nats_memory import clear_bridge_memory_for_node
+from app.node.manager_sync import publish_node_sync
 from app.operation import BaseOperation, OperatorType
 from app.utils.logger import get_logger
 from config import runtime_settings
@@ -76,11 +79,14 @@ class NodeOperation(BaseOperation):
     def __init__(self, operator_type: OperatorType):
         super().__init__(operator_type)
         if runtime_settings.role.runs_node:
-            self._update_node_impl = self._update_node_local
-            self._remove_node_impl = self._remove_node_local
-            self._connect_single_impl = self._connect_single_node_local
-            self._connect_bulk_impl = self._connect_nodes_bulk_local
-            self._disconnect_single_impl = self._disconnect_single_node_local
+            sync = is_nats_enabled() and is_multi_worker()
+            self._update_node_impl = self._update_node_sync if sync else self._update_node_local
+            self._remove_node_impl = self._remove_node_sync if sync else self._remove_node_local
+            self._connect_single_impl = self._connect_single_node_sync if sync else self._connect_single_node_local
+            self._connect_bulk_impl = self._connect_nodes_bulk_sync if sync else self._connect_nodes_bulk_local
+            self._disconnect_single_impl = (
+                self._disconnect_single_node_sync if sync else self._disconnect_single_node_local
+            )
             self._sync_node_users_impl = self._sync_node_users_local
             self._get_node_stats_impl = self._get_node_system_stats_local
             self._get_nodes_stats_impl = self._get_nodes_system_stats_local
@@ -607,11 +613,20 @@ class NodeOperation(BaseOperation):
     async def _update_node_local(self, db_node: Node) -> None:
         await node_manager.update_node(db_node)
 
+    async def _update_node_sync(self, db_node: Node) -> None:
+        await self._update_node_local(db_node)
+        await publish_node_sync("upsert", db_node.id)
+
     async def _update_node_remote(self, db_node: Node) -> None:
         await node_nats_client.publish("update_node", {"node_id": db_node.id})
 
     async def _remove_node_local(self, node_id: int) -> None:
         await node_manager.remove_node(node_id)
+        await clear_bridge_memory_for_node(node_id)
+
+    async def _remove_node_sync(self, node_id: int) -> None:
+        await self._remove_node_local(node_id)
+        await publish_node_sync("remove", node_id)
 
     async def _remove_node_remote(self, node_id: int) -> None:
         await node_nats_client.publish("remove_node", {"node_id": node_id})
@@ -682,6 +697,12 @@ class NodeOperation(BaseOperation):
             elif notif["status"] == NodeStatus.error and notif["old_status"] != NodeStatus.error:
                 asyncio.create_task(notification.error_node(notif["node"]))
 
+    async def _connect_nodes_bulk_sync(self, db: AsyncSession, nodes: list[Node]) -> None:
+        await self._connect_nodes_bulk_local(db, nodes)
+        for node in nodes:
+            if node is not None and node.status not in (NodeStatus.disabled, NodeStatus.limited):
+                await publish_node_sync("connect", node.id)
+
     async def _connect_nodes_bulk_remote(self, db: AsyncSession, nodes: list[Node]) -> None:
         if not nodes:
             return
@@ -751,11 +772,19 @@ class NodeOperation(BaseOperation):
             )
             asyncio.create_task(notification.error_node(node_notif))
 
+    async def _connect_single_node_sync(self, db: AsyncSession, node_id: int) -> None:
+        await self._connect_single_node_local(db, node_id)
+        await publish_node_sync("connect", node_id)
+
     async def _connect_single_node_remote(self, db: AsyncSession, node_id: int) -> None:
         await node_nats_client.publish("connect_node", {"node_id": node_id})
 
     async def _disconnect_single_node_local(self, node_id: int) -> None:
         await node_manager.remove_node(node_id)
+
+    async def _disconnect_single_node_sync(self, node_id: int) -> None:
+        await self._disconnect_single_node_local(node_id)
+        await publish_node_sync("disconnect", node_id)
 
     async def _disconnect_single_node_remote(self, node_id: int) -> None:
         await node_nats_client.publish("disconnect_node", {"node_id": node_id})
