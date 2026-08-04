@@ -92,9 +92,8 @@ async def try_become_leader(lease_seconds: float = DEFAULT_LEASE_SECONDS) -> boo
     except nats_js_errors.KeyWrongLastSequenceError as exc:
         logger.debug("Scheduler leader create CAS conflict for key=%s: %s", LEADER_KEY, exc)
     except Exception as exc:
-        logger.warning("Failed to create scheduler leader key: %s", exc)
-        _is_leader = False
-        return False
+        # Key may already exist (or create raced); try read/steal before giving up.
+        logger.debug("Scheduler leader create failed for key=%s, trying steal path: %s", LEADER_KEY, exc)
 
     try:
         entry = await kv.get(LEADER_KEY)
