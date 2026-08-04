@@ -8,6 +8,10 @@ from typing import Any, Protocol
 import nats.js.errors as nats_js_errors
 from nats.js.kv import KeyValue
 
+from app.utils.logger import get_logger
+
+logger = get_logger("nats-kv-cas")
+
 
 class CasKv(Protocol):
     async def get(self, key: str) -> Any: ...
@@ -22,7 +26,8 @@ class CasKv(Protocol):
 async def kv_get_json(kv: CasKv, key: str) -> tuple[dict[str, Any] | None, int]:
     try:
         entry = await kv.get(key)
-    except nats_js_errors.KeyNotFoundError, nats_js_errors.KeyDeletedError:
+    except (nats_js_errors.KeyNotFoundError, nats_js_errors.KeyDeletedError) as exc:
+        logger.debug("NATS KV miss for key=%s: %s", key, exc)
         return None, 0
     if not entry or not entry.value:
         return None, getattr(entry, "revision", 0) or 0
@@ -37,7 +42,8 @@ async def kv_cas_json(kv: CasKv, key: str, value: dict[str, Any], revision: int)
         else:
             await kv.update(key, payload, last=revision)
         return True
-    except nats_js_errors.KeyWrongLastSequenceError:
+    except nats_js_errors.KeyWrongLastSequenceError as exc:
+        logger.debug("NATS KV CAS conflict for key=%s revision=%s: %s", key, revision, exc)
         return False
 
 

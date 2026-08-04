@@ -89,8 +89,8 @@ async def try_become_leader(lease_seconds: float = DEFAULT_LEASE_SECONDS) -> boo
         _token = token
         _is_leader = True
         return True
-    except nats_js_errors.KeyWrongLastSequenceError:
-        pass
+    except nats_js_errors.KeyWrongLastSequenceError as exc:
+        logger.debug("Scheduler leader create CAS conflict for key=%s: %s", LEADER_KEY, exc)
     except Exception as exc:
         logger.warning("Failed to create scheduler leader key: %s", exc)
         _is_leader = False
@@ -98,7 +98,8 @@ async def try_become_leader(lease_seconds: float = DEFAULT_LEASE_SECONDS) -> boo
 
     try:
         entry = await kv.get(LEADER_KEY)
-    except nats_js_errors.KeyNotFoundError, nats_js_errors.KeyDeletedError:
+    except (nats_js_errors.KeyNotFoundError, nats_js_errors.KeyDeletedError) as exc:
+        logger.debug("Scheduler leader key miss for key=%s: %s", LEADER_KEY, exc)
         _is_leader = False
         return False
     except Exception as exc:
@@ -113,8 +114,13 @@ async def try_become_leader(lease_seconds: float = DEFAULT_LEASE_SECONDS) -> boo
             _token = token
             _is_leader = True
             return True
-        except nats_js_errors.KeyWrongLastSequenceError:
-            pass
+        except nats_js_errors.KeyWrongLastSequenceError as exc:
+            logger.debug(
+                "Scheduler leader steal CAS conflict for key=%s revision=%s: %s",
+                LEADER_KEY,
+                entry.revision,
+                exc,
+            )
         except Exception as exc:
             logger.warning("Failed to steal expired scheduler leader lease: %s", exc)
 
@@ -173,8 +179,8 @@ async def stop_job_leader() -> None:
             info = _parse(entry.value)
             if info and info[0] == _token:
                 await _kv.delete(LEADER_KEY, last=entry.revision)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Scheduler leader release failed for key=%s: %s", LEADER_KEY, exc)
 
     _token = None
     if _nc is not None:
