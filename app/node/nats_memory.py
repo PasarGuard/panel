@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import contextlib
 import hashlib
 import json
 import os
@@ -384,6 +385,12 @@ async def ensure_bridge_memory() -> tuple[NatsUserSyncStore | None, NatsNodeLife
         _lifecycle_kv = await get_or_create_kv_bucket(js, nats_settings.node_lifecycle_kv_bucket)
         if _user_sync_kv is None or _lifecycle_kv is None:
             logger.warning("Failed to create node bridge memory KV buckets")
+            if _nc is not None:
+                with contextlib.suppress(Exception):
+                    await _nc.close()
+            _nc = None
+            _user_sync_kv = None
+            _lifecycle_kv = None
             return None, None
 
         _user_sync_store = NatsUserSyncStore(_user_sync_kv)
