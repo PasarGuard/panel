@@ -57,6 +57,24 @@ async def test_user_sync_expired_claim_becomes_available():
 
 
 @pytest.mark.asyncio
+async def test_lifecycle_has_active_lease_tracks_expiry():
+    coordinator = NatsNodeLifecycleCoordinator(MemoryCasKv())
+    assert await coordinator.has_active_lease("1") is False
+
+    lease = await coordinator.try_acquire("1", "worker-a", LifecycleOperation.START, 30)
+    assert lease is not None
+    assert await coordinator.has_active_lease("1") is True
+
+    await coordinator.release(lease)
+    assert await coordinator.has_active_lease("1") is False
+
+    expired = await coordinator.try_acquire("1", "worker-a", LifecycleOperation.RECONNECT, 0)
+    assert expired is not None
+    await asyncio.sleep(0.01)
+    assert await coordinator.has_active_lease("1") is False
+
+
+@pytest.mark.asyncio
 async def test_lifecycle_lease_exclusive_and_epoch_fenced():
     coordinator = NatsNodeLifecycleCoordinator(MemoryCasKv())
 

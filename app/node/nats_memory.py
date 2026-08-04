@@ -283,6 +283,16 @@ class NatsNodeLifecycleCoordinator:
             return None
         return _state_from_dict(doc.get("state"))
 
+    async def has_active_lease(self, node_id: str) -> bool:
+        """True when another worker still holds an unexpired lifecycle lease."""
+        doc, _ = await kv_get_json(self._kv, self._key(node_id))
+        if doc is None:
+            return False
+        lease_data = doc.get("lease")
+        if not lease_data:
+            return False
+        return float(lease_data.get("expires_at", 0)) > time.time()
+
     async def update_observed(self, node_id: str, observed: LifecycleStatus, expected_epoch: int | None = None) -> None:
         key = self._key(node_id)
         for _ in range(32):

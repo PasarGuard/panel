@@ -10,7 +10,7 @@ from app.db.models import Node, NodeStatus
 from app.models.node import NodeListQuery, NodeNotification
 from app.nats import is_multi_worker
 from app.node import node_manager
-from app.node.nats_memory import ensure_bridge_memory, shutdown_bridge_memory
+from app.node.nats_memory import ensure_bridge_memory, get_bridge_memory, shutdown_bridge_memory
 from app.operation import OperatorType
 from app.operation.node import NodeOperation
 from app.utils.logger import get_logger
@@ -135,6 +135,7 @@ async def process_node_health_check(db_node: Node, node: PasarGuardNode):
             return
 
         # Prefer shared lifecycle state so multi-worker local NOT_CONNECTED does not thrash Start.
+        # Trust observed HEALTHY only if we can attach, or another worker still holds an active lease.
         shared_state = await node.get_lifecycle_state()
         if (
             health is Health.NOT_CONNECTED
@@ -144,8 +145,20 @@ async def process_node_health_check(db_node: Node, node: PasarGuardNode):
             attached = await NodeOperation._attach_if_running(node, db_node.name)
             if attached is not None:
                 return
-            # Another worker owns a healthy core; do not Start from this process.
-            return
+
+            _, coordinator, _ = get_bridge_memory()
+            if coordinator is not None and await coordinator.has_active_lease(str(db_node.id)):
+                logger.debug(
+                    "[%s] Shared lifecycle HEALTHY with active lease; waiting for owner",
+                    db_node.name,
+                )
+                return
+
+            # Stale HEALTHY (owner gone / core unreachable): fall through to reconnect.
+            logger.debug(
+                "[%s] Shared lifecycle HEALTHY but attach failed and no active lease; reconnecting",
+                db_node.name,
+            )
 
         # Handle NOT_CONNECTED - reconnect immediately
         if health is Health.NOT_CONNECTED:
