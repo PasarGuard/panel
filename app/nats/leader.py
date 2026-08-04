@@ -200,7 +200,8 @@ async def start_job_leader() -> bool:
     global _heartbeat_task
     won = await try_become_leader()
     if won and needs_job_leader():
-        _heartbeat_task = asyncio.create_task(_heartbeat_loop())
+        if _heartbeat_task is None or _heartbeat_task.done():
+            _heartbeat_task = asyncio.create_task(_heartbeat_loop())
         logger.info("Acquired scheduler leadership (worker_id=%s)", WORKER_ID)
     elif won:
         logger.debug("Scheduler leadership not required; running jobs in this process")

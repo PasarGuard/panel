@@ -1,3 +1,5 @@
+import asyncio
+import contextlib
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -12,11 +14,17 @@ def _reset_leader_state():
     leader._token = "token-a"
     leader._kv = None
     leader._on_leadership_lost = None
+    if leader._heartbeat_task is not None and not leader._heartbeat_task.done():
+        leader._heartbeat_task.cancel()
+    leader._heartbeat_task = None
     yield
     leader._is_leader = False
     leader._token = None
     leader._kv = None
     leader._on_leadership_lost = None
+    if leader._heartbeat_task is not None and not leader._heartbeat_task.done():
+        leader._heartbeat_task.cancel()
+    leader._heartbeat_task = None
 
 
 @pytest.mark.asyncio
@@ -65,3 +73,27 @@ async def test_heartbeat_retries_then_concedes_on_renewal_exhaustion():
     assert leader.is_job_leader() is False
     lost.assert_awaited_once()
     assert kv.update.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_start_job_leader_restarts_heartbeat_after_done_task():
+    async def _noop_loop(*_a, **_k):
+        await asyncio.sleep(3600)
+
+    with (
+        patch.object(leader, "needs_job_leader", return_value=True),
+        patch.object(leader, "try_become_leader", AsyncMock(return_value=True)),
+        patch.object(leader, "_heartbeat_loop", _noop_loop),
+    ):
+        assert await leader.start_job_leader() is True
+        first_task = leader._heartbeat_task
+        assert first_task is not None and not first_task.done()
+
+        first_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await first_task
+
+        assert await leader.start_job_leader() is True
+        assert leader._heartbeat_task is not None
+        assert leader._heartbeat_task is not first_task
+        assert not leader._heartbeat_task.done()
