@@ -8,7 +8,7 @@ from app.db.models import NodeStatus
 from app.nats.message import MessageTopic
 from app.nats.router import router
 from app.node import node_manager
-from app.node.nats_memory import clear_bridge_memory_for_node
+from app.node.nats_memory import WORKER_ID, clear_bridge_memory_for_node
 from app.utils.logger import get_logger
 
 logger = get_logger("node-manager-sync")
@@ -16,12 +16,18 @@ logger = get_logger("node-manager-sync")
 
 async def publish_node_sync(action: str, node_id: int) -> None:
     try:
-        await router.publish(MessageTopic.NODE, {"action": action, "node_id": node_id})
+        await router.publish(
+            MessageTopic.NODE,
+            {"action": action, "node_id": node_id, "origin": WORKER_ID},
+        )
     except Exception as exc:
         logger.warning("Failed to publish node sync action=%s node_id=%s: %s", action, node_id, exc)
 
 
 async def handle_node_message(data: dict) -> None:
+    if data.get("origin") == WORKER_ID:
+        return
+
     action = data.get("action")
     node_id = data.get("node_id")
     if not action or node_id is None:

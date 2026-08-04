@@ -33,9 +33,39 @@ async def test_handle_node_remove(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr("app.node.manager_sync.node_manager.remove_node", _remove)
     monkeypatch.setattr("app.node.manager_sync.clear_bridge_memory_for_node", _clear)
 
-    await handle_node_message({"action": "remove", "node_id": 7})
+    await handle_node_message({"action": "remove", "node_id": 7, "origin": "other-worker"})
     assert removed == [(7, False)]
     assert cleared == [7]
+
+
+@pytest.mark.asyncio
+async def test_handle_node_ignores_own_origin(monkeypatch: pytest.MonkeyPatch):
+    removed: list[tuple[int, bool]] = []
+
+    async def _remove(node_id: int, *, remote_stop: bool = True):
+        removed.append((node_id, remote_stop))
+
+    monkeypatch.setattr("app.node.manager_sync.node_manager.remove_node", _remove)
+    monkeypatch.setattr("app.node.manager_sync.WORKER_ID", "worker-self")
+
+    await handle_node_message({"action": "remove", "node_id": 7, "origin": "worker-self"})
+    assert removed == []
+
+
+@pytest.mark.asyncio
+async def test_publish_node_sync_includes_origin(monkeypatch: pytest.MonkeyPatch):
+    from app.node.manager_sync import publish_node_sync
+
+    published: list[dict] = []
+
+    async def _publish(topic, data):
+        published.append(data)
+
+    monkeypatch.setattr("app.node.manager_sync.router.publish", _publish)
+    monkeypatch.setattr("app.node.manager_sync.WORKER_ID", "worker-a")
+
+    await publish_node_sync("upsert", 42)
+    assert published == [{"action": "upsert", "node_id": 42, "origin": "worker-a"}]
 
 
 @pytest.mark.asyncio
@@ -52,7 +82,7 @@ async def test_handle_node_disconnect_no_memory_clear(monkeypatch: pytest.Monkey
     monkeypatch.setattr("app.node.manager_sync.node_manager.remove_node", _remove)
     monkeypatch.setattr("app.node.manager_sync.clear_bridge_memory_for_node", _clear)
 
-    await handle_node_message({"action": "disconnect", "node_id": 3})
+    await handle_node_message({"action": "disconnect", "node_id": 3, "origin": "other"})
     assert removed == [(3, False)]
     assert cleared == []
 
@@ -82,6 +112,6 @@ async def test_handle_node_upsert(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr("app.node.manager_sync.get_node_by_id", _get_node_by_id)
     monkeypatch.setattr("app.node.manager_sync.node_manager.update_node", _update_node)
 
-    await handle_node_message({"action": "upsert", "node_id": 9})
+    await handle_node_message({"action": "upsert", "node_id": 9, "origin": "other"})
     assert len(updated) == 1
     assert updated[0].id == 9
