@@ -27,6 +27,8 @@ DEFAULT_LEASE_SECONDS = 15.0
 HEARTBEAT_INTERVAL = 5.0
 HEARTBEAT_MAX_RETRIES = 3
 HEARTBEAT_RETRY_DELAY = 1.0
+# Worst-case time from last successful renew to concede must stay under the lease.
+assert HEARTBEAT_INTERVAL + (HEARTBEAT_MAX_RETRIES - 1) * HEARTBEAT_RETRY_DELAY < DEFAULT_LEASE_SECONDS
 
 _nc: nats.NATS | None = None
 _kv: KeyValue | None = None
@@ -163,7 +165,9 @@ async def try_become_leader(lease_seconds: float = DEFAULT_LEASE_SECONDS) -> boo
 async def _heartbeat_loop(lease_seconds: float = DEFAULT_LEASE_SECONDS) -> None:
     consecutive_failures = 0
     while _is_leader and _token is not None:
-        await asyncio.sleep(HEARTBEAT_INTERVAL)
+        # On renewal failure, retry promptly — do not wait another full HEARTBEAT_INTERVAL.
+        delay = HEARTBEAT_INTERVAL if consecutive_failures == 0 else HEARTBEAT_RETRY_DELAY
+        await asyncio.sleep(delay)
         kv = _kv
         token = _token
         if kv is None or token is None:
@@ -192,7 +196,6 @@ async def _heartbeat_loop(lease_seconds: float = DEFAULT_LEASE_SECONDS) -> None:
             if consecutive_failures >= HEARTBEAT_MAX_RETRIES:
                 await _concede_leadership("renewal exhausted")
                 return
-            await asyncio.sleep(HEARTBEAT_RETRY_DELAY)
 
 
 async def start_job_leader() -> bool:

@@ -75,6 +75,41 @@ async def test_heartbeat_retries_then_concedes_on_renewal_exhaustion():
     assert kv.update.await_count == 2
 
 
+def test_heartbeat_retry_budget_fits_in_lease():
+    budget = leader.HEARTBEAT_INTERVAL + (leader.HEARTBEAT_MAX_RETRIES - 1) * leader.HEARTBEAT_RETRY_DELAY
+    assert budget < leader.DEFAULT_LEASE_SECONDS
+
+
+@pytest.mark.asyncio
+async def test_heartbeat_retries_use_short_delay_not_full_interval(monkeypatch: pytest.MonkeyPatch):
+    lost = AsyncMock()
+    leader.set_on_leadership_lost(lost)
+    leader._is_leader = True
+
+    kv = MagicMock()
+    entry = MagicMock()
+    entry.value = json.dumps({"token": "token-a", "expires_at": 9999999999}).encode()
+    entry.revision = 1
+    kv.get = AsyncMock(return_value=entry)
+    kv.update = AsyncMock(side_effect=RuntimeError("nats down"))
+    leader._kv = kv
+
+    sleeps: list[float] = []
+
+    async def _sleep(delay):
+        sleeps.append(delay)
+
+    monkeypatch.setattr(leader.asyncio, "sleep", _sleep)
+    monkeypatch.setattr(leader, "HEARTBEAT_INTERVAL", 5.0)
+    monkeypatch.setattr(leader, "HEARTBEAT_RETRY_DELAY", 1.0)
+    monkeypatch.setattr(leader, "HEARTBEAT_MAX_RETRIES", 3)
+
+    await leader._heartbeat_loop()
+
+    assert sleeps == [5.0, 1.0, 1.0]
+    lost.assert_awaited_once()
+
+
 @pytest.mark.asyncio
 async def test_start_job_leader_restarts_heartbeat_after_done_task():
     async def _noop_loop(*_a, **_k):
