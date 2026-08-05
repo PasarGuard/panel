@@ -11,7 +11,7 @@
         "@hookform/resolvers": "^5.2.2",
         "@monaco-editor/react": "^4.7.0",
         "@noble/post-quantum": "^0.5.4",
-        "@pasarguard/core-kit": "^0.2.7",
+        "@pasarguard/core-kit": "0.2.8",
         "@pasarguard/xray-config-kit": "^0.3.6",
         "@radix-ui/react-accordion": "^1.2.12",
         "@radix-ui/react-alert-dialog": "^1.1.15",
@@ -499,7 +499,7 @@
 
     "@oxc-project/types": ["@oxc-project/types@0.139.0", "", {}, "sha512-r9gHphtCs+1M7J0pw6Sn/hh/Wpa/iQrOOkrNAlVLF/gHq+/CJmHIWKKUUhdWjcD6CIa8idarspCsASiXCXvFUw=="],
 
-    "@pasarguard/core-kit": ["@pasarguard/core-kit@0.2.7", "", { "dependencies": { "@pasarguard/wireguard-config-kit": "0.1.0", "@pasarguard/xray-config-kit": "0.3.7" } }, "sha512-rdYkrHl+i7ADQgEx1wXD1pHciram5nRgq678N2V5JbV5fzsPQBq36pICQ1CA56SJuihgLEocK3e3lIn4mtc9eQ=="],
+    "@pasarguard/core-kit": ["@pasarguard/core-kit@0.2.8", "", { "dependencies": { "@pasarguard/wireguard-config-kit": "0.1.0", "@pasarguard/xray-config-kit": "0.3.8" } }, "sha512-tSLZ+lNtTQEgBcuVJ9wY4B+pTtcG8ypYnSB4C/qss4lrTSZxPTspMe1BRgqgQEVv4602HzjpGNWZb08L5cR0MQ=="],
 
     "@pasarguard/wireguard-config-kit": ["@pasarguard/wireguard-config-kit@0.1.0", "", { "dependencies": { "@stablelib/x25519": "^2.0.1", "zod": "^3.25.76" } }, "sha512-vC4ULRfrgsN+W9mFLHFkr74G+6yPmMtxj1/1ZjIwulHPeQ5qHVGA0ed1vSMxL9f722rmV3jj/eMeRQCasGJsrw=="],
 
@@ -2099,7 +2099,7 @@
 
     "@orval/core/openapi3-ts": ["openapi3-ts@4.4.0", "", { "dependencies": { "yaml": "^2.5.0" } }, "sha512-9asTNB9IkKEzWMcHmVZE7Ts3kC9G7AFHfs8i7caD8HbI76gEjdkId4z/AkP83xdZsH7PLAnnbl47qZkXuxpArw=="],
 
-    "@pasarguard/core-kit/@pasarguard/xray-config-kit": ["@pasarguard/xray-config-kit@0.3.7", "", { "dependencies": { "@noble/post-quantum": "^0.5.4", "@stablelib/x25519": "^2.0.1", "mlkem": "^2.7.0", "zod": "^3.23.8", "zod-to-json-schema": "^3.25.2" } }, "sha512-KxlrXE7ys/ZHRpn4tnCV3jaokoROV2MOTBof2/3HT/KhsHritEKGsd4SmAlDvTpVjIhiQdBBeYNLjcd7zAN+CQ=="],
+    "@pasarguard/core-kit/@pasarguard/xray-config-kit": ["@pasarguard/xray-config-kit@0.3.8", "", { "dependencies": { "@noble/post-quantum": "^0.5.4", "@stablelib/x25519": "^2.0.1", "mlkem": "^2.7.0", "zod": "^3.23.8", "zod-to-json-schema": "^3.25.2" } }, "sha512-zHRk3poELWPu9R5Ux8CcWpoCWEgcPXfI3Gm3rZVqjGBYzTUFlEspDB/uGugLNWPH/fNgZIaxCCz+6TxJlIDHIA=="],
 
     "@stoplight/json-ref-readers/tslib": ["tslib@1.14.1", "", {}, "sha512-Xni35NKzjgMrwevysHTCArtLDpPvye8zV/0E4EyYn43P7/7qvQwPh9BGkHewbMulVntbigmcT7rdX3BNo9wRJg=="],
 
