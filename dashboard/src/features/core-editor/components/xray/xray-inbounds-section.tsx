@@ -61,7 +61,7 @@ import type { Fallback, Inbound, InboundPort, Profile, Security, ShadowsocksMeth
 import { createDefaultInbound, createDefaultInboundForProtocol, getInboundFieldVisibility, getInboundFormCapabilities } from '@pasarguard/xray-config-kit'
 import type { ColumnDef } from '@tanstack/react-table'
 import type { TFunction } from 'i18next'
-import { Cable, Dices, KeyRound, Pencil, Plus, RefreshCcw, Shield, Trash2 } from 'lucide-react'
+import { Cable, Copy, Dices, KeyRound, Pencil, Plus, RefreshCcw, Shield, Trash2 } from 'lucide-react'
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useForm, type Resolver } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -746,6 +746,26 @@ function readTunnelPortMapRowsFromInbound(inbound: Inbound): { listenPort: strin
 
 function cloneInbound(inbound: Inbound): Inbound {
   return JSON.parse(JSON.stringify(inbound)) as Inbound
+}
+
+function uniqueCopiedInboundTag(profile: Profile, sourceTag: string): string {
+  const base = String(sourceTag ?? '').trim() || 'inbound'
+  const stem = /-copy(?:-\d+)?$/i.test(base) ? base.replace(/-\d+$/i, '') : `${base}-copy`
+  if (!profileTagHasDuplicateUsage(profile, stem)) return stem
+  for (let n = 2; n < 1000; n += 1) {
+    const candidate = `${stem}-${n}`
+    if (!profileTagHasDuplicateUsage(profile, candidate)) return candidate
+  }
+  return `${stem}-${Date.now()}`
+}
+
+function buildDuplicatedInbound(profile: Profile, source: Inbound): Inbound {
+  const cloned = cloneInbound(source) as Record<string, unknown>
+  cloned.tag = uniqueCopiedInboundTag(profile, String(source.tag ?? ''))
+  if (typeof cloned.port === 'number') {
+    cloned.port = randomInboundPort(profile)
+  }
+  return cloned as Inbound
 }
 
 function getRandomInt(max: number): number {
@@ -2511,6 +2531,24 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
           updateXrayProfile(p => ({ ...p, inbounds: arrayMove(p.inbounds, from, to) }))
           setSelected(sel => remapIndexAfterArrayMove(sel, from, to))
         }}
+        getRowActions={(_row, index) => [
+          {
+            key: 'duplicate',
+            label: t('duplicate'),
+            icon: <Copy className="size-4 shrink-0" />,
+            onSelect: () => {
+              updateXrayProfile(p => {
+                const source = p.inbounds[index]
+                if (!source) return p
+                const duplicated = buildDuplicatedInbound(p, source)
+                const next = [...p.inbounds]
+                next.splice(index + 1, 0, duplicated)
+                return { ...p, inbounds: next }
+              })
+              setSelected(index + 1)
+            },
+          },
+        ]}
       />
 
       <CoreEditorFormDialog
