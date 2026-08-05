@@ -1,5 +1,5 @@
 import * as z from 'zod'
-import type { FinalMaskInput } from '@/service/api'
+import type { FinalMask } from '@/service/api'
 
 interface Brutal {
   enable?: boolean
@@ -164,7 +164,7 @@ export interface HostFormValues {
       heartbeatPeriod?: number
     }
   }
-  final_mask_settings?: FinalMaskInput
+  final_mask_settings?: FinalMask
 }
 
 const transportSettingsSchema = z
@@ -467,7 +467,7 @@ export const HostFormSchema = z.object({
       xray: z.number().int().positive().optional(),
     })
     .optional(),
-  final_mask_settings: z.custom<FinalMaskInput>().optional(),
+  final_mask_settings: z.custom<FinalMask>().optional(),
 })
 
 export const hostFormDefaultValues: HostFormValues = {
@@ -497,3 +497,25 @@ export const hostFormDefaultValues: HostFormValues = {
   subscription_templates: undefined,
   final_mask_settings: undefined,
 }
+
+/** Normalize API fragment settings for the host form (accept legacy `delay` as `interval`). */
+export function mapHostFragmentSettingsForForm(fragmentSettings: { xray?: Record<string, unknown> | null; sing_box?: NonNullable<HostFormValues['fragment_settings']>['sing_box'] | null } | null | undefined): HostFormValues['fragment_settings'] | undefined {
+  if (!fragmentSettings) return undefined
+  const xrayRaw = fragmentSettings.xray
+  if (!xrayRaw && fragmentSettings.sing_box == null) return undefined
+
+  const intervalValue = xrayRaw?.interval ?? xrayRaw?.delay
+  const interval = typeof intervalValue === 'string' && intervalValue ? intervalValue : undefined
+
+  return {
+    xray: xrayRaw
+      ? {
+          packets: typeof xrayRaw.packets === 'string' ? xrayRaw.packets : undefined,
+          length: typeof xrayRaw.length === 'string' ? xrayRaw.length : undefined,
+          interval,
+        }
+      : undefined,
+    sing_box: fragmentSettings.sing_box ?? undefined,
+  }
+}
+

@@ -392,3 +392,89 @@ def test_host_finalmask_new_types(access_token):
     finally:
         client.delete(f"/api/host/{host_id}", headers={"Authorization": f"Bearer {access_token}"})
         delete_core(access_token, core["id"])
+
+
+def test_host_fragment_interval_roundtrip(access_token):
+    """Freedom fragment interval must persist as interval (not serialize away as delay)."""
+    core = create_core(access_token)
+    inbound_list = get_inbounds(access_token)
+    assert inbound_list
+    inbound = inbound_list[0]
+
+    create_response = client.post(
+        "/api/host",
+        headers={"Authorization": f"Bearer {access_token}"},
+        json={
+            "remark": unique_name("fragment_interval"),
+            "address": ["127.0.0.1"],
+            "port": 443,
+            "inbound_tag": inbound,
+            "priority": 1,
+            "fragment_settings": {
+                "xray": {
+                    "packets": "tlshello",
+                    "length": "10-20",
+                    "interval": "5-10",
+                }
+            },
+        },
+    )
+    assert create_response.status_code == status.HTTP_201_CREATED, create_response.text
+    host_id = create_response.json()["id"]
+
+    try:
+        get_res = client.get(f"/api/host/{host_id}", headers={"Authorization": f"Bearer {access_token}"})
+        assert get_res.status_code == status.HTTP_200_OK
+        xray = (get_res.json().get("fragment_settings") or {}).get("xray") or {}
+        assert xray.get("interval") == "5-10"
+        assert xray.get("length") == "10-20"
+        assert "delay" not in xray
+    finally:
+        client.delete(f"/api/host/{host_id}", headers={"Authorization": f"Bearer {access_token}"})
+        delete_core(access_token, core["id"])
+
+
+def test_host_finalmask_legacy_interval_to_delays(access_token):
+    """Legacy FinalMask fragment interval/length should normalize to delays/lengths."""
+    core = create_core(access_token)
+    inbound_list = get_inbounds(access_token)
+    assert inbound_list
+    inbound = inbound_list[0]
+
+    create_response = client.post(
+        "/api/host",
+        headers={"Authorization": f"Bearer {access_token}"},
+        json={
+            "remark": unique_name("finalmask_legacy_interval"),
+            "address": ["127.0.0.1"],
+            "port": 443,
+            "inbound_tag": inbound,
+            "priority": 1,
+            "final_mask_settings": {
+                "tcp": [
+                    {
+                        "type": "fragment",
+                        "settings": {
+                            "packets": "tlshello",
+                            "length": "10-20",
+                            "interval": "5-10",
+                        },
+                    }
+                ]
+            },
+        },
+    )
+    assert create_response.status_code == status.HTTP_201_CREATED, create_response.text
+    host_id = create_response.json()["id"]
+
+    try:
+        get_res = client.get(f"/api/host/{host_id}", headers={"Authorization": f"Bearer {access_token}"})
+        assert get_res.status_code == status.HTTP_200_OK
+        settings = ((get_res.json().get("final_mask_settings") or {}).get("tcp") or [{}])[0].get("settings") or {}
+        assert settings.get("lengths") == ["10-20"]
+        assert settings.get("delays") == ["5-10"]
+        assert "interval" not in settings
+        assert "length" not in settings
+    finally:
+        client.delete(f"/api/host/{host_id}", headers={"Authorization": f"Bearer {access_token}"})
+        delete_core(access_token, core["id"])

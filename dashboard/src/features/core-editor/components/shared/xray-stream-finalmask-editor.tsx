@@ -42,13 +42,13 @@ function normalizeFragmentSettings(settings: any): any {
   if (!settings || typeof settings !== 'object' || Array.isArray(settings)) return settings
   const out: any = { ...settings }
 
-  if (out.length != null && !Array.isArray(out.lengths)) {
+  if (out.length != null && (!Array.isArray(out.lengths) || out.lengths.length === 0)) {
     out.lengths = [out.length]
   }
   delete out.length
 
   const legacyDelay = out.delay ?? out.interval
-  if (legacyDelay != null && !Array.isArray(out.delays)) {
+  if (legacyDelay != null && legacyDelay !== '' && (!Array.isArray(out.delays) || out.delays.length === 0)) {
     out.delays = [legacyDelay]
   }
   delete out.delay

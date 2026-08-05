@@ -2,7 +2,7 @@ from enum import Enum
 from ipaddress import ip_network
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.db.models import ProxyHostALPN, ProxyHostFingerprint, ProxyHostSecurity, UserStatus
 
@@ -39,17 +39,8 @@ class XrayFragmentSettings(BaseModel):
 
     packets: str = Field(pattern=r"^(:?tlshello|[\d-]{1,16})$")
     length: str = Field(pattern=r"^[\d-]{1,16}$")
-    interval: str = Field(pattern=r"^[\d-]{1,16}$", serialization_alias="delay")
+    interval: str = Field(pattern=r"^[\d-]{1,16}$", validation_alias=AliasChoices("interval", "delay"))
     max_split: str | None = Field(default=None, alias="maxSplit")
-
-    @model_validator(mode="before")
-    @classmethod
-    def delay_to_interval(cls, value):
-        if isinstance(value, dict) and "delay" in value:
-            value = {**value}
-            delay = value.pop("delay")
-            value.setdefault("interval", delay)
-        return value
 
 
 class SingBoxFragmentSettings(BaseModel):
@@ -97,14 +88,16 @@ class FinalMaskFragmentSettings(FinalMaskBaseModel):
         value = {**value}
 
         length = value.pop("length", None)
-        if length is not None and "lengths" not in value:
+        existing_lengths = value.get("lengths")
+        if length is not None and (not isinstance(existing_lengths, list) or len(existing_lengths) == 0):
             value["lengths"] = [length]
 
-        # FinalMask uses "delay"; older UI used Freedom-style "interval"
+        # FinalMask uses "delay"/"delays"; older UI used Freedom-style "interval"
         delay = value.pop("delay", None)
         interval = value.pop("interval", None)
-        legacy_delay = delay if delay is not None else interval
-        if legacy_delay is not None and "delays" not in value:
+        legacy_delay = delay if delay not in (None, "") else interval
+        existing_delays = value.get("delays")
+        if legacy_delay not in (None, "") and (not isinstance(existing_delays, list) or len(existing_delays) == 0):
             value["delays"] = [legacy_delay]
 
         return value

@@ -441,7 +441,7 @@ export interface XrayFragmentSettingsOutput {
   /** @pattern ^[\d-]{1,16}$ */
   length: string
   /** @pattern ^[\d-]{1,16}$ */
-  delay: string
+  interval: string
   maxSplit?: XrayFragmentSettingsOutputMaxSplit
   [key: string]: unknown
 }

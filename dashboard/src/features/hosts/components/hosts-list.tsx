@@ -1,6 +1,6 @@
 import { Card, CardContent } from '@/components/ui/card'
 import { type HostAdvanceSearchFormValues, hostAdvanceSearchFormSchema } from '@/features/hosts/forms/host-advance-search-form'
-import { HostFormSchema, hostFormDefaultValues, type HostFormValues } from '@/features/hosts/forms/host-form'
+import { HostFormSchema, hostFormDefaultValues, mapHostFragmentSettingsForForm, type HostFormValues } from '@/features/hosts/forms/host-form'
 import HostAdvanceSearchModal from '@/features/hosts/dialogs/host-advance-search-modal'
 import { type HostListFilters, HostFilters } from '@/features/hosts/components/host-filters'
 import { ListGenerator } from '@/components/common/list-generator'
@@ -207,12 +207,7 @@ export default function HostsList({
           }
         : undefined,
       final_mask_settings: host.final_mask_settings ?? undefined,
-      fragment_settings: host.fragment_settings
-        ? {
-            xray: host.fragment_settings.xray ?? undefined,
-            sing_box: host.fragment_settings.sing_box ?? undefined,
-          }
-        : undefined,
+      fragment_settings: mapHostFragmentSettingsForForm(host.fragment_settings),
       noise_settings: host.noise_settings
         ? {
             xray:
