@@ -72,7 +72,11 @@ export function getInboundTransportSelectOptions(
 
 export function getInboundSecuritySelectOptions(caps: InboundFormCapabilities, protocol: Inbound['protocol']): Array<'none' | 'tls' | 'reality'> {
   const all = Object.keys(caps.securities).filter((k): k is 'none' | 'tls' | 'reality' => caps.securities[k])
-  if (protocol === 'vmess' || protocol === 'shadowsocks' || protocol === 'hysteria') {
+  // Hysteria transport requires TLS (Xray docs); none / REALITY are not supported.
+  if (protocol === 'hysteria') {
+    return all.filter(s => s === 'tls')
+  }
+  if (protocol === 'vmess' || protocol === 'shadowsocks') {
     return all.filter(s => s !== 'reality')
   }
   return all

@@ -411,48 +411,61 @@ function kitArgsPreservingListenPort(inbound: Inbound): { tag: string; listen?: 
   return args
 }
 
-function hysteriaSalamanderPasswordForForm(inbound: Inbound): string {
-  if (inbound.protocol !== 'hysteria' || inbound.transport.type !== 'hysteria') return ''
-  const udpmasks = hysteriaUdpmasksForForm(inbound)
-  if (!Array.isArray(udpmasks)) return ''
-  const salamander = udpmasks.find(mask => {
-    if (!mask || typeof mask !== 'object' || Array.isArray(mask)) return false
-    return (mask as { type?: unknown }).type === 'salamander'
-  })
-  if (!salamander || typeof salamander !== 'object' || Array.isArray(salamander)) return ''
-  const settings = (salamander as { settings?: unknown }).settings
-  if (!settings || typeof settings !== 'object' || Array.isArray(settings)) return ''
-  const password = (settings as { password?: unknown }).password
-  return typeof password === 'string' ? password : ''
+type HysteriaSalamanderFormSettings = { password: string; packetSize: string }
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }
 
+/** Prefer `streamAdvanced.finalmask.udp` (Xray canonical); fall back to legacy `transport.udpmasks`. */
 function hysteriaUdpmasksForForm(inbound: Inbound): unknown {
   if (inbound.protocol !== 'hysteria' || inbound.transport.type !== 'hysteria') return undefined
+  const finalmaskUdp = (inbound as { streamAdvanced?: { finalmask?: { udp?: unknown } } }).streamAdvanced?.finalmask?.udp
+  if (Array.isArray(finalmaskUdp)) return finalmaskUdp
   const transportUdpmasks = (inbound.transport as unknown as { udpmasks?: unknown }).udpmasks
-  if (Array.isArray(transportUdpmasks)) return transportUdpmasks
-  return (inbound as { streamAdvanced?: { finalmask?: { udp?: unknown } } }).streamAdvanced?.finalmask?.udp
+  return Array.isArray(transportUdpmasks) ? transportUdpmasks : undefined
 }
 
-function hysteriaUdpmasksWithSalamanderPassword(current: unknown, password: string | undefined): Array<{ type: string; settings?: Record<string, unknown> }> | undefined {
-  const existing = Array.isArray(current) ? current.filter((mask): mask is Record<string, unknown> => Boolean(mask) && typeof mask === 'object' && !Array.isArray(mask)) : []
-  const withoutSalamander = existing.filter(mask => mask.type !== 'salamander')
-  const normalized = password?.trim() ?? ''
-  if (normalized === '') return withoutSalamander.length > 0 ? withoutSalamander.map(mask => ({ ...mask }) as { type: string; settings?: Record<string, unknown> }) : undefined
-  return [...withoutSalamander.map(mask => ({ ...mask }) as { type: string; settings?: Record<string, unknown> }), { type: 'salamander', settings: { password: normalized } }]
+function hysteriaSalamanderSettingsForForm(inbound: Inbound): HysteriaSalamanderFormSettings {
+  const empty: HysteriaSalamanderFormSettings = { password: '', packetSize: '' }
+  if (inbound.protocol !== 'hysteria' || inbound.transport.type !== 'hysteria') return empty
+  const udpmasks = hysteriaUdpmasksForForm(inbound)
+  if (!Array.isArray(udpmasks)) return empty
+  const salamander = udpmasks.find(mask => isPlainRecord(mask) && mask.type === 'salamander')
+  if (!isPlainRecord(salamander) || !isPlainRecord(salamander.settings)) return empty
+  const password = salamander.settings.password
+  const packetSize = salamander.settings.packetSize
+  return {
+    password: typeof password === 'string' ? password : '',
+    packetSize: packetSize === undefined || packetSize === null ? '' : String(packetSize),
+  }
 }
 
-function clearHysteriaFinalmaskUdp(inbound: Inbound): Record<string, unknown> | undefined {
+/** Write Salamander into `streamSettings.finalmask.udp` per Xray docs; clear legacy `transport.udpmasks`. */
+function applyHysteriaSalamanderToStreamAdvanced(
+  inbound: Inbound,
+  next: { password?: string; packetSize?: string } | undefined,
+): Record<string, unknown> | undefined {
   const streamAdvanced = (inbound as { streamAdvanced?: unknown }).streamAdvanced
-  if (!streamAdvanced || typeof streamAdvanced !== 'object' || Array.isArray(streamAdvanced)) return undefined
+  const nextStreamAdvanced = isPlainRecord(streamAdvanced) ? { ...streamAdvanced } : {}
+  const finalmask = isPlainRecord(nextStreamAdvanced.finalmask) ? { ...nextStreamAdvanced.finalmask } : {}
+  const existingUdp = hysteriaUdpmasksForForm(inbound)
+  const currentUdp = Array.isArray(existingUdp) ? existingUdp.filter(isPlainRecord) : []
+  const withoutSalamander = currentUdp.filter(mask => mask.type !== 'salamander').map(mask => ({ ...mask }))
 
-  const nextStreamAdvanced = { ...(streamAdvanced as Record<string, unknown>) }
-  const finalmask = nextStreamAdvanced.finalmask
-  if (!finalmask || typeof finalmask !== 'object' || Array.isArray(finalmask)) return nextStreamAdvanced
+  const password = next?.password?.trim() ?? ''
+  const packetSize = next?.packetSize?.trim() ?? ''
+  if (password === '') {
+    if (withoutSalamander.length === 0) delete finalmask.udp
+    else finalmask.udp = withoutSalamander
+  } else {
+    const settings: Record<string, unknown> = { password }
+    if (packetSize !== '') settings.packetSize = packetSize
+    finalmask.udp = [...withoutSalamander, { type: 'salamander', settings }]
+  }
 
-  const nextFinalmask = { ...(finalmask as Record<string, unknown>) }
-  delete nextFinalmask.udp
-  if (Object.keys(nextFinalmask).length === 0) delete nextStreamAdvanced.finalmask
-  else nextStreamAdvanced.finalmask = nextFinalmask
+  if (Object.keys(finalmask).length === 0) delete nextStreamAdvanced.finalmask
+  else nextStreamAdvanced.finalmask = finalmask
 
   return Object.keys(nextStreamAdvanced).length > 0 ? nextStreamAdvanced : undefined
 }
@@ -538,11 +551,14 @@ function stripHysteriaInboundAuth(ib: Inbound): Inbound {
   if (ib.protocol !== 'hysteria' || ib.transport.type !== 'hysteria') return ib
   const nextTransport = { ...ib.transport } as Record<string, unknown>
   delete nextTransport.auth
+  // Hysteria requires TLS — coerce legacy `none` security.
+  const security = ib.security.type === 'none' ? ({ type: 'tls' as const, serverName: '' }) : ib.security
   return {
     ...ib,
     clients: [],
-    transport: nextTransport as Transport,
-  } as Inbound
+    transport: nextTransport as typeof ib.transport,
+    security,
+  }
 }
 
 function applyInboundEditorCreationDefaults(ib: Inbound): Inbound {
@@ -1065,6 +1081,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
       wgMtu: '',
       hysteriaObfsEnabled: 'false',
       hysteriaObfsPassword: '',
+      hysteriaObfsPacketSize: '',
     },
     // `onSubmit`: REALITY rules use `superRefine` on the whole form — with `onTouched`, focusing
     // e.g. Security runs the resolver once and surfaces every REALITY field error at once. With
@@ -1138,6 +1155,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
     const sniffing = 'sniffing' in row && row.sniffing && typeof row.sniffing === 'object' && !Array.isArray(row.sniffing) ? (row.sniffing as Record<string, unknown>) : null
     const securityType = security?.type
     const securityOrder = typeof securityType === 'string' ? getInboundSecurityFieldOrder(caps, securityType) : []
+    const hysteriaSalamander = hysteriaSalamanderSettingsForForm(row)
 
     const next: InboundDialogFormValues = {
       protocol: row.protocol,
@@ -1164,14 +1182,15 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
           : '',
       hysteriaMasqueradeStatusCode:
         row.protocol === 'hysteria' && row.transport.type === 'hysteria' && typeof row.transport.masquerade?.statusCode === 'number' ? String(row.transport.masquerade.statusCode) : '',
-      hysteriaObfsEnabled: hysteriaSalamanderPasswordForForm(row) ? 'true' : 'false',
-      hysteriaObfsPassword: hysteriaSalamanderPasswordForForm(row),
+      hysteriaObfsEnabled: hysteriaSalamander.password ? 'true' : 'false',
+      hysteriaObfsPassword: hysteriaSalamander.password,
+      hysteriaObfsPacketSize: hysteriaSalamander.packetSize,
       sniffingEnabled: sniffing?.enabled ? 'true' : 'false',
       sniffingDestOverride: JSON.stringify(parseSniffingDestOverride(sniffing?.destOverride)),
       sniffingMetadataOnly: sniffing?.metadataOnly ? 'true' : 'false',
       sniffingRouteOnly: sniffing?.routeOnly ? 'true' : 'false',
       transport: 'transport' in row && row.transport ? row.transport.type : 'tcp',
-      security: 'security' in row && row.security ? row.security.type : 'none',
+      security: row.protocol === 'hysteria' ? 'tls' : 'security' in row && row.security ? row.security.type : 'none',
       tunName: row.protocol === 'tun' && typeof (row as { name?: unknown }).name === 'string' ? String((row as { name?: unknown }).name) : '',
       tunMtu: row.protocol === 'tun' && typeof (row as { mtu?: unknown }).mtu === 'number' ? String((row as { mtu?: number }).mtu) : '',
       wgSecretKey: row.protocol === 'wireguard' && typeof (row as { secretKey?: unknown }).secretKey === 'string' ? String((row as { secretKey?: unknown }).secretKey) : '',
@@ -1828,6 +1847,16 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
     else updateXrayProfile(p => replaceInbound(p, selected, next))
   }
 
+  // Hysteria requires TLS — upgrade legacy `none` when the inbound dialog is open.
+  useEffect(() => {
+    if (!detailOpen || !inbound || inbound.protocol !== 'hysteria') return
+    if (inbound.security.type !== 'none') return
+    const coerced = stripHysteriaInboundAuth(inbound)
+    replaceEffectiveInbound(coerced)
+    form.setValue('security', 'tls', { shouldValidate: false, shouldDirty: false })
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only coerce when dialog opens / security is none
+  }, [detailOpen, inbound])
+
   function patchInboundSockopt(next: Record<string, unknown> | undefined) {
     if (!inbound || inbound.protocol === 'unmanaged' || inbound.protocol === 'tun') return
     const baseRec = { ...(inbound as Record<string, unknown>) }
@@ -1857,6 +1886,12 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
     else sa.finalmask = next
     if (Object.keys(sa).length === 0) delete baseRec.streamAdvanced
     else baseRec.streamAdvanced = sa
+    // Prefer canonical finalmask over legacy hysteria transport.udpmasks.
+    if (inbound.protocol === 'hysteria' && inbound.transport.type === 'hysteria') {
+      const nextTransport = { ...(inbound.transport as unknown as Record<string, unknown>) }
+      delete nextTransport.udpmasks
+      baseRec.transport = nextTransport
+    }
     replaceEffectiveInbound(baseRec as Inbound)
   }
 
@@ -2026,7 +2061,11 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
   )
 
   const patchHysteriaServerSettings = useCallback(
-    (patch: { udpIdleTimeout?: number | undefined; masquerade?: Record<string, unknown> | undefined; obfsPassword?: string | undefined }) => {
+    (patch: {
+      udpIdleTimeout?: number | undefined
+      masquerade?: Record<string, unknown> | undefined
+      salamander?: { password?: string; packetSize?: string } | undefined
+    }) => {
       if (!inbound || inbound.protocol !== 'hysteria' || inbound.transport.type !== 'hysteria') return
       // Xray Hysteria inbound JSON must keep settings.clients empty and omit hysteriaSettings.auth.
       const nextTransport = { ...inbound.transport } as Record<string, unknown>
@@ -2052,13 +2091,12 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
           else nextTransport.masquerade = mergedMasquerade as NonNullable<typeof nextTransport.masquerade>
         }
       }
-      if ('obfsPassword' in patch) {
-        const currentUdpmasks = nextTransport.udpmasks ?? hysteriaUdpmasksForForm(inbound)
-        const udpmasks = hysteriaUdpmasksWithSalamanderPassword(currentUdpmasks, patch.obfsPassword)
-        if (udpmasks === undefined) delete nextTransport.udpmasks
-        else nextTransport.udpmasks = udpmasks
+      // Salamander lives under streamSettings.finalmask.udp (Xray FinalMask). Drop legacy transport.udpmasks.
+      let nextStreamAdvanced = (inbound as { streamAdvanced?: unknown }).streamAdvanced as Record<string, unknown> | undefined
+      if ('salamander' in patch) {
+        delete nextTransport.udpmasks
+        nextStreamAdvanced = applyHysteriaSalamanderToStreamAdvanced(inbound, patch.salamander)
       }
-      const nextStreamAdvanced = 'obfsPassword' in patch ? clearHysteriaFinalmaskUdp(inbound) : (inbound as { streamAdvanced?: unknown }).streamAdvanced
       patchInbound({
         clients: [],
         transport: nextTransport as Transport,
@@ -3103,7 +3141,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                       control={form.control}
                       name="hysteriaUdpIdleTimeout"
                       render={({ field, fieldState }) => (
-                        <FormItem>
+                        <FormItem className="sm:col-span-2">
                           <FormLabel className="text-muted-foreground text-xs font-semibold tracking-wide">
                             {t('coreEditor.inbound.hysteria.udpIdleTimeout', { defaultValue: 'UDP Idle Timeout (seconds)' })}
                           </FormLabel>
@@ -3134,8 +3172,17 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                       control={form.control}
                       name="hysteriaObfsEnabled"
                       render={({ field }) => (
-                        <FormItem className="flex min-h-10 flex-row items-center justify-between gap-3 space-y-0 rounded-md border px-3 py-2">
-                          <FormLabel className="cursor-pointer text-sm font-medium">{t('coreEditor.inbound.hysteria.obfs', { defaultValue: 'Salamander obfuscation' })}</FormLabel>
+                        <FormItem className="flex min-h-10 flex-row items-center justify-between gap-3 space-y-0 rounded-md border px-3 py-2 sm:col-span-2">
+                          <div className="min-w-0 space-y-0.5">
+                            <FormLabel className="cursor-pointer text-sm font-medium">
+                              {t('coreEditor.inbound.hysteria.obfs', { defaultValue: 'Salamander obfuscation (FinalMask)' })}
+                            </FormLabel>
+                            <p className="text-muted-foreground text-[11px]">
+                              {t('coreEditor.inbound.hysteria.obfsHint', {
+                                defaultValue: 'Writes streamSettings.finalmask.udp salamander. Optional packetSize enables Gecko (max 2048).',
+                              })}
+                            </p>
+                          </div>
                           <FormControl>
                             <Switch
                               checked={field.value === 'true'}
@@ -3143,11 +3190,13 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                                 field.onChange(checked ? 'true' : 'false')
                                 if (!checked) {
                                   form.setValue('hysteriaObfsPassword', '')
-                                  patchHysteriaServerSettings({ obfsPassword: undefined })
+                                  form.setValue('hysteriaObfsPacketSize', '')
+                                  patchHysteriaServerSettings({ salamander: undefined })
                                 } else {
                                   const current = form.getValues('hysteriaObfsPassword') || generatePassword()
+                                  const packetSize = form.getValues('hysteriaObfsPacketSize') || ''
                                   form.setValue('hysteriaObfsPassword', current)
-                                  patchHysteriaServerSettings({ obfsPassword: current })
+                                  patchHysteriaServerSettings({ salamander: { password: current, packetSize } })
                                 }
                               }}
                             />
@@ -3156,37 +3205,68 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                       )}
                     />
                     {form.watch('hysteriaObfsEnabled') === 'true' && (
-                      <FormField
-                        control={form.control}
-                        name="hysteriaObfsPassword"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-muted-foreground text-xs font-semibold tracking-wide">
-                              {t('coreEditor.inbound.hysteria.obfsPassword', { defaultValue: 'Obfs password' })}
-                            </FormLabel>
-                            <FormControl>
-                              <PasswordInput
-                                dir="ltr"
-                                autoComplete="new-password"
-                                className="h-10"
-                                value={field.value ?? ''}
-                                onChange={e => {
-                                  const v = e.target.value
-                                  field.onChange(v)
-                                  patchHysteriaServerSettings({ obfsPassword: v })
-                                }}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                      <div className="grid gap-3 sm:col-span-2 sm:grid-cols-2">
+                        <FormField
+                          control={form.control}
+                          name="hysteriaObfsPassword"
+                          render={({ field }) => (
+                            <FormItem className="min-w-0">
+                              <FormLabel className="text-muted-foreground text-xs font-semibold tracking-wide">
+                                {t('coreEditor.inbound.hysteria.obfsPassword', { defaultValue: 'Salamander password' })}
+                              </FormLabel>
+                              <FormControl>
+                                <PasswordInput
+                                  dir="ltr"
+                                  autoComplete="new-password"
+                                  className="h-10"
+                                  value={field.value ?? ''}
+                                  onChange={e => {
+                                    const v = e.target.value
+                                    field.onChange(v)
+                                    patchHysteriaServerSettings({
+                                      salamander: { password: v, packetSize: form.getValues('hysteriaObfsPacketSize') },
+                                    })
+                                  }}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="hysteriaObfsPacketSize"
+                          render={({ field }) => (
+                            <FormItem className="min-w-0">
+                              <FormLabel className="text-muted-foreground text-xs font-semibold tracking-wide">
+                                {t('coreEditor.inbound.hysteria.obfsPacketSize', { defaultValue: 'Packet size (Gecko)' })}
+                              </FormLabel>
+                              <FormControl>
+                                <Input
+                                  dir="ltr"
+                                  className="h-10"
+                                  placeholder="512-1200"
+                                  value={field.value ?? ''}
+                                  onChange={e => {
+                                    const v = e.target.value
+                                    field.onChange(v)
+                                    patchHysteriaServerSettings({
+                                      salamander: { password: form.getValues('hysteriaObfsPassword'), packetSize: v },
+                                    })
+                                  }}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
                     )}
                     <FormField
                       control={form.control}
                       name="hysteriaMasqueradeType"
                       render={({ field }) => (
-                        <FormItem>
+                        <FormItem className="sm:col-span-2">
                           <FormLabel className="text-muted-foreground text-xs font-semibold tracking-wide">
                             {t('coreEditor.inbound.hysteria.masqueradeType', { defaultValue: 'Masquerade Type' })}
                           </FormLabel>
@@ -3248,55 +3328,173 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                       />
                     )}
                     {hysteriaMasqueradeType === 'proxy' && (
-                      <FormField
-                        control={form.control}
-                        name="hysteriaMasqueradeUrl"
-                        render={({ field }) => (
-                          <FormItem className="sm:col-span-2">
-                            <FormLabel className="text-muted-foreground text-xs font-semibold tracking-wide">{t('coreEditor.inbound.hysteria.masqueradeUrl', { defaultValue: 'URL' })}</FormLabel>
-                            <FormControl>
-                              <Input
-                                dir="ltr"
-                                className="h-10"
-                                value={field.value ?? ''}
-                                onChange={e => {
-                                  const v = e.target.value
-                                  field.onChange(v)
-                                  patchHysteriaServerSettings({ masquerade: { type: 'proxy', url: v } })
-                                }}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                      <>
+                        <FormField
+                          control={form.control}
+                          name="hysteriaMasqueradeUrl"
+                          render={({ field }) => (
+                            <FormItem className="sm:col-span-2">
+                              <FormLabel className="text-muted-foreground text-xs font-semibold tracking-wide">{t('coreEditor.inbound.hysteria.masqueradeUrl', { defaultValue: 'URL' })}</FormLabel>
+                              <FormControl>
+                                <Input
+                                  dir="ltr"
+                                  className="h-10"
+                                  value={field.value ?? ''}
+                                  onChange={e => {
+                                    const v = e.target.value
+                                    field.onChange(v)
+                                    patchHysteriaServerSettings({ masquerade: { type: 'proxy', url: v } })
+                                  }}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <div className="grid gap-3 sm:col-span-2 sm:grid-cols-2">
+                          <FormField
+                            control={form.control}
+                            name="hysteriaMasqueradeRewriteHost"
+                            render={({ field }) => (
+                              <FormItem className="flex min-h-10 flex-row items-center justify-between gap-3 space-y-0 rounded-md border px-3 py-2">
+                                <FormLabel className="cursor-pointer text-sm font-medium">
+                                  {t('coreEditor.inbound.hysteria.masqueradeRewriteHost', { defaultValue: 'Rewrite Host' })}
+                                </FormLabel>
+                                <FormControl>
+                                  <Switch
+                                    checked={field.value === 'true'}
+                                    onCheckedChange={checked => {
+                                      field.onChange(checked ? 'true' : 'false')
+                                      patchHysteriaServerSettings({ masquerade: { type: 'proxy', rewriteHost: checked } })
+                                    }}
+                                  />
+                                </FormControl>
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name="hysteriaMasqueradeInsecure"
+                            render={({ field }) => (
+                              <FormItem className="flex min-h-10 flex-row items-center justify-between gap-3 space-y-0 rounded-md border px-3 py-2">
+                                <FormLabel className="cursor-pointer text-sm font-medium">
+                                  {t('coreEditor.inbound.hysteria.masqueradeInsecure', { defaultValue: 'Insecure' })}
+                                </FormLabel>
+                                <FormControl>
+                                  <Switch
+                                    checked={field.value === 'true'}
+                                    onCheckedChange={checked => {
+                                      field.onChange(checked ? 'true' : 'false')
+                                      patchHysteriaServerSettings({ masquerade: { type: 'proxy', insecure: checked } })
+                                    }}
+                                  />
+                                </FormControl>
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                      </>
                     )}
                     {hysteriaMasqueradeType === 'string' && (
-                      <FormField
-                        control={form.control}
-                        name="hysteriaMasqueradeContent"
-                        render={({ field }) => (
-                          <FormItem className="sm:col-span-2">
-                            <FormLabel className="text-muted-foreground text-xs font-semibold tracking-wide">
-                              {t('coreEditor.inbound.hysteria.masqueradeContent', { defaultValue: 'Content' })}
-                            </FormLabel>
-                            <FormControl>
-                              <Textarea
-                                dir="ltr"
-                                rows={4}
-                                className="text-xs"
-                                value={field.value ?? ''}
-                                onChange={e => {
-                                  const v = e.target.value
-                                  field.onChange(v)
-                                  patchHysteriaServerSettings({ masquerade: { type: 'string', content: v } })
-                                }}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                      <>
+                        <FormField
+                          control={form.control}
+                          name="hysteriaMasqueradeContent"
+                          render={({ field }) => (
+                            <FormItem className="sm:col-span-2">
+                              <FormLabel className="text-muted-foreground text-xs font-semibold tracking-wide">
+                                {t('coreEditor.inbound.hysteria.masqueradeContent', { defaultValue: 'Content' })}
+                              </FormLabel>
+                              <FormControl>
+                                <Textarea
+                                  dir="ltr"
+                                  rows={4}
+                                  className="text-xs"
+                                  value={field.value ?? ''}
+                                  onChange={e => {
+                                    const v = e.target.value
+                                    field.onChange(v)
+                                    patchHysteriaServerSettings({ masquerade: { type: 'string', content: v } })
+                                  }}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="hysteriaMasqueradeHeaders"
+                          render={({ field }) => (
+                            <FormItem className="sm:col-span-2">
+                              <FormLabel className="text-muted-foreground text-xs font-semibold tracking-wide">
+                                {t('coreEditor.inbound.hysteria.masqueradeHeaders', { defaultValue: 'Headers (JSON object)' })}
+                              </FormLabel>
+                              <FormControl>
+                                <Textarea
+                                  dir="ltr"
+                                  rows={3}
+                                  className="font-mono text-xs"
+                                  placeholder='{"key": "value"}'
+                                  value={field.value ?? ''}
+                                  onChange={e => {
+                                    const v = e.target.value
+                                    field.onChange(v)
+                                    const trimmed = v.trim()
+                                    if (trimmed === '') {
+                                      patchHysteriaServerSettings({ masquerade: { type: 'string', headers: undefined } })
+                                      return
+                                    }
+                                    try {
+                                      const parsed = JSON.parse(trimmed) as unknown
+                                      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+                                        patchHysteriaServerSettings({ masquerade: { type: 'string', headers: parsed as Record<string, string> } })
+                                      }
+                                    } catch {
+                                      // Keep typing until JSON is valid.
+                                    }
+                                  }}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="hysteriaMasqueradeStatusCode"
+                          render={({ field }) => (
+                            <FormItem className="sm:col-span-2">
+                              <FormLabel className="text-muted-foreground text-xs font-semibold tracking-wide">
+                                {t('coreEditor.inbound.hysteria.masqueradeStatusCode', { defaultValue: 'Status Code' })}
+                              </FormLabel>
+                              <FormControl>
+                                <Input
+                                  dir="ltr"
+                                  className="h-10"
+                                  inputMode="numeric"
+                                  placeholder="200"
+                                  value={field.value ?? ''}
+                                  onChange={e => {
+                                    const v = e.target.value
+                                    field.onChange(v)
+                                    const trimmed = v.trim()
+                                    if (trimmed === '') {
+                                      patchHysteriaServerSettings({ masquerade: { type: 'string', statusCode: undefined } })
+                                      return
+                                    }
+                                    const parsed = Number(trimmed)
+                                    if (Number.isFinite(parsed)) {
+                                      patchHysteriaServerSettings({ masquerade: { type: 'string', statusCode: parsed } })
+                                    }
+                                  }}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </>
                     )}
                   </>
                 )}
@@ -3700,7 +3898,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                               next = createDefaultInbound({
                                 protocol: 'hysteria',
                                 ...baseArgs,
-                                security: security === 'reality' ? 'tls' : security,
+                                security: 'tls',
                                 clientDefaults: 'empty',
                               })
                               break

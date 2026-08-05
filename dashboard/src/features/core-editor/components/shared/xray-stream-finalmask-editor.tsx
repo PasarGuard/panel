@@ -594,9 +594,9 @@ function UdpLayersForm({ form }: { form: UseFormReturn<any> }) {
                     name={`udp.${index}.settings.packetSize`}
                     render={({ field: inputField }) => (
                       <FormItem>
-                        <FormLabel className="text-xs">Packet Size (Range e.g. 100-200)</FormLabel>
+                        <FormLabel className="text-xs">Packet Size (Gecko, e.g. 512-1200)</FormLabel>
                         <FormControl>
-                          <Input placeholder="e.g. 100-200" {...inputField} value={inputField.value || ''} className="h-8 text-xs" />
+                          <Input placeholder="e.g. 512-1200" {...inputField} value={inputField.value || ''} className="h-8 text-xs" />
                         </FormControl>
                       </FormItem>
                     )}
