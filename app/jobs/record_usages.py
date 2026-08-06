@@ -51,7 +51,7 @@ async def _get_thread_pool():
             # Use more threads for I/O-bound operations (2x CPU cores, cap at 16)
             num_workers = min(multiprocessing.cpu_count() * 2, 16)
             _thread_pool = ThreadPoolExecutor(max_workers=num_workers)
-            logger.info(f"Initialized ThreadPoolExecutor with {num_workers} workers")
+            logger.debug(f"Initialized ThreadPoolExecutor with {num_workers} workers")
         return _thread_pool
 
 
@@ -61,10 +61,10 @@ async def _cleanup_thread_pool():
     global _thread_pool
     async with _thread_pool_lock:
         if _thread_pool is not None:
-            logger.info("Shutting down ThreadPoolExecutor...")
+            logger.debug("Shutting down ThreadPoolExecutor...")
             _thread_pool.shutdown(wait=True)
             _thread_pool = None
-            logger.info("ThreadPoolExecutor shut down successfully")
+            logger.debug("ThreadPoolExecutor shut down successfully")
 
 
 # Helper functions for threading (lightweight operations that release GIL)
@@ -766,7 +766,7 @@ async def _record_user_usages_impl():
             logger.debug(f"Recorded {total_records} node user usage records across {len(filtered_node_params)} nodes")
 
         job_duration = time.time() - job_start_time
-        logger.info(
+        logger.debug(
             f"User usage recording completed in {job_duration:.2f}s: "
             f"{len(valid_users_usage)} users, {len(admin_usage)} admins, "
             f"{len(filtered_node_params)} nodes"
@@ -866,7 +866,7 @@ async def _record_node_usages_impl():
         await record_node_stats_batched(api_params)
 
         job_duration = time.time() - job_start_time
-        logger.info(
+        logger.debug(
             f"Node usage recording completed in {job_duration:.2f}s: "
             f"{len(node_update_params)} nodes, total: {total_up + total_down} bytes"
         )

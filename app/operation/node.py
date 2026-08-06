@@ -4,6 +4,7 @@ from collections.abc import AsyncIterator, Callable
 from fastapi import HTTPException
 from PasarGuardNodeBridge import NodeAPIError, PasarGuardNode
 from PasarGuardNodeBridge.common import service_pb2 as service
+from PasarGuardNodeBridge.storage import LifecycleStatus
 from sqlalchemy.exc import IntegrityError
 
 from app import notification
@@ -60,8 +61,11 @@ from app.models.stats import (
     UserCountMetricStatsList,
     validate_user_count_metric_scope,
 )
+from app.nats import is_multi_worker, is_nats_enabled
 from app.nats.node_rpc import node_nats_client
 from app.node import core_users, node_manager
+from app.node.manager_sync import publish_node_sync
+from app.node.nats_memory import clear_bridge_memory_for_node
 from app.operation import BaseOperation, OperatorType
 from app.utils.logger import get_logger
 from config import runtime_settings
@@ -75,11 +79,14 @@ class NodeOperation(BaseOperation):
     def __init__(self, operator_type: OperatorType):
         super().__init__(operator_type)
         if runtime_settings.role.runs_node:
-            self._update_node_impl = self._update_node_local
-            self._remove_node_impl = self._remove_node_local
-            self._connect_single_impl = self._connect_single_node_local
-            self._connect_bulk_impl = self._connect_nodes_bulk_local
-            self._disconnect_single_impl = self._disconnect_single_node_local
+            sync = is_nats_enabled() and is_multi_worker()
+            self._update_node_impl = self._update_node_sync if sync else self._update_node_local
+            self._remove_node_impl = self._remove_node_sync if sync else self._remove_node_local
+            self._connect_single_impl = self._connect_single_node_sync if sync else self._connect_single_node_local
+            self._connect_bulk_impl = self._connect_nodes_bulk_sync if sync else self._connect_nodes_bulk_local
+            self._disconnect_single_impl = (
+                self._disconnect_single_node_sync if sync else self._disconnect_single_node_local
+            )
             self._sync_node_users_impl = self._sync_node_users_local
             self._get_node_stats_impl = self._get_node_system_stats_local
             self._get_nodes_stats_impl = self._get_nodes_system_stats_local
@@ -222,6 +229,52 @@ class NodeOperation(BaseOperation):
         return cores_by_id, users_by_core
 
     @staticmethod
+    async def _attach_if_running(pg_node: PasarGuardNode, node_name: str):
+        """Attach to an already-started remote core without calling Start RPC."""
+        try:
+            state = await pg_node.get_lifecycle_state()
+            if (
+                state is not None
+                and state.observed not in (LifecycleStatus.HEALTHY, LifecycleStatus.STARTING)
+                and state.desired is not LifecycleStatus.HEALTHY
+            ):
+                return None
+
+            info = await pg_node.info()
+            if info is None or not info.node_version or not info.core_version:
+                return None
+
+            await pg_node.connect(info.node_version, info.core_version)
+            if state is not None:
+                await pg_node.update_observed_lifecycle(LifecycleStatus.HEALTHY, expected_epoch=state.epoch)
+            logger.info(
+                f'Attached to already-running "{node_name}" node v{info.node_version}, core v{info.core_version}'
+            )
+            return info
+        except Exception as exc:
+            logger.debug(f'Attach skipped for "{node_name}": {exc}')
+            return None
+
+    @staticmethod
+    async def _start_or_attach_node(pg_node: PasarGuardNode, db_node: Node, core, users: list, backend_type):
+        state = await pg_node.get_lifecycle_state()
+        if state is not None and state.observed is LifecycleStatus.HEALTHY:
+            attached = await NodeOperation._attach_if_running(pg_node, db_node.name)
+            if attached is not None:
+                return attached
+
+        start_kwargs = {
+            "config": core.to_str(),
+            "backend_type": backend_type,
+            "users": users,
+            "keep_alive": db_node.keep_alive,
+        }
+        if core.type == CoreType.xray:
+            start_kwargs["exclude_inbounds"] = core.exclude_inbound_tags
+
+        return await pg_node.start(**start_kwargs)
+
+    @staticmethod
     async def connect_node(db_node: Node, core, users: list) -> dict | None:
         """
         Connect to a node and return status result (does NOT update database).
@@ -246,16 +299,10 @@ class NodeOperation(BaseOperation):
         type = service.BackendType.WIREGUARD if core.type == CoreType.wg else service.BackendType.XRAY
 
         try:
-            start_kwargs = {
-                "config": core.to_str(),
-                "backend_type": type,
-                "users": users,
-                "keep_alive": db_node.keep_alive,
-            }
-            if core.type == CoreType.xray:
-                start_kwargs["exclude_inbounds"] = core.exclude_inbound_tags
+            info = await NodeOperation._start_or_attach_node(pg_node, db_node, core, users, type)
+            if info is None:
+                return None
 
-            info = await pg_node.start(**start_kwargs)
             logger.info(f'Connected to "{db_node.name}" node v{info.node_version}, core run on v{info.core_version}')
 
             return {
@@ -269,6 +316,18 @@ class NodeOperation(BaseOperation):
         except NodeAPIError as e:
             if e.code == -4:
                 return None
+            if e.code == 409:
+                # Another worker holds the lifecycle lease; try attach once more.
+                attached = await NodeOperation._attach_if_running(pg_node, db_node.name)
+                if attached is not None:
+                    return {
+                        "node_id": db_node.id,
+                        "status": NodeStatus.connected,
+                        "message": "",
+                        "xray_version": attached.core_version,
+                        "node_version": attached.node_version,
+                        "old_status": old_status,
+                    }
 
             detail = e.detail[:1020] + "..." if len(e.detail) > 1024 else e.detail
 
@@ -554,11 +613,20 @@ class NodeOperation(BaseOperation):
     async def _update_node_local(self, db_node: Node) -> None:
         await node_manager.update_node(db_node)
 
+    async def _update_node_sync(self, db_node: Node) -> None:
+        await self._update_node_local(db_node)
+        await publish_node_sync("upsert", db_node.id)
+
     async def _update_node_remote(self, db_node: Node) -> None:
         await node_nats_client.publish("update_node", {"node_id": db_node.id})
 
     async def _remove_node_local(self, node_id: int) -> None:
         await node_manager.remove_node(node_id)
+        await clear_bridge_memory_for_node(node_id)
+
+    async def _remove_node_sync(self, node_id: int) -> None:
+        await self._remove_node_local(node_id)
+        await publish_node_sync("remove", node_id)
 
     async def _remove_node_remote(self, node_id: int) -> None:
         await node_nats_client.publish("remove_node", {"node_id": node_id})
@@ -629,6 +697,12 @@ class NodeOperation(BaseOperation):
             elif notif["status"] == NodeStatus.error and notif["old_status"] != NodeStatus.error:
                 asyncio.create_task(notification.error_node(notif["node"]))
 
+    async def _connect_nodes_bulk_sync(self, db: AsyncSession, nodes: list[Node]) -> None:
+        await self._connect_nodes_bulk_local(db, nodes)
+        for node in nodes:
+            if node is not None and node.status not in (NodeStatus.disabled, NodeStatus.limited):
+                await publish_node_sync("connect", node.id)
+
     async def _connect_nodes_bulk_remote(self, db: AsyncSession, nodes: list[Node]) -> None:
         if not nodes:
             return
@@ -698,11 +772,19 @@ class NodeOperation(BaseOperation):
             )
             asyncio.create_task(notification.error_node(node_notif))
 
+    async def _connect_single_node_sync(self, db: AsyncSession, node_id: int) -> None:
+        await self._connect_single_node_local(db, node_id)
+        await publish_node_sync("connect", node_id)
+
     async def _connect_single_node_remote(self, db: AsyncSession, node_id: int) -> None:
         await node_nats_client.publish("connect_node", {"node_id": node_id})
 
     async def _disconnect_single_node_local(self, node_id: int) -> None:
         await node_manager.remove_node(node_id)
+
+    async def _disconnect_single_node_sync(self, node_id: int) -> None:
+        await self._disconnect_single_node_local(node_id)
+        await publish_node_sync("disconnect", node_id)
 
     async def _disconnect_single_node_remote(self, node_id: int) -> None:
         await node_nats_client.publish("disconnect_node", {"node_id": node_id})

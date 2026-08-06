@@ -1,3 +1,5 @@
+import warnings
+
 from fastapi import FastAPI, Request, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
@@ -7,7 +9,7 @@ from sqlalchemy.exc import DBAPIError
 
 from app.lifecycle import on_shutdown, on_startup
 from app.middlewares import setup_middleware
-from app.nats import is_nats_enabled
+from app.nats import is_multi_worker, require_nats_if_multiworker
 from app.nats.message import MessageTopic
 from app.nats.router import router
 from app.settings import handle_settings_message
@@ -60,6 +62,7 @@ def _register_nats_handlers(
     enable_settings: bool,
     enable_client_templates: bool,
     ignore_host_messages: bool = False,
+    enable_node_sync: bool = False,
 ):
     if enable_router:
         on_startup(router.start)
@@ -70,6 +73,10 @@ def _register_nats_handlers(
         router.register_handler(MessageTopic.CLIENT_TEMPLATE, handle_client_template_message)
     if ignore_host_messages:
         router.register_handler(MessageTopic.HOST, _ignore_worker_sync_message)
+    if enable_node_sync:
+        from app.node.manager_sync import register_node_sync_handler
+
+        register_node_sync_handler()
 
 
 def _register_scheduler_hooks():
@@ -81,19 +88,105 @@ def _register_scheduler_hooks():
     if not (runtime_settings.role.runs_node or runtime_settings.role.runs_scheduler):
         return
 
+    import asyncio
+    import contextlib
+
+    from apscheduler.schedulers.base import STATE_PAUSED
+
+    from app.nats.leader import (
+        HEARTBEAT_INTERVAL,
+        is_job_leader,
+        needs_job_leader,
+        set_on_leadership_lost,
+        start_job_leader,
+        stop_job_leader,
+    )
     from app.scheduler import scheduler
 
-    on_startup(scheduler.start)
-    on_shutdown(scheduler.shutdown)
+    started_notifications = {"value": False}
+    reclaim_task: dict[str, asyncio.Task | None] = {"task": None}
 
-    # Notification dispatcher (consumer loop) is only needed by scheduler role
-    if not runtime_settings.role.runs_scheduler:
-        return
+    async def _resume_jobs_on_leadership_gained():
+        if scheduler.state == STATE_PAUSED:
+            scheduler.resume()
+        elif not scheduler.running:
+            scheduler.start()
 
-    from app.notification.client import start_notification_dispatcher, stop_notification_dispatcher
+        if runtime_settings.role.runs_scheduler and not started_notifications["value"]:
+            from app.notification.client import start_notification_dispatcher
 
-    on_startup(start_notification_dispatcher)
-    on_shutdown(stop_notification_dispatcher)
+            await start_notification_dispatcher()
+            started_notifications["value"] = True
+
+    async def _reclaim_leadership_loop():
+        # start_job_leader = try_become_leader + heartbeat restart
+        while True:
+            await asyncio.sleep(HEARTBEAT_INTERVAL)
+            if is_job_leader():
+                return
+            if await start_job_leader():
+                await _resume_jobs_on_leadership_gained()
+                return
+
+    def _ensure_reclaim_task():
+        task = reclaim_task["task"]
+        if task is not None and not task.done():
+            return
+        reclaim_task["task"] = asyncio.create_task(_reclaim_leadership_loop())
+
+    async def _cancel_reclaim_task():
+        task = reclaim_task["task"]
+        reclaim_task["task"] = None
+        if task is None or task.done():
+            return
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+
+    async def _pause_jobs_on_leadership_lost():
+        if started_notifications["value"]:
+            from app.notification.client import stop_notification_dispatcher
+
+            await stop_notification_dispatcher()
+            started_notifications["value"] = False
+        if scheduler.running:
+            scheduler.pause()
+        _ensure_reclaim_task()
+
+    set_on_leadership_lost(_pause_jobs_on_leadership_lost)
+
+    async def _start_scheduler_if_leader():
+        if await start_job_leader():
+            scheduler.start()
+        elif needs_job_leader():
+            _ensure_reclaim_task()
+
+    on_startup(_start_scheduler_if_leader)
+
+    # Notification dispatcher (consumer loop) is only needed by scheduler role + leader
+    if runtime_settings.role.runs_scheduler:
+        from app.notification.client import start_notification_dispatcher, stop_notification_dispatcher
+
+        async def _start_notification_dispatcher_if_leader():
+            if is_job_leader():
+                await start_notification_dispatcher()
+                started_notifications["value"] = True
+
+        async def _stop_notification_dispatcher_if_started():
+            if started_notifications["value"]:
+                await stop_notification_dispatcher()
+                started_notifications["value"] = False
+
+        on_startup(_start_notification_dispatcher_if_leader)
+        on_shutdown(_stop_notification_dispatcher_if_started)
+
+    async def _stop_scheduler_and_leader():
+        await _cancel_reclaim_task()
+        if scheduler.running:
+            scheduler.shutdown()
+        await stop_job_leader()
+
+    on_shutdown(_stop_scheduler_and_leader)
 
 
 def _register_jobs():
@@ -102,11 +195,25 @@ def _register_jobs():
     from app import jobs  # noqa: F401
 
 
+def _warn_deprecated_role():
+    role = runtime_settings.role
+    if not role.is_deprecated:
+        return
+    message = (
+        f"ROLE={role.value} is deprecated and will be removed in PasarGuard 7.0.0. "
+        "Use ROLE=all-in-one with NATS_ENABLED=1 and UVICORN_WORKERS>1 for multi-worker deployments."
+    )
+    warnings.warn(message, DeprecationWarning, stacklevel=2)
+    logger.warning(message)
+
+
 def create_app() -> FastAPI:
     from app.lifecycle import lifespan
 
-    if runtime_settings.role.requires_nats and not is_nats_enabled():
-        raise RuntimeError("NATS must be enabled for backend / node / scheduler roles.")
+    # Fail fast before NATS handlers / queues register (covers all-in-one + UVICORN_WORKERS>1).
+    require_nats_if_multiworker(is_multi_worker())
+
+    _warn_deprecated_role()
 
     app = FastAPI(
         title="PasarGuardAPI",
@@ -143,7 +250,10 @@ def create_app() -> FastAPI:
     enable_settings = runtime_settings.role.runs_panel or runtime_settings.role.runs_scheduler
     enable_client_templates = runtime_settings.role.runs_panel or runtime_settings.role.runs_scheduler
     ignore_host_messages = not runtime_settings.role.runs_panel
-    _register_nats_handlers(enable_router, enable_settings, enable_client_templates, ignore_host_messages)
+    enable_node_sync = runtime_settings.role.runs_node
+    _register_nats_handlers(
+        enable_router, enable_settings, enable_client_templates, ignore_host_messages, enable_node_sync
+    )
     _register_scheduler_hooks()
     _register_jobs()
 
