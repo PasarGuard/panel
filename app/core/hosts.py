@@ -71,7 +71,7 @@ async def _prepare_subscription_inbound_data(
     fms = final_mask_settings
     if final_mask_settings:
         if isinstance(final_mask_settings, FinalMask):
-            fms = final_mask_settings.model_dump(by_alias=True)
+            fms = final_mask_settings.model_dump(by_alias=True, exclude_none=True)
         finalmask_link = json.dumps(fms, separators=(",", ":"))
 
     if protocol == "wireguard":
