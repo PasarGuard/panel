@@ -566,6 +566,7 @@ class ProxyHost(Base, IdMixin):
     wireguard_overrides: Mapped[dict[str, Any] | None] = mapped_column(JSON(none_as_null=True), default=None)
     subscription_templates: Mapped[dict[str, Any] | None] = mapped_column(JSON(none_as_null=True), default=None)
     final_mask_settings: Mapped[dict[str, Any] | None] = mapped_column(JSON(none_as_null=True), default=None)
+    cipher_suites: Mapped[str | None] = mapped_column(String(1024), default=None)
 
 
 class System(Base, IdMixin):

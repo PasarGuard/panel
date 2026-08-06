@@ -166,6 +166,7 @@ async def _prepare_subscription_inbound_data(
         reality_short_ids=reality_sids,
         reality_spx=reality_spx,
         mldsa65_verify=mldsa65_verify,
+        cipher_suites=host.cipher_suites,
     )
 
     # Merge port: host overrides inbound (store as list for random selection)
