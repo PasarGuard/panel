@@ -71,6 +71,8 @@ from app.utils.logger import get_logger
 from config import runtime_settings
 
 MAX_MESSAGE_LENGTH = 128
+# Cap parallel start/attach so ~100 nodes don't stampede NATS lifecycle KV.
+CONNECT_CONCURRENCY = 10
 
 logger = get_logger("node-operation")
 
@@ -637,25 +639,27 @@ class NodeOperation(BaseOperation):
 
         core_ids = {node.core_config_id or 1 for node in nodes}
         cores_by_id, users_by_core = await self._get_core_users_map(db, core_ids)
+        sem = asyncio.Semaphore(CONNECT_CONCURRENCY)
 
         async def connect_single(node: Node) -> dict | None:
             if node is None or node.status in (NodeStatus.disabled, NodeStatus.limited):
                 return
 
-            try:
-                await node_manager.update_node(node)
-            except NodeAPIError as e:
-                return {
-                    "node_id": node.id,
-                    "status": NodeStatus.error,
-                    "message": e.detail,
-                    "xray_version": "",
-                    "node_version": "",
-                    "old_status": node.status,
-                }
+            async with sem:
+                try:
+                    await node_manager.update_node(node)
+                except NodeAPIError as e:
+                    return {
+                        "node_id": node.id,
+                        "status": NodeStatus.error,
+                        "message": e.detail,
+                        "xray_version": "",
+                        "node_version": "",
+                        "old_status": node.status,
+                    }
 
-            core_id = node.core_config_id or 1
-            return await self.connect_node(node, cores_by_id.get(core_id), users_by_core.get(core_id, []))
+                core_id = node.core_config_id or 1
+                return await self.connect_node(node, cores_by_id.get(core_id), users_by_core.get(core_id, []))
 
         results = await asyncio.gather(*[connect_single(node) for node in nodes])
 
