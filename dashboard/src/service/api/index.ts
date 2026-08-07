@@ -3087,6 +3087,7 @@ export type ClientTemplateType = (typeof ClientTemplateType)[keyof typeof Client
 export const ClientTemplateType = {
   clash_subscription: 'clash_subscription',
   xray_subscription: 'xray_subscription',
+  xray_standalone: 'xray_standalone',
   singbox_subscription: 'singbox_subscription',
   user_agent: 'user_agent',
   grpc_user_agent: 'grpc_user_agent',

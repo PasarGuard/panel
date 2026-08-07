@@ -77,7 +77,9 @@ async def get_client_template_values(db: AsyncSession) -> dict[str, str]:
 async def get_client_template_contents_by_type(db: AsyncSession, template_type: ClientTemplateType) -> dict[int, str]:
     rows = (
         await db.execute(
-            select(ClientTemplate.id, ClientTemplate.content).where(ClientTemplate.template_type == template_type.value)
+            select(ClientTemplate.id, ClientTemplate.content)
+            .where(ClientTemplate.template_type == template_type.value)
+            .order_by(ClientTemplate.id.asc())
         )
     ).all()
     return {row.id: row.content for row in rows}
@@ -209,7 +211,8 @@ async def clear_host_subscription_template_overrides(db: AsyncSession, template_
 async def create_client_template(db: AsyncSession, client_template: ClientTemplateCreate) -> ClientTemplate:
     type_count = await count_client_templates_by_type(db, client_template.template_type)
     is_first_for_type = type_count == 0
-    should_be_default = client_template.is_default or is_first_for_type
+    is_standalone_xray = client_template.template_type == ClientTemplateType.xray_standalone
+    should_be_default = not is_standalone_xray and (client_template.is_default or is_first_for_type)
 
     if should_be_default:
         await db.execute(
@@ -223,7 +226,7 @@ async def create_client_template(db: AsyncSession, client_template: ClientTempla
         template_type=client_template.template_type.value,
         content=client_template.content,
         is_default=should_be_default,
-        is_system=is_first_for_type,
+        is_system=is_first_for_type and not is_standalone_xray,
     )
     db.add(db_template)
     try:

@@ -65,6 +65,26 @@ class XrayConfiguration(BaseSubscription):
     def render(self):
         return json.dumps(self.config, indent=4)
 
+    @staticmethod
+    def _format_standalone_value(value, format_variables: dict):
+        if isinstance(value, str):
+            try:
+                return value.format_map(format_variables)
+            except ValueError, KeyError:
+                return value
+        if isinstance(value, list):
+            return [XrayConfiguration._format_standalone_value(item, format_variables) for item in value]
+        if isinstance(value, dict):
+            return {
+                key: XrayConfiguration._format_standalone_value(item, format_variables) for key, item in value.items()
+            }
+        return value
+
+    def add_standalone(self, template_content: str, format_variables: dict) -> None:
+        """Add a complete client-only Xray profile without injecting a proxy outbound."""
+        profile = json.loads(template_content)
+        self.config.append(self._format_standalone_value(profile, format_variables))
+
     def add(
         self,
         remark: str,

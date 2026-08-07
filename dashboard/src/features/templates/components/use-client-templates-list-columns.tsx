@@ -9,6 +9,7 @@ import ClientTemplateMarkers from '@/features/templates/components/client-templa
 const TEMPLATE_TYPE_LABELS: Record<string, string> = {
   clash_subscription: 'Clash',
   xray_subscription: 'Xray',
+  xray_standalone: 'Xray Standalone',
   singbox_subscription: 'SingBox',
   user_agent: 'User Agent',
   grpc_user_agent: 'gRPC UA',
