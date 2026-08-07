@@ -5,7 +5,6 @@ from PasarGuardNodeBridge import Health, NodeType, PasarGuardNode, create_node
 from PasarGuardNodeBridge.common.service_pb2 import User as ProtoUser
 
 from app.db.models import Node, NodeConnectionType
-from app.nats import is_nats_enabled
 from app.node.nats_memory import ensure_bridge_memory, get_bridge_memory
 from app.node.user import core_users
 from app.utils.logger import get_logger
@@ -59,8 +58,7 @@ class NodeManager:
             pass
 
     async def update_node(self, node: Node) -> PasarGuardNode:
-        if is_nats_enabled():
-            await ensure_bridge_memory()
+        await ensure_bridge_memory()
 
         async with self._lock.writer_lock:
             old_node: PasarGuardNode | None = self._nodes.pop(node.id, None)

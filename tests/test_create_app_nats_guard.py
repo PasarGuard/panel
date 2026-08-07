@@ -17,6 +17,40 @@ def test_require_nats_if_multiworker_fails_fast_without_nats(monkeypatch: pytest
         require_nats_if_multiworker(True)
 
 
+def test_needs_shared_bridge_memory_only_for_multi_uvicorn(monkeypatch: pytest.MonkeyPatch):
+    from app.nats import needs_shared_bridge_memory
+
+    monkeypatch.setattr("app.nats.nats_settings.enabled", True)
+    monkeypatch.setattr("app.nats.server_settings.workers", 1)
+    monkeypatch.setattr("app.nats.runtime_settings.role", Role.NODE)
+    assert needs_shared_bridge_memory() is False
+
+    monkeypatch.setattr("app.nats.server_settings.workers", 2)
+    monkeypatch.setattr("app.nats.runtime_settings.role", Role.ALL_IN_ONE)
+    assert needs_shared_bridge_memory() is True
+
+    monkeypatch.setattr("app.nats.nats_settings.enabled", False)
+    assert needs_shared_bridge_memory() is False
+
+
+@pytest.mark.asyncio
+async def test_ensure_bridge_memory_skips_nats_kv_for_single_worker(monkeypatch: pytest.MonkeyPatch):
+    from app.node import nats_memory
+
+    monkeypatch.setattr("app.nats.nats_settings.enabled", True)
+    monkeypatch.setattr("app.nats.server_settings.workers", 1)
+    called = {"value": False}
+
+    async def _should_not_connect():
+        called["value"] = True
+        raise AssertionError("should not open NATS for single-worker bridge memory")
+
+    monkeypatch.setattr(nats_memory, "create_nats_client", _should_not_connect)
+    store, coordinator = await nats_memory.ensure_bridge_memory()
+    assert store is None and coordinator is None
+    assert called["value"] is False
+
+
 def test_warn_deprecated_role_uses_is_deprecated(monkeypatch: pytest.MonkeyPatch):
     from app import app_factory
 

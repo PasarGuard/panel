@@ -24,7 +24,7 @@ from PasarGuardNodeBridge.storage import (
     NodeLifecycleState,
 )
 
-from app.nats import is_nats_enabled
+from app.nats import needs_shared_bridge_memory
 from app.nats.client import create_nats_client, get_jetstream_context, get_or_create_kv_bucket
 from app.nats.kv_cas import CasKv, kv_cas_json, kv_get_json, kv_list_keys, kv_put_json
 from app.utils.logger import get_logger
@@ -390,10 +390,13 @@ async def clear_bridge_memory_for_node(node_id: int | str) -> None:
 
 
 async def ensure_bridge_memory() -> tuple[NatsUserSyncStore | None, NatsNodeLifecycleCoordinator | None]:
-    """Initialize shared bridge memory when NATS is enabled. Idempotent."""
+    """Initialize NATS KV bridge memory for multi-uvicorn workers. Idempotent.
+
+    Split-role / single-worker deployments keep the bridge's in-process defaults.
+    """
     global _nc, _user_sync_kv, _lifecycle_kv, _user_sync_store, _lifecycle_coordinator
 
-    if not is_nats_enabled():
+    if not needs_shared_bridge_memory():
         return None, None
 
     if _user_sync_store is not None and _lifecycle_coordinator is not None:

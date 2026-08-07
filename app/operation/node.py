@@ -61,7 +61,7 @@ from app.models.stats import (
     UserCountMetricStatsList,
     validate_user_count_metric_scope,
 )
-from app.nats import is_multi_worker, is_nats_enabled
+from app.nats import needs_shared_bridge_memory
 from app.nats.node_rpc import node_nats_client
 from app.node import core_users, node_manager
 from app.node.manager_sync import publish_node_sync
@@ -81,7 +81,7 @@ class NodeOperation(BaseOperation):
     def __init__(self, operator_type: OperatorType):
         super().__init__(operator_type)
         if runtime_settings.role.runs_node:
-            sync = is_nats_enabled() and is_multi_worker()
+            sync = needs_shared_bridge_memory()
             self._update_node_impl = self._update_node_sync if sync else self._update_node_local
             self._remove_node_impl = self._remove_node_sync if sync else self._remove_node_local
             self._connect_single_impl = self._connect_single_node_sync if sync else self._connect_single_node_local
