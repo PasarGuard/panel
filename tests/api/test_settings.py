@@ -36,3 +36,27 @@ def test_general_settings_custom_variables_round_trip(access_token):
             json={"subscription": original_subscription},
         )
         assert restore_response.status_code == status.HTTP_200_OK
+
+
+def test_subscription_external_config_round_trip(access_token):
+    settings_response = client.get("/api/settings", headers=auth_headers(access_token))
+    assert settings_response.status_code == status.HTTP_200_OK
+    original_subscription = settings_response.json()["subscription"]
+    external_config = "vless://external.example#one\nss://external.example"
+
+    try:
+        update_response = client.put(
+            "/api/settings",
+            headers=auth_headers(access_token),
+            json={"subscription": {**original_subscription, "external_config": external_config}},
+        )
+
+        assert update_response.status_code == status.HTTP_200_OK
+        assert update_response.json()["subscription"]["external_config"] == external_config
+    finally:
+        restore_response = client.put(
+            "/api/settings",
+            headers=auth_headers(access_token),
+            json={"subscription": original_subscription},
+        )
+        assert restore_response.status_code == status.HTTP_200_OK

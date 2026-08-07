@@ -246,6 +246,8 @@
         "announceUrl": "公告链接",
         "announceUrlPlaceholder": "https://status.example.com",
         "announceUrlDescription": "可选的链接，用于提供更多公告细节",
+        "externalConfig": "外部配置",
+        "externalConfigDescription": "每行添加一个外部分享链接到纯文本和 Base64 链接订阅。支持模板变量。",
         "allowBrowserConfig": "在订阅页面显示链接",
         "allowBrowserConfigDescription": "当通过浏览器访问时，在订阅页面模板中显示订阅链接",
         "disableSubTemplate": "禁用订阅模板",

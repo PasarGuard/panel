@@ -262,6 +262,8 @@
         "announceUrl": "Announcement URL",
         "announceUrlPlaceholder": "https://status.example.com",
         "announceUrlDescription": "Optional link with more information about the announcement",
+        "externalConfig": "External Configurations",
+        "externalConfigDescription": "Share links added to plain-text and Base64 link subscriptions, one per line. Supports template variables.",
         "allowBrowserConfig": "Show Links in Subscription Page",
         "allowBrowserConfigDescription": "Display subscription links on the subscription page template when accessed via browser",
         "disableSubTemplate": "Disable Subscription Template",

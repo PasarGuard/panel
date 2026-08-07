@@ -321,6 +321,7 @@ class Subscription(BaseModel):
     allow_browser_config: bool = Field(default=True)
     disable_sub_template: bool = Field(default=False)
     randomize_order: bool = Field(default=False)
+    external_config: str = Field(default="", max_length=65535)
     custom_variables: list[CustomVariable] = Field(default_factory=list)
 
     @field_validator("custom_variables")
