@@ -77,6 +77,9 @@ def _register_nats_handlers(
         from app.node.manager_sync import register_node_sync_handler
 
         register_node_sync_handler()
+    elif enable_router:
+        # Split roles (e.g. backend/scheduler) still subscribe to worker_sync;
+        router.register_handler(MessageTopic.NODE, _ignore_worker_sync_message)
 
 
 def _register_scheduler_hooks():
