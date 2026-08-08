@@ -109,6 +109,9 @@ class Admin(Base, CreatedAtUTCMixin):
     role_id: Mapped[int] = fk_id_column("admin_roles.id", default=0)
     role: Mapped[AdminRole | None] = relationship(back_populates="admins", init=False, lazy="select")
     permission_overrides: Mapped[dict | None] = mapped_column(PostgresJSONB, default=None)
+    # NULL means every group the admin's role allows. A list narrows that
+    # further, to these group ids and nothing else.
+    allowed_group_ids: Mapped[list[int] | None] = mapped_column(PostgresJSONB, default=None)
 
     @hybrid_property
     def is_disabled(self) -> bool:

@@ -153,6 +153,8 @@ export default function AdminsPage() {
       custom_variables: admin.custom_variables || [],
       note: admin.note || '',
       password: undefined,
+      restrict_groups: Array.isArray(admin.allowed_group_ids),
+      allowed_group_ids: admin.allowed_group_ids ?? [],
       permission_overrides: {
         ...adminPermissionOverridesDefaultValues,
         ...(admin.permission_overrides

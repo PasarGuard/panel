@@ -100,6 +100,7 @@ def build_admin_details(
         permission_overrides=RoleLimits.model_validate(db_admin.permission_overrides)
         if db_admin.permission_overrides
         else None,
+        allowed_group_ids=db_admin.allowed_group_ids,
     )
 
 
@@ -228,6 +229,10 @@ async def update_admin(db: AsyncSession, db_admin: Admin, modified_admin: AdminM
         db_admin.note = modified_admin.note
     if modified_admin.notification_enable is not None:
         db_admin.notification_enable = modified_admin.notification_enable.model_dump()
+    # Unlike the fields above, null is meaningful here - it lifts the
+    # restriction - so go by whether the caller sent the field at all.
+    if "allowed_group_ids" in modified_admin.model_fields_set:
+        db_admin.allowed_group_ids = modified_admin.allowed_group_ids
 
     await db.commit()
     await db.refresh(db_admin)

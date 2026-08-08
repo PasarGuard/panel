@@ -133,6 +133,8 @@ class AdminDetails(AdminContactInfo):
     note: str | None = None
     role: AdminRoleData | None = None
     permission_overrides: RoleLimits | None = None
+    # None means no per-admin narrowing; a list restricts this admin further.
+    allowed_group_ids: list[int] | None = None
 
     @property
     def is_owner(self) -> bool:
@@ -170,6 +172,16 @@ class AdminModify(BaseModel):
     notification_enable: UserNotificationEnable | None = None
     role_id: int | None = None
     permission_overrides: RoleLimits | None = None
+    # Sending null clears the restriction; omitting the field leaves it
+    # alone. update_admin tells those apart via model_fields_set.
+    allowed_group_ids: list[int] | None = None
+
+    @field_validator("allowed_group_ids")
+    @classmethod
+    def validate_allowed_group_ids(cls, value: list[int] | None) -> list[int] | None:
+        if value is None:
+            return None
+        return list(dict.fromkeys(value))
 
     @field_validator("discord_webhook")
     @classmethod

@@ -74,6 +74,10 @@ export const adminFormSchema = z
         subscription_revoked: z.boolean().optional(),
       })
       .optional(),
+    // null on the wire means unrestricted; the form keeps the two apart with a
+    // switch so that clearing every checkbox stays distinct from "all groups".
+    restrict_groups: z.boolean().optional(),
+    allowed_group_ids: z.array(z.number()).optional(),
     permission_overrides: z
       .object({
         max_users: z.union([z.literal('').transform(() => null), z.null(), z.coerce.number()]).optional(),
@@ -162,5 +166,7 @@ export const adminFormDefaultValues: Partial<AdminFormValuesInput> = {
     data_reset_by_next: true,
     subscription_revoked: true,
   },
+  restrict_groups: false,
+  allowed_group_ids: [],
   permission_overrides: adminPermissionOverridesDefaultValues,
 }

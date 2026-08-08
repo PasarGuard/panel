@@ -3559,5 +3559,12 @@
     "updateCommandLabel": "از طریق SSH متصل شوید و اجرا کنید:",
     "closeBanner": "بستن اعلان به‌روزرسانی",
     "needsUpdate": "نیاز به به‌روزرسانی"
-  }
+  },
+  "admins.groupAccess.title": "دسترسی اینباند",
+  "admins.groupAccess.all": "همه",
+  "admins.groupAccess.description": "مشخص کنید این مدیر مجاز به استفاده از کدام گروه‌هاست. کاربرانی که می‌سازد فقط به اینباندهای همان گروه‌ها دسترسی خواهند داشت.",
+  "admins.groupAccess.allowAll": "دسترسی به همه‌ی اینباندها",
+  "admins.groupAccess.selectAll": "انتخاب همه‌ی گروه‌ها",
+  "admins.groupAccess.noneSelected": "با انتخاب نشدن هیچ گروهی، کاربران این مدیر به هیچ اینباندی دسترسی نخواهند داشت.",
+  "admins.groupAccess.inboundCount": "{{count}} اینباند"
 }

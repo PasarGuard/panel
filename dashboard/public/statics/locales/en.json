@@ -3586,5 +3586,12 @@
     "updateCommandLabel": "Connect via SSH and run:",
     "closeBanner": "Close update notification",
     "needsUpdate": "Needs update"
-  }
+  },
+  "admins.groupAccess.title": "Inbound access",
+  "admins.groupAccess.all": "All",
+  "admins.groupAccess.description": "Choose which groups this admin may assign. Their users can only use the inbounds those groups contain.",
+  "admins.groupAccess.allowAll": "Access to all inbounds",
+  "admins.groupAccess.selectAll": "Select all groups",
+  "admins.groupAccess.noneSelected": "With no group selected, this admin's users get no inbounds at all.",
+  "admins.groupAccess.inboundCount": "{{count}} inbounds"
 }

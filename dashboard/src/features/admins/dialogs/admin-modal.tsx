@@ -14,14 +14,14 @@ import { Textarea } from '@/components/ui/textarea'
 import { CustomVariablesPopover, normalizeCustomVariableKey, VariablesPopover } from '@/components/ui/variables-popover'
 import { useAdmin } from '@/hooks/use-admin'
 import useDynamicErrorHandler from '@/hooks/use-dynamic-errors.ts'
-import { useCreateAdmin, useGetRolesSimple, useModifyAdminById } from '@/service/api'
+import { useCreateAdmin, useGetAllGroups, useGetRolesSimple, useModifyAdminById } from '@/service/api'
 import type { RoleLimits } from '@/service/api'
 import { builtInVariableKeys, normalizeCustomVariablesForPayload } from '@/features/subscriptions/components/subscription-settings-schema'
 import { upsertAdminInAdminsCache } from '@/utils/adminsCache'
 import { removeAuthToken } from '@/utils/authStorage'
 import { bytesToFormGigabytes, formatBytes, gbToBytes } from '@/utils/formatByte'
 import { useQueryClient } from '@tanstack/react-query'
-import { Bell, IdCard, Pencil, Plus, Sliders, Trash2, UserCog } from 'lucide-react'
+import { Bell, IdCard, Layers, Pencil, Plus, Sliders, Trash2, UserCog } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { UseFormReturn, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -132,6 +132,23 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
     [watchedPermissionOverrides],
   )
 
+  // Every group with the inbounds it grants, so the choice is made in terms of
+  // what it actually hands out rather than a bare group name.
+  const { data: groupsData, isLoading: groupsLoading } = useGetAllGroups({ limit: 500 }, { query: { enabled: isDialogOpen } })
+  const allGroups = useMemo(() => groupsData?.groups ?? [], [groupsData])
+
+  const watchedRestrictGroups = useWatch({ control: form.control, name: 'restrict_groups' })
+  const watchedAllowedGroupIds = useWatch({ control: form.control, name: 'allowed_group_ids' })
+  const selectedGroupIds = useMemo(() => new Set(watchedAllowedGroupIds ?? []), [watchedAllowedGroupIds])
+  const allGroupsSelected = allGroups.length > 0 && allGroups.every(group => selectedGroupIds.has(group.id))
+
+  const toggleGroup = (groupId: number, checked: boolean) => {
+    const current = new Set(form.getValues('allowed_group_ids') ?? [])
+    if (checked) current.add(groupId)
+    else current.delete(groupId)
+    form.setValue('allowed_group_ids', Array.from(current), { shouldDirty: true })
+  }
+
   const handleAccordionChange = (value: string) => {
     setOpenSection(prev => (prev === value ? undefined : value))
   }
@@ -192,6 +209,8 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
         notification_enable: values.notification_enable || null,
         role_id: values.role_id,
         permission_overrides: normalizePermissionOverrides(values.permission_overrides),
+        // null lifts the restriction; a list replaces it.
+        allowed_group_ids: values.restrict_groups ? (values.allowed_group_ids ?? []) : null,
       }
       if (editingAdmin && editingAdminId != null) {
         const updatedAdmin = await modifyAdminMutation.mutateAsync({
@@ -235,6 +254,8 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
           notification_enable: values.notification_enable || null,
           role_id: values.role_id,
           permission_overrides: normalizePermissionOverrides(values.permission_overrides),
+        // null lifts the restriction; a list replaces it.
+        allowed_group_ids: values.restrict_groups ? (values.allowed_group_ids ?? []) : null,
         }
         const createdAdmin = await addAdminMutation.mutateAsync({
           data: createData,
@@ -266,6 +287,7 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
         'custom_variables',
         'note',
         'permission_overrides',
+        'allowed_group_ids',
       ]
       handleError({ error, fields, form, contextKey: 'admins' })
     }
@@ -710,6 +732,88 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
                         )}
                       />
                     </div>
+                  </AccordionContent>
+                </AccordionItem>
+
+                <AccordionItem className="rounded-md border px-4 [&_[data-state=closed]]:no-underline [&_[data-state=open]]:no-underline" value="groups">
+                  <AccordionTrigger>
+                    <div className="flex items-center gap-2">
+                      <Layers className="h-4 w-4" />
+                      <span>{t('admins.groupAccess.title', { defaultValue: 'Inbound access' })}</span>
+                      <span className="text-muted-foreground text-xs">
+                        {watchedRestrictGroups ? `${selectedGroupIds.size}/${allGroups.length}` : t('admins.groupAccess.all', { defaultValue: 'All' })}
+                      </span>
+                    </div>
+                  </AccordionTrigger>
+                  <AccordionContent className="px-1 pt-1">
+                    <p className="text-muted-foreground mb-2 px-1 text-xs">
+                      {t('admins.groupAccess.description', {
+                        defaultValue: 'Choose which groups this admin may assign. Their users can only use the inbounds those groups contain.',
+                      })}
+                    </p>
+
+                    <div className="bg-muted/30 flex items-center justify-between gap-3 rounded-md px-3 py-2">
+                      <span className="text-muted-foreground text-xs">{t('admins.groupAccess.allowAll', { defaultValue: 'Access to all inbounds' })}</span>
+                      <Switch
+                        checked={!watchedRestrictGroups}
+                        onCheckedChange={checked => {
+                          form.setValue('restrict_groups', !checked, { shouldDirty: true })
+                        }}
+                        className="shrink-0"
+                      />
+                    </div>
+
+                    {watchedRestrictGroups && (
+                      <>
+                        <div className="bg-muted/30 mt-2 flex items-center justify-between gap-3 rounded-md px-3 py-2">
+                          <span className="text-muted-foreground text-xs">{t('admins.groupAccess.selectAll', { defaultValue: 'Select all groups' })}</span>
+                          <Switch
+                            checked={allGroupsSelected}
+                            disabled={allGroups.length === 0}
+                            onCheckedChange={checked => {
+                              form.setValue('allowed_group_ids', checked ? allGroups.map(group => group.id) : [], { shouldDirty: true })
+                            }}
+                            className="shrink-0"
+                          />
+                        </div>
+
+                        {selectedGroupIds.size === 0 && !groupsLoading && (
+                          <p className="text-destructive mt-2 px-1 text-xs">
+                            {t('admins.groupAccess.noneSelected', {
+                              defaultValue: 'With no group selected, this admin\'s users get no inbounds at all.',
+                            })}
+                          </p>
+                        )}
+
+                        <div className="mt-2 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                          {groupsLoading ? (
+                            <p className="text-muted-foreground px-2 py-1.5 text-xs">{t('loading', { defaultValue: 'Loading...' })}</p>
+                          ) : (
+                            allGroups.map(group => {
+                              const inboundTags = group.inbound_tags ?? []
+                              const checked = selectedGroupIds.has(group.id)
+                              return (
+                                <label
+                                  key={group.id}
+                                  className={`hover:bg-muted/40 flex cursor-pointer items-start gap-x-2 rounded-md border px-2.5 py-2 transition-colors ${checked ? 'border-primary/40 bg-primary/5' : ''}`}
+                                >
+                                  <Checkbox checked={checked} onCheckedChange={value => toggleGroup(group.id, value === true)} className="mt-0.5 h-4 w-4 shrink-0" />
+                                  <span className="min-w-0 flex-1">
+                                    <span className="flex items-center gap-1.5">
+                                      <span className="truncate text-xs font-medium">{group.name}</span>
+                                      <span className="text-muted-foreground shrink-0 text-[10px]">
+                                        {t('admins.groupAccess.inboundCount', { count: inboundTags.length, defaultValue: '{{count}} inbounds' })}
+                                      </span>
+                                    </span>
+                                    {inboundTags.length > 0 && <span className="text-muted-foreground mt-0.5 block truncate text-[10px]" dir="ltr">{inboundTags.join(', ')}</span>}
+                                  </span>
+                                </label>
+                              )
+                            })
+                          )}
+                        </div>
+                      </>
+                    )}
                   </AccordionContent>
                 </AccordionItem>
 

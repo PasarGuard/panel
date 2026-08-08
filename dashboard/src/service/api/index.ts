@@ -3702,6 +3702,8 @@ export type AdminModifyTelegramId = number | null
 
 export type AdminModifyPassword = string | null
 
+export type AdminModifyAllowedGroupIds = number[] | null
+
 export interface AdminModify {
   password?: AdminModifyPassword
   telegram_id?: AdminModifyTelegramId
@@ -3717,6 +3719,7 @@ export interface AdminModify {
   notification_enable?: AdminModifyNotificationEnable
   role_id?: AdminModifyRoleId
   permission_overrides?: AdminModifyPermissionOverrides
+  allowed_group_ids?: AdminModifyAllowedGroupIds
 }
 
 export type AdminDetailsPermissionOverrides = RoleLimits | null
@@ -3748,6 +3751,8 @@ export type AdminDetailsId = number | null
 /**
  * Complete admin model with all fields for database representation and API responses.
  */
+export type AdminDetailsAllowedGroupIds = number[] | null
+
 export interface AdminDetails {
   id?: AdminDetailsId
   username: string
@@ -3769,6 +3774,7 @@ export interface AdminDetails {
   permission_overrides?: AdminDetailsPermissionOverrides
   readonly is_disabled: boolean
   readonly is_limited: boolean
+  allowed_group_ids?: AdminDetailsAllowedGroupIds
 }
 
 export type AdminCreatePermissionOverrides = RoleLimits | null
@@ -3798,6 +3804,8 @@ export type AdminCreateTelegramId = number | null
 /**
  * Model for creating new admin accounts requiring username and password.
  */
+export type AdminCreateAllowedGroupIds = number[] | null
+
 export interface AdminCreate {
   password: string
   telegram_id?: AdminCreateTelegramId
@@ -3814,6 +3822,7 @@ export interface AdminCreate {
   role_id: number
   permission_overrides?: AdminCreatePermissionOverrides
   username: string
+  allowed_group_ids?: AdminCreateAllowedGroupIds
 }
 
 export type AdminContactInfoNotificationEnable = UserNotificationEnable | null

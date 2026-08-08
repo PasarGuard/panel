@@ -132,10 +132,17 @@ def get_effective_limits(admin: AdminDetails) -> RoleLimits:
 
 
 def get_allowed_group_ids(admin: AdminDetails) -> list[int] | None:
-    """None means all groups allowed (owner or no restriction)."""
-    if admin.is_owner or admin.role is None:
+    """None means all groups allowed (owner or no restriction).
+
+    Combines the role's allowance with the admin's own. Intersecting rather
+    than replacing means a per-admin list can only narrow what the role
+    grants, so the role stays an upper bound on what its admins can reach.
+    """
+    if admin.is_owner:
         return None
-    return admin.role.access.allowed_group_ids
+
+    role_allowed = admin.role.access.allowed_group_ids if admin.role is not None else None
+    return _intersect_ids(getattr(admin, "allowed_group_ids", None), role_allowed)
 
 
 def get_allowed_template_ids(admin: AdminDetails) -> list[int] | None:
