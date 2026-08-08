@@ -5,7 +5,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from ipaddress import IPv4Address, IPv4Network, IPv6Address, IPv6Network, ip_interface, ip_network
 
-from sqlalchemy import and_, delete, insert, select
+from sqlalchemy import and_, delete, false, insert, select
 from sqlalchemy.dialects.mysql import insert as mysql_insert
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -29,6 +29,8 @@ FREE_IPS_LIMIT = 10000
 # ponytail: free-list capped to bound JSON size; holes above the kept set stay
 # reclaimable on reconcile (upgrade: sparse bitmap / run-length encoding).
 FREE_OFFSETS_CAP = FREE_IPS_LIMIT
+# Bound memory when reconcile loads / updates many users.
+RECONCILE_USER_CHUNK = 5000
 
 IpNetwork = IPv4Network | IPv6Network
 IpAddress = IPv4Address | IPv6Address
@@ -281,10 +283,8 @@ async def get_wg_cores(db: AsyncSession) -> list[CoreConfig]:
     return list(result.scalars().all())
 
 
-async def get_users_accessible_tags(db: AsyncSession, user_ids: list[int]) -> dict[int, set[str]]:
-    """user_id -> inbound tags reachable through enabled groups. One joined SELECT."""
-    if not user_ids:
-        return {}
+def _accessible_tags_stmt(*, tags: Iterable[str] | None = None, user_ids: Iterable[int] | None = None):
+    """Join users ↔ enabled groups ↔ inbound tags, optionally filtered by tag and/or user id."""
     stmt = (
         select(users_groups_association.c.user_id, ProxyInbound.tag)
         .join(
@@ -293,12 +293,86 @@ async def get_users_accessible_tags(db: AsyncSession, user_ids: list[int]) -> di
         )
         .join(inbounds_groups_association, inbounds_groups_association.c.group_id == Group.id)
         .join(ProxyInbound, ProxyInbound.id == inbounds_groups_association.c.inbound_id)
-        .where(users_groups_association.c.user_id.in_(user_ids))
     )
+    if tags is not None:
+        tag_list = list(tags)
+        if not tag_list:
+            return stmt.where(false())
+        stmt = stmt.where(ProxyInbound.tag.in_(tag_list))
+    if user_ids is not None:
+        id_list = list(user_ids)
+        if not id_list:
+            return stmt.where(false())
+        stmt = stmt.where(users_groups_association.c.user_id.in_(id_list))
+    return stmt
+
+
+async def get_users_accessible_tags(db: AsyncSession, user_ids: list[int]) -> dict[int, set[str]]:
+    """user_id -> inbound tags reachable through enabled groups. One joined SELECT."""
+    if not user_ids:
+        return {}
     tags_by_user: dict[int, set[str]] = {}
-    for user_id, tag in (await db.execute(stmt)).all():
+    for user_id, tag in (await db.execute(_accessible_tags_stmt(user_ids=user_ids))).all():
         tags_by_user.setdefault(user_id, set()).add(tag)
     return tags_by_user
+
+
+async def get_users_accessible_tags_by_inbound_tags(
+    db: AsyncSession, tags: Iterable[str]
+) -> dict[int, set[str]]:
+    """Like get_users_accessible_tags but for all users that can reach any of `tags` (no giant IN)."""
+    tag_list = list(tags)
+    if not tag_list:
+        return {}
+    tags_by_user: dict[int, set[str]] = {}
+    for user_id, tag in (await db.execute(_accessible_tags_stmt(tags=tag_list))).all():
+        tags_by_user.setdefault(user_id, set()).add(tag)
+    return tags_by_user
+
+
+def _peer_ips_present_clause():
+    """Users with a non-empty wireguard.peer_ips array (dialect-portable JSON path)."""
+    peer_ips = User.proxy_settings["wireguard"]["peer_ips"]
+    return and_(peer_ips.is_not(None), peer_ips.as_string() != "[]")
+
+
+async def _user_ids_with_peer_ips(db: AsyncSession) -> list[int]:
+    """Return user ids that have a non-empty wireguard.peer_ips array."""
+    rows = (
+        await db.execute(select(User.id).where(_peer_ips_present_clause()).order_by(User.id))
+    ).scalars().all()
+    return list(rows)
+
+
+async def _load_user_proxy_settings(db: AsyncSession, user_ids: list[int]) -> list[tuple[int, dict | None]]:
+    """Load (id, proxy_settings) for the given ids in stable chunks."""
+    if not user_ids:
+        return []
+    rows: list[tuple[int, dict | None]] = []
+    by_id: dict[int, dict | None] = {}
+    for i in range(0, len(user_ids), RECONCILE_USER_CHUNK):
+        chunk = user_ids[i : i + RECONCILE_USER_CHUNK]
+        for user_id, proxy_settings in (
+            await db.execute(select(User.id, User.proxy_settings).where(User.id.in_(chunk)))
+        ).all():
+            by_id[user_id] = proxy_settings
+    for user_id in user_ids:
+        if user_id in by_id:
+            rows.append((user_id, by_id[user_id]))
+    return rows
+
+
+async def ensure_wireguard_subnet_pools(db: AsyncSession) -> None:
+    """Upsert pool rows for current WG namespaces. O(subnets), not O(users).
+
+    Used on core create so we do not run a full user reconcile; allocations happen when
+    groups gain the inbound via sync_users_allocations.
+    """
+    namespaces = wg_namespaces(await get_wg_cores(db))
+    if not namespaces:
+        return
+    await _lock_subnet_rows(db, namespaces)
+    await db.flush()
 
 
 async def _lock_subnet_rows(db: AsyncSession, keys: Iterable[str]) -> dict[str, WireGuardSubnet]:
@@ -450,6 +524,8 @@ async def reconcile_wireguard_subnets(db: AsyncSession) -> list[int]:
 
     Handles subnet resize/move, server-IP moves, interface renames, duplicate IPs and
     orphaned namespaces. Flushes; the caller commits. Returns changed user ids.
+
+    Only loads users with WG group access or existing peer_ips.
     """
     namespaces = wg_namespaces(await get_wg_cores(db))
 
@@ -462,10 +538,12 @@ async def reconcile_wireguard_subnets(db: AsyncSession) -> list[int]:
     orphan_keys = (await db.execute(orphan_stmt)).scalars().all()
     await _lock_subnet_rows(db, list(namespaces) + list(orphan_keys))
 
-    # ponytail: full lightweight user scan — core saves are rare admin operations
-    user_rows = (await db.execute(select(User.id, User.proxy_settings))).all()
     all_tags = {tag for ns in namespaces.values() for tag in ns.tags}
-    eligible_tags = await get_users_accessible_tags(db, [row[0] for row in user_rows]) if all_tags else {}
+    eligible_tags = await get_users_accessible_tags_by_inbound_tags(db, all_tags) if all_tags else {}
+
+    peer_ip_ids = await _user_ids_with_peer_ips(db)
+    relevant_ids = sorted(set(eligible_tags) | set(peer_ip_ids))
+    user_rows = await _load_user_proxy_settings(db, relevant_ids)
 
     used: dict[str, set[int]] = {key: set() for key in namespaces}
     desired: dict[int, list[str]] = {}
@@ -516,11 +594,13 @@ async def reconcile_wireguard_subnets(db: AsyncSession) -> list[int]:
             changed_ids.append(user_id)
 
     if changed_ids:
-        users = (await db.execute(select(User).where(User.id.in_(changed_ids)))).scalars().all()
-        for user in users:
-            _set_user_peer_ips(user, desired[user.id])
-            if desired[user.id]:
-                _ensure_wireguard_keys(user)
+        for i in range(0, len(changed_ids), RECONCILE_USER_CHUNK):
+            chunk = changed_ids[i : i + RECONCILE_USER_CHUNK]
+            users = (await db.execute(select(User).where(User.id.in_(chunk)))).scalars().all()
+            for user in users:
+                _set_user_peer_ips(user, desired[user.id])
+                if desired[user.id]:
+                    _ensure_wireguard_keys(user)
 
     # rebuild pool rows from the used sets; drop rows for dead namespaces
     if used:

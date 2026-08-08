@@ -16,6 +16,7 @@ from app.db.crud.host import get_hosts
 from app.db.crud.user import get_users_by_ids
 from app.db.crud.wireguard import (
     core_config_dict,
+    ensure_wireguard_subnet_pools,
     get_wg_cores,
     reconcile_wireguard_subnets,
     wg_core_subnets,
@@ -70,6 +71,11 @@ class CoreOperation(BaseOperation):
                             db=db,
                         )
 
+    async def _ensure_wireguard_pools(self, db: AsyncSession) -> None:
+        """Create pool rows for WG namespaces without scanning users (O(subnets))."""
+        await ensure_wireguard_subnet_pools(db)
+        await db.commit()
+
     async def _reconcile_wireguard(self, db: AsyncSession) -> None:
         """Fix pool rows and user peer IPs after a WG core change, then resync changed users."""
         changed_ids = await reconcile_wireguard_subnets(db)
@@ -109,7 +115,7 @@ class CoreOperation(BaseOperation):
         asyncio.create_task(notification.create_core(core, admin.username))
 
         if new_core.type == CoreType.wg:
-            await self._reconcile_wireguard(db)
+            await self._ensure_wireguard_pools(db)
         await self._refresh_hosts_from_db(db)
 
         return core
