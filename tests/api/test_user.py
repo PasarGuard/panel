@@ -1722,6 +1722,17 @@ def test_format_announce_supports_dynamic_variables():
     assert announce == "Hello alice, 1 GB left"
 
 
+def test_format_announce_url_supports_dynamic_variables():
+    sub_settings = Subscription(rules=[], announce_url="https://status.example.com/{USERNAME}")
+
+    announce_url = SubscriptionOperation._format_announce_url(
+        sub_settings,
+        {"USERNAME": "alice"},
+    )
+
+    assert announce_url == "https://status.example.com/alice"
+
+
 def test_detect_client_rule_matches_user_agent():
     rule = SubRule(
         pattern=r"^PasarGuardRuleHeaderClient$",

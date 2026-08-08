@@ -102,7 +102,7 @@ export const subscriptionSchema = z.object({
   support_url: z.string().url('Please enter a valid URL').optional().or(z.literal('')),
   profile_title: z.string().optional(),
   announce: z.string().max(128, 'Announcement must be 128 characters or less').optional(),
-  announce_url: z.string().url('Please enter a valid URL').optional().or(z.literal('')),
+  announce_url: z.string().optional().or(z.literal('')),
   allow_browser_config: z.boolean().optional(),
   disable_sub_template: z.boolean().optional(),
   randomize_order: z.boolean().optional(),

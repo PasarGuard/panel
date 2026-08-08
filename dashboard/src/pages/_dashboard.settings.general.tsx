@@ -1,7 +1,5 @@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { SubscriptionFormActions } from '@/features/subscriptions/components/subscription-form-actions'
-import { SubscriptionCustomVariablesSection } from '@/features/subscriptions/components/subscription-custom-variables-section'
-import { customVariablesSchema, normalizeCustomVariablesForPayload } from '@/features/subscriptions/components/subscription-settings-schema'
 import { Button } from '@/components/ui/button'
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -22,7 +20,6 @@ import { useSettingsContext } from './_dashboard.settings'
 // general settings validation schema
 const generalSettingsSchema = z.object({
   default_method: z.string().default(''),
-  custom_variables: customVariablesSchema,
 })
 
 type GeneralSettingsFormInput = z.input<typeof generalSettingsSchema>
@@ -39,13 +36,11 @@ export default function General() {
       generalSettings
         ? {
             default_method: generalSettings.default_method || DEFAULT_SHADOWSOCKS_METHOD,
-            custom_variables: generalSettings.custom_variables || [],
           }
         : {
             default_method: '',
-            custom_variables: [],
           },
-    [generalSettings?.default_method, generalSettings?.custom_variables],
+    [generalSettings?.default_method],
   )
 
   const form = useForm<GeneralSettingsFormInput>({
@@ -59,7 +54,6 @@ export default function General() {
       const filteredData: any = {
         general: {
           default_method: data.default_method || DEFAULT_SHADOWSOCKS_METHOD,
-          custom_variables: normalizeCustomVariablesForPayload(data.custom_variables),
         },
       }
 
@@ -73,7 +67,6 @@ export default function General() {
     if (!generalSettings) return
     form.reset({
       default_method: generalSettings.default_method || DEFAULT_SHADOWSOCKS_METHOD,
-      custom_variables: generalSettings.custom_variables || [],
     })
     toast.success(t('settings.general.cancelSuccess'))
   }
@@ -195,12 +188,6 @@ export default function General() {
                 )}
               />
             </div>
-          </div>
-
-          <Separator className="my-3" />
-
-          <div className="py-3">
-            <SubscriptionCustomVariablesSection form={form} />
           </div>
 
           <Separator className="my-3" />
