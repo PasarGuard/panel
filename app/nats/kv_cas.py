@@ -60,7 +60,7 @@ async def kv_put_json(kv: CasKv, key: str, value: dict[str, Any]) -> None:
 
 async def kv_list_keys(kv: CasKv, prefix: str) -> list[str]:
     try:
-        keys = await kv.keys(filters=[prefix])
+        keys = await kv.keys()
     except nats_js_errors.NoKeysError:
         return []
     return [key for key in keys if key.startswith(prefix)]
