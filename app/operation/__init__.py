@@ -24,7 +24,7 @@ from app.db.models import Admin as DBAdmin, ClientTemplate, CoreConfig, Group, N
 from app.models.admin import AdminDetails
 from app.models.group import BulkGroup
 from app.models.user import UserCreate, UserModify
-from app.operation.permissions import get_scope_admin_id
+from app.operation.permissions import get_allowed_group_ids, get_scope_admin_id
 from app.utils.helpers import ensure_datetime_timezone
 from app.utils.jwt import get_subscription_payload
 
@@ -227,7 +227,22 @@ class BaseOperation:
             await self.raise_error("Group not found", 404)
         return db_group
 
-    async def validate_all_groups(self, db, model: UserCreate | UserModify | UserTemplate | BulkGroup) -> list[Group]:
+    async def validate_all_groups(
+        self,
+        db,
+        model: UserCreate | UserModify | UserTemplate | BulkGroup,
+        admin: AdminDetails | None = None,
+        exempt_group_ids: set[int] | None = None,
+    ) -> list[Group]:
+        """Resolve requested group ids, refusing any the admin may not use.
+
+        `admin` is optional because some callers resolve groups only in order to
+        display them; the access check applies wherever an acting admin is given.
+
+        `exempt_group_ids` are groups already present on the record being
+        edited. They pass even when the admin could not grant them, so that an
+        unrelated edit is not blocked by state the admin never chose.
+        """
         requested_group_ids: list[int] = []
         if model.group_ids:
             requested_group_ids.extend(model.group_ids)
@@ -244,6 +259,16 @@ class BaseOperation:
         missing_ids = [group_id for group_id in unique_ids if group_id not in groups_by_id]
         if missing_ids:
             await self.raise_error("Group not found", 404)
+
+        # The same allowance the group listing is filtered by, so what an admin
+        # can be offered and what they can actually assign cannot drift apart.
+        if admin is not None:
+            allowed_group_ids = get_allowed_group_ids(admin)
+            if allowed_group_ids is not None:
+                allowed = set(allowed_group_ids) | set(exempt_group_ids or ())
+                forbidden = sorted(groups_by_id[gid].name for gid in unique_ids if gid not in allowed)
+                if forbidden:
+                    await self.raise_error(f"You are not allowed to use these groups: {', '.join(forbidden)}", 403)
 
         # Preserve the requested order and duplicate semantics.
         return [groups_by_id[group_id] for group_id in requested_group_ids]
