@@ -44,8 +44,7 @@ class UserTemplateOperation(BaseOperation):
     async def create_user_template(
         self, db: AsyncSession, new_user_template: UserTemplateCreate, admin: Admin
     ) -> UserTemplateResponse:
-        for group_id in new_user_template.group_ids:
-            await self.get_validated_group(db, group_id)
+        await self.validate_all_groups(db, new_user_template, admin)
         try:
             db_user_template = await create_user_template(db, new_user_template)
         except IntegrityError:
@@ -62,9 +61,13 @@ class UserTemplateOperation(BaseOperation):
         self, db: AsyncSession, template_id: int, modified_user_template: UserTemplateModify, admin: Admin
     ) -> UserTemplateResponse:
         db_user_template = await self._get_template_with_access(db, template_id, admin)
-        if modified_user_template.group_ids:
-            for group_id in modified_user_template.group_ids:
-                await self.get_validated_group(db, group_id)
+        if modified_user_template.group_ids is not None:
+            await self.validate_all_groups(
+                db,
+                modified_user_template,
+                admin,
+                existing_group_ids=set(db_user_template.group_ids or []),
+            )
         try:
             db_user_template = await modify_user_template(db, db_user_template, modified_user_template)
         except IntegrityError:

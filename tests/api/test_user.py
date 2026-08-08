@@ -2056,6 +2056,137 @@ def test_role_requiring_template_cannot_manually_create_user(access_token):
         cleanup_groups(access_token, core, groups)
 
 
+def _create_group_restricted_user_role(access_token: str, *, allowed_group_ids: list[int]) -> dict:
+    response = client.post(
+        "/api/admin-role",
+        headers=auth_headers(access_token),
+        json={
+            "name": unique_name("group_restricted_user_role"),
+            "permissions": {
+                "users": {"create": True, "read": True, "update": True, "delete": True},
+                "groups": {"read": True, "read_simple": True},
+                "templates": {"create": True, "read": True, "update": True},
+            },
+            "access": {
+                "require_template": False,
+                "allowed_template_ids": None,
+                "allowed_group_ids": allowed_group_ids,
+            },
+        },
+    )
+    assert response.status_code == status.HTTP_201_CREATED
+    return response.json()
+
+
+def test_role_allowed_group_ids_blocks_assigning_unknown_group_by_id(access_token):
+    """Knowing a group ID must not bypass allowed_group_ids on user assignment."""
+    core, groups = setup_groups(access_token, 2)
+    allowed_group, forbidden_group = groups
+    role = _create_group_restricted_user_role(access_token, allowed_group_ids=[allowed_group["id"]])
+    admin = create_admin(access_token, role_id=role["id"])
+    admin_token = _login(admin["username"], admin["password"])
+    created_username = None
+    mixed_user = None
+
+    try:
+        list_response = client.get("/api/groups", headers=auth_headers(admin_token))
+        assert list_response.status_code == status.HTTP_200_OK
+        listed_ids = {group["id"] for group in list_response.json()["groups"]}
+        assert allowed_group["id"] in listed_ids
+        assert forbidden_group["id"] not in listed_ids
+
+        forbidden_get = client.get(f"/api/group/{forbidden_group['id']}", headers=auth_headers(admin_token))
+        assert forbidden_get.status_code == status.HTTP_404_NOT_FOUND
+
+        create_forbidden = client.post(
+            "/api/user",
+            headers=auth_headers(admin_token),
+            json={
+                "username": unique_name("group_acl_denied"),
+                "proxy_settings": {},
+                "data_limit": 1024 * 1024,
+                "data_limit_reset_strategy": "no_reset",
+                "status": "active",
+                "group_ids": [forbidden_group["id"]],
+            },
+        )
+        assert create_forbidden.status_code == status.HTTP_404_NOT_FOUND
+        assert create_forbidden.json()["detail"] == "Group not found"
+
+        create_allowed = client.post(
+            "/api/user",
+            headers=auth_headers(admin_token),
+            json={
+                "username": unique_name("group_acl_allowed"),
+                "proxy_settings": {},
+                "data_limit": 1024 * 1024,
+                "data_limit_reset_strategy": "no_reset",
+                "status": "active",
+                "group_ids": [allowed_group["id"]],
+            },
+        )
+        assert create_allowed.status_code == status.HTTP_201_CREATED
+        created_username = create_allowed.json()["username"]
+        assert create_allowed.json()["group_ids"] == [allowed_group["id"]]
+
+        modify_forbidden = client.put(
+            f"/api/user/{created_username}",
+            headers=auth_headers(admin_token),
+            json={"group_ids": [allowed_group["id"], forbidden_group["id"]]},
+        )
+        assert modify_forbidden.status_code == status.HTTP_404_NOT_FOUND
+        assert modify_forbidden.json()["detail"] == "Group not found"
+
+        # Owner-created user may already have a forbidden group; admin can keep it, but not add another.
+        mixed_user = create_user(
+            access_token,
+            group_ids=[allowed_group["id"], forbidden_group["id"]],
+            payload={"username": unique_name("group_acl_mixed")},
+        )
+        keep_existing = client.put(
+            f"/api/user/{mixed_user['username']}",
+            headers=auth_headers(admin_token),
+            json={"group_ids": [allowed_group["id"], forbidden_group["id"]], "note": "keep"},
+        )
+        assert keep_existing.status_code == status.HTTP_200_OK
+        assert set(keep_existing.json()["group_ids"]) == {allowed_group["id"], forbidden_group["id"]}
+    finally:
+        if created_username:
+            delete_user(access_token, created_username)
+        if mixed_user is not None:
+            delete_user(access_token, mixed_user["username"])
+        delete_admin(access_token, admin["username"])
+        _delete_role(access_token, role["id"])
+        cleanup_groups(access_token, core, groups)
+
+
+def test_role_allowed_group_ids_blocks_template_group_assignment(access_token):
+    core, groups = setup_groups(access_token, 2)
+    allowed_group, forbidden_group = groups
+    role = _create_group_restricted_user_role(access_token, allowed_group_ids=[allowed_group["id"]])
+    admin = create_admin(access_token, role_id=role["id"])
+    admin_token = _login(admin["username"], admin["password"])
+
+    try:
+        response = client.post(
+            "/api/user_template",
+            headers=auth_headers(admin_token),
+            json={
+                "name": unique_name("group_acl_template"),
+                "data_limit": 1024 * 1024,
+                "expire_duration": 3600,
+                "status": "active",
+                "group_ids": [forbidden_group["id"]],
+            },
+        )
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+        assert response.json()["detail"] == "Group not found"
+    finally:
+        delete_admin(access_token, admin["username"])
+        _delete_role(access_token, role["id"])
+        cleanup_groups(access_token, core, groups)
+
+
 def test_modify_user_with_template(access_token):
     core, groups = setup_groups(access_token, 1)
     template = create_user_template(access_token, group_ids=[groups[0]["id"]])

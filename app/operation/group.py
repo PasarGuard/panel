@@ -123,8 +123,8 @@ class GroupOperation(BaseOperation):
 
         asyncio.create_task(notification.remove_group(db_group.id, admin.username))
 
-    async def bulk_add_groups(self, db: AsyncSession, bulk_model: BulkGroup):
-        await self.validate_all_groups(db, bulk_model)
+    async def bulk_add_groups(self, db: AsyncSession, bulk_model: BulkGroup, admin: Admin):
+        await self.validate_all_groups(db, bulk_model, admin)
         if bulk_model.dry_run:
             n = await count_bulk_group_scope(db, bulk_model)
             return BulkOperationDryRunResponse(affected_users=n)
@@ -138,8 +138,8 @@ class GroupOperation(BaseOperation):
             return {"detail": f"operation has been successfuly done on {users_count} users"}
         return users_count
 
-    async def bulk_remove_groups(self, db: AsyncSession, bulk_model: BulkGroup):
-        await self.validate_all_groups(db, bulk_model)
+    async def bulk_remove_groups(self, db: AsyncSession, bulk_model: BulkGroup, admin: Admin):
+        await self.validate_all_groups(db, bulk_model, admin)
         if bulk_model.dry_run:
             n = await count_bulk_group_scope(db, bulk_model)
             return BulkOperationDryRunResponse(affected_users=n)

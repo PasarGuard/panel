@@ -24,7 +24,8 @@ from app.db.models import Admin as DBAdmin, ClientTemplate, CoreConfig, Group, N
 from app.models.admin import AdminDetails
 from app.models.group import BulkGroup
 from app.models.user import UserCreate, UserModify
-from app.operation.permissions import get_scope_admin_id
+from app.models.user_template import UserTemplateCreate, UserTemplateModify
+from app.operation.permissions import apply_group_access, get_scope_admin_id
 from app.utils.helpers import ensure_datetime_timezone
 from app.utils.jwt import get_subscription_payload
 
@@ -227,7 +228,14 @@ class BaseOperation:
             await self.raise_error("Group not found", 404)
         return db_group
 
-    async def validate_all_groups(self, db, model: UserCreate | UserModify | UserTemplate | BulkGroup) -> list[Group]:
+    async def validate_all_groups(
+        self,
+        db,
+        model: UserCreate | UserModify | UserTemplate | UserTemplateCreate | UserTemplateModify | BulkGroup,
+        admin: AdminDetails | None = None,
+        *,
+        existing_group_ids: set[int] | list[int] | None = None,
+    ) -> list[Group]:
         requested_group_ids: list[int] = []
         if model.group_ids:
             requested_group_ids.extend(model.group_ids)
@@ -238,6 +246,16 @@ class BaseOperation:
             return []
 
         unique_ids = list(dict.fromkeys(requested_group_ids))
+
+        if admin is not None:
+            allowed_ids = apply_group_access(admin, unique_ids)
+            if allowed_ids is not None:
+                allowed_set = set(allowed_ids)
+                grandfathered = set(existing_group_ids or ())
+                for group_id in unique_ids:
+                    if group_id not in allowed_set and group_id not in grandfathered:
+                        await self.raise_error("Group not found", 404)
+
         groups = await get_groups_by_ids(db, unique_ids, load_users=False, load_inbounds=True)
         groups_by_id = {group.id: group for group in groups}
 
