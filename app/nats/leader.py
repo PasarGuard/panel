@@ -18,11 +18,10 @@ from app.nats import is_nats_enabled
 from app.nats.client import create_nats_client, get_jetstream_context, get_or_create_kv_bucket
 from app.node.nats_memory import WORKER_ID
 from app.utils.logger import get_logger
-from config import nats_settings, server_settings
+from config import nats_settings, runtime_settings, server_settings
 
 logger = get_logger("nats-leader")
 
-LEADER_KEY = "scheduler_leader"
 DEFAULT_LEASE_SECONDS = 15.0
 HEARTBEAT_INTERVAL = 5.0
 HEARTBEAT_MAX_RETRIES = 3
@@ -36,6 +35,15 @@ _token: str | None = None
 _heartbeat_task: asyncio.Task | None = None
 _is_leader = False
 _on_leadership_lost: Callable[[], Awaitable[None] | None] | None = None
+
+
+def leader_key() -> str:
+    """Role-scoped lease key so split node/scheduler services do not fight each other.
+
+    A single global key made the node role win leadership and skip APScheduler on the
+    dedicated scheduler service (so on_hold→active / expire jobs never ran).
+    """
+    return f"job_leader.{runtime_settings.role.value}"
 
 
 def needs_job_leader() -> bool:
@@ -120,20 +128,20 @@ async def try_become_leader(lease_seconds: float = DEFAULT_LEASE_SECONDS) -> boo
     payload = _payload(token, now + lease_seconds)
 
     try:
-        await kv.create(LEADER_KEY, payload)
+        await kv.create(leader_key(), payload)
         _token = token
         _is_leader = True
         return True
     except nats_js_errors.KeyWrongLastSequenceError as exc:
-        logger.debug("Scheduler leader create CAS conflict for key=%s: %s", LEADER_KEY, exc)
+        logger.debug("Scheduler leader create CAS conflict for key=%s: %s", leader_key(), exc)
     except Exception as exc:
         # Key may already exist (or create raced); try read/steal before giving up.
-        logger.debug("Scheduler leader create failed for key=%s, trying steal path: %s", LEADER_KEY, exc)
+        logger.debug("Scheduler leader create failed for key=%s, trying steal path: %s", leader_key(), exc)
 
     try:
-        entry = await kv.get(LEADER_KEY)
+        entry = await kv.get(leader_key())
     except (nats_js_errors.KeyNotFoundError, nats_js_errors.KeyDeletedError) as exc:
-        logger.debug("Scheduler leader key miss for key=%s: %s", LEADER_KEY, exc)
+        logger.debug("Scheduler leader key miss for key=%s: %s", leader_key(), exc)
         _is_leader = False
         return False
     except Exception as exc:
@@ -144,14 +152,14 @@ async def try_become_leader(lease_seconds: float = DEFAULT_LEASE_SECONDS) -> boo
     info = _parse(entry.value)
     if info is None or info[1] <= now:
         try:
-            await kv.update(LEADER_KEY, payload, last=entry.revision)
+            await kv.update(leader_key(), payload, last=entry.revision)
             _token = token
             _is_leader = True
             return True
         except nats_js_errors.KeyWrongLastSequenceError as exc:
             logger.debug(
                 "Scheduler leader steal CAS conflict for key=%s revision=%s: %s",
-                LEADER_KEY,
+                leader_key(),
                 entry.revision,
                 exc,
             )
@@ -175,12 +183,12 @@ async def _heartbeat_loop(lease_seconds: float = DEFAULT_LEASE_SECONDS) -> None:
             return
 
         try:
-            entry = await kv.get(LEADER_KEY)
+            entry = await kv.get(leader_key())
             info = _parse(entry.value)
             if info is None or info[0] != token:
                 await _concede_leadership("lease token invalid or replaced")
                 return
-            await kv.update(LEADER_KEY, _payload(token, time.time() + lease_seconds), last=entry.revision)
+            await kv.update(leader_key(), _payload(token, time.time() + lease_seconds), last=entry.revision)
             consecutive_failures = 0
         except (nats_js_errors.KeyNotFoundError, nats_js_errors.KeyDeletedError) as exc:
             await _concede_leadership(f"lease key unavailable: {exc}")
@@ -205,11 +213,20 @@ async def start_job_leader() -> bool:
     if won and needs_job_leader():
         if _heartbeat_task is None or _heartbeat_task.done():
             _heartbeat_task = asyncio.create_task(_heartbeat_loop())
-        logger.info("Acquired scheduler leadership (worker_id=%s)", WORKER_ID)
+        logger.info(
+            "Acquired scheduler leadership (role=%s key=%s worker_id=%s)",
+            runtime_settings.role.value,
+            leader_key(),
+            WORKER_ID,
+        )
     elif won:
         logger.debug("Scheduler leadership not required; running jobs in this process")
     else:
-        logger.info("Not scheduler leader; skipping APScheduler in this worker")
+        logger.info(
+            "Not scheduler leader; skipping APScheduler in this worker (role=%s key=%s)",
+            runtime_settings.role.value,
+            leader_key(),
+        )
     return won
 
 
@@ -223,13 +240,14 @@ async def stop_job_leader() -> None:
         _heartbeat_task = None
 
     if _kv is not None and _token is not None:
+        key = leader_key()
         try:
-            entry = await _kv.get(LEADER_KEY)
+            entry = await _kv.get(key)
             info = _parse(entry.value)
             if info and info[0] == _token:
-                await _kv.delete(LEADER_KEY, last=entry.revision)
+                await _kv.delete(key, last=entry.revision)
         except Exception as exc:
-            logger.debug("Scheduler leader release failed for key=%s: %s", LEADER_KEY, exc)
+            logger.debug("Scheduler leader release failed for key=%s: %s", key, exc)
 
     _token = None
     if _nc is not None:
