@@ -1487,6 +1487,8 @@
     "host.multiHost": "要设置多个地址，请使用 , 作为分隔符。每次随机选择一个地址。",
     "host.wildcard": "使用 * 生成随机字符串 (适用于通配符域名)",
     "sni.info": "SNI (Server Name Indication) 用于指定客户端尝试连接的主机名。当您有多个域名指向同一个 IP 地址时，这特别有用。",
+    "sni.multiHost": "要设置多个 SNI，请使用 , 作为分隔符。每次随机选择一个 SNI。",
+    "sni.wildcard": "使用 * 生成随机字符串 (适用于通配符域名)",
     "useSniAsHost": "使用 SNI 作为主机",
     "echConfigList": "ECH 配置列表",
     "echQueryStrategy": "ECH 查询策略",

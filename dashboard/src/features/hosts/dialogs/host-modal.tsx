@@ -1496,10 +1496,20 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                               const infoContent = (
                                 <div className="space-y-1.5">
                                   <p className="text-muted-foreground text-[11px]">{t('hostsDialog.sni.info')}</p>
+                                  <p className="text-muted-foreground text-[11px]">{t('hostsDialog.sni.multiHost')}</p>
+                                  <p className="text-muted-foreground text-[11px]">{t('hostsDialog.sni.wildcard')}</p>
                                 </div>
                               )
 
-                              return <ArrayInput field={field} placeholder={t('hostsDialog.sniPlaceholder')} label={t('hostsDialog.sni')} infoContent={infoContent} />
+                              return (
+                                <ArrayInput
+                                  field={field}
+                                  placeholder={t('hostsDialog.sniPlaceholder')}
+                                  label={t('hostsDialog.sni')}
+                                  infoContent={infoContent}
+                                  customVariablesTrigger={<CustomVariablesPopover />}
+                                />
+                              )
                             }}
                           />
                         </div>

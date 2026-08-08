@@ -1514,6 +1514,8 @@
     "host.multiHost": "To set multiple addresses, separate them with ,  A random address will be selected each time.",
     "host.wildcard": "Use * to generate a random string (works for wildcard domains)",
     "sni.info": "SNI (Server Name Indication) is used to specify which hostname the client is trying to connect to. This is particularly useful when you have multiple domains pointing to the same IP address.",
+    "sni.multiHost": "To set multiple SNIs, separate them with , A random SNI will be selected each time.",
+    "sni.wildcard": "Use * to generate a random string (works for wildcard domains)",
     "useSniAsHost": "Use SNI as Host",
     "echConfigList": "ECH Config List",
     "echQueryStrategy": "ECH Query Strategy",
