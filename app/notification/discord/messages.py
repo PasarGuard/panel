@@ -133,7 +133,7 @@ ADMIN_USAGE_LIMIT_REACHED = {
 
 ADMIN_LOGIN = {
     "title": "Login Attempt",
-    "description": "**Username:** {username}\n**Password:** {password}\n**IP:** {client_ip}",
+    "description": "**Username:** {username}\n**IP:** {client_ip}",
     "footer": {"text": "{status}"},
 }
 

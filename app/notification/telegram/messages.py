@@ -128,7 +128,6 @@ ADMIN_LOGIN = """
 <i>Status</i>: {status}
 ➖➖➖➖➖➖➖➖➖
 <b>Username:</b> <code>{username}</code>
-<b>Password:</b> <code>{password}</code>
 <b>IP:</b> <code>{client_ip}</code>
 """
 

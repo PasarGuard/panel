@@ -219,12 +219,12 @@ async def admin_usage_limit_reached(admin: AdminDetails, usage_percentage: int, 
         )
 
 
-async def admin_login(username: str, password: str, client_ip: str, success: bool):
+async def admin_login(username: str, client_ip: str, success: bool):
     if (await notification_enable()).admin.login:
         await _gather_notifications(
             "admin_login",
-            ds.admin_login(username, password, client_ip, success),
-            tg.admin_login(username, password, client_ip, success),
+            ds.admin_login(username, client_ip, success),
+            tg.admin_login(username, client_ip, success),
         )
 
 

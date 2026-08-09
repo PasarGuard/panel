@@ -49,16 +49,16 @@ async def admin_token(
     client_ip = get_client_ip(request)
     db_admin = await validate_admin(db, form_data.username, form_data.password)
     if not db_admin:
-        asyncio.create_task(notification.admin_login(form_data.username, form_data.password, client_ip, False))
+        asyncio.create_task(notification.admin_login(form_data.username, client_ip, False))
         raise HTTPException(
             status_code=401, detail="Incorrect username or password", headers={"WWW-Authenticate": "Bearer"}
         )
     if db_admin.status == AdminStatus.disabled:
-        asyncio.create_task(notification.admin_login(form_data.username, form_data.password, client_ip, False))
+        asyncio.create_task(notification.admin_login(form_data.username, client_ip, False))
         raise HTTPException(
             status_code=403, detail="your account has been disabled", headers={"WWW-Authenticate": "Bearer"}
         )
-    asyncio.create_task(notification.admin_login(db_admin.username, "", client_ip, True))
+    asyncio.create_task(notification.admin_login(db_admin.username, client_ip, True))
     return Token(access_token=await create_admin_token(db_admin.id, form_data.username))
 
 
@@ -75,7 +75,7 @@ async def admin_mini_app_token(
         raise HTTPException(
             status_code=403, detail="your account has been disabled", headers={"WWW-Authenticate": "Bearer"}
         )
-    asyncio.create_task(notification.admin_login(db_admin.username, "", client_ip, True))
+    asyncio.create_task(notification.admin_login(db_admin.username, client_ip, True))
     return Token(access_token=await create_admin_token(db_admin.id, db_admin.username))
 
 

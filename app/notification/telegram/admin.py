@@ -75,12 +75,11 @@ async def admin_usage_limit_reached(admin: AdminDetails, usage_percentage: int, 
         await send_telegram_message(data, chat_id=admin.telegram_id)
 
 
-async def admin_login(username: str, password: str, client_ip: str, success: bool):
-    username, password = escape_tg_html((username, password))
+async def admin_login(username: str, client_ip: str, success: bool):
+    username = escape_tg_html((username,))[0]
     data = messages.ADMIN_LOGIN.format(
         status="Successful" if success else "Failed",
         username=username,
-        password="🔒" if success else password,
         client_ip=client_ip,
     )
     settings: NotificationSettings = await notification_settings()

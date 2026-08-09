@@ -107,12 +107,11 @@ async def admin_usage_limit_reached(admin: AdminDetails, usage_percentage: int, 
         await send_discord_webhook(data, admin.discord_webhook)
 
 
-async def admin_login(username: str, password: str, client_ip: str, success: bool):
-    username, password = escape_ds_markdown_list((username, password))
+async def admin_login(username: str, client_ip: str, success: bool):
+    username = escape_ds_markdown_list((username,))[0]
     message = {**messages.ADMIN_LOGIN, "footer": dict(messages.ADMIN_LOGIN["footer"])}
     message["description"] = message["description"].format(
         username=username,
-        password="🔒" if success else password,
         client_ip=client_ip,
     )
     message["footer"]["text"] = message["footer"]["text"].format(status="Successful" if success else "Failed")
