@@ -244,6 +244,7 @@ class UserListQuery(BaseModel):
     owner: list[str] | None = Field(default=None, alias="admin")
     admin_ids: list[int] | None = Field(default=None, validation_alias=AliasChoices("admin_ids", "admin_id"))
     group_ids: list[int] | None = Field(default=None, alias="group")
+    no_group: bool = Field(default=False)
     search: str | None = Field(default=None)
     status: UserStatus | list[UserStatus] | None = Field(default=None)
     sort: list[UserSortOption] = Field(default_factory=list)

@@ -16,6 +16,7 @@ get_user_list_query = make_query_dependency(
         "owner": Query(None, alias="admin"),
         "admin_ids": Query(None, alias="admin_ids"),
         "group_ids": Query(None, alias="group"),
+        "no_group": Query(False),
         "status": Query(None),
         "sort": query_param(str | None, None),
         "proxy_id": Query(None),

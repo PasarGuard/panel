@@ -389,6 +389,8 @@ async def get_users(
 
     if query.group_ids:
         filters.append(User.groups.any(Group.id.in_(query.group_ids)))
+    if query.no_group:
+        filters.append(~User.groups.any())
     if query.proxy_id:
         filters.append(build_json_proxy_settings_search_condition(db, User.proxy_settings, query.proxy_id))
 
