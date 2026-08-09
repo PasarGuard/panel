@@ -131,6 +131,8 @@ def _create_group_filter(bulk_model: BulkGroup):
         other_conditions.append(User.admin_id.in_(bulk_model.admins))
     if bulk_model.has_group_ids:
         other_conditions.append(User.groups.any(Group.id.in_(bulk_model.has_group_ids)))
+    if bulk_model.has_no_group:
+        other_conditions.append(~User.groups.any())
 
     user_ids = bulk_model.users or []
 
