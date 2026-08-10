@@ -5,7 +5,7 @@ from PasarGuardNodeBridge.storage import LifecycleStatus
 
 from app import notification, on_shutdown, on_startup, scheduler
 from app.db import GetDB
-from app.db.crud.node import get_limited_nodes, get_nodes
+from app.db.crud.node import get_limited_nodes, get_node_by_id, get_nodes
 from app.db.models import Node, NodeStatus
 from app.models.node import NodeListQuery, NodeNotification
 from app.nats import is_multi_worker
@@ -92,7 +92,28 @@ async def process_node_health_check(db_node: Node, node: PasarGuardNode):
     - For other errors (code > -1): Reconnect (connection works but has another issue)
     - For NOT_CONNECTED/INVALID: Reconnect immediately
     """
+    _, coordinator, _ = get_bridge_memory()
+    bridge_namespace = str(getattr(db_node, "bridge_id", None) or db_node.id)
+    if coordinator is not None and await coordinator.is_deleted(bridge_namespace):
+        if node is not None:
+            await node_manager.remove_node(
+                db_node.id,
+                remote_stop=False,
+                expected_bridge_namespace=bridge_namespace,
+            )
+        return
+
     if node is None:
+        async with GetDB() as db:
+            await node_operator.connect_single_node(db, db_node.id)
+        return
+
+    # Broadcast delivery is best-effort. A worker that missed an upsert heals
+    # from the authoritative DB row during its ordinary health pass.
+    if getattr(node, "_extra", {}).get("config_signature") is not None and not node_manager.runtime_config_matches(
+        node, db_node
+    ):
+        await node_manager.update_node(db_node)
         return
 
     # Limit concurrent health checks to prevent DB/API overload
@@ -147,7 +168,7 @@ async def process_node_health_check(db_node: Node, node: PasarGuardNode):
                 return
 
             _, coordinator, _ = get_bridge_memory()
-            if coordinator is not None and await coordinator.has_active_lease(str(db_node.id)):
+            if coordinator is not None and await coordinator.has_active_lease(bridge_namespace):
                 logger.debug(
                     "[%s] Shared lifecycle HEALTHY with active lease; waiting for owner",
                     db_node.name,
@@ -249,6 +270,19 @@ async def node_health_check():
     await asyncio.gather(*check_tasks, return_exceptions=True)
 
 
+async def reconcile_orphaned_user_sync():
+    """Periodically resolve durable NATS barriers after worker/process crashes."""
+    if not runtime_settings.role.runs_node:
+        return
+    node_ids = list((await node_manager.get_nodes()).keys())
+    for node_id in node_ids:
+        async with GetDB() as db:
+            db_node = await get_node_by_id(db, node_id, load_usage_logs=False)
+            if db_node is None:
+                continue
+            await node_operator.reconcile_orphaned_user_sync(db, db_node)
+
+
 _node_loop_tasks: list[asyncio.Task] = []
 
 
@@ -290,6 +324,16 @@ async def initialize_nodes():
                 name="node_health_loop",
             )
         )
+        _node_loop_tasks.append(
+            asyncio.create_task(
+                _interval_loop(
+                    reconcile_orphaned_user_sync,
+                    job_settings.core_health_check_interval,
+                    "user-sync-recovery",
+                ),
+                name="node_user_sync_recovery_loop",
+            )
+        )
     else:
         scheduler.add_job(
             node_health_check,
@@ -298,6 +342,15 @@ async def initialize_nodes():
             coalesce=True,
             max_instances=1,
             id="node_health_check",
+            replace_existing=True,
+        )
+        scheduler.add_job(
+            reconcile_orphaned_user_sync,
+            "interval",
+            seconds=job_settings.core_health_check_interval,
+            coalesce=True,
+            max_instances=1,
+            id="reconcile_orphaned_user_sync",
             replace_existing=True,
         )
 

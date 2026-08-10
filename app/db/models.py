@@ -2,6 +2,7 @@ import os
 from datetime import UTC, datetime as dt
 from enum import Enum
 from typing import Any
+from uuid import uuid4
 
 from sqlalchemy import (
     JSON,
@@ -193,9 +194,13 @@ class DataLimitResetStrategy(str, Enum):
 class User(Base, CreatedAtUTCMixin):
     __tablename__ = "users"
     __table_args__ = (
+        UniqueConstraint("sync_id", name="uq_users_sync_id"),
         Index("idx_users_admin_online", "admin_id", "online_at"),
         Index("idx_users_admin_status", "admin_id", "status"),
         Index("idx_users_admin_created", "admin_id", "created_at"),
+    )
+    sync_id: Mapped[str] = mapped_column(
+        String(36), default_factory=lambda: str(uuid4()), nullable=False, init=False
     )
     username: Mapped[str] = mapped_column(CaseSensitiveString(128), unique=True, index=True)
     node_usages: Mapped[list[NodeUserUsage]] = relationship(
@@ -596,6 +601,12 @@ class NodeStatus(str, Enum):
 
 class Node(Base, CreatedAtUTCMixin):
     __tablename__ = "nodes"
+    __table_args__ = (UniqueConstraint("bridge_id", name="uq_nodes_bridge_id"),)
+    # Stable internal namespace for distributed Bridge/KV state. Public APIs
+    # continue to route by numeric id, which SQLite may reuse after deletion.
+    bridge_id: Mapped[str] = mapped_column(
+        String(36), default_factory=lambda: str(uuid4()), nullable=False, init=False
+    )
     name: Mapped[str] = mapped_column(CaseSensitiveString(256), unique=True)
     address: Mapped[str] = mapped_column(String(256), unique=False, nullable=False)
     port: Mapped[int] = mapped_column(unique=False, nullable=False)

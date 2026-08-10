@@ -25,15 +25,20 @@ async def create_admin_token(admin_id: int | None, username: str) -> str:
     if admin_id is not None:
         data["aid"] = int(admin_id)
     if jwt_settings.access_token_expire_minutes > 0:
-        expire = datetime.now(UTC) + timedelta(minutes=jwt_settings.access_token_expire_minutes)
-        data["exp"] = expire
+        data["exp"] = datetime.now(UTC) + timedelta(minutes=jwt_settings.access_token_expire_minutes)
     encoded_jwt = jwt.encode(data, await get_secret_key(), algorithm="HS256")
     return encoded_jwt
 
 
 async def get_admin_payload(token: str) -> dict | None:
     try:
-        payload = jwt.decode(token, await get_secret_key(), algorithms=["HS256"], leeway=5)
+        payload = jwt.decode(
+            token,
+            await get_secret_key(),
+            algorithms=["HS256"],
+            leeway=5,
+            options={"require": ["iat", "sub"]},
+        )
         username: str = payload.get("sub")
         access: str = payload.get("access")
         admin_id = payload.get("aid")
@@ -46,8 +51,15 @@ async def get_admin_payload(token: str) -> dict | None:
             return
         try:
             created_at = datetime.fromtimestamp(payload["iat"], tz=UTC)
-        except KeyError:
-            created_at = None
+        except KeyError, OverflowError, OSError, TypeError, ValueError:
+            return
+
+        # Tokens issued before exp was added remain usable during rollout, but
+        # a positive configured lifetime still bounds them from their iat.
+        if "exp" not in payload and jwt_settings.access_token_expire_minutes > 0:
+            legacy_expires_at = created_at + timedelta(minutes=jwt_settings.access_token_expire_minutes)
+            if datetime.now(UTC) > legacy_expires_at + timedelta(seconds=5):
+                return
 
         return {
             "admin_id": admin_id,

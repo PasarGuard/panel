@@ -17,6 +17,7 @@ from app.db.crud.user import get_all_users_usages, get_user_count_metric_stats, 
 from app.db.models import (
     Admin,
     Node,
+    NodeStatus,
     NodeUsage,
     NodeUserUsage,
     User,
@@ -61,6 +62,7 @@ async def setup_test_data(session, test_suffix=""):
         server_ca="ca",
         api_key="key",
         core_config_id=None,
+        status=NodeStatus.disabled,
     )
     session.add(node)
     await session.flush()
@@ -1009,6 +1011,7 @@ class TestGetUserCountMetricStats:
                 server_ca="ca",
                 api_key="key",
                 core_config_id=None,
+                status=NodeStatus.disabled,
             )
             session.add_all([admin_two, node_two])
             await session.flush()

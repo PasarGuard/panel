@@ -1,9 +1,11 @@
 import re
 from enum import Enum
 from ipaddress import ip_address
+from typing import Literal
 from uuid import UUID
 
 from cryptography.x509 import load_pem_x509_certificate
+from PasarGuardNodeBridge.storage import LifecycleStatus
 from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator, model_validator
 
 from app.db.models import DataLimitResetStrategy, NodeConnectionType, NodeStatus
@@ -34,6 +36,20 @@ class GeoFilseRegion(str, Enum):
 
 class NodeSettings(BaseModel):
     min_node_version: str = "v1.0.0"
+
+
+class NodeLifecycleRecovery(BaseModel):
+    """Explicit acknowledgement for an expired, outcome-unknown operation."""
+
+    observed: LifecycleStatus
+    acknowledge_expired_operation: Literal[True]
+
+    @field_validator("observed")
+    @classmethod
+    def validate_terminal_observed_state(cls, value: LifecycleStatus) -> LifecycleStatus:
+        if value not in (LifecycleStatus.HEALTHY, LifecycleStatus.STOPPED, LifecycleStatus.BROKEN):
+            raise ValueError("observed must be a terminal inspected state")
+        return value
 
 
 class Node(BaseModel):
@@ -364,6 +380,7 @@ class RemoveNodesResponse(BaseModel):
 
     nodes: list[str]
     count: int
+    failed: dict[int, str] = Field(default_factory=dict)
 
 
 class BulkNodesActionResponse(BaseModel):

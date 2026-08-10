@@ -51,11 +51,11 @@ async def serialize_user(user: User, allowed_protocols: frozenset[ProxyProtocol]
         if inbounds is None:
             inbounds = await user.inbounds()
 
-    return _serialize_user_for_node(user.id, user_settings, inbounds, allowed_protocols)
+    return _serialize_user_for_node(user.sync_id, user_settings, inbounds, allowed_protocols)
 
 
 def _serialize_user_for_node(
-    id: int,
+    sync_id: str | int,
     user_settings: dict,
     inbounds: list[str] | None = None,
     allowed_protocols: frozenset[ProxyProtocol] | None = None,
@@ -81,7 +81,7 @@ def _serialize_user_for_node(
         proxy_kwargs["hysteria_auth"] = user_settings.get("hysteria", {}).get("auth")
 
     return create_user(
-        str(id),
+        str(sync_id),
         create_proxy(**proxy_kwargs),
         inbounds,
     )
@@ -104,7 +104,7 @@ async def core_users(
 
     stmt = (
         select(
-            User.id,
+            User.sync_id,
             User.proxy_settings,
             inbound_agg,
         )
@@ -136,7 +136,7 @@ async def core_users(
                 and_(Admin.status == AdminStatus.disabled, AdminRole.disconnect_users_when_disabled.is_not(True)),
             )
         )
-        .group_by(User.id)
+        .group_by(User.id, User.sync_id)
     )
 
     results = (await db.execute(stmt)).all()
@@ -147,7 +147,7 @@ async def core_users(
         if inbound_tags:
             bridge_users.append(
                 _serialize_user_for_node(
-                    row.id,
+                    row.sync_id,
                     row.proxy_settings,
                     inbound_tags,
                     allowed_protocols,
@@ -172,6 +172,8 @@ async def serialize_users_for_node(
             else:
                 inbounds_list = loaded_inbounds
 
-        bridge_users.append(_serialize_user_for_node(user.id, user.proxy_settings, inbounds_list, allowed_protocols))
+        bridge_users.append(
+            _serialize_user_for_node(user.sync_id, user.proxy_settings, inbounds_list, allowed_protocols)
+        )
 
     return bridge_users

@@ -38,10 +38,15 @@ dependencies = [
     "uvloop>=0.22.1; sys_platform != 'win32'",
     "aiorwlock>=1.5.0",
     "typer>=0.27.1",
-    "pasarguard-node-bridge>=0.9.0",
+    "pasarguard-node-bridge>=0.10.0",
     "pip-system-certs>=5.3",
     "nats-py>=2.15.0",
 ]
+
+[tool.uv.sources]
+# Temporary release bridge for the coordinated Node/Panel rollout. Replace
+# this immutable commit with the PyPI source after pasarguard-node-bridge 0.10.0 ships.
+pasarguard-node-bridge = { git = "https://github.com/PasarGuard/node_bridge_py.git", rev = "bb503222e373135e8166ddd025fc51348f0806b6" }
 
 [tool.ruff]
 line-length = 120
