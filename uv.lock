@@ -627,14 +627,14 @@ wheels = [
 
 [[package]]
 name = "jdatetime"
-version = "6.0.1"
+version = "6.0.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "jalali-core" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/b9/1a/6f49f59d771db850c5c895e1fc8dd7fb495e146ba7b2b247df299442bb64/jdatetime-6.0.1.tar.gz", hash = "sha256:e349ec5fe4cd42b88e6f1a1d9d1de2391bfa7702a5d3d3ce870d593a475597b0", size = 22542, upload-time = "2026-07-15T07:45:56.197Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/68/6b/bece93eac24d2f8a5f7e6665a13a5ade92a67aa976e22c602f97fb40f751/jdatetime-6.0.2.tar.gz", hash = "sha256:cdf061ccde278b62728c9f68876ddee53f978891725b4cb843a851422ad3fcdf", size = 22660, upload-time = "2026-08-06T11:47:05.965Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/26/87/2a9beabec59032feb868c0d05c0db571e2dce87b854a722f46623766a9e2/jdatetime-6.0.1-py3-none-any.whl", hash = "sha256:57ab3cc70fee4b7fdd9451553fcf1aa8e63034a7c8b1b28750e02caf89183219", size = 12726, upload-time = "2026-07-15T07:45:55.199Z" },
+    { url = "https://files.pythonhosted.org/packages/35/72/1ba67c09361815acdf1eb752bc83fe043f4ed0093888b8ca00ade5a23e7c/jdatetime-6.0.2-py3-none-any.whl", hash = "sha256:f9b3148456f071c45ff42b444a0ac0c9bf4f200cb3dc1a5efd220933263d4b74", size = 12799, upload-time = "2026-08-06T11:47:04.866Z" },
 ]
 
 [[package]]
@@ -864,7 +864,7 @@ requires-dist = [
     { name = "cryptography", specifier = "==50.0.0" },
     { name = "deprecated", specifier = "==1.2.13" },
     { name = "fastapi", specifier = ">=0.141.1" },
-    { name = "jdatetime", specifier = ">=6.0.1" },
+    { name = "jdatetime", specifier = ">=6.0.2" },
     { name = "jinja2", specifier = ">=3.1.6" },
     { name = "nats-py", specifier = ">=2.15.0" },
     { name = "packaging", specifier = ">=26.2" },
