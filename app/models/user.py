@@ -48,7 +48,12 @@ class User(BaseModel):
     )
     on_hold_timeout: dt | int | None = Field(default=None)
     group_ids: list[int] | None = Field(default_factory=list)
-    auto_delete_in_days: int | None = Field(default=None)
+    auto_delete_in_days: int | None = Field(
+        ge=-1,
+        le=36500,
+        default=None,
+        description="Per-user cleanup delay in days; -1 disables automatic deletion",
+    )
     hwid_limit: int | None = Field(default=None)
     next_plan: NextPlanModel | None = Field(default=None)
 
@@ -124,6 +129,9 @@ class UserNotificationResponse(User):
     created_at: AwareDatetime
     edit_at: OptionalAwareDatetime = Field(default=None)
     online_at: OptionalAwareDatetime = Field(default=None)
+    last_traffic_reset_at: OptionalAwareDatetime = Field(default=None)
+    last_cycle_traffic_reset_at: OptionalAwareDatetime = Field(default=None)
+    next_traffic_reset_at: OptionalAwareDatetime = Field(default=None)
     subscription_url: str = Field(default="")
     admin: AdminContactInfo | None = Field(default=None)
     group_names: list[str] | None = Field(default_factory=list)
@@ -133,7 +141,6 @@ class UserNotificationResponse(User):
     @classmethod
     def cast_to_int(cls, v):
         return NumericValidatorMixin.cast_to_int(v)
-
 
 class UserResponse(UserNotificationResponse):
     admin: AdminBase | None = Field(default=None)

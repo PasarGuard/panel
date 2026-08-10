@@ -12,7 +12,7 @@ from app.core.manager import core_manager
 from app.db import GetDB
 from app.db.crud.node import get_node_by_id, get_nodes
 from app.db.models import NodeStatus
-from app.models.node import NodeCoreUpdate, NodeGeoFilesUpdate, NodeListQuery
+from app.models.node import NodeCoreUpdate, NodeGeoFilesUpdate, NodeLifecycleRecovery, NodeListQuery
 from app.nats.proto_utils import deserialize_proto_message, deserialize_proto_messages
 from app.nats.rpc_service import BaseRpcService
 from app.node import node_manager
@@ -22,6 +22,7 @@ from app.utils.logger import get_logger
 from config import nats_settings, runtime_settings
 
 logger = get_logger("node-worker")
+NODE_RPC_QUEUE_GROUP = f"{nats_settings.node_rpc_subject}.workers"
 
 
 class NodeWorkerService(BaseRpcService):
@@ -30,6 +31,7 @@ class NodeWorkerService(BaseRpcService):
             subject=nats_settings.node_rpc_subject,
             logger=logger,
             role_check=lambda: runtime_settings.role.runs_node,
+            queue_group=NODE_RPC_QUEUE_GROUP,
         )
         self._command_sub: Subscription | None = None
         self._log_tasks: dict[str, asyncio.Task] = {}
@@ -46,7 +48,7 @@ class NodeWorkerService(BaseRpcService):
         self.register_command_handler("update_user", self._update_user)
         self.register_command_handler("update_users", self._update_users)
         self.register_command_handler("update_node", self._update_node)
-        self.register_command_handler("remove_node", self._remove_node)
+        self.register_rpc_handler("remove_node", self._remove_node)
         self.register_command_handler("connect_node", self._connect_node)
         self.register_command_handler("connect_nodes_bulk", self._connect_nodes_bulk)
         self.register_command_handler("disconnect_node", self._disconnect_node)
@@ -62,6 +64,11 @@ class NodeWorkerService(BaseRpcService):
         self.register_rpc_handler("update_core", self._update_core)
         self.register_rpc_handler("update_geofiles", self._update_geofiles)
         self.register_rpc_handler("start_logs", self._start_logs)
+        self.register_rpc_handler("revoke_user", self._rpc_revoke_user)
+        self.register_rpc_handler("revoke_users", self._rpc_revoke_users)
+        self.register_rpc_handler("abort_revoke_users", self._rpc_abort_revoke_users)
+        self.register_rpc_handler("finalize_revoke_users", self._rpc_finalize_revoke_users)
+        self.register_rpc_handler("recover_node_lifecycle", self._rpc_recover_node_lifecycle)
 
     async def start(self):
         await super().start()
@@ -118,9 +125,11 @@ class NodeWorkerService(BaseRpcService):
                 result = await self._dispatch_rpc(action, data)
                 await msg.respond(json.dumps({"ok": True, "data": result}).encode())
             except Exception as exc:
-                error_msg = str(exc)
+                error_msg = exc.detail if isinstance(exc, NodeAPIError) else str(exc)
                 # Determine error code based on error message content
-                if "NotFound" in error_msg or "not found" in error_msg.lower():
+                if isinstance(exc, NodeAPIError):
+                    error_code = exc.code
+                elif "NotFound" in error_msg or "not found" in error_msg.lower():
                     error_code = 404
                 elif "not allowed" in error_msg.lower() or "permission" in error_msg.lower():
                     error_code = 403
@@ -149,6 +158,74 @@ class NodeWorkerService(BaseRpcService):
         proto_users = deserialize_proto_messages(users_dicts, ProtoUser)
         await node_manager.update_users(proto_users)
 
+    async def _rpc_revoke_user(self, data: dict) -> dict:
+        user_dict = data.get("user")
+        original_user_dict = data.get("original_user")
+        if user_dict and not original_user_dict:
+            raise RuntimeError("original_user is required for compensatable revocation")
+        if user_dict:
+            await node_manager.revoke_users_and_wait(
+                [deserialize_proto_message(user_dict, ProtoUser)],
+                data.get("revocation_id"),
+                [deserialize_proto_message(original_user_dict, ProtoUser)],
+                expected_node_ids=(
+                    {int(node_id) for node_id in data["expected_node_ids"]}
+                    if data.get("expected_node_ids") is not None
+                    else None
+                ),
+            )
+        return {}
+
+    async def _rpc_revoke_users(self, data: dict) -> dict:
+        users_dicts = data.get("users") or []
+        original_users_dicts = data.get("original_users") or []
+        if users_dicts and not original_users_dicts:
+            raise RuntimeError("original_users are required for compensatable revocation")
+        if users_dicts:
+            await node_manager.revoke_users_and_wait(
+                deserialize_proto_messages(users_dicts, ProtoUser),
+                data.get("revocation_id"),
+                deserialize_proto_messages(original_users_dicts, ProtoUser),
+                expected_node_ids=(
+                    {int(node_id) for node_id in data["expected_node_ids"]}
+                    if data.get("expected_node_ids") is not None
+                    else None
+                ),
+            )
+        return {}
+
+    async def _rpc_abort_revoke_users(self, data: dict) -> dict:
+        users_dicts = data.get("users") or []
+        original_users_dicts = data.get("original_users") or []
+        if users_dicts and not original_users_dicts:
+            raise RuntimeError("original_users are required for compensatable revocation abort")
+        if users_dicts:
+            await node_manager.abort_user_revocations(
+                deserialize_proto_messages(users_dicts, ProtoUser),
+                data.get("revocation_id"),
+                deserialize_proto_messages(original_users_dicts, ProtoUser),
+                expected_node_ids=(
+                    {int(node_id) for node_id in data["expected_node_ids"]}
+                    if data.get("expected_node_ids") is not None
+                    else None
+                ),
+            )
+        return {}
+
+    async def _rpc_finalize_revoke_users(self, data: dict) -> dict:
+        users_dicts = data.get("users") or []
+        if users_dicts:
+            await node_manager.finalize_user_revocations(
+                deserialize_proto_messages(users_dicts, ProtoUser),
+                data.get("revocation_id"),
+                expected_node_ids=(
+                    {int(node_id) for node_id in data["expected_node_ids"]}
+                    if data.get("expected_node_ids") is not None
+                    else None
+                ),
+            )
+        return {}
+
     async def _update_node(self, data: dict):
         node_id = data.get("node_id")
         if not node_id:
@@ -162,7 +239,13 @@ class NodeWorkerService(BaseRpcService):
         node_id = data.get("node_id")
         if not node_id:
             return
-        await node_manager.remove_node(node_id)
+        await self._node_operator._remove_node_impl(node_id, data.get("bridge_id"))
+        return {}
+
+    async def _rpc_recover_node_lifecycle(self, data: dict) -> dict:
+        node_id = int(data["node_id"])
+        recovery = NodeLifecycleRecovery.model_validate(data.get("recovery") or {})
+        return await self._node_operator._recover_node_lifecycle_local(node_id, recovery)
 
     async def _connect_node(self, data: dict):
         node_id = data.get("node_id")

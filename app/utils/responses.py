@@ -23,6 +23,10 @@ class Conflict(HTTPException):
     detail: str = "Entity already exists"
 
 
+class ServiceUnavailable(HTTPException):
+    detail: str = "Service temporarily unavailable"
+
+
 _400 = {"description": "BadRequest Error", "model": HTTPException}
 
 _401 = {
@@ -40,4 +44,10 @@ _403 = {"description": "Forbidden Error", "model": Forbidden}
 
 _404 = {"description": "NotFound Error", "model": NotFound}
 
+_406 = {"description": "NotAcceptable Error", "model": HTTPException}
+
 _409 = {"description": "Conflict Error", "model": Conflict}
+
+_422 = {"description": "Validation Error", "model": HTTPException}
+
+_503 = {"description": "ServiceUnavailable Error", "model": ServiceUnavailable}
