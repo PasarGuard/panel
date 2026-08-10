@@ -149,11 +149,33 @@ class BaseOperation:
             elif sub.get("username"):
                 db_user = await get_user(db, sub["username"], load_admin_role=load_admin_role)
 
-        if (
-            not db_user
-            or db_user.created_at.astimezone(UTC) > sub["created_at"]
-            or (db_user.sub_revoked_at and db_user.sub_revoked_at.astimezone(UTC) > sub["created_at"])
-        ):
+        token_created_at = sub["created_at"] if sub else None
+        token_version = sub.get("token_version", "legacy") if sub else "legacy"
+        token_subject_created_at = sub.get("subject_created_at") if sub else None
+        # v2/v3 encoded a rounded-up second, so their value cannot reliably
+        # order an event within that same second. Preserve their established
+        # strict-after compatibility rule. v4 carries microsecond precision,
+        # letting a reset revoke a token issued in the same database tick.
+        revoked_after_issuance = bool(
+            db_user
+            and db_user.sub_revoked_at
+            and (
+                ensure_datetime_timezone(db_user.sub_revoked_at).astimezone(UTC) >= token_created_at
+                if token_version in {"legacy", "v4", "v5"}
+                else ensure_datetime_timezone(db_user.sub_revoked_at).astimezone(UTC) > token_created_at
+            )
+        )
+
+        created_after_token = bool(
+            db_user
+            and (
+                ensure_datetime_timezone(db_user.created_at).astimezone(UTC) != token_subject_created_at
+                if token_version == "v5"
+                else ensure_datetime_timezone(db_user.created_at).astimezone(UTC) > token_created_at
+            )
+        )
+
+        if not db_user or created_after_token or revoked_after_issuance:
             await self.raise_error(message="Not Found", code=404)
 
         return db_user
