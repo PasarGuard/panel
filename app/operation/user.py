@@ -226,7 +226,7 @@ class UserOperation(BaseOperation):
             if user.admin and user.admin.sub_domain
             else (settings.url_prefix).replace("*", salt)
         )
-        token = await create_subscription_token(user.id)
+        token = await create_subscription_token(user.id, user_created_at=user.created_at)
         return f"{url_prefix}/{subscription_env_settings.path}/{token}"
 
     async def _generate_usernames(
@@ -1822,7 +1822,7 @@ class UserOperation(BaseOperation):
 
         db_admin = await get_admin(db, admin.username, load_users=False, load_usage_logs=False)
         try:
-            subscription_urls = await self._persist_bulk_users(
+            await self._persist_bulk_users(
                 db,
                 admin,
                 db_admin,
@@ -1840,8 +1840,10 @@ class UserOperation(BaseOperation):
         created_users = await self._load_users_by_usernames(db, [user.username for user in users_to_create])
         await sync_users(created_users)
 
+        subscription_urls: list[str] = []
         for db_user in created_users:
             user = await self.validate_user(db_user)
+            subscription_urls.append(user.subscription_url)
             asyncio.create_task(notification.create_user(user, admin))
 
         return BulkUsersCreateResponse(subscription_urls=subscription_urls, created=len(subscription_urls))

@@ -172,7 +172,7 @@ def test_subscription_token_generation_avoids_trailing_dash_or_underscore_and_ke
 
     monkeypatch.setattr(jwt_utils, "get_secret_key", fake_get_secret_key)
 
-    token = asyncio.run(create_subscription_token(123))
+    token = asyncio.run(create_subscription_token(123, user_created_at=datetime(2024, 1, 1, tzinfo=UTC)))
     assert token[-1].isalnum()
     assert not token.endswith(("-", "_"))
 
@@ -182,6 +182,26 @@ def test_subscription_token_generation_avoids_trailing_dash_or_underscore_and_ke
     old_v2_token = _build_v2_subscription_token(456, secret)
     old_v2_payload = asyncio.run(get_subscription_payload(old_v2_token))
     assert old_v2_payload["user_id"] == 456
+
+
+def test_subscription_token_uses_precise_non_future_issuance_time(monkeypatch):
+    secret = "test-secret"
+    issued_at_ns = 1_723_000_000_123_456_789
+
+    async def fake_get_secret_key():
+        return secret
+
+    monkeypatch.setattr(jwt_utils, "get_secret_key", fake_get_secret_key)
+    monkeypatch.setattr(jwt_utils.time, "time_ns", lambda: issued_at_ns)
+
+    subject_created_at = datetime(2024, 8, 7, 3, 6, 40, 123456, tzinfo=UTC)
+    token = asyncio.run(create_subscription_token(123, user_created_at=subject_created_at))
+    payload = asyncio.run(get_subscription_payload(token))
+
+    assert payload["user_id"] == 123
+    assert payload["token_version"] == "v5"
+    assert payload["created_at"] == datetime(2024, 8, 7, 3, 6, 40, 123456, tzinfo=UTC)
+    assert payload["subject_created_at"] == subject_created_at
 
 
 def test_user_create_active(access_token):
@@ -1978,11 +1998,16 @@ def test_revoke_user_subscription(access_token):
         payload={"username": unique_name("test_user_revoke")},
     )
     try:
+        old_subscription_url = user["subscription_url"]
         response = client.post(
             f"/api/user/{user['username']}/revoke_sub",
             headers={"Authorization": f"Bearer {access_token}"},
         )
         assert response.status_code == status.HTTP_200_OK
+        # This request intentionally follows immediately: MySQL/MariaDB used
+        # to truncate sub_revoked_at to whole seconds, leaving a v5 token
+        # issued earlier in the same second valid.
+        assert client.get(old_subscription_url).status_code == status.HTTP_404_NOT_FOUND
     finally:
         delete_user(access_token, user["username"])
         cleanup_groups(access_token, core, groups)
@@ -2527,6 +2552,8 @@ def test_bulk_create_users_from_template_sequence(access_token):
         assert response.status_code == status.HTTP_201_CREATED
         assert response.json()["created"] == count
         assert len(response.json()["subscription_urls"]) == count
+        for subscription_url in response.json()["subscription_urls"]:
+            assert client.get(subscription_url).status_code == status.HTTP_200_OK
 
         expected_usernames = [f"{base_username}{start_number + idx}" for idx in range(count)]
 
@@ -2573,6 +2600,8 @@ def test_bulk_create_users_from_template_sequence_with_template_affixes(access_t
         assert response.status_code == status.HTTP_201_CREATED
         assert response.json()["created"] == count
         assert len(response.json()["subscription_urls"]) == count
+        for subscription_url in response.json()["subscription_urls"]:
+            assert client.get(subscription_url).status_code == status.HTTP_200_OK
 
         expected_usernames = [f"{prefix}{base_username}{suffix}{start_number + idx}" for idx in range(count)]
 
@@ -2608,6 +2637,8 @@ def test_bulk_create_users_from_template_random(access_token):
         assert response.status_code == status.HTTP_201_CREATED
         assert response.json()["created"] == count
         assert len(response.json()["subscription_urls"]) == count
+        for subscription_url in response.json()["subscription_urls"]:
+            assert client.get(subscription_url).status_code == status.HTTP_200_OK
 
         users_response = client.get(
             "/api/users",

@@ -3,13 +3,13 @@ import time
 from base64 import b64decode, b64encode
 from datetime import UTC, datetime, timedelta
 from hashlib import sha256
-from math import ceil
 
 import jwt
 from aiocache import cached
 
 from app.db import GetDB
 from app.db.crud.general import get_jwt_secret_key
+from app.utils.helpers import ensure_datetime_timezone
 from config import jwt_settings
 
 
@@ -70,8 +70,38 @@ async def get_admin_payload(token: str) -> dict | None:
         return
 
 
-async def create_subscription_token(user_id: int) -> str:
-    data = "v3," + str(user_id) + "," + str(ceil(time.time()))
+def _datetime_to_epoch_nanoseconds(value: datetime) -> int:
+    value = ensure_datetime_timezone(value).astimezone(UTC)
+    epoch = datetime(1970, 1, 1, tzinfo=UTC)
+    delta = value - epoch
+    return (delta.days * 86_400 + delta.seconds) * 1_000_000_000 + delta.microseconds * 1_000
+
+
+def _datetime_from_epoch_seconds(value: float) -> datetime | None:
+    try:
+        return datetime.fromtimestamp(value, tz=UTC)
+    except OverflowError, OSError, TypeError, ValueError:
+        return None
+
+
+def _datetime_from_epoch_nanoseconds(value: int) -> datetime | None:
+    seconds, nanoseconds = divmod(value, 1_000_000_000)
+    created_at = _datetime_from_epoch_seconds(seconds)
+    if created_at is None:
+        return None
+    return created_at.replace(microsecond=nanoseconds // 1_000)
+
+
+async def create_subscription_token(user_id: int, *, user_created_at: datetime) -> str:
+    # Subscription-token revocation compares its issuance time with database
+    # timestamps at microsecond precision.  A rounded-up epoch second can make
+    # a token appear to have been issued *after* a subsequent revocation, while
+    # a rounded-down second can predate a freshly-created user.  v5 stores the
+    # actual UTC epoch and the user's creation timestamp in nanoseconds;
+    # v2/v3/v4 remain accepted for compatibility.
+    issued_at_ns = time.time_ns()
+    subject_created_at_ns = _datetime_to_epoch_nanoseconds(user_created_at)
+    data = "v5," + str(user_id) + "," + str(issued_at_ns) + "," + str(subject_created_at_ns)
     data_b64_str = b64encode(data.encode("utf-8"), altchars=b"-_").decode("utf-8").rstrip("=")
     secret = await get_secret_key()
     # HMAC-SHA256 over the payload, url-safe base64, no truncation.
@@ -91,16 +121,42 @@ async def create_subscription_token(user_id: int) -> str:
 def _parse_subscription_data(data_str: str) -> dict | None:
     """Parse the decoded subscription payload string into a result dict."""
     parts = data_str.split(",")
-    if len(parts) == 3 and parts[0] in ("v2", "v3"):
-        _, u_user_id_str, u_created_at_str = parts
+    if len(parts) == 3 and parts[0] in ("v2", "v3", "v4"):
+        version, u_user_id_str, u_created_at_str = parts
         try:
             u_user_id = int(u_user_id_str)
             u_created_at = int(u_created_at_str)
         except ValueError:
             return
+        if version == "v4":
+            created_at = _datetime_from_epoch_nanoseconds(u_created_at)
+        else:
+            created_at = _datetime_from_epoch_seconds(u_created_at)
+        if created_at is None:
+            return
         return {
             "user_id": u_user_id,
-            "created_at": datetime.fromtimestamp(u_created_at, tz=UTC),
+            "created_at": created_at,
+            "token_version": version,
+        }
+
+    if len(parts) == 4 and parts[0] == "v5":
+        _, u_user_id_str, u_created_at_str, u_subject_created_at_str = parts
+        try:
+            u_user_id = int(u_user_id_str)
+            u_created_at = int(u_created_at_str)
+            u_subject_created_at = int(u_subject_created_at_str)
+        except ValueError:
+            return
+        created_at = _datetime_from_epoch_nanoseconds(u_created_at)
+        subject_created_at = _datetime_from_epoch_nanoseconds(u_subject_created_at)
+        if created_at is None or subject_created_at is None:
+            return
+        return {
+            "user_id": u_user_id,
+            "created_at": created_at,
+            "subject_created_at": subject_created_at,
+            "token_version": "v5",
         }
 
     if len(parts) == 2:
@@ -109,9 +165,13 @@ def _parse_subscription_data(data_str: str) -> dict | None:
             u_created_at = int(u_created_at_str)
         except ValueError:
             return
+        created_at = _datetime_from_epoch_seconds(u_created_at)
+        if created_at is None:
+            return
         return {
             "username": u_username,
-            "created_at": datetime.fromtimestamp(u_created_at, tz=UTC),
+            "created_at": created_at,
+            "token_version": "legacy",
         }
     return
 
@@ -139,9 +199,12 @@ async def get_subscription_payload(token: str) -> dict | None:
                 username = payload.get("sub")
                 if not username:
                     return
+                created_at = _datetime_from_epoch_seconds(payload.get("iat"))
+                if created_at is None:
+                    return
                 return {
                     "username": username,
-                    "created_at": datetime.fromtimestamp(payload["iat"], tz=UTC),
+                    "created_at": created_at,
                 }
             else:
                 return
@@ -183,5 +246,5 @@ async def get_subscription_payload(token: str) -> dict | None:
         if u_signature in (u_token_resign, u_token_hex_resign):
             return _parse_subscription_data(u_token_dec_str)
         return
-    except jwt.exceptions.PyJWTError:
+    except jwt.exceptions.PyJWTError, OverflowError, OSError, TypeError, ValueError:
         return

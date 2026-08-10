@@ -23,6 +23,7 @@ from sqlalchemy import (
     func,
     or_,
 )
+from sqlalchemy.dialects import mysql
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import async_object_session
 from sqlalchemy.ext.hybrid import hybrid_property
@@ -33,6 +34,7 @@ from app.db.base import Base
 from app.db.compiles_types import CaseSensitiveString, DaysDiff, EnumArray, SqliteCompatibleBigInteger, StringArray
 
 PostgresJSONB = JSON().with_variant(JSONB(none_as_null=True), "postgresql")
+SubscriptionTokenDateTime = DateTime(timezone=True).with_variant(mysql.DATETIME(fsp=6), "mysql", "mariadb")
 
 
 def fk_id_column(target: str, **column_kwargs: Any):
@@ -202,6 +204,14 @@ class User(Base, CreatedAtUTCMixin):
     sync_id: Mapped[str] = mapped_column(
         String(36), default_factory=lambda: str(uuid4()), nullable=False, init=False
     )
+    # Subscription tokens bind to this exact timestamp. MySQL/MariaDB default
+    # DATETIME precision is zero, so use microseconds explicitly just like the
+    # revocation timestamp below.
+    created_at: Mapped[dt] = mapped_column(
+        SubscriptionTokenDateTime,
+        default_factory=lambda: dt.now(UTC),
+        init=False,
+    )
     username: Mapped[str] = mapped_column(CaseSensitiveString(128), unique=True, index=True)
     node_usages: Mapped[list[NodeUserUsage]] = relationship(
         back_populates="user",
@@ -233,7 +243,7 @@ class User(Base, CreatedAtUTCMixin):
     )
     _expire: Mapped[dt | None] = mapped_column("expire", DateTime(timezone=True), default=None, init=False)
     admin_id: Mapped[int | None] = fk_id_column("admins.id", default=None)
-    sub_revoked_at: Mapped[dt | None] = mapped_column(DateTime(timezone=True), default=None)
+    sub_revoked_at: Mapped[dt | None] = mapped_column(SubscriptionTokenDateTime, default=None)
     note: Mapped[str | None] = mapped_column(String(500), default=None)
     online_at: Mapped[dt | None] = mapped_column(DateTime(timezone=True), default=None)
     on_hold_expire_duration: Mapped[int | None] = mapped_column(BigInteger, default=None)
