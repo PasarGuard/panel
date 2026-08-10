@@ -457,6 +457,23 @@ async def get_user_subscription_by_id(
 
 
 @router.get(
+    "/{user_id}/subscription/profile/{profile_id}",
+    responses={403: responses._403, 404: responses._404},
+)
+async def get_user_subscription_profile_preview(
+    user_id: int,
+    profile_id: int,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(require_permission("users", "read")),
+    _: AdminDetails = Depends(require_permission("client_templates", "read_simple")),
+):
+    """Return a no-store, user-specific Xray/Sing-box profile preview."""
+    return await subscription_operator.user_subscription_profile_by_id(
+        db, user_id=user_id, admin=admin, profile_id=profile_id
+    )
+
+
+@router.get(
     "/{username}/sub_update",
     response_model=UserSubscriptionUpdateList,
     responses={403: responses._403, 404: responses._404},

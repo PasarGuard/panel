@@ -1,6 +1,6 @@
 import { Card, CardContent } from '@/components/ui/card'
 import { type HostAdvanceSearchFormValues, hostAdvanceSearchFormSchema } from '@/features/hosts/forms/host-advance-search-form'
-import { HostFormSchema, hostFormDefaultValues, mapHostFragmentSettingsForForm, type HostFormValues } from '@/features/hosts/forms/host-form'
+import { HostFormSchema, hostFormDefaultValues, mapHostFragmentSettingsForForm, mapHostSubscriptionTemplatesForForm, type HostFormValues } from '@/features/hosts/forms/host-form'
 import HostAdvanceSearchModal from '@/features/hosts/dialogs/host-advance-search-modal'
 import { type HostListFilters, HostFilters } from '@/features/hosts/components/host-filters'
 import { ListGenerator } from '@/components/common/list-generator'
@@ -39,6 +39,11 @@ export interface HostsListProps {
 
 type BulkHostActionType = 'delete' | 'disable' | 'enable'
 
+type RequestError = {
+  data?: { detail?: unknown }
+  message?: unknown
+}
+
 interface BulkActionDialogConfig {
   title: string
   description: string
@@ -52,6 +57,12 @@ const toOptionalNumber = (value: unknown) => {
   if (value === null || value === undefined || value === '') return undefined
   const numericValue = Number(value)
   return Number.isFinite(numericValue) ? numericValue : undefined
+}
+
+const getRequestErrorMessage = (error: unknown, fallback: string) => {
+  if (typeof error !== 'object' || error === null) return fallback
+  const requestError = error as RequestError
+  return typeof requestError.data?.detail === 'string' ? requestError.data.detail : typeof requestError.message === 'string' ? requestError.message : fallback
 }
 
 export default function HostsList({
@@ -201,11 +212,7 @@ export default function HostsList({
       ech_query_strategy: host.ech_query_strategy || undefined,
       pinned_peer_cert_sha256: host.pinned_peer_cert_sha256 || undefined,
       verify_peer_cert_by_name: host.verify_peer_cert_by_name || [],
-      subscription_templates: host.subscription_templates
-        ? {
-            xray: host.subscription_templates.xray ?? undefined,
-          }
-        : undefined,
+      subscription_templates: mapHostSubscriptionTemplatesForForm(host.subscription_templates),
       final_mask_settings: host.final_mask_settings ?? undefined,
       fragment_settings: mapHostFragmentSettingsForForm(host.fragment_settings),
       noise_settings: host.noise_settings
@@ -388,7 +395,7 @@ export default function HostsList({
         fragment_settings: host.fragment_settings,
         noise_settings: host.noise_settings,
         mux_settings: host.mux_settings,
-        transport_settings: host.transport_settings as any, // Type cast needed due to Output/Input mismatch
+        transport_settings: host.transport_settings as CreateHost['transport_settings'],
         http_headers: host.http_headers || {},
         wireguard_overrides: host.wireguard_overrides ?? undefined,
         subscription_templates: host.subscription_templates ?? undefined,
@@ -402,30 +409,11 @@ export default function HostsList({
 
       // Refresh the hosts data
       refreshHostsData()
-    } catch (error) {
+    } catch {
       // Show error toast
       toast.error(t('host.duplicateFailed', { name: host.remark || '' }))
     }
   }
-  const cleanEmptyValues = (obj: any) => {
-    if (!obj) return undefined
-    const cleaned: any = {}
-    for (const [key, value] of Object.entries(obj)) {
-      if (value === null || value === undefined || value === '' || (Array.isArray(value) && value.length === 0) || (typeof value === 'object' && Object.keys(value).length === 0)) {
-        continue
-      }
-      if (typeof value === 'object') {
-        const cleanedValue = cleanEmptyValues(value)
-        if (cleanedValue !== undefined) {
-          cleaned[key] = cleanedValue
-        }
-      } else {
-        cleaned[key] = value
-      }
-    }
-    return Object.keys(cleaned).length > 0 ? cleaned : undefined
-  }
-
   const handleSubmit = async (data: HostFormValues): Promise<{ status: number }> => {
     try {
       if (editingHost?.id && !canUpdate) return { status: 403 }
@@ -467,14 +455,9 @@ export default function HostsList({
       clearSelection()
       setBulkAction(null)
       await refreshHostsData()
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast.error(t('error', { defaultValue: 'Error' }), {
-        description:
-          error?.data?.detail ||
-          error?.message ||
-          t('deleteHost.bulkDeleteFailed', {
-            defaultValue: 'Failed to delete selected hosts.',
-          }),
+        description: getRequestErrorMessage(error, t('deleteHost.bulkDeleteFailed', { defaultValue: 'Failed to delete selected hosts.' })),
       })
     }
   }
@@ -497,9 +480,9 @@ export default function HostsList({
       clearSelection()
       setBulkAction(null)
       await refreshHostsData()
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast.error(t('error', { defaultValue: 'Error' }), {
-        description: error?.data?.detail || error?.message || t('host.bulkDisableFailed', { defaultValue: 'Failed to disable selected hosts.' }),
+        description: getRequestErrorMessage(error, t('host.bulkDisableFailed', { defaultValue: 'Failed to disable selected hosts.' })),
       })
     }
   }
@@ -522,9 +505,9 @@ export default function HostsList({
       clearSelection()
       setBulkAction(null)
       await refreshHostsData()
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast.error(t('error', { defaultValue: 'Error' }), {
-        description: error?.data?.detail || error?.message || t('host.bulkEnableFailed', { defaultValue: 'Failed to enable selected hosts.' }),
+        description: getRequestErrorMessage(error, t('host.bulkEnableFailed', { defaultValue: 'Failed to enable selected hosts.' })),
       })
     }
   }
@@ -827,8 +810,8 @@ export default function HostsList({
   const isSearchEmpty = !isCurrentlyLoading && filteredHosts.length === 0 && (hasSearch || hasActiveAdvanceFilters)
   const selectedCount = selectedHostIds.length
   const selectedHosts = (hosts || []).filter(host => typeof host.id === 'number' && selectedHostIds.includes(host.id))
-  const selectedEnableEligibleIds = selectedHosts.filter(host => Boolean(host.is_disabled)).map(host => host.id as number)
-  const selectedDisableEligibleIds = selectedHosts.filter(host => !Boolean(host.is_disabled)).map(host => host.id as number)
+  const selectedEnableEligibleIds = selectedHosts.filter(host => host.is_disabled === true).map(host => host.id as number)
+  const selectedDisableEligibleIds = selectedHosts.filter(host => host.is_disabled !== true).map(host => host.id as number)
   const enableEligibleCount = selectedEnableEligibleIds.length
   const disableEligibleCount = selectedDisableEligibleIds.length
   const bulkActions: BulkActionItem[] = selectedCount

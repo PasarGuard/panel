@@ -1,4 +1,5 @@
 import base64
+import json
 import random
 import secrets
 from collections import defaultdict
@@ -11,6 +12,7 @@ from app.db.crud.wireguard import pick_peer_ip_for_inbound
 from app.db.models import UserStatus
 from app.models.status_emojis import STATUS_EMOJIS
 from app.models.subscription import SubscriptionInboundData
+from app.models.subscription_profile import SubscriptionProfile
 from app.models.user import UsersResponseWithInbounds
 from app.settings import subscription_settings
 from app.subscription.client_templates import subscription_client_templates, subscription_xray_templates
@@ -24,6 +26,14 @@ from . import (
     StandardLinks,
     WireGuardConfiguration,
     XrayConfiguration,
+)
+from .profiles import (
+    ProfileValidationError,
+    build_singbox_profile,
+    build_xray_profile,
+    endpoint_from_inbound,
+    load_profile,
+    validate_profile_routing_rules,
 )
 
 SERVER_IP = "127.0.0.1"
@@ -107,6 +117,48 @@ async def generate_subscription(
         config = base64.b64encode(config.encode()).decode()
 
     return config
+
+
+async def generate_subscription_profile(
+    user: UsersResponseWithInbounds,
+    profile_content: str,
+    config_format: str,
+) -> str:
+    """Generate an explicitly selected full-client profile.
+
+    Legacy subscriptions never call this path. Public subscription routes apply
+    user eligibility before reaching this generator; keeping that authorization
+    out of the shared renderer lets authorized administrators preview a profile
+    for an inactive user.
+    """
+    profile: SubscriptionProfile = load_profile(profile_content)
+    validate_profile_routing_rules(profile, config_format)
+    sub_settings = await subscription_settings()
+    custom_variables = get_effective_custom_variables(user, sub_settings.custom_variables)
+    format_variables = setup_format_variables(user, sub_settings.custom_variables)
+    proxy_settings = user.proxy_settings.dict()
+    proxy_settings["_user_id"] = user.id
+    hosts = await filter_hosts(list((await host_manager.get_hosts()).values()), user.status)
+    endpoints = []
+
+    for host_data in hosts:
+        if host_data.is_disabled:
+            continue
+        result = await process_host(host_data, format_variables, user.inbounds, proxy_settings, custom_variables)
+        if not result:
+            continue
+        inbound_copy, settings = result
+        formatted_address = inbound_copy.address.format_map(format_variables)
+        endpoints.append(endpoint_from_inbound(inbound_copy, formatted_address, settings))
+
+    if not endpoints:
+        raise ProfileValidationError("No eligible endpoints are available for this user profile")
+
+    if config_format == "xray":
+        return json.dumps(build_xray_profile(profile, endpoints), indent=4, default=str)
+    if config_format == "sing_box":
+        return json.dumps(build_singbox_profile(profile, endpoints), indent=4, default=str)
+    raise ProfileValidationError(f'Unsupported profile format "{config_format}"')
 
 
 def format_time_left(seconds_left: int) -> str:

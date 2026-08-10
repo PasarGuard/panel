@@ -236,6 +236,7 @@ class SubscriptionInboundData(BaseModel):
 
     # Basic info
     remark: str
+    host_id: int | None = Field(default=None)
     inbound_tag: str
     protocol: str
     address: list[str] | str = Field(default_factory=list)
@@ -290,7 +291,9 @@ class SubscriptionInboundData(BaseModel):
     # Priority and status
     priority: int = Field(0)
     status: list[str] | None = Field(None)
+    is_disabled: bool = Field(False)
     subscription_templates: dict[str, Any] | None = Field(default=None)
+    profile_classification: dict[str, Any] | None = Field(default=None)
 
     model_config = {"validate_assignment": True}
 

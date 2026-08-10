@@ -96,6 +96,7 @@ async def _prepare_subscription_inbound_data(
 
         return SubscriptionInboundData(
             remark=host.remark,
+            host_id=host.id,
             inbound_tag=host.inbound_tag,
             protocol=protocol,
             address=list(host.address) if host.address else ["{SERVER_IP}"],
@@ -118,9 +119,15 @@ async def _prepare_subscription_inbound_data(
             finalmask_link=finalmask_link,
             priority=host.priority,
             status=list(host.status) if host.status else None,
+            is_disabled=bool(host.is_disabled),
             subscription_templates=host.subscription_templates.model_dump(exclude_none=True)
             if host.subscription_templates
             else None,
+            profile_classification=(
+                host.subscription_templates.profile.model_dump(exclude_none=True)
+                if host.subscription_templates and host.subscription_templates.profile
+                else None
+            ),
         )
 
     sni_list = _string_list(host.sni) if host.sni else _string_list(inbound_config.get("sni", []))
@@ -389,6 +396,7 @@ async def _prepare_subscription_inbound_data(
 
     return SubscriptionInboundData(
         remark=host.remark,
+        host_id=host.id,
         inbound_tag=host.inbound_tag,
         protocol=protocol,
         address=address_list,
@@ -411,14 +419,22 @@ async def _prepare_subscription_inbound_data(
         finalmask_link=finalmask_link,
         priority=host.priority,
         status=list(host.status) if host.status else None,
+        is_disabled=bool(host.is_disabled),
         subscription_templates=host.subscription_templates.model_dump(exclude_none=True)
         if host.subscription_templates
         else None,
+        profile_classification=(
+            host.subscription_templates.profile.model_dump(exclude_none=True)
+            if host.subscription_templates and host.subscription_templates.profile
+            else None
+        ),
     )
 
 
 class HostManager:
     STATE_CACHE_KEY = "state"
+    STATE_SCHEMA_KEY = "__schema_version__"
+    STATE_SCHEMA_VERSION = 1
     KV_BUCKET_NAME = "host_manager_state"
 
     def __init__(self):
@@ -450,6 +466,10 @@ class HostManager:
             str(host_id): (host_data.model_dump() if isinstance(host_data, SubscriptionInboundData) else host_data)
             for host_id, host_data in state.items()
         }
+        # Keep host IDs at the top level so older workers can still consume the
+        # snapshot during a rolling upgrade. They ignore the non-numeric marker;
+        # new workers reject marker-less snapshots and rebuild them from the DB.
+        serializable_state[self.STATE_SCHEMA_KEY] = self.STATE_SCHEMA_VERSION
         state_bytes = json.dumps(serializable_state).encode("utf-8")
         try:
             await self._kv.put(self.STATE_CACHE_KEY, state_bytes)
@@ -473,9 +493,18 @@ class HostManager:
                 self._logger.warning("Failed to decode HostManager state as JSON, ignoring...")
                 return False
 
+            if (
+                not isinstance(cached_state, dict)
+                or cached_state.get(self.STATE_SCHEMA_KEY) != self.STATE_SCHEMA_VERSION
+            ):
+                self._logger.info("HostManager cache schema is stale; rebuilding state from the database")
+                return False
+
             # Convert dict values back to SubscriptionInboundData models
             converted_state = {}
             for host_id_str, host_data in cached_state.items():
+                if host_id_str == self.STATE_SCHEMA_KEY:
+                    continue
                 try:
                     host_id = int(host_id_str)
                     if isinstance(host_data, dict):

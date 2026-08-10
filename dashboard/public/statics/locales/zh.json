@@ -1705,6 +1705,17 @@
     "copyIp": "点击复制 IP 地址",
     "ipCopied": "IP 地址已复制到剪贴板"
   },
+  "subscriptionProfiles": {
+    "preview": "配置预览",
+    "previewTitle": "订阅配置预览",
+    "previewDescription": "为 {{username}} 生成所选的 Xray 或 Sing-box 配置。",
+    "previewSensitive": "生成的配置包含访问凭据，请勿分享。",
+    "selectProfile": "选择配置",
+    "previewPrompt": "选择一个配置以生成其内容。",
+    "profilesError": "无法加载配置元数据。",
+    "noProfiles": "没有可用的 Xray 或 Sing-box 配置。",
+    "previewError": "无法生成配置预览。"
+  },
   "userAllIPs": {
     "title": "IP 地址 - {{username}}",
     "description": "查看用户 {{username}} 在所有节点上的所有 IP 地址",

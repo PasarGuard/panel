@@ -7,6 +7,7 @@ from fastapi import Response
 from fastapi.responses import HTMLResponse
 
 from app.db import AsyncSession
+from app.db.crud.client_template import get_client_template_by_id
 from app.db.crud.hwid import (
     get_user_hwid_by_value,
     get_user_hwid_count,
@@ -15,15 +16,19 @@ from app.db.crud.hwid import (
 from app.db.crud.user import get_user_usages, user_sub_update
 from app.db.models import User, UserStatus
 from app.models.admin import AdminDetails
+from app.models.client_template import ClientTemplateType
 from app.models.settings import Application, ConfigFormat, HWIDSettings, SubRule, Subscription as SubSettings
 from app.models.stats import UserUsageStatsList
 from app.models.subscription import SubscriptionUsageQuery
+from app.models.subscription_profile import ProfileClient, SubscriptionProfile
 from app.models.user import SubscriptionUserResponse, UsersResponseWithInbounds
 from app.settings import hwid_settings, subscription_settings
+from app.subscription.profiles import ProfileValidationError, load_profile
 from app.subscription.share import (
     apply_custom_format_variables,
     encode_title,
     generate_subscription,
+    generate_subscription_profile,
     get_effective_custom_variables,
     setup_format_variables,
 )
@@ -312,6 +317,72 @@ class SubscriptionOperation(BaseOperation):
             config["media_type"],
         )
 
+    async def get_profile_definition(
+        self, db: AsyncSession, profile_id: int
+    ) -> tuple[str, ConfigFormat, SubscriptionProfile, str]:
+        template = await get_client_template_by_id(db, profile_id)
+        if template is None:
+            await self.raise_error(message="Subscription profile not found", code=404)
+        template_type = ClientTemplateType(template.template_type)
+        profile_formats = {
+            ClientTemplateType.xray_profile: ("xray", ConfigFormat.xray),
+            ClientTemplateType.singbox_profile: ("sing_box", ConfigFormat.sing_box),
+        }
+        profile_format = profile_formats.get(template_type)
+        if profile_format is None:
+            await self.raise_error(message="Client template is not a subscription profile", code=400)
+        config_format, client_type = profile_format
+        try:
+            profile = load_profile(template.content)
+        except ProfileValidationError as exc:
+            await self.raise_error(message=str(exc), code=422)
+        return config_format, client_type, profile, template.content
+
+    async def fetch_profile_config(
+        self, db: AsyncSession, user: UsersResponseWithInbounds, profile_id: int
+    ) -> tuple[str, str, ConfigFormat, SubscriptionProfile]:
+        config_format, client_type, profile, profile_content = await self.get_profile_definition(db, profile_id)
+        config = await self._render_profile_config(user, profile_content, config_format)
+        return config, "application/json", client_type, profile
+
+    async def _render_profile_config(
+        self,
+        user: UsersResponseWithInbounds,
+        profile_content: str,
+        config_format: str,
+    ) -> str:
+        try:
+            config = await generate_subscription_profile(user, profile_content, config_format)
+        except ProfileValidationError as exc:
+            await self.raise_error(message=str(exc), code=422)
+        return config
+
+    async def fetch_rule_config(
+        self,
+        db: AsyncSession,
+        user: UsersResponseWithInbounds,
+        rule: SubRule,
+    ) -> tuple[str | bytes, str, ConfigFormat, SubscriptionProfile | None]:
+        """Resolve an ordered subscription rule to a legacy format or opt-in profile."""
+        if rule.profile_id is None:
+            config, media_type = await self.fetch_config(user, rule.target)
+            return config, media_type, rule.target, None
+
+        config, media_type, profile_format, profile = await self.fetch_profile_config(db, user, rule.profile_id)
+        if profile_format != rule.target:
+            await self.raise_error(
+                message=f"Subscription profile {rule.profile_id} does not match rule target {rule.target.value}",
+                code=422,
+            )
+        return config, media_type, profile_format, profile
+
+    @staticmethod
+    def profile_response_headers(profile: SubscriptionProfile | None) -> dict[str, str]:
+        """Return client metadata that belongs to an explicitly selected profile."""
+        if profile and profile.client == ProfileClient.happ and profile.happ_deeplink:
+            return {"routing": profile.happ_deeplink}
+        return {}
+
     @staticmethod
     def is_hwid_enabled(
         global_hwid_conf: HWIDSettings,
@@ -480,7 +551,7 @@ class SubscriptionOperation(BaseOperation):
 
             # Update user subscription info
             await user_sub_update(db, db_user.id, user_agent, ip=ip, hwid=x_hwid)
-            conf, media_type = await self.fetch_config(user, client_type)
+            conf, media_type, client_type, selected_profile = await self.fetch_rule_config(db, user, matched_rule)
 
             # If disable_sub_template is True and it's a browser request, use inline to view instead of download
             inline_view = sub_settings.disable_sub_template and is_browser_request
@@ -497,6 +568,7 @@ class SubscriptionOperation(BaseOperation):
                         sub_settings, await self._get_rule_response_header_variables(user, client_type)
                     )
                 )
+                response_headers.update(self.profile_response_headers(selected_profile))
                 response_headers.update(
                     self._format_rule_response_headers(
                         matched_rule, await self._get_rule_response_header_variables(user, client_type)
@@ -582,6 +654,66 @@ class SubscriptionOperation(BaseOperation):
 
         # Create response headers
         return Response(content=conf, media_type=media_type, headers=response_headers)
+
+    async def user_subscription_profile(
+        self,
+        db: AsyncSession,
+        token: str,
+        profile_id: int,
+        request_url: str = "",
+        x_hwid: str | None = None,
+        x_device_os: str | None = None,
+        x_ver_os: str | None = None,
+        x_device_model: str | None = None,
+    ):
+        """Return one explicit full JSON profile without changing legacy format selection."""
+        sub_settings: SubSettings = await subscription_settings()
+        db_user = await self.get_validated_sub(db, token=token, load_admin_role=True)
+        user = await self.validated_user(db_user)
+        # A public profile is a configuration download just like the legacy
+        # subscription formats. Authorize it before resolving profile metadata
+        # so an inactive token cannot use response differences to enumerate IDs.
+        await self.require_config_eligible(user)
+        config_format, client_type, profile, profile_content = await self.get_profile_definition(db, profile_id)
+        if client_type == ConfigFormat.block or not getattr(sub_settings.manual_sub_request, client_type):
+            await self.raise_error(message="Client not supported", code=406)
+
+        # Validate the complete profile before recording a new device. Invalid,
+        # inactive, or otherwise unpublishable profiles must not consume an HWID slot.
+        conf = await self._render_profile_config(user, profile_content, config_format)
+        response_headers = self.create_response_headers(user, request_url, sub_settings, extension=".json")
+        response_headers["cache-control"] = "private, no-store"
+        try:
+            response_headers.update(
+                self._format_subscription_response_headers(
+                    sub_settings, await self._get_rule_response_header_variables(user, client_type)
+                )
+            )
+            response_headers.update(self.profile_response_headers(profile))
+            response_headers = self.sanitize_response_headers(response_headers)
+        except ValueError as exc:
+            await self.raise_error(message=str(exc), code=400)
+        await self.validate_and_register_hwid(
+            db,
+            db_user.id,
+            db_user.hwid_limit,
+            db_user.admin.role.hwid if db_user.admin and db_user.admin.role else None,
+            x_hwid,
+            x_device_os,
+            x_ver_os,
+            x_device_model,
+            is_manual_sub=True,
+        )
+        return Response(content=conf, media_type="application/json", headers=response_headers)
+
+    async def user_subscription_profile_by_id(
+        self, db: AsyncSession, user_id: int, admin: AdminDetails, profile_id: int
+    ):
+        """Admin preview; profile content is generated in-memory and never logged."""
+        db_user = await self.get_validated_user_by_id(db, user_id, admin)
+        user = await self.validated_user(db_user)
+        conf, media_type, _, _ = await self.fetch_profile_config(db, user, profile_id)
+        return Response(content=conf, media_type=media_type, headers={"cache-control": "no-store"})
 
     def _build_subscription_body_payload(
         self,
@@ -766,6 +898,14 @@ class SubscriptionOperation(BaseOperation):
             client_type = matched_rule.target if matched_rule else None
             if client_type == ConfigFormat.block or not client_type:
                 await self.raise_error(message="Client not supported", code=406)
+            selected_profile = None
+            if matched_rule.profile_id is not None:
+                _, profile_format, selected_profile, _ = await self.get_profile_definition(db, matched_rule.profile_id)
+                if profile_format != client_type:
+                    await self.raise_error(
+                        message=f"Subscription profile {matched_rule.profile_id} does not match rule target {client_type.value}",
+                        code=422,
+                    )
 
             # If disable_sub_template is True and it's a browser request, use inline to view instead of download
             inline_view = sub_settings.disable_sub_template and is_browser_request
@@ -782,6 +922,7 @@ class SubscriptionOperation(BaseOperation):
                         sub_settings, await self._get_rule_response_header_variables(user, client_type)
                     )
                 )
+                response_headers.update(self.profile_response_headers(selected_profile))
                 response_headers.update(
                     self._format_rule_response_headers(
                         matched_rule, await self._get_rule_response_header_variables(user, client_type)

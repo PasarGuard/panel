@@ -427,6 +427,13 @@ export type XrayMuxSettingsInputXudpConcurrency = number | null
 
 export type XrayMuxSettingsInputConcurrency = number | null
 
+export interface XrayMuxSettingsInput {
+  enabled?: boolean
+  concurrency?: XrayMuxSettingsInputConcurrency
+  xudp_concurrency?: XrayMuxSettingsInputXudpConcurrency
+  xudp_proxy_udp_443?: Xudp
+}
+
 export type XrayFragmentSettingsMaxSplit = string | null
 
 export interface XrayFragmentSettings {
@@ -448,13 +455,6 @@ export const Xudp = {
   allow: 'allow',
   skip: 'skip',
 } as const
-
-export interface XrayMuxSettingsInput {
-  enabled?: boolean
-  concurrency?: XrayMuxSettingsInputConcurrency
-  xudp_concurrency?: XrayMuxSettingsInputXudpConcurrency
-  xudp_proxy_udp_443?: Xudp
-}
 
 export type XMuxSettingsHKeepAlivePeriod = number | null
 
@@ -519,18 +519,6 @@ export type XHttpSettingsXPaddingBytes = string | null
 
 export type XHttpSettingsNoGrpcHeader = boolean | null
 
-export type XHttpModes = (typeof XHttpModes)[keyof typeof XHttpModes]
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
-export const XHttpModes = {
-  auto: 'auto',
-  'packet-up': 'packet-up',
-  'stream-up': 'stream-up',
-  'stream-one': 'stream-one',
-} as const
-
-export type XHttpSettingsMode = XHttpModes | null
-
 export interface XHttpSettings {
   mode?: XHttpSettingsMode
   no_grpc_header?: XHttpSettingsNoGrpcHeader
@@ -556,20 +544,32 @@ export interface XHttpSettings {
   download_settings?: XHttpSettingsDownloadSettings
 }
 
-export type WorkerHealthError = string | null
+export type XHttpModes = (typeof XHttpModes)[keyof typeof XHttpModes]
 
-export interface WorkerHealth {
-  status: string
-  response_time_ms?: WorkerHealthResponseTimeMs
-  error?: WorkerHealthError
-}
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const XHttpModes = {
+  auto: 'auto',
+  'packet-up': 'packet-up',
+  'stream-up': 'stream-up',
+  'stream-one': 'stream-one',
+} as const
+
+export type XHttpSettingsMode = XHttpModes | null
 
 export interface WorkersHealth {
   scheduler: WorkerHealth
   node: WorkerHealth
 }
 
+export type WorkerHealthError = string | null
+
 export type WorkerHealthResponseTimeMs = number | null
+
+export interface WorkerHealth {
+  status: string
+  response_time_ms?: WorkerHealthResponseTimeMs
+  error?: WorkerHealthError
+}
 
 export interface WireGuardSubnetUsage {
   subnet: string
@@ -673,18 +673,6 @@ export type UsersPermissionsActivateNextPlanAnyOf = { [key: string]: PermissionS
 
 export type UsersPermissionsActivateNextPlan = boolean | UsersPermissionsActivateNextPlanAnyOf | null
 
-export interface UsersPermissions {
-  create?: UsersPermissionsCreate
-  read?: UsersPermissionsRead
-  read_simple?: UsersPermissionsReadSimple
-  update?: UsersPermissionsUpdate
-  delete?: UsersPermissionsDelete
-  reset_usage?: UsersPermissionsResetUsage
-  revoke_sub?: UsersPermissionsRevokeSub
-  set_owner?: UsersPermissionsSetOwner
-  activate_next_plan?: UsersPermissionsActivateNextPlan
-}
-
 export type UsersPermissionsSetOwnerAnyOf = { [key: string]: PermissionScope | number }
 
 export type UsersPermissionsSetOwner = boolean | UsersPermissionsSetOwnerAnyOf | null
@@ -716,6 +704,18 @@ export type UsersPermissionsRead = boolean | UsersPermissionsReadAnyOf | null
 export type UsersPermissionsCreateAnyOf = { [key: string]: PermissionScope | number }
 
 export type UsersPermissionsCreate = boolean | UsersPermissionsCreateAnyOf | null
+
+export interface UsersPermissions {
+  create?: UsersPermissionsCreate
+  read?: UsersPermissionsRead
+  read_simple?: UsersPermissionsReadSimple
+  update?: UsersPermissionsUpdate
+  delete?: UsersPermissionsDelete
+  reset_usage?: UsersPermissionsResetUsage
+  revoke_sub?: UsersPermissionsRevokeSub
+  set_owner?: UsersPermissionsSetOwner
+  activate_next_plan?: UsersPermissionsActivateNextPlan
+}
 
 export type UsernameGenerationStrategy = (typeof UsernameGenerationStrategy)[keyof typeof UsernameGenerationStrategy]
 
@@ -972,13 +972,13 @@ export interface UserSimple {
 
 export type UserResponseAdmin = AdminBase | null
 
-export type UserResponseOnlineAt = string | null
+export type UserResponseNextTrafficResetAt = string | null
 
 export type UserResponseLastCycleTrafficResetAt = string | null
 
 export type UserResponseLastTrafficResetAt = string | null
 
-export type UserResponseNextTrafficResetAt = string | null
+export type UserResponseOnlineAt = string | null
 
 export type UserResponseEditAt = string | null
 
@@ -1102,6 +1102,13 @@ export interface UserModify {
   status?: UserModifyStatus
 }
 
+/**
+ * User IP lists for all nodes
+ */
+export interface UserIPListAll {
+  nodes: UserIPListAllNodes
+}
+
 export type UserIPListIps = { [key: string]: number }
 
 /**
@@ -1112,13 +1119,6 @@ export interface UserIPList {
 }
 
 export type UserIPListAllNodes = { [key: string]: UserIPList | null }
-
-/**
- * User IP lists for all nodes
- */
-export interface UserIPListAll {
-  nodes: UserIPListAllNodes
-}
 
 export type UserHWIDResponseDeviceModel = string | null
 
@@ -1367,13 +1367,13 @@ export interface SystemPermissions {
 
 export type SubscriptionUserResponseIp = string | null
 
-export type SubscriptionUserResponseOnlineAt = string | null
+export type SubscriptionUserResponseNextTrafficResetAt = string | null
 
 export type SubscriptionUserResponseLastCycleTrafficResetAt = string | null
 
 export type SubscriptionUserResponseLastTrafficResetAt = string | null
 
-export type SubscriptionUserResponseNextTrafficResetAt = string | null
+export type SubscriptionUserResponseOnlineAt = string | null
 
 export type SubscriptionUserResponseEditAt = string | null
 
@@ -1419,19 +1419,24 @@ export interface SubscriptionUserResponse {
   created_at: string
   edit_at?: SubscriptionUserResponseEditAt
   online_at?: SubscriptionUserResponseOnlineAt
-  ip?: SubscriptionUserResponseIp
   last_traffic_reset_at?: SubscriptionUserResponseLastTrafficResetAt
   last_cycle_traffic_reset_at?: SubscriptionUserResponseLastCycleTrafficResetAt
   next_traffic_reset_at?: SubscriptionUserResponseNextTrafficResetAt
+  ip?: SubscriptionUserResponseIp
 }
+
+export type SubscriptionTemplatesProfile = HostProfileClassification | null
 
 export type SubscriptionTemplatesXray = number | null
 
 export interface SubscriptionTemplates {
   xray?: SubscriptionTemplatesXray
+  profile?: SubscriptionTemplatesProfile
 }
 
 export type SubscriptionResponseHeaders = { [key: string]: unknown }
+
+export type SubRuleProfileId = number | null
 
 export type SubRuleResponseHeaders = { [key: string]: unknown }
 
@@ -1439,6 +1444,7 @@ export interface SubRule {
   pattern: string
   target: ConfigFormat
   response_headers?: SubRuleResponseHeaders
+  profile_id?: SubRuleProfileId
 }
 
 export interface SubFormatEnable {
@@ -2044,8 +2050,6 @@ export interface NodesPermissions {
   stats?: NodesPermissionsStats
 }
 
-export type NodeUsageStatsListStats = { [key: string]: NodeUsageStat[] }
-
 export type NodeUsageStatsListPeriod = Period | null
 
 export interface NodeUsageStatsList {
@@ -2060,6 +2064,8 @@ export interface NodeUsageStat {
   uplink: number
   downlink: number
 }
+
+export type NodeUsageStatsListStats = { [key: string]: NodeUsageStat[] }
 
 export type NodeStatus = (typeof NodeStatus)[keyof typeof NodeStatus]
 
@@ -2429,12 +2435,6 @@ export type HostsPermissionsUpdateAnyOf = { [key: string]: PermissionScope | num
 
 export type HostsPermissionsUpdate = boolean | HostsPermissionsUpdateAnyOf | null
 
-export interface HostsPermissions {
-  create?: HostsPermissionsCreate
-  read?: HostsPermissionsRead
-  update?: HostsPermissionsUpdate
-}
-
 export type HostsPermissionsReadAnyOf = { [key: string]: PermissionScope | number }
 
 export type HostsPermissionsRead = boolean | HostsPermissionsReadAnyOf | null
@@ -2442,6 +2442,30 @@ export type HostsPermissionsRead = boolean | HostsPermissionsReadAnyOf | null
 export type HostsPermissionsCreateAnyOf = { [key: string]: PermissionScope | number }
 
 export type HostsPermissionsCreate = boolean | HostsPermissionsCreateAnyOf | null
+
+export interface HostsPermissions {
+  create?: HostsPermissionsCreate
+  read?: HostsPermissionsRead
+  update?: HostsPermissionsUpdate
+}
+
+export type HostProfileClassificationPriority = number | null
+
+export type HostProfileClassificationCountry = string | null
+
+/**
+ * Endpoint membership used only by opt-in multi-client profiles.
+ */
+export interface HostProfileClassification {
+  /**
+   * @minLength 1
+   * @maxLength 64
+   */
+  pool?: string
+  country?: HostProfileClassificationCountry
+  priority?: HostProfileClassificationPriority
+  exclude_from_auto?: boolean
+}
 
 export interface HostNotificationEnable {
   create?: boolean
@@ -3146,6 +3170,8 @@ export const ClientTemplateType = {
   clash_subscription: 'clash_subscription',
   xray_subscription: 'xray_subscription',
   singbox_subscription: 'singbox_subscription',
+  xray_profile: 'xray_profile',
+  singbox_profile: 'singbox_profile',
   user_agent: 'user_agent',
   grpc_user_agent: 'grpc_user_agent',
 } as const
@@ -12304,6 +12330,91 @@ export function useGetUserSubscriptionById<TData = Awaited<ReturnType<typeof get
 }
 
 /**
+ * Return a no-store, user-specific Xray/Sing-box profile preview.
+ * @summary Get User Subscription Profile Preview
+ */
+export const getUserSubscriptionProfilePreview = (userId: number, profileId: number, signal?: AbortSignal) => {
+  return orvalFetcher<unknown>({ url: `/api/user/${userId}/subscription/profile/${profileId}`, method: 'GET', signal })
+}
+
+export const getGetUserSubscriptionProfilePreviewQueryKey = (userId: number, profileId: number) => {
+  return [`/api/user/${userId}/subscription/profile/${profileId}`] as const
+}
+
+export const getGetUserSubscriptionProfilePreviewQueryOptions = <
+  TData = Awaited<ReturnType<typeof getUserSubscriptionProfilePreview>>,
+  TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+>(
+  userId: number,
+  profileId: number,
+  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserSubscriptionProfilePreview>>, TError, TData>> },
+) => {
+  const { query: queryOptions } = options ?? {}
+
+  const queryKey = queryOptions?.queryKey ?? getGetUserSubscriptionProfilePreviewQueryKey(userId, profileId)
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getUserSubscriptionProfilePreview>>> = ({ signal }) => getUserSubscriptionProfilePreview(userId, profileId, signal)
+
+  return { queryKey, queryFn, enabled: !!(userId && profileId), ...queryOptions } as UseQueryOptions<Awaited<ReturnType<typeof getUserSubscriptionProfilePreview>>, TError, TData> & {
+    queryKey: DataTag<QueryKey, TData, TError>
+  }
+}
+
+export type GetUserSubscriptionProfilePreviewQueryResult = NonNullable<Awaited<ReturnType<typeof getUserSubscriptionProfilePreview>>>
+export type GetUserSubscriptionProfilePreviewQueryError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>
+
+export function useGetUserSubscriptionProfilePreview<
+  TData = Awaited<ReturnType<typeof getUserSubscriptionProfilePreview>>,
+  TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+>(
+  userId: number,
+  profileId: number,
+  options: {
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserSubscriptionProfilePreview>>, TError, TData>> &
+      Pick<DefinedInitialDataOptions<Awaited<ReturnType<typeof getUserSubscriptionProfilePreview>>, TError, TData>, 'initialData'>
+  },
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetUserSubscriptionProfilePreview<
+  TData = Awaited<ReturnType<typeof getUserSubscriptionProfilePreview>>,
+  TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+>(
+  userId: number,
+  profileId: number,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserSubscriptionProfilePreview>>, TError, TData>> &
+      Pick<UndefinedInitialDataOptions<Awaited<ReturnType<typeof getUserSubscriptionProfilePreview>>, TError, TData>, 'initialData'>
+  },
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetUserSubscriptionProfilePreview<
+  TData = Awaited<ReturnType<typeof getUserSubscriptionProfilePreview>>,
+  TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+>(
+  userId: number,
+  profileId: number,
+  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserSubscriptionProfilePreview>>, TError, TData>> },
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get User Subscription Profile Preview
+ */
+
+export function useGetUserSubscriptionProfilePreview<
+  TData = Awaited<ReturnType<typeof getUserSubscriptionProfilePreview>>,
+  TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+>(
+  userId: number,
+  profileId: number,
+  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserSubscriptionProfilePreview>>, TError, TData>> },
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetUserSubscriptionProfilePreviewQueryOptions(userId, profileId, options)
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+  query.queryKey = queryOptions.queryKey
+
+  return query
+}
+
+/**
  * Get user subscription agent list
  * @summary Get User Sub Update List
  */
@@ -14131,6 +14242,76 @@ export function useUserSubscriptionApps<TData = Awaited<ReturnType<typeof userSu
   options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof userSubscriptionApps>>, TError, TData>> },
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getUserSubscriptionAppsQueryOptions(token, options)
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+  query.queryKey = queryOptions.queryKey
+
+  return query
+}
+
+/**
+ * Provides an opt-in full Xray or Sing-box client profile.
+ * @summary User Subscription Profile
+ */
+export const userSubscriptionProfile = (token: string, profileId: number, signal?: AbortSignal) => {
+  return orvalFetcher<unknown>({ url: `/sub/${token}/profile/${profileId}`, method: 'GET', signal })
+}
+
+export const getUserSubscriptionProfileQueryKey = (token: string, profileId: number) => {
+  return [`/sub/${token}/profile/${profileId}`] as const
+}
+
+export const getUserSubscriptionProfileQueryOptions = <TData = Awaited<ReturnType<typeof userSubscriptionProfile>>, TError = ErrorType<HTTPException | Forbidden | NotFound>>(
+  token: string,
+  profileId: number,
+  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof userSubscriptionProfile>>, TError, TData>> },
+) => {
+  const { query: queryOptions } = options ?? {}
+
+  const queryKey = queryOptions?.queryKey ?? getUserSubscriptionProfileQueryKey(token, profileId)
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof userSubscriptionProfile>>> = ({ signal }) => userSubscriptionProfile(token, profileId, signal)
+
+  return { queryKey, queryFn, enabled: !!(token && profileId), ...queryOptions } as UseQueryOptions<Awaited<ReturnType<typeof userSubscriptionProfile>>, TError, TData> & {
+    queryKey: DataTag<QueryKey, TData, TError>
+  }
+}
+
+export type UserSubscriptionProfileQueryResult = NonNullable<Awaited<ReturnType<typeof userSubscriptionProfile>>>
+export type UserSubscriptionProfileQueryError = ErrorType<HTTPException | Forbidden | NotFound>
+
+export function useUserSubscriptionProfile<TData = Awaited<ReturnType<typeof userSubscriptionProfile>>, TError = ErrorType<HTTPException | Forbidden | NotFound>>(
+  token: string,
+  profileId: number,
+  options: {
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof userSubscriptionProfile>>, TError, TData>> &
+      Pick<DefinedInitialDataOptions<Awaited<ReturnType<typeof userSubscriptionProfile>>, TError, TData>, 'initialData'>
+  },
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useUserSubscriptionProfile<TData = Awaited<ReturnType<typeof userSubscriptionProfile>>, TError = ErrorType<HTTPException | Forbidden | NotFound>>(
+  token: string,
+  profileId: number,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof userSubscriptionProfile>>, TError, TData>> &
+      Pick<UndefinedInitialDataOptions<Awaited<ReturnType<typeof userSubscriptionProfile>>, TError, TData>, 'initialData'>
+  },
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useUserSubscriptionProfile<TData = Awaited<ReturnType<typeof userSubscriptionProfile>>, TError = ErrorType<HTTPException | Forbidden | NotFound>>(
+  token: string,
+  profileId: number,
+  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof userSubscriptionProfile>>, TError, TData>> },
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary User Subscription Profile
+ */
+
+export function useUserSubscriptionProfile<TData = Awaited<ReturnType<typeof userSubscriptionProfile>>, TError = ErrorType<HTTPException | Forbidden | NotFound>>(
+  token: string,
+  profileId: number,
+  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof userSubscriptionProfile>>, TError, TData>> },
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getUserSubscriptionProfileQueryOptions(token, profileId, options)
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 

@@ -88,6 +88,24 @@ async def user_subscription_apps(token: str, db: AsyncSession = Depends(get_db))
     return await subscription_operator.user_subscription_apps(db, token)
 
 
+@router.get("/{token}/profile/{profile_id}")
+async def user_subscription_profile(
+    request: Request,
+    token: str,
+    profile_id: int,
+    db: AsyncSession = Depends(get_db),
+    headers=Depends(get_subscription_headers),
+):
+    """Provides an opt-in full Xray or Sing-box client profile."""
+    return await subscription_operator.user_subscription_profile(
+        db,
+        token=token,
+        profile_id=profile_id,
+        request_url=str(request.url),
+        **headers.model_dump(),
+    )
+
+
 @router.get("/{token}/usage", response_model=UserUsageStatsList)
 async def get_sub_user_usage(
     token: str,

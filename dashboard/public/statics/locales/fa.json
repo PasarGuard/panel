@@ -1558,6 +1558,17 @@
     "copyIp": "کلیک کنید تا آدرس IP کپی شود",
     "ipCopied": "آدرس IP در کلیپ‌بورد کپی شد"
   },
+  "subscriptionProfiles": {
+    "preview": "پیش‌نمایش پروفایل",
+    "previewTitle": "پیش‌نمایش پروفایل اشتراک",
+    "previewDescription": "پروفایل Xray یا Sing-box انتخاب‌شده را برای {{username}} تولید کنید.",
+    "previewSensitive": "پیکربندی تولیدشده شامل اطلاعات دسترسی است؛ آن را به اشتراک نگذارید.",
+    "selectProfile": "انتخاب پروفایل",
+    "previewPrompt": "برای تولید پیکربندی، یک پروفایل انتخاب کنید.",
+    "profilesError": "بارگذاری فراداده پروفایل‌ها ناموفق بود.",
+    "noProfiles": "هیچ پروفایل Xray یا Sing-box در دسترس نیست.",
+    "previewError": "تولید پیش‌نمایش پروفایل ناموفق بود."
+  },
   "userAllIPs": {
     "title": "آدرس‌های IP - {{username}}",
     "description": "مشاهده همه آدرس‌های IP مرتبط با کاربر {{username}} در تمام گره‌ها",
