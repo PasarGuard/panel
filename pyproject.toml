@@ -31,7 +31,7 @@ dependencies = [
     "sqlalchemy[asyncio]>=2.0.51",
     "aiosqlite>=0.21.0",
     "asyncpg>=0.31.0",
-    "asyncmy>=0.2.10; sys_platform != 'win32'",
+    "asyncmy>=0.2.13; sys_platform != 'win32'",
     "aiocache>=0.12.3",
     "aiogram>=3.30.0",
     "aiohttp-socks>=0.10.1",
