@@ -205,9 +205,23 @@ wheels = [
 
 [[package]]
 name = "asyncmy"
-version = "0.2.11"
+version = "0.2.13"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/78/3c/d8297584c40f3d1af55365026bcdca7844ecfea1d917ad19df48f8331a26/asyncmy-0.2.11.tar.gz", hash = "sha256:c3d65d959dde62c911e39ecd1ad0f1339a5e6929fc411d48cfc2f82846190bf4", size = 62865, upload-time = "2026-01-15T11:32:30.368Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/7f/04/efff513d57a03b7561c52c8b83f1ae6eb513e8a5d820b50a08ed9a4ed281/asyncmy-0.2.13.tar.gz", hash = "sha256:80e08499e8c051319f0b8ad345c5fd54428a7855560922604b064b38123f30eb", size = 81247, upload-time = "2026-08-06T08:04:57.56Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/bf/3d/82eda2a8b2a9f8974ff109c025840db6b27ae6143241a6e7f6acffe62fe8/asyncmy-0.2.13-cp314-cp314-macosx_10_15_x86_64.whl", hash = "sha256:532a838d957fd9ab06fa9e16b397733cb9bce1f3bbc8b2ba7c9bf95e194a1f07", size = 2017840, upload-time = "2026-08-06T08:04:24.355Z" },
+    { url = "https://files.pythonhosted.org/packages/0a/c3/2f4fbef7639bae9fbf042c2ecbbd9978d13870a8dbbb78d4718b0c240afb/asyncmy-0.2.13-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:beda30d3623b73ec06b14793e880f95414eb7588c457e8c960dc07e4d96731ef", size = 2001382, upload-time = "2026-08-06T08:04:25.525Z" },
+    { url = "https://files.pythonhosted.org/packages/fb/a2/5a6a9b0e340f6562c94b43d594f5f4d71935ac3e620aeef957bd1d84e303/asyncmy-0.2.13-cp314-cp314-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:94d4726b39be89f194233964a69620ee3532879b054722347315310bbff13f4a", size = 6062618, upload-time = "2026-08-06T08:04:26.711Z" },
+    { url = "https://files.pythonhosted.org/packages/a0/cf/3da00766f560694f9e56f406d98af8bb7bde9b17787063d9810dc90f60ac/asyncmy-0.2.13-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:3e01e1ac826c65b21c91bb45fcb2c02418545b48ce12c6178793d42e30ed17af", size = 6051554, upload-time = "2026-08-06T08:04:28.057Z" },
+    { url = "https://files.pythonhosted.org/packages/7d/67/5090d1c8afa2f2c4db6c2340d43367276b7aaca9d0c9dacefe70d9c2f7ed/asyncmy-0.2.13-cp314-cp314-musllinux_1_2_aarch64.whl", hash = "sha256:f1cc62a10fa74fc2f12c3cd6c6343d8d80498fd5d8b3c569e07816fbaa3f920c", size = 5867845, upload-time = "2026-08-06T08:04:29.477Z" },
+    { url = "https://files.pythonhosted.org/packages/e0/23/2b1122dd8652528bda6930cebe33b92e892df3dd07e3820208d6d8fe8c6a/asyncmy-0.2.13-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:210a2d3fc49964e017ab7babacfb3011a0ac726151596ca6c68e235517bdd64c", size = 5953860, upload-time = "2026-08-06T08:04:31.004Z" },
+    { url = "https://files.pythonhosted.org/packages/c3/4a/bb922bf95a9bde96d526ad701961187a4af10c999fcda199bf4cfd78b580/asyncmy-0.2.13-cp314-cp314t-macosx_10_15_x86_64.whl", hash = "sha256:41c3acb2d3cad8f9ee307caccb72b8fee1d1b4bb42b690038b6d4f86c1e6e991", size = 2762391, upload-time = "2026-08-06T08:04:34.844Z" },
+    { url = "https://files.pythonhosted.org/packages/a0/22/67bf81a4735fa68e3e2f88c9f6b47a0006cce533fd5369befa0a7e78841b/asyncmy-0.2.13-cp314-cp314t-macosx_11_0_arm64.whl", hash = "sha256:763f4ecf2fa77c1951e6f49987ef2c88f86cb96cc9096dfa15b9bb0a10fc9789", size = 2734784, upload-time = "2026-08-06T08:04:36.43Z" },
+    { url = "https://files.pythonhosted.org/packages/eb/f6/6f8ce8302eca207137d1c940828f2b1561ab788159ff973d358ac75f1d9b/asyncmy-0.2.13-cp314-cp314t-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:a3cd99b666eb1bf8f5cad3b3473ef66dca0cf09d1cc6720b8c9ebc5351a24ea2", size = 11009125, upload-time = "2026-08-06T08:04:37.678Z" },
+    { url = "https://files.pythonhosted.org/packages/74/5a/812566ff6ac1f60a4a6e0ce273d6fdfc2a7d9ad83ae2c6cb2c00036dbf8f/asyncmy-0.2.13-cp314-cp314t-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:eed110c32fe150fe1144d257cf5be1af6f90df3810cb2c50fb7b7203d87ad7ac", size = 10682655, upload-time = "2026-08-06T08:04:39.417Z" },
+    { url = "https://files.pythonhosted.org/packages/6e/8e/5262fd72029324a86b1fca0d593338f3234bbb5d481d71c7cc2fbedf14b3/asyncmy-0.2.13-cp314-cp314t-musllinux_1_2_aarch64.whl", hash = "sha256:9378ec6dea2f7ef11c2610e3032a09202900453757b41928350d9e1bee418f1a", size = 10487364, upload-time = "2026-08-06T08:04:41.234Z" },
+    { url = "https://files.pythonhosted.org/packages/33/60/da678dbabc32ead842bca01f383766d9276fdf73cfee4178f02cc7c580b5/asyncmy-0.2.13-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:e15c8d243f200ed97440b8ca7ede62031825d49b086dcb219b83e0fe3508de47", size = 10451083, upload-time = "2026-08-06T08:04:43.11Z" },
+]
 
 [[package]]
 name = "asyncpg"
@@ -856,7 +870,7 @@ requires-dist = [
     { name = "aiosqlite", specifier = ">=0.21.0" },
     { name = "alembic", specifier = ">=1.19.0" },
     { name = "apscheduler", specifier = ">=3.11.3" },
-    { name = "asyncmy", marker = "sys_platform != 'win32'", specifier = ">=0.2.10" },
+    { name = "asyncmy", marker = "sys_platform != 'win32'", specifier = ">=0.2.13" },
     { name = "asyncpg", specifier = ">=0.31.0" },
     { name = "bcrypt", specifier = "==5.0.0" },
     { name = "click", specifier = ">=8.4.2" },
