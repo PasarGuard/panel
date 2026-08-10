@@ -44,6 +44,7 @@ from app.db.crud.user import (
     get_users_subscription_agent_stats,
     load_user_attrs,
     lock_admin_quota_row,
+    lock_users_for_traffic_reset,
     modify_user as crud_modify_user,
     remove_user,
     remove_users,
@@ -1880,6 +1881,12 @@ class UserOperation(BaseOperation):
                 user_template.status == UserStatus.on_hold and original_status != UserStatus.active
             )
             prepared_updates.append((db_user, modify_user, validated_groups, original_status, emit_reset_status_change))
+
+        if user_template.reset_usages:
+            # Acquire the whole batch in stable id order before per-user work;
+            # otherwise two overlapping template batches can deadlock while
+            # locking the same users in opposite request order.
+            await lock_users_for_traffic_reset(db, [item[0] for item in prepared_updates])
 
         modified_user_ids: list[int] = []
         try:

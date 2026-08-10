@@ -1,5 +1,5 @@
 import os
-from datetime import UTC, datetime as dt
+from datetime import UTC, datetime as dt, timedelta as td
 from enum import Enum
 from typing import Any
 from uuid import uuid4
@@ -193,6 +193,13 @@ class DataLimitResetStrategy(str, Enum):
     year = "year"
 
 
+class UserUsageResetSource(str, Enum):
+    legacy = "legacy"
+    manual = "manual"
+    scheduled = "scheduled"
+    next_plan = "next_plan"
+
+
 class User(Base, CreatedAtUTCMixin):
     __tablename__ = "users"
     __table_args__ = (
@@ -224,7 +231,11 @@ class User(Base, CreatedAtUTCMixin):
     subscription_updates: Mapped[list[UserSubscriptionUpdate]] = relationship(
         back_populates="user", cascade="all, delete-orphan", init=False
     )
-    usage_logs: Mapped[list[UserUsageResetLogs]] = relationship(back_populates="user", init=False)
+    usage_logs: Mapped[list[UserUsageResetLogs]] = relationship(
+        back_populates="user",
+        init=False,
+        order_by="UserUsageResetLogs.reset_at",
+    )
     admin: Mapped[Admin] = relationship(back_populates="users", init=False)
     next_plan: Mapped[NextPlan | None] = relationship(
         uselist=False, back_populates="user", cascade="all, delete-orphan", init=False
@@ -292,6 +303,44 @@ class User(Base, CreatedAtUTCMixin):
     @property
     def last_traffic_reset_time(self):
         return self.usage_logs[-1].reset_at if self.usage_logs else self.created_at
+
+    @property
+    def last_traffic_reset_at(self):
+        return self.usage_logs[-1].reset_at if self.usage_logs else None
+
+    @property
+    def last_scheduled_traffic_reset_at(self):
+        scheduled_sources = {UserUsageResetSource.scheduled.value, UserUsageResetSource.next_plan.value}
+        for log in reversed(self.usage_logs):
+            if log.reset_source in scheduled_sources:
+                return log.reset_at
+        return None
+
+    @property
+    def last_cycle_traffic_reset_at(self):
+        if scheduled_reset_at := self.last_scheduled_traffic_reset_at:
+            return scheduled_reset_at
+        for log in reversed(self.usage_logs):
+            if log.reset_source == UserUsageResetSource.legacy.value:
+                return log.reset_at
+        return None
+
+    @property
+    def next_traffic_reset_at(self):
+        reset_days = {
+            DataLimitResetStrategy.day: 1,
+            DataLimitResetStrategy.week: 7,
+            DataLimitResetStrategy.month: 30,
+            DataLimitResetStrategy.year: 365,
+        }
+        days = reset_days.get(self.data_limit_reset_strategy)
+        if days is None:
+            return None
+
+        cycle_start = self.last_cycle_traffic_reset_at or self.created_at
+        if cycle_start.tzinfo is None:
+            cycle_start = cycle_start.replace(tzinfo=UTC)
+        return cycle_start + td(days=days)
 
     async def inbounds(self) -> list[str]:
         """Returns a flat list of all included inbound tags for enabled groups."""
@@ -481,10 +530,21 @@ class UserUsageResetLogs(Base, IdMixin):
     __table_args__ = (
         # Index for user-specific queries sorted by time
         Index("ix_user_usage_logs_user_id_reset_at", "user_id", "reset_at"),
+        # The reset scheduler groups the per-user history after filtering by
+        # source, so the original (user_id, reset_at) index cannot cover it.
+        Index("ix_user_usage_logs_user_id_source_reset_at", "user_id", "reset_source", "reset_at"),
     )
     user_id: Mapped[int | None] = fk_id_column("users.id", ondelete="CASCADE", nullable=True)
     user: Mapped[User] = relationship(back_populates="usage_logs", init=False)
     used_traffic_at_reset: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    reset_source: Mapped[str] = mapped_column(
+        String(32),
+        default=UserUsageResetSource.manual.value,
+        # Old application versions omit this column during a rolling upgrade.
+        # Mark those ambiguous writes as legacy; new code always sends the
+        # explicit Python default above.
+        server_default=UserUsageResetSource.legacy.value,
+    )
     reset_at: Mapped[dt] = mapped_column(DateTime(timezone=True), default=lambda: dt.now(UTC), init=False)
 
 

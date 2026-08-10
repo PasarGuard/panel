@@ -3,7 +3,7 @@ import { statusColors } from '@/constants/UserSettings'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { cn } from '@/lib/utils'
 import { UserStatus } from '@/service/api'
-import { useRelativeExpiryDate } from '@/utils/dateFormatter'
+import { dateUtils, useRelativeExpiryDate } from '@/utils/dateFormatter'
 import { Clock } from 'lucide-react'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -27,9 +27,9 @@ export const StatusBadge: FC<UserStatusProps> = ({ expiryDate = null, status: us
       const num = Number(expire)
       if (!isNaN(num)) return num
     }
-    // For date strings, convert to timestamp
-    const date = new Date(expire)
-    return Math.floor(date.getTime() / 1000)
+    // For date strings, use the shared parser so UTC API values are interpreted consistently.
+    const date = dateUtils.toDayjs(expire)
+    return date.isValid() ? date.unix() : null
   }
   const unixTime = convertDateFormat(expiryDate)
 

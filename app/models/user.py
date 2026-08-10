@@ -129,6 +129,9 @@ class UserNotificationResponse(User):
     created_at: AwareDatetime
     edit_at: OptionalAwareDatetime = Field(default=None)
     online_at: OptionalAwareDatetime = Field(default=None)
+    last_traffic_reset_at: OptionalAwareDatetime = Field(default=None)
+    last_cycle_traffic_reset_at: OptionalAwareDatetime = Field(default=None)
+    next_traffic_reset_at: OptionalAwareDatetime = Field(default=None)
     subscription_url: str = Field(default="")
     admin: AdminContactInfo | None = Field(default=None)
     group_names: list[str] | None = Field(default_factory=list)
@@ -138,7 +141,6 @@ class UserNotificationResponse(User):
     @classmethod
     def cast_to_int(cls, v):
         return NumericValidatorMixin.cast_to_int(v)
-
 
 class UserResponse(UserNotificationResponse):
     admin: AdminBase | None = Field(default=None)
