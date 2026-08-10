@@ -1,6 +1,8 @@
 import { CodeEditorPanel } from '@/components/common/code-editor-panel'
+import { SubscriptionProfileEditor } from '@/features/templates/components/subscription-profile-editor'
 import type { ClientTemplateFormValues } from '@/features/templates/forms/client-template-form'
-import { DEFAULT_TEMPLATE_CONTENT } from '@/features/templates/forms/client-template-form'
+import { DEFAULT_TEMPLATE_CONTENT, supportsDefaultSelection } from '@/features/templates/forms/client-template-form'
+import { parseSubscriptionProfileContent } from '@/features/templates/forms/subscription-profile-form'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
@@ -22,11 +24,14 @@ const TEMPLATE_TYPE_LABELS: Record<string, string> = {
   [ClientTemplateType.clash_subscription]: 'Clash Subscription',
   [ClientTemplateType.xray_subscription]: 'Xray Subscription',
   [ClientTemplateType.singbox_subscription]: 'SingBox Subscription',
+  [ClientTemplateType.xray_profile]: 'Xray Profile',
+  [ClientTemplateType.singbox_profile]: 'Sing-box Profile',
   [ClientTemplateType.user_agent]: 'User Agent',
   [ClientTemplateType.grpc_user_agent]: 'gRPC User Agent',
 }
 
 const isYamlType = (templateType: string) => templateType === ClientTemplateType.clash_subscription
+const isProfileType = (templateType: string) => templateType === ClientTemplateType.xray_profile || templateType === ClientTemplateType.singbox_profile
 
 interface ValidationResult {
   isValid: boolean
@@ -51,6 +56,7 @@ export default function ClientTemplateModal({ isDialogOpen, onOpenChange, form, 
 
   const templateType = form.watch('template_type')
   const isYaml = isYamlType(templateType)
+  const canBeDefault = supportsDefaultSelection(templateType as ClientTemplateType)
 
   const validateContent = useCallback(
     (value: string, showToast = false) => {
@@ -70,6 +76,14 @@ export default function ClientTemplateModal({ isDialogOpen, onOpenChange, form, 
 
       try {
         JSON.parse(value)
+        if (isProfileType(templateType)) {
+          const result = parseSubscriptionProfileContent(value)
+          if (!result.success) {
+            setValidation({ isValid: false, error: result.error })
+            if (showToast) toast.error(result.error)
+            return false
+          }
+        }
         setValidation({ isValid: true })
         return true
       } catch (error) {
@@ -81,7 +95,7 @@ export default function ClientTemplateModal({ isDialogOpen, onOpenChange, form, 
         return false
       }
     },
-    [isYaml, t],
+    [isYaml, t, templateType],
   )
 
   const handleEditorValidation = useCallback(
@@ -108,6 +122,9 @@ export default function ClientTemplateModal({ isDialogOpen, onOpenChange, form, 
     setValidation({ isValid: true })
     if (!editingTemplate) {
       form.setValue('content', DEFAULT_TEMPLATE_CONTENT[templateType as ClientTemplateType] ?? '')
+    }
+    if (!supportsDefaultSelection(templateType as ClientTemplateType)) {
+      form.setValue('is_default', false)
     }
   }, [editingTemplate, form, templateType])
 
@@ -140,14 +157,23 @@ export default function ClientTemplateModal({ isDialogOpen, onOpenChange, form, 
       if (editingTemplate && editingTemplateId !== undefined) {
         await modifyClientTemplate.mutateAsync({
           templateId: editingTemplateId,
-          data: { name: values.name, content: finalContent, is_default: values.is_default },
+          data: {
+            name: values.name,
+            content: finalContent,
+            ...(supportsDefaultSelection(values.template_type) ? { is_default: values.is_default } : {}),
+          },
         })
         toast.success(t('success', { defaultValue: 'Success' }), {
           description: t('clientTemplates.updateSuccess', { name: values.name, defaultValue: 'Template "{{name}}" updated successfully' }),
         })
       } else {
         await createClientTemplate.mutateAsync({
-          data: { name: values.name, template_type: values.template_type, content: finalContent, is_default: values.is_default },
+          data: {
+            name: values.name,
+            template_type: values.template_type,
+            content: finalContent,
+            is_default: supportsDefaultSelection(values.template_type) ? values.is_default : false,
+          },
         })
         toast.success(t('success', { defaultValue: 'Success' }), {
           description: t('clientTemplates.createSuccess', { name: values.name, defaultValue: 'Template "{{name}}" created successfully' }),
@@ -191,19 +217,32 @@ export default function ClientTemplateModal({ isDialogOpen, onOpenChange, form, 
                       render={({ field }) => (
                         <FormItem className="md:flex md:h-full md:flex-col">
                           <FormControl className="md:flex md:flex-1">
-                            <CodeEditorPanel
-                              value={field.value || ''}
-                              language={isYaml ? 'yaml' : 'json'}
-                              onChange={value => {
-                                field.onChange(value)
-                                validateContent(value)
-                              }}
-                              onValidate={handleEditorValidation}
-                              enableFullscreen
-                              dialogOpen={isDialogOpen}
-                              onFullscreenChange={setIsCodeEditorFullscreen}
-                              embeddedContainerClassName="h-[calc(50vh-1rem)] sm:h-[calc(55vh-1rem)] md:min-h-[450px]"
-                            />
+                            {isProfileType(templateType) ? (
+                              <SubscriptionProfileEditor
+                                value={field.value || ''}
+                                onChange={value => {
+                                  field.onChange(value)
+                                  validateContent(value)
+                                }}
+                                onValidate={handleEditorValidation}
+                                dialogOpen={isDialogOpen}
+                                onFullscreenChange={setIsCodeEditorFullscreen}
+                              />
+                            ) : (
+                              <CodeEditorPanel
+                                value={field.value || ''}
+                                language={isYaml ? 'yaml' : 'json'}
+                                onChange={value => {
+                                  field.onChange(value)
+                                  validateContent(value)
+                                }}
+                                onValidate={handleEditorValidation}
+                                enableFullscreen
+                                dialogOpen={isDialogOpen}
+                                onFullscreenChange={setIsCodeEditorFullscreen}
+                                embeddedContainerClassName="h-[calc(50vh-1rem)] sm:h-[calc(55vh-1rem)] md:min-h-[450px]"
+                              />
+                            )}
                           </FormControl>
                           {validation.error && !validation.isValid && <FormMessage>{validation.error}</FormMessage>}
                         </FormItem>
@@ -252,21 +291,23 @@ export default function ClientTemplateModal({ isDialogOpen, onOpenChange, form, 
                     )}
                   />
 
-                  <FormField
-                    control={form.control}
-                    name="is_default"
-                    render={({ field }) => (
-                      <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
-                        <div className="space-y-1">
-                          <FormLabel className="cursor-pointer">{t('clientTemplates.isDefault', { defaultValue: 'Set as default' })}</FormLabel>
-                          <p className="text-muted-foreground text-xs">{t('clientTemplates.isDefaultDescription', { defaultValue: 'Use this template automatically for matching output type.' })}</p>
-                        </div>
-                        <FormControl>
-                          <Switch checked={!!field.value} onCheckedChange={field.onChange} />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
+                  {canBeDefault && (
+                    <FormField
+                      control={form.control}
+                      name="is_default"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
+                          <div className="space-y-1">
+                            <FormLabel className="cursor-pointer">{t('clientTemplates.isDefault', { defaultValue: 'Set as default' })}</FormLabel>
+                            <p className="text-muted-foreground text-xs">{t('clientTemplates.isDefaultDescription', { defaultValue: 'Use this template automatically for matching output type.' })}</p>
+                          </div>
+                          <FormControl>
+                            <Switch checked={!!field.value} onCheckedChange={field.onChange} />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                  )}
                 </div>
               </div>
             </div>

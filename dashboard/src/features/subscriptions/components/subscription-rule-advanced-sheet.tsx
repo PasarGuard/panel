@@ -28,6 +28,8 @@ export function SubscriptionRuleAdvancedSheet({ form, ruleIndex, rowId, open, on
   const infoPopoverAlign = isMobile ? 'center' : 'start'
 
   const responseHeaders = (form.watch(`rules.${ruleIndex}.response_headers`) || {}) as Record<string, string>
+  const profileId = form.watch(`rules.${ruleIndex}.profile_id`)
+  const target = form.watch(`rules.${ruleIndex}.target`)
   const responseHeaderEntries = Object.entries(responseHeaders)
   const responseHeaderCount = responseHeaderEntries.length
 
@@ -74,6 +76,31 @@ export function SubscriptionRuleAdvancedSheet({ form, ruleIndex, rowId, open, on
         </SheetHeader>
 
         <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-6 py-4">
+          {(target === 'xray' || target === 'sing_box') && (
+            <div className="space-y-2">
+              <label htmlFor={`subscription-profile-id-${rowId}`} className="text-foreground text-sm font-medium">
+                {t('settings.subscriptions.rules.profileId', { defaultValue: 'Subscription profile ID' })}
+              </label>
+              <p className="text-muted-foreground text-sm">
+                {t('settings.subscriptions.rules.profileIdDescription', {
+                  defaultValue: 'Optional client-template profile selected when this User-Agent rule matches.',
+                })}
+              </p>
+              <Input
+                id={`subscription-profile-id-${rowId}`}
+                type="number"
+                min={1}
+                value={profileId ?? ''}
+                onChange={event => {
+                  const value = event.target.valueAsNumber
+                  form.setValue(`rules.${ruleIndex}.profile_id`, Number.isInteger(value) && value > 0 ? value : undefined, {
+                    shouldDirty: true,
+                  })
+                }}
+                placeholder="123"
+              />
+            </div>
+          )}
           <div className="space-y-4">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0 flex-1">

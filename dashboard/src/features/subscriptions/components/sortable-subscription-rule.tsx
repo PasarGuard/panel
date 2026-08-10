@@ -148,13 +148,21 @@ export function SortableSubscriptionRule({ index, onRemove, form, id }: Sortable
                   render={({ field }) => (
                     <FormItem className="min-w-0 flex-1 space-y-0 sm:w-[13.5rem] sm:shrink-0 sm:space-y-1">
                       <FormLabel className="sr-only">{t('settings.subscriptions.rules.target')}</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
+                      <Select
+                        onValueChange={value => {
+                          field.onChange(value)
+                          if (value !== 'xray' && value !== 'sing_box') {
+                            form.setValue(`rules.${index}.profile_id`, undefined, { shouldDirty: true })
+                          }
+                        }}
+                        value={field.value}
+                      >
                         <FormControl>
                           <SelectTrigger dir="ltr" className="border-muted bg-background/60 focus:bg-background h-8 w-full min-w-0 px-2.5 text-[11px] sm:h-8 sm:px-3 sm:text-xs">
                             <SelectValue />
                           </SelectTrigger>
                         </FormControl>
-                        <SelectContent dir="ltr" className="scrollbar-thin z-[50]">
+                        <SelectContent dir="ltr" className="z-[50] scrollbar-thin">
                           {configFormatOptions.map(option => (
                             <SelectItem key={option.value} value={option.value}>
                               <div className="flex items-center gap-1.5">

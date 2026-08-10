@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import type { SubRule as ApiSubRule } from '@/service/api'
 
 export const builtInVariableKeys = [
   'SERVER_IP',
@@ -113,6 +114,7 @@ export const subscriptionSchema = z.object({
       pattern: z.string().min(1, 'Pattern is required'),
       target: z.enum(['links', 'links_base64', 'xray', 'wireguard', 'sing_box', 'clash', 'clash_meta', 'outline', 'block']),
       response_headers: z.record(z.string()).optional(),
+      profile_id: z.number().int().positive().optional(),
     }),
   ),
   applications: z.array(subscriptionApplicationSchema).optional(),
@@ -133,6 +135,28 @@ export const subscriptionSchema = z.object({
 export type SubscriptionFormData = z.infer<typeof subscriptionSchema>
 export type SubscriptionRuleFormData = SubscriptionFormData['rules'][number]
 export type SubscriptionPlatform = SubscriptionApplicationFormData['platform']
+
+export function mapSubscriptionRulesForForm(rules: readonly ApiSubRule[] | null | undefined): SubscriptionRuleFormData[] {
+  return (rules ?? []).map(rule => ({
+    pattern: rule.pattern,
+    target: rule.target,
+    profile_id: rule.profile_id ?? undefined,
+    response_headers: Object.fromEntries(Object.entries(rule.response_headers || {}).map(([key, value]) => [key, typeof value === 'string' ? value : JSON.stringify(value)])),
+  }))
+}
+
+export function prepareSubscriptionRulesForPayload(rules: readonly SubscriptionRuleFormData[] | null | undefined) {
+  return (rules ?? []).map(rule => ({
+    pattern: rule.pattern.trim(),
+    target: rule.target,
+    profile_id: rule.profile_id,
+    response_headers: Object.fromEntries(
+      Object.entries(rule.response_headers || {})
+        .map(([key, value]) => [key.trim(), value.trim()] as const)
+        .filter(([key, value]) => key && value),
+    ),
+  }))
+}
 export type SubscriptionLanguage = NonNullable<SubscriptionApplicationFormData['download_links']>[number]['language']
 
 export const defaultSubscriptionRules: SubscriptionRuleFormData[] = [
@@ -153,7 +177,7 @@ export const defaultSubscriptionRules: SubscriptionRuleFormData[] = [
     target: 'outline',
   },
   {
-    pattern: '^([Vv]2rayNG|[Vv]2rayN|[Ss]treisand|[Hh]app|[Kk]tor\\-client)',
+    pattern: '^([Vv]2rayNG|[Vv]2rayN|[Ss]treisand|[Hh]app|[Ii]ncy|[Kk]tor\\-client)',
     target: 'xray',
   },
   {

@@ -11,6 +11,7 @@ from app.db.crud.host import (
     remove_host,
     remove_hosts,
 )
+from app.db.crud.settings import lock_settings_row
 from app.db.models import ProxyHost
 from app.models.admin import AdminDetails
 from app.models.client_template import ClientTemplateType
@@ -59,6 +60,9 @@ class HostOperation(BaseOperation):
                 return await self.raise_error("download host cannot have a download host", 400, db=db)
 
     async def create_host(self, db: AsyncSession, new_host: CreateHost, admin: AdminDetails) -> BaseHost:
+        # Serialize template validation with template deletion. The template ID
+        # lives in JSON, so a database FK cannot protect this reference.
+        await lock_settings_row(db)
         await self.validate_subscription_templates(db, new_host)
         await self.validate_ds_host(db, new_host)
 
@@ -78,6 +82,7 @@ class HostOperation(BaseOperation):
     async def modify_host(
         self, db: AsyncSession, host_id: int, modified_host: CreateHost, admin: AdminDetails
     ) -> BaseHost:
+        await lock_settings_row(db)
         await self.validate_subscription_templates(db, modified_host)
         await self.validate_ds_host(db, modified_host, host_id)
 
@@ -118,6 +123,7 @@ class HostOperation(BaseOperation):
         self, db: AsyncSession, modified_hosts: list[CreateHost], admin: AdminDetails
     ) -> list[BaseHost]:
         for host in modified_hosts:
+            await lock_settings_row(db)
             await self.validate_subscription_templates(db, host)
             await self.validate_ds_host(db, host, host.id)
 

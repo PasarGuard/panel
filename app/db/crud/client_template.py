@@ -169,17 +169,22 @@ async def get_first_template_by_type(
     return (await db.execute(stmt)).scalars().first()
 
 
-async def set_default_template(db: AsyncSession, db_template: ClientTemplate) -> ClientTemplate:
+async def set_default_template(db: AsyncSession, db_template: ClientTemplate, *, commit: bool = True) -> ClientTemplate:
     await db.execute(
         update(ClientTemplate).where(ClientTemplate.template_type == db_template.template_type).values(is_default=False)
     )
     db_template.is_default = True
-    await db.commit()
-    await db.refresh(db_template)
+    if commit:
+        await db.commit()
+        await db.refresh(db_template)
+    else:
+        await db.flush()
     return db_template
 
 
-async def clear_host_subscription_template_overrides(db: AsyncSession, template_ids: list[int] | set[int]) -> int:
+async def clear_host_subscription_template_overrides(
+    db: AsyncSession, template_ids: list[int] | set[int], *, commit: bool = True
+) -> int:
     if not template_ids:
         return 0
 
@@ -201,7 +206,10 @@ async def clear_host_subscription_template_overrides(db: AsyncSession, template_
         updated_count += 1
 
     if updated_count:
-        await db.commit()
+        if commit:
+            await db.commit()
+        else:
+            await db.flush()
 
     return updated_count
 
@@ -209,7 +217,9 @@ async def clear_host_subscription_template_overrides(db: AsyncSession, template_
 async def create_client_template(db: AsyncSession, client_template: ClientTemplateCreate) -> ClientTemplate:
     type_count = await count_client_templates_by_type(db, client_template.template_type)
     is_first_for_type = type_count == 0
-    should_be_default = client_template.is_default or is_first_for_type
+    should_be_default = client_template.is_default or (
+        is_first_for_type and client_template.template_type in TEMPLATE_TYPE_TO_LEGACY_KEY
+    )
 
     if should_be_default:
         await db.execute(
@@ -223,7 +233,7 @@ async def create_client_template(db: AsyncSession, client_template: ClientTempla
         template_type=client_template.template_type.value,
         content=client_template.content,
         is_default=should_be_default,
-        is_system=is_first_for_type,
+        is_system=is_first_for_type and client_template.template_type in TEMPLATE_TYPE_TO_LEGACY_KEY,
     )
     db.add(db_template)
     try:
@@ -249,6 +259,8 @@ async def modify_client_template(
             .values(is_default=False)
         )
         db_template.is_default = True
+    elif modified_template.is_default is False:
+        db_template.is_default = False
 
     if "name" in template_data:
         db_template.name = template_data["name"]
@@ -264,12 +276,15 @@ async def modify_client_template(
     return db_template
 
 
-async def remove_client_template(db: AsyncSession, db_template: ClientTemplate) -> None:
+async def remove_client_template(db: AsyncSession, db_template: ClientTemplate, *, commit: bool = True) -> None:
     await db.delete(db_template)
-    await db.commit()
+    if commit:
+        await db.commit()
+    else:
+        await db.flush()
 
 
-async def remove_client_templates(db: AsyncSession, template_ids: list[int]) -> None:
+async def remove_client_templates(db: AsyncSession, template_ids: list[int], *, commit: bool = True) -> None:
     """
     Removes multiple client templates from the database by ID.
 
@@ -281,4 +296,7 @@ async def remove_client_templates(db: AsyncSession, template_ids: list[int]) -> 
         return
 
     await db.execute(delete(ClientTemplate).where(ClientTemplate.id.in_(template_ids)))
-    await db.commit()
+    if commit:
+        await db.commit()
+    else:
+        await db.flush()
