@@ -19,12 +19,14 @@ class BaseRpcService:
         start_msg: str | None = None,
         stop_msg: str | None = None,
         rpc_concurrency: int = 20,
+        queue_group: str | None = None,
     ):
         self._rpc_subject = subject
         self._logger = logger
         self._role_check = role_check
         self._start_msg = start_msg
         self._stop_msg = stop_msg
+        self._queue_group = queue_group
         self._nc: nats.NATS | None = None
         self._rpc_sub: Subscription | None = None
         self._rpc_semaphore = asyncio.Semaphore(rpc_concurrency)
@@ -44,7 +46,14 @@ class BaseRpcService:
         if not self._nc:
             return
 
-        self._rpc_sub = await self._nc.subscribe(self._rpc_subject, cb=self._handle_rpc)
+        if self._queue_group is None:
+            self._rpc_sub = await self._nc.subscribe(self._rpc_subject, cb=self._handle_rpc)
+        else:
+            self._rpc_sub = await self._nc.subscribe(
+                self._rpc_subject,
+                queue=self._queue_group,
+                cb=self._handle_rpc,
+            )
         if self._start_msg:
             self._logger.info(self._start_msg)
 
@@ -79,7 +88,8 @@ class BaseRpcService:
                 await msg.respond(json.dumps({"ok": True, "data": result}).encode())
             except Exception as exc:
                 error_msg = str(exc)
-                await msg.respond(json.dumps({"ok": False, "error": error_msg, "code": 500}).encode())
+                error_code = getattr(exc, "code", 500)
+                await msg.respond(json.dumps({"ok": False, "error": error_msg, "code": error_code}).encode())
 
     async def _dispatch_rpc(self, action: str | None, data: dict):
         if not action:

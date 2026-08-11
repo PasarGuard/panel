@@ -1,10 +1,12 @@
 import asyncio
 from collections.abc import AsyncIterator, Callable
+from contextlib import asynccontextmanager
 
 from fastapi import HTTPException
-from PasarGuardNodeBridge import NodeAPIError, PasarGuardNode
+from PasarGuardNodeBridge import Health, NodeAPIError, PasarGuardNode
 from PasarGuardNodeBridge.common import service_pb2 as service
 from PasarGuardNodeBridge.storage import LifecycleStatus
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from app import notification
@@ -22,12 +24,11 @@ from app.db.crud.node import (
     get_nodes_usage,
     modify_node,
     remove_node,
-    remove_nodes,
     reset_node_usage,
     update_node_status,
 )
 from app.db.crud.user import get_user_by_id, get_user_count_metric_stats
-from app.db.models import Node, NodeStatus
+from app.db.models import Node, NodeStatus, User
 from app.models.admin import AdminDetails
 from app.models.core import CoreType
 from app.models.node import (
@@ -37,6 +38,7 @@ from app.models.node import (
     NodeCoreUpdate,
     NodeCreate,
     NodeGeoFilesUpdate,
+    NodeLifecycleRecovery,
     NodeListQuery,
     NodeModify,
     NodeNotification,
@@ -101,6 +103,7 @@ class NodeOperation(BaseOperation):
             self._update_geofiles_impl = self._update_geofiles_local
             self._get_logs_impl = self._get_logs_local
             self._restart_all_impl = self._restart_all_nodes_local
+            self._recover_lifecycle_impl = self._recover_node_lifecycle_local
         else:
             self._update_node_impl = self._update_node_remote
             self._remove_node_impl = self._remove_node_remote
@@ -119,6 +122,7 @@ class NodeOperation(BaseOperation):
             self._update_geofiles_impl = self._update_geofiles_remote
             self._get_logs_impl = self._get_logs_remote
             self._restart_all_impl = self._restart_all_nodes_remote
+            self._recover_lifecycle_impl = self._recover_node_lifecycle_remote
 
     async def get_db_nodes(
         self,
@@ -206,14 +210,25 @@ class NodeOperation(BaseOperation):
     @staticmethod
     async def _get_core_users_map(
         db: AsyncSession, core_ids: set[int]
-    ) -> tuple[dict[int, object | None], dict[int, list]]:
+    ) -> tuple[dict[int, object | None], dict[int, list], set[str]]:
         if not core_ids:
-            return {}, {}
+            return {}, {}, set()
 
         resolved_cores = await core_manager.get_cores(core_ids | {1})
         default_core = resolved_cores.get(1)
         cores_by_id: dict[int, object | None] = {}
         users_by_core: dict[int, list] = {}
+
+        # Register runtime nodes before taking this lock. A concurrent delete
+        # then has exactly two safe outcomes: it sees/revokes these nodes, or it
+        # commits first and this current-read snapshot no longer contains the
+        # deleted user. In shared mode Bridge 0.10's node-wide startup lease is
+        # the cross-worker admission barrier; local mode retains its event.
+        if not node_manager.uses_shared_revocation_store:
+            await node_manager.wait_for_user_revocations()
+        locked_user_keys = set(
+            (await db.execute(select(User.sync_id).with_for_update())).scalars().all()
+        )
 
         for core_id in core_ids:
             core = resolved_cores.get(core_id) or default_core
@@ -222,17 +237,81 @@ class NodeOperation(BaseOperation):
                 users_by_core[core_id] = []
                 continue
 
-            users_by_core[core_id] = await core_users(
+            users = await core_users(
                 db=db,
                 inbound_tags=core.inbounds,
                 allowed_protocols=core.protocols,
             )
+            # The locking query is a current read even under MySQL's default
+            # REPEATABLE READ. In shared mode Bridge startup filters permanent
+            # tombstones atomically with full-snapshot apply; local mode keeps
+            # its in-process tombstone filter.
+            current_users = [user for user in users if user.email in locked_user_keys]
+            users_by_core[core_id] = (
+                current_users
+                if node_manager.uses_shared_revocation_store
+                else node_manager.filter_permanently_deleted_users(current_users)
+            )
 
-        return cores_by_id, users_by_core
+        return cores_by_id, users_by_core, locked_user_keys
+
+    @staticmethod
+    async def _prepare_authoritative_user_reconciliation(
+        pg_node: PasarGuardNode, authoritative_user_keys: set[str] | None
+    ):
+        store = getattr(pg_node, "_user_sync_store", None)
+        prepare = getattr(store, "set_authoritative_reconciliation_membership", None)
+        if callable(prepare):
+            if authoritative_user_keys is None:
+                raise NodeAPIError(503, "authoritative database membership is required for reconciliation")
+            token = await prepare(pg_node.node_id, pg_node.worker_id, sorted(authoritative_user_keys))
+            return store, token
+        return None
+
+    @staticmethod
+    @asynccontextmanager
+    async def _authoritative_user_reconciliation_scope(
+        pg_node: PasarGuardNode, authoritative_user_keys: set[str] | None
+    ):
+        authorization = await NodeOperation._prepare_authoritative_user_reconciliation(
+            pg_node, authoritative_user_keys
+        )
+        try:
+            yield
+        finally:
+            if authorization is not None:
+                store, token = authorization
+                # ContextVar.reset is deliberately synchronous: even repeated
+                # task cancellation cannot interrupt cleanup or leak the
+                # row-lock authorization into a later reconciliation.
+                store.reset_authoritative_reconciliation_membership(token)
+
+    @staticmethod
+    async def _assert_node_incarnation_active(
+        pg_node: PasarGuardNode,
+        *,
+        stop_remote: bool = False,
+    ) -> None:
+        locally_deleted = node_manager.is_bridge_namespace_deleted(str(pg_node.node_id))
+        coordinator = getattr(pg_node, "_lifecycle_coordinator", None)
+        is_deleted = getattr(type(coordinator), "is_deleted", None)
+        remotely_deleted = callable(is_deleted) and await coordinator.is_deleted(pg_node.node_id)
+        if not locally_deleted and not remotely_deleted:
+            return
+        try:
+            if stop_remote:
+                await pg_node.stop()
+            else:
+                await pg_node.set_health(Health.INVALID)
+                await pg_node.disconnect()
+        except Exception as exc:
+            logger.error("Failed to quiesce deleted node incarnation %s: %s", pg_node.node_id, exc)
+        raise NodeAPIError(410, "Node incarnation is permanently deleted")
 
     @staticmethod
     async def _attach_if_running(pg_node: PasarGuardNode, node_name: str):
         """Attach to an already-started remote core without calling Start RPC."""
+        await NodeOperation._assert_node_incarnation_active(pg_node)
         try:
             state = await pg_node.get_lifecycle_state()
             if (
@@ -243,41 +322,82 @@ class NodeOperation(BaseOperation):
                 return None
 
             info = await pg_node.info()
-            if info is None or not info.node_version or not info.core_version:
+            if info is None or not info.started or not info.node_version or not info.core_version:
                 return None
 
             await pg_node.connect(info.node_version, info.core_version)
+            await NodeOperation._assert_node_incarnation_active(pg_node, stop_remote=True)
             if state is not None:
                 await pg_node.update_observed_lifecycle(LifecycleStatus.HEALTHY, expected_epoch=state.epoch)
             logger.info(
                 f'Attached to already-running "{node_name}" node v{info.node_version}, core v{info.core_version}'
             )
             return info
+        except NodeAPIError as exc:
+            if exc.code == 410:
+                raise
+            logger.debug(f'Attach skipped for "{node_name}": {exc}')
+            return None
         except Exception as exc:
             logger.debug(f'Attach skipped for "{node_name}": {exc}')
             return None
 
     @staticmethod
-    async def _start_or_attach_node(pg_node: PasarGuardNode, db_node: Node, core, users: list, backend_type):
+    async def _start_or_attach_node(
+        pg_node: PasarGuardNode,
+        db_node: Node,
+        core,
+        users: list,
+        backend_type,
+        authoritative_user_keys: set[str] | None = None,
+    ):
+        await NodeOperation._assert_node_incarnation_active(pg_node)
         state = await pg_node.get_lifecycle_state()
+        if state is not None and state.operation is not None:
+            # A probe cannot prove that an old timed-out request will not finish
+            # later. Keep the distributed lease fail-closed; reconciliation is
+            # an explicit operator action after the old worker/request is known
+            # to be gone.
+            await pg_node.info()
+            raise NodeAPIError(
+                503,
+                "Node has an unresolved lifecycle operation; explicit reconciliation is required",
+            )
         if state is not None and state.observed is LifecycleStatus.HEALTHY:
             attached = await NodeOperation._attach_if_running(pg_node, db_node.name)
             if attached is not None:
+                # Attach only proves that the core process is running. Apply an
+                # authoritative user snapshot before reporting the node ready;
+                # this also reconciles poison left by a crashed sync worker.
+                async with NodeOperation._authoritative_user_reconciliation_scope(
+                    pg_node, authoritative_user_keys
+                ):
+                    await pg_node.reconcile_users(users)
                 return attached
+
+        capability = await pg_node.info()
+        if capability is None or not getattr(capability, "user_sync_epoch_supported", False):
+            raise NodeAPIError(426, "Node must support monotonic user-sync epoch fencing before startup")
 
         start_kwargs = {
             "config": core.to_str(),
             "backend_type": backend_type,
             "users": users,
             "keep_alive": db_node.keep_alive,
+            "reconcile_user_sync": True,
         }
         if core.type == CoreType.xray:
             start_kwargs["exclude_inbounds"] = core.exclude_inbound_tags
 
-        return await pg_node.start(**start_kwargs)
+        async with NodeOperation._authoritative_user_reconciliation_scope(pg_node, authoritative_user_keys):
+            result = await pg_node.start(**start_kwargs)
+        await NodeOperation._assert_node_incarnation_active(pg_node, stop_remote=True)
+        return result
 
     @staticmethod
-    async def connect_node(db_node: Node, core, users: list) -> dict | None:
+    async def connect_node(
+        db_node: Node, core, users: list, authoritative_user_keys: set[str] | None = None
+    ) -> dict | None:
         """
         Connect to a node and return status result (does NOT update database).
 
@@ -295,13 +415,16 @@ class NodeOperation(BaseOperation):
             return None
         if core is None:
             return None
+        await NodeOperation._assert_node_incarnation_active(pg_node)
 
         old_status = db_node.status
         logger.info(f'Connecting to "{db_node.name}" node')
         type = service.BackendType.WIREGUARD if core.type == CoreType.wg else service.BackendType.XRAY
 
         try:
-            info = await NodeOperation._start_or_attach_node(pg_node, db_node, core, users, type)
+            info = await NodeOperation._start_or_attach_node(
+                pg_node, db_node, core, users, type, authoritative_user_keys
+            )
             if info is None:
                 return None
 
@@ -322,6 +445,15 @@ class NodeOperation(BaseOperation):
                 # Another worker holds the lifecycle lease; try attach once more.
                 attached = await NodeOperation._attach_if_running(pg_node, db_node.name)
                 if attached is not None:
+                    # The competing Start may have used an older/empty
+                    # snapshot.  Attachment only proves process liveness, so
+                    # do not publish CONNECTED until this worker has applied
+                    # the authoritative database snapshot under an epoch
+                    # fenced reconciliation lease.
+                    async with NodeOperation._authoritative_user_reconciliation_scope(
+                        pg_node, authoritative_user_keys
+                    ):
+                        await pg_node.reconcile_users(users)
                     return {
                         "node_id": db_node.id,
                         "status": NodeStatus.connected,
@@ -397,12 +529,21 @@ class NodeOperation(BaseOperation):
 
         return node
 
-    async def remove_node(self, db: AsyncSession, node_id: int, admin: AdminDetails) -> None:
+    async def remove_node(
+        self,
+        db: AsyncSession,
+        node_id: int,
+        admin: AdminDetails,
+    ) -> None:
         db_node: Node = await self.get_validated_node(db=db, node_id=node_id)
         node_response = NodeResponse.model_validate(db_node)
 
-        await self._remove_node_impl(db_node.id)
-        await remove_node(db=db, db_node=db_node)
+        await self._remove_node_impl(db_node.id, db_node.bridge_id)
+        try:
+            await remove_node(db=db, db_node=db_node)
+        except Exception as exc:
+            if not await self._resolve_node_delete_after_db_error(db, db_node):
+                raise NodeAPIError(503, "Node deletion was not committed; durable tombstone remains active") from exc
 
         logger.info(f'Node "{node_response.name}" with id "{node_response.id}" deleted by admin "{admin.username}"')
 
@@ -590,6 +731,69 @@ class NodeOperation(BaseOperation):
     async def sync_node_users(self, db: AsyncSession, node_id: int, flush_users: bool = False) -> NodeResponse:
         return await self._sync_node_users_impl(db, node_id, flush_users)
 
+    async def reconcile_orphaned_user_sync(self, db: AsyncSession, db_node: Node) -> bool:
+        """Resolve persisted Bridge poison while DB user locks remain held."""
+        pg_node = await node_manager.get_node(db_node.id)
+        if pg_node is None:
+            return False
+        store = getattr(pg_node, "_user_sync_store", None)
+        needs_recovery = getattr(store, "needs_authoritative_recovery", None)
+        if not callable(needs_recovery) or not await needs_recovery(pg_node.node_id):
+            return False
+
+        core_id = db_node.core_config_id or 1
+        _, users_by_core, authoritative_user_keys = await self._get_core_users_map(db, {core_id})
+        async with self._authoritative_user_reconciliation_scope(pg_node, authoritative_user_keys):
+            await pg_node.reconcile_users(users_by_core.get(core_id, []))
+        return True
+
+    async def recover_node_lifecycle(
+        self, db: AsyncSession, node_id: int, recovery: NodeLifecycleRecovery
+    ) -> dict:
+        await self.get_validated_node(db, node_id, load_usage_logs=False)
+        return await self._recover_lifecycle_impl(node_id, recovery)
+
+    @staticmethod
+    async def _probe_recovery_state(pg_node: PasarGuardNode) -> LifecycleStatus:
+        try:
+            info = await pg_node.info()
+        except Exception:
+            return LifecycleStatus.BROKEN
+        if info is not None and info.started and info.node_version and info.core_version:
+            return LifecycleStatus.HEALTHY
+        return LifecycleStatus.STOPPED
+
+    async def _recover_node_lifecycle_local(
+        self, node_id: int, recovery: NodeLifecycleRecovery
+    ) -> dict:
+        pg_node = await node_manager.get_node(node_id)
+        if pg_node is None:
+            pg_node = await node_manager.get_lifecycle_recovery_node(node_id)
+        if pg_node is None:
+            raise NodeAPIError(409, "Node runtime is not registered on this worker")
+        state = await pg_node.get_lifecycle_state()
+        if state is None or state.operation is None:
+            raise NodeAPIError(409, "Node has no unresolved lifecycle operation")
+        detected = await self._probe_recovery_state(pg_node)
+        if detected is not recovery.observed:
+            raise NodeAPIError(
+                409,
+                f"Observed node state is {detected.value}, not {recovery.observed.value}",
+            )
+        await pg_node.reconcile_lifecycle(recovery.observed)
+        return {"node_id": node_id, "observed": recovery.observed.value, "reconciled": True}
+
+    async def _recover_node_lifecycle_remote(
+        self, node_id: int, recovery: NodeLifecycleRecovery
+    ) -> dict:
+        try:
+            return await node_nats_client.request(
+                "recover_node_lifecycle",
+                {"node_id": node_id, "recovery": recovery.model_dump(mode="json")},
+            )
+        except RuntimeError as exc:
+            await self.handle_rpc_error(exc)
+
     async def clear_usage_data(self, db: AsyncSession, table: UsageTable, query: NodeClearUsageQuery):
         if query.start and query.end and query.start >= query.end:
             await self.raise_error(code=400, message="Start time must be before end time.")
@@ -617,39 +821,61 @@ class NodeOperation(BaseOperation):
 
     async def _update_node_sync(self, db_node: Node) -> None:
         await self._update_node_local(db_node)
-        await publish_node_sync("upsert", db_node.id)
+        await publish_node_sync("upsert", db_node.id, db_node.bridge_id)
 
     async def _update_node_remote(self, db_node: Node) -> None:
         await node_nats_client.publish("update_node", {"node_id": db_node.id})
 
-    async def _remove_node_local(self, node_id: int) -> None:
-        await node_manager.remove_node(node_id)
-        await clear_bridge_memory_for_node(node_id)
+    async def _remove_node_local(self, node_id: int, bridge_id: str | None = None) -> None:
+        await node_manager.remove_node(
+            node_id,
+            remote_stop=True,
+            expected_bridge_namespace=bridge_id,
+            permanent_delete=True,
+        )
+        await clear_bridge_memory_for_node(bridge_id or node_id)
 
-    async def _remove_node_sync(self, node_id: int) -> None:
-        await self._remove_node_local(node_id)
-        await publish_node_sync("remove", node_id)
+    async def _remove_node_sync(self, node_id: int, bridge_id: str | None = None) -> None:
+        # Broadcast NATS has no all-worker acknowledgement barrier. Quiesce
+        # this runtime and retain shared KV state fail-closed; a future
+        # acknowledged cleanup protocol may purge it after every worker has
+        # confirmed disconnect.
+        await node_manager.remove_node(
+            node_id,
+            remote_stop=True,
+            expected_bridge_namespace=bridge_id,
+            permanent_delete=True,
+        )
+        await publish_node_sync("remove", node_id, bridge_id)
 
-    async def _remove_node_remote(self, node_id: int) -> None:
-        await node_nats_client.publish("remove_node", {"node_id": node_id})
+    async def _remove_node_remote(self, node_id: int, bridge_id: str | None = None) -> None:
+        # Deletion must not commit while the worker outcome is ambiguous: the
+        # shared KV fences are safe to purge only after Stop is acknowledged
+        # and the local runtime has quiesced. A force bypass is intentionally
+        # deferred until a durable outbox can reconcile remote revocation.
+        await node_nats_client.request(
+            "remove_node",
+            {"node_id": node_id, "bridge_id": bridge_id},
+        )
 
     async def _connect_nodes_bulk_local(self, db: AsyncSession, nodes: list[Node]) -> None:
         if not nodes:
             return
 
-        core_ids = {node.core_config_id or 1 for node in nodes}
-        cores_by_id, users_by_core = await self._get_core_users_map(db, core_ids)
-        sem = asyncio.Semaphore(CONNECT_CONCURRENCY)
-
-        async def connect_single(node: Node) -> dict | None:
+        ready_nodes: list[Node] = []
+        results: list[dict | None] = []
+        # Phase one registers every usable runtime node. Only then snapshot and
+        # lock users once for the whole bulk start, avoiding stale snapshots and
+        # concurrent use of the same AsyncSession.
+        for node in nodes:
             if node is None or node.status in (NodeStatus.disabled, NodeStatus.limited):
-                return
-
-            async with sem:
-                try:
-                    await node_manager.update_node(node)
-                except NodeAPIError as e:
-                    return {
+                continue
+            try:
+                await node_manager.update_node(node)
+                ready_nodes.append(node)
+            except NodeAPIError as e:
+                results.append(
+                    {
                         "node_id": node.id,
                         "status": NodeStatus.error,
                         "message": e.detail,
@@ -657,11 +883,23 @@ class NodeOperation(BaseOperation):
                         "node_version": "",
                         "old_status": node.status,
                     }
+                )
 
+        core_ids = {node.core_config_id or 1 for node in ready_nodes}
+        cores_by_id, users_by_core, authoritative_user_keys = await self._get_core_users_map(db, core_ids)
+        sem = asyncio.Semaphore(CONNECT_CONCURRENCY)
+
+        async def connect_single(node: Node) -> dict | None:
+            async with sem:
                 core_id = node.core_config_id or 1
-                return await self.connect_node(node, cores_by_id.get(core_id), users_by_core.get(core_id, []))
+                return await self.connect_node(
+                    node,
+                    cores_by_id.get(core_id),
+                    users_by_core.get(core_id, []),
+                    authoritative_user_keys,
+                )
 
-        results = await asyncio.gather(*[connect_single(node) for node in nodes])
+        results.extend(await asyncio.gather(*[connect_single(node) for node in ready_nodes]))
 
         # Filter out None results
         valid_results = [r for r in results if r is not None]
@@ -705,7 +943,7 @@ class NodeOperation(BaseOperation):
         await self._connect_nodes_bulk_local(db, nodes)
         for node in nodes:
             if node is not None and node.status not in (NodeStatus.disabled, NodeStatus.limited):
-                await publish_node_sync("connect", node.id)
+                await publish_node_sync("connect", node.id, node.bridge_id)
 
     async def _connect_nodes_bulk_remote(self, db: AsyncSession, nodes: list[Node]) -> None:
         if not nodes:
@@ -717,14 +955,11 @@ class NodeOperation(BaseOperation):
         if db_node is None or db_node.status in (NodeStatus.disabled, NodeStatus.limited):
             return
 
-        core_id = db_node.core_config_id or 1
-        cores_by_id, users_by_core = await self._get_core_users_map(db, {core_id})
-        core = cores_by_id.get(core_id)
-        users = users_by_core.get(core_id, [])
-
-        # Update node manager
+        # Add the runtime node before locking/snapshotting users. This ordering
+        # pairs with the removal row lock and closes add-node vs delete races.
         try:
-            await node_manager.update_node(db_node)
+            if not await node_manager.runtime_matches(db_node):
+                await node_manager.update_node(db_node)
         except NodeAPIError as e:
             # Update status to error using simple CRUD
             await update_node_status(
@@ -743,8 +978,13 @@ class NodeOperation(BaseOperation):
             asyncio.create_task(notification.error_node(node_notif))
             return
 
+        core_id = db_node.core_config_id or 1
+        cores_by_id, users_by_core, authoritative_user_keys = await self._get_core_users_map(db, {core_id})
+        core = cores_by_id.get(core_id)
+        users = users_by_core.get(core_id, [])
+
         # Connect the node
-        result = await NodeOperation.connect_node(db_node, core, users)
+        result = await NodeOperation.connect_node(db_node, core, users, authoritative_user_keys)
 
         if not result:
             return
@@ -778,7 +1018,9 @@ class NodeOperation(BaseOperation):
 
     async def _connect_single_node_sync(self, db: AsyncSession, node_id: int) -> None:
         await self._connect_single_node_local(db, node_id)
-        await publish_node_sync("connect", node_id)
+        db_node = await get_node_by_id(db, node_id, load_usage_logs=False)
+        if db_node is not None:
+            await publish_node_sync("connect", node_id, db_node.bridge_id)
 
     async def _connect_single_node_remote(self, db: AsyncSession, node_id: int) -> None:
         await node_nats_client.publish("connect_node", {"node_id": node_id})
@@ -787,8 +1029,9 @@ class NodeOperation(BaseOperation):
         await node_manager.remove_node(node_id)
 
     async def _disconnect_single_node_sync(self, node_id: int) -> None:
+        bridge_id = await node_manager.get_bridge_namespace(node_id)
         await self._disconnect_single_node_local(node_id)
-        await publish_node_sync("disconnect", node_id)
+        await publish_node_sync("disconnect", node_id, bridge_id)
 
     async def _disconnect_single_node_remote(self, node_id: int) -> None:
         await node_nats_client.publish("disconnect_node", {"node_id": node_id})
@@ -927,7 +1170,7 @@ class NodeOperation(BaseOperation):
             await self.raise_error(message="Node not found", code=404)
 
         try:
-            stats = await node.get_user_online_stats(email=f"{db_user.id}")
+            stats = await node.get_user_online_stats(email=db_user.sync_id)
         except NodeAPIError as e:
             await self.raise_error(message=e.detail, code=e.code)
 
@@ -947,7 +1190,7 @@ class NodeOperation(BaseOperation):
         if db_user is None:
             await self.raise_error(message="User not found", code=404)
 
-        email = f"{db_user.id}"
+        email = db_user.sync_id
         ips = await self._get_node_user_ip_list_safe(node_id, email)
 
         if ips is None:
@@ -968,7 +1211,7 @@ class NodeOperation(BaseOperation):
             await self.raise_error(message="User not found", code=404)
 
         nodes = await node_manager.get_healthy_nodes()
-        email = f"{db_user.id}"
+        email = db_user.sync_id
 
         ip_list_tasks = {id: asyncio.create_task(self._get_node_user_ip_list_safe(id, email)) for id, _ in nodes}
 
@@ -1002,9 +1245,10 @@ class NodeOperation(BaseOperation):
 
         try:
             core_id = db_node.core_config_id or 1
-            _, users_by_core = await self._get_core_users_map(db, {core_id})
+            _, users_by_core, authoritative_user_keys = await self._get_core_users_map(db, {core_id})
             users = users_by_core.get(core_id, [])
-            await pg_node.sync_users(users, flush_pending=flush_users)
+            async with self._authoritative_user_reconciliation_scope(pg_node, authoritative_user_keys):
+                await pg_node.reconcile_users(users, flush_pending=flush_users)
         except NodeAPIError as e:
             await update_node_status(db=db, db_node=db_node, status=NodeStatus.error, message=e.detail)
             await self.raise_error(message=e.detail, code=e.code)
@@ -1067,31 +1311,49 @@ class NodeOperation(BaseOperation):
         )
 
     async def bulk_remove_nodes(
-        self, db: AsyncSession, bulk_nodes: BulkNodeSelection, admin: AdminDetails
+        self,
+        db: AsyncSession,
+        bulk_nodes: BulkNodeSelection,
+        admin: AdminDetails,
     ) -> RemoveNodesResponse:
         """Remove multiple nodes by ID"""
         db_nodes = []
-        for node_id in bulk_nodes.ids:
+        for node_id in sorted(bulk_nodes.ids):
             db_node = await self.get_validated_node(db, node_id)
             db_nodes.append(db_node)
 
-        node_ids = [n.id for n in db_nodes]
-        node_names = [n.name for n in db_nodes]
-        node_responses = [NodeResponse.model_validate(n) for n in db_nodes]
-
-        # Remove nodes from RPC first
-        for node_id in node_ids:
-            await self._remove_node_impl(node_id)
-
-        # Batch delete using CRUD function
-        await remove_nodes(db, node_ids)
-
-        # Notify
-        for node_response in node_responses:
+        removed_names: list[str] = []
+        failed: dict[int, str] = {}
+        # Each confirmed tombstone/Stop is committed to the DB immediately.
+        # If a later node fails, an earlier tombstoned node is never left as a
+        # normal visible row that health workers can no longer start.
+        for db_node in db_nodes:
+            node_response = NodeResponse.model_validate(db_node)
+            try:
+                await self._remove_node_impl(db_node.id, db_node.bridge_id)
+                try:
+                    await remove_node(db, db_node)
+                except Exception as exc:
+                    if not await self._resolve_node_delete_after_db_error(db, db_node):
+                        raise NodeAPIError(
+                            503,
+                            "Node deletion was not committed; durable tombstone remains active",
+                        ) from exc
+            except Exception as exc:
+                detail = exc.detail if isinstance(exc, NodeAPIError) else str(exc)
+                failed[db_node.id] = detail
+                logger.error(
+                    'Bulk node deletion failed for "%s" (id=%s): %s',
+                    node_response.name,
+                    db_node.id,
+                    detail,
+                )
+                continue
+            removed_names.append(node_response.name)
             logger.info(f'Node "{node_response.name}" with id "{node_response.id}" deleted by admin "{admin.username}"')
             asyncio.create_task(notification.remove_node(node_response, admin.username))
 
-        return RemoveNodesResponse(nodes=node_names, count=len(db_nodes))
+        return RemoveNodesResponse(nodes=removed_names, count=len(removed_names), failed=failed)
 
     async def _get_validated_nodes(self, db: AsyncSession, node_ids: list[int] | set[int]) -> list[Node]:
         if not node_ids:
@@ -1209,3 +1471,21 @@ class NodeOperation(BaseOperation):
             raise errors[0]
 
         return self._build_bulk_action_response(updated_nodes)
+    @staticmethod
+    async def _resolve_node_delete_after_db_error(db: AsyncSession, db_node: Node) -> bool:
+        """Resolve a commit-ACK loss using a fresh authoritative session."""
+        try:
+            await db.rollback()
+        except Exception:
+            pass
+        try:
+            async with GetDB() as fresh_db:
+                current_bridge_id = await fresh_db.scalar(
+                    select(Node.bridge_id).where(Node.id == db_node.id)
+                )
+        except Exception as exc:
+            raise NodeAPIError(
+                503,
+                "Node deletion database outcome is unknown; durable tombstone remains active",
+            ) from exc
+        return current_bridge_id is None or str(current_bridge_id) != str(db_node.bridge_id)

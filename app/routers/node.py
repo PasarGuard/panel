@@ -16,6 +16,7 @@ from app.models.node import (
     NodeCoreUpdate,
     NodeCreate,
     NodeGeoFilesUpdate,
+    NodeLifecycleRecovery,
     NodeListQuery,
     NodeModify,
     NodeResponse,
@@ -292,6 +293,17 @@ async def reconnect_node(
     return {}
 
 
+@router.post("/{node_id}/lifecycle/recover")
+async def recover_node_lifecycle(
+    node_id: int,
+    recovery: NodeLifecycleRecovery,
+    db: AsyncSession = Depends(get_db),
+    _: AdminDetails = Depends(require_permission("nodes", "reconnect")),
+):
+    """Explicitly resolve an expired lifecycle operation after inspection."""
+    return await node_operator.recover_node_lifecycle(db, node_id, recovery)
+
+
 @router.put("/{node_id}/sync")
 async def sync_node(
     node_id: int,
@@ -308,7 +320,7 @@ async def remove_node(
     db: AsyncSession = Depends(get_db),
     admin: AdminDetails = Depends(require_permission("nodes", "delete")),
 ):
-    """Remove a node and remove it from xray in the background."""
+    """Remove a node only after its remote runtime stop is confirmed."""
     await node_operator.remove_node(db=db, node_id=node_id, admin=admin)
     return {}
 

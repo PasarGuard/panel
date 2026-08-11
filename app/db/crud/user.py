@@ -491,9 +491,16 @@ async def get_expired_users(
     db: AsyncSession,
     query: ExpiredUsersQuery,
     admin_id: int | None = None,
+    *,
+    after_id: int | None = None,
+    limit: int | None = None,
 ):
     conditions = _cleanup_target_user_conditions(query.expired_after, query.expired_before, admin_id, query.target)
-    stmt = select(User).where(*conditions)
+    if after_id is not None:
+        conditions.append(User.id > after_id)
+    stmt = select(User).where(*conditions).order_by(User.id)
+    if limit is not None:
+        stmt = stmt.limit(limit)
 
     return (await db.execute(stmt)).unique().scalars().all()
 
@@ -953,7 +960,7 @@ async def _delete_user_dependencies(db: AsyncSession, user_ids: list[int]):
     await db.execute(users_groups_association.delete().where(users_groups_association.c.user_id.in_(user_ids)))
 
 
-async def remove_user(db: AsyncSession, db_user: User) -> User:
+async def remove_user(db: AsyncSession, db_user: User, *, commit: bool = True) -> User:
     """
     Removes a user from the database.
 
@@ -967,11 +974,14 @@ async def remove_user(db: AsyncSession, db_user: User) -> User:
     await release_users_allocations(db, [db_user])
     await _delete_user_dependencies(db, [db_user.id])
     await db.execute(delete(User).where(User.id == db_user.id))
-    await db.commit()
+    if commit:
+        await db.commit()
+    else:
+        await db.flush()
     return db_user
 
 
-async def remove_users(db: AsyncSession, db_users: list[User]):
+async def remove_users(db: AsyncSession, db_users: list[User], *, commit: bool = True):
     """
     Removes multiple users from the database.
 
@@ -987,7 +997,10 @@ async def remove_users(db: AsyncSession, db_users: list[User]):
     await release_users_allocations(db, db_users)
     await _delete_user_dependencies(db, user_ids)
     await db.execute(delete(User).where(User.id.in_(user_ids)))
-    await db.commit()
+    if commit:
+        await db.commit()
+    else:
+        await db.flush()
 
 
 async def modify_user(
@@ -1424,20 +1437,10 @@ async def get_users_subscription_agent_stats(
     return rows
 
 
-async def autodelete_expired_users(
+async def get_autodelete_expired_users(
     db: AsyncSession, include_limited_users: bool = False
-) -> list[UserNotificationResponse]:
-    """
-    Deletes expired (optionally also limited) users whose auto-delete time has passed.
-
-    Args:
-        db (AsyncSession): Database session
-        include_limited_users (bool, optional): Whether to delete limited users as well.
-            Defaults to False.
-
-    Returns:
-        list[UserNotificationResponse]: List of deleted users.
-    """
+) -> tuple[list[User], list[UserNotificationResponse]]:
+    """Return auto-delete targets and their node-removal snapshots without deleting them."""
     target_status = [UserStatus.expired] if not include_limited_users else [UserStatus.expired, UserStatus.limited]
 
     auto_delete = func.coalesce(User.auto_delete_in_days, literal(user_cleanup_settings.autodelete_days))
@@ -1449,6 +1452,7 @@ async def autodelete_expired_users(
         )
         .where(
             auto_delete >= 0,  # Negative values prevent auto-deletion
+            auto_delete <= 36500,  # Keep persisted legacy values within datetime arithmetic bounds
             User.status.in_(target_status),
         )
         .options(joinedload(User.admin))
@@ -1461,12 +1465,68 @@ async def autodelete_expired_users(
     ]
 
     result: list[UserNotificationResponse] = []
-    if expired_users:
-        for user in expired_users:
-            await load_user_attrs(user)
-            result.append(UserNotificationResponse.model_validate(user))
+    for user in expired_users:
+        await load_user_attrs(user)
+        result.append(UserNotificationResponse.model_validate(user))
+    return expired_users, result
 
-        await remove_users(db, expired_users)
+
+async def get_autodelete_expired_users_batch(
+    db: AsyncSession,
+    include_limited_users: bool = False,
+    *,
+    after_id: int = 0,
+    scan_limit: int = 100,
+) -> tuple[list[User], list[UserNotificationResponse], int | None]:
+    """Scan one bounded candidate page and return eligible cleanup targets."""
+    target_status = [UserStatus.expired] if not include_limited_users else [UserStatus.expired, UserStatus.limited]
+    auto_delete = func.coalesce(User.auto_delete_in_days, literal(user_cleanup_settings.autodelete_days))
+    query = (
+        select(User, auto_delete)
+        .where(
+            User.id > after_id,
+            auto_delete >= 0,
+            auto_delete <= 36500,
+            User.status.in_(target_status),
+        )
+        .options(joinedload(User.admin))
+        .order_by(User.id)
+        .limit(scan_limit)
+    )
+    candidates = (await db.execute(query)).unique().all()
+    if not candidates:
+        return [], [], None
+
+    now = datetime.now(UTC)
+    expired_users = [
+        user
+        for user, auto_delete_days in candidates
+        if user.last_status_change.replace(tzinfo=UTC) + timedelta(days=auto_delete_days) <= now
+    ]
+    snapshots: list[UserNotificationResponse] = []
+    for user in expired_users:
+        await load_user_attrs(user)
+        snapshots.append(UserNotificationResponse.model_validate(user))
+    return expired_users, snapshots, candidates[-1][0].id
+
+
+async def autodelete_expired_users(
+    db: AsyncSession, include_limited_users: bool = False, *, commit: bool = True
+) -> list[UserNotificationResponse]:
+    """
+    Delete expired (optionally also limited) users whose auto-delete time has passed.
+
+    Args:
+        db (AsyncSession): Database session
+        include_limited_users (bool, optional): Whether to delete limited users as well.
+            Defaults to False.
+
+    Returns:
+        list[UserNotificationResponse]: List of deleted users.
+    """
+    expired_users, result = await get_autodelete_expired_users(db, include_limited_users)
+    if expired_users:
+        await remove_users(db, expired_users, commit=commit)
 
     return result
 

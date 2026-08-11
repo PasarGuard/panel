@@ -1,4 +1,5 @@
 import pytest
+from PasarGuardNodeBridge.common.service_pb2 import User as ProtoUser
 
 from app.node import NodeManager
 
@@ -6,7 +7,7 @@ from app.node import NodeManager
 @pytest.mark.asyncio
 async def test_node_manager_bulk_user_sync_uses_bounded_chunked_batches(monkeypatch: pytest.MonkeyPatch):
     manager = NodeManager()
-    users = [object() for _ in range(5)]
+    users = [ProtoUser(email=str(index)) for index in range(5)]
 
     class FakeNode:
         def __init__(self):
@@ -32,7 +33,7 @@ async def test_node_manager_bulk_user_sync_falls_back_when_chunked_is_not_suppor
     monkeypatch: pytest.MonkeyPatch,
 ):
     manager = NodeManager()
-    users = [object() for _ in range(3)]
+    users = [ProtoUser(email=str(index)) for index in range(3)]
 
     class FakeNode:
         def __init__(self):
