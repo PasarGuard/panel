@@ -76,7 +76,7 @@ def _process_node_chunk(chunk_data: tuple) -> dict:
     _node_id, params, coeff = chunk_data
     users_usage = defaultdict(int)
     for param in params:
-        uid = int(param["uid"])
+        uid = str(param["uid"])
         value = int(param["value"] * coeff)
         users_usage[uid] += value
     return dict(users_usage)
@@ -504,9 +504,9 @@ def _process_users_stats_response(stats_response):
     validated_params = []
     invalid_uids = []
     for uid, value in params.items():
-        try:
-            validated_params.append({"uid": int(uid), "value": value})
-        except ValueError, TypeError:
+        if isinstance(uid, str) and uid:
+            validated_params.append({"uid": uid, "value": value})
+        else:
             invalid_uids.append(uid)
 
     return validated_params, invalid_uids
@@ -578,30 +578,29 @@ async def get_outbounds_stats(node: PasarGuardNode):
         return []
 
 
-async def calculate_admin_usage(users_usage: list) -> tuple[dict, set[int]]:
+async def calculate_admin_usage(users_usage: list) -> tuple[dict, dict[str, int]]:
     if not users_usage:
-        return {}, set()
+        return {}, {}
 
-    # Get unique user IDs from users_usage
-    uids = {int(user_usage["uid"]) for user_usage in users_usage}
+    sync_ids = {str(user_usage["uid"]) for user_usage in users_usage}
 
     async with GetDB() as db:
-        # Query only relevant users' admin IDs
-        user_admin_pairs = []
-        for uid_batch in _chunked(list(uids), USER_ADMIN_LOOKUP_BATCH_SIZE):
-            stmt = select(User.id, User.admin_id).where(User.id.in_(uid_batch))
+        user_rows = []
+        for sync_id_batch in _chunked(list(sync_ids), USER_ADMIN_LOOKUP_BATCH_SIZE):
+            stmt = select(User.sync_id, User.id, User.admin_id).where(User.sync_id.in_(sync_id_batch))
             result = await db.execute(stmt)
-            user_admin_pairs.extend(result.fetchall())
+            user_rows.extend(result.fetchall())
 
-    user_admin_map = {uid: admin_id for uid, admin_id in user_admin_pairs}
+    sync_to_user_id = {sync_id: user_id for sync_id, user_id, _ in user_rows}
+    sync_to_admin_id = {sync_id: admin_id for sync_id, _, admin_id in user_rows}
 
     admin_usage = defaultdict(int)
     for user_usage in users_usage:
-        admin_id = user_admin_map.get(int(user_usage["uid"]))
+        admin_id = sync_to_admin_id.get(str(user_usage["uid"]))
         if admin_id:
             admin_usage[admin_id] += user_usage["value"]
 
-    return admin_usage, set(user_admin_map.keys())
+    return admin_usage, sync_to_user_id
 
 
 async def calculate_users_usage(api_params: dict, usage_coefficient: dict) -> list:
@@ -618,7 +617,7 @@ async def calculate_users_usage(api_params: dict, usage_coefficient: dict) -> li
         users_usage = defaultdict(int)
         for _, params, coeff in chunks_data:
             for param in params:
-                uid = int(param["uid"])
+                uid = str(param["uid"])
                 value = int(param["value"] * coeff)
                 users_usage[uid] += value
         return [{"uid": uid, "value": value} for uid, value in users_usage.items()]
@@ -711,14 +710,16 @@ async def _record_user_usages_impl():
             logger.debug("No user usage to record")
             return
 
-        admin_usage, valid_user_ids = await calculate_admin_usage(users_usage)
-        if not valid_user_ids:
+        admin_usage, sync_to_user_id = await calculate_admin_usage(users_usage)
+        if not sync_to_user_id:
             logger.warning("Skipping user usage recording; no matching users found for received stats")
             return
 
         # Filter valid users - only include users with actual non-zero traffic
         valid_users_usage = [
-            usage for usage in users_usage if int(usage["uid"]) in valid_user_ids and usage["value"] > 0
+            {"uid": sync_to_user_id[str(usage["uid"])], "value": usage["value"]}
+            for usage in users_usage
+            if str(usage["uid"]) in sync_to_user_id and usage["value"] > 0
         ]
 
         # Update User table with concurrency control
@@ -756,7 +757,11 @@ async def _record_user_usages_impl():
         # Filter params to only valid users
         filtered_node_params = {}
         for node_id, params in api_params.items():
-            filtered_params = [param for param in params if int(param["uid"]) in valid_user_ids]
+            filtered_params = [
+                {"uid": sync_to_user_id[str(param["uid"])], "value": param["value"]}
+                for param in params
+                if str(param["uid"]) in sync_to_user_id
+            ]
             if filtered_params:
                 filtered_node_params[node_id] = filtered_params
 

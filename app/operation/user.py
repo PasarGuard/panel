@@ -44,8 +44,8 @@ from app.db.crud.user import (
     get_users_subscription_agent_stats,
     load_user_attrs,
     lock_admin_quota_row,
+    lock_users_for_traffic_reset,
     modify_user as crud_modify_user,
-    remove_expired_users,
     remove_user,
     remove_users,
     reset_user_by_next,
@@ -96,7 +96,15 @@ from app.models.user import (
     UsersUsageQuery,
     UserUsageQuery,
 )
-from app.node.sync import remove_user as sync_remove_user, sync_user, sync_users
+from app.node.sync import (
+    finalize_user_removal,
+    finalize_users_removal,
+    remove_user as sync_remove_user,
+    remove_users_and_wait,
+    resolve_user_removal_after_db_error,
+    sync_user,
+    sync_users,
+)
 from app.operation import BaseOperation, OperatorType
 from app.operation.permissions import (
     PermissionDenied,
@@ -219,7 +227,7 @@ class UserOperation(BaseOperation):
             if user.admin and user.admin.sub_domain
             else (settings.url_prefix).replace("*", salt)
         )
-        token = await create_subscription_token(user.id)
+        token = await create_subscription_token(user.id, user_created_at=user.created_at)
         return f"{url_prefix}/{subscription_env_settings.path}/{token}"
 
     async def _generate_usernames(
@@ -940,8 +948,13 @@ class UserOperation(BaseOperation):
 
     async def _remove_user(self, db: AsyncSession, db_user: User, admin: AdminDetails) -> dict:
         user = await self.validate_user(db_user, include_subscription_url=False)
-        await remove_user(db, db_user)
-        await sync_remove_user(user)
+        revocation = await sync_remove_user(db_user)
+        try:
+            await remove_user(db, db_user)
+        except BaseException:
+            await resolve_user_removal_after_db_error(revocation, db)
+            raise
+        await finalize_user_removal(revocation)
 
         asyncio.create_task(notification.remove_user(user, admin))
         logger.info(f'User "{db_user.username}" with id "{db_user.id}" deleted by admin "{admin.username}"')
@@ -1013,10 +1026,16 @@ class UserOperation(BaseOperation):
         db_users = await self._get_validated_users_by_ids(db, bulk_users.ids, admin, scope_action="delete")
         users = [await self.validate_user(db_user, include_subscription_url=False) for db_user in db_users]
 
-        await remove_users(db, db_users)
+        revocation = await remove_users_and_wait(db_users)
+        try:
+            await remove_users(db, db_users)
+        except BaseException:
+            await resolve_user_removal_after_db_error(revocation, db)
+            raise
+        if revocation is not None:
+            await finalize_users_removal(revocation)
 
         for user in users:
-            await sync_remove_user(user)
             asyncio.create_task(notification.remove_user(user, admin))
             logger.info(f'User "{user.username}" with id "{user.id}" deleted by admin "{admin.username}"')
 
@@ -1586,16 +1605,36 @@ class UserOperation(BaseOperation):
             admin_id = (await self.get_validated_admin(db, query.admin_username)).id
         else:
             admin_id = None
-        username_list = await remove_expired_users(
-            db,
-            expired_after,
-            expired_before,
-            admin_id,
-            target=query.target,
-            dry_run=query.dry_run,
-        )
-        if not query.dry_run:
-            await self.remove_users_logger(users=username_list, by=admin.username)
+        cleanup_query = query.model_copy(update={"expired_after": expired_after, "expired_before": expired_before})
+        if query.dry_run:
+            db_users = await get_expired_users(db, query=cleanup_query, admin_id=admin_id)
+            username_list = [user.username for user in db_users]
+            return RemoveUsersResponse(users=username_list, count=len(username_list))
+
+        username_list: list[str] = []
+        after_id = 0
+        while True:
+            db_users = await get_expired_users(
+                db,
+                query=cleanup_query,
+                admin_id=admin_id,
+                after_id=after_id,
+                limit=100,
+            )
+            if not db_users:
+                break
+            after_id = db_users[-1].id
+            chunk_usernames = [user.username for user in db_users]
+            revocation = await remove_users_and_wait(db_users)
+            try:
+                await remove_users(db, db_users)
+            except BaseException:
+                await resolve_user_removal_after_db_error(revocation, db)
+                raise
+            if revocation is not None:
+                await finalize_users_removal(revocation)
+            username_list.extend(chunk_usernames)
+        await self.remove_users_logger(users=username_list, by=admin.username)
 
         return RemoveUsersResponse(users=username_list, count=len(username_list))
 
@@ -1784,7 +1823,7 @@ class UserOperation(BaseOperation):
 
         db_admin = await get_admin(db, admin.username, load_users=False, load_usage_logs=False)
         try:
-            subscription_urls = await self._persist_bulk_users(
+            await self._persist_bulk_users(
                 db,
                 admin,
                 db_admin,
@@ -1802,8 +1841,10 @@ class UserOperation(BaseOperation):
         created_users = await self._load_users_by_usernames(db, [user.username for user in users_to_create])
         await sync_users(created_users)
 
+        subscription_urls: list[str] = []
         for db_user in created_users:
             user = await self.validate_user(db_user)
+            subscription_urls.append(user.subscription_url)
             asyncio.create_task(notification.create_user(user, admin))
 
         return BulkUsersCreateResponse(subscription_urls=subscription_urls, created=len(subscription_urls))
@@ -1840,6 +1881,12 @@ class UserOperation(BaseOperation):
                 user_template.status == UserStatus.on_hold and original_status != UserStatus.active
             )
             prepared_updates.append((db_user, modify_user, validated_groups, original_status, emit_reset_status_change))
+
+        if user_template.reset_usages:
+            # Acquire the whole batch in stable id order before per-user work;
+            # otherwise two overlapping template batches can deadlock while
+            # locking the same users in opposite request order.
+            await lock_users_for_traffic_reset(db, [item[0] for item in prepared_updates])
 
         modified_user_ids: list[int] = []
         try:

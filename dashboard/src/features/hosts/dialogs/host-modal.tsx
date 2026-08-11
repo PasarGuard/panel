@@ -972,9 +972,8 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                         value={parsedXrayTemplateId != null ? String(parsedXrayTemplateId) : XRAY_TEMPLATE_INBOUND_DEFAULT_VALUE}
                         onValueChange={value => {
                           if (value === XRAY_TEMPLATE_INBOUND_DEFAULT_VALUE) {
-                            // Clear the whole optional object so RHF does not keep `{ xray: undefined }`,
-                            // which can leave the UI stuck on the previous template id.
-                            form.setValue('subscription_templates', undefined, {
+                            const current = form.getValues('subscription_templates')
+                            form.setValue('subscription_templates', current?.profile ? { profile: current.profile } : undefined, {
                               shouldDirty: true,
                               shouldTouch: true,
                               shouldValidate: true,
@@ -987,7 +986,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                           }
                           form.setValue(
                             'subscription_templates',
-                            { xray: n },
+                            { ...form.getValues('subscription_templates'), xray: n },
                             {
                               shouldDirty: true,
                               shouldTouch: true,
@@ -1032,6 +1031,74 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                   )
                 }}
               />
+
+              <div className="rounded-lg border p-3">
+                <p className="mb-3 text-sm font-medium">Client profile classification</p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <FormField
+                    control={form.control}
+                    name="subscription_templates.profile.pool"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Pool</FormLabel>
+                        <FormControl>
+                          <Input {...field} value={field.value ?? 'primary'} placeholder="primary" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="subscription_templates.profile.country"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Country</FormLabel>
+                        <FormControl>
+                          <Input {...field} value={field.value ?? ''} placeholder="DE" maxLength={2} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="subscription_templates.profile.priority"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('hostsDialog.profilePriority', { defaultValue: 'Profile priority' })}</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            min={0}
+                            step={1}
+                            value={field.value ?? ''}
+                            placeholder={String(form.getValues('priority') ?? 0)}
+                            onChange={event => field.onChange(event.target.value === '' ? undefined : Number(event.target.value))}
+                          />
+                        </FormControl>
+                        <p className="text-muted-foreground text-xs">{t('hostsDialog.profilePriorityHelp', { defaultValue: 'Lower values are preferred. Leave blank to use the host order.' })}</p>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="subscription_templates.profile.exclude_from_auto"
+                    render={({ field }) => (
+                      <FormItem className="flex items-center justify-between sm:col-span-2">
+                        <div>
+                          <FormLabel>Exclude from automatic groups</FormLabel>
+                          <p className="text-muted-foreground text-xs">Keep this endpoint selectable, but do not use it in health-checked auto pools.</p>
+                        </div>
+                        <FormControl>
+                          <Switch checked={field.value ?? false} onCheckedChange={field.onChange} />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </div>
 
               <FormField
                 control={form.control}

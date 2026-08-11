@@ -97,6 +97,12 @@ export interface HostFormValues {
   }
   subscription_templates?: {
     xray?: number
+    profile?: {
+      pool?: string
+      country?: string
+      priority?: number
+      exclude_from_auto?: boolean
+    }
   }
   transport_settings?: {
     xhttp_settings?: {
@@ -465,6 +471,17 @@ export const HostFormSchema = z.object({
   subscription_templates: z
     .object({
       xray: z.number().int().positive().optional(),
+      profile: z
+        .object({
+          pool: z
+            .string()
+            .regex(/^[a-z0-9](?:[a-z0-9_-]{0,62}[a-z0-9])?$/, 'Use a machine-readable pool id')
+            .default('primary'),
+          country: z.string().length(2, 'Use a two-letter country code').optional(),
+          priority: z.number().int().min(0).optional(),
+          exclude_from_auto: z.boolean().optional(),
+        })
+        .optional(),
     })
     .optional(),
   final_mask_settings: z.custom<FinalMask>().optional(),
@@ -498,8 +515,38 @@ export const hostFormDefaultValues: HostFormValues = {
   final_mask_settings: undefined,
 }
 
+interface ApiHostSubscriptionTemplates {
+  xray?: number | null
+  profile?: {
+    pool?: string | null
+    country?: string | null
+    priority?: number | null
+    exclude_from_auto?: boolean | null
+  } | null
+}
+
+/** Convert nullable API profile metadata into values accepted by react-hook-form. */
+export function mapHostSubscriptionTemplatesForForm(subscriptionTemplates: ApiHostSubscriptionTemplates | null | undefined): HostFormValues['subscription_templates'] | undefined {
+  if (!subscriptionTemplates) return undefined
+  const profile = subscriptionTemplates.profile
+  const normalized = {
+    xray: subscriptionTemplates.xray ?? undefined,
+    profile: profile
+      ? {
+          pool: profile.pool ?? 'primary',
+          country: profile.country ?? undefined,
+          priority: profile.priority ?? undefined,
+          exclude_from_auto: profile.exclude_from_auto ?? undefined,
+        }
+      : undefined,
+  }
+  return normalized.xray === undefined && normalized.profile === undefined ? undefined : normalized
+}
+
 /** Normalize API fragment settings for the host form (accept legacy `delay` as `interval`). */
-export function mapHostFragmentSettingsForForm(fragmentSettings: { xray?: Record<string, unknown> | null; sing_box?: NonNullable<HostFormValues['fragment_settings']>['sing_box'] | null } | null | undefined): HostFormValues['fragment_settings'] | undefined {
+export function mapHostFragmentSettingsForForm(
+  fragmentSettings: { xray?: Record<string, unknown> | null; sing_box?: NonNullable<HostFormValues['fragment_settings']>['sing_box'] | null } | null | undefined,
+): HostFormValues['fragment_settings'] | undefined {
   if (!fragmentSettings) return undefined
   const xrayRaw = fragmentSettings.xray
   if (!xrayRaw && fragmentSettings.sing_box == null) return undefined
@@ -518,4 +565,3 @@ export function mapHostFragmentSettingsForForm(fragmentSettings: { xray?: Record
     sing_box: fragmentSettings.sing_box ?? undefined,
   }
 }
-

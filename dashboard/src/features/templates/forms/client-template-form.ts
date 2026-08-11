@@ -7,6 +7,8 @@ export const clientTemplateFormSchema = z.object({
     ClientTemplateType.clash_subscription,
     ClientTemplateType.xray_subscription,
     ClientTemplateType.singbox_subscription,
+    ClientTemplateType.xray_profile,
+    ClientTemplateType.singbox_profile,
     ClientTemplateType.user_agent,
     ClientTemplateType.grpc_user_agent,
   ]),
@@ -15,6 +17,10 @@ export const clientTemplateFormSchema = z.object({
 })
 
 export type ClientTemplateFormValues = z.infer<typeof clientTemplateFormSchema>
+
+export const supportsDefaultSelection = (templateType: ClientTemplateType) =>
+  templateType !== ClientTemplateType.xray_profile && templateType !== ClientTemplateType.singbox_profile
+
 const DEFAULT_USER_AGENT_TEMPLATE = {
   list: [],
 }
@@ -183,6 +189,38 @@ rules:
       experimental: {
         cache_file: { enabled: true, store_dns: true },
       },
+    },
+    null,
+    2,
+  ),
+
+  [ClientTemplateType.xray_profile]: JSON.stringify(
+    {
+      schema_version: 1,
+      default_pool: 'primary',
+      pools: [
+        { id: 'primary', fallback_pool: 'fallback' },
+        { id: 'fallback' },
+      ],
+      health_check: { url: 'https://www.gstatic.com/generate_204', interval: '3m', tolerance: 50, timeout: '30m' },
+      routing_rules: [],
+      client: 'generic',
+    },
+    null,
+    2,
+  ),
+
+  [ClientTemplateType.singbox_profile]: JSON.stringify(
+    {
+      schema_version: 1,
+      default_pool: 'primary',
+      pools: [
+        { id: 'primary', fallback_pool: 'fallback' },
+        { id: 'fallback' },
+      ],
+      health_check: { url: 'https://www.gstatic.com/generate_204', interval: '3m', tolerance: 50, timeout: '30m' },
+      routing_rules: [],
+      client: 'generic',
     },
     null,
     2,

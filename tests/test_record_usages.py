@@ -6,7 +6,7 @@ from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool, StaticPool
@@ -115,6 +115,7 @@ async def test_record_user_usages_updates_users_and_admins(monkeypatch: pytest.M
         session.add_all([user_one, user_two])
         await session.flush()
         user_one_id, user_two_id = user_one.id, user_two.id
+        user_one_sync_id, user_two_sync_id = user_one.sync_id, user_two.sync_id
 
         node_one = Node(
             name="node-1",
@@ -146,8 +147,12 @@ async def test_record_user_usages_updates_users_and_admins(monkeypatch: pytest.M
     monkeypatch.setattr(record_usages.node_manager, "get_healthy_nodes", AsyncMock(return_value=nodes))
 
     stats_map = {
-        node_one_id: [{"uid": str(user_one_id), "value": 100}, {"uid": str(user_two_id), "value": 50}],
-        node_two_id: [{"uid": str(user_one_id), "value": 75}],
+        node_one_id: [
+            {"uid": user_one_sync_id, "value": 100},
+            {"uid": user_two_sync_id, "value": 50},
+            {"uid": "deleted-user-incarnation", "value": 999},
+        ],
+        node_two_id: [{"uid": user_one_sync_id, "value": 75}],
     }
 
     async def fake_get_users_stats(node: DummyNode):
@@ -183,6 +188,7 @@ async def test_record_user_usages_updates_users_and_admins(monkeypatch: pytest.M
             (node_one_id, user_two_id),
             (node_two_id, user_one_id),
         }
+        assert len(node_usage_records) == 3
 
         aggregated_usage = defaultdict(int)
         for record in node_usage_records:
@@ -191,6 +197,98 @@ async def test_record_user_usages_updates_users_and_admins(monkeypatch: pytest.M
 
         for user_id, (total_usage, _) in user_totals.items():
             assert aggregated_usage[user_id] == total_usage
+
+
+@pytest.mark.asyncio
+async def test_numeric_cutover_stats_are_lossless_but_cannot_hit_reused_user_id(
+    monkeypatch: pytest.MonkeyPatch, session_factory
+):
+    async with session_factory() as session:
+        admin = Admin(username="cutover-admin", hashed_password="secret", role_id=3)
+        session.add(admin)
+        await session.flush()
+        user = User(
+            username="legacy-user",
+            admin_id=admin.id,
+            proxy_settings=ProxyTable().dict(no_obj=True),
+        )
+        node = Node(
+            name="cutover-node",
+            address="10.0.0.9",
+            port=1000,
+            api_port=1001,
+            server_ca="ca",
+            api_key="key",
+            core_config_id=None,
+        )
+        session.add_all([user, node])
+        await session.flush()
+        legacy_user_id = user.id
+        node_id = node.id
+        # d12 backfills already-running users to their existing Xray stat key.
+        user.sync_id = str(legacy_user_id)
+        await session.commit()
+
+    monkeypatch.setattr(
+        record_usages.node_manager,
+        "get_healthy_nodes",
+        AsyncMock(return_value=[(node_id, DummyNode(node_id))]),
+    )
+    monkeypatch.setattr(
+        record_usages,
+        "get_users_stats",
+        AsyncMock(return_value=[{"uid": str(legacy_user_id), "value": 125}]),
+    )
+    monkeypatch.setattr(record_usages.usage_settings, "disable_recording_node_usage", False)
+
+    # Counters drained from a core that still uses numeric UIDs are credited
+    # before the first full UUID snapshot reaches that core.
+    await record_usages.record_user_usages()
+    async with session_factory() as session:
+        assert await session.scalar(select(User.used_traffic).where(User.id == legacy_user_id)) == 125
+        assert (
+            await session.scalar(
+                select(NodeUserUsage.used_traffic).where(
+                    NodeUserUsage.node_id == node_id,
+                    NodeUserUsage.user_id == legacy_user_id,
+                )
+            )
+            == 125
+        )
+        await session.execute(delete(NodeUserUsage).where(NodeUserUsage.user_id == legacy_user_id))
+        await session.execute(delete(User).where(User.id == legacy_user_id))
+        await session.commit()
+
+        replacement = User(
+            username="replacement-user",
+            admin_id=admin.id,
+            proxy_settings=ProxyTable().dict(no_obj=True),
+        )
+        # Reproduce public-ID reuse on every supported dialect. SQLite may
+        # reuse the deleted highest row automatically, while MySQL and
+        # PostgreSQL sequences intentionally keep advancing.
+        replacement.id = legacy_user_id
+        session.add(replacement)
+        await session.flush()
+        assert replacement.id == legacy_user_id
+        assert replacement.sync_id != str(legacy_user_id)
+        replacement_sync_id = replacement.sync_id
+        await session.commit()
+
+    # A late numeric counter from the deleted incarnation no longer matches
+    # the replacement even though the public numeric id was reused.
+    await record_usages.record_user_usages()
+    async with session_factory() as session:
+        replacement = await session.scalar(select(User).where(User.sync_id == replacement_sync_id))
+        assert replacement is not None
+        assert replacement.used_traffic == 0
+        usage = await session.scalar(
+            select(NodeUserUsage).where(
+                NodeUserUsage.node_id == node_id,
+                NodeUserUsage.user_id == legacy_user_id,
+            )
+        )
+        assert usage is None
 
 
 @pytest.mark.asyncio
@@ -213,7 +311,7 @@ async def test_record_user_usages_limits_overused_admin(monkeypatch: pytest.Monk
         )
         session.add_all([user, node])
         await session.flush()
-        user_id, node_id = user.id, node.id
+        user_sync_id, node_id = user.sync_id, node.id
         await session.commit()
 
     monkeypatch.setattr(
@@ -221,7 +319,7 @@ async def test_record_user_usages_limits_overused_admin(monkeypatch: pytest.Monk
     )
 
     async def fake_get_users_stats(_: DummyNode):
-        return [{"uid": str(user_id), "value": 150}]
+        return [{"uid": user_sync_id, "value": 150}]
 
     remove_users = AsyncMock()
     monkeypatch.setattr(record_usages, "get_users_stats", fake_get_users_stats)

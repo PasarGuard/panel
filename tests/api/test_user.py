@@ -23,7 +23,7 @@ from app.operation.subscription import SubscriptionOperation
 from app.utils import jwt as jwt_utils
 from app.utils.crypto import generate_wireguard_keypair, get_wireguard_public_key
 from app.utils.jwt import create_subscription_token, get_secret_key, get_subscription_payload
-from config import usage_settings
+from config import subscription_env_settings, usage_settings
 from tests.api import TestSession, client
 from tests.api.helpers import (
     auth_headers,
@@ -172,7 +172,7 @@ def test_subscription_token_generation_avoids_trailing_dash_or_underscore_and_ke
 
     monkeypatch.setattr(jwt_utils, "get_secret_key", fake_get_secret_key)
 
-    token = asyncio.run(create_subscription_token(123))
+    token = asyncio.run(create_subscription_token(123, user_created_at=datetime(2024, 1, 1, tzinfo=UTC)))
     assert token[-1].isalnum()
     assert not token.endswith(("-", "_"))
 
@@ -182,6 +182,26 @@ def test_subscription_token_generation_avoids_trailing_dash_or_underscore_and_ke
     old_v2_token = _build_v2_subscription_token(456, secret)
     old_v2_payload = asyncio.run(get_subscription_payload(old_v2_token))
     assert old_v2_payload["user_id"] == 456
+
+
+def test_subscription_token_uses_precise_non_future_issuance_time(monkeypatch):
+    secret = "test-secret"
+    issued_at_ns = 1_723_000_000_123_456_789
+
+    async def fake_get_secret_key():
+        return secret
+
+    monkeypatch.setattr(jwt_utils, "get_secret_key", fake_get_secret_key)
+    monkeypatch.setattr(jwt_utils.time, "time_ns", lambda: issued_at_ns)
+
+    subject_created_at = datetime(2024, 8, 7, 3, 6, 40, 123456, tzinfo=UTC)
+    token = asyncio.run(create_subscription_token(123, user_created_at=subject_created_at))
+    payload = asyncio.run(get_subscription_payload(token))
+
+    assert payload["user_id"] == 123
+    assert payload["token_version"] == "v5"
+    assert payload["created_at"] == datetime(2024, 8, 7, 3, 6, 40, 123456, tzinfo=UTC)
+    assert payload["subject_created_at"] == subject_created_at
 
 
 def test_user_create_active(access_token):
@@ -840,18 +860,74 @@ def test_user_subscriptions(access_token):
     user = create_user(
         access_token,
         group_ids=[group["id"] for group in groups],
-        payload={"username": unique_name("test_user_subscriptions")},
+        payload={
+            "username": unique_name("test_user_subscriptions"),
+            "data_limit_reset_strategy": "month",
+        },
     )
     try:
+        reset_response = client.post(
+            f"/api/user/by-id/{user['id']}/reset",
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+        assert reset_response.status_code == status.HTTP_200_OK
+
         for usf in user_subscription_formats:
             url = f"{user['subscription_url']}/{usf}"
             response = client.get(url, headers={"Accept": "text/html"} if usf == "" else None)
             assert response.status_code == status.HTTP_200_OK
+            if usf == "":
+                assert "Next Traffic Reset:" in response.text
     finally:
         delete_user(access_token, user["username"])
         for host in hosts:
             client.delete(f"/api/host/{host['id']}", headers={"Authorization": f"Bearer {access_token}"})
         cleanup_groups(access_token, core, groups)
+
+
+def test_disabled_user_cannot_download_subscription_configs(access_token):
+    core, groups = setup_groups(access_token, 1)
+    hosts = create_hosts_for_inbounds(access_token)
+    user = create_user(
+        access_token,
+        group_ids=[group["id"] for group in groups],
+        payload={"username": unique_name("disabled_subscription")},
+    )
+    try:
+        disable_response = client.put(
+            f"/api/user/by-id/{user['id']}/disabled",
+            headers=auth_headers(access_token),
+            json={"disabled": True},
+        )
+        assert disable_response.status_code == status.HTTP_200_OK
+
+        for config_format in ("links", "xray", "clash", "sing_box", "apps"):
+            response = client.get(f"{user['subscription_url']}/{config_format}")
+            assert response.status_code == status.HTTP_403_FORBIDDEN
+
+        info_response = client.get(f"{user['subscription_url']}/info")
+        assert info_response.status_code == status.HTTP_200_OK
+        assert info_response.json()["status"] == "disabled"
+
+        raw_response = client.get(f"{user['subscription_url']}/raw")
+        assert raw_response.status_code == status.HTTP_200_OK
+        assert raw_response.json()["body"]["links"] == []
+
+        page_response = client.get(user["subscription_url"], headers={"Accept": "text/html"})
+        assert page_response.status_code == status.HTTP_200_OK
+        assert 'class="link-input"' not in page_response.text
+    finally:
+        delete_user(access_token, user["username"])
+        for host in hosts:
+            client.delete(f"/api/host/{host['id']}", headers=auth_headers(access_token))
+        cleanup_groups(access_token, core, groups)
+
+
+def test_public_subscription_openapi_documents_expected_errors():
+    schema = client.app.openapi()
+    documented = schema["paths"][f"/{subscription_env_settings.path}/{{token}}/"]["get"]["responses"]
+
+    assert {"400", "403", "404", "406", "422"}.issubset(documented)
 
 
 def test_user_subscription_head_route(access_token):
@@ -1063,13 +1139,29 @@ def test_user_subscription_info_returns_request_ip(access_token):
     user = create_user(
         access_token,
         group_ids=[groups[0]["id"]],
-        payload={"username": unique_name("test_subscription_info_ip")},
+        payload={
+            "username": unique_name("test_subscription_info_ip"),
+            "data_limit_reset_strategy": "month",
+        },
     )
     try:
+        reset_response = client.post(
+            f"/api/user/by-id/{user['id']}/reset",
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+        assert reset_response.status_code == status.HTTP_200_OK
+
         ip = "198.51.100.7"
         response = client.get(f"{user['subscription_url']}/info", headers={"X-Forwarded-For": ip})
         assert response.status_code == status.HTTP_200_OK
-        assert response.json()["ip"] == ip
+        data = response.json()
+        assert data["ip"] == ip
+        assert data["last_traffic_reset_at"] is not None
+        # A manual reset updates the general timestamp only. The separate
+        # cycle timestamp must stay empty until the scheduler/next-plan path
+        # performs a reset, otherwise the UI would again conflate both clocks.
+        assert data["last_cycle_traffic_reset_at"] is None
+        assert data["next_traffic_reset_at"] is not None
     finally:
         delete_user(access_token, user["username"])
         cleanup_groups(access_token, core, groups)
@@ -1933,11 +2025,16 @@ def test_revoke_user_subscription(access_token):
         payload={"username": unique_name("test_user_revoke")},
     )
     try:
+        old_subscription_url = user["subscription_url"]
         response = client.post(
             f"/api/user/{user['username']}/revoke_sub",
             headers={"Authorization": f"Bearer {access_token}"},
         )
         assert response.status_code == status.HTTP_200_OK
+        # This request intentionally follows immediately: MySQL/MariaDB used
+        # to truncate sub_revoked_at to whole seconds, leaving a v5 token
+        # issued earlier in the same second valid.
+        assert client.get(old_subscription_url).status_code == status.HTTP_404_NOT_FOUND
     finally:
         delete_user(access_token, user["username"])
         cleanup_groups(access_token, core, groups)
@@ -2482,6 +2579,8 @@ def test_bulk_create_users_from_template_sequence(access_token):
         assert response.status_code == status.HTTP_201_CREATED
         assert response.json()["created"] == count
         assert len(response.json()["subscription_urls"]) == count
+        for subscription_url in response.json()["subscription_urls"]:
+            assert client.get(subscription_url).status_code == status.HTTP_200_OK
 
         expected_usernames = [f"{base_username}{start_number + idx}" for idx in range(count)]
 
@@ -2528,6 +2627,8 @@ def test_bulk_create_users_from_template_sequence_with_template_affixes(access_t
         assert response.status_code == status.HTTP_201_CREATED
         assert response.json()["created"] == count
         assert len(response.json()["subscription_urls"]) == count
+        for subscription_url in response.json()["subscription_urls"]:
+            assert client.get(subscription_url).status_code == status.HTTP_200_OK
 
         expected_usernames = [f"{prefix}{base_username}{suffix}{start_number + idx}" for idx in range(count)]
 
@@ -2563,6 +2664,8 @@ def test_bulk_create_users_from_template_random(access_token):
         assert response.status_code == status.HTTP_201_CREATED
         assert response.json()["created"] == count
         assert len(response.json()["subscription_urls"]) == count
+        for subscription_url in response.json()["subscription_urls"]:
+            assert client.get(subscription_url).status_code == status.HTTP_200_OK
 
         users_response = client.get(
             "/api/users",

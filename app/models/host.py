@@ -1,3 +1,4 @@
+import re
 from enum import Enum
 from ipaddress import ip_network
 from typing import Any
@@ -555,6 +556,7 @@ class WireGuardHostOverrides(BaseModel):
 
 class SubscriptionTemplates(BaseModel):
     xray: int | None = Field(default=None, ge=1)
+    profile: HostProfileClassification | None = Field(default=None, exclude_if=lambda value: value is None)
 
     @field_validator("xray", mode="before")
     @classmethod
@@ -562,6 +564,39 @@ class SubscriptionTemplates(BaseModel):
         if v == "":
             return None
         return v
+
+
+class HostProfileClassification(BaseModel):
+    """Endpoint membership used only by opt-in multi-client profiles."""
+
+    pool: str = Field(default="primary", min_length=1, max_length=64)
+    country: str | None = Field(default=None, min_length=2, max_length=2)
+    priority: int | None = Field(default=None, ge=0, le=1_000_000)
+    exclude_from_auto: bool = False
+
+    @field_validator("pool")
+    @classmethod
+    def validate_pool(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if not re.fullmatch(r"[a-z0-9](?:[a-z0-9_-]{0,62}[a-z0-9])?", normalized):
+            raise ValueError("pool must be a machine-readable identifier")
+        return normalized
+
+    @field_validator("country", mode="before")
+    @classmethod
+    def validate_country(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        if not isinstance(value, str):
+            # Pydantic v2 deliberately lets TypeError escape validators, which
+            # would turn malformed API input into a 500 response.
+            raise ValueError("country must be a two-letter ISO code")  # noqa: TRY004
+        if not value.strip():
+            return None
+        normalized = value.strip().upper()
+        if not re.fullmatch(r"[A-Z]{2}", normalized):
+            raise ValueError("country must be a two-letter ISO code")
+        return normalized
 
 
 class BaseHost(BaseModel):
@@ -607,7 +642,7 @@ class BaseHost(BaseModel):
     @field_validator("subscription_templates", mode="after")
     @classmethod
     def empty_subscription_templates_to_none(cls, value: SubscriptionTemplates | None):
-        if value is not None and value.xray is None:
+        if value is not None and value.xray is None and value.profile is None:
             return None
         return value
 

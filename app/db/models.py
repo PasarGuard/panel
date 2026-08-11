@@ -1,7 +1,8 @@
 import os
-from datetime import UTC, datetime as dt
+from datetime import UTC, datetime as dt, timedelta as td
 from enum import Enum
 from typing import Any
+from uuid import uuid4
 
 from sqlalchemy import (
     JSON,
@@ -22,6 +23,7 @@ from sqlalchemy import (
     func,
     or_,
 )
+from sqlalchemy.dialects import mysql
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import async_object_session
 from sqlalchemy.ext.hybrid import hybrid_property
@@ -32,6 +34,7 @@ from app.db.base import Base
 from app.db.compiles_types import CaseSensitiveString, DaysDiff, EnumArray, SqliteCompatibleBigInteger, StringArray
 
 PostgresJSONB = JSON().with_variant(JSONB(none_as_null=True), "postgresql")
+SubscriptionTokenDateTime = DateTime(timezone=True).with_variant(mysql.DATETIME(fsp=6), "mysql", "mariadb")
 
 
 def fk_id_column(target: str, **column_kwargs: Any):
@@ -190,12 +193,31 @@ class DataLimitResetStrategy(str, Enum):
     year = "year"
 
 
+class UserUsageResetSource(str, Enum):
+    legacy = "legacy"
+    manual = "manual"
+    scheduled = "scheduled"
+    next_plan = "next_plan"
+
+
 class User(Base, CreatedAtUTCMixin):
     __tablename__ = "users"
     __table_args__ = (
+        UniqueConstraint("sync_id", name="uq_users_sync_id"),
         Index("idx_users_admin_online", "admin_id", "online_at"),
         Index("idx_users_admin_status", "admin_id", "status"),
         Index("idx_users_admin_created", "admin_id", "created_at"),
+    )
+    sync_id: Mapped[str] = mapped_column(
+        String(36), default_factory=lambda: str(uuid4()), nullable=False, init=False
+    )
+    # Subscription tokens bind to this exact timestamp. MySQL/MariaDB default
+    # DATETIME precision is zero, so use microseconds explicitly just like the
+    # revocation timestamp below.
+    created_at: Mapped[dt] = mapped_column(
+        SubscriptionTokenDateTime,
+        default_factory=lambda: dt.now(UTC),
+        init=False,
     )
     username: Mapped[str] = mapped_column(CaseSensitiveString(128), unique=True, index=True)
     node_usages: Mapped[list[NodeUserUsage]] = relationship(
@@ -209,7 +231,11 @@ class User(Base, CreatedAtUTCMixin):
     subscription_updates: Mapped[list[UserSubscriptionUpdate]] = relationship(
         back_populates="user", cascade="all, delete-orphan", init=False
     )
-    usage_logs: Mapped[list[UserUsageResetLogs]] = relationship(back_populates="user", init=False)
+    usage_logs: Mapped[list[UserUsageResetLogs]] = relationship(
+        back_populates="user",
+        init=False,
+        order_by="UserUsageResetLogs.reset_at",
+    )
     admin: Mapped[Admin] = relationship(back_populates="users", init=False)
     next_plan: Mapped[NextPlan | None] = relationship(
         uselist=False, back_populates="user", cascade="all, delete-orphan", init=False
@@ -228,7 +254,7 @@ class User(Base, CreatedAtUTCMixin):
     )
     _expire: Mapped[dt | None] = mapped_column("expire", DateTime(timezone=True), default=None, init=False)
     admin_id: Mapped[int | None] = fk_id_column("admins.id", default=None)
-    sub_revoked_at: Mapped[dt | None] = mapped_column(DateTime(timezone=True), default=None)
+    sub_revoked_at: Mapped[dt | None] = mapped_column(SubscriptionTokenDateTime, default=None)
     note: Mapped[str | None] = mapped_column(String(500), default=None)
     online_at: Mapped[dt | None] = mapped_column(DateTime(timezone=True), default=None)
     on_hold_expire_duration: Mapped[int | None] = mapped_column(BigInteger, default=None)
@@ -277,6 +303,44 @@ class User(Base, CreatedAtUTCMixin):
     @property
     def last_traffic_reset_time(self):
         return self.usage_logs[-1].reset_at if self.usage_logs else self.created_at
+
+    @property
+    def last_traffic_reset_at(self):
+        return self.usage_logs[-1].reset_at if self.usage_logs else None
+
+    @property
+    def last_scheduled_traffic_reset_at(self):
+        scheduled_sources = {UserUsageResetSource.scheduled.value, UserUsageResetSource.next_plan.value}
+        for log in reversed(self.usage_logs):
+            if log.reset_source in scheduled_sources:
+                return log.reset_at
+        return None
+
+    @property
+    def last_cycle_traffic_reset_at(self):
+        if scheduled_reset_at := self.last_scheduled_traffic_reset_at:
+            return scheduled_reset_at
+        for log in reversed(self.usage_logs):
+            if log.reset_source == UserUsageResetSource.legacy.value:
+                return log.reset_at
+        return None
+
+    @property
+    def next_traffic_reset_at(self):
+        reset_days = {
+            DataLimitResetStrategy.day: 1,
+            DataLimitResetStrategy.week: 7,
+            DataLimitResetStrategy.month: 30,
+            DataLimitResetStrategy.year: 365,
+        }
+        days = reset_days.get(self.data_limit_reset_strategy)
+        if days is None:
+            return None
+
+        cycle_start = self.last_cycle_traffic_reset_at or self.created_at
+        if cycle_start.tzinfo is None:
+            cycle_start = cycle_start.replace(tzinfo=UTC)
+        return cycle_start + td(days=days)
 
     async def inbounds(self) -> list[str]:
         """Returns a flat list of all included inbound tags for enabled groups."""
@@ -466,10 +530,21 @@ class UserUsageResetLogs(Base, IdMixin):
     __table_args__ = (
         # Index for user-specific queries sorted by time
         Index("ix_user_usage_logs_user_id_reset_at", "user_id", "reset_at"),
+        # The reset scheduler groups the per-user history after filtering by
+        # source, so the original (user_id, reset_at) index cannot cover it.
+        Index("ix_user_usage_logs_user_id_source_reset_at", "user_id", "reset_source", "reset_at"),
     )
     user_id: Mapped[int | None] = fk_id_column("users.id", ondelete="CASCADE", nullable=True)
     user: Mapped[User] = relationship(back_populates="usage_logs", init=False)
     used_traffic_at_reset: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    reset_source: Mapped[str] = mapped_column(
+        String(32),
+        default=UserUsageResetSource.manual.value,
+        # Old application versions omit this column during a rolling upgrade.
+        # Mark those ambiguous writes as legacy; new code always sends the
+        # explicit Python default above.
+        server_default=UserUsageResetSource.legacy.value,
+    )
     reset_at: Mapped[dt] = mapped_column(DateTime(timezone=True), default=lambda: dt.now(UTC), init=False)
 
 
@@ -596,6 +671,12 @@ class NodeStatus(str, Enum):
 
 class Node(Base, CreatedAtUTCMixin):
     __tablename__ = "nodes"
+    __table_args__ = (UniqueConstraint("bridge_id", name="uq_nodes_bridge_id"),)
+    # Stable internal namespace for distributed Bridge/KV state. Public APIs
+    # continue to route by numeric id, which SQLite may reuse after deletion.
+    bridge_id: Mapped[str] = mapped_column(
+        String(36), default_factory=lambda: str(uuid4()), nullable=False, init=False
+    )
     name: Mapped[str] = mapped_column(CaseSensitiveString(256), unique=True)
     address: Mapped[str] = mapped_column(String(256), unique=False, nullable=False)
     port: Mapped[int] = mapped_column(unique=False, nullable=False)

@@ -12,6 +12,7 @@ from app.middlewares import setup_middleware
 from app.nats import is_multi_worker, require_nats_if_multiworker
 from app.nats.message import MessageTopic
 from app.nats.router import router
+from app.node.errors import NodeRevocationError
 from app.settings import handle_settings_message
 from app.subscription.client_templates import handle_client_template_message
 from app.utils.logger import get_logger
@@ -32,6 +33,15 @@ async def database_operational_error_handler(request: Request, exc: DBAPIError):
     return JSONResponse(
         status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
         content={"detail": "Database temporarily unavailable"},
+    )
+
+
+async def node_revocation_error_handler(request: Request, exc: NodeRevocationError):
+    logger.warning("Node revocation unavailable while handling %s %s: %s", request.method, request.url.path, exc)
+    return JSONResponse(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        content={"detail": "User removal was not confirmed by all runtime nodes. Retry when nodes are available."},
+        headers={"Retry-After": "1"},
     )
 
 
@@ -275,6 +285,7 @@ def create_app() -> FastAPI:
         )
 
     app.add_exception_handler(DBAPIError, database_operational_error_handler)
+    app.add_exception_handler(NodeRevocationError, node_revocation_error_handler)
 
     from app.operation.permissions import LimitExceeded, PermissionDenied
 

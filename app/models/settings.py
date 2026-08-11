@@ -206,6 +206,13 @@ class SubRule(BaseModel):
     pattern: str
     target: ConfigFormat
     response_headers: dict[str, Any] = Field(default_factory=dict)
+    profile_id: int | None = Field(default=None, ge=1)
+
+    @model_validator(mode="after")
+    def validate_profile_target(self):
+        if self.profile_id is not None and self.target not in (ConfigFormat.xray, ConfigFormat.sing_box):
+            raise ValueError("profile_id can only be used with xray or sing_box subscription rules")
+        return self
 
 
 class SubFormatEnable(BaseModel):

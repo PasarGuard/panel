@@ -37,8 +37,9 @@ type OvalFetcherParams = FetchOptions<'json'> & {
   method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'HEAD'
   params?: Record<string, unknown>
   data?: FetchOptions<'json'>['body']
+  signal?: AbortSignal
 }
-export const orvalFetcher = async <T>({ url, method, params, data: body }: OvalFetcherParams): Promise<T> => {
+export const orvalFetcher = async <T>({ url, method, params, data: body, signal }: OvalFetcherParams): Promise<T> => {
   if (method === 'GET') {
     // 1. If we have data in a GET request, it means arguments were shifted or
     // we manually passed data to rescue dropped parameters.
@@ -66,6 +67,7 @@ export const orvalFetcher = async <T>({ url, method, params, data: body }: OvalF
     method,
     params,
     body,
+    signal,
   })
 }
 
