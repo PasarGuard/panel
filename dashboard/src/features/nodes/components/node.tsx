@@ -1,5 +1,5 @@
 import { Card } from '@/components/ui/card'
-import { AlertCircle, Link2, Package, Server } from 'lucide-react'
+import { AlertCircle, Link2, Package, Server, Users } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
@@ -166,6 +166,14 @@ export default function Node({
                 <Link2 className="h-3 w-3 shrink-0 opacity-70 sm:h-3.5 sm:w-3.5" />
                 <span dir="ltr" className="truncate font-mono">
                   {node.address}:{node.port}
+                </span>
+              </div>
+
+              <div className={cn('text-muted-foreground flex items-center gap-1.5 text-[10px] sm:text-xs', dir === 'rtl' ? 'flex-row-reverse justify-end' : 'flex-row')}>
+                <Users className="h-3 w-3 shrink-0 opacity-70 sm:h-3.5 sm:w-3.5" />
+                <span>
+                  {t('statistics.onlineUsers', { defaultValue: 'Online Users' })}:{' '}
+                  <span className="text-foreground font-medium">{node.online_users ?? 0}</span>
                 </span>
               </div>
 

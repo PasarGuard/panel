@@ -2117,6 +2117,8 @@ export interface NodeResponse {
   downlink?: number
   lifetime_uplink?: NodeResponseLifetimeUplink
   lifetime_downlink?: NodeResponseLifetimeDownlink
+  /** Users online on this node within the last 2 minutes */
+  online_users?: number
   readonly core_version: NodeResponseCoreVersion
 }
 

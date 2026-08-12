@@ -21,6 +21,7 @@ from app.db import GetDB
 from app.db.base import engine
 from app.db.models import Admin, Node, NodeUsage, NodeUserUsage, System, User
 from app.node import node_manager
+from app.node.online_users import mark_users_online, publish_users_online
 from app.operation.admin_sync import enforce_admin_limits_now
 from app.utils.logger import get_logger
 from config import job_settings, runtime_settings, usage_settings
@@ -393,6 +394,28 @@ def _get_time_bucket(now: dt | None = None) -> dt:
     return now.replace(minute=(now.minute // 10) * 10, second=0, microsecond=0)
 
 
+async def record_node_user_online(all_node_params: dict, valid_user_ids: set[int]):
+    """Update in-memory per-node last-seen (and sync siblings via NATS when enabled)."""
+    if not all_node_params or not valid_user_ids:
+        return
+
+    entries: list[tuple[int, int]] = []
+    seen: set[tuple[int, int]] = set()
+    for node_id, params in all_node_params.items():
+        for param in params:
+            uid = int(param["uid"])
+            if uid not in valid_user_ids or int(param["value"]) <= 0:
+                continue
+            key = (node_id, uid)
+            if key in seen:
+                continue
+            seen.add(key)
+            entries.append(key)
+
+    mark_users_online(entries)
+    await publish_users_online(entries)
+
+
 async def record_user_stats_batched(all_node_params: dict, usage_coefficients: dict):
     """
     Record user statistics for ALL nodes in a single batched UPSERT operation.
@@ -749,17 +772,21 @@ async def _record_user_usages_impl():
                 await enforce_admin_limits_now(logger=logger)
             except Exception:
                 logger.exception("Failed to enforce admin limits after usage recording")
-        if usage_settings.disable_recording_node_usage:
-            return
 
-        # Batch all node user usage writes into single operation
-        # Filter params to only valid users
+        # Filter params to only valid users (shared by online tracking + usage recording)
         filtered_node_params = {}
         for node_id, params in api_params.items():
             filtered_params = [param for param in params if int(param["uid"]) in valid_user_ids]
             if filtered_params:
                 filtered_node_params[node_id] = filtered_params
 
+        if filtered_node_params:
+            await record_node_user_online(filtered_node_params, valid_user_ids)
+
+        if usage_settings.disable_recording_node_usage:
+            return
+
+        # Batch all node user usage writes into single operation
         if filtered_node_params:
             await record_user_stats_batched(filtered_node_params, usage_coefficient)
             total_records = sum(len(params) for params in filtered_node_params.values())

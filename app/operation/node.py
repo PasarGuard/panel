@@ -66,6 +66,7 @@ from app.nats.node_rpc import node_nats_client
 from app.node import core_users, node_manager
 from app.node.manager_sync import publish_node_sync
 from app.node.nats_memory import clear_bridge_memory_for_node
+from app.node.online_users import get_online_counts
 from app.operation import BaseOperation, OperatorType
 from app.utils.logger import get_logger
 from config import runtime_settings
@@ -126,8 +127,19 @@ class NodeOperation(BaseOperation):
         query: NodeListQuery,
     ) -> NodesResponse:
         db_nodes, count = await get_nodes(db=db, query=query)
-        node_responses = [NodeResponse.model_validate(node) for node in db_nodes]
+        online_counts = get_online_counts([node.id for node in db_nodes])
+        node_responses = [
+            NodeResponse.model_validate(node).model_copy(update={"online_users": online_counts.get(node.id, 0)})
+            for node in db_nodes
+        ]
         return NodesResponse(nodes=node_responses, total=count)
+
+    async def get_node_response(self, db: AsyncSession, node_id: int) -> NodeResponse:
+        db_node = await self.get_validated_node(db=db, node_id=node_id)
+        online_counts = get_online_counts([db_node.id])
+        return NodeResponse.model_validate(db_node).model_copy(
+            update={"online_users": online_counts.get(db_node.id, 0)}
+        )
 
     async def get_nodes_simple(
         self,

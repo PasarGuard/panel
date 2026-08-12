@@ -5,7 +5,7 @@ import NodeUsageDisplay from '@/features/nodes/components/node-usage-display'
 import NodeActionsMenu from '@/features/nodes/components/node-actions-menu'
 import { CoresSimpleResponse, NodeResponse, NodeStatus } from '@/service/api'
 import { cn } from '@/lib/utils'
-import { Package, Server } from 'lucide-react'
+import { Package, Server, Users } from 'lucide-react'
 import { useXrayReleases } from '@/hooks/use-xray-releases'
 import { useNodeReleases } from '@/hooks/use-node-releases'
 import { Separator } from '@/components/ui/separator'
@@ -166,6 +166,17 @@ export const useNodeListColumns = ({
           )
         },
         hideOnMobile: true,
+      },
+      {
+        id: 'online',
+        header: t('statistics.onlineUsers', { defaultValue: 'Online Users' }),
+        width: '1fr',
+        cell: node => (
+          <div className="text-muted-foreground inline-flex items-center gap-1.5 text-xs">
+            <Users className="h-3.5 w-3.5 shrink-0" />
+            <span className="text-foreground font-medium">{node.online_users ?? 0}</span>
+          </div>
+        ),
       },
       {
         id: 'usage',

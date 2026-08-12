@@ -213,6 +213,7 @@ class NodeResponse(Node):
     downlink: int = 0
     lifetime_uplink: int | None = None
     lifetime_downlink: int | None = None
+    online_users: int = 0
 
     model_config = ConfigDict(from_attributes=True)
 

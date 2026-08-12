@@ -224,7 +224,7 @@ async def get_node(
     node_id: int, db: AsyncSession = Depends(get_db), _: AdminDetails = Depends(require_permission("nodes", "read"))
 ):
     """Retrieve details of a specific node by its ID."""
-    return await node_operator.get_validated_node(db=db, node_id=node_id)
+    return await node_operator.get_node_response(db=db, node_id=node_id)
 
 
 @router.post("/{node_id}/update")

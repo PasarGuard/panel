@@ -63,6 +63,7 @@ def _register_nats_handlers(
     enable_client_templates: bool,
     ignore_host_messages: bool = False,
     enable_node_sync: bool = False,
+    enable_node_online_sync: bool = False,
 ):
     if enable_router:
         on_startup(router.start)
@@ -80,6 +81,12 @@ def _register_nats_handlers(
     elif enable_router:
         # Split roles (e.g. backend/scheduler) still subscribe to worker_sync;
         router.register_handler(MessageTopic.NODE, _ignore_worker_sync_message)
+    if enable_node_online_sync:
+        from app.node.online_users import register_node_online_sync_handler
+
+        register_node_online_sync_handler()
+    elif enable_router:
+        router.register_handler(MessageTopic.NODE_ONLINE, _ignore_worker_sync_message)
 
 
 def _register_scheduler_hooks():
@@ -254,8 +261,15 @@ def create_app() -> FastAPI:
     enable_client_templates = runtime_settings.role.runs_panel or runtime_settings.role.runs_scheduler
     ignore_host_messages = not runtime_settings.role.runs_panel
     enable_node_sync = runtime_settings.role.runs_node
+    # Panel workers need online marks from the job leader; scheduler publishes them.
+    enable_node_online_sync = runtime_settings.role.runs_panel or runtime_settings.role.runs_scheduler
     _register_nats_handlers(
-        enable_router, enable_settings, enable_client_templates, ignore_host_messages, enable_node_sync
+        enable_router,
+        enable_settings,
+        enable_client_templates,
+        ignore_host_messages,
+        enable_node_sync,
+        enable_node_online_sync,
     )
     _register_scheduler_hooks()
     _register_jobs()
