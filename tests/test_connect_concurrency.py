@@ -15,7 +15,8 @@ async def test_connect_nodes_bulk_local_caps_concurrency(monkeypatch: pytest.Mon
     current = 0
     peak = 0
 
-    async def _connect_node(db_node, core, users):
+    async def _connect_node(db_node, core, users, authoritative_user_keys):
+        assert authoritative_user_keys == set()
         nonlocal current, peak
         current += 1
         peak = max(peak, current)
@@ -31,7 +32,11 @@ async def test_connect_nodes_bulk_local_caps_concurrency(monkeypatch: pytest.Mon
         }
 
     monkeypatch.setattr(node_op_module, "node_manager", MagicMock(update_node=AsyncMock()))
-    monkeypatch.setattr(NodeOperation, "_get_core_users_map", AsyncMock(return_value=({1: object()}, {1: []})))
+    monkeypatch.setattr(
+        NodeOperation,
+        "_get_core_users_map",
+        AsyncMock(return_value=({1: object()}, {1: []}, set())),
+    )
     monkeypatch.setattr(NodeOperation, "connect_node", staticmethod(_connect_node))
     monkeypatch.setattr(node_op_module, "bulk_update_node_status", AsyncMock())
     monkeypatch.setattr(node_op_module.notification, "connect_node", AsyncMock())

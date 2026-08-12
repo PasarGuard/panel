@@ -1,4 +1,5 @@
 import re
+from datetime import timedelta as td
 from json import dumps as json_dumps
 from typing import Any, ClassVar
 
@@ -12,7 +13,7 @@ from app.db.crud.hwid import (
     register_user_hwid,
 )
 from app.db.crud.user import get_user_usages, user_sub_update
-from app.db.models import User
+from app.db.models import User, UserStatus
 from app.models.admin import AdminDetails
 from app.models.settings import Application, ConfigFormat, HWIDSettings, SubRule, Subscription as SubSettings
 from app.models.stats import UserUsageStatsList
@@ -87,6 +88,12 @@ client_config = {
 
 class SubscriptionOperation(BaseOperation):
     _ENCODED_RULE_RESPONSE_HEADERS: ClassVar[set[str]] = {"announce", "profile-title"}
+    _CONFIG_ELIGIBLE_STATUSES: ClassVar[set[UserStatus]] = {UserStatus.active, UserStatus.on_hold}
+    _MAX_USAGE_RANGE_DAYS: ClassVar[int] = 31
+
+    async def require_config_eligible(self, user: User | UsersResponseWithInbounds) -> None:
+        if user.status not in self._CONFIG_ELIGIBLE_STATUSES:
+            await self.raise_error(message="Subscription is not active", code=403)
 
     @staticmethod
     async def validated_user(db_user: User) -> UsersResponseWithInbounds:
@@ -434,7 +441,7 @@ class SubscriptionOperation(BaseOperation):
                 not is_hwid_enabled or not global_hwid_conf.require_hwid_for_manual_sub
             )
             links = []
-            if is_allow_browser_config:
+            if is_allow_browser_config and user.status in self._CONFIG_ELIGIBLE_STATUSES:
                 conf, media_type = await self.fetch_config(
                     user,
                     ConfigFormat.links,
@@ -453,6 +460,7 @@ class SubscriptionOperation(BaseOperation):
                 )
             )
         else:
+            await self.require_config_eligible(user)
             await self.validate_and_register_hwid(
                 db,
                 db_user.id,
@@ -542,6 +550,7 @@ class SubscriptionOperation(BaseOperation):
             await self.raise_error(message="Client not supported", code=406)
         db_user = await self.get_validated_sub(db, token=token, load_admin_role=True)
         user = await self.validated_user(db_user)
+        await self.require_config_eligible(user)
 
         await self.validate_and_register_hwid(
             db,
@@ -617,7 +626,9 @@ class SubscriptionOperation(BaseOperation):
         is_hwid_enabled = await self.is_user_hwid_enabled(db_user)
 
         links = []
-        if sub_settings.allow_browser_config:
+        # `/raw` is a metadata/preview route. Keep it available for account
+        # status UX, but never include reusable proxy links for inactive users.
+        if sub_settings.allow_browser_config and user.status in self._CONFIG_ELIGIBLE_STATUSES:
             conf, _ = await self.fetch_config(user, ConfigFormat.links)
             links = conf.splitlines()
         format_variables = await self.get_format_variables(user)
@@ -701,6 +712,7 @@ class SubscriptionOperation(BaseOperation):
         """
         db_user = await self.get_validated_sub(db, token=token, load_admin_role=True)
         user = await self.validated_user(db_user)
+        await self.require_config_eligible(user)
         is_hwid_enabled = await self.is_user_hwid_enabled(db_user)
         sub_settings: SubSettings = await subscription_settings()
         format_variables = await self.get_format_variables(user)
@@ -747,6 +759,7 @@ class SubscriptionOperation(BaseOperation):
                 "content-type": "text/html; charset=utf-8",
             }
         else:
+            await self.require_config_eligible(user)
             matched_rule = self.detect_client_rule(user_agent, sub_settings.rules)
             client_type = matched_rule.target if matched_rule else None
             if client_type == ConfigFormat.block or not client_type:
@@ -790,6 +803,11 @@ class SubscriptionOperation(BaseOperation):
     ) -> UserUsageStatsList:
         """Fetches the usage statistics for the user within a specified date range."""
         start, end = await self.validate_dates(query.start, query.end, True)
+        if end - start > td(days=self._MAX_USAGE_RANGE_DAYS):
+            await self.raise_error(
+                message=f"Subscription usage range cannot exceed {self._MAX_USAGE_RANGE_DAYS} days",
+                code=400,
+            )
 
         db_user = await self.get_validated_sub(db, token=token)
 

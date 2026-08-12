@@ -130,7 +130,9 @@ class SubscriptionEnvSettings(EnvSettings):
 
 
 class JwtSettings(EnvSettings):
-    access_token_expire_minutes: int = Field(default=1440, validation_alias="JWT_ACCESS_TOKEN_EXPIRE_MINUTES")
+    # Zero preserves the legacy non-expiring-token policy. Positive values
+    # issue exp-bearing tokens and bound already-issued legacy tokens by iat.
+    access_token_expire_minutes: int = Field(ge=0, default=1440, validation_alias="JWT_ACCESS_TOKEN_EXPIRE_MINUTES")
 
 
 class TemplateSettings(EnvSettings):
@@ -142,7 +144,7 @@ class TemplateSettings(EnvSettings):
 
 
 class UserCleanupSettings(EnvSettings):
-    autodelete_days: int = Field(default=-1, validation_alias="USERS_AUTODELETE_DAYS")
+    autodelete_days: int = Field(ge=-1, le=36500, default=-1, validation_alias="USERS_AUTODELETE_DAYS")
     include_limited_accounts: bool = Field(default=False, validation_alias="USER_AUTODELETE_INCLUDE_LIMITED_ACCOUNTS")
 
 

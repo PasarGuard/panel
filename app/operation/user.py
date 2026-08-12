@@ -45,7 +45,6 @@ from app.db.crud.user import (
     load_user_attrs,
     lock_admin_quota_row,
     modify_user as crud_modify_user,
-    remove_expired_users,
     remove_user,
     remove_users,
     reset_user_by_next,
@@ -96,7 +95,15 @@ from app.models.user import (
     UsersUsageQuery,
     UserUsageQuery,
 )
-from app.node.sync import remove_user as sync_remove_user, sync_user, sync_users
+from app.node.sync import (
+    finalize_user_removal,
+    finalize_users_removal,
+    remove_user as sync_remove_user,
+    remove_users_and_wait,
+    resolve_user_removal_after_db_error,
+    sync_user,
+    sync_users,
+)
 from app.operation import BaseOperation, OperatorType
 from app.operation.permissions import (
     PermissionDenied,
@@ -940,8 +947,13 @@ class UserOperation(BaseOperation):
 
     async def _remove_user(self, db: AsyncSession, db_user: User, admin: AdminDetails) -> dict:
         user = await self.validate_user(db_user, include_subscription_url=False)
-        await remove_user(db, db_user)
-        await sync_remove_user(user)
+        revocation = await sync_remove_user(db_user)
+        try:
+            await remove_user(db, db_user)
+        except BaseException:
+            await resolve_user_removal_after_db_error(revocation, db)
+            raise
+        await finalize_user_removal(revocation)
 
         asyncio.create_task(notification.remove_user(user, admin))
         logger.info(f'User "{db_user.username}" with id "{db_user.id}" deleted by admin "{admin.username}"')
@@ -1013,10 +1025,16 @@ class UserOperation(BaseOperation):
         db_users = await self._get_validated_users_by_ids(db, bulk_users.ids, admin, scope_action="delete")
         users = [await self.validate_user(db_user, include_subscription_url=False) for db_user in db_users]
 
-        await remove_users(db, db_users)
+        revocation = await remove_users_and_wait(db_users)
+        try:
+            await remove_users(db, db_users)
+        except BaseException:
+            await resolve_user_removal_after_db_error(revocation, db)
+            raise
+        if revocation is not None:
+            await finalize_users_removal(revocation)
 
         for user in users:
-            await sync_remove_user(user)
             asyncio.create_task(notification.remove_user(user, admin))
             logger.info(f'User "{user.username}" with id "{user.id}" deleted by admin "{admin.username}"')
 
@@ -1586,16 +1604,36 @@ class UserOperation(BaseOperation):
             admin_id = (await self.get_validated_admin(db, query.admin_username)).id
         else:
             admin_id = None
-        username_list = await remove_expired_users(
-            db,
-            expired_after,
-            expired_before,
-            admin_id,
-            target=query.target,
-            dry_run=query.dry_run,
-        )
-        if not query.dry_run:
-            await self.remove_users_logger(users=username_list, by=admin.username)
+        cleanup_query = query.model_copy(update={"expired_after": expired_after, "expired_before": expired_before})
+        if query.dry_run:
+            db_users = await get_expired_users(db, query=cleanup_query, admin_id=admin_id)
+            username_list = [user.username for user in db_users]
+            return RemoveUsersResponse(users=username_list, count=len(username_list))
+
+        username_list: list[str] = []
+        after_id = 0
+        while True:
+            db_users = await get_expired_users(
+                db,
+                query=cleanup_query,
+                admin_id=admin_id,
+                after_id=after_id,
+                limit=100,
+            )
+            if not db_users:
+                break
+            after_id = db_users[-1].id
+            chunk_usernames = [user.username for user in db_users]
+            revocation = await remove_users_and_wait(db_users)
+            try:
+                await remove_users(db, db_users)
+            except BaseException:
+                await resolve_user_removal_after_db_error(revocation, db)
+                raise
+            if revocation is not None:
+                await finalize_users_removal(revocation)
+            username_list.extend(chunk_usernames)
+        await self.remove_users_logger(users=username_list, by=admin.username)
 
         return RemoveUsersResponse(users=username_list, count=len(username_list))
 
