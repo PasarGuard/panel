@@ -165,6 +165,7 @@ export interface HostFormValues {
     }
   }
   final_mask_settings?: FinalMask
+  cipher_suites?: string
 }
 
 const transportSettingsSchema = z
@@ -468,6 +469,7 @@ export const HostFormSchema = z.object({
     })
     .optional(),
   final_mask_settings: z.custom<FinalMask>().optional(),
+  cipher_suites: z.string().optional(),
 })
 
 export const hostFormDefaultValues: HostFormValues = {
@@ -496,6 +498,7 @@ export const hostFormDefaultValues: HostFormValues = {
   fragment_settings: undefined,
   subscription_templates: undefined,
   final_mask_settings: undefined,
+  cipher_suites: undefined,
 }
 
 /** Normalize API fragment settings for the host form (accept legacy `delay` as `interval`). */

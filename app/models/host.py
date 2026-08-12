@@ -592,9 +592,10 @@ class BaseHost(BaseModel):
     ech_query_strategy: ECHQueryStrategy | None = Field(default=None)
     pinned_peer_cert_sha256: str | None = Field(default=None)
     verify_peer_cert_by_name: set[str] | None = Field(default_factory=set)
-    wireguard_overrides: WireGuardHostOverrides | None = None
-    subscription_templates: SubscriptionTemplates | None = None
-    final_mask_settings: FinalMask | None = None
+    wireguard_overrides: WireGuardHostOverrides | None = Field(None)
+    subscription_templates: SubscriptionTemplates | None = Field(None)
+    final_mask_settings: FinalMask | None = Field(None)
+    cipher_suites: str | None = Field(None)
 
     model_config = ConfigDict(from_attributes=True)
 

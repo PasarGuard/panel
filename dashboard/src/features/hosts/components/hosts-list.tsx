@@ -207,6 +207,7 @@ export default function HostsList({
           }
         : undefined,
       final_mask_settings: host.final_mask_settings ?? undefined,
+      cipher_suites: host.cipher_suites ?? undefined,
       fragment_settings: mapHostFragmentSettingsForForm(host.fragment_settings),
       noise_settings: host.noise_settings
         ? {
