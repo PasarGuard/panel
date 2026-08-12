@@ -192,6 +192,7 @@ class StandardLinks(BaseSubscription):
         payload["pcs"] = tls_config.pinned_peer_cert_sha256
         payload["pinSHA256"] = tls_config.pinned_peer_cert_sha256  # some clients read this property
         payload["vcn"] = ",".join(tls_config.verify_peer_cert_by_name) if tls_config.verify_peer_cert_by_name else ""
+        payload["cs"] = tls_config.cipher_suites
 
         # Use pre-formatted alpn for links (comma-separated string)
         if tls_config.alpn_links:
