@@ -1,9 +1,23 @@
+import asyncio
 import random
 
 from fastapi import status
+from sqlalchemy import inspect
+from sqlalchemy.orm.state import NO_VALUE
 
-from tests.api import client
-from tests.api.helpers import create_core, create_group, delete_core, delete_group, get_inbounds, unique_name
+from app.db.crud.group import get_group
+from app.models.group import GroupListQuery
+from tests.api import TestSession, client
+from tests.api.helpers import (
+    create_core,
+    create_group,
+    create_user,
+    delete_core,
+    delete_group,
+    delete_user,
+    get_inbounds,
+    unique_name,
+)
 
 
 def test_group_create(access_token):
@@ -89,6 +103,31 @@ def test_groups_get(access_token):
     delete_group(access_token, group_one["id"])
     delete_group(access_token, group_two["id"])
     delete_core(access_token, core["id"])
+
+
+def test_groups_get_counts_users_without_loading_user_rows(access_token):
+    """Group summaries count memberships without hydrating every user."""
+
+    core = create_core(access_token)
+    group = create_group(access_token, name=unique_name("group_count"))
+    users = [create_user(access_token, group_ids=[group["id"]]) for _ in range(2)]
+
+    async def load_group_summary():
+        async with TestSession() as session:
+            groups, _ = await get_group(session, GroupListQuery(ids=[group["id"]]))
+            loaded_group = groups[0]
+            return loaded_group.total_users, inspect(loaded_group).attrs.users.loaded_value
+
+    try:
+        total_users, loaded_users = asyncio.run(load_group_summary())
+
+        assert total_users == len(users)
+        assert loaded_users is NO_VALUE
+    finally:
+        for user in users:
+            delete_user(access_token, user["username"])
+        delete_group(access_token, group["id"])
+        delete_core(access_token, core["id"])
 
 
 # Tests for /api/groups/simple endpoint
