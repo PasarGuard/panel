@@ -485,6 +485,22 @@ async def _flush_pending_user_usage_history_locked(now_monotonic: float | None =
     return len(upsert_params)
 
 
+async def flush_user_usage_history_if_due(now_monotonic: float | None = None) -> int:
+    """Flush buffered PostgreSQL history once its configured deadline passes."""
+    if not _pending_user_usage_history:
+        return 0
+
+    now_monotonic = now_monotonic if now_monotonic is not None else _monotonic_now()
+    async with _user_usage_history_lock:
+        flush_due = (
+            _user_usage_history_last_flush is None
+            or now_monotonic - _user_usage_history_last_flush >= usage_settings.user_usage_history_flush_interval
+        )
+        if not flush_due:
+            return 0
+        return await _flush_pending_user_usage_history_locked(now_monotonic)
+
+
 async def record_user_stats(all_node_params: dict, usage_coefficients: dict) -> None:
     """Coalesce PostgreSQL history writes while preserving immediate fallback paths."""
     if not all_node_params:
@@ -769,6 +785,13 @@ async def _record_user_usages_impl():
     Separated to allow timeout wrapper.
     """
     job_start_time = time.time()
+    try:
+        flushed_rows = await flush_user_usage_history_if_due()
+        if flushed_rows:
+            logger.debug("Flushed %s due node user usage history rows", flushed_rows)
+    except Exception:
+        logger.exception("Failed to flush due node user usage history; pending rows will be retried")
+
     nodes: tuple[int, PasarGuardNode] = await node_manager.get_healthy_nodes()
 
     if not nodes:
