@@ -276,6 +276,93 @@ def test_update_users_expire(access_token):
         cleanup(access_token, core, groups, users)
 
 
+def test_bulk_expire_initializes_unlimited_users_for_id_group_and_admin_filters(access_token):
+    """Unlimited users receive a UTC expiry when a selected bulk action changes it."""
+    core, groups = setup_groups(access_token, 2)
+    admin = create_admin(access_token)
+    id_user = create_user(access_token, group_ids=[groups[1]["id"]], payload={"username": unique_name("expire_id")})
+    group_user = create_user(
+        access_token, group_ids=[groups[0]["id"]], payload={"username": unique_name("expire_group")}
+    )
+    admin_user = create_user(
+        access_token, group_ids=[groups[1]["id"]], payload={"username": unique_name("expire_admin")}
+    )
+    normal_user = create_user(
+        access_token, group_ids=[groups[1]["id"]], payload={"username": unique_name("expire_normal")}
+    )
+    users = [id_user, group_user, admin_user, normal_user]
+    normal_expire = dt(2030, 1, 1, tzinfo=UTC)
+
+    try:
+        set_owner = client.put(
+            f"/api/user/{admin_user['username']}/set_owner",
+            headers={"Authorization": f"Bearer {access_token}"},
+            params={"admin_username": admin["username"]},
+        )
+        assert set_owner.status_code == status.HTTP_200_OK
+        set_expire = client.put(
+            f"/api/user/{normal_user['username']}",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={"expire": normal_expire.isoformat()},
+        )
+        assert set_expire.status_code == status.HTTP_200_OK
+
+        dry_run = client.post(
+            "/api/users/bulk/expire",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={"amount": 3600, "group_ids": [groups[0]["id"]], "dry_run": True},
+        )
+        assert dry_run.status_code == status.HTTP_200_OK
+        assert dry_run.json()["affected_users"] == 1
+
+        before_id = dt.now(UTC)
+        by_id = client.post(
+            "/api/users/bulk/expire",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={"amount": 3600, "users": [id_user["id"]]},
+        )
+        after_id = dt.now(UTC)
+        assert by_id.status_code == status.HTTP_200_OK
+
+        before_group = dt.now(UTC)
+        by_group = client.post(
+            "/api/users/bulk/expire",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={"amount": 3600, "group_ids": [groups[0]["id"]]},
+        )
+        after_group = dt.now(UTC)
+        assert by_group.status_code == status.HTTP_200_OK
+
+        before_admin = dt.now(UTC)
+        by_admin = client.post(
+            "/api/users/bulk/expire",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={"amount": -3600, "admins": [admin["id"]]},
+        )
+        after_admin = dt.now(UTC)
+        assert by_admin.status_code == status.HTTP_200_OK
+
+        def get_user(user):
+            response = client.get(f"/api/user/{user['username']}", headers={"Authorization": f"Bearer {access_token}"})
+            assert response.status_code == status.HTTP_200_OK
+            return response.json()
+
+        id_expire = dt.fromisoformat(get_user(id_user)["expire"])
+        group_expire = dt.fromisoformat(get_user(group_user)["expire"])
+        admin_result = get_user(admin_user)
+        admin_expire = dt.fromisoformat(admin_result["expire"])
+        normal_result = get_user(normal_user)
+
+        assert before_id + td(seconds=3599) <= id_expire <= after_id + td(seconds=3601)
+        assert before_group + td(seconds=3599) <= group_expire <= after_group + td(seconds=3601)
+        assert before_admin - td(seconds=3601) <= admin_expire <= after_admin - td(seconds=3599)
+        assert admin_result["status"] == "expired"
+        assert dt.fromisoformat(normal_result["expire"]) == normal_expire
+    finally:
+        cleanup(access_token, core, groups, users)
+        delete_admin(access_token, admin["username"])
+
+
 def test_update_users_proxy_settings(access_token):
     """Test bulk updating user proxy settings."""
     core, groups = setup_groups(access_token, 1)

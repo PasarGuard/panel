@@ -245,9 +245,7 @@ async def remove_groups_from_users(
 
 async def count_bulk_expire_targets(db: AsyncSession, bulk_model: BulkUser) -> int:
     final_filter = _create_final_filter(bulk_model)
-    return (
-        await db.execute(select(func.count(User.id)).where(and_(final_filter, User.expire.isnot(None))))
-    ).scalar_one_or_none() or 0
+    return (await db.execute(select(func.count(User.id)).where(final_filter))).scalar_one_or_none() or 0
 
 
 async def count_bulk_datalimit_targets(db: AsyncSession, bulk_model: BulkUser) -> int:
@@ -320,12 +318,10 @@ async def update_users_expire(db: AsyncSession, bulk_model: BulkUser) -> tuple[l
     """
     final_filter = _create_final_filter(bulk_model)
 
-    count_effctive_users = (
-        await db.execute(select(func.count(User.id)).where(and_(final_filter, User.expire.isnot(None))))
-    ).scalar_one_or_none() or 0
-    # Get database-specific datetime addition expression
-    new_expire = get_datetime_add_expression(db, User.expire, bulk_model.amount)
     current_time = dt.now(UTC)
+    count_effctive_users = (await db.execute(select(func.count(User.id)).where(final_filter))).scalar_one_or_none() or 0
+    expire_base = func.coalesce(User.expire, current_time)
+    new_expire = get_datetime_add_expression(db, expire_base, bulk_model.amount)
 
     # First, get the users that will have status changes BEFORE updating
     status_change_conditions = or_(
@@ -334,9 +330,7 @@ async def update_users_expire(db: AsyncSession, bulk_model: BulkUser) -> tuple[l
     )
 
     # Get IDs of users whose status will change
-    result = await db.execute(
-        select(User.id).where(and_(final_filter, User.expire.isnot(None), status_change_conditions))
-    )
+    result = await db.execute(select(User.id).where(and_(final_filter, status_change_conditions)))
     status_changed_user_ids = [row[0] for row in result.fetchall()]
 
     # Perform the update
@@ -346,9 +340,7 @@ async def update_users_expire(db: AsyncSession, bulk_model: BulkUser) -> tuple[l
     ]
 
     await db.execute(
-        update(User)
-        .where(and_(final_filter, User.expire.isnot(None)))
-        .values(expire=new_expire, status=case(*status_cases, else_=User.status))
+        update(User).where(final_filter).values(expire=new_expire, status=case(*status_cases, else_=User.status))
     )
     await db.commit()
 
