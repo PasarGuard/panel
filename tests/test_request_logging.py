@@ -76,7 +76,7 @@ async def test_unmatched_access_log_never_uses_raw_path():
 
 
 @pytest.mark.asyncio
-async def test_frequent_success_is_debug_when_not_sampled():
+async def test_frequent_success_is_suppressed_when_not_sampled():
     route = "/api/user/{username}"
     logger = await _call_middleware(
         _scope("/api/user/alice"),
@@ -85,7 +85,20 @@ async def test_frequent_success_is_debug_when_not_sampled():
         sampled_routes=frozenset({route}),
     )
 
-    assert logger.log.call_args.args[0] == logging.DEBUG
+    logger.log.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_frequent_success_is_info_when_sampled():
+    route = "/api/user/{username}"
+    logger = await _call_middleware(
+        _scope("/api/user/alice"),
+        route_path=route,
+        sample_rate=1,
+        sampled_routes=frozenset({route}),
+    )
+
+    assert logger.log.call_args.args[0] == logging.INFO
 
 
 @pytest.mark.asyncio
