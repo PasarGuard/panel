@@ -31,7 +31,11 @@ class DummyNode:
 
 
 def test_postgres_user_traffic_update_uses_one_unnest_statement():
-    usage_params = [{"uid": 1, "value": 10}, {"uid": 2, "value": 20}]
+    usage_params = [
+        {"uid": 1, "value": 10},
+        {"uid": 2, "value": 20},
+        {"uid": 1, "value": 30},
+    ]
 
     stmt, params = record_usages.build_user_traffic_update("postgresql", usage_params)
     sql = str(stmt.compile(dialect=postgresql.dialect()))
@@ -39,7 +43,7 @@ def test_postgres_user_traffic_update_uses_one_unnest_statement():
     assert "UPDATE users" in sql
     assert "FROM unnest" in sql
     assert "online_at" not in sql
-    assert params == {"uids": [1, 2], "traffic_values": [10, 20]}
+    assert params == {"uids": [1, 2], "traffic_values": [40, 20]}
 
 
 def _get_test_database_url() -> str:

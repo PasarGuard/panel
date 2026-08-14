@@ -229,6 +229,10 @@ def build_node_user_usage_upsert(dialect: str, upsert_params: list[dict]):
 def build_user_traffic_update(dialect: str, usage_params: list[dict]):
     """Build a set-based user traffic update when the database supports arrays."""
     if dialect == "postgresql":
+        aggregated_usage = defaultdict(int)
+        for param in usage_params:
+            aggregated_usage[param["uid"]] += param["value"]
+
         source = (
             func.unnest(
                 bindparam("uids", type_=ARRAY(BigInteger())),
@@ -246,8 +250,8 @@ def build_user_traffic_update(dialect: str, usage_params: list[dict]):
         return (
             stmt,
             {
-                "uids": [param["uid"] for param in usage_params],
-                "traffic_values": [param["value"] for param in usage_params],
+                "uids": list(aggregated_usage),
+                "traffic_values": list(aggregated_usage.values()),
             },
         )
 
