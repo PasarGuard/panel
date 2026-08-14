@@ -33,12 +33,12 @@ class RequestProcessTimeLoggingMiddleware:
         self.slow_request_ms = max(slow_request_ms, 0)
         self.sampled_routes = sampled_routes
 
-    def _log_level(self, route_path: str, status_code: int, process_time_ms: float) -> int:
+    def _log_level(self, route_path: str, status_code: int, process_time_ms: float) -> int | None:
         if status_code >= 400 or process_time_ms >= self.slow_request_ms:
             return logging.INFO
         if route_path not in self.sampled_routes:
             return logging.INFO
-        return logging.INFO if random.random() < self.success_sample_rate else logging.DEBUG
+        return logging.INFO if random.random() < self.success_sample_rate else None
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
@@ -80,13 +80,14 @@ class RequestProcessTimeLoggingMiddleware:
             method = scope.get("method", "-")
             log_level = self._log_level(route_path, status_code, process_time_ms)
 
-            self.access_logger.log(
-                log_level,
-                '%s - "%s %s HTTP/%s" %d',
-                client_addr,
-                method,
-                request_target,
-                http_version,
-                status_code,
-                extra={"process_time": f"{process_time_ms:.2f}ms"},
-            )
+            if log_level is not None:
+                self.access_logger.log(
+                    log_level,
+                    '%s - "%s %s HTTP/%s" %d',
+                    client_addr,
+                    method,
+                    request_target,
+                    http_version,
+                    status_code,
+                    extra={"process_time": f"{process_time_ms:.2f}ms"},
+                )
