@@ -5,7 +5,7 @@ from typing import Literal
 
 from sqlalchemy import and_, case, delete, desc, func, literal, not_, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import joinedload, selectinload
+from sqlalchemy.orm import joinedload, selectinload, with_expression
 from sqlalchemy.sql import Select
 from sqlalchemy.sql.functions import coalesce
 
@@ -120,7 +120,7 @@ def _build_user_select_stmt(
             .correlate(User)
             .scalar_subquery()
         )
-        stmt = stmt.add_columns(reset_traffic.label("_reseted_usage"))
+        stmt = stmt.options(with_expression(User._reseted_usage_query, reset_traffic))
     return stmt
 
 
@@ -203,15 +203,7 @@ async def get_user(
     if admin_id is not None:
         stmt = stmt.where(User.admin_id == admin_id)
 
-    result = (await db.execute(stmt)).unique()
-    if load_lifetime_used_traffic:
-        row = result.one_or_none()
-        if row is None:
-            return None
-        user, reseted_usage = row
-        user.__dict__["_reseted_usage_override"] = int(reseted_usage or 0)
-        return user
-    return result.scalar_one_or_none()
+    return (await db.execute(stmt)).unique().scalar_one_or_none()
 
 
 async def get_user_by_id(
@@ -251,15 +243,7 @@ async def get_user_by_id(
     if admin_id is not None:
         stmt = stmt.where(User.admin_id == admin_id)
 
-    result = (await db.execute(stmt)).unique()
-    if load_lifetime_used_traffic:
-        row = result.one_or_none()
-        if row is None:
-            return None
-        user, reseted_usage = row
-        user.__dict__["_reseted_usage_override"] = int(reseted_usage or 0)
-        return user
-    return result.scalar_one_or_none()
+    return (await db.execute(stmt)).unique().scalar_one_or_none()
 
 
 async def get_user_lifetime_used_traffic(db: AsyncSession, user_id: int) -> int:

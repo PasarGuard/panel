@@ -15,6 +15,7 @@ from fastapi import status
 from sqlalchemy import event, func, select, update
 
 from app.db.crud.hwid import register_user_hwid
+from app.db.crud.user import get_user as get_db_user
 from app.db.models import NodeUserUsage, User, UserStatus, UserUsageResetLogs
 from app.models.settings import ConfigFormat, SubRule, Subscription
 from app.models.stats import Period, UserCountMetric, UserCountMetricStat, UserCountMetricStatsList
@@ -96,6 +97,7 @@ def count_user_chart_rows(user_id: int) -> int:
 
 
 def test_get_user_uses_two_selects_and_preserves_lifetime_traffic():
+    """The optimized endpoint keeps its two-query budget and response semantics."""
     access_token = asyncio.run(create_admin_token(None, "testadmin"))
     user = create_user(access_token, username=unique_name("single_read"))
 
@@ -122,6 +124,38 @@ def test_get_user_uses_two_selects_and_preserves_lifetime_traffic():
         assert select_count == 2
     finally:
         event.remove(engine.sync_engine, "before_cursor_execute", _count_selects)
+        delete_user(access_token, user["username"])
+
+
+def test_optimized_lifetime_traffic_is_refreshed_in_same_session():
+    """A query-scoped aggregate must not outlive a subsequent ORM refresh."""
+    access_token = asyncio.run(create_admin_token(None, "testadmin"))
+    user = create_user(access_token, username=unique_name("fresh_lifetime"))
+
+    async def _check_refresh():
+        async with TestSession() as session:
+            db_user = await get_db_user(
+                session,
+                user["username"],
+                load_admin=False,
+                load_next_plan=False,
+                load_usage_logs=False,
+                load_groups=False,
+                load_lifetime_used_traffic=True,
+            )
+            assert db_user is not None
+            initial_lifetime_used_traffic = db_user.lifetime_used_traffic
+
+            session.add(UserUsageResetLogs(user_id=user["id"], used_traffic_at_reset=23456))
+            await session.commit()
+            await session.refresh(db_user)
+            await db_user.awaitable_attrs.usage_logs
+
+            assert db_user.lifetime_used_traffic == initial_lifetime_used_traffic + 23456
+
+    try:
+        asyncio.run(_check_refresh())
+    finally:
         delete_user(access_token, user["username"])
 
 

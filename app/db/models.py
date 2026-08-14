@@ -25,7 +25,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import async_object_session
 from sqlalchemy.ext.hybrid import hybrid_property
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, query_expression, relationship
 from sqlalchemy.sql.expression import select, text
 
 from app.db.base import Base
@@ -130,8 +130,6 @@ class Admin(Base, CreatedAtUTCMixin):
 
     @hybrid_property
     def reseted_usage(self) -> int:
-        if "_reseted_usage_override" in self.__dict__:
-            return int(self.__dict__["_reseted_usage_override"])
         return int(sum([log.used_traffic_at_reset for log in self.usage_logs]))
 
     @reseted_usage.expression
@@ -239,6 +237,7 @@ class User(Base, CreatedAtUTCMixin):
     hwid_limit: Mapped[int | None] = mapped_column(BigInteger, default=None)
     edit_at: Mapped[dt | None] = mapped_column(DateTime(timezone=True), default=None)
     last_status_change: Mapped[dt | None] = mapped_column(DateTime(timezone=True), default=None)
+    _reseted_usage_query: Mapped[int | None] = query_expression(repr=False)
 
     @hybrid_property
     def expire(self) -> dt | None:
@@ -262,8 +261,8 @@ class User(Base, CreatedAtUTCMixin):
 
     @hybrid_property
     def reseted_usage(self) -> int:
-        if "_reseted_usage_override" in self.__dict__:
-            return int(self.__dict__["_reseted_usage_override"])
+        if self._reseted_usage_query is not None:
+            return int(self._reseted_usage_query)
         return int(sum([log.used_traffic_at_reset for log in self.usage_logs]))
 
     @reseted_usage.expression
