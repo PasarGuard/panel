@@ -19,6 +19,10 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 ADD . /build
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev
+RUN .venv/bin/pip install --no-cache-dir grpcio-tools \
+    && .venv/bin/python scripts/regenerate_node_bridge_proto.py \
+    && .venv/bin/python -c "from PasarGuardNodeBridge.common.service_pb2 import Wireguard; assert any(f.name == 'pre_shared_key' for f in Wireguard.DESCRIPTOR.fields), 'PSK field missing after regeneration'; print('bridge PSK OK')" \
+    && .venv/bin/pip uninstall -y grpcio-tools
 
 
 FROM python:$PYTHON_VERSION-slim-bookworm
