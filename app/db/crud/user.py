@@ -94,6 +94,8 @@ def _build_user_select_stmt(
     load_next_plan: bool = True,
     load_usage_logs: bool = True,
     load_groups: bool = True,
+    join_groups: bool = False,
+    load_lifetime_used_traffic: bool = False,
 ) -> Select:
     """Build a user select statement with eager-load options."""
     stmt = select(User)
@@ -108,9 +110,17 @@ def _build_user_select_stmt(
     if load_usage_logs:
         options.append(selectinload(User.usage_logs))
     if load_groups:
-        options.append(selectinload(User.groups))
+        options.append(joinedload(User.groups) if join_groups else selectinload(User.groups))
     if options:
         stmt = stmt.options(*options)
+    if load_lifetime_used_traffic:
+        reset_traffic = (
+            select(func.coalesce(func.sum(UserUsageResetLogs.used_traffic_at_reset), 0))
+            .where(UserUsageResetLogs.user_id == User.id)
+            .correlate(User)
+            .scalar_subquery()
+        )
+        stmt = stmt.add_columns(reset_traffic.label("_reseted_usage"))
     return stmt
 
 
@@ -165,6 +175,8 @@ async def get_user(
     load_next_plan: bool = True,
     load_usage_logs: bool = True,
     load_groups: bool = True,
+    join_groups: bool = False,
+    load_lifetime_used_traffic: bool = False,
     admin_id: int | None = None,
 ) -> User | None:
     """
@@ -184,12 +196,22 @@ async def get_user(
         load_next_plan=load_next_plan,
         load_usage_logs=load_usage_logs,
         load_groups=load_groups,
+        join_groups=join_groups,
+        load_lifetime_used_traffic=load_lifetime_used_traffic,
     ).where(User.username == username)
 
     if admin_id is not None:
         stmt = stmt.where(User.admin_id == admin_id)
 
-    return (await db.execute(stmt)).unique().scalar_one_or_none()
+    result = (await db.execute(stmt)).unique()
+    if load_lifetime_used_traffic:
+        row = result.one_or_none()
+        if row is None:
+            return None
+        user, reseted_usage = row
+        user.__dict__["_reseted_usage_override"] = int(reseted_usage or 0)
+        return user
+    return result.scalar_one_or_none()
 
 
 async def get_user_by_id(
@@ -201,6 +223,8 @@ async def get_user_by_id(
     load_next_plan: bool = True,
     load_usage_logs: bool = True,
     load_groups: bool = True,
+    join_groups: bool = False,
+    load_lifetime_used_traffic: bool = False,
     admin_id: int | None = None,
 ) -> User | None:
     """
@@ -220,12 +244,22 @@ async def get_user_by_id(
         load_next_plan=load_next_plan,
         load_usage_logs=load_usage_logs,
         load_groups=load_groups,
+        join_groups=join_groups,
+        load_lifetime_used_traffic=load_lifetime_used_traffic,
     ).where(User.id == user_id)
 
     if admin_id is not None:
         stmt = stmt.where(User.admin_id == admin_id)
 
-    return (await db.execute(stmt)).unique().scalar_one_or_none()
+    result = (await db.execute(stmt)).unique()
+    if load_lifetime_used_traffic:
+        row = result.one_or_none()
+        if row is None:
+            return None
+        user, reseted_usage = row
+        user.__dict__["_reseted_usage_override"] = int(reseted_usage or 0)
+        return user
+    return result.scalar_one_or_none()
 
 
 async def get_user_lifetime_used_traffic(db: AsyncSession, user_id: int) -> int:

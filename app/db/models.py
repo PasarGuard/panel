@@ -130,6 +130,8 @@ class Admin(Base, CreatedAtUTCMixin):
 
     @hybrid_property
     def reseted_usage(self) -> int:
+        if "_reseted_usage_override" in self.__dict__:
+            return int(self.__dict__["_reseted_usage_override"])
         return int(sum([log.used_traffic_at_reset for log in self.usage_logs]))
 
     @reseted_usage.expression
@@ -260,6 +262,8 @@ class User(Base, CreatedAtUTCMixin):
 
     @hybrid_property
     def reseted_usage(self) -> int:
+        if "_reseted_usage_override" in self.__dict__:
+            return int(self.__dict__["_reseted_usage_override"])
         return int(sum([log.used_traffic_at_reset for log in self.usage_logs]))
 
     @reseted_usage.expression
@@ -272,7 +276,7 @@ class User(Base, CreatedAtUTCMixin):
 
     @property
     def lifetime_used_traffic(self) -> int:
-        return int(sum([log.used_traffic_at_reset for log in self.usage_logs]) + self.used_traffic)
+        return self.reseted_usage + self.used_traffic
 
     @property
     def last_traffic_reset_time(self):

@@ -12,19 +12,19 @@ from unittest.mock import AsyncMock, MagicMock
 from urllib.parse import parse_qs, unquote, urlsplit
 
 from fastapi import status
-from sqlalchemy import func, select, update
+from sqlalchemy import event, func, select, update
 
 from app.db.crud.hwid import register_user_hwid
-from app.db.models import NodeUserUsage, User, UserStatus
+from app.db.models import NodeUserUsage, User, UserStatus, UserUsageResetLogs
 from app.models.settings import ConfigFormat, SubRule, Subscription
 from app.models.stats import Period, UserCountMetric, UserCountMetricStat, UserCountMetricStatsList
 from app.models.validators import MAX_ON_HOLD_EXPIRE_DURATION_SECONDS
 from app.operation.subscription import SubscriptionOperation
 from app.utils import jwt as jwt_utils
 from app.utils.crypto import generate_wireguard_keypair, get_wireguard_public_key
-from app.utils.jwt import create_subscription_token, get_secret_key, get_subscription_payload
+from app.utils.jwt import create_admin_token, create_subscription_token, get_secret_key, get_subscription_payload
 from config import usage_settings
-from tests.api import TestSession, client
+from tests.api import TestSession, client, engine
 from tests.api.helpers import (
     auth_headers,
     create_admin,
@@ -93,6 +93,36 @@ def count_user_chart_rows(user_id: int) -> int:
             return result.scalar_one()
 
     return asyncio.run(_count_rows())
+
+
+def test_get_user_uses_two_selects_and_preserves_lifetime_traffic():
+    access_token = asyncio.run(create_admin_token(None, "testadmin"))
+    user = create_user(access_token, username=unique_name("single_read"))
+
+    async def _add_reset_log():
+        async with TestSession() as session:
+            session.add(UserUsageResetLogs(user_id=user["id"], used_traffic_at_reset=12345))
+            await session.commit()
+
+    asyncio.run(_add_reset_log())
+
+    select_count = 0
+
+    def _count_selects(*args):
+        nonlocal select_count
+        statement = args[2]
+        if statement.lstrip().upper().startswith("SELECT"):
+            select_count += 1
+
+    event.listen(engine.sync_engine, "before_cursor_execute", _count_selects)
+    try:
+        response = client.get(f"/api/user/{user['username']}", headers=auth_headers(access_token))
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["lifetime_used_traffic"] == 12345
+        assert select_count == 2
+    finally:
+        event.remove(engine.sync_engine, "before_cursor_execute", _count_selects)
+        delete_user(access_token, user["username"])
 
 
 def extract_wireguard_config_bodies(response) -> list[str]:
