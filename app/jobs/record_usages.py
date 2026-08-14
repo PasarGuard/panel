@@ -478,8 +478,10 @@ async def _flush_pending_user_usage_history_locked(now_monotonic: float | None =
             "created_at": created_at,
         }
         for (created_at, uid, node_id), value in _pending_user_usage_history.items()
+        if value
     ]
-    await _write_node_user_usage_params("postgresql", upsert_params)
+    if upsert_params:
+        await _write_node_user_usage_params("postgresql", upsert_params)
     _pending_user_usage_history.clear()
     _user_usage_history_last_flush = now_monotonic if now_monotonic is not None else _monotonic_now()
     return len(upsert_params)
