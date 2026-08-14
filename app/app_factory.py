@@ -7,6 +7,7 @@ from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
 from sqlalchemy.exc import DBAPIError
 
+from app.db.base import database_pool_summary
 from app.lifecycle import on_shutdown, on_startup
 from app.middlewares import setup_middleware
 from app.nats import is_multi_worker, require_nats_if_multiworker
@@ -16,9 +17,14 @@ from app.settings import handle_settings_message
 from app.subscription.client_templates import handle_client_template_message
 from app.utils.logger import get_logger
 from app.version import __version__
-from config import runtime_settings, subscription_env_settings
+from config import database_settings, runtime_settings, server_settings, subscription_env_settings
 
 logger = get_logger("app-factory")
+
+
+def _log_database_pool_budget() -> None:
+    process_count = max(server_settings.workers or 1, 1) if runtime_settings.role.runs_panel else 1
+    logger.info(database_pool_summary(database_settings, process_count))
 
 
 async def _ignore_worker_sync_message(_: dict):
@@ -263,6 +269,7 @@ def create_app() -> FastAPI:
     _use_route_names_as_operation_ids(app)
 
     on_startup(lambda: logger.info(f"PasarGuard v{__version__} ({runtime_settings.role.value})"))
+    on_startup(_log_database_pool_budget)
 
     @app.exception_handler(RequestValidationError)
     def validation_exception_handler(request: Request, exc: RequestValidationError):
