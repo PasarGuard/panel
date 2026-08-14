@@ -139,6 +139,7 @@ export type GetUsersParams = {
   admin?: string[] | null
   admin_ids?: number[] | null
   group?: number[] | null
+  no_group?: boolean
   search?: string | null
   status?: UserStatus | UserStatus[] | null
   sort?: string | null
@@ -3341,6 +3342,7 @@ export interface BulkGroupSelection {
 export interface BulkGroup {
   group_ids: number[]
   has_group_ids?: number[]
+  has_no_group?: boolean
   admins?: number[]
   users?: number[]
   dry_run?: boolean

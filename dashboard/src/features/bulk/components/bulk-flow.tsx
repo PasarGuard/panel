@@ -19,6 +19,7 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Switch } from '@/components/ui/switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
@@ -71,6 +72,7 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
   const [selectedUsers, setSelectedUsers] = useState<number[]>([])
   const [selectedAdmins, setSelectedAdmins] = useState<number[]>([])
   const [selectedHasGroups, setSelectedHasGroups] = useState<number[]>([])
+  const [hasNoGroup, setHasNoGroup] = useState(false)
   const [selectedStatuses, setSelectedStatuses] = useState<UserStatus[]>([])
   const [expiredAfter, setExpiredAfter] = useState<Date | undefined>()
   const [expiredBefore, setExpiredBefore] = useState<Date | undefined>()
@@ -184,7 +186,7 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
   const handleApply = () => {
     // For groups remove operation, require at least hasGroups, users, or admins to be selected
     if (operationType === 'groups' && groupsOperation === 'remove') {
-      const totalTargets = selectedUsers.length + selectedAdmins.length + selectedHasGroups.length
+      const totalTargets = selectedUsers.length + selectedAdmins.length + selectedHasGroups.length + (hasNoGroup ? 1 : 0)
       if (totalTargets === 0) {
         toast.error(t('error'), { description: t('bulk.noTargetsSelected') })
         return
@@ -250,6 +252,7 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
           return {
             group_ids: selectedGroups,
             has_group_ids: selectedHasGroups.length > 0 ? selectedHasGroups : [],
+            has_no_group: hasNoGroup,
             users: selectedUsers.length ? selectedUsers : [],
             admins: selectedAdmins.length ? selectedAdmins : [],
             dry_run: false,
@@ -302,6 +305,7 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
           setSelectedUsers([])
           setSelectedAdmins([])
           setSelectedHasGroups([])
+          setHasNoGroup(false)
           setSelectedStatuses([])
           setExpiredAfter(undefined)
           setExpiredBefore(undefined)
@@ -356,6 +360,7 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
           return {
             group_ids: selectedGroups,
             has_group_ids: selectedHasGroups.length > 0 ? selectedHasGroups : [],
+            has_no_group: hasNoGroup,
             users: selectedUsers.length ? selectedUsers : [],
             admins: selectedAdmins.length ? selectedAdmins : [],
             dry_run: true,
@@ -400,7 +405,8 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
 
   // For groups operation, groups are the operation target, not user targets
   // So isApplyToAll should only check users, admins, and hasGroups
-  const totalTargets = selectedUsers.length + selectedAdmins.length + (operationType === 'groups' ? selectedHasGroups.length : selectedGroups.length)
+  const totalTargets =
+    selectedUsers.length + selectedAdmins.length + (operationType === 'groups' ? selectedHasGroups.length + (hasNoGroup ? 1 : 0) : selectedGroups.length)
   const hasStatusFilter = (operationType === 'data' || operationType === 'expire') && selectedStatuses.length > 0
   const statusTargetCount = hasStatusFilter ? selectedStatuses.length : 0
   const hasExpireDateFilter = (operationType === 'data' || operationType === 'expire') && Boolean(expiredAfter || expiredBefore)
@@ -804,30 +810,49 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
               )}
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
                 {operationType === 'groups' ? (
-                  <SelectorPanel
-                    icon={Group}
-                    title={t('bulk.selectHasGroups', { defaultValue: 'Select Has Groups' })}
-                    items={filteredHasGroups}
-                    selected={selectedHasGroups}
-                    setSelected={setSelectedHasGroups}
-                    search={hasGroupSearch}
-                    setSearch={setHasGroupSearch}
-                    searchPlaceholder={t('bulk.searchHasGroups', { defaultValue: 'Search has groups...' })}
-                    selectAllLabel={t('selectAll', { defaultValue: 'Select All' })}
-                    deselectAllLabel={t('deselectAll', { defaultValue: 'Deselect All' })}
-                    itemLabelKey="name"
-                    itemValueKey="id"
-                    searchKey="name"
-                    t={t}
-                    isLoading={groupsLoading}
-                    description={
-                      groupsOperation === 'remove'
-                        ? t('bulk.hasGroupsDescription', { defaultValue: 'Users must have these groups to be affected' })
-                        : t('bulk.hasGroupsDescriptionAdd', { defaultValue: 'Filter users who have these groups' })
-                    }
-                    isRequired={groupsOperation === 'remove'}
-                    hasError={groupsOperation === 'remove' && selectedHasGroups.length === 0}
-                  />
+                  <div className="flex h-full min-w-[200px] flex-1 flex-col gap-2.5 sm:min-w-[240px]">
+                    <div className="flex items-center justify-between gap-3 rounded-md border p-3">
+                      <div className="space-y-0.5">
+                        <Label className="text-sm font-medium">{t('bulk.hasNoGroup', { defaultValue: 'Users with no group' })}</Label>
+                        <p className="text-muted-foreground text-xs">
+                          {t('bulk.hasNoGroupDescription', { defaultValue: 'Target only users that currently belong to no group.' })}
+                        </p>
+                      </div>
+                      <Switch
+                        checked={hasNoGroup}
+                        onCheckedChange={checked => {
+                          setHasNoGroup(checked)
+                          if (checked) setSelectedHasGroups([])
+                        }}
+                      />
+                    </div>
+                    <div className={cn('flex min-h-0 flex-1', hasNoGroup && 'pointer-events-none opacity-60')}>
+                      <SelectorPanel
+                        icon={Group}
+                        title={t('bulk.selectHasGroups', { defaultValue: 'Select Has Groups' })}
+                        items={filteredHasGroups}
+                        selected={selectedHasGroups}
+                        setSelected={setSelectedHasGroups}
+                        search={hasGroupSearch}
+                        setSearch={setHasGroupSearch}
+                        searchPlaceholder={t('bulk.searchHasGroups', { defaultValue: 'Search has groups...' })}
+                        selectAllLabel={t('selectAll', { defaultValue: 'Select All' })}
+                        deselectAllLabel={t('deselectAll', { defaultValue: 'Deselect All' })}
+                        itemLabelKey="name"
+                        itemValueKey="id"
+                        searchKey="name"
+                        t={t}
+                        isLoading={groupsLoading}
+                        description={
+                          groupsOperation === 'remove'
+                            ? t('bulk.hasGroupsDescription', { defaultValue: 'Users must have these groups to be affected' })
+                            : t('bulk.hasGroupsDescriptionAdd', { defaultValue: 'Filter users who have these groups' })
+                        }
+                        isRequired={groupsOperation === 'remove'}
+                        hasError={groupsOperation === 'remove' && selectedHasGroups.length === 0 && !hasNoGroup}
+                      />
+                    </div>
+                  </div>
                 ) : (
                   <SelectorPanel
                     icon={Group}
@@ -962,6 +987,12 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
                         <span className="text-muted-foreground">{t('bulk.settings', { defaultValue: 'Settings' })}:</span>
                         <Badge variant={groupsOperation === 'remove' ? 'destructive' : 'default'}>{groupsOperation === 'add' ? t('bulk.addGroups') : t('bulk.removeGroups')}</Badge>
                       </div>
+                      {hasNoGroup && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground">{t('bulk.hasNoGroup', { defaultValue: 'Users with no group' })}:</span>
+                          <span className="text-sm">{t('bulk.hasNoGroupValue', { defaultValue: 'Yes' })}</span>
+                        </div>
+                      )}
                       {selectedHasGroups.length > 0 && (
                         <div className="flex items-center justify-between">
                           <span className="text-muted-foreground">{t('bulk.hasGroups', { defaultValue: 'Has Groups' })}:</span>

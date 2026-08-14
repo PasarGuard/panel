@@ -129,6 +129,7 @@ const parseURLParams = (searchParams: URLSearchParams, defaultItemsPerPage: numb
   const online = parseBooleanFlag(searchParams.get('online'))
   const noDataLimit = parseBooleanFlag(searchParams.get('no_data_limit'))
   const noExpire = parseBooleanFlag(searchParams.get('no_expire'))
+  const noGroup = parseBooleanFlag(searchParams.get('no_group'))
 
   return {
     page: Math.max(0, page),
@@ -138,7 +139,7 @@ const parseURLParams = (searchParams: URLSearchParams, defaultItemsPerPage: numb
     ids,
     status,
     admin: admin.length > 0 ? admin : undefined,
-    group: group.length > 0 ? group : undefined,
+    group: noGroup ? undefined : group.length > 0 ? group : undefined,
     isProtocol,
     isId,
     dataLimitMin: noDataLimit ? undefined : dataLimitMin,
@@ -150,6 +151,7 @@ const parseURLParams = (searchParams: URLSearchParams, defaultItemsPerPage: numb
     online,
     noDataLimit,
     noExpire,
+    noGroup,
   }
 }
 
@@ -188,6 +190,7 @@ const UsersTable = memo(() => {
         status: urlParams.status || undefined,
         admin: urlParams.admin,
         group: urlParams.group,
+        no_group: urlParams.noGroup || undefined,
         data_limit_min: toOptionalBytesFilter(urlParams.dataLimitMin),
         data_limit_max: toOptionalBytesFilter(urlParams.dataLimitMax),
         expire_after: urlParams.expireAfter,
@@ -233,6 +236,7 @@ const UsersTable = memo(() => {
     status?: UserStatus | null
     admin?: string[]
     group?: number[]
+    no_group?: boolean
     data_limit_min?: number | null
     data_limit_max?: number | null
     expire_after?: string | null
@@ -288,6 +292,9 @@ const UsersTable = memo(() => {
     if (filters.group && filters.group.length > 0) {
       filters.group.forEach(group => searchParams.append('group', group.toString()))
     }
+    if (filters.no_group) {
+      searchParams.set('no_group', 'true')
+    }
     if (filters.data_limit_min) {
       searchParams.set('data_limit_min', String(bytesToFormGigabytes(filters.data_limit_min)))
     }
@@ -328,6 +335,7 @@ const UsersTable = memo(() => {
     filters.status,
     filters.admin,
     filters.group,
+    filters.no_group,
     filters.data_limit_min,
     filters.data_limit_max,
     filters.expire_after,
@@ -355,6 +363,7 @@ const UsersTable = memo(() => {
       status: urlParams.status || '0',
       no_data_limit: urlParams.noDataLimit,
       no_expire: urlParams.noExpire,
+      no_group: urlParams.noGroup,
       data_limit_min: urlParams.dataLimitMin,
       data_limit_max: urlParams.dataLimitMax,
       expire_after: urlParams.expireAfter ? new Date(urlParams.expireAfter) : undefined,
@@ -437,6 +446,7 @@ const UsersTable = memo(() => {
       advanceSearchForm.setValue('status', filters.status || '0')
       advanceSearchForm.setValue('admin', filters.admin || [])
       advanceSearchForm.setValue('group', filters.group || [])
+      advanceSearchForm.setValue('no_group', Boolean(filters.no_group))
       advanceSearchForm.setValue('is_id', Boolean(filters.ids?.length || filters.is_id))
       advanceSearchForm.setValue('is_protocol', Boolean(filters.proxy_id || filters.is_protocol))
       advanceSearchForm.setValue('is_username', !Boolean(filters.proxy_id || filters.is_protocol || filters.ids?.length || filters.is_id))
@@ -458,6 +468,7 @@ const UsersTable = memo(() => {
     filters.ids,
     filters.admin,
     filters.group,
+    filters.no_group,
     filters.proxy_id,
     filters.is_protocol,
     filters.is_id,
@@ -532,6 +543,10 @@ const UsersTable = memo(() => {
       if (JSON.stringify(urlParams.group) !== JSON.stringify(filters.group)) {
         setFilters(prev => ({ ...prev, group: urlParams.group }))
       }
+      const nextNoGroup = urlParams.noGroup || undefined
+      if (nextNoGroup !== filters.no_group) {
+        setFilters(prev => ({ ...prev, no_group: nextNoGroup }))
+      }
       const nextDataLimitMin = toOptionalBytesFilter(urlParams.dataLimitMin)
       if (nextDataLimitMin !== filters.data_limit_min) {
         setFilters(prev => ({ ...prev, data_limit_min: nextDataLimitMin }))
@@ -580,6 +595,7 @@ const UsersTable = memo(() => {
     filters.status,
     filters.admin,
     filters.group,
+    filters.no_group,
     filters.data_limit_min,
     filters.data_limit_max,
     filters.expire_after,
@@ -1020,7 +1036,8 @@ const UsersTable = memo(() => {
       proxy_id: values.is_protocol ? currentSearch : undefined,
       ids: values.is_id ? parseIdsInput(currentSearch) : undefined,
       admin: values.admin && values.admin.length > 0 ? values.admin : undefined,
-      group: values.group && values.group.length > 0 ? values.group : undefined,
+      group: values.no_group ? undefined : values.group && values.group.length > 0 ? values.group : undefined,
+      no_group: values.no_group || undefined,
       status: values.status && values.status !== '0' ? values.status : undefined,
       no_data_limit: values.no_data_limit || undefined,
       no_expire: values.no_expire || undefined,
@@ -1101,6 +1118,7 @@ const UsersTable = memo(() => {
       show_selection_checkbox: showSelectionCheckbox,
       no_data_limit: false,
       no_expire: false,
+      no_group: false,
       online: false,
       admin: [],
       group: [],
@@ -1117,6 +1135,7 @@ const UsersTable = memo(() => {
       ids: undefined,
       admin: undefined,
       group: undefined,
+      no_group: undefined,
       status: undefined,
       data_limit_min: undefined,
       data_limit_max: undefined,
@@ -1145,6 +1164,7 @@ const UsersTable = memo(() => {
     filters.status ||
     filters.admin?.length ||
     filters.group?.length ||
+    filters.no_group ||
     filters.data_limit_min ||
     filters.data_limit_max ||
     filters.expire_after ||
