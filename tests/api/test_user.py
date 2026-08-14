@@ -113,9 +113,15 @@ def test_update_users_status_does_not_refresh_users_individually():
 
             event.listen(session.bind.sync_engine, "before_cursor_execute", record_statement)
             try:
+                assert await update_users_status(session, [], UserStatus.expired) == []
+                assert statements == []
+
                 updated_users = await update_users_status(session, users, UserStatus.expired)
 
                 assert all(user.status == UserStatus.expired for user in updated_users)
+                changed_at_values = {user.last_status_change for user in updated_users}
+                assert None not in changed_at_values
+                assert len(changed_at_values) == 1
                 assert all("groups" in user.__dict__ for user in updated_users)
                 assert all("usage_logs" in user.__dict__ for user in updated_users)
             finally:
