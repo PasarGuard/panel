@@ -2,6 +2,11 @@ services:
   pasarguard:
     image: pasarguard/panel:latest
     restart: always
+    logging:
+      driver: json-file
+      options:
+        max-size: "25m"
+        max-file: "4"
     env_file: .env
     network_mode: host
     volumes:
