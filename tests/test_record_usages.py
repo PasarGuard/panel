@@ -134,7 +134,7 @@ async def test_touch_users_online_at_throttles_indexed_timestamp_writes(session_
     initial_online_at = await get_online_at()
     await record_usages.touch_users_online_at([user_id], first_seen + timedelta(seconds=30))
     throttled_online_at = await get_online_at()
-    await record_usages.touch_users_online_at([user_id], first_seen + timedelta(seconds=61))
+    await record_usages.touch_users_online_at([user_id], first_seen + timedelta(seconds=60))
     refreshed_online_at = await get_online_at()
 
     assert initial_online_at == throttled_online_at
