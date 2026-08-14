@@ -361,9 +361,7 @@ async def get_users_accessible_tags(db: AsyncSession, user_ids: list[int]) -> di
     return tags_by_user
 
 
-async def get_users_accessible_tags_by_inbound_tags(
-    db: AsyncSession, tags: Iterable[str]
-) -> dict[int, set[str]]:
+async def get_users_accessible_tags_by_inbound_tags(db: AsyncSession, tags: Iterable[str]) -> dict[int, set[str]]:
     """Like get_users_accessible_tags but for all users that can reach any of `tags` (no giant IN)."""
     tag_list = list(tags)
     if not tag_list:
@@ -382,9 +380,7 @@ def _peer_ips_present_clause():
 
 async def _user_ids_with_peer_ips(db: AsyncSession) -> list[int]:
     """Return user ids that have a non-empty wireguard.peer_ips array."""
-    rows = (
-        await db.execute(select(User.id).where(_peer_ips_present_clause()).order_by(User.id))
-    ).scalars().all()
+    rows = (await db.execute(select(User.id).where(_peer_ips_present_clause()).order_by(User.id))).scalars().all()
     return list(rows)
 
 
