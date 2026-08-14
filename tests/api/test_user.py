@@ -12,12 +12,14 @@ from unittest.mock import AsyncMock, MagicMock
 from urllib.parse import parse_qs, unquote, urlsplit
 
 from fastapi import status
-from sqlalchemy import func, select, update
+from sqlalchemy import delete, event, func, select, update
 
 from app.db.crud.hwid import register_user_hwid
+from app.db.crud.user import get_users as get_db_users, update_users_status
 from app.db.models import NodeUserUsage, User, UserStatus
 from app.models.settings import ConfigFormat, SubRule, Subscription
 from app.models.stats import Period, UserCountMetric, UserCountMetricStat, UserCountMetricStatsList
+from app.models.user import UserListQuery
 from app.models.validators import MAX_ON_HOLD_EXPIRE_DURATION_SECONDS
 from app.operation.subscription import SubscriptionOperation
 from app.utils import jwt as jwt_utils
@@ -93,6 +95,40 @@ def count_user_chart_rows(user_id: int) -> int:
             return result.scalar_one()
 
     return asyncio.run(_count_rows())
+
+
+def test_update_users_status_does_not_refresh_users_individually():
+    usernames = [unique_name("bulk_status") for _ in range(3)]
+
+    async def _update_status():
+        async with TestSession() as session:
+            session.add_all([User(username=username) for username in usernames])
+            await session.commit()
+
+            users = await get_db_users(session, UserListQuery(usernames=usernames))
+            statements: list[str] = []
+
+            def record_statement(_, __, statement, *args):
+                statements.append(statement)
+
+            event.listen(session.bind.sync_engine, "before_cursor_execute", record_statement)
+            try:
+                updated_users = await update_users_status(session, users, UserStatus.expired)
+
+                assert all(user.status == UserStatus.expired for user in updated_users)
+                assert all("groups" in user.__dict__ for user in updated_users)
+                assert all("usage_logs" in user.__dict__ for user in updated_users)
+            finally:
+                event.remove(session.bind.sync_engine, "before_cursor_execute", record_statement)
+
+            await session.execute(delete(User).where(User.username.in_(usernames)))
+            await session.commit()
+            return statements
+
+    statements = asyncio.run(_update_status())
+
+    assert len(statements) == 1
+    assert statements[0].lstrip().upper().startswith("UPDATE")
 
 
 def extract_wireguard_config_bodies(response) -> list[str]:

@@ -1681,17 +1681,22 @@ async def update_users_status(db: AsyncSession, users: list[User], status: UserS
         status (UserStatus): The new status.
 
     Returns:
-        User: The updated user object.
+        list[User]: The updated user objects.
     """
+    if not users:
+        return []
+
     user_ids = [user.id for user in users]
     changed_at = datetime.now(UTC)
     stmt = update(User).where(User.id.in_(user_ids)).values(status=status, last_status_change=changed_at)
     await db.execute(stmt)
     await db.commit()
+
+    # These users were eager-loaded by the scheduled status queries. Keep their
+    # relationships intact instead of refreshing every user after the bulk update.
     for user in users:
         user.status = status
         user.last_status_change = changed_at
-        await refresh_and_load_user(db, user)
     return users
 
 
