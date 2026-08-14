@@ -105,14 +105,17 @@ def test_update_users_status_does_not_refresh_users_individually():
             session.add_all([User(username=username) for username in usernames])
             await session.commit()
 
-            users = await get_db_users(session, UserListQuery(usernames=usernames))
             statements: list[str] = []
+            listener_registered = False
 
             def record_statement(_, __, statement, *args):
                 statements.append(statement)
 
-            event.listen(session.bind.sync_engine, "before_cursor_execute", record_statement)
             try:
+                users = await get_db_users(session, UserListQuery(usernames=usernames))
+                event.listen(session.bind.sync_engine, "before_cursor_execute", record_statement)
+                listener_registered = True
+
                 assert await update_users_status(session, [], UserStatus.expired) == []
                 assert statements == []
 
@@ -124,12 +127,29 @@ def test_update_users_status_does_not_refresh_users_individually():
                 assert len(changed_at_values) == 1
                 assert all("groups" in user.__dict__ for user in updated_users)
                 assert all("usage_logs" in user.__dict__ for user in updated_users)
-            finally:
-                event.remove(session.bind.sync_engine, "before_cursor_execute", record_statement)
 
-            await session.execute(delete(User).where(User.username.in_(usernames)))
-            await session.commit()
-            return statements
+                event.remove(session.bind.sync_engine, "before_cursor_execute", record_statement)
+                listener_registered = False
+
+                async with TestSession() as verification_session:
+                    persisted_result = await verification_session.execute(
+                        select(User.status, User.last_status_change).where(User.username.in_(usernames))
+                    )
+                    persisted_rows = persisted_result.all()
+
+                assert len(persisted_rows) == len(usernames)
+                assert all(row.status == UserStatus.expired for row in persisted_rows)
+                persisted_changed_at_values = {row.last_status_change for row in persisted_rows}
+                assert None not in persisted_changed_at_values
+                assert len(persisted_changed_at_values) == 1
+
+                return statements
+            finally:
+                if listener_registered:
+                    event.remove(session.bind.sync_engine, "before_cursor_execute", record_statement)
+                await session.rollback()
+                await session.execute(delete(User).where(User.username.in_(usernames)))
+                await session.commit()
 
     statements = asyncio.run(_update_status())
 
