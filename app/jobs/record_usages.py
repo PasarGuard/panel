@@ -36,11 +36,19 @@ NODE_USER_USAGE_BATCH_SIZE_BY_DIALECT = {
     "sqlite": 400,
 }
 USER_ADMIN_LOOKUP_BATCH_SIZE = 1_000
+_pending_user_usage_history: defaultdict[tuple[dt, int, int], int] = defaultdict(int)
+_user_usage_history_lock = asyncio.Lock()
+_user_usage_history_last_flush: float | None = None
 
 # Thread pool executor for I/O-bound node API calls
 # Distributes workload across threads/cores for data collection
 _thread_pool = None
 _thread_pool_lock = asyncio.Lock()
+
+
+def _monotonic_now() -> float:
+    """Return the process clock used to schedule history flushes."""
+    return time.monotonic()
 
 
 async def _get_thread_pool():
@@ -393,38 +401,36 @@ def _get_time_bucket(now: dt | None = None) -> dt:
     return now.replace(minute=(now.minute // 10) * 10, second=0, microsecond=0)
 
 
-async def record_user_stats_batched(all_node_params: dict, usage_coefficients: dict):
-    """
-    Record user statistics for ALL nodes in a single batched UPSERT operation.
-    This eliminates per-node write amplification and reduces lock contention.
-
-    Args:
-        all_node_params: Dict mapping node_id -> list of user stat params
-        usage_coefficients: Dict mapping node_id -> usage coefficient
-    """
-    if not all_node_params:
-        return
-
-    # Aggregate all params across all nodes into single list
-    created_at = _get_time_bucket()
-    dialect = await get_dialect()
-
-    # Prepare parameters for all nodes in one batch
-    upsert_params = []
+def _prepare_node_user_usage_params(
+    all_node_params: dict,
+    usage_coefficients: dict,
+    created_at: dt,
+) -> list[dict]:
+    """Normalize and aggregate nonzero node-user history deltas."""
+    aggregated_params: defaultdict[tuple[int, int], int] = defaultdict(int)
     for node_id, params in all_node_params.items():
         if not params:
             continue
         coeff = usage_coefficients.get(node_id, 1.0)
         for p in params:
-            upsert_params.append(
-                {
-                    "uid": int(p["uid"]),
-                    "value": int(p["value"] * coeff),
-                    "node_id": node_id,
-                    "created_at": created_at,
-                }
-            )
+            value = int(p["value"] * coeff)
+            if value:
+                aggregated_params[(int(p["uid"]), node_id)] += value
 
+    return [
+        {
+            "uid": uid,
+            "value": value,
+            "node_id": node_id,
+            "created_at": created_at,
+        }
+        for (uid, node_id), value in aggregated_params.items()
+        if value
+    ]
+
+
+async def _write_node_user_usage_params(dialect: str, upsert_params: list[dict]) -> None:
+    """Write prepared history deltas using the existing dialect-specific UPSERTs."""
     if not upsert_params:
         return
 
@@ -444,6 +450,93 @@ async def record_user_stats_batched(all_node_params: dict, usage_coefficients: d
             queries = build_node_user_usage_upsert(dialect, batch)
             for stmt, stmt_params in queries:
                 await safe_execute(stmt, stmt_params)
+
+
+async def record_user_stats_batched(all_node_params: dict, usage_coefficients: dict):
+    """Record node-user history immediately using batched dialect-specific UPSERTs."""
+    if not all_node_params:
+        return
+
+    created_at = _get_time_bucket()
+    dialect = await get_dialect()
+    upsert_params = _prepare_node_user_usage_params(all_node_params, usage_coefficients, created_at)
+    await _write_node_user_usage_params(dialect, upsert_params)
+
+
+async def _flush_pending_user_usage_history_locked(now_monotonic: float | None = None) -> int:
+    """Flush PostgreSQL history while the caller holds the history buffer lock."""
+    global _user_usage_history_last_flush
+
+    if not _pending_user_usage_history:
+        return 0
+
+    upsert_params = [
+        {
+            "uid": uid,
+            "value": value,
+            "node_id": node_id,
+            "created_at": created_at,
+        }
+        for (created_at, uid, node_id), value in _pending_user_usage_history.items()
+    ]
+    await _write_node_user_usage_params("postgresql", upsert_params)
+    _pending_user_usage_history.clear()
+    _user_usage_history_last_flush = now_monotonic if now_monotonic is not None else _monotonic_now()
+    return len(upsert_params)
+
+
+async def record_user_stats(all_node_params: dict, usage_coefficients: dict) -> None:
+    """Coalesce PostgreSQL history writes while preserving immediate fallback paths."""
+    if not all_node_params:
+        return
+
+    dialect = await get_dialect()
+    if dialect != "postgresql":
+        await record_user_stats_batched(all_node_params, usage_coefficients)
+        return
+
+    created_at = _get_time_bucket()
+    upsert_params = _prepare_node_user_usage_params(all_node_params, usage_coefficients, created_at)
+    if not upsert_params:
+        return
+
+    now_monotonic = _monotonic_now()
+    async with _user_usage_history_lock:
+        bucket_changed = any(key[0] != created_at for key in _pending_user_usage_history)
+        if bucket_changed:
+            try:
+                flushed_rows = await _flush_pending_user_usage_history_locked(now_monotonic)
+                logger.debug("Flushed %s node user usage history rows before bucket rollover", flushed_rows)
+            except Exception:
+                for param in upsert_params:
+                    key = (param["created_at"], param["uid"], param["node_id"])
+                    _pending_user_usage_history[key] += param["value"]
+                raise
+
+        for param in upsert_params:
+            key = (param["created_at"], param["uid"], param["node_id"])
+            _pending_user_usage_history[key] += param["value"]
+
+        flush_due = (
+            _user_usage_history_last_flush is None
+            or now_monotonic - _user_usage_history_last_flush >= usage_settings.user_usage_history_flush_interval
+        )
+        if flush_due:
+            flushed_rows = await _flush_pending_user_usage_history_locked(now_monotonic)
+            logger.debug("Flushed %s coalesced node user usage history rows", flushed_rows)
+
+
+@on_shutdown
+async def _flush_user_usage_history_on_shutdown() -> None:
+    """Best-effort flush of PostgreSQL analytical history during graceful shutdown."""
+    async with _user_usage_history_lock:
+        if not _pending_user_usage_history:
+            return
+        try:
+            flushed_rows = await _flush_pending_user_usage_history_locked()
+            logger.info("Flushed %s pending node user usage history rows on shutdown", flushed_rows)
+        except Exception:
+            logger.exception("Failed to flush pending node user usage history during shutdown")
 
 
 async def record_node_stats_batched(all_node_params: dict):
@@ -761,9 +854,9 @@ async def _record_user_usages_impl():
                 filtered_node_params[node_id] = filtered_params
 
         if filtered_node_params:
-            await record_user_stats_batched(filtered_node_params, usage_coefficient)
+            await record_user_stats(filtered_node_params, usage_coefficient)
             total_records = sum(len(params) for params in filtered_node_params.values())
-            logger.debug(f"Recorded {total_records} node user usage records across {len(filtered_node_params)} nodes")
+            logger.debug(f"Processed {total_records} node user usage deltas across {len(filtered_node_params)} nodes")
 
         job_duration = time.time() - job_start_time
         logger.debug(
