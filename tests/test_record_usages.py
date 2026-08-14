@@ -163,6 +163,31 @@ async def test_due_history_flushes_without_a_new_usage_sample(monkeypatch: pytes
 
 
 @pytest.mark.asyncio
+async def test_postgres_history_omits_cross_cycle_net_zero_values(monkeypatch: pytest.MonkeyPatch):
+    bucket = datetime(2026, 8, 14, 18, 30, tzinfo=UTC)
+    write_params = AsyncMock()
+    monotonic_values = iter([100.0, 110.0, 120.0])
+
+    monkeypatch.setattr(record_usages, "get_dialect", AsyncMock(return_value="postgresql"))
+    monkeypatch.setattr(record_usages, "_get_time_bucket", lambda: bucket)
+    monkeypatch.setattr(record_usages, "_write_node_user_usage_params", write_params)
+    monkeypatch.setattr(record_usages, "_monotonic_now", lambda: next(monotonic_values))
+    monkeypatch.setattr(record_usages.usage_settings, "user_usage_history_flush_interval", 60)
+
+    await record_usages.record_user_stats({7: [{"uid": "11", "value": 1}]}, {7: 1})
+    await record_usages.record_user_stats({7: [{"uid": "11", "value": 5}]}, {7: 1})
+    await record_usages.record_user_stats({7: [{"uid": "11", "value": -5}]}, {7: 1})
+    flushed_rows = await record_usages.flush_user_usage_history_if_due(160.0)
+
+    assert flushed_rows == 0
+    write_params.assert_awaited_once_with(
+        "postgresql",
+        [{"uid": 11, "value": 1, "node_id": 7, "created_at": bucket}],
+    )
+    assert not record_usages._pending_user_usage_history
+
+
+@pytest.mark.asyncio
 async def test_non_postgres_history_keeps_immediate_path(monkeypatch: pytest.MonkeyPatch):
     immediate_write = AsyncMock()
     node_params = {7: [{"uid": "11", "value": 5}]}
