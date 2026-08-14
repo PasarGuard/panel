@@ -77,16 +77,9 @@ async def test_postgres_history_coalesces_until_flush_interval(monkeypatch: pyte
     await record_usages.record_user_stats({7: [{"uid": "11", "value": 7}]}, {7: 1})
     await record_usages.record_user_stats({7: [{"uid": "11", "value": 9}]}, {7: 1})
 
-    assert write_params.await_count == 2
-    first_write = write_params.await_args_list[0].args
-    second_write = write_params.await_args_list[1].args
-    assert first_write == (
+    write_params.assert_awaited_once_with(
         "postgresql",
-        [{"uid": 11, "value": 5, "node_id": 7, "created_at": bucket}],
-    )
-    assert second_write == (
-        "postgresql",
-        [{"uid": 11, "value": 16, "node_id": 7, "created_at": bucket}],
+        [{"uid": 11, "value": 21, "node_id": 7, "created_at": bucket}],
     )
     assert not record_usages._pending_user_usage_history
 
@@ -108,10 +101,9 @@ async def test_postgres_history_flushes_old_bucket_before_rollover(monkeypatch: 
     await record_usages.record_user_stats({7: [{"uid": "11", "value": 7}]}, {7: 1})
     await record_usages.record_user_stats({7: [{"uid": "11", "value": 9}]}, {7: 1})
 
-    assert write_params.await_count == 2
-    assert write_params.await_args_list[1].args == (
+    write_params.assert_awaited_once_with(
         "postgresql",
-        [{"uid": 11, "value": 7, "node_id": 7, "created_at": old_bucket}],
+        [{"uid": 11, "value": 12, "node_id": 7, "created_at": old_bucket}],
     )
     assert record_usages._pending_user_usage_history == {(new_bucket, 11, 7): 9}
 
@@ -120,19 +112,23 @@ async def test_postgres_history_flushes_old_bucket_before_rollover(monkeypatch: 
 async def test_postgres_history_retains_failed_flush_for_retry(monkeypatch: pytest.MonkeyPatch):
     bucket = datetime(2026, 8, 14, 18, 30, tzinfo=UTC)
     write_params = AsyncMock(side_effect=[RuntimeError("database unavailable"), None])
+    monotonic_values = iter([100.0, 160.0])
 
     monkeypatch.setattr(record_usages, "get_dialect", AsyncMock(return_value="postgresql"))
     monkeypatch.setattr(record_usages, "_get_time_bucket", lambda: bucket)
     monkeypatch.setattr(record_usages, "_write_node_user_usage_params", write_params)
-    monkeypatch.setattr(record_usages, "_monotonic_now", lambda: 100.0)
+    monkeypatch.setattr(record_usages, "_monotonic_now", lambda: next(monotonic_values))
+
+    await record_usages.record_user_stats({7: [{"uid": "11", "value": 5}]}, {7: 1})
 
     with pytest.raises(RuntimeError, match="database unavailable"):
-        await record_usages.record_user_stats({7: [{"uid": "11", "value": 5}]}, {7: 1})
+        await record_usages.record_user_stats({7: [{"uid": "11", "value": 7}]}, {7: 1})
 
-    assert record_usages._pending_user_usage_history == {(bucket, 11, 7): 5}
+    assert record_usages._pending_user_usage_history == {(bucket, 11, 7): 12}
 
-    await record_usages.record_user_stats({7: [{"uid": "11", "value": 7}]}, {7: 1})
+    flushed_rows = await record_usages.flush_user_usage_history_if_due(161.0)
 
+    assert flushed_rows == 1
     assert write_params.await_args_list[1].args == (
         "postgresql",
         [{"uid": 11, "value": 12, "node_id": 7, "created_at": bucket}],
@@ -166,7 +162,7 @@ async def test_due_history_flushes_without_a_new_usage_sample(monkeypatch: pytes
 async def test_postgres_history_omits_cross_cycle_net_zero_values(monkeypatch: pytest.MonkeyPatch):
     bucket = datetime(2026, 8, 14, 18, 30, tzinfo=UTC)
     write_params = AsyncMock()
-    monotonic_values = iter([100.0, 110.0, 120.0])
+    monotonic_values = iter([100.0, 110.0])
 
     monkeypatch.setattr(record_usages, "get_dialect", AsyncMock(return_value="postgresql"))
     monkeypatch.setattr(record_usages, "_get_time_bucket", lambda: bucket)
@@ -174,16 +170,12 @@ async def test_postgres_history_omits_cross_cycle_net_zero_values(monkeypatch: p
     monkeypatch.setattr(record_usages, "_monotonic_now", lambda: next(monotonic_values))
     monkeypatch.setattr(record_usages.usage_settings, "user_usage_history_flush_interval", 60)
 
-    await record_usages.record_user_stats({7: [{"uid": "11", "value": 1}]}, {7: 1})
     await record_usages.record_user_stats({7: [{"uid": "11", "value": 5}]}, {7: 1})
     await record_usages.record_user_stats({7: [{"uid": "11", "value": -5}]}, {7: 1})
     flushed_rows = await record_usages.flush_user_usage_history_if_due(160.0)
 
     assert flushed_rows == 0
-    write_params.assert_awaited_once_with(
-        "postgresql",
-        [{"uid": 11, "value": 1, "node_id": 7, "created_at": bucket}],
-    )
+    write_params.assert_not_awaited()
     assert not record_usages._pending_user_usage_history
 
 

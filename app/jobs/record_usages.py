@@ -489,15 +489,17 @@ async def _flush_pending_user_usage_history_locked(now_monotonic: float | None =
 
 async def flush_user_usage_history_if_due(now_monotonic: float | None = None) -> int:
     """Flush buffered PostgreSQL history once its configured deadline passes."""
+    global _user_usage_history_last_flush
+
     if not _pending_user_usage_history:
         return 0
 
     now_monotonic = now_monotonic if now_monotonic is not None else _monotonic_now()
     async with _user_usage_history_lock:
-        flush_due = (
-            _user_usage_history_last_flush is None
-            or now_monotonic - _user_usage_history_last_flush >= usage_settings.user_usage_history_flush_interval
-        )
+        if _user_usage_history_last_flush is None:
+            _user_usage_history_last_flush = now_monotonic
+            return 0
+        flush_due = now_monotonic - _user_usage_history_last_flush >= usage_settings.user_usage_history_flush_interval
         if not flush_due:
             return 0
         return await _flush_pending_user_usage_history_locked(now_monotonic)
@@ -505,6 +507,8 @@ async def flush_user_usage_history_if_due(now_monotonic: float | None = None) ->
 
 async def record_user_stats(all_node_params: dict, usage_coefficients: dict) -> None:
     """Coalesce PostgreSQL history writes while preserving immediate fallback paths."""
+    global _user_usage_history_last_flush
+
     if not all_node_params:
         return
 
@@ -535,10 +539,9 @@ async def record_user_stats(all_node_params: dict, usage_coefficients: dict) -> 
             key = (param["created_at"], param["uid"], param["node_id"])
             _pending_user_usage_history[key] += param["value"]
 
-        flush_due = (
-            _user_usage_history_last_flush is None
-            or now_monotonic - _user_usage_history_last_flush >= usage_settings.user_usage_history_flush_interval
-        )
+        if _user_usage_history_last_flush is None:
+            _user_usage_history_last_flush = now_monotonic
+        flush_due = now_monotonic - _user_usage_history_last_flush >= usage_settings.user_usage_history_flush_interval
         if flush_due:
             flushed_rows = await _flush_pending_user_usage_history_locked(now_monotonic)
             logger.debug("Flushed %s coalesced node user usage history rows", flushed_rows)
