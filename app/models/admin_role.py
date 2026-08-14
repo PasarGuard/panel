@@ -19,11 +19,11 @@ class RoleHWIDSettings(HWIDSettings):
 
 
 class PermissionScope(IntEnum):
-    """Scope for user-resource permissions. Stored as int in JSON for efficiency."""
+    """Scope for ownership-aware resource permissions. Stored as int in JSON for efficiency."""
 
     NONE = 0  # explicitly denied
-    OWN = 1  # only own users (user.admin_id == admin.id)
-    ALL = 2  # all users regardless of owner
+    OWN = 1  # only records owned by this admin (record.admin_id == admin.id)
+    ALL = 2  # all records regardless of owner
 
 
 # Action value: True = allowed (no scope), {"scope": N} = scoped, None/missing = denied

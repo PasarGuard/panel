@@ -435,6 +435,7 @@ class UserStatusCreate(str, Enum):
 
 class UserTemplate(Base, IdMixin):
     __tablename__ = "user_templates"
+    __table_args__ = (Index("ix_user_templates_admin_id", "admin_id"),)
     name: Mapped[str] = mapped_column(String(64), unique=True)
     username_prefix: Mapped[str | None] = mapped_column(String(20))
     username_suffix: Mapped[str | None] = mapped_column(String(20))
@@ -443,6 +444,7 @@ class UserTemplate(Base, IdMixin):
         back_populates="user_template", cascade="all, delete-orphan", init=False
     )
     groups: Mapped[list[Group]] = relationship(secondary=template_group_association, back_populates="templates")
+    admin_id: Mapped[int | None] = fk_id_column("admins.id", default=None)
     data_limit: Mapped[int] = mapped_column(BigInteger, default=0)
     hwid_limit: Mapped[int | None] = mapped_column(BigInteger, default=None)
     expire_duration: Mapped[int] = mapped_column(BigInteger, default=0)  # in seconds
