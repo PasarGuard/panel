@@ -2,6 +2,7 @@ from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
+import pytest_asyncio
 from sqlalchemy import event
 from sqlalchemy.dialects import mysql, postgresql, sqlite
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -20,8 +21,8 @@ STATUSES = [
 ]
 
 
-@pytest.mark.asyncio
-async def test_user_count_metrics_are_scoped_complete_and_use_one_select():
+@pytest_asyncio.fixture
+async def seeded_session():
     engine = create_async_engine(
         "sqlite+aiosqlite:///:memory:",
         connect_args={"check_same_thread": False},
@@ -69,58 +70,80 @@ async def test_user_count_metrics_are_scoped_complete_and_use_one_select():
                 ]
             )
             await session.flush()
-
-            select_count = 0
-
-            def count_selects(_, __, statement, *args):
-                nonlocal select_count
-                if statement.lstrip().upper().startswith("SELECT"):
-                    select_count += 1
-
-            event.listen(engine.sync_engine, "before_cursor_execute", count_selects)
-            try:
-                global_counts, global_online = await get_users_count_metrics(session, STATUSES, timedelta(minutes=2))
-            finally:
-                event.remove(engine.sync_engine, "before_cursor_execute", count_selects)
-
-            assert select_count == 1
-            assert global_counts == {
-                "active": 1,
-                "disabled": 1,
-                "on_hold": 1,
-                "expired": 1,
-                "limited": 1,
-                "total": 5,
-            }
-            assert global_online == 2
-
-            scoped_counts, scoped_online = await get_users_count_metrics(
-                session, STATUSES, timedelta(minutes=2), admin_id=101
-            )
-            assert scoped_counts == {
-                "active": 1,
-                "disabled": 1,
-                "on_hold": 0,
-                "expired": 1,
-                "limited": 0,
-                "total": 3,
-            }
-            assert scoped_online == 1
-
-            empty_counts, empty_online = await get_users_count_metrics(
-                session, STATUSES, timedelta(minutes=2), admin_id=999
-            )
-            assert empty_counts == {
-                "active": 0,
-                "disabled": 0,
-                "on_hold": 0,
-                "expired": 0,
-                "limited": 0,
-                "total": 0,
-            }
-            assert empty_online == 0
+            yield engine, session
     finally:
         await engine.dispose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("admin_id", [None, 101])
+async def test_user_count_metrics_use_one_select(seeded_session, admin_id):
+    engine, session = seeded_session
+    select_count = 0
+
+    def count_selects(_, __, statement, *args):
+        nonlocal select_count
+        if statement.lstrip().upper().startswith("SELECT"):
+            select_count += 1
+
+    event.listen(engine.sync_engine, "before_cursor_execute", count_selects)
+    try:
+        await get_users_count_metrics(session, STATUSES, timedelta(minutes=2), admin_id=admin_id)
+    finally:
+        event.remove(engine.sync_engine, "before_cursor_execute", count_selects)
+
+    assert select_count == 1
+
+
+@pytest.mark.asyncio
+async def test_global_user_count_metrics_are_complete(seeded_session):
+    _, session = seeded_session
+
+    counts, online = await get_users_count_metrics(session, STATUSES, timedelta(minutes=2))
+
+    assert counts == {
+        "active": 1,
+        "disabled": 1,
+        "on_hold": 1,
+        "expired": 1,
+        "limited": 1,
+        "total": 5,
+    }
+    assert online == 2
+
+
+@pytest.mark.asyncio
+async def test_user_count_metrics_are_scoped_to_admin(seeded_session):
+    _, session = seeded_session
+
+    counts, online = await get_users_count_metrics(session, STATUSES, timedelta(minutes=2), admin_id=101)
+
+    assert counts == {
+        "active": 1,
+        "disabled": 1,
+        "on_hold": 0,
+        "expired": 1,
+        "limited": 0,
+        "total": 3,
+    }
+    assert online == 1
+
+
+@pytest.mark.asyncio
+async def test_user_count_metrics_are_zero_for_unknown_admin(seeded_session):
+    _, session = seeded_session
+
+    counts, online = await get_users_count_metrics(session, STATUSES, timedelta(minutes=2), admin_id=999)
+
+    assert counts == {
+        "active": 0,
+        "disabled": 0,
+        "on_hold": 0,
+        "expired": 0,
+        "limited": 0,
+        "total": 0,
+    }
+    assert online == 0
 
 
 @pytest.mark.parametrize("dialect", [sqlite.dialect(), postgresql.dialect(), mysql.dialect()])

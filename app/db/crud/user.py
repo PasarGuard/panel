@@ -864,7 +864,11 @@ async def get_users_count_metrics(
     online_window: timedelta,
     admin_id: int | None = None,
 ) -> tuple[dict[str, int], int]:
-    """Return per-status, total, and recent-online user counts in one SELECT."""
+    """Return per-status, total, and recent-online user counts in one SELECT.
+
+    The ``total`` value includes only the requested statuses. Pass every
+    ``UserStatus`` value when a complete user count is required.
+    """
     stmt = _build_user_count_metrics_query(statuses, datetime.now(UTC) - online_window, admin_id)
     row = (await db.execute(stmt)).one()
 
