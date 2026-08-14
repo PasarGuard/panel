@@ -262,6 +262,9 @@ def build_user_traffic_update(dialect: str, usage_params: list[dict]):
 
 def build_online_at_updates(dialect: str, user_ids: list[int], now: dt):
     """Build throttled online timestamp updates without per-user statements."""
+    if not user_ids:
+        return []
+
     cutoff = now - ONLINE_AT_WRITE_INTERVAL
     stale_online_at = or_(User.online_at.is_(None), User.online_at < cutoff)
 
