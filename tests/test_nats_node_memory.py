@@ -1,17 +1,98 @@
 """CAS semantics for NATS-backed bridge user-sync + lifecycle memory."""
 
 import asyncio
+from types import SimpleNamespace
+from typing import Any
 
 import pytest
+from nats.js.kv import KeyValue
 from PasarGuardNodeBridge.common.service_pb2 import User
 from PasarGuardNodeBridge.storage import LifecycleOperation, LifecycleStatus, NodeLifecycleState
 
-from app.nats.kv_cas import MemoryCasKv
+from app.nats.kv_cas import MemoryCasKv, kv_list_keys
 from app.node.nats_memory import NatsNodeLifecycleCoordinator, NatsUserSyncStore
 
 
 def _user(email: str, inbound: str = "in") -> User:
     return User(email=email, inbounds=[inbound])
+
+
+class _Watcher:
+    def __init__(self, keys: list[str], error: Exception | None = None):
+        self._entries = iter([SimpleNamespace(key=key) for key in keys])
+        self._error = error
+        self._raised = False
+        self.stopped = False
+        self._sub = SimpleNamespace(_consumer="key-list-consumer")
+
+    async def updates(self, timeout: float):
+        assert timeout == 10
+        try:
+            return next(self._entries)
+        except StopIteration:
+            if self._error is not None and not self._raised:
+                self._raised = True
+                raise self._error
+            return None
+
+    async def stop(self):
+        self.stopped = True
+
+
+class _JetStream:
+    def __init__(self):
+        self.deleted_consumers: list[tuple[str, str]] = []
+
+    async def delete_consumer(self, stream: str, consumer: str):
+        self.deleted_consumers.append((stream, consumer))
+
+
+def _key_value() -> tuple[KeyValue, _JetStream]:
+    js = _JetStream()
+    return KeyValue("bucket", "KV_bucket", "$KV.bucket.", js, False), js  # type: ignore[arg-type]
+
+
+@pytest.mark.asyncio
+async def test_kv_list_keys_uses_filtered_watcher_and_stops(monkeypatch: pytest.MonkeyPatch):
+    kv, js = _key_value()
+    watcher = _Watcher(["p.1.a", "p.1.b"])
+    calls: list[tuple[str, dict[str, Any]]] = []
+
+    async def _watch(keys: str, **kwargs):
+        calls.append((keys, kwargs))
+        return watcher
+
+    monkeypatch.setattr(kv, "watch", _watch)
+
+    assert await kv_list_keys(kv, "p.1.") == ["p.1.a", "p.1.b"]
+    assert calls == [
+        (
+            "p.1.>",
+            {
+                "ignore_deletes": True,
+                "meta_only": True,
+                "inactive_threshold": 30,
+            },
+        )
+    ]
+    assert watcher.stopped is True
+    assert js.deleted_consumers == [("KV_bucket", "key-list-consumer")]
+
+
+@pytest.mark.asyncio
+async def test_kv_list_keys_stops_filtered_watcher_after_iteration_error(monkeypatch: pytest.MonkeyPatch):
+    kv, js = _key_value()
+    watcher = _Watcher(["c.1.a"], error=TimeoutError("watch timed out"))
+
+    async def _watch(*args, **kwargs):
+        return watcher
+
+    monkeypatch.setattr(kv, "watch", _watch)
+
+    with pytest.raises(TimeoutError, match="watch timed out"):
+        await kv_list_keys(kv, "c.1.")
+    assert watcher.stopped is True
+    assert js.deleted_consumers == [("KV_bucket", "key-list-consumer")]
 
 
 @pytest.mark.asyncio
