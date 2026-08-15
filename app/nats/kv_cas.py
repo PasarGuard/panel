@@ -59,6 +59,47 @@ async def kv_put_json(kv: CasKv, key: str, value: dict[str, Any]) -> None:
 
 
 async def kv_list_keys(kv: CasKv, prefix: str) -> list[str]:
+    if isinstance(kv, KeyValue):
+        # KeyValue.keys() always creates an unfiltered watch-all consumer and
+        # only applies filters client-side. On a shared user-sync bucket this
+        # makes every node scan every other node's keys. It also leaks the
+        # temporary consumer when the extra consumer_info() call in keys()
+        # times out. Use a server-filtered watcher and always tear it down.
+        watcher = None
+        try:
+            watcher = await kv.watch(
+                f"{prefix}>",
+                ignore_deletes=True,
+                meta_only=True,
+                inactive_threshold=30,
+            )
+            keys: list[str] = []
+            while True:
+                entry = await watcher.updates(timeout=10)
+                if entry is None:
+                    break
+                if entry.key.startswith(prefix):
+                    keys.append(entry.key)
+            return keys
+        finally:
+            if watcher is not None:
+                subscription = getattr(watcher, "_sub", None)
+                consumer_name = getattr(subscription, "_consumer", None)
+                try:
+                    await watcher.stop()
+                except Exception as exc:
+                    logger.warning("Failed to stop NATS KV key-list watcher for prefix=%s: %s", prefix, exc)
+                if consumer_name:
+                    try:
+                        await kv._js.delete_consumer(kv._stream, consumer_name)
+                    except Exception as exc:
+                        logger.warning(
+                            "Failed to delete NATS KV key-list consumer=%s for prefix=%s: %s",
+                            consumer_name,
+                            prefix,
+                            exc,
+                        )
+
     try:
         keys = await kv.keys()
     except nats_js_errors.NoKeysError:
