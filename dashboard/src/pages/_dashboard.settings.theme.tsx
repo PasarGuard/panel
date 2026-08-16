@@ -41,15 +41,15 @@ function Section({
 }) {
   return (
     <section className="space-y-3">
-      <div className="flex items-start justify-between gap-3">
-        <div className="space-y-1">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
+        <div className="min-w-0 space-y-1">
           <div className="flex items-center gap-2">
             {icon}
             <p className="text-base font-semibold sm:text-lg">{title}</p>
           </div>
           {description && <p className="text-muted-foreground text-xs leading-relaxed sm:text-sm">{description}</p>}
         </div>
-        {action}
+        {action ? <div className="shrink-0">{action}</div> : null}
       </div>
       {children}
     </section>
@@ -185,7 +185,7 @@ export default function ThemeSettings() {
   }
 
   return (
-    <div className="space-y-10 px-4 pt-6 pb-12">
+    <div className="space-y-6 p-4 pb-10 sm:space-y-8 sm:py-6 lg:space-y-10 lg:py-8">
         <Section
           icon={<SunMoon className="text-primary h-4 w-4" />}
           title={t('theme.mode')}
@@ -230,15 +230,15 @@ export default function ThemeSettings() {
                 type="button"
                 onClick={() => handleStyleChange(style)}
                 className={cn(
-                  'border-border/70 rounded-lg border p-3 text-left transition-colors',
+                  'border-border/70 min-w-0 rounded-lg border p-2.5 text-start transition-colors sm:p-3',
                   customization.style === style ? 'border-primary bg-primary/5' : 'bg-background hover:border-primary/50 hover:bg-accent/30',
                 )}
               >
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-sm font-medium">{labels[style]}</span>
-                  {customization.style === style && <Check className="text-primary h-3.5 w-3.5" />}
+                <div className="flex items-center justify-between gap-1.5">
+                  <span className="truncate text-sm font-medium">{labels[style]}</span>
+                  {customization.style === style && <Check className="text-primary h-3.5 w-3.5 shrink-0" />}
                 </div>
-                <p className="text-muted-foreground mt-1 text-xs leading-relaxed">{descriptions[style]}</p>
+                <p className="text-muted-foreground mt-1 line-clamp-2 text-xs leading-relaxed">{descriptions[style]}</p>
               </button>
               )
             })}
@@ -266,21 +266,21 @@ export default function ThemeSettings() {
         </Section>
 
         <Section icon={<Ruler className="text-primary h-4 w-4" />} title={t('theme.radius')} description={t('theme.radiusDescription')}>
-          <div className="grid grid-cols-5 gap-2">
+          <div className="grid grid-cols-5 gap-1.5 sm:gap-2">
             {radiusPresets.map(option => (
               <button
                 key={option.value}
                 type="button"
                 onClick={() => setRadius(option.value)}
                 className={cn(
-                  'border-border/70 flex flex-col items-center gap-2 rounded-lg border px-2 py-3 transition-colors',
+                  'border-border/70 flex min-w-0 flex-col items-center gap-1.5 rounded-lg border px-1 py-2 transition-colors sm:gap-2 sm:px-2 sm:py-3',
                   radius === option.value ? 'border-primary bg-primary/5' : 'bg-background hover:border-primary/50 hover:bg-accent/30',
                 )}
               >
-                <div className="bg-muted flex h-10 w-10 items-center justify-center border" style={{ borderRadius: option.value }}>
-                  <div className="bg-primary/40 h-4 w-4" style={{ borderRadius: option.value }} />
+                <div className="bg-muted flex size-8 items-center justify-center border sm:size-10" style={{ borderRadius: option.value }}>
+                  <div className="bg-primary/40 size-3 sm:size-4" style={{ borderRadius: option.value }} />
                 </div>
-                <span className="text-[11px] font-medium">{t(option.label)}</span>
+                <span className="text-center text-[10px] leading-tight font-medium sm:text-[11px]">{t(option.label)}</span>
               </button>
             ))}
           </div>
@@ -288,22 +288,24 @@ export default function ThemeSettings() {
 
         <Section icon={<CalendarClock className="text-primary h-4 w-4" />} title={t('theme.datePicker')} description={t('theme.datePickerDescription')}>
           <div className="border-border/70 bg-muted/30 flex flex-col gap-3 rounded-lg border p-3 sm:p-4">
-            <div className="flex items-center justify-between gap-3">
-              <div className="space-y-0.5">
+            <div className="flex items-start justify-between gap-3 sm:items-center">
+              <div className="min-w-0 space-y-0.5">
                 <p className="text-foreground text-sm font-medium">{t('theme.datePickerFollowLocale')}</p>
                 <p className="text-muted-foreground text-xs leading-relaxed">{t('theme.datePickerManualHint')}</p>
               </div>
-              <Switch checked={isDatePickerFollowingLocale} onCheckedChange={handleDatePickerAutoToggle} aria-label={t('theme.datePickerFollowLocale')} />
+              <Switch className="shrink-0" checked={isDatePickerFollowingLocale} onCheckedChange={handleDatePickerAutoToggle} aria-label={t('theme.datePickerFollowLocale')} />
             </div>
-            <div className="flex flex-wrap items-center gap-2" dir={dir}>
-              {(['gregorian', 'persian'] as const).map(option => (
-                <Button key={option} type="button" variant={datePickerPreference === option ? 'default' : 'outline'} size="sm" disabled={isDatePickerFollowingLocale} onClick={() => persistDatePickerPreference(option)}>
-                  {datePickerModeCopy[option]}
-                </Button>
-              ))}
-              <span className="text-muted-foreground flex items-center gap-1.5 text-xs">
-                <Languages className="text-primary h-3.5 w-3.5" />
-                <span className="text-foreground font-medium">{datePickerModeCopy[datePickerPreference]}</span>
+            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center" dir={dir}>
+              <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+                {(['gregorian', 'persian'] as const).map(option => (
+                  <Button key={option} type="button" variant={datePickerPreference === option ? 'default' : 'outline'} size="sm" disabled={isDatePickerFollowingLocale} onClick={() => persistDatePickerPreference(option)} className="w-full sm:w-auto">
+                    {datePickerModeCopy[option]}
+                  </Button>
+                ))}
+              </div>
+              <span className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-xs">
+                <Languages className="text-primary h-3.5 w-3.5 shrink-0" />
+                <span className="text-foreground truncate font-medium">{datePickerModeCopy[datePickerPreference]}</span>
               </span>
             </div>
           </div>
@@ -323,24 +325,24 @@ export default function ThemeSettings() {
         </Section>
 
         <Section icon={<FileJson2 className="text-primary h-4 w-4" />} title={t('theme.coresListEditor')} description={t('theme.coresListEditorDescription')}>
-          <div className="border-border/70 bg-muted/30 flex items-center justify-between gap-3 rounded-lg border p-3 sm:p-4">
-            <div className="space-y-0.5">
+          <div className="border-border/70 bg-muted/30 flex items-start justify-between gap-3 rounded-lg border p-3 sm:items-center sm:p-4">
+            <div className="min-w-0 space-y-0.5">
               <p className="text-foreground text-sm font-medium">{t('theme.coresListEditorModal')}</p>
               <p className="text-muted-foreground text-xs leading-relaxed">{t('theme.coresListEditorModalHint')}</p>
             </div>
-            <Switch checked={coresListUseConfigModal} onCheckedChange={handleCoresListUseConfigModalChange} aria-label={t('theme.coresListEditorModal')} />
+            <Switch className="shrink-0" checked={coresListUseConfigModal} onCheckedChange={handleCoresListUseConfigModalChange} aria-label={t('theme.coresListEditorModal')} />
           </div>
         </Section>
 
-        <section className="flex flex-col gap-2 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
+        <section className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <RotateCcw className="text-primary h-4 w-4" />
+              <RotateCcw className="text-primary h-4 w-4 shrink-0" />
               <p className="text-base font-semibold sm:text-lg">{t('theme.resetToDefaults')}</p>
             </div>
             <p className="text-muted-foreground text-xs leading-relaxed sm:text-sm">{t('theme.resetDescription')}</p>
           </div>
-          <Button variant="outline" onClick={handleResetToDefaults} disabled={isResetting} className="w-full sm:w-auto">
+          <Button variant="outline" onClick={handleResetToDefaults} disabled={isResetting} className="w-full shrink-0 sm:w-auto">
             {isResetting ? t('theme.resetting') : t('theme.reset')}
           </Button>
         </section>

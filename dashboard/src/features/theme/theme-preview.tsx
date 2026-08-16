@@ -16,9 +16,9 @@ export function ThemePreview() {
       </div>
       <div className="border-border/70 bg-muted/30 space-y-3 rounded-lg border p-3 sm:space-y-4 sm:p-4" style={{ borderRadius: radius }}>
         <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-          <div>
+          <div className="min-w-0">
             <p className="text-xs font-medium sm:text-sm">{t('theme.dashboardPreview')}</p>
-            <p className="text-muted-foreground text-xs">
+            <p className="text-muted-foreground text-xs break-words">
               {t('theme.currentTheme')}: {t(`theme.${customization.baseColor}`, { defaultValue: baseName })} / {t(`theme.${colorTheme}`, { defaultValue: accentName })} • {resolvedTheme === 'dark' ? t('theme.dark') : t('theme.light')}
             </p>
           </div>

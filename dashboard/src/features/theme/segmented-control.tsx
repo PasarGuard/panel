@@ -28,12 +28,12 @@ export function SegmentedControl<T extends string>({ value, options, onChange, c
             type="button"
             onClick={() => onChange(option.value)}
             className={cn(
-              'flex min-h-9 items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+              'flex min-h-10 min-w-0 flex-col items-center justify-center gap-1 rounded-md px-1.5 py-2 text-xs font-medium transition-colors sm:min-h-9 sm:flex-row sm:gap-2 sm:px-3 sm:text-sm',
               selected ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground hover:bg-background/60',
             )}
           >
             {option.icon}
-            <span>{option.label}</span>
+            <span className="max-w-full truncate">{option.label}</span>
           </button>
         )
       })}
