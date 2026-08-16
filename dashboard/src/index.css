@@ -54,6 +54,7 @@
     --chart-3: 216 92% 60%;
     --chart-4: 210 98% 78%;
     --chart-5: 212 97% 87%;
+    --card-shadow: none;
     /* Scrollbar variables */
     --scrollbar-track: 240 5% 96%;
     --scrollbar-thumb: 240 5% 80%;
@@ -112,6 +113,7 @@
     --snow-color: 0 0% 98%;
     --neon-green: 81 96% 55%;
     --background-custom: 240 4% 8%;
+    --card-shadow: none;
     /* Dark mode scrollbar variables */
     --scrollbar-track: 240 2% 11%;
     --scrollbar-thumb: 0 0% 25%;
@@ -125,10 +127,36 @@
     @apply border-border;
   }
 
+  html[data-density='compact'] {
+    font-size: 15px;
+  }
+
+  html[data-density='comfortable'] {
+    font-size: 16px;
+  }
+
+  html[data-density='spacious'] {
+    font-size: 17.5px;
+  }
+
+  html[data-surface='flat'] {
+    --card-shadow: none;
+  }
+
+  html[data-surface='subtle'] {
+    --card-shadow: none;
+  }
+
+  html[data-surface='elevated'] {
+    --card-shadow: 0 1px 2px hsl(var(--foreground) / 0.04), 0 10px 28px hsl(var(--foreground) / 0.06);
+  }
+
   body {
     @apply bg-background font-body text-foreground;
     overflow-x: hidden; /* Prevent horizontal scroll from drag-and-drop elements */
     scroll-behavior: smooth; /* Smooth scrolling for better UX */
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--scrollbar-thumb) / 0.4) transparent;
   }
 
   button:not(:disabled),
@@ -136,38 +164,43 @@
     cursor: pointer;
   }
 
-  /* Enhanced shadcn-style scrollbar */
+  /* Overlay-style thin scrollbars (Windows classic bars are ~17px without this) */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--scrollbar-thumb) / 0.4) transparent;
+  }
+
   ::-webkit-scrollbar {
-    @apply h-2 w-2;
+    width: 5px;
+    height: 5px;
   }
 
   ::-webkit-scrollbar-track {
-    background: hsl(var(--scrollbar-track));
-    border-radius: calc(var(--radius) * 0.5);
+    background: transparent;
   }
 
   ::-webkit-scrollbar-thumb {
-    background: hsl(var(--scrollbar-thumb));
-    border-radius: calc(var(--radius) * 0.5);
-    border: 1px solid hsl(var(--scrollbar-track));
-    transition: background-color 0.2s ease-in-out;
+    background: hsl(var(--scrollbar-thumb) / 0.35);
+    border: none;
+    border-radius: 999px;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background: hsl(var(--scrollbar-thumb-hover));
+    background: hsl(var(--scrollbar-thumb) / 0.55);
   }
 
   ::-webkit-scrollbar-thumb:active {
-    background: hsl(var(--scrollbar-thumb-active));
+    background: hsl(var(--scrollbar-thumb-active) / 0.7);
   }
 
   ::-webkit-scrollbar-corner {
-    background: hsl(var(--scrollbar-track));
+    background: transparent;
   }
 
   /* Thin scrollbar variant for smaller containers */
   .scrollbar-thin::-webkit-scrollbar {
-    @apply h-2 w-2;
+    width: 5px;
+    height: 5px;
   }
 
   .scrollbar-thin::-webkit-scrollbar-thumb {
@@ -182,6 +215,36 @@
 
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
+  }
+
+  [data-sidebar='content'] {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  [data-sidebar='content']::-webkit-scrollbar {
+    display: none;
+  }
+
+  .dashboard-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+  }
+
+  .dashboard-scroll:hover,
+  .dashboard-scroll:focus-within,
+  .dashboard-scroll:active {
+    scrollbar-color: hsl(var(--scrollbar-thumb) / 0.45) transparent;
+  }
+
+  .dashboard-scroll::-webkit-scrollbar-thumb {
+    background: transparent;
+  }
+
+  .dashboard-scroll:hover::-webkit-scrollbar-thumb,
+  .dashboard-scroll:focus-within::-webkit-scrollbar-thumb,
+  .dashboard-scroll:active::-webkit-scrollbar-thumb {
+    background: hsl(var(--scrollbar-thumb) / 0.4);
   }
 
   /* Custom scrollbar for specific components */
