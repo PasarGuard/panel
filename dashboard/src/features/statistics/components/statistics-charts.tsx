@@ -127,7 +127,7 @@ export default function StatisticsCharts({ data, usersData, isLoading, error, se
               <h2 className="text-lg font-semibold">{t('statistics.system')}</h2>
             </div>
           </div>
-          <div className="animate-slide-up transform-gpu" style={{ animationDuration: '500ms', animationDelay: '100ms', animationFillMode: 'both' }}>
+          <div className="transform-gpu">
             <SystemStatisticsSection currentStats={currentStats} usersStats={actualSelectedServer === 'master' ? usersData : undefined} />
           </div>
         </div>
@@ -136,19 +136,19 @@ export default function StatisticsCharts({ data, usersData, isLoading, error, se
       {/* Charts Section */}
       <div className="space-y-8">
         {canViewNodeStats && (
-          <div className="animate-slide-up transform-gpu" style={{ animationDuration: '500ms', animationDelay: '260ms', animationFillMode: 'both' }}>
+          <div className="transform-gpu">
             {actualSelectedServer === 'master' ? <AllNodesStackedBarChart /> : <CostumeBarChart nodeId={selectedNodeId} />}
           </div>
         )}
-        <div className="animate-slide-up transform-gpu" style={{ animationDuration: '500ms', animationDelay: '300ms', animationFillMode: 'both' }}>
+        <div className="transform-gpu">
           <UserCountsChart nodeId={selectedNodeId} isSudo={canViewNodeStats} nodesData={nodesData} />
         </div>
         {actualSelectedServer === 'master' && (
-          <div className="animate-slide-up transform-gpu" style={{ animationDuration: '500ms', animationDelay: '310ms', animationFillMode: 'both' }}>
+          <div className="transform-gpu">
             <UserSubUpdatePieChart />
           </div>
         )}
-        <div className="animate-slide-up transform-gpu" style={{ animationDuration: '500ms', animationDelay: '320ms', animationFillMode: 'both' }}>
+        <div className="transform-gpu">
           <AreaCostumeChart
             key={chartRefreshKey}
             nodeId={selectedNodeId}
