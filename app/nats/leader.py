@@ -83,7 +83,7 @@ def _parse(raw: bytes | None) -> tuple[str, float] | None:
     try:
         data = json.loads(raw)
         return str(data["token"]), float(data["expires_at"])
-    except (TypeError, ValueError, KeyError, json.JSONDecodeError):
+    except TypeError, ValueError, KeyError, json.JSONDecodeError:
         return None
 
 

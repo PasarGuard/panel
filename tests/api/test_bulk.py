@@ -61,6 +61,21 @@ def set_user_wireguard_keys(username: str, private_key: str, public_key: str) ->
     asyncio.run(_set_keys())
 
 
+def set_user_wireguard_peer_ips(username: str, peer_ips: list[str]) -> None:
+    async def _set_peer_ips():
+        async with TestSession() as session:
+            result = await session.execute(select(User).where(User.username == username))
+            db_user = result.scalar_one()
+            proxy_settings = dict(db_user.proxy_settings or {})
+            wireguard_settings = dict(proxy_settings.get("wireguard") or {})
+            wireguard_settings["peer_ips"] = peer_ips
+            proxy_settings["wireguard"] = wireguard_settings
+            db_user.proxy_settings = proxy_settings
+            await session.commit()
+
+    asyncio.run(_set_peer_ips())
+
+
 def get_user_sub_revoked_at(username: str):
     async def _get_revoked_at():
         async with TestSession() as session:
@@ -259,6 +274,93 @@ def test_update_users_expire(access_token):
         )
     finally:
         cleanup(access_token, core, groups, users)
+
+
+def test_bulk_expire_initializes_unlimited_users_for_id_group_and_admin_filters(access_token):
+    """Unlimited users receive a UTC expiry when a selected bulk action changes it."""
+    core, groups = setup_groups(access_token, 2)
+    admin = create_admin(access_token)
+    id_user = create_user(access_token, group_ids=[groups[1]["id"]], payload={"username": unique_name("expire_id")})
+    group_user = create_user(
+        access_token, group_ids=[groups[0]["id"]], payload={"username": unique_name("expire_group")}
+    )
+    admin_user = create_user(
+        access_token, group_ids=[groups[1]["id"]], payload={"username": unique_name("expire_admin")}
+    )
+    normal_user = create_user(
+        access_token, group_ids=[groups[1]["id"]], payload={"username": unique_name("expire_normal")}
+    )
+    users = [id_user, group_user, admin_user, normal_user]
+    normal_expire = dt(2030, 1, 1, tzinfo=UTC)
+
+    try:
+        set_owner = client.put(
+            f"/api/user/{admin_user['username']}/set_owner",
+            headers={"Authorization": f"Bearer {access_token}"},
+            params={"admin_username": admin["username"]},
+        )
+        assert set_owner.status_code == status.HTTP_200_OK
+        set_expire = client.put(
+            f"/api/user/{normal_user['username']}",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={"expire": normal_expire.isoformat()},
+        )
+        assert set_expire.status_code == status.HTTP_200_OK
+
+        dry_run = client.post(
+            "/api/users/bulk/expire",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={"amount": 3600, "group_ids": [groups[0]["id"]], "dry_run": True},
+        )
+        assert dry_run.status_code == status.HTTP_200_OK
+        assert dry_run.json()["affected_users"] == 1
+
+        before_id = dt.now(UTC)
+        by_id = client.post(
+            "/api/users/bulk/expire",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={"amount": 3600, "users": [id_user["id"]]},
+        )
+        after_id = dt.now(UTC)
+        assert by_id.status_code == status.HTTP_200_OK
+
+        before_group = dt.now(UTC)
+        by_group = client.post(
+            "/api/users/bulk/expire",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={"amount": 3600, "group_ids": [groups[0]["id"]]},
+        )
+        after_group = dt.now(UTC)
+        assert by_group.status_code == status.HTTP_200_OK
+
+        before_admin = dt.now(UTC)
+        by_admin = client.post(
+            "/api/users/bulk/expire",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={"amount": -3600, "admins": [admin["id"]]},
+        )
+        after_admin = dt.now(UTC)
+        assert by_admin.status_code == status.HTTP_200_OK
+
+        def get_user(user):
+            response = client.get(f"/api/user/{user['username']}", headers={"Authorization": f"Bearer {access_token}"})
+            assert response.status_code == status.HTTP_200_OK
+            return response.json()
+
+        id_expire = dt.fromisoformat(get_user(id_user)["expire"])
+        group_expire = dt.fromisoformat(get_user(group_user)["expire"])
+        admin_result = get_user(admin_user)
+        admin_expire = dt.fromisoformat(admin_result["expire"])
+        normal_result = get_user(normal_user)
+
+        assert before_id + td(seconds=3599) <= id_expire <= after_id + td(seconds=3601)
+        assert before_group + td(seconds=3599) <= group_expire <= after_group + td(seconds=3601)
+        assert before_admin - td(seconds=3601) <= admin_expire <= after_admin - td(seconds=3599)
+        assert admin_result["status"] == "expired"
+        assert dt.fromisoformat(normal_result["expire"]) == normal_expire
+    finally:
+        cleanup(access_token, core, groups, users)
+        delete_admin(access_token, admin["username"])
 
 
 def test_update_users_proxy_settings(access_token):
@@ -693,3 +795,239 @@ def test_bulk_set_owner_by_ids(access_token):
     finally:
         cleanup(access_token, core, groups, users)
         delete_admin(access_token, new_owner["username"])
+
+
+def test_bulk_wireguard_reallocate_peer_ips_accepts_status_filter(access_token):
+    """Dry-run accepts optional status filter like other bulk user actions."""
+    response = client.post(
+        "/api/users/bulk/wireguard/reallocate-peer-ips",
+        headers={"Authorization": f"Bearer {access_token}"},
+        json={
+            "dry_run": True,
+            "confirm": False,
+            "status": ["active", "disabled"],
+        },
+    )
+    assert response.status_code == status.HTTP_200_OK
+    data = response.json()
+    assert data["dry_run"] is True
+    assert "candidates" in data
+    assert "affected_users" in data
+
+
+def test_bulk_wireguard_reallocate_peer_ips_repairs_duplicates(access_token):
+    interface_private_key, _ = generate_wireguard_keypair()
+    interface_name = unique_name("wg_bulk_dup")
+    core = create_core(
+        access_token,
+        name=unique_name("wireguard_bulk_dup_core"),
+        config={
+            "interface_name": interface_name,
+            "private_key": interface_private_key,
+            "listen_port": 51820,
+            "address": ["10.71.0.1/24"],
+        },
+        type="wg",
+        fallbacks=[],
+    )
+    group = create_group(access_token, name=unique_name("wg_bulk_dup_group"), inbound_tags=[interface_name])
+
+    users: list[dict] = []
+    try:
+        first_user = create_user(
+            access_token,
+            group_ids=[group["id"]],
+            payload={"username": unique_name("wg_dup_keep")},
+        )
+        second_user = create_user(
+            access_token,
+            group_ids=[group["id"]],
+            payload={"username": unique_name("wg_dup_realloc")},
+        )
+        users = [first_user, second_user]
+
+        duplicate_peer_ip = first_user["proxy_settings"]["wireguard"]["peer_ips"][0]
+        set_user_wireguard_peer_ips(second_user["username"], [duplicate_peer_ip])
+
+        dry_run_response = client.post(
+            "/api/users/bulk/wireguard/reallocate-peer-ips",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={"dry_run": True, "confirm": False, "users": [second_user["id"]]},
+        )
+        assert dry_run_response.status_code == status.HTTP_200_OK
+        assert dry_run_response.json()["candidates"] == 1
+        assert second_user["username"] in dry_run_response.json()["sample_usernames"]
+
+        response = client.post(
+            "/api/users/bulk/wireguard/reallocate-peer-ips",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={"confirm": True, "users": [second_user["id"]]},
+        )
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["updated"] == 1
+
+        first_response = client.get(
+            f"/api/user/{first_user['username']}",
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+        second_response = client.get(
+            f"/api/user/{second_user['username']}",
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+        assert first_response.status_code == status.HTTP_200_OK
+        assert second_response.status_code == status.HTTP_200_OK
+
+        first_peer_ips = first_response.json()["proxy_settings"]["wireguard"]["peer_ips"]
+        second_peer_ips = second_response.json()["proxy_settings"]["wireguard"]["peer_ips"]
+        assert first_peer_ips == [duplicate_peer_ip]
+        assert len(second_peer_ips) == 1
+        assert second_peer_ips[0] != duplicate_peer_ip
+        assert second_peer_ips[0].startswith("10.")
+        assert second_peer_ips[0].endswith("/32")
+    finally:
+        cleanup(access_token, core, [group], users)
+
+
+def test_bulk_wireguard_reallocate_peer_ips_updates_multiple_selected_users(access_token):
+    interface_private_key, _ = generate_wireguard_keypair()
+    interface_name = unique_name("wg_bulk_multi")
+    core = create_core(
+        access_token,
+        name=unique_name("wireguard_bulk_multi_core"),
+        config={
+            "interface_name": interface_name,
+            "private_key": interface_private_key,
+            "listen_port": 51820,
+            "address": ["10.72.0.1/24"],
+        },
+        type="wg",
+        fallbacks=[],
+    )
+    group = create_group(access_token, name=unique_name("wg_bulk_multi_group"), inbound_tags=[interface_name])
+
+    users: list[dict] = []
+    try:
+        keep_user = create_user(
+            access_token,
+            group_ids=[group["id"]],
+            payload={"username": unique_name("wg_multi_keep")},
+        )
+        duplicate_user = create_user(
+            access_token,
+            group_ids=[group["id"]],
+            payload={"username": unique_name("wg_multi_duplicate")},
+        )
+        missing_user = create_user(
+            access_token,
+            group_ids=[group["id"]],
+            payload={"username": unique_name("wg_multi_missing")},
+        )
+        users = [keep_user, duplicate_user, missing_user]
+
+        duplicate_peer_ip = keep_user["proxy_settings"]["wireguard"]["peer_ips"][0]
+        set_user_wireguard_peer_ips(duplicate_user["username"], [duplicate_peer_ip])
+        set_user_wireguard_peer_ips(missing_user["username"], [])
+
+        selected_user_ids = [duplicate_user["id"], missing_user["id"]]
+        dry_run_response = client.post(
+            "/api/users/bulk/wireguard/reallocate-peer-ips",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={"dry_run": True, "confirm": False, "users": selected_user_ids},
+        )
+        assert dry_run_response.status_code == status.HTTP_200_OK
+        assert dry_run_response.json()["candidates"] == 2
+
+        response = client.post(
+            "/api/users/bulk/wireguard/reallocate-peer-ips",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={"confirm": True, "users": selected_user_ids},
+        )
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["updated"] == 2
+
+        peer_ips_by_username = {}
+        for user in users:
+            user_response = client.get(
+                f"/api/user/{user['username']}",
+                headers={"Authorization": f"Bearer {access_token}"},
+            )
+            assert user_response.status_code == status.HTTP_200_OK
+            peer_ips = user_response.json()["proxy_settings"]["wireguard"]["peer_ips"]
+            assert len(peer_ips) == 1
+            peer_ips_by_username[user["username"]] = peer_ips[0]
+
+        assert peer_ips_by_username[keep_user["username"]] == duplicate_peer_ip
+        assert peer_ips_by_username[duplicate_user["username"]] != duplicate_peer_ip
+        assert len(set(peer_ips_by_username.values())) == 3
+    finally:
+        cleanup(access_token, core, [group], users)
+
+
+def test_bulk_wireguard_reallocate_peer_ips_repairs_duplicate_keys(access_token):
+    interface_private_key, _ = generate_wireguard_keypair()
+    duplicate_private_key, duplicate_public_key = generate_wireguard_keypair()
+    interface_name = unique_name("wg_bulk_key_dup")
+    core = create_core(
+        access_token,
+        name=unique_name("wireguard_bulk_key_dup_core"),
+        config={
+            "interface_name": interface_name,
+            "private_key": interface_private_key,
+            "listen_port": 51820,
+            "address": ["10.73.0.1/24"],
+        },
+        type="wg",
+        fallbacks=[],
+    )
+    group = create_group(access_token, name=unique_name("wg_bulk_key_dup_group"), inbound_tags=[interface_name])
+
+    users: list[dict] = []
+    try:
+        first_user = create_user(
+            access_token,
+            group_ids=[group["id"]],
+            payload={"username": unique_name("wg_key_dup_keep")},
+        )
+        second_user = create_user(
+            access_token,
+            group_ids=[group["id"]],
+            payload={"username": unique_name("wg_key_dup_rekey")},
+        )
+        users = [first_user, second_user]
+        set_user_wireguard_keys(first_user["username"], duplicate_private_key, duplicate_public_key)
+        set_user_wireguard_keys(second_user["username"], duplicate_private_key, duplicate_public_key)
+
+        dry_run_response = client.post(
+            "/api/users/bulk/wireguard/reallocate-peer-ips",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={"dry_run": True, "confirm": False, "users": [second_user["id"]]},
+        )
+        assert dry_run_response.status_code == status.HTTP_200_OK
+        assert dry_run_response.json()["candidates"] == 1
+
+        response = client.post(
+            "/api/users/bulk/wireguard/reallocate-peer-ips",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={"confirm": True, "users": [second_user["id"]]},
+        )
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["updated"] == 1
+
+        first_response = client.get(
+            f"/api/user/{first_user['username']}",
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+        second_response = client.get(
+            f"/api/user/{second_user['username']}",
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+        assert first_response.status_code == status.HTTP_200_OK
+        assert second_response.status_code == status.HTTP_200_OK
+
+        first_wireguard = first_response.json()["proxy_settings"]["wireguard"]
+        second_wireguard = second_response.json()["proxy_settings"]["wireguard"]
+        assert first_wireguard["public_key"] == duplicate_public_key
+        assert second_wireguard["public_key"] != duplicate_public_key
+        assert second_wireguard["private_key"] != duplicate_private_key
+    finally:
+        cleanup(access_token, core, [group], users)

@@ -496,6 +496,10 @@ def _process_users_stats_response(stats_response):
     Process stats response (CPU-bound operation) - runs in thread pool.
     Pure function designed for thread-safe execution.
     Returns tuple: (validated_params, invalid_uids) for logging outside thread.
+
+    Every inbound (including WireGuard) reports stats keyed by the user's
+    email, which the panel sets to the plain `{id}`, so no translation is
+    needed here.
     """
     params = defaultdict(int)
     for stat in filter(attrgetter("value"), stats_response.stats):
