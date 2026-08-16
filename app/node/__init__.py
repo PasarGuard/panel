@@ -57,7 +57,7 @@ class NodeManager:
         except Exception:
             pass
 
-    async def update_node(self, node: Node) -> PasarGuardNode:
+    async def update_node(self, node: Node, *, remote_stop: bool = True) -> PasarGuardNode:
         await ensure_bridge_memory()
 
         async with self._lock.writer_lock:
@@ -69,7 +69,7 @@ class NodeManager:
             self._user_sync_locks.setdefault(node.id, asyncio.Lock())
 
         # Stop the old node after releasing the lock.
-        await self._shutdown_node(old_node)
+        await self._shutdown_node(old_node, remote_stop=remote_stop)
 
         return new_node
 

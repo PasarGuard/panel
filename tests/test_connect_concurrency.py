@@ -3,10 +3,29 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from PasarGuardNodeBridge import NodeAPIError
 
-from app.db.models import NodeStatus
+from app.db.models import CoreType, NodeStatus
 from app.operation import node as node_op_module
 from app.operation.node import CONNECT_CONCURRENCY, NodeOperation
+
+
+@pytest.mark.asyncio
+async def test_connect_node_lifecycle_contender_does_not_overwrite_owner_result(monkeypatch: pytest.MonkeyPatch):
+    db_node = SimpleNamespace(id=19, name="node-19", status=NodeStatus.connecting)
+    core = SimpleNamespace(type=CoreType.xray)
+
+    monkeypatch.setattr(node_op_module.node_manager, "get_node", AsyncMock(return_value=object()))
+    monkeypatch.setattr(
+        NodeOperation,
+        "_start_or_attach_node",
+        AsyncMock(side_effect=NodeAPIError(409, "already in progress")),
+    )
+    monkeypatch.setattr(NodeOperation, "_attach_if_running", AsyncMock(return_value=None))
+
+    result = await NodeOperation.connect_node(db_node, core, [])
+
+    assert result is None
 
 
 @pytest.mark.asyncio
