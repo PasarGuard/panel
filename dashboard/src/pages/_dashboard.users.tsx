@@ -7,8 +7,9 @@ import { Plus } from 'lucide-react'
 import UserModal from '@/features/users/dialogs/user-modal'
 import { useAdmin } from '@/hooks/use-admin'
 import { hasPermission } from '@/utils/rbac'
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { useForm } from 'react-hook-form'
+import { useCommandCreate } from '@/hooks/use-command-create'
 
 const Users = () => {
   const { admin } = useAdmin()
@@ -18,15 +19,17 @@ const Users = () => {
     defaultValues: getDefaultUserForm,
   })
 
-  const handleCreateUser = () => {
+  const handleCreateUser = useCallback(() => {
     if (!canCreateUsers) return
     userForm.reset()
     setUserModalOpen(true)
-  }
+  }, [canCreateUsers, userForm])
+
+  useCommandCreate('user', handleCreateUser)
 
   return (
     <div className="flex w-full flex-col items-start gap-2">
-      <div className="animate-fade-in w-full transform-gpu" style={{ animationDuration: '400ms' }}>
+      <div className="w-full">
         <PageHeader
           title="users"
           description="manageAccounts"
@@ -38,13 +41,8 @@ const Users = () => {
       </div>
 
       <div className="w-full px-4 pt-2">
-        <div className="animate-slide-up transform-gpu" style={{ animationDuration: '500ms', animationDelay: '100ms', animationFillMode: 'both' }}>
-          <UsersStatistics />
-        </div>
-
-        <div className="animate-slide-up transform-gpu" style={{ animationDuration: '500ms', animationDelay: '250ms', animationFillMode: 'both' }}>
-          <UsersTable />
-        </div>
+        <UsersStatistics />
+        <UsersTable />
       </div>
 
       {canCreateUsers && <UserModal isDialogOpen={isUserModalOpen} onOpenChange={setUserModalOpen} form={userForm} editingUser={false} />}
