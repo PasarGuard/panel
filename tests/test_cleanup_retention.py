@@ -10,6 +10,7 @@ from app.db import base
 from app.db.models import NodeStat
 from app.jobs.cleanup_retention import delete_expired_rows_in_batches
 from app.models.settings import CleanupSettings
+from config import JobSettings
 
 
 @pytest.fixture
@@ -113,3 +114,9 @@ def test_cleanup_settings_allows_immediate_expired_user_deletion():
 def test_cleanup_settings_rejects_invalid_retention_days(invalid_days):
     with pytest.raises(ValidationError):
         CleanupSettings(usage_history_retention_days=invalid_days)
+
+
+@pytest.mark.parametrize("invalid_interval", [0, -1])
+def test_cleanup_retention_job_rejects_non_positive_intervals(invalid_interval):
+    with pytest.raises(ValidationError):
+        JobSettings.model_validate({"JOB_CLEANUP_RETENTION_INTERVAL": invalid_interval})

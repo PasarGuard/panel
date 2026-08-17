@@ -167,7 +167,7 @@ export function RetentionSettingsCard({ value, isLoading, isSaving, onSave }: Re
                     onChange={event => setDays(item.key, event.target.value)}
                     disabled={!enabled}
                     className="h-10 font-mono text-sm tabular-nums"
-                    aria-label={t('settings.cleanup.retention.days')}
+                    aria-label={`${item.title}: ${t('settings.cleanup.retention.days')}`}
                   />
                   <span className="text-muted-foreground shrink-0 text-xs font-medium">{t('settings.cleanup.retention.days')}</span>
                 </div>
