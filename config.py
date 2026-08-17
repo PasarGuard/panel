@@ -204,6 +204,7 @@ class JobSettings(EnvSettings):
     cleanup_subscription_updates_interval: int = Field(
         default=600, validation_alias="JOB_CLEANUP_SUBSCRIPTION_UPDATES_INTERVAL"
     )
+    cleanup_retention_interval: int = Field(default=3600, validation_alias="JOB_CLEANUP_RETENTION_INTERVAL")
 
 
 class FeatureSettings(EnvSettings):

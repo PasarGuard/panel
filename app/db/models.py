@@ -863,6 +863,10 @@ class ClientTemplate(Base):
 
 class NodeStat(Base, CreatedAtUTCMixin):
     __tablename__ = "node_stats"
+    __table_args__ = (
+        Index("ix_node_stats_created_at", "created_at"),
+        Index("ix_node_stats_node_id_created_at", "node_id", "created_at"),
+    )
     node_id: Mapped[int] = fk_id_column("nodes.id")
     node: Mapped[Node] = relationship(back_populates="stats", init=False)
     mem_total: Mapped[int] = mapped_column(BigInteger, unique=False, nullable=False)
@@ -882,6 +886,7 @@ class Settings(Base, IdMixin):
     subscription: Mapped[dict] = mapped_column(JSON())
     hwid: Mapped[dict] = mapped_column(JSON())
     general: Mapped[dict] = mapped_column(JSON())
+    cleanup: Mapped[dict] = mapped_column(JSON(), default_factory=dict)
 
 
 class AdminRole(Base, CreatedAtUTCMixin):
