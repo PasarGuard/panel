@@ -68,6 +68,15 @@ async def general_settings() -> settings.General:
     return validated_settings
 
 
+@cached()
+async def cleanup_settings() -> settings.CleanupSettings:
+    async with GetDB() as db:
+        db_settings = await get_settings(db)
+
+    validated_settings = settings.CleanupSettings.model_validate(db_settings.cleanup or {})
+    return validated_settings
+
+
 async def refresh_caches() -> None:
     await telegram_settings.cache.clear()
     await webhook_settings.cache.clear()
@@ -76,6 +85,7 @@ async def refresh_caches() -> None:
     await subscription_settings.cache.clear()
     await hwid_settings.cache.clear()
     await general_settings.cache.clear()
+    await cleanup_settings.cache.clear()
 
 
 async def handle_settings_message(_: dict):

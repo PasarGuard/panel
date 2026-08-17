@@ -1425,7 +1425,9 @@ async def get_users_subscription_agent_stats(
 
 
 async def autodelete_expired_users(
-    db: AsyncSession, include_limited_users: bool = False
+    db: AsyncSession,
+    include_limited_users: bool = False,
+    default_autodelete_days: int | None = None,
 ) -> list[UserNotificationResponse]:
     """
     Deletes expired (optionally also limited) users whose auto-delete time has passed.
@@ -1440,7 +1442,10 @@ async def autodelete_expired_users(
     """
     target_status = [UserStatus.expired] if not include_limited_users else [UserStatus.expired, UserStatus.limited]
 
-    auto_delete = func.coalesce(User.auto_delete_in_days, literal(user_cleanup_settings.autodelete_days))
+    fallback_days = (
+        user_cleanup_settings.autodelete_days if default_autodelete_days is None else default_autodelete_days
+    )
+    auto_delete = func.coalesce(User.auto_delete_in_days, literal(fallback_days))
 
     query = (
         select(

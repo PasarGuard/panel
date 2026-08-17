@@ -28,6 +28,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { hasScopeAll, isOwner, roleLabel } from '@/utils/rbac'
+import { RetentionSettingsCard } from '@/features/cleanup/components/retention-settings-card'
+import { useSettingsContext } from './_dashboard.settings'
 
 const PAGE_SIZE = 20
 type CleanupDeleteTarget = 'expired' | 'limited' | 'on_hold' | 'disabled'
@@ -36,6 +38,7 @@ export default function CleanupSettings() {
   const { t, i18n } = useTranslation()
   const dir = useDirDetection()
   const isPersianLocale = i18n.language === 'fa'
+  const { settings, isLoading: isSettingsLoading, updateSettings, isSaving } = useSettingsContext()
   const [deleteTarget, setDeleteTarget] = useState<CleanupDeleteTarget>('expired')
   const [statusChangedAfter, setStatusChangedAfter] = useState<Date | undefined>()
   const [statusChangedBefore, setStatusChangedBefore] = useState<Date | undefined>()
@@ -305,6 +308,8 @@ export default function CleanupSettings() {
 
   return (
     <div className="space-y-6 p-4 sm:space-y-8 sm:py-6 lg:space-y-10 lg:py-8">
+      <RetentionSettingsCard value={settings?.cleanup} isLoading={isSettingsLoading} isSaving={isSaving} onSave={cleanup => updateSettings({ cleanup })} />
+
       {/* Delete Expired Users Section */}
       <Card>
         <CardHeader className="p-4 sm:p-6">

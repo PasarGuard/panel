@@ -1481,6 +1481,8 @@ export interface ShadowsocksSettings {
   method?: ShadowsocksMethods
 }
 
+export type SettingsSchemaCleanup = CleanupSettings | null
+
 export type SettingsSchemaGeneral = General | null
 
 export type SettingsSchemaHwid = HWIDSettings | null
@@ -1503,6 +1505,7 @@ export interface SettingsSchema {
   subscription?: SettingsSchemaSubscription
   hwid?: SettingsSchemaHwid
   general?: SettingsSchemaGeneral
+  cleanup?: SettingsSchemaCleanup
 }
 
 export type SettingsPermissionsUpdateAnyOf = { [key: string]: PermissionScope | number }
@@ -3140,6 +3143,21 @@ export interface ClientTemplateCreate {
   template_type: ClientTemplateType
   content: string
   is_default?: boolean
+}
+
+export type CleanupSettingsNodeStatsRetentionDays = number | null
+
+export type CleanupSettingsUsageHistoryRetentionDays = number | null
+
+export type CleanupSettingsExpiredUsersRetentionDays = number | null
+
+/**
+ * Automatic retention periods. ``None`` keeps the corresponding data indefinitely.
+ */
+export interface CleanupSettings {
+  expired_users_retention_days?: CleanupSettingsExpiredUsersRetentionDays
+  usage_history_retention_days?: CleanupSettingsUsageHistoryRetentionDays
+  node_stats_retention_days?: CleanupSettingsNodeStatsRetentionDays
 }
 
 export type ClashMuxSettingsBrutal = Brutal | null

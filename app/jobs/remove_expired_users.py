@@ -4,6 +4,7 @@ from app import notification, scheduler
 from app.db import GetDB
 from app.db.crud.user import autodelete_expired_users
 from app.jobs.dependencies import SYSTEM_ADMIN
+from app.settings import cleanup_settings
 from app.utils.logger import get_logger
 from config import job_settings, runtime_settings, user_cleanup_settings
 
@@ -11,8 +12,14 @@ logger = get_logger("jobs")
 
 
 async def remove_expired_users():
+    retention = await cleanup_settings()
+    default_autodelete_days = retention.expired_users_retention_days
     async with GetDB() as db:
-        deleted_users = await autodelete_expired_users(db, user_cleanup_settings.include_limited_accounts)
+        deleted_users = await autodelete_expired_users(
+            db,
+            user_cleanup_settings.include_limited_accounts,
+            default_autodelete_days=-1 if default_autodelete_days is None else default_autodelete_days,
+        )
 
         for user in deleted_users:
             asyncio.create_task(notification.remove_user(user=user, by=SYSTEM_ADMIN))
