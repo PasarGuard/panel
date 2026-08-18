@@ -1,6 +1,6 @@
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import and_, delete, or_, select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import scheduler
@@ -24,7 +24,7 @@ async def delete_expired_rows_in_batches(
     batch_size: int = RETENTION_DELETE_BATCH_SIZE,
     max_rows: int = RETENTION_MAX_ROWS_PER_TABLE,
 ) -> int:
-    """Delete the oldest rows in bounded transactions without a large ``IN`` clause."""
+    """Delete the oldest rows in bounded transactions by their selected IDs."""
     deleted_total = 0
 
     while deleted_total < max_rows:
@@ -40,20 +40,20 @@ async def delete_expired_rows_in_batches(
         if not rows:
             break
 
-        boundary_id, boundary_created_at = rows[-1]
-        await db.execute(
+        selected_ids = [row_id for row_id, _ in rows]
+        delete_result = await db.execute(
             delete(model).where(
+                model.id.in_(selected_ids),
                 model.created_at < cutoff,
-                or_(
-                    model.created_at < boundary_created_at,
-                    and_(model.created_at == boundary_created_at, model.id <= boundary_id),
-                ),
             )
         )
+        deleted_count = delete_result.rowcount
+        if deleted_count is None or deleted_count < 0:
+            raise RuntimeError(f"Could not determine deleted row count for {model.__tablename__}")
         await db.commit()
-        deleted_total += len(rows)
+        deleted_total += deleted_count
 
-        if len(rows) < current_batch_size:
+        if deleted_count < current_batch_size:
             break
 
     return deleted_total

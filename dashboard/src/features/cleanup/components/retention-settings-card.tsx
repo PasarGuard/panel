@@ -30,22 +30,25 @@ const ENABLE_DEFAULTS: Record<RetentionKey, number> = {
   node_stats_retention_days: 30,
 }
 
-/** Normalize omitted retention keys to the disabled state used by the editor. */
-function normalizeSettings(value?: CleanupSettings | null): CleanupSettings {
-  return {
-    expired_users_retention_days: value?.expired_users_retention_days ?? null,
-    usage_history_retention_days: value?.usage_history_retention_days ?? null,
-    node_stats_retention_days: value?.node_stats_retention_days ?? null,
-  }
-}
-
 /** Render and validate the independent cleanup-retention controls. */
 export function RetentionSettingsCard({ value, isLoading, isSaving, onSave }: RetentionSettingsCardProps) {
   const { t } = useTranslation()
-  const [draft, setDraft] = useState<CleanupSettings>(() => normalizeSettings(value ?? DEFAULT_RETENTION))
+  const initialValue = value ?? DEFAULT_RETENTION
+  const [draft, setDraft] = useState<CleanupSettings>({
+    expired_users_retention_days: initialValue.expired_users_retention_days ?? null,
+    usage_history_retention_days: initialValue.usage_history_retention_days ?? null,
+    node_stats_retention_days: initialValue.node_stats_retention_days ?? null,
+  })
   const [validationError, setValidationError] = useState<string | null>(null)
 
-  const savedValue = useMemo(() => normalizeSettings(value ?? DEFAULT_RETENTION), [value])
+  const savedValue = useMemo(() => {
+    const persistedValue = value ?? DEFAULT_RETENTION
+    return {
+      expired_users_retention_days: persistedValue.expired_users_retention_days ?? null,
+      usage_history_retention_days: persistedValue.usage_history_retention_days ?? null,
+      node_stats_retention_days: persistedValue.node_stats_retention_days ?? null,
+    }
+  }, [value])
 
   useEffect(() => {
     setDraft(savedValue)
@@ -201,7 +204,11 @@ export function RetentionSettingsCard({ value, isLoading, isSaving, onSave }: Re
           <AlertDescription className="text-xs leading-relaxed sm:text-sm">{t('settings.cleanup.retention.cascadeWarning')}</AlertDescription>
         </Alert>
 
-        {validationError && <p className="text-destructive text-xs font-medium">{validationError}</p>}
+        {validationError && (
+          <p role="alert" className="text-destructive text-xs font-medium">
+            {validationError}
+          </p>
+        )}
 
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <Button variant="outline" type="button" disabled={!isDirty || isSaving} onClick={() => setDraft(savedValue)}>

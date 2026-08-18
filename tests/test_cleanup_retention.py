@@ -15,6 +15,9 @@ from app.models.settings import CleanupSettings
 from config import JobSettings
 
 cleanup_retention_job = importlib.import_module("app.jobs.cleanup_retention")
+cleanup_retention_migration = importlib.import_module(
+    "app.db.migrations.versions.7b3d1e9c4a6f_add_cleanup_retention_settings"
+)
 remove_expired_users_job = importlib.import_module("app.jobs.remove_expired_users")
 
 
@@ -107,6 +110,57 @@ async def test_retention_delete_honors_per_run_limit(retention_db):
     assert deleted == 3
     remaining = await retention_db.scalar(select(func.count()).select_from(NodeStat))
     assert remaining == 2
+
+
+@pytest.mark.asyncio
+async def test_retention_delete_does_not_include_rows_inserted_after_selection(retention_db, monkeypatch):
+    """Leave a backdated row inserted after batch selection for the next run."""
+    now = datetime.now(UTC)
+    cutoff = now - timedelta(days=30)
+    retention_db.add_all(
+        [
+            _node_stat(1, now - timedelta(days=32)),
+            _node_stat(2, now - timedelta(days=31)),
+            _node_stat(3, now - timedelta(days=29)),
+        ]
+    )
+    await retention_db.commit()
+
+    original_execute = retention_db.execute
+    inserted = False
+
+    async def execute_with_concurrent_insert(statement, *args, **kwargs):
+        """Insert a backdated row after the cleanup SELECT but before its DELETE."""
+        nonlocal inserted
+        result = await original_execute(statement, *args, **kwargs)
+        if statement.is_select and not inserted:
+            inserted = True
+            retention_db.add(_node_stat(99, now - timedelta(days=33)))
+            await retention_db.flush()
+        return result
+
+    monkeypatch.setattr(retention_db, "execute", execute_with_concurrent_insert)
+
+    deleted = await delete_expired_rows_in_batches(
+        retention_db,
+        NodeStat,
+        cutoff,
+        batch_size=2,
+        max_rows=2,
+    )
+
+    assert deleted == 2
+    remaining_node_ids = set((await retention_db.scalars(select(NodeStat.node_id))).all())
+    assert remaining_node_ids == {3, 99}
+
+
+@pytest.mark.parametrize(
+    ("legacy_days", "expected_days"),
+    [(-1, None), (0, 0), (30, 30), (36_500, 36_500), (40_000, 36_500)],
+)
+def test_migration_normalizes_legacy_retention_days(legacy_days, expected_days):
+    """Preserve valid legacy values and clamp values above the runtime limit."""
+    assert cleanup_retention_migration.normalize_legacy_retention_days(legacy_days) == expected_days
 
 
 def test_cleanup_settings_support_independent_disabled_rules():
