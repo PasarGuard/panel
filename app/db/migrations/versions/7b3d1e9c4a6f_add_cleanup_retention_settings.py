@@ -15,6 +15,8 @@ down_revision = "6a9fff8290b9"
 branch_labels = None
 depends_on = None
 
+MAX_RETENTION_DAYS = 36_500
+
 
 class MigrationSettings(BaseSettings):
     """Read the legacy retention value used to seed the new cleanup policy."""
@@ -24,11 +26,18 @@ class MigrationSettings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
 
+def normalize_legacy_retention_days(legacy_days: int) -> int | None:
+    """Map legacy retention values into the range accepted by the runtime schema."""
+    if legacy_days < 0:
+        return None
+    return min(legacy_days, MAX_RETENTION_DAYS)
+
+
 def upgrade() -> None:
     """Add cleanup policies and indexes, preserving the legacy user setting."""
     legacy_days = MigrationSettings().users_autodelete_days
     default_cleanup = {
-        "expired_users_retention_days": legacy_days if legacy_days >= 0 else None,
+        "expired_users_retention_days": normalize_legacy_retention_days(legacy_days),
         "usage_history_retention_days": 90,
         "node_stats_retention_days": 30,
     }
