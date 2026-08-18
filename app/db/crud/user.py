@@ -1458,22 +1458,31 @@ async def autodelete_expired_users(
         raise ValueError("batch_size and max_users must be positive")
     auto_delete = func.coalesce(User.auto_delete_in_days, literal(fallback_days))
 
-    query = (
-        select(User)
-        .where(
-            auto_delete >= 0,  # Negative values prevent auto-deletion
-            User.status.in_(target_status),
-            User.last_status_change.isnot(None),
-            ElapsedSeconds(func.now(), User.last_status_change) >= auto_delete * 86_400,
-        )
-        .options(joinedload(User.admin))
-        .order_by(User.id)
+    eligibility_conditions = (
+        auto_delete >= 0,  # Negative values prevent auto-deletion
+        User.status.in_(target_status),
+        User.last_status_change.isnot(None),
+        ElapsedSeconds(func.now(), User.last_status_change) >= auto_delete * 86_400,
     )
+    candidate_query = select(User.id).where(*eligibility_conditions).order_by(User.id)
 
     result: list[UserNotificationResponse] = []
     while len(result) < max_users:
         current_batch_size = min(batch_size, max_users - len(result))
-        expired_users = (await db.scalars(query.limit(current_batch_size))).unique().all()
+        candidate_ids = (await db.scalars(candidate_query.limit(current_batch_size))).all()
+        if not candidate_ids:
+            break
+
+        # Revalidate after candidate selection, then hold row locks until remove_users commits.
+        # This prevents a concurrent status or retention-policy update from racing the delete.
+        locked_query = (
+            select(User)
+            .where(User.id.in_(candidate_ids), *eligibility_conditions)
+            .options(joinedload(User.admin))
+            .order_by(User.id)
+            .with_for_update(of=User, skip_locked=True)
+        )
+        expired_users = (await db.scalars(locked_query)).unique().all()
         if not expired_users:
             break
 
@@ -1483,7 +1492,7 @@ async def autodelete_expired_users(
 
         await remove_users(db, expired_users)
 
-        if len(expired_users) < current_batch_size:
+        if len(candidate_ids) < current_batch_size:
             break
 
     return result

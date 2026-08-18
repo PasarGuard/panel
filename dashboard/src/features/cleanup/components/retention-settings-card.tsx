@@ -217,7 +217,15 @@ export function RetentionSettingsCard({ value, isLoading, isSaving, onSave }: Re
         )}
 
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <Button variant="outline" type="button" disabled={!isDirty || isSaving} onClick={() => setDraft(savedValue)}>
+          <Button
+            variant="outline"
+            type="button"
+            disabled={!isDirty || isSaving}
+            onClick={() => {
+              setDraft(savedValue)
+              setValidationError(null)
+            }}
+          >
             <RotateCcw className="me-2 h-4 w-4" />
             {t('settings.cleanup.retention.reset')}
           </Button>
