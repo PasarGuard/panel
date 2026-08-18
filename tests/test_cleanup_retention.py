@@ -9,10 +9,11 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
 
 from app.db import base
-from app.db.models import NodeStat
+from app.db.crud.user import autodelete_expired_users
+from app.db.models import NodeStat, User, UserStatus
 from app.jobs.cleanup_retention import delete_expired_rows_in_batches
 from app.models.settings import CleanupSettings
-from config import JobSettings
+from config import JobSettings, UserCleanupSettings
 
 cleanup_retention_job = importlib.import_module("app.jobs.cleanup_retention")
 cleanup_retention_migration = importlib.import_module(
@@ -199,6 +200,52 @@ def test_cleanup_retention_job_rejects_non_positive_intervals(invalid_interval):
         JobSettings.model_validate({"JOB_CLEANUP_RETENTION_INTERVAL": invalid_interval})
 
 
+@pytest.mark.parametrize(
+    "invalid_limit",
+    [
+        {"USER_AUTODELETE_BATCH_SIZE": 0},
+        {"USER_AUTODELETE_MAX_USERS_PER_RUN": 0},
+    ],
+)
+def test_user_cleanup_settings_reject_non_positive_limits(invalid_limit):
+    """Reject batch limits that cannot make cleanup progress."""
+    with pytest.raises(ValidationError):
+        UserCleanupSettings.model_validate(invalid_limit)
+
+
+@pytest.mark.asyncio
+async def test_expired_user_cleanup_batches_and_leaves_backlog(retention_db, monkeypatch):
+    """Delete only the per-run maximum and leave the backlog for a later run."""
+    expired_at = datetime.now(UTC) - timedelta(days=2)
+    retention_db.add_all(
+        [
+            User(
+                username=f"expired-cleanup-{index}",
+                status=UserStatus.expired,
+                last_status_change=expired_at,
+                proxy_settings={},
+            )
+            for index in range(5)
+        ]
+    )
+    await retention_db.commit()
+
+    commit_spy = AsyncMock(wraps=retention_db.commit)
+    monkeypatch.setattr(retention_db, "commit", commit_spy)
+
+    deleted_users = await autodelete_expired_users(
+        retention_db,
+        default_autodelete_days=1,
+        batch_size=2,
+        max_users=3,
+    )
+
+    assert len(deleted_users) == 3
+    assert commit_spy.await_count == 2
+    remaining = await retention_db.scalar(select(func.count()).select_from(User))
+    assert remaining == 2
+
+
 @pytest.mark.asyncio
 async def test_cleanup_retention_job_skips_disabled_rules(retention_db, monkeypatch):
     """Skip all history deletions when both retention rules are disabled."""
@@ -249,4 +296,6 @@ async def test_remove_expired_users_applies_disabled_and_immediate_modes(
         retention_db,
         remove_expired_users_job.user_cleanup_settings.include_limited_accounts,
         default_autodelete_days=expected_fallback,
+        batch_size=remove_expired_users_job.user_cleanup_settings.autodelete_batch_size,
+        max_users=remove_expired_users_job.user_cleanup_settings.autodelete_max_users_per_run,
     )

@@ -20,11 +20,18 @@ async def remove_expired_users():
             db,
             user_cleanup_settings.include_limited_accounts,
             default_autodelete_days=-1 if default_autodelete_days is None else default_autodelete_days,
+            batch_size=user_cleanup_settings.autodelete_batch_size,
+            max_users=user_cleanup_settings.autodelete_max_users_per_run,
         )
 
         for user in deleted_users:
             asyncio.create_task(notification.remove_user(user=user, by=SYSTEM_ADMIN))
             logger.info(f"User `{user.username}` has been deleted due to expiration.")
+
+        if len(deleted_users) == user_cleanup_settings.autodelete_max_users_per_run:
+            logger.warning(
+                "Expired-user cleanup reached its per-run limit; remaining users will be handled by a later run."
+            )
 
 
 if runtime_settings.role.runs_scheduler:
