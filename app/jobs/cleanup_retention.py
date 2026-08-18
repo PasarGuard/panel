@@ -60,6 +60,7 @@ async def delete_expired_rows_in_batches(
 
 
 async def cleanup_retention_data(*, now: datetime | None = None) -> dict[str, int]:
+    """Delete data older than each enabled retention policy."""
     retention = await cleanup_settings()
     now = now or datetime.now(UTC)
     deleted: dict[str, int] = {}

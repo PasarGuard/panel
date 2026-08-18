@@ -17,12 +17,15 @@ depends_on = None
 
 
 class MigrationSettings(BaseSettings):
+    """Read the legacy retention value used to seed the new cleanup policy."""
+
     users_autodelete_days: int = Field(default=-1, validation_alias="USERS_AUTODELETE_DAYS")
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
 
 def upgrade() -> None:
+    """Add cleanup policies and indexes, preserving the legacy user setting."""
     legacy_days = MigrationSettings().users_autodelete_days
     default_cleanup = {
         "expired_users_retention_days": legacy_days if legacy_days >= 0 else None,
@@ -45,6 +48,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    """Remove cleanup policies and their supporting node-stat indexes."""
     with op.batch_alter_table("node_stats", schema=None) as batch_op:
         batch_op.drop_index("ix_node_stats_node_id_created_at")
         batch_op.drop_index("ix_node_stats_created_at")

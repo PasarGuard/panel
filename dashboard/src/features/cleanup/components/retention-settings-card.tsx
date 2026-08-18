@@ -30,6 +30,7 @@ const ENABLE_DEFAULTS: Record<RetentionKey, number> = {
   node_stats_retention_days: 30,
 }
 
+/** Normalize omitted retention keys to the disabled state used by the editor. */
 function normalizeSettings(value?: CleanupSettings | null): CleanupSettings {
   return {
     expired_users_retention_days: value?.expired_users_retention_days ?? null,
@@ -38,6 +39,7 @@ function normalizeSettings(value?: CleanupSettings | null): CleanupSettings {
   }
 }
 
+/** Render and validate the independent cleanup-retention controls. */
 export function RetentionSettingsCard({ value, isLoading, isSaving, onSave }: RetentionSettingsCardProps) {
   const { t } = useTranslation()
   const [draft, setDraft] = useState<CleanupSettings>(() => normalizeSettings(value ?? DEFAULT_RETENTION))
@@ -82,17 +84,20 @@ export function RetentionSettingsCard({ value, isLoading, isSaving, onSave }: Re
 
   const isDirty = JSON.stringify(draft) !== JSON.stringify(savedValue)
 
+  /** Enable a rule with its default or disable it indefinitely. */
   const setEnabled = (key: RetentionKey, enabled: boolean) => {
     setDraft(current => ({ ...current, [key]: enabled ? ENABLE_DEFAULTS[key] : null }))
     setValidationError(null)
   }
 
+  /** Store the numeric value entered for an enabled retention rule. */
   const setDays = (key: RetentionKey, rawValue: string) => {
     const days = Number(rawValue)
     setDraft(current => ({ ...current, [key]: Number.isFinite(days) ? days : 0 }))
     setValidationError(null)
   }
 
+  /** Validate and persist the complete retention-policy draft. */
   const handleSave = async () => {
     const entries = Object.entries(draft) as [RetentionKey, number | null | undefined][]
     const hasInvalidValue = entries.some(([key, days]) => {

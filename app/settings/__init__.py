@@ -70,6 +70,7 @@ async def general_settings() -> settings.General:
 
 @cached()
 async def cleanup_settings() -> settings.CleanupSettings:
+    """Return the validated cleanup settings from persistent storage."""
     async with GetDB() as db:
         db_settings = await get_settings(db)
 
