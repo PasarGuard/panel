@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from pydantic import ValidationError
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
 
@@ -244,6 +244,48 @@ async def test_expired_user_cleanup_batches_and_leaves_backlog(retention_db, mon
     assert commit_spy.await_count == 2
     remaining = await retention_db.scalar(select(func.count()).select_from(User))
     assert remaining == 2
+
+
+@pytest.mark.asyncio
+async def test_expired_user_cleanup_revalidates_selected_users(retention_db, monkeypatch):
+    """Keep a selected user that becomes ineligible before the locking read."""
+    user = User(
+        username="expired-cleanup-concurrent-update",
+        status=UserStatus.expired,
+        last_status_change=datetime.now(UTC) - timedelta(days=2),
+        proxy_settings={},
+    )
+    retention_db.add(user)
+    await retention_db.commit()
+
+    original_scalars = retention_db.scalars
+    select_count = 0
+
+    async def scalars_with_status_change(statement, *args, **kwargs):
+        """Make the candidate active immediately before eligibility is revalidated."""
+        nonlocal select_count
+        select_count += 1
+        if select_count == 2:
+            await retention_db.execute(
+                update(User)
+                .where(User.id == user.id)
+                .values(status=UserStatus.active, last_status_change=datetime.now(UTC))
+            )
+            await retention_db.flush()
+        return await original_scalars(statement, *args, **kwargs)
+
+    monkeypatch.setattr(retention_db, "scalars", scalars_with_status_change)
+
+    deleted_users = await autodelete_expired_users(
+        retention_db,
+        default_autodelete_days=1,
+        batch_size=10,
+        max_users=10,
+    )
+
+    assert deleted_users == []
+    assert await retention_db.scalar(select(func.count()).select_from(User)) == 1
+    assert await retention_db.scalar(select(User.status).where(User.id == user.id)) is UserStatus.active
 
 
 @pytest.mark.asyncio
