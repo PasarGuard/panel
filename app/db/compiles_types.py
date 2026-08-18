@@ -132,3 +132,35 @@ def compile_date_diff_mysql(element, compiler, **kw):
 @compiles(DateDiff, "sqlite")
 def compile_date_diff_sqlite(element, compiler, **kw):
     return f"julianday({compiler.process(element.date1)}) - julianday({compiler.process(element.date2)})"
+
+
+class ElapsedSeconds(FunctionElement):
+    """Return the exact elapsed seconds between two database timestamps."""
+
+    type = Numeric()
+    name = "elapsed_seconds"
+    inherit_cache = True
+
+    def __init__(self, date1, date2, **kwargs):
+        """Store the newer and older timestamp expressions."""
+        super().__init__(**kwargs)
+        self.date1 = date1
+        self.date2 = date2
+
+
+@compiles(ElapsedSeconds, "postgresql")
+def compile_elapsed_seconds_postgresql(element, compiler, **kw):
+    """Compile an exact timestamp difference for PostgreSQL."""
+    return f"EXTRACT(EPOCH FROM ({compiler.process(element.date1)} - {compiler.process(element.date2)}))"
+
+
+@compiles(ElapsedSeconds, "mysql")
+def compile_elapsed_seconds_mysql(element, compiler, **kw):
+    """Compile an exact timestamp difference for MySQL."""
+    return f"TIMESTAMPDIFF(SECOND, {compiler.process(element.date2)}, {compiler.process(element.date1)})"
+
+
+@compiles(ElapsedSeconds, "sqlite")
+def compile_elapsed_seconds_sqlite(element, compiler, **kw):
+    """Compile an exact timestamp difference for SQLite."""
+    return f"(julianday({compiler.process(element.date1)}) - julianday({compiler.process(element.date2)})) * 86400"
