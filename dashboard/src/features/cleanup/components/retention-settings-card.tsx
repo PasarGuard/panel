@@ -10,6 +10,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 type RetentionKey = keyof CleanupSettings
+type RetentionValue = number | null | ''
+type RetentionDraft = Record<RetentionKey, RetentionValue>
 
 interface RetentionSettingsCardProps {
   value?: CleanupSettings | null
@@ -34,7 +36,7 @@ const ENABLE_DEFAULTS: Record<RetentionKey, number> = {
 export function RetentionSettingsCard({ value, isLoading, isSaving, onSave }: RetentionSettingsCardProps) {
   const { t } = useTranslation()
   const initialValue = value ?? DEFAULT_RETENTION
-  const [draft, setDraft] = useState<CleanupSettings>({
+  const [draft, setDraft] = useState<RetentionDraft>({
     expired_users_retention_days: initialValue.expired_users_retention_days ?? null,
     usage_history_retention_days: initialValue.usage_history_retention_days ?? null,
     node_stats_retention_days: initialValue.node_stats_retention_days ?? null,
@@ -93,18 +95,12 @@ export function RetentionSettingsCard({ value, isLoading, isSaving, onSave }: Re
     setValidationError(null)
   }
 
-  /** Store the numeric value entered for an enabled retention rule. */
-  const setDays = (key: RetentionKey, rawValue: string) => {
-    const days = Number(rawValue)
-    setDraft(current => ({ ...current, [key]: Number.isFinite(days) ? days : 0 }))
-    setValidationError(null)
-  }
-
   /** Validate and persist the complete retention-policy draft. */
   const handleSave = async () => {
-    const entries = Object.entries(draft) as [RetentionKey, number | null | undefined][]
+    const entries = Object.entries(draft) as [RetentionKey, RetentionValue][]
     const hasInvalidValue = entries.some(([key, days]) => {
-      if (days === null || days === undefined) return false
+      if (days === '') return true
+      if (days === null) return false
       const minimum = key === 'expired_users_retention_days' ? 0 : 1
       return !Number.isInteger(days) || days < minimum || days > 36_500
     })
@@ -113,7 +109,11 @@ export function RetentionSettingsCard({ value, isLoading, isSaving, onSave }: Re
       return
     }
     try {
-      await onSave(draft)
+      await onSave({
+        expired_users_retention_days: draft.expired_users_retention_days === '' ? null : draft.expired_users_retention_days,
+        usage_history_retention_days: draft.usage_history_retention_days === '' ? null : draft.usage_history_retention_days,
+        node_stats_retention_days: draft.node_stats_retention_days === '' ? null : draft.node_stats_retention_days,
+      })
     } catch {
       // The shared settings mutation already surfaces the API error as a toast.
       // Keep the draft intact so the user can correct or retry it.
@@ -172,7 +172,13 @@ export function RetentionSettingsCard({ value, isLoading, isSaving, onSave }: Re
                     max={36_500}
                     step={1}
                     value={enabled ? days : ENABLE_DEFAULTS[item.key]}
-                    onChange={event => setDays(item.key, event.target.value)}
+                    onChange={event => {
+                      const rawValue = event.target.value
+                      const parsedValue = rawValue.trim() === '' ? '' : Number(rawValue)
+                      const nextValue = typeof parsedValue === 'number' && Number.isFinite(parsedValue) ? parsedValue : ''
+                      setDraft(current => ({ ...current, [item.key]: nextValue }))
+                      setValidationError(null)
+                    }}
                     disabled={!enabled}
                     className="h-10 font-mono text-sm tabular-nums"
                     aria-label={`${item.title}: ${t('settings.cleanup.retention.days')}`}
