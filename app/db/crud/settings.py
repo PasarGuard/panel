@@ -19,6 +19,7 @@ async def get_settings(db: AsyncSession) -> Settings:
 
 
 async def modify_settings(db: AsyncSession, db_setting: Settings, modify: SettingsSchema) -> Settings:
+    """Apply explicitly supplied settings while preserving meaningful nested nulls."""
     # Ignore omitted top-level sections, but preserve explicit ``None`` values
     # inside a section. Some settings use ``None`` as a meaningful value (for
     # example, disabling an automatic retention policy).

@@ -1,4 +1,6 @@
+import importlib
 from datetime import UTC, datetime, timedelta
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from pydantic import ValidationError
@@ -12,9 +14,13 @@ from app.jobs.cleanup_retention import delete_expired_rows_in_batches
 from app.models.settings import CleanupSettings
 from config import JobSettings
 
+cleanup_retention_job = importlib.import_module("app.jobs.cleanup_retention")
+remove_expired_users_job = importlib.import_module("app.jobs.remove_expired_users")
+
 
 @pytest.fixture
 async def retention_db():
+    """Provide an isolated in-memory database for retention tests."""
     engine = create_async_engine(
         "sqlite+aiosqlite:///:memory:",
         connect_args={"check_same_thread": False},
@@ -31,6 +37,7 @@ async def retention_db():
 
 
 def _node_stat(node_id: int, created_at: datetime) -> NodeStat:
+    """Build a node-stat row at a controlled timestamp."""
     stat = NodeStat(
         node_id=node_id,
         mem_total=4096,
@@ -45,8 +52,10 @@ def _node_stat(node_id: int, created_at: datetime) -> NodeStat:
 
 
 @pytest.mark.asyncio
-async def test_retention_delete_is_batched_and_preserves_recent_rows(retention_db):
+async def test_retention_delete_is_batched_and_preserves_recent_rows(retention_db, monkeypatch):
+    """Delete old rows in bounded commits while retaining recent data."""
     now = datetime.now(UTC)
+    cutoff = now - timedelta(days=30)
     old_timestamp = now - timedelta(days=31)
     retention_db.add_all(
         [
@@ -58,21 +67,31 @@ async def test_retention_delete_is_batched_and_preserves_recent_rows(retention_d
     )
     await retention_db.commit()
 
+    commit_spy = AsyncMock(wraps=retention_db.commit)
+    monkeypatch.setattr(retention_db, "commit", commit_spy)
+
     deleted = await delete_expired_rows_in_batches(
         retention_db,
         NodeStat,
-        now - timedelta(days=30),
+        cutoff,
         batch_size=2,
         max_rows=10,
     )
 
     assert deleted == 3
-    remaining = await retention_db.scalar(select(func.count()).select_from(NodeStat))
-    assert remaining == 1
+    assert commit_spy.await_count == 2
+
+    remaining_stats = (await retention_db.scalars(select(NodeStat))).all()
+    assert len(remaining_stats) == 1
+    remaining_created_at = remaining_stats[0].created_at
+    if remaining_created_at.tzinfo is None:
+        remaining_created_at = remaining_created_at.replace(tzinfo=UTC)
+    assert remaining_created_at > cutoff
 
 
 @pytest.mark.asyncio
 async def test_retention_delete_honors_per_run_limit(retention_db):
+    """Stop deleting once the configured per-run limit is reached."""
     now = datetime.now(UTC)
     retention_db.add_all([_node_stat(index, now - timedelta(days=60)) for index in range(1, 6)])
     await retention_db.commit()
@@ -91,6 +110,7 @@ async def test_retention_delete_honors_per_run_limit(retention_db):
 
 
 def test_cleanup_settings_support_independent_disabled_rules():
+    """Allow each cleanup rule to be disabled independently."""
     settings = CleanupSettings(
         expired_users_retention_days=None,
         usage_history_retention_days=120,
@@ -105,6 +125,7 @@ def test_cleanup_settings_support_independent_disabled_rules():
 
 
 def test_cleanup_settings_allows_immediate_expired_user_deletion():
+    """Allow zero days for immediate expired-user deletion."""
     settings = CleanupSettings(expired_users_retention_days=0)
 
     assert settings.expired_users_retention_days == 0
@@ -112,11 +133,66 @@ def test_cleanup_settings_allows_immediate_expired_user_deletion():
 
 @pytest.mark.parametrize("invalid_days", [0, -1, 36_501, 1.5])
 def test_cleanup_settings_rejects_invalid_retention_days(invalid_days):
+    """Reject invalid positive-day retention values."""
     with pytest.raises(ValidationError):
         CleanupSettings(usage_history_retention_days=invalid_days)
 
 
 @pytest.mark.parametrize("invalid_interval", [0, -1])
 def test_cleanup_retention_job_rejects_non_positive_intervals(invalid_interval):
+    """Reject scheduler intervals that cannot make forward progress."""
     with pytest.raises(ValidationError):
         JobSettings.model_validate({"JOB_CLEANUP_RETENTION_INTERVAL": invalid_interval})
+
+
+@pytest.mark.asyncio
+async def test_cleanup_retention_job_skips_disabled_rules(retention_db, monkeypatch):
+    """Skip all history deletions when both retention rules are disabled."""
+    settings_mock = AsyncMock(
+        return_value=CleanupSettings(
+            usage_history_retention_days=None,
+            node_stats_retention_days=None,
+        )
+    )
+    delete_mock = AsyncMock()
+    db_context = MagicMock()
+    db_context.__aenter__.return_value = retention_db
+
+    monkeypatch.setattr(cleanup_retention_job, "cleanup_settings", settings_mock)
+    monkeypatch.setattr(cleanup_retention_job, "delete_expired_rows_in_batches", delete_mock)
+    monkeypatch.setattr(cleanup_retention_job, "GetDB", MagicMock(return_value=db_context))
+
+    deleted = await cleanup_retention_job.cleanup_retention_data()
+
+    assert deleted == {}
+    delete_mock.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("retention_days", "expected_fallback"),
+    [(None, -1), (0, 0)],
+)
+async def test_remove_expired_users_applies_disabled_and_immediate_modes(
+    retention_db,
+    monkeypatch,
+    retention_days,
+    expected_fallback,
+):
+    """Map disabled and immediate policies to the user deletion query."""
+    settings_mock = AsyncMock(return_value=CleanupSettings(expired_users_retention_days=retention_days))
+    autodelete_mock = AsyncMock(return_value=[])
+    db_context = MagicMock()
+    db_context.__aenter__.return_value = retention_db
+
+    monkeypatch.setattr(remove_expired_users_job, "cleanup_settings", settings_mock)
+    monkeypatch.setattr(remove_expired_users_job, "autodelete_expired_users", autodelete_mock)
+    monkeypatch.setattr(remove_expired_users_job, "GetDB", MagicMock(return_value=db_context))
+
+    await remove_expired_users_job.remove_expired_users()
+
+    autodelete_mock.assert_awaited_once_with(
+        retention_db,
+        remove_expired_users_job.user_cleanup_settings.include_limited_accounts,
+        default_autodelete_days=expected_fallback,
+    )

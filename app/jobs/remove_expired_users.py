@@ -12,6 +12,7 @@ logger = get_logger("jobs")
 
 
 async def remove_expired_users():
+    """Remove expired users according to the configured global or per-user policy."""
     retention = await cleanup_settings()
     default_autodelete_days = retention.expired_users_retention_days
     async with GetDB() as db:
