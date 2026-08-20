@@ -3,7 +3,8 @@ import warnings
 from fastapi import FastAPI, Request, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.openapi.docs import get_swagger_ui_html
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.routing import APIRoute
 from sqlalchemy.exc import DBAPIError
 
@@ -19,6 +20,98 @@ from app.version import __version__
 from config import runtime_settings, subscription_env_settings
 
 logger = get_logger("app-factory")
+
+# Swagger UI ships no dark theme; hand-tune one instead of the harsher filter-invert hack.
+_SWAGGER_DARK_CSS = """
+    <style>
+        body {
+            background-color: #22262b;
+            color: #c9d1d9;
+        }
+        .swagger-ui { color: #c9d1d9; }
+        .swagger-ui .topbar { background-color: #1c2024; }
+        .swagger-ui .info .title,
+        .swagger-ui .info li, .swagger-ui .info p, .swagger-ui .info table,
+        .swagger-ui .scheme-container .schemes-title,
+        .swagger-ui label, .swagger-ui .opblock-tag,
+        .swagger-ui .opblock .opblock-summary-operation-id,
+        .swagger-ui .opblock .opblock-summary-path,
+        .swagger-ui .opblock .opblock-summary-path__deprecated,
+        .swagger-ui .opblock .opblock-summary-description,
+        .swagger-ui .parameter__name, .swagger-ui .parameter__type,
+        .swagger-ui .parameter__in, .swagger-ui .prop-type,
+        .swagger-ui table thead tr td, .swagger-ui table thead tr th,
+        .swagger-ui .response-col_status, .swagger-ui .response-col_links,
+        .swagger-ui .tab li, .swagger-ui .opblock-description-wrapper p,
+        .swagger-ui .btn, .swagger-ui section.models h4,
+        .swagger-ui section.models .model-container,
+        .swagger-ui .model, .swagger-ui .model-title,
+        .swagger-ui .model-toggle:after {
+            color: #c9d1d9;
+        }
+        .swagger-ui .scheme-container,
+        .swagger-ui section.models,
+        .swagger-ui section.models .model-container,
+        .swagger-ui .opblock-tag {
+            background-color: #262b31;
+            border-color: #3a3f45;
+        }
+        .swagger-ui .opblock {
+            background-color: #262b31;
+            border-color: #3a3f45;
+        }
+        .swagger-ui .opblock .opblock-section-header {
+            background-color: #262b31cc;
+        }
+        .swagger-ui .opblock.opblock-get { border-color: #3a6ea5; background: #1f2b36; }
+        .swagger-ui .opblock.opblock-get .opblock-summary-method { background: #3a6ea5; }
+        .swagger-ui .opblock.opblock-post { border-color: #3f9142; background: #1f3323; }
+        .swagger-ui .opblock.opblock-post .opblock-summary-method { background: #3f9142; }
+        .swagger-ui .opblock.opblock-put { border-color: #a3752f; background: #332a1c; }
+        .swagger-ui .opblock.opblock-put .opblock-summary-method { background: #a3752f; }
+        .swagger-ui .opblock.opblock-delete { border-color: #a5423a; background: #332020; }
+        .swagger-ui .opblock.opblock-delete .opblock-summary-method { background: #a5423a; }
+        .swagger-ui .opblock.opblock-patch { border-color: #3a9187; background: #1c3230; }
+        .swagger-ui .opblock.opblock-patch .opblock-summary-method { background: #3a9187; }
+        .swagger-ui input, .swagger-ui select, .swagger-ui textarea {
+            background-color: #1c2024;
+            color: #c9d1d9;
+            border-color: #3a3f45;
+        }
+        .swagger-ui .btn {
+            background-color: #2d333b;
+            border-color: #3a3f45;
+        }
+        .swagger-ui .highlight-code, .swagger-ui .microlight {
+            background-color: #1c2024;
+        }
+        .swagger-ui .body-param__example {
+            background-color: #1c2024;
+            color: #c9d1d9;
+        }
+        .swagger-ui .responses-inner h4, .swagger-ui .responses-inner h5 {
+            color: #c9d1d9;
+        }
+        .swagger-ui .model-box {
+            background-color: #1c2024;
+        }
+    </style>
+"""
+
+
+def _setup_swagger_ui(app: FastAPI) -> None:
+    if not runtime_settings.docs:
+        return
+
+    @app.get("/docs", include_in_schema=False)
+    async def custom_swagger_ui_html() -> HTMLResponse:
+        response = get_swagger_ui_html(
+            openapi_url=app.openapi_url,
+            title=f"{app.title} - Swagger UI",
+            swagger_ui_parameters={"docExpansion": "none"},
+        )
+        html = response.body.decode().replace("</head>", f"{_SWAGGER_DARK_CSS}</head>")
+        return HTMLResponse(html)
 
 
 async def _ignore_worker_sync_message(_: dict):
@@ -224,7 +317,9 @@ def create_app() -> FastAPI:
         version=__version__,
         lifespan=lifespan,
         openapi_url="/openapi.json" if runtime_settings.docs else None,
+        docs_url=None,
     )
+    _setup_swagger_ui(app)
 
     setup_middleware(app)
 
