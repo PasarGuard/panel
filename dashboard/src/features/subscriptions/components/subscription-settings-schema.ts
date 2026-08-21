@@ -137,7 +137,7 @@ export type SubscriptionLanguage = NonNullable<SubscriptionApplicationFormData['
 
 export const defaultSubscriptionRules: SubscriptionRuleFormData[] = [
   {
-    pattern: '^([Cc]lash[\\-\\.]?[Vv]erge|[Cc]lash[\\-\\.]?[Mm]eta|[Ff][Ll][Cc]lash|[Mm]ihomo)',
+    pattern: '^(?:FlClashX?|Flowvy|[Cc]lash(?:-(?:[Vv]erge|nyanpasu)|X [Mm]eta|-?[Mm]eta)|[Kk]oala-[Cc]lash|[Mm](?:urge|ihomo)|prizrak-box|clash\.meta)',
     target: 'clash_meta',
   },
   {
@@ -145,7 +145,7 @@ export const defaultSubscriptionRules: SubscriptionRuleFormData[] = [
     target: 'clash',
   },
   {
-    pattern: '^(SFA|SFI|SFM|SFT|[Kk]aring|[Hh]iddify[Nn]ext)|.*[Ss]ing[\\-b]?ox.*',
+    pattern: '^(SFA|SFI|SFM|SFT|SFW|SFL|[Kk]aring|[Hh]iddify[Nn]ext)|.*[Ss]ing[\\-b]?ox.*',
     target: 'sing_box',
   },
   {
@@ -153,7 +153,7 @@ export const defaultSubscriptionRules: SubscriptionRuleFormData[] = [
     target: 'outline',
   },
   {
-    pattern: '^([Vv]2rayNG|[Vv]2rayN|[Ss]treisand|[Hh]app|[Kk]tor\\-client)',
+    pattern: '^([Vv]2rayNG|[Vv]2rayN|[Ss]treisand|[Hh]app|INCY|[Kk]tor\\-client)',
     target: 'xray',
   },
   {
