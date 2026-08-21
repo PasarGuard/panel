@@ -190,8 +190,12 @@ async def update_admin(db: AsyncSession, db_admin: Admin, modified_admin: AdminM
     if modified_admin.status is not None and modified_admin.status != db_admin.status:
         db_admin.status = modified_admin.status
         db_admin.last_status_change = datetime.now(UTC)
-    if modified_admin.data_limit is not None:
-        db_admin.data_limit = modified_admin.data_limit if modified_admin.data_limit > 0 else None
+    if "data_limit" in modified_admin.model_fields_set:
+        db_admin.data_limit = (
+            modified_admin.data_limit
+            if modified_admin.data_limit is not None and modified_admin.data_limit > 0
+            else None
+        )
         # Recompute limited/active based on new data_limit — never touch disabled
         if db_admin.status != AdminStatus.disabled:
             should_be_limited = (
