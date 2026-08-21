@@ -232,12 +232,9 @@ class SingBoxConfiguration(BaseSubscription):
             else None,
             "alpn": tls_config.alpn_singbox,  # Pre-formatted for sing-box!
             "ech": {
-                "enabled": True,
-                "config": [],
-                "config_path": "",
-            }
-            if tls_config.ech_config_list
-            else None,
+                    "enabled": True,
+                    "config": ech_config,
+                } if (ech_config := self._format_ech_config(tls_config.ech_config_list)) else None,
             "reality": {
                 "enabled": tls_config.tls == "reality",
                 "public_key": tls_config.reality_public_key,
@@ -252,6 +249,24 @@ class SingBoxConfiguration(BaseSubscription):
             config.update(singbox_fragment)
 
         return self._normalize_and_remove_none_values(config)
+
+    @staticmethod
+    def _format_ech_config(ech_config_list: str | list[str] | None) -> list[str] | None:
+        """Convert the raw base64 ECHConfigList into sing-box's PEM line-array format."""
+        if not ech_config_list:
+            return None
+
+        if isinstance(ech_config_list, list):
+            return ech_config_list
+
+        raw = str(ech_config_list).strip()
+        if not raw:
+            return None
+
+        if raw.startswith("-----BEGIN"):
+            return raw.splitlines()
+
+        return ["-----BEGIN ECH CONFIGS-----", raw, "-----END ECH CONFIGS-----"]
 
     # ========== Protocol Builders ==========
 

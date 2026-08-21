@@ -251,6 +251,12 @@ class ClashConfiguration(BaseSubscription):
             }
             if security == "reality" and tls_settings.get("publicKey")
             else None,
+            "ech-opts": {
+                "enable": True,
+                "config": tls_settings.get("echConfigList"),
+            }
+            if tls_settings.get("echConfigList")
+            else None,
         }
 
         return self._normalize_mihomo_xhttp_opts(result)
@@ -314,6 +320,19 @@ class ClashConfiguration(BaseSubscription):
                 "public-key": tls_config.reality_public_key,
                 "short-id": tls_config.reality_short_id or "",
             }
+
+        self._apply_ech(node, tls_config)
+
+    @staticmethod
+    def _apply_ech(node: dict, tls_config: TLSConfig):
+        """Apply ECH (Encrypted Client Hello) opts for Mihomo."""
+        if not getattr(tls_config, "ech_config_list", None):
+            return
+
+        node["ech-opts"] = {
+            "enable": True,
+            "config": tls_config.ech_config_list,
+        }
 
     @staticmethod
     def _mihomo_reuse_settings(xmux: dict | BaseModel | None) -> dict | None:
@@ -618,6 +637,8 @@ class ClashMetaConfiguration(ClashConfiguration):
                 "public-key": tls_config.reality_public_key,
                 "short-id": tls_config.reality_short_id or "",
             }
+
+        self._apply_ech(node, tls_config)
 
     def _build_vless(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict) -> dict:
         """Build VLESS node (Clash Meta only)"""
