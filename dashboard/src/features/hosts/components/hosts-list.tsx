@@ -394,6 +394,7 @@ export default function HostsList({
         wireguard_overrides: host.wireguard_overrides ?? undefined,
         subscription_templates: host.subscription_templates ?? undefined,
         final_mask_settings: host.final_mask_settings ?? undefined,
+        cipher_suites: host.cipher_suites ?? undefined,
       }
 
       await createHost(newHost)
