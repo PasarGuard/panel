@@ -215,12 +215,7 @@ class SingBoxConfiguration(BaseSubscription):
 
     def _apply_tls(self, tls_config: TLSConfig, fragment_settings: dict | None = None) -> dict:
         """Apply TLS settings - receives TLS config and optional fragment settings"""
-        fingerprint = tls_config.fingerprint
-        if fingerprint == "unsafe":
-            # Xray uses "unsafe" to select the native TLS client, but sing-box
-            # rejects it as an unknown uTLS fingerprint. Reality requires uTLS,
-            # so keep it enabled there with sing-box's default fingerprint.
-            fingerprint = "chrome" if tls_config.tls == "reality" else ""
+        fingerprint = "chrome" if tls_config.fingerprint == "unsafe" else tls_config.fingerprint
 
         config = {
             "enabled": tls_config.tls in ("tls", "reality"),
