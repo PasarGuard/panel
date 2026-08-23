@@ -374,7 +374,7 @@ async def get_users(
                 and_(User.data_limit.is_not(None), User.data_limit > 0, User.data_limit <= query.data_limit_max)
             )
     if query.no_expire:
-        filters.append(User.expire.is_(None))
+        filters.append(and_(User.expire.is_(None), User.status != UserStatus.on_hold))
     else:
         if query.expire_after is not None:
             filters.append(and_(User.expire.is_not(None), User.expire >= query.expire_after))
