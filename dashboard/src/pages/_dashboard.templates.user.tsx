@@ -24,6 +24,7 @@ import { BulkActionItem, BulkActionsBar } from '@/features/users/components/bulk
 import { BulkActionAlertDialog } from '@/features/users/components/bulk-action-alert-dialog'
 import { useAdmin } from '@/hooks/use-admin'
 import { useCommandCreate } from '@/hooks/use-command-create'
+import { hasPermission } from '@/utils/rbac'
 
 type BulkUserTemplateActionType = 'delete' | 'disable' | 'enable'
 
