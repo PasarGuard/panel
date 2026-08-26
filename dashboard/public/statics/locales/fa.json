@@ -3695,6 +3695,37 @@
     "githubStarsUnit": "ستاره",
     "githubProgress": "پیشرفت ستاره‌ها"
   },
+  "errorPage": {
+    "errorCode": "خطا",
+    "unauthorized": {
+      "title": "غیرمجاز",
+      "description": "نشست شما دیگر معتبر نیست. برای ادامه دوباره وارد شوید."
+    },
+    "forbidden": {
+      "title": "دسترسی رد شد",
+      "description": "حساب شما اجازه باز کردن این بخش را ندارد."
+    },
+    "notFound": {
+      "title": "صفحه پیدا نشد",
+      "description": "صفحه‌ای که درخواست کرده‌اید وجود ندارد یا جابه‌جا شده است."
+    },
+    "serverError": {
+      "title": "خطای سرور",
+      "description": "سرور نتوانست این درخواست را کامل کند. کمی بعد دوباره تلاش کنید."
+    },
+    "generic": {
+      "title": "مشکلی پیش آمد",
+      "description": "داشبورد با مشکلی روبه‌رو شد و نتوانست این نما را نمایش دهد."
+    },
+    "actions": {
+      "copyDetails": "کپی جزئیات",
+      "copiedDetails": "جزئیات خطا کپی شد",
+      "tryAgain": "تلاش دوباره",
+      "back": "بازگشت",
+      "dashboard": "داشبورد",
+      "login": "ورود"
+    }
+  },
   "version": {
     "title": "نسخه",
     "newVersionAvailable": "نسخه جدید موجود است!",
