@@ -17,10 +17,15 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # Create concurrent index on user_id and created_at (DESC) for user_subscription_updates table
-    op.execute('CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_user_subscription_updates_user_created ON user_subscription_updates (user_id, created_at DESC);')
+    # Create composite index on user_id and created_at for user_subscription_updates table
+    op.create_index(
+        "idx_user_subscription_updates_user_created",
+        "user_subscription_updates",
+        ["user_id", "created_at"],
+        unique=False,
+    )
 
 
 def downgrade() -> None:
     # Drop the composite index
-    op.drop_index('idx_user_subscription_updates_user_created', table_name='user_subscription_updates')
+    op.drop_index("idx_user_subscription_updates_user_created", table_name="user_subscription_updates")
