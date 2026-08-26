@@ -1779,6 +1779,7 @@ export interface ProxyTable {
   shadowsocks?: ShadowsocksSettings
   wireguard?: WireGuardSettings
   hysteria?: HysteriaSettings
+  mtproto?: MtprotoSettings
 }
 
 export type ProxyHostSecurity = (typeof ProxyHostSecurity)[keyof typeof ProxyHostSecurity]
@@ -2353,6 +2354,14 @@ export interface InboundSummary {
 export interface HysteriaSettings {
   /** @minLength 1 */
   auth?: string
+}
+
+export interface MtprotoSettings {
+  /** @minLength 32 @maxLength 32 */
+  secret?: string
+  user_ad_tag?: string
+  max_tcp_conns?: number
+  max_unique_ips?: number
 }
 
 export type HwidsPermissionsDeleteAnyOf = { [key: string]: PermissionScope | number }

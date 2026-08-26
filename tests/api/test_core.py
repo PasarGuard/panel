@@ -218,6 +218,57 @@ def test_inbound_details_include_wireguard_metadata(access_token):
         delete_core(access_token, core["id"])
 
 
+def test_mtproto_core_create(access_token):
+    """Test that an MTProto core can be created and exposes a telemt inbound."""
+
+    mtproto_config = {
+        "inbound_tag": unique_name("mtp"),
+        "general": {"use_middle_proxy": True, "modes": {"classic": True, "secure": True, "tls": True}},
+        "server": {"port": 443, "listeners": [{"ip": "0.0.0.0"}]},
+        "censorship": {"tls_domain": "cloudflare.com"},
+    }
+
+    core = create_core(
+        access_token,
+        name=unique_name("mtproto_core"),
+        config=mtproto_config,
+        type="mtproto",
+        fallbacks=[],
+    )
+    try:
+        assert core["type"] == "mtproto"
+        assert core["config"]["inbound_tag"] == mtproto_config["inbound_tag"]
+        assert core["config"]["server"]["port"] == 443
+        assert core["exclude_inbound_tags"] == []
+        assert core["fallbacks_inbound_tags"] == []
+
+        details = get_inbound_details(access_token)
+        mtp_detail = next(item for item in details if item["tag"] == mtproto_config["inbound_tag"])
+        assert mtp_detail["protocol"] == "mtproto"
+        assert mtp_detail["network"] == "tcp"
+    finally:
+        delete_core(access_token, core["id"])
+
+
+def test_mtproto_core_rejects_panel_owned_access_users(access_token):
+    response = client.post(
+        "/api/core",
+        headers=auth_headers(access_token),
+        json={
+            "name": unique_name("mtproto_bad_access"),
+            "type": "mtproto",
+            "config": {
+                "inbound_tag": "mtproto",
+                "server": {"port": 443},
+                "access": {"users": {"alice": "00112233445566778899aabbccddeeff"}},
+            },
+            "exclude_inbound_tags": [],
+            "fallbacks_inbound_tags": [],
+        },
+    )
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+
 def test_xray_auto_detects_fallback_tls_without_manual_fallback_tags():
     parsed = XRayConfig(xray_config, exclude_inbound_tags=set(), fallbacks_inbound_tags=set())
     fallback_tag = "xhttp<=>fallback-A"

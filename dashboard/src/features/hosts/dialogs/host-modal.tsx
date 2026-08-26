@@ -318,7 +318,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
   const [openSection, setOpenSection] = useState<string | undefined>(undefined)
   const [wireguardOpenSection, setWireguardOpenSection] = useState<string | undefined>(undefined)
   const [isTransportOpen, setIsTransportOpen] = useState(false)
-  const [resolvedHostMode, setResolvedHostMode] = useState<'xray' | 'wireguard'>('xray')
+  const [resolvedHostMode, setResolvedHostMode] = useState<'xray' | 'wireguard' | 'mtproto'>('xray')
   const { t } = useTranslation()
   const dir = useDirDetection()
   const isMobile = useIsMobile()
@@ -707,8 +707,11 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
   const inbounds = useMemo(() => inboundDetails?.map(inbound => inbound.tag) || [], [inboundDetails])
   const selectedInbound = useMemo(() => inboundDetails?.find(inbound => inbound.tag === selectedInboundTag), [inboundDetails, selectedInboundTag])
   const isWireGuardInbound = selectedInbound?.protocol === 'wireguard'
+  const isMtprotoInbound = selectedInbound?.protocol === 'mtproto'
+  const isSimpleInbound = isWireGuardInbound || isMtprotoInbound
   const isInboundModeResolved = !isDialogOpen || !selectedInboundTag || !!selectedInbound || !isLoadingInbounds
   const shouldRenderWireGuardLayout = resolvedHostMode === 'wireguard'
+  const shouldRenderMtprotoLayout = resolvedHostMode === 'mtproto'
 
   // Update the hosts query to refetch only when needed (not on dialog open)
   const { data: hosts = [], isLoading: isLoadingHosts } = useQuery({
@@ -751,7 +754,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
     }
 
     if (selectedInbound) {
-      setResolvedHostMode(selectedInbound.protocol === 'wireguard' ? 'wireguard' : 'xray')
+      setResolvedHostMode(selectedInbound.protocol === 'wireguard' ? 'wireguard' : selectedInbound.protocol === 'mtproto' ? 'mtproto' : 'xray')
       return
     }
 
@@ -765,7 +768,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
       return
     }
 
-    if (resolvedHostMode === 'wireguard') {
+    if (resolvedHostMode === 'wireguard' || resolvedHostMode === 'mtproto') {
       setOpenSection(undefined)
     } else {
       setWireguardOpenSection(undefined)
@@ -773,7 +776,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
   }, [resolvedHostMode, isDialogOpen])
 
   useEffect(() => {
-    if (!isWireGuardInbound) {
+    if (!isSimpleInbound) {
       return
     }
 
@@ -802,7 +805,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
     form.setValue('noise_settings', undefined, { shouldDirty: true })
     form.setValue('mux_settings', undefined, { shouldDirty: true })
     form.setValue('transport_settings', undefined, { shouldDirty: true })
-  }, [form, isWireGuardInbound, selectedInboundTag, editingHost])
+  }, [form, isSimpleInbound, selectedInboundTag, editingHost])
 
   useEffect(() => {
     if (!isWireGuardInbound) {
@@ -827,7 +830,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
       // Clean the payload before sending
       const payload = { ...data }
 
-      if (isWireGuardInbound) {
+      if (isSimpleInbound) {
         payload.host = []
         payload.sni = []
         payload.path = ''
@@ -846,7 +849,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
         payload.verify_peer_cert_by_name = []
         payload.mux_settings = undefined
         payload.transport_settings = undefined
-        if (payload.wireguard_overrides) {
+        if (isWireGuardInbound && payload.wireguard_overrides) {
           const wg = payload.wireguard_overrides
           const next: NonNullable<HostFormValues['wireguard_overrides']> = {}
           if (wg.allowed_ips?.length) next.allowed_ips = wg.allowed_ips
@@ -857,6 +860,8 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
           }
           if (wg.dns?.length) next.dns = wg.dns
           payload.wireguard_overrides = Object.keys(next).length > 0 ? next : undefined
+        } else {
+          payload.wireguard_overrides = undefined
         }
       } else {
         payload.wireguard_overrides = undefined
@@ -1185,6 +1190,12 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                     <Loader2 className="h-4 w-4 animate-spin" />
                     <span>{t('loading', { defaultValue: 'Loading...' })}</span>
                   </div>
+                </div>
+              ) : shouldRenderMtprotoLayout ? (
+                <div className="text-muted-foreground mb-6 rounded-sm border px-4 py-3 text-sm">
+                  {t('hostsDialog.mtproto.hint', {
+                    defaultValue: 'MTProto hosts only need address and port. Subscriptions emit a Telegram t.me/proxy link.',
+                  })}
                 </div>
               ) : shouldRenderWireGuardLayout ? (
                 <Accordion type="single" collapsible value={wireguardOpenSection} onValueChange={handleWireguardAccordionChange} className="!mt-0 mb-6 flex w-full flex-col gap-y-6">

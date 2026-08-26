@@ -19,6 +19,17 @@ from config import subscription_env_settings
 from . import BaseSubscription
 
 
+def _mtproto_client_secret(hex_secret: str, inbound: SubscriptionInboundData) -> str:
+    secret = hex_secret.strip().lower()
+    modes = inbound.mtproto_modes or {}
+    domain = (inbound.mtproto_tls_domain or "").strip()
+    if modes.get("tls") and domain:
+        return "ee" + secret + domain.encode("utf-8").hex()
+    if modes.get("secure"):
+        return "dd" + secret
+    return secret
+
+
 class StandardLinks(BaseSubscription):
     def __init__(
         self,
@@ -55,6 +66,7 @@ class StandardLinks(BaseSubscription):
             "shadowsocks": self._build_shadowsocks,
             "hysteria": self._build_hysteria,
             "wireguard": self._build_wireguard,
+            "mtproto": self._build_mtproto,
         }
 
     def add_link(self, link):
@@ -340,6 +352,18 @@ class StandardLinks(BaseSubscription):
         if not components:
             return ""
         return components["uri"]
+
+    def _build_mtproto(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict) -> str:
+        secret = str(settings.get("secret") or "").strip()
+        if not secret:
+            return ""
+        port = inbound.port if isinstance(inbound.port, int) else inbound.port[0]
+        client_secret = _mtproto_client_secret(secret, inbound)
+        query = urlparse.urlencode(
+            {"server": address, "port": port, "secret": client_secret},
+            quote_via=urlparse.quote,
+        )
+        return f"https://t.me/proxy?{query}"
 
     # ========== Helper Methods ==========
 

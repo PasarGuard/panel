@@ -1,4 +1,6 @@
 import json
+import re
+import secrets
 from enum import StrEnum
 from ipaddress import ip_network
 from uuid import UUID, uuid4
@@ -7,6 +9,12 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from app.utils.crypto import get_wireguard_public_key, validate_wireguard_key
 from app.utils.system import random_password
+
+_MTPROTO_SECRET_RE = re.compile(r"^[0-9a-fA-F]{32}$")
+
+
+def generate_mtproto_secret() -> str:
+    return secrets.token_hex(16)
 
 
 class VMessSettings(BaseModel):
@@ -65,6 +73,37 @@ class WireGuardPeerIPs(BaseModel):
         return normalized
 
 
+class MtprotoSettings(BaseModel):
+    secret: str = Field(default_factory=generate_mtproto_secret)
+    user_ad_tag: str = ""
+    max_tcp_conns: int = 0
+    max_unique_ips: int = 0
+
+    @field_validator("secret", mode="before")
+    @classmethod
+    def validate_secret(cls, value):
+        if not isinstance(value, str) or not _MTPROTO_SECRET_RE.fullmatch(value.strip()):
+            raise ValueError("mtproto secret must be 32 hex characters")
+        return value.strip().lower()
+
+    @field_validator("user_ad_tag", mode="before")
+    @classmethod
+    def validate_user_ad_tag(cls, value):
+        if value in (None,):
+            return ""
+        return str(value)
+
+    @field_validator("max_tcp_conns", "max_unique_ips", mode="before")
+    @classmethod
+    def validate_limits(cls, value):
+        if value in (None, ""):
+            return 0
+        limit = int(value)
+        if limit < 0:
+            raise ValueError("must be greater than or equal to 0")
+        return limit
+
+
 class WireGuardSettings(BaseModel):
     private_key: str | None = None
     public_key: str | None = None
@@ -105,6 +144,7 @@ class ProxyTable(BaseModel):
     shadowsocks: ShadowsocksSettings = Field(default_factory=ShadowsocksSettings)
     wireguard: WireGuardSettings = Field(default_factory=WireGuardSettings)
     hysteria: HysteriaSettings = Field(default_factory=HysteriaSettings)
+    mtproto: MtprotoSettings = Field(default_factory=MtprotoSettings)
 
     def dict(self, *, no_obj=True, **kwargs):
         if no_obj:

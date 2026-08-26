@@ -1,3 +1,5 @@
+from inspect import signature
+
 from PasarGuardNodeBridge import create_proxy, create_user
 from PasarGuardNodeBridge.common.service_pb2 import User as ProtoUser
 from sqlalchemy import and_, func, or_, select
@@ -17,6 +19,7 @@ from app.db.models import (
 from app.models.protocol import ProxyProtocol
 
 _ALL_PROXY_PROTOCOLS = frozenset(ProxyProtocol)
+_CREATE_PROXY_ACCEPTS_MTPROTO = "mtproto_secret" in signature(create_proxy).parameters
 
 
 def _inbounds_from_loaded_groups(user: User) -> list[str] | None:
@@ -79,6 +82,12 @@ def _serialize_user_for_node(
         proxy_kwargs["wireguard_peer_ips"] = wireguard_settings.get("peer_ips") or []
     if ProxyProtocol.hysteria in allowed_protocols:
         proxy_kwargs["hysteria_auth"] = user_settings.get("hysteria", {}).get("auth")
+    if ProxyProtocol.mtproto in allowed_protocols and _CREATE_PROXY_ACCEPTS_MTPROTO:
+        mtproto_settings = user_settings.get("mtproto", {})
+        proxy_kwargs["mtproto_secret"] = mtproto_settings.get("secret")
+        proxy_kwargs["mtproto_user_ad_tag"] = mtproto_settings.get("user_ad_tag") or None
+        proxy_kwargs["mtproto_max_tcp_conns"] = mtproto_settings.get("max_tcp_conns") or 0
+        proxy_kwargs["mtproto_max_unique_ips"] = mtproto_settings.get("max_unique_ips") or 0
 
     return create_user(
         str(id),

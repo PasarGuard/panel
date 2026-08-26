@@ -77,6 +77,19 @@ CONNECT_CONCURRENCY = 10
 logger = get_logger("node-operation")
 
 
+def _backend_type_for_core(core_type: CoreType):
+    if core_type == CoreType.wg:
+        return service.BackendType.WIREGUARD
+    if core_type == CoreType.mtproto:
+        mtproto = getattr(service.BackendType, "MTPROTO", None)
+        if mtproto is None:
+            raise RuntimeError(
+                "pasarguard-node-bridge does not support MTPROTO; install a build that includes BackendType.MTPROTO"
+            )
+        return mtproto
+    return service.BackendType.XRAY
+
+
 class NodeOperation(BaseOperation):
     def __init__(self, operator_type: OperatorType):
         super().__init__(operator_type)
@@ -298,7 +311,7 @@ class NodeOperation(BaseOperation):
 
         old_status = db_node.status
         logger.info(f'Connecting to "{db_node.name}" node')
-        type = service.BackendType.WIREGUARD if core.type == CoreType.wg else service.BackendType.XRAY
+        type = _backend_type_for_core(core.type)
 
         try:
             info = await NodeOperation._start_or_attach_node(pg_node, db_node, core, users, type)

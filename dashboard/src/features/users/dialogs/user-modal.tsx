@@ -1220,6 +1220,12 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
     return arr.join('')
   }
 
+  function generateMtprotoSecret(): string {
+    const bytes = new Uint8Array(16)
+    window.crypto.getRandomValues(bytes)
+    return Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('')
+  }
+
   const generateAllProxySettings = React.useCallback(() => {
     const keyPair = generateWireGuardKeyPair()
     const newSettings = {
@@ -1228,6 +1234,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
       trojan: { password: generatePassword() },
       shadowsocks: { password: generatePassword() },
       hysteria: { auth: uuidv4() },
+      mtproto: { secret: generateMtprotoSecret() },
       wireguard: {
         private_key: keyPair.privateKey,
         public_key: keyPair.publicKey,
@@ -1246,6 +1253,14 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
     handleFieldChange('proxy_settings.wireguard.private_key', keyPair.privateKey)
     handleFieldChange('proxy_settings.wireguard.public_key', keyPair.publicKey)
     toast.success(t('userDialog.proxySettings.wireguardGenerated', { defaultValue: 'WireGuard keypair generated' }))
+  }, [form, handleFieldChange, t])
+
+  const generateMtprotoProxySettings = React.useCallback(() => {
+    const secret = generateMtprotoSecret()
+    form.setValue('proxy_settings.mtproto.secret', secret, { shouldDirty: true, shouldValidate: true })
+    form.trigger('proxy_settings.mtproto.secret')
+    handleFieldChange('proxy_settings.mtproto.secret', secret)
+    toast.success(t('userDialog.proxySettings.mtprotoGenerated', { defaultValue: 'MTProto secret generated' }))
   }, [form, handleFieldChange, t])
 
   const syncWireGuardPublicKey = React.useCallback(
@@ -2114,6 +2129,40 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
                                     placeholder={t('userDialog.proxySettings.wireguardPublicKey', { defaultValue: 'WireGuard Public key' })}
                                     disabled
                                   />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          {/* MTProto */}
+                          <FormField
+                            control={form.control}
+                            name="proxy_settings.mtproto.secret"
+                            render={({ field }) => (
+                              <FormItem className="mb-2">
+                                <FormLabel>{t('userDialog.proxySettings.mtprotoSecret', { defaultValue: 'MTProto secret' })}</FormLabel>
+                                <FormControl>
+                                  <div dir="ltr" className={`flex items-center gap-2 ${dir === 'rtl' ? 'flex-row-reverse' : 'flex-row'}`}>
+                                    <Input
+                                      {...field}
+                                      value={field.value ?? ''}
+                                      placeholder={t('userDialog.proxySettings.mtprotoSecret', { defaultValue: '32 hex characters' })}
+                                      onChange={e => {
+                                        field.onChange(e)
+                                        form.trigger('proxy_settings.mtproto.secret')
+                                        handleFieldChange('proxy_settings.mtproto.secret', e.target.value)
+                                      }}
+                                    />
+                                    <Button
+                                      size="icon"
+                                      type="button"
+                                      variant="ghost"
+                                      onClick={generateMtprotoProxySettings}
+                                      title={t('userDialog.proxySettings.generateMtprotoSecret', { defaultValue: 'Generate MTProto secret' })}
+                                    >
+                                      <RefreshCcw className="h-3 w-3" />
+                                    </Button>
+                                  </div>
                                 </FormControl>
                                 <FormMessage />
                               </FormItem>

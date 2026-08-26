@@ -276,6 +276,10 @@ class SubscriptionInboundData(BaseModel):
     wireguard_reserved: str | None = Field(default=None)
     wireguard_dns: list[str] | None = Field(default=None)
 
+    # MTProto / telemt
+    mtproto_modes: dict[str, bool] = Field(default_factory=dict)
+    mtproto_tls_domain: str = Field("")
+
     # Flow (from inbound, user can override)
     inbound_flow: str = Field("")
 
