@@ -418,7 +418,7 @@ class XrayConfiguration(BaseSubscription):
     def _build_vless(self, address: str, inbound: SubscriptionInboundData, settings: dict) -> tuple:
         """Build VLESS outbound - returns (main_outbound, extra_outbounds_list)"""
         # Handle vless-route if needed (only affects ID)
-        id = settings["id"]
+        id = str(settings["id"])
         if inbound.vless_route:
             id = self.vless_route(id, inbound.vless_route)
 

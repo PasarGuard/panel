@@ -26,7 +26,7 @@ from PasarGuardNodeBridge.storage import (
 
 from app.nats import needs_shared_bridge_memory
 from app.nats.client import create_nats_client, get_jetstream_context, get_or_create_kv_bucket
-from app.nats.kv_cas import CasKv, kv_cas_json, kv_get_json, kv_list_keys, kv_put_json
+from app.nats.kv_cas import CasKv, cas_retry_backoff, kv_cas_json, kv_get_json, kv_list_keys, kv_put_json
 from app.utils.logger import get_logger
 from config import nats_settings
 
@@ -116,16 +116,18 @@ class NatsUserSyncStore:
                 f"user sync KV value for key={key} is {size} bytes; exceeds limit {_MAX_USER_SYNC_VALUE_BYTES}"
             )
 
+    async def _enqueue_one(self, node_id: str, email: str, user: User) -> None:
+        key = self._pending_key(node_id, email)
+        value = {"email": email, "user": _b64_user(user)}
+        self._ensure_value_size(key, value)
+        await kv_put_json(self._kv, key, value)
+
     async def enqueue_users(self, node_id: str, users: list[User]) -> None:
         if not users:
             return
         # Latest payload per email wins (dedupe across the batch first).
         by_email = {user.email: user for user in users}
-        for email, user in by_email.items():
-            key = self._pending_key(node_id, email)
-            value = {"email": email, "user": _b64_user(user)}
-            self._ensure_value_size(key, value)
-            await kv_put_json(self._kv, key, value)
+        await asyncio.gather(*(self._enqueue_one(node_id, email, user) for email, user in by_email.items()))
 
     async def _requeue_expired_claims(self, node_id: str) -> None:
         now = time.time()
@@ -192,53 +194,53 @@ class NatsUserSyncStore:
             result.append(ClaimedUser(token=token, user=_user_from_b64(user_b64)))
         return result
 
+    async def _ack_one(self, node_id: str, token: str) -> None:
+        key = self._claimed_key(node_id, token)
+        doc, rev = await kv_get_json(self._kv, key)
+        if doc is None:
+            return
+        try:
+            await self._kv.delete(key, last=rev)
+        except Exception as exc:
+            logger.debug("Failed to ack claim key=%s: %s", key, exc)
+
     async def ack_users(self, node_id: str, tokens: list[str]) -> None:
         if not tokens:
             return
-        for token in tokens:
-            key = self._claimed_key(node_id, token)
-            doc, rev = await kv_get_json(self._kv, key)
-            if doc is None:
-                continue
-            try:
-                await self._kv.delete(key, last=rev)
-            except Exception as exc:
-                logger.debug("Failed to ack claim key=%s: %s", key, exc)
+        await asyncio.gather(*(self._ack_one(node_id, token) for token in tokens))
+
+    async def _requeue_one(self, node_id: str, item: ClaimedUser) -> None:
+        pending_key = self._pending_key(node_id, item.user.email)
+        pending_value = {"email": item.user.email, "user": _b64_user(item.user)}
+        self._ensure_value_size(pending_key, pending_value)
+        await kv_put_json(self._kv, pending_key, pending_value)
+        claimed_key = self._claimed_key(node_id, item.token)
+        doc, rev = await kv_get_json(self._kv, claimed_key)
+        if doc is None:
+            return
+        try:
+            await self._kv.delete(claimed_key, last=rev)
+        except Exception as exc:
+            logger.debug("Failed to delete requeued claim key=%s: %s", claimed_key, exc)
 
     async def requeue_users(self, node_id: str, claimed_users: list[ClaimedUser]) -> None:
         if not claimed_users:
             return
-        for item in claimed_users:
-            pending_key = self._pending_key(node_id, item.user.email)
-            pending_value = {"email": item.user.email, "user": _b64_user(item.user)}
-            self._ensure_value_size(pending_key, pending_value)
-            await kv_put_json(self._kv, pending_key, pending_value)
-            claimed_key = self._claimed_key(node_id, item.token)
-            doc, rev = await kv_get_json(self._kv, claimed_key)
-            if doc is None:
-                continue
-            try:
-                await self._kv.delete(claimed_key, last=rev)
-            except Exception as exc:
-                logger.debug("Failed to delete requeued claim key=%s: %s", claimed_key, exc)
+        await asyncio.gather(*(self._requeue_one(node_id, item) for item in claimed_users))
+
+    async def _clear_one(self, key: str) -> None:
+        doc, rev = await kv_get_json(self._kv, key)
+        if doc is None:
+            return
+        try:
+            await self._kv.delete(key, last=rev)
+        except Exception as exc:
+            logger.debug("Failed to clear key=%s: %s", key, exc)
 
     async def clear(self, node_id: str) -> None:
-        for key in await kv_list_keys(self._kv, self._pending_prefix(node_id)):
-            doc, rev = await kv_get_json(self._kv, key)
-            if doc is None:
-                continue
-            try:
-                await self._kv.delete(key, last=rev)
-            except Exception as exc:
-                logger.debug("Failed to clear pending key=%s: %s", key, exc)
-        for key in await kv_list_keys(self._kv, self._claimed_prefix(node_id)):
-            doc, rev = await kv_get_json(self._kv, key)
-            if doc is None:
-                continue
-            try:
-                await self._kv.delete(key, last=rev)
-            except Exception as exc:
-                logger.debug("Failed to clear claimed key=%s: %s", key, exc)
+        pending_keys = await kv_list_keys(self._kv, self._pending_prefix(node_id))
+        claimed_keys = await kv_list_keys(self._kv, self._claimed_prefix(node_id))
+        await asyncio.gather(*(self._clear_one(key) for key in [*pending_keys, *claimed_keys]))
 
 
 class NatsNodeLifecycleCoordinator:
@@ -252,7 +254,7 @@ class NatsNodeLifecycleCoordinator:
         self, node_id: str, worker_id: str, operation: LifecycleOperation, lease_seconds: float
     ) -> LifecycleLease | None:
         key = self._key(node_id)
-        for _ in range(32):
+        for attempt in range(32):
             now = time.time()
             doc, rev = await kv_get_json(self._kv, key)
             if doc is None:
@@ -294,11 +296,13 @@ class NatsNodeLifecycleCoordinator:
             }
             if await kv_cas_json(self._kv, key, doc, rev):
                 return lease
+            if attempt < 31:
+                await cas_retry_backoff()
         return None
 
     async def release(self, lease: LifecycleLease, state_update: NodeLifecycleState | None = None) -> None:
         key = self._key(lease.node_id)
-        for _ in range(32):
+        for attempt in range(32):
             now = time.time()
             doc, rev = await kv_get_json(self._kv, key)
             if doc is None:
@@ -317,11 +321,13 @@ class NatsNodeLifecycleCoordinator:
             doc["lease"] = None
             if await kv_cas_json(self._kv, key, doc, rev):
                 return
+            if attempt < 31:
+                await cas_retry_backoff()
         logger.warning("Lifecycle release CAS exhausted for node_id=%s key=%s", lease.node_id, key)
 
     async def heartbeat(self, lease: LifecycleLease) -> bool:
         key = self._key(lease.node_id)
-        for _ in range(32):
+        for attempt in range(32):
             now = time.time()
             doc, rev = await kv_get_json(self._kv, key)
             if doc is None:
@@ -333,6 +339,8 @@ class NatsNodeLifecycleCoordinator:
             doc["lease"] = lease_data
             if await kv_cas_json(self._kv, key, doc, rev):
                 return True
+            if attempt < 31:
+                await cas_retry_backoff()
         logger.warning("Lifecycle heartbeat CAS exhausted for node_id=%s key=%s", lease.node_id, key)
         return False
 
@@ -354,7 +362,7 @@ class NatsNodeLifecycleCoordinator:
 
     async def update_observed(self, node_id: str, observed: LifecycleStatus, expected_epoch: int | None = None) -> None:
         key = self._key(node_id)
-        for _ in range(32):
+        for attempt in range(32):
             now = time.time()
             doc, rev = await kv_get_json(self._kv, key)
             if doc is None:
@@ -367,6 +375,8 @@ class NatsNodeLifecycleCoordinator:
             doc["state"] = _state_to_dict(state)
             if await kv_cas_json(self._kv, key, doc, rev):
                 return
+            if attempt < 31:
+                await cas_retry_backoff()
         logger.warning("Lifecycle update_observed CAS exhausted for node_id=%s key=%s", node_id, key)
 
     async def clear(self, node_id: str) -> None:

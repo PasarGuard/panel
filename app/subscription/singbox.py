@@ -270,7 +270,7 @@ class SingBoxConfiguration(BaseSubscription):
     def _build_vless(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict) -> dict:
         """Build VLESS outbound"""
         # Handle vless-route if needed (only affects ID)
-        id = settings["id"]
+        id = str(settings["id"])
         if inbound.vless_route:
             id = self.vless_route(id, inbound.vless_route)
         user_settings = {"uuid": id}

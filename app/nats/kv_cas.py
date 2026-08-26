@@ -2,15 +2,25 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
+import random
 from typing import Any, Protocol
 
+import nats.errors as nats_errors
 import nats.js.errors as nats_js_errors
 from nats.js.kv import KeyValue
 
 from app.utils.logger import get_logger
 
 logger = get_logger("nats-kv-cas")
+
+_CAS_RETRY_BASE_DELAY = 0.01
+
+
+async def cas_retry_backoff() -> None:
+    """Small jittered delay between CAS retry attempts to avoid hammering NATS under contention."""
+    await asyncio.sleep(_CAS_RETRY_BASE_DELAY * (1 + random.random()))
 
 
 class CasKv(Protocol):
@@ -44,17 +54,19 @@ async def kv_cas_json(kv: CasKv, key: str, value: dict[str, Any], revision: int)
         else:
             await kv.update(key, payload, last=revision)
         return True
-    except nats_js_errors.KeyWrongLastSequenceError as exc:
-        logger.debug("NATS KV CAS conflict for key=%s revision=%s: %s", key, revision, exc)
+    except nats_errors.Error as exc:
+        logger.debug("NATS KV CAS attempt failed for key=%s revision=%s: %s", key, revision, exc)
         return False
 
 
 async def kv_put_json(kv: CasKv, key: str, value: dict[str, Any]) -> None:
     """Upsert JSON with CAS retries (latest value wins)."""
-    for _ in range(32):
+    for attempt in range(32):
         _, rev = await kv_get_json(kv, key)
         if await kv_cas_json(kv, key, value, rev):
             return
+        if attempt < 31:
+            await cas_retry_backoff()
     raise RuntimeError(f"failed to put NATS KV key={key} after CAS retries")
 
 
