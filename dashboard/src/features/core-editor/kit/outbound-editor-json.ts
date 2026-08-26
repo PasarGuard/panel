@@ -232,11 +232,11 @@ export function normalizeSettingsFromEditor(protocol: string, settings: Record<s
   if (protocol === 'vless') {
     const next = { ...settings }
     const reverse = normalizeVlessReverseSetting(next.reverse)
-    if (reverse) return { reverse }
 
     if (typeof next.flow === 'string' && next.flow === '') delete next.flow
     if (Array.isArray(next.vnext) && next.vnext.length === 0) delete next.vnext
-    delete next.reverse
+    if (reverse) next.reverse = reverse
+    else delete next.reverse
     for (const key of ['address', 'port', 'id', 'encryption', 'level', 'email'] as const) {
       if (next[key] === undefined || next[key] === null || next[key] === '') delete next[key]
     }
