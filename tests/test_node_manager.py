@@ -1,6 +1,29 @@
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
 
 from app.node import NodeManager
+
+
+@pytest.mark.asyncio
+async def test_update_node_can_replace_local_controller_without_remote_stop(monkeypatch: pytest.MonkeyPatch):
+    manager = NodeManager()
+    old_node = object()
+    new_node = object()
+    db_node = MagicMock(id=19)
+    manager._nodes[19] = old_node
+
+    monkeypatch.setattr("app.node.ensure_bridge_memory", AsyncMock())
+    monkeypatch.setattr(manager, "_create_node_kwargs", MagicMock(return_value={}))
+    monkeypatch.setattr("app.node.create_node", MagicMock(return_value=new_node))
+    shutdown = AsyncMock()
+    monkeypatch.setattr(manager, "_shutdown_node", shutdown)
+
+    result = await manager.update_node(db_node, remote_stop=False)
+
+    assert result is new_node
+    assert manager._nodes[19] is new_node
+    shutdown.assert_awaited_once_with(old_node, remote_stop=False)
 
 
 @pytest.mark.asyncio

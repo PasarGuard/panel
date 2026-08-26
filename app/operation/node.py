@@ -330,6 +330,10 @@ class NodeOperation(BaseOperation):
                         "node_version": attached.node_version,
                         "old_status": old_status,
                     }
+                # The lease owner is responsible for persisting the outcome.
+                # Treat this contender as a no-op so a transient 409 cannot
+                # overwrite the owner's eventual connected/error result.
+                return None
 
             detail = e.detail[:1020] + "..." if len(e.detail) > 1024 else e.detail
 

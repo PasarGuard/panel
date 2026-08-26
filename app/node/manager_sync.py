@@ -48,7 +48,10 @@ async def handle_node_message(data: dict) -> None:
             db_node = await get_node_by_id(db, node_id, load_usage_logs=False)
         if db_node is None:
             return
-        await node_manager.update_node(db_node)
+        # The origin worker already owns any required remote lifecycle action.
+        # Siblings only replace their process-local controller; stopping the
+        # remote node here races the origin's start and can tear it back down.
+        await node_manager.update_node(db_node, remote_stop=False)
         return
 
     if action == "connect":
@@ -65,7 +68,7 @@ async def handle_node_message(data: dict) -> None:
             users = users_by_core.get(core_id, [])
 
         try:
-            await node_manager.update_node(db_node)
+            await node_manager.update_node(db_node, remote_stop=False)
         except Exception:
             logger.exception("Node sync connect update_node failed for node_id=%s", node_id)
             return
