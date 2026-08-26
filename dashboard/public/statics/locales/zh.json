@@ -3718,6 +3718,37 @@
     "githubStarsUnit": "星标",
     "githubProgress": "星标进度"
   },
+  "errorPage": {
+    "errorCode": "错误",
+    "unauthorized": {
+      "title": "未授权",
+      "description": "您的会话已失效。请重新登录后继续。"
+    },
+    "forbidden": {
+      "title": "访问被拒绝",
+      "description": "您的账号没有权限打开此视图。"
+    },
+    "notFound": {
+      "title": "页面未找到",
+      "description": "您请求的页面不存在或已移动。"
+    },
+    "serverError": {
+      "title": "服务器错误",
+      "description": "服务器无法完成此请求。请稍后再试。"
+    },
+    "generic": {
+      "title": "出了点问题",
+      "description": "仪表板遇到问题，无法渲染此视图。"
+    },
+    "actions": {
+      "copyDetails": "复制详情",
+      "copiedDetails": "错误详情已复制",
+      "tryAgain": "重试",
+      "back": "返回",
+      "dashboard": "仪表板",
+      "login": "登录"
+    }
+  },
   "validation": {
     "generic": "{{field}} 无效",
     "min": "{{field}} 必须至少为 {{min}}",

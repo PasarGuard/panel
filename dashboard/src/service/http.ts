@@ -1,5 +1,6 @@
 import { getAuthToken } from '@/utils/authStorage'
 import { dateUtils } from '@/utils/dateFormatter'
+import { isUnauthorizedError } from '@/utils/error-utils'
 import { FetchError, FetchOptions, $fetch as ofetch } from 'ofetch'
 
 export const $fetch = ofetch.create({
@@ -16,7 +17,7 @@ export const $fetch = ofetch.create({
 
 export const fetcher = <T>(url: string, ops: FetchOptions<'json'> = {}) => {
   return $fetch<T>(url, ops).catch(e => {
-    if (e.status === 401) {
+    if (isUnauthorizedError(e)) {
       const url = new URL(window.location.href)
       if (url.hash !== '#/login') {
         url.hash = '#/login'

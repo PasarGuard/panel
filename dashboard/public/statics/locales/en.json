@@ -3719,6 +3719,37 @@
     "githubStarsUnit": "stars",
     "githubProgress": "Star progress"
   },
+  "errorPage": {
+    "errorCode": "Error",
+    "unauthorized": {
+      "title": "Unauthorized",
+      "description": "Your session is no longer valid. Sign in again to continue."
+    },
+    "forbidden": {
+      "title": "Access denied",
+      "description": "Your account does not have permission to open this view."
+    },
+    "notFound": {
+      "title": "Page not found",
+      "description": "The page you requested does not exist or has moved."
+    },
+    "serverError": {
+      "title": "Server error",
+      "description": "The server could not complete this request. Try again in a moment."
+    },
+    "generic": {
+      "title": "Something went wrong",
+      "description": "The dashboard ran into a problem and could not render this view."
+    },
+    "actions": {
+      "copyDetails": "Copy details",
+      "copiedDetails": "Error details copied",
+      "tryAgain": "Try again",
+      "back": "Back",
+      "dashboard": "Dashboard",
+      "login": "Login"
+    }
+  },
   "version": {
     "title": "Version",
     "newVersionAvailable": "New version available!",
