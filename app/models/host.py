@@ -60,7 +60,6 @@ class XrayNoiseSettings(BaseModel):
     delay: str | int | None = Field(default=None)
     apply_to: str = Field(default="ip", pattern=r"ip|ipv4|ipv6")
     rand: int | str | None = Field(default=None)
-    rand_range: str | None = Field(default=None, alias="randRange", pattern=r"^\d{1,16}(-\d{1,16})?$")
 
     model_config = ConfigDict(extra="allow", populate_by_name=True)
 

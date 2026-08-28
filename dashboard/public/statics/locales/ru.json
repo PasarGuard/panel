@@ -1658,8 +1658,6 @@
       "applyTo.ip": "IP",
       "applyTo.ipv4": "IPv4",
       "applyTo.ipv6": "IPv6",
-      "randRange": "Случайный диапазон",
-      "randRangePlaceholder": "Введите случайный диапазон (например 10-20)",
       "duplicateNoise": "Дублировать шум"
     },
     "fragmentNoiseDeprecated": "`noise` и `fragment` удаляются в новых версиях — используйте `finalMask`.",

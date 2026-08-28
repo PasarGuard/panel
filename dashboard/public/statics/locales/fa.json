@@ -1270,8 +1270,6 @@
       "applyTo.ip": "IP",
       "applyTo.ipv4": "IPv4",
       "applyTo.ipv6": "IPv6",
-      "randRange": "محدوده تصادفی",
-      "randRangePlaceholder": "محدوده تصادفی را وارد کنید (مثلاً 10-20)",
       "duplicateNoise": "تکثیر نویز"
     },
     "fragmentNoiseDeprecated": "`noise` و `fragment` در نسخه‌های جدیدتر حذف می‌شوند — به‌جای آن از `finalMask` استفاده کنید.",

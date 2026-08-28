@@ -1408,8 +1408,6 @@
       "applyTo.ip": "IP",
       "applyTo.ipv4": "IPv4",
       "applyTo.ipv6": "IPv6",
-      "randRange": "随机范围",
-      "randRangePlaceholder": "输入随机范围（例如 10-20）",
       "duplicateNoise": "复制噪声"
     },
     "fragmentNoiseDeprecated": "`noise` 和 `fragment` 将在新版本中移除 — 请改用 `finalMask`。",

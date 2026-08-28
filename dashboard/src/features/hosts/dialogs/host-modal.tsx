@@ -212,8 +212,8 @@ const NoiseItem = memo<NoiseItemProps>(({ index, form, onRemove, onDuplicate, t 
           </Button>
         </div>
       </div>
-      {/* Row 2: packet, delay, rand_range */}
-      <div className="grid grid-cols-3 gap-2 pl-7">
+      {/* Row 2: packet, delay */}
+      <div className="grid grid-cols-2 gap-2 pl-7">
         <FormField
           control={form.control}
           name={`noise_settings.xray.${index}.packet`}
@@ -233,18 +233,6 @@ const NoiseItem = memo<NoiseItemProps>(({ index, form, onRemove, onDuplicate, t 
             <FormItem>
               <FormControl>
                 <Input placeholder={t('hostsDialog.noise.delayPlaceholder')} {...field} value={field.value || ''} className="h-8" />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name={`noise_settings.xray.${index}.rand_range`}
-          render={({ field }) => (
-            <FormItem>
-              <FormControl>
-                <Input placeholder={t('hostsDialog.noise.randRangePlaceholder')} {...field} value={field.value || ''} className="h-8" />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -333,9 +321,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
   const hasFragmentPopulated = Boolean(
     String(selectedFragmentSettings?.packets ?? '').trim() || String(selectedFragmentSettings?.length ?? '').trim() || String(selectedFragmentSettings?.interval ?? '').trim(),
   )
-  const hasNoisePopulated = (selectedNoiseSettings || []).some(
-    noise => noise && (String(noise.packet ?? '').trim() || String(noise.delay ?? '').trim() || String(noise.rand_range ?? '').trim()),
-  )
+  const hasNoisePopulated = (selectedNoiseSettings || []).some(noise => noise && (String(noise.packet ?? '').trim() || String(noise.delay ?? '').trim()))
   const showFragmentNoiseDeprecatedWarning = hasFragmentPopulated || hasNoisePopulated
 
   const renderCamouflageSection = () => {
@@ -597,7 +583,6 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
           packet: '',
           delay: '',
           apply_to: 'ip',
-          rand_range: '',
         },
       ],
       {
