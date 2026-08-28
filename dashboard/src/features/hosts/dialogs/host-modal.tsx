@@ -960,9 +960,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                         value={parsedXrayTemplateId != null ? String(parsedXrayTemplateId) : XRAY_TEMPLATE_INBOUND_DEFAULT_VALUE}
                         onValueChange={value => {
                           if (value === XRAY_TEMPLATE_INBOUND_DEFAULT_VALUE) {
-                            // Clear the whole optional object so RHF does not keep `{ xray: undefined }`,
-                            // which can leave the UI stuck on the previous template id.
-                            form.setValue('subscription_templates', undefined, {
+                            form.setValue('subscription_templates.xray', null, {
                               shouldDirty: true,
                               shouldTouch: true,
                               shouldValidate: true,

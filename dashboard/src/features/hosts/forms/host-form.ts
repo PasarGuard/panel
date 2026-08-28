@@ -95,7 +95,7 @@ export interface HostFormValues {
     dns?: string[]
   }
   subscription_templates?: {
-    xray?: number
+    xray?: number | null
   }
   transport_settings?: {
     xhttp_settings?: {
@@ -458,7 +458,7 @@ export const HostFormSchema = z.object({
     .optional(),
   subscription_templates: z
     .object({
-      xray: z.number().int().positive().optional(),
+      xray: z.number().int().positive().nullable().optional(),
     })
     .optional(),
   final_mask_settings: z.custom<FinalMask>().optional(),
