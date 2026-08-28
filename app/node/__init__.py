@@ -78,7 +78,11 @@ class NodeManager:
         return new_node
 
     async def remove_node(self, id: int, *, remote_stop: bool = True) -> None:
-        async with self._lock.writer_lock:
+        # Serialize against in-flight sync_full/update_node the same way update_node does,
+        # so removal can't tear the node down mid-sync and can't drop the lock entry while
+        # a current waiter still holds that lock identity.
+        lock = self._user_sync_locks.setdefault(id, asyncio.Lock())
+        async with lock, self._lock.writer_lock:
             old_node: PasarGuardNode | None = self._nodes.pop(id, None)
             self._user_sync_locks.pop(id, None)
 
