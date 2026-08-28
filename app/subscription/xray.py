@@ -339,7 +339,7 @@ class XrayConfiguration(BaseSubscription):
                 "verifyPeerCertByName": ",".join(tls_config.verify_peer_cert_by_name)
                 if tls_config.verify_peer_cert_by_name
                 else "",
-                "cipherSuites": tls_config.cipher_suites,
+                "cipherSuites": tls_config.cipher_suites if tls_config.fingerprint == "unsafe" else "",
             }
             if tls_config.alpn_list:
                 config["alpn"] = tls_config.alpn_list  # Use list for xray
