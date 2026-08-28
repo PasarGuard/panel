@@ -1,6 +1,22 @@
 import * as z from 'zod'
 import type { FinalMask } from '@/service/api'
 
+export const XRAY_SOCKOPT_DOMAIN_STRATEGIES = [
+  'AsIs',
+  'UseIP',
+  'UseIPv4',
+  'UseIPv6',
+  'UseIPv4v6',
+  'UseIPv6v4',
+  'ForceIP',
+  'ForceIPv4',
+  'ForceIPv6',
+  'ForceIPv4v6',
+  'ForceIPv6v4',
+] as const
+
+export type XraySockoptDomainStrategy = (typeof XRAY_SOCKOPT_DOMAIN_STRATEGIES)[number]
+
 interface Brutal {
   enable?: boolean
   up_mbps: number
@@ -86,6 +102,7 @@ export interface HostFormValues {
       apply_to: 'ip' | 'ipv4' | 'ipv6'
     }[]
   }
+  xray_sockopt_domain_strategy: XraySockoptDomainStrategy
   mux_settings?: MuxSettings
   wireguard_overrides?: {
     allowed_ips?: string[]
@@ -374,6 +391,7 @@ export const HostFormSchema = z.object({
         .optional(),
     })
     .optional(),
+  xray_sockopt_domain_strategy: z.enum(XRAY_SOCKOPT_DOMAIN_STRATEGIES).default('AsIs'),
   noise_settings: z
     .object({
       xray: z
@@ -488,6 +506,7 @@ export const hostFormDefaultValues: HostFormValues = {
   ech_query_strategy: undefined,
   pinned_peer_cert_sha256: undefined,
   verify_peer_cert_by_name: [],
+  xray_sockopt_domain_strategy: 'AsIs',
   fragment_settings: undefined,
   subscription_templates: undefined,
   final_mask_settings: undefined,

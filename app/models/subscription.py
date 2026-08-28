@@ -9,7 +9,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field, computed_field, field_validator
 
-from app.models.host import FinalMask
+from app.models.host import FinalMask, XraySockoptDomainStrategy
 from app.models.stats import Period
 
 from .validators import OptionalAwareDatetime
@@ -282,6 +282,7 @@ class SubscriptionInboundData(BaseModel):
     # Additional settings
     random_user_agent: bool = Field(False)
     use_sni_as_host: bool = Field(False)
+    xray_sockopt_domain_strategy: XraySockoptDomainStrategy = Field(XraySockoptDomainStrategy.as_is)
     # Fragment and noise settings
     fragment_settings: dict[str, Any] | None = Field(None)
     noise_settings: dict[str, Any] | None = Field(None)

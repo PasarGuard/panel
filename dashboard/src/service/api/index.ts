@@ -392,7 +392,22 @@ export type GetAdminsParams = {
 
 export type Health200 = { [key: string]: unknown }
 
-export type XrayNoiseSettingsRandRange = string | null
+export type XraySockoptDomainStrategy = (typeof XraySockoptDomainStrategy)[keyof typeof XraySockoptDomainStrategy]
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const XraySockoptDomainStrategy = {
+  AsIs: 'AsIs',
+  UseIP: 'UseIP',
+  UseIPv4: 'UseIPv4',
+  UseIPv6: 'UseIPv6',
+  UseIPv4v6: 'UseIPv4v6',
+  UseIPv6v4: 'UseIPv6v4',
+  ForceIP: 'ForceIP',
+  ForceIPv4: 'ForceIPv4',
+  ForceIPv6: 'ForceIPv6',
+  ForceIPv4v6: 'ForceIPv4v6',
+  ForceIPv6v4: 'ForceIPv6v4',
+} as const
 
 export type XrayNoiseSettingsRand = number | string | null
 
@@ -408,7 +423,6 @@ export interface XrayNoiseSettings {
   /** @pattern ip|ipv4|ipv6 */
   apply_to?: string
   rand?: XrayNoiseSettingsRand
-  randRange?: XrayNoiseSettingsRandRange
   [key: string]: unknown
 }
 
@@ -519,18 +533,6 @@ export type XHttpSettingsXPaddingBytes = string | null
 
 export type XHttpSettingsNoGrpcHeader = boolean | null
 
-export type XHttpModes = (typeof XHttpModes)[keyof typeof XHttpModes]
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
-export const XHttpModes = {
-  auto: 'auto',
-  'packet-up': 'packet-up',
-  'stream-up': 'stream-up',
-  'stream-one': 'stream-one',
-} as const
-
-export type XHttpSettingsMode = XHttpModes | null
-
 export interface XHttpSettings {
   mode?: XHttpSettingsMode
   no_grpc_header?: XHttpSettingsNoGrpcHeader
@@ -555,6 +557,18 @@ export interface XHttpSettings {
   xmux?: XHttpSettingsXmux
   download_settings?: XHttpSettingsDownloadSettings
 }
+
+export type XHttpModes = (typeof XHttpModes)[keyof typeof XHttpModes]
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const XHttpModes = {
+  auto: 'auto',
+  'packet-up': 'packet-up',
+  'stream-up': 'stream-up',
+  'stream-one': 'stream-one',
+} as const
+
+export type XHttpSettingsMode = XHttpModes | null
 
 export interface WorkersHealth {
   scheduler: WorkerHealth
@@ -693,18 +707,6 @@ export type UsersPermissionsUpdateAnyOf = { [key: string]: PermissionScope | num
 
 export type UsersPermissionsUpdate = boolean | UsersPermissionsUpdateAnyOf | null
 
-export type UsersPermissionsReadSimpleAnyOf = { [key: string]: PermissionScope | number }
-
-export type UsersPermissionsReadSimple = boolean | UsersPermissionsReadSimpleAnyOf | null
-
-export type UsersPermissionsReadAnyOf = { [key: string]: PermissionScope | number }
-
-export type UsersPermissionsRead = boolean | UsersPermissionsReadAnyOf | null
-
-export type UsersPermissionsCreateAnyOf = { [key: string]: PermissionScope | number }
-
-export type UsersPermissionsCreate = boolean | UsersPermissionsCreateAnyOf | null
-
 export interface UsersPermissions {
   create?: UsersPermissionsCreate
   read?: UsersPermissionsRead
@@ -717,6 +719,18 @@ export interface UsersPermissions {
   activate_next_plan?: UsersPermissionsActivateNextPlan
 }
 
+export type UsersPermissionsReadSimpleAnyOf = { [key: string]: PermissionScope | number }
+
+export type UsersPermissionsReadSimple = boolean | UsersPermissionsReadSimpleAnyOf | null
+
+export type UsersPermissionsReadAnyOf = { [key: string]: PermissionScope | number }
+
+export type UsersPermissionsRead = boolean | UsersPermissionsReadAnyOf | null
+
+export type UsersPermissionsCreateAnyOf = { [key: string]: PermissionScope | number }
+
+export type UsersPermissionsCreate = boolean | UsersPermissionsCreateAnyOf | null
+
 export type UsernameGenerationStrategy = (typeof UsernameGenerationStrategy)[keyof typeof UsernameGenerationStrategy]
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
@@ -727,19 +741,19 @@ export const UsernameGenerationStrategy = {
 
 export type UserUsageStatsListPeriod = Period | null
 
-export interface UserUsageStatsList {
-  period?: UserUsageStatsListPeriod
-  start: string
-  end: string
-  stats: UserUsageStatsListStats
-}
-
 export interface UserUsageStat {
   period_start: string
   total_traffic: number
 }
 
 export type UserUsageStatsListStats = { [key: string]: UserUsageStat[] }
+
+export interface UserUsageStatsList {
+  period?: UserUsageStatsListPeriod
+  start: string
+  end: string
+  stats: UserUsageStatsListStats
+}
 
 export type UserTemplateSimpleName = string | null
 
@@ -1085,13 +1099,6 @@ export interface UserModify {
   status?: UserModifyStatus
 }
 
-/**
- * User IP lists for all nodes
- */
-export interface UserIPListAll {
-  nodes: UserIPListAllNodes
-}
-
 export type UserIPListIps = { [key: string]: number }
 
 /**
@@ -1102,6 +1109,13 @@ export interface UserIPList {
 }
 
 export type UserIPListAllNodes = { [key: string]: UserIPList | null }
+
+/**
+ * User IP lists for all nodes
+ */
+export interface UserIPListAll {
+  nodes: UserIPListAllNodes
+}
 
 export type UserHWIDResponseDeviceModel = string | null
 
@@ -1879,6 +1893,19 @@ export type NotificationSettingsTelegramChatId = number | null
 
 export type NotificationSettingsTelegramApiToken = string | null
 
+export interface NotificationSettings {
+  notify_telegram?: boolean
+  notify_discord?: boolean
+  telegram_api_token?: NotificationSettingsTelegramApiToken
+  telegram_chat_id?: NotificationSettingsTelegramChatId
+  telegram_topic_id?: NotificationSettingsTelegramTopicId
+  discord_webhook_url?: NotificationSettingsDiscordWebhookUrl
+  channels?: NotificationChannels
+  proxy_url?: NotificationSettingsProxyUrl
+  /** */
+  max_retries: number
+}
+
 export interface NotificationEnable {
   admin?: AdminNotificationEnable
   admin_role?: BaseNotificationEnable
@@ -1906,19 +1933,6 @@ export interface NotificationChannels {
   user?: NotificationChannel
   user_template?: NotificationChannel
   api_key?: NotificationChannel
-}
-
-export interface NotificationSettings {
-  notify_telegram?: boolean
-  notify_discord?: boolean
-  telegram_api_token?: NotificationSettingsTelegramApiToken
-  telegram_chat_id?: NotificationSettingsTelegramChatId
-  telegram_topic_id?: NotificationSettingsTelegramTopicId
-  discord_webhook_url?: NotificationSettingsDiscordWebhookUrl
-  channels?: NotificationChannels
-  proxy_url?: NotificationSettingsProxyUrl
-  /** */
-  max_retries: number
 }
 
 export type NotificationChannelDiscordWebhookUrl = string | null
@@ -1987,14 +2001,6 @@ export type NodesPermissionsReadSimpleAnyOf = { [key: string]: PermissionScope |
 
 export type NodesPermissionsReadSimple = boolean | NodesPermissionsReadSimpleAnyOf | null
 
-export type NodesPermissionsReadAnyOf = { [key: string]: PermissionScope | number }
-
-export type NodesPermissionsRead = boolean | NodesPermissionsReadAnyOf | null
-
-export type NodesPermissionsCreateAnyOf = { [key: string]: PermissionScope | number }
-
-export type NodesPermissionsCreate = boolean | NodesPermissionsCreateAnyOf | null
-
 export interface NodesPermissions {
   create?: NodesPermissionsCreate
   read?: NodesPermissionsRead
@@ -2007,14 +2013,15 @@ export interface NodesPermissions {
   stats?: NodesPermissionsStats
 }
 
-export type NodeUsageStatsListPeriod = Period | null
+export type NodesPermissionsReadAnyOf = { [key: string]: PermissionScope | number }
 
-export interface NodeUsageStatsList {
-  period?: NodeUsageStatsListPeriod
-  start: string
-  end: string
-  stats: NodeUsageStatsListStats
-}
+export type NodesPermissionsRead = boolean | NodesPermissionsReadAnyOf | null
+
+export type NodesPermissionsCreateAnyOf = { [key: string]: PermissionScope | number }
+
+export type NodesPermissionsCreate = boolean | NodesPermissionsCreateAnyOf | null
+
+export type NodeUsageStatsListPeriod = Period | null
 
 export interface NodeUsageStat {
   period_start: string
@@ -2023,6 +2030,13 @@ export interface NodeUsageStat {
 }
 
 export type NodeUsageStatsListStats = { [key: string]: NodeUsageStat[] }
+
+export interface NodeUsageStatsList {
+  period?: NodeUsageStatsListPeriod
+  start: string
+  end: string
+  stats: NodeUsageStatsListStats
+}
 
 export type NodeStatus = (typeof NodeStatus)[keyof typeof NodeStatus]
 
@@ -2178,6 +2192,8 @@ export type NodeModifyKeepAlive = number | null
 
 export type NodeModifyServerCa = string | null
 
+export type NodeModifyConnectionType = NodeConnectionType | null
+
 export type NodeModifyUsageCoefficient = number | null
 
 export type NodeModifyPort = number | null
@@ -2252,8 +2268,6 @@ export const NodeConnectionType = {
   grpc: 'grpc',
   rest: 'rest',
 } as const
-
-export type NodeModifyConnectionType = NodeConnectionType | null
 
 export type NextPlanModelExpire = number | null
 
@@ -2657,9 +2671,9 @@ export interface FinalMaskUdpHop {
   [key: string]: unknown
 }
 
-export type FinalMaskUdpHeaderCustomSettingsServer = XrayNoiseSettings[] | null
+export type FinalMaskUdpHeaderCustomSettingsServer = FinalMaskNoiseItem[] | null
 
-export type FinalMaskUdpHeaderCustomSettingsClient = XrayNoiseSettings[] | null
+export type FinalMaskUdpHeaderCustomSettingsClient = FinalMaskNoiseItem[] | null
 
 export interface FinalMaskUdpHeaderCustomSettings {
   client?: FinalMaskUdpHeaderCustomSettingsClient
@@ -2685,11 +2699,11 @@ export interface FinalMaskTcpLayer {
 
 export type FinalMaskTcpLayerSettingsAnyOf = { [key: string]: unknown }
 
-export type FinalMaskTcpHeaderCustomSettingsErrors = XrayNoiseSettings[][] | null
+export type FinalMaskTcpHeaderCustomSettingsErrors = FinalMaskNoiseItem[][] | null
 
-export type FinalMaskTcpHeaderCustomSettingsServers = XrayNoiseSettings[][] | null
+export type FinalMaskTcpHeaderCustomSettingsServers = FinalMaskNoiseItem[][] | null
 
-export type FinalMaskTcpHeaderCustomSettingsClients = XrayNoiseSettings[][] | null
+export type FinalMaskTcpHeaderCustomSettingsClients = FinalMaskNoiseItem[][] | null
 
 export interface FinalMaskTcpHeaderCustomSettings {
   clients?: FinalMaskTcpHeaderCustomSettingsClients
@@ -2773,18 +2787,6 @@ export type FinalMaskQuicParamsBbrProfile = string | null
 
 export type FinalMaskQuicParamsDebug = boolean | null
 
-export type FinalMaskQuicCongestion = (typeof FinalMaskQuicCongestion)[keyof typeof FinalMaskQuicCongestion]
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
-export const FinalMaskQuicCongestion = {
-  reno: 'reno',
-  bbr: 'bbr',
-  brutal: 'brutal',
-  'force-brutal': 'force-brutal',
-} as const
-
-export type FinalMaskQuicParamsCongestion = FinalMaskQuicCongestion | null
-
 export interface FinalMaskQuicParams {
   congestion?: FinalMaskQuicParamsCongestion
   debug?: FinalMaskQuicParamsDebug
@@ -2803,14 +2805,24 @@ export interface FinalMaskQuicParams {
   [key: string]: unknown
 }
 
+export type FinalMaskQuicCongestion = (typeof FinalMaskQuicCongestion)[keyof typeof FinalMaskQuicCongestion]
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const FinalMaskQuicCongestion = {
+  reno: 'reno',
+  bbr: 'bbr',
+  brutal: 'brutal',
+  'force-brutal': 'force-brutal',
+} as const
+
+export type FinalMaskQuicParamsCongestion = FinalMaskQuicCongestion | null
+
 export type FinalMaskPasswordSettingsPassword = string | null
 
 export interface FinalMaskPasswordSettings {
   password?: FinalMaskPasswordSettingsPassword
   [key: string]: unknown
 }
-
-export type FinalMaskNoiseSettingsNoise = XrayNoiseSettings[] | null
 
 export type FinalMaskNoiseSettingsReset = string | number | null
 
@@ -2819,6 +2831,30 @@ export interface FinalMaskNoiseSettings {
   noise?: FinalMaskNoiseSettingsNoise
   [key: string]: unknown
 }
+
+export type FinalMaskNoiseItemRandRange = string | null
+
+export type FinalMaskNoiseItemRand = number | string | null
+
+export type FinalMaskNoiseItemDelay = string | number | null
+
+export type FinalMaskNoiseItemPacket = string | number[] | null
+
+export type FinalMaskNoiseItemType = string | null
+
+/**
+ * Packet camouflage item used by FinalMask. Unlike Freedom noise, this has no apply_to.
+ */
+export interface FinalMaskNoiseItem {
+  type?: FinalMaskNoiseItemType
+  packet?: FinalMaskNoiseItemPacket
+  delay?: FinalMaskNoiseItemDelay
+  rand?: FinalMaskNoiseItemRand
+  randRange?: FinalMaskNoiseItemRandRange
+  [key: string]: unknown
+}
+
+export type FinalMaskNoiseSettingsNoise = FinalMaskNoiseItem[] | null
 
 export type FinalMaskMkcpLegacySettingsValue = string | null
 
@@ -2985,6 +3021,7 @@ export interface CreateHost {
   mux_settings?: CreateHostMuxSettings
   fragment_settings?: CreateHostFragmentSettings
   noise_settings?: CreateHostNoiseSettings
+  xray_sockopt_domain_strategy?: XraySockoptDomainStrategy
   random_user_agent?: boolean
   use_sni_as_host?: boolean
   vless_route?: CreateHostVlessRoute
@@ -3174,6 +3211,10 @@ export type CRUDPermissionsReadSimpleAnyOf = { [key: string]: PermissionScope | 
 
 export type CRUDPermissionsReadSimple = boolean | CRUDPermissionsReadSimpleAnyOf | null
 
+export type CRUDPermissionsReadAnyOf = { [key: string]: PermissionScope | number }
+
+export type CRUDPermissionsRead = boolean | CRUDPermissionsReadAnyOf | null
+
 /**
  * Standard create/read/read_simple/update/delete permissions.
 Used directly by: groups, templates, client_templates, cores, admin_roles.
@@ -3186,10 +3227,6 @@ export interface CRUDPermissions {
   update?: CRUDPermissionsUpdate
   delete?: CRUDPermissionsDelete
 }
-
-export type CRUDPermissionsReadAnyOf = { [key: string]: PermissionScope | number }
-
-export type CRUDPermissionsRead = boolean | CRUDPermissionsReadAnyOf | null
 
 export type CRUDPermissionsCreateAnyOf = { [key: string]: PermissionScope | number }
 
@@ -3478,6 +3515,7 @@ export interface BaseHost {
   mux_settings?: BaseHostMuxSettings
   fragment_settings?: BaseHostFragmentSettings
   noise_settings?: BaseHostNoiseSettings
+  xray_sockopt_domain_strategy?: XraySockoptDomainStrategy
   random_user_agent?: boolean
   use_sni_as_host?: boolean
   vless_route?: BaseHostVlessRoute

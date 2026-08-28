@@ -3,6 +3,7 @@ from random import choice
 
 from pydantic import BaseModel
 
+from app.models.host import XraySockoptDomainStrategy
 from app.models.subscription import (
     GRPCTransportConfig,
     KCPTransportConfig,
@@ -363,6 +364,24 @@ class XrayConfiguration(BaseSubscription):
         if dialer_settings:
             return {"tag": dialer_tag, "protocol": "freedom", "settings": dialer_settings}
 
+    @staticmethod
+    def _build_xray_sockopt(
+        inbound: SubscriptionInboundData,
+        dialer_proxy: str | None = None,
+    ) -> dict[str, str] | None:
+        """Build Xray streamSettings.sockopt for generated proxy outbounds.
+
+        Keep AsIs implicit so existing hosts generate the same Xray JSON shape
+        as before this feature. Merge with dialerProxy when Fragment/Noise is
+        enabled instead of overwriting it.
+        """
+        sockopt: dict[str, str] = {}
+        if dialer_proxy:
+            sockopt["dialerProxy"] = dialer_proxy
+        if inbound.xray_sockopt_domain_strategy != XraySockoptDomainStrategy.as_is:
+            sockopt["domainStrategy"] = inbound.xray_sockopt_domain_strategy.value
+        return sockopt or None
+
     def _download_config(self, download_settings: SubscriptionInboundData, link_format: bool = False) -> dict:
         """Build download settings block for xHTTP transports"""
 
@@ -380,13 +399,14 @@ class XrayConfiguration(BaseSubscription):
         security = security if security and security != "none" else None
         tls_settings = self._apply_tls(download_settings.tls_config, security) if security else None
 
-        dialer_proxy = ""
+        dialer_proxy = None
         if (download_settings.fragment_settings or download_settings.noise_settings) and not link_format:
             dialer_proxy = "dsdialer"
-        if dialer_proxy:
-            sockopt = {"dialerProxy": dialer_proxy}
-        else:
-            sockopt = None
+        # downloadSettings is also used while rendering share links; only add
+        # Xray-specific sockopt to actual Xray JSON output.
+        sockopt = (
+            self._build_xray_sockopt(download_settings, dialer_proxy=dialer_proxy) if not link_format else None
+        )
 
         stream_settings = self._stream_setting_config(
             network=network,
@@ -472,12 +492,13 @@ class XrayConfiguration(BaseSubscription):
 
         # Handle fragment/noise - create dialer outbound
         extra_outbounds = []
-        sockopt = None
+        dialer_proxy = None
         if inbound.fragment_settings or inbound.noise_settings:
             dialer_outbound = self.make_dialer_outbound(inbound.fragment_settings, inbound.noise_settings, "dialer")
             if dialer_outbound:
                 extra_outbounds.append(dialer_outbound)
-                sockopt = {"dialerProxy": "dialer"}
+                dialer_proxy = "dialer"
+        sockopt = self._build_xray_sockopt(inbound, dialer_proxy=dialer_proxy)
 
         if sockopt or inbound.finalmask:
             outbound["streamSettings"] = self._stream_setting_config(
@@ -628,12 +649,13 @@ class XrayConfiguration(BaseSubscription):
 
         # Handle fragment/noise - create dialer outbound
         extra_outbounds = []
-        sockopt = None
+        dialer_proxy = None
         if inbound.fragment_settings or inbound.noise_settings:
             dialer_outbound = self.make_dialer_outbound(inbound.fragment_settings, inbound.noise_settings, "dialer")
             if dialer_outbound:
                 extra_outbounds.append(dialer_outbound)
-                sockopt = {"dialerProxy": "dialer"}
+                dialer_proxy = "dialer"
+        sockopt = self._build_xray_sockopt(inbound, dialer_proxy=dialer_proxy)
 
         outbound["streamSettings"] = self._stream_setting_config(
             network=network,

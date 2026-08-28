@@ -34,6 +34,20 @@ class ECHQueryStrategy(str, Enum):
     full = "full"
 
 
+class XraySockoptDomainStrategy(str, Enum):
+    as_is = "AsIs"
+    use_ip = "UseIP"
+    use_ipv4 = "UseIPv4"
+    use_ipv6 = "UseIPv6"
+    use_ipv4v6 = "UseIPv4v6"
+    use_ipv6v4 = "UseIPv6v4"
+    force_ip = "ForceIP"
+    force_ipv4 = "ForceIPv4"
+    force_ipv6 = "ForceIPv6"
+    force_ipv4v6 = "ForceIPv4v6"
+    force_ipv6v4 = "ForceIPv6v4"
+
+
 class XrayFragmentSettings(BaseModel):
     model_config = ConfigDict(extra="allow", populate_by_name=True)
 
@@ -592,6 +606,7 @@ class BaseHost(BaseModel):
     mux_settings: MuxSettings | None = Field(default=None)
     fragment_settings: FragmentSettings | None = Field(default=None)
     noise_settings: NoiseSettings | None = Field(default=None)
+    xray_sockopt_domain_strategy: XraySockoptDomainStrategy = Field(default=XraySockoptDomainStrategy.as_is)
     random_user_agent: bool = Field(default=False)
     use_sni_as_host: bool = Field(default=False)
     vless_route: str | None = Field(default=None, pattern=r"^$|^[0-9a-fA-F]{4}$")

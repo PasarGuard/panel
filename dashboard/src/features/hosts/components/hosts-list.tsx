@@ -201,6 +201,7 @@ export default function HostsList({
       ech_query_strategy: host.ech_query_strategy || undefined,
       pinned_peer_cert_sha256: host.pinned_peer_cert_sha256 || undefined,
       verify_peer_cert_by_name: host.verify_peer_cert_by_name || [],
+      xray_sockopt_domain_strategy: host.xray_sockopt_domain_strategy ?? 'AsIs',
       subscription_templates: host.subscription_templates
         ? {
             xray: host.subscription_templates.xray ?? undefined,
@@ -385,6 +386,7 @@ export default function HostsList({
         ech_query_strategy: host.ech_query_strategy || undefined,
         pinned_peer_cert_sha256: host.pinned_peer_cert_sha256 || undefined,
         verify_peer_cert_by_name: host.verify_peer_cert_by_name || undefined,
+        xray_sockopt_domain_strategy: host.xray_sockopt_domain_strategy ?? 'AsIs',
         fragment_settings: host.fragment_settings,
         noise_settings: host.noise_settings,
         mux_settings: host.mux_settings,
@@ -590,6 +592,7 @@ export default function HostsList({
         ech_query_strategy: host.ech_query_strategy || undefined,
         pinned_peer_cert_sha256: host.pinned_peer_cert_sha256 || undefined,
         verify_peer_cert_by_name: host.verify_peer_cert_by_name || undefined,
+        xray_sockopt_domain_strategy: host.xray_sockopt_domain_strategy ?? 'AsIs',
         subscription_templates: host.subscription_templates ?? undefined,
         fragment_settings: host.fragment_settings,
         noise_settings: host.noise_settings,
