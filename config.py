@@ -56,6 +56,7 @@ class ServerSettings(EnvSettings):
     ssl_certfile: str | None = Field(default=None, validation_alias="UVICORN_SSL_CERTFILE")
     ssl_keyfile: str | None = Field(default=None, validation_alias="UVICORN_SSL_KEYFILE")
     ssl_ca_type: str = Field(default="public", validation_alias="UVICORN_SSL_CA_TYPE")
+    dangerously_bypass_ssl: bool = Field(default=False, validation_alias="UVICORN_DANGEROUSLY_BYPASS_SSL")
     workers: int = Field(default=1, validation_alias="UVICORN_WORKERS")
     loop: str = Field(default="auto", validation_alias="UVICORN_LOOP")
     proxy_headers: bool = Field(default=False, validation_alias="UVICORN_PROXY_HEADERS")

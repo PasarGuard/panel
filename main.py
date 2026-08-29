@@ -116,6 +116,25 @@ if __name__ == "__main__":
             bind_args["host"] = server_settings.host
             bind_args["port"] = server_settings.port
 
+    elif server_settings.dangerously_bypass_ssl:
+        logger.warning(f"""\
+{click.style("IMPORTANT!", blink=True, bold=True, fg="yellow")}
+You've enabled {click.style("UVICORN_DANGEROUSLY_BYPASS_SSL", italic=True, fg="magenta")} while no
+{click.style("UVICORN_SSL_CERTFILE", italic=True, fg="magenta")}/{click.style("UVICORN_SSL_KEYFILE", italic=True, fg="magenta")} are configured. 
+PasarGuard will bind to {click.style(f"{server_settings.host}:{server_settings.port}", bold=True)} over {click.style("plain HTTP", bold=True)}.
+
+Only use this when a trusted reverse proxy (Nginx/Caddy/Traefik) or a separate
+TLS terminating layer in front of the container provides encryption.
+Exposing the panel on a public interface without TLS will transmit
+credentials in cleartext.
+""")
+
+        if server_settings.uds:
+            bind_args["uds"] = server_settings.uds
+        else:
+            bind_args["host"] = server_settings.host
+            bind_args["port"] = server_settings.port
+
     else:
         if server_settings.uds:
             bind_args["uds"] = server_settings.uds
