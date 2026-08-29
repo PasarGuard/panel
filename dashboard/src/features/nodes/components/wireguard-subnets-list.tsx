@@ -74,7 +74,7 @@ function SubnetCard({ row }: { row: WireGuardSubnetUsage }) {
   return (
     <Card dir={dir} className={cn('overflow-hidden px-4 py-4', dir === 'rtl' && 'text-right')}>
       <div className="flex flex-col gap-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 flex-wrap items-center gap-2">
               <div dir="ltr" className="min-w-0 truncate font-mono text-base font-semibold">
@@ -101,7 +101,7 @@ function SubnetCard({ row }: { row: WireGuardSubnetUsage }) {
               )}
             </div>
           </div>
-          <div className="grid grid-cols-3 gap-2 sm:flex-[0_1_22rem]">
+          <div className="grid grid-cols-3 gap-2 sm:flex-[0_1_16rem]">
             <MetricTile label={usedLabel} value={row.used} tone={row.used === 0 ? 'muted' : 'primary'} />
             <MetricTile label={t('nodes.wireguard.free', { defaultValue: 'Free' })} value={row.free} />
             <MetricTile label={t('nodes.wireguard.capacity', { defaultValue: 'Capacity' })} value={row.capacity} />
