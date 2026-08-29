@@ -171,7 +171,7 @@ class NodeModify(NodeCreate):
     address: str | None = Field(default=None)
     port: int | None = Field(default=None)
     status: NodeStatus | None = Field(default=None)
-    usage_coefficient: float | None = Field(default=None)
+    usage_coefficient: float | None = Field(default=None, gt=0)
     server_ca: str | None = Field(default=None)
     connection_type: NodeConnectionType | None = Field(default=None)
     keep_alive: int | None = Field(default=None)
