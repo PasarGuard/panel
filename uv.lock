@@ -806,7 +806,7 @@ wheels = [
 
 [[package]]
 name = "pasarguard"
-version = "5.2.1"
+version = "5.3.0"
 source = { virtual = "." }
 dependencies = [
     { name = "aiocache" },
