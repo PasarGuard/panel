@@ -167,6 +167,12 @@ class NodeOperation(BaseOperation):
         if not db_node:
             return
 
+        if db_node.status in (NodeStatus.disabled, NodeStatus.limited) and status not in (
+            NodeStatus.disabled,
+            NodeStatus.limited,
+        ):
+            return
+
         old_status = db_node.status
 
         if status == NodeStatus.error:
