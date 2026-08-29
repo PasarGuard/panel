@@ -41,7 +41,7 @@ class Node(BaseModel):
     address: str
     port: int = 62050
     api_port: int = 62051
-    usage_coefficient: float = Field(gt=0, default=1.0)
+    usage_coefficient: float = Field(ge=0, default=1.0)
     connection_type: NodeConnectionType
     server_ca: str
     keep_alive: int
@@ -171,7 +171,7 @@ class NodeModify(NodeCreate):
     address: str | None = Field(default=None)
     port: int | None = Field(default=None)
     status: NodeStatus | None = Field(default=None)
-    usage_coefficient: float | None = Field(default=None, gt=0)
+    usage_coefficient: float | None = Field(default=None, ge=0)
     server_ca: str | None = Field(default=None)
     connection_type: NodeConnectionType | None = Field(default=None)
     keep_alive: int | None = Field(default=None)
