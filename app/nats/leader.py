@@ -5,17 +5,17 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import inspect
-import json
 import time
 from collections.abc import Awaitable, Callable
+from typing import Any
 from uuid import uuid4
 
 import nats
-import nats.js.errors as nats_js_errors
 from nats.js.kv import KeyValue
 
 from app.nats import is_nats_enabled
 from app.nats.client import create_nats_client, get_jetstream_context, get_or_create_kv_bucket
+from app.nats.kv_cas import kv_cas_json, kv_get_json
 from app.node.nats_memory import WORKER_ID
 from app.utils.logger import get_logger
 from config import nats_settings, runtime_settings, server_settings
@@ -34,7 +34,7 @@ _kv: KeyValue | None = None
 _token: str | None = None
 _heartbeat_task: asyncio.Task | None = None
 _is_leader = False
-_on_leadership_lost: Callable[[], Awaitable[None] | None] | None = None
+_on_leadership_lost: list[Callable[[], Awaitable[None] | None]] = []
 
 
 def leader_key() -> str:
@@ -52,9 +52,19 @@ def needs_job_leader() -> bool:
 
 
 def set_on_leadership_lost(callback: Callable[[], Awaitable[None] | None] | None) -> None:
-    """Register a callback invoked when this process loses leadership at runtime."""
+    """Register a callback invoked when this process loses leadership at runtime.
+
+    Composes with any previously registered callbacks instead of replacing them.
+    Pass None to clear all registered callbacks.
+    """
     global _on_leadership_lost
-    _on_leadership_lost = callback
+    if not _on_leadership_lost:
+        _on_leadership_lost = []
+    if callback is None:
+        _on_leadership_lost.clear()
+        return
+    if callback not in _on_leadership_lost:
+        _on_leadership_lost.append(callback)
 
 
 async def _ensure_kv() -> KeyValue | None:
@@ -71,20 +81,8 @@ async def _ensure_kv() -> KeyValue | None:
     return _kv
 
 
-def _payload(token: str, expires_at: float) -> bytes:
-    return json.dumps(
-        {"token": token, "worker_id": WORKER_ID, "expires_at": expires_at}, separators=(",", ":")
-    ).encode()
-
-
-def _parse(raw: bytes | None) -> tuple[str, float] | None:
-    if not raw:
-        return None
-    try:
-        data = json.loads(raw)
-        return str(data["token"]), float(data["expires_at"])
-    except (TypeError, ValueError, KeyError, json.JSONDecodeError):
-        return None
+def _lease_payload(token: str, expires_at: float) -> dict[str, Any]:
+    return {"token": token, "worker_id": WORKER_ID, "expires_at": expires_at}
 
 
 async def _concede_leadership(reason: str) -> None:
@@ -98,15 +96,13 @@ async def _concede_leadership(reason: str) -> None:
     _token = None
     logger.warning("Lost scheduler leadership: %s", reason)
 
-    callback = _on_leadership_lost
-    if callback is None:
-        return
-    try:
-        result = callback()
-        if inspect.isawaitable(result):
-            await result
-    except Exception as exc:
-        logger.warning("Leadership lost callback failed: %s", exc)
+    for callback in list(_on_leadership_lost or []):
+        try:
+            result = callback()
+            if inspect.isawaitable(result):
+                await result
+        except Exception as exc:
+            logger.warning("Leadership lost callback failed: %s", exc)
 
 
 async def try_become_leader(lease_seconds: float = DEFAULT_LEASE_SECONDS) -> bool:
@@ -125,44 +121,30 @@ async def try_become_leader(lease_seconds: float = DEFAULT_LEASE_SECONDS) -> boo
 
     token = uuid4().hex
     now = time.time()
-    payload = _payload(token, now + lease_seconds)
+    payload = _lease_payload(token, now + lease_seconds)
 
     try:
-        await kv.create(leader_key(), payload)
-        _token = token
-        _is_leader = True
-        return True
-    except nats_js_errors.KeyWrongLastSequenceError as exc:
-        logger.debug("Scheduler leader create CAS conflict for key=%s: %s", leader_key(), exc)
+        if await kv_cas_json(kv, leader_key(), payload, 0):
+            _token = token
+            _is_leader = True
+            return True
     except Exception as exc:
         # Key may already exist (or create raced); try read/steal before giving up.
         logger.debug("Scheduler leader create failed for key=%s, trying steal path: %s", leader_key(), exc)
 
     try:
-        entry = await kv.get(leader_key())
-    except (nats_js_errors.KeyNotFoundError, nats_js_errors.KeyDeletedError) as exc:
-        logger.debug("Scheduler leader key miss for key=%s: %s", leader_key(), exc)
-        _is_leader = False
-        return False
+        doc, rev = await kv_get_json(kv, leader_key())
     except Exception as exc:
         logger.warning("Failed to read scheduler leader key: %s", exc)
         _is_leader = False
         return False
 
-    info = _parse(entry.value)
-    if info is None or info[1] <= now:
+    if doc is None or float(doc.get("expires_at", 0)) <= now:
         try:
-            await kv.update(leader_key(), payload, last=entry.revision)
-            _token = token
-            _is_leader = True
-            return True
-        except nats_js_errors.KeyWrongLastSequenceError as exc:
-            logger.debug(
-                "Scheduler leader steal CAS conflict for key=%s revision=%s: %s",
-                leader_key(),
-                entry.revision,
-                exc,
-            )
+            if await kv_cas_json(kv, leader_key(), payload, rev):
+                _token = token
+                _is_leader = True
+                return True
         except Exception as exc:
             logger.warning("Failed to steal expired scheduler leader lease: %s", exc)
 
@@ -183,16 +165,16 @@ async def _heartbeat_loop(lease_seconds: float = DEFAULT_LEASE_SECONDS) -> None:
             return
 
         try:
-            entry = await kv.get(leader_key())
-            info = _parse(entry.value)
-            if info is None or info[0] != token:
+            doc, rev = await kv_get_json(kv, leader_key())
+            if doc is None:
+                await _concede_leadership("lease key unavailable")
+                return
+            if doc.get("token") != token:
                 await _concede_leadership("lease token invalid or replaced")
                 return
-            await kv.update(leader_key(), _payload(token, time.time() + lease_seconds), last=entry.revision)
+            if not await kv_cas_json(kv, leader_key(), _lease_payload(token, time.time() + lease_seconds), rev):
+                raise RuntimeError("failed to renew scheduler leader lease")
             consecutive_failures = 0
-        except (nats_js_errors.KeyNotFoundError, nats_js_errors.KeyDeletedError) as exc:
-            await _concede_leadership(f"lease key unavailable: {exc}")
-            return
         except Exception as exc:
             consecutive_failures += 1
             logger.warning(
@@ -242,10 +224,9 @@ async def stop_job_leader() -> None:
     if _kv is not None and _token is not None:
         key = leader_key()
         try:
-            entry = await _kv.get(key)
-            info = _parse(entry.value)
-            if info and info[0] == _token:
-                await _kv.delete(key, last=entry.revision)
+            doc, rev = await kv_get_json(_kv, key)
+            if doc is not None and doc.get("token") == _token:
+                await _kv.delete(key, last=rev)
         except Exception as exc:
             logger.debug("Scheduler leader release failed for key=%s: %s", key, exc)
 

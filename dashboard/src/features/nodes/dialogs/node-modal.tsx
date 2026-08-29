@@ -580,6 +580,7 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
                                       isError={!!form.formState.errors.usage_coefficient}
                                       type="number"
                                       step="0.1"
+                                      min="0"
                                       placeholder={t('nodeModal.usageRatioPlaceholder')}
                                       {...field}
                                       onChange={e => field.onChange(parseFloat(e.target.value))}

@@ -5,7 +5,7 @@ from typing import Literal
 
 from sqlalchemy import and_, case, delete, desc, func, literal, not_, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import joinedload, selectinload
+from sqlalchemy.orm import joinedload, selectinload, with_expression
 from sqlalchemy.sql import Select
 from sqlalchemy.sql.functions import coalesce
 
@@ -94,6 +94,8 @@ def _build_user_select_stmt(
     load_next_plan: bool = True,
     load_usage_logs: bool = True,
     load_groups: bool = True,
+    join_groups: bool = False,
+    load_lifetime_used_traffic: bool = False,
 ) -> Select:
     """Build a user select statement with eager-load options."""
     stmt = select(User)
@@ -108,9 +110,17 @@ def _build_user_select_stmt(
     if load_usage_logs:
         options.append(selectinload(User.usage_logs))
     if load_groups:
-        options.append(selectinload(User.groups))
+        options.append(joinedload(User.groups) if join_groups else selectinload(User.groups))
     if options:
         stmt = stmt.options(*options)
+    if load_lifetime_used_traffic:
+        reset_traffic = (
+            select(func.coalesce(func.sum(UserUsageResetLogs.used_traffic_at_reset), 0))
+            .where(UserUsageResetLogs.user_id == User.id)
+            .correlate(User)
+            .scalar_subquery()
+        )
+        stmt = stmt.options(with_expression(User._reseted_usage_query, reset_traffic))
     return stmt
 
 
@@ -165,6 +175,8 @@ async def get_user(
     load_next_plan: bool = True,
     load_usage_logs: bool = True,
     load_groups: bool = True,
+    join_groups: bool = False,
+    load_lifetime_used_traffic: bool = False,
     admin_id: int | None = None,
 ) -> User | None:
     """
@@ -184,6 +196,8 @@ async def get_user(
         load_next_plan=load_next_plan,
         load_usage_logs=load_usage_logs,
         load_groups=load_groups,
+        join_groups=join_groups,
+        load_lifetime_used_traffic=load_lifetime_used_traffic,
     ).where(User.username == username)
 
     if admin_id is not None:
@@ -201,6 +215,8 @@ async def get_user_by_id(
     load_next_plan: bool = True,
     load_usage_logs: bool = True,
     load_groups: bool = True,
+    join_groups: bool = False,
+    load_lifetime_used_traffic: bool = False,
     admin_id: int | None = None,
 ) -> User | None:
     """
@@ -220,6 +236,8 @@ async def get_user_by_id(
         load_next_plan=load_next_plan,
         load_usage_logs=load_usage_logs,
         load_groups=load_groups,
+        join_groups=join_groups,
+        load_lifetime_used_traffic=load_lifetime_used_traffic,
     ).where(User.id == user_id)
 
     if admin_id is not None:
@@ -374,7 +392,7 @@ async def get_users(
                 and_(User.data_limit.is_not(None), User.data_limit > 0, User.data_limit <= query.data_limit_max)
             )
     if query.no_expire:
-        filters.append(User.expire.is_(None))
+        filters.append(and_(User.expire.is_(None), User.status != UserStatus.on_hold))
     else:
         if query.expire_after is not None:
             filters.append(and_(User.expire.is_not(None), User.expire >= query.expire_after))
@@ -827,37 +845,54 @@ async def get_users_count(db: AsyncSession, status: UserStatus = None, admin_id:
     return result.scalar()
 
 
-async def get_users_count_by_status(
-    db: AsyncSession, statuses: list[UserStatus], admin_id: int | None = None
-) -> dict[str, int]:
+def _build_user_count_metrics_query(
+    statuses: list[UserStatus], online_since: datetime, admin_id: int | None = None
+) -> Select:
+    """Build one index-aware query for dashboard user counts."""
+    if admin_id is not None:
+        status_columns = [
+            select(func.count(User.id))
+            .where(User.admin_id == admin_id, User.status == status)
+            .scalar_subquery()
+            .label(status.value)
+            for status in statuses
+        ]
+        online_column = (
+            select(func.count(User.id))
+            .where(
+                User.admin_id == admin_id,
+                User.online_at.isnot(None),
+                User.online_at >= online_since,
+            )
+            .scalar_subquery()
+            .label("online")
+        )
+        return select(*status_columns, online_column)
+
+    status_columns = [func.count(case((User.status == status, User.id))).label(status.value) for status in statuses]
+    online_column = func.count(case((and_(User.online_at.isnot(None), User.online_at >= online_since), User.id))).label(
+        "online"
+    )
+    return select(*status_columns, online_column)
+
+
+async def get_users_count_metrics(
+    db: AsyncSession,
+    statuses: list[UserStatus],
+    online_window: timedelta,
+    admin_id: int | None = None,
+) -> tuple[dict[str, int], int]:
+    """Return per-status, total, and recent-online user counts in one SELECT.
+
+    The ``total`` value includes only the requested statuses. Pass every
+    ``UserStatus`` value when a complete user count is required.
     """
-    Gets count of users grouped by status in a single query.
+    stmt = _build_user_count_metrics_query(statuses, datetime.now(UTC) - online_window, admin_id)
+    row = (await db.execute(stmt)).one()
 
-    Args:
-        db (AsyncSession): Database session.
-        statuses (list[UserStatus]): List of statuses to count.
-        admin_id (int, optional): Filter by admin.
-    Returns:
-        dict[str, int]: Dictionary with status counts and total.
-    """
-    stmt = select(User.status, func.count(User.id).label("count"))
-
-    filters = [User.status.in_(statuses)]
-    if admin_id:
-        filters.append(User.admin_id == admin_id)
-
-    stmt = stmt.where(and_(*filters)).group_by(User.status)
-
-    result = await db.execute(stmt)
-    status_counts = {row.status.value: row.count for row in result}
-
-    # Ensure all requested statuses are present with 0 count if missing
-    all_statuses = {status.value: status_counts.get(status.value, 0) for status in statuses}
-
-    # Add total count
-    all_statuses["total"] = sum(all_statuses.values())
-
-    return all_statuses
+    status_counts = {status.value: int(getattr(row, status.value) or 0) for status in statuses}
+    status_counts["total"] = sum(status_counts.values())
+    return status_counts, int(row.online or 0)
 
 
 async def create_user(
@@ -1867,22 +1902,3 @@ async def delete_user_passed_notification_reminders(
 
     stmt = delete(NotificationReminder).where(and_(*conditions))
     await db.execute(stmt)
-
-
-async def count_online_users(db: AsyncSession, time_delta: timedelta, admin_id: int | None = None):
-    """
-    Counts the number of users who have been online within the specified time delta.
-
-    Args:
-        db (AsyncSession): The database session.
-        time_delta (timedelta): The time period to check for online users.
-        admin_id (int, optional): Filter by admin.
-
-    Returns:
-        int: The number of users who have been online within the specified time period.
-    """
-    twenty_four_hours_ago = datetime.now(UTC) - time_delta
-    query = select(func.count(User.id)).where(User.online_at.isnot(None), User.online_at >= twenty_four_hours_ago)
-    if admin_id:
-        query = query.where(User.admin_id == admin_id)
-    return (await db.execute(query)).scalar_one_or_none()

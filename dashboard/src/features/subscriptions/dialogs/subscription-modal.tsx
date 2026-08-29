@@ -10,6 +10,7 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { useClipboard } from '@/hooks/use-clipboard'
 import {
   downloadTextFile,
   encodeSubscriptionContentToBase64,
@@ -50,6 +51,7 @@ const SubscriptionModal: FC<SubscriptionModalProps> = memo(({ open, subscribeUrl
   const isOpen = open ?? subscribeUrl !== null
   const { t } = useTranslation()
   const dir = useDirDetection()
+  const { copy } = useClipboard({ timeout: 1500 })
   const isRTL = dir === 'rtl'
 
   const [configs, setConfigs] = useState<ConfigItem[]>([])
@@ -126,7 +128,8 @@ const SubscriptionModal: FC<SubscriptionModalProps> = memo(({ open, subscribeUrl
       try {
         const preparedContent = prepareSubscriptionContentForCopy(config).content
         const copyContent = mode === 'base64' ? encodeSubscriptionContentToBase64(preparedContent) : preparedContent
-        await navigator.clipboard.writeText(copyContent)
+        const copied = await copy(copyContent)
+        if (!copied) throw new Error('Failed to copy configuration')
         setCopiedConfig({ config, mode })
         toast.success(t('usersTable.copied', { defaultValue: 'Copied' }))
         setTimeout(() => setCopiedConfig(null), 1500)
@@ -134,20 +137,21 @@ const SubscriptionModal: FC<SubscriptionModalProps> = memo(({ open, subscribeUrl
         toast.error(t('copyFailed', { defaultValue: 'Failed to copy' }))
       }
     },
-    [t],
+    [copy, t],
   )
 
   const handleCopyAllConfigs = useCallback(async () => {
     try {
       const content = prepareSubscriptionContentForCopy(configs.map(item => item.config).join('\n')).content
-      await navigator.clipboard.writeText(content)
+      const copied = await copy(content)
+      if (!copied) throw new Error('Failed to copy configurations')
       setAllConfigsCopied(true)
       toast.success(t('usersTable.copied', { defaultValue: 'Copied' }))
       setTimeout(() => setAllConfigsCopied(false), 1500)
     } catch {
       toast.error(t('copyFailed', { defaultValue: 'Failed to copy' }))
     }
-  }, [configs, t])
+  }, [configs, copy, t])
 
   const handleDownloadWireGuard = useCallback(
     (config: string) => {

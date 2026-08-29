@@ -382,7 +382,7 @@ export const Login: FC = () => {
             <div className="flex flex-col items-center gap-2">
               <img src={resolvedTheme === 'dark' ? '/statics/favicon/logo.png' : '/statics/favicon/logo-dark.png'} alt="PasarGuard Logo" className="h-20 w-20 object-contain" />
               <span className="text-2xl font-semibold">{view === 'login' ? t('login.loginYourAccount') : t('setup.ownerAccess', { defaultValue: 'Owner access' })}</span>
-              <span className="text-center text-gray-600 dark:text-gray-400">
+              <span className="text-center text-muted-foreground">
                 {view === 'login'
                   ? t('login.welcomeBack')
                   : t('setup.ownerAccessDescription', {

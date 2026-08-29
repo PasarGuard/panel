@@ -697,7 +697,7 @@ export default function NodesList() {
                 isLoading={showLoadingSpinner || showPageLoadingSkeletons}
                 loadingRows={6}
                 className="gap-4"
-                gridClassName="transform-gpu animate-slide-up"
+                gridClassName=""
                 gridStyle={{ animationDuration: '500ms', animationDelay: '100ms', animationFillMode: 'both' }}
                 enableSelection={canUseBulkSelection}
                 injectSelectionProps={canUseBulkSelection}

@@ -217,7 +217,6 @@ export default function HostsList({
                 packet: noise.packet,
                 delay: noise.delay,
                 apply_to: (noise.apply_to as 'ip' | 'ipv4' | 'ipv6') || 'ip',
-                rand_range: noise.rand_range ?? undefined,
               })) ?? undefined,
           }
         : undefined,
@@ -394,6 +393,7 @@ export default function HostsList({
         wireguard_overrides: host.wireguard_overrides ?? undefined,
         subscription_templates: host.subscription_templates ?? undefined,
         final_mask_settings: host.final_mask_settings ?? undefined,
+        cipher_suites: host.cipher_suites ?? undefined,
       }
 
       await createHost(newHost)

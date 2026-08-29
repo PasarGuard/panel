@@ -167,6 +167,12 @@ class NodeOperation(BaseOperation):
         if not db_node:
             return
 
+        if db_node.status in (NodeStatus.disabled, NodeStatus.limited) and status not in (
+            NodeStatus.disabled,
+            NodeStatus.limited,
+        ):
+            return
+
         old_status = db_node.status
 
         if status == NodeStatus.error:
@@ -1004,7 +1010,8 @@ class NodeOperation(BaseOperation):
             core_id = db_node.core_config_id or 1
             _, users_by_core = await self._get_core_users_map(db, {core_id})
             users = users_by_core.get(core_id, [])
-            await pg_node.sync_users(users, flush_pending=flush_users)
+            if await node_manager.sync_full(node_id, users, flush_pending=flush_users) is None:
+                await self.raise_error(message="Node is not connected", code=409)
         except NodeAPIError as e:
             await update_node_status(db=db, db_node=db_node, status=NodeStatus.error, message=e.detail)
             await self.raise_error(message=e.detail, code=e.code)
