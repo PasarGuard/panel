@@ -27,13 +27,16 @@ async def load_user_template_attrs(template: UserTemplate):
     await template.awaitable_attrs.groups
 
 
-async def create_user_template(db: AsyncSession, user_template: UserTemplateCreate) -> UserTemplate:
+async def create_user_template(
+    db: AsyncSession, user_template: UserTemplateCreate, admin_id: int | None = None
+) -> UserTemplate:
     """
     Creates a new user template in the database.
 
     Args:
         db (AsyncSession): Database session.
         user_template (UserTemplateCreate): The user template creation data.
+        admin_id (int | None): The ID of the admin who owns this template.
 
     Returns:
         UserTemplate: The created user template object.
@@ -41,6 +44,7 @@ async def create_user_template(db: AsyncSession, user_template: UserTemplateCrea
 
     db_user_template = UserTemplate(
         name=user_template.name,
+        admin_id=admin_id,
         data_limit=user_template.data_limit,
         hwid_limit=user_template.hwid_limit,
         expire_duration=user_template.expire_duration,
@@ -121,28 +125,32 @@ async def remove_user_template(db: AsyncSession, db_user_template: UserTemplate)
     await db.commit()
 
 
-async def get_user_template(db: AsyncSession, user_template_id: int) -> UserTemplate:
+async def get_user_template(
+    db: AsyncSession, user_template_id: int, admin_id: int | None = None
+) -> UserTemplate:
     """
     Retrieves a user template by its ID.
 
     Args:
         db (AsyncSession): Database session.
         user_template_id (int): The ID of the user template.
+        admin_id (int | None): If provided, only return the template if it belongs to this admin.
 
     Returns:
         UserTemplate: The user template object.
     """
-    user_template = (
-        (await db.execute(select(UserTemplate).where(UserTemplate.id == user_template_id)))
-        .unique()
-        .scalar_one_or_none()
-    )
+    stmt = select(UserTemplate).where(UserTemplate.id == user_template_id)
+    if admin_id is not None:
+        stmt = stmt.where(UserTemplate.admin_id == admin_id)
+    user_template = (await db.execute(stmt)).unique().scalar_one_or_none()
     if user_template:
         await load_user_template_attrs(user_template)
     return user_template
 
 
-async def get_user_templates(db: AsyncSession, query: UserTemplateListQuery) -> list[UserTemplate]:
+async def get_user_templates(
+    db: AsyncSession, query: UserTemplateListQuery, admin_id: int | None = None
+) -> list[UserTemplate]:
     """
     Retrieves a list of user templates with optional pagination.
 
@@ -150,11 +158,14 @@ async def get_user_templates(db: AsyncSession, query: UserTemplateListQuery) -> 
         db (AsyncSession): Database session.
         offset (Union[int, None]): The number of records to skip (for pagination).
         limit (Union[int, None]): The maximum number of records to return.
+        admin_id (int | None): If provided, only return templates that belong to this admin.
 
     Returns:
         List[UserTemplate]: A list of user template objects.
     """
     stmt = select(UserTemplate).order_by(UserTemplate.id.asc())
+    if admin_id is not None:
+        stmt = stmt.where(UserTemplate.admin_id == admin_id)
     if query.ids:
         stmt = stmt.where(UserTemplate.id.in_(query.ids))
     if query.offset:
@@ -172,6 +183,7 @@ async def get_user_templates(db: AsyncSession, query: UserTemplateListQuery) -> 
 async def get_user_templates_simple(
     db: AsyncSession,
     query: UserTemplateSimpleListQuery,
+    admin_id: int | None = None,
 ) -> tuple[list[tuple[int, str]], int]:
     """
     Retrieves lightweight user template data with only id and name.
@@ -183,12 +195,15 @@ async def get_user_templates_simple(
         search: Search term for template name.
         sort: Sort options.
         skip_pagination: If True, ignore offset/limit and return all records (max 1,000).
+        admin_id: If provided, only return templates that belong to this admin.
 
     Returns:
         Tuple of (list of (id, name) tuples, total_count).
     """
     stmt = select(UserTemplate.id, UserTemplate.name)
 
+    if admin_id is not None:
+        stmt = stmt.where(UserTemplate.admin_id == admin_id)
     if query.ids:
         stmt = stmt.where(UserTemplate.id.in_(query.ids))
     if query.search:

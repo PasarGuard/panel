@@ -82,6 +82,7 @@ class UserTemplateModify(UserTemplateWithValidator):
 
 class UserTemplateResponse(UserTemplate):
     id: int
+    admin_id: int | None = None
 
     model_config = ConfigDict(from_attributes=True)
 

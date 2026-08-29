@@ -274,8 +274,10 @@ class BaseOperation:
         # Preserve the requested order and duplicate semantics.
         return [groups_by_id[group_id] for group_id in requested_group_ids]
 
-    async def get_validated_user_template(self, db: AsyncSession, template_id: int) -> UserTemplate:
-        dbuser_template = await get_user_template(db, template_id)
+    async def get_validated_user_template(
+        self, db: AsyncSession, template_id: int, admin_id: int | None = None
+    ) -> UserTemplate:
+        dbuser_template = await get_user_template(db, template_id, admin_id=admin_id)
         if not dbuser_template:
             await self.raise_error("User Template not found", 404)
         return dbuser_template
