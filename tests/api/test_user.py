@@ -1380,6 +1380,118 @@ def test_xray_subscription_includes_wireguard_outbound(access_token):
         delete_core(access_token, core["id"])
 
 
+
+def test_xray_subscription_applies_host_sockopt_domain_strategy(access_token):
+    unique_inbound = unique_name("xray_sockopt_inbound")
+    core = create_core(
+        access_token,
+        name=unique_name("xray_sockopt_core"),
+        config={
+            "log": {"loglevel": "info"},
+            "inbounds": [
+                {
+                    "tag": unique_inbound,
+                    "listen": "0.0.0.0",
+                    "port": 2087,
+                    "protocol": "vmess",
+                    "settings": {"clients": []},
+                    "streamSettings": {
+                        "network": "ws",
+                        "wsSettings": {"path": "/yourpath"},
+                        "security": "none",
+                    },
+                }
+            ],
+            "outbounds": [
+                {"protocol": "freedom", "tag": "DIRECT"},
+                {"protocol": "blackhole", "tag": "BLOCK"},
+            ],
+        },
+        fallbacks=[],
+    )
+
+    use_ip_response = client.post(
+        "/api/host",
+        headers=auth_headers(access_token),
+        json={
+            "remark": "UseIP {USERNAME}",
+            "address": ["useip.example.com"],
+            "port": 443,
+            "inbound_tag": unique_inbound,
+            "priority": 1,
+            "xray_sockopt_domain_strategy": "UseIP",
+            "fragment_settings": {
+                "xray": {
+                    "packets": "tlshello",
+                    "length": "10-20",
+                    "interval": "10-20",
+                }
+            },
+        },
+    )
+    assert use_ip_response.status_code == status.HTTP_201_CREATED
+    assert use_ip_response.json()["xray_sockopt_domain_strategy"] == "UseIP"
+    use_ip_host_id = use_ip_response.json()["id"]
+
+    as_is_response = client.post(
+        "/api/host",
+        headers=auth_headers(access_token),
+        json={
+            "remark": "AsIs {USERNAME}",
+            "address": ["asis.example.com"],
+            "port": 443,
+            "inbound_tag": unique_inbound,
+            "priority": 2,
+        },
+    )
+    assert as_is_response.status_code == status.HTTP_201_CREATED
+    assert as_is_response.json()["xray_sockopt_domain_strategy"] == "AsIs"
+    as_is_host_id = as_is_response.json()["id"]
+
+    group = create_group(
+        access_token,
+        name=unique_name("xray_sockopt_group"),
+        inbound_tags=[unique_inbound],
+    )
+    user = create_user(
+        access_token,
+        group_ids=[group["id"]],
+        payload={"username": unique_name("xray_sockopt_user")},
+    )
+
+    try:
+        response = client.get(f"{user['subscription_url']}/xray")
+        assert response.status_code == status.HTTP_200_OK
+        configs = response.json()
+
+        proxy_by_address = {}
+        outbounds_by_address = {}
+        for config in configs:
+            proxy = next(
+                outbound for outbound in config["outbounds"] if outbound.get("tag") == "proxy"
+            )
+            address = proxy["settings"]["vnext"][0]["address"]
+            proxy_by_address[address] = proxy
+            outbounds_by_address[address] = config["outbounds"]
+
+        use_ip_proxy = proxy_by_address["useip.example.com"]
+        use_ip_sockopt = use_ip_proxy["streamSettings"]["sockopt"]
+        assert use_ip_sockopt["domainStrategy"] == "UseIP"
+        assert use_ip_sockopt["dialerProxy"] == "dialer"
+        assert any(
+            outbound.get("tag") == "dialer"
+            for outbound in outbounds_by_address["useip.example.com"]
+        )
+
+        as_is_proxy = proxy_by_address["asis.example.com"]
+        assert "sockopt" not in as_is_proxy["streamSettings"]
+    finally:
+        delete_user(access_token, user["username"])
+        delete_group(access_token, group["id"])
+        client.delete(f"/api/host/{use_ip_host_id}", headers=auth_headers(access_token))
+        client.delete(f"/api/host/{as_is_host_id}", headers=auth_headers(access_token))
+        delete_core(access_token, core["id"])
+
 def test_xray_subscription_uses_host_specific_template_override(access_token):
     # Use a unique inbound tag so other tests' hosts can't affect config count.
     unique_inbound = unique_name("xray_override_inbound")

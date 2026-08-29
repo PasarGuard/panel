@@ -22,7 +22,7 @@ import { AlertTriangle, Cable, ChevronsLeftRightEllipsis, Copy, Pencil, GlobeLoc
 import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
-import { hostFormDefaultValues, type HostFormValues } from '@/features/hosts/forms/host-form'
+import { hostFormDefaultValues, XRAY_SOCKOPT_DOMAIN_STRATEGIES, type HostFormValues } from '@/features/hosts/forms/host-form'
 import { LoaderButton } from '@/components/ui/loader-button'
 import { FinalMaskSettings } from '../components/finalmask-settings'
 
@@ -829,6 +829,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
         payload.ech_query_strategy = undefined
         payload.pinned_peer_cert_sha256 = undefined
         payload.verify_peer_cert_by_name = []
+        payload.xray_sockopt_domain_strategy = 'AsIs'
         payload.mux_settings = undefined
         payload.transport_settings = undefined
         if (payload.wireguard_overrides) {
@@ -1019,6 +1020,49 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                 }}
               />
 
+              {!shouldRenderWireGuardLayout && (
+                <FormField
+                  control={form.control}
+                  name="xray_sockopt_domain_strategy"
+                  render={({ field }) => (
+                    <FormItem>
+                      <div className="flex items-center gap-2">
+                        <FormLabel>
+                          {t('hostsDialog.xraySockoptDomainStrategy', {
+                            defaultValue: 'Xray Domain Strategy',
+                          })}
+                        </FormLabel>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button type="button" variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent">
+                              <Info className="text-muted-foreground h-4 w-4" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
+                            <p className="text-muted-foreground text-[11px]">
+                              {t('hostsDialog.xraySockoptDomainStrategyInfo', {
+                                defaultValue:
+                                  "Controls streamSettings.sockopt.domainStrategy on generated Xray proxy outbounds. Non-AsIs strategies resolve domain destinations through Xray's DNS resolver, falling back to system DNS when no DNS object is configured.",
+                              })}
+                            </p>
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+                      <Select dir={dir} value={field.value ?? 'AsIs'} onValueChange={field.onChange}>
+                        <FormControl>
+                          <SelectTrigger className="py-5"><SelectValue /></SelectTrigger>
+                        </FormControl>
+                        <SelectContent dir="ltr">
+                          {XRAY_SOCKOPT_DOMAIN_STRATEGIES.map(strategy => (
+                            <SelectItem className="cursor-pointer px-4" key={strategy} value={strategy}>{strategy}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
               <FormField
                 control={form.control}
                 name="status"

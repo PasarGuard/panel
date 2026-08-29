@@ -556,6 +556,7 @@ class ProxyHost(Base, IdMixin):
     is_disabled: Mapped[bool | None] = mapped_column(default=False)
     fragment_settings: Mapped[dict[str, Any] | None] = mapped_column(JSON(none_as_null=True), default=None)
     noise_settings: Mapped[dict[str, Any] | None] = mapped_column(JSON(none_as_null=True), default=None)
+    xray_sockopt_domain_strategy: Mapped[str] = mapped_column(String(16), nullable=False, default="AsIs", server_default="AsIs",)
     random_user_agent: Mapped[bool] = mapped_column(default=False, server_default="0")
     use_sni_as_host: Mapped[bool] = mapped_column(default=False, server_default="0")
     http_headers: Mapped[dict[str, Any] | None] = mapped_column(JSON(none_as_null=True), default=None)
