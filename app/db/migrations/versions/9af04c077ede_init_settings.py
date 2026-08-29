@@ -13,6 +13,8 @@ from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 import sqlalchemy as sa
 
+from app.models.subscription_defaults import build_default_subscription_rules
+
 
 # revision identifiers, used by Alembic.
 revision = "9af04c077ede"
@@ -167,59 +169,14 @@ notification_enable = {
     "percentage_reached": True,
 }
 
-xray_rule = ""
-
-
-def append_rule(pattern: str) -> None:
-    global xray_rule
-    if xray_rule:
-        xray_rule += "|" + pattern
-    else:
-        xray_rule = pattern
-
-
-if USE_CUSTOM_JSON_DEFAULT:
-    append_rule("[Vv]2rayNG")
-    append_rule("[Vv]2rayN")
-    append_rule("[Ss]treisand")
-    append_rule("[Hh]app")
-    append_rule(r"[Kk]tor\-client")
-
-else:
-    if USE_CUSTOM_JSON_FOR_V2RAYNG:
-        append_rule("[Vv]2rayNG")
-    if USE_CUSTOM_JSON_FOR_V2RAYN:
-        append_rule("[Vv]2rayN")
-    if USE_CUSTOM_JSON_FOR_STREISAND:
-        append_rule("[Ss]treisand")
-    if USE_CUSTOM_JSON_FOR_HAPP:
-        append_rule("[Hh]app")
-    if USE_CUSTOM_JSON_FOR_NPVTUNNEL:
-        append_rule(r"[Kk]tor\-client")
-
-
-rules = [
-    {
-        "pattern": r"^(?:FlClashX?|Flowvy|[Cc]lash(?:-(?:[Vv]erge|nyanpasu)|X [Mm]eta|-?[Mm]eta)|[Kk]oala-[Cc]lash|[Mm](?:urge|ihomo)|prizrak-box|clash\.meta)",
-        "target": "clash_meta",
-    },
-    {"pattern": r"^([Cc]lash|[Ss]tash)", "target": "clash"},
-    {"pattern": r"^(SFA|SFI|SFM|SFT|[Kk]aring|[Hh]iddify[Nn]ext)|.*[Ss]ing[\-b]?ox.*", "target": "sing_box"},
-    {"pattern": r"^(SS|SSR|SSD|SSS|Outline|Shadowsocks|SSconf)", "target": "outline"},
-    {
-        # InHive: universal client (sing-box fork + Xray parity); ingests raw
-        # share-links / Xray-JSON natively. Serve the full, unstripped xray format.
-        "pattern": r"^[Ii]n[Hh]ive",
-        "target": "xray",
-    },
-    {
-        "pattern": r"^.*",  # Default catch-all pattern
-        "target": "links_base64",
-    },
-]
-
-if xray_rule:
-    rules.insert(-1, {"pattern": r"^(%s)" % xray_rule, "target": "xray"})
+rules = build_default_subscription_rules(
+    use_custom_json_default=USE_CUSTOM_JSON_DEFAULT,
+    use_custom_json_for_v2rayn=USE_CUSTOM_JSON_FOR_V2RAYN,
+    use_custom_json_for_v2rayng=USE_CUSTOM_JSON_FOR_V2RAYNG,
+    use_custom_json_for_streisand=USE_CUSTOM_JSON_FOR_STREISAND,
+    use_custom_json_for_happ=USE_CUSTOM_JSON_FOR_HAPP,
+    use_custom_json_for_npvtunnel=USE_CUSTOM_JSON_FOR_NPVTUNNEL,
+)
 
 manual_sub_request = {
     "links": True,

@@ -123,6 +123,12 @@ class SubscriptionEnvSettings(EnvSettings):
     fallback_path: str = Field(default="sub", validation_alias="SUBSCRIPTION_PATH")
     clients_limit: int = Field(default=10, validation_alias="USER_SUBSCRIPTION_CLIENTS_LIMIT")
     external_config: str = Field(default="", validation_alias="EXTERNAL_CONFIG")
+    use_custom_json_default: bool = Field(default=False, validation_alias="USE_CUSTOM_JSON_DEFAULT")
+    use_custom_json_for_v2rayn: bool = Field(default=False, validation_alias="USE_CUSTOM_JSON_FOR_V2RAYN")
+    use_custom_json_for_v2rayng: bool = Field(default=False, validation_alias="USE_CUSTOM_JSON_FOR_V2RAYNG")
+    use_custom_json_for_streisand: bool = Field(default=False, validation_alias="USE_CUSTOM_JSON_FOR_STREISAND")
+    use_custom_json_for_happ: bool = Field(default=False, validation_alias="USE_CUSTOM_JSON_FOR_HAPP")
+    use_custom_json_for_npvtunnel: bool = Field(default=False, validation_alias="USE_CUSTOM_JSON_FOR_NPVTUNNEL")
 
     @cached_property
     def path(self) -> str:
