@@ -541,7 +541,11 @@ async def bulk_update_node_status(
 
     stmt = (
         update(Node)
-        .where(Node.id == bindparam("node_id"), Node.status.not_in((NodeStatus.disabled, NodeStatus.limited)))
+        .where(
+            Node.id == bindparam("node_id"),
+            Node.status != NodeStatus.disabled,
+            Node.status != NodeStatus.limited,
+        )
         .values(
             status=bindparam("status"),
             message=bindparam("message"),
