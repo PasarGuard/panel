@@ -5,7 +5,7 @@ from typing import Literal
 
 from sqlalchemy import and_, case, delete, desc, func, literal, not_, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import joinedload, selectinload, with_expression
+from sqlalchemy.orm import joinedload, load_only, selectinload, with_expression
 from sqlalchemy.sql import Select
 from sqlalchemy.sql.functions import coalesce
 
@@ -442,6 +442,21 @@ async def get_users(
     if return_with_count:
         return users, total
     return users
+
+
+async def get_users_for_node_sync(db: AsyncSession, user_ids: list[int]) -> list[User]:
+    """Load only the User columns needed for allocation and node synchronization."""
+    if not user_ids:
+        return []
+
+    stmt = (
+        select(User)
+        .where(User.id.in_(user_ids))
+        .options(load_only(User.id, User.admin_id, User.status, User.proxy_settings))
+    )
+    users = list((await db.execute(stmt)).scalars().all())
+    users_by_id = {user.id: user for user in users}
+    return [users_by_id[user_id] for user_id in user_ids if user_id in users_by_id]
 
 
 async def get_users_simple(

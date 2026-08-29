@@ -166,9 +166,20 @@ async def remove_users(users: list[User]) -> None:
     asyncio.create_task(_dispatch_users_update(proto_users))
 
 
-async def sync_users(users: list[User]) -> None:
+async def sync_users(
+    users: list[User],
+    *,
+    inbound_tags_by_user: dict[int, set[str]] | None = None,
+    wait_for_dispatch: bool = False,
+) -> None:
     """Sync users to nodes, excluding users whose admin has users_sync_blocked."""
     blocked_admin_ids = await _blocked_admin_ids_for_users(users)
     filtered = [user for user in users if user.admin_id not in blocked_admin_ids]
-    proto_users = await serialize_users_for_node(filtered)
-    asyncio.create_task(_dispatch_users_update(proto_users))
+    if inbound_tags_by_user is None:
+        proto_users = await serialize_users_for_node(filtered)
+    else:
+        proto_users = await serialize_users_for_node(filtered, inbound_tags_by_user=inbound_tags_by_user)
+    if wait_for_dispatch:
+        await _dispatch_users_update(proto_users)
+    else:
+        asyncio.create_task(_dispatch_users_update(proto_users))
