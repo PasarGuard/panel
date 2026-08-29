@@ -21,7 +21,8 @@ from config import runtime_settings, subscription_env_settings
 
 logger = get_logger("app-factory")
 
-# Swagger UI ships no dark theme; hand-tune one instead of the harsher filter-invert hack.
+# Swagger UI ships no dark theme; hand-tune one instead of the harsher filter-invert hack
+# (and instead of swagger-ui-dist's built-in `html.dark-mode` theme, which reads too dark).
 _SWAGGER_DARK_CSS = """
     <style>
         body {
@@ -94,6 +95,38 @@ _SWAGGER_DARK_CSS = """
         }
         .swagger-ui .model-box {
             background-color: #1c2024;
+        }
+        .swagger-ui .dialog-ux .backdrop-ux {
+            background: rgba(0, 0, 0, 0.6);
+        }
+        .swagger-ui .dialog-ux .modal-ux {
+            background-color: #262b31;
+            border-color: #3a3f45;
+        }
+        .swagger-ui .dialog-ux .modal-ux-header,
+        .swagger-ui .dialog-ux .modal-ux-content {
+            border-color: #3a3f45;
+        }
+        .swagger-ui .dialog-ux .modal-ux-header h3,
+        .swagger-ui .dialog-ux .modal-ux-content h4,
+        .swagger-ui .dialog-ux .modal-ux-content h5,
+        .swagger-ui .dialog-ux .modal-ux-content p,
+        .swagger-ui .dialog-ux .modal-ux-content label,
+        .swagger-ui .dialog-ux .modal-ux-content .auth-container p,
+        .swagger-ui .dialog-ux .modal-ux-content .auth-container h4,
+        .swagger-ui .dialog-ux .modal-ux-content .auth-container em {
+            color: #c9d1d9;
+        }
+        .swagger-ui .dialog-ux .modal-ux-content input {
+            background-color: #1c2024;
+            color: #c9d1d9;
+            border-color: #3a3f45;
+        }
+        .swagger-ui .dialog-ux .auth-container {
+            border-color: #3a3f45;
+        }
+        .swagger-ui .dialog-ux .close-modal svg {
+            fill: #c9d1d9;
         }
     </style>
 """
