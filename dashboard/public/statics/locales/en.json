@@ -163,6 +163,13 @@
         "title": "Default Shadowsocks Method",
         "description": "Autofill the encryption method for new Shadowsocks users"
       },
+      "onHoldTimeoutAction": {
+        "title": "On-Hold Timeout Action",
+        "description": "Choose what happens to an on-hold user when their on-hold timeout expires",
+        "activate": "Activate user (default)",
+        "disable": "Disable user",
+        "delete": "Delete user"
+      },
       "errorLoadingSettings": "Error loading settings"
     },
     "notifications": {

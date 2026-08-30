@@ -356,8 +356,15 @@ class HWIDSettings(BaseModel):
     max_limit: int | None = Field(default=None, ge=0)
 
 
+class OnHoldTimeoutAction(StrEnum):
+    activate = "activate"
+    disable = "disable"
+    delete = "delete"
+
+
 class General(BaseModel):
     default_method: ShadowsocksMethods = Field(default=ShadowsocksMethods.CHACHA20_POLY1305)
+    on_hold_timeout_action: OnHoldTimeoutAction = Field(default=OnHoldTimeoutAction.activate)
     custom_variables: list[CustomVariable] | None = Field(default=None)
 
     @field_validator("custom_variables")

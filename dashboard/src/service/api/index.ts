@@ -1082,6 +1082,13 @@ export interface UserModify {
   status?: UserModifyStatus
 }
 
+/**
+ * User IP lists for all nodes
+ */
+export interface UserIPListAll {
+  nodes: UserIPListAllNodes
+}
+
 export type UserIPListIps = { [key: string]: number }
 
 /**
@@ -1092,13 +1099,6 @@ export interface UserIPList {
 }
 
 export type UserIPListAllNodes = { [key: string]: UserIPList | null }
-
-/**
- * User IP lists for all nodes
- */
-export interface UserIPListAll {
-  nodes: UserIPListAllNodes
-}
 
 export type UserHWIDResponseDeviceModel = string | null
 
@@ -1866,6 +1866,15 @@ export interface OwnerCreateRequest {
   username: string
 }
 
+export type OnHoldTimeoutAction = (typeof OnHoldTimeoutAction)[keyof typeof OnHoldTimeoutAction]
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const OnHoldTimeoutAction = {
+  activate: 'activate',
+  disable: 'disable',
+  delete: 'delete',
+} as const
+
 export type NotificationSettingsProxyUrl = string | null
 
 export type NotificationSettingsDiscordWebhookUrl = string | null
@@ -2518,6 +2527,7 @@ export type GeneralCustomVariables = CustomVariable[] | null
 
 export interface General {
   default_method?: ShadowsocksMethods
+  on_hold_timeout_action?: OnHoldTimeoutAction
   custom_variables?: GeneralCustomVariables
 }
 
