@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.models import ProxyHost, ProxyInbound, inbounds_groups_association
 from app.models.host import CreateHost, HostListQuery
 
-from .group_lock import lock_group_rows_for_sync
+from .group_lock import lock_group_policy_writes, lock_group_rows_for_sync
 
 
 async def upsert_inbounds(db: AsyncSession, inbound_tags: list[str]) -> dict[str, ProxyInbound]:
@@ -103,6 +103,10 @@ async def remove_inbounds(db: AsyncSession, inbounds: list[ProxyInbound]) -> Non
     if not inbounds:
         return
 
+    # Association writers take this lock before their group-row lock. Taking
+    # it before discovery prevents a new association from appearing between
+    # the group-id query and the inbound deletion.
+    await lock_group_policy_writes(db)
     inbound_ids = [inbound.id for inbound in inbounds]
     group_ids = (
         await db.execute(

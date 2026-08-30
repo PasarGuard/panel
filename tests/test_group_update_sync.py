@@ -9,7 +9,7 @@ from sqlalchemy.pool import StaticPool
 from app.db.base import Base
 from app.db.crud.group import get_group_for_sync_update, get_group_user_count, get_group_user_ids_batch
 from app.db.crud.host import remove_inbounds
-from app.db.models import Group, ProxyInbound, UserStatus, inbounds_groups_association, users_groups_association
+from app.db.models import JWT, Group, ProxyInbound, UserStatus, inbounds_groups_association, users_groups_association
 from app.models.group import GroupModify, GroupResponse
 from app.node import sync as node_sync_module, user as node_user_module
 from app.operation import OperatorType, group as group_operation_module
@@ -65,6 +65,7 @@ async def test_group_sync_lock_coordinates_separate_sqlite_sessions(tmp_path):
         async with engine.begin() as connection:
             await connection.run_sync(Base.metadata.create_all)
         async with session_factory() as setup_db:
+            await setup_db.execute(JWT.__table__.insert().values(id=1, secret_key="x" * 64))
             await setup_db.execute(Group.__table__.insert().values(id=7, name="test", is_disabled=False))
             await setup_db.commit()
 
@@ -83,6 +84,44 @@ async def test_group_sync_lock_coordinates_separate_sqlite_sessions(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_inbound_cleanup_locks_policy_before_group_discovery():
+    """No association writer can enter after cleanup starts discovery."""
+    db = AsyncMock()
+    inbound = SimpleNamespace(id=11)
+    group_rows = Mock()
+    group_rows.scalars.return_value = [7]
+    events = []
+
+    async def record_policy_lock(*args, **kwargs):
+        events.append("policy-lock")
+
+    async def record_query(*args, **kwargs):
+        events.append("discover-groups")
+        return group_rows
+
+    async def record_group_locks(*args, **kwargs):
+        events.append("group-locks")
+
+    async def record_delete(*args, **kwargs):
+        events.append("delete")
+
+    async def record_commit(*args, **kwargs):
+        events.append("commit")
+
+    db.execute.side_effect = record_query
+    db.delete.side_effect = record_delete
+    db.commit.side_effect = record_commit
+
+    with (
+        patch("app.db.crud.host.lock_group_policy_writes", new=AsyncMock(side_effect=record_policy_lock)),
+        patch("app.db.crud.host.lock_group_rows_for_sync", new=AsyncMock(side_effect=record_group_locks)),
+    ):
+        await remove_inbounds(db, [inbound])
+
+    assert events == ["policy-lock", "discover-groups", "group-locks", "delete", "commit"]
+
+
+@pytest.mark.asyncio
 async def test_inbound_cleanup_waits_for_final_group_sync_validation(tmp_path):
     """Cleanup cannot remove access between a batch's validation and dispatch."""
     database_path = (tmp_path / "inbound-cleanup-lock.db").resolve().as_posix()
@@ -92,6 +131,7 @@ async def test_inbound_cleanup_waits_for_final_group_sync_validation(tmp_path):
         async with engine.begin() as connection:
             await connection.run_sync(Base.metadata.create_all)
         async with session_factory() as setup_db:
+            await setup_db.execute(JWT.__table__.insert().values(id=1, secret_key="x" * 64))
             await setup_db.execute(Group.__table__.insert().values(id=7, name="test", is_disabled=False))
             await setup_db.execute(ProxyInbound.__table__.insert().values(id=11, tag="VLESS"))
             await setup_db.execute(inbounds_groups_association.insert().values(inbound_id=11, group_id=7))

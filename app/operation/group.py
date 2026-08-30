@@ -16,6 +16,7 @@ from app.db.crud.group import (
     remove_group,
     remove_groups,
 )
+from app.db.crud.group_lock import lock_group_policy_writes
 from app.db.crud.user import get_users, get_users_for_node_sync
 from app.db.crud.wireguard import get_users_accessible_tags, sync_users_allocations
 from app.db.models import Admin
@@ -62,6 +63,9 @@ class GroupOperation(BaseOperation):
         if allowed is not None and group_id not in allowed:
             await self.raise_error("Group not found", 404)
         if coordinate_sync:
+            # Association writers follow policy-lock -> group-lock ordering;
+            # inbound cleanup uses the same protocol during discovery.
+            await lock_group_policy_writes(db)
             db_group = await get_group_for_sync_update(db, group_id)
             if db_group is None:
                 await self.raise_error("Group not found", 404)
@@ -198,6 +202,7 @@ class GroupOperation(BaseOperation):
 
     async def create_group(self, db: AsyncSession, new_group: GroupCreate, admin: Admin) -> Group:
         await self.check_inbound_tags(new_group.inbound_tags)
+        await lock_group_policy_writes(db)
         db_group = await create_group(db, new_group)
 
         group = GroupResponse.model_validate(db_group)
