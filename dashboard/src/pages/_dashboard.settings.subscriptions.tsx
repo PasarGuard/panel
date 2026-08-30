@@ -2,6 +2,7 @@ import { buildDefaultApplications } from '@/features/subscriptions/components/de
 import { SubscriptionApplicationSheet } from '@/features/subscriptions/components/subscription-application-sheet'
 import { SubscriptionApplicationsSection } from '@/features/subscriptions/components/subscription-applications-section'
 import { SubscriptionCustomVariablesSection } from '@/features/subscriptions/components/subscription-custom-variables-section'
+import { createLatestRequestGuard } from '@/features/subscriptions/lib/latest-request-guard'
 import { SubscriptionFormActions } from '@/features/subscriptions/components/subscription-form-actions'
 import { SubscriptionGeneralSettingsSection } from '@/features/subscriptions/components/subscription-general-settings-section'
 import { SubscriptionManualFormatsSection } from '@/features/subscriptions/components/subscription-manual-formats-section'
@@ -31,6 +32,7 @@ export default function SubscriptionSettings() {
   const { settings, isLoading, error, updateSettings, isSaving } = useSettingsContext()
   const [isAddAppOpen, setIsAddAppOpen] = useState(false)
   const [isResettingRules, setIsResettingRules] = useState(false)
+  const [rulesResetRequestGuard] = useState(createLatestRequestGuard)
 
   const form = useForm<SubscriptionFormData>({
     resolver: zodResolver(subscriptionSchema),
@@ -276,6 +278,9 @@ export default function SubscriptionSettings() {
   }
 
   const handleCancel = () => {
+    rulesResetRequestGuard.invalidate()
+    setIsResettingRules(false)
+
     if (settings?.subscription) {
       const subscriptionData = settings.subscription
       form.reset({
@@ -313,9 +318,13 @@ export default function SubscriptionSettings() {
   }
 
   const handleResetToDefault = async () => {
+    const requestId = rulesResetRequestGuard.begin()
     setIsResettingRules(true)
     try {
       const defaultRules = await getDefaultSubscriptionRules()
+
+      if (!rulesResetRequestGuard.isCurrent(requestId)) return
+
       replaceRules(
         defaultRules.map(rule => ({
           pattern: rule.pattern,
@@ -325,9 +334,13 @@ export default function SubscriptionSettings() {
       )
       toast.success(t('settings.subscriptions.resetToDefaultSuccess', { defaultValue: 'Reset to default settings' }))
     } catch {
+      if (!rulesResetRequestGuard.isCurrent(requestId)) return
+
       toast.error(t('settings.subscriptions.resetToDefaultFailed', { defaultValue: 'Failed to load default subscription rules' }))
     } finally {
-      setIsResettingRules(false)
+      if (rulesResetRequestGuard.isCurrent(requestId)) {
+        setIsResettingRules(false)
+      }
     }
   }
 
@@ -398,7 +411,8 @@ export default function SubscriptionSettings() {
             onResetToDefault={handleResetToDefault}
             onAddRule={addRule}
             onRemoveRule={removeRule}
-            isSaving={isSaving || isResettingRules}
+            isSaving={isSaving}
+            isResetting={isResettingRules}
           />
 
           <Separator className="my-3" />
