@@ -8,7 +8,8 @@ from sqlalchemy.pool import StaticPool
 
 from app.db.base import Base
 from app.db.crud.group import get_group_for_sync_update, get_group_user_count, get_group_user_ids_batch
-from app.db.models import Group, UserStatus, users_groups_association
+from app.db.crud.host import remove_inbounds
+from app.db.models import Group, ProxyInbound, UserStatus, inbounds_groups_association, users_groups_association
 from app.models.group import GroupModify, GroupResponse
 from app.node import sync as node_sync_module, user as node_user_module
 from app.operation import OperatorType, group as group_operation_module
@@ -77,6 +78,41 @@ async def test_group_sync_lock_coordinates_separate_sqlite_sessions(tmp_path):
             await first_db.commit()
             assert (await asyncio.wait_for(competing_lock, timeout=2)).id == 7
             await second_db.rollback()
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_inbound_cleanup_waits_for_final_group_sync_validation(tmp_path):
+    """Cleanup cannot remove access between a batch's validation and dispatch."""
+    database_path = (tmp_path / "inbound-cleanup-lock.db").resolve().as_posix()
+    engine = create_async_engine(f"sqlite+aiosqlite:///{database_path}")
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+    try:
+        async with engine.begin() as connection:
+            await connection.run_sync(Base.metadata.create_all)
+        async with session_factory() as setup_db:
+            await setup_db.execute(Group.__table__.insert().values(id=7, name="test", is_disabled=False))
+            await setup_db.execute(ProxyInbound.__table__.insert().values(id=11, tag="VLESS"))
+            await setup_db.execute(inbounds_groups_association.insert().values(inbound_id=11, group_id=7))
+            await setup_db.commit()
+
+        async with session_factory() as sync_db, session_factory() as cleanup_db:
+            # This is the final validation lock held through node dispatch.
+            assert (await get_group_for_sync_update(sync_db, 7)).inbound_tags == ["VLESS"]
+            inbound = await cleanup_db.get(ProxyInbound, 11)
+
+            cleanup = asyncio.create_task(remove_inbounds(cleanup_db, [inbound]))
+            await asyncio.sleep(0.1)
+            assert not cleanup.done()
+
+            # Dispatch finishes before releasing the group lock; only then can
+            # cleanup remove the inbound and its group association.
+            await sync_db.rollback()
+            await asyncio.wait_for(cleanup, timeout=2)
+
+        async with session_factory() as verify_db:
+            assert await verify_db.get(ProxyInbound, 11) is None
     finally:
         await engine.dispose()
 
