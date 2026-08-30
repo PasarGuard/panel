@@ -1,4 +1,4 @@
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -72,6 +72,24 @@ async def get_group_user_ids_batch(
         .limit(limit)
     )
     return list((await db.execute(stmt)).scalars().all())
+
+
+async def get_group_for_sync_update(db: AsyncSession, group_id: int) -> Group | None:
+    """Lock and load a group while an access update or user-sync batch runs.
+
+    The no-op update intentionally obtains a database write lock. Unlike
+    ``SELECT FOR UPDATE``, this also coordinates SQLite workers. All group
+    access updates use this helper, so inbound relationship rewrites cannot
+    race a background batch even when they do not update the ``groups`` row.
+    """
+    await db.execute(update(Group).where(Group.id == group_id).values(is_disabled=Group.is_disabled))
+    stmt = (
+        select(Group)
+        .where(Group.id == group_id)
+        .options(selectinload(Group.inbounds))
+        .execution_options(populate_existing=True)
+    )
+    return (await db.execute(stmt)).unique().scalar_one_or_none()
 
 
 async def get_group_by_id(
