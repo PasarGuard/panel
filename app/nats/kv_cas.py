@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import random
 from typing import Any, Protocol
@@ -71,6 +72,27 @@ async def kv_put_json(kv: CasKv, key: str, value: dict[str, Any]) -> None:
 
 
 async def kv_list_keys(kv: CasKv, prefix: str) -> list[str]:
+    # kv.keys() always watches the entire bucket ("watch('>')") and only filters
+    # client-side, even when passed a `filters` argument. With many nodes sharing
+    # one bucket that means every call streams every key in the whole bucket to
+    # every caller, which floods NATS ("Slow Consumer" / consumer_info timeouts)
+    # as the number of nodes and pending/claimed users grows. Real KV objects
+    # support watch(), whose `keys` argument becomes the JetStream consumer's
+    # filter subject, so use that to filter server-side to this prefix only.
+    watch = getattr(kv, "watch", None)
+    if callable(watch):
+        watcher = await watch(f"{prefix}*", ignore_deletes=True, meta_only=True)
+        try:
+            keys: list[str] = []
+            async for entry in watcher:
+                if entry is None:
+                    break
+                keys.append(entry.key)
+            return keys
+        finally:
+            with contextlib.suppress(Exception):
+                await watcher.stop()
+
     try:
         keys = await kv.keys()
     except nats_js_errors.NoKeysError:
