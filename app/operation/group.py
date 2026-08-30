@@ -120,12 +120,26 @@ class GroupOperation(BaseOperation):
                 users = await get_users_for_node_sync(db, user_ids)
                 inbound_tags_by_user = await get_users_accessible_tags(db, [user.id for user in users])
                 await sync_users_allocations(db, users, tags_by_user=inbound_tags_by_user)
+                await db.commit()
+
+                # Persist allocations first, then reacquire the distributed
+                # group lock and validate again. An update committed in this
+                # small gap supersedes this batch before anything is sent.
+                db_group = await get_group_for_sync_update(db, group_id)
+                if db_group is None or (
+                    frozenset(db_group.inbound_tags) != expected_inbound_tags
+                    or db_group.is_disabled != expected_is_disabled
+                ):
+                    await db.rollback()
+                    logger.info('Background sync superseded before dispatch for group id "%s"', group_id)
+                    return
+
                 await sync_users(
                     users,
                     inbound_tags_by_user=inbound_tags_by_user,
                     wait_for_dispatch=True,
                 )
-                await db.commit()
+                await db.rollback()
 
                 synced_users += len(users)
                 after_user_id = user_ids[-1]

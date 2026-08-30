@@ -184,6 +184,7 @@ class _DBContext:
 async def test_group_background_sync_uses_bounded_keyset_batches_and_reuses_tags():
     operation = GroupOperation(OperatorType.API)
     db = AsyncMock()
+    events = []
     first_users = [SimpleNamespace(id=1), SimpleNamespace(id=2)]
     second_users = [SimpleNamespace(id=5)]
     first_tags = {1: {"VLESS"}, 2: {"TROJAN"}}
@@ -191,10 +192,7 @@ async def test_group_background_sync_uses_bounded_keyset_batches_and_reuses_tags
 
     with (
         patch("app.operation.group.GetDB", side_effect=lambda: _DBContext(db)),
-        patch(
-            "app.operation.group.get_group_for_sync_update",
-            new=AsyncMock(return_value=_group(inbound_tags=["VLESS"])),
-        ) as lock_group,
+        patch("app.operation.group.get_group_for_sync_update", new=AsyncMock()) as lock_group,
         patch(
             "app.operation.group.get_group_user_ids_batch",
             new=AsyncMock(side_effect=[[1, 2], [5], []]),
@@ -210,13 +208,36 @@ async def test_group_background_sync_uses_bounded_keyset_batches_and_reuses_tags
         patch("app.operation.group.sync_users_allocations", new=AsyncMock()) as sync_allocations,
         patch("app.operation.group.sync_users", new=AsyncMock()) as sync_users,
     ):
+
+        async def record_lock(*args, **kwargs):
+            events.append("lock")
+            return _group(inbound_tags=["VLESS"])
+
+        async def record_allocations(*args, **kwargs):
+            events.append("allocations")
+
+        async def record_dispatch(*args, **kwargs):
+            events.append("dispatch")
+
+        async def record_commit(*args, **kwargs):
+            events.append("commit")
+
+        async def record_rollback(*args, **kwargs):
+            events.append("rollback")
+
+        lock_group.side_effect = record_lock
+        sync_allocations.side_effect = record_allocations
+        sync_users.side_effect = record_dispatch
+        db.commit.side_effect = record_commit
+        db.rollback.side_effect = record_rollback
+
         await operation._sync_group_users(
             7,
             expected_inbound_tags=frozenset({"VLESS"}),
             expected_is_disabled=False,
         )
 
-    assert lock_group.await_count == 3
+    assert lock_group.await_count == 5
     assert get_ids.await_args_list == [
         call(db, 7, after_user_id=0, limit=GROUP_USER_SYNC_BATCH_SIZE),
         call(db, 7, after_user_id=2, limit=GROUP_USER_SYNC_BATCH_SIZE),
@@ -233,7 +254,23 @@ async def test_group_background_sync_uses_bounded_keyset_batches_and_reuses_tags
         call(second_users, inbound_tags_by_user=second_tags, wait_for_dispatch=True),
     ]
     assert db.commit.await_count == 2
-    assert db.rollback.await_count == 1
+    assert db.rollback.await_count == 3
+    assert events == [
+        "lock",
+        "allocations",
+        "commit",
+        "lock",
+        "dispatch",
+        "rollback",
+        "lock",
+        "allocations",
+        "commit",
+        "lock",
+        "dispatch",
+        "rollback",
+        "lock",
+        "rollback",
+    ]
 
 
 @pytest.mark.asyncio
@@ -258,6 +295,39 @@ async def test_group_background_sync_stops_before_dispatch_when_superseded():
 
     db.rollback.assert_awaited_once()
     get_ids.assert_not_awaited()
+    sync_users.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_group_background_sync_revalidates_after_allocation_commit():
+    operation = GroupOperation(OperatorType.API)
+    db = AsyncMock()
+    user = SimpleNamespace(id=1)
+    current_group = _group(inbound_tags=["VLESS"])
+    superseding_group = _group(inbound_tags=["TROJAN"])
+
+    with (
+        patch("app.operation.group.GetDB", side_effect=lambda: _DBContext(db)),
+        patch(
+            "app.operation.group.get_group_for_sync_update",
+            new=AsyncMock(side_effect=[current_group, superseding_group]),
+        ) as lock_group,
+        patch("app.operation.group.get_group_user_ids_batch", new=AsyncMock(return_value=[1])),
+        patch("app.operation.group.get_users_for_node_sync", new=AsyncMock(return_value=[user])),
+        patch("app.operation.group.get_users_accessible_tags", new=AsyncMock(return_value={1: {"VLESS"}})),
+        patch("app.operation.group.sync_users_allocations", new=AsyncMock()) as sync_allocations,
+        patch("app.operation.group.sync_users", new=AsyncMock()) as sync_users,
+    ):
+        await operation._sync_group_users(
+            7,
+            expected_inbound_tags=frozenset({"VLESS"}),
+            expected_is_disabled=False,
+        )
+
+    assert lock_group.await_count == 2
+    sync_allocations.assert_awaited_once()
+    db.commit.assert_awaited_once()
+    db.rollback.assert_awaited_once()
     sync_users.assert_not_awaited()
 
 
