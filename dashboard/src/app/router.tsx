@@ -75,6 +75,18 @@ const fetchAdminLoader = async (): Promise<any> => {
   }
 }
 
+// Telegram Mini Apps append launch params after `#` (e.g. "#tgWebAppData=...&tgWebAppVersion=..."),
+// which collides with createHashRouter reading window.location.hash as the route path and
+// produces a "No route matches" 404 before React ever mounts. Reset it to a real route first.
+// @telegram-apps/sdk's retrieveRawInitData() still recovers the original data afterward via the
+// Navigation Timing API, which isn't affected by history.replaceState.
+;(function sanitizeTelegramLaunchHash() {
+  const { hash } = window.location
+  if (hash && !hash.startsWith('#/') && hash.includes('tgWebApp')) {
+    window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#/`)
+  }
+})()
+
 // Wrap all route elements in <Suspense fallback={<LoadingSpinner />}>
 export const router = createHashRouter([
   {
