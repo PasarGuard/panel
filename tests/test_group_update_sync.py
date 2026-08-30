@@ -7,8 +7,8 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
 
 from app.db.base import Base
-from app.db.crud.group import get_group_user_count, get_group_user_ids_batch
-from app.db.models import UserStatus, users_groups_association
+from app.db.crud.group import get_group_for_sync_update, get_group_user_count, get_group_user_ids_batch
+from app.db.models import Group, UserStatus, users_groups_association
 from app.models.group import GroupModify, GroupResponse
 from app.node import sync as node_sync_module, user as node_user_module
 from app.operation import OperatorType, group as group_operation_module
@@ -54,6 +54,33 @@ async def test_group_membership_helpers_count_and_keyset_page_without_user_hydra
         await engine.dispose()
 
 
+@pytest.mark.asyncio
+async def test_group_sync_lock_coordinates_separate_sqlite_sessions(tmp_path):
+    """The portable write lock must block a competing worker until commit."""
+    database_path = (tmp_path / "group-sync-lock.db").resolve().as_posix()
+    engine = create_async_engine(f"sqlite+aiosqlite:///{database_path}")
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+    try:
+        async with engine.begin() as connection:
+            await connection.run_sync(Base.metadata.create_all)
+        async with session_factory() as setup_db:
+            await setup_db.execute(Group.__table__.insert().values(id=7, name="test", is_disabled=False))
+            await setup_db.commit()
+
+        async with session_factory() as first_db, session_factory() as second_db:
+            assert (await get_group_for_sync_update(first_db, 7)).id == 7
+
+            competing_lock = asyncio.create_task(get_group_for_sync_update(second_db, 7))
+            await asyncio.sleep(0.1)
+            assert not competing_lock.done()
+
+            await first_db.commit()
+            assert (await asyncio.wait_for(competing_lock, timeout=2)).id == 7
+            await second_db.rollback()
+    finally:
+        await engine.dispose()
+
+
 async def _apply_group_modify(db, db_group, modified_group, **kwargs):
     db_group.name = modified_group.name
     if modified_group.inbound_tags is not None:
@@ -90,7 +117,13 @@ async def test_group_name_only_update_skips_user_hydration_and_sync():
         )
 
     assert result == response
-    operation._get_group_with_access.assert_awaited_once_with(db, db_group.id, _admin(), load_users=False)
+    operation._get_group_with_access.assert_awaited_once_with(
+        db,
+        db_group.id,
+        _admin(),
+        load_users=False,
+        coordinate_sync=True,
+    )
     effective_modify = GroupModify(name="new-name", inbound_tags=None, is_disabled=False)
     modify.assert_awaited_once_with(
         db,
@@ -129,7 +162,11 @@ async def test_group_access_update_schedules_background_sync(modified_group: Gro
     with patch("app.operation.group.modify_group", new=AsyncMock(side_effect=_apply_group_modify)):
         await operation.modify_group(AsyncMock(), db_group.id, modified_group, _admin())
 
-    operation._schedule_group_user_sync.assert_called_once_with(db_group.id)
+    operation._schedule_group_user_sync.assert_called_once_with(
+        db_group.id,
+        expected_inbound_tags=frozenset(modified_group.inbound_tags),
+        expected_is_disabled=modified_group.is_disabled,
+    )
 
 
 class _DBContext:
@@ -155,6 +192,10 @@ async def test_group_background_sync_uses_bounded_keyset_batches_and_reuses_tags
     with (
         patch("app.operation.group.GetDB", side_effect=lambda: _DBContext(db)),
         patch(
+            "app.operation.group.get_group_for_sync_update",
+            new=AsyncMock(return_value=_group(inbound_tags=["VLESS"])),
+        ) as lock_group,
+        patch(
             "app.operation.group.get_group_user_ids_batch",
             new=AsyncMock(side_effect=[[1, 2], [5], []]),
         ) as get_ids,
@@ -169,8 +210,13 @@ async def test_group_background_sync_uses_bounded_keyset_batches_and_reuses_tags
         patch("app.operation.group.sync_users_allocations", new=AsyncMock()) as sync_allocations,
         patch("app.operation.group.sync_users", new=AsyncMock()) as sync_users,
     ):
-        await operation._sync_group_users(7)
+        await operation._sync_group_users(
+            7,
+            expected_inbound_tags=frozenset({"VLESS"}),
+            expected_is_disabled=False,
+        )
 
+    assert lock_group.await_count == 3
     assert get_ids.await_args_list == [
         call(db, 7, after_user_id=0, limit=GROUP_USER_SYNC_BATCH_SIZE),
         call(db, 7, after_user_id=2, limit=GROUP_USER_SYNC_BATCH_SIZE),
@@ -187,6 +233,32 @@ async def test_group_background_sync_uses_bounded_keyset_batches_and_reuses_tags
         call(second_users, inbound_tags_by_user=second_tags, wait_for_dispatch=True),
     ]
     assert db.commit.await_count == 2
+    assert db.rollback.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_group_background_sync_stops_before_dispatch_when_superseded():
+    operation = GroupOperation(OperatorType.API)
+    db = AsyncMock()
+
+    with (
+        patch("app.operation.group.GetDB", side_effect=lambda: _DBContext(db)),
+        patch(
+            "app.operation.group.get_group_for_sync_update",
+            new=AsyncMock(return_value=_group(inbound_tags=["TROJAN"])),
+        ),
+        patch("app.operation.group.get_group_user_ids_batch", new=AsyncMock()) as get_ids,
+        patch("app.operation.group.sync_users", new=AsyncMock()) as sync_users,
+    ):
+        await operation._sync_group_users(
+            7,
+            expected_inbound_tags=frozenset({"VLESS"}),
+            expected_is_disabled=False,
+        )
+
+    db.rollback.assert_awaited_once()
+    get_ids.assert_not_awaited()
+    sync_users.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -194,16 +266,24 @@ async def test_group_sync_scheduler_cancels_stale_work_for_same_group():
     operation = GroupOperation(OperatorType.API)
     blocker = asyncio.Event()
 
-    async def wait_for_release(group_id):
+    async def wait_for_release(group_id, **kwargs):
         await blocker.wait()
 
     operation._sync_group_users_safely = wait_for_release
     try:
-        operation._schedule_group_user_sync(7)
+        operation._schedule_group_user_sync(
+            7,
+            expected_inbound_tags=frozenset({"VLESS"}),
+            expected_is_disabled=False,
+        )
         first_task = group_operation_module._group_user_sync_tasks[7]
         await asyncio.sleep(0)
 
-        operation._schedule_group_user_sync(7)
+        operation._schedule_group_user_sync(
+            7,
+            expected_inbound_tags=frozenset({"TROJAN"}),
+            expected_is_disabled=False,
+        )
         second_task = group_operation_module._group_user_sync_tasks[7]
         await asyncio.sleep(0)
 
