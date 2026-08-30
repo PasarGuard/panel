@@ -1,4 +1,4 @@
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -18,6 +18,7 @@ from app.models.group import (
     GroupSimpleSortOption,
 )
 
+from .group_lock import lock_group_rows_for_sync
 from .host import upsert_inbounds
 
 
@@ -82,7 +83,7 @@ async def get_group_for_sync_update(db: AsyncSession, group_id: int) -> Group | 
     access updates use this helper, so inbound relationship rewrites cannot
     race a background batch even when they do not update the ``groups`` row.
     """
-    await db.execute(update(Group).where(Group.id == group_id).values(is_disabled=Group.is_disabled))
+    await lock_group_rows_for_sync(db, [group_id])
     stmt = (
         select(Group)
         .where(Group.id == group_id)
