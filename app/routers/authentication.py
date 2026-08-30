@@ -15,11 +15,13 @@ from app.db.crud.admin import (
     get_admin_by_id as get_admin_by_id_crud,
     get_admin_by_telegram_id,
 )
-from app.db.crud.api_key import get_api_key_by_raw_key
+from app.db.crud.api_key import delete_api_key, get_api_key_by_raw_key, increment_api_key_usage
 from app.db.models import Admin, AdminUsageLogs, User
 from app.models.admin import AdminDetails, AdminRoleData, AdminStatus, AdminValidationResult, verify_password
 from app.models.admin_role import RoleAccess, RoleFeatures, RoleLimits, RolePermissions
+from app.models.api_key import APIKeyResponse
 from app.models.settings import Telegram
+from app.notification import remove_api_key as notify_delete_api_key
 from app.operation.permissions import PermissionDenied, enforce_permission, is_scope_all
 from app.settings import telegram_settings
 from app.utils.jwt import get_admin_payload
@@ -109,6 +111,15 @@ async def _get_admin_from_api_key_internal(
 
     if not db_key.is_usable:
         return
+
+    new_count = await increment_api_key_usage(db, db_key.id)
+    reached_limit = db_key.max_requests is not None and db_key.max_requests > 0 and new_count >= db_key.max_requests
+    if reached_limit and db_key.delete_on_limit:
+        api_key_resp = APIKeyResponse.model_validate(db_key)
+        await delete_api_key(db, db_key)
+        await db.commit()
+        await notify_delete_api_key(api_key_resp, db_admin.username, "system (request limit reached)")
+    # Otherwise, once reached, is_usable rejects the key on the next request via is_limited.
 
     if with_metrics:
         total_users, reseted_usage = await _build_admin_metrics(db, db_admin.id)

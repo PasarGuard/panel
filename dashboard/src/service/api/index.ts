@@ -3915,6 +3915,10 @@ export interface APIKeysPermissions {
 
 export type APIKeyUpdateStatus = APIKeyStatus | null
 
+export type APIKeyUpdateDeleteOnLimit = boolean | null
+
+export type APIKeyUpdateMaxRequests = number | null
+
 export type APIKeyUpdateExpireDate = string | null
 
 export type APIKeyUpdateInheritPermissions = boolean | null
@@ -3934,6 +3938,8 @@ export interface APIKeyUpdate {
   permissions?: APIKeyUpdatePermissions
   inherit_permissions?: APIKeyUpdateInheritPermissions
   expire_date?: APIKeyUpdateExpireDate
+  max_requests?: APIKeyUpdateMaxRequests
+  delete_on_limit?: APIKeyUpdateDeleteOnLimit
   status?: APIKeyUpdateStatus
 }
 
@@ -3946,6 +3952,8 @@ export const APIKeyStatus = {
 } as const
 
 export type APIKeyResponseRevokedAt = string | null
+
+export type APIKeyResponseMaxRequests = number | null
 
 export type APIKeyResponseExpireDate = string | null
 
@@ -3961,6 +3969,8 @@ export interface APIKeyResponse {
   permissions?: RolePermissions
   inherit_permissions?: boolean
   expire_date?: APIKeyResponseExpireDate
+  max_requests?: APIKeyResponseMaxRequests
+  delete_on_limit?: boolean
   id: number
   admin_id: number
   created_at: string
@@ -3968,9 +3978,12 @@ export interface APIKeyResponse {
   revoked_at?: APIKeyResponseRevokedAt
   status?: APIKeyStatus
   is_expired?: boolean
+  request_count?: number
 }
 
 export type APIKeyCreateResponseRevokedAt = string | null
+
+export type APIKeyCreateResponseMaxRequests = number | null
 
 export type APIKeyCreateResponseExpireDate = string | null
 
@@ -3986,6 +3999,8 @@ export interface APIKeyCreateResponse {
   permissions?: RolePermissions
   inherit_permissions?: boolean
   expire_date?: APIKeyCreateResponseExpireDate
+  max_requests?: APIKeyCreateResponseMaxRequests
+  delete_on_limit?: boolean
   id: number
   admin_id: number
   created_at: string
@@ -3993,10 +4008,13 @@ export interface APIKeyCreateResponse {
   revoked_at?: APIKeyCreateResponseRevokedAt
   status?: APIKeyStatus
   is_expired?: boolean
+  request_count?: number
   api_key: string
 }
 
 export type APIKeyCreateAdminId = number | null
+
+export type APIKeyCreateMaxRequests = number | null
 
 export type APIKeyCreateExpireDate = string | null
 
@@ -4012,6 +4030,8 @@ export interface APIKeyCreate {
   permissions?: RolePermissions
   inherit_permissions?: boolean
   expire_date?: APIKeyCreateExpireDate
+  max_requests?: APIKeyCreateMaxRequests
+  delete_on_limit?: boolean
   admin_id?: APIKeyCreateAdminId
 }
 

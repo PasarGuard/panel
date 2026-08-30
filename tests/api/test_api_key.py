@@ -131,6 +131,65 @@ def test_api_key_authenticates_protected_requests(access_token):
         delete_admin(access_token, admin["username"])
 
 
+def test_api_key_request_limit_deletes_key_when_exhausted(access_token):
+    admin = create_admin(access_token, role_id=2)
+    admin_token = _login(admin["username"], admin["password"])
+
+    try:
+        create_response = client.post(
+            "/api/api_key",
+            headers=auth_headers(admin_token),
+            json={"name": unique_name("api_key"), "role_id": 2, "max_requests": 2, "delete_on_limit": True},
+        )
+        assert create_response.status_code == status.HTTP_201_CREATED
+        created = create_response.json()
+        assert created["max_requests"] == 2
+        assert created["request_count"] == 0
+        assert created["delete_on_limit"] is True
+        raw_api_key = created["api_key"]
+        key_id = created["id"]
+
+        first_response = client.get("/api/admin", headers={"X-Api-Key": raw_api_key})
+        assert first_response.status_code == status.HTTP_200_OK
+        assert _api_key_exists(key_id)
+
+        second_response = client.get("/api/admin", headers={"X-Api-Key": raw_api_key})
+        assert second_response.status_code == status.HTTP_200_OK
+        assert not _api_key_exists(key_id)
+
+        third_response = client.get("/api/admin", headers={"X-Api-Key": raw_api_key})
+        assert third_response.status_code == status.HTTP_401_UNAUTHORIZED
+    finally:
+        delete_admin(access_token, admin["username"])
+
+
+def test_api_key_request_limit_disables_without_deleting_by_default(access_token):
+    admin = create_admin(access_token, role_id=2)
+    admin_token = _login(admin["username"], admin["password"])
+
+    try:
+        create_response = client.post(
+            "/api/api_key",
+            headers=auth_headers(admin_token),
+            json={"name": unique_name("api_key"), "role_id": 2, "max_requests": 1},
+        )
+        assert create_response.status_code == status.HTTP_201_CREATED
+        created = create_response.json()
+        assert created["delete_on_limit"] is False
+        raw_api_key = created["api_key"]
+        key_id = created["id"]
+
+        first_response = client.get("/api/admin", headers={"X-Api-Key": raw_api_key})
+        assert first_response.status_code == status.HTTP_200_OK
+        assert _api_key_exists(key_id)
+
+        second_response = client.get("/api/admin", headers={"X-Api-Key": raw_api_key})
+        assert second_response.status_code == status.HTTP_401_UNAUTHORIZED
+        assert _api_key_exists(key_id)
+    finally:
+        delete_admin(access_token, admin["username"])
+
+
 def test_admin_delete_removes_owned_api_keys(access_token):
     admin = create_admin(access_token, role_id=2)
     admin_token = _login(admin["username"], admin["password"])

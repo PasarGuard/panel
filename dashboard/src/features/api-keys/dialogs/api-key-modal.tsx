@@ -50,6 +50,7 @@ import {
   useGetAdmins,
   useGetAdminsSimple,
 } from '@/service/api'
+import { cn } from '@/lib/utils'
 import { useAdmin } from '@/hooks/use-admin'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -116,6 +117,7 @@ export default function ApiKeyModal({
 
   const permissionsValue = form.watch('permissions') as RolePermissionFormMap
   const inheritPermissions = form.watch('inherit_permissions')
+  const maxRequestsValue = form.watch('max_requests')
   const targetAdminId = form.watch('admin_id')
   const shouldLoadTargetAdminPermissions = isOwner && isDialogOpen && !inheritPermissions && !!targetAdminId && targetAdminId !== admin?.id
   const targetAdminQuery = useGetAdmins(
@@ -145,6 +147,8 @@ export default function ApiKeyModal({
         inherit_permissions: editingApiKey.inherit_permissions ?? true,
         status: editingApiKey.status || 'active',
         expire_date: editingApiKey.expire_date,
+        max_requests: editingApiKey.max_requests ?? null,
+        delete_on_limit: editingApiKey.delete_on_limit ?? false,
       })
     } else {
       form.reset({
@@ -156,6 +160,12 @@ export default function ApiKeyModal({
     }
     setCreatedKey(null)
   }, [editingApiKey, form, isDialogOpen, admin])
+
+  useEffect(() => {
+    if (!maxRequestsValue && form.getValues('delete_on_limit')) {
+      form.setValue('delete_on_limit', false, { shouldDirty: true })
+    }
+  }, [form, maxRequestsValue])
 
   useEffect(() => {
     if (inheritPermissions || isLoadingPermissionCeiling) return
@@ -187,6 +197,8 @@ export default function ApiKeyModal({
             permissions: customPermissions as RolePermissions,
             inherit_permissions: values.inherit_permissions,
             expire_date: values.expire_date as string | null | undefined,
+            max_requests: values.max_requests ?? null,
+            delete_on_limit: values.delete_on_limit,
             status: values.status,
           },
         })
@@ -201,6 +213,8 @@ export default function ApiKeyModal({
             permissions: customPermissions as RolePermissions,
             inherit_permissions: values.inherit_permissions,
             expire_date: values.expire_date as string | null | undefined,
+            max_requests: values.max_requests ?? null,
+            delete_on_limit: values.delete_on_limit,
           },
         })
         setCreatedKey(response.api_key)
@@ -360,6 +374,40 @@ export default function ApiKeyModal({
                     )}
                   />
 
+                  <FormField
+                    control={form.control}
+                    name="max_requests"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('apiKeys.maxRequests')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            min={1}
+                            placeholder={t('unlimited')}
+                            {...field}
+                            value={field.value ?? ''}
+                            onChange={e => {
+                              const value = e.target.value
+                              if (value === '') {
+                                field.onChange(null)
+                                return
+                              }
+                              const numValue = parseInt(value)
+                              if (!isNaN(numValue) && numValue > 0) {
+                                field.onChange(numValue)
+                              }
+                            }}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t('apiKeys.maxRequestsDescription')}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
                   {editingApiKey && (
                     <FormField
                       control={form.control}
@@ -384,6 +432,36 @@ export default function ApiKeyModal({
                     />
                   )}
                 </div>
+
+                <FormField
+                  control={form.control}
+                  name="delete_on_limit"
+                  render={({ field }) => (
+                    <FormItem
+                      className={cn(
+                        'flex flex-row items-center justify-between space-y-0 rounded-lg border p-4',
+                        maxRequestsValue ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'
+                      )}
+                      onClick={() => maxRequestsValue && field.onChange(!field.value)}
+                    >
+                      <div className="space-y-0.5">
+                        <FormLabel className="text-base">{t('apiKeys.deleteOnLimit')}</FormLabel>
+                        <FormDescription>
+                          {t('apiKeys.deleteOnLimitDescription')}
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <div onClick={e => e.stopPropagation()}>
+                          <Switch
+                            checked={!!field.value}
+                            onCheckedChange={field.onChange}
+                            disabled={!maxRequestsValue}
+                          />
+                        </div>
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
 
                 <Accordion type="single" collapsible className="!mt-0 flex w-full flex-col gap-y-3">
                   <AccordionItem className="rounded-md border px-4 [&_[data-state=closed]]:no-underline [&_[data-state=open]]:no-underline" value="permissions">

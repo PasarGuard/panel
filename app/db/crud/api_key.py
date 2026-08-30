@@ -1,7 +1,7 @@
 import uuid
 from datetime import UTC, datetime as dt
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -26,6 +26,8 @@ async def create_api_key(
         key_hash=hash_api_key(raw_key),
         api_key_trimmed=f"pg_key_{raw_uuid[:3]}***{raw_uuid[-3:]}",
         expire_date=model.expire_date,
+        max_requests=model.max_requests,
+        delete_on_limit=model.delete_on_limit,
     )
     db.add(db_key)
     await db.flush()
@@ -100,6 +102,20 @@ async def get_api_keys(
     return rows, total
 
 
+async def increment_api_key_usage(db: AsyncSession, key_id: int) -> int:
+    """Atomically increment request_count and return the new value."""
+    stmt = (
+        update(APIKey)
+        .where(APIKey.id == key_id)
+        .values(request_count=APIKey.request_count + 1)
+        .returning(APIKey.request_count)
+    )
+    result = await db.execute(stmt)
+    new_count = result.scalar_one()
+    await db.commit()
+    return new_count
+
+
 async def delete_api_key(db: AsyncSession, db_key: APIKey) -> None:
     await db.delete(db_key)
     await db.flush()
@@ -112,6 +128,7 @@ async def revoke_api_key(db: AsyncSession, db_key: APIKey) -> tuple[str, APIKey]
     db_key.api_key_trimmed = f"pg_key_{raw_uuid[:3]}***{raw_uuid[-3:]}"
     db_key.revoked_at = dt.now(UTC)
     db_key.status = APIKeyStatus.active
+    db_key.request_count = 0
     await db.flush()
     await db.refresh(db_key)
     return raw_key, db_key

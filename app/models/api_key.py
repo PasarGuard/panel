@@ -16,6 +16,8 @@ class APIKeyBase(BaseModel):
     permissions: RolePermissions = Field(default_factory=RolePermissions)
     inherit_permissions: bool = True
     expire_date: dt | None = None
+    max_requests: int | None = Field(default=None, ge=1)
+    delete_on_limit: bool = False
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -46,6 +48,8 @@ class APIKeyUpdate(BaseModel):
     permissions: RolePermissions | None = None
     inherit_permissions: bool | None = None
     expire_date: dt | None = None
+    max_requests: int | None = Field(default=None, ge=1)
+    delete_on_limit: bool | None = None
     status: APIKeyStatus | None = None
 
     @field_validator("expire_date", mode="before")
@@ -67,6 +71,7 @@ class APIKeyResponse(APIKeyBase):
     revoked_at: dt | None = None
     status: APIKeyStatus = APIKeyStatus.active
     is_expired: bool = False
+    request_count: int = 0
 
 
 class APIKeyCreateResponse(APIKeyResponse):
