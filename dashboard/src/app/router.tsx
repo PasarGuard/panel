@@ -8,6 +8,7 @@ import { RouteErrorPage } from '@/components/layout/error-page'
 import { TabbedRouteSuspenseFallback } from '@/components/layout/tabbed-route-suspense-fallback'
 import { lazyWithChunkRecovery } from '@/utils/chunk-recovery'
 import { isAuthenticationError } from '@/utils/error-utils'
+import { prepareTelegramMiniAppRoute } from '@/utils/telegram-mini-app'
 // Replace direct imports with lazy imports for route-level components
 const CoresLayout = lazyWithChunkRecovery(() => import('@/pages/_dashboard.nodes.cores'))
 const CoresIndex = lazyWithChunkRecovery(() => import('@/pages/_dashboard.nodes.cores._index'))
@@ -44,6 +45,8 @@ const UserTemplates = lazyWithChunkRecovery(() => import('../pages/_dashboard.te
 const ClientTemplates = lazyWithChunkRecovery(() => import('../pages/_dashboard.templates.client'))
 const Users = lazyWithChunkRecovery(() => import('../pages/_dashboard.users'))
 const Login = lazyWithChunkRecovery(() => import('../pages/login'))
+
+prepareTelegramMiniAppRoute()
 
 // Component to handle default settings routing based on user permissions
 function SettingsIndex() {

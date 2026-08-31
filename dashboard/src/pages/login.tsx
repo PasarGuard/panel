@@ -13,7 +13,6 @@ import { $fetch } from '@/service/http'
 import { getAuthToken, removeAuthToken, setAuthToken } from '@/utils/authStorage'
 import { queryClient } from '@/utils/query-client'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { retrieveRawInitData } from '@telegram-apps/sdk'
 import { ArrowLeft, CircleAlertIcon, KeyRound, LogInIcon, RotateCcw, ShieldCheck, Trash2, UserRoundKey } from 'lucide-react'
 import { FC, useEffect, useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
@@ -23,6 +22,7 @@ import { toast } from 'sonner'
 import { z } from 'zod'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { passwordValidation } from '@/features/admins/forms/admin-form'
+import { getTelegramMiniAppInitData } from '@/utils/telegram-mini-app'
 
 const schema = z.object({
   username: z.string().min(1, 'login.fieldRequired'),
@@ -129,15 +129,8 @@ export const Login: FC = () => {
     resolver: zodResolver(schema),
   })
 
-  let isTelegram = false
-  let initDataRaw = ''
-  try {
-    initDataRaw = retrieveRawInitData() || ''
-    isTelegram = !!initDataRaw
-  } catch (e) {
-    isTelegram = false
-    initDataRaw = ''
-  }
+  const initDataRaw = getTelegramMiniAppInitData()
+  const isTelegram = !!initDataRaw
 
   useEffect(() => {
     if (location.pathname !== '/login') {
