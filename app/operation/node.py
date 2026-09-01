@@ -266,10 +266,15 @@ class NodeOperation(BaseOperation):
     @staticmethod
     async def _start_or_attach_node(pg_node: PasarGuardNode, db_node: Node, core, users: list, backend_type):
         state = await pg_node.get_lifecycle_state()
-        if state is not None and state.observed is LifecycleStatus.HEALTHY:
+        if state is not None and state.observed in (LifecycleStatus.HEALTHY, LifecycleStatus.STARTING):
             attached = await NodeOperation._attach_if_running(pg_node, db_node.name)
             if attached is not None:
                 return attached
+            if state.observed is LifecycleStatus.STARTING:
+                # Another worker is already starting this node right now - don't race
+                # it for the lease (that's a guaranteed 409 plus wasted KV round-trips).
+                # Skip; the next retry cycle will check again once it's done.
+                return
 
         start_kwargs = {
             "config": core.to_str(),
@@ -336,6 +341,16 @@ class NodeOperation(BaseOperation):
                         "node_version": attached.node_version,
                         "old_status": old_status,
                     }
+
+                # A 409 only ever happens while another worker holds a live, unexpired
+                # lifecycle lease (a dead worker's lease always expires via TTL/heartbeat),
+                # so this is always legitimate concurrent work elsewhere - starting,
+                # stopping, or updating the node's core/geofiles - not a fault with the
+                # node itself. The attach above simply couldn't catch up mid-operation.
+                # Skip silently instead of flagging the node as errored on every other
+                # worker; the next retry cycle will reassess once that operation completes.
+                logger.debug(f'"{db_node.name}" node lifecycle lease is held by another worker, will retry')
+                return
 
             detail = e.detail[:1020] + "..." if len(e.detail) > 1024 else e.detail
 
