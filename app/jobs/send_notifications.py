@@ -15,6 +15,7 @@ from app.notification.queue_manager import (
     shutdown_webhook_queue,
 )
 from app.settings import webhook_settings
+from app.utils.http_client import create_outbound_http_session
 from app.utils.logger import get_logger
 from config import job_settings, runtime_settings
 
@@ -62,9 +63,7 @@ async def send_notifications():
     should_requeue = settings.enable
 
     try:
-        async with aiohttp.ClientSession(
-            timeout=aiohttp.ClientTimeout(total=10), proxy=settings.proxy_url if settings.proxy_url else None
-        ) as client:
+        async with create_outbound_http_session(proxy=settings.proxy_url if settings.proxy_url else None) as client:
             webhook_queue = get_webhook_queue()
             while True:
                 try:

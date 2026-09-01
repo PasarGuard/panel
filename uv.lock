@@ -817,6 +817,7 @@ dependencies = [
     { name = "asyncmy", marker = "sys_platform != 'win32'" },
     { name = "asyncpg" },
     { name = "bcrypt" },
+    { name = "certifi" },
     { name = "click" },
     { name = "commentjson" },
     { name = "cryptography" },
@@ -827,7 +828,6 @@ dependencies = [
     { name = "nats-py" },
     { name = "packaging" },
     { name = "pasarguard-node-bridge" },
-    { name = "pip-system-certs" },
     { name = "psutil" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
@@ -870,6 +870,7 @@ requires-dist = [
     { name = "asyncmy", marker = "sys_platform != 'win32'", specifier = ">=0.2.14" },
     { name = "asyncpg", specifier = ">=0.31.0" },
     { name = "bcrypt", specifier = "==5.0.0" },
+    { name = "certifi", specifier = ">=2026.4.22" },
     { name = "click", specifier = ">=8.5.0" },
     { name = "commentjson", specifier = "==0.9.0" },
     { name = "cryptography", specifier = "==50.0.0" },
@@ -880,7 +881,6 @@ requires-dist = [
     { name = "nats-py", specifier = ">=2.15.0" },
     { name = "packaging", specifier = ">=26.3" },
     { name = "pasarguard-node-bridge", specifier = ">=0.9.1" },
-    { name = "pip-system-certs", specifier = ">=5.3" },
     { name = "psutil", specifier = ">=7.2.2" },
     { name = "pydantic", specifier = ">=2.13.5" },
     { name = "pydantic-settings", specifier = ">=2.15.0" },
@@ -925,27 +925,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/76/da/e680cdd9d1cd0f2fc35a1877e5d8c0f75068f24333bf158e5b72bd4f41a3/pasarguard_node_bridge-0.9.1.tar.gz", hash = "sha256:b022c4a14397798a3cf8e90f7c91f1a64686519377fba78238fc692173f823ba", size = 104516, upload-time = "2026-09-01T11:58:21.125Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/f4/ce/e53db0219382c171f85fb51c1a23dc3365a4255271350d3dc23a1eab0dc6/pasarguard_node_bridge-0.9.1-py3-none-any.whl", hash = "sha256:4be6af3d9447b187e2f5d86c1b0348e98b2b66dda60d9884ff12ca3f04df53bd", size = 56036, upload-time = "2026-09-01T11:58:20.163Z" },
-]
-
-[[package]]
-name = "pip"
-version = "26.2"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/db/96/e6f8e9d9d7b9cc4457092712a7e919c3186aa2c2fa9ffed2c5d29cc947e8/pip-26.2.tar.gz", hash = "sha256:2d8542afcc84cdd8e846c2b36b2861fad1da376dd98f8e7113e9108a3c331690", size = 1848845, upload-time = "2026-07-29T21:57:56.407Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/62/36/a3aed958d60531cb442b7ab4596cda7b3621cfb916f8ae1d6769795c7dc1/pip-26.2-py3-none-any.whl", hash = "sha256:931c303696af6fa3417112103b1cad26890e5a07eccb5b99783700e33f2b8aad", size = 1816475, upload-time = "2026-07-29T21:57:54.763Z" },
-]
-
-[[package]]
-name = "pip-system-certs"
-version = "5.3"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "pip" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/7d/6a/563b05a4f6c9ddc205c98bb413e74221368efb98b8fb9cca96b578b8930c/pip_system_certs-5.3.tar.gz", hash = "sha256:19c8bf9957bcce7d69c4dbc2d0b2ef13de1984d53f50a59012e6dbbad0af67c6", size = 6395, upload-time = "2025-10-16T06:14:55.217Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/9f/57/752b63c609affae8f26ae0f1d1103d6ea7e707ad45943f62f7422936071d/pip_system_certs-5.3-py3-none-any.whl", hash = "sha256:3fbb5de62e374a99b688b1ad06e64ee5c4aeb633ef23e3a677d32e3e84fd863c", size = 6896, upload-time = "2025-10-16T06:14:54.072Z" },
 ]
 
 [[package]]
