@@ -827,7 +827,6 @@ dependencies = [
     { name = "nats-py" },
     { name = "packaging" },
     { name = "pasarguard-node-bridge" },
-    { name = "pip-system-certs" },
     { name = "psutil" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
@@ -880,7 +879,6 @@ requires-dist = [
     { name = "nats-py", specifier = ">=2.15.0" },
     { name = "packaging", specifier = ">=26.3" },
     { name = "pasarguard-node-bridge", specifier = ">=0.9.1" },
-    { name = "pip-system-certs", specifier = ">=5.3" },
     { name = "psutil", specifier = ">=7.2.2" },
     { name = "pydantic", specifier = ">=2.13.5" },
     { name = "pydantic-settings", specifier = ">=2.15.0" },
@@ -925,27 +923,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/76/da/e680cdd9d1cd0f2fc35a1877e5d8c0f75068f24333bf158e5b72bd4f41a3/pasarguard_node_bridge-0.9.1.tar.gz", hash = "sha256:b022c4a14397798a3cf8e90f7c91f1a64686519377fba78238fc692173f823ba", size = 104516, upload-time = "2026-09-01T11:58:21.125Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/f4/ce/e53db0219382c171f85fb51c1a23dc3365a4255271350d3dc23a1eab0dc6/pasarguard_node_bridge-0.9.1-py3-none-any.whl", hash = "sha256:4be6af3d9447b187e2f5d86c1b0348e98b2b66dda60d9884ff12ca3f04df53bd", size = 56036, upload-time = "2026-09-01T11:58:20.163Z" },
-]
-
-[[package]]
-name = "pip"
-version = "26.1.2"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/01/91/47e7d486260f618783899587af63ccf7980fb60245c3e63dd4571c6b57ad/pip-26.1.2.tar.gz", hash = "sha256:f49cd134c61cf2fd75e0ce2676db03e4054504a5a4986d00f8299ae632dc4605", size = 1840799, upload-time = "2026-05-31T17:33:58.56Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/5d/95/6b5cb3461ea5673ba0995989746db58eb18b91b54dbf331e72f569540946/pip-26.1.2-py3-none-any.whl", hash = "sha256:382ff9f685ee3bc25864f820aa50505825f10f5458ffff07e30a6d96e5715cab", size = 1813144, upload-time = "2026-05-31T17:33:56.772Z" },
-]
-
-[[package]]
-name = "pip-system-certs"
-version = "5.3"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "pip" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/7d/6a/563b05a4f6c9ddc205c98bb413e74221368efb98b8fb9cca96b578b8930c/pip_system_certs-5.3.tar.gz", hash = "sha256:19c8bf9957bcce7d69c4dbc2d0b2ef13de1984d53f50a59012e6dbbad0af67c6", size = 6395, upload-time = "2025-10-16T06:14:55.217Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/9f/57/752b63c609affae8f26ae0f1d1103d6ea7e707ad45943f62f7422936071d/pip_system_certs-5.3-py3-none-any.whl", hash = "sha256:3fbb5de62e374a99b688b1ad06e64ee5c4aeb633ef23e3a677d32e3e84fd863c", size = 6896, upload-time = "2025-10-16T06:14:54.072Z" },
 ]
 
 [[package]]

@@ -39,7 +39,6 @@ dependencies = [
     "aiorwlock>=1.5.0",
     "typer>=0.27.2",
     "pasarguard-node-bridge>=0.9.1",
-    "pip-system-certs>=5.3",
     "nats-py>=2.15.0",
 ]
 
