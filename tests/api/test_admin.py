@@ -1358,6 +1358,37 @@ def test_admin_data_limit_zero_means_unlimited(access_token):
         delete_admin(access_token, admin["username"])
 
 
+def test_admin_data_limit_null_means_unlimited(access_token):
+    """Explicit data_limit=null clears the limit while an omitted field leaves it unchanged."""
+    admin = create_admin(access_token)
+    try:
+        response = client.put(
+            f"/api/admin/{admin['username']}",
+            json={"data_limit": 1073741824},
+            headers=auth_headers(access_token),
+        )
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["data_limit"] == 1073741824
+
+        response = client.put(
+            f"/api/admin/{admin['username']}",
+            json={"note": "keep the existing limit"},
+            headers=auth_headers(access_token),
+        )
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["data_limit"] == 1073741824
+
+        response = client.put(
+            f"/api/admin/{admin['username']}",
+            json={"data_limit": None},
+            headers=auth_headers(access_token),
+        )
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["data_limit"] is None
+    finally:
+        delete_admin(access_token, admin["username"])
+
+
 def test_admin_status_defaults_to_active(access_token):
     """Newly created admin has status=active."""
     admin = create_admin(access_token)
