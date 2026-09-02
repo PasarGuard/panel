@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import os
 from collections import defaultdict
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
 from sqlalchemy import select
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool, StaticPool
@@ -26,6 +28,22 @@ class DummyNode:
 
     async def get_extra(self) -> dict[str, Any]:
         return {"usage_coefficient": self._usage_coefficient}
+
+
+def test_postgres_user_traffic_update_uses_one_unnest_statement():
+    usage_params = [
+        {"uid": 1, "value": 10},
+        {"uid": 2, "value": 20},
+        {"uid": 1, "value": 30},
+    ]
+
+    stmt, params = record_usages.build_user_traffic_update("postgresql", usage_params)
+    sql = str(stmt.compile(dialect=postgresql.dialect()))
+
+    assert "UPDATE users" in sql
+    assert "FROM unnest" in sql
+    assert "online_at" not in sql
+    assert params == {"uids": [1, 2], "traffic_values": [40, 20]}
 
 
 def _get_test_database_url() -> str:
@@ -100,6 +118,31 @@ async def session_factory(monkeypatch: pytest.MonkeyPatch):
     await engine.dispose()
     if needs_json_default_fix and proxy_column is not None:
         proxy_column.server_default = proxy_default
+
+
+@pytest.mark.asyncio
+async def test_touch_users_online_at_throttles_indexed_timestamp_writes(session_factory):
+    async with session_factory() as session:
+        user = User(username="online-write-throttle")
+        session.add(user)
+        await session.commit()
+        user_id = user.id
+
+    first_seen = datetime.now(UTC)
+    await record_usages.touch_users_online_at([user_id], first_seen)
+
+    async def get_online_at():
+        async with session_factory() as session:
+            return (await session.execute(select(User.online_at).where(User.id == user_id))).scalar_one()
+
+    initial_online_at = await get_online_at()
+    await record_usages.touch_users_online_at([user_id], first_seen + timedelta(seconds=30))
+    throttled_online_at = await get_online_at()
+    await record_usages.touch_users_online_at([user_id], first_seen + timedelta(seconds=60))
+    refreshed_online_at = await get_online_at()
+
+    assert initial_online_at == throttled_online_at
+    assert refreshed_online_at > throttled_online_at
 
 
 @pytest.mark.asyncio
