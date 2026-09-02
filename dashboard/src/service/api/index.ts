@@ -444,6 +444,18 @@ export interface XrayFragmentSettings {
   [key: string]: unknown
 }
 
+export type XrayECHSettingsQueryStrategy = ECHQueryStrategy | null
+
+export type XrayECHSettingsConfigList = string | null
+
+/**
+ * Xray-specific ECH settings.
+ */
+export interface XrayECHSettings {
+  config_list?: XrayECHSettingsConfigList
+  query_strategy?: XrayECHSettingsQueryStrategy
+}
+
 export type Xudp = (typeof Xudp)[keyof typeof Xudp]
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
@@ -2895,6 +2907,21 @@ export interface ExtraSettings {
   method?: ExtraSettingsMethod
 }
 
+export type ECHSettingsSingBox = ClientECHSettings | null
+
+export type ECHSettingsMihomo = ClientECHSettings | null
+
+export type ECHSettingsXray = XrayECHSettings | null
+
+/**
+ * Per-client ECH settings stored together on a host.
+ */
+export interface ECHSettings {
+  xray?: ECHSettingsXray
+  mihomo?: ECHSettingsMihomo
+  sing_box?: ECHSettingsSingBox
+}
+
 export type ECHQueryStrategy = (typeof ECHQueryStrategy)[keyof typeof ECHQueryStrategy]
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
@@ -2949,17 +2976,7 @@ export type CreateHostVerifyPeerCertByName = string[] | null
 
 export type CreateHostPinnedPeerCertSha256 = string | null
 
-export type CreateHostEchQueryStrategy = ECHQueryStrategy | null
-
-export type CreateHostEchConfigList = string | null
-
-export type CreateHostMihomoEchConfig = string | null
-
-export type CreateHostMihomoEchQueryServerName = string | null
-
-export type CreateHostSingBoxEchConfig = string | null
-
-export type CreateHostSingBoxEchQueryServerName = string | null
+export type CreateHostEch = ECHSettings | null
 
 export type CreateHostStatus = UserStatus[] | null
 
@@ -3017,14 +3034,7 @@ export interface CreateHost {
   vless_route?: CreateHostVlessRoute
   priority: number
   status?: CreateHostStatus
-  ech_config_list?: CreateHostEchConfigList
-  ech_query_strategy?: CreateHostEchQueryStrategy
-  mihomo_ech_config?: CreateHostMihomoEchConfig
-  /** @maxLength 255 */
-  mihomo_ech_query_server_name?: CreateHostMihomoEchQueryServerName
-  sing_box_ech_config?: CreateHostSingBoxEchConfig
-  /** @maxLength 255 */
-  sing_box_ech_query_server_name?: CreateHostSingBoxEchQueryServerName
+  ech?: CreateHostEch
   pinned_peer_cert_sha256?: CreateHostPinnedPeerCertSha256
   verify_peer_cert_by_name?: CreateHostVerifyPeerCertByName
   wireguard_overrides?: CreateHostWireguardOverrides
@@ -3173,6 +3183,18 @@ export interface ClientTemplateCreate {
   template_type: ClientTemplateType
   content: string
   is_default?: boolean
+}
+
+export type ClientECHSettingsQueryServerName = string | null
+
+export type ClientECHSettingsConfig = string | null
+
+/**
+ * ECH settings shared by Mihomo and sing-box clients.
+ */
+export interface ClientECHSettings {
+  config?: ClientECHSettingsConfig
+  query_server_name?: ClientECHSettingsQueryServerName
 }
 
 export type ClashMuxSettingsBrutal = Brutal | null
@@ -3456,17 +3478,7 @@ export type BaseHostVerifyPeerCertByName = string[] | null
 
 export type BaseHostPinnedPeerCertSha256 = string | null
 
-export type BaseHostEchQueryStrategy = ECHQueryStrategy | null
-
-export type BaseHostEchConfigList = string | null
-
-export type BaseHostMihomoEchConfig = string | null
-
-export type BaseHostMihomoEchQueryServerName = string | null
-
-export type BaseHostSingBoxEchConfig = string | null
-
-export type BaseHostSingBoxEchQueryServerName = string | null
+export type BaseHostEch = ECHSettings | null
 
 export type BaseHostStatus = UserStatus[] | null
 
@@ -3524,14 +3536,7 @@ export interface BaseHost {
   vless_route?: BaseHostVlessRoute
   priority: number
   status?: BaseHostStatus
-  ech_config_list?: BaseHostEchConfigList
-  ech_query_strategy?: BaseHostEchQueryStrategy
-  mihomo_ech_config?: BaseHostMihomoEchConfig
-  /** @maxLength 255 */
-  mihomo_ech_query_server_name?: BaseHostMihomoEchQueryServerName
-  sing_box_ech_config?: BaseHostSingBoxEchConfig
-  /** @maxLength 255 */
-  sing_box_ech_query_server_name?: BaseHostSingBoxEchQueryServerName
+  ech?: BaseHostEch
   pinned_peer_cert_sha256?: BaseHostPinnedPeerCertSha256
   verify_peer_cert_by_name?: BaseHostVerifyPeerCertByName
   wireguard_overrides?: BaseHostWireguardOverrides

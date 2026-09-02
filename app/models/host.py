@@ -34,6 +34,28 @@ class ECHQueryStrategy(str, Enum):
     full = "full"
 
 
+class XrayECHSettings(BaseModel):
+    """Xray-specific ECH settings."""
+
+    config_list: str | None = Field(default=None)
+    query_strategy: ECHQueryStrategy | None = Field(default=None)
+
+
+class ClientECHSettings(BaseModel):
+    """ECH settings shared by Mihomo and sing-box clients."""
+
+    config: str | None = Field(default=None)
+    query_server_name: str | None = Field(default=None, max_length=255)
+
+
+class ECHSettings(BaseModel):
+    """Per-client ECH settings stored together on a host."""
+
+    xray: XrayECHSettings | None = Field(default=None)
+    mihomo: ClientECHSettings | None = Field(default=None)
+    sing_box: ClientECHSettings | None = Field(default=None)
+
+
 class XrayFragmentSettings(BaseModel):
     model_config = ConfigDict(extra="allow", populate_by_name=True)
 
@@ -597,12 +619,7 @@ class BaseHost(BaseModel):
     vless_route: str | None = Field(default=None, pattern=r"^$|^[0-9a-fA-F]{4}$")
     priority: int
     status: set[UserStatus] | None = Field(default_factory=set)
-    ech_config_list: str | None = Field(default=None)
-    ech_query_strategy: ECHQueryStrategy | None = Field(default=None)
-    mihomo_ech_config: str | None = Field(default=None)
-    mihomo_ech_query_server_name: str | None = Field(default=None, max_length=255)
-    sing_box_ech_config: str | None = Field(default=None)
-    sing_box_ech_query_server_name: str | None = Field(default=None, max_length=255)
+    ech: ECHSettings | None = Field(default=None)
     pinned_peer_cert_sha256: str | None = Field(default=None)
     verify_peer_cert_by_name: set[str] | None = Field(default_factory=set)
     wireguard_overrides: WireGuardHostOverrides | None = Field(None)

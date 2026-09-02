@@ -435,8 +435,8 @@ def test_host_fragment_interval_roundtrip(access_token):
         delete_core(access_token, core["id"])
 
 
-def test_host_format_specific_ech_fields_roundtrip(access_token):
-    """Mihomo and sing-box ECH values must persist independently from Xray ECH."""
+def test_host_ech_settings_roundtrip(access_token):
+    """All client-specific ECH values must round-trip through one JSON field."""
     core = create_core(access_token)
     host_id = None
 
@@ -444,13 +444,16 @@ def test_host_format_specific_ech_fields_roundtrip(access_token):
         inbound_list = get_inbounds(access_token)
         assert inbound_list
         inbound = inbound_list[0]
-        ech_fields = {
-            "ech_config_list": "xray-base64-config",
-            "ech_query_strategy": "full",
-            "mihomo_ech_config": "mihomo-base64-config",
-            "mihomo_ech_query_server_name": "mihomo-ech.example.com",
-            "sing_box_ech_config": "sing-box-base64-config",
-            "sing_box_ech_query_server_name": "sing-box-ech.example.com",
+        ech = {
+            "xray": {"config_list": "xray-base64-config", "query_strategy": "full"},
+            "mihomo": {
+                "config": "mihomo-base64-config",
+                "query_server_name": "mihomo-ech.example.com",
+            },
+            "sing_box": {
+                "config": "sing-box-base64-config",
+                "query_server_name": "sing-box-ech.example.com",
+            },
         }
 
         create_response = client.post(
@@ -462,7 +465,7 @@ def test_host_format_specific_ech_fields_roundtrip(access_token):
                 "port": 443,
                 "inbound_tag": inbound,
                 "priority": 1,
-                **ech_fields,
+                "ech": ech,
             },
         )
         assert create_response.status_code == status.HTTP_201_CREATED, create_response.text
@@ -470,8 +473,7 @@ def test_host_format_specific_ech_fields_roundtrip(access_token):
 
         get_response = client.get(f"/api/host/{host_id}", headers={"Authorization": f"Bearer {access_token}"})
         assert get_response.status_code == status.HTTP_200_OK
-        for field, value in ech_fields.items():
-            assert get_response.json()[field] == value
+        assert get_response.json()["ech"] == ech
     finally:
         if host_id is not None:
             client.delete(f"/api/host/{host_id}", headers={"Authorization": f"Bearer {access_token}"})

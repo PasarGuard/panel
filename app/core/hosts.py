@@ -143,7 +143,11 @@ async def _prepare_subscription_inbound_data(
         host.pinned_peer_cert_sha256 if host.pinned_peer_cert_sha256 else inbound_config.get("pinnedPeerCertSha256", "")
     )
     verify_peer_cert_by_name = _string_list(host.verify_peer_cert_by_name) if host.verify_peer_cert_by_name else []
-    ech_query_strategy = host.ech_query_strategy or inbound_config.get("echForceQuery")
+    ech = host.ech
+    xray_ech = ech.xray if ech else None
+    mihomo_ech = ech.mihomo if ech else None
+    sing_box_ech = ech.sing_box if ech else None
+    ech_query_strategy = (xray_ech.query_strategy if xray_ech else None) or inbound_config.get("echForceQuery")
     alpn_list = [alpn.value for alpn in host.alpn] if host.alpn else inbound_config.get("alpn", [])
     fp = host.fingerprint.value if host.fingerprint.value != "none" else inbound_config.get("fp")
     fp = fp or ("chrome" if tls_value == "reality" else "")
@@ -159,12 +163,12 @@ async def _prepare_subscription_inbound_data(
         pinned_peer_cert_sha256=pinned_peer_cert_sha256,
         verify_peer_cert_by_name=verify_peer_cert_by_name,
         alpn_list=alpn_list,
-        ech_config_list=host.ech_config_list,
+        ech_config_list=xray_ech.config_list if xray_ech else None,
         ech_query_strategy=ech_query_strategy,
-        mihomo_ech_config=host.mihomo_ech_config,
-        mihomo_ech_query_server_name=host.mihomo_ech_query_server_name,
-        sing_box_ech_config=host.sing_box_ech_config,
-        sing_box_ech_query_server_name=host.sing_box_ech_query_server_name,
+        mihomo_ech_config=mihomo_ech.config if mihomo_ech else None,
+        mihomo_ech_query_server_name=mihomo_ech.query_server_name if mihomo_ech else None,
+        sing_box_ech_config=sing_box_ech.config if sing_box_ech else None,
+        sing_box_ech_query_server_name=sing_box_ech.query_server_name if sing_box_ech else None,
         reality_public_key=reality_pbk,
         reality_short_id=reality_sid,
         reality_short_ids=reality_sids,
