@@ -159,12 +159,31 @@ class LoggingSettings(EnvSettings):
     rotation_unit: str = Field(default="H", validation_alias="LOG_ROTATION_UNIT")
     max_bytes: int = Field(default=10485760, validation_alias="LOG_MAX_BYTES")
     level: str = Field(default="INFO", validation_alias="LOG_LEVEL")
+    access_log_success_sample_rate: float = Field(
+        default=0.01,
+        ge=0,
+        le=1,
+        validation_alias="ACCESS_LOG_SUCCESS_SAMPLE_RATE",
+    )
+    access_log_slow_ms: float = Field(default=1000, ge=0, validation_alias="ACCESS_LOG_SLOW_MS")
+    access_log_sampled_routes_raw: str = Field(
+        default=(
+            "/api/user/{username},"
+            "/api/user/by-username/{username},"
+            "/api/user/by-id/{user_id}"
+        ),
+        validation_alias="ACCESS_LOG_SAMPLED_ROUTES",
+    )
 
     @field_validator("level")
     @classmethod
     def normalize_level(cls, value: str) -> str:
         value = value.upper()
         return value if value in ("CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG") else "INFO"
+
+    @property
+    def access_log_sampled_routes(self) -> frozenset[str]:
+        return frozenset(route.strip() for route in self.access_log_sampled_routes_raw.split(",") if route.strip())
 
 
 class AuthSettings(EnvSettings):

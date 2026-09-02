@@ -9,7 +9,7 @@ from fastapi.routing import APIRoute
 from sqlalchemy.exc import DBAPIError
 
 from app.lifecycle import on_shutdown, on_startup
-from app.middlewares import setup_middleware
+from app.middlewares import safe_request_target, setup_middleware
 from app.nats import is_multi_worker, require_nats_if_multiworker
 from app.nats.message import MessageTopic
 from app.nats.router import router
@@ -154,7 +154,8 @@ async def _ignore_worker_sync_message(_: dict):
 async def database_operational_error_handler(request: Request, exc: DBAPIError):
     orig = getattr(exc, "orig", None)
     error_summary = f"{type(orig).__name__}: {orig}" if orig else type(exc).__name__
-    logger.warning(f"Database unavailable while handling {request.method} {request.url.path}: {error_summary}")
+    _, request_target = safe_request_target(request.scope)
+    logger.warning(f"Database unavailable while handling {request.method} {request_target}: {error_summary}")
     return JSONResponse(
         status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
         content={"detail": "Database temporarily unavailable"},
