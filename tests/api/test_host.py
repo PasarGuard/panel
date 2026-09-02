@@ -435,6 +435,46 @@ def test_host_fragment_interval_roundtrip(access_token):
         delete_core(access_token, core["id"])
 
 
+def test_host_format_specific_ech_fields_roundtrip(access_token):
+    """Mihomo and sing-box ECH values must persist independently from Xray ECH."""
+    core = create_core(access_token)
+    inbound_list = get_inbounds(access_token)
+    assert inbound_list
+    inbound = inbound_list[0]
+    ech_fields = {
+        "ech_config_list": "xray-base64-config",
+        "ech_query_strategy": "full",
+        "mihomo_ech_config": "mihomo-base64-config",
+        "mihomo_ech_query_server_name": "mihomo-ech.example.com",
+        "sing_box_ech_config": "sing-box-base64-config",
+        "sing_box_ech_query_server_name": "sing-box-ech.example.com",
+    }
+
+    create_response = client.post(
+        "/api/host",
+        headers={"Authorization": f"Bearer {access_token}"},
+        json={
+            "remark": unique_name("format_specific_ech"),
+            "address": ["127.0.0.1"],
+            "port": 443,
+            "inbound_tag": inbound,
+            "priority": 1,
+            **ech_fields,
+        },
+    )
+    assert create_response.status_code == status.HTTP_201_CREATED, create_response.text
+    host_id = create_response.json()["id"]
+
+    try:
+        get_response = client.get(f"/api/host/{host_id}", headers={"Authorization": f"Bearer {access_token}"})
+        assert get_response.status_code == status.HTTP_200_OK
+        for field, value in ech_fields.items():
+            assert get_response.json()[field] == value
+    finally:
+        client.delete(f"/api/host/{host_id}", headers={"Authorization": f"Bearer {access_token}"})
+        delete_core(access_token, core["id"])
+
+
 def test_host_finalmask_legacy_interval_to_delays(access_token):
     """Legacy FinalMask fragment interval/length should normalize to delays/lengths."""
     core = create_core(access_token)

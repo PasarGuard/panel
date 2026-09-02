@@ -564,6 +564,10 @@ class ProxyHost(Base, IdMixin):
     status: Mapped[list[UserStatus] | None] = mapped_column(EnumArray(UserStatus, 60), default=list, server_default="")
     ech_config_list: Mapped[str | None] = mapped_column(String(512), default=None)
     ech_query_strategy: Mapped[str | None] = mapped_column(String(8), default=None)
+    mihomo_ech_config: Mapped[str | None] = mapped_column(Text, default=None)
+    mihomo_ech_query_server_name: Mapped[str | None] = mapped_column(String(255), default=None)
+    sing_box_ech_config: Mapped[str | None] = mapped_column(Text, default=None)
+    sing_box_ech_query_server_name: Mapped[str | None] = mapped_column(String(255), default=None)
     vless_route: Mapped[str | None] = mapped_column(String(4), default=None)
     pinned_peer_cert_sha256: Mapped[str | None] = mapped_column(String(128), default=None)
     verify_peer_cert_by_name: Mapped[set[str] | None] = mapped_column(

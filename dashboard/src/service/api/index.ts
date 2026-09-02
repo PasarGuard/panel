@@ -2953,6 +2953,14 @@ export type CreateHostEchQueryStrategy = ECHQueryStrategy | null
 
 export type CreateHostEchConfigList = string | null
 
+export type CreateHostMihomoEchConfig = string | null
+
+export type CreateHostMihomoEchQueryServerName = string | null
+
+export type CreateHostSingBoxEchConfig = string | null
+
+export type CreateHostSingBoxEchQueryServerName = string | null
+
 export type CreateHostStatus = UserStatus[] | null
 
 export type CreateHostVlessRoute = string | null
@@ -3011,6 +3019,12 @@ export interface CreateHost {
   status?: CreateHostStatus
   ech_config_list?: CreateHostEchConfigList
   ech_query_strategy?: CreateHostEchQueryStrategy
+  mihomo_ech_config?: CreateHostMihomoEchConfig
+  /** @maxLength 255 */
+  mihomo_ech_query_server_name?: CreateHostMihomoEchQueryServerName
+  sing_box_ech_config?: CreateHostSingBoxEchConfig
+  /** @maxLength 255 */
+  sing_box_ech_query_server_name?: CreateHostSingBoxEchQueryServerName
   pinned_peer_cert_sha256?: CreateHostPinnedPeerCertSha256
   verify_peer_cert_by_name?: CreateHostVerifyPeerCertByName
   wireguard_overrides?: CreateHostWireguardOverrides
@@ -3446,6 +3460,14 @@ export type BaseHostEchQueryStrategy = ECHQueryStrategy | null
 
 export type BaseHostEchConfigList = string | null
 
+export type BaseHostMihomoEchConfig = string | null
+
+export type BaseHostMihomoEchQueryServerName = string | null
+
+export type BaseHostSingBoxEchConfig = string | null
+
+export type BaseHostSingBoxEchQueryServerName = string | null
+
 export type BaseHostStatus = UserStatus[] | null
 
 export type BaseHostVlessRoute = string | null
@@ -3504,6 +3526,12 @@ export interface BaseHost {
   status?: BaseHostStatus
   ech_config_list?: BaseHostEchConfigList
   ech_query_strategy?: BaseHostEchQueryStrategy
+  mihomo_ech_config?: BaseHostMihomoEchConfig
+  /** @maxLength 255 */
+  mihomo_ech_query_server_name?: BaseHostMihomoEchQueryServerName
+  sing_box_ech_config?: BaseHostSingBoxEchConfig
+  /** @maxLength 255 */
+  sing_box_ech_query_server_name?: BaseHostSingBoxEchQueryServerName
   pinned_peer_cert_sha256?: BaseHostPinnedPeerCertSha256
   verify_peer_cert_by_name?: BaseHostVerifyPeerCertByName
   wireguard_overrides?: BaseHostWireguardOverrides
