@@ -7,6 +7,7 @@ class NativeTLSAiohttpSession(AiohttpSession):
     """Use native OpenSSL with system and certifi roots for Telegram HTTPS."""
 
     def __init__(self, proxy=None, limit: int = 100, **kwargs):
+        """Initialize aiogram and apply the scoped outbound SSL context."""
         super().__init__(proxy=proxy, limit=limit, **kwargs)
         # aiogram has no public SSLContext argument. It builds its connector
         # from this mapping for both direct and proxied sessions.

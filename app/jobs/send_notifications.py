@@ -50,6 +50,7 @@ async def send_to_all_webhooks(client: aiohttp.ClientSession, notifications, web
 
 
 async def send_notifications():
+    """Drain queued webhooks through a client-scoped trusted TLS context."""
     settings: Webhook = await webhook_settings()
     if not settings.enable:
         return
