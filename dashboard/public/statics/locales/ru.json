@@ -1524,7 +1524,7 @@
     "singBoxEchConfig.info": "Необязательная конфигурация ECH в base64 или PEM для Sing-box. Base64 преобразуется в массив строк PEM; оставьте пустой для DNS-запроса.",
     "singBoxEchConfigPlaceholder": "Введите конфигурацию ECH для Sing-box",
     "singBoxEchQueryServerName": "Имя сервера ECH-запроса Sing-box",
-    "singBoxEchQueryServerName.info": "Необязательный домен для запросов HTTPS-записей ECH в Sing-box. Это также включает ECH без статической конфигурации.",
+    "singBoxEchQueryServerName.info": "Необязательный домен для запросов HTTPS-записей ECH в Sing-box. Это также включает ECH без статической конфигурации. Требуется Sing-box 1.13.0 или новее.",
     "echQueryServerNamePlaceholder": "ech.example.com",
     "pinnedPeerCertSha256": "SHA256 закреплённого сертификата узла",
     "pinnedPeerCertSha256.info": "Необязательный пин публичного ключа сертификата (SHA-256) для TLS pinning.",

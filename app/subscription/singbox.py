@@ -238,6 +238,8 @@ class SingBoxConfiguration(BaseSubscription):
             "ech": {
                 "enabled": True,
                 "config": ech_config,
+                # query_server_name was introduced in sing-box 1.13.0. Subscription
+                # output is not version-targeted, so configured hosts require 1.13+.
                 "query_server_name": tls_config.sing_box_ech_query_server_name,
             }
             if ech_enabled

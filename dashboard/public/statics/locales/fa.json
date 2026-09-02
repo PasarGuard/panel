@@ -1447,7 +1447,7 @@
     "singBoxEchConfig.info": "پیکربندی اختیاری ECH با فرمت base64 یا PEM برای Sing-box. ورودی base64 به آرایهٔ خطوط PEM تبدیل می‌شود؛ برای پرس‌وجو از DNS خالی بگذارید.",
     "singBoxEchConfigPlaceholder": "پیکربندی ECH برای Sing-box را وارد کنید",
     "singBoxEchQueryServerName": "نام سرور پرس‌وجوی ECH در Sing-box",
-    "singBoxEchQueryServerName.info": "دامنهٔ اختیاری برای پرس‌وجوی رکورد HTTPS مربوط به ECH در Sing-box. وارد کردن این مقدار بدون پیکربندی ثابت نیز ECH را فعال می‌کند.",
+    "singBoxEchQueryServerName.info": "دامنهٔ اختیاری برای پرس‌وجوی رکورد HTTPS مربوط به ECH در Sing-box. وارد کردن این مقدار بدون پیکربندی ثابت نیز ECH را فعال می‌کند. به Sing-box نسخهٔ 1.13.0 یا بالاتر نیاز دارد.",
     "echQueryServerNamePlaceholder": "ech.example.com",
     "pinnedPeerCertSha256": "SHA256 گواهی همتای پین‌شده",
     "pinnedPeerCertSha256.info": "پین اختیاری کلید عمومی گواهی (SHA-256) برای TLS peer pinning.",

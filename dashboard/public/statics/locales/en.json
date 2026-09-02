@@ -1619,7 +1619,7 @@
     "singBoxEchConfig.info": "Optional base64 or PEM ECH config for Sing-box. Base64 input is converted to the required PEM line array; leave empty to query DNS.",
     "singBoxEchConfigPlaceholder": "Enter Sing-box ECH config",
     "singBoxEchQueryServerName": "Sing-box ECH Query Server Name",
-    "singBoxEchQueryServerName.info": "Optional domain used by Sing-box for ECH HTTPS-record queries. This also enables ECH when the static config is empty.",
+    "singBoxEchQueryServerName.info": "Optional domain used by Sing-box for ECH HTTPS-record queries. This also enables ECH when the static config is empty. Requires Sing-box 1.13.0 or later.",
     "echQueryServerNamePlaceholder": "ech.example.com",
     "pinnedPeerCertSha256": "Pinned Peer Cert SHA256",
     "pinnedPeerCertSha256.info": "Optional certificate public key pin (SHA-256) used for TLS peer pinning.",

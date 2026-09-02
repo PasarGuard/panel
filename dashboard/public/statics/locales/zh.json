@@ -1592,7 +1592,7 @@
     "singBoxEchConfig.info": "Sing-box 的可选 base64 或 PEM ECH 配置。base64 输入会转换为所需的 PEM 行数组；留空时查询 DNS。",
     "singBoxEchConfigPlaceholder": "输入 Sing-box ECH 配置",
     "singBoxEchQueryServerName": "Sing-box ECH 查询服务器名称",
-    "singBoxEchQueryServerName.info": "Sing-box 查询 ECH HTTPS 记录时使用的可选域名。即使静态配置为空，填写此项也会启用 ECH。",
+    "singBoxEchQueryServerName.info": "Sing-box 查询 ECH HTTPS 记录时使用的可选域名。即使静态配置为空，填写此项也会启用 ECH。需要 Sing-box 1.13.0 或更高版本。",
     "echQueryServerNamePlaceholder": "ech.example.com",
     "pinnedPeerCertSha256": "固定对端证书 SHA256",
     "pinnedPeerCertSha256.info": "用于 TLS 对端证书固定的可选证书公钥指纹 (SHA-256)。",
