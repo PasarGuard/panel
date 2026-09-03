@@ -230,8 +230,20 @@ class BaseOperation:
             await self.raise_error(message="Admin not found", code=404)
         return db_admin
 
-    async def get_validated_group(self, db: AsyncSession, group_id: int) -> Group:
-        db_group = await get_group_by_id(db, group_id)
+    async def get_validated_group(
+        self,
+        db: AsyncSession,
+        group_id: int,
+        *,
+        load_users: bool = True,
+        load_inbounds: bool = True,
+    ) -> Group:
+        db_group = await get_group_by_id(
+            db,
+            group_id,
+            load_users=load_users,
+            load_inbounds=load_inbounds,
+        )
         if not db_group:
             await self.raise_error("Group not found", 404)
         return db_group

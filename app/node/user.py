@@ -159,6 +159,8 @@ async def core_users(
 async def serialize_users_for_node(
     users: list[User],
     allowed_protocols: frozenset[ProxyProtocol] | None = None,
+    *,
+    inbound_tags_by_user: dict[int, set[str]] | None = None,
 ) -> list[ProtoUser]:
     """Serialize users for node dispatch."""
     bridge_users: list = []
@@ -166,11 +168,14 @@ async def serialize_users_for_node(
     for user in users:
         inbounds_list = []
         if user.status in [UserStatus.active, UserStatus.on_hold]:
-            loaded_inbounds = _inbounds_from_loaded_groups(user)
-            if loaded_inbounds is None:
-                inbounds_list = await user.inbounds()
+            if inbound_tags_by_user is not None:
+                inbounds_list = sorted(inbound_tags_by_user.get(user.id, set()))
             else:
-                inbounds_list = loaded_inbounds
+                loaded_inbounds = _inbounds_from_loaded_groups(user)
+                if loaded_inbounds is None:
+                    inbounds_list = await user.inbounds()
+                else:
+                    inbounds_list = loaded_inbounds
 
         bridge_users.append(_serialize_user_for_node(user.id, user.proxy_settings, inbounds_list, allowed_protocols))
 

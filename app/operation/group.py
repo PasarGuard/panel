@@ -1,11 +1,14 @@
 import asyncio
 
 from app import notification
-from app.db import AsyncSession
+from app.db import AsyncSession, GetDB
 from app.db.crud.bulk import add_groups_to_users, count_bulk_group_scope, remove_groups_from_users
 from app.db.crud.group import (
     create_group,
     get_group,
+    get_group_for_sync_update,
+    get_group_user_count,
+    get_group_user_ids_batch,
     get_groups_by_ids,
     get_groups_simple,
     load_group_attrs,
@@ -13,8 +16,9 @@ from app.db.crud.group import (
     remove_group,
     remove_groups,
 )
-from app.db.crud.user import get_users
-from app.db.crud.wireguard import sync_users_allocations
+from app.db.crud.group_lock import lock_group_policy_writes
+from app.db.crud.user import get_users, get_users_for_node_sync
+from app.db.crud.wireguard import get_users_accessible_tags, sync_users_allocations
 from app.db.models import Admin
 from app.models.group import (
     BulkGroup,
@@ -38,17 +42,157 @@ from app.operation.permissions import apply_group_access
 from app.utils.logger import get_logger
 
 logger = get_logger("group-operation")
+GROUP_USER_SYNC_BATCH_SIZE = 1_000
+_group_user_sync_tasks: dict[int, asyncio.Task] = {}
 
 
 class GroupOperation(BaseOperation):
-    async def _get_group_with_access(self, db: AsyncSession, group_id: int, admin: Admin) -> Group:
+    async def _get_group_with_access(
+        self,
+        db: AsyncSession,
+        group_id: int,
+        admin: Admin,
+        *,
+        load_users: bool = True,
+        load_inbounds: bool = True,
+        coordinate_sync: bool = False,
+    ) -> Group:
         """Fetch a group, returning 404 if it doesn't exist or is outside the admin's allowed set."""
         allowed = apply_group_access(admin, [group_id])
         # If allowed is an empty list, the id was filtered out → not accessible
         if allowed is not None and group_id not in allowed:
             await self.raise_error("Group not found", 404)
-        db_group = await self.get_validated_group(db, group_id)
+        if coordinate_sync:
+            # Association writers follow policy-lock -> group-lock ordering;
+            # inbound cleanup uses the same protocol during discovery.
+            await lock_group_policy_writes(db)
+            db_group = await get_group_for_sync_update(db, group_id)
+            if db_group is None:
+                await self.raise_error("Group not found", 404)
+            return db_group
+        db_group = await self.get_validated_group(
+            db,
+            group_id,
+            load_users=load_users,
+            load_inbounds=load_inbounds,
+        )
         return db_group
+
+    @staticmethod
+    async def _build_group_response(db: AsyncSession, db_group: Group) -> GroupResponse:
+        """Build a response without hydrating the group's users."""
+        return GroupResponse(
+            id=db_group.id,
+            name=db_group.name,
+            inbound_tags=db_group.inbound_tags,
+            is_disabled=db_group.is_disabled,
+            total_users=await get_group_user_count(db, db_group.id),
+        )
+
+    async def _sync_group_users(
+        self,
+        group_id: int,
+        *,
+        expected_inbound_tags: frozenset[str],
+        expected_is_disabled: bool,
+    ) -> None:
+        """Reconcile group users in coordinated, keyset-paginated batches."""
+        after_user_id = 0
+        synced_users = 0
+
+        while True:
+            async with GetDB() as db:
+                db_group = await get_group_for_sync_update(db, group_id)
+                if db_group is None or (
+                    frozenset(db_group.inbound_tags) != expected_inbound_tags
+                    or db_group.is_disabled != expected_is_disabled
+                ):
+                    await db.rollback()
+                    logger.info('Background sync superseded for group id "%s"', group_id)
+                    return
+
+                user_ids = await get_group_user_ids_batch(
+                    db,
+                    group_id,
+                    after_user_id=after_user_id,
+                    limit=GROUP_USER_SYNC_BATCH_SIZE,
+                )
+                if not user_ids:
+                    await db.rollback()
+                    break
+
+                users = await get_users_for_node_sync(db, user_ids)
+                inbound_tags_by_user = await get_users_accessible_tags(db, [user.id for user in users])
+                await sync_users_allocations(db, users, tags_by_user=inbound_tags_by_user)
+                await db.commit()
+
+                # Persist allocations first, then reacquire the distributed
+                # group lock and validate again. An update committed in this
+                # small gap supersedes this batch before anything is sent.
+                db_group = await get_group_for_sync_update(db, group_id)
+                if db_group is None or (
+                    frozenset(db_group.inbound_tags) != expected_inbound_tags
+                    or db_group.is_disabled != expected_is_disabled
+                ):
+                    await db.rollback()
+                    logger.info('Background sync superseded before dispatch for group id "%s"', group_id)
+                    return
+
+                await sync_users(
+                    users,
+                    inbound_tags_by_user=inbound_tags_by_user,
+                    wait_for_dispatch=True,
+                )
+                await db.rollback()
+
+                synced_users += len(users)
+                after_user_id = user_ids[-1]
+
+        logger.info('Background sync completed for group id "%s": %d users', group_id, synced_users)
+
+    async def _sync_group_users_safely(
+        self,
+        group_id: int,
+        *,
+        expected_inbound_tags: frozenset[str],
+        expected_is_disabled: bool,
+    ) -> None:
+        """Run a background group sync while logging recoverable failures."""
+        try:
+            await self._sync_group_users(
+                group_id,
+                expected_inbound_tags=expected_inbound_tags,
+                expected_is_disabled=expected_is_disabled,
+            )
+        except Exception:
+            logger.exception('Background sync failed for group id "%s"', group_id)
+
+    def _schedule_group_user_sync(
+        self,
+        group_id: int,
+        *,
+        expected_inbound_tags: frozenset[str],
+        expected_is_disabled: bool,
+    ) -> None:
+        """Schedule the latest local sync; database locking coordinates workers."""
+        previous_task = _group_user_sync_tasks.get(group_id)
+        if previous_task is not None and not previous_task.done():
+            previous_task.cancel()
+
+        task = asyncio.create_task(
+            self._sync_group_users_safely(
+                group_id,
+                expected_inbound_tags=expected_inbound_tags,
+                expected_is_disabled=expected_is_disabled,
+            )
+        )
+        _group_user_sync_tasks[group_id] = task
+
+        def remove_completed_task(completed_task: asyncio.Task) -> None:
+            if _group_user_sync_tasks.get(group_id) is completed_task:
+                _group_user_sync_tasks.pop(group_id, None)
+
+        task.add_done_callback(remove_completed_task)
 
     async def _sync_users_allocations(self, db: AsyncSession, users) -> None:
         try:
@@ -58,6 +202,7 @@ class GroupOperation(BaseOperation):
 
     async def create_group(self, db: AsyncSession, new_group: GroupCreate, admin: Admin) -> Group:
         await self.check_inbound_tags(new_group.inbound_tags)
+        await lock_group_policy_writes(db)
         db_group = await create_group(db, new_group)
 
         group = GroupResponse.model_validate(db_group)
@@ -84,22 +229,43 @@ class GroupOperation(BaseOperation):
         groups = [GroupSimple(id=row[0], name=row[1]) for row in rows]
         return GroupsSimpleResponse(groups=groups, total=total)
 
-    async def modify_group(self, db: AsyncSession, group_id: int, modified_group: GroupModify, admin: Admin) -> Group:
-        db_group = await self._get_group_with_access(db, group_id, admin)
-        if modified_group.inbound_tags is not None:
-            await self.check_inbound_tags(modified_group.inbound_tags)
-        db_group = await modify_group(db, db_group, modified_group)
-
-        users = await get_users(
+    async def modify_group(
+        self,
+        db: AsyncSession,
+        group_id: int,
+        modified_group: GroupModify,
+        admin: Admin,
+    ) -> GroupResponse:
+        db_group = await self._get_group_with_access(
             db,
-            query=UserListQuery(group_ids=[db_group.id]),
-            load_admin_role=True,
+            group_id,
+            admin,
+            load_users=False,
+            coordinate_sync=True,
         )
-        await self._sync_users_allocations(db, users)
-        await db.commit()
-        await sync_users(users)
+        inbound_tags_changed = modified_group.inbound_tags is not None and set(modified_group.inbound_tags) != set(
+            db_group.inbound_tags
+        )
+        status_changed = modified_group.is_disabled is not None and modified_group.is_disabled != db_group.is_disabled
 
-        group = GroupResponse.model_validate(db_group)
+        if inbound_tags_changed:
+            await self.check_inbound_tags(modified_group.inbound_tags)
+
+        effective_modify = modified_group
+        if modified_group.inbound_tags is not None and not inbound_tags_changed:
+            # The dashboard sends the complete object. Avoid rewriting the
+            # many-to-many relation when only the group name changed.
+            effective_modify = modified_group.model_copy(update={"inbound_tags": None})
+
+        db_group = await modify_group(db, db_group, effective_modify, load_users=False)
+        group = await self._build_group_response(db, db_group)
+
+        if inbound_tags_changed or status_changed:
+            self._schedule_group_user_sync(
+                db_group.id,
+                expected_inbound_tags=frozenset(group.inbound_tags),
+                expected_is_disabled=group.is_disabled,
+            )
 
         asyncio.create_task(notification.modify_group(group, admin.username))
 
