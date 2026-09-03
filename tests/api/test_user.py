@@ -1443,6 +1443,36 @@ def test_xray_subscription_includes_wireguard_outbound(access_token):
         delete_core(access_token, core["id"])
 
 
+def test_xray_subscription_includes_standalone_profile_without_host(access_token):
+    core, groups = setup_groups(access_token, 1)
+    username = unique_name("xray_standalone_user")
+    user = create_user(access_token, group_ids=[groups[0]["id"]], payload={"username": username})
+    template = create_client_template(
+        access_token,
+        name=unique_name("xray_standalone_profile"),
+        template_type="xray_standalone",
+        content=json.dumps(
+            {
+                "remarks": "Serverless {USERNAME}",
+                "inbounds": [{"tag": "socks", "protocol": "socks", "port": 10808, "settings": {}}],
+                "outbounds": [{"tag": "DIRECT", "protocol": "freedom", "settings": {"fragment": {}}}],
+                "routing": {"rules": []},
+            }
+        ),
+    )
+
+    try:
+        response = client.get(f"{user['subscription_url']}/xray")
+        assert response.status_code == status.HTTP_200_OK
+
+        standalone = next(config for config in response.json() if config.get("remarks") == f"Serverless {username}")
+        assert standalone["outbounds"] == [{"tag": "DIRECT", "protocol": "freedom", "settings": {"fragment": {}}}]
+    finally:
+        delete_client_template(access_token, template["id"])
+        delete_user(access_token, user["username"])
+        cleanup_groups(access_token, core, groups)
+
+
 def test_xray_subscription_uses_host_specific_template_override(access_token):
     # Use a unique inbound tag so other tests' hosts can't affect config count.
     unique_inbound = unique_name("xray_override_inbound")

@@ -13,7 +13,11 @@ from app.models.status_emojis import STATUS_EMOJIS
 from app.models.subscription import SubscriptionInboundData
 from app.models.user import UsersResponseWithInbounds
 from app.settings import subscription_settings
-from app.subscription.client_templates import subscription_client_templates, subscription_xray_templates
+from app.subscription.client_templates import (
+    subscription_client_templates,
+    subscription_standalone_xray_templates,
+    subscription_xray_templates,
+)
 from app.utils.system import readable_size
 
 from . import (
@@ -85,6 +89,7 @@ async def generate_subscription(
 ) -> str | bytes:
     client_templates = await subscription_client_templates()
     xray_template_overrides = await subscription_xray_templates() if config_format == "xray" else None
+    standalone_xray_templates = await subscription_standalone_xray_templates() if config_format == "xray" else None
     conf = _build_subscription_config(config_format, client_templates)
     if conf is None:
         raise ValueError(f'Unsupported format "{config_format}"')
@@ -99,6 +104,7 @@ async def generate_subscription(
         conf,
         client_templates,
         xray_template_overrides=xray_template_overrides,
+        standalone_xray_templates=standalone_xray_templates,
         randomize_order=randomize_order,
         custom_variables=custom_variables,
     )
@@ -420,6 +426,7 @@ async def process_inbounds_and_tags(
     | WireGuardConfiguration,
     client_templates: dict[str, str],
     xray_template_overrides: dict[int, str] | None = None,
+    standalone_xray_templates: dict[int, str] | None = None,
     randomize_order: bool = False,
     custom_variables: list | tuple | None = None,
 ) -> str | bytes:
@@ -484,6 +491,10 @@ async def process_inbounds_and_tags(
                 inbound=inbound_copy,
                 settings=settings,
             )
+
+    if isinstance(conf, XrayConfiguration) and standalone_xray_templates:
+        for template_content in standalone_xray_templates.values():
+            conf.add_standalone(template_content, format_variables)
 
     return conf.render()
 

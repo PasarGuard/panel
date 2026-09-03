@@ -21,6 +21,7 @@ import { toast } from 'sonner'
 const TEMPLATE_TYPE_LABELS: Record<string, string> = {
   [ClientTemplateType.clash_subscription]: 'Clash Subscription',
   [ClientTemplateType.xray_subscription]: 'Xray Subscription',
+  [ClientTemplateType.xray_standalone]: 'Standalone Xray Profile',
   [ClientTemplateType.singbox_subscription]: 'SingBox Subscription',
   [ClientTemplateType.user_agent]: 'User Agent',
   [ClientTemplateType.grpc_user_agent]: 'gRPC User Agent',
@@ -50,6 +51,7 @@ export default function ClientTemplateModal({ isDialogOpen, onOpenChange, form, 
   const [validation, setValidation] = useState<ValidationResult>({ isValid: true })
 
   const templateType = form.watch('template_type')
+  const isStandaloneXray = templateType === ClientTemplateType.xray_standalone
   const isYaml = isYamlType(templateType)
 
   const validateContent = useCallback(
@@ -252,21 +254,23 @@ export default function ClientTemplateModal({ isDialogOpen, onOpenChange, form, 
                     )}
                   />
 
-                  <FormField
-                    control={form.control}
-                    name="is_default"
-                    render={({ field }) => (
-                      <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
-                        <div className="space-y-1">
-                          <FormLabel className="cursor-pointer">{t('clientTemplates.isDefault', { defaultValue: 'Set as default' })}</FormLabel>
-                          <p className="text-muted-foreground text-xs">{t('clientTemplates.isDefaultDescription', { defaultValue: 'Use this template automatically for matching output type.' })}</p>
-                        </div>
-                        <FormControl>
-                          <Switch checked={!!field.value} onCheckedChange={field.onChange} />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
+                  {!isStandaloneXray && (
+                    <FormField
+                      control={form.control}
+                      name="is_default"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
+                          <div className="space-y-1">
+                            <FormLabel className="cursor-pointer">{t('clientTemplates.isDefault', { defaultValue: 'Set as default' })}</FormLabel>
+                            <p className="text-muted-foreground text-xs">{t('clientTemplates.isDefaultDescription', { defaultValue: 'Use this template automatically for matching output type.' })}</p>
+                          </div>
+                          <FormControl>
+                            <Switch checked={!!field.value} onCheckedChange={field.onChange} />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                  )}
                 </div>
               </div>
             </div>

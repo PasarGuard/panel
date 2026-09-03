@@ -6,6 +6,7 @@ export const clientTemplateFormSchema = z.object({
   template_type: z.enum([
     ClientTemplateType.clash_subscription,
     ClientTemplateType.xray_subscription,
+    ClientTemplateType.xray_standalone,
     ClientTemplateType.singbox_subscription,
     ClientTemplateType.user_agent,
     ClientTemplateType.grpc_user_agent,
@@ -103,6 +104,60 @@ rules:
         {
           protocol: 'blackhole',
           tag: 'BLOCK',
+        },
+      ],
+      dns: {
+        servers: ['1.1.1.1', '8.8.8.8'],
+      },
+      routing: {
+        domainStrategy: 'AsIs',
+        rules: [],
+      },
+    },
+    null,
+    2,
+  ),
+
+  [ClientTemplateType.xray_standalone]: JSON.stringify(
+    {
+      remarks: 'Fragment / Serverless Bypass',
+      log: {
+        loglevel: 'warning',
+      },
+      inbounds: [
+        {
+          tag: 'socks',
+          port: 10808,
+          listen: '127.0.0.1',
+          protocol: 'socks',
+          sniffing: { enabled: true, destOverride: ['http', 'tls', 'quic'] },
+          settings: { auth: 'noauth', udp: true },
+        },
+        {
+          tag: 'http',
+          port: 10809,
+          listen: '127.0.0.1',
+          protocol: 'http',
+          sniffing: { enabled: true, destOverride: ['http', 'tls'] },
+          settings: {},
+        },
+      ],
+      outbounds: [
+        {
+          tag: 'DIRECT',
+          protocol: 'freedom',
+          settings: {
+            fragment: {
+              packets: 'tlshello',
+              length: '100-200',
+              interval: '10-20',
+            },
+          },
+        },
+        {
+          tag: 'BLOCK',
+          protocol: 'blackhole',
+          settings: {},
         },
       ],
       dns: {

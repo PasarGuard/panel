@@ -69,7 +69,11 @@ class ClientTemplateOperation(BaseOperation):
                     raise ValueError("User-Agent template content must contain a 'list' field with an array of strings")
                 if not _list:
                     raise ValueError("User-Agent template content must contain at least one User-Agent string")
-            if template_type in (ClientTemplateType.xray_subscription, ClientTemplateType.singbox_subscription):
+            if template_type in (
+                ClientTemplateType.xray_subscription,
+                ClientTemplateType.xray_standalone,
+                ClientTemplateType.singbox_subscription,
+            ):
                 if not isinstance(parsed, dict):
                     raise ValueError("Subscription template content must render to a JSON object")
                 if (inb := parsed.get("inbounds")) is None or not isinstance(inb, list):
@@ -84,6 +88,10 @@ class ClientTemplateOperation(BaseOperation):
                     )
                 if not out:
                     raise ValueError("Subscription template content must contain at least one outbound proxy")
+                if template_type == ClientTemplateType.xray_standalone:
+                    remarks = parsed.get("remarks")
+                    if not isinstance(remarks, str) or not remarks.strip():
+                        raise ValueError("Standalone Xray template content must contain a non-empty 'remarks' field")
         except Exception as exc:
             await self.raise_error(message=f"Invalid template content: {exc!s}", code=400)
 
@@ -132,11 +140,13 @@ class ClientTemplateOperation(BaseOperation):
         admin: AdminDetails,
     ) -> ClientTemplateResponse:
         db_template = await self.get_validated_client_template(db, template_id)
+        template_type = ClientTemplateType(db_template.template_type)
+
+        if template_type == ClientTemplateType.xray_standalone and modified_template.is_default:
+            await self.raise_error(message="Standalone Xray profiles cannot be set as default", code=400)
 
         if modified_template.content is not None:
-            await self._validate_template_content(
-                ClientTemplateType(db_template.template_type), modified_template.content
-            )
+            await self._validate_template_content(template_type, modified_template.content)
 
         if modified_template.is_default is False and db_template.is_default:
             await self.raise_error(
@@ -163,7 +173,7 @@ class ClientTemplateOperation(BaseOperation):
             await self.raise_error(message="Cannot delete system template", code=403)
 
         template_count = await count_client_templates_by_type(db, template_type)
-        if template_count <= 1:
+        if template_type != ClientTemplateType.xray_standalone and template_count <= 1:
             await self.raise_error(message="Cannot delete the last template for this type", code=403)
 
         replacement = None
@@ -214,7 +224,7 @@ class ClientTemplateOperation(BaseOperation):
         # Validate we won't leave any type without templates
         for template_type, templates_of_type in templates_by_type.items():
             total_count = await count_client_templates_by_type(db, template_type)
-            if total_count <= len(templates_of_type):
+            if template_type != ClientTemplateType.xray_standalone and total_count <= len(templates_of_type):
                 await self.raise_error(
                     message=f"Cannot delete the last template for type {template_type.value}", code=403
                 )
