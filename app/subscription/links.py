@@ -14,7 +14,6 @@ from app.models.subscription import (
     WebSocketTransportConfig,
     XHTTPTransportConfig,
 )
-from config import subscription_env_settings
 
 from . import BaseSubscription
 
@@ -61,8 +60,6 @@ class StandardLinks(BaseSubscription):
         self.links.append(link)
 
     def render(self):
-        if subscription_env_settings.external_config:
-            self.links.append(subscription_env_settings.external_config)
         return "\n".join(self.links)
 
     def add(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict):

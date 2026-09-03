@@ -8,7 +8,13 @@ import { SubscriptionManualFormatsSection } from '@/features/subscriptions/compo
 import { SubscriptionResponseHeadersSection } from '@/features/subscriptions/components/subscription-response-headers-section'
 import { SubscriptionRulesSection } from '@/features/subscriptions/components/subscription-rules-section'
 import { SubscriptionSettingsSkeleton } from '@/features/subscriptions/components/subscription-settings-skeleton'
-import { subscriptionSchema, type SubscriptionApplicationFormData, type SubscriptionFormData, defaultSubscriptionRules, normalizeCustomVariablesForPayload } from '@/features/subscriptions/components/subscription-settings-schema'
+import {
+  subscriptionSchema,
+  type SubscriptionApplicationFormData,
+  type SubscriptionFormData,
+  defaultSubscriptionRules,
+  normalizeCustomVariablesForPayload,
+} from '@/features/subscriptions/components/subscription-settings-schema'
 import { Form } from '@/components/ui/form'
 import { Separator } from '@/components/ui/separator'
 import { type SubRule as ApiSubRule } from '@/service/api'
@@ -38,6 +44,7 @@ export default function SubscriptionSettings() {
       allow_browser_config: true,
       disable_sub_template: false,
       randomize_order: false,
+      external_config: '',
       custom_variables: [],
       response_headers: {},
       rules: [],
@@ -122,6 +129,7 @@ export default function SubscriptionSettings() {
         allow_browser_config: subscriptionData.allow_browser_config ?? true,
         disable_sub_template: subscriptionData.disable_sub_template ?? false,
         randomize_order: subscriptionData.randomize_order ?? false,
+        external_config: subscriptionData.external_config || '',
         custom_variables: subscriptionData.custom_variables || [],
         response_headers: Object.fromEntries(Object.entries(subscriptionData.response_headers || {}).map(([key, value]) => [key, typeof value === 'string' ? value : JSON.stringify(value)])),
         rules:
@@ -204,6 +212,7 @@ export default function SubscriptionSettings() {
           profile_title: data.profile_title?.trim() || undefined,
           announce: data.announce?.trim() || undefined,
           announce_url: data.announce_url?.trim() || undefined,
+          external_config: data.external_config?.trim() || undefined,
           custom_variables: processedCustomVariables,
           response_headers: processedResponseHeaders,
           rules: processedRules,
@@ -281,6 +290,7 @@ export default function SubscriptionSettings() {
         allow_browser_config: subscriptionData.allow_browser_config ?? true,
         disable_sub_template: subscriptionData.disable_sub_template ?? false,
         randomize_order: subscriptionData.randomize_order ?? false,
+        external_config: subscriptionData.external_config || '',
         custom_variables: subscriptionData.custom_variables || [],
         response_headers: Object.fromEntries(Object.entries(subscriptionData.response_headers || {}).map(([key, value]) => [key, typeof value === 'string' ? value : JSON.stringify(value)])),
         rules:

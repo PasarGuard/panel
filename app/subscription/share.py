@@ -15,6 +15,7 @@ from app.models.user import UsersResponseWithInbounds
 from app.settings import subscription_settings
 from app.subscription.client_templates import subscription_client_templates, subscription_xray_templates
 from app.utils.system import readable_size
+from config import subscription_env_settings
 
 from . import (
     ClashConfiguration,
@@ -103,10 +104,36 @@ async def generate_subscription(
         custom_variables=custom_variables,
     )
 
+    if config_format == "links" and isinstance(config, str):
+        external_configs = _format_external_configs(
+            subscription_env_settings.external_config,
+            sub_settings.external_config,
+            format_variables=format_variables,
+        )
+        if external_configs:
+            config = "\n".join(part for part in (config, *external_configs) if part)
+
     if as_base64 and not isinstance(config, bytes):
         config = base64.b64encode(config.encode()).decode()
 
     return config
+
+
+def _format_external_configs(
+    *values: str | None,
+    format_variables: dict,
+) -> list[str]:
+    """Normalize external share links and apply subscription variables per line."""
+    configs: list[str] = []
+    for value in values:
+        for line in (value or "").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            formatted = _format_dynamic_value(line, format_variables)
+            if formatted:
+                configs.append(formatted)
+    return configs
 
 
 def format_time_left(seconds_left: int) -> str:

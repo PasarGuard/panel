@@ -287,6 +287,8 @@
         "announceUrl": "Ссылка на объявление",
         "announceUrlPlaceholder": "https://status.example.com",
         "announceUrlDescription": "Необязательная ссылка с дополнительной информацией об объявлении",
+        "externalConfig": "Внешние конфигурации",
+        "externalConfigDescription": "Добавьте внешние ссылки по одной в строке в обычные и Base64-подписки. Поддерживаются переменные шаблона.",
         "allowBrowserConfig": "Показывать ссылки на странице подписки",
         "allowBrowserConfigDescription": "Отображать ссылки подписки в шаблоне страницы подписки при доступе через браузер",
         "disableSubTemplate": "Отключить шаблон подписки",
