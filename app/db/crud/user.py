@@ -5,7 +5,7 @@ from typing import Literal
 
 from sqlalchemy import and_, case, delete, desc, func, literal, not_, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import joinedload, selectinload, with_expression
+from sqlalchemy.orm import joinedload, load_only, selectinload, with_expression
 from sqlalchemy.sql import Select
 from sqlalchemy.sql.functions import coalesce
 
@@ -287,6 +287,27 @@ async def get_users_with_proxy_settings(
 
     result = await db.execute(stmt)
     return list(result.scalars().all())
+
+
+async def get_admin_users_for_node_sync(
+    db: AsyncSession,
+    admin_id: int,
+    *,
+    statuses: Sequence[UserStatus] | None = None,
+) -> list[User]:
+    """Load an admin's users for node dispatch, without response-only fields or history."""
+    stmt = (
+        select(User)
+        .where(User.admin_id == admin_id)
+        .options(
+            load_only(User.id, User.admin_id, User.status, User.proxy_settings),
+            joinedload(User.admin).joinedload(Admin.role),
+            selectinload(User.groups).selectinload(Group.inbounds),
+        )
+    )
+    if statuses is not None:
+        stmt = stmt.where(User.status.in_(statuses))
+    return list((await db.scalars(stmt)).all())
 
 
 def _build_user_sort_clause(sort_option: UserSortOption):
