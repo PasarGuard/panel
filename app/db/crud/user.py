@@ -7,6 +7,7 @@ from sqlalchemy import and_, case, delete, desc, func, literal, not_, or_, selec
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload, with_expression
 from sqlalchemy.sql import Select
+from sqlalchemy.sql.elements import ColumnElement
 from sqlalchemy.sql.functions import coalesce
 
 from app.db.compiles_types import DateDiff
@@ -322,6 +323,30 @@ def _build_user_simple_sort_clause(sort_option: UserSimpleSortOption):
     return column.desc() if sort_option.value.startswith("-") else column.asc()
 
 
+def _build_user_sort_clauses(sort_options: list[UserSortOption]) -> list[ColumnElement]:
+    clauses = []
+    for sort_option in sort_options:
+        clause = _build_user_sort_clause(sort_option)
+        if isinstance(clause, tuple):
+            clauses.extend(clause)
+        else:
+            clauses.append(clause)
+
+    if sort_options:
+        # Keep offset pagination deterministic when multiple users share the
+        # same value for the requested sort field. Matching the last direction
+        # also lets the default created_at sort use (created_at, id) directly.
+        last_sort_descending = sort_options[-1].value.startswith("-")
+        clauses.append(User.id.desc() if last_sort_descending else User.id.asc())
+
+    return clauses
+
+
+def _build_user_count_stmt(stmt: Select) -> Select:
+    """Count filtered users without carrying page ordering or wide user rows."""
+    return stmt.with_only_columns(func.count(User.id)).order_by(None)
+
+
 async def get_users(
     db: AsyncSession,
     query: UserListQuery,
@@ -416,18 +441,11 @@ async def get_users(
         stmt = stmt.where(and_(*filters))
 
     if query.sort:
-        sort_clauses = []
-        for sort_option in query.sort:
-            clause = _build_user_sort_clause(sort_option)
-            if isinstance(clause, tuple):
-                sort_clauses.extend(clause)
-            else:
-                sort_clauses.append(clause)
-        stmt = stmt.order_by(*sort_clauses)
+        stmt = stmt.order_by(*_build_user_sort_clauses(query.sort))
 
     total = None
     if return_with_count:
-        count_stmt = select(func.count()).select_from(stmt.subquery())
+        count_stmt = _build_user_count_stmt(stmt)
         result = await db.execute(count_stmt)
         total = result.scalar()
 
