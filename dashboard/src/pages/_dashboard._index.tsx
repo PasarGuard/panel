@@ -3,7 +3,7 @@ import DashboardStatistics from '@/features/dashboard/components/dashboard-stati
 import WorkersHealthCard from '@/features/dashboard/components/workers-health-card'
 import AdminFilterCombobox from '@/components/common/admin-filter-combobox'
 import { useCommandPaletteStore } from '@/hooks/use-command-palette-store'
-import UserModal from '@/features/users/dialogs/user-modal'
+import UserModal from '@/features/users/dialogs/user-modal.lazy'
 import { Separator } from '@/components/ui/separator'
 import { useAdmin } from '@/hooks/use-admin'
 import { useClipboard } from '@/hooks/use-clipboard'
