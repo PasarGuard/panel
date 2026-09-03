@@ -125,7 +125,12 @@ class NodeOperation(BaseOperation):
         db: AsyncSession,
         query: NodeListQuery,
     ) -> NodesResponse:
-        db_nodes, count = await get_nodes(db=db, query=query)
+        db_nodes, count = await get_nodes(
+            db=db,
+            query=query,
+            load_usage_logs=False,
+            load_lifetime_usage=True,
+        )
         node_responses = [NodeResponse.model_validate(node) for node in db_nodes]
         return NodesResponse(nodes=node_responses, total=count)
 
