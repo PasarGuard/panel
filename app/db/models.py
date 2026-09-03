@@ -58,6 +58,20 @@ users_groups_association = Table(
     fk_id_table_column("groups_id", "groups.id", primary_key=True),
 )
 
+# The association primary keys are ordered from the owning entity to the group.
+# Reverse indexes keep group-centric joins, counts, and bulk deletes from scanning
+# every membership row on databases that do not auto-index foreign keys.
+Index(
+    "ix_inbounds_groups_association_group_id_inbound_id",
+    inbounds_groups_association.c.group_id,
+    inbounds_groups_association.c.inbound_id,
+)
+Index(
+    "ix_users_groups_association_groups_id_user_id",
+    users_groups_association.c.groups_id,
+    users_groups_association.c.user_id,
+)
+
 
 class AdminStatus(str, Enum):
     active = "active"
@@ -777,6 +791,7 @@ class Group(Base, IdMixin):
         secondary=template_group_association, back_populates="groups", init=False
     )
     is_disabled: Mapped[bool] = mapped_column(server_default="0", default=False)
+    total_users: Mapped[int] = query_expression(repr=False)
 
     @hybrid_property
     def inbound_ids(self) -> list[int]:
@@ -806,19 +821,6 @@ class Group(Base, IdMixin):
             .where(inbounds_groups_association.c.group_id == cls.id)
             .scalar_subquery()
             .label("inbound_tags")
-        )
-
-    @hybrid_property
-    def total_users(self) -> int:
-        return len(self.users)
-
-    @total_users.expression
-    def total_users(cls):
-        return (
-            select(func.count(users_groups_association.c.user_id))
-            .where(users_groups_association.c.groups_id == cls.id)
-            .scalar_subquery()
-            .label("total_users")
         )
 
 
