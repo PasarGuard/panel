@@ -5,6 +5,8 @@ import svgr from 'vite-plugin-svgr'
 import path from 'path'
 import { VitePWA } from 'vite-plugin-pwa'
 
+const shellJavaScript = new Set<string>()
+
 export default defineConfig({
   base: process.env.BASE_URL,
   clearScreen: false,
@@ -50,15 +52,47 @@ export default defineConfig({
     tailwindcss(),
     react(),
     svgr(),
+    {
+      name: 'collect-shell-precache',
+      generateBundle(_, bundle) {
+        shellJavaScript.clear()
+        const visit = (fileName: string) => {
+          const chunk = bundle[fileName]
+          if (chunk?.type !== 'chunk' || shellJavaScript.has(fileName)) return
+          shellJavaScript.add(fileName)
+          chunk.imports.forEach(visit)
+        }
+        // Follow static imports only; route, dialog and editor chunks stay deferred.
+        Object.values(bundle).forEach(chunk => {
+          if (chunk.type === 'chunk' && chunk.isEntry) visit(chunk.fileName)
+        })
+      },
+    },
     VitePWA({
       registerType: 'prompt',
       injectRegister: false,
       workbox: {
         navigateFallback: '/index.html',
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
-        // Monaco is loaded lazily in editor dialogs, so its largest chunks
-        // should stay network-fetched instead of bloating the app shell precache.
         globIgnores: ['statics/editor.api*.js', 'statics/ts.worker*.js'],
+        // Preserve the shell offline without downloading every lazy chunk on install.
+        manifestTransforms: [
+          async entries => ({
+            manifest: entries.filter(entry => !entry.url.endsWith('.js') || shellJavaScript.has(entry.url)),
+            warnings: [],
+          }),
+        ],
+        runtimeCaching: [
+          {
+            urlPattern: ({ request, url, sameOrigin }) => sameOrigin && request.destination === 'script' && /\/statics\/[^/]+\.js$/.test(url.pathname),
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'pasarguard-lazy-javascript',
+              cacheableResponse: { statuses: [200] },
+              expiration: { maxEntries: 128, maxAgeSeconds: 30 * 24 * 60 * 60 },
+            },
+          },
+        ],
         cleanupOutdatedCaches: false,
         skipWaiting: false,
         clientsClaim: false,

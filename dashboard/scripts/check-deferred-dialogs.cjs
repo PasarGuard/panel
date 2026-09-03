@@ -187,11 +187,85 @@ const server = http.createServer((req, res) => {
     await page.goto(base + '/#/')
     await page.getByRole('heading', { name: 'Dashboard', exact: true }).waitFor()
     await page.locator('.recharts-wrapper').first().waitFor()
+    await page.keyboard.press('Control+n')
+    const dashboardDialog = page.getByRole('dialog', { name: 'Create User', exact: true })
+    await dashboardDialog.getByRole('textbox', { name: 'Enter username', exact: true }).waitFor()
+    await dashboardDialog.evaluate(async element => {
+      await Promise.all(element.getAnimations().map(animation => animation.finished))
+      window.dashboardDialogClosedWhileMounted = false
+      const observer = new MutationObserver(() => {
+        if (element.getAttribute('data-state') === 'closed' && element.isConnected) {
+          window.dashboardDialogClosedWhileMounted = true
+          observer.disconnect()
+        }
+      })
+      observer.observe(element, { attributes: true, attributeFilter: ['data-state'] })
+    })
+    await dashboardDialog.getByRole('button', { name: 'Cancel', exact: true }).click()
+    await dashboardDialog.waitFor({ state: 'hidden' })
+    assert(await page.evaluate(() => window.dashboardDialogClosedWhileMounted), 'Dashboard unmounted the dialog before its close transition')
+    await page.keyboard.press('Control+n')
+    await dashboardDialog.getByRole('textbox', { name: 'Enter username', exact: true }).waitFor()
+    await dashboardDialog.getByRole('button', { name: 'Cancel', exact: true }).click()
+    await dashboardDialog.waitFor({ state: 'hidden' })
+    console.log('Passed: dashboard dialog closes while mounted and reopens.')
+
     await page.goto(base + '/#/login')
     await page.getByPlaceholder('Username', { exact: true }).waitFor()
     await page.getByPlaceholder('Password', { exact: true }).waitFor()
     assert.deepEqual(errors, [], 'Shell route runtime errors')
     console.log('Passed: dashboard chart and login routes.')
+
+    // Registration is deliberately explicit: the app does not auto-register a worker.
+    await page.evaluate(async () => {
+      await navigator.serviceWorker.register('/sw.js')
+      await navigator.serviceWorker.ready
+    })
+    const precached = await page.evaluate(async () => {
+      const names = (await caches.keys()).filter(name => name.includes('-precache-'))
+      return (await Promise.all(names.map(async name => (await (await caches.open(name)).keys()).map(request => new URL(request.url).pathname)))).flat()
+    })
+    assert(precached.includes('/index.html'), 'Installed worker did not precache the HTML shell')
+    assert(precached.includes('/' + manifest['index.html'].file), 'Installed worker did not precache the entry script')
+    for (const name of ['user', 'usage', 'subscription']) assert(!precached.includes('/' + dialogFile(name)), `Worker precached the deferred ${name} dialog`)
+    for (const file of chartFiles) assert(!precached.includes('/' + file), 'Worker precached Recharts')
+
+    // Reload to become controlled, then request a lazy chunk for the first time.
+    await page.reload()
+    await page.getByPlaceholder('Username', { exact: true }).waitFor()
+    assert(await page.evaluate(() => !!navigator.serviceWorker.controller), 'Reloaded page is not controlled')
+    const lazyUrl = base + '/' + dialogFile('subscription')
+    const loadLazyScript = async () => {
+      const response = page.waitForResponse(response => response.url() === lazyUrl)
+      // A fresh document avoids the browser's in-memory ES module cache.
+      await page.evaluate(
+        url =>
+          new Promise((resolve, reject) => {
+            const frame = document.createElement('iframe')
+            frame.srcdoc = '<!doctype html><html><head></head><body></body></html>'
+            frame.onload = () => {
+              const link = frame.contentDocument.createElement('link')
+              link.rel = 'modulepreload'
+              link.href = url
+              link.onload = resolve
+              link.onerror = () => reject(new Error('Lazy script failed to load'))
+              frame.contentDocument.head.appendChild(link)
+            }
+            document.body.appendChild(frame)
+          }),
+        lazyUrl,
+      )
+      assert((await response).fromServiceWorker(), 'Lazy script bypassed the service worker')
+    }
+    await loadLazyScript()
+    await page.waitForFunction(async url => !!(await (await caches.open('pasarguard-lazy-javascript')).match(url)), lazyUrl)
+    await context.setOffline(true)
+    const shellAvailable = await page.evaluate(async entry => (await fetch('/index.html')).ok && (await fetch('/' + entry)).ok, manifest['index.html'].file)
+    assert(shellAvailable, 'Precached shell assets are unavailable offline')
+    await loadLazyScript()
+    await context.setOffline(false)
+    assert.deepEqual(errors, [], 'Service worker runtime errors')
+    console.log('Passed: installed worker excludes deferred chunks; visited lazy JavaScript and precached shell assets are available offline.')
   } finally {
     await browser.close()
     server.close()
