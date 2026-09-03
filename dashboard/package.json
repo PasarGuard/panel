@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "vite dev",
     "build": "vite build",
+    "typecheck": "tsc -b",
     "preview": "vite preview",
     "gen:api": "orval",
     "wait-port": "wait-port http://localhost:$UVICORN_PORT/openapi.json",

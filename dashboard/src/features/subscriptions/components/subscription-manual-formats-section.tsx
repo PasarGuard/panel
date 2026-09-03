@@ -1,13 +1,12 @@
-import type { SubscriptionFormData } from '@/features/subscriptions/components/subscription-settings-schema'
+import type { SubscriptionSettingsForm } from './subscription-settings-schema'
 import { WireguardIcon, XrayIcon, SingboxIcon, MihomoIcon } from '@/components/icons/format-icons'
 import { FormControl, FormDescription, FormField, FormItem, FormLabel } from '@/components/ui/form'
 import { Switch } from '@/components/ui/switch'
 import { Cat, Code, GlobeLock, ListTree } from 'lucide-react'
-import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
 export interface SubscriptionManualFormatsSectionProps {
-  form: UseFormReturn<SubscriptionFormData>
+  form: SubscriptionSettingsForm
 }
 
 export function SubscriptionManualFormatsSection({ form }: SubscriptionManualFormatsSectionProps) {

@@ -1,5 +1,18 @@
 import * as z from 'zod'
-import type { FinalMask } from '@/service/api'
+import type { CreateHost, FinalMask, XrayNoiseSettings } from '@/service/api'
+
+export function parseNoisePacketInput(value: string, type: string | undefined): string | number[] {
+  if (type === 'array') {
+    try {
+      const parsed: unknown = JSON.parse(value)
+      const packet = z.array(z.number().int()).safeParse(parsed)
+      if (packet.success) return packet.data
+    } catch {
+      // Keep incomplete input editable; the API also accepts string packets.
+    }
+  }
+  return value
+}
 
 interface Brutal {
   enable?: boolean
@@ -81,8 +94,8 @@ export interface HostFormValues {
   noise_settings?: {
     xray?: {
       type: string
-      packet: string
-      delay: string
+      packet?: XrayNoiseSettings['packet']
+      delay?: XrayNoiseSettings['delay']
       apply_to: 'ip' | 'ipv4' | 'ipv6'
     }[]
   }
@@ -116,7 +129,7 @@ export interface HostFormValues {
       seq_key?: string
       uplink_data_placement?: string
       uplink_data_key?: string
-      uplink_chunk_size?: number
+      uplink_chunk_size?: string
       sc_max_each_post_bytes?: string
       sc_min_posts_interval_ms?: string
       download_settings?: number
@@ -167,6 +180,30 @@ export interface HostFormValues {
   cipher_suites?: string
 }
 
+export function mapHostTransportSettingsForApi(settings: HostFormValues['transport_settings']): CreateHost['transport_settings'] {
+  if (!settings) return undefined
+  const xhttp = settings.xhttp_settings
+  const xmux = xhttp?.xmux
+  return {
+    ...settings,
+    xhttp_settings: xhttp
+      ? {
+          ...xhttp,
+          xmux: xmux
+            ? {
+                maxConcurrency: xmux.max_concurrency,
+                maxConnections: xmux.max_connections,
+                cMaxReuseTimes: xmux.c_max_reuse_times,
+                hMaxReusableSecs: xmux.h_max_reusable_secs,
+                hMaxRequestTimes: xmux.h_max_request_times,
+                hKeepAlivePeriod: xmux.h_keep_alive_period,
+              }
+            : undefined,
+        }
+      : undefined,
+  }
+}
+
 const transportSettingsSchema = z
   .object({
     xhttp_settings: z
@@ -200,7 +237,12 @@ const transportSettingsSchema = z
         seq_key: z.string().nullish().optional(),
         uplink_data_placement: z.string().nullish().optional(),
         uplink_data_key: z.string().nullish().optional(),
-        uplink_chunk_size: z.number().nullish().optional(),
+        uplink_chunk_size: z
+          .string()
+          .nullish()
+          .refine(val => !val || /^\d{1,16}(-\d{1,16})?$/.test(val), {
+            message: "Uplink Chunk Size must be in format like '10-20' or '10'",
+          }),
         sc_max_each_post_bytes: z.string().nullish().optional(),
         sc_min_posts_interval_ms: z.string().nullish().optional(),
         download_settings: z.number().nullish().optional(),
@@ -381,13 +423,13 @@ export const HostFormSchema = z.object({
           z.object({
             type: z
               .string()
-              .regex(/^(?:rand|str|base64|hex)$/)
+              .regex(/^(?:rand|array|str|base64|hex)$/)
               .optional(),
-            packet: z.string().optional(),
+            packet: z.union([z.string(), z.array(z.number().int())]).nullish(),
             delay: z
-              .string()
-              .optional()
-              .refine(val => !val || /^\d{1,16}(-\d{1,16})?$/.test(val), {
+              .union([z.string(), z.number().int()])
+              .nullish()
+              .refine(val => val == null || val === '' || /^\d{1,16}(-\d{1,16})?$/.test(String(val)), {
                 message: "Delay must be in format like '10-20' or '10'",
               }),
             apply_to: z.enum(['ip', 'ipv4', 'ipv6']).default('ip'),
@@ -495,7 +537,9 @@ export const hostFormDefaultValues: HostFormValues = {
 }
 
 /** Normalize API fragment settings for the host form (accept legacy `delay` as `interval`). */
-export function mapHostFragmentSettingsForForm(fragmentSettings: { xray?: Record<string, unknown> | null; sing_box?: NonNullable<HostFormValues['fragment_settings']>['sing_box'] | null } | null | undefined): HostFormValues['fragment_settings'] | undefined {
+export function mapHostFragmentSettingsForForm(
+  fragmentSettings: { xray?: Record<string, unknown> | null; sing_box?: NonNullable<HostFormValues['fragment_settings']>['sing_box'] | null } | null | undefined,
+): HostFormValues['fragment_settings'] | undefined {
   if (!fragmentSettings) return undefined
   const xrayRaw = fragmentSettings.xray
   if (!xrayRaw && fragmentSettings.sing_box == null) return undefined
@@ -514,4 +558,3 @@ export function mapHostFragmentSettingsForForm(fragmentSettings: { xray?: Record
     sing_box: fragmentSettings.sing_box ?? undefined,
   }
 }
-
