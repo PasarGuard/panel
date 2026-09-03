@@ -140,6 +140,8 @@ interface NoiseItemProps {
 }
 
 const NoiseItem = memo<NoiseItemProps>(({ index, form, onRemove, onDuplicate, t }) => {
+  const [packetDraft, setPacketDraft] = useState<string | null>(null)
+
   const handleRemove = useCallback(() => {
     onRemove(index)
   }, [index, onRemove])
@@ -224,8 +226,18 @@ const NoiseItem = memo<NoiseItemProps>(({ index, form, onRemove, onDuplicate, t 
                 <Input
                   placeholder={t('hostsDialog.noise.packetPlaceholder')}
                   {...field}
-                  value={Array.isArray(field.value) ? JSON.stringify(field.value) : (field.value ?? '')}
-                  onChange={event => field.onChange(parseNoisePacketInput(event.target.value, form.getValues(`noise_settings.xray.${index}.type`)))}
+                  value={packetDraft ?? (Array.isArray(field.value) ? JSON.stringify(field.value) : (field.value ?? ''))}
+                  onFocus={event => setPacketDraft(event.currentTarget.value)}
+                  onChange={event => {
+                    const raw = event.target.value
+                    setPacketDraft(raw)
+                    // Keep the caret stable while updating the form for submits without blur.
+                    field.onChange(parseNoisePacketInput(raw, form.getValues(`noise_settings.xray.${index}.type`)))
+                  }}
+                  onBlur={() => {
+                    setPacketDraft(null)
+                    field.onBlur()
+                  }}
                   className="h-8"
                 />
               </FormControl>
