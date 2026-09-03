@@ -6,6 +6,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { gzipSync } from 'node:zlib'
+import { runInNewContext } from 'node:vm'
 
 const directory = resolve(process.argv[2] || 'build')
 const reportOnly = process.argv.includes('--report-only')
@@ -60,3 +61,37 @@ if (!reportOnly) {
 }
 console.log(JSON.stringify(results, null, 2))
 if (!reportOnly) console.log('Deferred dialog and chart boundaries passed.')
+
+// Read the generated precache with a stubbed Workbox module; no worker is installed.
+let precache
+const define = (_dependencies, factory) =>
+  factory({
+    precacheAndRoute: entries => {
+      precache = entries
+    },
+    registerRoute() {},
+    createHandlerBoundToURL() {},
+    NavigationRoute: class {},
+    CacheFirst: class {},
+    CacheableResponsePlugin: class {},
+    ExpirationPlugin: class {},
+  })
+runInNewContext(readFileSync(resolve(directory, 'sw.js'), 'utf8'), { self: { define, addEventListener() {} }, define })
+assert(precache, 'Generated service worker has no precache')
+const precachedJavaScript = precache.map(entry => entry.url).filter(url => url.endsWith('.js'))
+const shellFiles = staticDependencies(['index.html'])
+  .map(key => manifest[key].file)
+  .filter(file => file.endsWith('.js'))
+console.log(JSON.stringify({ precacheEntries: precache.length, precachedJavaScript: precachedJavaScript.length }))
+if (!reportOnly) {
+  assert.deepEqual([...precachedJavaScript].sort(), shellFiles.sort(), 'Precache must contain exactly the shell JavaScript dependency set')
+  assert(
+    precache.some(entry => entry.url === 'index.html'),
+    'HTML shell is not precached',
+  )
+  assert(
+    precache.some(entry => entry.url.endsWith('.css')),
+    'Shell CSS is not precached',
+  )
+  console.log('Passed: service worker precaches shell JavaScript only, plus HTML and CSS.')
+}

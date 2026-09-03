@@ -141,7 +141,7 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {isUserModalOpen && <UserModal isDialogOpen={isUserModalOpen} onOpenChange={setUserModalOpen} form={userForm} editingUser={false} onSuccessCallback={handleCreateUserSuccess} />}
+      <UserModal isDialogOpen={isUserModalOpen} onOpenChange={setUserModalOpen} form={userForm} editingUser={false} onSuccessCallback={handleCreateUserSuccess} />
     </div>
   )
 }
