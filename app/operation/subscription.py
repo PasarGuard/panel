@@ -6,11 +6,7 @@ from fastapi import Response
 from fastapi.responses import HTMLResponse
 
 from app.db import AsyncSession
-from app.db.crud.hwid import (
-    get_user_hwid_by_value,
-    get_user_hwid_count,
-    register_user_hwid,
-)
+from app.db.crud.hwid import register_user_hwid
 from app.db.crud.user import get_user_usages, user_sub_update
 from app.db.models import User
 from app.models.admin import AdminDetails
@@ -387,18 +383,8 @@ class SubscriptionOperation(BaseOperation):
                 await self.raise_error(message="HWID header required", code=403)
             return
 
-        existing_hwid = await get_user_hwid_by_value(db, user_id, x_hwid)
-        if existing_hwid:
-            await register_user_hwid(db, user_id, x_hwid, x_device_os, x_ver_os, x_device_model)
-            return
-
-        # It's a new HWID, check limit
-        if limit is not None and limit > 0:
-            current_count = await get_user_hwid_count(db, user_id)
-            if current_count >= limit:
-                await self.raise_error(message="Device limit reached", code=403)
-
-        await register_user_hwid(db, user_id, x_hwid, x_device_os, x_ver_os, x_device_model)
+        if not await register_user_hwid(db, user_id, x_hwid, x_device_os, x_ver_os, x_device_model, limit=limit):
+            await self.raise_error(message="Device limit reached", code=403)
 
     async def user_subscription(
         self,

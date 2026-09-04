@@ -1,10 +1,15 @@
+import asyncio
+
 import pytest
-from fastapi import status
+from fastapi import HTTPException, status
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlalchemy.pool import NullPool
 
 from app.db.crud.hwid import register_user_hwid, reset_user_hwids
 from app.db.models import User as DBUser, UserHWID
-from tests.api import TestSession, client
+from app.operation import OperatorType, subscription as subscription_module
+from tests.api import DATABASE_URL, TestSession, client
 from tests.api.helpers import (
     auth_headers,
     create_admin,
@@ -29,12 +34,65 @@ async def _reset_user_hwids(user_id: int) -> None:
 
 
 @pytest.mark.asyncio
+@pytest.mark.skipif(DATABASE_URL.endswith(":memory:"), reason="Requires independent connections to a shared database")
+@pytest.mark.parametrize("limit", [1, 3])
+@pytest.mark.parametrize("same_device", [False, True])
+async def test_concurrent_hwid_registration_respects_last_slot(access_token, monkeypatch, limit, same_device):
+    user = create_user(access_token)
+    # The API test pool shares one SQLite connection. Use independent connections
+    # here to exercise database locking as separate workers would.
+    request_engine = create_async_engine(DATABASE_URL, poolclass=NullPool)
+    request_session = async_sessionmaker(request_engine, expire_on_commit=False)
+    ready = asyncio.Barrier(2)
+    original_register = subscription_module.register_user_hwid
+
+    async def simultaneous_registration(*args, **kwargs):
+        await ready.wait()
+        return await original_register(*args, **kwargs)
+
+    monkeypatch.setattr(subscription_module, "register_user_hwid", simultaneous_registration)
+    operator = subscription_module.SubscriptionOperation(OperatorType.API)
+
+    async def request(hwid):
+        async with request_session() as session:
+            # Subscription validation reads the user before registration. This
+            # also establishes a snapshot under MySQL's REPEATABLE READ.
+            await session.execute(select(DBUser.id).where(DBUser.id == user["id"]))
+            try:
+                await operator.validate_and_register_hwid(session, user["id"], limit, None, hwid, None, None, None)
+            except HTTPException as exc:
+                assert exc.detail == "Device limit reached"
+                return exc.status_code
+            return status.HTTP_200_OK
+
+    try:
+        await _set_user_hwid_limit(user["id"], limit)
+        async with TestSession() as session:
+            for index in range(limit - 1):
+                await register_user_hwid(session, user["id"], f"existing-{index}")
+
+        outcomes = await asyncio.wait_for(
+            asyncio.gather(request("new-device"), request("new-device" if same_device else "other-device")),
+            timeout=15,
+        )
+        expected = [status.HTTP_200_OK, status.HTTP_200_OK if same_device else status.HTTP_403_FORBIDDEN]
+        assert sorted(outcomes) == expected
+        async with TestSession() as session:
+            hwids = (await session.execute(select(UserHWID.hwid).where(UserHWID.user_id == user["id"]))).scalars().all()
+        assert len(hwids) == limit
+    finally:
+        await request_engine.dispose()
+        await _reset_user_hwids(user["id"])
+        delete_user(access_token, user["username"])
+
+
+@pytest.mark.asyncio
 async def test_register_user_hwid_upserts_existing_row(access_token):
     user = create_user(access_token)
 
     try:
         async with TestSession() as session:
-            await register_user_hwid(session, user["id"], "device-dup", "Android", "14", "Pixel 8")
+            assert await register_user_hwid(session, user["id"], "device-dup", "Android", "14", "Pixel 8", limit=1)
             inserted = (
                 await session.execute(
                     select(UserHWID).where(UserHWID.user_id == user["id"], UserHWID.hwid == "device-dup")
@@ -43,7 +101,8 @@ async def test_register_user_hwid_upserts_existing_row(access_token):
             first_last_used_at = inserted.last_used_at
 
         async with TestSession() as session:
-            await register_user_hwid(session, user["id"], "device-dup")
+            assert not await register_user_hwid(session, user["id"], "device-over-limit", limit=1)
+            assert await register_user_hwid(session, user["id"], "device-dup", limit=1)
             updated = (
                 await session.execute(
                     select(UserHWID).where(UserHWID.user_id == user["id"], UserHWID.hwid == "device-dup")
