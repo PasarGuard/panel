@@ -40,7 +40,6 @@ from app.db.crud.user import (
     get_users_count_by_admin,
     get_users_simple,
     get_users_sub_update_list,
-    get_users_subscription_agent_counts,
     get_users_subscription_agent_stats,
     load_user_attrs,
     lock_admin_quota_row,
@@ -2011,14 +2010,6 @@ class UserOperation(BaseOperation):
             else:
                 resolved_admin_id = get_scope_admin_id(admin, "users", "read")
 
-        agent_counts = await get_users_subscription_agent_counts(
-            db,
-            user_id=resolved_user_id,
-            admin_id=resolved_admin_id,
-            start=start,
-            end=end,
-            period=period,
-        )
         agent_stats = await get_users_subscription_agent_stats(
             db,
             start=start,
@@ -2027,8 +2018,15 @@ class UserOperation(BaseOperation):
             user_id=resolved_user_id,
             admin_id=resolved_admin_id,
         )
+        # The period rows already contain every update in the requested range,
+        # so derive pie totals from them instead of scanning the same history a
+        # second time solely for totals.
+        agent_totals: Counter[str] = Counter()
+        for row in agent_stats:
+            agent_totals[row.get("agent") or ""] += int(row.get("count") or 0)
+
         return self._build_user_agent_chart(
-            agent_counts,
+            list(agent_totals.items()),
             start=start,
             end=end,
             agent_stats=agent_stats,

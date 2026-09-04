@@ -384,6 +384,7 @@ class UserSubscriptionUpdate(Base, CreatedAtUTCMixin):
     __table_args__ = (
         Index("idx_user_subscription_updates_user_id", "user_id"),
         Index("idx_user_subscription_updates_user_created", "user_id", "created_at"),
+        Index("idx_user_subscription_updates_created_at", "created_at"),
     )
     user_id: Mapped[int] = fk_id_column("users.id", ondelete="CASCADE")
     user: Mapped[User] = relationship(back_populates="subscription_updates", init=False)
