@@ -7251,6 +7251,59 @@ export function useGetGeneralSettings<TData = Awaited<ReturnType<typeof getGener
 }
 
 /**
+ * @summary Get Default Subscription Rules
+ */
+export const getDefaultSubscriptionRules = (signal?: AbortSignal) => {
+  return orvalFetcher<SubRule[]>({ url: `/api/settings/subscription/defaults`, method: 'GET', signal })
+}
+
+export const getGetDefaultSubscriptionRulesQueryKey = () => {
+  return [`/api/settings/subscription/defaults`] as const
+}
+
+export const getGetDefaultSubscriptionRulesQueryOptions = <TData = Awaited<ReturnType<typeof getDefaultSubscriptionRules>>, TError = ErrorType<Unauthorized | Forbidden>>(options?: {
+  query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getDefaultSubscriptionRules>>, TError, TData>>
+}) => {
+  const { query: queryOptions } = options ?? {}
+
+  const queryKey = queryOptions?.queryKey ?? getGetDefaultSubscriptionRulesQueryKey()
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getDefaultSubscriptionRules>>> = ({ signal }) => getDefaultSubscriptionRules(signal)
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<Awaited<ReturnType<typeof getDefaultSubscriptionRules>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetDefaultSubscriptionRulesQueryResult = NonNullable<Awaited<ReturnType<typeof getDefaultSubscriptionRules>>>
+export type GetDefaultSubscriptionRulesQueryError = ErrorType<Unauthorized | Forbidden>
+
+export function useGetDefaultSubscriptionRules<TData = Awaited<ReturnType<typeof getDefaultSubscriptionRules>>, TError = ErrorType<Unauthorized | Forbidden>>(options: {
+  query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getDefaultSubscriptionRules>>, TError, TData>> &
+    Pick<DefinedInitialDataOptions<Awaited<ReturnType<typeof getDefaultSubscriptionRules>>, TError, TData>, 'initialData'>
+}): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetDefaultSubscriptionRules<TData = Awaited<ReturnType<typeof getDefaultSubscriptionRules>>, TError = ErrorType<Unauthorized | Forbidden>>(options?: {
+  query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getDefaultSubscriptionRules>>, TError, TData>> &
+    Pick<UndefinedInitialDataOptions<Awaited<ReturnType<typeof getDefaultSubscriptionRules>>, TError, TData>, 'initialData'>
+}): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetDefaultSubscriptionRules<TData = Awaited<ReturnType<typeof getDefaultSubscriptionRules>>, TError = ErrorType<Unauthorized | Forbidden>>(options?: {
+  query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getDefaultSubscriptionRules>>, TError, TData>>
+}): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get Default Subscription Rules
+ */
+
+export function useGetDefaultSubscriptionRules<TData = Awaited<ReturnType<typeof getDefaultSubscriptionRules>>, TError = ErrorType<Unauthorized | Forbidden>>(options?: {
+  query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getDefaultSubscriptionRules>>, TError, TData>>
+}): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetDefaultSubscriptionRulesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+  query.queryKey = queryOptions.queryKey
+
+  return query
+}
+
+/**
  * Creates a new group in the system. Only authorized administrators can create groups.
  * @summary Create a new group
  */

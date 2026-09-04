@@ -134,30 +134,3 @@ export type SubscriptionFormData = z.infer<typeof subscriptionSchema>
 export type SubscriptionRuleFormData = SubscriptionFormData['rules'][number]
 export type SubscriptionPlatform = SubscriptionApplicationFormData['platform']
 export type SubscriptionLanguage = NonNullable<SubscriptionApplicationFormData['download_links']>[number]['language']
-
-export const defaultSubscriptionRules: SubscriptionRuleFormData[] = [
-  {
-    pattern: '^([Cc]lash[\\-\\.]?[Vv]erge|[Cc]lash[\\-\\.]?[Mm]eta|[Ff][Ll][Cc]lash|[Mm]ihomo)',
-    target: 'clash_meta',
-  },
-  {
-    pattern: '^([Cc]lash|[Ss]tash)',
-    target: 'clash',
-  },
-  {
-    pattern: '^(SFA|SFI|SFM|SFT|[Kk]aring|[Hh]iddify[Nn]ext)|.*[Ss]ing[\\-b]?ox.*',
-    target: 'sing_box',
-  },
-  {
-    pattern: '^(SS|SSR|SSD|SSS|Outline|Shadowsocks|SSconf)',
-    target: 'outline',
-  },
-  {
-    pattern: '^([Vv]2rayNG|[Vv]2rayN|[Ss]treisand|[Hh]app|[Kk]tor\\-client)',
-    target: 'xray',
-  },
-  {
-    pattern: '.*',
-    target: 'links_base64',
-  },
-]

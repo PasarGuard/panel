@@ -2,16 +2,22 @@ import { buildDefaultApplications } from '@/features/subscriptions/components/de
 import { SubscriptionApplicationSheet } from '@/features/subscriptions/components/subscription-application-sheet'
 import { SubscriptionApplicationsSection } from '@/features/subscriptions/components/subscription-applications-section'
 import { SubscriptionCustomVariablesSection } from '@/features/subscriptions/components/subscription-custom-variables-section'
+import { createLatestRequestGuard } from '@/features/subscriptions/lib/latest-request-guard'
 import { SubscriptionFormActions } from '@/features/subscriptions/components/subscription-form-actions'
 import { SubscriptionGeneralSettingsSection } from '@/features/subscriptions/components/subscription-general-settings-section'
 import { SubscriptionManualFormatsSection } from '@/features/subscriptions/components/subscription-manual-formats-section'
 import { SubscriptionResponseHeadersSection } from '@/features/subscriptions/components/subscription-response-headers-section'
 import { SubscriptionRulesSection } from '@/features/subscriptions/components/subscription-rules-section'
 import { SubscriptionSettingsSkeleton } from '@/features/subscriptions/components/subscription-settings-skeleton'
-import { subscriptionSchema, type SubscriptionApplicationFormData, type SubscriptionFormData, defaultSubscriptionRules, normalizeCustomVariablesForPayload } from '@/features/subscriptions/components/subscription-settings-schema'
+import {
+  subscriptionSchema,
+  type SubscriptionApplicationFormData,
+  type SubscriptionFormData,
+  normalizeCustomVariablesForPayload,
+} from '@/features/subscriptions/components/subscription-settings-schema'
 import { Form } from '@/components/ui/form'
 import { Separator } from '@/components/ui/separator'
-import { type SubRule as ApiSubRule } from '@/service/api'
+import { getDefaultSubscriptionRules, type SubRule as ApiSubRule } from '@/service/api'
 import { DragEndEvent, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -25,6 +31,8 @@ export default function SubscriptionSettings() {
   const { t } = useTranslation()
   const { settings, isLoading, error, updateSettings, isSaving } = useSettingsContext()
   const [isAddAppOpen, setIsAddAppOpen] = useState(false)
+  const [isResettingRules, setIsResettingRules] = useState(false)
+  const [rulesResetRequestGuard] = useState(createLatestRequestGuard)
 
   const form = useForm<SubscriptionFormData>({
     resolver: zodResolver(subscriptionSchema),
@@ -60,6 +68,7 @@ export default function SubscriptionSettings() {
     append: appendRule,
     remove: removeRule,
     move: moveRule,
+    replace: replaceRules,
   } = useFieldArray({
     control: form.control,
     name: 'rules',
@@ -269,6 +278,9 @@ export default function SubscriptionSettings() {
   }
 
   const handleCancel = () => {
+    rulesResetRequestGuard.invalidate()
+    setIsResettingRules(false)
+
     if (settings?.subscription) {
       const subscriptionData = settings.subscription
       form.reset({
@@ -305,9 +317,31 @@ export default function SubscriptionSettings() {
     }
   }
 
-  const handleResetToDefault = () => {
-    form.setValue('rules', defaultSubscriptionRules)
-    toast.success(t('settings.subscriptions.resetToDefaultSuccess', { defaultValue: 'Reset to default settings' }))
+  const handleResetToDefault = async () => {
+    const requestId = rulesResetRequestGuard.begin()
+    setIsResettingRules(true)
+    try {
+      const defaultRules = await getDefaultSubscriptionRules()
+
+      if (!rulesResetRequestGuard.isCurrent(requestId)) return
+
+      replaceRules(
+        defaultRules.map(rule => ({
+          pattern: rule.pattern,
+          target: rule.target,
+          response_headers: Object.fromEntries(Object.entries(rule.response_headers || {}).map(([key, value]) => [key, typeof value === 'string' ? value : JSON.stringify(value)])),
+        })),
+      )
+      toast.success(t('settings.subscriptions.resetToDefaultSuccess', { defaultValue: 'Reset to default settings' }))
+    } catch {
+      if (!rulesResetRequestGuard.isCurrent(requestId)) return
+
+      toast.error(t('settings.subscriptions.resetToDefaultFailed', { defaultValue: 'Failed to load default subscription rules' }))
+    } finally {
+      if (rulesResetRequestGuard.isCurrent(requestId)) {
+        setIsResettingRules(false)
+      }
+    }
   }
 
   const handleLoadOrResetApplications = () => {
@@ -378,6 +412,7 @@ export default function SubscriptionSettings() {
             onAddRule={addRule}
             onRemoveRule={removeRule}
             isSaving={isSaving}
+            isResetting={isResettingRules}
           />
 
           <Separator className="my-3" />

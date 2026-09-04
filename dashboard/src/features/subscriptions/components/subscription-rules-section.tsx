@@ -25,9 +25,10 @@ export interface SubscriptionRulesSectionProps {
   onAddRule: () => void
   onRemoveRule: (index: number) => void
   isSaving: boolean
+  isResetting: boolean
 }
 
-export function SubscriptionRulesSection({ form, ruleFields, sensors, onDragEnd, onResetToDefault, onAddRule, onRemoveRule, isSaving }: SubscriptionRulesSectionProps) {
+export function SubscriptionRulesSection({ form, ruleFields, sensors, onDragEnd, onResetToDefault, onAddRule, onRemoveRule, isSaving, isResetting }: SubscriptionRulesSectionProps) {
   const { t } = useTranslation()
   const rulesListRef = useRef<HTMLDivElement>(null)
   const rulesModifiers = useMemo<Modifier[]>(
@@ -65,7 +66,16 @@ export function SubscriptionRulesSection({ form, ruleFields, sensors, onDragEnd,
             <p className="text-muted-foreground text-xs sm:text-sm">{t('settings.subscriptions.rules.description')}</p>
           </div>
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:gap-2">
-            <Button type="button" variant="outline" size="sm" onClick={onResetToDefault} className="flex w-full items-center justify-center gap-2 sm:w-auto" disabled={isSaving}>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={onResetToDefault}
+              className="flex w-full items-center justify-center gap-2 sm:w-auto"
+              disabled={isSaving || isResetting}
+              isLoading={isResetting}
+              loadingText={t('settings.subscriptions.resetToDefault', { defaultValue: 'Reset' })}
+            >
               <RotateCcw className="h-4 w-4" />
               <span className="hidden sm:inline">{t('settings.subscriptions.resetToDefault', { defaultValue: 'Reset to Default' })}</span>
               <span className="sm:hidden">{t('settings.subscriptions.resetToDefault', { defaultValue: 'Reset' })}</span>
