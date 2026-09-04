@@ -9,7 +9,7 @@ from sqlalchemy.orm import joinedload, selectinload, with_expression
 from sqlalchemy.sql import Select
 from sqlalchemy.sql.functions import coalesce
 
-from app.db.compiles_types import DateDiff
+from app.db.compiles_types import DateDiff, ElapsedSeconds
 from app.db.models import (
     Admin,
     DataLimitResetStrategy,
@@ -1460,7 +1460,12 @@ async def get_users_subscription_agent_stats(
 
 
 async def autodelete_expired_users(
-    db: AsyncSession, include_limited_users: bool = False
+    db: AsyncSession,
+    include_limited_users: bool = False,
+    default_autodelete_days: int | None = None,
+    *,
+    batch_size: int | None = None,
+    max_users: int | None = None,
 ) -> list[UserNotificationResponse]:
     """
     Deletes expired (optionally also limited) users whose auto-delete time has passed.
@@ -1469,39 +1474,61 @@ async def autodelete_expired_users(
         db (AsyncSession): Database session
         include_limited_users (bool, optional): Whether to delete limited users as well.
             Defaults to False.
+        default_autodelete_days (int | None): Fallback retention for users without
+            an individual policy.
+        batch_size (int | None): Maximum users deleted in each transaction.
+        max_users (int | None): Maximum users deleted during this invocation.
 
     Returns:
         list[UserNotificationResponse]: List of deleted users.
     """
     target_status = [UserStatus.expired] if not include_limited_users else [UserStatus.expired, UserStatus.limited]
 
-    auto_delete = func.coalesce(User.auto_delete_in_days, literal(user_cleanup_settings.autodelete_days))
-
-    query = (
-        select(
-            User,
-            auto_delete,  # Use global auto-delete days as fallback
-        )
-        .where(
-            auto_delete >= 0,  # Negative values prevent auto-deletion
-            User.status.in_(target_status),
-        )
-        .options(joinedload(User.admin))
+    fallback_days = (
+        user_cleanup_settings.autodelete_days if default_autodelete_days is None else default_autodelete_days
     )
+    batch_size = user_cleanup_settings.autodelete_batch_size if batch_size is None else batch_size
+    max_users = user_cleanup_settings.autodelete_max_users_per_run if max_users is None else max_users
+    if batch_size <= 0 or max_users <= 0:
+        raise ValueError("batch_size and max_users must be positive")
+    auto_delete = func.coalesce(User.auto_delete_in_days, literal(fallback_days))
 
-    expired_users = [
-        user
-        for (user, auto_delete) in (await db.execute(query)).unique()
-        if user.last_status_change.replace(tzinfo=UTC) + timedelta(days=auto_delete) <= datetime.now(UTC)
-    ]
+    eligibility_conditions = (
+        auto_delete >= 0,  # Negative values prevent auto-deletion
+        User.status.in_(target_status),
+        User.last_status_change.isnot(None),
+        ElapsedSeconds(func.now(), User.last_status_change) >= auto_delete * 86_400,
+    )
+    candidate_query = select(User.id).where(*eligibility_conditions).order_by(User.id)
 
     result: list[UserNotificationResponse] = []
-    if expired_users:
+    while len(result) < max_users:
+        current_batch_size = min(batch_size, max_users - len(result))
+        candidate_ids = (await db.scalars(candidate_query.limit(current_batch_size))).all()
+        if not candidate_ids:
+            break
+
+        # Revalidate after candidate selection, then hold row locks until remove_users commits.
+        # This prevents a concurrent status or retention-policy update from racing the delete.
+        locked_query = (
+            select(User)
+            .where(User.id.in_(candidate_ids), *eligibility_conditions)
+            .options(joinedload(User.admin))
+            .order_by(User.id)
+            .with_for_update(of=User, skip_locked=True)
+        )
+        expired_users = (await db.scalars(locked_query)).unique().all()
+        if not expired_users:
+            break
+
         for user in expired_users:
             await load_user_attrs(user)
             result.append(UserNotificationResponse.model_validate(user))
 
         await remove_users(db, expired_users)
+
+        if len(candidate_ids) < current_batch_size:
+            break
 
     return result
 

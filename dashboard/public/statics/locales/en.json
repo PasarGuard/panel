@@ -529,6 +529,34 @@
       "saveSuccess": "Cleanup operation completed successfully",
       "saveFailed": "Failed to complete cleanup operation",
       "cancelSuccess": "Cleanup operation cancelled",
+      "retention": {
+        "title": "Automatic retention",
+        "description": "Keep the recent data you need and remove older records in small, hardware-safe batches.",
+        "hourly": "Runs hourly",
+        "days": "days",
+        "purge": "Older data",
+        "forever": "Keep forever",
+        "today": "Today",
+        "cutoff": "Records older than {{days}} days are removed automatically.",
+        "disabledHint": "Automatic cleanup is disabled for this data.",
+        "cascadeWarning": "Deleting an expired account also removes its per-user traffic history. System and node totals remain available only for their configured retention window.",
+        "validation": "Expired accounts may use 0 days; other enabled rules require a whole number from 1 to 36,500.",
+        "save": "Save retention",
+        "saving": "Saving...",
+        "reset": "Discard changes",
+        "expiredUsers": {
+          "title": "Expired accounts",
+          "description": "Delete accounts after their expired status has been kept for this many days. Per-account overrides still apply."
+        },
+        "usageHistory": {
+          "title": "Traffic history",
+          "description": "Retention for both user traffic and node traffic charts."
+        },
+        "nodeStats": {
+          "title": "Node system metrics",
+          "description": "Retention for CPU, memory and bandwidth-speed samples."
+        }
+      },
       "expiredUsers": {
         "title": "Delete Accounts by Status",
         "description": "Remove accounts matching a specific status, optionally filtered by date",

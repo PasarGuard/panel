@@ -144,6 +144,12 @@ class TemplateSettings(EnvSettings):
 class UserCleanupSettings(EnvSettings):
     autodelete_days: int = Field(default=-1, validation_alias="USERS_AUTODELETE_DAYS")
     include_limited_accounts: bool = Field(default=False, validation_alias="USER_AUTODELETE_INCLUDE_LIMITED_ACCOUNTS")
+    autodelete_batch_size: int = Field(default=100, gt=0, validation_alias="USER_AUTODELETE_BATCH_SIZE")
+    autodelete_max_users_per_run: int = Field(
+        default=1000,
+        gt=0,
+        validation_alias="USER_AUTODELETE_MAX_USERS_PER_RUN",
+    )
 
 
 class TelegramEnvSettings(EnvSettings):
@@ -203,6 +209,11 @@ class JobSettings(EnvSettings):
     check_node_limits_interval: int = Field(default=60, validation_alias="JOB_CHECK_NODE_LIMITS_INTERVAL")
     cleanup_subscription_updates_interval: int = Field(
         default=600, validation_alias="JOB_CLEANUP_SUBSCRIPTION_UPDATES_INTERVAL"
+    )
+    cleanup_retention_interval: int = Field(
+        default=3600,
+        gt=0,
+        validation_alias="JOB_CLEANUP_RETENTION_INTERVAL",
     )
 
 
