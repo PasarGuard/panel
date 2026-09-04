@@ -135,12 +135,13 @@ async def process_node_health_check(db_node: Node, node: PasarGuardNode):
             return
 
         # Prefer shared lifecycle state so multi-worker local NOT_CONNECTED does not thrash Start.
-        # Trust observed HEALTHY only if we can attach, or another worker still holds an active lease.
+        # A BROKEN observation with desired HEALTHY can be an ambiguous client-side Start
+        # timeout: the remote core may have completed startup after the panel gave up.
         shared_state = await node.get_lifecycle_state()
         if (
             health is Health.NOT_CONNECTED
             and shared_state is not None
-            and shared_state.observed is LifecycleStatus.HEALTHY
+            and (shared_state.observed is LifecycleStatus.HEALTHY or shared_state.desired is LifecycleStatus.HEALTHY)
         ):
             attached = await NodeOperation._attach_if_running(node, db_node.name)
             if attached is not None:
@@ -154,9 +155,10 @@ async def process_node_health_check(db_node: Node, node: PasarGuardNode):
                 )
                 return
 
-            # Stale HEALTHY (owner gone / core unreachable): fall through to reconnect.
+            # Stale/failed desired-healthy state: fall through to reconnect only after
+            # the attach probe and active-lease check have both failed.
             logger.debug(
-                "[%s] Shared lifecycle HEALTHY but attach failed and no active lease; reconnecting",
+                "[%s] Shared lifecycle desired HEALTHY but attach failed and no active lease; reconnecting",
                 db_node.name,
             )
 
