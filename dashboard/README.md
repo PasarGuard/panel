@@ -9,8 +9,7 @@ For development, you will only need Node.js installed on your environement.
 
 ### Node
 
-[Node](http://nodejs.org/) is really easy to install & now include [NPM](https://npmjs.org/). This project has been developed on the Nodejs v20.x so if you faced any issue during installation that may
-related to the node version, install Node with version >= v20
+Use Node.js >= 22.18.0. The form contract tests use Node's native TypeScript loading.
 
 ## Install
 
@@ -41,5 +40,21 @@ Copy `example.env` to `.env` then set the backend api address:
     bun build
 
 ## Contribution
+
+### Form regression checks
+
+Run from `dashboard/` after `bun install`:
+
+```sh
+npm run typecheck -- --force --pretty false
+npm run test:form-contracts
+npm run build -- --outDir ./dist/form-check
+npx playwright install chromium
+npm run test:form-submissions -- ./dist/form-check
+```
+
+The browser check uses the Playwright development dependency and mocks all API and external requests.
+To use an installed Edge or Chrome instead of downloading Chromium, set `PLAYWRIGHT_CHANNEL=msedge` or `PLAYWRIGHT_CHANNEL=chrome`.
+Use a fresh output directory for each build.
 
 Feel free to contribute. Go on and fork the project. After commiting the changes, make a PR. It means a lot to us.

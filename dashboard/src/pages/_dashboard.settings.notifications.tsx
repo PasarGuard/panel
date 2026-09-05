@@ -39,7 +39,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { cn } from '@/lib/utils'
-import type { NotificationEnable, NotificationChannels } from '@/service/api'
+import type { NotificationChannels } from '@/service/api'
 import { Select, SelectItem, SelectContent, SelectTrigger, SelectValue } from '@/components/ui/select'
 const notificationChannelSchema = z.object({
   telegram_chat_id: z.number().optional(),
@@ -166,7 +166,7 @@ const normalizePercentageThresholds = (values?: number[]) =>
 
 // Define notification permission types with their sub-permissions
 type NotificationPermissionConfig = {
-  key: keyof NotificationEnable
+  key: keyof NonNullable<NotificationSettingsForm['notification_enable']>
   translationKey: string
   icon: React.ComponentType<{ className?: string }>
   subPermissions?: Array<{
@@ -281,7 +281,7 @@ const notificationConfigs: NotificationPermissionConfig[] = [
   },
 ]
 
-type ChannelTargetKey = keyof NotificationChannels
+type ChannelTargetKey = keyof z.infer<typeof notificationChannelsSchema>
 
 type NotificationChannelFormState = {
   telegram_chat_id?: number

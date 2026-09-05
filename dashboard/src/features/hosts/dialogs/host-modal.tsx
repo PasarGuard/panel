@@ -22,7 +22,7 @@ import { AlertTriangle, Cable, ChevronsLeftRightEllipsis, Copy, Pencil, GlobeLoc
 import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
-import { hostFormDefaultValues, type HostFormValues } from '@/features/hosts/forms/host-form'
+import { hostFormDefaultValues, parseNoisePacketInput, type HostFormValues } from '@/features/hosts/forms/host-form'
 import { LoaderButton } from '@/components/ui/loader-button'
 import { FinalMaskSettings } from '../components/finalmask-settings'
 
@@ -140,6 +140,8 @@ interface NoiseItemProps {
 }
 
 const NoiseItem = memo<NoiseItemProps>(({ index, form, onRemove, onDuplicate, t }) => {
+  const [packetDraft, setPacketDraft] = useState<string | null>(null)
+
   const handleRemove = useCallback(() => {
     onRemove(index)
   }, [index, onRemove])
@@ -166,6 +168,7 @@ const NoiseItem = memo<NoiseItemProps>(({ index, form, onRemove, onDuplicate, t 
                 </FormControl>
                 <SelectContent>
                   <SelectItem value="rand">rand</SelectItem>
+                  <SelectItem value="array">array</SelectItem>
                   <SelectItem value="str">str</SelectItem>
                   <SelectItem value="base64">base64</SelectItem>
                   <SelectItem value="hex">hex</SelectItem>
@@ -220,7 +223,23 @@ const NoiseItem = memo<NoiseItemProps>(({ index, form, onRemove, onDuplicate, t 
           render={({ field }) => (
             <FormItem>
               <FormControl>
-                <Input placeholder={t('hostsDialog.noise.packetPlaceholder')} {...field} value={field.value || ''} className="h-8" />
+                <Input
+                  placeholder={t('hostsDialog.noise.packetPlaceholder')}
+                  {...field}
+                  value={packetDraft ?? (Array.isArray(field.value) ? JSON.stringify(field.value) : (field.value ?? ''))}
+                  onFocus={event => setPacketDraft(event.currentTarget.value)}
+                  onChange={event => {
+                    const raw = event.target.value
+                    setPacketDraft(raw)
+                    // Keep the caret stable while updating the form for submits without blur.
+                    field.onChange(parseNoisePacketInput(raw, form.getValues(`noise_settings.xray.${index}.type`)))
+                  }}
+                  onBlur={() => {
+                    setPacketDraft(null)
+                    field.onBlur()
+                  }}
+                  className="h-8"
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -232,7 +251,7 @@ const NoiseItem = memo<NoiseItemProps>(({ index, form, onRemove, onDuplicate, t 
           render={({ field }) => (
             <FormItem>
               <FormControl>
-                <Input placeholder={t('hostsDialog.noise.delayPlaceholder')} {...field} value={field.value || ''} className="h-8" />
+                <Input placeholder={t('hostsDialog.noise.delayPlaceholder')} {...field} value={field.value ?? ''} className="h-8" />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -2061,12 +2080,12 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                       <FormLabel>{t('hostsDialog.xhttp.uplinkChunkSize')}</FormLabel>
                                       <FormControl>
                                         <Input
-                                          type="number"
+                                          type="text"
                                           {...field}
                                           value={field.value ?? ''}
                                           onChange={e => {
                                             const value = e.target.value
-                                            field.onChange(value === '' ? null : parseInt(value, 10))
+                                            field.onChange(value === '' ? undefined : value)
                                           }}
                                         />
                                       </FormControl>
