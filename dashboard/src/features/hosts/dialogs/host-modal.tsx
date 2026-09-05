@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
+import { Textarea } from '@/components/ui/textarea'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { CustomVariablesPopover, VariablesList, VariablesPopover } from '@/components/ui/variables-popover'
 import useDirDetection from '@/hooks/use-dir-detection'
@@ -781,6 +782,10 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
     form.setValue('vless_route', '', { shouldDirty: true })
     form.setValue('ech_config_list', undefined, { shouldDirty: true })
     form.setValue('ech_query_strategy', undefined, { shouldDirty: true })
+    form.setValue('mihomo_ech_config', undefined, { shouldDirty: true })
+    form.setValue('mihomo_ech_query_server_name', undefined, { shouldDirty: true })
+    form.setValue('sing_box_ech_config', undefined, { shouldDirty: true })
+    form.setValue('sing_box_ech_query_server_name', undefined, { shouldDirty: true })
     form.setValue('pinned_peer_cert_sha256', undefined, { shouldDirty: true })
     form.setValue('verify_peer_cert_by_name', [], { shouldDirty: true })
     form.setValue('fragment_settings', undefined, { shouldDirty: true })
@@ -827,6 +832,10 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
         payload.vless_route = ''
         payload.ech_config_list = undefined
         payload.ech_query_strategy = undefined
+        payload.mihomo_ech_config = undefined
+        payload.mihomo_ech_query_server_name = undefined
+        payload.sing_box_ech_config = undefined
+        payload.sing_box_ech_query_server_name = undefined
         payload.pinned_peer_cert_sha256 = undefined
         payload.verify_peer_cert_by_name = []
         payload.mux_settings = undefined
@@ -1705,6 +1714,110 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                   <SelectItem value="full">full</SelectItem>
                                 </SelectContent>
                               </Select>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name="mihomo_ech_config"
+                          render={({ field }) => (
+                            <FormItem>
+                              <div className="flex items-center gap-2">
+                                <FormLabel>{t('hostsDialog.mihomoEchConfig')}</FormLabel>
+                                <Popover>
+                                  <PopoverTrigger asChild>
+                                    <Button type="button" variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent">
+                                      <Info className="text-muted-foreground h-4 w-4" />
+                                    </Button>
+                                  </PopoverTrigger>
+                                  <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
+                                    <p className="text-muted-foreground text-[11px]">{t('hostsDialog.mihomoEchConfig.info')}</p>
+                                  </PopoverContent>
+                                </Popover>
+                              </div>
+                              <FormControl>
+                                <Input placeholder={t('hostsDialog.mihomoEchConfigPlaceholder')} {...field} value={field.value ?? ''} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name="mihomo_ech_query_server_name"
+                          render={({ field }) => (
+                            <FormItem>
+                              <div className="flex items-center gap-2">
+                                <FormLabel>{t('hostsDialog.mihomoEchQueryServerName')}</FormLabel>
+                                <Popover>
+                                  <PopoverTrigger asChild>
+                                    <Button type="button" variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent">
+                                      <Info className="text-muted-foreground h-4 w-4" />
+                                    </Button>
+                                  </PopoverTrigger>
+                                  <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
+                                    <p className="text-muted-foreground text-[11px]">{t('hostsDialog.mihomoEchQueryServerName.info')}</p>
+                                  </PopoverContent>
+                                </Popover>
+                              </div>
+                              <FormControl>
+                                <Input maxLength={255} placeholder={t('hostsDialog.echQueryServerNamePlaceholder')} {...field} value={field.value ?? ''} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name="sing_box_ech_config"
+                          render={({ field }) => (
+                            <FormItem>
+                              <div className="flex items-center gap-2">
+                                <FormLabel>{t('hostsDialog.singBoxEchConfig')}</FormLabel>
+                                <Popover>
+                                  <PopoverTrigger asChild>
+                                    <Button type="button" variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent">
+                                      <Info className="text-muted-foreground h-4 w-4" />
+                                    </Button>
+                                  </PopoverTrigger>
+                                  <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
+                                    <p className="text-muted-foreground text-[11px]">{t('hostsDialog.singBoxEchConfig.info')}</p>
+                                  </PopoverContent>
+                                </Popover>
+                              </div>
+                              <FormControl>
+                                <Textarea className="min-h-24 font-mono text-xs" dir="ltr" placeholder={t('hostsDialog.singBoxEchConfigPlaceholder')} {...field} value={field.value ?? ''} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name="sing_box_ech_query_server_name"
+                          render={({ field }) => (
+                            <FormItem>
+                              <div className="flex items-center gap-2">
+                                <FormLabel>{t('hostsDialog.singBoxEchQueryServerName')}</FormLabel>
+                                <Popover>
+                                  <PopoverTrigger asChild>
+                                    <Button type="button" variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent">
+                                      <Info className="text-muted-foreground h-4 w-4" />
+                                    </Button>
+                                  </PopoverTrigger>
+                                  <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
+                                    <p className="text-muted-foreground text-[11px]">{t('hostsDialog.singBoxEchQueryServerName.info')}</p>
+                                  </PopoverContent>
+                                </Popover>
+                              </div>
+                              <FormControl>
+                                <Input maxLength={255} placeholder={t('hostsDialog.echQueryServerNamePlaceholder')} {...field} value={field.value ?? ''} />
+                              </FormControl>
                               <FormMessage />
                             </FormItem>
                           )}

@@ -435,6 +435,51 @@ def test_host_fragment_interval_roundtrip(access_token):
         delete_core(access_token, core["id"])
 
 
+def test_host_ech_settings_roundtrip(access_token):
+    """All client-specific ECH values must round-trip through one JSON field."""
+    core = create_core(access_token)
+    host_id = None
+
+    try:
+        inbound_list = get_inbounds(access_token)
+        assert inbound_list
+        inbound = inbound_list[0]
+        ech = {
+            "xray": {"config_list": "xray-base64-config", "query_strategy": "full"},
+            "mihomo": {
+                "config": "mihomo-base64-config",
+                "query_server_name": "mihomo-ech.example.com",
+            },
+            "sing_box": {
+                "config": "sing-box-base64-config",
+                "query_server_name": "sing-box-ech.example.com",
+            },
+        }
+
+        create_response = client.post(
+            "/api/host",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={
+                "remark": unique_name("format_specific_ech"),
+                "address": ["127.0.0.1"],
+                "port": 443,
+                "inbound_tag": inbound,
+                "priority": 1,
+                "ech": ech,
+            },
+        )
+        assert create_response.status_code == status.HTTP_201_CREATED, create_response.text
+        host_id = create_response.json()["id"]
+
+        get_response = client.get(f"/api/host/{host_id}", headers={"Authorization": f"Bearer {access_token}"})
+        assert get_response.status_code == status.HTTP_200_OK
+        assert get_response.json()["ech"] == ech
+    finally:
+        if host_id is not None:
+            client.delete(f"/api/host/{host_id}", headers={"Authorization": f"Bearer {access_token}"})
+        delete_core(access_token, core["id"])
+
+
 def test_host_finalmask_legacy_interval_to_delays(access_token):
     """Legacy FinalMask fragment interval/length should normalize to delays/lengths."""
     core = create_core(access_token)
