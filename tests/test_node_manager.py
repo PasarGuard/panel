@@ -7,8 +7,12 @@ from app.node import NodeManager
 class _FakePGNode:
     def __init__(self, **kwargs):
         self.kwargs = kwargs
+        self.name = kwargs.get("name")
         self.set_health_calls = 0
         self.stop_calls = 0
+
+    async def get_extra(self):
+        return self.kwargs.get("extra", {})
 
     async def set_health(self, health):
         self.set_health_calls += 1
@@ -128,16 +132,7 @@ async def test_update_node_replaces_on_name_or_coefficient_change(monkeypatch: p
     monkeypatch.setattr("app.node.ensure_bridge_memory", lambda: _AwaitableNone())
     monkeypatch.setattr("app.node.get_bridge_memory", lambda: (None, None, None))
 
-    class _FakePGNodeWithExtra(_FakePGNode):
-        def __init__(self, **kwargs):
-            super().__init__(**kwargs)
-            self.name = kwargs.get("name")
-            self._extra = kwargs.get("extra", {})
-
-        async def get_extra(self):
-            return self._extra
-
-    monkeypatch.setattr("app.node.create_node", lambda **kwargs: _FakePGNodeWithExtra(**kwargs))
+    monkeypatch.setattr("app.node.create_node", lambda **kwargs: _FakePGNode(**kwargs))
 
     node1 = _make_node(1, name="old-name", usage_coefficient=1.0)
     first = await manager.update_node(node1)
