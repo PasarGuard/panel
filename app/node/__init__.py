@@ -92,7 +92,9 @@ class NodeManager:
             # that used to defeat the attach-if-already-running logic below and turned
             # transient health-check false negatives into a permanent restart loop.
             if existing is not None and self._node_signatures.get(node.id) == signature:
-                return existing
+                existing_extra = await existing.get_extra()
+                if existing.name == node.name and existing_extra.get("usage_coefficient") == node.usage_coefficient:
+                    return existing
 
             async with self._lock.writer_lock:
                 old_node: PasarGuardNode | None = self._nodes.pop(node.id, None)

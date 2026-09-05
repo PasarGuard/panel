@@ -117,3 +117,41 @@ async def test_node_manager_bulk_user_sync_falls_back_when_chunked_is_not_suppor
     await manager._sync_users_to_node(1, fake_node, users)
 
     assert fake_node.batch_calls == [2, 1]
+
+
+@pytest.mark.asyncio
+async def test_update_node_replaces_on_name_or_coefficient_change(monkeypatch: pytest.MonkeyPatch):
+    """Test that if the node name or usage_coefficient changes, the node is replaced,
+    since we cannot refresh metadata through the bridge API."""
+    manager = NodeManager()
+
+    monkeypatch.setattr("app.node.ensure_bridge_memory", lambda: _AwaitableNone())
+    monkeypatch.setattr("app.node.get_bridge_memory", lambda: (None, None, None))
+
+    class _FakePGNodeWithExtra(_FakePGNode):
+        def __init__(self, **kwargs):
+            super().__init__(**kwargs)
+            self.name = kwargs.get("name")
+            self._extra = kwargs.get("extra", {})
+
+        async def get_extra(self):
+            return self._extra
+
+    monkeypatch.setattr("app.node.create_node", lambda **kwargs: _FakePGNodeWithExtra(**kwargs))
+
+    node1 = _make_node(1, name="old-name", usage_coefficient=1.0)
+    first = await manager.update_node(node1)
+    
+    # Unchanged
+    same = await manager.update_node(_make_node(1, name="old-name", usage_coefficient=1.0))
+    assert same is first
+    
+    # Name change
+    node2 = _make_node(1, name="new-name", usage_coefficient=1.0)
+    second = await manager.update_node(node2)
+    assert second is not first
+    
+    # Coefficient change
+    node3 = _make_node(1, name="new-name", usage_coefficient=2.0)
+    third = await manager.update_node(node3)
+    assert third is not second
