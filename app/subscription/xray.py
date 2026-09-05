@@ -3,6 +3,7 @@ from random import choice
 
 from pydantic import BaseModel
 
+from app.models.proxy import GeneralAuthSettings
 from app.models.subscription import (
     GRPCTransportConfig,
     KCPTransportConfig,
@@ -24,10 +25,12 @@ class XrayConfiguration(BaseSubscription):
         xray_template_content: str | None = None,
         user_agent_template_content: str | None = None,
         grpc_user_agent_template_content: str | None = None,
+        general_auth: GeneralAuthSettings | None = None,
     ):
         super().__init__(
             user_agent_template_content=user_agent_template_content,
             grpc_user_agent_template_content=grpc_user_agent_template_content,
+            general_auth=general_auth,
         )
         self.config = []
         self.template = json.loads(xray_template_content) if xray_template_content else {}

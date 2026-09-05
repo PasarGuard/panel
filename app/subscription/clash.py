@@ -2,6 +2,7 @@ from random import choice
 
 from pydantic import BaseModel
 
+from app.models.proxy import GeneralAuthSettings
 from app.models.subscription import (
     GRPCTransportConfig,
     SubscriptionInboundData,
@@ -21,10 +22,12 @@ class ClashConfiguration(BaseSubscription):
         clash_template_content: str | None = None,
         user_agent_template_content: str | None = None,
         grpc_user_agent_template_content: str | None = None,
+        general_auth: GeneralAuthSettings | None = None,
     ):
         super().__init__(
             user_agent_template_content=user_agent_template_content,
             grpc_user_agent_template_content=grpc_user_agent_template_content,
+            general_auth=general_auth,
         )
         self.clash_template_content = clash_template_content
         self.data = {
@@ -595,11 +598,13 @@ class ClashMetaConfiguration(ClashConfiguration):
         clash_template_content: str | None = None,
         user_agent_template_content: str | None = None,
         grpc_user_agent_template_content: str | None = None,
+        general_auth: GeneralAuthSettings | None = None,
     ):
         super().__init__(
             clash_template_content=clash_template_content,
             user_agent_template_content=user_agent_template_content,
             grpc_user_agent_template_content=grpc_user_agent_template_content,
+            general_auth=general_auth,
         )
         # Override protocol handlers to include vless
         self.protocol_handlers = {

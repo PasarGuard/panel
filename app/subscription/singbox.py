@@ -2,6 +2,7 @@ import json
 import re
 from random import choice
 
+from app.models.proxy import GeneralAuthSettings
 from app.models.subscription import (
     GRPCTransportConfig,
     SubscriptionInboundData,
@@ -20,10 +21,12 @@ class SingBoxConfiguration(BaseSubscription):
         singbox_template_content: str | None = None,
         user_agent_template_content: str | None = None,
         grpc_user_agent_template_content: str | None = None,
+        general_auth: GeneralAuthSettings | None = None,
     ):
         super().__init__(
             user_agent_template_content=user_agent_template_content,
             grpc_user_agent_template_content=grpc_user_agent_template_content,
+            general_auth=general_auth,
         )
         self.config = json.loads(singbox_template_content) if singbox_template_content else {}
         self.config.setdefault("endpoints", [])
