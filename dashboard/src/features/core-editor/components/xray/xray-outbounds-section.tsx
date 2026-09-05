@@ -33,6 +33,7 @@ import { remapIndexAfterArrayMove } from '@/features/core-editor/kit/remap-index
 import {
   flattenOutboundSettings,
   mergeEditorBodyIntoOutbound,
+  normalizeOutboundShareUriForImport,
   normalizeSettingsFromEditor,
   outboundEditorBodyFromOutbound,
   stripEmptyStreamSettingsFromRecord,
@@ -74,7 +75,7 @@ const OUTBOUND_SETTINGS_KIT_BLOCKLIST = new Set(['testseed'])
 
 /**
  * Kit parity keys to hide in the outbound form (we render dedicated controls instead), or omit from JSON.
- * - hysteria: `version: 2` is implied by Xray.
+ * - hysteria: `version: 2` is fixed and persisted automatically.
  * - loopback: inbound tag picklist is filled from profile inbounds.
  */
 const OUTBOUND_HIDDEN_SETTINGS_KEYS: Partial<Record<string, ReadonlySet<string>>> = {
@@ -743,7 +744,7 @@ export function XrayOutboundsSection({ headerAddPulse, headerAddEpoch }: XrayOut
     const raw = uriDraft.trim()
     if (!raw || !ob || ob.protocol === 'unmanaged') return
     try {
-      const imported = generateXrayOutboundFromUri(raw) as Outbound
+      const imported = generateXrayOutboundFromUri(normalizeOutboundShareUriForImport(raw)) as Outbound
       const merged = { ...(ob as object), ...(imported as object) } as Outbound
       const normalized = stripSparseOutboundEnvelope({
         ...merged,
