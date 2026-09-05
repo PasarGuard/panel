@@ -618,8 +618,7 @@ async def get_nodes_to_reset_usage(db: AsyncSession) -> list[Node]:
     # because the calculation is complex (encoded time values)
 
     stmt = (
-        select(Node)
-        .options(selectinload(Node.usage_logs))
+        select(Node, last_reset_time.label("last_reset_at"))
         .outerjoin(last_reset_subq, Node.id == last_reset_subq.c.node_id)
         .where(
             Node.status.in_([NodeStatus.connected, NodeStatus.limited, NodeStatus.error, NodeStatus.connecting]),
@@ -633,26 +632,18 @@ async def get_nodes_to_reset_usage(db: AsyncSession) -> list[Node]:
         )
     )
 
-    nodes = list((await db.execute(stmt)).unique().scalars().all())
-
-    # usage_logs already eagerly loaded via selectinload — no extra queries needed
+    nodes = (await db.execute(stmt)).unique().all()
 
     # For nodes with reset_time >= 0, filter based on absolute time
 
     filtered_nodes = []
-    for node in nodes:
+    for node, last_reset in nodes:
         if node.reset_time == -1:
             # Already filtered by SQL query
             filtered_nodes.append(node)
         else:
             # Time-based reset: check if current time matches the schedule
             now = datetime.now(UTC)
-
-            # Get last reset time
-            if node.usage_logs:
-                last_reset = max(log.created_at for log in node.usage_logs)
-            else:
-                last_reset = node.created_at
 
             should_reset = False
 
@@ -804,10 +795,18 @@ async def bulk_reset_node_usage(db: AsyncSession, nodes: list[Node]) -> list[Nod
 
     await db.commit()
 
-    # Re-fetch all nodes in a single query instead of N individual refreshes
+    # Refresh both existing history and new log timestamps from the database so
+    # notification consumers can compare timestamps consistently (including SQLite).
     node_ids = [node.id for node in nodes]
     refreshed = (
-        (await db.execute(select(Node).options(selectinload(Node.usage_logs)).where(Node.id.in_(node_ids))))
+        (
+            await db.execute(
+                select(Node)
+                .options(selectinload(Node.usage_logs))
+                .where(Node.id.in_(node_ids))
+                .execution_options(populate_existing=True)
+            )
+        )
         .unique()
         .scalars()
         .all()
