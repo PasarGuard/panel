@@ -162,7 +162,7 @@ function TcpLayersForm({ form }: { form: UseFormReturn<any> }) {
                         <Select onValueChange={val => handleTypeChange(index, val as FinalMaskTcpType)} value={selectField.value || ''}>
                           <FormControl>
                             <SelectTrigger className="h-8">
-                              <SelectValue placeholder="Select type" />
+                              <SelectValue placeholder={t('hostsDialog.finalmask.selectType')} />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
@@ -187,9 +187,9 @@ function TcpLayersForm({ form }: { form: UseFormReturn<any> }) {
 
               {type === 'header-custom' && (
                 <div className="bg-background space-y-4 rounded-md border p-3">
-                  <JsonArrayField form={form} name={`final_mask_settings.tcp.${index}.settings.clients`} label="Clients (JSON array of noise arrays)" />
-                  <JsonArrayField form={form} name={`final_mask_settings.tcp.${index}.settings.servers`} label="Servers (JSON array of noise arrays)" />
-                  <JsonArrayField form={form} name={`final_mask_settings.tcp.${index}.settings.errors`} label="Errors (JSON array of noise arrays)" />
+                  <JsonArrayField form={form} name={`final_mask_settings.tcp.${index}.settings.clients`} label={t('hostsDialog.finalmask.clientsJson')} />
+                  <JsonArrayField form={form} name={`final_mask_settings.tcp.${index}.settings.servers`} label={t('hostsDialog.finalmask.serversJson')} />
+                  <JsonArrayField form={form} name={`final_mask_settings.tcp.${index}.settings.errors`} label={t('hostsDialog.finalmask.errorsJson')} />
                 </div>
               )}
 
@@ -288,7 +288,7 @@ function UdpLayersForm({ form }: { form: UseFormReturn<any> }) {
                         <Select onValueChange={val => handleTypeChange(index, val as FinalMaskUdpType)} value={selectField.value || ''}>
                           <FormControl>
                             <SelectTrigger className="h-8">
-                              <SelectValue placeholder="Select type" />
+                              <SelectValue placeholder={t('hostsDialog.finalmask.selectType')} />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
@@ -300,14 +300,14 @@ function UdpLayersForm({ form }: { form: UseFormReturn<any> }) {
                             <SelectItem value="noise">noise</SelectItem>
                             <SelectItem value="sudoku">sudoku</SelectItem>
                             <SelectItem value="header-custom">header-custom</SelectItem>
-                            <SelectItem value="header-dns">header-dns (legacy)</SelectItem>
-                            <SelectItem value="header-dtls">header-dtls (legacy)</SelectItem>
-                            <SelectItem value="header-srtp">header-srtp (legacy)</SelectItem>
-                            <SelectItem value="header-utp">header-utp (legacy)</SelectItem>
-                            <SelectItem value="header-wechat">header-wechat (legacy)</SelectItem>
-                            <SelectItem value="header-wireguard">header-wireguard (legacy)</SelectItem>
-                            <SelectItem value="mkcp-original">mkcp-original (legacy)</SelectItem>
-                            <SelectItem value="mkcp-aes128gcm">mkcp-aes128gcm (legacy)</SelectItem>
+                            <SelectItem value="header-dns">{t('hostsDialog.finalmask.legacyType', { type: 'header-dns' })}</SelectItem>
+                            <SelectItem value="header-dtls">{t('hostsDialog.finalmask.legacyType', { type: 'header-dtls' })}</SelectItem>
+                            <SelectItem value="header-srtp">{t('hostsDialog.finalmask.legacyType', { type: 'header-srtp' })}</SelectItem>
+                            <SelectItem value="header-utp">{t('hostsDialog.finalmask.legacyType', { type: 'header-utp' })}</SelectItem>
+                            <SelectItem value="header-wechat">{t('hostsDialog.finalmask.legacyType', { type: 'header-wechat' })}</SelectItem>
+                            <SelectItem value="header-wireguard">{t('hostsDialog.finalmask.legacyType', { type: 'header-wireguard' })}</SelectItem>
+                            <SelectItem value="mkcp-original">{t('hostsDialog.finalmask.legacyType', { type: 'mkcp-original' })}</SelectItem>
+                            <SelectItem value="mkcp-aes128gcm">{t('hostsDialog.finalmask.legacyType', { type: 'mkcp-aes128gcm' })}</SelectItem>
                           </SelectContent>
                         </Select>
                       </FormItem>
@@ -326,11 +326,11 @@ function UdpLayersForm({ form }: { form: UseFormReturn<any> }) {
                     name={`final_mask_settings.udp.${index}.settings.header`}
                     render={({ field: selectField }) => (
                       <FormItem>
-                        <FormLabel className="text-xs">Header</FormLabel>
+                        <FormLabel className="text-xs">{t('hostsDialog.finalmask.header')}</FormLabel>
                         <Select onValueChange={selectField.onChange} value={selectField.value || 'wechat'}>
                           <FormControl>
                             <SelectTrigger className="h-8 text-xs">
-                              <SelectValue placeholder="Header" />
+                              <SelectValue placeholder={t('hostsDialog.finalmask.header')} />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent side="top">
@@ -340,7 +340,7 @@ function UdpLayersForm({ form }: { form: UseFormReturn<any> }) {
                             <SelectItem value="utp">utp</SelectItem>
                             <SelectItem value="wechat">wechat</SelectItem>
                             <SelectItem value="wireguard">wireguard</SelectItem>
-                            <SelectItem value="">none (original/aes128gcm)</SelectItem>
+                            <SelectItem value="">{t('hostsDialog.finalmask.headerNone')}</SelectItem>
                           </SelectContent>
                         </Select>
                       </FormItem>
@@ -351,9 +351,9 @@ function UdpLayersForm({ form }: { form: UseFormReturn<any> }) {
                     name={`final_mask_settings.udp.${index}.settings.value`}
                     render={({ field: inputField }) => (
                       <FormItem>
-                        <FormLabel className="text-xs">Value / Domain / Password</FormLabel>
+                        <FormLabel className="text-xs">{t('hostsDialog.finalmask.valueDomainPassword')}</FormLabel>
                         <FormControl>
-                          <Input placeholder="e.g. www.baidu.com or password" {...inputField} value={inputField.value || ''} className="h-8 text-xs" />
+                          <Input placeholder={t('hostsDialog.finalmask.valueDomainPasswordPlaceholder')} {...inputField} value={inputField.value || ''} className="h-8 text-xs" />
                         </FormControl>
                       </FormItem>
                     )}
@@ -368,9 +368,9 @@ function UdpLayersForm({ form }: { form: UseFormReturn<any> }) {
                     name={`final_mask_settings.udp.${index}.settings.url`}
                     render={({ field: inputField }) => (
                       <FormItem>
-                        <FormLabel className="text-xs">Realm URL</FormLabel>
+                        <FormLabel className="text-xs">{t('hostsDialog.finalmask.realmUrl')}</FormLabel>
                         <FormControl>
-                          <Input placeholder="realm://token@host:port/id" {...inputField} value={inputField.value || ''} className="h-8 text-xs" />
+                          <Input placeholder={t('hostsDialog.finalmask.realmUrlPlaceholder')} {...inputField} value={inputField.value || ''} className="h-8 text-xs" />
                         </FormControl>
                       </FormItem>
                     )}
@@ -380,12 +380,12 @@ function UdpLayersForm({ form }: { form: UseFormReturn<any> }) {
                     name={`final_mask_settings.udp.${index}.settings.stunServers`}
                     render={({ field: inputField }) => (
                       <FormItem>
-                        <FormLabel className="text-xs">STUN Servers</FormLabel>
+                        <FormLabel className="text-xs">{t('hostsDialog.finalmask.stunServers')}</FormLabel>
                         <FormControl>
                           <StringArrayPopoverInput
                             value={Array.isArray(inputField.value) ? inputField.value : []}
                             onChange={(next: string[]) => inputField.onChange(next)}
-                            placeholder="Add STUN server (e.g. stun.l.google.com:19302)"
+                            placeholder={t('hostsDialog.finalmask.stunServersPlaceholder')}
                             addPlaceholder={t('arrayInput.addPlaceholder')}
                             addButtonLabel={t('arrayInput.addButton')}
                             itemsLabel={t('arrayInput.items')}
@@ -401,7 +401,7 @@ function UdpLayersForm({ form }: { form: UseFormReturn<any> }) {
                       </FormItem>
                     )}
                   />
-                  <JsonObjectField form={form} name={`final_mask_settings.udp.${index}.settings.tlsConfig`} label="TLS Config (JSON object, optional)" />
+                  <JsonObjectField form={form} name={`final_mask_settings.udp.${index}.settings.tlsConfig`} label={t('hostsDialog.finalmask.tlsConfig')} />
                 </div>
               )}
 
@@ -412,12 +412,12 @@ function UdpLayersForm({ form }: { form: UseFormReturn<any> }) {
                     name={`final_mask_settings.udp.${index}.settings.domains`}
                     render={({ field: inputField }) => (
                       <FormItem>
-                        <FormLabel className="text-xs">Server Domains</FormLabel>
+                        <FormLabel className="text-xs">{t('hostsDialog.finalmask.serverDomains')}</FormLabel>
                         <FormControl>
                           <StringArrayPopoverInput
                             value={Array.isArray(inputField.value) ? inputField.value : []}
                             onChange={(next: string[]) => inputField.onChange(next)}
-                            placeholder="Add Server Domain"
+                            placeholder={t('hostsDialog.finalmask.serverDomainsPlaceholder')}
                             addPlaceholder={t('arrayInput.addPlaceholder')}
                             addButtonLabel={t('arrayInput.addButton')}
                             itemsLabel={t('arrayInput.items')}
@@ -438,12 +438,12 @@ function UdpLayersForm({ form }: { form: UseFormReturn<any> }) {
                     name={`final_mask_settings.udp.${index}.settings.resolvers`}
                     render={({ field: inputField }) => (
                       <FormItem>
-                        <FormLabel className="text-xs">Client Resolvers</FormLabel>
+                        <FormLabel className="text-xs">{t('hostsDialog.finalmask.clientResolvers')}</FormLabel>
                         <FormControl>
                           <StringArrayPopoverInput
                             value={Array.isArray(inputField.value) ? inputField.value : []}
                             onChange={(next: string[]) => inputField.onChange(next)}
-                            placeholder="Add Resolver (+udp://...)"
+                            placeholder={t('hostsDialog.finalmask.clientResolversPlaceholder')}
                             addPlaceholder={t('arrayInput.addPlaceholder')}
                             addButtonLabel={t('arrayInput.addButton')}
                             itemsLabel={t('arrayInput.items')}
@@ -469,9 +469,9 @@ function UdpLayersForm({ form }: { form: UseFormReturn<any> }) {
                     name={`final_mask_settings.udp.${index}.settings.domain`}
                     render={({ field: inputField }) => (
                       <FormItem>
-                        <FormLabel className="text-xs">Domain</FormLabel>
+                        <FormLabel className="text-xs">{t('hostsDialog.finalmask.domain')}</FormLabel>
                         <FormControl>
-                          <Input placeholder="e.g. example.com" {...inputField} value={inputField.value || ''} className="h-8 text-xs" />
+                          <Input placeholder={t('hostsDialog.finalmask.domainPlaceholder')} {...inputField} value={inputField.value || ''} className="h-8 text-xs" />
                         </FormControl>
                       </FormItem>
                     )}
@@ -486,9 +486,9 @@ function UdpLayersForm({ form }: { form: UseFormReturn<any> }) {
                     name={`final_mask_settings.udp.${index}.settings.password`}
                     render={({ field: inputField }) => (
                       <FormItem>
-                        <FormLabel className="text-xs">Password</FormLabel>
+                        <FormLabel className="text-xs">{t('hostsDialog.finalmask.password')}</FormLabel>
                         <FormControl>
-                          <Input placeholder="Password" {...inputField} value={inputField.value || ''} className="h-8 text-xs" />
+                          <Input placeholder={t('hostsDialog.finalmask.password')} {...inputField} value={inputField.value || ''} className="h-8 text-xs" />
                         </FormControl>
                       </FormItem>
                     )}
@@ -503,9 +503,9 @@ function UdpLayersForm({ form }: { form: UseFormReturn<any> }) {
                     name={`final_mask_settings.udp.${index}.settings.password`}
                     render={({ field: inputField }) => (
                       <FormItem>
-                        <FormLabel className="text-xs">Password</FormLabel>
+                        <FormLabel className="text-xs">{t('hostsDialog.finalmask.password')}</FormLabel>
                         <FormControl>
-                          <Input placeholder="Password" {...inputField} value={inputField.value || ''} className="h-8 text-xs" />
+                          <Input placeholder={t('hostsDialog.finalmask.password')} {...inputField} value={inputField.value || ''} className="h-8 text-xs" />
                         </FormControl>
                       </FormItem>
                     )}
@@ -515,9 +515,9 @@ function UdpLayersForm({ form }: { form: UseFormReturn<any> }) {
                     name={`final_mask_settings.udp.${index}.settings.packetSize`}
                     render={({ field: inputField }) => (
                       <FormItem>
-                        <FormLabel className="text-xs">Packet Size (Gecko, e.g. 512-1200)</FormLabel>
+                        <FormLabel className="text-xs">{t('hostsDialog.finalmask.packetSize')}</FormLabel>
                         <FormControl>
-                          <Input placeholder="e.g. 512-1200" {...inputField} value={inputField.value || ''} className="h-8 text-xs" />
+                          <Input placeholder={t('hostsDialog.finalmask.packetSizePlaceholder')} {...inputField} value={inputField.value || ''} className="h-8 text-xs" />
                         </FormControl>
                       </FormItem>
                     )}
@@ -534,7 +534,7 @@ function UdpLayersForm({ form }: { form: UseFormReturn<any> }) {
                     name={`final_mask_settings.udp.${index}.settings.dgram`}
                     render={({ field: inputField }) => (
                       <FormItem dir="ltr" className="flex min-h-8 items-center justify-between gap-3 rounded-md border px-3 py-1">
-                        <FormLabel className="min-w-0 cursor-pointer truncate text-left text-xs font-normal">DGRAM Mode</FormLabel>
+                        <FormLabel className="min-w-0 cursor-pointer truncate text-left text-xs font-normal">{t('hostsDialog.finalmask.dgramMode')}</FormLabel>
                         <FormControl>
                           <Switch checked={!!inputField.value} onCheckedChange={inputField.onChange} className="scale-75" />
                         </FormControl>
@@ -546,12 +546,12 @@ function UdpLayersForm({ form }: { form: UseFormReturn<any> }) {
                     name={`final_mask_settings.udp.${index}.settings.ips`}
                     render={({ field: inputField }) => (
                       <FormItem>
-                        <FormLabel className="text-xs">IPs</FormLabel>
+                        <FormLabel className="text-xs">{t('hostsDialog.finalmask.ips')}</FormLabel>
                         <FormControl>
                           <StringArrayPopoverInput
                             value={Array.isArray(inputField.value) ? inputField.value : []}
                             onChange={(next: string[]) => inputField.onChange(next)}
-                            placeholder="Add IP (e.g. 1.1.1.1)"
+                            placeholder={t('hostsDialog.finalmask.ipsPlaceholder')}
                             addPlaceholder={t('arrayInput.addPlaceholder')}
                             addButtonLabel={t('arrayInput.addButton')}
                             itemsLabel={t('arrayInput.items')}
@@ -577,10 +577,10 @@ function UdpLayersForm({ form }: { form: UseFormReturn<any> }) {
                     name={`final_mask_settings.udp.${index}.settings.reset`}
                     render={({ field: inputField }) => (
                       <FormItem className="w-56">
-                        <FormLabel className="text-xs">Reset (seconds / range)</FormLabel>
+                        <FormLabel className="text-xs">{t('hostsDialog.finalmask.reset')}</FormLabel>
                         <FormControl>
                           <Input
-                            placeholder="e.g. 30 or 30-60"
+                            placeholder={t('hostsDialog.finalmask.resetPlaceholder')}
                             {...inputField}
                             value={inputField.value ?? ''}
                             onChange={e => inputField.onChange(e.target.value === '' ? undefined : e.target.value)}
@@ -590,14 +590,14 @@ function UdpLayersForm({ form }: { form: UseFormReturn<any> }) {
                       </FormItem>
                     )}
                   />
-                  <XrayNoiseSettingsList form={form} name={`final_mask_settings.udp.${index}.settings.noise`} label="Noise Settings" />
+                  <XrayNoiseSettingsList form={form} name={`final_mask_settings.udp.${index}.settings.noise`} label={t('hostsDialog.finalmask.noiseSettings')} />
                 </div>
               )}
 
               {type === 'header-custom' && (
                 <div className="bg-background space-y-4 rounded-md border p-3">
-                  <XrayNoiseSettingsList form={form} name={`final_mask_settings.udp.${index}.settings.client`} label="Client Settings" />
-                  <XrayNoiseSettingsList form={form} name={`final_mask_settings.udp.${index}.settings.server`} label="Server Settings" />
+                  <XrayNoiseSettingsList form={form} name={`final_mask_settings.udp.${index}.settings.client`} label={t('hostsDialog.finalmask.clientSettings')} />
+                  <XrayNoiseSettingsList form={form} name={`final_mask_settings.udp.${index}.settings.server`} label={t('hostsDialog.finalmask.serverSettings')} />
                 </div>
               )}
             </div>
@@ -618,6 +618,7 @@ function UdpLayersForm({ form }: { form: UseFormReturn<any> }) {
 // QUIC Params component
 // ==========================================
 function QuicParamsForm({ form }: { form: UseFormReturn<any> }) {
+  const { t } = useTranslation()
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3">
@@ -626,11 +627,11 @@ function QuicParamsForm({ form }: { form: UseFormReturn<any> }) {
           name="final_mask_settings.quicParams.congestion"
           render={({ field }) => (
             <FormItem>
-              <FormLabel className="text-xs">Congestion</FormLabel>
+              <FormLabel className="text-xs">{t('hostsDialog.finalmask.congestion')}</FormLabel>
               <Select onValueChange={field.onChange} value={field.value || ''}>
                 <FormControl>
                   <SelectTrigger className="h-8 text-xs">
-                    <SelectValue placeholder="Select congestion" />
+                    <SelectValue placeholder={t('hostsDialog.finalmask.selectCongestion')} />
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent side="top">
@@ -649,15 +650,15 @@ function QuicParamsForm({ form }: { form: UseFormReturn<any> }) {
           name="final_mask_settings.quicParams.bbrProfile"
           render={({ field }) => (
             <FormItem>
-              <FormLabel className="text-xs">BBR Profile</FormLabel>
+              <FormLabel className="text-xs">{t('hostsDialog.finalmask.bbrProfile')}</FormLabel>
               <Select onValueChange={val => field.onChange(val === '__none__' ? undefined : val)} value={field.value || '__none__'}>
                 <FormControl>
                   <SelectTrigger className="h-8 text-xs">
-                    <SelectValue placeholder="Select BBR profile" />
+                    <SelectValue placeholder={t('hostsDialog.finalmask.selectBbrProfile')} />
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent side="top">
-                  <SelectItem value="__none__">default (standard)</SelectItem>
+                  <SelectItem value="__none__">{t('hostsDialog.finalmask.bbrDefault')}</SelectItem>
                   <SelectItem value="conservative">conservative</SelectItem>
                   <SelectItem value="standard">standard</SelectItem>
                   <SelectItem value="aggressive">aggressive</SelectItem>
@@ -672,7 +673,7 @@ function QuicParamsForm({ form }: { form: UseFormReturn<any> }) {
           name="final_mask_settings.quicParams.debug"
           render={({ field }) => (
             <FormItem dir="ltr" className="mt-6 flex min-h-9 items-center justify-between gap-3 rounded-md border px-3 py-2">
-              <FormLabel className="min-w-0 cursor-pointer truncate text-left text-xs font-normal">Debug</FormLabel>
+              <FormLabel className="min-w-0 cursor-pointer truncate text-left text-xs font-normal">{t('hostsDialog.finalmask.debug')}</FormLabel>
               <FormControl>
                 <Switch checked={!!field.value} onCheckedChange={field.onChange} className="scale-75" />
               </FormControl>
@@ -685,9 +686,9 @@ function QuicParamsForm({ form }: { form: UseFormReturn<any> }) {
           name="final_mask_settings.quicParams.brutalUp"
           render={({ field }) => (
             <FormItem>
-              <FormLabel className="text-xs">Brutal Up (Mbps)</FormLabel>
+              <FormLabel className="text-xs">{t('hostsDialog.finalmask.brutalUp')}</FormLabel>
               <FormControl>
-                <Input placeholder="e.g. 100" {...field} value={field.value || ''} className="h-8 text-xs" />
+                <Input placeholder={t('hostsDialog.finalmask.mbpsPlaceholder')} {...field} value={field.value || ''} className="h-8 text-xs" />
               </FormControl>
             </FormItem>
           )}
@@ -698,9 +699,9 @@ function QuicParamsForm({ form }: { form: UseFormReturn<any> }) {
           name="final_mask_settings.quicParams.brutalDown"
           render={({ field }) => (
             <FormItem>
-              <FormLabel className="text-xs">Brutal Down (Mbps)</FormLabel>
+              <FormLabel className="text-xs">{t('hostsDialog.finalmask.brutalDown')}</FormLabel>
               <FormControl>
-                <Input placeholder="e.g. 100" {...field} value={field.value || ''} className="h-8 text-xs" />
+                <Input placeholder={t('hostsDialog.finalmask.mbpsPlaceholder')} {...field} value={field.value || ''} className="h-8 text-xs" />
               </FormControl>
             </FormItem>
           )}
@@ -708,16 +709,16 @@ function QuicParamsForm({ form }: { form: UseFormReturn<any> }) {
       </div>
 
       <div className="border-t pt-3">
-        <h5 className="mb-2 text-xs font-semibold">UDP Hop</h5>
+        <h5 className="mb-2 text-xs font-semibold">{t('hostsDialog.finalmask.udpHop')}</h5>
         <div className="bg-muted/5 grid grid-cols-2 gap-3 rounded-md border p-3">
           <FormField
             control={form.control}
             name="final_mask_settings.quicParams.udpHop.ports"
             render={({ field }) => (
               <FormItem>
-                <FormLabel className="text-xs">Ports</FormLabel>
+                <FormLabel className="text-xs">{t('hostsDialog.finalmask.ports')}</FormLabel>
                 <FormControl>
-                  <Input placeholder="e.g. 50000-60000" {...field} value={field.value || ''} className="h-8 text-xs" />
+                  <Input placeholder={t('hostsDialog.finalmask.portsPlaceholder')} {...field} value={field.value || ''} className="h-8 text-xs" />
                 </FormControl>
               </FormItem>
             )}
@@ -728,9 +729,9 @@ function QuicParamsForm({ form }: { form: UseFormReturn<any> }) {
             name="final_mask_settings.quicParams.udpHop.interval"
             render={({ field }) => (
               <FormItem>
-                <FormLabel className="text-xs">Interval (ms or duration)</FormLabel>
+                <FormLabel className="text-xs">{t('hostsDialog.finalmask.interval')}</FormLabel>
                 <FormControl>
-                  <Input placeholder="e.g. 10s or 10000" {...field} value={field.value || ''} className="h-8 text-xs" />
+                  <Input placeholder={t('hostsDialog.finalmask.intervalPlaceholder')} {...field} value={field.value || ''} className="h-8 text-xs" />
                 </FormControl>
               </FormItem>
             )}
@@ -739,18 +740,19 @@ function QuicParamsForm({ form }: { form: UseFormReturn<any> }) {
       </div>
 
       <div className="border-t pt-3">
-        <h5 className="mb-2 text-xs font-semibold">Windows & Stream settings</h5>
+        <h5 className="mb-2 text-xs font-semibold">{t('hostsDialog.finalmask.windowsAndStream')}</h5>
+        <p className="text-muted-foreground mb-2 text-[11px] leading-relaxed">{t('hostsDialog.finalmask.windowsAndStreamHint')}</p>
         <div className="grid grid-cols-2 gap-3">
           <FormField
             control={form.control}
             name="final_mask_settings.quicParams.initStreamReceiveWindow"
             render={({ field }) => (
               <FormItem>
-                <FormLabel className="text-xs">Init Stream RX Window</FormLabel>
+                <FormLabel className="text-xs">{t('hostsDialog.finalmask.initStreamRxWindow')}</FormLabel>
                 <FormControl>
                   <Input
                     type="number"
-                    placeholder="Bytes"
+                    placeholder={t('hostsDialog.finalmask.streamWindowPlaceholder')}
                     {...field}
                     value={field.value ?? ''}
                     onChange={e => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))}
@@ -766,11 +768,11 @@ function QuicParamsForm({ form }: { form: UseFormReturn<any> }) {
             name="final_mask_settings.quicParams.maxStreamReceiveWindow"
             render={({ field }) => (
               <FormItem>
-                <FormLabel className="text-xs">Max Stream RX Window</FormLabel>
+                <FormLabel className="text-xs">{t('hostsDialog.finalmask.maxStreamRxWindow')}</FormLabel>
                 <FormControl>
                   <Input
                     type="number"
-                    placeholder="Bytes"
+                    placeholder={t('hostsDialog.finalmask.streamWindowPlaceholder')}
                     {...field}
                     value={field.value ?? ''}
                     onChange={e => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))}
@@ -786,11 +788,11 @@ function QuicParamsForm({ form }: { form: UseFormReturn<any> }) {
             name="final_mask_settings.quicParams.initConnectionReceiveWindow"
             render={({ field }) => (
               <FormItem>
-                <FormLabel className="text-xs">Init Connection RX Window</FormLabel>
+                <FormLabel className="text-xs">{t('hostsDialog.finalmask.initConnectionRxWindow')}</FormLabel>
                 <FormControl>
                   <Input
                     type="number"
-                    placeholder="Bytes"
+                    placeholder={t('hostsDialog.finalmask.connectionWindowPlaceholder')}
                     {...field}
                     value={field.value ?? ''}
                     onChange={e => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))}
@@ -806,11 +808,11 @@ function QuicParamsForm({ form }: { form: UseFormReturn<any> }) {
             name="final_mask_settings.quicParams.maxConnectionReceiveWindow"
             render={({ field }) => (
               <FormItem>
-                <FormLabel className="text-xs">Max Connection RX Window</FormLabel>
+                <FormLabel className="text-xs">{t('hostsDialog.finalmask.maxConnectionRxWindow')}</FormLabel>
                 <FormControl>
                   <Input
                     type="number"
-                    placeholder="Bytes"
+                    placeholder={t('hostsDialog.finalmask.connectionWindowPlaceholder')}
                     {...field}
                     value={field.value ?? ''}
                     onChange={e => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))}
@@ -826,11 +828,12 @@ function QuicParamsForm({ form }: { form: UseFormReturn<any> }) {
             name="final_mask_settings.quicParams.maxIncomingStreams"
             render={({ field }) => (
               <FormItem>
-                <FormLabel className="text-xs">Max Incoming Streams</FormLabel>
+                <FormLabel className="text-xs">{t('hostsDialog.finalmask.maxIncomingStreams')}</FormLabel>
                 <FormControl>
                   <Input
                     type="number"
-                    placeholder="Streams count"
+                    min={8}
+                    placeholder={t('hostsDialog.finalmask.streamsCountPlaceholder')}
                     {...field}
                     value={field.value ?? ''}
                     onChange={e => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))}
@@ -846,11 +849,13 @@ function QuicParamsForm({ form }: { form: UseFormReturn<any> }) {
             name="final_mask_settings.quicParams.maxIdleTimeout"
             render={({ field }) => (
               <FormItem>
-                <FormLabel className="text-xs">Max Idle Timeout (ms)</FormLabel>
+                <FormLabel className="text-xs">{t('hostsDialog.finalmask.maxIdleTimeout')}</FormLabel>
                 <FormControl>
                   <Input
                     type="number"
-                    placeholder="e.g. 30000"
+                    min={4}
+                    max={120}
+                    placeholder={t('hostsDialog.finalmask.maxIdleTimeoutPlaceholder')}
                     {...field}
                     value={field.value ?? ''}
                     onChange={e => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))}
@@ -866,11 +871,13 @@ function QuicParamsForm({ form }: { form: UseFormReturn<any> }) {
             name="final_mask_settings.quicParams.keepAlivePeriod"
             render={({ field }) => (
               <FormItem>
-                <FormLabel className="text-xs">Keep Alive Period (ms)</FormLabel>
+                <FormLabel className="text-xs">{t('hostsDialog.finalmask.keepAlivePeriod')}</FormLabel>
                 <FormControl>
                   <Input
                     type="number"
-                    placeholder="e.g. 10000"
+                    min={2}
+                    max={60}
+                    placeholder={t('hostsDialog.finalmask.keepAlivePeriodPlaceholder')}
                     {...field}
                     value={field.value ?? ''}
                     onChange={e => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))}
@@ -886,7 +893,7 @@ function QuicParamsForm({ form }: { form: UseFormReturn<any> }) {
             name="final_mask_settings.quicParams.disablePathMTUDiscovery"
             render={({ field }) => (
               <FormItem dir="ltr" className="mt-6 flex min-h-9 items-center justify-between gap-3 rounded-md border px-3 py-2">
-                <FormLabel className="min-w-0 cursor-pointer truncate text-left text-xs font-normal">Disable PMTU Discovery</FormLabel>
+                <FormLabel className="min-w-0 cursor-pointer truncate text-left text-xs font-normal">{t('hostsDialog.finalmask.disablePmtuDiscovery')}</FormLabel>
                 <FormControl>
                   <Switch checked={!!field.value} onCheckedChange={field.onChange} className="scale-75" />
                 </FormControl>
@@ -912,9 +919,9 @@ function FragmentSettingsForm({ prefix, form }: { prefix: string; form: UseFormR
           name={`${prefix}.packets`}
           render={({ field: inputField }) => (
             <FormItem>
-              <FormLabel className="text-xs">Packets</FormLabel>
+              <FormLabel className="text-xs">{t('hostsDialog.finalmask.packets')}</FormLabel>
               <FormControl>
-                <Input placeholder="e.g. tlshello or 1-3" {...inputField} value={inputField.value || ''} className="h-8 text-xs" />
+                <Input placeholder={t('hostsDialog.finalmask.packetsPlaceholder')} {...inputField} value={inputField.value || ''} className="h-8 text-xs" />
               </FormControl>
             </FormItem>
           )}
@@ -924,9 +931,9 @@ function FragmentSettingsForm({ prefix, form }: { prefix: string; form: UseFormR
           name={`${prefix}.maxSplit`}
           render={({ field: inputField }) => (
             <FormItem>
-              <FormLabel className="text-xs">Max Split</FormLabel>
+              <FormLabel className="text-xs">{t('hostsDialog.finalmask.maxSplit')}</FormLabel>
               <FormControl>
-                <Input placeholder="e.g. 3-6 or 0" {...inputField} value={inputField.value ?? ''} className="h-8 text-xs" />
+                <Input placeholder={t('hostsDialog.finalmask.maxSplitPlaceholder')} {...inputField} value={inputField.value ?? ''} className="h-8 text-xs" />
               </FormControl>
             </FormItem>
           )}
@@ -937,12 +944,12 @@ function FragmentSettingsForm({ prefix, form }: { prefix: string; form: UseFormR
         name={`${prefix}.lengths`}
         render={({ field: inputField }) => (
           <FormItem>
-            <FormLabel className="text-xs">Lengths</FormLabel>
+            <FormLabel className="text-xs">{t('hostsDialog.finalmask.lengths')}</FormLabel>
             <FormControl>
               <StringArrayPopoverInput
                 value={Array.isArray(inputField.value) ? inputField.value.map(String) : []}
                 onChange={(next: string[]) => inputField.onChange(next)}
-                placeholder="Add length range (e.g. 3-5)"
+                placeholder={t('hostsDialog.finalmask.lengthsPlaceholder')}
                 addPlaceholder={t('arrayInput.addPlaceholder')}
                 addButtonLabel={t('arrayInput.addButton')}
                 itemsLabel={t('arrayInput.items')}
@@ -963,12 +970,12 @@ function FragmentSettingsForm({ prefix, form }: { prefix: string; form: UseFormR
         name={`${prefix}.delays`}
         render={({ field: inputField }) => (
           <FormItem>
-            <FormLabel className="text-xs">Delays (ms)</FormLabel>
+            <FormLabel className="text-xs">{t('hostsDialog.finalmask.delays')}</FormLabel>
             <FormControl>
               <StringArrayPopoverInput
                 value={Array.isArray(inputField.value) ? inputField.value.map(String) : []}
                 onChange={(next: string[]) => inputField.onChange(next)}
-                placeholder="Add delay range (e.g. 10-20)"
+                placeholder={t('hostsDialog.finalmask.delaysPlaceholder')}
                 addPlaceholder={t('arrayInput.addPlaceholder')}
                 addButtonLabel={t('arrayInput.addButton')}
                 itemsLabel={t('arrayInput.items')}
@@ -1000,9 +1007,9 @@ function SudokuSettingsForm({ prefix, form }: { prefix: string; form: UseFormRet
         name={`${prefix}.password`}
         render={({ field: inputField }) => (
           <FormItem>
-            <FormLabel className="text-xs">Password</FormLabel>
+            <FormLabel className="text-xs">{t('hostsDialog.finalmask.password')}</FormLabel>
             <FormControl>
-              <Input placeholder="Password" {...inputField} value={inputField.value || ''} className="h-8 text-xs" />
+              <Input placeholder={t('hostsDialog.finalmask.password')} {...inputField} value={inputField.value || ''} className="h-8 text-xs" />
             </FormControl>
           </FormItem>
         )}
@@ -1012,9 +1019,9 @@ function SudokuSettingsForm({ prefix, form }: { prefix: string; form: UseFormRet
         name={`${prefix}.ascii`}
         render={({ field: inputField }) => (
           <FormItem>
-            <FormLabel className="text-xs">ASCII</FormLabel>
+            <FormLabel className="text-xs">{t('hostsDialog.finalmask.ascii')}</FormLabel>
             <FormControl>
-              <Input placeholder="ASCII Table" {...inputField} value={inputField.value || ''} className="h-8 text-xs" />
+              <Input placeholder={t('hostsDialog.finalmask.asciiPlaceholder')} {...inputField} value={inputField.value || ''} className="h-8 text-xs" />
             </FormControl>
           </FormItem>
         )}
@@ -1024,9 +1031,9 @@ function SudokuSettingsForm({ prefix, form }: { prefix: string; form: UseFormRet
         name={`${prefix}.customTable`}
         render={({ field: inputField }) => (
           <FormItem>
-            <FormLabel className="text-xs">Custom Table</FormLabel>
+            <FormLabel className="text-xs">{t('hostsDialog.finalmask.customTable')}</FormLabel>
             <FormControl>
-              <Input placeholder="Custom Table" {...inputField} value={inputField.value || ''} className="h-8 text-xs" />
+              <Input placeholder={t('hostsDialog.finalmask.customTable')} {...inputField} value={inputField.value || ''} className="h-8 text-xs" />
             </FormControl>
           </FormItem>
         )}
@@ -1036,12 +1043,12 @@ function SudokuSettingsForm({ prefix, form }: { prefix: string; form: UseFormRet
         name={`${prefix}.customTables`}
         render={({ field: inputField }) => (
           <FormItem>
-            <FormLabel className="text-xs">Custom Tables</FormLabel>
+            <FormLabel className="text-xs">{t('hostsDialog.finalmask.customTables')}</FormLabel>
             <FormControl>
               <StringArrayPopoverInput
                 value={Array.isArray(inputField.value) ? inputField.value : []}
                 onChange={(next: string[]) => inputField.onChange(next)}
-                placeholder="Add Table"
+                placeholder={t('hostsDialog.finalmask.customTablesPlaceholder')}
                 addPlaceholder={t('arrayInput.addPlaceholder')}
                 addButtonLabel={t('arrayInput.addButton')}
                 itemsLabel={t('arrayInput.items')}
@@ -1062,7 +1069,7 @@ function SudokuSettingsForm({ prefix, form }: { prefix: string; form: UseFormRet
         name={`${prefix}.paddingMin`}
         render={({ field: inputField }) => (
           <FormItem>
-            <FormLabel className="text-xs">Padding Min</FormLabel>
+            <FormLabel className="text-xs">{t('hostsDialog.finalmask.paddingMin')}</FormLabel>
             <FormControl>
               <Input
                 type="number"
@@ -1081,7 +1088,7 @@ function SudokuSettingsForm({ prefix, form }: { prefix: string; form: UseFormRet
         name={`${prefix}.paddingMax`}
         render={({ field: inputField }) => (
           <FormItem>
-            <FormLabel className="text-xs">Padding Max</FormLabel>
+            <FormLabel className="text-xs">{t('hostsDialog.finalmask.paddingMax')}</FormLabel>
             <FormControl>
               <Input
                 type="number"
@@ -1109,9 +1116,9 @@ function XmcSettingsForm({ prefix, form }: { prefix: string; form: UseFormReturn
           name={`${prefix}.hostname`}
           render={({ field: inputField }) => (
             <FormItem>
-              <FormLabel className="text-xs">Hostname</FormLabel>
+              <FormLabel className="text-xs">{t('hostsDialog.finalmask.hostname')}</FormLabel>
               <FormControl>
-                <Input placeholder="Hostname" {...inputField} value={inputField.value || ''} className="h-8 text-xs" />
+                <Input placeholder={t('hostsDialog.finalmask.hostname')} {...inputField} value={inputField.value || ''} className="h-8 text-xs" />
               </FormControl>
             </FormItem>
           )}
@@ -1121,26 +1128,26 @@ function XmcSettingsForm({ prefix, form }: { prefix: string; form: UseFormReturn
           name={`${prefix}.password`}
           render={({ field: inputField }) => (
             <FormItem>
-              <FormLabel className="text-xs">Password</FormLabel>
+              <FormLabel className="text-xs">{t('hostsDialog.finalmask.password')}</FormLabel>
               <FormControl>
-                <Input placeholder="Password" {...inputField} value={inputField.value || ''} className="h-8 text-xs" />
+                <Input placeholder={t('hostsDialog.finalmask.password')} {...inputField} value={inputField.value || ''} className="h-8 text-xs" />
               </FormControl>
             </FormItem>
           )}
         />
       </div>
-      <JsonArrayField form={form} name={`${prefix}.profiles`} label="Profiles (JSON array of {username, uuid, texturesValue, texturesSignature})" />
+      <JsonArrayField form={form} name={`${prefix}.profiles`} label={t('hostsDialog.finalmask.profilesJson')} />
       <FormField
         control={form.control}
         name={`${prefix}.usernames`}
         render={({ field: inputField }) => (
           <FormItem className="col-span-2">
-            <FormLabel className="text-xs">Legacy Usernames List (Optional)</FormLabel>
+            <FormLabel className="text-xs">{t('hostsDialog.finalmask.legacyUsernames')}</FormLabel>
             <FormControl>
               <StringArrayPopoverInput
                 value={Array.isArray(inputField.value) ? inputField.value : []}
                 onChange={(next: string[]) => inputField.onChange(next)}
-                placeholder="Add Username"
+                placeholder={t('hostsDialog.finalmask.usernamesPlaceholder')}
                 addPlaceholder={t('arrayInput.addPlaceholder')}
                 addButtonLabel={t('arrayInput.addButton')}
                 itemsLabel={t('arrayInput.items')}
@@ -1175,6 +1182,7 @@ function JsonObjectField({ form, name, label }: JsonArrayFieldProps) {
 }
 
 function JsonObjectEditor({ label, value, onChange }: { label: string; value: unknown; onChange: (value: Record<string, unknown> | undefined) => void }) {
+  const { t } = useTranslation()
   const serializedValue = value && typeof value === 'object' && !Array.isArray(value) ? JSON.stringify(value, null, 2) : ''
   const [text, setText] = useState(serializedValue)
   const [error, setError] = useState<string | null>(null)
@@ -1202,13 +1210,13 @@ function JsonObjectEditor({ label, value, onChange }: { label: string; value: un
           try {
             const parsed = JSON.parse(trimmed)
             if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-              setError('Must be a JSON object')
+              setError(t('hostsDialog.finalmask.mustBeJsonObject'))
               return
             }
             setError(null)
             onChange(parsed as Record<string, unknown>)
           } catch {
-            setError('Invalid JSON')
+            setError(t('hostsDialog.finalmask.invalidJsonObject'))
           }
         }}
         embeddedContainerClassName="h-32"
@@ -1278,7 +1286,7 @@ function XrayNoiseSettingsList({ form, name, label }: XrayNoiseSettingsListProps
     <div className="bg-muted/10 space-y-3 rounded-md border p-3">
       <div className="flex items-center justify-between">
         <span className="text-muted-foreground text-xs font-semibold">{label}</span>
-        <Button type="button" variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => append({ type: 'rand', apply_to: 'ip', packet: '', delay: '', randRange: '' })}>
+        <Button type="button" variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => append({ type: 'array', packet: '', delay: '', rand: '', randRange: '0-255' })}>
           <Plus className="mr-1 h-3.5 w-3.5" />
           {t('hostsDialog.noise.addNoise', { defaultValue: 'Add' })}
         </Button>
@@ -1294,38 +1302,18 @@ function XrayNoiseSettingsList({ form, name, label }: XrayNoiseSettingsListProps
                 name={`${name}.${index}.type`}
                 render={({ field: inputField }) => (
                   <FormItem className="w-[100px] shrink-0">
-                    <Select onValueChange={inputField.onChange} value={inputField.value || 'rand'}>
+                    <Select onValueChange={inputField.onChange} value={inputField.value || 'array'}>
                       <FormControl>
                         <SelectTrigger className="h-8 text-xs">
-                          <SelectValue placeholder="Type" />
+                          <SelectValue placeholder={t('hostsDialog.noise.type')} />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent side="top">
-                        <SelectItem value="rand">rand</SelectItem>
                         <SelectItem value="array">array</SelectItem>
                         <SelectItem value="str">str</SelectItem>
-                        <SelectItem value="base64">base64</SelectItem>
                         <SelectItem value="hex">hex</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name={`${name}.${index}.apply_to`}
-                render={({ field: inputField }) => (
-                  <FormItem className="w-[90px] shrink-0">
-                    <Select onValueChange={inputField.onChange} value={inputField.value || 'ip'}>
-                      <FormControl>
-                        <SelectTrigger className="h-8 text-xs">
-                          <SelectValue placeholder="Apply To" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent side="top">
-                        <SelectItem value="ip">ip</SelectItem>
-                        <SelectItem value="ipv4">ipv4</SelectItem>
-                        <SelectItem value="ipv6">ipv6</SelectItem>
+                        <SelectItem value="base64">base64</SelectItem>
+                        <SelectItem value="rand">rand</SelectItem>
                       </SelectContent>
                     </Select>
                   </FormItem>
@@ -1355,7 +1343,7 @@ function XrayNoiseSettingsList({ form, name, label }: XrayNoiseSettingsListProps
                 render={({ field: inputField }) => (
                   <FormItem>
                     <FormControl>
-                      <Input placeholder="Packet" {...inputField} value={inputField.value || ''} className="h-8 text-xs" />
+                      <Input placeholder={t('hostsDialog.noise.packet')} {...inputField} value={inputField.value || ''} className="h-8 text-xs" />
                     </FormControl>
                   </FormItem>
                 )}
@@ -1366,7 +1354,7 @@ function XrayNoiseSettingsList({ form, name, label }: XrayNoiseSettingsListProps
                 render={({ field: inputField }) => (
                   <FormItem>
                     <FormControl>
-                      <Input placeholder="Delay" {...inputField} value={inputField.value || ''} className="h-8 text-xs" />
+                      <Input placeholder={t('hostsDialog.noise.delayPlaceholder')} {...inputField} value={inputField.value || ''} className="h-8 text-xs" />
                     </FormControl>
                   </FormItem>
                 )}
@@ -1377,7 +1365,7 @@ function XrayNoiseSettingsList({ form, name, label }: XrayNoiseSettingsListProps
                 render={({ field: inputField }) => (
                   <FormItem>
                     <FormControl>
-                      <Input placeholder="Rand" {...inputField} value={inputField.value || ''} className="h-8 text-xs" />
+                      <Input placeholder={t('hostsDialog.finalmask.noiseRandPlaceholder')} {...inputField} value={inputField.value || ''} className="h-8 text-xs" />
                     </FormControl>
                   </FormItem>
                 )}
@@ -1388,7 +1376,7 @@ function XrayNoiseSettingsList({ form, name, label }: XrayNoiseSettingsListProps
                 render={({ field: inputField }) => (
                   <FormItem>
                     <FormControl>
-                      <Input placeholder="Rand Range" {...inputField} value={inputField.value || ''} className="h-8 text-xs" />
+                      <Input placeholder={t('hostsDialog.finalmask.noiseRandRangePlaceholder')} {...inputField} value={inputField.value || ''} className="h-8 text-xs" />
                     </FormControl>
                   </FormItem>
                 )}
