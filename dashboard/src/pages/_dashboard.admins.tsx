@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Plus } from 'lucide-react'
 import { useForm } from 'react-hook-form'
@@ -18,6 +18,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useGetRolesSimple } from '@/service/api'
 import { useAdmin } from '@/hooks/use-admin'
 import { hasPermission } from '@/utils/rbac'
+import { useCommandCreate } from '@/hooks/use-command-create'
 
 export default function AdminsPage() {
   const { t } = useTranslation()
@@ -207,33 +208,34 @@ export default function AdminsPage() {
     }
   }
 
+  const handleCreateAdmin = useCallback(() => {
+    if (!canCreateAdmins) return
+    setEditingAdmin(null)
+    form.reset(adminFormDefaultValues)
+    setIsDialogOpen(true)
+  }, [canCreateAdmins, form])
+
+  useCommandCreate('admin', handleCreateAdmin)
+
   return (
     <div className="flex w-full flex-col items-start gap-2">
-      <div className="animate-fade-in w-full transform-gpu" style={{ animationDuration: '400ms' }}>
+      <div className="w-full transform-gpu">
         <PageHeader
           title="admins.title"
           description="admins.description"
           buttonIcon={Plus}
           buttonText={canCreateAdmins ? 'admins.createAdmin' : undefined}
-          onButtonClick={
-            canCreateAdmins
-              ? () => {
-                  setEditingAdmin(null)
-                  form.reset(adminFormDefaultValues)
-                  setIsDialogOpen(true)
-                }
-              : undefined
-          }
+          onButtonClick={canCreateAdmins ? handleCreateAdmin : undefined}
         />
         <Separator />
       </div>
 
       <div className="w-full px-4 pt-2">
-        <div className="animate-slide-up transform-gpu" style={{ animationDuration: '500ms', animationDelay: '100ms', animationFillMode: 'both' }}>
+        <div className="transform-gpu">
           <AdminsStatistics counts={adminCounts} />
         </div>
 
-        <div className="animate-slide-up transform-gpu" style={{ animationDuration: '500ms', animationDelay: '250ms', animationFillMode: 'both' }}>
+        <div className="transform-gpu">
           <AdminsTable onEdit={handleEdit} onDelete={handleDelete} onToggleStatus={handleToggleStatus} onResetUsage={resetUsage} onTotalAdminsChange={setAdminCounts} />
         </div>
 
