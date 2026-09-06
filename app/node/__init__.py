@@ -1,4 +1,5 @@
 import asyncio
+from contextvars import ContextVar
 
 from aiorwlock import RWLock
 from PasarGuardNodeBridge import Health, NodeType, PasarGuardNode, create_node
@@ -21,6 +22,7 @@ class NodeManager:
         self._nodes: dict[int, PasarGuardNode] = {}
         self._node_signatures: dict[int, tuple] = {}
         self._user_sync_locks: dict[int, asyncio.Lock] = {}
+        self._remote_stop = ContextVar("node_manager_remote_stop", default=True)
         self._lock = RWLock(fast=True)
         self.logger = get_logger("node-manager")
 
@@ -73,8 +75,17 @@ class NodeManager:
         except Exception:
             pass
 
-    async def update_node(self, node: Node, *, remote_stop: bool = True) -> PasarGuardNode:
+    async def update_local_node(self, node: Node) -> PasarGuardNode:
+        """Replace only this worker's controller without stopping the remote node."""
+        token = self._remote_stop.set(False)
+        try:
+            return await self.update_node(node)
+        finally:
+            self._remote_stop.reset(token)
+
+    async def update_node(self, node: Node) -> PasarGuardNode:
         await ensure_bridge_memory()
+        remote_stop = self._remote_stop.get()
 
         # Serialize against in-flight full syncs (sync_full) so a reconnect/health-check
         # restart doesn't swap the node object out from under a slow peer sync — that race
