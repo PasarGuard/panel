@@ -14,6 +14,7 @@ from app.notification.queue_manager import (
     get_queue,
 )
 from app.settings import notification_settings
+from app.utils.http_client import create_outbound_http_session
 from app.utils.logger import get_logger
 
 client: aiohttp.ClientSession | None = None
@@ -29,10 +30,7 @@ async def define_client():
         asyncio.create_task(client.close())
     settings = await notification_settings()
     proxy_url = settings.proxy_url
-    client = aiohttp.ClientSession(
-        timeout=aiohttp.ClientTimeout(total=10),
-        proxy=proxy_url if proxy_url else None,
-    )
+    client = create_outbound_http_session(proxy=proxy_url if proxy_url else None)
 
 
 on_startup(define_client)

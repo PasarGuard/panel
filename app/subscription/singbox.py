@@ -215,6 +215,8 @@ class SingBoxConfiguration(BaseSubscription):
 
     def _apply_tls(self, tls_config: TLSConfig, fragment_settings: dict | None = None) -> dict:
         """Apply TLS settings - receives TLS config and optional fragment settings"""
+        fingerprint = "chrome" if tls_config.fingerprint == "unsafe" else tls_config.fingerprint
+
         config = {
             "enabled": tls_config.tls in ("tls", "reality"),
             "server_name": tls_config.sni
@@ -225,10 +227,10 @@ class SingBoxConfiguration(BaseSubscription):
             if tls_config.pinned_peer_cert_sha256
             else None,
             "utls": {
-                "enabled": bool(tls_config.fingerprint) or tls_config.tls == "reality",
-                "fingerprint": tls_config.fingerprint,
+                "enabled": bool(fingerprint) or tls_config.tls == "reality",
+                "fingerprint": fingerprint,
             }
-            if tls_config.fingerprint or tls_config.tls == "reality"
+            if fingerprint or tls_config.tls == "reality"
             else None,
             "alpn": tls_config.alpn_singbox,  # Pre-formatted for sing-box!
             "ech": {
@@ -268,7 +270,7 @@ class SingBoxConfiguration(BaseSubscription):
     def _build_vless(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict) -> dict:
         """Build VLESS outbound"""
         # Handle vless-route if needed (only affects ID)
-        id = settings["id"]
+        id = str(settings["id"])
         if inbound.vless_route:
             id = self.vless_route(id, inbound.vless_route)
         user_settings = {"uuid": id}
