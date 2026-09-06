@@ -60,7 +60,6 @@ class XrayNoiseSettings(BaseModel):
     delay: str | int | None = Field(default=None)
     apply_to: str = Field(default="ip", pattern=r"ip|ipv4|ipv6")
     rand: int | str | None = Field(default=None)
-    rand_range: str | None = Field(default=None, alias="randRange", pattern=r"^\d{1,16}(-\d{1,16})?$")
 
     model_config = ConfigDict(extra="allow", populate_by_name=True)
 
@@ -138,15 +137,25 @@ class FinalMaskQuicCongestion(str, Enum):
     force_brutal = "force-brutal"
 
 
+class FinalMaskNoiseItem(FinalMaskBaseModel):
+    """Packet camouflage item used by FinalMask. Unlike Freedom noise, this has no apply_to."""
+
+    type: str | None = Field(default=None, pattern=r"^$|^(:?rand|array|str|base64|hex)$")
+    packet: str | list[int] | None = Field(default=None)
+    delay: str | int | None = Field(default=None)
+    rand: int | str | None = Field(default=None)
+    rand_range: str | None = Field(default=None, alias="randRange", pattern=r"^\d{1,16}(-\d{1,16})?$")
+
+
 class FinalMaskTcpHeaderCustomSettings(FinalMaskBaseModel):
-    clients: list[list[XrayNoiseSettings]] | None = Field(default=None)
-    servers: list[list[XrayNoiseSettings]] | None = Field(default=None)
-    errors: list[list[XrayNoiseSettings]] | None = Field(default=None)
+    clients: list[list[FinalMaskNoiseItem]] | None = Field(default=None)
+    servers: list[list[FinalMaskNoiseItem]] | None = Field(default=None)
+    errors: list[list[FinalMaskNoiseItem]] | None = Field(default=None)
 
 
 class FinalMaskUdpHeaderCustomSettings(FinalMaskBaseModel):
-    client: list[XrayNoiseSettings] | None = Field(default=None)
-    server: list[XrayNoiseSettings] | None = Field(default=None)
+    client: list[FinalMaskNoiseItem] | None = Field(default=None)
+    server: list[FinalMaskNoiseItem] | None = Field(default=None)
 
 
 class FinalMaskPasswordSettings(FinalMaskBaseModel):
@@ -209,7 +218,7 @@ class FinalMaskMkcpLegacySettings(FinalMaskBaseModel):
 
 class FinalMaskNoiseSettings(FinalMaskBaseModel):
     reset: str | int | None = Field(default=None)
-    noise: list[XrayNoiseSettings] | None = Field(default=None)
+    noise: list[FinalMaskNoiseItem] | None = Field(default=None)
 
 
 class FinalMaskUdpHop(FinalMaskBaseModel):

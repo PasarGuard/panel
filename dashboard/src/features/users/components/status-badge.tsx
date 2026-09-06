@@ -44,7 +44,7 @@ export const StatusBadge: FC<UserStatusProps> = ({ expiryDate = null, status: us
             <div className="text-muted-foreground flex items-center gap-x-1">
               <Clock className="h-3 w-3" />
               <span className="text-sm">:</span>
-              <span className={cn('text-xs font-medium', dir === 'rtl' ? 'mr-0.5 md:mr-2' : 'ml-0.5 md:ml-2', 'text-gray-600 dark:text-gray-400')}>{t(dateInfo.status, { time: dateInfo.time })}</span>
+              <span className={cn('text-xs font-medium', dir === 'rtl' ? 'mr-0.5 md:mr-2' : 'ml-0.5 md:ml-2', 'text-muted-foreground')}>{t(dateInfo.status, { time: dateInfo.time })}</span>
             </div>
           </div>
         </div>
@@ -56,8 +56,8 @@ export const StatusBadge: FC<UserStatusProps> = ({ expiryDate = null, status: us
     <div className={cn('flex flex-wrap justify-start gap-x-2')}>
       <Badge
         className={cn(
-          'pointer-events-none flex w-fit max-w-[150px] items-center justify-center gap-x-2 rounded-full px-0.5 py-0.5 sm:px-2',
-          statusColors[userStatus]?.statusColor || 'bg-gray-400 text-white',
+          'pointer-events-none flex w-fit max-w-[150px] items-center justify-center gap-x-2 rounded-full border-0 px-0.5 py-0.5 sm:px-2',
+          statusColors[userStatus]?.statusColor || 'bg-muted text-muted-foreground',
           'h-6 px-1.5 py-2.5 sm:h-auto sm:px-0.5 sm:py-0.5',
         )}
       >
