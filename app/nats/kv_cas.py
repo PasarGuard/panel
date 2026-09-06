@@ -2,15 +2,26 @@
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import json
+import random
 from typing import Any, Protocol
 
+import nats.errors as nats_errors
 import nats.js.errors as nats_js_errors
 from nats.js.kv import KeyValue
 
 from app.utils.logger import get_logger
 
 logger = get_logger("nats-kv-cas")
+
+_CAS_RETRY_BASE_DELAY = 0.01
+
+
+async def cas_retry_backoff() -> None:
+    """Small jittered delay between CAS retry attempts to avoid hammering NATS under contention."""
+    await asyncio.sleep(_CAS_RETRY_BASE_DELAY * (1 + random.random()))
 
 
 class CasKv(Protocol):
@@ -44,61 +55,43 @@ async def kv_cas_json(kv: CasKv, key: str, value: dict[str, Any], revision: int)
         else:
             await kv.update(key, payload, last=revision)
         return True
-    except nats_js_errors.KeyWrongLastSequenceError as exc:
-        logger.debug("NATS KV CAS conflict for key=%s revision=%s: %s", key, revision, exc)
+    except nats_errors.Error as exc:
+        logger.debug("NATS KV CAS attempt failed for key=%s revision=%s: %s", key, revision, exc)
         return False
 
 
 async def kv_put_json(kv: CasKv, key: str, value: dict[str, Any]) -> None:
     """Upsert JSON with CAS retries (latest value wins)."""
-    for _ in range(32):
+    for attempt in range(32):
         _, rev = await kv_get_json(kv, key)
         if await kv_cas_json(kv, key, value, rev):
             return
+        if attempt < 31:
+            await cas_retry_backoff()
     raise RuntimeError(f"failed to put NATS KV key={key} after CAS retries")
 
 
 async def kv_list_keys(kv: CasKv, prefix: str) -> list[str]:
-    if isinstance(kv, KeyValue):
-        # KeyValue.keys() always creates an unfiltered watch-all consumer and
-        # only applies filters client-side. On a shared user-sync bucket this
-        # makes every node scan every other node's keys. It also leaks the
-        # temporary consumer when the extra consumer_info() call in keys()
-        # times out. Use a server-filtered watcher and always tear it down.
-        watcher = None
+    # kv.keys() always watches the entire bucket ("watch('>')") and only filters
+    # client-side, even when passed a `filters` argument. With many nodes sharing
+    # one bucket that means every call streams every key in the whole bucket to
+    # every caller, which floods NATS ("Slow Consumer" / consumer_info timeouts)
+    # as the number of nodes and pending/claimed users grows. Real KV objects
+    # support watch(), whose `keys` argument becomes the JetStream consumer's
+    # filter subject, so use that to filter server-side to this prefix only.
+    watch = getattr(kv, "watch", None)
+    if callable(watch):
+        watcher = await watch(f"{prefix}*", ignore_deletes=True, meta_only=True)
         try:
-            watcher = await kv.watch(
-                f"{prefix}>",
-                ignore_deletes=True,
-                meta_only=True,
-                inactive_threshold=30,
-            )
             keys: list[str] = []
-            while True:
-                entry = await watcher.updates(timeout=10)
+            async for entry in watcher:
                 if entry is None:
                     break
-                if entry.key.startswith(prefix):
-                    keys.append(entry.key)
+                keys.append(entry.key)
             return keys
         finally:
-            if watcher is not None:
-                subscription = getattr(watcher, "_sub", None)
-                consumer_name = getattr(subscription, "_consumer", None)
-                try:
-                    await watcher.stop()
-                except Exception as exc:
-                    logger.warning("Failed to stop NATS KV key-list watcher for prefix=%s: %s", prefix, exc)
-                if consumer_name:
-                    try:
-                        await kv._js.delete_consumer(kv._stream, consumer_name)
-                    except Exception as exc:
-                        logger.warning(
-                            "Failed to delete NATS KV key-list consumer=%s for prefix=%s: %s",
-                            consumer_name,
-                            prefix,
-                            exc,
-                        )
+            with contextlib.suppress(Exception):
+                await watcher.stop()
 
     try:
         keys = await kv.keys()
