@@ -249,7 +249,7 @@ class NodeOperation(BaseOperation):
                 return None
 
             info = await pg_node.info()
-            if info is None or not info.node_version or not info.core_version:
+            if info is None or not info.started or not info.node_version or not info.core_version:
                 return None
 
             await pg_node.connect(info.node_version, info.core_version)
@@ -266,7 +266,10 @@ class NodeOperation(BaseOperation):
     @staticmethod
     async def _start_or_attach_node(pg_node: PasarGuardNode, db_node: Node, core, users: list, backend_type):
         state = await pg_node.get_lifecycle_state()
-        if state is not None and state.observed in (LifecycleStatus.HEALTHY, LifecycleStatus.STARTING):
+        if state is not None and (
+            state.observed in (LifecycleStatus.HEALTHY, LifecycleStatus.STARTING)
+            or state.desired is LifecycleStatus.HEALTHY
+        ):
             attached = await NodeOperation._attach_if_running(pg_node, db_node.name)
             if attached is not None:
                 return attached
@@ -351,6 +354,23 @@ class NodeOperation(BaseOperation):
                 # worker; the next retry cycle will reassess once that operation completes.
                 logger.debug(f'"{db_node.name}" node lifecycle lease is held by another worker, will retry')
                 return
+
+            if e.code == -1:
+                # A timed-out Start has an ambiguous outcome: cancelling the panel-side
+                # request does not guarantee that the remote node stopped starting. Probe
+                # it before reporting an error so a late success is attached instead of
+                # being torn down by the next health-check reconnect.
+                attached = await NodeOperation._attach_if_running(pg_node, db_node.name)
+                if attached is not None:
+                    logger.info(f'Attached to "{db_node.name}" after its Start request timed out')
+                    return {
+                        "node_id": db_node.id,
+                        "status": NodeStatus.connected,
+                        "message": "",
+                        "xray_version": attached.core_version,
+                        "node_version": attached.node_version,
+                        "old_status": old_status,
+                    }
 
             detail = e.detail[:1020] + "..." if len(e.detail) > 1024 else e.detail
 
