@@ -5,7 +5,6 @@ import PageHeader from '@/components/layout/page-header'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { CoreCommandMenu } from '@/features/core-editor/components/shared/core-command-menu'
 import { CoreEditorLayout } from '@/features/core-editor/components/shell/core-editor-layout'
 import { CoreSectionTabsPlaceholder } from '@/features/core-editor/components/shell/core-section-sidebar'
 import { ValidationSummary, type ValidationListItem } from '@/features/core-editor/components/shared/validation-summary'
@@ -59,7 +58,6 @@ function CoreEditorLoadingSkeleton({ coreKind }: { coreKind?: LoadingCoreKind })
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-0" aria-busy="true">
-      <CoreCommandMenu />
       <div className="px-4 pt-3 pb-2 md:pt-6 md:pb-0">
         <div className="flex min-w-0 items-start gap-2 sm:items-center sm:gap-3">
           <Skeleton className="h-10 w-10 shrink-0 rounded-md" />

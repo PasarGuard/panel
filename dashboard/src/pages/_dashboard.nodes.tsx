@@ -4,9 +4,10 @@ import { useAdmin } from '@/hooks/use-admin'
 import { getDocsUrl } from '@/utils/docs-url'
 import { hasPermission } from '@/utils/rbac'
 import { Cpu, LucideIcon, Share2, Plus, Logs, Network } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Outlet, useLocation, useNavigate } from 'react-router'
+import { useCommandCreate } from '@/hooks/use-command-create'
 
 interface Tab {
   id: string
@@ -41,6 +42,19 @@ const Settings = () => {
   })
   const [activeTab, setActiveTab] = useState<string>(tabs[0].id)
   const isCoreEditorPage = /^\/nodes\/cores\/[^/]+$/.test(location.pathname)
+
+  const handleCreateNode = useCallback(() => {
+    if (!canCreateNodes) return
+    window.dispatchEvent(new CustomEvent('openNodeDialog'))
+  }, [canCreateNodes])
+
+  const handleCreateCore = useCallback(() => {
+    if (!canCreateCores) return
+    navigate('/nodes/cores/new')
+  }, [canCreateCores, navigate])
+
+  useCommandCreate('node', handleCreateNode)
+  useCommandCreate('core', handleCreateCore)
 
   useEffect(() => {
     if (location.pathname.startsWith('/nodes/cores')) {
