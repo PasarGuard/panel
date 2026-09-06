@@ -7,9 +7,10 @@ import { useAdmin } from '@/hooks/use-admin'
 import { hasPermission } from '@/utils/rbac'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Plus } from 'lucide-react'
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { useCommandCreate } from '@/hooks/use-command-create'
 
 export default function HostsPage() {
   const { admin } = useAdmin()
@@ -31,11 +32,13 @@ export default function HostsPage() {
     }
   }
 
-  const handleCreateClick = () => {
+  const handleCreateClick = useCallback(() => {
     if (!canCreateHosts) return
     setEditingHost(null)
     setIsDialogOpen(true)
-  }
+  }, [canCreateHosts])
+
+  useCommandCreate('host', handleCreateClick)
 
   const onAddHost = (open: boolean) => {
     setIsDialogOpen(open)
@@ -164,7 +167,6 @@ export default function HostsPage() {
                 packet: noise.packet,
                 delay: noise.delay,
                 apply_to: noise.apply_to,
-                rand_range: noise.rand_range || undefined,
               })),
             }
           : undefined,
@@ -233,7 +235,7 @@ export default function HostsPage() {
 
   return (
     <div className="flex w-full flex-col items-start gap-2 pb-8">
-      <div className="animate-fade-in w-full transform-gpu" style={{ animationDuration: '400ms' }}>
+      <div className="w-full transform-gpu">
         <PageHeader
           title="hosts"
           description="manageHosts"

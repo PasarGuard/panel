@@ -168,6 +168,8 @@ class BaseOperation:
         load_next_plan: bool = True,
         load_usage_logs: bool = True,
         load_groups: bool = True,
+        join_groups: bool = False,
+        load_lifetime_used_traffic: bool = False,
         scope_resource: str = "users",
         scope_action: str = "read",
     ) -> User:
@@ -178,6 +180,8 @@ class BaseOperation:
             load_next_plan=load_next_plan,
             load_usage_logs=load_usage_logs,
             load_groups=load_groups,
+            join_groups=join_groups,
+            load_lifetime_used_traffic=load_lifetime_used_traffic,
             admin_id=get_scope_admin_id(admin, scope_resource, scope_action),
         )
         if not db_user:
@@ -194,6 +198,8 @@ class BaseOperation:
         load_next_plan: bool = True,
         load_usage_logs: bool = True,
         load_groups: bool = True,
+        join_groups: bool = False,
+        load_lifetime_used_traffic: bool = False,
         scope_resource: str = "users",
         scope_action: str = "read",
     ) -> User:
@@ -204,6 +210,8 @@ class BaseOperation:
             load_next_plan=load_next_plan,
             load_usage_logs=load_usage_logs,
             load_groups=load_groups,
+            join_groups=join_groups,
+            load_lifetime_used_traffic=load_lifetime_used_traffic,
             admin_id=get_scope_admin_id(admin, scope_resource, scope_action),
         )
         if not db_user:
