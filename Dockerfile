@@ -28,9 +28,12 @@ WORKDIR /code
 
 ENV PATH="/code/.venv/bin:$PATH"
 
-# Install curl for health checks
+# Keep the runtime trust store explicit. Outbound notification clients use it
+# without replacing Python's process-wide SSLContext.
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
     curl \
+    && update-ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 COPY cli_wrapper.sh /usr/bin/pasarguard-cli

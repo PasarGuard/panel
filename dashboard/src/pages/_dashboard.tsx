@@ -8,6 +8,7 @@ import DonationPopup from '@/components/common/donation-popup'
 import TopbarAd from '@/components/common/topbar-ad'
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { getCurrentAdmin } from '@/service/api'
+import { isAuthenticationError } from '@/utils/error-utils'
 import { Outlet } from 'react-router'
 import { CommandPalette } from '@/components/layout/command-palette'
 
@@ -16,7 +17,11 @@ export const clientLoader = async (): Promise<any> => {
     const response = await getCurrentAdmin()
     return response
   } catch (error) {
-    throw Response.redirect('/login')
+    if (isAuthenticationError(error)) {
+      throw Response.redirect('/login')
+    }
+
+    throw error
   }
 }
 

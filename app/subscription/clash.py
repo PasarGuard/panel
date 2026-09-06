@@ -244,7 +244,7 @@ class ClashConfiguration(BaseSubscription):
             "alpn": tls_settings.get("alpn"),
             "skip-cert-verify": tls_settings.get("allowInsecure"),
             "servername": tls_settings.get("serverName"),
-            "client-fingerprint": tls_settings.get("fingerprint"),
+            "client-fingerprint": self._mihomo_client_fingerprint(tls_settings.get("fingerprint")),
             "reality-opts": {
                 "public-key": tls_settings.get("publicKey"),
                 "short-id": tls_settings.get("shortId") or "",
@@ -292,6 +292,10 @@ class ClashConfiguration(BaseSubscription):
             return address[0]
         return ""
 
+    @staticmethod
+    def _mihomo_client_fingerprint(fingerprint: str | None) -> str | None:
+        return "chrome" if fingerprint == "unsafe" else fingerprint
+
     def _apply_mihomo_download_tls(self, node: dict, tls_config: TLSConfig):
         if not tls_config.tls:
             return
@@ -306,7 +310,7 @@ class ClashConfiguration(BaseSubscription):
         node["skip-cert-verify"] = tls_config.allowinsecure
 
         if tls_config.fingerprint:
-            node["client-fingerprint"] = tls_config.fingerprint
+            node["client-fingerprint"] = self._mihomo_client_fingerprint(tls_config.fingerprint)
 
         if tls_config.tls == "reality" and tls_config.reality_public_key:
             # Do not map mldsa65Verify → support-x25519mlkem768; those are different PQ features.
@@ -609,7 +613,7 @@ class ClashMetaConfiguration(ClashConfiguration):
 
         # Add fingerprint
         if tls_config.fingerprint:
-            node["client-fingerprint"] = tls_config.fingerprint
+            node["client-fingerprint"] = self._mihomo_client_fingerprint(tls_config.fingerprint)
 
         # Add Reality opts
         if tls_config.tls == "reality" and tls_config.reality_public_key:

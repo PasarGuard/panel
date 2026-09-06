@@ -41,7 +41,7 @@ class Node(BaseModel):
     address: str
     port: int = 62050
     api_port: int = 62051
-    usage_coefficient: float = Field(gt=0, default=1.0)
+    usage_coefficient: float = Field(ge=0, default=1.0)
     connection_type: NodeConnectionType
     server_ca: str
     keep_alive: int
@@ -50,7 +50,7 @@ class Node(BaseModel):
     data_limit: int = Field(default=0)
     data_limit_reset_strategy: DataLimitResetStrategy = Field(default=DataLimitResetStrategy.no_reset)
     reset_time: int = Field(default=-1)
-    default_timeout: int = Field(default=10, ge=3, le=60)
+    default_timeout: int = Field(default=10, ge=3)
     internal_timeout: int = Field(default=15, ge=3, le=60)
     proxy_url: str | None = Field(default=None, max_length=256)
 
@@ -171,7 +171,7 @@ class NodeModify(NodeCreate):
     address: str | None = Field(default=None)
     port: int | None = Field(default=None)
     status: NodeStatus | None = Field(default=None)
-    usage_coefficient: float | None = Field(default=None)
+    usage_coefficient: float | None = Field(default=None, ge=0)
     server_ca: str | None = Field(default=None)
     connection_type: NodeConnectionType | None = Field(default=None)
     keep_alive: int | None = Field(default=None)
@@ -180,7 +180,7 @@ class NodeModify(NodeCreate):
     data_limit: int | None = None
     data_limit_reset_strategy: DataLimitResetStrategy | None = None
     reset_time: int | None = None
-    default_timeout: int | None = Field(default=None, ge=3, le=60)
+    default_timeout: int | None = Field(default=None, ge=3)
     internal_timeout: int | None = Field(default=None, ge=3, le=60)
 
     model_config = ConfigDict(

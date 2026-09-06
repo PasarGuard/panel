@@ -1680,8 +1680,6 @@
       "applyTo.ip": "IP",
       "applyTo.ipv4": "IPv4",
       "applyTo.ipv6": "IPv6",
-      "randRange": "Случайный диапазон",
-      "randRangePlaceholder": "Введите случайный диапазон (например 10-20)",
       "duplicateNoise": "Дублировать шум"
     },
     "fragmentNoiseDeprecated": "`noise` и `fragment` удаляются в новых версиях — используйте `finalMask`.",
@@ -3686,6 +3684,37 @@
     "pending": "В процессе",
     "githubStarsUnit": "звёзд",
     "githubProgress": "Прогресс по звёздам"
+  },
+  "errorPage": {
+    "errorCode": "Ошибка",
+    "unauthorized": {
+      "title": "Не авторизовано",
+      "description": "Ваша сессия больше недействительна. Войдите снова, чтобы продолжить."
+    },
+    "forbidden": {
+      "title": "Доступ запрещён",
+      "description": "У вашей учётной записи нет прав для открытия этого раздела."
+    },
+    "notFound": {
+      "title": "Страница не найдена",
+      "description": "Запрошенная страница не существует или была перемещена."
+    },
+    "serverError": {
+      "title": "Ошибка сервера",
+      "description": "Сервер не смог выполнить этот запрос. Попробуйте ещё раз чуть позже."
+    },
+    "generic": {
+      "title": "Что-то пошло не так",
+      "description": "Панель столкнулась с проблемой и не смогла отобразить этот раздел."
+    },
+    "actions": {
+      "copyDetails": "Копировать детали",
+      "copiedDetails": "Детали ошибки скопированы",
+      "tryAgain": "Повторить",
+      "back": "Назад",
+      "dashboard": "Панель",
+      "login": "Войти"
+    }
   },
   "validation": {
     "generic": "{{field}} недействительно",
