@@ -108,7 +108,7 @@
     "eslint": "^9.39.5",
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.26",
-    "orval": "7.4.1",
+    "orval": "8.22.0",
     "playwright": "1.62.1",
     "postcss": "^8.5.26",
     "prettier": "^3.9.6",

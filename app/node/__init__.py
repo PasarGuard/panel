@@ -19,9 +19,25 @@ type_map = {
 class NodeManager:
     def __init__(self):
         self._nodes: dict[int, PasarGuardNode] = {}
+        self._node_signatures: dict[int, tuple] = {}
         self._user_sync_locks: dict[int, asyncio.Lock] = {}
         self._lock = RWLock(fast=True)
         self.logger = get_logger("node-manager")
+
+    @staticmethod
+    def _connection_signature(node: Node) -> tuple:
+        """Fields that, if changed, actually require tearing down the remote backend."""
+        return (
+            node.connection_type,
+            node.address,
+            node.port,
+            node.api_port,
+            node.server_ca,
+            node.api_key,
+            node.default_timeout,
+            node.internal_timeout,
+            node.proxy_url,
+        )
 
     def _create_node_kwargs(self, node: Node) -> dict:
         kwargs = {
@@ -65,12 +81,28 @@ class NodeManager:
         # is what turns a slow sync into a stop/start restart loop.
         lock = self._user_sync_locks.setdefault(node.id, asyncio.Lock())
         async with lock:
+            signature = self._connection_signature(node)
+            async with self._lock.reader_lock:
+                existing = self._nodes.get(node.id)
+
+            # update_node() runs on every reconnect attempt, including the automated
+            # ones the health-check watchdog fires every ~minute. If nothing about the
+            # connection actually changed, reuse the live object instead of killing a
+            # possibly-healthy remote backend (a real Stop RPC) just to recreate it —
+            # that used to defeat the attach-if-already-running logic below and turned
+            # transient health-check false negatives into a permanent restart loop.
+            if existing is not None and self._node_signatures.get(node.id) == signature:
+                existing_extra = await existing.get_extra()
+                if existing.name == node.name and existing_extra.get("usage_coefficient") == node.usage_coefficient:
+                    return existing
+
             async with self._lock.writer_lock:
                 old_node: PasarGuardNode | None = self._nodes.pop(node.id, None)
 
                 new_node = create_node(**self._create_node_kwargs(node))
 
                 self._nodes[node.id] = new_node
+                self._node_signatures[node.id] = signature
 
             # Stop the old node after releasing the lock.
             await self._shutdown_node(old_node)
@@ -84,6 +116,7 @@ class NodeManager:
         lock = self._user_sync_locks.setdefault(id, asyncio.Lock())
         async with lock, self._lock.writer_lock:
             old_node: PasarGuardNode | None = self._nodes.pop(id, None)
+            self._node_signatures.pop(id, None)
             self._user_sync_locks.pop(id, None)
 
         # Do cleanup without holding the lock to avoid slow delete operations.
