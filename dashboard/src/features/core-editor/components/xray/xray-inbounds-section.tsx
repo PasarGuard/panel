@@ -3528,6 +3528,18 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                             {xPaddingObfsEnabled && (
                               <div className="grid gap-3 sm:grid-cols-2">
                                 <FormItem>
+                                  <FormLabel className="text-xs font-medium">{t('hostsDialog.xhttp.xPaddingBytes', { defaultValue: 'X-Padding Bytes' })}</FormLabel>
+                                  <FormControl>
+                                    <Input
+                                      dir="ltr"
+                                      className="h-10 text-xs"
+                                      value={String(getTransportMetaValue(xhttpExtra, 'xpaddingbytes') ?? '')}
+                                      onChange={e => updateXhttpMeta('xpaddingbytes', e.target.value)}
+                                    />
+                                  </FormControl>
+                                </FormItem>
+
+                                <FormItem>
                                   <FormLabel className="text-xs font-medium">{t('hostsDialog.xhttp.xPaddingKey', { defaultValue: 'X-Padding Key' })}</FormLabel>
                                   <FormControl>
                                     <Input
