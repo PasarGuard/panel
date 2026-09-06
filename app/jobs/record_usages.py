@@ -507,8 +507,6 @@ async def flush_user_usage_history_if_due(now_monotonic: float | None = None) ->
 
 async def record_user_stats(all_node_params: dict, usage_coefficients: dict) -> None:
     """Coalesce PostgreSQL history writes while preserving immediate fallback paths."""
-    global _user_usage_history_last_flush
-
     if not all_node_params:
         return
 
@@ -540,7 +538,12 @@ async def record_user_stats(all_node_params: dict, usage_coefficients: dict) -> 
             _pending_user_usage_history[key] += param["value"]
 
         if _user_usage_history_last_flush is None:
-            _user_usage_history_last_flush = now_monotonic
+            # Preserve the established contract that the first sample is
+            # immediately queryable. Later samples are coalesced until the
+            # configured interval or bucket rollover.
+            flushed_rows = await _flush_pending_user_usage_history_locked(now_monotonic)
+            logger.debug("Flushed %s initial node user usage history rows", flushed_rows)
+            return
         flush_due = now_monotonic - _user_usage_history_last_flush >= usage_settings.user_usage_history_flush_interval
         if flush_due:
             flushed_rows = await _flush_pending_user_usage_history_locked(now_monotonic)
