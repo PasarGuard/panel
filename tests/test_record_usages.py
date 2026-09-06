@@ -28,16 +28,6 @@ class DummyNode:
         return {"usage_coefficient": self._usage_coefficient}
 
 
-@pytest.fixture(autouse=True)
-def reset_user_usage_history_buffer():
-    """Keep process-local history buffering isolated between tests."""
-    record_usages._pending_user_usage_history.clear()
-    record_usages._user_usage_history_last_flush = None
-    yield
-    record_usages._pending_user_usage_history.clear()
-    record_usages._user_usage_history_last_flush = None
-
-
 def _get_test_database_url() -> str:
     test_from = os.getenv("TEST_FROM", "local").lower()
     if test_from == "local":
@@ -167,7 +157,6 @@ async def test_record_user_usages_updates_users_and_admins(monkeypatch: pytest.M
     monkeypatch.setattr(record_usages.usage_settings, "disable_recording_node_usage", False)
 
     await record_usages.record_user_usages()
-    await record_usages._flush_user_usage_history_on_shutdown()
 
     async with session_factory() as session:
         users_result = await session.execute(
