@@ -92,7 +92,7 @@ async def test_handle_node_upsert(monkeypatch: pytest.MonkeyPatch):
     class _Node:
         id = 9
 
-    updated: list[object] = []
+    updated: list[tuple[object, bool]] = []
 
     class _DB:
         async def __aenter__(self):
@@ -105,8 +105,8 @@ async def test_handle_node_upsert(monkeypatch: pytest.MonkeyPatch):
         assert node_id == 9
         return _Node()
 
-    async def _update_node(db_node):
-        updated.append(db_node)
+    async def _update_node(db_node, *, remote_stop=True):
+        updated.append((db_node, remote_stop))
 
     monkeypatch.setattr("app.node.manager_sync.GetDB", lambda: _DB())
     monkeypatch.setattr("app.node.manager_sync.get_node_by_id", _get_node_by_id)
@@ -114,4 +114,5 @@ async def test_handle_node_upsert(monkeypatch: pytest.MonkeyPatch):
 
     await handle_node_message({"action": "upsert", "node_id": 9, "origin": "other"})
     assert len(updated) == 1
-    assert updated[0].id == 9
+    assert updated[0][0].id == 9
+    assert updated[0][1] is False

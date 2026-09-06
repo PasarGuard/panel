@@ -3,9 +3,9 @@ import { FC } from 'react'
 
 const FooterContent = () => {
   return (
-    <p className="inline-block flex-grow text-center text-xs text-gray-500">
+    <p className="text-muted-foreground inline-block flex-grow text-center text-xs">
       Made with ❤️ by &nbsp;
-      <a className="text-blue-400" href={REPO_URL}>
+      <a className="text-primary hover:underline" href={REPO_URL}>
         PasarGuard
       </a>{' '}
       Team

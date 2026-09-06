@@ -79,7 +79,7 @@ export const OnlineBadge: FC<UserStatusProps> = ({ lastOnline }) => {
       return <div className="min-h-[10px] min-w-[10px] rounded-full bg-green-500 shadow-sm" />
     } else {
       // Offline - gray dot
-      return <div className="min-h-[10px] min-w-[10px] rounded-full bg-gray-400 shadow-sm dark:bg-gray-600" />
+      return <div className="min-h-[10px] min-w-[10px] rounded-full bg-muted-foreground/40" />
     }
   }
 

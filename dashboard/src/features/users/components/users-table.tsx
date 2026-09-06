@@ -36,7 +36,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Layers, Link2Off, Power, PowerOff, RefreshCcw, Trash2, UserCog } from 'lucide-react'
+import { Layers, Link2Off, Power, PowerOff, RefreshCcw, Trash2, UserCog, Users } from 'lucide-react'
 import UserModal from '../dialogs/user-modal'
 import { PaginationControls } from './filters'
 import AdvanceSearchModal from '@/features/users/dialogs/advance-search-modal'
@@ -1195,9 +1195,14 @@ const UsersTable = memo(() => {
       {isEmpty && (
         <Card className="mb-12">
           <CardContent className="p-8 text-center">
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold">{t('users.noUsers')}</h3>
-              <p className="text-muted-foreground mx-auto max-w-2xl">{t('users.noUsersDescription')}</p>
+            <div className="flex flex-col items-center gap-4">
+              <div className="bg-muted/30 flex h-20 w-20 items-center justify-center rounded-full">
+                <Users className="text-muted-foreground/50 h-10 w-10" />
+              </div>
+              <div className="space-y-2">
+                <h3 className="text-lg font-semibold">{t('users.noUsers')}</h3>
+                <p className="text-muted-foreground mx-auto max-w-2xl text-sm leading-relaxed">{t('users.noUsersDescription')}</p>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -1205,9 +1210,14 @@ const UsersTable = memo(() => {
       {isSearchEmpty && (
         <Card className="mb-12">
           <CardContent className="p-8 text-center">
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold">{t('noResults')}</h3>
-              <p className="text-muted-foreground mx-auto max-w-2xl">{t('users.noSearchResults')}</p>
+            <div className="flex flex-col items-center gap-4">
+              <div className="bg-muted/30 flex h-20 w-20 items-center justify-center rounded-full">
+                <Users className="text-muted-foreground/50 h-10 w-10" />
+              </div>
+              <div className="space-y-2">
+                <h3 className="text-lg font-semibold">{t('noResults')}</h3>
+                <p className="text-muted-foreground mx-auto max-w-2xl text-sm leading-relaxed">{t('users.noSearchResults')}</p>
+              </div>
             </div>
           </CardContent>
         </Card>

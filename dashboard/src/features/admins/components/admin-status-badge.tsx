@@ -17,7 +17,7 @@ export const AdminStatusBadge: FC<AdminStatusProps> = ({ isSudo: _isSudo, status
   const resolvedStatus = status || (isDisabled ? 'disabled' : 'active')
 
   const getStatusInfo = () => {
-    const baseColor = statusColors[resolvedStatus]?.statusColor || 'bg-gray-400 text-white'
+    const baseColor = statusColors[resolvedStatus]?.statusColor || 'bg-muted text-muted-foreground'
     const baseIcon = statusColors[resolvedStatus]?.icon || null
 
     if (compact) {
