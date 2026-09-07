@@ -3,7 +3,7 @@ from datetime import UTC, datetime
 from sqlalchemy import and_, bindparam, case, delete, func, literal_column, or_, select, update
 from sqlalchemy.exc import InvalidRequestError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, with_expression
 from sqlalchemy.sql.functions import coalesce
 
 from app.db.compiles_types import DateDiff
@@ -44,6 +44,15 @@ def _build_node_simple_sort_clause(sort_option: NodeSimpleSortOption):
     }
     column = field_map[sort_option.field]
     return column.desc() if sort_option.value.startswith("-") else column.asc()
+
+
+def _node_reset_traffic_subquery(column):
+    return (
+        select(func.coalesce(func.sum(column), 0))
+        .where(NodeUsageResetLogs.node_id == Node.id)
+        .correlate(Node)
+        .scalar_subquery()
+    )
 
 
 async def load_node_attrs(node: Node, *, load_usage_logs: bool = True):
@@ -94,6 +103,7 @@ async def get_nodes(
     query: NodeListQuery,
     *,
     load_usage_logs: bool = True,
+    load_lifetime_usage: bool = False,
 ) -> tuple[list[Node], int]:
     """
     Retrieves nodes based on optional status, enabled, id, and search filters.
@@ -101,6 +111,8 @@ async def get_nodes(
     Args:
         db (AsyncSession): The database session.
         query: Structured node list query.
+        load_usage_logs: Whether to materialize reset-history rows.
+        load_lifetime_usage: Whether to calculate lifetime usage with aggregates.
 
     Returns:
         tuple: A tuple containing:
@@ -147,9 +159,17 @@ async def get_nodes(
     # Order by created_at and id for consistent results
     stmt = stmt.order_by(Node.created_at.asc(), Node.id.asc())
 
-    # Eagerly load usage_logs for API lifetime_* fields (skip for jobs/connect)
+    # Load either full reset history or only the aggregate fields needed by list responses.
     if load_usage_logs:
         stmt = stmt.options(selectinload(Node.usage_logs))
+    if load_lifetime_usage:
+        stmt = stmt.options(
+            with_expression(Node._reseted_uplink_query, _node_reset_traffic_subquery(NodeUsageResetLogs.uplink)),
+            with_expression(
+                Node._reseted_downlink_query,
+                _node_reset_traffic_subquery(NodeUsageResetLogs.downlink),
+            ),
+        )
 
     db_nodes = (await db.execute(stmt)).unique().scalars().all()
 

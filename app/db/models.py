@@ -643,9 +643,13 @@ class Node(Base, CreatedAtUTCMixin):
     default_timeout: Mapped[int] = mapped_column(default=10, server_default=text("10"))
     internal_timeout: Mapped[int] = mapped_column(default=15, server_default=text("15"))
     proxy_url: Mapped[str | None] = mapped_column(String(256), default="", unique=False, nullable=True)
+    _reseted_uplink_query: Mapped[int | None] = query_expression(repr=False)
+    _reseted_downlink_query: Mapped[int | None] = query_expression(repr=False)
 
     @hybrid_property
     def reseted_uplink(self) -> int:
+        if self._reseted_uplink_query is not None:
+            return int(self._reseted_uplink_query)
         return int(sum([log.uplink for log in self.usage_logs]))
 
     @reseted_uplink.expression
@@ -658,6 +662,8 @@ class Node(Base, CreatedAtUTCMixin):
 
     @hybrid_property
     def reseted_downlink(self) -> int:
+        if self._reseted_downlink_query is not None:
+            return int(self._reseted_downlink_query)
         return int(sum([log.downlink for log in self.usage_logs]))
 
     @reseted_downlink.expression
