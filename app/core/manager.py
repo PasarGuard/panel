@@ -18,6 +18,7 @@ from app.db.models import CoreConfig, CoreType
 from app.models.core import CoreListQuery
 from app.nats import is_multi_worker, is_nats_enabled
 from app.nats.client import setup_nats_kv
+from app.nats.kv_cas import is_kv_miss
 from app.nats.message import MessageTopic
 from app.nats.router import router
 from app.utils.logger import get_logger
@@ -101,6 +102,9 @@ class CoreManager:
             await self.get_inbounds_by_tag.cache.clear()
             return True
         except Exception as exc:
+            if is_kv_miss(exc):
+                self._logger.debug("Core manager state cache is empty")
+                return False
             self._logger.error(f"Error loading core state from cache: {exc}")
             return False
 
