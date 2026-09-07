@@ -14,6 +14,7 @@ from app.settings import notification_enable
 from app.utils.logger import get_logger
 
 from . import discord as ds, telegram as tg, webhook as wh
+from .dedup import claim_notification_slot
 
 logger = get_logger("Notification")
 
@@ -34,6 +35,8 @@ def _safe_notification_task(func):
     @wraps(func)
     async def wrapper(*args, **kwargs):
         try:
+            if not await claim_notification_slot(func.__name__, args, kwargs):
+                return None
             return await func(*args, **kwargs)
         except asyncio.CancelledError:
             raise

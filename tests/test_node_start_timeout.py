@@ -65,6 +65,29 @@ async def test_start_or_attach_probes_broken_desired_healthy_lifecycle(monkeypat
 
 
 @pytest.mark.asyncio
+async def test_force_start_skips_attach_and_starts_core(monkeypatch: pytest.MonkeyPatch):
+    started = SimpleNamespace(node_version="0.5.4", core_version="26.3.27")
+    pg_node = SimpleNamespace(get_lifecycle_state=AsyncMock(), start=AsyncMock(return_value=started))
+    attach = AsyncMock(return_value=object())
+    monkeypatch.setattr(NodeOperation, "_attach_if_running", attach)
+    db_node = SimpleNamespace(name="england", keep_alive=60)
+    core = SimpleNamespace(type=None, to_str=lambda: "{}", exclude_inbound_tags=[])
+
+    result = await NodeOperation._start_or_attach_node(
+        pg_node,
+        db_node,
+        core,
+        [],
+        object(),
+        force_start=True,
+    )
+
+    assert result is started
+    attach.assert_not_awaited()
+    pg_node.start.assert_awaited_once()
+
+
+@pytest.mark.asyncio
 async def test_connect_node_attaches_when_remote_start_finishes_after_timeout(monkeypatch: pytest.MonkeyPatch):
     pg_node = object()
     db_node = SimpleNamespace(id=19, name="slow-node", status=NodeStatus.connecting)
@@ -184,3 +207,22 @@ def test_should_reconnect_skips_core_not_started_500():
     assert node_checker.should_reconnect_after_health_error(500, "core is not started yet") is False
     assert node_checker.is_core_not_started_error(500, "core is not started yet") is True
     assert node_checker.should_reconnect_after_health_error(400, "bad request") is True
+
+
+@pytest.mark.asyncio
+async def test_connect_node_skips_when_already_healthy(monkeypatch: pytest.MonkeyPatch):
+    pg_node = SimpleNamespace(
+        get_health=AsyncMock(return_value=Health.HEALTHY),
+        get_versions=AsyncMock(return_value=("0.5.4", "26.3.27")),
+        start=AsyncMock(),
+    )
+    db_node = SimpleNamespace(id=3, name="Hetz Tunnel", status=NodeStatus.connected)
+    monkeypatch.setattr(node_operation_module.node_manager, "get_node", AsyncMock(return_value=pg_node))
+    start_or_attach = AsyncMock()
+    monkeypatch.setattr(NodeOperation, "_start_or_attach_node", start_or_attach)
+
+    result = await NodeOperation.connect_node(db_node, object(), [])
+
+    assert result is None
+    start_or_attach.assert_not_awaited()
+    pg_node.start.assert_not_awaited()
