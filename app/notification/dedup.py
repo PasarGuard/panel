@@ -10,6 +10,7 @@ from typing import Any
 from app.nats import is_nats_enabled
 from app.nats.kv_cas import kv_cas_json, kv_get_json
 from app.utils.logger import get_logger
+from config import server_settings
 
 logger = get_logger("Notification")
 
@@ -48,6 +49,9 @@ def _identity(value: Any) -> str:
 
 async def claim_notification_slot(event_name: str, args: tuple[Any, ...], kwargs: dict[str, Any]) -> bool:
     """Return True if this worker should emit the notification."""
+    if server_settings.workers <= 1:
+        return True
+
     key = notification_fingerprint(event_name, args, kwargs)
     now = time.time()
     async with _local_lock:

@@ -10,9 +10,19 @@ from app.notification import connect_node, dedup as notification_dedup, recovere
 def _reset_notification_dedup(monkeypatch: pytest.MonkeyPatch):
     notification_dedup._local_claims.clear()
     notification_dedup._kv = None
+    monkeypatch.setattr(notification_dedup.server_settings, "workers", 4)
     monkeypatch.setattr(notification_dedup, "is_nats_enabled", lambda: False)
     yield
     notification_dedup._local_claims.clear()
+
+
+@pytest.mark.asyncio
+async def test_single_worker_does_not_dedup(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(notification_dedup.server_settings, "workers", 1)
+    monkeypatch.setattr(notification_dedup, "_claim_shared", AsyncMock(side_effect=AssertionError("dedup must not run")))
+    node = NodeNotification(id=3, name="Hetz Tunnel", node_version="0.5.4", xray_version="26.3.27")
+    assert await notification_dedup.claim_notification_slot("connect_node", (node,), {}) is True
+    assert await notification_dedup.claim_notification_slot("connect_node", (node,), {}) is True
 
 
 @pytest.mark.asyncio
