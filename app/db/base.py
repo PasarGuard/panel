@@ -1,30 +1,51 @@
+from typing import Any
+
 from sqlalchemy import MetaData
 from sqlalchemy.ext.asyncio import AsyncAttrs, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, MappedAsDataclass
 
-from config import database_settings
+from config import DatabaseSettings, database_settings
 
-IS_SQLITE = database_settings.is_sqlite
 
-connect_args = {}
-if IS_SQLITE:
-    connect_args["check_same_thread"] = False
-elif database_settings.is_mysql:
-    connect_args["connect_timeout"] = database_settings.connect_timeout
+def build_engine_options(settings: DatabaseSettings) -> dict[str, Any]:
+    """Build dialect-aware SQLAlchemy engine options."""
+    connect_args: dict[str, Any] = {}
+    if settings.is_sqlite:
+        connect_args["check_same_thread"] = False
+    elif settings.is_mysql:
+        connect_args["connect_timeout"] = settings.connect_timeout
 
-if IS_SQLITE:
-    engine = create_async_engine(database_settings.url, connect_args=connect_args, echo=database_settings.echo_queries)
-else:
-    engine = create_async_engine(
-        database_settings.url,
-        connect_args=connect_args,
-        pool_size=database_settings.pool_size,
-        max_overflow=database_settings.max_overflow,
-        pool_recycle=database_settings.pool_recycle,
-        pool_timeout=5,
-        pool_pre_ping=True,
-        echo=database_settings.echo_queries,
+    options: dict[str, Any] = {
+        "connect_args": connect_args,
+        "echo": settings.echo_queries,
+    }
+    if not settings.is_sqlite:
+        options.update(
+            pool_size=settings.pool_size,
+            max_overflow=settings.max_overflow,
+            pool_recycle=settings.pool_recycle,
+            pool_timeout=settings.pool_timeout,
+            pool_pre_ping=True,
+        )
+    return options
+
+
+def database_pool_summary(settings: DatabaseSettings, process_count: int = 1) -> str:
+    """Describe the effective connection budget without exposing the database URL."""
+    if settings.is_sqlite:
+        return "Database pool: SQLite driver-managed connections (QueuePool settings do not apply)."
+
+    per_process = settings.connection_ceiling()
+    service_ceiling = settings.connection_ceiling(process_count)
+    return (
+        "Database pool: "
+        f"size={settings.pool_size}, max_overflow={settings.max_overflow}, timeout={settings.pool_timeout}s; "
+        f"ceiling={per_process} connections/process, {service_ceiling} across {process_count} configured process(es). "
+        "Independently replicated services add their own pools."
     )
+
+
+engine = create_async_engine(database_settings.url, **build_engine_options(database_settings))
 
 SessionLocal = async_sessionmaker(autocommit=False, autoflush=False, expire_on_commit=False, bind=engine)
 
