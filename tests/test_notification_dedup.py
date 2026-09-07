@@ -1,3 +1,5 @@
+from unittest.mock import AsyncMock
+
 import pytest
 
 from app.models.node import NodeNotification
@@ -46,3 +48,24 @@ async def test_safe_notification_wrapper_emits_once(monkeypatch: pytest.MonkeyPa
     await recovered_node(node)
 
     assert gathered == ["connect_node", "recovered_node"]
+
+
+@pytest.mark.asyncio
+async def test_claim_notification_slot_uses_shared_store_across_workers(monkeypatch: pytest.MonkeyPatch):
+    notification_dedup._local_claims.clear()
+    monkeypatch.setattr(notification_dedup, "is_nats_enabled", lambda: True)
+    monkeypatch.setattr(notification_dedup, "_claim_shared", AsyncMock(return_value=False))
+
+    node = NodeNotification(id=3, name="Hetz Tunnel", node_version="0.5.4", xray_version="26.3.27")
+    assert await notification_dedup.claim_notification_slot("connect_node", (node,), {}) is False
+
+
+def test_fingerprint_is_stable_for_same_node_event():
+    node = NodeNotification(id=3, name="Hetz Tunnel", node_version="0.5.4", xray_version="26.3.27")
+    other = NodeNotification(id=3, name="Hetz Tunnel", node_version="0.5.4", xray_version="26.3.27")
+    assert notification_dedup.notification_fingerprint("connect_node", (node,), {}) == (
+        notification_dedup.notification_fingerprint("connect_node", (other,), {})
+    )
+    assert notification_dedup.notification_fingerprint("connect_node", (node,), {}) != (
+        notification_dedup.notification_fingerprint("error_node", (node,), {})
+    )

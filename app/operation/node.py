@@ -296,7 +296,8 @@ class NodeOperation(BaseOperation):
         if core.type == CoreType.xray:
             start_kwargs["exclude_inbounds"] = core.exclude_inbound_tags
 
-        logger.info(f'Starting "{db_node.name}" node')
+        log = logger.info if force_start else logger.debug
+        log(f'Starting "{db_node.name}" node')
         return await pg_node.start(**start_kwargs)
 
     @staticmethod
@@ -802,6 +803,7 @@ class NodeOperation(BaseOperation):
         users = users_by_core.get(core_id, [])
 
         # Update node manager
+        old_status = db_node.status
         try:
             await node_manager.update_node(db_node)
         except NodeAPIError as e:
@@ -813,13 +815,13 @@ class NodeOperation(BaseOperation):
                 message=e.detail,
             )
 
-            # Send error notification
-            node_notif = NodeNotification(
-                id=db_node.id,
-                name=db_node.name,
-                message=e.detail,
-            )
-            asyncio.create_task(notification.error_node(node_notif))
+            if old_status != NodeStatus.error:
+                node_notif = NodeNotification(
+                    id=db_node.id,
+                    name=db_node.name,
+                    message=e.detail,
+                )
+                asyncio.create_task(notification.error_node(node_notif))
             return
 
         # Connect the node

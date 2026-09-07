@@ -317,6 +317,9 @@ async def remove_core(core_id: int, by: str):
 
 
 for _task_name in (
+    "create_api_key",
+    "modify_api_key",
+    "remove_api_key",
     "create_admin_role",
     "modify_admin_role",
     "remove_admin_role",

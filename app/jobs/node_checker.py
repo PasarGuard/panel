@@ -299,7 +299,8 @@ async def initialize_nodes():
 
     await ensure_bridge_memory()
 
-    logger.info("Starting nodes' cores...")
+    startup_log = logger.debug if server_settings.workers > 1 else logger.info
+    startup_log("Starting nodes' cores...")
 
     async with GetDB() as db:
         db_nodes, _ = await get_nodes(db=db, query=NodeListQuery(status=ACTIVE_NODE_STATUSES), load_usage_logs=False)
@@ -308,7 +309,7 @@ async def initialize_nodes():
             logger.warning("Attention: You have no node, you need to have at least one node")
         else:
             await node_operator.connect_nodes_bulk(db, db_nodes)
-            logger.info("All nodes' cores have been started.")
+            startup_log("All nodes' cores have been started.")
 
     from app.nats.leader import needs_job_leader
 
