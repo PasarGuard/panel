@@ -61,9 +61,8 @@ class CoreManager:
         if not self._kv:
             return
         state = await self._snapshot_state()
-        # State is already serialized by _snapshot_state; just encode
-        state_bytes = json.dumps(state).encode("utf-8")
         try:
+            state_bytes = json.dumps(state).encode("utf-8")
             await self._kv.put(self.STATE_CACHE_KEY, state_bytes)
         except Exception as exc:
             self._logger.warning(f"Failed to persist core state to NATS KV: {exc}")
@@ -80,7 +79,7 @@ class CoreManager:
             # Deserialize state using JSON
             try:
                 cached_state = json.loads(entry.value.decode("utf-8"))
-            except json.JSONDecodeError, UnicodeDecodeError:
+            except (json.JSONDecodeError, UnicodeDecodeError):
                 self._logger.warning("Failed to decode CoreManager state as JSON, ignoring...")
                 return False
 
