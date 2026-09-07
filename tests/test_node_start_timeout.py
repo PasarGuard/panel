@@ -67,7 +67,11 @@ async def test_start_or_attach_probes_broken_desired_healthy_lifecycle(monkeypat
 @pytest.mark.asyncio
 async def test_force_start_skips_attach_and_starts_core(monkeypatch: pytest.MonkeyPatch):
     started = SimpleNamespace(node_version="0.5.4", core_version="26.3.27")
-    pg_node = SimpleNamespace(get_lifecycle_state=AsyncMock(), start=AsyncMock(return_value=started))
+    pg_node = SimpleNamespace(
+        get_lifecycle_state=AsyncMock(),
+        start=AsyncMock(return_value=started),
+        stop=AsyncMock(),
+    )
     attach = AsyncMock(return_value=object())
     monkeypatch.setattr(NodeOperation, "_attach_if_running", attach)
     db_node = SimpleNamespace(name="england", keep_alive=60)
@@ -84,6 +88,7 @@ async def test_force_start_skips_attach_and_starts_core(monkeypatch: pytest.Monk
 
     assert result is started
     attach.assert_not_awaited()
+    pg_node.stop.assert_awaited_once()
     pg_node.start.assert_awaited_once()
 
 
@@ -167,7 +172,7 @@ async def test_health_check_reapplies_config_when_keep_alive_stopped_core(monkey
     monkeypatch.setattr(
         node_checker,
         "verify_node_backend_health",
-        AsyncMock(return_value=(Health.BROKEN, 500, "core is not started yet")),
+        AsyncMock(return_value=(Health.BROKEN, 500, "backend not initialized")),
     )
     reconnect = AsyncMock()
     monkeypatch.setattr(node_checker.node_operator, "connect_single_node", reconnect)
@@ -190,7 +195,7 @@ async def test_health_check_waits_when_core_not_started_during_in_flight_start(m
     monkeypatch.setattr(
         node_checker,
         "verify_node_backend_health",
-        AsyncMock(return_value=(Health.BROKEN, 500, "core is not started yet")),
+        AsyncMock(return_value=(Health.BROKEN, 500, "backend not initialized")),
     )
     reconnect = AsyncMock()
     monkeypatch.setattr(node_checker.node_operator, "connect_single_node", reconnect)
@@ -206,7 +211,33 @@ async def test_health_check_waits_when_core_not_started_during_in_flight_start(m
 def test_should_reconnect_skips_core_not_started_500():
     assert node_checker.should_reconnect_after_health_error(500, "core is not started yet") is False
     assert node_checker.is_core_not_started_error(500, "core is not started yet") is True
+    assert node_checker.is_core_starting_error(503, "core is not started yet") is True
+    assert node_checker.is_core_dead_error(500, "backend not initialized") is True
+    assert node_checker.should_reconnect_after_health_error(500, "backend not initialized") is False
     assert node_checker.should_reconnect_after_health_error(400, "bad request") is True
+
+
+@pytest.mark.asyncio
+async def test_health_check_waits_when_core_is_still_starting(monkeypatch: pytest.MonkeyPatch):
+    """pg-node still has a backend object; another Start would kill that process."""
+    node = MagicMock()
+    node.requires_hard_reset.return_value = False
+    node.get_lifecycle_state = AsyncMock(return_value=None)
+    node.update_observed_lifecycle = AsyncMock()
+    db_node = SimpleNamespace(id=19, name="starting-core", status=NodeStatus.connected)
+
+    _patch_health_check_db(monkeypatch)
+    monkeypatch.setattr(
+        node_checker,
+        "verify_node_backend_health",
+        AsyncMock(return_value=(Health.BROKEN, 503, "core is not started yet")),
+    )
+    reconnect = AsyncMock()
+    monkeypatch.setattr(node_checker.node_operator, "connect_single_node", reconnect)
+
+    await node_checker.process_node_health_check(db_node, node)
+
+    reconnect.assert_not_awaited()
 
 
 @pytest.mark.asyncio

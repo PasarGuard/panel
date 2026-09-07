@@ -301,6 +301,12 @@ class NodeOperation(BaseOperation):
         if core.type == CoreType.xray:
             start_kwargs["exclude_inbounds"] = core.exclude_inbound_tags
 
+        if force_start:
+            try:
+                await pg_node.stop()
+            except Exception as exc:
+                logger.debug(f'Stop before force start of "{db_node.name}" skipped: {exc}')
+
         log = logger.info if force_start else logger.debug
         log(f'Starting "{db_node.name}" node')
         return await pg_node.start(**start_kwargs)

@@ -25,23 +25,38 @@ NODE_CHECK_SEM = asyncio.Semaphore(5)  # Max 5 concurrent node health checks
 ACTIVE_NODE_STATUSES = [NodeStatus.connected, NodeStatus.connecting, NodeStatus.error]
 
 
-_CORE_NOT_STARTED_MARKERS = ("failed to get sys stats", "core is not started yet")
+# pg-node returns these while the HTTP API is up. They are not interchangeable:
+# - backend gone: keep-alive/crash already called Disconnect; panel must Start again
+# - core still coming up / Xray API blip: another Start would kill that process
+_CORE_DEAD_MARKERS = ("backend not initialized",)
+_CORE_STARTING_MARKERS = ("core is not started yet", "failed to get sys stats")
 
 
-def is_core_not_started_error(error_code: int | None, error_message: str | None) -> bool:
+def _health_error_matches(error_code: int | None, error_message: str | None, markers: tuple[str, ...]) -> bool:
     if error_code not in {500, 502, 503, 504}:
         return False
     detail = (error_message or "").lower()
-    return any(marker in detail for marker in _CORE_NOT_STARTED_MARKERS)
+    return any(marker in detail for marker in markers)
+
+
+def is_core_dead_error(error_code: int | None, error_message: str | None) -> bool:
+    return _health_error_matches(error_code, error_message, _CORE_DEAD_MARKERS)
+
+
+def is_core_starting_error(error_code: int | None, error_message: str | None) -> bool:
+    return _health_error_matches(error_code, error_message, _CORE_STARTING_MARKERS)
+
+
+def is_core_not_started_error(error_code: int | None, error_message: str | None) -> bool:
+    return is_core_dead_error(error_code, error_message) or is_core_starting_error(error_code, error_message)
 
 
 def should_reconnect_after_health_error(error_code: int | None, error_message: str | None) -> bool:
     if error_code is None:
         return False
 
-    # These 500s are ambiguous: either a Start is still in flight, or keep-alive/crash
-    # already stopped the core. Do not treat them as a generic reconnect — the BROKEN
-    # handler decides after checking in-flight Start / lifecycle lease.
+    # Dead-core and still-starting 5xxs are not generic reconnects. The BROKEN
+    # handler starts only a missing backend, and only when no Start is in flight.
     if is_core_not_started_error(error_code, error_message):
         return False
 
@@ -199,15 +214,16 @@ async def process_node_health_check(db_node: Node, node: PasarGuardNode):
                 async with GetDB() as db:
                     await node_operator.connect_single_node(db, db_node.id)
                 return
-            # Keep-alive timeout / crash leaves HTTP up but Xray stopped. Waiting forever
-            # here is what makes user configs dead until a manual node restart.
-            if is_core_not_started_error(error_code, error_message) and not await _start_already_in_progress(
+            # Keep-alive timeout / crash leaves HTTP up but Xray stopped
+            # ("backend not initialized"). A second Start while Xray is still
+            # coming up ("core is not started yet") would kill that process.
+            if is_core_dead_error(error_code, error_message) and not await _start_already_in_progress(
                 db_node, shared_state
             ):
                 logger.warning(f"[{db_node.name}] Core is not running; re-applying config")
                 async with GetDB() as db:
                     await node_operator.connect_single_node(db, db_node.id)
-            # For timeout (code=-1 or None), just wait - don't reconnect
+            # For timeout (code=-1 or None) or an in-flight/starting core, wait.
             return
 
         # Update status for recovering nodes
