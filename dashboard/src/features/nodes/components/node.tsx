@@ -25,6 +25,7 @@ interface NodeProps {
   canUpdateCore?: boolean
   canReadStats?: boolean
   selectionControl?: ReactNode
+  reorderControl?: ReactNode
   selected?: boolean
 }
 
@@ -39,6 +40,7 @@ export default function Node({
   canUpdateCore = true,
   canReadStats = true,
   selectionControl,
+  reorderControl,
   selected = false,
 }: NodeProps) {
   const { t } = useTranslation()
@@ -119,6 +121,7 @@ export default function Node({
         }}
       >
         <div className="flex items-start gap-3 p-3">
+          {reorderControl}
           {selectionControl ? <div className="pt-1">{selectionControl}</div> : null}
           <div className="min-w-0 flex-1">
             {/* Header */}

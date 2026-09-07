@@ -12,7 +12,10 @@ import {
   useGetNodes,
   useModifyNode,
   useGetCoresSimple,
+  useReorderNodes,
+  getGetNodesQueryKey,
   NodeResponse,
+  NodesResponse,
   NodeStatus,
   NodeModify,
 } from '@/service/api'
@@ -36,6 +39,9 @@ import { BulkActionAlertDialog } from '@/features/users/components/bulk-action-a
 import { NodeActionsMenuModalHost } from '@/features/nodes/components/node-actions-menu'
 import { useAdmin } from '@/hooks/use-admin'
 import { hasPermission } from '@/utils/rbac'
+import { closestCenter, DndContext, DragEndEvent, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
+import { arrayMove, rectSortingStrategy, SortableContext, sortableKeyboardCoordinates } from '@dnd-kit/sortable'
+import { SortableGridItem } from '@/components/common/sortable-grid-item'
 
 const NODES_PER_PAGE = 15
 
@@ -82,6 +88,13 @@ export default function NodesList() {
   const bulkResetNodesUsageMutation = useBulkResetNodesUsage()
   const bulkReconnectNodesMutation = useBulkReconnectNodes()
   const bulkUpdateNodesMutation = useBulkUpdateNodes()
+  const reorderNodesMutation = useReorderNodes()
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  )
 
   const [filters, setFilters] = useState<{
     limit: number
@@ -303,6 +316,42 @@ export default function NodesList() {
   }, [shouldUseLocalSearch, localSearchTerm, filteredNodes, currentPage])
 
   const nodesData = paginatedNodes
+  const isSortingDisabled = !canUpdateNodes || hasActiveFilters || reorderNodesMutation.isPending
+
+  const handleDragEnd = async ({ active, over }: DragEndEvent) => {
+    if (isSortingDisabled || !over || active.id === over.id) return
+
+    const oldIndex = nodesData.findIndex(node => node.id === active.id)
+    const newIndex = nodesData.findIndex(node => node.id === over.id)
+    if (oldIndex < 0 || newIndex < 0) return
+
+    const reorderedNodes = arrayMove(nodesData, oldIndex, newIndex)
+    const queryKey = getGetNodesQueryKey(filters)
+    const previousResponse = queryClient.getQueryData<NodesResponse>(queryKey)
+    const cancelPendingQuery = queryClient.cancelQueries({ queryKey, exact: true })
+
+    // Keep the cache update synchronous with dnd-kit's drop event. Waiting before
+    // this update lets the dragged card briefly snap back to its old position.
+    queryClient.setQueryData<NodesResponse>(queryKey, current => ({
+      total: current?.total ?? reorderedNodes.length,
+      nodes: reorderedNodes,
+    }))
+
+    try {
+      await cancelPendingQuery
+      await reorderNodesMutation.mutateAsync({
+        data: { ordered_ids: reorderedNodes.map(node => node.id) },
+      })
+      toast.success(t('nodes.orderUpdated', { defaultValue: 'Node order updated' }))
+    } catch (error: any) {
+      if (previousResponse) queryClient.setQueryData(queryKey, previousResponse)
+      toast.error(t('nodes.orderUpdateFailed', { defaultValue: 'Failed to update node order' }), {
+        description: error?.data?.detail || error?.message,
+      })
+    } finally {
+      queryClient.invalidateQueries({ queryKey: ['/api/nodes'] })
+    }
+  }
   const totalNodes = shouldUseLocalSearch && localSearchTerm ? filteredNodes.length : nodesResponse?.total || 0
   const showLoadingSpinner = isLoading && isFirstLoadRef.current
   const isBackgroundRefetch = isFetching && !isChangingPage && !isFirstLoadRef.current && !!nodesResponse
@@ -689,79 +738,88 @@ export default function NodesList() {
         />
         {canUseBulkSelection && <BulkActionsBar selectedCount={selectedCount} onClear={clearSelection} actions={bulkActions} />}
         <div className="min-h-[55dvh]">
-          {(showLoadingSpinner || showPageLoadingSkeletons || nodesData.length > 0) &&
-            (viewMode === 'grid' ? (
-              <ListGeneratorGrid
-                data={nodesData}
-                getRowId={node => node.id}
-                isLoading={showLoadingSpinner || showPageLoadingSkeletons}
-                loadingRows={6}
-                className="gap-4"
-                gridClassName=""
-                gridStyle={{ animationDuration: '500ms', animationDelay: '100ms', animationFillMode: 'both' }}
-                enableSelection={canUseBulkSelection}
-                injectSelectionProps={canUseBulkSelection}
-                selectedRowIds={selectedNodeIds}
-                onSelectionChange={ids => setSelectedNodeIds(ids.map(id => Number(id)))}
-                showEmptyState={false}
-                renderItem={node => (
-                  <Node
-                    node={node}
-                    onEdit={handleEdit}
-                    onToggleStatus={handleToggleStatus}
-                    coresData={coresData}
-                    canUpdate={canUpdateNodes}
-                    canDelete={canDeleteNodes}
-                    canReconnect={canReconnectNodes}
-                    canUpdateCore={canUpdateNodeCore}
-                    canReadStats={canReadNodeStats}
+          {(showLoadingSpinner || showPageLoadingSkeletons || nodesData.length > 0) && (
+            <DndContext sensors={isSortingDisabled ? [] : sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+              <SortableContext items={nodesData.map(node => node.id)} strategy={rectSortingStrategy}>
+                {viewMode === 'grid' ? (
+                  <ListGeneratorGrid
+                    data={nodesData}
+                    getRowId={node => node.id}
+                    isLoading={showLoadingSpinner || showPageLoadingSkeletons}
+                    loadingRows={6}
+                    className="gap-4"
+                    gridClassName=""
+                    gridStyle={{ animationDuration: '500ms', animationDelay: '100ms', animationFillMode: 'both' }}
+                    enableSelection={canUseBulkSelection}
+                    injectSelectionProps={canUseBulkSelection}
+                    selectedRowIds={selectedNodeIds}
+                    onSelectionChange={ids => setSelectedNodeIds(ids.map(id => Number(id)))}
+                    showEmptyState={false}
+                    renderItem={node => (
+                      <SortableGridItem id={node.id} disabled={isSortingDisabled}>
+                        <Node
+                          node={node}
+                          onEdit={handleEdit}
+                          onToggleStatus={handleToggleStatus}
+                          coresData={coresData}
+                          canUpdate={canUpdateNodes}
+                          canDelete={canDeleteNodes}
+                          canReconnect={canReconnectNodes}
+                          canUpdateCore={canUpdateNodeCore}
+                          canReadStats={canReadNodeStats}
+                        />
+                      </SortableGridItem>
+                    )}
+                    renderSkeleton={i => (
+                      <Card key={i} className="group relative h-full p-4">
+                        <div className="flex items-center gap-3">
+                          <div className="min-w-0 flex-1">
+                            <div className="mb-1 flex items-center gap-2">
+                              <Skeleton className="h-2 w-2 shrink-0 rounded-full" />
+                              <Skeleton className="h-5 w-32 sm:w-40" />
+                            </div>
+                            <Skeleton className="mb-1 h-4 w-28 sm:w-36" />
+                            {i % 3 === 0 && <Skeleton className="mt-1 mb-2 h-3 w-40 sm:w-48" />}
+                            <div className="mt-2 space-y-1.5">
+                              <Skeleton className="h-1.5 w-full rounded-full" />
+                              <div className="flex items-center justify-between gap-2">
+                                <Skeleton className="h-3 w-20" />
+                                <Skeleton className="h-3 w-16" />
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <Skeleton className="h-2.5 w-16" />
+                                <Skeleton className="h-2.5 w-16" />
+                              </div>
+                            </div>
+                          </div>
+                          <div>
+                            <Skeleton className="h-9 w-9 shrink-0 rounded-md" />
+                          </div>
+                        </div>
+                      </Card>
+                    )}
+                  />
+                ) : (
+                  <ListGenerator
+                    data={nodesData}
+                    columns={listColumns}
+                    getRowId={node => node.id}
+                    isLoading={showLoadingSpinner || showPageLoadingSkeletons}
+                    loadingRows={6}
+                    className="gap-1.5"
+                    rowClassName="py-2"
+                    onRowClick={canUpdateNodes ? handleEdit : undefined}
+                    enableSelection={canUseBulkSelection}
+                    selectedRowIds={selectedNodeIds}
+                    onSelectionChange={ids => setSelectedNodeIds(ids.map(id => Number(id)))}
+                    showEmptyState={false}
+                    enableSorting={canUpdateNodes}
+                    sortingDisabled={isSortingDisabled}
                   />
                 )}
-                renderSkeleton={i => (
-                  <Card key={i} className="group relative h-full p-4">
-                    <div className="flex items-center gap-3">
-                      <div className="min-w-0 flex-1">
-                        <div className="mb-1 flex items-center gap-2">
-                          <Skeleton className="h-2 w-2 shrink-0 rounded-full" />
-                          <Skeleton className="h-5 w-32 sm:w-40" />
-                        </div>
-                        <Skeleton className="mb-1 h-4 w-28 sm:w-36" />
-                        {i % 3 === 0 && <Skeleton className="mt-1 mb-2 h-3 w-40 sm:w-48" />}
-                        <div className="mt-2 space-y-1.5">
-                          <Skeleton className="h-1.5 w-full rounded-full" />
-                          <div className="flex items-center justify-between gap-2">
-                            <Skeleton className="h-3 w-20" />
-                            <Skeleton className="h-3 w-16" />
-                          </div>
-                          <div className="flex items-center gap-3">
-                            <Skeleton className="h-2.5 w-16" />
-                            <Skeleton className="h-2.5 w-16" />
-                          </div>
-                        </div>
-                      </div>
-                      <div>
-                        <Skeleton className="h-9 w-9 shrink-0 rounded-md" />
-                      </div>
-                    </div>
-                  </Card>
-                )}
-              />
-            ) : (
-              <ListGenerator
-                data={nodesData}
-                columns={listColumns}
-                getRowId={node => node.id}
-                isLoading={showLoadingSpinner || showPageLoadingSkeletons}
-                loadingRows={6}
-                className="gap-1.5"
-                rowClassName="py-2"
-                onRowClick={canUpdateNodes ? handleEdit : undefined}
-                enableSelection={canUseBulkSelection}
-                selectedRowIds={selectedNodeIds}
-                onSelectionChange={ids => setSelectedNodeIds(ids.map(id => Number(id)))}
-                showEmptyState={false}
-              />
-            ))}
+              </SortableContext>
+            </DndContext>
+          )}
 
           {!showLoadingSpinner && !showPageLoadingSkeletons && !isFetching && nodesData.length === 0 && !hasActiveFilters && totalNodes === 0 && (
             <Card className="mb-12">
