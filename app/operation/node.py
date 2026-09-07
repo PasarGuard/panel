@@ -1,5 +1,6 @@
 import asyncio
 from collections.abc import AsyncIterator, Callable
+from typing import ClassVar
 
 from fastapi import HTTPException
 from PasarGuardNodeBridge import NodeAPIError, PasarGuardNode
@@ -78,6 +79,10 @@ logger = get_logger("node-operation")
 
 
 class NodeOperation(BaseOperation):
+    # Local Start RPCs in progress on this process. Health checks must not fire a
+    # second Start just because pg-node still returns "core is not started yet".
+    _in_flight_connects: ClassVar[set[int]] = set()
+
     def __init__(self, operator_type: OperatorType):
         super().__init__(operator_type)
         if runtime_settings.role.runs_node:
@@ -313,6 +318,7 @@ class NodeOperation(BaseOperation):
         old_status = db_node.status
         logger.info(f'Connecting to "{db_node.name}" node')
         type = service.BackendType.WIREGUARD if core.type == CoreType.wg else service.BackendType.XRAY
+        NodeOperation._in_flight_connects.add(db_node.id)
 
         try:
             info = await NodeOperation._start_or_attach_node(pg_node, db_node, core, users, type)
@@ -353,7 +359,7 @@ class NodeOperation(BaseOperation):
                 # Skip silently instead of flagging the node as errored on every other
                 # worker; the next retry cycle will reassess once that operation completes.
                 logger.debug(f'"{db_node.name}" node lifecycle lease is held by another worker, will retry')
-                return
+                return None
 
             if e.code == -1:
                 # A timed-out Start has an ambiguous outcome: cancelling the panel-side
@@ -384,6 +390,8 @@ class NodeOperation(BaseOperation):
                 "node_version": "",
                 "old_status": old_status,
             }
+        finally:
+            NodeOperation._in_flight_connects.discard(db_node.id)
 
     async def _connect_single_node_background(self, node_id: int) -> None:
         try:

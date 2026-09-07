@@ -25,17 +25,38 @@ NODE_CHECK_SEM = asyncio.Semaphore(5)  # Max 5 concurrent node health checks
 ACTIVE_NODE_STATUSES = [NodeStatus.connected, NodeStatus.connecting, NodeStatus.error]
 
 
+_CORE_NOT_STARTED_MARKERS = ("failed to get sys stats", "core is not started yet")
+
+
+def is_core_not_started_error(error_code: int | None, error_message: str | None) -> bool:
+    if error_code not in {500, 502, 503, 504}:
+        return False
+    detail = (error_message or "").lower()
+    return any(marker in detail for marker in _CORE_NOT_STARTED_MARKERS)
+
+
 def should_reconnect_after_health_error(error_code: int | None, error_message: str | None) -> bool:
     if error_code is None:
         return False
 
-    detail = (error_message or "").lower()
-    if error_code in {500, 502, 503, 504} and (
-        "failed to get sys stats" in detail or "core is not started yet" in detail
-    ):
+    # These 500s are ambiguous: either a Start is still in flight, or keep-alive/crash
+    # already stopped the core. Do not treat them as a generic reconnect — the BROKEN
+    # handler decides after checking in-flight Start / lifecycle lease.
+    if is_core_not_started_error(error_code, error_message):
         return False
 
     return error_code > -1
+
+
+async def _start_already_in_progress(db_node: Node, shared_state) -> bool:
+    if db_node.id in NodeOperation._in_flight_connects:
+        return True
+    if shared_state is not None and shared_state.observed is LifecycleStatus.STARTING:
+        return True
+    _, coordinator, _ = get_bridge_memory()
+    if coordinator is not None and await coordinator.has_active_lease(str(db_node.id)):
+        return True
+    return False
 
 
 async def verify_node_backend_health(node: PasarGuardNode, node_name: str) -> tuple[Health, int | None, str | None]:
@@ -177,6 +198,15 @@ async def process_node_health_check(db_node: Node, node: PasarGuardNode):
                 await node.update_observed_lifecycle(LifecycleStatus.BROKEN, expected_epoch=shared_state.epoch)
             # Let pg-node recover transient Xray API/core failures internally.
             if should_reconnect_after_health_error(error_code, error_message):
+                async with GetDB() as db:
+                    await node_operator.connect_single_node(db, db_node.id)
+                return
+            # Keep-alive timeout / crash leaves HTTP up but Xray stopped. Waiting forever
+            # here is what makes user configs dead until a manual node restart.
+            if is_core_not_started_error(error_code, error_message) and not await _start_already_in_progress(
+                db_node, shared_state
+            ):
+                logger.warning(f"[{db_node.name}] Core is not running; re-applying config")
                 async with GetDB() as db:
                     await node_operator.connect_single_node(db, db_node.id)
             # For timeout (code=-1 or None), just wait - don't reconnect
