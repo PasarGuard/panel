@@ -1,4 +1,4 @@
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import case, delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import CoreConfig, Node
@@ -46,12 +46,14 @@ async def create_core_config(db: AsyncSession, core_config: CoreCreate) -> CoreC
     Returns:
         CoreConfig: The newly created CoreConfig object.
     """
+    next_sort_order = (await db.execute(select(func.coalesce(func.max(CoreConfig.sort_order), -1) + 1))).scalar_one()
     db_core_config = CoreConfig(
         name=core_config.name,
         type=core_config.type,
         config=core_config.config,
         exclude_inbound_tags=core_config.exclude_inbound_tags or set(),
         fallbacks_inbound_tags=core_config.fallbacks_inbound_tags or set(),
+        sort_order=next_sort_order,
     )
     db.add(db_core_config)
     await db.commit()
@@ -109,7 +111,7 @@ async def get_core_configs(db: AsyncSession, query: CoreListQuery) -> tuple[list
             - list[CoreConfig]: A list of CoreConfig objects
             - int: The total count of core configurations
     """
-    stmt = select(CoreConfig).order_by(CoreConfig.created_at.asc())
+    stmt = select(CoreConfig).order_by(CoreConfig.sort_order.asc(), CoreConfig.id.asc())
     if query.ids:
         stmt = stmt.where(CoreConfig.id.in_(query.ids))
     if query.offset:
@@ -151,7 +153,7 @@ async def get_cores_simple(
         sort_clauses.append(CoreConfig.id.asc())
         stmt = stmt.order_by(*sort_clauses)
     else:
-        stmt = stmt.order_by(CoreConfig.created_at.asc(), CoreConfig.id.asc())
+        stmt = stmt.order_by(CoreConfig.sort_order.asc(), CoreConfig.id.asc())
 
     # Get count BEFORE pagination (always)
     count_stmt = select(func.count()).select_from(stmt.subquery())
@@ -171,6 +173,34 @@ async def get_cores_simple(
     rows = result.all()
 
     return rows, total
+
+
+async def reorder_core_configs(db: AsyncSession, ordered_ids: list[int]) -> bool:
+    """Reorder the requested cores while preserving non-requested positions."""
+    current_ids = list(
+        (
+            await db.execute(
+                select(CoreConfig.id).order_by(CoreConfig.sort_order.asc(), CoreConfig.id.asc()).with_for_update()
+            )
+        ).scalars()
+    )
+    requested_ids = set(ordered_ids)
+    if not requested_ids.issubset(current_ids):
+        return False
+
+    requested_positions = [index for index, core_id in enumerate(current_ids) if core_id in requested_ids]
+    for index, core_id in zip(requested_positions, ordered_ids, strict=True):
+        current_ids[index] = core_id
+
+    ordering = {core_id: index for index, core_id in enumerate(current_ids)}
+    if ordering:
+        await db.execute(
+            update(CoreConfig)
+            .where(CoreConfig.id.in_(current_ids))
+            .values(sort_order=case(ordering, value=CoreConfig.id))
+        )
+    await db.commit()
+    return True
 
 
 async def remove_cores(db: AsyncSession, core_ids: list[int]) -> None:

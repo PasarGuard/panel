@@ -1635,6 +1635,11 @@ export interface RoleAccess {
   allowed_group_ids?: RoleAccessAllowedGroupIds
 }
 
+export interface ReorderRequest {
+  /** @minItems 2 */
+  ordered_ids: number[]
+}
+
 export interface RemoveUsersResponse {
   users: string[]
   count: number
@@ -2107,6 +2112,7 @@ export interface NodeResponse {
   internal_timeout?: number
   proxy_url?: NodeResponseProxyUrl
   id: number
+  sort_order?: number
   xray_version: NodeResponseXrayVersion
   node_version: NodeResponseNodeVersion
   status: NodeStatus
@@ -3064,6 +3070,7 @@ export interface CoreResponse {
   exclude_inbound_tags: string[]
   fallbacks_inbound_tags: string[]
   id: number
+  sort_order?: number
   created_at: string
 }
 
@@ -7926,6 +7933,52 @@ export const useScanRealityTarget = <TData = Awaited<ReturnType<typeof scanReali
 }
 
 /**
+ * Persist the display order of core configurations.
+ * @summary Reorder Core Configs
+ */
+export const reorderCoreConfigs = (reorderRequest: BodyType<ReorderRequest>) => {
+  return orvalFetcher<void>({ url: `/api/cores/order`, method: 'PUT', headers: { 'Content-Type': 'application/json' }, data: reorderRequest })
+}
+
+export const getReorderCoreConfigsMutationOptions = <
+  TData = Awaited<ReturnType<typeof reorderCoreConfigs>>,
+  TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<ReorderRequest> }, TContext>
+}) => {
+  const mutationKey = ['reorderCoreConfigs']
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } }
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof reorderCoreConfigs>>, { data: BodyType<ReorderRequest> }> = props => {
+    const { data } = props ?? {}
+
+    return reorderCoreConfigs(data)
+  }
+
+  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { data: BodyType<ReorderRequest> }, TContext>
+}
+
+export type ReorderCoreConfigsMutationResult = NonNullable<Awaited<ReturnType<typeof reorderCoreConfigs>>>
+export type ReorderCoreConfigsMutationBody = BodyType<ReorderRequest>
+export type ReorderCoreConfigsMutationError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>
+
+/**
+ * @summary Reorder Core Configs
+ */
+export const useReorderCoreConfigs = <TData = Awaited<ReturnType<typeof reorderCoreConfigs>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>, TContext = unknown>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<ReorderRequest> }, TContext>
+}): UseMutationResult<TData, TError, { data: BodyType<ReorderRequest> }, TContext> => {
+  const mutationOptions = getReorderCoreConfigsMutationOptions(options)
+
+  return useMutation(mutationOptions)
+}
+
+/**
  * Get a core configuration by its ID.
  * @summary Get Core Config
  */
@@ -9471,6 +9524,48 @@ export const useReconnectAllNode = <TData = Awaited<ReturnType<typeof reconnectA
   mutation?: UseMutationOptions<TData, TError, { params?: ReconnectAllNodeParams }, TContext>
 }): UseMutationResult<TData, TError, { params?: ReconnectAllNodeParams }, TContext> => {
   const mutationOptions = getReconnectAllNodeMutationOptions(options)
+
+  return useMutation(mutationOptions)
+}
+
+/**
+ * Persist the display order of nodes.
+ * @summary Reorder Nodes
+ */
+export const reorderNodes = (reorderRequest: BodyType<ReorderRequest>) => {
+  return orvalFetcher<void>({ url: `/api/nodes/order`, method: 'PUT', headers: { 'Content-Type': 'application/json' }, data: reorderRequest })
+}
+
+export const getReorderNodesMutationOptions = <TData = Awaited<ReturnType<typeof reorderNodes>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>, TContext = unknown>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<ReorderRequest> }, TContext>
+}) => {
+  const mutationKey = ['reorderNodes']
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } }
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof reorderNodes>>, { data: BodyType<ReorderRequest> }> = props => {
+    const { data } = props ?? {}
+
+    return reorderNodes(data)
+  }
+
+  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { data: BodyType<ReorderRequest> }, TContext>
+}
+
+export type ReorderNodesMutationResult = NonNullable<Awaited<ReturnType<typeof reorderNodes>>>
+export type ReorderNodesMutationBody = BodyType<ReorderRequest>
+export type ReorderNodesMutationError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>
+
+/**
+ * @summary Reorder Nodes
+ */
+export const useReorderNodes = <TData = Awaited<ReturnType<typeof reorderNodes>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>, TContext = unknown>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<ReorderRequest> }, TContext>
+}): UseMutationResult<TData, TError, { data: BodyType<ReorderRequest> }, TContext> => {
+  const mutationOptions = getReorderNodesMutationOptions(options)
 
   return useMutation(mutationOptions)
 }

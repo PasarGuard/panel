@@ -1,5 +1,4 @@
-import { useBulkDeleteCores, useGetAllCores, useModifyCoreConfig } from '@/service/api'
-import { CoreResponse } from '@/service/api'
+import { CoreResponse, CoreResponseList, getGetAllCoresQueryKey, useBulkDeleteCores, useGetAllCores, useModifyCoreConfig, useReorderCoreConfigs } from '@/service/api'
 import Core from './core'
 import { lazy, Suspense, useState, useEffect, useMemo, useCallback } from 'react'
 import { toast } from 'sonner'
@@ -24,6 +23,9 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
 import { coreConfigFormDefaultValues, coreConfigFormSchema, type CoreBackendType, type CoreConfigFormValues } from '@/features/nodes/forms/core-config-form'
 import { getCoresListUseConfigModal } from '@/utils/userPreferenceStorage'
+import { closestCenter, DndContext, DragEndEvent, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
+import { arrayMove, rectSortingStrategy, SortableContext, sortableKeyboardCoordinates } from '@dnd-kit/sortable'
+import { SortableGridItem } from '@/components/common/sortable-grid-item'
 
 const CoreConfigModal = lazy(() => import('@/features/nodes/dialogs/core-config-modal'))
 
@@ -52,7 +54,14 @@ export default function Cores({ cores, onDuplicateCore, onDeleteCore, canCreate 
   const { t } = useTranslation()
   const modifyCoreMutation = useModifyCoreConfig()
   const bulkDeleteCoresMutation = useBulkDeleteCores()
+  const reorderCoresMutation = useReorderCoreConfigs()
   const dir = useDirDetection()
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  )
 
   const { data: coresData, isLoading, isFetching, refetch } = useGetAllCores({})
 
@@ -149,6 +158,43 @@ export default function Cores({ cores, onDuplicateCore, onDeleteCore, canCreate 
     return coresList.filter((core: CoreResponse) => core.name?.toLowerCase().includes(query))
   }, [coresList, searchQuery])
 
+  const isSortingDisabled = !canUpdate || !!searchQuery.trim() || reorderCoresMutation.isPending
+
+  const handleDragEnd = async ({ active, over }: DragEndEvent) => {
+    if (isSortingDisabled || !over || active.id === over.id) return
+
+    const oldIndex = coresList.findIndex(core => core.id === active.id)
+    const newIndex = coresList.findIndex(core => core.id === over.id)
+    if (oldIndex < 0 || newIndex < 0) return
+
+    const reorderedCores = arrayMove(coresList, oldIndex, newIndex)
+    const queryKey = getGetAllCoresQueryKey({})
+    const previousResponse = queryClient.getQueryData<CoreResponseList>(queryKey)
+    const cancelPendingQuery = queryClient.cancelQueries({ queryKey, exact: true })
+
+    // Keep the cache update synchronous with dnd-kit's drop event. Waiting before
+    // this update lets the dragged card briefly snap back to its old position.
+    queryClient.setQueryData<CoreResponseList>(queryKey, current => ({
+      count: current?.count ?? reorderedCores.length,
+      cores: reorderedCores,
+    }))
+
+    try {
+      await cancelPendingQuery
+      await reorderCoresMutation.mutateAsync({
+        data: { ordered_ids: reorderedCores.map(core => core.id) },
+      })
+      toast.success(t('settings.cores.orderUpdated', { defaultValue: 'Core config order updated' }))
+    } catch (error: any) {
+      if (previousResponse) queryClient.setQueryData(queryKey, previousResponse)
+      toast.error(t('settings.cores.orderUpdateFailed', { defaultValue: 'Failed to update core config order' }), {
+        description: error?.data?.detail || error?.message,
+      })
+    } finally {
+      queryClient.invalidateQueries({ queryKey: ['/api/cores'] })
+    }
+  }
+
   const handleRefreshClick = async () => {
     await refetch()
   }
@@ -239,58 +285,67 @@ export default function Cores({ cores, onDuplicateCore, onDeleteCore, canCreate 
         </div>
       </div>
       {canDelete && <BulkActionsBar selectedCount={selectedCoreIds.length} onClear={clearSelection} onDelete={selectedCoreIds.length > 0 ? () => setBulkAction('delete') : undefined} />}
-      {(isLoading || filteredCores.length > 0) &&
-        (viewMode === 'grid' ? (
-          <ListGeneratorGrid
-            data={filteredCores}
-            getRowId={core => core.id}
-            isLoading={isLoading}
-            loadingRows={6}
-            className="gap-4"
-            enableSelection={canDelete}
-            injectSelectionProps={canDelete}
-            selectedRowIds={selectedCoreIds}
-            onSelectionChange={ids => setSelectedCoreIds(ids.map(id => Number(id)))}
-            showEmptyState={false}
-            renderItem={core => (
-              <Core
-                core={core}
-                onEdit={() => handleRowEdit(core)}
-                onToggleStatus={handleToggleStatus}
-                onDuplicate={canCreate && onDuplicateCore ? () => onDuplicateCore(core.id) : undefined}
-                onDelete={canDelete && onDeleteCore ? () => onDeleteCore(core.name, core.id) : undefined}
-                canUpdate={canUpdate}
-                canCreate={canCreate}
-                canDelete={canDelete}
+      {(isLoading || filteredCores.length > 0) && (
+        <DndContext sensors={isSortingDisabled ? [] : sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={filteredCores.map(core => core.id)} strategy={rectSortingStrategy}>
+            {viewMode === 'grid' ? (
+              <ListGeneratorGrid
+                data={filteredCores}
+                getRowId={core => core.id}
+                isLoading={isLoading}
+                loadingRows={6}
+                className="gap-4"
+                enableSelection={canDelete}
+                injectSelectionProps={canDelete}
+                selectedRowIds={selectedCoreIds}
+                onSelectionChange={ids => setSelectedCoreIds(ids.map(id => Number(id)))}
+                showEmptyState={false}
+                renderItem={core => (
+                  <SortableGridItem id={core.id} disabled={isSortingDisabled}>
+                    <Core
+                      core={core}
+                      onEdit={() => handleRowEdit(core)}
+                      onToggleStatus={handleToggleStatus}
+                      onDuplicate={canCreate && onDuplicateCore ? () => onDuplicateCore(core.id) : undefined}
+                      onDelete={canDelete && onDeleteCore ? () => onDeleteCore(core.name, core.id) : undefined}
+                      canUpdate={canUpdate}
+                      canCreate={canCreate}
+                      canDelete={canDelete}
+                    />
+                  </SortableGridItem>
+                )}
+                renderSkeleton={i => (
+                  <Card key={i} className="px-4 py-5">
+                    <div className="flex items-center gap-2 sm:gap-3">
+                      <Skeleton className="h-2 w-2 shrink-0 rounded-full" />
+                      <Skeleton className="h-5 w-24 sm:w-32" />
+                      <div className="ml-auto shrink-0">
+                        <Skeleton className="h-8 w-8" />
+                      </div>
+                    </div>
+                  </Card>
+                )}
+              />
+            ) : (
+              <ListGenerator
+                data={filteredCores}
+                columns={listColumns}
+                getRowId={core => core.id}
+                isLoading={isLoading}
+                loadingRows={6}
+                className="gap-3"
+                onRowClick={canUpdate ? handleRowEdit : undefined}
+                enableSelection={canDelete}
+                selectedRowIds={selectedCoreIds}
+                onSelectionChange={ids => setSelectedCoreIds(ids.map(id => Number(id)))}
+                showEmptyState={false}
+                enableSorting={canUpdate}
+                sortingDisabled={isSortingDisabled}
               />
             )}
-            renderSkeleton={i => (
-              <Card key={i} className="px-4 py-5">
-                <div className="flex items-center gap-2 sm:gap-3">
-                  <Skeleton className="h-2 w-2 shrink-0 rounded-full" />
-                  <Skeleton className="h-5 w-24 sm:w-32" />
-                  <div className="ml-auto shrink-0">
-                    <Skeleton className="h-8 w-8" />
-                  </div>
-                </div>
-              </Card>
-            )}
-          />
-        ) : (
-          <ListGenerator
-            data={filteredCores}
-            columns={listColumns}
-            getRowId={core => core.id}
-            isLoading={isLoading}
-            loadingRows={6}
-            className="gap-3"
-            onRowClick={canUpdate ? handleRowEdit : undefined}
-            enableSelection={canDelete}
-            selectedRowIds={selectedCoreIds}
-            onSelectionChange={ids => setSelectedCoreIds(ids.map(id => Number(id)))}
-            showEmptyState={false}
-          />
-        ))}
+          </SortableContext>
+        </DndContext>
+      )}
 
       {canDelete && (
         <BulkActionAlertDialog

@@ -138,14 +138,14 @@ async def get_nodes(
     count_query = select(func.count()).select_from(stmt.subquery())
     count = (await db.execute(count_query)).scalar_one()
 
+    # Apply the user-defined order before pagination so every page is stable.
+    stmt = stmt.order_by(Node.sort_order.asc(), Node.id.asc())
+
     # Apply pagination
     if params.offset:
         stmt = stmt.offset(params.offset)
     if params.limit:
         stmt = stmt.limit(params.limit)
-
-    # Order by created_at and id for consistent results
-    stmt = stmt.order_by(Node.created_at.asc(), Node.id.asc())
 
     # Eagerly load usage_logs for API lifetime_* fields (skip for jobs/connect)
     if load_usage_logs:
@@ -181,6 +181,8 @@ async def get_nodes_simple(
 
     if query.sort:
         stmt = stmt.order_by(*[_build_node_simple_sort_clause(sort_option) for sort_option in query.sort])
+    else:
+        stmt = stmt.order_by(Node.sort_order.asc(), Node.id.asc())
 
     # Get count BEFORE pagination (always)
     count_stmt = select(func.count()).select_from(stmt.subquery())
@@ -402,13 +404,38 @@ async def create_node(db: AsyncSession, node: NodeCreate) -> Node:
     Returns:
         Node: The newly created Node object.
     """
-    db_node = Node(**node.model_dump())
+    next_sort_order = (await db.execute(select(coalesce(func.max(Node.sort_order), -1) + 1))).scalar_one()
+    db_node = Node(**node.model_dump(), sort_order=next_sort_order)
 
     db.add(db_node)
     await db.commit()
     await db.refresh(db_node)
     await load_node_attrs(db_node)
     return db_node
+
+
+async def reorder_nodes(db: AsyncSession, ordered_ids: list[int]) -> bool:
+    """Reorder a page-sized subset while preserving every other node's position."""
+    current_ids = list(
+        (await db.execute(select(Node.id).order_by(Node.sort_order.asc(), Node.id.asc()).with_for_update())).scalars()
+    )
+    requested_ids = set(ordered_ids)
+    if not requested_ids.issubset(current_ids):
+        return False
+
+    requested_positions = [index for index, node_id in enumerate(current_ids) if node_id in requested_ids]
+    for index, node_id in zip(requested_positions, ordered_ids, strict=True):
+        current_ids[index] = node_id
+
+    ordering = {node_id: index for index, node_id in enumerate(current_ids)}
+    if ordering:
+        await db.execute(
+            update(Node)
+            .where(Node.id.in_(current_ids))
+            .values(sort_order=case(ordering, value=Node.id))
+        )
+    await db.commit()
+    return True
 
 
 async def remove_node(db: AsyncSession, db_node: Node) -> None:

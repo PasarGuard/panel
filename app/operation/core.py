@@ -11,6 +11,7 @@ from app.db.crud.core import (
     modify_core_config,
     remove_core_config,
     remove_cores,
+    reorder_core_configs,
 )
 from app.db.crud.host import get_hosts
 from app.db.crud.user import get_users_by_ids
@@ -44,6 +45,11 @@ logger = get_logger("core-operation")
 
 
 class CoreOperation(BaseOperation):
+    async def reorder_cores(self, db: AsyncSession, ordered_ids: list[int], admin: AdminDetails) -> None:
+        if not await reorder_core_configs(db, ordered_ids):
+            await self.raise_error(message="Core not found", code=404, db=db)
+        logger.info('Core configs reordered by admin "%s"', admin.username)
+
     async def _refresh_hosts_from_db(self, db: AsyncSession) -> None:
         db_hosts = await get_hosts(db=db)
         await host_manager.add_hosts(db, db_hosts)
