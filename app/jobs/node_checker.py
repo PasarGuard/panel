@@ -54,9 +54,7 @@ async def _start_already_in_progress(db_node: Node, shared_state) -> bool:
     if shared_state is not None and shared_state.observed is LifecycleStatus.STARTING:
         return True
     _, coordinator, _ = get_bridge_memory()
-    if coordinator is not None and await coordinator.has_active_lease(str(db_node.id)):
-        return True
-    return False
+    return coordinator is not None and await coordinator.has_active_lease(str(db_node.id))
 
 
 async def verify_node_backend_health(node: PasarGuardNode, node_name: str) -> tuple[Health, int | None, str | None]:
