@@ -25,17 +25,51 @@ NODE_CHECK_SEM = asyncio.Semaphore(5)  # Max 5 concurrent node health checks
 ACTIVE_NODE_STATUSES = [NodeStatus.connected, NodeStatus.connecting, NodeStatus.error]
 
 
+# pg-node returns these while the HTTP API is up. They are not interchangeable:
+# - backend gone: keep-alive/crash already called Disconnect; panel must Start again
+# - core still coming up / Xray API blip: another Start would kill that process
+_CORE_DEAD_MARKERS = ("backend not initialized",)
+_CORE_STARTING_MARKERS = ("core is not started yet", "failed to get sys stats")
+
+
+def _health_error_matches(error_code: int | None, error_message: str | None, markers: tuple[str, ...]) -> bool:
+    if error_code not in {500, 502, 503, 504}:
+        return False
+    detail = (error_message or "").lower()
+    return any(marker in detail for marker in markers)
+
+
+def is_core_dead_error(error_code: int | None, error_message: str | None) -> bool:
+    return _health_error_matches(error_code, error_message, _CORE_DEAD_MARKERS)
+
+
+def is_core_starting_error(error_code: int | None, error_message: str | None) -> bool:
+    return _health_error_matches(error_code, error_message, _CORE_STARTING_MARKERS)
+
+
+def is_core_not_started_error(error_code: int | None, error_message: str | None) -> bool:
+    return is_core_dead_error(error_code, error_message) or is_core_starting_error(error_code, error_message)
+
+
 def should_reconnect_after_health_error(error_code: int | None, error_message: str | None) -> bool:
     if error_code is None:
         return False
 
-    detail = (error_message or "").lower()
-    if error_code in {500, 502, 503, 504} and (
-        "failed to get sys stats" in detail or "core is not started yet" in detail
-    ):
+    # Dead-core and still-starting 5xxs are not generic reconnects. The BROKEN
+    # handler starts only a missing backend, and only when no Start is in flight.
+    if is_core_not_started_error(error_code, error_message):
         return False
 
     return error_code > -1
+
+
+async def _start_already_in_progress(db_node: Node, shared_state) -> bool:
+    if db_node.id in NodeOperation._in_flight_connects:
+        return True
+    if shared_state is not None and shared_state.observed is LifecycleStatus.STARTING:
+        return True
+    _, coordinator, _ = get_bridge_memory()
+    return coordinator is not None and await coordinator.has_active_lease(str(db_node.id))
 
 
 async def verify_node_backend_health(node: PasarGuardNode, node_name: str) -> tuple[Health, int | None, str | None]:
@@ -135,12 +169,13 @@ async def process_node_health_check(db_node: Node, node: PasarGuardNode):
             return
 
         # Prefer shared lifecycle state so multi-worker local NOT_CONNECTED does not thrash Start.
-        # Trust observed HEALTHY only if we can attach, or another worker still holds an active lease.
+        # A BROKEN observation with desired HEALTHY can be an ambiguous client-side Start
+        # timeout: the remote core may have completed startup after the panel gave up.
         shared_state = await node.get_lifecycle_state()
         if (
             health is Health.NOT_CONNECTED
             and shared_state is not None
-            and shared_state.observed is LifecycleStatus.HEALTHY
+            and (shared_state.observed is LifecycleStatus.HEALTHY or shared_state.desired is LifecycleStatus.HEALTHY)
         ):
             attached = await NodeOperation._attach_if_running(node, db_node.name)
             if attached is not None:
@@ -154,9 +189,10 @@ async def process_node_health_check(db_node: Node, node: PasarGuardNode):
                 )
                 return
 
-            # Stale HEALTHY (owner gone / core unreachable): fall through to reconnect.
+            # Stale/failed desired-healthy state: fall through to reconnect only after
+            # the attach probe and active-lease check have both failed.
             logger.debug(
-                "[%s] Shared lifecycle HEALTHY but attach failed and no active lease; reconnecting",
+                "[%s] Shared lifecycle desired HEALTHY but attach failed and no active lease; reconnecting",
                 db_node.name,
             )
 
@@ -177,7 +213,17 @@ async def process_node_health_check(db_node: Node, node: PasarGuardNode):
             if should_reconnect_after_health_error(error_code, error_message):
                 async with GetDB() as db:
                     await node_operator.connect_single_node(db, db_node.id)
-            # For timeout (code=-1 or None), just wait - don't reconnect
+                return
+            # Keep-alive timeout / crash leaves HTTP up but Xray stopped
+            # ("backend not initialized"). A second Start while Xray is still
+            # coming up ("core is not started yet") would kill that process.
+            if is_core_dead_error(error_code, error_message) and not await _start_already_in_progress(
+                db_node, shared_state
+            ):
+                logger.warning(f"[{db_node.name}] Core is not running; re-applying config")
+                async with GetDB() as db:
+                    await node_operator.connect_single_node(db, db_node.id)
+            # For timeout (code=-1 or None) or an in-flight/starting core, wait.
             return
 
         # Update status for recovering nodes
@@ -269,7 +315,8 @@ async def initialize_nodes():
 
     await ensure_bridge_memory()
 
-    logger.info("Starting nodes' cores...")
+    startup_log = logger.debug if server_settings.workers > 1 else logger.info
+    startup_log("Starting nodes' cores...")
 
     async with GetDB() as db:
         db_nodes, _ = await get_nodes(db=db, query=NodeListQuery(status=ACTIVE_NODE_STATUSES), load_usage_logs=False)
@@ -278,7 +325,7 @@ async def initialize_nodes():
             logger.warning("Attention: You have no node, you need to have at least one node")
         else:
             await node_operator.connect_nodes_bulk(db, db_nodes)
-            logger.info("All nodes' cores have been started.")
+            startup_log("All nodes' cores have been started.")
 
     from app.nats.leader import needs_job_leader
 

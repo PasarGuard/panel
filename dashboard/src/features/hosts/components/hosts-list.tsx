@@ -718,6 +718,7 @@ export default function HostsList({
         wireguard_overrides: host.wireguard_overrides ?? undefined,
         http_headers: host.http_headers || {},
         final_mask_settings: host.final_mask_settings ?? undefined,
+        cipher_suites: host.cipher_suites ?? undefined,
       }))
 
       // Make the API call to update priorities

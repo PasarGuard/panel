@@ -35,7 +35,17 @@ NODE_USER_USAGE_BATCH_SIZE_BY_DIALECT = {
     "mysql": 1_000,
     "sqlite": 400,
 }
+USER_TRAFFIC_UPDATE_BATCH_SIZE_BY_DIALECT = {
+    "mysql": 500,
+    "sqlite": 400,
+}
 USER_ADMIN_LOOKUP_BATCH_SIZE = 1_000
+DEADLOCK_MAX_RETRIES = 5
+
+# Prevent overlapping usage jobs from stacking writes (and deadlocks) when
+# node stats calls take longer than the scheduler interval.
+_user_usage_running = False
+_node_usage_running = False
 
 # Thread pool executor for I/O-bound node API calls
 # Distributes workload across threads/cores for data collection
@@ -304,18 +314,34 @@ def build_node_usage_upsert(dialect: str, upsert_param: dict):
         return [(insert_stmt, [upsert_param]), (update_stmt, [update_param])]
 
 
-async def safe_execute(stmt, params=None, max_retries: int = 2):
+def _mysql_errno(err) -> int | None:
+    orig = getattr(err, "orig", err)
+    args = getattr(orig, "args", None)
+    if args and isinstance(args[0], int):
+        return args[0]
+    return None
+
+
+def _is_retriable_db_error(err) -> bool:
+    errno = _mysql_errno(err)
+    if errno in (1213, 1205):
+        return True
+    orig = getattr(err, "orig", err)
+    if getattr(orig, "code", None) == "40P01":
+        return True
+    message = str(err).lower()
+    return "deadlock" in message or "lock wait timeout" in message or "database is locked" in message
+
+
+async def safe_execute(stmt, params=None, max_retries: int = DEADLOCK_MAX_RETRIES):
     """
     Safely execute database operations with deadlock and connection handling.
     Creates a fresh DB session for each retry attempt to release locks.
 
-    Reduced retries to prevent retry amplification under load.
-    Dropping some stats is better than crashing the system.
-
     Args:
         stmt: SQLAlchemy statement to execute
         params (list[dict], optional): Parameters for the statement
-        max_retries (int, optional): Maximum number of retry attempts (default: 2)
+        max_retries (int, optional): Maximum number of attempts including the first
     """
     statement = stmt
 
@@ -329,10 +355,16 @@ async def safe_execute(stmt, params=None, max_retries: int = 2):
         # MySQL-specific IGNORE prefix - but skip if using ON DUPLICATE KEY UPDATE
         statement = stmt.prefix_with("IGNORE")
 
+    connectable = engine
+    if dialect == "mysql" and hasattr(engine, "execution_options"):
+        # READ COMMITTED avoids gap/next-key locks that amplify MySQL deadlocks
+        # during concurrent usage updates and upserts.
+        connectable = engine.execution_options(isolation_level="READ COMMITTED")
+
     for attempt in range(max_retries):
         try:
             # engine.begin() ensures commit/rollback + connection return on exit
-            async with engine.begin() as conn:
+            async with connectable.begin() as conn:
                 if params is None:
                     await conn.execute(statement)
                 else:
@@ -341,38 +373,29 @@ async def safe_execute(stmt, params=None, max_retries: int = 2):
 
         except (OperationalError, DatabaseError) as err:
             # Session auto-closed by context manager, locks released
+            mysql_errno = _mysql_errno(err)
+            is_sqlite_locked = "database is locked" in str(err).lower()
 
-            # Determine error type for retry logic
-            mysql_errno = (
-                err.orig.args[0]
-                if hasattr(err, "orig") and hasattr(err.orig, "args") and len(err.orig.args) > 0
-                else None
-            )
-            # 1213 = deadlock, 1205 = lock wait timeout
-            is_mysql_retriable = mysql_errno in (1213, 1205)
-            is_pg_deadlock = hasattr(err, "orig") and hasattr(err.orig, "code") and err.orig.code == "40P01"
-            is_sqlite_locked = "database is locked" in str(err)
-
-            # Retry with exponential backoff if retriable error
-            if attempt < max_retries - 1:
-                if is_mysql_retriable or is_pg_deadlock:
-                    # Exponential backoff with jitter: 50-75ms, 100-150ms
-                    # Use longer base delay for lock wait timeouts vs deadlocks
-                    base_delay = 0.1 * (2**attempt) if mysql_errno == 1205 else 0.05 * (2**attempt)
-                    jitter = random.uniform(0, base_delay * 0.5)
-                    await asyncio.sleep(base_delay + jitter)
-                    continue
-                elif is_sqlite_locked:
-                    # SQLite locks: only retry once, then fail fast
-                    # When DB is overloaded, retries = self-DDOS
-                    if attempt == 0:
-                        await asyncio.sleep(0.05)
-                        continue
-                    # After first retry, fail immediately
+            if attempt < max_retries - 1 and _is_retriable_db_error(err):
+                if is_sqlite_locked and attempt > 0:
+                    # When SQLite is overloaded, extra retries become a self-DDOS
                     logger.warning("SQLite lock persisted after retry; dropping operation to prevent retry storm")
                     raise
 
-            # If we've exhausted retries or it's not a retriable error, raise
+                # Exponential backoff with jitter. Lock-wait timeouts get a longer base delay.
+                base_delay = 0.2 * (2**attempt) if mysql_errno == 1205 else 0.1 * (2**attempt)
+                jitter = random.uniform(0, base_delay * 0.5)
+                logger.warning(
+                    "Retrying usage write after %s (attempt %s/%s)",
+                    f"MySQL {mysql_errno}" if mysql_errno else err.__class__.__name__,
+                    attempt + 1,
+                    max_retries,
+                )
+                await asyncio.sleep(base_delay + jitter)
+                continue
+
+            if attempt >= max_retries - 1 and _is_retriable_db_error(err):
+                logger.error("Usage write failed after %s attempts: %s", max_retries, err)
             raise
 
 
@@ -427,6 +450,9 @@ async def record_user_stats_batched(all_node_params: dict, usage_coefficients: d
 
     if not upsert_params:
         return
+
+    # Consistent lock order reduces InnoDB deadlocks across overlapping writers
+    upsert_params.sort(key=lambda item: (item["uid"], item["node_id"]))
 
     batch_size = NODE_USER_USAGE_BATCH_SIZE_BY_DIALECT.get(dialect, len(upsert_params))
     batches = list(_chunked(upsert_params, batch_size))
@@ -506,17 +532,18 @@ def _process_users_stats_response(stats_response):
     for uid, value in params.items():
         try:
             validated_params.append({"uid": int(uid), "value": value})
-        except ValueError, TypeError:
+        except (ValueError, TypeError):
             invalid_uids.append(uid)
 
     return validated_params, invalid_uids
 
 
-async def get_users_stats(node: PasarGuardNode):
+async def get_users_stats(node: PasarGuardNode, node_id: int | None = None):
     """
     Get user stats from node using thread pool for CPU-bound processing.
     This distributes the heavy data processing workload across cores.
     """
+    node_label = node_id if node_id is not None else getattr(node, "node_id", "unknown")
     try:
         # I/O operation: fetch stats from node (async, non-blocking)
         async with API_SEM:
@@ -535,10 +562,10 @@ async def get_users_stats(node: PasarGuardNode):
 
         return validated_params
     except NodeAPIError as e:
-        logger.error("Failed to get users stats, error: %s", e.detail)
+        logger.error("Failed to get users stats from node %s, error: %s", node_label, e.detail)
         return []
     except Exception as e:
-        logger.error("Failed to get users stats, unknown error: %s", e)
+        logger.error("Failed to get users stats from node %s, unknown error: %s", node_label, e)
         return []
 
 
@@ -554,11 +581,12 @@ def _process_outbounds_stats_response(stats_response):
     return params
 
 
-async def get_outbounds_stats(node: PasarGuardNode):
+async def get_outbounds_stats(node: PasarGuardNode, node_id: int | None = None):
     """
     Get outbounds stats from node using thread pool for CPU-bound processing.
     This distributes the heavy data processing workload across cores.
     """
+    node_label = node_id if node_id is not None else getattr(node, "node_id", "unknown")
     try:
         # I/O operation: fetch stats from node (async, non-blocking)
         async with API_SEM:
@@ -571,10 +599,10 @@ async def get_outbounds_stats(node: PasarGuardNode):
 
         return params
     except NodeAPIError as e:
-        logger.error("Failed to get outbounds stats, error: %s", e.detail)
+        logger.error("Failed to get outbounds stats from node %s, error: %s", node_label, e.detail)
         return []
     except Exception as e:
-        logger.error("Failed to get outbounds stats, unknown error: %s", e)
+        logger.error("Failed to get outbounds stats from node %s, unknown error: %s", node_label, e)
         return []
 
 
@@ -696,7 +724,10 @@ async def _record_user_usages_impl():
                 usage_coefficient[node_id] = data.get("usage_coefficient", 1) if data else 1.0
 
         # Gather stats directly - asyncio.gather accepts coroutines, no need for create_task
-        stats_results = await asyncio.gather(*[get_users_stats(node) for _, node in nodes], return_exceptions=True)
+        stats_results = await asyncio.gather(
+            *[get_users_stats(node, node_id) for node_id, node in nodes],
+            return_exceptions=True,
+        )
         api_params = {}
         for i, result in enumerate(stats_results):
             node_id = nodes[i][0]
@@ -723,19 +754,23 @@ async def _record_user_usages_impl():
 
         # Update User table with concurrency control
         if valid_users_usage:
+            valid_users_usage.sort(key=lambda item: int(item["uid"]))
             user_stmt = (
                 update(User)
                 .where(User.id == bindparam("uid"))
                 .values(used_traffic=User.used_traffic + bindparam("value"), online_at=dt.now(UTC))
                 .execution_options(synchronize_session=False)
             )
+            dialect = await get_dialect()
+            batch_size = USER_TRAFFIC_UPDATE_BATCH_SIZE_BY_DIALECT.get(dialect, len(valid_users_usage))
             async with JOB_SEM:
-                await safe_execute(user_stmt, valid_users_usage)
+                for batch in _chunked(valid_users_usage, batch_size):
+                    await safe_execute(user_stmt, batch)
             logger.debug(f"Updated {len(valid_users_usage)} users")
 
         # Update Admin table with concurrency control
         if admin_usage:
-            admin_data = [{"admin_id": aid, "value": val} for aid, val in admin_usage.items()]
+            admin_data = [{"admin_id": aid, "value": val} for aid, val in sorted(admin_usage.items())]
             admin_stmt = (
                 update(Admin)
                 .where(Admin.id == bindparam("admin_id"))
@@ -783,12 +818,20 @@ async def record_user_usages():
     Record user usages with hard timeout.
     Jobs running longer than 2 minutes are forcefully cancelled.
     """
+    global _user_usage_running
+    if _user_usage_running:
+        logger.warning("record_user_usages skipped; previous run still in progress")
+        return
+
+    _user_usage_running = True
     try:
         await asyncio.wait_for(_record_user_usages_impl(), timeout=120)
     except TimeoutError:
         logger.warning("record_user_usages killed after 120s timeout")
     except asyncio.CancelledError:
         logger.warning("record_user_usages was cancelled")
+    finally:
+        _user_usage_running = False
 
 
 async def _record_node_usages_impl():
@@ -807,7 +850,10 @@ async def _record_node_usages_impl():
 
     try:
         # Get healthy nodes and gather stats directly
-        stats_results = await asyncio.gather(*[get_outbounds_stats(node) for _, node in nodes], return_exceptions=True)
+        stats_results = await asyncio.gather(
+            *[get_outbounds_stats(node, node_id) for node_id, node in nodes],
+            return_exceptions=True,
+        )
         api_params = {}
         for i, result in enumerate(stats_results):
             node_id = nodes[i][0]
@@ -837,7 +883,7 @@ async def _record_node_usages_impl():
         # Update each node's uplink/downlink with concurrency control
         node_update_params = [
             {"node_id": node_id, "up": node_data["up"], "down": node_data["down"]}
-            for node_id, node_data in node_totals.items()
+            for node_id, node_data in sorted(node_totals.items())
             if node_data["up"] or node_data["down"]
         ]
 
@@ -882,12 +928,20 @@ async def record_node_usages():
     Record node usages with hard timeout.
     Jobs running longer than 2 minutes are forcefully cancelled.
     """
+    global _node_usage_running
+    if _node_usage_running:
+        logger.warning("record_node_usages skipped; previous run still in progress")
+        return
+
+    _node_usage_running = True
     try:
         await asyncio.wait_for(_record_node_usages_impl(), timeout=120)
     except TimeoutError:
         logger.warning("record_node_usages killed after 120s timeout")
     except asyncio.CancelledError:
         logger.warning("record_node_usages was cancelled")
+    finally:
+        _node_usage_running = False
 
 
 if runtime_settings.role.runs_node:
@@ -896,7 +950,10 @@ if runtime_settings.role.runs_node:
         "interval",
         seconds=job_settings.record_user_usages_interval,
         start_date=dt.now(UTC) + td(seconds=30),
+        coalesce=True,
+        max_instances=1,
         id="record_user_usages",
+        replace_existing=True,
     )
 
     scheduler.add_job(
@@ -904,5 +961,8 @@ if runtime_settings.role.runs_node:
         "interval",
         seconds=job_settings.record_node_usages_interval,
         start_date=dt.now(UTC) + td(seconds=15),
+        coalesce=True,
+        max_instances=1,
         id="record_node_usages",
+        replace_existing=True,
     )
