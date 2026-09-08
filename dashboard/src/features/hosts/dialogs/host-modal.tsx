@@ -1653,175 +1653,195 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                           )}
                         />
 
-                        <FormField
-                          control={form.control}
-                          name="ech_config_list"
-                          render={({ field }) => (
-                            <FormItem>
-                              <div className="flex items-center gap-2">
-                                <FormLabel>{t('hostsDialog.echConfigList')}</FormLabel>
-                                <Popover>
-                                  <PopoverTrigger asChild>
-                                    <Button type="button" variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent">
-                                      <Info className="text-muted-foreground h-4 w-4" />
-                                    </Button>
-                                  </PopoverTrigger>
-                                  <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
-                                    <p className="text-muted-foreground text-[11px]">{t('hostsDialog.echConfigList.info')}</p>
-                                  </PopoverContent>
-                                </Popover>
-                              </div>
-                              <FormControl>
-                                <Input placeholder={t('hostsDialog.echConfigListPlaceholder')} {...field} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
+                        <Tabs dir={dir} defaultValue="xray" className="w-full">
+                          <TabsList className="mb-4 grid w-full grid-cols-3">
+                            <TabsTrigger value="xray">Xray</TabsTrigger>
+                            <TabsTrigger value="mihomo">Mihomo</TabsTrigger>
+                            <TabsTrigger value="singbox">Sing-box</TabsTrigger>
+                          </TabsList>
 
-                        <FormField
-                          control={form.control}
-                          name="ech_query_strategy"
-                          render={({ field }) => (
-                            <FormItem>
-                              <div className="flex items-center gap-2">
-                                <FormLabel>{t('hostsDialog.echQueryStrategy', { defaultValue: 'ECH Query Strategy' })}</FormLabel>
-                                <Popover>
-                                  <PopoverTrigger asChild>
-                                    <Button type="button" variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent">
-                                      <Info className="text-muted-foreground h-4 w-4" />
-                                    </Button>
-                                  </PopoverTrigger>
-                                  <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
-                                    <p className="text-muted-foreground text-[11px]">
-                                      {t('hostsDialog.echQueryStrategy.info', {
-                                        defaultValue: 'ECH query strategy. Available values: none, half, full.',
-                                      })}
-                                    </p>
-                                  </PopoverContent>
-                                </Popover>
-                              </div>
-                              <Select onValueChange={value => field.onChange(value === '__default' ? undefined : value)} value={field.value || '__default'}>
-                                <FormControl>
-                                  <SelectTrigger>
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                  <SelectItem value="__default">{t('default')}</SelectItem>
-                                  <SelectItem value="none">none</SelectItem>
-                                  <SelectItem value="half">half</SelectItem>
-                                  <SelectItem value="full">full</SelectItem>
-                                </SelectContent>
-                              </Select>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
+                          <TabsContent dir={dir} value="xray">
+                            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                              <FormField
+                                control={form.control}
+                                name="ech_config_list"
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <div className="flex items-center gap-2">
+                                      <FormLabel>{t('hostsDialog.echConfigList')}</FormLabel>
+                                      <Popover>
+                                        <PopoverTrigger asChild>
+                                          <Button type="button" variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent">
+                                            <Info className="text-muted-foreground h-4 w-4" />
+                                          </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
+                                          <p className="text-muted-foreground text-[11px]">{t('hostsDialog.echConfigList.info')}</p>
+                                        </PopoverContent>
+                                      </Popover>
+                                    </div>
+                                    <FormControl>
+                                      <Input placeholder={t('hostsDialog.echConfigListPlaceholder')} {...field} />
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
 
-                        <FormField
-                          control={form.control}
-                          name="mihomo_ech_config"
-                          render={({ field }) => (
-                            <FormItem>
-                              <div className="flex items-center gap-2">
-                                <FormLabel>{t('hostsDialog.mihomoEchConfig')}</FormLabel>
-                                <Popover>
-                                  <PopoverTrigger asChild>
-                                    <Button type="button" variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent">
-                                      <Info className="text-muted-foreground h-4 w-4" />
-                                    </Button>
-                                  </PopoverTrigger>
-                                  <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
-                                    <p className="text-muted-foreground text-[11px]">{t('hostsDialog.mihomoEchConfig.info')}</p>
-                                  </PopoverContent>
-                                </Popover>
-                              </div>
-                              <FormControl>
-                                <Input placeholder={t('hostsDialog.mihomoEchConfigPlaceholder')} {...field} value={field.value ?? ''} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
+                              <FormField
+                                control={form.control}
+                                name="ech_query_strategy"
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <div className="flex items-center gap-2">
+                                      <FormLabel>{t('hostsDialog.echQueryStrategy', { defaultValue: 'ECH Query Strategy' })}</FormLabel>
+                                      <Popover>
+                                        <PopoverTrigger asChild>
+                                          <Button type="button" variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent">
+                                            <Info className="text-muted-foreground h-4 w-4" />
+                                          </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
+                                          <p className="text-muted-foreground text-[11px]">
+                                            {t('hostsDialog.echQueryStrategy.info', {
+                                              defaultValue: 'ECH query strategy. Available values: none, half, full.',
+                                            })}
+                                          </p>
+                                        </PopoverContent>
+                                      </Popover>
+                                    </div>
+                                    <Select onValueChange={value => field.onChange(value === '__default' ? undefined : value)} value={field.value || '__default'}>
+                                      <FormControl>
+                                        <SelectTrigger>
+                                          <SelectValue />
+                                        </SelectTrigger>
+                                      </FormControl>
+                                      <SelectContent>
+                                        <SelectItem value="__default">{t('default')}</SelectItem>
+                                        <SelectItem value="none">none</SelectItem>
+                                        <SelectItem value="half">half</SelectItem>
+                                        <SelectItem value="full">full</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                            </div>
+                          </TabsContent>
 
-                        <FormField
-                          control={form.control}
-                          name="mihomo_ech_query_server_name"
-                          render={({ field }) => (
-                            <FormItem>
-                              <div className="flex items-center gap-2">
-                                <FormLabel>{t('hostsDialog.mihomoEchQueryServerName')}</FormLabel>
-                                <Popover>
-                                  <PopoverTrigger asChild>
-                                    <Button type="button" variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent">
-                                      <Info className="text-muted-foreground h-4 w-4" />
-                                    </Button>
-                                  </PopoverTrigger>
-                                  <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
-                                    <p className="text-muted-foreground text-[11px]">{t('hostsDialog.mihomoEchQueryServerName.info')}</p>
-                                  </PopoverContent>
-                                </Popover>
-                              </div>
-                              <FormControl>
-                                <Input maxLength={255} placeholder={t('hostsDialog.echQueryServerNamePlaceholder')} {...field} value={field.value ?? ''} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
+                          <TabsContent dir={dir} value="mihomo">
+                            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                              <FormField
+                                control={form.control}
+                                name="mihomo_ech_config"
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <div className="flex items-center gap-2">
+                                      <FormLabel>{t('hostsDialog.mihomoEchConfig')}</FormLabel>
+                                      <Popover>
+                                        <PopoverTrigger asChild>
+                                          <Button type="button" variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent">
+                                            <Info className="text-muted-foreground h-4 w-4" />
+                                          </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
+                                          <p className="text-muted-foreground text-[11px]">{t('hostsDialog.mihomoEchConfig.info')}</p>
+                                        </PopoverContent>
+                                      </Popover>
+                                    </div>
+                                    <FormControl>
+                                      <Input placeholder={t('hostsDialog.mihomoEchConfigPlaceholder')} {...field} value={field.value ?? ''} />
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
 
-                        <FormField
-                          control={form.control}
-                          name="sing_box_ech_config"
-                          render={({ field }) => (
-                            <FormItem>
-                              <div className="flex items-center gap-2">
-                                <FormLabel>{t('hostsDialog.singBoxEchConfig')}</FormLabel>
-                                <Popover>
-                                  <PopoverTrigger asChild>
-                                    <Button type="button" variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent">
-                                      <Info className="text-muted-foreground h-4 w-4" />
-                                    </Button>
-                                  </PopoverTrigger>
-                                  <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
-                                    <p className="text-muted-foreground text-[11px]">{t('hostsDialog.singBoxEchConfig.info')}</p>
-                                  </PopoverContent>
-                                </Popover>
-                              </div>
-                              <FormControl>
-                                <Textarea className="min-h-24 font-mono text-xs" dir="ltr" placeholder={t('hostsDialog.singBoxEchConfigPlaceholder')} {...field} value={field.value ?? ''} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
+                              <FormField
+                                control={form.control}
+                                name="mihomo_ech_query_server_name"
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <div className="flex items-center gap-2">
+                                      <FormLabel>{t('hostsDialog.mihomoEchQueryServerName')}</FormLabel>
+                                      <Popover>
+                                        <PopoverTrigger asChild>
+                                          <Button type="button" variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent">
+                                            <Info className="text-muted-foreground h-4 w-4" />
+                                          </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
+                                          <p className="text-muted-foreground text-[11px]">{t('hostsDialog.mihomoEchQueryServerName.info')}</p>
+                                        </PopoverContent>
+                                      </Popover>
+                                    </div>
+                                    <FormControl>
+                                      <Input maxLength={255} placeholder={t('hostsDialog.echQueryServerNamePlaceholder')} {...field} value={field.value ?? ''} />
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                            </div>
+                          </TabsContent>
 
-                        <FormField
-                          control={form.control}
-                          name="sing_box_ech_query_server_name"
-                          render={({ field }) => (
-                            <FormItem>
-                              <div className="flex items-center gap-2">
-                                <FormLabel>{t('hostsDialog.singBoxEchQueryServerName')}</FormLabel>
-                                <Popover>
-                                  <PopoverTrigger asChild>
-                                    <Button type="button" variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent">
-                                      <Info className="text-muted-foreground h-4 w-4" />
-                                    </Button>
-                                  </PopoverTrigger>
-                                  <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
-                                    <p className="text-muted-foreground text-[11px]">{t('hostsDialog.singBoxEchQueryServerName.info')}</p>
-                                  </PopoverContent>
-                                </Popover>
-                              </div>
-                              <FormControl>
-                                <Input maxLength={255} placeholder={t('hostsDialog.echQueryServerNamePlaceholder')} {...field} value={field.value ?? ''} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
+                          <TabsContent dir={dir} value="singbox">
+                            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                              <FormField
+                                control={form.control}
+                                name="sing_box_ech_config"
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <div className="flex items-center gap-2">
+                                      <FormLabel>{t('hostsDialog.singBoxEchConfig')}</FormLabel>
+                                      <Popover>
+                                        <PopoverTrigger asChild>
+                                          <Button type="button" variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent">
+                                            <Info className="text-muted-foreground h-4 w-4" />
+                                          </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
+                                          <p className="text-muted-foreground text-[11px]">{t('hostsDialog.singBoxEchConfig.info')}</p>
+                                        </PopoverContent>
+                                      </Popover>
+                                    </div>
+                                    <FormControl>
+                                      <Textarea className="min-h-24 font-mono text-xs" dir="ltr" placeholder={t('hostsDialog.singBoxEchConfigPlaceholder')} {...field} value={field.value ?? ''} />
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+
+                              <FormField
+                                control={form.control}
+                                name="sing_box_ech_query_server_name"
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <div className="flex items-center gap-2">
+                                      <FormLabel>{t('hostsDialog.singBoxEchQueryServerName')}</FormLabel>
+                                      <Popover>
+                                        <PopoverTrigger asChild>
+                                          <Button type="button" variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent">
+                                            <Info className="text-muted-foreground h-4 w-4" />
+                                          </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
+                                          <p className="text-muted-foreground text-[11px]">{t('hostsDialog.singBoxEchQueryServerName.info')}</p>
+                                        </PopoverContent>
+                                      </Popover>
+                                    </div>
+                                    <FormControl>
+                                      <Input maxLength={255} placeholder={t('hostsDialog.echQueryServerNamePlaceholder')} {...field} value={field.value ?? ''} />
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                            </div>
+                          </TabsContent>
+                        </Tabs>
 
                         <FormField
                           control={form.control}
