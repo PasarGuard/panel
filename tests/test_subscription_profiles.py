@@ -24,7 +24,14 @@ from app.models.subscription import (
     WebSocketTransportConfig,
     XHTTPTransportConfig,
 )
-from app.models.subscription_profile import ProfileClient, ProfilePool, SubscriptionProfile
+from app.models.subscription_profile import (
+    BalancerStrategy,
+    DomainStrategy,
+    HealthCheckSettings,
+    ProfileClient,
+    ProfilePool,
+    SubscriptionProfile,
+)
 from app.operation import OperatorType
 from app.operation.client_template import ClientTemplateOperation
 from app.operation.host import HostOperation
@@ -1156,7 +1163,11 @@ def test_xray_profile_publishes_one_named_config_per_auto_group():
         ],
     )
 
-    published = {config["remarks"]: config["routing"]["rules"][-1]["balancerTag"] for config in configs}
+    published = {
+        config["remarks"]: config["routing"]["rules"][-1]["balancerTag"]
+        for config in configs
+        if "balancerTag" in config["routing"]["rules"][-1]
+    }
     assert published == {
         "Fastest": "pg-auto-primary",
         "Auto (fallback)": "pg-auto-fallback",
@@ -1166,7 +1177,6 @@ def test_xray_profile_publishes_one_named_config_per_auto_group():
     # Every entry has to stand on its own, outbounds included.
     for config in configs:
         assert config["outbounds"]
-        assert config["routing"]["balancers"]
 
 
 @pytest.mark.asyncio
@@ -1180,4 +1190,54 @@ async def test_profile_generation_returns_a_json_array(monkeypatch):
     )
 
     assert isinstance(rendered, list)
-    assert [config["remarks"] for config in rendered] == ["Auto (primary)", "Auto (DE)"]
+    remarks = [config["remarks"] for config in rendered]
+    # Automatic groups come first, then one entry per endpoint.
+    assert remarks[:2] == ["Auto (primary)", "Auto (DE)"]
+    assert len(remarks) > 2
+
+
+def test_endpoint_configs_are_published_next_to_the_auto_groups():
+    """A group is not a substitute for picking one specific server."""
+    endpoints = [make_endpoint("primary", "es", host_id=501), make_endpoint("primary", "de", host_id=502)]
+    configs = build_xray_profile_configs(profile(), endpoints)
+
+    per_endpoint = [c for c in configs if "outboundTag" in c["routing"]["rules"][-1]]
+    assert len(per_endpoint) == len(endpoints)
+    for config in per_endpoint:
+        # A single server has nothing to balance or probe.
+        assert config["routing"]["balancers"] == []
+        assert "observatory" not in config
+        assert "burstObservatory" not in config
+        target = config["routing"]["rules"][-1]["outboundTag"]
+        assert target in {outbound["tag"] for outbound in config["outbounds"]}
+
+
+def test_endpoint_configs_can_be_switched_off():
+    endpoints = [make_endpoint("primary", "es", host_id=503)]
+    disabled = SubscriptionProfile(
+        default_pool="primary", pools=[ProfilePool(id="primary")], publish_endpoint_configs=False
+    )
+    configs = build_xray_profile_configs(disabled, endpoints)
+
+    assert all("balancerTag" in c["routing"]["rules"][-1] for c in configs)
+
+
+def test_profile_carries_routing_and_balancer_strategy_into_the_config():
+    """Domain-strategy matters: IP rules never match under AsIs."""
+    tuned = SubscriptionProfile(
+        default_pool="primary",
+        pools=[ProfilePool(id="primary")],
+        domain_strategy=DomainStrategy.ip_if_non_match,
+        balancer_strategy=BalancerStrategy.least_ping,
+        health_check=HealthCheckSettings(burst=True),
+        routing_rules=[{"type": "field", "protocol": ["bittorrent"], "outboundTag": "direct"}],
+        publish_endpoint_configs=False,
+    )
+    config = build_xray_profile_configs(tuned, [make_endpoint("primary", "es", host_id=504)])[0]
+
+    assert config["routing"]["domainStrategy"] == "IPIfNonMatch"
+    assert config["routing"]["balancers"][0]["strategy"]["type"] == "leastPing"
+    assert config["routing"]["rules"][0]["protocol"] == ["bittorrent"]
+    # leastPing needs measured latency, which only burstObservatory collects.
+    assert "burstObservatory" in config
+    assert "observatory" not in config

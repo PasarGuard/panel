@@ -142,6 +142,13 @@ def endpoint_from_inbound(inbound: SubscriptionInboundData, address: str, settin
     )
 
 
+def _ordered_endpoints(profile: SubscriptionProfile, endpoints: list[ProfileEndpoint]) -> list[ProfileEndpoint]:
+    """Endpoints that survive pool filtering, in stable publication order."""
+    groups = _grouped_endpoints(profile, endpoints)
+    flattened = [endpoint for entries in groups.values() for endpoint in entries]
+    return sorted(flattened, key=lambda item: (item.priority, item.machine_key, item.stable_tie_breaker))
+
+
 def _endpoint_tags(endpoints: list[ProfileEndpoint]) -> dict[int, str]:
     """Create deterministic unique tags, even for duplicate endpoint inputs."""
     result: dict[int, str] = {}
@@ -224,14 +231,14 @@ def build_xray_profile(
     client_templates: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     groups = _grouped_endpoints(profile, endpoints)
-    endpoints = [endpoint for entries in groups.values() for endpoint in entries]
+    endpoints = _ordered_endpoints(profile, endpoints)
     tags = _endpoint_tags(endpoints)
     outbounds: list[dict[str, Any]] = []
     pool_tags: dict[str, list[str]] = defaultdict(list)
     auto_pool_tags: dict[str, list[str]] = defaultdict(list)
     auto_country_tags: dict[str, list[str]] = defaultdict(list)
 
-    for endpoint in sorted(endpoints, key=lambda item: (item.priority, item.machine_key, item.stable_tie_breaker)):
+    for endpoint in endpoints:
         tag = tags[id(endpoint)]
         outbounds.extend(_xray_outbounds(endpoint, tag, client_templates))
         pool_tags[endpoint.pool].append(tag)
@@ -254,7 +261,7 @@ def build_xray_profile(
         balancer: dict[str, Any] = {
             "tag": f"pg-auto-{pool.id}",
             "selector": candidates,
-            "strategy": {"type": "random"},
+            "strategy": {"type": profile.balancer_strategy.value},
         }
         if pool.fallback_pool and auto_pool_tags[pool.fallback_pool]:
             # Xray requires fallbackTag to name an outbound, not another
@@ -265,7 +272,11 @@ def build_xray_profile(
         balancers.append(balancer)
     for country, actor_tags in sorted(auto_country_tags.items()):
         balancers.append(
-            {"tag": f"pg-country-{country.lower()}", "selector": actor_tags, "strategy": {"type": "random"}}
+            {
+                "tag": f"pg-country-{country.lower()}",
+                "selector": actor_tags,
+                "strategy": {"type": profile.balancer_strategy.value},
+            }
         )
 
     rules = list(profile.routing_rules)
@@ -276,18 +287,36 @@ def build_xray_profile(
             {"tag": "block", "protocol": "blackhole"},
         ]
     )
+    subject_selector = [tag for pool in profile.pools for tag in auto_pool_tags.get(pool.id, [])]
     config = {
         "inbounds": [
             {"tag": "socks-in", "listen": "127.0.0.1", "port": 1080, "protocol": "socks", "settings": {"udp": True}}
         ],
         "outbounds": outbounds,
-        "observatory": {
-            "subjectSelector": [tag for pool in profile.pools for tag in auto_pool_tags.get(pool.id, [])],
+        "routing": {
+            "domainStrategy": profile.domain_strategy.value,
+            "balancers": balancers,
+            "rules": rules,
+        },
+    }
+    if profile.health_check.burst:
+        # leastPing/leastLoad need measured latency, which only burstObservatory
+        # collects; plain observatory just tracks alive/dead.
+        config["burstObservatory"] = {
+            "subjectSelector": subject_selector,
+            "pingConfig": {
+                "destination": profile.health_check.url,
+                "interval": profile.health_check.interval,
+                "timeout": profile.health_check.timeout,
+                "sampling": 3,
+            },
+        }
+    else:
+        config["observatory"] = {
+            "subjectSelector": subject_selector,
             "probeUrl": profile.health_check.url,
             "probeInterval": profile.health_check.interval,
-        },
-        "routing": {"domainStrategy": "AsIs", "balancers": balancers, "rules": rules},
-    }
+        }
     _validate_xray_output_routing(config)
     return config
 
@@ -334,6 +363,24 @@ def build_xray_profile_configs(
         config["remarks"] = remark
         _validate_xray_output_routing(config)
         configs.append(config)
+
+    if profile.publish_endpoint_configs:
+        # A group is not a substitute for picking one server, so every endpoint
+        # is published too. These carry no balancer: the catch-all rule names
+        # the endpoint's own outbound directly.
+        ordered = _ordered_endpoints(profile, endpoints)
+        endpoint_tags = _endpoint_tags(ordered)
+        for endpoint in ordered:
+            config = copy.deepcopy(base)
+            catch_all = config["routing"]["rules"][-1]
+            catch_all.pop("balancerTag", None)
+            catch_all["outboundTag"] = endpoint_tags[id(endpoint)]
+            config["routing"]["balancers"] = []
+            config.pop("observatory", None)
+            config.pop("burstObservatory", None)
+            config["remarks"] = endpoint.inbound.remark
+            _validate_xray_output_routing(config)
+            configs.append(config)
     return configs
 
 

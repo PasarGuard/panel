@@ -16,6 +16,26 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 PROFILE_ID_PATTERN = re.compile(r"^[a-z0-9](?:[a-z0-9_-]{0,62}[a-z0-9])?$")
 
 
+class DomainStrategy(StrEnum):
+    """Xray `routing.domainStrategy`.
+
+    `AsIs` never resolves a domain, so IP-based rules (`geoip:*`, CIDRs) only
+    match traffic that already arrived as an IP. Rulesets that mix domain and
+    IP matching need one of the resolving strategies.
+    """
+
+    as_is = "AsIs"
+    ip_if_non_match = "IPIfNonMatch"
+    ip_on_demand = "IPOnDemand"
+
+
+class BalancerStrategy(StrEnum):
+    random = "random"
+    round_robin = "roundRobin"
+    least_ping = "leastPing"
+    least_load = "leastLoad"
+
+
 class ProfileClient(StrEnum):
     generic = "generic"
     happ = "happ"
@@ -30,6 +50,9 @@ class HealthCheckSettings(BaseModel):
     # Sing-box maps this to urltest.idle_timeout, so it must outlive an
     # interval rather than represent a single HTTP request timeout.
     timeout: str = Field(default="30m", pattern=r"^\d+(?:ms|s|m|h)$")
+    # `burstObservatory` measures concurrently and feeds leastLoad/leastPing;
+    # plain `observatory` only tracks alive/dead for fallbackTag.
+    burst: bool = False
 
     @model_validator(mode="after")
     def validate_timeout(self):
@@ -72,6 +95,11 @@ class SubscriptionProfile(BaseModel):
     pools: list[ProfilePool] = Field(default_factory=lambda: [ProfilePool(id="primary")], min_length=1, max_length=64)
     health_check: HealthCheckSettings = Field(default_factory=HealthCheckSettings)
     routing_rules: list[dict[str, Any]] = Field(default_factory=list, max_length=256)
+    domain_strategy: DomainStrategy = DomainStrategy.as_is
+    balancer_strategy: BalancerStrategy = BalancerStrategy.random
+    # Publish a config per endpoint next to the automatic groups, so a user
+    # can pick one server instead of only a group.
+    publish_endpoint_configs: bool = True
     client: ProfileClient = ProfileClient.generic
     happ_deeplink: str | None = Field(default=None, max_length=2048)
 
