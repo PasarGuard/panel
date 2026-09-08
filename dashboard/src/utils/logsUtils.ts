@@ -2,6 +2,7 @@ export type LogType = 'error' | 'warning' | 'info' | 'debug'
 export type LogVariant = 'red' | 'yellow' | 'blue' | 'orange'
 
 export interface LogLine {
+  id: string
   rawTimestamp: string | null
   timestamp: Date | null
   type: LogType
@@ -86,6 +87,7 @@ export function parseLogs(logString: string): LogLine[] {
       cleanedMessage = cleanedMessage.replace(/^(Debug|Info|Warn|Warning|Error):\s*/i, '')
 
       return {
+        id: crypto.randomUUID(),
         rawTimestamp: timestamp ?? null,
         timestamp: parsedTimestamp,
         type,

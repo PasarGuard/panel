@@ -1882,8 +1882,16 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
     const baseRec = { ...(inbound as Record<string, unknown>) }
     const prevSa = (baseRec.streamAdvanced as Record<string, unknown> | undefined) ?? {}
     const sa = { ...prevSa }
-    if (next === undefined) delete sa.finalmask
-    else sa.finalmask = next
+    if (next === undefined) {
+      delete sa.finalmask
+      delete sa.quicParams
+    } else {
+      sa.finalmask = next
+      // The kit importer also exposes finalmask.quicParams as a typed sibling.
+      // Keep that copy in sync because the compiler gives it precedence over finalmask.quicParams.
+      if (isPlainRecord(next.quicParams)) sa.quicParams = { ...next.quicParams }
+      else delete sa.quicParams
+    }
     if (Object.keys(sa).length === 0) delete baseRec.streamAdvanced
     else baseRec.streamAdvanced = sa
     // Prefer canonical finalmask over legacy hysteria transport.udpmasks.
@@ -3527,6 +3535,18 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
 
                             {xPaddingObfsEnabled && (
                               <div className="grid gap-3 sm:grid-cols-2">
+                                <FormItem>
+                                  <FormLabel className="text-xs font-medium">{t('hostsDialog.xhttp.xPaddingBytes', { defaultValue: 'X-Padding Bytes' })}</FormLabel>
+                                  <FormControl>
+                                    <Input
+                                      dir="ltr"
+                                      className="h-10 text-xs"
+                                      value={String(getTransportMetaValue(xhttpExtra, 'xpaddingbytes') ?? '')}
+                                      onChange={e => updateXhttpMeta('xpaddingbytes', e.target.value)}
+                                    />
+                                  </FormControl>
+                                </FormItem>
+
                                 <FormItem>
                                   <FormLabel className="text-xs font-medium">{t('hostsDialog.xhttp.xPaddingKey', { defaultValue: 'X-Padding Key' })}</FormLabel>
                                   <FormControl>
