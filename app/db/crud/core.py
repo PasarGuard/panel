@@ -10,6 +10,8 @@ from app.models.core import (
     CoreSimpleSortOption,
 )
 
+_REORDER_BATCH_SIZE = 10_000
+
 
 def _build_core_simple_sort_clause(sort_option: CoreSimpleSortOption):
     field_map = {
@@ -192,11 +194,12 @@ async def reorder_core_configs(db: AsyncSession, ordered_ids: list[int]) -> bool
     for index, core_id in zip(requested_positions, ordered_ids, strict=True):
         current_ids[index] = core_id
 
-    ordering = {core_id: index for index, core_id in enumerate(current_ids)}
-    if ordering:
+    for batch_start in range(0, len(current_ids), _REORDER_BATCH_SIZE):
+        batch_ids = current_ids[batch_start : batch_start + _REORDER_BATCH_SIZE]
+        ordering = {core_id: index for index, core_id in enumerate(batch_ids, start=batch_start)}
         await db.execute(
             update(CoreConfig)
-            .where(CoreConfig.id.in_(current_ids))
+            .where(CoreConfig.id.in_(batch_ids))
             .values(sort_order=case(ordering, value=CoreConfig.id))
         )
     await db.commit()
