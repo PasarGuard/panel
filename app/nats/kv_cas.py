@@ -24,6 +24,14 @@ async def cas_retry_backoff() -> None:
     await asyncio.sleep(_CAS_RETRY_BASE_DELAY * (1 + random.random()))
 
 
+def is_kv_miss(exc: BaseException) -> bool:
+    """True when JetStream KV has no value yet (first boot / deleted key)."""
+    if isinstance(exc, (nats_js_errors.KeyNotFoundError, nats_js_errors.KeyDeletedError)):
+        return True
+    text = str(exc).lower()
+    return "key not found" in text or "key deleted" in text
+
+
 class CasKv(Protocol):
     async def get(self, key: str) -> Any: ...
 
@@ -39,9 +47,11 @@ class CasKv(Protocol):
 async def kv_get_json(kv: CasKv, key: str) -> tuple[dict[str, Any] | None, int]:
     try:
         entry = await kv.get(key)
-    except (nats_js_errors.KeyNotFoundError, nats_js_errors.KeyDeletedError) as exc:
-        logger.debug("NATS KV miss for key=%s: %s", key, exc)
-        return None, 0
+    except Exception as exc:
+        if is_kv_miss(exc):
+            logger.debug("NATS KV miss for key=%s: %s", key, exc)
+            return None, 0
+        raise
     if not entry or not entry.value:
         return None, getattr(entry, "revision", 0) or 0
     return json.loads(entry.value), entry.revision
