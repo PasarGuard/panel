@@ -34,6 +34,7 @@ from app.subscription.profiles import (
     _retag_xray_outbounds,
     build_singbox_profile,
     build_xray_profile,
+    build_xray_profile_configs,
     endpoint_from_inbound,
     validate_profile_routing_rules,
 )
@@ -929,7 +930,7 @@ async def test_legacy_subscription_generation_does_not_enter_profile_path(monkey
     monkeypatch.setattr("app.subscription.share.get_effective_custom_variables", lambda *args: [])
     monkeypatch.setattr("app.subscription.share.setup_format_variables", lambda *args: {})
     monkeypatch.setattr("app.subscription.share.process_inbounds_and_tags", legacy_output)
-    monkeypatch.setattr("app.subscription.share.build_xray_profile", fail_if_profile_builder_is_called)
+    monkeypatch.setattr("app.subscription.share.build_xray_profile_configs", fail_if_profile_builder_is_called)
 
     result = await generate_subscription(SimpleNamespace(), "xray", as_base64=False)
 
@@ -1135,3 +1136,48 @@ async def test_profile_generation_materialises_download_settings(monkeypatch):
     assert download_settings, "xhttp download settings are missing from the generated profile"
     assert download_settings["address"] == "203.0.113.7"
     assert download_settings["port"] == 8443
+
+
+def test_xray_profile_publishes_one_named_config_per_auto_group():
+    """Xray has no selector outbound, so groups have to be separate configs.
+
+    A client can switch between configs but cannot pick a balancer inside one,
+    so each automatic group is published under its own display name.
+    """
+    configs = build_xray_profile_configs(
+        SubscriptionProfile(
+            default_pool="primary",
+            pools=[ProfilePool(id="primary", title="Fastest"), ProfilePool(id="fallback")],
+        ),
+        [
+            make_endpoint("primary", "es", host_id=401),
+            make_endpoint("primary", "de", host_id=402),
+            make_endpoint("fallback", "es", host_id=403),
+        ],
+    )
+
+    published = {config["remarks"]: config["routing"]["rules"][-1]["balancerTag"] for config in configs}
+    assert published == {
+        "Fastest": "pg-auto-primary",
+        "Auto (fallback)": "pg-auto-fallback",
+        "Auto (DE)": "pg-country-de",
+        "Auto (ES)": "pg-country-es",
+    }
+    # Every entry has to stand on its own, outbounds included.
+    for config in configs:
+        assert config["outbounds"]
+        assert config["routing"]["balancers"]
+
+
+@pytest.mark.asyncio
+async def test_profile_generation_returns_a_json_array(monkeypatch):
+    """The legacy Xray subscription ships a JSON array and clients expect one."""
+    endpoint = make_vless_transport_endpoint("ws", host_id=404)
+    user = _profile_generation_env(monkeypatch, [endpoint.inbound])
+
+    rendered = json.loads(
+        await generate_subscription_profile(user, '{"default_pool":"primary","pools":[{"id":"primary"}]}', "xray")
+    )
+
+    assert isinstance(rendered, list)
+    assert [config["remarks"] for config in rendered] == ["Auto (primary)", "Auto (DE)"]

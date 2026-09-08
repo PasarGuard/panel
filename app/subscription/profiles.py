@@ -6,6 +6,7 @@ module is only called for an explicitly selected profile template.
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 from collections import defaultdict
@@ -289,6 +290,51 @@ def build_xray_profile(
     }
     _validate_xray_output_routing(config)
     return config
+
+
+def _auto_group_label(pool_or_country: str, *, title: str | None = None, is_country: bool = False) -> str:
+    if title:
+        return title
+    return f"Auto ({pool_or_country.upper()})" if is_country else f"Auto ({pool_or_country})"
+
+
+def build_xray_profile_configs(
+    profile: SubscriptionProfile,
+    endpoints: list[ProfileEndpoint],
+    *,
+    client_templates: dict[str, str] | None = None,
+) -> list[dict[str, Any]]:
+    """Emit one named Xray config per automatic group.
+
+    Xray has no selector outbound, so a single config cannot offer the user a
+    choice between groups: only a routing rule can point at a balancer. Clients
+    do let the user pick between whole configs, and the legacy Xray
+    subscription already ships a JSON array, so each group is published as its
+    own entry instead. `remarks` is what the client displays.
+    """
+    base = build_xray_profile(profile, endpoints, client_templates=client_templates)
+    balancer_tags = {balancer["tag"] for balancer in base["routing"]["balancers"]}
+
+    labels: list[tuple[str, str]] = []
+    for pool in profile.pools:
+        tag = f"pg-auto-{pool.id}"
+        if tag in balancer_tags:
+            labels.append((tag, _auto_group_label(pool.id, title=pool.title)))
+    for tag in sorted(balancer_tags):
+        if tag.startswith("pg-country-"):
+            labels.append((tag, _auto_group_label(tag.removeprefix("pg-country-"), is_country=True)))
+
+    configs: list[dict[str, Any]] = []
+    for tag, remark in labels:
+        config = copy.deepcopy(base)
+        # The catch-all rule appended by build_xray_profile is always the last
+        # one; repointing it leaves any operator-authored rule ahead of it
+        # untouched.
+        config["routing"]["rules"][-1]["balancerTag"] = tag
+        config["remarks"] = remark
+        _validate_xray_output_routing(config)
+        configs.append(config)
+    return configs
 
 
 def _singbox_endpoint(

@@ -30,7 +30,7 @@ from . import (
 from .profiles import (
     ProfileValidationError,
     build_singbox_profile,
-    build_xray_profile,
+    build_xray_profile_configs,
     endpoint_from_inbound,
     load_profile,
     validate_profile_routing_rules,
@@ -165,7 +165,7 @@ async def generate_subscription_profile(
 
     if config_format == "xray":
         return json.dumps(
-            build_xray_profile(profile, endpoints, client_templates=client_templates), indent=4, default=str
+            build_xray_profile_configs(profile, endpoints, client_templates=client_templates), indent=4, default=str
         )
     if config_format == "sing_box":
         return json.dumps(

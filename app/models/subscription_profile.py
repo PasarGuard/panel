@@ -47,6 +47,9 @@ class HealthCheckSettings(BaseModel):
 
 class ProfilePool(BaseModel):
     id: str = Field(min_length=1, max_length=64)
+    # Shown to the end user in their client. `id` stays machine-readable because
+    # routing rules address it; this is only ever a label.
+    title: str | None = Field(default=None, max_length=64)
     fallback_pool: str | None = Field(default=None, max_length=64)
     enabled: bool = True
 
