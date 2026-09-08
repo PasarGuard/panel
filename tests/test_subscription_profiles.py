@@ -1307,7 +1307,7 @@ def test_singbox_group_labels_are_readable_and_collision_safe():
 def test_singbox_routing_rules_address_groups_by_their_label():
     """Group tags are the labels, so that is what a routing rule has to name."""
     endpoints = [make_endpoint("primary", "de", host_id=611)]
-    base = dict(default_pool="primary", pools=[ProfilePool(id="primary", title="Fastest")])
+    base = {"default_pool": "primary", "pools": [ProfilePool(id="primary", title="Fastest")]}
 
     config = build_singbox_profile(
         SubscriptionProfile(**base, routing_rules=[{"protocol": "bittorrent", "outbound": "Fastest"}]),
