@@ -36,8 +36,6 @@ from .general import (
     to_utc_for_filter,
 )
 
-_REORDER_BATCH_SIZE = 10_000
-
 
 def _build_node_simple_sort_clause(sort_option: NodeSimpleSortOption):
     field_map = {
@@ -438,25 +436,27 @@ async def create_node(db: AsyncSession, node: NodeCreate) -> Node:
 
 async def reorder_nodes(db: AsyncSession, ordered_ids: list[int]) -> bool:
     """Reorder a page-sized subset while preserving every other node's position."""
-    current_ids = list(
-        (await db.execute(select(Node.id).order_by(Node.sort_order.asc(), Node.id.asc()).with_for_update())).scalars()
+    locked_ids = list(
+        (
+            await db.execute(
+                select(Node.id).where(Node.id.in_(ordered_ids)).order_by(Node.id.asc()).with_for_update()
+            )
+        ).scalars()
     )
-    requested_ids = set(ordered_ids)
-    if not requested_ids.issubset(current_ids):
+    if len(locked_ids) != len(ordered_ids):
         return False
 
-    requested_positions = [index for index, node_id in enumerate(current_ids) if node_id in requested_ids]
-    for index, node_id in zip(requested_positions, ordered_ids, strict=True):
-        current_ids[index] = node_id
-
-    for batch_start in range(0, len(current_ids), _REORDER_BATCH_SIZE):
-        batch_ids = current_ids[batch_start : batch_start + _REORDER_BATCH_SIZE]
-        ordering = {node_id: index for index, node_id in enumerate(batch_ids, start=batch_start)}
-        await db.execute(
-            update(Node)
-            .where(Node.id.in_(batch_ids))
-            .values(sort_order=case(ordering, value=Node.id))
-        )
+    current_sort_orders = list(
+        (
+            await db.execute(
+                select(Node.id, Node.sort_order)
+                .where(Node.id.in_(ordered_ids))
+                .order_by(Node.sort_order.asc(), Node.id.asc())
+            )
+        ).all()
+    )
+    ordering = dict(zip(ordered_ids, (sort_order for _, sort_order in current_sort_orders), strict=True))
+    await db.execute(update(Node).where(Node.id.in_(ordered_ids)).values(sort_order=case(ordering, value=Node.id)))
     await db.commit()
     return True
 

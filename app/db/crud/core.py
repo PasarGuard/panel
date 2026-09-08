@@ -10,8 +10,6 @@ from app.models.core import (
     CoreSimpleSortOption,
 )
 
-_REORDER_BATCH_SIZE = 10_000
-
 
 def _build_core_simple_sort_clause(sort_option: CoreSimpleSortOption):
     field_map = {
@@ -179,29 +177,34 @@ async def get_cores_simple(
 
 async def reorder_core_configs(db: AsyncSession, ordered_ids: list[int]) -> bool:
     """Reorder the requested cores while preserving non-requested positions."""
-    current_ids = list(
+    locked_ids = list(
         (
             await db.execute(
-                select(CoreConfig.id).order_by(CoreConfig.sort_order.asc(), CoreConfig.id.asc()).with_for_update()
+                select(CoreConfig.id)
+                .where(CoreConfig.id.in_(ordered_ids))
+                .order_by(CoreConfig.id.asc())
+                .with_for_update()
             )
         ).scalars()
     )
-    requested_ids = set(ordered_ids)
-    if not requested_ids.issubset(current_ids):
+    if len(locked_ids) != len(ordered_ids):
         return False
 
-    requested_positions = [index for index, core_id in enumerate(current_ids) if core_id in requested_ids]
-    for index, core_id in zip(requested_positions, ordered_ids, strict=True):
-        current_ids[index] = core_id
-
-    for batch_start in range(0, len(current_ids), _REORDER_BATCH_SIZE):
-        batch_ids = current_ids[batch_start : batch_start + _REORDER_BATCH_SIZE]
-        ordering = {core_id: index for index, core_id in enumerate(batch_ids, start=batch_start)}
-        await db.execute(
-            update(CoreConfig)
-            .where(CoreConfig.id.in_(batch_ids))
-            .values(sort_order=case(ordering, value=CoreConfig.id))
-        )
+    current_sort_orders = list(
+        (
+            await db.execute(
+                select(CoreConfig.id, CoreConfig.sort_order)
+                .where(CoreConfig.id.in_(ordered_ids))
+                .order_by(CoreConfig.sort_order.asc(), CoreConfig.id.asc())
+            )
+        ).all()
+    )
+    ordering = dict(zip(ordered_ids, (sort_order for _, sort_order in current_sort_orders), strict=True))
+    await db.execute(
+        update(CoreConfig)
+        .where(CoreConfig.id.in_(ordered_ids))
+        .values(sort_order=case(ordering, value=CoreConfig.id))
+    )
     await db.commit()
     return True
 
