@@ -181,6 +181,7 @@ class NodeManager:
             return node
 
     async def _update_users(self, users: list[ProtoUser]):
+        """Synchronize a user batch to every currently registered node."""
         nodes = await self._snapshot_node_items()
         if not nodes:
             return
@@ -193,7 +194,8 @@ class NodeManager:
                 self.logger.error("Failed to sync users to one of the nodes: %s", result)
 
     async def update_users(self, users: list[ProtoUser]) -> None:
-        asyncio.create_task(self._update_users(users))
+        """Synchronize a user batch and complete only after node updates finish."""
+        await self._update_users(users)
 
     async def update_user(self, user: ProtoUser) -> None:
         nodes = await self._snapshot_nodes()
