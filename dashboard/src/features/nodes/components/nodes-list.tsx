@@ -328,7 +328,7 @@ export default function NodesList() {
     const reorderedNodes = arrayMove(nodesData, oldIndex, newIndex)
     const queryKey = getGetNodesQueryKey(filters)
     const previousResponse = queryClient.getQueryData<NodesResponse>(queryKey)
-    const cancelPendingQuery = queryClient.cancelQueries({ queryKey, exact: true })
+    const cancelPendingQuery = queryClient.cancelQueries({ queryKey, exact: true }, { revert: false })
 
     // Keep the cache update synchronous with dnd-kit's drop event. Waiting before
     // this update lets the dragged card briefly snap back to its old position.
