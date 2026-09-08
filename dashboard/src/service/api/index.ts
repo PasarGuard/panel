@@ -26883,86 +26883,98 @@ export const useResetUserHwids = <TError = ErrorType<Unauthorized | Forbidden | 
       return useMutation(getResetUserHwidsMutationOptions(options), queryClient);
     }
 
+export const getReorderCoreConfigsUrl = () => {
+  return `/api/cores/order`
+}
+
 /**
  * Persist the display order of core configurations.
  * @summary Reorder Core Configs
  */
-export const reorderCoreConfigs = (reorderRequest: BodyType<ReorderRequest>) => {
-  return orvalFetcher<void>({ url: `/api/cores/order`, method: 'PUT', headers: { 'Content-Type': 'application/json' }, data: reorderRequest });
-};
+export const reorderCoreConfigs = async (reorderRequest: BodyType<ReorderRequest>, options?: RequestInit): Promise<void> => {
+  return orvalFetcher<void>(getReorderCoreConfigsUrl(), {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(reorderRequest),
+  })
+}
 
-export const getReorderCoreConfigsMutationOptions = <
-  TData = Awaited<ReturnType<typeof reorderCoreConfigs>>,
-  TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<TData, TError, { data: BodyType<ReorderRequest> }, TContext>;
-}) => {
-  const mutationKey = ['reorderCoreConfigs'];
-  const { mutation: mutationOptions } = options
+export const getReorderCoreConfigsMutationOptions = <TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?: UseMutationOptions<Awaited<ReturnType<typeof reorderCoreConfigs>>, TError, { data: BodyType<ReorderRequest> }, TContext>, request?: SecondParameter<typeof orvalFetcher> }
+): UseMutationOptions<Awaited<ReturnType<typeof reorderCoreConfigs>>, TError, { data: BodyType<ReorderRequest> }, TContext> => {
+  const mutationKey = ['reorderCoreConfigs']
+  const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
       ? options
       : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey } };
+    : { mutation: { mutationKey }, request: undefined }
 
   const mutationFn: MutationFunction<Awaited<ReturnType<typeof reorderCoreConfigs>>, { data: BodyType<ReorderRequest> }> = props => {
-    const { data } = props ?? {};
-    return reorderCoreConfigs(data);
-  };
+    const { data } = props ?? {}
+    return reorderCoreConfigs(data, requestOptions)
+  }
 
-  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { data: BodyType<ReorderRequest> }, TContext>;
-};
+  return { mutationFn, ...mutationOptions }
+}
 
-export type ReorderCoreConfigsMutationResult = NonNullable<Awaited<ReturnType<typeof reorderCoreConfigs>>>;
-export type ReorderCoreConfigsMutationBody = BodyType<ReorderRequest>;
-export type ReorderCoreConfigsMutationError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>;
+export type ReorderCoreConfigsMutationResult = NonNullable<Awaited<ReturnType<typeof reorderCoreConfigs>>>
+export type ReorderCoreConfigsMutationBody = BodyType<ReorderRequest>
+export type ReorderCoreConfigsMutationError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>
 
 /**
  * @summary Reorder Core Configs
  */
-export const useReorderCoreConfigs = <TData = Awaited<ReturnType<typeof reorderCoreConfigs>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>, TContext = unknown>(options?: {
-  mutation?: UseMutationOptions<TData, TError, { data: BodyType<ReorderRequest> }, TContext>;
-}): UseMutationResult<TData, TError, { data: BodyType<ReorderRequest> }, TContext> => {
-  const mutationOptions = getReorderCoreConfigsMutationOptions(options);
-  return useMutation(mutationOptions);
-};
+export const useReorderCoreConfigs = <TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?: UseMutationOptions<Awaited<ReturnType<typeof reorderCoreConfigs>>, TError, { data: BodyType<ReorderRequest> }, TContext>, request?: SecondParameter<typeof orvalFetcher> }
+ , queryClient?: QueryClient): UseMutationResult<Awaited<ReturnType<typeof reorderCoreConfigs>>, TError, { data: BodyType<ReorderRequest> }, TContext> => {
+  return useMutation(getReorderCoreConfigsMutationOptions(options), queryClient)
+}
+
+export const getReorderNodesUrl = () => {
+  return `/api/nodes/order`
+}
 
 /**
  * Persist the display order of nodes.
  * @summary Reorder Nodes
  */
-export const reorderNodes = (reorderRequest: BodyType<ReorderRequest>) => {
-  return orvalFetcher<void>({ url: `/api/nodes/order`, method: 'PUT', headers: { 'Content-Type': 'application/json' }, data: reorderRequest });
-};
+export const reorderNodes = async (reorderRequest: BodyType<ReorderRequest>, options?: RequestInit): Promise<void> => {
+  return orvalFetcher<void>(getReorderNodesUrl(), {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(reorderRequest),
+  })
+}
 
-export const getReorderNodesMutationOptions = <TData = Awaited<ReturnType<typeof reorderNodes>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>, TContext = unknown>(options?: {
-  mutation?: UseMutationOptions<TData, TError, { data: BodyType<ReorderRequest> }, TContext>;
-}) => {
-  const mutationKey = ['reorderNodes'];
-  const { mutation: mutationOptions } = options
+export const getReorderNodesMutationOptions = <TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?: UseMutationOptions<Awaited<ReturnType<typeof reorderNodes>>, TError, { data: BodyType<ReorderRequest> }, TContext>, request?: SecondParameter<typeof orvalFetcher> }
+): UseMutationOptions<Awaited<ReturnType<typeof reorderNodes>>, TError, { data: BodyType<ReorderRequest> }, TContext> => {
+  const mutationKey = ['reorderNodes']
+  const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
       ? options
       : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey } };
+    : { mutation: { mutationKey }, request: undefined }
 
   const mutationFn: MutationFunction<Awaited<ReturnType<typeof reorderNodes>>, { data: BodyType<ReorderRequest> }> = props => {
-    const { data } = props ?? {};
-    return reorderNodes(data);
-  };
+    const { data } = props ?? {}
+    return reorderNodes(data, requestOptions)
+  }
 
-  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { data: BodyType<ReorderRequest> }, TContext>;
-};
+  return { mutationFn, ...mutationOptions }
+}
 
-export type ReorderNodesMutationResult = NonNullable<Awaited<ReturnType<typeof reorderNodes>>>;
-export type ReorderNodesMutationBody = BodyType<ReorderRequest>;
-export type ReorderNodesMutationError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>;
+export type ReorderNodesMutationResult = NonNullable<Awaited<ReturnType<typeof reorderNodes>>>
+export type ReorderNodesMutationBody = BodyType<ReorderRequest>
+export type ReorderNodesMutationError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>
 
 /**
  * @summary Reorder Nodes
  */
-export const useReorderNodes = <TData = Awaited<ReturnType<typeof reorderNodes>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>, TContext = unknown>(options?: {
-  mutation?: UseMutationOptions<TData, TError, { data: BodyType<ReorderRequest> }, TContext>;
-}): UseMutationResult<TData, TError, { data: BodyType<ReorderRequest> }, TContext> => {
-  const mutationOptions = getReorderNodesMutationOptions(options);
-  return useMutation(mutationOptions);
-};
+export const useReorderNodes = <TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?: UseMutationOptions<Awaited<ReturnType<typeof reorderNodes>>, TError, { data: BodyType<ReorderRequest> }, TContext>, request?: SecondParameter<typeof orvalFetcher> }
+ , queryClient?: QueryClient): UseMutationResult<Awaited<ReturnType<typeof reorderNodes>>, TError, { data: BodyType<ReorderRequest> }, TContext> => {
+  return useMutation(getReorderNodesMutationOptions(options), queryClient)
+}
