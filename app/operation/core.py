@@ -46,6 +46,7 @@ logger = get_logger("core-operation")
 
 class CoreOperation(BaseOperation):
     async def reorder_cores(self, db: AsyncSession, ordered_ids: list[int], admin: AdminDetails) -> None:
+        """Persist a core configuration order requested by an administrator."""
         if not await reorder_core_configs(db, ordered_ids):
             await self.raise_error(message="Core not found", code=404, db=db)
         logger.info('Core configs reordered by admin "%s"', admin.username)
