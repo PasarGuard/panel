@@ -153,7 +153,12 @@ export const defaultSubscriptionRules: SubscriptionRuleFormData[] = [
     target: 'outline',
   },
   {
-    pattern: '^([Vv]2rayNG|[Vv]2rayN|[Ss]treisand|[Hh]app|[Kk]tor\\-client)',
+    // Happ and NPV Tunnel consume a full Xray JSON config and apply its own
+    // `routing` section. v2rayN, v2rayNG and Streisand import share links
+    // natively; handing them JSON turns each server into an opaque custom
+    // config, so their own routing, local port and latency probing stop
+    // applying. They stay on links unless an operator opts in.
+    pattern: '^([Hh]app|[Kk]tor\\-client)',
     target: 'xray',
   },
   {
