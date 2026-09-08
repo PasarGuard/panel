@@ -888,8 +888,23 @@ export interface WireGuardHostOverrides {
   dns?: string[] | null;
 }
 
+/**
+ * Endpoint membership used only by opt-in multi-client profiles.
+ */
+export interface HostProfileClassification {
+  /**
+     * @minLength 1
+     * @maxLength 64
+     */
+  pool?: string;
+  country?: string | null;
+  priority?: number | null;
+  exclude_from_auto?: boolean;
+}
+
 export interface SubscriptionTemplates {
   xray?: number | null;
+  profile?: HostProfileClassification | null;
 }
 
 export type FinalMaskTcpType = typeof FinalMaskTcpType[keyof typeof FinalMaskTcpType];
@@ -1335,6 +1350,8 @@ export const ClientTemplateType = {
   clash_subscription: 'clash_subscription',
   xray_subscription: 'xray_subscription',
   singbox_subscription: 'singbox_subscription',
+  xray_profile: 'xray_profile',
+  singbox_profile: 'singbox_profile',
   user_agent: 'user_agent',
   grpc_user_agent: 'grpc_user_agent',
 } as const;
@@ -2111,6 +2128,7 @@ export interface SubRule {
   pattern: string;
   target: ConfigFormat;
   response_headers?: SubRuleResponseHeaders;
+  profile_id?: number | null;
 }
 
 export interface SubFormatEnable {
@@ -21346,6 +21364,150 @@ export function useGetUserSubscriptionById<TData = Awaited<ReturnType<typeof get
 
 
 
+export type getUserSubscriptionProfilePreviewResponse200 = {
+  data: unknown
+  status: 200
+}
+
+export type getUserSubscriptionProfilePreviewResponse401 = {
+  data: Unauthorized
+  status: 401
+}
+
+export type getUserSubscriptionProfilePreviewResponse403 = {
+  data: Forbidden
+  status: 403
+}
+
+export type getUserSubscriptionProfilePreviewResponse404 = {
+  data: NotFound
+  status: 404
+}
+
+export type getUserSubscriptionProfilePreviewResponse422 = {
+  data: HTTPValidationError
+  status: 422
+}
+
+export type getUserSubscriptionProfilePreviewResponseSuccess = (getUserSubscriptionProfilePreviewResponse200) & {
+  headers: Headers;
+};
+export type getUserSubscriptionProfilePreviewResponseError = (getUserSubscriptionProfilePreviewResponse401 | getUserSubscriptionProfilePreviewResponse403 | getUserSubscriptionProfilePreviewResponse404 | getUserSubscriptionProfilePreviewResponse422) & {
+  headers: Headers;
+};
+
+export type getUserSubscriptionProfilePreviewResponse = (getUserSubscriptionProfilePreviewResponseSuccess | getUserSubscriptionProfilePreviewResponseError)
+
+export const getGetUserSubscriptionProfilePreviewUrl = (userId: number,
+    profileId: number,) => {
+
+
+
+
+  return `/api/user/${userId}/subscription/profile/${profileId}`
+}
+
+/**
+ * Return a no-store, user-specific Xray/Sing-box profile preview.
+ * @summary Get User Subscription Profile Preview
+ */
+export const getUserSubscriptionProfilePreview = async (userId: number,
+    profileId: number, options?: RequestInit): Promise<getUserSubscriptionProfilePreviewResponse> => {
+
+  return orvalFetcher<getUserSubscriptionProfilePreviewResponse>(getGetUserSubscriptionProfilePreviewUrl(userId,profileId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetUserSubscriptionProfilePreviewQueryKey = (userId: number,
+    profileId: number,) => {
+    return [
+    `/api/user/${userId}/subscription/profile/${profileId}`
+    ] as const;
+    }
+
+
+export const getGetUserSubscriptionProfilePreviewQueryOptions = <TData = Awaited<ReturnType<typeof getUserSubscriptionProfilePreview>>, TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>>(userId: number,
+    profileId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserSubscriptionProfilePreview>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetUserSubscriptionProfilePreviewQueryKey(userId,profileId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getUserSubscriptionProfilePreview>>> = ({ signal }) => getUserSubscriptionProfilePreview(userId,profileId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: userId !== null && userId !== undefined && profileId !== null && profileId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getUserSubscriptionProfilePreview>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetUserSubscriptionProfilePreviewQueryResult = NonNullable<Awaited<ReturnType<typeof getUserSubscriptionProfilePreview>>>
+export type GetUserSubscriptionProfilePreviewQueryError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>
+
+
+export function useGetUserSubscriptionProfilePreview<TData = Awaited<ReturnType<typeof getUserSubscriptionProfilePreview>>, TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>>(
+ userId: number,
+    profileId: number, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserSubscriptionProfilePreview>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getUserSubscriptionProfilePreview>>,
+          TError,
+          Awaited<ReturnType<typeof getUserSubscriptionProfilePreview>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetUserSubscriptionProfilePreview<TData = Awaited<ReturnType<typeof getUserSubscriptionProfilePreview>>, TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>>(
+ userId: number,
+    profileId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserSubscriptionProfilePreview>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getUserSubscriptionProfilePreview>>,
+          TError,
+          Awaited<ReturnType<typeof getUserSubscriptionProfilePreview>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetUserSubscriptionProfilePreview<TData = Awaited<ReturnType<typeof getUserSubscriptionProfilePreview>>, TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>>(
+ userId: number,
+    profileId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserSubscriptionProfilePreview>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get User Subscription Profile Preview
+ */
+
+export function useGetUserSubscriptionProfilePreview<TData = Awaited<ReturnType<typeof getUserSubscriptionProfilePreview>>, TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>>(
+ userId: number,
+    profileId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserSubscriptionProfilePreview>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetUserSubscriptionProfilePreviewQueryOptions(userId,profileId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export type getUserSubUpdateListResponse200 = {
   data: UserSubscriptionUpdateList
   status: 200
@@ -25239,6 +25401,135 @@ export function useUserSubscriptionApps<TData = Awaited<ReturnType<typeof userSu
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getUserSubscriptionAppsQueryOptions(token,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type userSubscriptionProfileResponse200 = {
+  data: unknown
+  status: 200
+}
+
+export type userSubscriptionProfileResponse422 = {
+  data: HTTPValidationError
+  status: 422
+}
+
+export type userSubscriptionProfileResponseSuccess = (userSubscriptionProfileResponse200) & {
+  headers: Headers;
+};
+export type userSubscriptionProfileResponseError = (userSubscriptionProfileResponse422) & {
+  headers: Headers;
+};
+
+export type userSubscriptionProfileResponse = (userSubscriptionProfileResponseSuccess | userSubscriptionProfileResponseError)
+
+export const getUserSubscriptionProfileUrl = (token: string,
+    profileId: number,) => {
+
+
+
+
+  return `/sub/${token}/profile/${profileId}`
+}
+
+/**
+ * Provides an opt-in full Xray or Sing-box client profile.
+ * @summary User Subscription Profile
+ */
+export const userSubscriptionProfile = async (token: string,
+    profileId: number, options?: RequestInit): Promise<userSubscriptionProfileResponse> => {
+
+  return orvalFetcher<userSubscriptionProfileResponse>(getUserSubscriptionProfileUrl(token,profileId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getUserSubscriptionProfileQueryKey = (token: string,
+    profileId: number,) => {
+    return [
+    `/sub/${token}/profile/${profileId}`
+    ] as const;
+    }
+
+
+export const getUserSubscriptionProfileQueryOptions = <TData = Awaited<ReturnType<typeof userSubscriptionProfile>>, TError = ErrorType<HTTPValidationError>>(token: string,
+    profileId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof userSubscriptionProfile>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getUserSubscriptionProfileQueryKey(token,profileId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof userSubscriptionProfile>>> = ({ signal }) => userSubscriptionProfile(token,profileId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: token !== null && token !== undefined && profileId !== null && profileId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof userSubscriptionProfile>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type UserSubscriptionProfileQueryResult = NonNullable<Awaited<ReturnType<typeof userSubscriptionProfile>>>
+export type UserSubscriptionProfileQueryError = ErrorType<HTTPValidationError>
+
+
+export function useUserSubscriptionProfile<TData = Awaited<ReturnType<typeof userSubscriptionProfile>>, TError = ErrorType<HTTPValidationError>>(
+ token: string,
+    profileId: number, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof userSubscriptionProfile>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof userSubscriptionProfile>>,
+          TError,
+          Awaited<ReturnType<typeof userSubscriptionProfile>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useUserSubscriptionProfile<TData = Awaited<ReturnType<typeof userSubscriptionProfile>>, TError = ErrorType<HTTPValidationError>>(
+ token: string,
+    profileId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof userSubscriptionProfile>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof userSubscriptionProfile>>,
+          TError,
+          Awaited<ReturnType<typeof userSubscriptionProfile>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useUserSubscriptionProfile<TData = Awaited<ReturnType<typeof userSubscriptionProfile>>, TError = ErrorType<HTTPValidationError>>(
+ token: string,
+    profileId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof userSubscriptionProfile>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary User Subscription Profile
+ */
+
+export function useUserSubscriptionProfile<TData = Awaited<ReturnType<typeof userSubscriptionProfile>>, TError = ErrorType<HTTPValidationError>>(
+ token: string,
+    profileId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof userSubscriptionProfile>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getUserSubscriptionProfileQueryOptions(token,profileId,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 

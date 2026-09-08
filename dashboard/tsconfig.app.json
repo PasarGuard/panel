@@ -24,5 +24,7 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true
   },
-  "include": ["src"]
+  "include": ["src"],
+  // Bun runs these through its own transpiler; `bun:test` has no types here.
+  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx"]
 }
