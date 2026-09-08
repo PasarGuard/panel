@@ -1153,6 +1153,7 @@
       "addPool": "Добавить пул",
       "defaultPool": "Пул по умолчанию",
       "poolName": "Имя пула",
+      "poolTitle": "Отображаемое имя",
       "fallbackPool": "Резервный пул",
       "noFallback": "Без резерва",
       "enabled": "Включён",

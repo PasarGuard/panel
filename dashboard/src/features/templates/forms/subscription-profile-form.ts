@@ -19,6 +19,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 export const profilePoolSchema = z
   .object({
     id: z.string().min(1).max(64).regex(PROFILE_ID_PATTERN, "Use lowercase letters, numbers, '_' or '-'."),
+    // Display label only; `id` stays machine-readable because routing rules address it.
+    title: z.string().max(64).nullable().optional(),
     fallback_pool: z.string().max(64).regex(PROFILE_ID_PATTERN, "Use lowercase letters, numbers, '_' or '-'.").nullable().optional(),
     enabled: z.boolean().default(true),
   })

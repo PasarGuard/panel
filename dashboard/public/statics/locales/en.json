@@ -1159,6 +1159,7 @@
       "addPool": "Add pool",
       "defaultPool": "Default pool",
       "poolName": "Pool name",
+      "poolTitle": "Display name",
       "fallbackPool": "Fallback pool",
       "noFallback": "No fallback",
       "enabled": "Enabled",

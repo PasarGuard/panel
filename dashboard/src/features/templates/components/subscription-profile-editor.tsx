@@ -140,7 +140,7 @@ export function SubscriptionProfileEditor({ value, onChange, onValidate, dialogO
 
               <div className="space-y-3">
                 {parsed.data.pools.map((pool, index) => (
-                  <div key={`${pool.id}-${index}`} className="grid gap-3 rounded-md border p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+                  <div key={`${pool.id}-${index}`} className="grid gap-3 rounded-md border p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto]">
                     <label className="grid gap-1.5 text-sm">
                       <span>{t('clientTemplates.profile.poolName', { defaultValue: 'Pool name' })}</span>
                       <Input
@@ -159,6 +159,22 @@ export function SubscriptionProfileEditor({ value, onChange, onValidate, dialogO
                               })),
                             }
                           })
+                        }}
+                      />
+                    </label>
+                    <label className="grid gap-1.5 text-sm">
+                      <span>{t('clientTemplates.profile.poolTitle', { defaultValue: 'Display name' })}</span>
+                      <Input
+                        value={pool.title ?? ''}
+                        placeholder={`Auto (${pool.id})`}
+                        onChange={event => {
+                          const title = event.target.value
+                          updateProfile(profile => ({
+                            ...profile,
+                            pools: profile.pools.map((entry, entryIndex) =>
+                              entryIndex === index ? { ...entry, title: title || null } : entry,
+                            ),
+                          }))
                         }}
                       />
                     </label>

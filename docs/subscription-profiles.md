@@ -68,9 +68,10 @@ by the normal user read permission and sends `Cache-Control: no-store`.
    endpoints out of automatic probes with **Exclude from automatic groups**.
 3. Preview the profile for one user, download
    `/{SUBSCRIPTION_PATH}/{token}/profile/{profile_id}`, and import that single
-   JSON URL into an Xray/Sing-box client. The client receives `pg-auto-primary`
-   and country groups such as `pg-country-de`; choose a specific Xray
-   pool/country with a routing rule.
+   JSON URL into an Xray/Sing-box client. An Xray client lists one entry per
+   automatic group -- `Auto (primary)`, `Auto (DE)`, `Auto (ES)` -- and the
+   user picks between them like any other server. Give a pool a friendlier
+   label with `title`.
 4. To return to the old subscription, remove `profile_id` from the matching
    subscription rule (or use the ordinary legacy URL). No host data or legacy
    template is converted or deleted; the next refresh uses the previous
@@ -81,8 +82,16 @@ by the normal user read permission and sends `Cache-Control: no-store`.
 Xray profiles create one outbound per eligible endpoint, `observatory`, and a
 routing balancer per pool/country.  A pool's `fallback_pool` is emitted as the
 Xray balancer's `fallbackTag`, which must name a concrete fallback endpoint.
-Xray has no Sing-box-style selector outbound; choose a pool/country by adding a
-routing rule that points to `pg-auto-<pool>` or `pg-country-<country>`.
+
+Xray has no Sing-box-style selector outbound, so a balancer cannot be chosen
+from inside a config -- only a routing rule can point at one.  The profile is
+therefore published as a JSON **array** (the same shape the legacy Xray
+subscription already uses), holding one complete config per automatic group
+whose catch-all rule targets that group's balancer.  Each entry carries a
+`remarks` label, which is what the client displays: `title` when a pool sets
+one, otherwise `Auto (<pool>)` and `Auto (<COUNTRY>)`.  Balancer tags stay
+machine-readable (`pg-auto-<pool>`, `pg-country-<country>`) because
+operator-authored routing rules address them.
 
 Sing-box profiles create selectors for non-empty pools and a separate `urltest`
 only when that pool has automatic endpoints, then a top-level `proxy` selector.
