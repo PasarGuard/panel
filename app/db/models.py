@@ -193,6 +193,7 @@ class DataLimitResetStrategy(str, Enum):
 class User(Base, CreatedAtUTCMixin):
     __tablename__ = "users"
     __table_args__ = (
+        Index("idx_users_created_at_id", "created_at", "id"),
         Index("idx_users_admin_online", "admin_id", "online_at"),
         Index("idx_users_admin_status", "admin_id", "status"),
         Index("idx_users_admin_created", "admin_id", "created_at"),
