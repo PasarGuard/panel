@@ -1882,8 +1882,16 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
     const baseRec = { ...(inbound as Record<string, unknown>) }
     const prevSa = (baseRec.streamAdvanced as Record<string, unknown> | undefined) ?? {}
     const sa = { ...prevSa }
-    if (next === undefined) delete sa.finalmask
-    else sa.finalmask = next
+    if (next === undefined) {
+      delete sa.finalmask
+      delete sa.quicParams
+    } else {
+      sa.finalmask = next
+      // The kit importer also exposes finalmask.quicParams as a typed sibling.
+      // Keep that copy in sync because the compiler gives it precedence over finalmask.quicParams.
+      if (isPlainRecord(next.quicParams)) sa.quicParams = { ...next.quicParams }
+      else delete sa.quicParams
+    }
     if (Object.keys(sa).length === 0) delete baseRec.streamAdvanced
     else baseRec.streamAdvanced = sa
     // Prefer canonical finalmask over legacy hysteria transport.udpmasks.
