@@ -70,6 +70,15 @@ _SUBSCRIPTION_UPDATE_IP_MAX_LEN = UserSubscriptionUpdate.__table__.columns.ip.ty
 _ONLINE_USERS_WINDOW = timedelta(minutes=2)
 
 
+def _user_reset_traffic_subquery():
+    return (
+        select(func.coalesce(func.sum(UserUsageResetLogs.used_traffic_at_reset), 0))
+        .where(UserUsageResetLogs.user_id == User.id)
+        .correlate(User)
+        .scalar_subquery()
+    )
+
+
 def _safe_on_hold_expire_duration(duration: int | None) -> int | None:
     if duration is None or duration <= 0:
         return None
@@ -114,13 +123,7 @@ def _build_user_select_stmt(
     if options:
         stmt = stmt.options(*options)
     if load_lifetime_used_traffic:
-        reset_traffic = (
-            select(func.coalesce(func.sum(UserUsageResetLogs.used_traffic_at_reset), 0))
-            .where(UserUsageResetLogs.user_id == User.id)
-            .correlate(User)
-            .scalar_subquery()
-        )
-        stmt = stmt.options(with_expression(User._reseted_usage_query, reset_traffic))
+        stmt = stmt.options(with_expression(User._reseted_usage_query, _user_reset_traffic_subquery()))
     return stmt
 
 
@@ -328,6 +331,8 @@ async def get_users(
     admin: Admin | None = None,
     return_with_count: bool = False,
     load_admin_role: bool = False,
+    load_usage_logs: bool = True,
+    load_lifetime_used_traffic: bool = False,
 ) -> list[User] | tuple[list[User], int]:
     """
     Retrieves users based on various filters.
@@ -337,6 +342,8 @@ async def get_users(
         query: Structured user list query filters.
         admin: Admin filter.
         return_with_count: Whether to return total count.
+        load_usage_logs: Whether to materialize reset-history rows.
+        load_lifetime_used_traffic: Whether to calculate lifetime usage with an aggregate.
 
     Returns:
         List of users or tuple with (users, count) if return_with_count is True.
@@ -345,12 +352,16 @@ async def get_users(
     if load_admin_role:
         admin_loader = admin_loader.selectinload(Admin.role)
 
-    stmt = select(User).options(
+    options = [
         admin_loader,
         selectinload(User.next_plan),
-        selectinload(User.usage_logs),
         selectinload(User.groups),
-    )
+    ]
+    if load_usage_logs:
+        options.append(selectinload(User.usage_logs))
+    if load_lifetime_used_traffic:
+        options.append(with_expression(User._reseted_usage_query, _user_reset_traffic_subquery()))
+    stmt = select(User).options(*options)
 
     filters = []
     if query.ids:

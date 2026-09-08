@@ -15,7 +15,7 @@ async def test_connect_nodes_bulk_local_caps_concurrency(monkeypatch: pytest.Mon
     current = 0
     peak = 0
 
-    async def _connect_node(db_node, core, users):
+    async def _connect_node(db_node, core, users, *, force_start=False):
         nonlocal current, peak
         current += 1
         peak = max(peak, current)

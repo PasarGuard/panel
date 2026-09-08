@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import random
 from typing import Any, Protocol
@@ -23,6 +24,14 @@ async def cas_retry_backoff() -> None:
     await asyncio.sleep(_CAS_RETRY_BASE_DELAY * (1 + random.random()))
 
 
+def is_kv_miss(exc: BaseException) -> bool:
+    """True when JetStream KV has no value yet (first boot / deleted key)."""
+    if isinstance(exc, (nats_js_errors.KeyNotFoundError, nats_js_errors.KeyDeletedError)):
+        return True
+    text = str(exc).lower()
+    return "key not found" in text or "key deleted" in text
+
+
 class CasKv(Protocol):
     async def get(self, key: str) -> Any: ...
 
@@ -38,9 +47,11 @@ class CasKv(Protocol):
 async def kv_get_json(kv: CasKv, key: str) -> tuple[dict[str, Any] | None, int]:
     try:
         entry = await kv.get(key)
-    except (nats_js_errors.KeyNotFoundError, nats_js_errors.KeyDeletedError) as exc:
-        logger.debug("NATS KV miss for key=%s: %s", key, exc)
-        return None, 0
+    except Exception as exc:
+        if is_kv_miss(exc):
+            logger.debug("NATS KV miss for key=%s: %s", key, exc)
+            return None, 0
+        raise
     if not entry or not entry.value:
         return None, getattr(entry, "revision", 0) or 0
     return json.loads(entry.value), entry.revision
@@ -71,6 +82,27 @@ async def kv_put_json(kv: CasKv, key: str, value: dict[str, Any]) -> None:
 
 
 async def kv_list_keys(kv: CasKv, prefix: str) -> list[str]:
+    # kv.keys() always watches the entire bucket ("watch('>')") and only filters
+    # client-side, even when passed a `filters` argument. With many nodes sharing
+    # one bucket that means every call streams every key in the whole bucket to
+    # every caller, which floods NATS ("Slow Consumer" / consumer_info timeouts)
+    # as the number of nodes and pending/claimed users grows. Real KV objects
+    # support watch(), whose `keys` argument becomes the JetStream consumer's
+    # filter subject, so use that to filter server-side to this prefix only.
+    watch = getattr(kv, "watch", None)
+    if callable(watch):
+        watcher = await watch(f"{prefix}*", ignore_deletes=True, meta_only=True)
+        try:
+            keys: list[str] = []
+            async for entry in watcher:
+                if entry is None:
+                    break
+                keys.append(entry.key)
+            return keys
+        finally:
+            with contextlib.suppress(Exception):
+                await watcher.stop()
+
     try:
         keys = await kv.keys()
     except nats_js_errors.NoKeysError:

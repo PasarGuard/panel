@@ -56,7 +56,7 @@ export default function NodeLogs() {
   const { t } = useTranslation()
   const dir = useDirDetection()
   const [selectedNode, setSelectedNode] = useState<number>(0)
-  const [rawLogs, setRawLogs] = React.useState<string[]>([])
+  const [rawLogs, setRawLogs] = React.useState<LogLine[]>([])
   const [autoScroll, setAutoScroll] = React.useState(true)
   const [lines, setLines] = React.useState<number>(1000)
   const [search, setSearch] = React.useState<string>('')
@@ -64,7 +64,7 @@ export default function NodeLogs() {
   const [since, setSince] = React.useState<TimeFilter>('all')
   const [typeFilter, setTypeFilter] = React.useState<string[]>([])
   const [isPaused, setIsPaused] = React.useState(false)
-  const [messageBuffer, setMessageBuffer] = React.useState<string[]>([])
+  const [messageBuffer, setMessageBuffer] = React.useState<LogLine[]>([])
   const isPausedRef = useRef(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const [isLoading, setIsLoading] = React.useState(false)
@@ -198,13 +198,15 @@ export default function NodeLogs() {
     eventSource.onmessage = e => {
       if (!isCurrentConnection) return
 
+      const parsedLogs = parseLogs(e.data)
+
       if (isPausedRef.current) {
         // When paused, buffer the messages instead of displaying them
-        setMessageBuffer(prev => [...prev, e.data])
+        setMessageBuffer(prev => [...prev, ...parsedLogs])
       } else {
         // When not paused, display messages normally
         setRawLogs(prev => {
-          const updated = [...prev, e.data]
+          const updated = [...prev, ...parsedLogs]
           return updated.slice(-RAW_LOG_BUFFER_MAX)
         })
       }
@@ -233,9 +235,7 @@ export default function NodeLogs() {
   }, [isPaused])
 
   const filteredLogs = useMemo(() => {
-    const logs = parseLogs(rawLogs.join('\n'))
-
-    const sortedLogs = [...logs].sort((a, b) => {
+    const sortedLogs = [...rawLogs].sort((a, b) => {
       if (!a.timestamp && !b.timestamp) return 0
       if (!a.timestamp) return 1
       if (!b.timestamp) return -1
@@ -356,7 +356,7 @@ export default function NodeLogs() {
                 className="custom-logs-scrollbar bg-background/75 h-[calc(100vh-280px)] max-h-[720px] min-h-[400px] space-y-0 overflow-x-hidden overflow-y-auto rounded sm:h-[720px] sm:min-h-0"
               >
                 {filteredLogs.length > 0 ? (
-                  filteredLogs.map((filteredLog: LogLine, index: number) => <TerminalLine key={index} log={filteredLog} searchTerm={search} noTimestamp={!showTimestamp} />)
+                  filteredLogs.map((filteredLog: LogLine) => <TerminalLine key={filteredLog.id} log={filteredLog} searchTerm={search} noTimestamp={!showTimestamp} />)
                 ) : isLoading ? (
                   <div className="text-muted-foreground flex h-full items-center justify-center">
                     <Loader2 className="h-6 w-6" />
