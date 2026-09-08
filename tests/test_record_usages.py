@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 from sqlalchemy import select
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import OperationalError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool, StaticPool
 
@@ -150,7 +150,7 @@ async def test_record_user_usages_updates_users_and_admins(monkeypatch: pytest.M
         node_two_id: [{"uid": str(user_one_id), "value": 75}],
     }
 
-    async def fake_get_users_stats(node: DummyNode):
+    async def fake_get_users_stats(node: DummyNode, node_id: int | None = None):
         return stats_map[node.node_id]
 
     monkeypatch.setattr(record_usages, "get_users_stats", fake_get_users_stats)
@@ -220,7 +220,7 @@ async def test_record_user_usages_limits_overused_admin(monkeypatch: pytest.Monk
         record_usages.node_manager, "get_healthy_nodes", AsyncMock(return_value=[(node_id, DummyNode(node_id))])
     )
 
-    async def fake_get_users_stats(_: DummyNode):
+    async def fake_get_users_stats(_: DummyNode, node_id: int | None = None):
         return [{"uid": str(user_id), "value": 150}]
 
     remove_users = AsyncMock()
@@ -284,7 +284,7 @@ async def test_record_user_stats_batched_chunks_mysql_batches(monkeypatch: pytes
     async def fake_get_dialect():
         return "mysql"
 
-    async def fake_safe_execute(stmt, params=None, max_retries=2):
+    async def fake_safe_execute(stmt, params=None, max_retries=5):
         executed_param_sizes.append(len(params))
 
     monkeypatch.setattr(record_usages, "get_dialect", fake_get_dialect)
@@ -324,7 +324,7 @@ async def test_record_user_usages_returns_when_no_usage(monkeypatch: pytest.Monk
     nodes = [(node_id, DummyNode(node_id))]
     monkeypatch.setattr(record_usages.node_manager, "get_healthy_nodes", AsyncMock(return_value=nodes))
 
-    async def fake_get_users_stats(_: DummyNode):
+    async def fake_get_users_stats(_: DummyNode, node_id: int | None = None):
         return []
 
     monkeypatch.setattr(record_usages, "get_users_stats", fake_get_users_stats)
@@ -378,7 +378,7 @@ async def test_record_node_usages_updates_totals(monkeypatch: pytest.MonkeyPatch
         node_two_id: [{"up": 1, "down": 1}],
     }
 
-    async def fake_get_outbounds_stats(node: DummyNode):
+    async def fake_get_outbounds_stats(node: DummyNode, node_id: int | None = None):
         return stats_map[node.node_id]
 
     monkeypatch.setattr(record_usages, "get_outbounds_stats", fake_get_outbounds_stats)
@@ -427,7 +427,7 @@ async def test_record_node_usages_returns_when_totals_zero(monkeypatch: pytest.M
     nodes = [(node_id, DummyNode(node_id))]
     monkeypatch.setattr(record_usages.node_manager, "get_healthy_nodes", AsyncMock(return_value=nodes))
 
-    async def fake_get_outbounds_stats(_: DummyNode):
+    async def fake_get_outbounds_stats(_: DummyNode, node_id: int | None = None):
         return [{"up": 0, "down": 0}]
 
     monkeypatch.setattr(record_usages, "get_outbounds_stats", fake_get_outbounds_stats)
@@ -447,3 +447,90 @@ async def test_record_node_usages_returns_when_totals_zero(monkeypatch: pytest.M
 
         node_usage_rows = await session.execute(select(NodeUsage.id))
         assert node_usage_rows.first() is None
+
+
+class _DeadlockOrig(Exception):
+    def __init__(self):
+        super().__init__(1213, "Deadlock found when trying to get lock; try restarting transaction")
+
+
+class _FakeBeginConn:
+    def __init__(self, execute):
+        self._execute = execute
+
+    async def execute(self, stmt, params=None):
+        return await self._execute(stmt, params)
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        return False
+
+
+class _FakeEngine:
+    def __init__(self, execute):
+        self._execute = execute
+
+    def execution_options(self, **_kwargs):
+        return self
+
+    def begin(self):
+        return _FakeBeginConn(self._execute)
+
+
+@pytest.mark.asyncio
+async def test_safe_execute_retries_mysql_deadlock(monkeypatch: pytest.MonkeyPatch):
+    attempts = {"n": 0}
+
+    async def flaky_execute(_stmt, _params=None):
+        attempts["n"] += 1
+        if attempts["n"] < 3:
+            raise OperationalError("stmt", {}, _DeadlockOrig())
+
+    monkeypatch.setattr(record_usages, "engine", _FakeEngine(flaky_execute))
+    monkeypatch.setattr(record_usages, "get_dialect", AsyncMock(return_value="mysql"))
+    monkeypatch.setattr(record_usages.asyncio, "sleep", AsyncMock())
+
+    await record_usages.safe_execute("stmt", [{"uid": 1}])
+
+    assert attempts["n"] == 3
+
+
+@pytest.mark.asyncio
+async def test_safe_execute_raises_after_deadlock_retries(monkeypatch: pytest.MonkeyPatch):
+    async def always_deadlock(_stmt, _params=None):
+        raise OperationalError("stmt", {}, _DeadlockOrig())
+
+    monkeypatch.setattr(record_usages, "engine", _FakeEngine(always_deadlock))
+    monkeypatch.setattr(record_usages, "get_dialect", AsyncMock(return_value="mysql"))
+    monkeypatch.setattr(record_usages.asyncio, "sleep", AsyncMock())
+
+    with pytest.raises(OperationalError):
+        await record_usages.safe_execute("stmt", [{"uid": 1}], max_retries=3)
+
+
+@pytest.mark.asyncio
+async def test_record_user_usages_skips_when_already_running(monkeypatch: pytest.MonkeyPatch):
+    impl = AsyncMock()
+    monkeypatch.setattr(record_usages, "_record_user_usages_impl", impl)
+    record_usages._user_usage_running = True
+    try:
+        await record_usages.record_user_usages()
+    finally:
+        record_usages._user_usage_running = False
+
+    impl.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_record_node_usages_skips_when_already_running(monkeypatch: pytest.MonkeyPatch):
+    impl = AsyncMock()
+    monkeypatch.setattr(record_usages, "_record_node_usages_impl", impl)
+    record_usages._node_usage_running = True
+    try:
+        await record_usages.record_node_usages()
+    finally:
+        record_usages._node_usage_running = False
+
+    impl.assert_not_awaited()
