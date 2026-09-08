@@ -16,6 +16,7 @@ depends_on = None
 
 
 def upgrade() -> None:
+    """Add and backfill persistent display-order columns for nodes and cores."""
     for table_name in ("nodes", "core_configs"):
         op.add_column(table_name, sa.Column("sort_order", sa.Integer(), nullable=True))
         op.execute(sa.text(f"UPDATE {table_name} SET sort_order = id"))
@@ -29,6 +30,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    """Remove the persistent display-order columns from nodes and cores."""
     for table_name in ("core_configs", "nodes"):
         with op.batch_alter_table(table_name) as batch_op:
             batch_op.drop_column("sort_order")
