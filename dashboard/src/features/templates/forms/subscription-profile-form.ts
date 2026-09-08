@@ -3,7 +3,11 @@ import { z } from 'zod'
 const PROFILE_ID_PATTERN = /^[a-z0-9](?:[a-z0-9_-]{0,62}[a-z0-9])?$/
 const INTERVAL_PATTERN = /^\d+(?:ms|s|m|h)$/
 const TIMEOUT_PATTERN = /^\d+(?:ms|s|m|h)$/
-const HAPP_DEEPLINK_PREFIXES = ['happ://routing/add/', 'happ://routing/onadd/'] as const
+const HAPP_ROUTING_PREFIXES = ['happ://routing/add/', 'happ://routing/onadd/', 'happ://routing/off'] as const
+// INCY parses the link whatever the scheme, and also takes the bare payload.
+const INCY_ROUTING_PREFIXES = ['happ://routing/', 'incy://routing/', '://routing/'] as const
+
+const isBase64 = (value: string) => /^[A-Za-z0-9+/]+={0,2}$/.test(value) && value.length % 4 === 0
 
 function durationMilliseconds(value: string): number {
   const match = /^(\d+)(ms|s|m|h)$/.exec(value)
@@ -50,13 +54,15 @@ export const subscriptionProfileSchema = z
     domain_strategy: z.enum(['AsIs', 'IPIfNonMatch', 'IPOnDemand']).default('AsIs'),
     balancer_strategy: z.enum(['random', 'roundRobin', 'leastPing', 'leastLoad']).default('random'),
     publish_endpoint_configs: z.boolean().default(true),
-    client: z.enum(['generic', 'happ', 'incy', 'v2rayn']).default('generic'),
-    happ_deeplink: z
+    client: z.enum(['generic', 'happ', 'incy', 'v2raytun']).default('generic'),
+    routing_payload: z
       .string()
       .max(2048)
       .transform(value => value.trim() || null)
       .nullable()
       .optional(),
+    // Happ only: `routing-enable: 0` switches its routing off outright.
+    routing_enabled: z.boolean().nullable().optional(),
   })
   .passthrough()
   .superRefine((profile, context) => {
@@ -92,20 +98,26 @@ export const subscriptionProfileSchema = z
       })
     }
 
-    if (profile.happ_deeplink) {
-      if (!HAPP_DEEPLINK_PREFIXES.some(prefix => profile.happ_deeplink?.startsWith(prefix))) {
-        context.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ['happ_deeplink'],
-          message: 'Use a Happ routing add/onadd URL.',
-        })
-      } else if (profile.client !== 'happ') {
-        context.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ['happ_deeplink'],
-          message: 'Happ deeplink is only supported for Happ profiles.',
-        })
+    // All three clients read the `routing` header but disagree on its value.
+    const payload = profile.routing_payload
+    if (payload) {
+      const reject = (message: string) => context.addIssue({ code: z.ZodIssueCode.custom, path: ['routing_payload'], message })
+      if (profile.client === 'generic') {
+        reject('Pick the client first: a generic profile sends no routing header.')
+      } else if (profile.client === 'happ' && !HAPP_ROUTING_PREFIXES.some(prefix => payload.startsWith(prefix))) {
+        reject('Happ expects a happ://routing/add, /onadd or /off link.')
+      } else if (profile.client === 'incy' && !INCY_ROUTING_PREFIXES.some(prefix => payload.startsWith(prefix)) && !isBase64(payload)) {
+        reject('INCY expects a ://routing/... link or bare base64.')
+      } else if (profile.client === 'v2raytun' && !isBase64(payload)) {
+        reject('v2rayTun expects bare base64 and does not decode a deeplink.')
       }
+    }
+    if (profile.routing_enabled != null && profile.client !== 'happ') {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['routing_enabled'],
+        message: 'routing-enable is only supported by Happ.',
+      })
     }
   })
 

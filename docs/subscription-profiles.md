@@ -147,39 +147,51 @@ Xray `v26.3.27` rejects Reality over WebSocket.  Sing-box does not support the
 Xray xHTTP transport, so that combination is rejected with an explicit profile
 validation error instead of being silently omitted.
 
-## Optional Happ / Incy / v2rayN path
+## Serving a routing ruleset per client
 
-The profile's `client` value (`generic`, `happ`, `incy`, or `v2rayn`) remains
-opt-in. Add `profile_id` to an existing ordered subscription rule to select that
-client-template profile when its User-Agent regex matches. Without `profile_id`,
-the rule continues to use the legacy `target` generator.
+There are two independent ways to give a client routing rules, and which one
+applies depends on what the client receives.
 
-For example, if client template `42` is an Xray profile intended for Happ:
+**Inside the config, for anything that gets JSON.** `routing_rules` is written
+into the generated Xray `routing.rules` (or the Sing-box `route.rules`), so any
+client consuming the profile applies them.  This is the primary mechanism and
+it is client-agnostic.  It is also the only one that works for Happ when the
+subscription serves a full Xray JSON config: Happ documents that such a config
+is handed to the core as-is and that Happ's own routing rules are then *not*
+applied.
+
+Different clients get different rulesets by binding different profiles to
+different User-Agent rules through `profile_id`:
 
 ```json
 {
   "pattern": "(?i)^happ",
   "target": "xray",
   "profile_id": 42,
-  "response_headers": {
-    "x-provider-id": "PasarGuard",
-    "profile-title": "Happ {USERNAME}"
-  }
+  "response_headers": { "profile-title": "Happ {USERNAME}" }
 }
 ```
 
-Use the same contract with `(?i)^incy` or `(?i)^v2rayn` and a profile whose
-`client` is `incy` or `v2rayn`. `profile_id` is valid only for `xray` and
-`sing_box` rules, and the selected template type must match `target`. Unknown
-clients and rules without a profile keep the ordinary subscription behavior.
+`profile_id` is valid only for `xray` and `sing_box` rules, and the selected
+template type must match `target`.  A rule without a profile keeps the ordinary
+subscription behaviour.
 
-### Happ routing/deeplink example
+**Through the `routing` response header, for clients still on share links.**
+Happ, INCY and v2rayTun all read a header named `routing`, but they disagree on
+its value, so the profile has to declare which client it targets:
 
-The current public Remnawave response-rule example detects Happ using a
-case-insensitive User-Agent condition, selects a named Xray template, and adds
-response headers. PasarGuard maps that approach to its existing regex rule,
-numeric client-template ID, and `response_headers` fields. A Happ profile can
-also set routing metadata directly:
+| `client` | `routing_payload` | Notes |
+|---|---|---|
+| `happ` | `happ://routing/add/<b64>`, `/onadd/<b64>` or `happ://routing/off` | `add` activates only if no other profile is active; `onadd` forces activation.  Both overwrite a profile with the same `Name`. |
+| `incy` | the same Happ profile in base64, with or without a scheme — `incy://routing/…`, `happ://routing/…`, `://routing/…` or bare | INCY parses the link whatever the scheme, which is why a Happ header reaches it too. |
+| `v2raytun` | bare base64 of an Xray `routing` object | A different schema entirely, exported from v2rayTun itself.  A deeplink here silently does nothing. |
+| `generic` | not allowed | No header is sent. |
+
+`routing_enabled: false` additionally sends `routing-enable: 0`, which switches
+routing off in Happ regardless of any profile.  It is Happ-only.
+
+v2rayNG, v2rayN and Streisand are deliberately absent: they have no mechanism
+for importing routing rules from a subscription.
 
 ```json
 {
@@ -187,23 +199,21 @@ also set routing metadata directly:
   "default_pool": "primary",
   "pools": [{ "id": "primary" }],
   "client": "happ",
-  "happ_deeplink": "happ://routing/add/eyJOYW1lIjoiUGFzYXJHdWFyZCJ9"
+  "routing_payload": "happ://routing/add/eyJOYW1lIjoiUGFzYXJHdWFyZCJ9"
 }
 ```
 
-When this profile is selected, PasarGuard sends the deeplink in the `routing`
-response header. An explicit `routing` value in the matched rule's
-`response_headers` takes precedence. Never put bearer subscription URLs or
-reusable proxy credentials into metadata headers.
+`happ_deeplink` is still accepted as an alias for `routing_payload`, so profiles
+written before the field was generalised keep working.
 
-The Happ deeplink schema is client-version-sensitive. The official Remnawave
-builder currently emits `happ://routing/add/<base64>`, while the maintained
-DigneZzZ example currently uses `happ://routing/onadd/<base64>`; PasarGuard
-accepts both schemes but does not interpret or rewrite the encoded payload.
-Validate the selected routing JSON in the target Happ release. Incy has a
-similar community `incy://routing/onadd/...` asset, but it is not emitted from
-`happ_deeplink`; supply Incy-specific metadata explicitly in the rule if the
-target client version requires it.
+An explicit `routing` value in the matched rule's `response_headers` takes
+precedence over the profile, and arbitrary headers can be set there for any
+client without touching a profile at all.  Never put bearer subscription URLs
+or reusable proxy credentials into metadata headers.
+
+PasarGuard does not interpret or rewrite the encoded payload, and the Happ
+schema is version-sensitive: validate the routing JSON against the target
+client release.
 
 References:
 

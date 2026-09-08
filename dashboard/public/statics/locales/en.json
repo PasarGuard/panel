@@ -1182,7 +1182,11 @@
       "publishEndpointConfigs": "Publish a config per server",
       "publishEndpointConfigsHelp": "Lets the user pick one server instead of only an automatic group.",
       "burstObservatory": "Measure latency (burst observatory)",
-      "burstObservatoryHelp": "Required by leastPing and leastLoad; plain probing only tracks alive or dead."
+      "burstObservatoryHelp": "Required by leastPing and leastLoad; plain probing only tracks alive or dead.",
+      "clientHelp": "Only these clients read a routing ruleset from the subscription response.",
+      "routingPayload": "Routing payload (optional)",
+      "routingEnabled": "Force Happ routing off",
+      "routingEnabledHelp": "Sends routing-enable: 0, which disables routing in Happ regardless of any profile."
     }
   },
   "core.configuration": "Configuration",

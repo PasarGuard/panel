@@ -57,6 +57,27 @@ function RoutingRuleEditor({
   )
 }
 
+const CLIENT_OPTIONS = [
+  { value: 'generic', label: 'Generic (no routing header)' },
+  { value: 'happ', label: 'Happ' },
+  { value: 'incy', label: 'INCY' },
+  { value: 'v2raytun', label: 'v2rayTun' },
+] as const
+
+const ROUTING_PLACEHOLDER: Record<string, string> = {
+  happ: 'happ://routing/onadd/<base64>',
+  incy: '<base64> or ://routing/onadd/<base64>',
+  v2raytun: '<base64>',
+  generic: '',
+}
+
+const ROUTING_HINT: Record<string, string> = {
+  happ: 'A Happ routing profile in base64. Build one at routing.happ.su. Note that Happ ignores its own routing rules when the subscription serves a full Xray JSON config.',
+  incy: 'Same Happ profile format; INCY ignores the URL scheme and also takes the bare base64.',
+  v2raytun: 'A base64 Xray routing object, exported from v2rayTun itself. It is not the Happ format and a deeplink here does nothing.',
+  generic: '',
+}
+
 export function SubscriptionProfileEditor({ value, onChange, onValidate, dialogOpen, onFullscreenChange }: SubscriptionProfileEditorProps) {
   const { t } = useTranslation()
   const [tab, setTab] = useState('structured')
@@ -394,7 +415,9 @@ export function SubscriptionProfileEditor({ value, onChange, onValidate, dialogO
                     updateProfile(profile => ({
                       ...profile,
                       client: client as SubscriptionProfileFormValue['client'],
-                      happ_deeplink: client === 'happ' ? profile.happ_deeplink : null,
+                      // The payload format is client-specific, so it cannot carry over.
+                      routing_payload: null,
+                      routing_enabled: client === 'happ' ? profile.routing_enabled : null,
                     }))
                   }
                 >
@@ -402,18 +425,45 @@ export function SubscriptionProfileEditor({ value, onChange, onValidate, dialogO
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {['generic', 'happ', 'incy', 'v2rayn'].map(client => (
-                      <SelectItem key={client} value={client}>
-                        {client}
+                    {CLIENT_OPTIONS.map(({ value, label }) => (
+                      <SelectItem key={value} value={value}>
+                        {label}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+                <p className="text-muted-foreground text-xs">
+                  {t('clientTemplates.profile.clientHelp', {
+                    defaultValue: 'Only these clients read a routing ruleset from the subscription response.',
+                  })}
+                </p>
               </label>
-              {parsed.data.client === 'happ' && (
+              {parsed.data.client !== 'generic' && (
                 <label className="grid gap-1.5 text-sm">
-                  <span>{t('clientTemplates.profile.happDeeplink', { defaultValue: 'Happ deeplink (optional)' })}</span>
-                  <Input value={parsed.data.happ_deeplink ?? ''} onChange={event => updateProfile(profile => ({ ...profile, happ_deeplink: event.target.value || null }))} placeholder="happ://..." />
+                  <span>{t('clientTemplates.profile.routingPayload', { defaultValue: 'Routing payload (optional)' })}</span>
+                  <Textarea
+                    className="min-h-16 font-mono text-xs"
+                    value={parsed.data.routing_payload ?? ''}
+                    onChange={event => updateProfile(profile => ({ ...profile, routing_payload: event.target.value || null }))}
+                    placeholder={ROUTING_PLACEHOLDER[parsed.data.client]}
+                  />
+                  <p className="text-muted-foreground text-xs">{ROUTING_HINT[parsed.data.client]}</p>
+                </label>
+              )}
+              {parsed.data.client === 'happ' && (
+                <label className="flex items-center justify-between gap-3 rounded-md border p-3 text-sm">
+                  <span className="grid gap-1">
+                    <span>{t('clientTemplates.profile.routingEnabled', { defaultValue: 'Force Happ routing off' })}</span>
+                    <span className="text-muted-foreground text-xs">
+                      {t('clientTemplates.profile.routingEnabledHelp', {
+                        defaultValue: 'Sends routing-enable: 0, which disables routing in Happ regardless of any profile.',
+                      })}
+                    </span>
+                  </span>
+                  <Switch
+                    checked={parsed.data.routing_enabled === false}
+                    onCheckedChange={off => updateProfile(profile => ({ ...profile, routing_enabled: off ? false : null }))}
+                  />
                 </label>
               )}
             </section>

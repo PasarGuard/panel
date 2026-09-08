@@ -1176,7 +1176,11 @@
       "publishEndpointConfigs": "Отдавать конфиг на каждый сервер",
       "publishEndpointConfigsHelp": "Позволяет выбрать конкретный сервер, а не только автогруппу.",
       "burstObservatory": "Замерять задержку (burst observatory)",
-      "burstObservatoryHelp": "Нужен для leastPing и leastLoad; обычная проверка знает только «жив/мёртв»."
+      "burstObservatoryHelp": "Нужен для leastPing и leastLoad; обычная проверка знает только «жив/мёртв».",
+      "clientHelp": "Только эти клиенты читают правила роутинга из ответа подписки.",
+      "routingPayload": "Данные роутинга (необязательно)",
+      "routingEnabled": "Принудительно выключить роутинг Happ",
+      "routingEnabledHelp": "Отправляет routing-enable: 0 — Happ отключит роутинг независимо от профиля."
     }
   },
   "core.configuration": "Конфигурация",

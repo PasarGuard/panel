@@ -29,10 +29,28 @@ describe('subscription profile form helpers', () => {
     expect(result.error).toContain('Timeout must be greater than or equal to interval')
   })
 
-  it('accepts only Happ routing add/onadd deeplinks', () => {
-    expect(parseSubscriptionProfileContent(JSON.stringify({ client: 'happ', happ_deeplink: 'happ://routing/add/e30=' })).success).toBe(true)
-    expect(parseSubscriptionProfileContent(JSON.stringify({ client: 'happ', happ_deeplink: 'happ://profile' })).success).toBe(false)
-    expect(parseSubscriptionProfileContent(JSON.stringify({ client: 'v2rayn', happ_deeplink: 'happ://routing/onadd/e30=' })).success).toBe(false)
+  it('validates the routing payload against the declared client', () => {
+    const parse = (profile: object) => parseSubscriptionProfileContent(JSON.stringify(profile)).success
+    // Happ takes its own deeplink and nothing else.
+    expect(parse({ client: 'happ', routing_payload: 'happ://routing/add/e30=' })).toBe(true)
+    expect(parse({ client: 'happ', routing_payload: 'happ://profile' })).toBe(false)
+    expect(parse({ client: 'happ', routing_payload: 'e30=' })).toBe(false)
+    // INCY ignores the scheme and also accepts the bare payload.
+    expect(parse({ client: 'incy', routing_payload: '://routing/onadd/e30=' })).toBe(true)
+    expect(parse({ client: 'incy', routing_payload: 'e30=' })).toBe(true)
+    // v2rayTun decodes base64 directly; a deeplink there silently does nothing.
+    expect(parse({ client: 'v2raytun', routing_payload: 'e30=' })).toBe(true)
+    expect(parse({ client: 'v2raytun', routing_payload: 'happ://routing/onadd/e30=' })).toBe(false)
+    // A generic profile emits no header, so a payload would be dropped.
+    expect(parse({ client: 'generic', routing_payload: 'e30=' })).toBe(false)
+    // routing-enable exists only in Happ.
+    expect(parse({ client: 'happ', routing_enabled: false })).toBe(true)
+    expect(parse({ client: 'incy', routing_enabled: false })).toBe(false)
+  })
+
+  it('still accepts happ_deeplink from profiles written before the rename', () => {
+    const result = parseSubscriptionProfileContent(JSON.stringify({ client: 'happ', happ_deeplink: 'happ://routing/add/e30=' }))
+    expect(result.success).toBe(true)
   })
 
   it('rejects non-object pool and routing rule entries without throwing', () => {
@@ -49,9 +67,9 @@ describe('subscription profile form helpers', () => {
 
     expect(result.success).toBe(true)
     if (!result.success) return
-    const serialized = JSON.parse(serializeSubscriptionProfile({ ...result.data, client: 'happ', happ_deeplink: 'happ://profile' }))
+    const serialized = JSON.parse(serializeSubscriptionProfile({ ...result.data, client: 'happ', routing_payload: 'happ://routing/off' }))
     expect(serialized.extension).toEqual({ keep: true })
     expect(serialized.pools[0].extension).toBe('pool')
-    expect(serialized.happ_deeplink).toBe('happ://profile')
+    expect(serialized.routing_payload).toBe('happ://routing/off')
   })
 })

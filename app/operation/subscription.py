@@ -19,7 +19,7 @@ from app.models.client_template import ClientTemplateType
 from app.models.settings import Application, ConfigFormat, HWIDSettings, SubRule, Subscription as SubSettings
 from app.models.stats import UserUsageStatsList
 from app.models.subscription import SubscriptionUsageQuery
-from app.models.subscription_profile import ProfileClient, SubscriptionProfile
+from app.models.subscription_profile import SubscriptionProfile
 from app.models.user import SubscriptionUserResponse, UsersResponseWithInbounds
 from app.settings import hwid_settings, subscription_settings
 from app.subscription.profiles import ProfileValidationError, load_profile
@@ -374,10 +374,20 @@ class SubscriptionOperation(BaseOperation):
 
     @staticmethod
     def profile_response_headers(profile: SubscriptionProfile | None) -> dict[str, str]:
-        """Return client metadata that belongs to an explicitly selected profile."""
-        if profile and profile.client == ProfileClient.happ and profile.happ_deeplink:
-            return {"routing": profile.happ_deeplink}
-        return {}
+        """Return client metadata that belongs to an explicitly selected profile.
+
+        Happ, INCY and v2rayTun all read `routing`, but each expects a different
+        payload, so the profile validates the value against its declared client
+        rather than this emitting anything client-specific.
+        """
+        if not profile:
+            return {}
+        headers: dict[str, str] = {}
+        if profile.routing_payload:
+            headers["routing"] = profile.routing_payload
+        if profile.routing_enabled is not None:
+            headers["routing-enable"] = "1" if profile.routing_enabled else "0"
+        return headers
 
     @staticmethod
     def is_hwid_enabled(

@@ -982,18 +982,55 @@ async def test_profile_rule_selects_existing_client_template(monkeypatch):
     fetch_profile.assert_awaited_once_with(None, SimpleNamespace(), 41)
 
 
-def test_happ_profile_emits_routing_metadata_only_when_selected():
+def test_routing_metadata_is_emitted_only_when_a_profile_declares_it():
     deeplink = "happ://routing/onadd/e30="
-    happ_profile = SubscriptionProfile(client=ProfileClient.happ, happ_deeplink=deeplink)
-    incy_profile = SubscriptionProfile(client=ProfileClient.incy)
+    happ_profile = SubscriptionProfile(client=ProfileClient.happ, routing_payload=deeplink)
+    bare_profile = SubscriptionProfile(client=ProfileClient.incy)
 
     assert SubscriptionOperation.profile_response_headers(happ_profile) == {"routing": deeplink}
-    assert SubscriptionOperation.profile_response_headers(incy_profile) == {}
+    assert SubscriptionOperation.profile_response_headers(bare_profile) == {}
+    assert SubscriptionOperation.profile_response_headers(None) == {}
 
 
-def test_happ_deeplink_is_rejected_for_other_clients():
+def test_routing_enable_is_emitted_for_happ():
+    off = SubscriptionProfile(client=ProfileClient.happ, routing_enabled=False)
+    assert SubscriptionOperation.profile_response_headers(off) == {"routing-enable": "0"}
+
     with pytest.raises(ValueError, match="only supported for Happ"):
-        SubscriptionProfile(client=ProfileClient.v2rayn, happ_deeplink="happ://routing/add/e30=")
+        SubscriptionProfile(client=ProfileClient.incy, routing_enabled=True)
+
+
+def test_happ_deeplink_is_still_accepted_as_an_alias():
+    """Profiles written before the field was generalised must keep working."""
+    profile = SubscriptionProfile(client=ProfileClient.happ, happ_deeplink="happ://routing/add/e30=")
+    assert profile.routing_payload == "happ://routing/add/e30="
+
+
+@pytest.mark.parametrize(
+    ("client", "payload", "accepted"),
+    [
+        # Happ takes its own deeplink and nothing else.
+        (ProfileClient.happ, "happ://routing/onadd/e30=", True),
+        (ProfileClient.happ, "happ://routing/off", True),
+        (ProfileClient.happ, "e30=", False),
+        # INCY ignores the scheme and also accepts the bare payload.
+        (ProfileClient.incy, "incy://routing/onadd/e30=", True),
+        (ProfileClient.incy, "://routing/onadd/e30=", True),
+        (ProfileClient.incy, "happ://routing/onadd/e30=", True),
+        (ProfileClient.incy, "e30=", True),
+        # v2rayTun decodes base64 directly; a deeplink there silently does nothing.
+        (ProfileClient.v2raytun, "e30=", True),
+        (ProfileClient.v2raytun, "happ://routing/onadd/e30=", False),
+        # A generic profile sends no header, so a payload would be dropped.
+        (ProfileClient.generic, "e30=", False),
+    ],
+)
+def test_routing_payload_is_validated_against_the_declared_client(client, payload, accepted):
+    if accepted:
+        assert SubscriptionProfile(client=client, routing_payload=payload).routing_payload == payload
+    else:
+        with pytest.raises(ValueError):
+            SubscriptionProfile(client=client, routing_payload=payload)
 
 
 def _run_profile_validator(binary_env: str, args: list[str], config: dict, tmp_path):

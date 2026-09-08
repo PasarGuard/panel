@@ -7,13 +7,28 @@ configuration key and leaves legacy subscription templates untouched.
 
 from __future__ import annotations
 
+import base64
+import binascii
 import re
 from enum import StrEnum
 from typing import Any
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import AliasChoices, BaseModel, Field, field_validator, model_validator
 
 PROFILE_ID_PATTERN = re.compile(r"^[a-z0-9](?:[a-z0-9_-]{0,62}[a-z0-9])?$")
+
+HAPP_ROUTING_PREFIXES = ("happ://routing/add/", "happ://routing/onadd/", "happ://routing/off")
+# INCY parses the link regardless of scheme, so `happ://`, `incy://` and a bare
+# `://` all reach the same handler.
+INCY_ROUTING_PREFIXES = ("happ://routing/", "incy://routing/", "://routing/")
+
+
+def _is_base64(value: str) -> bool:
+    try:
+        base64.b64decode(value, validate=True)
+    except binascii.Error, ValueError:
+        return False
+    return bool(value)
 
 
 class DomainStrategy(StrEnum):
@@ -37,10 +52,17 @@ class BalancerStrategy(StrEnum):
 
 
 class ProfileClient(StrEnum):
+    """Clients that accept a routing ruleset over the subscription response.
+
+    All three read the same `routing` header but disagree on its value, so the
+    client has to be known before one can be emitted. v2rayNG, v2rayN and
+    Streisand are absent on purpose: they have no such mechanism.
+    """
+
     generic = "generic"
     happ = "happ"
     incy = "incy"
-    v2rayn = "v2rayn"
+    v2raytun = "v2raytun"
 
 
 class HealthCheckSettings(BaseModel):
@@ -101,17 +123,20 @@ class SubscriptionProfile(BaseModel):
     # can pick one server instead of only a group.
     publish_endpoint_configs: bool = True
     client: ProfileClient = ProfileClient.generic
-    happ_deeplink: str | None = Field(default=None, max_length=2048)
+    # Sent verbatim as the `routing` response header. The accepted shape depends
+    # on `client`; see validate_client_routing below.
+    routing_payload: str | None = Field(
+        default=None, max_length=2048, validation_alias=AliasChoices("routing_payload", "happ_deeplink")
+    )
+    # Happ only: `routing-enable: 0` turns its routing off outright.
+    routing_enabled: bool | None = None
 
-    @field_validator("happ_deeplink")
+    @field_validator("routing_payload")
     @classmethod
-    def validate_happ_deeplink(cls, value: str | None) -> str | None:
+    def strip_routing_payload(cls, value: str | None) -> str | None:
         if value is None or not value.strip():
             return None
-        value = value.strip()
-        if not value.startswith(("happ://routing/add/", "happ://routing/onadd/")):
-            raise ValueError("happ_deeplink must use the Happ routing add/onadd URL scheme")
-        return value
+        return value.strip()
 
     @field_validator("default_pool")
     @classmethod
@@ -138,6 +163,28 @@ class SubscriptionProfile(BaseModel):
                 raise ValueError("a pool cannot fall back to itself")
             if pool.fallback_pool and pool.fallback_pool not in enabled_pool_ids:
                 raise ValueError(f"fallback_pool '{pool.fallback_pool}' must reference an enabled pool")
-        if self.happ_deeplink and self.client != ProfileClient.happ:
-            raise ValueError("happ_deeplink is only supported for Happ profiles")
+        return self
+
+    @model_validator(mode="after")
+    def validate_client_routing(self):
+        """Each client decodes the `routing` header differently.
+
+        Happ and INCY expect a Happ routing profile in base64; INCY ignores the
+        URL scheme and also takes the bare payload. v2rayTun expects a bare
+        base64 Xray `routing` object instead and does not decode a deeplink, so
+        passing one there silently does nothing.
+        """
+        if self.routing_payload:
+            if self.client is ProfileClient.generic:
+                raise ValueError("routing_payload requires a specific client; generic profiles send no header")
+            if self.client is ProfileClient.happ and not self.routing_payload.startswith(HAPP_ROUTING_PREFIXES):
+                raise ValueError("a Happ routing payload must be a happ://routing/add|onadd|off link")
+            if self.client is ProfileClient.incy and not (
+                self.routing_payload.startswith(INCY_ROUTING_PREFIXES) or _is_base64(self.routing_payload)
+            ):
+                raise ValueError("an INCY routing payload must be a ://routing/... link or bare base64")
+            if self.client is ProfileClient.v2raytun and not _is_base64(self.routing_payload):
+                raise ValueError("a v2rayTun routing payload must be bare base64, without a deeplink prefix")
+        if self.routing_enabled is not None and self.client is not ProfileClient.happ:
+            raise ValueError("routing_enabled is only supported for Happ profiles")
         return self
