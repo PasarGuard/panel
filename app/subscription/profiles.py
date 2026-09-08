@@ -321,6 +321,22 @@ def build_xray_profile(
     return config
 
 
+def _unique_label(label: str, used: set[str]) -> str:
+    """Sing-box shows an outbound tag verbatim, so tags double as display names.
+
+    Two pools may legitimately carry the same title, and a tag collision would
+    make the config invalid rather than merely confusing, so duplicates get a
+    numeric suffix.
+    """
+    candidate = label
+    suffix = 2
+    while candidate in used:
+        candidate = f"{label} {suffix}"
+        suffix += 1
+    used.add(candidate)
+    return candidate
+
+
 def _auto_group_label(pool_or_country: str, *, title: str | None = None, is_country: bool = False) -> str:
     if title:
         return title
@@ -424,6 +440,7 @@ def build_singbox_profile(
     auto_pool_tags: dict[str, list[str]] = defaultdict(list)
     country_tags: dict[str, list[str]] = defaultdict(list)
     auto_country_tags: dict[str, list[str]] = defaultdict(list)
+    pool_selector_tags: dict[str, str] = {}
 
     for endpoint in sorted(endpoints, key=lambda item: (item.priority, item.machine_key, item.stable_tie_breaker)):
         tag = tags[id(endpoint)]
@@ -438,10 +455,12 @@ def build_singbox_profile(
                 auto_country_tags[endpoint.country].append(tag)
 
     selection_tags: list[str] = []
+    used_labels: set[str] = {"proxy", "direct"}
     for pool in profile.pools:
         if pool.id not in groups:
             continue
-        auto_tag = f"pg-auto-{pool.id}"
+        pool_label = pool.title or pool.id
+        auto_tag = _unique_label(f"{pool_label} · Auto", used_labels)
         automatic_tags = auto_pool_tags[pool.id]
         if not automatic_tags and pool.id == profile.default_pool:
             raise ProfileValidationError(
@@ -459,7 +478,8 @@ def build_singbox_profile(
                     "idle_timeout": profile.health_check.timeout,
                 }
             )
-        pool_tag = f"pg-select-{pool.id}"
+        pool_tag = _unique_label(pool_label, used_labels)
+        pool_selector_tags[pool.id] = pool_tag
         outbounds.append(
             {
                 "type": "selector",
@@ -469,8 +489,8 @@ def build_singbox_profile(
         )
         selection_tags.append(pool_tag)
     for country, actor_tags in sorted(country_tags.items()):
-        country_tag = f"pg-country-{country.lower()}"
-        auto_country_tag = f"pg-auto-country-{country.lower()}"
+        country_tag = _unique_label(country.upper(), used_labels)
+        auto_country_tag = _unique_label(f"{country.upper()} · Auto", used_labels)
         automatic_tags = auto_country_tags[country]
         if automatic_tags:
             outbounds.append(
@@ -493,7 +513,7 @@ def build_singbox_profile(
         )
         selection_tags.append(country_tag)
 
-    root_selector = f"pg-select-{profile.default_pool}"
+    root_selector = pool_selector_tags[profile.default_pool]
     root_choices = list(dict.fromkeys([root_selector, *selection_tags]))
     outbounds.extend(
         [

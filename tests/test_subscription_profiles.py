@@ -595,22 +595,22 @@ def test_singbox_profile_keeps_pool_urltests_separate_and_excludes_manual_only_e
     ]
 
     config = build_singbox_profile(profile(), endpoints)
-    auto_primary = next(item for item in config["outbounds"] if item.get("tag") == "pg-auto-primary")
-    primary_selector = next(item for item in config["outbounds"] if item.get("tag") == "pg-select-primary")
+    auto_primary = next(item for item in config["outbounds"] if item.get("tag") == "primary · Auto")
+    primary_selector = next(item for item in config["outbounds"] if item.get("tag") == "primary")
 
     assert auto_primary["type"] == "urltest"
     assert len(auto_primary["outbounds"]) == 1
     assert len(primary_selector["outbounds"]) == 3  # auto + both explicitly selectable endpoints
     assert {item["tag"] for item in config["outbounds"] if item.get("type") == "urltest"} == {
-        "pg-auto-primary",
-        "pg-auto-fallback",
-        "pg-auto-country-de",
-        "pg-auto-country-fi",
+        "primary · Auto",
+        "fallback · Auto",
+        "DE · Auto",
+        "FI · Auto",
     }
-    country_de = next(item for item in config["outbounds"] if item.get("tag") == "pg-country-de")
-    assert country_de["outbounds"] == ["pg-auto-country-de", *auto_primary["outbounds"]]
+    country_de = next(item for item in config["outbounds"] if item.get("tag") == "DE")
+    assert country_de["outbounds"] == ["DE · Auto", *auto_primary["outbounds"]]
     root = next(item for item in config["outbounds"] if item.get("tag") == "proxy")
-    assert root["outbounds"].count("pg-select-primary") == 1
+    assert root["outbounds"].count("primary") == 1
 
 
 def test_xray_manual_only_endpoint_is_excluded_from_country_auto_and_observatory():
@@ -774,7 +774,7 @@ def test_disabled_pool_endpoints_are_not_exposed_by_country_selector():
         [make_endpoint("primary", "de", host_id=1), make_endpoint("disabled", "us", host_id=2)],
     )
 
-    assert "pg-country-us" not in {item.get("tag") for item in config["outbounds"]}
+    assert "US" not in {item.get("tag") for item in config["outbounds"]}
 
 
 def test_singbox_wireguard_is_kept_in_endpoints():
@@ -802,7 +802,7 @@ def test_singbox_wireguard_is_kept_in_endpoints():
     assert config["endpoints"][0]["type"] == "wireguard"
     assert (
         config["endpoints"][0]["tag"]
-        in next(item for item in config["outbounds"] if item.get("tag") == "pg-auto-primary")["outbounds"]
+        in next(item for item in config["outbounds"] if item.get("tag") == "primary · Auto")["outbounds"]
     )
 
 
@@ -1278,3 +1278,27 @@ def test_profile_carries_routing_and_balancer_strategy_into_the_config():
     # leastPing needs measured latency, which only burstObservatory collects.
     assert "burstObservatory" in config
     assert "observatory" not in config
+
+
+def test_singbox_group_labels_are_readable_and_collision_safe():
+    """A Sing-box client shows the outbound tag itself, so tags are the labels.
+
+    Two pools may legitimately share a title, and a duplicate tag makes the
+    config invalid rather than merely confusing.
+    """
+    config = build_singbox_profile(
+        SubscriptionProfile(
+            default_pool="primary",
+            pools=[ProfilePool(id="primary", title="Fastest"), ProfilePool(id="backup", title="Fastest")],
+        ),
+        [make_endpoint("primary", "de", host_id=601), make_endpoint("backup", "nl", host_id=602)],
+    )
+
+    selectors = [item["tag"] for item in config["outbounds"] if item.get("type") == "selector"]
+    assert "Fastest" in selectors
+    assert "Fastest 2" in selectors
+    assert len(selectors) == len(set(selectors))
+    assert not any(tag.startswith("pg-") for tag in selectors)
+    # The root selector still has to resolve to the default pool's group.
+    root = next(item for item in config["outbounds"] if item["tag"] == "proxy")
+    assert root["outbounds"][0] == "Fastest"

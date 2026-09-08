@@ -114,6 +114,12 @@ subscription.  Clients that consume the full Xray JSON apply the config's own
 
 Sing-box profiles create selectors for non-empty pools and a separate `urltest`
 only when that pool has automatic endpoints, then a top-level `proxy` selector.
+A Sing-box client displays an outbound's tag verbatim, so those tags double as
+the labels in its group picker: a pool becomes `<title or id>` with
+`<title or id> · Auto` beside it, and a country becomes `DE` with `DE · Auto`.
+Duplicate titles get a numeric suffix, since a tag collision would make the
+config invalid rather than merely confusing.  Routing rules that name a group
+must use these labels.
 This deliberately does **not** claim strict
 `primary -> fallback` failover: Sing-box `urltest` chooses among the outbounds
 in its own pool and has no Xray-style `fallbackTag`.  Users can still choose a
