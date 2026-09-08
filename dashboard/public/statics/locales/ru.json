@@ -1168,7 +1168,15 @@
       "addRule": "Добавить правило",
       "clientOptions": "Параметры клиента",
       "client": "Клиент",
-      "happDeeplink": "Deeplink Happ (необязательно)"
+      "happDeeplink": "Deeplink Happ (необязательно)",
+      "domainStrategy": "Стратегия доменов",
+      "domainStrategyHelp": "При AsIs домены не резолвятся, поэтому правила geoip и CIDR не сработают.",
+      "balancerStrategy": "Стратегия балансировщика",
+      "balancerStrategyHelp": "Для leastPing и leastLoad нужен замер задержки, включаемый ниже.",
+      "publishEndpointConfigs": "Отдавать конфиг на каждый сервер",
+      "publishEndpointConfigsHelp": "Позволяет выбрать конкретный сервер, а не только автогруппу.",
+      "burstObservatory": "Замерять задержку (burst observatory)",
+      "burstObservatoryHelp": "Нужен для leastPing и leastLoad; обычная проверка знает только «жив/мёртв»."
     }
   },
   "core.configuration": "Конфигурация",

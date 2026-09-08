@@ -138,6 +138,88 @@ export function SubscriptionProfileEditor({ value, onChange, onValidate, dialogO
                 </Select>
               </label>
 
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="grid gap-1.5 text-sm">
+                  <span>{t('clientTemplates.profile.domainStrategy', { defaultValue: 'Domain strategy' })}</span>
+                  <Select
+                    value={parsed.data.domain_strategy}
+                    onValueChange={value => updateProfile(profile => ({ ...profile, domain_strategy: value as typeof profile.domain_strategy }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(['AsIs', 'IPIfNonMatch', 'IPOnDemand'] as const).map(option => (
+                        <SelectItem key={option} value={option}>
+                          {option}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-muted-foreground text-xs">
+                    {t('clientTemplates.profile.domainStrategyHelp', {
+                      defaultValue: 'AsIs never resolves domains, so geoip and CIDR rules will not match.',
+                    })}
+                  </p>
+                </label>
+
+                <label className="grid gap-1.5 text-sm">
+                  <span>{t('clientTemplates.profile.balancerStrategy', { defaultValue: 'Balancer strategy' })}</span>
+                  <Select
+                    value={parsed.data.balancer_strategy}
+                    onValueChange={value => updateProfile(profile => ({ ...profile, balancer_strategy: value as typeof profile.balancer_strategy }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(['random', 'roundRobin', 'leastPing', 'leastLoad'] as const).map(option => (
+                        <SelectItem key={option} value={option}>
+                          {option}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-muted-foreground text-xs">
+                    {t('clientTemplates.profile.balancerStrategyHelp', {
+                      defaultValue: 'leastPing and leastLoad need latency probing enabled below.',
+                    })}
+                  </p>
+                </label>
+              </div>
+
+              <label className="flex items-center justify-between gap-3 rounded-md border p-3 text-sm">
+                <span className="grid gap-1">
+                  <span>{t('clientTemplates.profile.publishEndpointConfigs', { defaultValue: 'Publish a config per server' })}</span>
+                  <span className="text-muted-foreground text-xs">
+                    {t('clientTemplates.profile.publishEndpointConfigsHelp', {
+                      defaultValue: 'Lets the user pick one server instead of only an automatic group.',
+                    })}
+                  </span>
+                </span>
+                <Switch
+                  checked={parsed.data.publish_endpoint_configs}
+                  onCheckedChange={publish_endpoint_configs => updateProfile(profile => ({ ...profile, publish_endpoint_configs }))}
+                />
+              </label>
+
+              <label className="flex items-center justify-between gap-3 rounded-md border p-3 text-sm">
+                <span className="grid gap-1">
+                  <span>{t('clientTemplates.profile.burstObservatory', { defaultValue: 'Measure latency (burst observatory)' })}</span>
+                  <span className="text-muted-foreground text-xs">
+                    {t('clientTemplates.profile.burstObservatoryHelp', {
+                      defaultValue: 'Required by leastPing and leastLoad; plain probing only tracks alive or dead.',
+                    })}
+                  </span>
+                </span>
+                <Switch
+                  checked={parsed.data.health_check.burst}
+                  onCheckedChange={burst =>
+                    updateProfile(profile => ({ ...profile, health_check: { ...profile.health_check, burst } }))
+                  }
+                />
+              </label>
+
               <div className="space-y-3">
                 {parsed.data.pools.map((pool, index) => (
                   <div key={`${pool.id}-${index}`} className="grid gap-3 rounded-md border p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto]">

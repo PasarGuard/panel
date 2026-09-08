@@ -93,6 +93,25 @@ one, otherwise `Auto (<pool>)` and `Auto (<COUNTRY>)`.  Balancer tags stay
 machine-readable (`pg-auto-<pool>`, `pg-country-<country>`) because
 operator-authored routing rules address them.
 
+Alongside the groups, `publish_endpoint_configs` (on by default) publishes one
+entry per endpoint, named after the host remark, so a user can pick a single
+server rather than only a group.  Those entries carry no balancer or
+observatory; their catch-all rule names the endpoint's outbound directly.
+
+Three knobs shape the generated routing:
+
+| Field | Default | Notes |
+|---|---|---|
+| `domain_strategy` | `AsIs` | `AsIs` never resolves a domain, so `geoip:*` and CIDR rules only match traffic that already arrived as an IP.  Mixed domain/IP rulesets need `IPIfNonMatch`. |
+| `balancer_strategy` | `random` | `random`, `roundRobin`, `leastPing`, `leastLoad`. |
+| `health_check.burst` | `false` | Emits `burstObservatory` with a `pingConfig` instead of `observatory`.  `leastPing` and `leastLoad` require it: plain `observatory` only tracks alive/dead for `fallbackTag`. |
+
+Per-client routing is expressed by binding different profiles to different
+User-Agent rules through `SubRule.profile_id`: each profile carries its own
+`routing_rules`, so Happ and a browser can receive different rulesets from one
+subscription.  Clients that consume the full Xray JSON apply the config's own
+`routing` section, so no `routing` response header is involved.
+
 Sing-box profiles create selectors for non-empty pools and a separate `urltest`
 only when that pool has automatic endpoints, then a top-level `proxy` selector.
 This deliberately does **not** claim strict

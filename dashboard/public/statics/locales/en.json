@@ -1174,7 +1174,15 @@
       "addRule": "Add rule",
       "clientOptions": "Client options",
       "client": "Client",
-      "happDeeplink": "Happ deeplink (optional)"
+      "happDeeplink": "Happ deeplink (optional)",
+      "domainStrategy": "Domain strategy",
+      "domainStrategyHelp": "AsIs never resolves domains, so geoip and CIDR rules will not match.",
+      "balancerStrategy": "Balancer strategy",
+      "balancerStrategyHelp": "leastPing and leastLoad need latency probing enabled below.",
+      "publishEndpointConfigs": "Publish a config per server",
+      "publishEndpointConfigsHelp": "Lets the user pick one server instead of only an automatic group.",
+      "burstObservatory": "Measure latency (burst observatory)",
+      "burstObservatoryHelp": "Required by leastPing and leastLoad; plain probing only tracks alive or dead."
     }
   },
   "core.configuration": "Configuration",

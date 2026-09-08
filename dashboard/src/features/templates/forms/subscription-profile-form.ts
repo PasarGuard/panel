@@ -40,10 +40,16 @@ export const subscriptionProfileSchema = z
         interval: z.string().regex(INTERVAL_PATTERN, 'Use a duration such as 30s, 3m or 1h.').default('3m'),
         tolerance: z.number().int().min(0).max(65535).default(50),
         timeout: z.string().regex(TIMEOUT_PATTERN, 'Use a duration such as 500ms, 5s, 2m or 1h.').default('30m'),
+        // leastPing/leastLoad need measured latency, which only burstObservatory collects.
+        burst: z.boolean().default(false),
       })
       .passthrough()
       .default({}),
     routing_rules: z.array(z.record(z.unknown())).default([]),
+    // Under AsIs, Xray never resolves a domain, so IP rules (geoip:*) never match.
+    domain_strategy: z.enum(['AsIs', 'IPIfNonMatch', 'IPOnDemand']).default('AsIs'),
+    balancer_strategy: z.enum(['random', 'roundRobin', 'leastPing', 'leastLoad']).default('random'),
+    publish_endpoint_configs: z.boolean().default(true),
     client: z.enum(['generic', 'happ', 'incy', 'v2rayn']).default('generic'),
     happ_deeplink: z
       .string()
