@@ -581,6 +581,14 @@ class System(Base, IdMixin):
     downlink: Mapped[int] = mapped_column(BigInteger, default=0)
 
 
+class CoordinationLock(Base):
+    """Named rows used as database-backed transaction-scoped mutexes."""
+
+    __tablename__ = "coordination_locks"
+
+    name: Mapped[str] = mapped_column(String(64), primary_key=True)
+
+
 class JWT(Base):
     __tablename__ = "jwt"
 
