@@ -295,6 +295,61 @@ function applyInboundSockoptToCompiledConfig(profile: Profile, config: Record<st
   return { ...config, inbounds }
 }
 
+function addFinalmaskFragmentCompatibility(finalmask: Record<string, unknown>): Record<string, unknown> {
+  if (!Array.isArray(finalmask.tcp)) return finalmask
+
+  let changed = false
+  const tcp = finalmask.tcp.map(layerValue => {
+    if (!isRecord(layerValue) || layerValue.type !== 'fragment') return layerValue
+    const settings = asRecord(layerValue.settings)
+    if (!settings) return layerValue
+
+    let nextSettings: Record<string, unknown> | undefined
+    const lengths = settings.lengths
+    if ((settings.length == null || settings.length === '') && Array.isArray(lengths) && lengths.length > 0) {
+      nextSettings = { ...settings, length: lengths[0] }
+    }
+    const delays = settings.delays
+    if ((settings.delay == null || settings.delay === '') && Array.isArray(delays) && delays.length > 0) {
+      nextSettings = { ...(nextSettings ?? settings), delay: delays[0] }
+    }
+    if (!nextSettings) return layerValue
+
+    changed = true
+    return { ...layerValue, settings: nextSettings }
+  })
+
+  return changed ? { ...finalmask, tcp } : finalmask
+}
+
+function applyFinalmaskFragmentCompatibilityToCompiledConfig(config: Record<string, unknown>): Record<string, unknown> {
+  let changed = false
+  const result = { ...config }
+
+  for (const section of ['inbounds', 'outbounds'] as const) {
+    const entries = config[section]
+    if (!Array.isArray(entries)) continue
+
+    const nextEntries = entries.map(entry => {
+      if (!isRecord(entry)) return entry
+      const streamSettings = asRecord(entry.streamSettings)
+      const finalmask = asRecord(streamSettings?.finalmask)
+      if (!streamSettings || !finalmask) return entry
+
+      const compatibleFinalmask = addFinalmaskFragmentCompatibility(finalmask)
+      if (compatibleFinalmask === finalmask) return entry
+      changed = true
+      return {
+        ...entry,
+        streamSettings: { ...streamSettings, finalmask: compatibleFinalmask },
+      }
+    })
+    result[section] = nextEntries
+  }
+
+  return changed ? result : config
+}
+
 function normalizeHysteriaSettingsForCore(config: Record<string, unknown>): Record<string, unknown> {
   if (!Array.isArray(config.inbounds)) return config
 
@@ -416,7 +471,7 @@ export function profileToPersistedConfig(profile: Profile): Record<string, unkno
     ),
   )
 
-  return applyUnmodeledTopLevelSectionsToCompiledConfig(prepared, result)
+  return applyFinalmaskFragmentCompatibilityToCompiledConfig(applyUnmodeledTopLevelSectionsToCompiledConfig(prepared, result))
 }
 
 export function validateProfileForSave(profile: Profile) {

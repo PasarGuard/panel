@@ -1,3 +1,4 @@
+from copy import deepcopy
 from enum import Enum
 from ipaddress import ip_network
 from typing import Any
@@ -344,6 +345,36 @@ class FinalMask(FinalMaskBaseModel):
     tcp: list[FinalMaskTcpLayer] | None = Field(default=None)
     udp: list[FinalMaskUdpLayer] | None = Field(default=None)
     quic_params: FinalMaskQuicParams | None = Field(default=None, alias="quicParams")
+
+
+def dump_final_mask_for_xray(final_mask: FinalMask | dict[str, Any]) -> dict[str, Any]:
+    """Serialize FinalMask with fragment keys understood by stable and newer Xray cores."""
+    if isinstance(final_mask, FinalMask):
+        result = final_mask.model_dump(exclude_none=True, by_alias=True, mode="json")
+    else:
+        result = deepcopy(final_mask)
+
+    tcp_layers = result.get("tcp")
+    if not isinstance(tcp_layers, list):
+        return result
+
+    for layer in tcp_layers:
+        if not isinstance(layer, dict) or layer.get("type") != FinalMaskTcpType.fragment.value:
+            continue
+        settings = layer.get("settings")
+        if not isinstance(settings, dict):
+            continue
+
+        # Xray v26.3.27 reads the singular fields. Development builds added the
+        # plural lists later, so emitting both lets each schema consume its own keys.
+        lengths = settings.get("lengths")
+        if settings.get("length") in (None, "") and isinstance(lengths, list) and lengths:
+            settings["length"] = lengths[0]
+        delays = settings.get("delays")
+        if settings.get("delay") in (None, "") and isinstance(delays, list) and delays:
+            settings["delay"] = delays[0]
+
+    return result
 
 
 class XMuxSettings(BaseModel):
