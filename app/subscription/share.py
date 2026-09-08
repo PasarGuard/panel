@@ -138,6 +138,7 @@ async def generate_subscription_profile(
     format_variables = setup_format_variables(user, sub_settings.custom_variables)
     proxy_settings = user.proxy_settings.dict()
     proxy_settings["_user_id"] = user.id
+    client_templates = await subscription_client_templates()
     hosts = await filter_hosts(list((await host_manager.get_hosts()).values()), user.status)
     endpoints = []
 
@@ -148,6 +149,14 @@ async def generate_subscription_profile(
         if not result:
             continue
         inbound_copy, settings = result
+        await _apply_download_settings(
+            inbound_copy,
+            format_variables,
+            user.inbounds,
+            proxy_settings,
+            client_templates,
+            custom_variables,
+        )
         formatted_address = inbound_copy.address.format_map(format_variables)
         endpoints.append(endpoint_from_inbound(inbound_copy, formatted_address, settings))
 
@@ -155,9 +164,13 @@ async def generate_subscription_profile(
         raise ProfileValidationError("No eligible endpoints are available for this user profile")
 
     if config_format == "xray":
-        return json.dumps(build_xray_profile(profile, endpoints), indent=4, default=str)
+        return json.dumps(
+            build_xray_profile(profile, endpoints, client_templates=client_templates), indent=4, default=str
+        )
     if config_format == "sing_box":
-        return json.dumps(build_singbox_profile(profile, endpoints), indent=4, default=str)
+        return json.dumps(
+            build_singbox_profile(profile, endpoints, client_templates=client_templates), indent=4, default=str
+        )
     raise ProfileValidationError(f'Unsupported profile format "{config_format}"')
 
 
@@ -437,7 +450,8 @@ async def _prepare_download_settings(
     | ClashConfiguration
     | ClashMetaConfiguration
     | OutlineConfiguration
-    | WireGuardConfiguration,
+    | WireGuardConfiguration
+    | None,
 ) -> SubscriptionInboundData | dict | None:
     result = await process_host(download_data, format_variables, inbounds, proxies, custom_variables)
 
@@ -458,6 +472,42 @@ async def _prepare_download_settings(
         return xc._download_config(download_copy, link_format=True)
 
     return download_copy
+
+
+async def _apply_download_settings(
+    inbound_copy: SubscriptionInboundData,
+    format_variables: dict,
+    inbounds: list[str],
+    proxies: dict,
+    client_templates: dict[str, str],
+    custom_variables: list | tuple | None,
+    conf=None,
+) -> None:
+    """Materialise a host's download settings in place.
+
+    Without this the raw cache entry reaches the config writers, which expect a
+    single resolved address and port rather than the candidate lists and
+    unformatted `{SERVER_IP}` placeholders stored per host.
+    """
+    download_settings = getattr(inbound_copy.transport_config, "download_settings", None)
+    if not download_settings:
+        return
+
+    if isinstance(download_settings, SubscriptionInboundData):
+        processed_download_settings = await _prepare_download_settings(
+            download_settings,
+            format_variables,
+            inbounds,
+            proxies,
+            client_templates,
+            custom_variables,
+            conf,
+        )
+    else:
+        processed_download_settings = download_settings
+
+    if hasattr(inbound_copy.transport_config, "download_settings"):
+        inbound_copy.transport_config.download_settings = processed_download_settings
 
 
 async def process_inbounds_and_tags(
@@ -503,22 +553,15 @@ async def process_inbounds_and_tags(
         remark = inbound_copy.remark.format_map(format_variables)
         formatted_address = inbound_copy.address.format_map(format_variables)
 
-        download_settings = getattr(inbound_copy.transport_config, "download_settings", None)
-        if download_settings:
-            if isinstance(download_settings, SubscriptionInboundData):
-                processed_download_settings = await _prepare_download_settings(
-                    download_settings,
-                    format_variables,
-                    user.inbounds,
-                    proxy_settings,
-                    client_templates,
-                    custom_variables,
-                    conf,
-                )
-            else:
-                processed_download_settings = download_settings
-            if hasattr(inbound_copy.transport_config, "download_settings"):
-                inbound_copy.transport_config.download_settings = processed_download_settings
+        await _apply_download_settings(
+            inbound_copy,
+            format_variables,
+            user.inbounds,
+            proxy_settings,
+            client_templates,
+            custom_variables,
+            conf,
+        )
 
         if isinstance(conf, XrayConfiguration):
             template_content = _resolve_host_xray_template_content(inbound_copy)

@@ -13,7 +13,7 @@ from app.db.crud.hwid import (
     register_user_hwid,
 )
 from app.db.crud.user import get_user_usages, user_sub_update
-from app.db.models import User
+from app.db.models import User, UserStatus
 from app.models.admin import AdminDetails
 from app.models.client_template import ClientTemplateType
 from app.models.settings import Application, ConfigFormat, HWIDSettings, SubRule, Subscription as SubSettings
@@ -92,6 +92,11 @@ client_config = {
 
 class SubscriptionOperation(BaseOperation):
     _ENCODED_RULE_RESPONSE_HEADERS: ClassVar[set[str]] = {"announce", "profile-title"}
+    _CONFIG_ELIGIBLE_STATUSES: ClassVar[set[UserStatus]] = {UserStatus.active, UserStatus.on_hold}
+
+    async def require_config_eligible(self, user: User | UsersResponseWithInbounds) -> None:
+        if user.status not in self._CONFIG_ELIGIBLE_STATUSES:
+            await self.raise_error(message="Subscription is not active", code=403)
 
     @staticmethod
     async def validated_user(db_user: User) -> UsersResponseWithInbounds:

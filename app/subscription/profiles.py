@@ -188,8 +188,15 @@ def _grouped_endpoints(
     return {pool_id: entries for pool_id, entries in groups.items() if entries}
 
 
-def _xray_outbounds(endpoint: ProfileEndpoint, tag: str) -> list[dict[str, Any]]:
-    builder = XrayConfiguration(xray_template_content='{"outbounds": []}')
+def _xray_outbounds(
+    endpoint: ProfileEndpoint, tag: str, client_templates: dict[str, str] | None = None
+) -> list[dict[str, Any]]:
+    templates = client_templates or {}
+    builder = XrayConfiguration(
+        xray_template_content='{"outbounds": []}',
+        user_agent_template_content=templates.get("USER_AGENT_TEMPLATE"),
+        grpc_user_agent_template_content=templates.get("GRPC_USER_AGENT_TEMPLATE"),
+    )
     builder.add(
         remark=tag,
         address=endpoint.address,
@@ -209,7 +216,12 @@ def _xray_outbounds(endpoint: ProfileEndpoint, tag: str) -> list[dict[str, Any]]
     return _retag_xray_outbounds(outbounds, tags)
 
 
-def build_xray_profile(profile: SubscriptionProfile, endpoints: list[ProfileEndpoint]) -> dict[str, Any]:
+def build_xray_profile(
+    profile: SubscriptionProfile,
+    endpoints: list[ProfileEndpoint],
+    *,
+    client_templates: dict[str, str] | None = None,
+) -> dict[str, Any]:
     groups = _grouped_endpoints(profile, endpoints)
     endpoints = [endpoint for entries in groups.values() for endpoint in entries]
     tags = _endpoint_tags(endpoints)
@@ -220,7 +232,7 @@ def build_xray_profile(profile: SubscriptionProfile, endpoints: list[ProfileEndp
 
     for endpoint in sorted(endpoints, key=lambda item: (item.priority, item.machine_key, item.stable_tie_breaker)):
         tag = tags[id(endpoint)]
-        outbounds.extend(_xray_outbounds(endpoint, tag))
+        outbounds.extend(_xray_outbounds(endpoint, tag, client_templates))
         pool_tags[endpoint.pool].append(tag)
         if not endpoint.exclude_from_auto:
             auto_pool_tags[endpoint.pool].append(tag)
@@ -279,8 +291,15 @@ def build_xray_profile(profile: SubscriptionProfile, endpoints: list[ProfileEndp
     return config
 
 
-def _singbox_endpoint(endpoint: ProfileEndpoint, tag: str) -> tuple[str, dict[str, Any]]:
-    builder = SingBoxConfiguration(singbox_template_content='{"inbounds": [], "outbounds": []}')
+def _singbox_endpoint(
+    endpoint: ProfileEndpoint, tag: str, client_templates: dict[str, str] | None = None
+) -> tuple[str, dict[str, Any]]:
+    templates = client_templates or {}
+    builder = SingBoxConfiguration(
+        singbox_template_content='{"inbounds": [], "outbounds": []}',
+        user_agent_template_content=templates.get("USER_AGENT_TEMPLATE"),
+        grpc_user_agent_template_content=templates.get("GRPC_USER_AGENT_TEMPLATE"),
+    )
     builder.add(remark=tag, address=endpoint.address, inbound=endpoint.inbound, settings=endpoint.settings)
     if builder.config["outbounds"]:
         return "outbounds", builder.config["outbounds"][0]
@@ -297,7 +316,12 @@ def _singbox_endpoint(endpoint: ProfileEndpoint, tag: str) -> tuple[str, dict[st
     )
 
 
-def build_singbox_profile(profile: SubscriptionProfile, endpoints: list[ProfileEndpoint]) -> dict[str, Any]:
+def build_singbox_profile(
+    profile: SubscriptionProfile,
+    endpoints: list[ProfileEndpoint],
+    *,
+    client_templates: dict[str, str] | None = None,
+) -> dict[str, Any]:
     groups = _grouped_endpoints(profile, endpoints)
     endpoints = [endpoint for entries in groups.values() for endpoint in entries]
     tags = _endpoint_tags(endpoints)
@@ -310,7 +334,7 @@ def build_singbox_profile(profile: SubscriptionProfile, endpoints: list[ProfileE
 
     for endpoint in sorted(endpoints, key=lambda item: (item.priority, item.machine_key, item.stable_tie_breaker)):
         tag = tags[id(endpoint)]
-        container, generated_endpoint = _singbox_endpoint(endpoint, tag)
+        container, generated_endpoint = _singbox_endpoint(endpoint, tag, client_templates)
         (outbounds if container == "outbounds" else singbox_endpoints).append(generated_endpoint)
         pool_tags[endpoint.pool].append(tag)
         if not endpoint.exclude_from_auto:

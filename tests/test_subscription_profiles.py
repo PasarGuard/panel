@@ -1025,3 +1025,113 @@ def test_generated_singbox_profile_passes_official_validator(tmp_path):
         ],
     )
     _run_profile_validator("SING_BOX_BINARY", ["check", "-c"], config, tmp_path)
+
+
+def _profile_generation_env(monkeypatch, hosts, *, user_agent_template='{"list": ["PG-UA/1.0"]}'):
+    """Drive `generate_subscription_profile` over real hosts.
+
+    `process_host` and `_prepare_download_settings` are deliberately left
+    unpatched: they are the code under test.
+    """
+
+    async def templates():
+        return {
+            "USER_AGENT_TEMPLATE": user_agent_template,
+            "GRPC_USER_AGENT_TEMPLATE": '{"list": ["PG-gRPC-UA/1.0"]}',
+            "XRAY_SUBSCRIPTION_TEMPLATE": '{"outbounds": []}',
+            "SINGBOX_SUBSCRIPTION_TEMPLATE": '{"inbounds": [], "outbounds": []}',
+        }
+
+    monkeypatch.setattr("app.subscription.share.subscription_client_templates", templates)
+    monkeypatch.setattr(
+        "app.subscription.share.subscription_settings",
+        AsyncMock(return_value=SimpleNamespace(custom_variables=[])),
+    )
+    monkeypatch.setattr("app.subscription.share.get_effective_custom_variables", lambda *_: [])
+    monkeypatch.setattr("app.subscription.share.setup_format_variables", lambda *_: {"SERVER_IP": "203.0.113.7"})
+    for host in hosts:
+        # The host cache stores candidate lists; `process_host` picks from them.
+        if not isinstance(host.address, list):
+            host.address = [host.address]
+        if not isinstance(host.port, list):
+            host.port = [host.port]
+    monkeypatch.setattr(
+        "app.subscription.share.host_manager.get_hosts",
+        AsyncMock(return_value={host.host_id: host for host in hosts}),
+    )
+    return SimpleNamespace(
+        id=1,
+        status=UserStatus.active,
+        proxy_settings=SimpleNamespace(dict=lambda: {"vless": {"id": "11111111-1111-1111-1111-111111111111"}}),
+        inbounds=[host.inbound_tag for host in hosts],
+    )
+
+
+def _find_key(node, key):
+    if isinstance(node, dict):
+        if node.get(key):
+            return node[key]
+        for value in node.values():
+            found = _find_key(value, key)
+            if found:
+                return found
+    elif isinstance(node, list):
+        for value in node:
+            found = _find_key(value, key)
+            if found:
+                return found
+    return None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("network", ["ws", "tcp", "grpc", "xhttp"])
+async def test_profile_generation_supports_random_user_agent_hosts(network, monkeypatch):
+    """A host with `random_user_agent` must not blow up profile generation.
+
+    The profile builders construct their own bare config objects, so without the
+    user-agent templates being threaded through they end up calling
+    `random.choice([])` and raise `IndexError`, turning the public subscription
+    route into a 500.
+    """
+    endpoint = make_vless_transport_endpoint(network, host_id=301)
+    endpoint.inbound.transport_config.random_user_agent = True
+    user = _profile_generation_env(monkeypatch, [endpoint.inbound])
+
+    rendered = json.loads(
+        await generate_subscription_profile(user, '{"default_pool":"primary","pools":[{"id":"primary"}]}', "xray")
+    )
+
+    assert _find_key(rendered, "outbounds")
+
+
+@pytest.mark.asyncio
+async def test_profile_generation_materialises_download_settings(monkeypatch):
+    """Download settings must be resolved before they reach the config writer.
+
+    Straight off the host cache they still hold candidate lists and an
+    unformatted `{SERVER_IP}`; Xray needs a single address string and a scalar
+    port, so an unprocessed value yields a config the core rejects.
+    """
+    download = SubscriptionInboundData(
+        remark="download",
+        host_id=303,
+        inbound_tag="vless-download-303",
+        protocol="vless",
+        address=["{SERVER_IP}"],
+        port=[8443],
+        network="xhttp",
+        tls_config=TLSConfig(tls="tls", sni="dl.example.test"),
+        transport_config=XHTTPTransportConfig(path="/dl", host="dl.example.test", mode="auto"),
+    )
+    endpoint = make_vless_transport_endpoint("xhttp", host_id=302)
+    endpoint.inbound.transport_config.download_settings = download
+    user = _profile_generation_env(monkeypatch, [endpoint.inbound, download])
+
+    rendered = json.loads(
+        await generate_subscription_profile(user, '{"default_pool":"primary","pools":[{"id":"primary"}]}', "xray")
+    )
+
+    download_settings = _find_key(rendered, "downloadSettings")
+    assert download_settings, "xhttp download settings are missing from the generated profile"
+    assert download_settings["address"] == "203.0.113.7"
+    assert download_settings["port"] == 8443
