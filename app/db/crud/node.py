@@ -36,6 +36,8 @@ from .general import (
     to_utc_for_filter,
 )
 
+_REORDER_BATCH_SIZE = 10_000
+
 
 def _build_node_simple_sort_clause(sort_option: NodeSimpleSortOption):
     field_map = {
@@ -427,11 +429,12 @@ async def reorder_nodes(db: AsyncSession, ordered_ids: list[int]) -> bool:
     for index, node_id in zip(requested_positions, ordered_ids, strict=True):
         current_ids[index] = node_id
 
-    ordering = {node_id: index for index, node_id in enumerate(current_ids)}
-    if ordering:
+    for batch_start in range(0, len(current_ids), _REORDER_BATCH_SIZE):
+        batch_ids = current_ids[batch_start : batch_start + _REORDER_BATCH_SIZE]
+        ordering = {node_id: index for index, node_id in enumerate(batch_ids, start=batch_start)}
         await db.execute(
             update(Node)
-            .where(Node.id.in_(current_ids))
+            .where(Node.id.in_(batch_ids))
             .values(sort_order=case(ordering, value=Node.id))
         )
     await db.commit()
