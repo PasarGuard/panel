@@ -26,6 +26,7 @@ from app.models.subscription import (
 )
 from app.nats import is_multi_worker, is_nats_enabled
 from app.nats.client import setup_nats_kv
+from app.nats.kv_cas import is_kv_miss
 from app.nats.message import MessageTopic
 from app.nats.router import router
 from app.utils.logger import get_logger
@@ -492,6 +493,9 @@ class HostManager:
             await self._reset_cache()
             return True
         except Exception as exc:
+            if is_kv_miss(exc):
+                self._logger.debug("Host manager state cache is empty")
+                return False
             self._logger.error(f"Error loading host state from cache: {exc}")
             return False
 

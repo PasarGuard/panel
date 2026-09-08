@@ -1444,6 +1444,8 @@ class UserOperation(BaseOperation):
             db=db,
             query=query,
             return_with_count=True,
+            load_usage_logs=False,
+            load_lifetime_used_traffic=True,
         )
 
         if query.load_sub:
