@@ -8,6 +8,7 @@ from app.db.crud.group import (
     get_group,
     get_group_for_sync_update,
     get_group_user_count,
+    get_group_user_ids,
     get_group_user_ids_batch,
     get_groups_by_ids,
     get_groups_simple,
@@ -16,7 +17,7 @@ from app.db.crud.group import (
     remove_group,
     remove_groups,
 )
-from app.db.crud.group_lock import lock_group_policy_writes
+from app.db.crud.group_lock import lock_group_policy_writes, lock_group_rows_for_sync
 from app.db.crud.user import get_users, get_users_for_node_sync
 from app.db.crud.wireguard import get_users_accessible_tags, sync_users_allocations
 from app.db.models import Admin
@@ -138,6 +139,17 @@ class GroupOperation(BaseOperation):
                     logger.info('Background sync superseded before dispatch for group id "%s"', group_id)
                     return
 
+                current_user_ids = await get_group_user_ids(db, group_id, [user.id for user in users])
+                users = [user for user in users if user.id in current_user_ids]
+                inbound_tags_by_user = {
+                    user_id: tags for user_id, tags in inbound_tags_by_user.items() if user_id in current_user_ids
+                }
+                if not users:
+                    await db.rollback()
+                    synced_users += len(user_ids)
+                    after_user_id = user_ids[-1]
+                    continue
+
                 await sync_users(
                     users,
                     inbound_tags_by_user=inbound_tags_by_user,
@@ -195,6 +207,7 @@ class GroupOperation(BaseOperation):
         task.add_done_callback(remove_completed_task)
 
     async def _sync_users_allocations(self, db: AsyncSession, users) -> None:
+        """Reconcile WireGuard allocations and convert exhaustion into an operation error."""
         try:
             await sync_users_allocations(db, users)
         except ValueError as exc:  # WireGuard subnet exhausted
@@ -290,6 +303,8 @@ class GroupOperation(BaseOperation):
         asyncio.create_task(notification.remove_group(db_group.id, admin.username))
 
     async def bulk_add_groups(self, db: AsyncSession, bulk_model: BulkGroup, admin: Admin):
+        """Add groups to users, reconcile access, and await the resulting node update."""
+        await lock_group_rows_for_sync(db, bulk_model.group_ids)
         await self.validate_all_groups(db, bulk_model, admin)
         if bulk_model.dry_run:
             n = await count_bulk_group_scope(db, bulk_model)
@@ -298,13 +313,15 @@ class GroupOperation(BaseOperation):
         users, users_count = await add_groups_to_users(db, bulk_model)
         await self._sync_users_allocations(db, users)
         await db.commit()
-        await sync_users(users)
+        await sync_users(users, wait_for_dispatch=True)
 
         if self.operator_type in (OperatorType.API, OperatorType.WEB):
             return {"detail": f"operation has been successfuly done on {users_count} users"}
         return users_count
 
     async def bulk_remove_groups(self, db: AsyncSession, bulk_model: BulkGroup, admin: Admin):
+        """Remove groups from users, reconcile access, and await the resulting node update."""
+        await lock_group_rows_for_sync(db, bulk_model.group_ids)
         await self.validate_all_groups(db, bulk_model, admin)
         if bulk_model.dry_run:
             n = await count_bulk_group_scope(db, bulk_model)
@@ -313,7 +330,7 @@ class GroupOperation(BaseOperation):
         users, users_count = await remove_groups_from_users(db, bulk_model)
         await self._sync_users_allocations(db, users)
         await db.commit()
-        await sync_users(users)
+        await sync_users(users, wait_for_dispatch=True)
 
         if self.operator_type in (OperatorType.API, OperatorType.WEB):
             return {"detail": f"operation has been successfuly done on {users_count} users"}

@@ -1,3 +1,5 @@
+from collections.abc import Sequence
+
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -41,6 +43,7 @@ async def get_inbounds_by_tags(db: AsyncSession, tags: list[str]) -> list[ProxyI
 
 
 async def load_group_attrs(group: Group, *, load_users: bool = True, load_inbounds: bool = True):
+    """Load only the requested group relationships into the ORM instance."""
     if load_users:
         await group.awaitable_attrs.users
     if load_inbounds:
@@ -73,6 +76,17 @@ async def get_group_user_ids_batch(
         .limit(limit)
     )
     return list((await db.execute(stmt)).scalars().all())
+
+
+async def get_group_user_ids(db: AsyncSession, group_id: int, user_ids: Sequence[int]) -> set[int]:
+    """Return the requested users who are still members of a group."""
+    if not user_ids:
+        return set()
+    stmt = select(users_groups_association.c.user_id).where(
+        users_groups_association.c.groups_id == group_id,
+        users_groups_association.c.user_id.in_(user_ids),
+    )
+    return set((await db.execute(stmt)).scalars().all())
 
 
 async def get_group_for_sync_update(db: AsyncSession, group_id: int) -> Group | None:
