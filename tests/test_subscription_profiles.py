@@ -1302,3 +1302,23 @@ def test_singbox_group_labels_are_readable_and_collision_safe():
     # The root selector still has to resolve to the default pool's group.
     root = next(item for item in config["outbounds"] if item["tag"] == "proxy")
     assert root["outbounds"][0] == "Fastest"
+
+
+def test_singbox_routing_rules_address_groups_by_their_label():
+    """Group tags are the labels, so that is what a routing rule has to name."""
+    endpoints = [make_endpoint("primary", "de", host_id=611)]
+    base = dict(default_pool="primary", pools=[ProfilePool(id="primary", title="Fastest")])
+
+    config = build_singbox_profile(
+        SubscriptionProfile(**base, routing_rules=[{"protocol": "bittorrent", "outbound": "Fastest"}]),
+        endpoints,
+    )
+    assert config["route"]["rules"][0]["outbound"] == "Fastest"
+
+    # A stale machine-readable tag must fail loudly rather than silently produce
+    # a config the client rejects.
+    with pytest.raises(ProfileValidationError, match="references unknown outbound 'pg-country-de'"):
+        build_singbox_profile(
+            SubscriptionProfile(**base, routing_rules=[{"protocol": "bittorrent", "outbound": "pg-country-de"}]),
+            endpoints,
+        )
