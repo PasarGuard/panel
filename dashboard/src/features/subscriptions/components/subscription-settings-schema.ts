@@ -153,12 +153,18 @@ export const defaultSubscriptionRules: SubscriptionRuleFormData[] = [
     target: 'outline',
   },
   {
-    // Happ and NPV Tunnel consume a full Xray JSON config and apply its own
-    // `routing` section. v2rayN, v2rayNG and Streisand import share links
-    // natively; handing them JSON turns each server into an opaque custom
-    // config, so their own routing, local port and latency probing stop
-    // applying. They stay on links unless an operator opts in.
-    pattern: '^([Hh]app|[Kk]tor\\-client)',
+    // InHive ingests share links and Xray JSON natively; the backend seeds this
+    // rule unconditionally, so leaving it out made Reset to Default drop it.
+    pattern: '^[Ii]n[Hh]ive',
+    target: 'xray',
+  },
+  {
+    // v2rayN and v2rayNG import share links natively. Handing them JSON turns
+    // every server into an opaque custom config, so their own routing, local
+    // port and latency probing stop applying. The backend adds them here only
+    // when an operator opts in through USE_CUSTOM_JSON_FOR_*, which defaults to
+    // false, so Reset to Default must not switch it on for them either.
+    pattern: '^([Ss]treisand|[Hh]app|[Kk]tor\\-client)',
     target: 'xray',
   },
   {
