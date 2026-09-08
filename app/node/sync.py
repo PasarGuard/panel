@@ -23,19 +23,23 @@ def _chunk_serialized_users_for_nats(users: list[dict]) -> list[list[dict]]:
     max_batch_size = max(1, nats_settings.node_update_users_batch_size)
     chunks: list[list[dict]] = []
     current: list[dict] = []
+    envelope_bytes = len(encode_node_command("update_users", {"users": []}))
+    current_bytes = envelope_bytes
 
     for user in users:
-        candidate = [*current, user]
-        if current and (
-            len(candidate) > max_batch_size
-            or len(encode_node_command("update_users", {"users": candidate})) > max_payload_bytes
-        ):
+        # Reuse the wire encoder so JSON escaping and the command envelope are counted exactly.
+        single_user_bytes = len(encode_node_command("update_users", {"users": [user]}))
+        user_bytes = single_user_bytes - envelope_bytes
+        candidate_bytes = current_bytes + user_bytes + (1 if current else 0)  # JSON array comma
+        if current and (len(current) >= max_batch_size or candidate_bytes > max_payload_bytes):
             chunks.append(current)
-            current = [user]
-        else:
-            current = candidate
+            current = []
+            candidate_bytes = single_user_bytes
 
-        if len(current) == 1 and len(encode_node_command("update_users", {"users": current})) > max_payload_bytes:
+        current.append(user)
+        current_bytes = candidate_bytes
+
+        if single_user_bytes > max_payload_bytes:
             logger.warning(
                 "Single serialized user update exceeds configured NATS node command payload limit: user=%s",
                 user.get("email") or user.get("id") or "unknown",
