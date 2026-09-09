@@ -101,6 +101,7 @@ def validate_profile_routing_rules(profile: SubscriptionProfile, config_format: 
         # cleanly and then 422 every subscription fetch bound to it, so the
         # operator would hear about the typo from their users.
         _singbox_rule_sets(_collect_rule_set_tags(profile.routing_rules))
+        _singbox_pool_group_labels(profile)
 
 
 def _singbox_dns_server(server: str, tag: str, detour: str | None) -> dict[str, Any]:
@@ -162,8 +163,31 @@ def _applicable_xray_rules(
     ]
 
 
-def _singbox_rule_applies(outbound: str | None, reachable: set[str], optional: set[str]) -> bool:
-    return not outbound or outbound in reachable or outbound not in optional
+def _resolved_singbox_rule(
+    rule: dict[str, Any], reachable: set[str], group_targets: dict[str, str | None]
+) -> dict[str, Any] | None:
+    """Resolve stable group identifiers and omit known unavailable groups.
+
+    Endpoint display tags remain valid for backwards compatibility. Group
+    targets are resolved first, however, so an endpoint remark can never steal
+    a route from a declared pool or generated country group.
+    """
+    target = rule.get("outbound")
+    if not isinstance(target, str):
+        return rule
+    if target in group_targets:
+        resolved = group_targets[target]
+        if resolved is None:
+            return None
+        if resolved == target:
+            return rule
+        result = deepcopy(rule)
+        result["outbound"] = resolved
+        return result
+    if target in reachable:
+        return rule
+    # Preserve unknown targets so output validation reports the typo.
+    return rule
 
 
 def _validate_xray_output_routing(config: dict[str, Any]) -> None:
@@ -495,6 +519,47 @@ def _unique_label(label: str, used: set[str]) -> str:
     return candidate
 
 
+def _singbox_pool_group_labels(profile: SubscriptionProfile) -> dict[str, tuple[str, str]]:
+    """Validate and allocate stable display tags for all declared pools."""
+    labels: dict[str, tuple[str, str]] = {}
+    # Reserve country groups even when this particular user has no endpoint in
+    # that country. Otherwise an endpoint called "NL" would change from NL to
+    # NL 2 as soon as an NL endpoint becomes available, and an old route would
+    # silently change meaning.
+    used = {"proxy", "direct"}
+    for first in "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
+        for second in "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
+            country = first + second
+            used.update((country, f"{country} · Auto"))
+
+    target_owners: defaultdict[str, set[str]] = defaultdict(set)
+    for pool in profile.pools:
+        target_owners[pool.id].add(f"pool '{pool.id}'")
+        target_owners[f"pg-auto-{pool.id}"].add(f"automatic pool '{pool.id}'")
+    for first in "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
+        for second in "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
+            country = first + second
+            target_owners[f"pg-country-{country.lower()}"].add(f"automatic country '{country}'")
+    for target, owners in target_owners.items():
+        if len(owners) > 1:
+            raise ProfileValidationError(
+                f"Generated group target '{target}' is ambiguous between {', '.join(sorted(owners))}"
+            )
+    machine_targets = set(target_owners)
+    for pool in profile.pools:
+        selector = pool.title or pool.id
+        automatic = f"{selector} · Auto"
+        for label in (selector, automatic):
+            own_id = label == pool.id
+            if label in used or (label in machine_targets and not own_id):
+                raise ProfileValidationError(
+                    f"Pool '{pool.id}' label '{label}' collides with another generated group or reserved target"
+                )
+            used.add(label)
+        labels[pool.id] = (selector, automatic)
+    return labels
+
+
 def _auto_group_label(pool_or_country: str, *, title: str | None = None, is_country: bool = False) -> str:
     if title:
         return title
@@ -609,10 +674,18 @@ def build_singbox_profile(
     country_tags: dict[str, list[str]] = defaultdict(list)
     auto_country_tags: dict[str, list[str]] = defaultdict(list)
     pool_selector_tags: dict[str, str] = {}
+    pool_auto_tags: dict[str, str | None] = {}
+    pool_group_labels = _singbox_pool_group_labels(profile)
     # One namespace for endpoints and groups alike: a tag is what the client
     # prints in its server list, and a collision between the two would make the
     # config invalid rather than merely confusing.
     used_labels: set[str] = {"proxy", "direct"}
+    for first in "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
+        for second in "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
+            country = first + second
+            used_labels.update((country, f"{country} · Auto"))
+    for selector, automatic in pool_group_labels.values():
+        used_labels.update((selector, automatic))
 
     for endpoint in sorted(endpoints, key=lambda item: (item.priority, item.machine_key, item.stable_tie_breaker)):
         # The machine tag exists so the Xray observatory can match on a prefix.
@@ -630,17 +703,11 @@ def build_singbox_profile(
                 auto_country_tags[endpoint.country].append(tag)
 
     selection_tags: list[str] = []
-    optional_tags: set[str] = set()
     for pool in profile.pools:
-        pool_label = pool.title or pool.id
+        pool_tag, auto_tag = pool_group_labels[pool.id]
         if pool.id not in groups:
-            # Use the same allocation order and namespace as a present pool,
-            # without reserving names for groups that are not emitted.
-            absent_labels = set(used_labels)
-            optional_tags.add(_unique_label(f"{pool_label} · Auto", absent_labels))
-            optional_tags.add(_unique_label(pool_label, absent_labels))
+            pool_auto_tags[pool.id] = None
             continue
-        auto_tag = _unique_label(f"{pool_label} · Auto", used_labels)
         automatic_tags = auto_pool_tags[pool.id]
         if not automatic_tags and pool.id == profile.default_pool:
             raise ProfileValidationError(
@@ -659,8 +726,9 @@ def build_singbox_profile(
                 }
             )
         else:
-            optional_tags.add(auto_tag)
-        pool_tag = _unique_label(pool_label, used_labels)
+            pool_auto_tags[pool.id] = None
+        if automatic_tags:
+            pool_auto_tags[pool.id] = auto_tag
         pool_selector_tags[pool.id] = pool_tag
         outbounds.append(
             {
@@ -671,8 +739,8 @@ def build_singbox_profile(
         )
         selection_tags.append(pool_tag)
     for country, actor_tags in sorted(country_tags.items()):
-        country_tag = _unique_label(country.upper(), used_labels)
-        auto_country_tag = _unique_label(f"{country.upper()} · Auto", used_labels)
+        country_tag = country.upper()
+        auto_country_tag: str | None = f"{country.upper()} · Auto"
         automatic_tags = auto_country_tags[country]
         if automatic_tags:
             outbounds.append(
@@ -687,29 +755,36 @@ def build_singbox_profile(
                 }
             )
         else:
-            optional_tags.add(auto_country_tag)
+            auto_country_tag = None
         outbounds.append(
             {
                 "type": "selector",
                 "tag": country_tag,
-                "outbounds": ([auto_country_tag] if automatic_tags else []) + actor_tags,
+                "outbounds": ([auto_country_tag] if auto_country_tag else []) + actor_tags,
             }
         )
         selection_tags.append(country_tag)
 
-    # Country groups use "NL" / "NL · Auto", with collision suffixes from
-    # _unique_label. Recognize only the exact names this generator would emit;
-    # "Auto (NL)" belongs to Xray's display labels, not Sing-box targets.
-    for rule in profile.routing_rules:
-        target = rule.get("outbound")
-        country_match = (
-            re.fullmatch(r"([A-Z]{2})(?: · Auto)?(?: [1-9]\d*)?", target) if isinstance(target, str) else None
-        )
-        if country_match and country_match[1] not in country_tags:
-            country = country_match[1]
-            absent_labels = set(used_labels)
-            optional_tags.add(_unique_label(country, absent_labels))
-            optional_tags.add(_unique_label(f"{country} · Auto", absent_labels))
+    group_targets: dict[str, str | None] = {}
+    for pool in profile.pools:
+        selector, automatic = pool_group_labels[pool.id]
+        emitted_selector = pool_selector_tags.get(pool.id)
+        emitted_auto = pool_auto_tags.get(pool.id)
+        for alias in (pool.id, selector):
+            group_targets[alias] = emitted_selector
+        for alias in (f"pg-auto-{pool.id}", automatic):
+            group_targets[alias] = emitted_auto
+    for first in "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
+        for second in "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
+            country = first + second
+            automatic = f"{country} · Auto"
+            emitted_selector = country if country in country_tags else None
+            emitted_auto = automatic if auto_country_tags.get(country) else None
+            group_targets[country] = emitted_selector
+            group_targets[automatic] = emitted_auto
+            # This is the same canonical country target used by Xray, whose
+            # country groups are automatic balancers.
+            group_targets[f"pg-country-{country.lower()}"] = emitted_auto
 
     root_selector = pool_selector_tags[profile.default_pool]
     root_choices = list(dict.fromkeys([root_selector, *selection_tags]))
@@ -730,6 +805,11 @@ def build_singbox_profile(
     # and no auto_detect_interface, which a device needs to find its real
     # egress instead of routing into itself.
     reachable = {outbound["tag"] for outbound in outbounds} | {entry["tag"] for entry in singbox_endpoints}
+    operator_rules = [
+        resolved
+        for rule in profile.routing_rules
+        if (resolved := _resolved_singbox_rule(rule, reachable, group_targets)) is not None
+    ]
     route_rules = [
         # Both inbounds, not just the tun: hijack-dns matches on `protocol`, and
         # so does every domain rule below, and only sniffing fills that in. A
@@ -737,11 +817,7 @@ def build_singbox_profile(
         # domain rules never match and its DNS queries leave the tunnel.
         {"inbound": ["tun-in", "mixed-in"], "action": "sniff"},
         {"protocol": "dns", "action": "hijack-dns"},
-        *(
-            rule
-            for rule in profile.routing_rules
-            if _singbox_rule_applies(rule.get("outbound"), reachable, optional_tags)
-        ),
+        *operator_rules,
     ]
     rule_sets = _singbox_rule_sets(_collect_rule_set_tags(route_rules))
     config = {

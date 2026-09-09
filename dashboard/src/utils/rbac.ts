@@ -43,6 +43,10 @@ export const canReadResourcePage = (admin: AdminDetails | null | undefined, reso
   return hasPermission(admin, resource, 'read')
 }
 
+export const canUseClientWorkspace = (admin: AdminDetails | null | undefined) => canReadResourcePage(admin, 'client_templates') && hasPermission(admin, 'settings', 'read')
+
+export const clientTemplateLibraryPath = (admin: AdminDetails | null | undefined) => (canUseClientWorkspace(admin) ? '/client-settings/configurations' : '/templates/client')
+
 export const canManageResource = (admin: AdminDetails | null | undefined, resource: string, mutationActions: readonly string[] = ['create', 'update', 'delete']) => {
   if (isOwner(admin)) return true
   if (!hasPermission(admin, resource, 'read')) return false
@@ -63,7 +67,7 @@ export const firstAllowedRoute = (admin: AdminDetails | null | undefined) => {
   if (canReadResourcePage(admin, 'cores')) return '/nodes/cores'
   if (hasPermission(admin, 'nodes', 'logs')) return '/nodes/logs'
   if (canReadResourcePage(admin, 'templates')) return '/templates/user'
-  if (canReadResourcePage(admin, 'client_templates')) return '/templates/client'
+  if (canReadResourcePage(admin, 'client_templates')) return canUseClientWorkspace(admin) ? '/client-settings/applications' : '/templates/client'
   return '/settings/theme'
 }
 
@@ -75,6 +79,7 @@ export const canAccessRoute = (admin: AdminDetails | null | undefined, pathname:
   if (pathname.startsWith('/statistics')) return hasPermission(admin, 'nodes', 'stats')
   if (pathname.startsWith('/hosts')) return canReadResourcePage(admin, 'hosts')
   if (pathname.startsWith('/groups')) return canReadResourcePage(admin, 'groups')
+  if (pathname.startsWith('/client-settings')) return canUseClientWorkspace(admin)
   if (pathname === '/templates') return canReadResourcePage(admin, 'templates') || canReadResourcePage(admin, 'client_templates')
   if (pathname.startsWith('/templates/client')) return canReadResourcePage(admin, 'client_templates')
   if (pathname.startsWith('/templates/user')) return canReadResourcePage(admin, 'templates')

@@ -5,7 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Textarea } from '@/components/ui/textarea'
 import { ClientTemplateType, useGetClientTemplatesSimple, type ClientTemplatesSimpleResponse } from '@/service/api'
-import type { SubscriptionFormData } from './subscription-settings-schema'
+import { selectSubscriptionRuleProfile, type SubscriptionFormData } from './subscription-settings-schema'
 import { CustomVariablesPopover, VariablesList } from '@/components/ui/variables-popover'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { useIsMobile } from '@/hooks/use-mobile'
@@ -110,7 +110,9 @@ export function SubscriptionRuleAdvancedSheet({ form, ruleIndex, rowId, open, on
               <Select
                 value={profileId != null ? String(profileId) : PROFILE_NONE_VALUE}
                 onValueChange={value => {
-                  form.setValue(`rules.${ruleIndex}.profile_id`, value === PROFILE_NONE_VALUE ? undefined : Number(value), { shouldDirty: true })
+                  form.setValue(`rules.${ruleIndex}`, selectSubscriptionRuleProfile(form.getValues(`rules.${ruleIndex}`), value === PROFILE_NONE_VALUE ? undefined : Number(value)), {
+                    shouldDirty: true,
+                  })
                 }}
               >
                 <SelectTrigger id={`subscription-profile-id-${rowId}`}>

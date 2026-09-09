@@ -1,15 +1,20 @@
 # Xray and Sing-box server-group generators
 
-Server-group generators are an opt-in replacement for a *single* legacy Xray
-or Sing-box subscription response. A host remains an endpoint (address,
+Server-group generators are an optional configuration source in
+**Applications**, alongside native routing documents. They
+replace a *single* Xray or Sing-box subscription response. A host remains an endpoint (address,
 transport and inbound); the generator owns pools, country groups, health
 checks and automatic choice. Existing Clash, Xray and Sing-box subscription
 URLs are not changed.
 
 ## Create a profile
 
-In **Client templates**, create either **Xray server-group generator** or
-**Sing-box server-group generator**.
+Open an application in **Applications**, then choose a new **Xray
+server-group generator** or **Sing-box server-group generator** as its
+configuration. Routing and DNS parameters, optional server pools, preview and
+saving belong to the same application page. Saved generators also appear in
+the configuration library. See [Client routing](client-routing.md) for the
+shared document and assignment workflow.
 Its JSON is validated before it is saved.  The built-in starting point creates
 `primary` and `fallback` pools:
 
@@ -48,10 +53,16 @@ pool/country health checks. Sing-box still exposes it in the pool selector,
 and `publish_endpoint_configs` still exposes its individual Xray config.
 
 Changing the host remark, randomized address, port, or SNI has no effect on
-profile membership or generated tags.  The generator derives deterministic
-`pg-proxy-*` tags from the stable host ID rather than a user-visible string.
+profile membership. Xray derives deterministic `pg-proxy-*` tags from the
+stable host ID. Sing-box uses the remark as the endpoint label, reserving
+group names first and disambiguating endpoint labels when necessary.
 
 ## Give a user one profile
+
+The ordinary workflow is to save the generator together with its application
+assignment and use the user's existing subscription URL. The first matching
+delivery rule selects this configuration. A rule can select one generator
+or one native document, never both.
 
 The explicit public endpoint is:
 
@@ -121,9 +132,13 @@ only when that pool has automatic endpoints, then a top-level `proxy` selector.
 A Sing-box client displays an outbound's tag verbatim, so those tags double as
 the labels in its group picker: a pool becomes `<title or id>` with
 `<title or id> · Auto` beside it, and a country becomes `DE` with `DE · Auto`.
-Duplicate titles get a numeric suffix, since a tag collision would make the
-config invalid rather than merely confusing.  Routing rules that name a group
-must use these labels.
+Group names are reserved before endpoint labels. Conflicting pool titles are
+rejected, so a host rename cannot redirect a group rule to a single endpoint.
+Use stable routing targets: `pool.id` for a manual pool,
+`pg-auto-<pool>` for its automatic group, and `pg-country-<country>` (lowercase
+country code) for an automatic country group. The generator translates these
+targets to the labels displayed by Sing-box. Existing unambiguous display-name
+targets remain supported.
 This deliberately does **not** claim strict
 `primary -> fallback` failover: Sing-box `urltest` chooses among the outbounds
 in its own pool and has no Xray-style `fallbackTag`.  Users can still choose a
@@ -138,10 +153,10 @@ For Xray burst probes, `health_check.probe_timeout` is the timeout of one probe
 (default `5s`). It is independent from the Sing-box idle timeout and is emitted
 only with `health_check.burst: true`.
 
-The **Generator parameters (JSON, optional)** tab preserves advanced fields
+The **Generator JSON** mode preserves advanced fields
 such as `dns`, `routing_rules`, `domain_strategy`, `client` and response-header
-options for existing API users. They remain backend-validated, but are outside
-the server-group form. Rules for a valid generated pool/country group that is
+options for existing API users. This is the generator's parameter document;
+the resulting native client configuration is shown by preview. Rules for a valid generated pool/country group that is
 absent for one user are omitted from that user's output; arbitrary unknown
 targets remain validation errors rather than silently changing routing.
 

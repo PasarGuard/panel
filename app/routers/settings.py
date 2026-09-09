@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 
 from app.db import AsyncSession, get_db
-from app.models.settings import General, SettingsSchema
+from app.models.settings import General, SettingsModify, SettingsSchema
 from app.operation import OperatorType
 from app.operation.settings import SettingsOperation
 from app.utils import responses
@@ -26,6 +26,6 @@ async def get_general_settings(
 
 @router.put("", response_model=SettingsSchema)
 async def modify_settings(
-    modify: SettingsSchema, db: AsyncSession = Depends(get_db), _=Depends(require_permission("settings", "update"))
+    modify: SettingsModify, db: AsyncSession = Depends(get_db), _=Depends(require_permission("settings", "update"))
 ):
     return await settings_operator.modify_settings(db, modify)

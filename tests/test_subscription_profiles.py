@@ -336,7 +336,7 @@ async def test_template_delete_acquires_reference_lock_before_reading_replacemen
         raise RuntimeError("read reached")
 
     monkeypatch.setattr("app.operation.client_template.lock_settings_row", record_lock)
-    monkeypatch.setattr(operation, "get_validated_client_template", stop_after_read)
+    monkeypatch.setattr(operation, "_get_locked_client_template", stop_after_read)
 
     with pytest.raises(RuntimeError, match="read reached"):
         await operation.remove_client_template(SimpleNamespace(), 1, SimpleNamespace(username="admin"))
@@ -1113,7 +1113,7 @@ async def test_profile_rule_selects_existing_client_template(monkeypatch):
     result = await operator.fetch_rule_config(None, SimpleNamespace(), rule)
 
     assert result == ("generated-profile", "application/json", ConfigFormat.xray, selected_profile)
-    fetch_profile.assert_awaited_once_with(None, SimpleNamespace(), 41)
+    fetch_profile.assert_awaited_once_with(None, SimpleNamespace(), 41, None)
 
 
 def test_routing_metadata_is_emitted_only_when_a_profile_declares_it():
@@ -1201,6 +1201,7 @@ def test_generated_singbox_profile_passes_official_validator(tmp_path):
             make_vless_transport_endpoint("grpc", host_id=132),
             make_wireguard_endpoint(host_id=133),
             make_endpoint("fallback", "fi", host_id=134),
+            make_endpoint("primary", "nl", host_id=135, remark="primary"),
         ],
     )
     _run_profile_validator("SING_BOX_BINARY", ["check", "-c"], config, tmp_path)
@@ -1414,28 +1415,70 @@ def test_profile_carries_routing_and_balancer_strategy_into_the_config():
     assert "observatory" not in config
 
 
-def test_singbox_group_labels_are_readable_and_collision_safe():
-    """A Sing-box client shows the outbound tag itself, so tags are the labels.
-
-    Two pools may legitimately share a title, and a duplicate tag makes the
-    config invalid rather than merely confusing.
-    """
-    config = build_singbox_profile(
-        SubscriptionProfile(
-            default_pool="primary",
-            pools=[ProfilePool(id="primary", title="Fastest"), ProfilePool(id="backup", title="Fastest")],
-        ),
-        [make_endpoint("primary", "de", host_id=601), make_endpoint("backup", "nl", host_id=602)],
+def test_singbox_rejects_duplicate_pool_titles_instead_of_renumbering_routes():
+    custom = SubscriptionProfile(
+        default_pool="primary",
+        pools=[ProfilePool(id="primary", title="Fastest"), ProfilePool(id="backup", title="Fastest")],
     )
 
-    selectors = [item["tag"] for item in config["outbounds"] if item.get("type") == "selector"]
-    assert "Fastest" in selectors
-    assert "Fastest 2" in selectors
-    assert len(selectors) == len(set(selectors))
-    assert not any(tag.startswith("pg-") for tag in selectors)
-    # The root selector still has to resolve to the default pool's group.
-    root = next(item for item in config["outbounds"] if item["tag"] == "proxy")
-    assert root["outbounds"][0] == "Fastest"
+    with pytest.raises(ProfileValidationError, match="collides with another generated group"):
+        validate_profile_routing_rules(custom, "sing_box")
+
+
+@pytest.mark.parametrize(
+    "pools",
+    [
+        [ProfilePool(id="primary", title="NL")],
+        [ProfilePool(id="primary", title="Fastest"), ProfilePool(id="backup", title="Fastest · Auto")],
+        [ProfilePool(id="primary", title="proxy")],
+        [ProfilePool(id="primary", title="pg-auto-primary")],
+    ],
+)
+def test_singbox_rejects_pool_labels_that_collide_with_generated_or_machine_targets(pools):
+    with pytest.raises(ProfileValidationError, match="collides with another generated group or reserved target"):
+        validate_profile_routing_rules(SubscriptionProfile(default_pool="primary", pools=pools), "sing_box")
+
+
+@pytest.mark.parametrize("pool_id", ["pg-country-nl", "pg-auto-primary"])
+def test_singbox_rejects_pool_ids_that_steal_canonical_group_targets(pool_id):
+    pools = [ProfilePool(id="primary"), ProfilePool(id=pool_id)]
+    with pytest.raises(ProfileValidationError, match="Generated group target .* is ambiguous"):
+        validate_profile_routing_rules(SubscriptionProfile(pools=pools), "sing_box")
+
+
+def test_singbox_reserves_pool_and_country_groups_before_endpoint_names():
+    endpoints = [
+        make_endpoint("primary", "nl", host_id=611, remark="primary"),
+        make_endpoint("primary", "se", host_id=612, remark="primary · Auto"),
+        make_endpoint("primary", "se", host_id=613, remark="NL"),
+        make_endpoint("primary", "se", host_id=614, remark="NL · Auto"),
+    ]
+
+    config = build_singbox_profile(profile(), endpoints)
+    tags = {outbound["tag"] for outbound in config["outbounds"]}
+
+    assert {"primary", "primary · Auto", "NL", "NL · Auto"} <= tags
+    assert {"primary 2", "primary · Auto 2", "NL 2", "NL · Auto 2"} <= tags
+
+
+def test_singbox_pool_route_keeps_its_group_when_a_colliding_endpoint_is_added_or_renamed():
+    custom = profile().model_copy(update={"routing_rules": [{"domain": ["example.com"], "outbound": "primary"}]})
+    initial = build_singbox_profile(custom, [make_endpoint("primary", "de", host_id=621, remark="Berlin")])
+    added = build_singbox_profile(
+        custom,
+        [
+            make_endpoint("primary", "de", host_id=621, remark="Berlin"),
+            make_endpoint("primary", "nl", host_id=622, remark="primary"),
+        ],
+    )
+    colliding = build_singbox_profile(custom, [make_endpoint("primary", "de", host_id=621, remark="primary")])
+
+    for config in (initial, added, colliding):
+        operator_rule = next(rule for rule in config["route"]["rules"] if rule.get("domain") == ["example.com"])
+        assert operator_rule["outbound"] == "primary"
+        assert next(outbound for outbound in config["outbounds"] if outbound["tag"] == "primary")["type"] == "selector"
+    for config in (added, colliding):
+        assert any(outbound["tag"] == "primary 2" for outbound in config["outbounds"])
 
 
 def test_configured_resolvers_reach_both_cores():
@@ -1602,51 +1645,53 @@ def test_xray_still_rejects_a_misspelled_group(target):
         build_xray_profile_configs(custom, [make_endpoint("primary", "se")])
 
 
-@pytest.mark.parametrize("target", ["NL", "NL · Auto", "fallback", "fallback · Auto"])
+@pytest.mark.parametrize(
+    "target", ["NL", "NL · Auto", "fallback", "fallback · Auto", "pg-country-nl", "pg-auto-fallback"]
+)
 def test_singbox_drops_only_valid_groups_that_are_absent_for_this_user(target):
     absent_group = profile().model_copy(update={"routing_rules": [{"rule_set": "geosite-netflix", "outbound": target}]})
     config = build_singbox_profile(absent_group, [make_endpoint("primary", "se")])
     assert not any(rule.get("outbound") == target for rule in config["route"]["rules"])
 
 
-@pytest.mark.parametrize("target", ["Nowhere", "Auto (NL)", "Auto (primary)", "primray", "pg-auto-primary", "NLL"])
+@pytest.mark.parametrize("target", ["Nowhere", "Auto (NL)", "Auto (primary)", "primray", "pg-auto-primray", "NLL"])
 def test_singbox_rejects_unknown_group_names(target):
     misspelled = profile().model_copy(update={"routing_rules": [{"rule_set": "geosite-netflix", "outbound": target}]})
     with pytest.raises(ProfileValidationError, match="unknown outbound"):
         build_singbox_profile(misspelled, [make_endpoint("primary", "se")])
 
 
-@pytest.mark.parametrize("target", ["NL", "NL · Auto", "primary", "primary · Auto"])
-def test_singbox_preserves_rules_for_reachable_generated_groups(target):
+@pytest.mark.parametrize(
+    ("target", "rendered"),
+    [
+        ("NL", "NL"),
+        ("NL · Auto", "NL · Auto"),
+        ("pg-country-nl", "NL · Auto"),
+        ("primary", "primary"),
+        ("primary · Auto", "primary · Auto"),
+        ("pg-auto-primary", "primary · Auto"),
+    ],
+)
+def test_singbox_preserves_or_resolves_reachable_generated_groups(target, rendered):
     custom = profile().model_copy(update={"routing_rules": [{"domain": ["example.com"], "outbound": target}]})
     config = build_singbox_profile(custom, [make_endpoint("primary", "nl")])
-    assert any(rule.get("outbound") == target for rule in config["route"]["rules"])
-
-
-@pytest.mark.parametrize("country", ["nl", "se"])
-@pytest.mark.parametrize("label", ["NL", "NL · Auto"])
-def test_singbox_country_filter_uses_collision_disambiguated_tags(country, label):
-    target = f"{label} 2"
-    custom = profile().model_copy(update={"routing_rules": [{"domain": ["example.com"], "outbound": target}]})
-    config = build_singbox_profile(custom, [make_endpoint("primary", country, remark=label)])
-    assert any(rule.get("outbound") == target for rule in config["route"]["rules"]) is (country == "nl")
+    assert any(rule.get("outbound") == rendered for rule in config["route"]["rules"])
 
 
 @pytest.mark.parametrize("present", [False, True])
-@pytest.mark.parametrize("label", ["Emergency", "Emergency · Auto"])
-def test_singbox_optional_pool_uses_its_title_and_collision_suffix(present, label):
-    target = f"{label} 2"
+def test_singbox_optional_pool_uses_its_machine_id_and_stable_title(present):
     custom = profile().model_copy(
         update={
             "pools": [ProfilePool(id="primary"), ProfilePool(id="fallback", title="Emergency")],
-            "routing_rules": [{"domain": ["example.com"], "outbound": target}],
+            "routing_rules": [{"domain": ["example.com"], "outbound": "fallback"}],
         }
     )
-    endpoints = [make_endpoint("primary", "se", remark=label)]
+    endpoints = [make_endpoint("primary", "se", remark="Emergency")]
     if present:
         endpoints.append(make_endpoint("fallback", "nl", host_id=2))
     config = build_singbox_profile(custom, endpoints)
-    assert any(rule.get("outbound") == target for rule in config["route"]["rules"]) is present
+    assert any(rule.get("outbound") == "Emergency" for rule in config["route"]["rules"]) is present
+    assert any(outbound.get("tag") == "Emergency 2" for outbound in config["outbounds"])
 
 
 def test_singbox_manual_only_group_omits_its_unavailable_auto_rule():
@@ -1686,6 +1731,7 @@ def test_a_singbox_template_group_written_by_hand_is_not_overwritten():
     config = SingBoxConfiguration(
         singbox_template_content=template,
         user_agent_template_content='{"list": ["UA/1.0"]}',
+        preserve_authored_groups=True,
     )
     for index, remark in enumerate(("Stockholm", "Amsterdam")):
         inbound = make_endpoint("primary", "se", remark=remark, host_id=900 + index).inbound
@@ -1856,10 +1902,16 @@ def test_singbox_routing_rules_address_groups_by_their_label():
     operator_rule = next(r for r in config["route"]["rules"] if r.get("protocol") == "bittorrent")
     assert operator_rule["outbound"] == "Fastest"
 
-    # A stale machine-readable tag must fail loudly rather than silently produce
-    # a config the client rejects.
-    with pytest.raises(ProfileValidationError, match="references unknown outbound 'pg-country-de'"):
-        build_singbox_profile(
-            SubscriptionProfile(**base, routing_rules=[{"protocol": "bittorrent", "outbound": "pg-country-de"}]),
-            endpoints,
-        )
+    machine_target = build_singbox_profile(
+        SubscriptionProfile(**base, routing_rules=[{"protocol": "bittorrent", "outbound": "primary"}]),
+        endpoints,
+    )
+    operator_rule = next(r for r in machine_target["route"]["rules"] if r.get("protocol") == "bittorrent")
+    assert operator_rule["outbound"] == "Fastest"
+
+    country_target = build_singbox_profile(
+        SubscriptionProfile(**base, routing_rules=[{"protocol": "bittorrent", "outbound": "pg-country-de"}]),
+        endpoints,
+    )
+    operator_rule = next(r for r in country_target["route"]["rules"] if r.get("protocol") == "bittorrent")
+    assert operator_rule["outbound"] == "DE · Auto"

@@ -1,7 +1,7 @@
 import { Suspense } from 'react'
 import { useAdmin } from '@/hooks/use-admin'
-import { getCurrentAdmin } from '@/service/api'
-import { hasPermission } from '@/utils/rbac'
+import { getCurrentAdmin, type AdminDetails } from '@/service/api'
+import { hasPermission, clientTemplateLibraryPath } from '@/utils/rbac'
 import { createHashRouter, Navigate, RouteObject } from 'react-router'
 import { LoadingSpinner } from '@/components/common/loading-spinner'
 import { RouteErrorPage } from '@/components/layout/error-page'
@@ -42,12 +42,14 @@ const Statistics = lazyWithChunkRecovery(() => import('../pages/_dashboard.stati
 const TemplatesLayout = lazyWithChunkRecovery(() => import('../pages/_dashboard.templates'))
 const UserTemplates = lazyWithChunkRecovery(() => import('../pages/_dashboard.templates.user'))
 const ClientTemplates = lazyWithChunkRecovery(() => import('../pages/_dashboard.templates.client'))
+const ClientSettings = lazyWithChunkRecovery(() => import('../pages/_dashboard.client-settings'))
 const Users = lazyWithChunkRecovery(() => import('../pages/_dashboard.users'))
 const Login = lazyWithChunkRecovery(() => import('../pages/login'))
 
 // Component to handle default settings routing based on user permissions
 function SettingsIndex() {
-  const { admin } = useAdmin()
+  const { admin: adminResponse } = useAdmin()
+  const admin = adminResponse as unknown as AdminDetails | undefined
   const canUpdateSettings = hasPermission(admin, 'settings', 'update')
   const canSeeGeneral = hasPermission(admin, 'settings', 'read_general') && canUpdateSettings
   const defaultPath = canSeeGeneral ? '/settings/general' : '/settings/theme'
@@ -56,13 +58,21 @@ function SettingsIndex() {
 }
 
 function TemplatesIndex() {
-  const { admin } = useAdmin()
+  const { admin: adminResponse } = useAdmin()
+  const admin = adminResponse as unknown as AdminDetails | undefined
   const defaultPath = hasPermission(admin, 'templates', 'read') ? '/templates/user' : hasPermission(admin, 'client_templates', 'read') ? '/templates/client' : '/settings/theme'
 
   return <Navigate to={defaultPath} replace />
 }
 
-const fetchAdminLoader = async (): Promise<any> => {
+function ClientTemplatesRoute() {
+  const { admin: adminResponse } = useAdmin()
+  const admin = adminResponse as unknown as AdminDetails | undefined
+  const destination = clientTemplateLibraryPath(admin)
+  return destination === '/templates/client' ? <ClientTemplates /> : <Navigate to={destination} replace />
+}
+
+const fetchAdminLoader = async () => {
   try {
     const response = await getCurrentAdmin()
     return response
@@ -205,6 +215,14 @@ export const router = createHashRouter([
         ),
       },
       {
+        path: '/client-settings/*',
+        element: (
+          <Suspense fallback={<LoadingSpinner />}>
+            <ClientSettings />
+          </Suspense>
+        ),
+      },
+      {
         path: '/templates',
         element: (
           <Suspense fallback={<TabbedRouteSuspenseFallback />}>
@@ -228,7 +246,7 @@ export const router = createHashRouter([
             path: '/templates/client',
             element: (
               <Suspense fallback={<LoadingSpinner />}>
-                <ClientTemplates />
+                <ClientTemplatesRoute />
               </Suspense>
             ),
           },

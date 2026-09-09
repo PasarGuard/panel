@@ -1,9 +1,10 @@
 import re
 from enum import Enum, StrEnum
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from app.models.client_template import ClientTemplateType
 from app.models.proxy import ShadowsocksMethods
 
 from .notification_enable import NotificationEnable
@@ -202,16 +203,48 @@ class ConfigFormat(str, Enum):
     block = "block"
 
 
+NATIVE_TEMPLATE_BY_TARGET: dict[ConfigFormat, ClientTemplateType] = {
+    ConfigFormat.xray: ClientTemplateType.xray_subscription,
+    ConfigFormat.sing_box: ClientTemplateType.singbox_subscription,
+    ConfigFormat.clash: ClientTemplateType.clash_subscription,
+    ConfigFormat.clash_meta: ClientTemplateType.clash_subscription,
+}
+
+
+class HappRoutingBinding(BaseModel):
+    template_id: int = Field(ge=1)
+    transport: Literal["body", "header"] = "body"
+    action: Literal["add", "onadd"] = "onadd"
+    enabled: bool | None = None
+
+
 class SubRule(BaseModel):
     pattern: str
     target: ConfigFormat
     response_headers: dict[str, Any] = Field(default_factory=dict)
     profile_id: int | None = Field(default=None, ge=1)
+    template_id: int | None = Field(default=None, ge=1)
+    ui_application: str | None = Field(default=None, max_length=64)
+    happ_routing: HappRoutingBinding | None = None
 
     @model_validator(mode="after")
-    def validate_profile_target(self):
+    def validate_document_target(self):
         if self.profile_id is not None and self.target not in (ConfigFormat.xray, ConfigFormat.sing_box):
             raise ValueError("profile_id can only be used with xray or sing_box subscription rules")
+        if self.template_id is not None and self.target not in NATIVE_TEMPLATE_BY_TARGET:
+            raise ValueError("template_id requires xray, sing_box, clash or clash_meta")
+        if self.profile_id is not None and self.template_id is not None:
+            raise ValueError("profile_id and template_id are mutually exclusive")
+        if self.happ_routing is not None:
+            if self.profile_id is not None or self.template_id is not None:
+                raise ValueError("Happ routing cannot be combined with a full JSON document")
+            if self.target not in (ConfigFormat.links, ConfigFormat.links_base64):
+                raise ValueError("Happ routing requires links or links_base64")
+            if self.happ_routing.transport == "body" and self.target != ConfigFormat.links:
+                raise ValueError("Happ body routing requires plaintext links")
+            owned_headers = {"routing", "routing-enable"}
+            if any(str(name).strip().lower() in owned_headers for name in self.response_headers):
+                raise ValueError("Happ binding owns routing and routing-enable headers")
         return self
 
 
@@ -385,3 +418,13 @@ class SettingsSchema(BaseModel):
     general: General | None = Field(default=None)
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class SubscriptionModify(Subscription):
+    """Omitted subscription fields preserve their current database values."""
+
+    rules: list[SubRule] | None = None
+
+
+class SettingsModify(SettingsSchema):
+    subscription: SubscriptionModify | None = None

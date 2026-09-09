@@ -1,0 +1,88 @@
+name: Client settings
+
+on:
+  pull_request:
+    paths:
+      - "dashboard/**"
+      - "app/models/client*.py"
+      - "app/models/settings.py"
+      - "app/models/subscription_profile.py"
+      - "app/operation/client*.py"
+      - "app/operation/settings.py"
+      - "app/db/crud/client_template.py"
+      - "app/db/crud/settings.py"
+      - "tests/test_client_workspace.py"
+      - ".github/workflows/client-settings-checks.yml"
+  push:
+    branches: [dev]
+    paths:
+      - "dashboard/**"
+      - "app/models/client*.py"
+      - "app/models/settings.py"
+      - "app/models/subscription_profile.py"
+      - "app/operation/client*.py"
+      - "app/operation/settings.py"
+      - "app/db/crud/client_template.py"
+      - "app/db/crud/settings.py"
+      - "tests/test_client_workspace.py"
+      - ".github/workflows/client-settings-checks.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: client-settings-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  dashboard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: dashboard
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.13"
+      - name: Install locked dependencies
+        run: bun install --frozen-lockfile
+      - name: Client editor and generator regressions
+        run: bun run test:client-settings
+      - name: Build dashboard
+        run: bun run build
+
+  mysql-reference-regressions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: test
+          MYSQL_DATABASE: workspace_review
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -ptest"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=12
+    env:
+      TESTING: "true"
+      # Exclusive test DB: these regressions recreate their own two tables.
+      CLIENT_WORKSPACE_MYSQL_TEST_URL: mysql+asyncmy://root:test@127.0.0.1:3306/workspace_review
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+      - name: Install test dependencies
+        run: make setup-test
+      - name: Concurrent document and assignment checks
+        run: uv run pytest tests/test_client_workspace.py -q -k mysql

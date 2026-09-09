@@ -4,6 +4,7 @@ import { z } from 'zod'
 export const clientTemplateFormSchema = z.object({
   name: z.string().min(1, 'Name is required').max(64),
   template_type: z.enum([
+    ClientTemplateType.happ_routing,
     ClientTemplateType.clash_subscription,
     ClientTemplateType.xray_subscription,
     ClientTemplateType.singbox_subscription,
@@ -25,6 +26,7 @@ const DEFAULT_USER_AGENT_TEMPLATE = {
   list: [],
 }
 export const DEFAULT_TEMPLATE_CONTENT: Record<ClientTemplateType, string> = {
+  [ClientTemplateType.happ_routing]: JSON.stringify({ Name: 'Happ routing', GlobalProxy: 'true', DirectSites: [], DirectIp: [], ProxySites: [], ProxyIp: [], BlockSites: [], BlockIp: [] }, null, 2),
   [ClientTemplateType.clash_subscription]: `mode: rule
 mixed-port: 7890
 ipv6: true

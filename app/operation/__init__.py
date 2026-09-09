@@ -303,7 +303,7 @@ class BaseOperation:
         return db_core_config
 
     async def get_validated_client_template(self, db: AsyncSession, template_id: int) -> ClientTemplate:
-        db_client_template = await get_client_template_by_id(db, template_id)
+        db_client_template = await get_client_template_by_id(db, template_id, for_update=True)
         if not db_client_template:
             await self.raise_error(message="Client template not found", code=404)
         return db_client_template

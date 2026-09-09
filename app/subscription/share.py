@@ -15,6 +15,7 @@ from app.models.subscription import SubscriptionInboundData
 from app.models.subscription_profile import SubscriptionProfile
 from app.models.user import UsersResponseWithInbounds
 from app.settings import subscription_settings
+from app.subscription.client_diagnostics import record_preview_exception
 from app.subscription.client_templates import subscription_client_templates, subscription_xray_templates
 from app.utils.system import readable_size
 
@@ -43,6 +44,8 @@ SERVER_IPV6 = "[::1]"
 def _build_subscription_config(
     config_format: str,
     client_templates: dict[str, str],
+    *,
+    preserve_authored_groups: bool = False,
 ) -> (
     StandardLinks
     | XrayConfiguration
@@ -73,6 +76,7 @@ def _build_subscription_config(
     if config_format == "sing_box":
         return SingBoxConfiguration(
             singbox_template_content=client_templates["SINGBOX_SUBSCRIPTION_TEMPLATE"],
+            preserve_authored_groups=preserve_authored_groups,
             **common_kwargs,
         )
     if config_format == "outline":
@@ -92,10 +96,25 @@ async def generate_subscription(
     config_format: str,
     as_base64: bool,
     randomize_order: bool = False,
+    native_template: tuple[str, str] | None = None,
+    client_templates_override: dict[str, str] | None = None,
+    xray_templates_override: dict[int, str] | None = None,
 ) -> str | bytes:
     client_templates = await subscription_client_templates()
-    xray_template_overrides = await subscription_xray_templates() if config_format == "xray" else None
-    conf = _build_subscription_config(config_format, client_templates)
+    if client_templates_override is not None:
+        client_templates = {**client_templates, **client_templates_override}
+    if native_template is not None:
+        client_templates = {**client_templates, native_template[0]: native_template[1]}
+    resolved_xray_overrides = None
+    if config_format == "xray" and native_template is None:
+        resolved_xray_overrides = (
+            xray_templates_override if xray_templates_override is not None else await subscription_xray_templates()
+        )
+    conf = _build_subscription_config(
+        config_format,
+        client_templates,
+        preserve_authored_groups=config_format == "sing_box" and native_template is not None,
+    )
     if conf is None:
         raise ValueError(f'Unsupported format "{config_format}"')
 
@@ -108,7 +127,8 @@ async def generate_subscription(
         format_variables,
         conf,
         client_templates,
-        xray_template_overrides=xray_template_overrides,
+        xray_template_overrides=resolved_xray_overrides,
+        suppress_xray_host_overrides=native_template is not None,
         randomize_order=randomize_order,
         custom_variables=custom_variables,
     )
@@ -524,6 +544,7 @@ async def process_inbounds_and_tags(
     xray_template_overrides: dict[int, str] | None = None,
     randomize_order: bool = False,
     custom_variables: list | tuple | None = None,
+    suppress_xray_host_overrides: bool = False,
 ) -> str | bytes:
     proxy_settings = user.proxy_settings.dict()
     proxy_settings["_user_id"] = user.id
@@ -565,6 +586,7 @@ async def process_inbounds_and_tags(
 
         if isinstance(conf, XrayConfiguration):
             template_content = _resolve_host_xray_template_content(inbound_copy)
+            previous_count = len(conf.config)
             conf.add(
                 remark=remark,
                 address=formatted_address,
@@ -572,6 +594,17 @@ async def process_inbounds_and_tags(
                 settings=settings,
                 template_content=template_content,
             )
+            if len(conf.config) > previous_count:
+                if template_content is not None:
+                    record_preview_exception("A Host Xray template override was applied to a rendered configuration.")
+                elif (
+                    suppress_xray_host_overrides
+                    and isinstance(inbound_copy.subscription_templates, dict)
+                    and isinstance(inbound_copy.subscription_templates.get("xray"), int)
+                ):
+                    record_preview_exception(
+                        "An explicit native Xray template suppressed a configured Host template override."
+                    )
         else:
             conf.add(
                 remark=remark,

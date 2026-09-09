@@ -6,46 +6,86 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.crud.settings import get_settings, lock_settings_row, modify_settings
 from app.db.models import ClientTemplate, Settings
 from app.models.client_template import ClientTemplateType
-from app.models.settings import ConfigFormat, General, SettingsSchema, Subscription
+from app.models.settings import (
+    NATIVE_TEMPLATE_BY_TARGET,
+    ConfigFormat,
+    General,
+    SettingsSchema,
+    Subscription,
+    SubscriptionModify,
+)
 from app.nats.message import MessageTopic
 from app.nats.router import router
 from app.notification.client import define_client
 from app.settings import refresh_caches
+from app.subscription.happ import happ_deeplink
 from app.telegram import startup_telegram_bot
 
 from . import BaseOperation
 
 
 class SettingsOperation(BaseOperation):
-    async def _validate_subscription_profile_rules(self, db: AsyncSession, subscription: Subscription) -> None:
-        referenced_rules = [rule for rule in subscription.rules if rule.profile_id is not None]
-        if not referenced_rules:
-            return
-
-        profile_ids = {rule.profile_id for rule in referenced_rules}
-        rows = (
-            await db.execute(
-                select(ClientTemplate.id, ClientTemplate.template_type).where(ClientTemplate.id.in_(profile_ids))
-            )
-        ).all()
-        template_types = {row.id: row.template_type for row in rows}
-        expected_types = {
-            ConfigFormat.xray: ClientTemplateType.xray_profile.value,
-            ConfigFormat.sing_box: ClientTemplateType.singbox_profile.value,
+    async def _validate_subscription_template_rules(self, db: AsyncSession, subscription: Subscription) -> None:
+        referenced = [
+            rule
+            for rule in subscription.rules
+            if rule.profile_id is not None or rule.template_id is not None or rule.happ_routing
+        ]
+        ids = {
+            rule.profile_id
+            if rule.profile_id is not None
+            else rule.template_id
+            if rule.template_id is not None
+            else rule.happ_routing.template_id
+            for rule in referenced
         }
-        for rule in referenced_rules:
-            template_type = template_types.get(rule.profile_id)
-            if template_type is None:
-                await self.raise_error(message=f"Subscription profile {rule.profile_id} not found", code=400)
-            expected_type = expected_types[rule.target]
-            if template_type != expected_type:
-                await self.raise_error(
-                    message=(
-                        f"Subscription profile {rule.profile_id} must use template type {expected_type} "
+        if not ids:
+            return
+        templates = (
+            await db.execute(
+                select(ClientTemplate)
+                .where(ClientTemplate.id.in_(ids))
+                .with_for_update()
+                .execution_options(populate_existing=True)
+            )
+        ).scalars().all()
+        by_id = {template.id: template for template in templates}
+        for rule in referenced:
+            template_id = (
+                rule.profile_id
+                if rule.profile_id is not None
+                else rule.template_id
+                if rule.template_id is not None
+                else rule.happ_routing.template_id
+            )
+            template = by_id.get(template_id)
+            if rule.profile_id is not None:
+                expected = {
+                    ConfigFormat.xray: ClientTemplateType.xray_profile,
+                    ConfigFormat.sing_box: ClientTemplateType.singbox_profile,
+                }[rule.target]
+            elif rule.template_id is not None:
+                expected = NATIVE_TEMPLATE_BY_TARGET[rule.target]
+            else:
+                expected = ClientTemplateType.happ_routing
+            if template is None or ClientTemplateType(template.template_type) != expected:
+                if rule.profile_id is not None and template is None:
+                    message = f"Subscription profile {template_id} not found"
+                elif rule.profile_id is not None:
+                    message = (
+                        f"Subscription profile {template_id} must use template type {expected.value} "
                         f"for target {rule.target.value}"
-                    ),
-                    code=400,
+                    )
+                else:
+                    message = f"Client template {template_id} must exist and use type {expected.value}"
+                await self.raise_error(
+                    message=message, code=400, db=db
                 )
+            if rule.happ_routing:
+                try:
+                    happ_deeplink(template.content, rule.happ_routing.action, rule.happ_routing.transport)
+                except ValueError as exc:
+                    await self.raise_error(message=str(exc), code=400, db=db)
 
     @staticmethod
     async def reset_services(old_settings: SettingsSchema, new_settings: SettingsSchema):
@@ -60,19 +100,22 @@ class SettingsOperation(BaseOperation):
         return await get_settings(db)
 
     async def modify_settings(self, db: AsyncSession, modify: SettingsSchema) -> SettingsSchema:
-        modifies_profile_references = modify.subscription is not None or bool(
-            modify.general and modify.general.custom_variables is not None
-        )
-        db_settings = await lock_settings_row(db) if modifies_profile_references else await get_settings(db)
+        db_settings = await lock_settings_row(db)
         old_settings = SettingsSchema.model_validate(db_settings)
+
+        if isinstance(modify.subscription, SubscriptionModify):
+            changes = modify.subscription.model_dump(exclude_unset=True)
+            if changes.get("rules") is None:
+                changes.pop("rules", None)
+            modify.subscription = Subscription.model_validate({**db_settings.subscription, **changes})
+
+        if modify.subscription is not None:
+            await self._validate_subscription_template_rules(db, modify.subscription)
 
         if modify.general and modify.general.custom_variables is not None:
             subscription = modify.subscription or Subscription.model_validate(db_settings.subscription)
             modify.subscription = subscription.model_copy(update={"custom_variables": modify.general.custom_variables})
             modify.general = modify.general.model_copy(update={"custom_variables": None})
-
-        if modify.subscription is not None:
-            await self._validate_subscription_profile_rules(db, modify.subscription)
 
         db_settings = await modify_settings(db, db_settings, modify)
         new_settings = SettingsSchema.model_validate(db_settings)

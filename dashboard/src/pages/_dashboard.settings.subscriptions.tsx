@@ -1,3 +1,6 @@
+import { useAdmin } from '@/hooks/use-admin'
+import { canUseClientWorkspace } from '@/utils/rbac'
+import { Link } from 'react-router'
 import { buildDefaultApplications } from '@/features/subscriptions/components/default-applications-catalog'
 import { SubscriptionApplicationSheet } from '@/features/subscriptions/components/subscription-application-sheet'
 import { SubscriptionApplicationsSection } from '@/features/subscriptions/components/subscription-applications-section'
@@ -13,28 +16,31 @@ import {
   type SubscriptionApplicationFormData,
   type SubscriptionFormData,
   defaultSubscriptionRules,
-  mapSubscriptionRulesForForm,
   normalizeCustomVariablesForPayload,
+  mapSubscriptionRulesForForm,
   prepareSubscriptionRulesForPayload,
 } from '@/features/subscriptions/components/subscription-settings-schema'
 import { Form } from '@/components/ui/form'
 import { Separator } from '@/components/ui/separator'
+import { type AdminDetails } from '@/service/api'
 import { DragEndEvent, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useEffect, useState } from 'react'
-import { FieldErrors, useFieldArray, useForm } from 'react-hook-form'
+import { FieldErrors, type Resolver, useFieldArray, useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useSettingsContext } from './_dashboard.settings'
 
 export default function SubscriptionSettings() {
   const { t } = useTranslation()
+  const { admin: adminResponse } = useAdmin()
+  const useWorkspace = canUseClientWorkspace(adminResponse as unknown as AdminDetails | undefined)
   const { settings, isLoading, error, updateSettings, isSaving } = useSettingsContext()
   const [isAddAppOpen, setIsAddAppOpen] = useState(false)
 
   const form = useForm<SubscriptionFormData>({
-    resolver: zodResolver(subscriptionSchema),
+    resolver: zodResolver(subscriptionSchema) as Resolver<SubscriptionFormData>,
     defaultValues: {
       url_prefix: '',
       update_interval: 24,
@@ -192,7 +198,7 @@ export default function SubscriptionSettings() {
 
       const filteredData = {
         subscription: {
-          ...data,
+          ...Object.fromEntries(Object.entries(data).filter(([key]) => key !== 'rules')),
           url_prefix: data.url_prefix?.trim() || undefined,
           support_url: data.support_url?.trim() || undefined,
           profile_title: data.profile_title?.trim() || undefined,
@@ -200,7 +206,7 @@ export default function SubscriptionSettings() {
           announce_url: data.announce_url?.trim() || undefined,
           custom_variables: processedCustomVariables,
           response_headers: processedResponseHeaders,
-          rules: processedRules,
+          ...(useWorkspace ? {} : { rules: processedRules }),
           applications: processedApplications,
         },
       }
@@ -358,16 +364,22 @@ export default function SubscriptionSettings() {
 
           <Separator className="my-3" />
 
-          <SubscriptionRulesSection
-            form={form}
-            ruleFields={ruleFields}
-            sensors={sensors}
-            onDragEnd={handleDragEnd}
-            onResetToDefault={handleResetToDefault}
-            onAddRule={addRule}
-            onRemoveRule={removeRule}
-            isSaving={isSaving}
-          />
+          {useWorkspace ? (
+            <Link to="/client-settings/rules" className="text-primary block rounded-lg border p-4 text-sm underline underline-offset-4">
+              {t('clientSettings.manageDelivery', 'Manage delivery rules in Client settings')}
+            </Link>
+          ) : (
+            <SubscriptionRulesSection
+              form={form}
+              ruleFields={ruleFields}
+              sensors={sensors}
+              onDragEnd={handleDragEnd}
+              onResetToDefault={handleResetToDefault}
+              onAddRule={addRule}
+              onRemoveRule={removeRule}
+              isSaving={isSaving}
+            />
+          )}
 
           <Separator className="my-3" />
 

@@ -83,15 +83,20 @@ async def get_client_template_contents_by_type(db: AsyncSession, template_type: 
     return {row.id: row.content for row in rows}
 
 
-async def get_client_template_by_id(db: AsyncSession, template_id: int) -> ClientTemplate | None:
-    return (
-        (await db.execute(select(ClientTemplate).where(ClientTemplate.id == template_id))).unique().scalar_one_or_none()
-    )
+async def get_client_template_by_id(
+    db: AsyncSession, template_id: int, *, for_update: bool = False
+) -> ClientTemplate | None:
+    stmt = select(ClientTemplate).where(ClientTemplate.id == template_id)
+    if for_update:
+        stmt = stmt.with_for_update().execution_options(populate_existing=True)
+    return (await db.execute(stmt)).unique().scalar_one_or_none()
 
 
 async def get_client_templates(
     db: AsyncSession,
     query: ClientTemplateListQuery,
+    *,
+    for_update: bool = False,
 ) -> tuple[list[ClientTemplate], int]:
     stmt = select(ClientTemplate)
     if query.ids:
@@ -102,6 +107,8 @@ async def get_client_templates(
     total = (await db.execute(select(func.count()).select_from(stmt.subquery()))).scalar() or 0
 
     stmt = stmt.order_by(ClientTemplate.template_type.asc(), ClientTemplate.id.asc())
+    if for_update:
+        stmt = stmt.with_for_update().execution_options(populate_existing=True)
     if query.offset:
         stmt = stmt.offset(query.offset)
     if query.limit:
@@ -144,7 +151,18 @@ async def get_client_templates_simple(
     return rows, total
 
 
-async def count_client_templates_by_type(db: AsyncSession, template_type: ClientTemplateType) -> int:
+async def count_client_templates_by_type(
+    db: AsyncSession, template_type: ClientTemplateType, *, for_update: bool = False
+) -> int:
+    if for_update:
+        rows = (
+            await db.execute(
+                select(ClientTemplate.id)
+                .where(ClientTemplate.template_type == template_type.value)
+                .with_for_update()
+            )
+        ).all()
+        return len(rows)
     count_stmt = (
         select(func.count()).select_from(ClientTemplate).where(ClientTemplate.template_type == template_type.value)
     )
@@ -156,6 +174,8 @@ async def get_first_template_by_type(
     template_type: ClientTemplateType,
     exclude_id: int | None = None,
     exclude_ids: list[int] | set[int] | None = None,
+    *,
+    for_update: bool = False,
 ) -> ClientTemplate | None:
     stmt = (
         select(ClientTemplate)
@@ -166,6 +186,8 @@ async def get_first_template_by_type(
         stmt = stmt.where(ClientTemplate.id != exclude_id)
     if exclude_ids:
         stmt = stmt.where(ClientTemplate.id.not_in(list(exclude_ids)))
+    if for_update:
+        stmt = stmt.with_for_update().execution_options(populate_existing=True)
     return (await db.execute(stmt)).scalars().first()
 
 
@@ -176,9 +198,9 @@ async def set_default_template(db: AsyncSession, db_template: ClientTemplate, *,
     db_template.is_default = True
     if commit:
         await db.commit()
-        await db.refresh(db_template)
     else:
         await db.flush()
+    await db.refresh(db_template)
     return db_template
 
 
@@ -214,8 +236,10 @@ async def clear_host_subscription_template_overrides(
     return updated_count
 
 
-async def create_client_template(db: AsyncSession, client_template: ClientTemplateCreate) -> ClientTemplate:
-    type_count = await count_client_templates_by_type(db, client_template.template_type)
+async def create_client_template(
+    db: AsyncSession, client_template: ClientTemplateCreate, *, commit: bool = True
+) -> ClientTemplate:
+    type_count = await count_client_templates_by_type(db, client_template.template_type, for_update=True)
     is_first_for_type = type_count == 0
     should_be_default = client_template.is_default or (
         is_first_for_type and client_template.template_type in TEMPLATE_TYPE_TO_LEGACY_KEY
@@ -237,7 +261,10 @@ async def create_client_template(db: AsyncSession, client_template: ClientTempla
     )
     db.add(db_template)
     try:
-        await db.commit()
+        if commit:
+            await db.commit()
+        else:
+            await db.flush()
     except IntegrityError:
         await db.rollback()
         raise
@@ -249,6 +276,8 @@ async def modify_client_template(
     db: AsyncSession,
     db_template: ClientTemplate,
     modified_template: ClientTemplateModify,
+    *,
+    commit: bool = True,
 ) -> ClientTemplate:
     template_data = modified_template.model_dump(exclude_none=True)
 
@@ -268,7 +297,10 @@ async def modify_client_template(
         db_template.content = template_data["content"]
 
     try:
-        await db.commit()
+        if commit:
+            await db.commit()
+        else:
+            await db.flush()
     except IntegrityError:
         await db.rollback()
         raise

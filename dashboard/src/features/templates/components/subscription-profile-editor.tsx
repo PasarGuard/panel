@@ -13,6 +13,8 @@ interface SubscriptionProfileEditorProps {
   /** Which generator will read this profile. Half the settings are read by one
    *  core and ignored by the other, and the editor used to show them all. */
   core: 'xray' | 'sing_box'
+  structuredOnly?: boolean
+  showIntro?: boolean
   value: string
   onChange: (value: string) => void
   onValidate: (markers: unknown[]) => void
@@ -62,7 +64,7 @@ function withBalancerSetting(current: SubscriptionProfileFormValue['balancer_set
   return next
 }
 
-export function SubscriptionProfileEditor({ core, value, onChange, onValidate, dialogOpen, onFullscreenChange }: SubscriptionProfileEditorProps) {
+export function SubscriptionProfileEditor({ core, value, onChange, onValidate, dialogOpen, onFullscreenChange, structuredOnly = false, showIntro = true }: SubscriptionProfileEditorProps) {
   const { t } = useTranslation()
   // Verified against the two generators: build_singbox_profile reaches none of
   // domain_strategy, balancer_strategy, balancer_settings,
@@ -81,27 +83,31 @@ export function SubscriptionProfileEditor({ core, value, onChange, onValidate, d
 
   return (
     <Tabs value={tab} onValueChange={setTab} className="flex h-full min-h-[450px] flex-col">
-      <TabsList className="grid w-full grid-cols-2">
-        <TabsTrigger value="structured">{t('clientTemplates.profile.structured', { defaultValue: 'Server groups' })}</TabsTrigger>
-        <TabsTrigger value="raw">{t('clientTemplates.profile.rawJson', { defaultValue: 'Generator JSON' })}</TabsTrigger>
-      </TabsList>
+      {!structuredOnly && (
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="structured">{t('clientTemplates.profile.structured', { defaultValue: 'Server groups' })}</TabsTrigger>
+          <TabsTrigger value="raw">{t('clientTemplates.profile.rawJson', { defaultValue: 'Generator JSON' })}</TabsTrigger>
+        </TabsList>
+      )}
 
       <TabsContent value="structured" className="mt-3 min-h-0 flex-1 overflow-y-auto pr-1">
         {!parsed.success ? (
           <div className="border-destructive/40 bg-destructive/5 rounded-lg border p-4 text-sm">
             <p className="text-destructive font-medium">{t('clientTemplates.profile.cannotOpenStructured', { defaultValue: 'This profile cannot be opened in the structured editor.' })}</p>
             <p className="text-muted-foreground mt-1 break-words">{parsed.error}</p>
-            <Button type="button" variant="outline" size="sm" className="mt-3" onClick={() => setTab('raw')}>
+            <Button type="button" variant="outline" size="sm" className="mt-3" onClick={() => setTab('raw')} hidden={structuredOnly}>
               {t('clientTemplates.profile.openRawJson', { defaultValue: 'Open Raw JSON' })}
             </Button>
           </div>
         ) : (
           <div className="space-y-5 pb-2">
-            <p className="text-muted-foreground text-xs">
-              {t('clientTemplates.profile.scopeHelp', {
-                defaultValue: 'Configure automatic server groups and health checks here. Advanced generator fields remain available in optional JSON.',
-              })}
-            </p>
+            {showIntro && (
+              <p className="text-muted-foreground text-xs">
+                {t('clientTemplates.profile.scopeHelp', {
+                  defaultValue: 'Configure automatic server groups and health checks here. Advanced generator fields remain available in optional JSON.',
+                })}
+              </p>
+            )}
             <section className="space-y-3 rounded-lg border p-3">
               <div className="flex items-center justify-between gap-2">
                 <h3 className="text-sm font-medium">{t('clientTemplates.profile.pools', { defaultValue: 'Pools' })}</h3>
@@ -141,39 +147,39 @@ export function SubscriptionProfileEditor({ core, value, onChange, onValidate, d
 
               {isXray && (
                 <label className="grid gap-1.5 text-sm">
-                    <span>{t('clientTemplates.profile.balancerStrategy', { defaultValue: 'Balancer strategy' })}</span>
-                    <Select
-                      value={parsed.data.balancer_strategy}
-                      onValueChange={value =>
-                        updateProfile(profile => ({
-                          ...profile,
-                          balancer_strategy: value as typeof profile.balancer_strategy,
-                          // The tuning box unmounts for the strategies that ignore
-                          // these, so a value left behind would keep reaching the
-                          // config with nothing in the form able to show or clear
-                          // it. Only clear on the way out of a strategy that read
-                          // it: between two that never did, this switch is not
-                          // what put the value there and must not delete it.
-                          balancer_settings: OBSERVATORY_STRATEGIES.has(profile.balancer_strategy) && !OBSERVATORY_STRATEGIES.has(value) ? null : profile.balancer_settings,
-                        }))
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {(['random', 'roundRobin', 'leastPing', 'leastLoad'] as const).map(option => (
-                          <SelectItem key={option} value={option}>
-                            {option}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <p className="text-muted-foreground text-xs">
-                      {t('clientTemplates.profile.balancerStrategyHelp', {
-                        defaultValue: 'leastPing and leastLoad need latency probing enabled below.',
-                      })}
-                    </p>
+                  <span>{t('clientTemplates.profile.balancerStrategy', { defaultValue: 'Balancer strategy' })}</span>
+                  <Select
+                    value={parsed.data.balancer_strategy}
+                    onValueChange={value =>
+                      updateProfile(profile => ({
+                        ...profile,
+                        balancer_strategy: value as typeof profile.balancer_strategy,
+                        // The tuning box unmounts for the strategies that ignore
+                        // these, so a value left behind would keep reaching the
+                        // config with nothing in the form able to show or clear
+                        // it. Only clear on the way out of a strategy that read
+                        // it: between two that never did, this switch is not
+                        // what put the value there and must not delete it.
+                        balancer_settings: OBSERVATORY_STRATEGIES.has(profile.balancer_strategy) && !OBSERVATORY_STRATEGIES.has(value) ? null : profile.balancer_settings,
+                      }))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(['random', 'roundRobin', 'leastPing', 'leastLoad'] as const).map(option => (
+                        <SelectItem key={option} value={option}>
+                          {option}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-muted-foreground text-xs">
+                    {t('clientTemplates.profile.balancerStrategyHelp', {
+                      defaultValue: 'leastPing and leastLoad need latency probing enabled below.',
+                    })}
+                  </p>
                 </label>
               )}
 
@@ -393,7 +399,6 @@ export function SubscriptionProfileEditor({ core, value, onChange, onValidate, d
                 )}
               </div>
             </section>
-
           </div>
         )}
       </TabsContent>

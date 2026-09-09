@@ -1,3 +1,4 @@
+import { changeSubscriptionRuleTarget, type SubscriptionRuleFormData } from './subscription-settings-schema'
 import { configFormatOptions } from '@/features/subscriptions/components/config-format-options'
 import { SubscriptionRuleAdvancedSheet } from '@/features/subscriptions/components/subscription-rule-advanced-sheet'
 import type { SubscriptionFormData } from '@/features/subscriptions/components/subscription-settings-schema'
@@ -150,15 +151,7 @@ export function SortableSubscriptionRule({ index, onRemove, form, id }: Sortable
                       <FormLabel className="sr-only">{t('settings.subscriptions.rules.target')}</FormLabel>
                       <Select
                         onValueChange={value => {
-                          const previous = field.value
-                          field.onChange(value)
-                          // A profile is written for one core, and the backend
-                          // rejects a mismatch only when a client fetches its
-                          // subscription. Switching xray <-> sing_box has to drop
-                          // it too, not just switching away from both.
-                          if (value !== previous) {
-                            form.setValue(`rules.${index}.profile_id`, undefined, { shouldDirty: true })
-                          }
+                          form.setValue(`rules.${index}`, changeSubscriptionRuleTarget(form.getValues(`rules.${index}`), value as SubscriptionRuleFormData['target']), { shouldDirty: true })
                         }}
                         value={field.value}
                       >
