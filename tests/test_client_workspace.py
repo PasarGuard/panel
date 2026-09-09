@@ -152,7 +152,7 @@ async def test_mysql_repeatable_read_stale_identity_map_cannot_overwrite_concurr
             # old REPEATABLE READ snapshot and populates the ORM identity map.
             assert (await get_settings(stale)).subscription == {"rules": []}
             templates, _ = await get_client_templates(stale, ClientTemplateListQuery())
-            assert templates[0].content == original_content
+            assert next(item for item in templates if item.id == template_id).content == original_content
 
             async with sessions() as writer:
                 await ordinary.modify_client_template(
@@ -163,7 +163,7 @@ async def test_mysql_repeatable_read_stale_identity_map_cannot_overwrite_concurr
                 )
 
             still_stale, _ = await get_client_templates(stale, ClientTemplateListQuery())
-            assert still_stale[0].content == original_content
+            assert next(item for item in still_stale if item.id == template_id).content == original_content
 
             with pytest.raises(HTTPException) as exc:
                 await workspace.apply(
