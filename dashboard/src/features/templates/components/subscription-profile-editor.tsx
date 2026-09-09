@@ -4,13 +4,15 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Textarea } from '@/components/ui/textarea'
 import { parseSubscriptionProfileForEditing, serializeSubscriptionProfile, type SubscriptionProfileFormValue } from '@/features/templates/forms/subscription-profile-form'
 import { Plus, Trash2 } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface SubscriptionProfileEditorProps {
+  /** Which generator will read this profile. Half the settings are read by one
+   *  core and ignored by the other, and the editor used to show them all. */
+  core: 'xray' | 'sing_box'
   value: string
   onChange: (value: string) => void
   onValidate: (markers: unknown[]) => void
@@ -18,97 +20,70 @@ interface SubscriptionProfileEditorProps {
   onFullscreenChange: (fullscreen: boolean) => void
 }
 
-function RoutingRuleEditor({
-  value,
-  onChange,
-  onDraftValidityChange,
-}: {
-  value: Record<string, unknown>
-  onChange: (value: Record<string, unknown>) => void
-  onDraftValidityChange: (isValid: boolean) => void
-}) {
-  const [draft, setDraft] = useState(() => JSON.stringify(value, null, 2))
-  const serializedValue = JSON.stringify(value, null, 2)
+const splitList = (value: string) =>
+  value
+    .split(',')
+    .map(entry => entry.trim())
+    .filter(Boolean)
+
+function CommaListEditor({ value, placeholder, onChange }: { value: string[]; placeholder?: string; onChange: (value: string[]) => void }) {
+  const joined = value.join(', ')
+  const [draft, setDraft] = useState(joined)
 
   useEffect(() => {
-    setDraft(serializedValue)
-  }, [serializedValue])
+    // Only adopt an outside edit. Rewriting the draft from the parsed list
+    // would swallow the separator the operator is in the middle of typing.
+    setDraft(current => (splitList(current).join(', ') === joined ? current : joined))
+  }, [joined])
 
   return (
-    <Textarea
-      className="min-h-24 font-mono text-xs"
+    <Input
       value={draft}
+      placeholder={placeholder}
       onChange={event => {
-        const nextDraft = event.target.value
-        setDraft(nextDraft)
-        try {
-          const nextRule = JSON.parse(nextDraft)
-          if (nextRule && !Array.isArray(nextRule) && typeof nextRule === 'object') {
-            onChange(nextRule)
-            onDraftValidityChange(true)
-          } else {
-            onDraftValidityChange(false)
-          }
-        } catch {
-          onDraftValidityChange(false)
-        }
+        setDraft(event.target.value)
+        onChange(splitList(event.target.value))
       }}
     />
   )
 }
 
-const CLIENT_OPTIONS = [
-  { value: 'generic', label: 'Generic (no routing header)' },
-  { value: 'happ', label: 'Happ' },
-  { value: 'incy', label: 'INCY' },
-  { value: 'v2raytun', label: 'v2rayTun' },
-] as const
+// Strategies that ignore the observatory ignore these knobs too.
+const OBSERVATORY_STRATEGIES = new Set(['leastPing', 'leastLoad'])
 
-const ROUTING_PLACEHOLDER: Record<string, string> = {
-  happ: 'happ://routing/onadd/<base64>',
-  incy: '<base64> or ://routing/onadd/<base64>',
-  v2raytun: '<base64>',
-  generic: '',
+type BalancerSettings = NonNullable<SubscriptionProfileFormValue['balancer_settings']>
+
+/** Drops the object once both knobs are cleared, so an untouched profile keeps
+ *  serializing exactly as it did before the operator opened this section. */
+function withBalancerSetting(current: SubscriptionProfileFormValue['balancer_settings'], patch: Partial<BalancerSettings>): BalancerSettings | null {
+  const next = { ...current, ...patch }
+  const { expected, baselines, ...rest } = next
+  if (expected == null && (baselines == null || baselines.length === 0) && Object.keys(rest).length === 0) return null
+  return next
 }
 
-const ROUTING_HINT: Record<string, string> = {
-  happ: 'A Happ routing profile in base64. Build one at routing.happ.su. Note that Happ ignores its own routing rules when the subscription serves a full Xray JSON config.',
-  incy: 'Same Happ profile format; INCY ignores the URL scheme and also takes the bare base64.',
-  v2raytun: 'A base64 Xray routing object, exported from v2rayTun itself. It is not the Happ format and a deeplink here does nothing.',
-  generic: '',
-}
-
-export function SubscriptionProfileEditor({ value, onChange, onValidate, dialogOpen, onFullscreenChange }: SubscriptionProfileEditorProps) {
+export function SubscriptionProfileEditor({ core, value, onChange, onValidate, dialogOpen, onFullscreenChange }: SubscriptionProfileEditorProps) {
   const { t } = useTranslation()
+  // Verified against the two generators: build_singbox_profile reaches none of
+  // domain_strategy, balancer_strategy, balancer_settings,
+  // publish_endpoint_configs, health_check.burst or a pool's fallback_pool,
+  // and build_xray_profile reaches none of health_check.tolerance. Showing
+  // them anyway is an invitation to configure something that does nothing.
+  const isXray = core === 'xray'
   const [tab, setTab] = useState('structured')
-  const invalidRuleDrafts = useRef(new Set<number>())
   const parsed = parseSubscriptionProfileForEditing(value)
-
-  useEffect(() => {
-    if (!dialogOpen) invalidRuleDrafts.current.clear()
-  }, [dialogOpen])
-
-  const reportRuleDraftValidation = () => {
-    onValidate(invalidRuleDrafts.current.size ? [{ message: t('clientTemplates.profile.invalidRuleJson', { defaultValue: 'Routing rule must be a valid JSON object.' }) }] : [])
-  }
-
-  const handleRuleDraftValidity = (index: number, isValid: boolean) => {
-    if (isValid) invalidRuleDrafts.current.delete(index)
-    else invalidRuleDrafts.current.add(index)
-    reportRuleDraftValidation()
-  }
 
   const updateProfile = (updater: (profile: SubscriptionProfileFormValue) => SubscriptionProfileFormValue) => {
     if (!parsed.success) return
     onChange(serializeSubscriptionProfile(updater(parsed.data)))
-    reportRuleDraftValidation()
+    onValidate([])
   }
 
   return (
     <Tabs value={tab} onValueChange={setTab} className="flex h-full min-h-[450px] flex-col">
       <TabsList className="grid w-full grid-cols-2">
-        <TabsTrigger value="structured">{t('clientTemplates.profile.structured', { defaultValue: 'Structured' })}</TabsTrigger>
-        <TabsTrigger value="raw">{t('clientTemplates.profile.rawJson', { defaultValue: 'Raw JSON' })}</TabsTrigger>
+        <TabsTrigger value="structured">{t('clientTemplates.profile.structured', { defaultValue: 'Server groups' })}</TabsTrigger>
+        <TabsTrigger value="raw">{t('clientTemplates.profile.rawJson', { defaultValue: 'Generator JSON' })}</TabsTrigger>
       </TabsList>
 
       <TabsContent value="structured" className="mt-3 min-h-0 flex-1 overflow-y-auto pr-1">
@@ -122,6 +97,11 @@ export function SubscriptionProfileEditor({ value, onChange, onValidate, dialogO
           </div>
         ) : (
           <div className="space-y-5 pb-2">
+            <p className="text-muted-foreground text-xs">
+              {t('clientTemplates.profile.scopeHelp', {
+                defaultValue: 'Configure automatic server groups and health checks here. Advanced generator fields remain available in optional JSON.',
+              })}
+            </p>
             <section className="space-y-3 rounded-lg border p-3">
               <div className="flex items-center justify-between gap-2">
                 <h3 className="text-sm font-medium">{t('clientTemplates.profile.pools', { defaultValue: 'Pools' })}</h3>
@@ -159,87 +139,110 @@ export function SubscriptionProfileEditor({ value, onChange, onValidate, dialogO
                 </Select>
               </label>
 
-              <div className="grid gap-3 sm:grid-cols-2">
+              {isXray && (
                 <label className="grid gap-1.5 text-sm">
-                  <span>{t('clientTemplates.profile.domainStrategy', { defaultValue: 'Domain strategy' })}</span>
-                  <Select
-                    value={parsed.data.domain_strategy}
-                    onValueChange={value => updateProfile(profile => ({ ...profile, domain_strategy: value as typeof profile.domain_strategy }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(['AsIs', 'IPIfNonMatch', 'IPOnDemand'] as const).map(option => (
-                        <SelectItem key={option} value={option}>
-                          {option}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-muted-foreground text-xs">
-                    {t('clientTemplates.profile.domainStrategyHelp', {
-                      defaultValue: 'AsIs never resolves domains, so geoip and CIDR rules will not match.',
-                    })}
-                  </p>
+                    <span>{t('clientTemplates.profile.balancerStrategy', { defaultValue: 'Balancer strategy' })}</span>
+                    <Select
+                      value={parsed.data.balancer_strategy}
+                      onValueChange={value =>
+                        updateProfile(profile => ({
+                          ...profile,
+                          balancer_strategy: value as typeof profile.balancer_strategy,
+                          // The tuning box unmounts for the strategies that ignore
+                          // these, so a value left behind would keep reaching the
+                          // config with nothing in the form able to show or clear
+                          // it. Only clear on the way out of a strategy that read
+                          // it: between two that never did, this switch is not
+                          // what put the value there and must not delete it.
+                          balancer_settings: OBSERVATORY_STRATEGIES.has(profile.balancer_strategy) && !OBSERVATORY_STRATEGIES.has(value) ? null : profile.balancer_settings,
+                        }))
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(['random', 'roundRobin', 'leastPing', 'leastLoad'] as const).map(option => (
+                          <SelectItem key={option} value={option}>
+                            {option}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-muted-foreground text-xs">
+                      {t('clientTemplates.profile.balancerStrategyHelp', {
+                        defaultValue: 'leastPing and leastLoad need latency probing enabled below.',
+                      })}
+                    </p>
                 </label>
+              )}
 
-                <label className="grid gap-1.5 text-sm">
-                  <span>{t('clientTemplates.profile.balancerStrategy', { defaultValue: 'Balancer strategy' })}</span>
-                  <Select
-                    value={parsed.data.balancer_strategy}
-                    onValueChange={value => updateProfile(profile => ({ ...profile, balancer_strategy: value as typeof profile.balancer_strategy }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(['random', 'roundRobin', 'leastPing', 'leastLoad'] as const).map(option => (
-                        <SelectItem key={option} value={option}>
-                          {option}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-muted-foreground text-xs">
-                    {t('clientTemplates.profile.balancerStrategyHelp', {
-                      defaultValue: 'leastPing and leastLoad need latency probing enabled below.',
-                    })}
-                  </p>
+              {isXray && OBSERVATORY_STRATEGIES.has(parsed.data.balancer_strategy) && (
+                <div className="grid gap-3 rounded-md border p-3 sm:grid-cols-2">
+                  <p className="text-sm font-medium sm:col-span-2">{t('clientTemplates.profile.balancerSettings', { defaultValue: 'Balancer tuning' })}</p>
+                  <label className="grid gap-1.5 text-sm">
+                    <span>{t('clientTemplates.profile.balancerExpected', { defaultValue: 'Servers to spread across' })}</span>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={64}
+                      value={parsed.data.balancer_settings?.expected ?? ''}
+                      onChange={event => {
+                        const expected = event.target.value === '' ? null : Number(event.target.value)
+                        updateProfile(profile => ({ ...profile, balancer_settings: withBalancerSetting(profile.balancer_settings, { expected }) }))
+                      }}
+                    />
+                    <p className="text-muted-foreground text-xs">
+                      {t('clientTemplates.profile.balancerExpectedHelp', {
+                        defaultValue: 'leastLoad picks at random among this many of the fastest servers. Leave empty to always use the single fastest one.',
+                      })}
+                    </p>
+                  </label>
+                  <label className="grid gap-1.5 text-sm">
+                    <span>{t('clientTemplates.profile.balancerBaselines', { defaultValue: 'Latency baselines' })}</span>
+                    <CommaListEditor
+                      value={parsed.data.balancer_settings?.baselines ?? []}
+                      placeholder="1500ms, 3s"
+                      onChange={baselines =>
+                        updateProfile(profile => ({ ...profile, balancer_settings: withBalancerSetting(profile.balancer_settings, { baselines: baselines.length ? baselines : null }) }))
+                      }
+                    />
+                    <p className="text-muted-foreground text-xs">
+                      {t('clientTemplates.profile.balancerBaselinesHelp', {
+                        defaultValue: 'Comma-separated, for example 1500ms, 3s. A server slower than every baseline is used only as a last resort.',
+                      })}
+                    </p>
+                  </label>
+                </div>
+              )}
+
+              {isXray && (
+                <label className="flex items-center justify-between gap-3 rounded-md border p-3 text-sm">
+                  <span className="grid gap-1">
+                    <span>{t('clientTemplates.profile.publishEndpointConfigs', { defaultValue: 'Publish a config per server' })}</span>
+                    <span className="text-muted-foreground text-xs">
+                      {t('clientTemplates.profile.publishEndpointConfigsHelp', {
+                        defaultValue: 'Lets the user pick one server instead of only an automatic group.',
+                      })}
+                    </span>
+                  </span>
+                  <Switch checked={parsed.data.publish_endpoint_configs} onCheckedChange={publish_endpoint_configs => updateProfile(profile => ({ ...profile, publish_endpoint_configs }))} />
                 </label>
-              </div>
+              )}
 
-              <label className="flex items-center justify-between gap-3 rounded-md border p-3 text-sm">
-                <span className="grid gap-1">
-                  <span>{t('clientTemplates.profile.publishEndpointConfigs', { defaultValue: 'Publish a config per server' })}</span>
-                  <span className="text-muted-foreground text-xs">
-                    {t('clientTemplates.profile.publishEndpointConfigsHelp', {
-                      defaultValue: 'Lets the user pick one server instead of only an automatic group.',
-                    })}
+              {isXray && (
+                <label className="flex items-center justify-between gap-3 rounded-md border p-3 text-sm">
+                  <span className="grid gap-1">
+                    <span>{t('clientTemplates.profile.burstObservatory', { defaultValue: 'Measure latency (burst observatory)' })}</span>
+                    <span className="text-muted-foreground text-xs">
+                      {t('clientTemplates.profile.burstObservatoryHelp', {
+                        defaultValue: 'Required by leastPing and leastLoad; plain probing only tracks alive or dead.',
+                      })}
+                    </span>
                   </span>
-                </span>
-                <Switch
-                  checked={parsed.data.publish_endpoint_configs}
-                  onCheckedChange={publish_endpoint_configs => updateProfile(profile => ({ ...profile, publish_endpoint_configs }))}
-                />
-              </label>
-
-              <label className="flex items-center justify-between gap-3 rounded-md border p-3 text-sm">
-                <span className="grid gap-1">
-                  <span>{t('clientTemplates.profile.burstObservatory', { defaultValue: 'Measure latency (burst observatory)' })}</span>
-                  <span className="text-muted-foreground text-xs">
-                    {t('clientTemplates.profile.burstObservatoryHelp', {
-                      defaultValue: 'Required by leastPing and leastLoad; plain probing only tracks alive or dead.',
-                    })}
-                  </span>
-                </span>
-                <Switch
-                  checked={parsed.data.health_check.burst}
-                  onCheckedChange={burst =>
-                    updateProfile(profile => ({ ...profile, health_check: { ...profile.health_check, burst } }))
-                  }
-                />
-              </label>
+                  <Switch checked={parsed.data.health_check.burst} onCheckedChange={burst => updateProfile(profile => ({ ...profile, health_check: { ...profile.health_check, burst } }))} />
+                </label>
+              )}
 
               <div className="space-y-3">
                 {parsed.data.pools.map((pool, index) => (
@@ -274,39 +277,39 @@ export function SubscriptionProfileEditor({ value, onChange, onValidate, dialogO
                           const title = event.target.value
                           updateProfile(profile => ({
                             ...profile,
-                            pools: profile.pools.map((entry, entryIndex) =>
-                              entryIndex === index ? { ...entry, title: title || null } : entry,
-                            ),
+                            pools: profile.pools.map((entry, entryIndex) => (entryIndex === index ? { ...entry, title: title || null } : entry)),
                           }))
                         }}
                       />
                     </label>
-                    <label className="grid gap-1.5 text-sm">
-                      <span>{t('clientTemplates.profile.fallbackPool', { defaultValue: 'Fallback pool' })}</span>
-                      <Select
-                        value={pool.fallback_pool ?? 'none'}
-                        onValueChange={fallback =>
-                          updateProfile(profile => ({
-                            ...profile,
-                            pools: profile.pools.map((entry, entryIndex) => (entryIndex === index ? { ...entry, fallback_pool: fallback === 'none' ? null : fallback } : entry)),
-                          }))
-                        }
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">{t('clientTemplates.profile.noFallback', { defaultValue: 'No fallback' })}</SelectItem>
-                          {parsed.data.pools
-                            .filter(candidate => candidate.id !== pool.id && candidate.enabled)
-                            .map(candidate => (
-                              <SelectItem key={candidate.id} value={candidate.id}>
-                                {candidate.id}
-                              </SelectItem>
-                            ))}
-                        </SelectContent>
-                      </Select>
-                    </label>
+                    {isXray && (
+                      <label className="grid gap-1.5 text-sm">
+                        <span>{t('clientTemplates.profile.fallbackPool', { defaultValue: 'Fallback pool' })}</span>
+                        <Select
+                          value={pool.fallback_pool ?? 'none'}
+                          onValueChange={fallback =>
+                            updateProfile(profile => ({
+                              ...profile,
+                              pools: profile.pools.map((entry, entryIndex) => (entryIndex === index ? { ...entry, fallback_pool: fallback === 'none' ? null : fallback } : entry)),
+                            }))
+                          }
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">{t('clientTemplates.profile.noFallback', { defaultValue: 'No fallback' })}</SelectItem>
+                            {parsed.data.pools
+                              .filter(candidate => candidate.id !== pool.id && candidate.enabled)
+                              .map(candidate => (
+                                <SelectItem key={candidate.id} value={candidate.id}>
+                                  {candidate.id}
+                                </SelectItem>
+                              ))}
+                          </SelectContent>
+                        </Select>
+                      </label>
+                    )}
                     <div className="flex items-end gap-2">
                       <label className="flex h-10 items-center gap-2 text-sm">
                         <Switch
@@ -351,122 +354,46 @@ export function SubscriptionProfileEditor({ value, onChange, onValidate, dialogO
                   <span>{t('clientTemplates.profile.healthUrl', { defaultValue: 'Probe URL' })}</span>
                   <Input value={parsed.data.health_check.url} onChange={event => updateProfile(profile => ({ ...profile, health_check: { ...profile.health_check, url: event.target.value } }))} />
                 </label>
-                {(['interval', 'tolerance', 'timeout'] as const).map(field => (
-                  <label key={field} className="grid gap-1.5 text-sm">
-                    <span>{t(`clientTemplates.profile.${field}`, { defaultValue: field[0].toUpperCase() + field.slice(1) })}</span>
+                <label className="grid gap-1.5 text-sm">
+                  <span>{t('clientTemplates.profile.interval', { defaultValue: 'Interval' })}</span>
+                  <Input
+                    value={parsed.data.health_check.interval}
+                    onChange={event => updateProfile(profile => ({ ...profile, health_check: { ...profile.health_check, interval: event.target.value } }))}
+                  />
+                </label>
+                {!isXray && (
+                  <label className="grid gap-1.5 text-sm">
+                    <span>{t('clientTemplates.profile.tolerance', { defaultValue: 'Tolerance' })}</span>
                     <Input
-                      type={field === 'tolerance' ? 'number' : 'text'}
-                      min={field === 'tolerance' ? 0 : undefined}
-                      max={field === 'tolerance' ? 65535 : undefined}
-                      value={parsed.data.health_check[field]}
-                      onChange={event =>
-                        updateProfile(profile => ({ ...profile, health_check: { ...profile.health_check, [field]: field === 'tolerance' ? Number(event.target.value) : event.target.value } }))
-                      }
+                      type="number"
+                      min={0}
+                      max={65535}
+                      value={parsed.data.health_check.tolerance}
+                      onChange={event => updateProfile(profile => ({ ...profile, health_check: { ...profile.health_check, tolerance: Number(event.target.value) } }))}
                     />
                   </label>
-                ))}
+                )}
+                {!isXray && (
+                  <label className="grid gap-1.5 text-sm">
+                    <span>{t('clientTemplates.profile.idleTimeout', { defaultValue: 'Idle timeout' })}</span>
+                    <Input
+                      value={parsed.data.health_check.timeout}
+                      onChange={event => updateProfile(profile => ({ ...profile, health_check: { ...profile.health_check, timeout: event.target.value } }))}
+                    />
+                  </label>
+                )}
+                {isXray && parsed.data.health_check.burst && (
+                  <label className="grid gap-1.5 text-sm">
+                    <span>{t('clientTemplates.profile.probeTimeout', { defaultValue: 'Probe timeout' })}</span>
+                    <Input
+                      value={parsed.data.health_check.probe_timeout}
+                      onChange={event => updateProfile(profile => ({ ...profile, health_check: { ...profile.health_check, probe_timeout: event.target.value } }))}
+                    />
+                  </label>
+                )}
               </div>
             </section>
 
-            <section className="space-y-3 rounded-lg border p-3">
-              <div className="flex items-center justify-between gap-2">
-                <div>
-                  <h3 className="text-sm font-medium">{t('clientTemplates.profile.routingRules', { defaultValue: 'Routing rules' })}</h3>
-                  <p className="text-muted-foreground text-xs">{t('clientTemplates.profile.routingRulesHelp', { defaultValue: 'Each item is one client-native routing rule.' })}</p>
-                </div>
-                <Button type="button" variant="outline" size="sm" onClick={() => updateProfile(profile => ({ ...profile, routing_rules: [...profile.routing_rules, {}] }))}>
-                  <Plus className="mr-1 h-4 w-4" />
-                  {t('clientTemplates.profile.addRule', { defaultValue: 'Add rule' })}
-                </Button>
-              </div>
-              {parsed.data.routing_rules.map((rule, index) => (
-                <div key={index} className="flex items-start gap-2">
-                  <RoutingRuleEditor
-                    value={rule}
-                    onChange={nextRule => updateProfile(profile => ({ ...profile, routing_rules: profile.routing_rules.map((entry, entryIndex) => (entryIndex === index ? nextRule : entry)) }))}
-                    onDraftValidityChange={isValid => handleRuleDraftValidity(index, isValid)}
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    aria-label={t('clientTemplates.profile.removeRule', { defaultValue: 'Remove routing rule' })}
-                    onClick={() => {
-                      invalidRuleDrafts.current = new Set(
-                        [...invalidRuleDrafts.current].flatMap(invalidIndex => (invalidIndex === index ? [] : [invalidIndex > index ? invalidIndex - 1 : invalidIndex])),
-                      )
-                      updateProfile(profile => ({ ...profile, routing_rules: profile.routing_rules.filter((_, entryIndex) => entryIndex !== index) }))
-                    }}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    <span className="sr-only">{t('clientTemplates.profile.removeRule', { defaultValue: 'Remove routing rule' })}</span>
-                  </Button>
-                </div>
-              ))}
-            </section>
-
-            <section className="space-y-3 rounded-lg border p-3">
-              <h3 className="text-sm font-medium">{t('clientTemplates.profile.clientOptions', { defaultValue: 'Client options' })}</h3>
-              <label className="grid gap-1.5 text-sm">
-                <span>{t('clientTemplates.profile.client', { defaultValue: 'Client' })}</span>
-                <Select
-                  value={parsed.data.client}
-                  onValueChange={client =>
-                    updateProfile(profile => ({
-                      ...profile,
-                      client: client as SubscriptionProfileFormValue['client'],
-                      // The payload format is client-specific, so it cannot carry over.
-                      routing_payload: null,
-                      routing_enabled: client === 'happ' ? profile.routing_enabled : null,
-                    }))
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CLIENT_OPTIONS.map(({ value, label }) => (
-                      <SelectItem key={value} value={value}>
-                        {label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-muted-foreground text-xs">
-                  {t('clientTemplates.profile.clientHelp', {
-                    defaultValue: 'Only these clients read a routing ruleset from the subscription response.',
-                  })}
-                </p>
-              </label>
-              {parsed.data.client !== 'generic' && (
-                <label className="grid gap-1.5 text-sm">
-                  <span>{t('clientTemplates.profile.routingPayload', { defaultValue: 'Routing payload (optional)' })}</span>
-                  <Textarea
-                    className="min-h-16 font-mono text-xs"
-                    value={parsed.data.routing_payload ?? ''}
-                    onChange={event => updateProfile(profile => ({ ...profile, routing_payload: event.target.value || null }))}
-                    placeholder={ROUTING_PLACEHOLDER[parsed.data.client]}
-                  />
-                  <p className="text-muted-foreground text-xs">{ROUTING_HINT[parsed.data.client]}</p>
-                </label>
-              )}
-              {parsed.data.client === 'happ' && (
-                <label className="flex items-center justify-between gap-3 rounded-md border p-3 text-sm">
-                  <span className="grid gap-1">
-                    <span>{t('clientTemplates.profile.routingEnabled', { defaultValue: 'Force Happ routing off' })}</span>
-                    <span className="text-muted-foreground text-xs">
-                      {t('clientTemplates.profile.routingEnabledHelp', {
-                        defaultValue: 'Sends routing-enable: 0, which disables routing in Happ regardless of any profile.',
-                      })}
-                    </span>
-                  </span>
-                  <Switch
-                    checked={parsed.data.routing_enabled === false}
-                    onCheckedChange={off => updateProfile(profile => ({ ...profile, routing_enabled: off ? false : null }))}
-                  />
-                </label>
-              )}
-            </section>
           </div>
         )}
       </TabsContent>
@@ -476,7 +403,6 @@ export function SubscriptionProfileEditor({ value, onChange, onValidate, dialogO
           value={value}
           language="json"
           onChange={nextValue => {
-            invalidRuleDrafts.current.clear()
             onChange(nextValue)
           }}
           onValidate={onValidate}

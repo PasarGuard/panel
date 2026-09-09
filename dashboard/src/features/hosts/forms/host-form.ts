@@ -471,8 +471,15 @@ export const HostFormSchema = z.object({
             .string()
             .regex(/^[a-z0-9](?:[a-z0-9_-]{0,62}[a-z0-9])?$/, 'Use a machine-readable pool id')
             .default('primary'),
-          country: z.string().length(2, 'Use a two-letter country code').optional(),
-          priority: z.number().int().min(0).optional(),
+          // The backend uppercases and then demands [A-Z]{2}, so a two-character
+          // string that is not two letters is a 422 at submit, not a form error.
+          // Empty stays valid: it is what the input holds the moment the
+          // operator clears the box, and the backend reads it as "no country".
+          country: z
+            .string()
+            .regex(/^([A-Za-z]{2})?$/, 'Use a two-letter country code')
+            .optional(),
+          priority: z.number().int().min(0).max(1_000_000).optional(),
           exclude_from_auto: z.boolean().optional(),
         })
         .optional(),
@@ -519,6 +526,22 @@ interface ApiHostSubscriptionTemplates {
     priority?: number | null
     exclude_from_auto?: boolean | null
   } | null
+}
+
+type HostProfileClassification = NonNullable<NonNullable<HostFormValues['subscription_templates']>['profile']>
+
+/** Whether the host dialog should offer pool/country classification at all.
+ *
+ *  Subscription profiles are opt-in and most deployments have none, so asking
+ *  every operator to classify every host into a pool nothing declares is noise.
+ *  A host that already carries a classification keeps the block regardless --
+ *  that is also what makes the block reachable when reading the template list
+ *  was refused, since it needs a permission the rest of this dialog does not.
+ */
+export function shouldShowProfileClassification(profileTemplateCount: number, profile: Partial<HostProfileClassification> | null | undefined): boolean {
+  if (profileTemplateCount > 0) return true
+  if (!profile) return false
+  return Boolean(profile.country || profile.priority != null || profile.exclude_from_auto || (profile.pool && profile.pool !== 'primary'))
 }
 
 /** Convert nullable API profile metadata into values accepted by react-hook-form. */

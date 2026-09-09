@@ -9,6 +9,29 @@ const INCY_ROUTING_PREFIXES = ['happ://routing/', 'incy://routing/', '://routing
 
 const isBase64 = (value: string) => /^[A-Za-z0-9+/]+={0,2}$/.test(value) && value.length % 4 === 0
 
+// Sing-box needs each resolver's transport spelled out, so the backend accepts
+// only the two forms it can express: a bare IP, or an https:// DoH URL with a
+// path. Anything else is rejected there, and rejecting it here too keeps the
+// operator from saving a profile that fails on submit.
+// Leading zeros are rejected because the backend parses this with ip_address,
+// which reads "01.1.1.1" as ambiguous octal and refuses it.
+const IPV4_PATTERN = /^(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)$/
+const isDnsServer = (value: string) => {
+  if (value.includes('://')) {
+    // Any other scheme reaches the backend only to come back a 422; https is
+    // the one form sing-box can express.
+    if (!value.startsWith('https://')) return false
+    const remainder = value.slice('https://'.length)
+    return Boolean(remainder) && remainder.includes('/')
+  }
+  // IPv6 covers a wide grammar, so only its alphabet is checked here and the
+  // rest is left to the backend. The alphabet is still worth checking: it is
+  // what separates a real address from "1.1.1.1:53", which an operator reaches
+  // for the moment they learn a DoH port is allowed, and which ip_address
+  // refuses.
+  return IPV4_PATTERN.test(value) || /^[0-9a-fA-F:]+$/.test(value)
+}
+
 function durationMilliseconds(value: string): number {
   const match = /^(\d+)(ms|s|m|h)$/.exec(value)
   if (!match) return Number.NaN
@@ -37,6 +60,7 @@ export const subscriptionProfileSchema = z
     pools: z
       .array(profilePoolSchema)
       .min(1, 'Add at least one pool.')
+      .max(64, 'A profile holds at most 64 pools.')
       .default([{ id: 'primary', enabled: true }]),
     health_check: z
       .object({
@@ -44,15 +68,39 @@ export const subscriptionProfileSchema = z
         interval: z.string().regex(INTERVAL_PATTERN, 'Use a duration such as 30s, 3m or 1h.').default('3m'),
         tolerance: z.number().int().min(0).max(65535).default(50),
         timeout: z.string().regex(TIMEOUT_PATTERN, 'Use a duration such as 500ms, 5s, 2m or 1h.').default('30m'),
+        probe_timeout: z
+          .string()
+          .regex(TIMEOUT_PATTERN, 'Use a duration such as 500ms, 5s, 2m or 1h.')
+          .refine(value => durationMilliseconds(value) > 0, 'Probe timeout must be greater than zero.')
+          .default('5s'),
         // leastPing/leastLoad need measured latency, which only burstObservatory collects.
         burst: z.boolean().default(false),
       })
       .passthrough()
       .default({}),
-    routing_rules: z.array(z.record(z.unknown())).default([]),
+    dns: z
+      .object({
+        servers: z
+          .array(z.string().refine(isDnsServer, 'Use an IP address or an https://host/path DoH URL.'))
+          .min(1, 'Name at least one resolver.')
+          .max(8, 'At most eight resolvers.')
+          .default(['1.1.1.1']),
+      })
+      .passthrough()
+      .default({}),
+    routing_rules: z.array(z.record(z.unknown())).max(256, 'A profile holds at most 256 routing rules.').default([]),
     // Under AsIs, Xray never resolves a domain, so IP rules (geoip:*) never match.
     domain_strategy: z.enum(['AsIs', 'IPIfNonMatch', 'IPOnDemand']).default('AsIs'),
     balancer_strategy: z.enum(['random', 'roundRobin', 'leastPing', 'leastLoad']).default('random'),
+    // Read only by the strategies that consult the observatory's rankings.
+    balancer_settings: z
+      .object({
+        expected: z.number().int().min(1).max(64).nullable().optional(),
+        baselines: z.array(z.string().regex(INTERVAL_PATTERN, 'Use a duration such as 1500ms or 3s.')).max(8).nullable().optional(),
+      })
+      .passthrough()
+      .nullable()
+      .optional(),
     publish_endpoint_configs: z.boolean().default(true),
     client: z.enum(['generic', 'happ', 'incy', 'v2raytun']).default('generic'),
     routing_payload: z
@@ -163,6 +211,15 @@ export function parseSubscriptionProfileForEditing(content: string): Subscriptio
   if (profile.health_check !== undefined && (!profile.health_check || Array.isArray(profile.health_check) || typeof profile.health_check !== 'object')) {
     return { success: false, error: 'The health_check field must be an object. Use Raw JSON to repair this profile.' }
   }
+  if (profile.dns !== undefined && !isRecord(profile.dns)) {
+    return { success: false, error: 'The dns field must be an object. Use Raw JSON to repair this profile.' }
+  }
+  if (isRecord(profile.dns) && profile.dns.servers !== undefined && !Array.isArray(profile.dns.servers)) {
+    return { success: false, error: 'The dns.servers field must be an array. Use Raw JSON to repair this profile.' }
+  }
+  if (profile.balancer_settings !== undefined && profile.balancer_settings !== null && !isRecord(profile.balancer_settings)) {
+    return { success: false, error: 'The balancer_settings field must be an object. Use Raw JSON to repair this profile.' }
+  }
   if (profile.routing_rules !== undefined && !Array.isArray(profile.routing_rules)) {
     return { success: false, error: 'The routing_rules field must be an array. Use Raw JSON to repair this profile.' }
   }
@@ -185,9 +242,17 @@ export function parseSubscriptionProfileForEditing(content: string): Subscriptio
         interval: '3m',
         tolerance: 50,
         timeout: '30m',
+        probe_timeout: '5s',
         ...(profile.health_check as Partial<SubscriptionProfileFormValue['health_check']> | undefined),
       },
+      dns: {
+        servers: ['1.1.1.1'],
+        ...(profile.dns as Partial<SubscriptionProfileFormValue['dns']> | undefined),
+      },
       routing_rules: (profile.routing_rules as SubscriptionProfileFormValue['routing_rules'] | undefined) ?? [],
+      domain_strategy: (profile.domain_strategy as SubscriptionProfileFormValue['domain_strategy'] | undefined) ?? 'AsIs',
+      balancer_strategy: (profile.balancer_strategy as SubscriptionProfileFormValue['balancer_strategy'] | undefined) ?? 'random',
+      publish_endpoint_configs: (profile.publish_endpoint_configs as boolean | undefined) ?? true,
       client: (profile.client as SubscriptionProfileFormValue['client'] | undefined) ?? 'generic',
     } as SubscriptionProfileFormValue,
   }

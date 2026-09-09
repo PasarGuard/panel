@@ -24,8 +24,6 @@ const TEMPLATE_TYPE_LABELS: Record<string, string> = {
   [ClientTemplateType.clash_subscription]: 'Clash Subscription',
   [ClientTemplateType.xray_subscription]: 'Xray Subscription',
   [ClientTemplateType.singbox_subscription]: 'SingBox Subscription',
-  [ClientTemplateType.xray_profile]: 'Xray Profile',
-  [ClientTemplateType.singbox_profile]: 'Sing-box Profile',
   [ClientTemplateType.user_agent]: 'User Agent',
   [ClientTemplateType.grpc_user_agent]: 'gRPC User Agent',
 }
@@ -219,6 +217,7 @@ export default function ClientTemplateModal({ isDialogOpen, onOpenChange, form, 
                           <FormControl className="md:flex md:flex-1">
                             {isProfileType(templateType) ? (
                               <SubscriptionProfileEditor
+                                core={templateType === ClientTemplateType.singbox_profile ? 'sing_box' : 'xray'}
                                 value={field.value || ''}
                                 onChange={value => {
                                   field.onChange(value)
@@ -281,7 +280,11 @@ export default function ClientTemplateModal({ isDialogOpen, onOpenChange, form, 
                           <SelectContent>
                             {Object.values(ClientTemplateType).map(type => (
                               <SelectItem key={type} value={type}>
-                                {TEMPLATE_TYPE_LABELS[type] || type}
+                                {type === ClientTemplateType.xray_profile
+                                  ? t('clientTemplates.profile.xrayGeneratorType', { defaultValue: 'Xray server-group generator' })
+                                  : type === ClientTemplateType.singbox_profile
+                                    ? t('clientTemplates.profile.singboxGeneratorType', { defaultValue: 'Sing-box server-group generator' })
+                                    : TEMPLATE_TYPE_LABELS[type] || type}
                               </SelectItem>
                             ))}
                           </SelectContent>

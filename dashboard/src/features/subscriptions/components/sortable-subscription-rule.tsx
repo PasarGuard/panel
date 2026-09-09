@@ -150,8 +150,13 @@ export function SortableSubscriptionRule({ index, onRemove, form, id }: Sortable
                       <FormLabel className="sr-only">{t('settings.subscriptions.rules.target')}</FormLabel>
                       <Select
                         onValueChange={value => {
+                          const previous = field.value
                           field.onChange(value)
-                          if (value !== 'xray' && value !== 'sing_box') {
+                          // A profile is written for one core, and the backend
+                          // rejects a mismatch only when a client fetches its
+                          // subscription. Switching xray <-> sing_box has to drop
+                          // it too, not just switching away from both.
+                          if (value !== previous) {
                             form.setValue(`rules.${index}.profile_id`, undefined, { shouldDirty: true })
                           }
                         }}

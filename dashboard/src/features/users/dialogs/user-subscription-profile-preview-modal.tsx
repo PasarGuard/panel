@@ -2,7 +2,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { useGetClientTemplatesSimple, useGetUserSubscriptionProfilePreview, ClientTemplateType } from '@/service/api'
+import { useGetClientTemplatesSimple, useGetUserSubscriptionProfilePreview, ClientTemplateType, type ClientTemplatesSimpleResponse } from '@/service/api'
 import { Code2, ShieldAlert } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -22,7 +22,12 @@ export function UserSubscriptionProfilePreviewModal({ isOpen, onOpenChange, user
     isLoading: isLoadingTemplates,
     error: templatesError,
   } = useGetClientTemplatesSimple(undefined, {
-    query: { enabled: isOpen, staleTime: 0, gcTime: 0 },
+    query: {
+      enabled: isOpen,
+      staleTime: 0,
+      gcTime: 0,
+      select: response => response as unknown as ClientTemplatesSimpleResponse,
+    },
   })
   const profiles = useMemo(
     () => (templates?.templates ?? []).filter(template => template.template_type === ClientTemplateType.xray_profile || template.template_type === ClientTemplateType.singbox_profile),
@@ -30,7 +35,12 @@ export function UserSubscriptionProfilePreviewModal({ isOpen, onOpenChange, user
   )
   const selectedProfileId = profileId ? Number(profileId) : 0
   const { data, error, isFetching } = useGetUserSubscriptionProfilePreview(userId, selectedProfileId, {
-    query: { enabled: isOpen && Boolean(selectedProfileId), retry: false, staleTime: 0, gcTime: 0 },
+    query: {
+      enabled: isOpen && Boolean(selectedProfileId),
+      retry: false,
+      staleTime: 0,
+      gcTime: 0,
+    },
   })
 
   useEffect(() => {
