@@ -324,12 +324,20 @@ async def test_optimized_reset_dates_match_history_and_refresh_after_manual_rese
         scheduled.reset_at = datetime.now(UTC) - timedelta(days=5)
         session.add(scheduled)
         await session.commit()
+        persisted_scheduled_at = await session.scalar(
+            select(UserUsageResetLogs.reset_at).where(UserUsageResetLogs.id == scheduled.id)
+        )
+        assert persisted_scheduled_at is not None
         user = await get_user(session, user.username, load_usage_logs=False, load_lifetime_used_traffic=True)
         assert user.last_cycle_traffic_reset_at == user.last_traffic_reset_at
-        assert user.last_cycle_traffic_reset_at.replace(tzinfo=UTC) == scheduled.reset_at.replace(tzinfo=UTC)
+        assert user.last_cycle_traffic_reset_at.replace(tzinfo=UTC) == persisted_scheduled_at.replace(tzinfo=UTC)
         await reset_user_data_usage(session, user)
+        persisted_scheduled_after_reset = await session.scalar(
+            select(UserUsageResetLogs.reset_at).where(UserUsageResetLogs.id == scheduled.id)
+        )
+        assert persisted_scheduled_after_reset == persisted_scheduled_at
         assert user.last_traffic_reset_at.replace(tzinfo=UTC) > user.last_cycle_traffic_reset_at.replace(tzinfo=UTC)
-        assert user.last_cycle_traffic_reset_at.replace(tzinfo=UTC) == scheduled.reset_at.replace(tzinfo=UTC)
+        assert user.last_cycle_traffic_reset_at.replace(tzinfo=UTC) == persisted_scheduled_after_reset.replace(tzinfo=UTC)
 
 
 @pytest.mark.asyncio
