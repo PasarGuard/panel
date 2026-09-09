@@ -191,11 +191,11 @@ jobs:
             - name: Run Alembic Migrations
               run: make run-migration
 
-            - name: Check Migrations
-              run: make check-migrations
-
             - name: Verify authoritative node snapshots under REPEATABLE READ
               run: .venv/bin/python -m pytest tests/api/test_node_snapshot_current_read.py -q
+
+            - name: Check Migrations
+              run: make check-migrations
 
             - name: Run Tests
               run: make test
@@ -317,11 +317,11 @@ jobs:
             - name: Run Alembic Migrations
               run: make run-migration
 
-            - name: Check Migrations
-              run: make check-migrations
-
             - name: Verify authoritative node snapshots under REPEATABLE READ
               run: .venv/bin/python -m pytest tests/api/test_node_snapshot_current_read.py -q
+
+            - name: Check Migrations
+              run: make check-migrations
 
             - name: Run Tests (multi-worker all-in-one)
               env:

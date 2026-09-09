@@ -199,7 +199,6 @@ class User(Base, CreatedAtUTCMixin):
         Index("idx_users_admin_status", "admin_id", "status"),
         Index("idx_users_admin_created", "admin_id", "created_at"),
     )
-    sync_id: Mapped[str] = mapped_column(String(36), default_factory=lambda: str(uuid4()), nullable=False, init=False)
     username: Mapped[str] = mapped_column(CaseSensitiveString(128), unique=True, index=True)
     node_usages: Mapped[list[NodeUserUsage]] = relationship(
         back_populates="user",
@@ -209,6 +208,7 @@ class User(Base, CreatedAtUTCMixin):
     notification_reminders: Mapped[list[NotificationReminder]] = relationship(
         back_populates="user", cascade="all, delete-orphan", init=False
     )
+    sync_id: Mapped[str] = mapped_column(String(36), default_factory=lambda: str(uuid4()), nullable=False, init=False)
     subscription_updates: Mapped[list[UserSubscriptionUpdate]] = relationship(
         back_populates="user", cascade="all, delete-orphan", init=False
     )
