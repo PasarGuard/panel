@@ -2071,10 +2071,7 @@ export interface RemoveUsersResponse {
 }
 
 export interface ReorderRequest {
-  /**
-     * @minItems 2
-     * @maxItems 1000
-     */
+  /** @minItems 2 */
   ordered_ids: number[];
 }
 
