@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload, with_expression
 from sqlalchemy.sql.functions import coalesce
 
+from app.db.base import begin_immediate_if_sqlite
 from app.db.compiles_types import DateDiff
 from app.db.models import (
     DataLimitResetStrategy,
@@ -424,6 +425,7 @@ async def create_node(db: AsyncSession, node: NodeCreate) -> Node:
     Returns:
         Node: The newly created Node object.
     """
+    await begin_immediate_if_sqlite(db)
     next_sort_order = (await db.execute(select(coalesce(func.max(Node.sort_order), -1) + 1))).scalar_one()
     db_node = Node(**node.model_dump(), sort_order=next_sort_order)
 
@@ -436,11 +438,10 @@ async def create_node(db: AsyncSession, node: NodeCreate) -> Node:
 
 async def reorder_nodes(db: AsyncSession, ordered_ids: list[int]) -> bool:
     """Reorder a page-sized subset while preserving every other node's position."""
+    await begin_immediate_if_sqlite(db)
     locked_ids = list(
         (
-            await db.execute(
-                select(Node.id).where(Node.id.in_(ordered_ids)).order_by(Node.id.asc()).with_for_update()
-            )
+            await db.execute(select(Node.id).where(Node.id.in_(ordered_ids)).order_by(Node.id.asc()).with_for_update())
         ).scalars()
     )
     if len(locked_ids) != len(ordered_ids):

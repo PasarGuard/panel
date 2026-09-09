@@ -1,6 +1,7 @@
 from sqlalchemy import case, delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.base import begin_immediate_if_sqlite
 from app.db.models import CoreConfig, Node
 from app.models.core import (
     CoreCreate,
@@ -46,6 +47,7 @@ async def create_core_config(db: AsyncSession, core_config: CoreCreate) -> CoreC
     Returns:
         CoreConfig: The newly created CoreConfig object.
     """
+    await begin_immediate_if_sqlite(db)
     next_sort_order = (await db.execute(select(func.coalesce(func.max(CoreConfig.sort_order), -1) + 1))).scalar_one()
     db_core_config = CoreConfig(
         name=core_config.name,
@@ -177,6 +179,7 @@ async def get_cores_simple(
 
 async def reorder_core_configs(db: AsyncSession, ordered_ids: list[int]) -> bool:
     """Reorder the requested cores while preserving non-requested positions."""
+    await begin_immediate_if_sqlite(db)
     locked_ids = list(
         (
             await db.execute(
@@ -201,9 +204,7 @@ async def reorder_core_configs(db: AsyncSession, ordered_ids: list[int]) -> bool
     )
     ordering = dict(zip(ordered_ids, (sort_order for _, sort_order in current_sort_orders), strict=True))
     await db.execute(
-        update(CoreConfig)
-        .where(CoreConfig.id.in_(ordered_ids))
-        .values(sort_order=case(ordering, value=CoreConfig.id))
+        update(CoreConfig).where(CoreConfig.id.in_(ordered_ids)).values(sort_order=case(ordering, value=CoreConfig.id))
     )
     await db.commit()
     return True
