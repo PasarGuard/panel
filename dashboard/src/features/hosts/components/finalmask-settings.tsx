@@ -1330,7 +1330,6 @@ function XrayNoiseSettingsList({ form, name, label }: XrayNoiseSettingsListProps
                         <SelectItem value="str">str</SelectItem>
                         <SelectItem value="hex">hex</SelectItem>
                         <SelectItem value="base64">base64</SelectItem>
-                        <SelectItem value="rand">rand</SelectItem>
                       </SelectContent>
                     </Select>
                   </FormItem>
