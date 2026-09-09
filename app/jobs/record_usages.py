@@ -1,9 +1,7 @@
 import asyncio
-import multiprocessing
 import random
 import time
 from collections import defaultdict
-from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime as dt, timedelta as td
 from operator import attrgetter
 
@@ -16,7 +14,7 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.exc import DatabaseError, OperationalError
 from sqlalchemy.sql.expression import Insert
 
-from app import on_shutdown, scheduler
+from app import scheduler
 from app.db import GetDB
 from app.db.base import engine
 from app.db.models import Admin, Node, NodeUsage, NodeUserUsage, System, User
@@ -30,7 +28,8 @@ logger = get_logger("record-usages")
 # Hard-limit concurrency: Prevent DB lock storms
 # Start with 2-4, adjust based on DB performance
 JOB_SEM = asyncio.Semaphore(3)  # Max 3 concurrent DB write operations
-API_SEM = asyncio.Semaphore(10)  # Max 10
+API_SEM = asyncio.Semaphore(10)  # Max 10 concurrent node stats RPCs
+USAGE_COEFFICIENT_TTL_S = 60.0
 NODE_USER_USAGE_BATCH_SIZE_BY_DIALECT = {
     "mysql": 1_000,
     "sqlite": 400,
@@ -46,62 +45,7 @@ DEADLOCK_MAX_RETRIES = 5
 # node stats calls take longer than the scheduler interval.
 _user_usage_running = False
 _node_usage_running = False
-
-# Thread pool executor for I/O-bound node API calls
-# Distributes workload across threads/cores for data collection
-_thread_pool = None
-_thread_pool_lock = asyncio.Lock()
-
-
-async def _get_thread_pool():
-    """Get or create the thread pool executor (thread-safe)."""
-    global _thread_pool
-    async with _thread_pool_lock:
-        if _thread_pool is None:
-            # Use more threads for I/O-bound operations (2x CPU cores, cap at 16)
-            num_workers = min(multiprocessing.cpu_count() * 2, 16)
-            _thread_pool = ThreadPoolExecutor(max_workers=num_workers)
-            logger.debug(f"Initialized ThreadPoolExecutor with {num_workers} workers")
-        return _thread_pool
-
-
-@on_shutdown
-async def _cleanup_thread_pool():
-    """Cleanup thread pool on shutdown (thread-safe)."""
-    global _thread_pool
-    async with _thread_pool_lock:
-        if _thread_pool is not None:
-            logger.debug("Shutting down ThreadPoolExecutor...")
-            _thread_pool.shutdown(wait=True)
-            _thread_pool = None
-            logger.debug("ThreadPoolExecutor shut down successfully")
-
-
-# Helper functions for threading (lightweight operations that release GIL)
-def _process_node_chunk(chunk_data: tuple) -> dict:
-    """
-    Process a chunk of node data - lightweight CPU operation.
-    Uses simple arithmetic and dict operations that release GIL, perfect for threads.
-    """
-    _node_id, params, coeff = chunk_data
-    users_usage = defaultdict(int)
-    for param in params:
-        uid = int(param["uid"])
-        value = int(param["value"] * coeff)
-        users_usage[uid] += value
-    return dict(users_usage)
-
-
-def _merge_usage_dicts(dicts: list[dict]) -> dict:
-    """
-    Merge multiple usage dictionaries.
-    Dict operations release GIL, perfect for ThreadPoolExecutor.
-    """
-    merged = defaultdict(int)
-    for d in dicts:
-        for uid, value in d.items():
-            merged[uid] += value
-    return dict(merged)
+_usage_coefficient_cache: dict[int, tuple[float, float]] = {}
 
 
 def _chunked(items: list, size: int):
@@ -532,29 +476,85 @@ def _process_users_stats_response(stats_response):
     for uid, value in params.items():
         try:
             validated_params.append({"uid": int(uid), "value": value})
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             invalid_uids.append(uid)
 
     return validated_params, invalid_uids
 
 
+def _usage_job_hint(interval_env: str, interval: int) -> str:
+    return (
+        f"Lengthen {interval_env} (currently {interval}s) or cut node stats RPC latency. "
+        "Raising UVICORN_WORKERS will not help — only one worker records usage."
+    )
+
+
+async def _await_usage_job(job_name: str, impl, interval: int, interval_env: str) -> None:
+    # No global wait_for kill: get_stats uses reset=True, so cancelling mid-run drops traffic.
+    start = time.monotonic()
+    try:
+        await impl()
+    except asyncio.CancelledError:
+        logger.warning("%s was cancelled", job_name)
+    elapsed = time.monotonic() - start
+    if interval > 0 and elapsed > interval:
+        logger.warning(
+            "%s took %.1fs which exceeds the %ss interval; later ticks will be skipped until this run finishes. %s",
+            job_name,
+            elapsed,
+            interval,
+            _usage_job_hint(interval_env, interval),
+        )
+
+
+async def _node_usage_coefficient(node: PasarGuardNode, node_id: int) -> float:
+    now = time.monotonic()
+    cached = _usage_coefficient_cache.get(node_id)
+    if cached is not None and cached[1] > now:
+        return cached[0]
+    try:
+        extra = await node.get_extra()
+        coeff = float(extra.get("usage_coefficient", 1) or 1) if extra else 1.0
+    except Exception as exc:
+        logger.warning("Failed to get extra data for node %s: %s", node_id, exc)
+        coeff = cached[0] if cached is not None else 1.0
+    _usage_coefficient_cache[node_id] = (coeff, now + USAGE_COEFFICIENT_TTL_S)
+    return coeff
+
+
+async def _collect_node_user_usage(node: PasarGuardNode, node_id: int) -> tuple[int, float, list]:
+    """Fetch coefficient and user stats under one RPC slot so extra+stats overlap."""
+    async with API_SEM:
+        coeff_result, stats_result = await asyncio.gather(
+            _node_usage_coefficient(node, node_id),
+            get_users_stats(node, node_id),
+            return_exceptions=True,
+        )
+    if isinstance(coeff_result, Exception):
+        logger.warning("Failed to get extra data for node %s: %s", node_id, coeff_result)
+        coeff = 1.0
+    else:
+        coeff = coeff_result
+    if isinstance(stats_result, Exception):
+        logger.warning("Failed to get stats for node %s: %s", node_id, stats_result)
+        stats: list = []
+    else:
+        stats = stats_result
+    return node_id, coeff, stats
+
+
+async def _bounded_node_rpc(coro):
+    async with API_SEM:
+        return await coro
+
+
 async def get_users_stats(node: PasarGuardNode, node_id: int | None = None):
-    """
-    Get user stats from node using thread pool for CPU-bound processing.
-    This distributes the heavy data processing workload across cores.
-    """
+    """Fetch and fold user stats from one node. Dict folding stays on the event loop."""
     node_label = node_id if node_id is not None else getattr(node, "node_id", "unknown")
     try:
-        # I/O operation: fetch stats from node (async, non-blocking)
-        async with API_SEM:
-            stats_response = await node.get_stats(stat_type=StatType.UsersStat, reset=True, timeout=30)
-
-        # CPU-bound operation: process stats in thread pool to utilize multiple cores
-        loop = asyncio.get_running_loop()
-        thread_pool = await _get_thread_pool()
-        validated_params, invalid_uids = await loop.run_in_executor(
-            thread_pool, _process_users_stats_response, stats_response
-        )
+        # Caller holds API_SEM so extra+stats can share one slot without deadlock.
+        stats_response = await node.get_stats(stat_type=StatType.UsersStat, reset=True, timeout=30)
+        validated_params, invalid_uids = _process_users_stats_response(stats_response)
 
         if invalid_uids:
             for uid in invalid_uids:
@@ -570,10 +570,7 @@ async def get_users_stats(node: PasarGuardNode, node_id: int | None = None):
 
 
 def _process_outbounds_stats_response(stats_response):
-    """
-    Process outbounds stats response (CPU-bound operation) - can run in thread pool.
-    Extracted to separate function for threading.
-    """
+    """Fold outbound uplink/downlink stats into per-row params."""
     params = [
         {"up": stat.value, "down": 0} if stat.type == "uplink" else {"up": 0, "down": stat.value}
         for stat in filter(attrgetter("value"), stats_response.stats)
@@ -582,22 +579,12 @@ def _process_outbounds_stats_response(stats_response):
 
 
 async def get_outbounds_stats(node: PasarGuardNode, node_id: int | None = None):
-    """
-    Get outbounds stats from node using thread pool for CPU-bound processing.
-    This distributes the heavy data processing workload across cores.
-    """
+    """Fetch and fold outbound stats from one node. Dict folding stays on the event loop."""
     node_label = node_id if node_id is not None else getattr(node, "node_id", "unknown")
     try:
-        # I/O operation: fetch stats from node (async, non-blocking)
-        async with API_SEM:
-            stats_response = await node.get_stats(stat_type=StatType.Outbounds, reset=True, timeout=10)
-
-        # CPU-bound operation: process stats in thread pool to utilize multiple cores
-        loop = asyncio.get_running_loop()
-        thread_pool = await _get_thread_pool()
-        params = await loop.run_in_executor(thread_pool, _process_outbounds_stats_response, stats_response)
-
-        return params
+        # Caller holds API_SEM so node RPCs stay bounded.
+        stats_response = await node.get_stats(stat_type=StatType.Outbounds, reset=True, timeout=10)
+        return _process_outbounds_stats_response(stats_response)
     except NodeAPIError as e:
         logger.error("Failed to get outbounds stats from node %s, error: %s", node_label, e.detail)
         return []
@@ -633,69 +620,19 @@ async def calculate_admin_usage(users_usage: list) -> tuple[dict, set[int]]:
 
 
 async def calculate_users_usage(api_params: dict, usage_coefficient: dict) -> list:
-    """Calculate aggregated user usage across all nodes with coefficients applied.
-
-    Uses ThreadPoolExecutor for lightweight operations (dict/arithmetic that release GIL).
-    ThreadPoolExecutor is faster than ProcessPoolExecutor for these operations due to less overhead.
-    """
+    """Aggregate user usage across nodes with coefficients applied."""
     if not api_params:
         return []
 
-    def _process_usage_sync(chunks_data: list[tuple[int, list[dict], float]]):
-        """Synchronous fallback used for small batches or on executor failures."""
-        users_usage = defaultdict(int)
-        for _, params, coeff in chunks_data:
-            for param in params:
-                uid = int(param["uid"])
-                value = int(param["value"] * coeff)
-                users_usage[uid] += value
-        return [{"uid": uid, "value": value} for uid, value in users_usage.items()]
+    users_usage: dict[int, int] = defaultdict(int)
+    for node_id, params in api_params.items():
+        if not params:
+            continue
+        coeff = usage_coefficient.get(node_id, 1)
+        for param in params:
+            users_usage[int(param["uid"])] += int(param["value"] * coeff)
 
-    # Prepare chunks for parallel processing
-    chunks = [
-        (node_id, params, usage_coefficient.get(node_id, 1))
-        for node_id, params in api_params.items()
-        if params  # Skip empty params
-    ]
-
-    if not chunks:
-        return []
-
-    # For small datasets, process synchronously to avoid overhead
-    total_params = sum(len(params) for _, params, _ in chunks)
-    if total_params < 1000:
-        return _process_usage_sync(chunks)
-
-    # Large dataset - use ThreadPoolExecutor (faster for lightweight operations)
-    loop = asyncio.get_running_loop()
-    try:
-        thread_pool = await _get_thread_pool()
-    except Exception:
-        logger.exception("Falling back to synchronous user usage calculation: failed to init thread pool")
-        return _process_usage_sync(chunks)
-
-    try:
-        # Process chunks in parallel using threads (less overhead than processes)
-        tasks = [loop.run_in_executor(thread_pool, _process_node_chunk, chunk) for chunk in chunks]
-        chunk_results = await asyncio.gather(*tasks)
-
-        # Merge results - also lightweight, use threads
-        if len(chunk_results) > 4:
-            # Split merge operation into smaller chunks
-            chunk_size = max(1, len(chunk_results) // 4)
-            merge_chunks = [chunk_results[i : i + chunk_size] for i in range(0, len(chunk_results), chunk_size)]
-            merge_tasks = [
-                loop.run_in_executor(thread_pool, _merge_usage_dicts, merge_chunk) for merge_chunk in merge_chunks
-            ]
-            partial_results = await asyncio.gather(*merge_tasks)
-            final_result = _merge_usage_dicts(partial_results)
-        else:
-            final_result = _merge_usage_dicts(chunk_results)
-
-        return [{"uid": uid, "value": value} for uid, value in final_result.items()]
-    except Exception:
-        logger.exception("Falling back to synchronous user usage calculation: executor merge failed")
-        return _process_usage_sync(chunks)
+    return [{"uid": uid, "value": value} for uid, value in users_usage.items()]
 
 
 async def _record_user_usages_impl():
@@ -713,29 +650,22 @@ async def _record_user_usages_impl():
     logger.debug(f"Starting user usage recording for {len(nodes)} nodes")
 
     try:
-        # Gather node extra data directly without unnecessary task creation
-        node_data = await asyncio.gather(*[node.get_extra() for _, node in nodes], return_exceptions=True)
-        usage_coefficient = {}
-        for (node_id, _), data in zip(nodes, node_data):
-            if isinstance(data, Exception):
-                logger.warning(f"Failed to get extra data for node {node_id}: {data}")
-                usage_coefficient[node_id] = 1.0
-            else:
-                usage_coefficient[node_id] = data.get("usage_coefficient", 1) if data else 1.0
-
-        # Gather stats directly - asyncio.gather accepts coroutines, no need for create_task
-        stats_results = await asyncio.gather(
-            *[get_users_stats(node, node_id) for node_id, node in nodes],
+        collected = await asyncio.gather(
+            *[_collect_node_user_usage(node, node_id) for node_id, node in nodes],
             return_exceptions=True,
         )
+        usage_coefficient = {}
         api_params = {}
-        for i, result in enumerate(stats_results):
+        for i, result in enumerate(collected):
             node_id = nodes[i][0]
             if isinstance(result, Exception):
-                logger.warning(f"Failed to get stats for node {node_id}: {result}")
+                logger.warning("Failed to collect usage for node %s: %s", node_id, result)
+                usage_coefficient[node_id] = 1.0
                 api_params[node_id] = []
-            else:
-                api_params[node_id] = result
+                continue
+            _, coeff, stats = result
+            usage_coefficient[node_id] = coeff
+            api_params[node_id] = stats
 
         users_usage = await calculate_users_usage(api_params, usage_coefficient)
         if not users_usage:
@@ -814,22 +744,29 @@ async def _record_user_usages_impl():
 
 
 async def record_user_usages():
-    """
-    Record user usages with hard timeout.
-    Jobs running longer than 2 minutes are forcefully cancelled.
+    """Record user usages. Overlapping ticks are skipped; there is no global kill.
+
+    ``get_stats(..., reset=True)`` zeros node counters, so a 120s cancel after
+    that drop can lose traffic. If this job is skipped, lengthen
+    JOB_RECORD_USER_USAGES_INTERVAL or cut node RPC latency — extra Uvicorn
+    workers will not help.
     """
     global _user_usage_running
     if _user_usage_running:
-        logger.warning("record_user_usages skipped; previous run still in progress")
+        logger.warning(
+            "record_user_usages skipped; previous run still in progress. %s",
+            _usage_job_hint("JOB_RECORD_USER_USAGES_INTERVAL", job_settings.record_user_usages_interval),
+        )
         return
 
     _user_usage_running = True
     try:
-        await asyncio.wait_for(_record_user_usages_impl(), timeout=120)
-    except TimeoutError:
-        logger.warning("record_user_usages killed after 120s timeout")
-    except asyncio.CancelledError:
-        logger.warning("record_user_usages was cancelled")
+        await _await_usage_job(
+            "record_user_usages",
+            _record_user_usages_impl,
+            job_settings.record_user_usages_interval,
+            "JOB_RECORD_USER_USAGES_INTERVAL",
+        )
     finally:
         _user_usage_running = False
 
@@ -851,7 +788,7 @@ async def _record_node_usages_impl():
     try:
         # Get healthy nodes and gather stats directly
         stats_results = await asyncio.gather(
-            *[get_outbounds_stats(node, node_id) for node_id, node in nodes],
+            *[_bounded_node_rpc(get_outbounds_stats(node, node_id)) for node_id, node in nodes],
             return_exceptions=True,
         )
         api_params = {}
@@ -924,22 +861,23 @@ async def _record_node_usages_impl():
 
 
 async def record_node_usages():
-    """
-    Record node usages with hard timeout.
-    Jobs running longer than 2 minutes are forcefully cancelled.
-    """
+    """Record node usages. Same skip rules as ``record_user_usages``."""
     global _node_usage_running
     if _node_usage_running:
-        logger.warning("record_node_usages skipped; previous run still in progress")
+        logger.warning(
+            "record_node_usages skipped; previous run still in progress. %s",
+            _usage_job_hint("JOB_RECORD_NODE_USAGES_INTERVAL", job_settings.record_node_usages_interval),
+        )
         return
 
     _node_usage_running = True
     try:
-        await asyncio.wait_for(_record_node_usages_impl(), timeout=120)
-    except TimeoutError:
-        logger.warning("record_node_usages killed after 120s timeout")
-    except asyncio.CancelledError:
-        logger.warning("record_node_usages was cancelled")
+        await _await_usage_job(
+            "record_node_usages",
+            _record_node_usages_impl,
+            job_settings.record_node_usages_interval,
+            "JOB_RECORD_NODE_USAGES_INTERVAL",
+        )
     finally:
         _node_usage_running = False
 

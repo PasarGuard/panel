@@ -283,6 +283,21 @@ class User(Base, CreatedAtUTCMixin):
 
     async def inbounds(self) -> list[str]:
         """Returns a flat list of all included inbound tags for enabled groups."""
+        loaded_groups = self.__dict__.get("groups")
+        if loaded_groups is not None:
+            inbound_tags: set[str] = set()
+            inbounds_loaded = True
+            for group in loaded_groups:
+                if "inbounds" not in group.__dict__:
+                    inbounds_loaded = False
+                    break
+                if group.is_disabled:
+                    continue
+                for inbound in group.__dict__.get("inbounds") or []:
+                    inbound_tags.add(inbound.tag)
+            if inbounds_loaded:
+                return list(inbound_tags)
+
         session = async_object_session(self)
         if session is not None:
             stmt = (
@@ -299,7 +314,7 @@ class User(Base, CreatedAtUTCMixin):
 
         # Fallback for detached instances: use already-loaded attrs only.
         included_tags = set()
-        for group in self.__dict__.get("groups") or []:
+        for group in loaded_groups or []:
             if group.is_disabled:
                 continue
             for inbound in group.__dict__.get("inbounds") or []:

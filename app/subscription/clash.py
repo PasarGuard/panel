@@ -1,7 +1,5 @@
 from random import choice
-from uuid import UUID
 
-import yaml
 from pydantic import BaseModel
 
 from app.models.subscription import (
@@ -13,7 +11,6 @@ from app.models.subscription import (
     XHTTPTransportConfig,
 )
 from app.templates import render_template_string
-from app.utils.helpers import yml_uuid_representer
 
 from . import BaseSubscription
 
@@ -60,16 +57,9 @@ class ClashConfiguration(BaseSubscription):
         }
 
     def render(self):
-        yaml.add_representer(UUID, yml_uuid_representer)
-        return yaml.dump(
-            yaml.safe_load(
-                render_template_string(
-                    self.clash_template_content,
-                    {"conf": self.data, "proxy_remarks": self.proxy_remarks},
-                ),
-            ),
-            sort_keys=False,
-            allow_unicode=True,
+        return render_template_string(
+            self.clash_template_content,
+            {"conf": self.data, "proxy_remarks": self.proxy_remarks},
         )
 
     def __str__(self) -> str:
