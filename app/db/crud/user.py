@@ -1,4 +1,5 @@
-from collections.abc import Sequence
+from collections.abc import AsyncIterator, Sequence
+from contextlib import asynccontextmanager
 from copy import deepcopy
 from datetime import UTC, datetime, timedelta
 from typing import Literal
@@ -1348,8 +1349,15 @@ async def bulk_revoke_user_sub(
     return users
 
 
-async def _flush_pending_subscription_updates() -> None:
+@asynccontextmanager
+async def _subscription_update_read_session(db: AsyncSession) -> AsyncIterator[AsyncSession]:
+    """Read committed updates without reusing the caller's pre-flush snapshot."""
     await flush_user_sub_updates()
+    # MySQL/MariaDB REPEATABLE READ may already have a snapshot from the
+    # authorization/user lookup. A separate session sees the flushed rows
+    # without committing or rolling back any work owned by the caller.
+    async with AsyncSession(bind=db.bind, expire_on_commit=False) as read_db:
+        yield read_db
 
 
 async def user_sub_update(
@@ -1373,22 +1381,22 @@ async def user_sub_update(
 async def get_users_sub_update_list(
     db: AsyncSession, user_id: int, offset: int = 0, limit: int = 10
 ) -> tuple[Sequence[UserSubscriptionUpdate], int]:
-    await _flush_pending_subscription_updates()
     stmt = (
         select(UserSubscriptionUpdate)
         .where(UserSubscriptionUpdate.user_id == user_id)
         .order_by(desc(UserSubscriptionUpdate.created_at))
     )
 
-    result = await db.execute(select(func.count()).select_from(stmt.subquery()))
-    count = result.scalar() or 0
+    async with _subscription_update_read_session(db) as read_db:
+        result = await read_db.execute(select(func.count()).select_from(stmt.subquery()))
+        count = result.scalar() or 0
 
-    if offset:
-        stmt = stmt.offset(offset)
-    if limit:
-        stmt = stmt.limit(limit)
+        if offset:
+            stmt = stmt.offset(offset)
+        if limit:
+            stmt = stmt.limit(limit)
 
-    result = (await db.execute(stmt)).unique().scalars().all()
+        result = (await read_db.execute(stmt)).unique().scalars().all()
 
     return result, count
 
@@ -1416,7 +1424,6 @@ async def get_users_subscription_agent_counts(
     end: datetime | None = None,
     period: Period | None = None,
 ) -> list[tuple[str, int]]:
-    await _flush_pending_subscription_updates()
     stmt = select(UserSubscriptionUpdate.user_agent, func.count().label("count"))
     from_clause, conditions = _subscription_update_from_clause(user_id=user_id, admin_id=admin_id)
 
@@ -1433,7 +1440,8 @@ async def get_users_subscription_agent_counts(
         stmt = stmt.where(and_(*conditions))
     stmt = stmt.group_by(UserSubscriptionUpdate.user_agent)
 
-    result = await db.execute(stmt)
+    async with _subscription_update_read_session(db) as read_db:
+        result = await read_db.execute(stmt)
     return [(agent, count) for agent, count in result.all()]
 
 
@@ -1446,7 +1454,6 @@ async def get_users_subscription_agent_stats(
     admin_id: int | None = None,
 ) -> list[dict]:
     """Retrieve subscription update counts grouped by agent and period."""
-    await _flush_pending_subscription_updates()
     trunc_expr = _build_trunc_expression(db, period, UserSubscriptionUpdate.created_at, start)
     start_utc = get_complete_period_start_for_filter(start, period)
     end_utc = to_utc_for_filter(end)
@@ -1470,7 +1477,8 @@ async def get_users_subscription_agent_stats(
         .order_by(trunc_expr)
     )
 
-    result = await db.execute(stmt)
+    async with _subscription_update_read_session(db) as read_db:
+        result = await read_db.execute(stmt)
     dialect = db.bind.dialect.name
     rows = []
     for row in result.mappings():
