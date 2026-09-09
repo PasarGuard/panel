@@ -344,7 +344,7 @@ def test_host_finalmask_new_types(access_token):
                 "type": "noise",
                 "settings": {
                     "reset": "30-60",
-                    "noise": [{"type": "rand", "rand": "1-8192", "delay": "10-20"}],
+                    "noise": [{"type": "array", "packet": [1, 8, 255], "delay": "10-20"}],
                 },
             },
         ],
@@ -389,7 +389,9 @@ def test_host_finalmask_new_types(access_token):
         assert fm["udp"][0]["type"] == "realm"
         assert fm["udp"][1]["type"] == "mkcp-legacy"
         assert fm["udp"][5]["settings"].get("reset") == "30-60"
-        assert "apply_to" not in (fm["udp"][5]["settings"].get("noise") or [{}])[0]
+        noise = (fm["udp"][5]["settings"].get("noise") or [{}])[0]
+        assert noise.get("packet") == [1, 8, 255]
+        assert "apply_to" not in noise
     finally:
         client.delete(f"/api/host/{host_id}", headers={"Authorization": f"Bearer {access_token}"})
         delete_core(access_token, core["id"])
