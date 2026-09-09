@@ -148,6 +148,9 @@ const NoiseItem = memo<NoiseItemProps>(({ index, form, onRemove, onDuplicate, t 
     onDuplicate(index)
   }, [index, onDuplicate])
 
+  const noiseType = form.watch(`noise_settings.xray.${index}.type`)
+  const isArrayType = noiseType === 'array'
+
   return (
     <div className="space-y-2 rounded-md border p-2">
       {/* Row 1: type, apply_to, actions */}
@@ -158,13 +161,27 @@ const NoiseItem = memo<NoiseItemProps>(({ index, form, onRemove, onDuplicate, t 
           name={`noise_settings.xray.${index}.type`}
           render={({ field }) => (
             <FormItem className="w-[110px] shrink-0">
-              <Select onValueChange={field.onChange} value={field.value}>
+              <Select
+                onValueChange={val => {
+                  field.onChange(val)
+                  if (val === 'array') {
+                    form.setValue(`noise_settings.xray.${index}.packet`, [] as any)
+                  } else {
+                    const currentPacket = form.getValues(`noise_settings.xray.${index}.packet`)
+                    if (Array.isArray(currentPacket)) {
+                      form.setValue(`noise_settings.xray.${index}.packet`, '' as any)
+                    }
+                  }
+                }}
+                value={field.value}
+              >
                 <FormControl>
                   <SelectTrigger className="h-8">
                     <SelectValue placeholder={t('hostsDialog.noise.type')} />
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
+                  <SelectItem value="array">array</SelectItem>
                   <SelectItem value="rand">rand</SelectItem>
                   <SelectItem value="str">str</SelectItem>
                   <SelectItem value="base64">base64</SelectItem>
@@ -220,7 +237,25 @@ const NoiseItem = memo<NoiseItemProps>(({ index, form, onRemove, onDuplicate, t 
           render={({ field }) => (
             <FormItem>
               <FormControl>
-                <Input placeholder={t('hostsDialog.noise.packetPlaceholder')} {...field} value={field.value || ''} className="h-8" />
+                {isArrayType ? (
+                  <StringArrayPopoverInput
+                    value={Array.isArray(field.value) ? field.value.map(String) : []}
+                    onChange={(next: string[]) => field.onChange(next.map(v => { const n = Number(v); return isNaN(n) ? v : n }))}
+                    placeholder={t('hostsDialog.noise.packetPlaceholder')}
+                    addPlaceholder={t('arrayInput.addPlaceholder')}
+                    addButtonLabel={t('arrayInput.addButton')}
+                    itemsLabel={t('arrayInput.items')}
+                    emptyMessage={t('arrayInput.noItems')}
+                    duplicateErrorMessage={t('arrayInput.duplicateError')}
+                    clickToEditTitle={t('arrayInput.clickToEdit')}
+                    editItemTitle={t('arrayInput.editItem')}
+                    removeItemTitle={t('arrayInput.removeItem')}
+                    saveEditTitle={t('arrayInput.saveEdit')}
+                    cancelEditTitle={t('arrayInput.cancelEdit')}
+                  />
+                ) : (
+                  <Input placeholder={t('hostsDialog.noise.packetPlaceholder')} {...field} value={typeof field.value === 'string' ? field.value : ''} className="h-8" />
+                )}
               </FormControl>
               <FormMessage />
             </FormItem>

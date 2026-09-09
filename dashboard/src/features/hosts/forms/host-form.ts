@@ -81,7 +81,7 @@ export interface HostFormValues {
   noise_settings?: {
     xray?: {
       type: string
-      packet: string
+      packet: string | number[]
       delay: string
       apply_to: 'ip' | 'ipv4' | 'ipv6'
     }[]
@@ -381,9 +381,9 @@ export const HostFormSchema = z.object({
           z.object({
             type: z
               .string()
-              .regex(/^(?:rand|str|base64|hex)$/)
+              .regex(/^(?:array|rand|str|base64|hex)$/)
               .optional(),
-            packet: z.string().optional(),
+            packet: z.union([z.string(), z.array(z.number())]).optional(),
             delay: z
               .string()
               .optional()
