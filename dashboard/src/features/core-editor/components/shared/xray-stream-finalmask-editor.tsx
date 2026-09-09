@@ -1361,14 +1361,17 @@ function XrayNoiseSettingsList({ form, name, label }: XrayNoiseSettingsListProps
     <div className="bg-muted/10 space-y-3 rounded-md border p-3">
       <div className="flex items-center justify-between">
         <span className="text-muted-foreground text-xs font-semibold">{label}</span>
-        <Button type="button" variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => append({ type: 'array', packet: '', delay: '', rand: '', randRange: '0-255' })}>
+        <Button type="button" variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => append({ type: 'array', packet: [], delay: '', rand: '', randRange: '0-255' })}>
           <Plus className="mr-1 h-3.5 w-3.5" />
           {t('hostsDialog.noise.addNoise', { defaultValue: 'Add' })}
         </Button>
       </div>
 
       <div className="space-y-2">
-        {fields.map((field, index) => (
+        {fields.map((field, index) => {
+          const noiseType = form.watch(`${name}.${index}.type`)
+          const isArrayType = noiseType === 'array'
+          return (
           <div key={field.id} className="bg-background space-y-2 rounded-md border p-2">
             <div className="flex items-center gap-2">
               <span className="text-muted-foreground w-5 shrink-0 text-center text-xs">{index + 1}</span>
@@ -1377,7 +1380,20 @@ function XrayNoiseSettingsList({ form, name, label }: XrayNoiseSettingsListProps
                 name={`${name}.${index}.type`}
                 render={({ field: inputField }) => (
                   <FormItem className="w-[100px] shrink-0">
-                    <Select onValueChange={inputField.onChange} value={inputField.value || 'array'}>
+                    <Select
+                      onValueChange={val => {
+                        inputField.onChange(val)
+                        if (val === 'array') {
+                          form.setValue(`${name}.${index}.packet`, [])
+                        } else {
+                          const currentPacket = form.getValues(`${name}.${index}.packet`)
+                          if (Array.isArray(currentPacket)) {
+                            form.setValue(`${name}.${index}.packet`, '')
+                          }
+                        }
+                      }}
+                      value={inputField.value || 'array'}
+                    >
                       <FormControl>
                         <SelectTrigger className="h-8 text-xs">
                           <SelectValue placeholder={t('hostsDialog.noise.type')} />
@@ -1388,7 +1404,6 @@ function XrayNoiseSettingsList({ form, name, label }: XrayNoiseSettingsListProps
                         <SelectItem value="str">str</SelectItem>
                         <SelectItem value="hex">hex</SelectItem>
                         <SelectItem value="base64">base64</SelectItem>
-                        <SelectItem value="rand">rand</SelectItem>
                       </SelectContent>
                     </Select>
                   </FormItem>
@@ -1418,7 +1433,25 @@ function XrayNoiseSettingsList({ form, name, label }: XrayNoiseSettingsListProps
                 render={({ field: inputField }) => (
                   <FormItem>
                     <FormControl>
-                      <Input placeholder={t('hostsDialog.noise.packet')} {...inputField} value={inputField.value || ''} className="h-8 text-xs" />
+                      {isArrayType ? (
+                        <StringArrayPopoverInput
+                          value={Array.isArray(inputField.value) ? inputField.value.map(String) : []}
+                          onChange={(next: string[]) => inputField.onChange(next.map(v => { const n = Number(v); return isNaN(n) ? v : n }))}
+                          placeholder={t('hostsDialog.noise.packet')}
+                          addPlaceholder={t('arrayInput.addPlaceholder')}
+                          addButtonLabel={t('arrayInput.addButton')}
+                          itemsLabel={t('arrayInput.items')}
+                          emptyMessage={t('arrayInput.noItems')}
+                          duplicateErrorMessage={t('arrayInput.duplicateError')}
+                          clickToEditTitle={t('arrayInput.clickToEdit')}
+                          editItemTitle={t('arrayInput.editItem')}
+                          removeItemTitle={t('arrayInput.removeItem')}
+                          saveEditTitle={t('arrayInput.saveEdit')}
+                          cancelEditTitle={t('arrayInput.cancelEdit')}
+                        />
+                      ) : (
+                        <Input placeholder={t('hostsDialog.noise.packet')} {...inputField} value={typeof inputField.value === 'string' ? inputField.value : ''} className="h-8 text-xs" />
+                      )}
                     </FormControl>
                   </FormItem>
                 )}
@@ -1458,7 +1491,9 @@ function XrayNoiseSettingsList({ form, name, label }: XrayNoiseSettingsListProps
               />
             </div>
           </div>
-        ))}
+          )
+        })}
+
         {fields.length === 0 && <div className="text-muted-foreground py-4 text-center text-xs">{t('hostsDialog.noise.noNoiseSettings', { defaultValue: 'No noise items' })}</div>}
       </div>
     </div>
