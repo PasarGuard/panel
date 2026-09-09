@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import delete, event, func, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
@@ -21,6 +21,13 @@ async def buffer_db(monkeypatch: pytest.MonkeyPatch):
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
+
+    @event.listens_for(engine.sync_engine, "connect")
+    def enable_foreign_keys(connection, _record):
+        cursor = connection.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
+
     async with engine.begin() as conn:
         await conn.run_sync(base.Base.metadata.create_all)
 
@@ -99,3 +106,31 @@ async def test_flush_failure_requeues(buffer_db, monkeypatch: pytest.MonkeyPatch
     with pytest.raises(SQLAlchemyError):
         await sub_update_buffer.flush_user_sub_updates()
     assert sub_update_buffer.pending_count() == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("include_live_user", [False, True])
+@pytest.mark.parametrize("batch_size", [1, 100])
+async def test_flush_discards_deleted_users(buffer_db, monkeypatch, include_live_user, batch_size):
+    session, user_id = buffer_db
+    deleted_user = User(username="deleted_before_flush")
+    session.add(deleted_user)
+    await session.commit()
+    await sub_update_buffer.queue_user_sub_update(deleted_user.id, "deleted-client")
+    if include_live_user:
+        await sub_update_buffer.queue_user_sub_update(user_id, "live-client")
+
+    await session.execute(delete(User).where(User.id == deleted_user.id))
+    await session.commit()
+    monkeypatch.setattr(sub_update_buffer, "FLUSH_BATCH_SIZE", batch_size)
+
+    assert await sub_update_buffer.flush_user_sub_updates() == int(include_live_user)
+    assert sub_update_buffer.pending_count() == 0
+    rows = (await session.execute(select(UserSubscriptionUpdate))).scalars().all()
+    assert [(row.user_id, row.user_agent) for row in rows] == ([(user_id, "live-client")] if include_live_user else [])
+    await session.commit()
+
+    monkeypatch.setattr(sub_update_buffer, "FLUSH_BATCH_SIZE", 100)
+    await sub_update_buffer.queue_user_sub_update(user_id, "next-client")
+    assert await sub_update_buffer.flush_user_sub_updates() == 1
+    assert sub_update_buffer.pending_count() == 0
