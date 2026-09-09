@@ -10,6 +10,7 @@ from app.models.core import (
     CoresSimpleResponse,
     RemoveCoresResponse,
 )
+from app.models.ordering import ReorderRequest
 from app.models.reality_scan import RealityScanRequest, RealityScanResult
 from app.operation import OperatorType
 from app.operation.core import CoreOperation
@@ -40,6 +41,16 @@ async def scan_reality_target(
     _: AdminDetails = Depends(require_permission("cores", "read")),
 ):
     return await core_operator.scan_reality_target(request)
+
+
+@router.put("s/order", status_code=status.HTTP_204_NO_CONTENT)
+async def reorder_core_configs(
+    payload: ReorderRequest,
+    admin: AdminDetails = Depends(require_permission("cores", "update")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Persist the display order of core configurations."""
+    await core_operator.reorder_cores(db, payload.ordered_ids, admin)
 
 
 @router.get("/{core_id}", response_model=CoreResponse)

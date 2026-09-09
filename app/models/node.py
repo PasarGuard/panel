@@ -203,6 +203,7 @@ class NodeModify(NodeCreate):
 
 class NodeResponse(Node):
     id: int
+    sort_order: int = 0
     api_key: str | None
     core_config_id: int | None
     xray_version: str | None

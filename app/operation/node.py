@@ -24,6 +24,7 @@ from app.db.crud.node import (
     modify_node,
     remove_node,
     remove_nodes,
+    reorder_nodes,
     reset_node_usage,
     update_node_status,
 )
@@ -84,6 +85,7 @@ class NodeOperation(BaseOperation):
     _in_flight_connects: ClassVar[set[int]] = set()
 
     def __init__(self, operator_type: OperatorType):
+        """Select local or remote node-operation handlers for this process role."""
         super().__init__(operator_type)
         if runtime_settings.role.runs_node:
             sync = needs_shared_bridge_memory()
@@ -94,6 +96,7 @@ class NodeOperation(BaseOperation):
             self._disconnect_single_impl = (
                 self._disconnect_single_node_sync if sync else self._disconnect_single_node_local
             )
+
             self._sync_node_users_impl = self._sync_node_users_local
             self._get_node_stats_impl = self._get_node_system_stats_local
             self._get_nodes_stats_impl = self._get_nodes_system_stats_local
@@ -124,6 +127,12 @@ class NodeOperation(BaseOperation):
             self._update_geofiles_impl = self._update_geofiles_remote
             self._get_logs_impl = self._get_logs_remote
             self._restart_all_impl = self._restart_all_nodes_remote
+
+    async def reorder_nodes(self, db: AsyncSession, ordered_ids: list[int], admin: AdminDetails) -> None:
+        """Persist a node order requested by an administrator."""
+        if not await reorder_nodes(db, ordered_ids):
+            await self.raise_error(message="Node not found", code=404, db=db)
+        logger.info('Nodes reordered by admin "%s"', admin.username)
 
     async def get_db_nodes(
         self,
