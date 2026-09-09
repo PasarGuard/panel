@@ -50,6 +50,7 @@ async def test_update_node_reuses_object_and_skips_remote_stop_when_unchanged(mo
     kill the remote backend РІР‚вЂќ that used to defeat attach-if-already-running and turn a
     transient health-check false negative into a permanent Start/Stop restart loop."""
     manager = NodeManager()
+    manager._uses_shared_revocation_store = False
 
     monkeypatch.setattr("app.node.ensure_bridge_memory", lambda: _AwaitableNone())
     monkeypatch.setattr("app.node.get_bridge_memory", lambda: (None, None, None))
@@ -135,6 +136,7 @@ async def test_update_node_replaces_on_name_or_coefficient_change(monkeypatch: p
     """Test that if the node name or usage_coefficient changes, the node is replaced,
     since we cannot refresh metadata through the bridge API."""
     manager = NodeManager()
+    manager._uses_shared_revocation_store = False
 
     monkeypatch.setattr("app.node.ensure_bridge_memory", lambda: _AwaitableNone())
     monkeypatch.setattr("app.node.get_bridge_memory", lambda: (None, None, None))
