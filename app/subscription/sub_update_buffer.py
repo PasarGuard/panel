@@ -10,10 +10,10 @@ import asyncio
 from datetime import UTC, datetime as dt
 from typing import Any
 
-from sqlalchemy import insert
+from sqlalchemy import insert, select
 
 from app.db import GetDB
-from app.db.models import UserSubscriptionUpdate
+from app.db.models import User, UserSubscriptionUpdate
 from app.lifecycle import on_shutdown, on_startup
 from app.utils.logger import get_logger
 from config import runtime_settings
@@ -87,13 +87,27 @@ async def flush_user_sub_updates() -> int:
             if not _pending:
                 return written
             _flushing = True
-            batch = _pending[:]
-            _pending.clear()
+            batch = _pending[:FLUSH_BATCH_SIZE]
+            del _pending[:FLUSH_BATCH_SIZE]
         try:
             async with GetDB() as db:
-                await db.execute(insert(UserSubscriptionUpdate.__table__), batch)
+                # Users can be deleted after their subscription request was queued.
+                # Lock surviving parents until commit so concurrent deletes cannot
+                # invalidate the foreign keys between this read and the insert.
+                user_ids = sorted({record["user_id"] for record in batch})
+                existing_user_ids = set(
+                    await db.scalars(
+                        select(User.id)
+                        .where(User.id.in_(user_ids))
+                        .order_by(User.id)
+                        .with_for_update(read=True, key_share=True)
+                    )
+                )
+                live_records = [record for record in batch if record["user_id"] in existing_user_ids]
+                if live_records:
+                    await db.execute(insert(UserSubscriptionUpdate.__table__), live_records)
                 await db.commit()
-            written += len(batch)
+            written += len(live_records)
         except Exception:
             async with _lock:
                 _pending[0:0] = batch
