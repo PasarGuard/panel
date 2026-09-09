@@ -41,7 +41,7 @@ def normalize_and_remove_none_values(data: dict) -> dict:
     def clean_dict(d: dict) -> dict:
         new_dict = {}
         for k, v in d.items():
-            if v not in (None, "", 0):
+            if v not in (None, "", 0, []):
                 if isinstance(v, dict):
                     if cleaned_dict := clean_dict(v):
                         new_dict[k] = cleaned_dict
