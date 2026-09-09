@@ -15,9 +15,7 @@ from fastapi import status
 from sqlalchemy import delete, event, func, select, update
 
 from app.db.crud.hwid import register_user_hwid
-from app.db.crud.user import get_user as get_db_user
-from app.db.crud.user import get_users as get_db_users
-from app.db.crud.user import update_users_status
+from app.db.crud.user import get_user as get_db_user, get_users as get_db_users, update_users_status
 from app.db.models import NodeUserUsage, User, UserStatus, UserUsageResetLogs
 from app.models.settings import ConfigFormat, SubRule, Subscription
 from app.models.stats import Period, UserCountMetric, UserCountMetricStat, UserCountMetricStatsList
@@ -967,13 +965,24 @@ def test_user_subscriptions(access_token):
     user = create_user(
         access_token,
         group_ids=[group["id"] for group in groups],
-        payload={"username": unique_name("test_user_subscriptions")},
+        payload={
+            "username": unique_name("test_user_subscriptions"),
+            "data_limit_reset_strategy": "month",
+        },
     )
     try:
+        reset_response = client.post(
+            f"/api/user/by-id/{user['id']}/reset",
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+        assert reset_response.status_code == status.HTTP_200_OK
+
         for usf in user_subscription_formats:
             url = f"{user['subscription_url']}/{usf}"
             response = client.get(url, headers={"Accept": "text/html"} if usf == "" else None)
             assert response.status_code == status.HTTP_200_OK
+            if usf == "":
+                assert "Next Traffic Reset:" in response.text
     finally:
         delete_user(access_token, user["username"])
         for host in hosts:
@@ -1190,13 +1199,29 @@ def test_user_subscription_info_returns_request_ip(access_token):
     user = create_user(
         access_token,
         group_ids=[groups[0]["id"]],
-        payload={"username": unique_name("test_subscription_info_ip")},
+        payload={
+            "username": unique_name("test_subscription_info_ip"),
+            "data_limit_reset_strategy": "month",
+        },
     )
     try:
+        reset_response = client.post(
+            f"/api/user/by-id/{user['id']}/reset",
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+        assert reset_response.status_code == status.HTTP_200_OK
+
         ip = "198.51.100.7"
         response = client.get(f"{user['subscription_url']}/info", headers={"X-Forwarded-For": ip})
         assert response.status_code == status.HTTP_200_OK
-        assert response.json()["ip"] == ip
+        data = response.json()
+        assert data["ip"] == ip
+        assert data["last_traffic_reset_at"] is not None
+        # A manual reset updates the general timestamp only. The separate
+        # cycle timestamp must stay empty until the scheduler/next-plan path
+        # performs a reset, otherwise the UI would again conflate both clocks.
+        assert data["last_cycle_traffic_reset_at"] is None
+        assert data["next_traffic_reset_at"] is not None
     finally:
         delete_user(access_token, user["username"])
         cleanup_groups(access_token, core, groups)
@@ -2032,7 +2057,7 @@ def test_reset_by_next_user_usage(access_token):
     user = create_user(
         access_token,
         group_ids=[groups[0]["id"]],
-        payload={"username": unique_name("test_user_next_plan")},
+        payload={"username": unique_name("test_user_next_plan"), "data_limit_reset_strategy": "month"},
     )
     try:
         update = client.put(
@@ -2046,6 +2071,14 @@ def test_reset_by_next_user_usage(access_token):
             headers={"Authorization": f"Bearer {access_token}"},
         )
         assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data["data_limit_reset_strategy"] == "month"
+        assert data["last_traffic_reset_at"] == data["last_cycle_traffic_reset_at"]
+        assert data["last_cycle_traffic_reset_at"] is not None
+        info = client.get(f"{user['subscription_url']}/info")
+        assert info.status_code == status.HTTP_200_OK
+        assert info.json()["last_cycle_traffic_reset_at"] == data["last_cycle_traffic_reset_at"]
+        assert info.json()["next_traffic_reset_at"] == data["next_traffic_reset_at"]
     finally:
         delete_user(access_token, user["username"])
         cleanup_groups(access_token, core, groups)

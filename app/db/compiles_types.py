@@ -114,7 +114,7 @@ class DateDiff(FunctionElement):
     inherit_cache = True
 
     def __init__(self, date1, date2, **kwargs):
-        super().__init__(**kwargs)
+        super().__init__(date1, date2, **kwargs)
         self.date1 = date1
         self.date2 = date2
 

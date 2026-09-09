@@ -1,4 +1,7 @@
 {
+  "lastTrafficResetAt": "آخرین بازنشانی ترافیک",
+  "lastCycleTrafficResetAt": "آخرین بازنشانی چرخه ترافیک",
+  "nextTrafficResetAt": "بازنشانی بعدی ترافیک",
   "pasarguard": "پاسارگارد",
   "dashboard": "داشبورد",
   "master": "کلی",
