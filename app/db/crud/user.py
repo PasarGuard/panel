@@ -190,6 +190,22 @@ async def refresh_and_load_user(
     load_groups: bool = True,
 ):
     await db.refresh(user)
+    if load_usage_logs:
+        # A committed DateTime can differ from the Python value retained in the
+        # identity map (for example, MySQL/MariaDB DATETIME second precision).
+        # Re-populate existing history instances before exposing properties
+        # which fall back from optimized query expressions to usage_logs.
+        usage_logs = list(
+            (
+                await db.scalars(
+                    select(UserUsageResetLogs)
+                    .where(UserUsageResetLogs.user_id == user.id)
+                    .order_by(UserUsageResetLogs.reset_at, UserUsageResetLogs.id)
+                    .execution_options(populate_existing=True)
+                )
+            ).all()
+        )
+        set_committed_value(user, "usage_logs", usage_logs)
     await load_user_attrs(
         user,
         load_admin=load_admin,

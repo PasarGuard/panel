@@ -3,7 +3,7 @@ from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import delete, event, func, select
+from sqlalchemy import delete, event, func, select, update
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.db.crud.bulk import reset_all_users_data_usage
@@ -320,10 +320,24 @@ async def test_optimized_reset_dates_match_history_and_refresh_after_manual_rese
         user = User(username=f"dates_{uuid4().hex[:16]}", data_limit_reset_strategy=DataLimitResetStrategy.month)
         session.add(user)
         await session.flush()
+        # Local SQLite test databases may reuse user IDs while retaining rows
+        # from earlier interrupted runs with foreign-key enforcement disabled.
+        await session.execute(delete(UserUsageResetLogs).where(UserUsageResetLogs.user_id == user.id))
         scheduled = UserUsageResetLogs(user_id=user.id, used_traffic_at_reset=10, reset_source="scheduled")
-        scheduled.reset_at = datetime.now(UTC) - timedelta(days=5)
+        scheduled.reset_at = (datetime.now(UTC) - timedelta(days=5)).replace(microsecond=900_000)
         session.add(scheduled)
         await session.commit()
+        # Reproduce a backend which stores DATETIME without fractional seconds
+        # while expire_on_commit=False retains the original Python value.
+        canonical_scheduled_at = scheduled.reset_at.replace(microsecond=0) + timedelta(seconds=1)
+        await session.execute(
+            update(UserUsageResetLogs)
+            .where(UserUsageResetLogs.id == scheduled.id)
+            .values(reset_at=canonical_scheduled_at)
+            .execution_options(synchronize_session=False)
+        )
+        await session.commit()
+        assert scheduled.reset_at != canonical_scheduled_at
         persisted_scheduled_at = await session.scalar(
             select(UserUsageResetLogs.reset_at).where(UserUsageResetLogs.id == scheduled.id)
         )
@@ -336,6 +350,7 @@ async def test_optimized_reset_dates_match_history_and_refresh_after_manual_rese
             select(UserUsageResetLogs.reset_at).where(UserUsageResetLogs.id == scheduled.id)
         )
         assert persisted_scheduled_after_reset == persisted_scheduled_at
+        assert scheduled.reset_at.replace(tzinfo=UTC) == persisted_scheduled_after_reset.replace(tzinfo=UTC)
         assert user.last_traffic_reset_at.replace(tzinfo=UTC) > user.last_cycle_traffic_reset_at.replace(tzinfo=UTC)
         assert user.last_cycle_traffic_reset_at.replace(tzinfo=UTC) == persisted_scheduled_after_reset.replace(tzinfo=UTC)
 
