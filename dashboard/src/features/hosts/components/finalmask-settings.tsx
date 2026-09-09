@@ -1352,12 +1352,12 @@ function XrayNoiseSettingsList({ form, name, label }: XrayNoiseSettingsListProps
               </div>
             </div>
 
-            <div className={`grid gap-2 pl-7 ${isArrayType ? 'grid-cols-3' : 'grid-cols-4'}`}>
+            <div className="grid grid-cols-4 gap-2 pl-7">
               <FormField
                 control={form.control}
                 name={`${name}.${index}.packet`}
                 render={({ field: inputField }) => (
-                  <FormItem className={isArrayType ? 'col-span-2' : undefined}>
+                  <FormItem>
                     <FormControl>
                       {isArrayType ? (
                         <StringArrayPopoverInput
@@ -1404,19 +1404,17 @@ function XrayNoiseSettingsList({ form, name, label }: XrayNoiseSettingsListProps
                   </FormItem>
                 )}
               />
-              {!isArrayType && (
-                <FormField
-                  control={form.control}
-                  name={`${name}.${index}.randRange`}
-                  render={({ field: inputField }) => (
-                    <FormItem>
-                      <FormControl>
-                        <Input placeholder={t('hostsDialog.finalmask.noiseRandRangePlaceholder')} {...inputField} value={inputField.value || ''} className="h-8 text-xs" />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-              )}
+              <FormField
+                control={form.control}
+                name={`${name}.${index}.randRange`}
+                render={({ field: inputField }) => (
+                  <FormItem>
+                    <FormControl>
+                      <Input placeholder={t('hostsDialog.finalmask.noiseRandRangePlaceholder')} {...inputField} value={inputField.value || ''} className="h-8 text-xs" />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
             </div>
           </div>
           )
