@@ -443,15 +443,15 @@ async def test_core_users_only_excludes_admins_with_blocking_sync_roles(monkeypa
         )
         await session.commit()
 
-        expected_user_ids = {active_user.id, nonblocked_user.id}
-        blocked_user_id = blocked_user.id
+        expected_user_sync_ids = {active_user.sync_id, nonblocked_user.sync_id}
+        blocked_user_sync_id = blocked_user.sync_id
 
     async with TestSession() as session:
         users = await node_user_module.core_users(session, inbound_tags=[inbound_tag])
 
     synced_user_ids = {user["id"] for user in users}
-    assert synced_user_ids == expected_user_ids
-    assert blocked_user_id not in synced_user_ids
+    assert synced_user_ids == expected_user_sync_ids
+    assert blocked_user_sync_id not in synced_user_ids
     assert all(user["inbounds"] == [inbound_tag] for user in users)
 
 

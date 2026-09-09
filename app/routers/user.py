@@ -191,7 +191,9 @@ async def set_user_disabled_by_id(
 
 
 @router.delete(
-    "/{username}", responses={403: responses._403, 404: responses._404}, status_code=status.HTTP_204_NO_CONTENT
+    "/{username}",
+    responses={403: responses._403, 404: responses._404, 503: responses._503},
+    status_code=status.HTTP_204_NO_CONTENT,
 )
 async def remove_user(
     username: str,
@@ -204,7 +206,7 @@ async def remove_user(
 
 @router.delete(
     "/by-username/{username}",
-    responses={403: responses._403, 404: responses._404},
+    responses={403: responses._403, 404: responses._404, 503: responses._503},
     status_code=status.HTTP_204_NO_CONTENT,
 )
 async def remove_user_by_username(
@@ -217,7 +219,7 @@ async def remove_user_by_username(
 
 @router.delete(
     "/by-id/{user_id}",
-    responses={403: responses._403, 404: responses._404},
+    responses={403: responses._403, 404: responses._404, 503: responses._503},
     status_code=status.HTTP_204_NO_CONTENT,
 )
 async def remove_user_by_id(
@@ -614,7 +616,7 @@ async def get_expired_users(
     return await user_operator.get_expired_users(db, query=query)
 
 
-@router.delete("s/expired", response_model=RemoveUsersResponse)
+@router.delete("s/expired", response_model=RemoveUsersResponse, responses={503: responses._503})
 async def delete_expired_users(
     query: Annotated[ExpiredUsersQuery, Depends(get_expired_users_query)],
     db: AsyncSession = Depends(get_db),
@@ -635,7 +637,7 @@ async def delete_expired_users(
 @router.post(
     "s/bulk/delete",
     response_model=RemoveUsersResponse,
-    responses={400: responses._400, 403: responses._403, 404: responses._404},
+    responses={400: responses._400, 403: responses._403, 404: responses._404, 503: responses._503},
 )
 async def bulk_delete_users(
     bulk_users: BulkUsersSelection,

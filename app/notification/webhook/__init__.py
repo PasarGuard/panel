@@ -9,6 +9,8 @@ from app.models.user import UserNotificationResponse, UserStatus
 from app.notification.queue_manager import enqueue_webhook
 from app.settings import webhook_settings
 
+_SENSITIVE_USER_FIELDS = {"proxy_settings", "subscription_url"}
+
 
 def get_current_timestamp() -> float:
     """Factory function to get current timestamp"""
@@ -123,10 +125,10 @@ async def status_change(user: UserNotificationResponse):
 
 async def notify(message: type[Notification]) -> None:
     if (await webhook_settings()).enable:
-        await enqueue_webhook(jsonable_encoder(message))
+        await enqueue_webhook(jsonable_encoder(message, exclude={"user": _SENSITIVE_USER_FIELDS}))
 
 
 async def bulk_notify(messages: list[type[Notification]]) -> None:
     if (await webhook_settings()).enable:
         for message in messages:
-            await enqueue_webhook(jsonable_encoder(message))
+            await enqueue_webhook(jsonable_encoder(message, exclude={"user": _SENSITIVE_USER_FIELDS}))
