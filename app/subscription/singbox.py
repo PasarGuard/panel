@@ -80,11 +80,11 @@ class SingBoxConfiguration(BaseSubscription):
         selector_tags.extend(endpoint_tags)
 
         for outbound in self.config["outbounds"]:
-            if outbound.get("type") == "urltest":
+            if outbound.get("type") == "urltest" and outbound.get("outbounds") in (None, []):
                 outbound["outbounds"] = urltest_tags
 
         for outbound in self.config["outbounds"]:
-            if outbound.get("type") == "selector":
+            if outbound.get("type") == "selector" and outbound.get("outbounds") in (None, []):
                 outbound["outbounds"] = selector_tags
 
     def add(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict):
