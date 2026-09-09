@@ -1,4 +1,7 @@
 {
+  "lastTrafficResetAt": "Последний сброс трафика",
+  "lastCycleTrafficResetAt": "Последний сброс цикла трафика",
+  "nextTrafficResetAt": "Следующий сброс трафика",
   "pasarguard": "PasarGuard",
   "dashboard": "Панель управления",
   "master": "Общее",

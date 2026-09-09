@@ -577,6 +577,12 @@
                     <span class="info-label">Data Used:</span>
                     <span>{{ user.used_traffic | bytesformat }}{% if user.data_limit_reset_strategy != 'no_reset' %} (resets every {{ user.data_limit_reset_strategy.value }}){% endif %}</span>
                 </div>
+                {% if user.next_traffic_reset_at %}
+                <div class="info-item">
+                    <span class="info-label">Next Traffic Reset:</span>
+                    <span>{{ user.next_traffic_reset_at | datetime }}</span>
+                </div>
+                {% endif %}
                 <div class="info-item">
                     {% if user.status.value == 'on_hold' %}
                         <span class="info-label">On Hold For:</span>

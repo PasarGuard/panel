@@ -1,4 +1,7 @@
 {
+  "lastTrafficResetAt": "Last traffic reset",
+  "lastCycleTrafficResetAt": "Last traffic cycle reset",
+  "nextTrafficResetAt": "Next traffic reset",
   "pasarguard": "PasarGuard",
   "dashboard": "Dashboard",
   "master": "Overall",

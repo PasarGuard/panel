@@ -2174,6 +2174,9 @@ export interface SubscriptionUserResponse {
   created_at: string;
   edit_at?: string | null;
   online_at?: string | null;
+  last_traffic_reset_at?: string | null;
+  last_cycle_traffic_reset_at?: string | null;
+  next_traffic_reset_at?: string | null;
   ip?: string | null;
 }
 
@@ -2352,6 +2355,9 @@ export interface UserResponse {
   created_at: string;
   edit_at?: string | null;
   online_at?: string | null;
+  last_traffic_reset_at?: string | null;
+  last_cycle_traffic_reset_at?: string | null;
+  next_traffic_reset_at?: string | null;
   subscription_url?: string;
   admin?: AdminBase | null;
 }

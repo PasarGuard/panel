@@ -6,6 +6,7 @@ from typing import Literal
 from sqlalchemy import and_, case, delete, desc, func, literal, not_, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload, with_expression
+from sqlalchemy.orm.attributes import set_committed_value
 from sqlalchemy.sql import Select
 from sqlalchemy.sql.functions import coalesce
 
@@ -22,6 +23,7 @@ from app.db.models import (
     UserStatus,
     UserSubscriptionUpdate,
     UserUsageResetLogs,
+    UserUsageResetSource,
     users_groups_association,
 )
 from app.models.proxy import ProxyTable
@@ -68,6 +70,12 @@ from .wireguard import (
 _USER_AGENT_MAX_LEN = UserSubscriptionUpdate.__table__.columns.user_agent.type.length or 512
 _SUBSCRIPTION_UPDATE_IP_MAX_LEN = UserSubscriptionUpdate.__table__.columns.ip.type.length or 64
 _ONLINE_USERS_WINDOW = timedelta(minutes=2)
+_TRAFFIC_RESET_DAYS = {
+    DataLimitResetStrategy.day: 1,
+    DataLimitResetStrategy.week: 7,
+    DataLimitResetStrategy.month: 30,
+    DataLimitResetStrategy.year: 365,
+}
 
 
 def _user_reset_traffic_subquery():
@@ -76,6 +84,29 @@ def _user_reset_traffic_subquery():
         .where(UserUsageResetLogs.user_id == User.id)
         .correlate(User)
         .scalar_subquery()
+    )
+
+
+def _user_last_reset_subquery(sources: Sequence[str] | None = None):
+    stmt = select(func.max(UserUsageResetLogs.reset_at)).where(UserUsageResetLogs.user_id == User.id)
+    if sources is not None:
+        stmt = stmt.where(UserUsageResetLogs.reset_source.in_(sources))
+    return stmt.correlate(User).scalar_subquery()
+
+
+def _user_usage_summary_options():
+    # Keep optimized API reads independent of the size of reset history.
+    # A loaded SQL NULL is a valid result, not a request to lazy-load logs.
+    return (
+        with_expression(User._reseted_usage_query, _user_reset_traffic_subquery()),
+        with_expression(User._last_traffic_reset_at_query, _user_last_reset_subquery()),
+        with_expression(
+            User._last_cycle_traffic_reset_at_query,
+            coalesce(
+                _user_last_reset_subquery([UserUsageResetSource.scheduled.value, UserUsageResetSource.next_plan.value]),
+                _user_last_reset_subquery([UserUsageResetSource.legacy.value]),
+            ),
+        ),
     )
 
 
@@ -123,7 +154,7 @@ def _build_user_select_stmt(
     if options:
         stmt = stmt.options(*options)
     if load_lifetime_used_traffic:
-        stmt = stmt.options(with_expression(User._reseted_usage_query, _user_reset_traffic_subquery()))
+        stmt = stmt.options(*_user_usage_summary_options())
     return stmt
 
 
@@ -159,6 +190,22 @@ async def refresh_and_load_user(
     load_groups: bool = True,
 ):
     await db.refresh(user)
+    if load_usage_logs:
+        # A committed DateTime can differ from the Python value retained in the
+        # identity map (for example, MySQL/MariaDB DATETIME second precision).
+        # Re-populate existing history instances before exposing properties
+        # which fall back from optimized query expressions to usage_logs.
+        usage_logs = list(
+            (
+                await db.scalars(
+                    select(UserUsageResetLogs)
+                    .where(UserUsageResetLogs.user_id == user.id)
+                    .order_by(UserUsageResetLogs.reset_at, UserUsageResetLogs.id)
+                    .execution_options(populate_existing=True)
+                )
+            ).all()
+        )
+        set_committed_value(user, "usage_logs", usage_logs)
     await load_user_attrs(
         user,
         load_admin=load_admin,
@@ -360,7 +407,7 @@ async def get_users(
     if load_usage_logs:
         options.append(selectinload(User.usage_logs))
     if load_lifetime_used_traffic:
-        options.append(with_expression(User._reseted_usage_query, _user_reset_traffic_subquery()))
+        options.extend(_user_usage_summary_options())
     stmt = select(User).options(*options)
 
     filters = []
@@ -609,42 +656,65 @@ async def get_on_hold_to_active_users(db: AsyncSession) -> list[User]:
     return list((await db.execute(stmt)).unique().scalars().all())
 
 
-async def get_users_to_reset_data_usage(db: AsyncSession) -> list[User]:
+async def get_users_to_reset_data_usage(
+    db: AsyncSession,
+    *,
+    user_ids: Sequence[int] | None = None,
+) -> list[User]:
     """
     Retrieves users whose data usage needs to be reset based on their reset strategy.
     """
-    last_reset_subq = (
+    last_scheduled_reset_subq = (
         select(
             UserUsageResetLogs.user_id,
             func.max(UserUsageResetLogs.reset_at).label("last_reset_at"),
+        )
+        .where(
+            UserUsageResetLogs.reset_source.in_(
+                [UserUsageResetSource.scheduled.value, UserUsageResetSource.next_plan.value]
+            )
         )
         .group_by(UserUsageResetLogs.user_id)
         .subquery()
     )
 
-    last_reset_time = coalesce(last_reset_subq.c.last_reset_at, User.created_at)
+    last_legacy_reset_subq = (
+        select(
+            UserUsageResetLogs.user_id,
+            func.max(UserUsageResetLogs.reset_at).label("last_reset_at"),
+        )
+        .where(UserUsageResetLogs.reset_source == UserUsageResetSource.legacy.value)
+        .group_by(UserUsageResetLogs.user_id)
+        .subquery()
+    )
 
-    reset_strategy_to_days = {
-        DataLimitResetStrategy.day: 1,
-        DataLimitResetStrategy.week: 7,
-        DataLimitResetStrategy.month: 30,
-        DataLimitResetStrategy.year: 365,
-    }
+    # Preserve the pre-upgrade cycle once by using ambiguous legacy history only
+    # until the scheduler (or next-plan application) records a trusted boundary.
+    last_reset_time = coalesce(
+        last_scheduled_reset_subq.c.last_reset_at,
+        last_legacy_reset_subq.c.last_reset_at,
+        User.created_at,
+    )
 
     num_days_to_reset_case = case(
-        *((User.data_limit_reset_strategy == strategy, days) for strategy, days in reset_strategy_to_days.items()),
+        *((User.data_limit_reset_strategy == strategy, days) for strategy, days in _TRAFFIC_RESET_DAYS.items()),
         else_=None,
     )
 
     stmt = (
         _build_user_select_stmt()
-        .outerjoin(last_reset_subq, User.id == last_reset_subq.c.user_id)
+        .outerjoin(last_scheduled_reset_subq, User.id == last_scheduled_reset_subq.c.user_id)
+        .outerjoin(last_legacy_reset_subq, User.id == last_legacy_reset_subq.c.user_id)
         .where(
             User.status.in_([UserStatus.active, UserStatus.limited]),
             User.data_limit_reset_strategy != DataLimitResetStrategy.no_reset,
             DateDiff(func.now(), last_reset_time) >= num_days_to_reset_case,
         )
     )
+    if user_ids is not None:
+        if not user_ids:
+            return []
+        stmt = stmt.where(User.id.in_(user_ids))
 
     return list((await db.execute(stmt)).unique().scalars().all())
 
@@ -1147,12 +1217,18 @@ async def modify_user(
     return db_user
 
 
-async def _reset_user_traffic_and_log(db: AsyncSession, db_user: User):
+async def _reset_user_traffic_and_log(
+    db: AsyncSession,
+    db_user: User,
+    *,
+    reset_source: UserUsageResetSource = UserUsageResetSource.manual,
+):
     """Helper to reset user traffic and log the action."""
     await db_user.awaitable_attrs.next_plan
     usage_log = UserUsageResetLogs(
         user_id=db_user.id,
         used_traffic_at_reset=db_user.used_traffic,
+        reset_source=reset_source.value,
     )
     db.add(usage_log)
 
@@ -1163,6 +1239,103 @@ async def _reset_user_traffic_and_log(db: AsyncSession, db_user: User):
     db_user.used_traffic = 0
 
 
+async def lock_users_for_traffic_reset(db: AsyncSession, users: Sequence[User]) -> list[User]:
+    """Lock reset targets in a stable order and refresh stale ORM state.
+
+    Every path that records/reset traffic must acquire these row locks before
+    reading ``used_traffic``. Otherwise a scheduler candidate loaded before a
+    manual reset can account the same traffic twice after it resumes.
+    """
+    user_ids = sorted({user.id for user in users if user.id is not None})
+    if not user_ids:
+        return []
+
+    locked_ids = list(
+        (await db.execute(select(User.id).where(User.id.in_(user_ids)).order_by(User.id).with_for_update())).scalars()
+    )
+    users_by_id = {user.id: user for user in users if user.id is not None}
+    locked_users = [users_by_id[user_id] for user_id in locked_ids]
+    for user in locked_users:
+        # Refresh only reset-relevant state. A full populate_existing refresh
+        # would expire preloaded groups and other relationships, which callers
+        # may still need without triggering implicit async IO.
+        await db.refresh(
+            user,
+            attribute_names=[
+                "used_traffic",
+                "status",
+                "data_limit",
+                "data_limit_reset_strategy",
+                "_expire",
+                "on_hold_expire_duration",
+                "on_hold_timeout",
+                "proxy_settings",
+            ],
+            # MySQL REPEATABLE READ keeps an earlier plain-read snapshot even
+            # after the row lock is acquired. Refresh with a current read too.
+            with_for_update=True,
+        )
+    next_plans = (
+        await db.scalars(
+            select(NextPlan)
+            .where(NextPlan.user_id.in_(locked_ids))
+            .order_by(NextPlan.user_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+    ).all()
+    plans_by_user = {plan.user_id: plan for plan in next_plans}
+    for user in locked_users:
+        set_committed_value(user, "next_plan", plans_by_user.get(user.id))
+    return locked_users
+
+
+async def _recheck_locked_users_due_for_reset(db: AsyncSession, users: Sequence[User]) -> list[User]:
+    if not users:
+        return []
+
+    cycle_starts = {}
+    for user in users:
+        # Read the actual latest row under lock, not MAX() from an old MySQL
+        # snapshot. LIMIT bounds history loading regardless of account age.
+        latest = (
+            select(UserUsageResetLogs.reset_at)
+            .where(UserUsageResetLogs.user_id == user.id)
+            .order_by(UserUsageResetLogs.reset_at.desc(), UserUsageResetLogs.id.desc())
+            .limit(1)
+            .with_for_update()
+        )
+        cycle_start = await db.scalar(
+            latest.where(
+                UserUsageResetLogs.reset_source.in_(
+                    [UserUsageResetSource.scheduled.value, UserUsageResetSource.next_plan.value]
+                )
+            )
+        )
+        if cycle_start is None:
+            cycle_start = await db.scalar(
+                latest.where(UserUsageResetLogs.reset_source == UserUsageResetSource.legacy.value)
+            )
+        cycle_starts[user.id] = cycle_start or user.created_at
+
+    # Retain the existing database-specific DateDiff/day-boundary behavior.
+    # Current-read User state also handles a concurrent disable/strategy change.
+    due_ids = set(
+        await db.scalars(
+            select(User.id)
+            .where(
+                User.id.in_(cycle_starts),
+                User.status.in_([UserStatus.active, UserStatus.limited]),
+                User.data_limit_reset_strategy != DataLimitResetStrategy.no_reset,
+                DateDiff(func.now(), case(cycle_starts, value=User.id))
+                >= case(_TRAFFIC_RESET_DAYS, value=User.data_limit_reset_strategy, else_=0),
+            )
+            .with_for_update()
+        )
+    )
+    return [user for user in users if user.id in due_ids]
+
+
 async def clear_user_node_usages(db: AsyncSession, user_id: int, *, before: datetime | None = None) -> None:
     stmt = delete(NodeUserUsage).where(NodeUserUsage.user_id == user_id)
     if before is not None:
@@ -1171,7 +1344,12 @@ async def clear_user_node_usages(db: AsyncSession, user_id: int, *, before: date
 
 
 async def reset_user_data_usage(
-    db: AsyncSession, db_user: User, *, clean_chart_data: bool = False, commit: bool = True
+    db: AsyncSession,
+    db_user: User,
+    *,
+    clean_chart_data: bool = False,
+    reset_source: UserUsageResetSource = UserUsageResetSource.manual,
+    commit: bool = True,
 ) -> User:
     """
     Resets the data usage of a user and logs the reset.
@@ -1183,7 +1361,12 @@ async def reset_user_data_usage(
     Returns:
         User: The updated user object.
     """
-    await _reset_user_traffic_and_log(db, db_user)
+    locked_users = await lock_users_for_traffic_reset(db, [db_user])
+    if not locked_users:
+        raise LookupError(f"User {db_user.id} no longer exists")
+    db_user = locked_users[0]
+
+    await _reset_user_traffic_and_log(db, db_user, reset_source=reset_source)
     await delete_user_passed_notification_reminders(db, db_user.id, ReminderType.data_usage, 0)
     if clean_chart_data:
         await clear_user_node_usages(db, db_user.id)
@@ -1198,7 +1381,12 @@ async def reset_user_data_usage(
 
 
 async def bulk_reset_user_data_usage(
-    db: AsyncSession, users: list[User], *, clean_chart_data: bool = False, commit: bool = True
+    db: AsyncSession,
+    users: list[User],
+    *,
+    clean_chart_data: bool = False,
+    reset_source: UserUsageResetSource = UserUsageResetSource.manual,
+    commit: bool = True,
 ) -> list[User]:
     """
     Resets the data usage for a list of users and logs the reset.
@@ -1210,8 +1398,15 @@ async def bulk_reset_user_data_usage(
     Returns:
         list[User]: The updated list of user objects.
     """
+    users = await lock_users_for_traffic_reset(db, users)
+    if reset_source is UserUsageResetSource.scheduled:
+        # Candidates are discovered before row locks are acquired. A different
+        # worker may have completed the scheduled boundary while this worker
+        # waited, so evaluate eligibility again inside the locked transaction.
+        users = await _recheck_locked_users_due_for_reset(db, users)
+
     for db_user in users:
-        await _reset_user_traffic_and_log(db, db_user)
+        await _reset_user_traffic_and_log(db, db_user, reset_source=reset_source)
         await delete_user_passed_notification_reminders(db, db_user.id, ReminderType.data_usage, 0)
         if clean_chart_data:
             await clear_user_node_usages(db, db_user.id)
@@ -1244,6 +1439,13 @@ async def reset_user_by_next(db: AsyncSession, db_user: User, *, clean_chart_dat
     Returns:
         User: The updated user object.
     """
+    locked_users = await lock_users_for_traffic_reset(db, [db_user])
+    if not locked_users:
+        raise LookupError(f"User {db_user.id} no longer exists")
+    db_user = locked_users[0]
+    if db_user.next_plan is None:
+        raise LookupError(f"User {db_user.id} no longer has a next plan")
+
     remaining_traffic = (db_user.data_limit or 0) - db_user.used_traffic
     if db_user.next_plan.user_template_id is None:
         db_user.data_limit = db_user.next_plan.data_limit + (
@@ -1282,7 +1484,7 @@ async def reset_user_by_next(db: AsyncSession, db_user: User, *, clean_chart_dat
             db_user.proxy_settings = proxy_settings
         db_user.data_limit_reset_strategy = db_user.next_plan.user_template.data_limit_reset_strategy
 
-    await _reset_user_traffic_and_log(db, db_user)
+    await _reset_user_traffic_and_log(db, db_user, reset_source=UserUsageResetSource.next_plan)
     await delete_user_passed_notification_reminders(db, db_user.id, ReminderType.data_usage, 0)
     if clean_chart_data:
         await clear_user_node_usages(db, db_user.id)

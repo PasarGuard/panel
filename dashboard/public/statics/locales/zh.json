@@ -1,4 +1,7 @@
 {
+  "lastTrafficResetAt": "上次流量重置",
+  "lastCycleTrafficResetAt": "上次流量周期重置",
+  "nextTrafficResetAt": "下次流量重置",
   "active": "激活",
   "platform": "平台",
   "dashboard": "仪表板",
