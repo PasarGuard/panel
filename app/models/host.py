@@ -56,7 +56,7 @@ class FragmentSettings(BaseModel):
 
 
 class XrayNoiseSettings(BaseModel):
-    type: str = Field(pattern=r"^$|^(:?rand|array|str|base64|hex)$")
+    type: str = Field(pattern=r"^$|^(:?rand|str|base64|hex)$")
     packet: str | list[int] | None = Field(default=None)
     delay: str | int | None = Field(default=None)
     apply_to: str = Field(default="ip", pattern=r"ip|ipv4|ipv6")
@@ -141,7 +141,7 @@ class FinalMaskQuicCongestion(str, Enum):
 class FinalMaskNoiseItem(FinalMaskBaseModel):
     """Packet camouflage item used by FinalMask. Unlike Freedom noise, this has no apply_to."""
 
-    type: str | None = Field(default=None, pattern=r"^$|^(:?rand|array|str|base64|hex)$")
+    type: str | None = Field(default=None, pattern=r"^$|^(:?array|str|base64|hex)$")
     packet: str | list[int] | None = Field(default=None)
     delay: str | int | None = Field(default=None)
     rand: int | str | None = Field(default=None)
