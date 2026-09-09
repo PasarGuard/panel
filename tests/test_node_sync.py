@@ -12,6 +12,14 @@ class _FakeUser:
         self.admin_id = None
 
 
+@pytest.fixture(autouse=True)
+def clear_user_sync_locks():
+    """Keep process-local synchronization locks isolated between tests."""
+    node_sync_module._user_sync_locks.clear()
+    yield
+    node_sync_module._user_sync_locks.clear()
+
+
 def test_node_update_users_nats_chunks_respect_payload_limit(monkeypatch: pytest.MonkeyPatch):
     users = [{"email": f"user-{index}", "payload": "x" * 600} for index in range(5)]
     max_payload = len(encode_node_command("update_users", {"users": users[:2]}))
@@ -51,8 +59,6 @@ async def test_sync_users_serializes_overlapping_updates_in_dispatch_order(monke
     monkeypatch.setattr(node_sync_module, "_blocked_admin_ids_for_users", fake_blocked_admins)
     monkeypatch.setattr(node_sync_module, "serialize_users_for_node", fake_serialize)
     monkeypatch.setattr(node_sync_module, "_dispatch_users_update", fake_dispatch)
-    node_sync_module._user_sync_locks.clear()
-
     first = asyncio.create_task(node_sync_module.sync_users([user], wait_for_dispatch=True))
     await first_dispatch_started.wait()
     second = asyncio.create_task(node_sync_module.sync_users([user], wait_for_dispatch=True))
@@ -62,4 +68,69 @@ async def test_sync_users_serializes_overlapping_updates_in_dispatch_order(monke
     release_first_dispatch.set()
     await asyncio.gather(first, second)
     assert dispatched_revisions == [1, 2]
-    node_sync_module._user_sync_locks.clear()
+
+
+@pytest.mark.asyncio
+async def test_cancelled_lock_acquisition_releases_already_acquired_locks():
+    """Cancellation while waiting for a later user must not leak earlier locks."""
+    blocked_lock = node_sync_module._user_sync_locks.setdefault(2, asyncio.Lock())
+    await blocked_lock.acquire()
+
+    acquisition = asyncio.create_task(node_sync_module._acquire_user_sync_locks([1, 2]))
+    for _ in range(10):
+        first_lock = node_sync_module._user_sync_locks.get(1)
+        if first_lock is not None and first_lock.locked():
+            break
+        await asyncio.sleep(0)
+    assert first_lock is not None and first_lock.locked()
+
+    acquisition.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await acquisition
+
+    assert not node_sync_module._user_sync_locks[1].locked()
+    assert blocked_lock.locked()
+    blocked_lock.release()
+
+
+@pytest.mark.asyncio
+async def test_sync_users_refreshes_tags_after_acquiring_user_lock(monkeypatch: pytest.MonkeyPatch):
+    """A waiting group sync must serialize access loaded after it wins the user lock."""
+    user = _FakeUser(7)
+    blocker = node_sync_module._user_sync_locks.setdefault(user.id, asyncio.Lock())
+    await blocker.acquire()
+    serialized_tags: list[dict[int, set[str]]] = []
+
+    async def fake_blocked_admins(users):
+        return set()
+
+    async def fake_load_current_tags(user_ids):
+        return {user.id: {"fresh-inbound"}}
+
+    async def fake_serialize(users, **kwargs):
+        serialized_tags.append(kwargs["inbound_tags_by_user"])
+        return []
+
+    async def fake_dispatch(proto_users):
+        return None
+
+    monkeypatch.setattr(node_sync_module, "_blocked_admin_ids_for_users", fake_blocked_admins)
+    monkeypatch.setattr(node_sync_module, "_load_current_inbound_tags", fake_load_current_tags)
+    monkeypatch.setattr(node_sync_module, "serialize_users_for_node", fake_serialize)
+    monkeypatch.setattr(node_sync_module, "_dispatch_users_update", fake_dispatch)
+
+    sync_task = asyncio.create_task(
+        node_sync_module.sync_users(
+            [user],
+            inbound_tags_by_user={user.id: {"stale-inbound"}},
+            refresh_inbound_tags=True,
+            wait_for_dispatch=True,
+        )
+    )
+    await asyncio.sleep(0)
+    assert not sync_task.done()
+
+    blocker.release()
+    await sync_task
+
+    assert serialized_tags == [{user.id: {"fresh-inbound"}}]

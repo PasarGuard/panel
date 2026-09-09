@@ -150,12 +150,17 @@ class GroupOperation(BaseOperation):
                     after_user_id = user_ids[-1]
                     continue
 
+                # Release the portable group write lock before waiting on node
+                # I/O. ``sync_users`` refreshes access after its per-user locks
+                # are acquired, so another group or membership update cannot
+                # leave this batch dispatching its earlier tag snapshot.
+                await db.commit()
                 await sync_users(
                     users,
                     inbound_tags_by_user=inbound_tags_by_user,
+                    refresh_inbound_tags=True,
                     wait_for_dispatch=True,
                 )
-                await db.rollback()
 
                 synced_users += len(users)
                 after_user_id = user_ids[-1]
