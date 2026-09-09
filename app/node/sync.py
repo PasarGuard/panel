@@ -3,6 +3,8 @@ import asyncio
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_object_session
 
+from app.db import GetDB
+from app.db.crud.wireguard import get_users_accessible_tags
 from app.db.models import Admin, AdminRole, AdminStatus, User
 from app.models.user import UserNotificationResponse
 from app.nats.node_rpc import encode_node_command, node_nats_client
@@ -19,15 +21,27 @@ _user_sync_locks: dict[int, asyncio.Lock] = {}
 async def _acquire_user_sync_locks(user_ids: list[int]) -> list[asyncio.Lock]:
     """Acquire per-user dispatch locks in a stable order."""
     locks = [_user_sync_locks.setdefault(user_id, asyncio.Lock()) for user_id in sorted(set(user_ids))]
-    for lock in locks:
-        await lock.acquire()
-    return locks
+    acquired: list[asyncio.Lock] = []
+    try:
+        for lock in locks:
+            await lock.acquire()
+            acquired.append(lock)
+    except BaseException:
+        _release_user_sync_locks(acquired)
+        raise
+    return acquired
 
 
 def _release_user_sync_locks(locks: list[asyncio.Lock]) -> None:
     """Release per-user dispatch locks in reverse acquisition order."""
     for lock in reversed(locks):
         lock.release()
+
+
+async def _load_current_inbound_tags(user_ids: list[int]) -> dict[int, set[str]]:
+    """Load current access in a short-lived transaction before node dispatch."""
+    async with GetDB() as db:
+        return await get_users_accessible_tags(db, user_ids)
 
 
 async def _dispatch_users_after_unlock(proto_users, locks: list[asyncio.Lock]) -> None:
@@ -221,6 +235,7 @@ async def sync_users(
     users: list[User],
     *,
     inbound_tags_by_user: dict[int, set[str]] | None = None,
+    refresh_inbound_tags: bool = False,
     wait_for_dispatch: bool = False,
 ) -> None:
     """Sync users to nodes in order, excluding blocked administrators."""
@@ -228,6 +243,8 @@ async def sync_users(
     try:
         blocked_admin_ids = await _blocked_admin_ids_for_users(users)
         filtered = [user for user in users if user.admin_id not in blocked_admin_ids]
+        if refresh_inbound_tags:
+            inbound_tags_by_user = await _load_current_inbound_tags([user.id for user in filtered])
         if inbound_tags_by_user is None:
             proto_users = await serialize_users_for_node(filtered)
         else:
