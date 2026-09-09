@@ -195,7 +195,7 @@ jobs:
               run: make check-migrations
 
             - name: Verify traffic reset races under REPEATABLE READ
-              run: .venv/bin/python -m pytest tests/api/test_user_usage_reset_cycle.py -k mysql_repeatable_read -q
+              run: .venv/bin/python -m pytest tests/api/test_user_usage_reset_cycle.py -k "mysql_repeatable_read or optimized_reset_dates" -q
 
             - name: Run Tests
               run: make test
@@ -321,7 +321,7 @@ jobs:
               run: make check-migrations
 
             - name: Verify traffic reset races under REPEATABLE READ
-              run: .venv/bin/python -m pytest tests/api/test_user_usage_reset_cycle.py -k mysql_repeatable_read -q
+              run: .venv/bin/python -m pytest tests/api/test_user_usage_reset_cycle.py -k "mysql_repeatable_read or optimized_reset_dates" -q
 
             - name: Run Tests (multi-worker all-in-one)
               env:
