@@ -2,7 +2,7 @@ from pydantic import BaseModel, Field, field_validator
 
 
 class ReorderRequest(BaseModel):
-    ordered_ids: list[int] = Field(min_length=2, max_length=1000)
+    ordered_ids: list[int] = Field(min_length=2)
 
     @field_validator("ordered_ids")
     @classmethod
