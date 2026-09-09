@@ -96,6 +96,12 @@ export interface HostFormValues {
   }
   subscription_templates?: {
     xray?: number | null
+    profile?: {
+      pool?: string
+      country?: string
+      priority?: number
+      exclude_from_auto?: boolean
+    }
   }
   transport_settings?: {
     xhttp_settings?: {
@@ -459,6 +465,24 @@ export const HostFormSchema = z.object({
   subscription_templates: z
     .object({
       xray: z.number().int().positive().nullable().optional(),
+      profile: z
+        .object({
+          pool: z
+            .string()
+            .regex(/^[a-z0-9](?:[a-z0-9_-]{0,62}[a-z0-9])?$/, 'Use a machine-readable pool id')
+            .default('primary'),
+          // The backend uppercases and then demands [A-Z]{2}, so a two-character
+          // string that is not two letters is a 422 at submit, not a form error.
+          // Empty stays valid: it is what the input holds the moment the
+          // operator clears the box, and the backend reads it as "no country".
+          country: z
+            .string()
+            .regex(/^([A-Za-z]{2})?$/, 'Use a two-letter country code')
+            .optional(),
+          priority: z.number().int().min(0).max(1_000_000).optional(),
+          exclude_from_auto: z.boolean().optional(),
+        })
+        .optional(),
     })
     .optional(),
   final_mask_settings: z.custom<FinalMask>().optional(),
@@ -494,8 +518,54 @@ export const hostFormDefaultValues: HostFormValues = {
   cipher_suites: undefined,
 }
 
+interface ApiHostSubscriptionTemplates {
+  xray?: number | null
+  profile?: {
+    pool?: string | null
+    country?: string | null
+    priority?: number | null
+    exclude_from_auto?: boolean | null
+  } | null
+}
+
+type HostProfileClassification = NonNullable<NonNullable<HostFormValues['subscription_templates']>['profile']>
+
+/** Whether the host dialog should offer pool/country classification at all.
+ *
+ *  Subscription profiles are opt-in and most deployments have none, so asking
+ *  every operator to classify every host into a pool nothing declares is noise.
+ *  A host that already carries a classification keeps the block regardless --
+ *  that is also what makes the block reachable when reading the template list
+ *  was refused, since it needs a permission the rest of this dialog does not.
+ */
+export function shouldShowProfileClassification(profileTemplateCount: number, profile: Partial<HostProfileClassification> | null | undefined): boolean {
+  if (profileTemplateCount > 0) return true
+  if (!profile) return false
+  return Boolean(profile.country || profile.priority != null || profile.exclude_from_auto || (profile.pool && profile.pool !== 'primary'))
+}
+
+/** Convert nullable API profile metadata into values accepted by react-hook-form. */
+export function mapHostSubscriptionTemplatesForForm(subscriptionTemplates: ApiHostSubscriptionTemplates | null | undefined): HostFormValues['subscription_templates'] | undefined {
+  if (!subscriptionTemplates) return undefined
+  const profile = subscriptionTemplates.profile
+  const normalized = {
+    xray: subscriptionTemplates.xray ?? undefined,
+    profile: profile
+      ? {
+          pool: profile.pool ?? 'primary',
+          country: profile.country ?? undefined,
+          priority: profile.priority ?? undefined,
+          exclude_from_auto: profile.exclude_from_auto ?? undefined,
+        }
+      : undefined,
+  }
+  return normalized.xray === undefined && normalized.profile === undefined ? undefined : normalized
+}
+
 /** Normalize API fragment settings for the host form (accept legacy `delay` as `interval`). */
-export function mapHostFragmentSettingsForForm(fragmentSettings: { xray?: Record<string, unknown> | null; sing_box?: NonNullable<HostFormValues['fragment_settings']>['sing_box'] | null } | null | undefined): HostFormValues['fragment_settings'] | undefined {
+export function mapHostFragmentSettingsForForm(
+  fragmentSettings: { xray?: Record<string, unknown> | null; sing_box?: NonNullable<HostFormValues['fragment_settings']>['sing_box'] | null } | null | undefined,
+): HostFormValues['fragment_settings'] | undefined {
   if (!fragmentSettings) return undefined
   const xrayRaw = fragmentSettings.xray
   if (!xrayRaw && fragmentSettings.sing_box == null) return undefined
@@ -514,4 +584,3 @@ export function mapHostFragmentSettingsForForm(fragmentSettings: { xray?: Record
     sing_box: fragmentSettings.sing_box ?? undefined,
   }
 }
-

@@ -1,4 +1,5 @@
 import base64
+import json
 import random
 import secrets
 from collections import defaultdict
@@ -11,8 +12,10 @@ from app.db.crud.wireguard import pick_peer_ip_for_inbound
 from app.db.models import UserStatus
 from app.models.status_emojis import STATUS_EMOJIS
 from app.models.subscription import SubscriptionInboundData
+from app.models.subscription_profile import SubscriptionProfile
 from app.models.user import UsersResponseWithInbounds
 from app.settings import subscription_settings
+from app.subscription.client_diagnostics import record_preview_exception
 from app.subscription.client_templates import subscription_client_templates, subscription_xray_templates
 from app.utils.system import readable_size
 
@@ -25,6 +28,14 @@ from . import (
     WireGuardConfiguration,
     XrayConfiguration,
 )
+from .profiles import (
+    ProfileValidationError,
+    build_singbox_profile,
+    build_xray_profile_configs,
+    endpoint_from_inbound,
+    load_profile,
+    validate_profile_routing_rules,
+)
 
 SERVER_IP = "127.0.0.1"
 SERVER_IPV6 = "[::1]"
@@ -33,6 +44,8 @@ SERVER_IPV6 = "[::1]"
 def _build_subscription_config(
     config_format: str,
     client_templates: dict[str, str],
+    *,
+    preserve_authored_groups: bool = False,
 ) -> (
     StandardLinks
     | XrayConfiguration
@@ -63,6 +76,7 @@ def _build_subscription_config(
     if config_format == "sing_box":
         return SingBoxConfiguration(
             singbox_template_content=client_templates["SINGBOX_SUBSCRIPTION_TEMPLATE"],
+            preserve_authored_groups=preserve_authored_groups,
             **common_kwargs,
         )
     if config_format == "outline":
@@ -82,10 +96,25 @@ async def generate_subscription(
     config_format: str,
     as_base64: bool,
     randomize_order: bool = False,
+    native_template: tuple[str, str] | None = None,
+    client_templates_override: dict[str, str] | None = None,
+    xray_templates_override: dict[int, str] | None = None,
 ) -> str | bytes:
     client_templates = await subscription_client_templates()
-    xray_template_overrides = await subscription_xray_templates() if config_format == "xray" else None
-    conf = _build_subscription_config(config_format, client_templates)
+    if client_templates_override is not None:
+        client_templates = {**client_templates, **client_templates_override}
+    if native_template is not None:
+        client_templates = {**client_templates, native_template[0]: native_template[1]}
+    resolved_xray_overrides = None
+    if config_format == "xray" and native_template is None:
+        resolved_xray_overrides = (
+            xray_templates_override if xray_templates_override is not None else await subscription_xray_templates()
+        )
+    conf = _build_subscription_config(
+        config_format,
+        client_templates,
+        preserve_authored_groups=config_format == "sing_box" and native_template is not None,
+    )
     if conf is None:
         raise ValueError(f'Unsupported format "{config_format}"')
 
@@ -98,7 +127,8 @@ async def generate_subscription(
         format_variables,
         conf,
         client_templates,
-        xray_template_overrides=xray_template_overrides,
+        xray_template_overrides=resolved_xray_overrides,
+        suppress_xray_host_overrides=native_template is not None,
         randomize_order=randomize_order,
         custom_variables=custom_variables,
     )
@@ -107,6 +137,61 @@ async def generate_subscription(
         config = base64.b64encode(config.encode()).decode()
 
     return config
+
+
+async def generate_subscription_profile(
+    user: UsersResponseWithInbounds,
+    profile_content: str,
+    config_format: str,
+) -> str:
+    """Generate an explicitly selected full-client profile.
+
+    Legacy subscriptions never call this path. Public subscription routes apply
+    user eligibility before reaching this generator; keeping that authorization
+    out of the shared renderer lets authorized administrators preview a profile
+    for an inactive user.
+    """
+    profile: SubscriptionProfile = load_profile(profile_content)
+    validate_profile_routing_rules(profile, config_format)
+    sub_settings = await subscription_settings()
+    custom_variables = get_effective_custom_variables(user, sub_settings.custom_variables)
+    format_variables = setup_format_variables(user, sub_settings.custom_variables)
+    proxy_settings = user.proxy_settings.dict()
+    proxy_settings["_user_id"] = user.id
+    client_templates = await subscription_client_templates()
+    hosts = await filter_hosts(list((await host_manager.get_hosts()).values()), user.status)
+    endpoints = []
+
+    for host_data in hosts:
+        if host_data.is_disabled:
+            continue
+        result = await process_host(host_data, format_variables, user.inbounds, proxy_settings, custom_variables)
+        if not result:
+            continue
+        inbound_copy, settings = result
+        await _apply_download_settings(
+            inbound_copy,
+            format_variables,
+            user.inbounds,
+            proxy_settings,
+            client_templates,
+            custom_variables,
+        )
+        formatted_address = inbound_copy.address.format_map(format_variables)
+        endpoints.append(endpoint_from_inbound(inbound_copy, formatted_address, settings))
+
+    if not endpoints:
+        raise ProfileValidationError("No eligible endpoints are available for this user profile")
+
+    if config_format == "xray":
+        return json.dumps(
+            build_xray_profile_configs(profile, endpoints, client_templates=client_templates), indent=4, default=str
+        )
+    if config_format == "sing_box":
+        return json.dumps(
+            build_singbox_profile(profile, endpoints, client_templates=client_templates), indent=4, default=str
+        )
+    raise ProfileValidationError(f'Unsupported profile format "{config_format}"')
 
 
 def format_time_left(seconds_left: int) -> str:
@@ -385,7 +470,8 @@ async def _prepare_download_settings(
     | ClashConfiguration
     | ClashMetaConfiguration
     | OutlineConfiguration
-    | WireGuardConfiguration,
+    | WireGuardConfiguration
+    | None,
 ) -> SubscriptionInboundData | dict | None:
     result = await process_host(download_data, format_variables, inbounds, proxies, custom_variables)
 
@@ -408,6 +494,42 @@ async def _prepare_download_settings(
     return download_copy
 
 
+async def _apply_download_settings(
+    inbound_copy: SubscriptionInboundData,
+    format_variables: dict,
+    inbounds: list[str],
+    proxies: dict,
+    client_templates: dict[str, str],
+    custom_variables: list | tuple | None,
+    conf=None,
+) -> None:
+    """Materialise a host's download settings in place.
+
+    Without this the raw cache entry reaches the config writers, which expect a
+    single resolved address and port rather than the candidate lists and
+    unformatted `{SERVER_IP}` placeholders stored per host.
+    """
+    download_settings = getattr(inbound_copy.transport_config, "download_settings", None)
+    if not download_settings:
+        return
+
+    if isinstance(download_settings, SubscriptionInboundData):
+        processed_download_settings = await _prepare_download_settings(
+            download_settings,
+            format_variables,
+            inbounds,
+            proxies,
+            client_templates,
+            custom_variables,
+            conf,
+        )
+    else:
+        processed_download_settings = download_settings
+
+    if hasattr(inbound_copy.transport_config, "download_settings"):
+        inbound_copy.transport_config.download_settings = processed_download_settings
+
+
 async def process_inbounds_and_tags(
     user: UsersResponseWithInbounds,
     format_variables: dict,
@@ -422,6 +544,7 @@ async def process_inbounds_and_tags(
     xray_template_overrides: dict[int, str] | None = None,
     randomize_order: bool = False,
     custom_variables: list | tuple | None = None,
+    suppress_xray_host_overrides: bool = False,
 ) -> str | bytes:
     proxy_settings = user.proxy_settings.dict()
     proxy_settings["_user_id"] = user.id
@@ -451,25 +574,19 @@ async def process_inbounds_and_tags(
         remark = inbound_copy.remark.format_map(format_variables)
         formatted_address = inbound_copy.address.format_map(format_variables)
 
-        download_settings = getattr(inbound_copy.transport_config, "download_settings", None)
-        if download_settings:
-            if isinstance(download_settings, SubscriptionInboundData):
-                processed_download_settings = await _prepare_download_settings(
-                    download_settings,
-                    format_variables,
-                    user.inbounds,
-                    proxy_settings,
-                    client_templates,
-                    custom_variables,
-                    conf,
-                )
-            else:
-                processed_download_settings = download_settings
-            if hasattr(inbound_copy.transport_config, "download_settings"):
-                inbound_copy.transport_config.download_settings = processed_download_settings
+        await _apply_download_settings(
+            inbound_copy,
+            format_variables,
+            user.inbounds,
+            proxy_settings,
+            client_templates,
+            custom_variables,
+            conf,
+        )
 
         if isinstance(conf, XrayConfiguration):
             template_content = _resolve_host_xray_template_content(inbound_copy)
+            previous_count = len(conf.config)
             conf.add(
                 remark=remark,
                 address=formatted_address,
@@ -477,6 +594,17 @@ async def process_inbounds_and_tags(
                 settings=settings,
                 template_content=template_content,
             )
+            if len(conf.config) > previous_count:
+                if template_content is not None:
+                    record_preview_exception("A Host Xray template override was applied to a rendered configuration.")
+                elif (
+                    suppress_xray_host_overrides
+                    and isinstance(inbound_copy.subscription_templates, dict)
+                    and isinstance(inbound_copy.subscription_templates.get("xray"), int)
+                ):
+                    record_preview_exception(
+                        "An explicit native Xray template suppressed a configured Host template override."
+                    )
         else:
             conf.add(
                 remark=remark,

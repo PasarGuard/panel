@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { StringArrayPopoverInput } from '@/components/common/string-array-popover-input'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
@@ -15,14 +16,23 @@ import { CustomVariablesPopover, VariablesList, VariablesPopover } from '@/compo
 import useDirDetection from '@/hooks/use-dir-detection'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
-import { ClientTemplateType, UserStatus, getHosts, useGetClientTemplatesSimple } from '@/service/api'
+import {
+  ClientTemplateType,
+  UserStatus,
+  getHosts,
+  useGetClientTemplates,
+  useGetClientTemplatesSimple,
+  type BaseHost,
+  type ClientTemplateResponseList,
+  type ClientTemplatesSimpleResponse,
+} from '@/service/api'
 import { queryClient } from '@/utils/query-client'
 import { useQuery } from '@tanstack/react-query'
-import { AlertTriangle, Cable, ChevronsLeftRightEllipsis, Copy, Pencil, GlobeLock, Info, Loader2, Lock, Network, Plus, Route, Trash2, X, ListTodo } from 'lucide-react'
+import { AlertTriangle, Cable, ChevronDown, ChevronsLeftRightEllipsis, Copy, Pencil, GlobeLock, Info, Loader2, Lock, Network, Plus, Route, Trash2, X, ListTodo } from 'lucide-react'
 import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
-import { hostFormDefaultValues, type HostFormValues } from '@/features/hosts/forms/host-form'
+import { hostFormDefaultValues, shouldShowProfileClassification, type HostFormValues } from '@/features/hosts/forms/host-form'
 import { LoaderButton } from '@/components/ui/loader-button'
 import { FinalMaskSettings } from '../components/finalmask-settings'
 
@@ -308,7 +318,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
   const [wireguardOpenSection, setWireguardOpenSection] = useState<string | undefined>(undefined)
   const [isTransportOpen, setIsTransportOpen] = useState(false)
   const [resolvedHostMode, setResolvedHostMode] = useState<'xray' | 'wireguard'>('xray')
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const dir = useDirDetection()
   const isMobile = useIsMobile()
   const [_isSubmitting, setIsSubmitting] = useState(false)
@@ -699,15 +709,70 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
   // Update the hosts query to refetch only when needed (not on dialog open)
   const { data: hosts = [], isLoading: isLoadingHosts } = useQuery({
     queryKey: ['getHostsQueryKey'],
-    queryFn: () => getHosts(),
+    queryFn: async () => (await getHosts()) as unknown as BaseHost[],
     enabled: isDialogOpen && isTransportOpen,
-    select: (data: any[]) => data.filter((host: any) => host.id != null),
+    select: data => data.filter(host => host.id != null),
   })
   const { data: xrayTemplateData, isLoading: isLoadingXrayTemplates } = useGetClientTemplatesSimple(
     { template_type: ClientTemplateType.xray_subscription, all: true },
-    { query: { enabled: isDialogOpen } },
+    { query: { enabled: isDialogOpen, select: response => response as unknown as ClientTemplatesSimpleResponse } },
   )
   const xrayTemplates = useMemo(() => (xrayTemplateData?.templates ?? []).filter(template => !template.is_default), [xrayTemplateData?.templates])
+  // A pool id is free text on both sides: nothing rejects a host naming a pool
+  // no profile declares, and the host then silently belongs to no group at all.
+  // Offering the declared ids turns that into a pick rather than a guess.
+  // Reading pool ids needs the full template list, a different permission from
+  // the simple list this dialog already uses. A role without it just gets the
+  // fallback below, so ask once and do not retry the 403.
+  const { data: xrayProfileData } = useGetClientTemplates(
+    { template_type: ClientTemplateType.xray_profile },
+    { query: { enabled: isDialogOpen, retry: false, select: response => response as unknown as ClientTemplateResponseList } },
+  )
+  const { data: singboxProfileData } = useGetClientTemplates(
+    { template_type: ClientTemplateType.singbox_profile },
+    { query: { enabled: isDialogOpen, retry: false, select: response => response as unknown as ClientTemplateResponseList } },
+  )
+  const profileTemplateCount = (xrayProfileData?.templates?.length ?? 0) + (singboxProfileData?.templates?.length ?? 0)
+  const hostProfile = form.watch('subscription_templates.profile')
+  // Subscription profiles are opt-in, and most deployments have none. Asking
+  // every operator to classify every host into a pool they never declared is
+  // noise, so the block appears once a profile exists -- or when this host
+  // already carries a classification, which also covers the case where reading
+  // the template list was refused by permissions.
+  const showProfileClassification = shouldShowProfileClassification(profileTemplateCount, hostProfile)
+  const [profileSectionOpen, setProfileSectionOpen] = useState(false)
+  const describeCountry = useCallback(
+    (code: string) => {
+      if (!/^[A-Za-z]{2}$/.test(code)) return ''
+      try {
+        const name = new Intl.DisplayNames([i18n.language], { type: 'region' }).of(code.toUpperCase())
+        // `of` echoes the input back when it knows no such region.
+        return name && name.toUpperCase() !== code.toUpperCase() ? name : ''
+      } catch {
+        return ''
+      }
+    },
+    [i18n.language],
+  )
+  const profileClassificationSummary = useMemo(() => {
+    const parts = [hostProfile?.pool || 'primary']
+    if (hostProfile?.country) parts.push(hostProfile.country)
+    if (hostProfile?.exclude_from_auto) parts.push(t('hostsDialog.profileExcludedShort', { defaultValue: 'excluded from auto' }))
+    return parts.join(' · ')
+  }, [hostProfile?.pool, hostProfile?.country, hostProfile?.exclude_from_auto, t])
+
+  const declaredPools = useMemo(() => {
+    const ids = new Set<string>(['primary'])
+    for (const template of [...(xrayProfileData?.templates ?? []), ...(singboxProfileData?.templates ?? [])]) {
+      try {
+        const pools = (JSON.parse(template.content) as { pools?: { id?: unknown }[] }).pools
+        for (const pool of pools ?? []) if (typeof pool?.id === 'string' && pool.id) ids.add(pool.id)
+      } catch {
+        // A profile that no longer parses is the profile editor's problem.
+      }
+    }
+    return [...ids].sort()
+  }, [xrayProfileData?.templates, singboxProfileData?.templates])
   const isXrayTemplateSelectDisabled = isLoadingXrayTemplates
   const xrayTemplatePlaceholder = isLoadingXrayTemplates ? t('loading', { defaultValue: 'Loading...' }) : t('hostsDialog.selectXrayTemplate')
 
@@ -974,7 +1039,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                           }
                           form.setValue(
                             'subscription_templates',
-                            { xray: n },
+                            { ...form.getValues('subscription_templates'), xray: n },
                             {
                               shouldDirty: true,
                               shouldTouch: true,
@@ -1019,6 +1084,128 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                   )
                 }}
               />
+
+              {showProfileClassification && (
+                <Collapsible open={profileSectionOpen} onOpenChange={setProfileSectionOpen} className="rounded-lg border">
+                  <CollapsibleTrigger className="flex w-full items-center justify-between gap-2 p-3 text-start">
+                    <span className="text-sm font-medium">{t('hostsDialog.profileClassification', { defaultValue: 'Client profile classification' })}</span>
+                    <span className="flex items-center gap-2">
+                      {/* The summary is the reason this can stay closed: the two
+                        values that decide which group the host joins are legible
+                        without expanding anything. */}
+                      <span className="text-muted-foreground text-xs">{profileClassificationSummary}</span>
+                      <ChevronDown className={cn('h-4 w-4 shrink-0 transition-transform', profileSectionOpen && 'rotate-180')} />
+                    </span>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="px-3 pb-3">
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <FormField
+                        control={form.control}
+                        name="subscription_templates.profile.pool"
+                        render={({ field }) => {
+                          const pool = field.value ?? 'primary'
+                          // A pool no profile declares is not an error the backend
+                          // can raise -- it just silently leaves this host out of
+                          // every group, which is invisible until a user complains.
+                          const orphaned = declaredPools.length > 0 && !declaredPools.includes(pool)
+                          return (
+                            <FormItem>
+                              <FormLabel>{t('hostsDialog.profilePool', { defaultValue: 'Pool' })}</FormLabel>
+                              <FormControl>
+                                <Input
+                                  {...field}
+                                  list="host-profile-pools"
+                                  value={pool}
+                                  placeholder="primary"
+                                  // The backend lowercases this; matching it here keeps
+                                  // a capitalised entry from failing form validation.
+                                  onChange={event => field.onChange(event.target.value.toLowerCase())}
+                                />
+                              </FormControl>
+                              <datalist id="host-profile-pools">
+                                {declaredPools.map(candidate => (
+                                  <option key={candidate} value={candidate} />
+                                ))}
+                              </datalist>
+                              <p className={cn('text-xs', orphaned ? 'text-destructive' : 'text-muted-foreground')}>
+                                {orphaned
+                                  ? t('hostsDialog.profilePoolOrphaned', {
+                                      defaultValue: 'No profile declares "{{pool}}", so this host is left out of every group.',
+                                      pool,
+                                    })
+                                  : t('hostsDialog.profilePoolHelp', { defaultValue: 'Must match a pool declared by the subscription profile, or this host joins no group.' })}
+                              </p>
+                              <FormMessage />
+                            </FormItem>
+                          )
+                        }}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="subscription_templates.profile.country"
+                        render={({ field }) => {
+                          const country = field.value ?? ''
+                          const countryName = describeCountry(country)
+                          return (
+                            <FormItem>
+                              <FormLabel>{t('hostsDialog.profileCountry', { defaultValue: 'Country' })}</FormLabel>
+                              <FormControl>
+                                <Input {...field} value={country} placeholder="DE" maxLength={2} onChange={event => field.onChange(event.target.value.toUpperCase())} />
+                              </FormControl>
+                              <p className="text-muted-foreground text-xs">
+                                {/* Two letters are easy to mistype into a real but
+                              wrong country, so name the one that was entered. */}
+                                {countryName
+                                  ? t('hostsDialog.profileCountryGroup', { defaultValue: '{{name}} — grouped as Auto ({{code}}).', name: countryName, code: country })
+                                  : t('hostsDialog.profileCountryHelp', { defaultValue: 'Two-letter ISO code. Hosts sharing one become an automatic per-country group, shown as Auto (DE).' })}
+                              </p>
+                              <FormMessage />
+                            </FormItem>
+                          )
+                        }}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="subscription_templates.profile.priority"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>{t('hostsDialog.profilePriority', { defaultValue: 'Profile priority' })}</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                min={0}
+                                step={1}
+                                value={field.value ?? ''}
+                                placeholder={String(form.getValues('priority') ?? 0)}
+                                onChange={event => field.onChange(event.target.value === '' ? undefined : Number(event.target.value))}
+                              />
+                            </FormControl>
+                            <p className="text-muted-foreground text-xs">{t('hostsDialog.profilePriorityHelp', { defaultValue: 'Lower values are preferred. Leave blank to use the host order.' })}</p>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="subscription_templates.profile.exclude_from_auto"
+                        render={({ field }) => (
+                          <FormItem className="flex items-center justify-between sm:col-span-2">
+                            <div>
+                              <FormLabel>{t('hostsDialog.profileExcludeFromAuto', { defaultValue: 'Exclude from automatic groups' })}</FormLabel>
+                              <p className="text-muted-foreground text-xs">
+                                {t('hostsDialog.profileExcludeFromAutoHelp', { defaultValue: 'Keep this endpoint selectable, but do not use it in health-checked auto pools.' })}
+                              </p>
+                            </div>
+                            <FormControl>
+                              <Switch checked={field.value ?? false} onCheckedChange={field.onChange} />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+              )}
 
               <FormField
                 control={form.control}

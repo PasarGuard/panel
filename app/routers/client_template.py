@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 
 from app.db import AsyncSession, get_db
 from app.models.admin import AdminDetails
@@ -11,8 +11,11 @@ from app.models.client_template import (
     ClientTemplatesSimpleResponse,
     RemoveClientTemplatesResponse,
 )
+from app.models.client_workspace import ClientWorkspaceApply, ClientWorkspacePreview, ClientWorkspaceResponse
 from app.operation import OperatorType
 from app.operation.client_template import ClientTemplateOperation
+from app.operation.client_workspace import ClientWorkspaceOperation
+from app.operation.permissions import PermissionDenied, enforce_permission
 from app.utils import responses
 
 from .authentication import require_permission
@@ -25,6 +28,49 @@ router = APIRouter(
 )
 
 client_template_operator = ClientTemplateOperation(OperatorType.API)
+workspace_operator = ClientWorkspaceOperation(OperatorType.API)
+
+
+@router.get("/workspace", response_model=ClientWorkspaceResponse)
+async def client_workspace(
+    response: Response,
+    db: AsyncSession = Depends(get_db),
+    _: AdminDetails = Depends(require_permission("settings", "read")),
+    _templates: AdminDetails = Depends(require_permission("client_templates", "read")),
+):
+    response.headers["Cache-Control"] = "no-store"
+    return await workspace_operator.workspace(db)
+
+
+@router.post("/apply", response_model=ClientWorkspaceResponse)
+async def apply_client_workspace(
+    body: ClientWorkspaceApply,
+    response: Response,
+    db: AsyncSession = Depends(get_db),
+    _: AdminDetails = Depends(require_permission("settings", "update")),
+    admin: AdminDetails = Depends(require_permission("client_templates", "read")),
+    _read_settings: AdminDetails = Depends(require_permission("settings", "read")),
+):
+    response.headers["Cache-Control"] = "no-store"
+    if body.template is not None:
+        try:
+            enforce_permission(admin, "client_templates", "update" if body.template.id is not None else "create")
+        except PermissionDenied as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+    return await workspace_operator.apply(db, body)
+
+
+@router.post("/preview")
+async def preview_client_workspace(
+    body: ClientWorkspacePreview,
+    response: Response,
+    db: AsyncSession = Depends(get_db),
+    _: AdminDetails = Depends(require_permission("settings", "read")),
+    _templates: AdminDetails = Depends(require_permission("client_templates", "read")),
+    admin: AdminDetails = Depends(require_permission("users", "read")),
+):
+    response.headers["Cache-Control"] = "no-store"
+    return await workspace_operator.preview(db, body, admin)
 
 
 @router.post("", response_model=ClientTemplateResponse, status_code=status.HTTP_201_CREATED)

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import type { SubRule as ApiSubRule } from '@/service/api'
 
 export const builtInVariableKeys = [
   'SERVER_IP',
@@ -110,9 +111,21 @@ export const subscriptionSchema = z.object({
   response_headers: z.record(z.string()).optional(),
   rules: z.array(
     z.object({
+      template_id: z.number().int().positive().nullable().optional(),
+      ui_application: z.string().max(64).nullable().optional(),
+      happ_routing: z
+        .object({
+          template_id: z.number().int().positive(),
+          transport: z.enum(['body', 'header']).optional(),
+          action: z.enum(['add', 'onadd']).optional(),
+          enabled: z.boolean().nullable().optional(),
+        })
+        .nullable()
+        .optional(),
       pattern: z.string().min(1, 'Pattern is required'),
       target: z.enum(['links', 'links_base64', 'xray', 'wireguard', 'sing_box', 'clash', 'clash_meta', 'outline', 'block']),
       response_headers: z.record(z.string()).optional(),
+      profile_id: z.number().int().positive().nullable().optional(),
     }),
   ),
   applications: z.array(subscriptionApplicationSchema).optional(),
@@ -133,6 +146,30 @@ export const subscriptionSchema = z.object({
 export type SubscriptionFormData = z.infer<typeof subscriptionSchema>
 export type SubscriptionRuleFormData = SubscriptionFormData['rules'][number]
 export type SubscriptionPlatform = SubscriptionApplicationFormData['platform']
+
+export function mapSubscriptionRulesForForm(rules: readonly ApiSubRule[] | null | undefined): SubscriptionRuleFormData[] {
+  return (rules ?? []).map(rule => ({
+    ...rule,
+    pattern: rule.pattern,
+    target: rule.target,
+    profile_id: rule.profile_id ?? undefined,
+    response_headers: Object.fromEntries(Object.entries(rule.response_headers || {}).map(([key, value]) => [key, typeof value === 'string' ? value : JSON.stringify(value)])),
+  }))
+}
+
+export function prepareSubscriptionRulesForPayload(rules: readonly SubscriptionRuleFormData[] | null | undefined) {
+  return (rules ?? []).map(rule => ({
+    ...rule,
+    pattern: rule.pattern.trim(),
+    target: rule.target,
+    profile_id: rule.profile_id,
+    response_headers: Object.fromEntries(
+      Object.entries(rule.response_headers || {})
+        .map(([key, value]) => [key.trim(), value.trim()] as const)
+        .filter(([key, value]) => key && value),
+    ),
+  }))
+}
 export type SubscriptionLanguage = NonNullable<SubscriptionApplicationFormData['download_links']>[number]['language']
 
 export const defaultSubscriptionRules: SubscriptionRuleFormData[] = [
@@ -153,7 +190,7 @@ export const defaultSubscriptionRules: SubscriptionRuleFormData[] = [
     target: 'outline',
   },
   {
-    pattern: '^([Vv]2rayNG|[Vv]2rayN|[Ss]treisand|[Hh]app|[Kk]tor\\-client)',
+    pattern: '^([Vv]2rayNG|[Vv]2rayN|[Ss]treisand|[Hh]app|[Ii]ncy|[Kk]tor\\-client)',
     target: 'xray',
   },
   {
@@ -161,3 +198,14 @@ export const defaultSubscriptionRules: SubscriptionRuleFormData[] = [
     target: 'links_base64',
   },
 ]
+
+/** Explicit source/format edits clear incompatible bindings; unrelated edits preserve them. */
+export function selectSubscriptionRuleProfile(rule: SubscriptionRuleFormData, id?: number): SubscriptionRuleFormData {
+  return { ...rule, profile_id: id, ...(id === undefined ? {} : { template_id: undefined, happ_routing: undefined }) }
+}
+export function changeSubscriptionRuleTarget(rule: SubscriptionRuleFormData, target: SubscriptionRuleFormData['target']): SubscriptionRuleFormData {
+  if (rule.target === target) return rule
+  const sameClashFormat = ['clash', 'clash_meta'].includes(rule.target) && ['clash', 'clash_meta'].includes(target)
+  const keepHapp = rule.happ_routing?.transport === 'header' && ['links', 'links_base64'].includes(target)
+  return { ...rule, target, profile_id: undefined, template_id: sameClashFormat ? rule.template_id : undefined, happ_routing: keepHapp ? rule.happ_routing : undefined }
+}

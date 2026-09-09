@@ -2,7 +2,8 @@ import PageHeader from '@/components/layout/page-header'
 import PageTransition from '@/components/layout/page-transition'
 import { useAdmin } from '@/hooks/use-admin'
 import { getDocsUrl } from '@/utils/docs-url'
-import { hasPermission } from '@/utils/rbac'
+import type { AdminDetails } from '@/service/api'
+import { hasPermission, canUseClientWorkspace } from '@/utils/rbac'
 import { FileCode2, FileUser, LucideIcon, Plus } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -24,14 +25,16 @@ export default function TemplatesLayout() {
   const location = useLocation()
   const navigate = useNavigate()
   const { t } = useTranslation()
-  const { admin } = useAdmin()
+  const { admin: adminResponse } = useAdmin()
+  const admin = adminResponse as unknown as AdminDetails | undefined
   const canReadUserTemplates = hasPermission(admin, 'templates', 'read')
   const canCreateUserTemplates = hasPermission(admin, 'templates', 'create')
   const canReadClientTemplates = hasPermission(admin, 'client_templates', 'read')
+  const canReadClientSettings = canUseClientWorkspace(admin)
   const canCreateClientTemplates = hasPermission(admin, 'client_templates', 'create')
   const visibleTabs = tabs.filter(tab => {
     if (tab.url === '/templates/user') return canReadUserTemplates
-    if (tab.url === '/templates/client') return canReadClientTemplates
+    if (tab.url === '/templates/client') return canReadClientTemplates && !canReadClientSettings
     return false
   })
   const [activeTab, setActiveTab] = useState<string>(tabs[0].id)
@@ -44,12 +47,16 @@ export default function TemplatesLayout() {
   }, [location.pathname])
 
   useEffect(() => {
+    if (location.pathname === '/templates/client' && canReadClientSettings) {
+      navigate('/client-settings/configurations', { replace: true })
+      return
+    }
     if (visibleTabs.length === 0) return
     const currentTab = visibleTabs.find(tab => location.pathname === tab.url)
     if (!currentTab) {
       navigate(visibleTabs[0].url, { replace: true })
     }
-  }, [location.pathname, navigate, visibleTabs])
+  }, [location.pathname, navigate, visibleTabs, canReadClientSettings])
 
   const getPageHeaderProps = () => {
     if (location.pathname === '/templates/client') {

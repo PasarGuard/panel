@@ -9,6 +9,9 @@ class ClientTemplateType(StrEnum):
     clash_subscription = "clash_subscription"
     xray_subscription = "xray_subscription"
     singbox_subscription = "singbox_subscription"
+    xray_profile = "xray_profile"
+    singbox_profile = "singbox_profile"
+    happ_routing = "happ_routing"
     user_agent = "user_agent"
     grpc_user_agent = "grpc_user_agent"
 

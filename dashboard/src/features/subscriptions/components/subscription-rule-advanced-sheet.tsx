@@ -1,9 +1,11 @@
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Textarea } from '@/components/ui/textarea'
-import type { SubscriptionFormData } from './subscription-settings-schema'
+import { ClientTemplateType, useGetClientTemplatesSimple, type ClientTemplatesSimpleResponse } from '@/service/api'
+import { selectSubscriptionRuleProfile, type SubscriptionFormData } from './subscription-settings-schema'
 import { CustomVariablesPopover, VariablesList } from '@/components/ui/variables-popover'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { useIsMobile } from '@/hooks/use-mobile'
@@ -11,6 +13,10 @@ import { cn } from '@/lib/utils'
 import { Info, Plus, Trash2 } from 'lucide-react'
 import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
+
+// Radix reserves the empty string to mean "show the placeholder", so "no
+// profile" needs a sentinel of its own.
+const PROFILE_NONE_VALUE = '__no_profile__'
 
 export interface SubscriptionRuleAdvancedSheetProps {
   form: UseFormReturn<SubscriptionFormData>
@@ -28,8 +34,25 @@ export function SubscriptionRuleAdvancedSheet({ form, ruleIndex, rowId, open, on
   const infoPopoverAlign = isMobile ? 'center' : 'start'
 
   const responseHeaders = (form.watch(`rules.${ruleIndex}.response_headers`) || {}) as Record<string, string>
+  const profileId = form.watch(`rules.${ruleIndex}.profile_id`)
+  const target = form.watch(`rules.${ruleIndex}.target`)
   const responseHeaderEntries = Object.entries(responseHeaders)
   const responseHeaderCount = responseHeaderEntries.length
+
+  // A profile written for the other core is accepted here and only fails when a
+  // real client fetches its subscription, so offer just the matching ones.
+  const profileTemplateType = target === 'sing_box' ? ClientTemplateType.singbox_profile : ClientTemplateType.xray_profile
+  const { data: profileTemplateData, isLoading: isLoadingProfiles } = useGetClientTemplatesSimple(
+    { template_type: profileTemplateType, all: true },
+    {
+      query: {
+        enabled: open && (target === 'xray' || target === 'sing_box'),
+        select: response => response as unknown as ClientTemplatesSimpleResponse,
+      },
+    },
+  )
+  const profileTemplates = profileTemplateData?.templates ?? []
+  const selectedProfileIsKnown = profileId != null && profileTemplates.some(template => template.id === profileId)
 
   const addResponseHeader = () => {
     const nextKey = `x-header-${Object.keys(responseHeaders).length + 1}`
@@ -74,6 +97,44 @@ export function SubscriptionRuleAdvancedSheet({ form, ruleIndex, rowId, open, on
         </SheetHeader>
 
         <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-6 py-4">
+          {(target === 'xray' || target === 'sing_box') && (
+            <div className="space-y-2">
+              <label htmlFor={`subscription-profile-id-${rowId}`} className="text-foreground text-sm font-medium">
+                {t('settings.subscriptions.rules.profileId', { defaultValue: 'Subscription profile' })}
+              </label>
+              <p className="text-muted-foreground text-sm">
+                {t('settings.subscriptions.rules.profileIdDescription', {
+                  defaultValue: 'Optional client-template profile selected when this User-Agent rule matches.',
+                })}
+              </p>
+              <Select
+                value={profileId != null ? String(profileId) : PROFILE_NONE_VALUE}
+                onValueChange={value => {
+                  form.setValue(`rules.${ruleIndex}`, selectSubscriptionRuleProfile(form.getValues(`rules.${ruleIndex}`), value === PROFILE_NONE_VALUE ? undefined : Number(value)), {
+                    shouldDirty: true,
+                  })
+                }}
+              >
+                <SelectTrigger id={`subscription-profile-id-${rowId}`}>
+                  <SelectValue placeholder={isLoadingProfiles ? t('loading', { defaultValue: 'Loading...' }) : undefined} />
+                </SelectTrigger>
+                <SelectContent dir={dir}>
+                  <SelectItem value={PROFILE_NONE_VALUE}>{t('settings.subscriptions.rules.profileNone', { defaultValue: 'No profile' })}</SelectItem>
+                  {/* A rule can outlive the profile it names, or point at one built
+                      for the other core; either way the id must stay selectable so
+                      opening this sheet does not silently clear it. */}
+                  {profileId != null && !selectedProfileIsKnown && !isLoadingProfiles && (
+                    <SelectItem value={String(profileId)}>{t('settings.subscriptions.rules.profileUnknown', { defaultValue: 'Unknown profile (#{{id}})', id: profileId })}</SelectItem>
+                  )}
+                  {profileTemplates.map(template => (
+                    <SelectItem key={template.id} value={String(template.id)}>
+                      {template.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           <div className="space-y-4">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0 flex-1">

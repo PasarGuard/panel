@@ -19,6 +19,7 @@ class SingBoxConfiguration(BaseSubscription):
         singbox_template_content: str | None = None,
         user_agent_template_content: str | None = None,
         grpc_user_agent_template_content: str | None = None,
+        preserve_authored_groups: bool = False,
     ):
         super().__init__(
             user_agent_template_content=user_agent_template_content,
@@ -27,6 +28,7 @@ class SingBoxConfiguration(BaseSubscription):
         self.config = json.loads(singbox_template_content) if singbox_template_content else {}
         self.config.setdefault("endpoints", [])
         self.config.setdefault("outbounds", [])
+        self.preserve_authored_groups = preserve_authored_groups
 
         # Registry for transport handlers
         self.transport_handlers = {
@@ -80,11 +82,15 @@ class SingBoxConfiguration(BaseSubscription):
         selector_tags.extend(endpoint_tags)
 
         for outbound in self.config["outbounds"]:
-            if outbound.get("type") == "urltest":
+            if outbound.get("type") == "urltest" and (
+                not self.preserve_authored_groups or outbound.get("outbounds") in (None, [])
+            ):
                 outbound["outbounds"] = urltest_tags
 
         for outbound in self.config["outbounds"]:
-            if outbound.get("type") == "selector":
+            if outbound.get("type") == "selector" and (
+                not self.preserve_authored_groups or outbound.get("outbounds") in (None, [])
+            ):
                 outbound["outbounds"] = selector_tags
 
     def add(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict):

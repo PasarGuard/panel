@@ -39,12 +39,13 @@ export type BodyType<BodyData> = BodyData
  * Query params are pre-encoded into the URL by the generated getXxxUrl() helpers.
  */
 export const orvalFetcher = async <T>(url: string, options: RequestInit = {}): Promise<T> => {
-  const { method = 'GET', body, headers } = options
+  const { method = 'GET', body, headers, signal } = options
 
   return fetcher<T>(url, {
     method: method as FetchOptions<'json'>['method'],
     body: body ?? undefined,
     headers: headers as HeadersInit | undefined,
+    signal: signal ?? undefined,
   })
 }
 

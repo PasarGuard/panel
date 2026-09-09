@@ -21,6 +21,7 @@ import UsageModal from '@/features/users/dialogs/usage-modal'
 import UserModal from '@/features/users/dialogs/user-modal'
 import { UserHwidsModal } from '@/features/users/dialogs/user-hwids-modal'
 import { UserSubscriptionClientsModal } from '@/features/users/dialogs/user-subscription-clients-modal'
+import { UserSubscriptionProfilePreviewModal } from '@/features/users/dialogs/user-subscription-profile-preview-modal'
 import UserAllIPsModal from '@/features/users/dialogs/user-all-ips-modal'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
@@ -54,6 +55,7 @@ type ActionButtonsModalState = {
   isSubscriptionClientsModalOpen: boolean
   isHwidsModalOpen: boolean
   isUserAllIPsModalOpen: boolean
+  isSubscriptionProfilePreviewOpen: boolean
 }
 
 const actionButtonsModalStateStore = new Map<number, ActionButtonsModalState>()
@@ -77,6 +79,7 @@ const createDefaultModalState = (user: UserResponse): ActionButtonsModalState =>
   isSubscriptionClientsModalOpen: false,
   isHwidsModalOpen: false,
   isUserAllIPsModalOpen: false,
+  isSubscriptionProfilePreviewOpen: false,
 })
 
 const ensureModalState = (user: UserResponse): ActionButtonsModalState => {
@@ -102,6 +105,7 @@ const hasOpenModal = (state: ActionButtonsModalState) =>
   state.isSubscriptionClientsModalOpen ||
   state.isHwidsModalOpen ||
   state.isUserAllIPsModalOpen
+  || state.isSubscriptionProfilePreviewOpen
 
 const notifyGlobalListeners = () => {
   actionButtonsGlobalStateVersion += 1
@@ -255,6 +259,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
     isSubscriptionClientsModalOpen,
     isHwidsModalOpen,
     isUserAllIPsModalOpen,
+    isSubscriptionProfilePreviewOpen,
   } = modalState
 
   const setSubscribeUrl = useCallback((value: string) => setModalState({ subscribeUrl: value }), [setModalState])
@@ -268,6 +273,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
   const setSubscriptionClientsModalOpen = useCallback((value: boolean) => setModalState({ isSubscriptionClientsModalOpen: value }), [setModalState])
   const setHwidsModalOpen = useCallback((value: boolean) => setModalState({ isHwidsModalOpen: value }), [setModalState])
   const setUserAllIPsModalOpen = useCallback((value: boolean) => setModalState({ isUserAllIPsModalOpen: value }), [setModalState])
+  const setSubscriptionProfilePreviewOpen = useCallback((value: boolean) => setModalState({ isSubscriptionProfilePreviewOpen: value }), [setModalState])
 
   useEffect(() => {
     ensureModalState(user)
@@ -324,6 +330,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
   const canUpdateUsers = hasPermission(currentAdmin, 'users', 'update')
   const canUpdateAllUsers = hasScopeAll(currentAdmin, 'users', 'update')
   const canReadAllUsers = hasScopeAll(currentAdmin, 'users', 'read')
+  const canPreviewSubscriptionProfiles = hasPermission(currentAdmin, 'users', 'read') && hasPermission(currentAdmin, 'client_templates', 'read_simple')
   const canDeleteUsers = hasPermission(currentAdmin, 'users', 'delete')
   const topDropdownActionCount = (canUpdateUsers ? 1 : 0) + (canUpdateAllUsers ? 1 : 0) + (canReadAllUsers ? 1 : 0)
   // Edit is desktop-only (`hidden md:flex`); don't count it for the mobile top separator.
@@ -767,6 +774,13 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
                 <span>{t('subscriptionClients.clients', { defaultValue: 'Clients' })}</span>
               </DropdownMenuItem>
 
+              {canPreviewSubscriptionProfiles && (
+                <DropdownMenuItem onSelect={() => setSubscriptionProfilePreviewOpen(true)}>
+                  <Code className="mr-2 h-4 w-4" />
+                  <span>{t('subscriptionProfiles.preview', { defaultValue: 'Profile preview' })}</span>
+                </DropdownMenuItem>
+              )}
+
               <DropdownMenuItem onSelect={() => setHwidsModalOpen(true)}>
                 <Fingerprint className="mr-2 h-4 w-4" />
                 <span>{t('hwids.title', { defaultValue: 'Hardware IDs' })}</span>
@@ -881,6 +895,8 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
 
           {/* UserSubscriptionClientsModal */}
           <UserSubscriptionClientsModal isOpen={isSubscriptionClientsModalOpen} onOpenChange={setSubscriptionClientsModalOpen} userId={user.id} username={user.username} />
+
+          {canPreviewSubscriptionProfiles && <UserSubscriptionProfilePreviewModal isOpen={isSubscriptionProfilePreviewOpen} onOpenChange={setSubscriptionProfilePreviewOpen} userId={user.id} username={user.username} />}
 
           <UserHwidsModal isOpen={isHwidsModalOpen} onOpenChange={setHwidsModalOpen} userId={user.id} username={user.username} />
 
