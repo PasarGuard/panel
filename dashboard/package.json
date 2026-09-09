@@ -87,13 +87,16 @@
     "uuid": "^11.1.1",
     "vaul": "^1.1.2",
     "zod": "^3.25.76",
-    "zustand": "^5.0.15"
+    "zustand": "^5.0.15",
+    "yaml": "^2.9.0",
+    "jsonc-parser": "^3.3.1"
   },
   "devDependencies": {
     "@react-router/dev": "^7.18.2",
     "@react-router/fs-routes": "^7.18.2",
     "@svgr/webpack": "^8.1.0",
     "@tailwindcss/vite": "^4.3.3",
+    "@types/bun": "^1.4.2",
     "@types/lodash.debounce": "^4.0.9",
     "@types/node": "^24.13.3",
     "@types/react": "^19.2.18",
@@ -102,6 +105,7 @@
     "eslint": "^9.39.5",
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.26",
+    "happy-dom": "^20.14.0",
     "orval": "8.22.0",
     "postcss": "^8.5.26",
     "prettier": "^3.9.6",

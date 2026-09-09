@@ -1332,6 +1332,7 @@ export type ClientTemplateType = typeof ClientTemplateType[keyof typeof ClientTe
 
 
 export const ClientTemplateType = {
+  happ_routing: 'happ_routing',
   clash_subscription: 'clash_subscription',
   xray_subscription: 'xray_subscription',
   singbox_subscription: 'singbox_subscription',
@@ -2107,7 +2108,17 @@ export interface Webhook {
 
 export type SubRuleResponseHeaders = { [key: string]: unknown };
 
+export interface HappRoutingBinding {
+  template_id: number;
+  transport?: 'body' | 'header';
+  action?: 'add' | 'onadd';
+  enabled?: boolean | null;
+}
+
 export interface SubRule {
+  template_id?: number | null;
+  happ_routing?: HappRoutingBinding | null;
+  ui_application?: string | null;
   pattern: string;
   target: ConfigFormat;
   response_headers?: SubRuleResponseHeaders;

@@ -18,7 +18,8 @@ import useDirDetection from '@/hooks/use-dir-detection'
 import { useSystemVersion } from '@/hooks/use-system-version'
 import { useVersionCheck } from '@/hooks/use-version-check'
 import { cn } from '@/lib/utils'
-import { canReadResourcePage, hasPermission, hasScopeAll, isOwner } from '@/utils/rbac'
+import type { AdminDetails } from '@/service/api'
+import { canReadResourcePage, canUseClientWorkspace, hasPermission, hasScopeAll, isOwner } from '@/utils/rbac'
 import {
   ArrowUpDown,
   Bell,
@@ -63,7 +64,8 @@ import { Link } from 'react-router'
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const isRTL = useDirDetection() === 'rtl'
   const { t } = useTranslation()
-  const { admin } = useAdmin()
+  const { admin: adminResponse } = useAdmin()
+  const admin = adminResponse as unknown as AdminDetails | null
   const canReadSystem = hasPermission(admin, 'system', 'read')
   const canReadHosts = canReadResourcePage(admin, 'hosts')
   const canReadGroups = canReadResourcePage(admin, 'groups')
@@ -72,7 +74,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const canReadNodes = canReadResourcePage(admin, 'nodes')
   const canReadCores = canReadResourcePage(admin, 'cores')
   const canReadTemplates = canReadResourcePage(admin, 'templates')
-  const canReadClientTemplates = canReadResourcePage(admin, 'client_templates')
+  const canReadClientSettings = canUseClientWorkspace(admin)
+  const canReadLegacyClientTemplates = canReadResourcePage(admin, 'client_templates') && !canReadClientSettings
   const canReadNodeLogs = hasPermission(admin, 'nodes', 'logs')
   const canBulkCreateFromTemplate = hasPermission(admin, 'users', 'create') && canReadTemplates
   const canBulkUpdateUsers = hasScopeAll(admin, 'users', 'update')
@@ -121,15 +124,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           },
         ]
       : []),
-    ...(canReadClientTemplates
-      ? [
-          {
-            title: 'templates.clientTemplates',
-            url: '/templates/client',
-            icon: FileCode2,
-          },
-        ]
-      : []),
+    ...(canReadLegacyClientTemplates ? [{ title: 'templates.clientTemplates', url: '/templates/client', icon: FileCode2 }] : []),
   ]
   const { currentVersion: systemVersion } = useSystemVersion({ enabled: canReadSystem })
   const { setOpenMobile, openMobile, state, isMobile, toggleSidebar } = useSidebar()
@@ -257,11 +252,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           ]
         : []),
       ...(canReadApiKeys
-        ? [{
-            title: 'apiKeys.title',
-            url: '/api-keys',
-            icon: Key,
-          }]
+        ? [
+            {
+              title: 'apiKeys.title',
+              url: '/api-keys',
+              icon: Key,
+            },
+          ]
         : []),
       ...(nodeNavItems.length > 0
         ? [
@@ -273,6 +270,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             },
           ]
         : []),
+      ...(canReadClientSettings ? [{ title: 'clientSettings.applications', url: '/client-settings', icon: FileCode2 }] : []),
       ...(templateNavItems.length > 0
         ? [
             {

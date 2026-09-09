@@ -1,3 +1,4 @@
+import type { SubRule } from '@/service/api'
 import { z } from 'zod'
 
 export const builtInVariableKeys = [
@@ -110,6 +111,17 @@ export const subscriptionSchema = z.object({
   response_headers: z.record(z.string()).optional(),
   rules: z.array(
     z.object({
+      template_id: z.number().int().positive().nullable().optional(),
+      ui_application: z.string().max(64).nullable().optional(),
+      happ_routing: z
+        .object({
+          template_id: z.number().int().positive(),
+          transport: z.enum(['body', 'header']).optional(),
+          action: z.enum(['add', 'onadd']).optional(),
+          enabled: z.boolean().nullable().optional(),
+        })
+        .nullable()
+        .optional(),
       pattern: z.string().min(1, 'Pattern is required'),
       target: z.enum(['links', 'links_base64', 'xray', 'wireguard', 'sing_box', 'clash', 'clash_meta', 'outline', 'block']),
       response_headers: z.record(z.string()).optional(),
@@ -161,3 +173,21 @@ export const defaultSubscriptionRules: SubscriptionRuleFormData[] = [
     target: 'links_base64',
   },
 ]
+
+/** Retain workspace bindings when a legacy settings operator edits or reorders rules. */
+export const mapSubscriptionRulesForForm = (rules: SubRule[] = []): SubscriptionRuleFormData[] =>
+  rules.map(rule => ({
+    ...rule,
+    response_headers: Object.fromEntries(Object.entries(rule.response_headers ?? {}).map(([key, value]) => [key, typeof value === 'string' ? value : JSON.stringify(value)])),
+  }))
+
+export const prepareSubscriptionRulesForPayload = (rules: SubscriptionRuleFormData[]): SubRule[] =>
+  rules.map(rule => ({
+    ...rule,
+    pattern: rule.pattern.trim(),
+    response_headers: Object.fromEntries(
+      Object.entries(rule.response_headers ?? {})
+        .map(([key, value]) => [key.trim(), value.trim()])
+        .filter(([key, value]) => key && value),
+    ),
+  }))
