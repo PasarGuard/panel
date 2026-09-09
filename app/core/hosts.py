@@ -32,6 +32,7 @@ from app.nats.router import router
 from app.utils.logger import get_logger
 from config import runtime_settings
 from role import Role
+from app.subscription.base import normalize_and_remove_none_values
 
 
 def _string_list(value) -> list[str]:
@@ -45,6 +46,28 @@ def _string_list(value) -> list[str]:
         return [str(item) for item in value]
     except TypeError:
         return [str(value)]
+
+
+def _normalize_finalmask_link(final_mask_settings: FinalMask | dict | str | None) -> str | None:
+    if not final_mask_settings:
+        return None
+    fms = None
+    if isinstance(final_mask_settings, FinalMask):
+        fms = final_mask_settings.model_dump(by_alias=True, exclude_none=True)
+    elif isinstance(final_mask_settings, dict):
+        fms = deepcopy(final_mask_settings)
+    elif isinstance(final_mask_settings, str):
+        try:
+            fms = json.loads(final_mask_settings)
+        except Exception:
+            return final_mask_settings
+
+    if isinstance(fms, dict):
+        fms = normalize_and_remove_none_values(fms)
+
+    if fms:
+        return json.dumps(fms, separators=(",", ":"))
+    return None
 
 
 async def _prepare_subscription_inbound_data(
@@ -68,12 +91,7 @@ async def _prepare_subscription_inbound_data(
     path = host.path or inbound_config.get("path", "")
 
     final_mask_settings = host.final_mask_settings if host.final_mask_settings else inbound_config.get("finalmask")
-    finalmask_link = None
-    fms = final_mask_settings
-    if final_mask_settings:
-        if isinstance(final_mask_settings, FinalMask):
-            fms = final_mask_settings.model_dump(by_alias=True, exclude_none=True)
-        finalmask_link = json.dumps(fms, separators=(",", ":"))
+    finalmask_link = _normalize_finalmask_link(final_mask_settings)
 
     if protocol == "wireguard":
         wg_over: WireGuardHostOverrides | None = host.wireguard_overrides

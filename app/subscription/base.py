@@ -9,6 +9,53 @@ from urllib.parse import quote, urlencode
 from app.models.subscription import SubscriptionInboundData
 
 
+def normalize_and_remove_none_values(data: dict) -> dict:
+    """
+    Clean dictionary by removing None, empty strings, and 0 values.
+    Converts Enum values and recursively cleans nested dictionaries and lists.
+
+    Args:
+        data: Input dictionary to clean
+
+    Returns:
+        Cleaned dictionary with empty values removed
+    """
+    if not isinstance(data, dict):
+        return data
+
+    def clean_list(lst: list) -> list:
+        new_list = []
+        for item in lst:
+            if item not in (None, ""):
+                if isinstance(item, dict):
+                    if cleaned_dict := clean_dict(item):
+                        new_list.append(cleaned_dict)
+                elif isinstance(item, list):
+                    new_list.append(clean_list(item))
+                elif isinstance(item, Enum):
+                    new_list.append(item.value)
+                else:
+                    new_list.append(item)
+        return new_list
+
+    def clean_dict(d: dict) -> dict:
+        new_dict = {}
+        for k, v in d.items():
+            if v not in (None, "", 0, []):
+                if isinstance(v, dict):
+                    if cleaned_dict := clean_dict(v):
+                        new_dict[k] = cleaned_dict
+                elif isinstance(v, list):
+                    new_dict[k] = clean_list(v)
+                elif isinstance(v, Enum):
+                    new_dict[k] = v.value
+                else:
+                    new_dict[k] = v
+        return new_dict
+
+    return clean_dict(data)
+
+
 class BaseSubscription:
     def __init__(
         self,
@@ -41,33 +88,9 @@ class BaseSubscription:
                 return new
             c += 1
 
-    def _normalize_and_remove_none_values(self, data: dict) -> dict:
-        """
-        Clean dictionary by removing None, empty strings, and 0 values.
-        Converts Enum values and recursively cleans nested dictionaries.
-
-        Args:
-            data: Input dictionary to clean
-
-        Returns:
-            Cleaned dictionary with empty values removed
-        """
-
-        def clean_dict(d: dict) -> dict:
-            new_dict = {}
-            for k, v in d.items():
-                if v not in (None, "", 0):
-                    if isinstance(v, dict):
-                        if cleaned_dict := clean_dict(v):
-                            new_dict[k] = cleaned_dict
-                    else:
-                        if isinstance(v, Enum):
-                            new_dict[k] = v.value
-                        else:
-                            new_dict[k] = v
-            return new_dict
-
-        return clean_dict(data)
+    @staticmethod
+    def _normalize_and_remove_none_values(data: dict) -> dict:
+        return normalize_and_remove_none_values(data)
 
     def snake_to_camel(self, snake_str):
         return re.sub(r"_([a-z])", lambda match: match.group(1).upper(), snake_str)

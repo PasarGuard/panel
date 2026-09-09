@@ -243,6 +243,7 @@ const NoiseItem = memo<NoiseItemProps>(({ index, form, onRemove, onDuplicate, t 
   )
 })
 
+
 NoiseItem.displayName = 'NoiseItem'
 
 // Reusable ArrayInput wrapper backed by shared popover-array component

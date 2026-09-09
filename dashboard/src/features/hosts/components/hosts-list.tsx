@@ -214,8 +214,8 @@ export default function HostsList({
             xray:
               host.noise_settings.xray?.map(noise => ({
                 type: noise.type,
-                packet: noise.packet,
-                delay: noise.delay,
+                packet: Array.isArray(noise.packet) ? noise.packet.join(',') : (noise.packet ?? ''),
+                delay: noise.delay != null ? String(noise.delay) : '',
                 apply_to: (noise.apply_to as 'ip' | 'ipv4' | 'ipv6') || 'ip',
               })) ?? undefined,
           }
