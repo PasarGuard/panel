@@ -843,7 +843,7 @@ export interface FragmentSettings {
 }
 
 export interface XrayNoiseSettings {
-  /** @pattern ^$|^(:?rand|array|str|base64|hex)$ */
+  /** @pattern ^$|^(:?rand|str|base64|hex)$ */
   type: string;
   packet?: string | number[] | null;
   delay?: string | number | null;
