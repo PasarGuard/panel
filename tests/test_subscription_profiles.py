@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 from fastapi import HTTPException
+from pydantic import ValidationError
 from sqlalchemy import delete, insert, select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
@@ -25,10 +26,12 @@ from app.models.subscription import (
     XHTTPTransportConfig,
 )
 from app.models.subscription_profile import (
+    BalancerSettings,
     BalancerStrategy,
     DomainStrategy,
     HealthCheckSettings,
     ProfileClient,
+    ProfileDns,
     ProfilePool,
     SubscriptionProfile,
 )
@@ -46,6 +49,7 @@ from app.subscription.profiles import (
     validate_profile_routing_rules,
 )
 from app.subscription.share import generate_subscription, generate_subscription_profile
+from app.subscription.singbox import SingBoxConfiguration
 
 
 def test_legacy_host_template_response_omits_empty_profile_classification():
@@ -66,6 +70,33 @@ def test_host_profile_country_rejects_non_strings_without_internal_error(invalid
 def test_profile_health_timeout_must_not_be_shorter_than_interval():
     with pytest.raises(ValueError, match="timeout must be greater"):
         SubscriptionProfile.model_validate({"health_check": {"interval": "3m", "timeout": "5s"}})
+
+
+def test_probe_timeout_is_independent_of_interval_and_idle_timeout():
+    custom = profile().model_copy(
+        update={"health_check": HealthCheckSettings(burst=True, interval="3m", probe_timeout="5s")}
+    )
+    endpoints = [make_endpoint("primary", "de")]
+    assert custom.health_check.timeout == "30m"
+    assert build_xray_profile(custom, endpoints)["burstObservatory"]["pingConfig"]["timeout"] == "5s"
+    assert all(
+        outbound["idle_timeout"] == "30m"
+        for outbound in build_singbox_profile(custom, endpoints)["outbounds"]
+        if outbound["type"] == "urltest"
+    )
+    assert HealthCheckSettings().probe_timeout == "5s"
+    custom.health_check.probe_timeout = "250ms"
+    assert build_xray_profile(custom, endpoints)["burstObservatory"]["pingConfig"]["timeout"] == "250ms"
+    custom.health_check.burst = False
+    ordinary = build_xray_profile(custom, endpoints)
+    assert "burstObservatory" not in ordinary
+    assert "timeout" not in ordinary["observatory"]
+
+
+@pytest.mark.parametrize("timeout", ["0s", "0ms", "0m", "-5s", "5", "garbage"])
+def test_probe_timeout_requires_a_positive_duration(timeout):
+    with pytest.raises(ValidationError):
+        HealthCheckSettings(probe_timeout=timeout)
 
 
 def test_profile_routing_rules_are_checked_for_the_selected_engine():
@@ -480,6 +511,109 @@ async def test_referenced_bulk_delete_leaves_all_database_state_unchanged(tmp_pa
         assert after == before
 
     await engine.dispose()
+
+
+def test_balancer_settings_reach_every_balancer():
+    """leastLoad only spreads traffic when its settings are emitted.
+
+    Measured against three endpoints on two servers: bare leastLoad sent all 18
+    requests to one server, while `expected` spread them 12/6 and still skipped
+    a stopped node. Dropping the settings therefore turns the one strategy that
+    both balances and fails over back into leastPing.
+    """
+    custom = profile().model_copy(
+        update={
+            "balancer_strategy": BalancerStrategy.least_load,
+            "balancer_settings": BalancerSettings(expected=2, baselines=["1500ms"]),
+        }
+    )
+    endpoints = [make_endpoint("primary", "de"), make_endpoint("primary", "fi")]
+
+    config = build_xray_profile(custom, endpoints)
+
+    assert config["routing"]["balancers"], "expected at least one balancer"
+    for balancer in config["routing"]["balancers"]:
+        strategy = balancer["strategy"]
+        assert strategy["type"] == "leastLoad"
+        assert strategy["settings"] == {"expected": 2, "baselines": ["1500ms"]}, balancer["tag"]
+
+
+def test_balancer_settings_are_omitted_when_unset():
+    """Strategies that ignore the settings must emit exactly what they did before."""
+    config = build_xray_profile(profile(), [make_endpoint("primary", "de")])
+
+    for balancer in config["routing"]["balancers"]:
+        assert balancer["strategy"] == {"type": "random"}
+
+
+def test_operator_rules_may_send_domains_to_a_country_group():
+    """Sending some destinations through one country and the rest through
+    another is the point of having per-country groups.
+
+    Regression guard: every endpoint config drops the balancers, so an operator
+    rule naming one used to leave a dangling reference. Validation then failed
+    and the whole subscription answered 422 — one such rule broke every config,
+    including the group configs that could have honoured it.
+    """
+    custom = profile().model_copy(
+        update={
+            "routing_rules": [
+                {"type": "field", "domain": ["geosite:netflix"], "balancerTag": "pg-country-fi"},
+            ]
+        }
+    )
+    endpoints = [make_endpoint("primary", "de"), make_endpoint("primary", "fi")]
+
+    configs = build_xray_profile_configs(custom, endpoints)
+
+    by_remark = {config["remarks"]: config for config in configs}
+    group = by_remark["Auto (FI)"]
+    assert group["routing"]["rules"][0]["balancerTag"] == "pg-country-fi", "the group must keep the rule"
+
+    # A single-server config has no balancer to point at, so the rule follows
+    # the server the user chose rather than dangling.
+    single = next(c for c in configs if not c["routing"]["balancers"])
+    for rule in single["routing"]["rules"]:
+        assert "balancerTag" not in rule
+        assert rule["outboundTag"] in {o["tag"] for o in single["outbounds"]}
+
+
+def test_xray_profile_exposes_a_local_proxy_clients_can_reach():
+    """Clients pass this config to the core and then dial the local proxy.
+
+    Regression guard: the profile used to declare only a private socks-in on
+    127.0.0.1:1080. The core started, nothing listened where the client looked,
+    and Android tun2socks reported an endless
+    `ERROR(BSocksClient): connection failed` with no traffic at all.
+    """
+    config = build_xray_profile(profile(), [make_endpoint("primary", "de")])
+
+    inbounds = {item["protocol"]: item for item in config["inbounds"]}
+    assert "socks" in inbounds, "clients need a socks inbound to connect to"
+    assert inbounds["socks"]["port"] == 10808
+    assert inbounds["socks"]["listen"] == "127.0.0.1"
+    assert inbounds["socks"]["settings"]["udp"] is True, "DNS and QUIC need UDP"
+    assert inbounds["http"]["port"] == 10809
+    assert inbounds["http"]["listen"] == "127.0.0.1"
+
+
+def test_xray_profile_sniffs_so_domain_rules_can_match():
+    """Domain rules see hostnames only when destOverride is on.
+
+    Without sniffing the core routes tunnelled traffic by IP alone, so every
+    `domain`/`geosite` rule in the profile silently never matches and the
+    configured routing quietly does nothing.
+    """
+    custom = profile().model_copy(
+        update={"routing_rules": [{"type": "field", "domain": ["geosite:category-ads-all"], "outboundTag": "block"}]}
+    )
+
+    config = build_xray_profile(custom, [make_endpoint("primary", "de")])
+
+    for inbound in config["inbounds"]:
+        sniffing = inbound.get("sniffing", {})
+        assert sniffing.get("enabled") is True, f"{inbound['tag']} does not sniff"
+        assert "tls" in sniffing.get("destOverride", []), f"{inbound['tag']} cannot resolve TLS hostnames"
 
 
 def test_xray_profile_uses_machine_tags_and_fallback_not_remarks():
@@ -1304,6 +1438,410 @@ def test_singbox_group_labels_are_readable_and_collision_safe():
     assert root["outbounds"][0] == "Fastest"
 
 
+def test_configured_resolvers_reach_both_cores():
+    """A hardcoded public resolver cannot be right for every deployment.
+
+    Whoever runs the panel may operate their own DoH endpoint, or serve a
+    region where a given resolver is blocked, so the profile has to carry the
+    choice into both cores. Sing-box needs the transport named explicitly where
+    Xray infers it from the string.
+    """
+    doh = profile().model_copy(update={"dns": ProfileDns(servers=["https://dns.example/dns-query"])})
+    plain = profile().model_copy(update={"dns": ProfileDns(servers=["9.9.9.9"])})
+    endpoints = [make_endpoint("primary", "de")]
+
+    assert build_xray_profile(doh, endpoints)["dns"]["servers"] == ["https://dns.example/dns-query"]
+
+    servers = {server["tag"]: server for server in build_singbox_profile(plain, endpoints)["dns"]["servers"]}
+    assert servers["dns-remote"] == {"tag": "dns-remote", "type": "udp", "server": "9.9.9.9", "detour": "proxy"}
+    # Resolving the servers themselves must not depend on the tunnel being up.
+    assert servers["dns-local"]["type"] == "local"
+
+    singbox = build_singbox_profile(doh, endpoints)
+    remote = next(server for server in singbox["dns"]["servers"] if server["tag"] == "dns-remote")
+    assert remote["type"] == "https"
+    assert remote["server"] == "dns.example"
+    assert remote["path"] == "/dns-query"
+    assert "server_port" not in remote
+    assert singbox["route"]["default_domain_resolver"] == {"server": "dns-local"}
+
+
+@pytest.mark.parametrize(
+    "server",
+    [
+        "not-a-host",
+        "https://",
+        "https://nopath",
+        "https://nopath/",
+        "tls://dns.example",
+        # A port that int() refuses although str.isdigit() accepts it. Hand
+        # parsing turned this into an uncaught ValueError, so the operator got
+        # a 500 with no message instead of a rejected field.
+        "https://dns.example:\u00b2/dns-query",
+        "https://dns.example:99999/dns-query",
+        "https://dns.example:0/dns-query",
+    ],
+)
+def test_unusable_resolvers_are_rejected_before_they_reach_a_client(server):
+    """Sing-box refuses a server type it cannot express, and a rejected config
+    means a client that will not start. Failing here keeps that off the phone."""
+    with pytest.raises(ValidationError):
+        ProfileDns(servers=[server])
+
+
+def test_a_doh_url_is_normalised_rather_than_copied_into_the_config():
+    """Hand-splitting the string left the leftovers in `server`, where sing-box
+    resolves them literally. A URL parser drops them for free."""
+    trailing_colon = profile().model_copy(update={"dns": ProfileDns(servers=["https://dns.example:/dns-query"])})
+    query = profile().model_copy(update={"dns": ProfileDns(servers=["https://dns.example/dns-query?ck=1#f"])})
+    endpoint = [make_endpoint("primary", "de")]
+
+    for custom in (trailing_colon, query):
+        remote = next(
+            server
+            for server in build_singbox_profile(custom, endpoint)["dns"]["servers"]
+            if server["tag"] == "dns-remote"
+        )
+        # What is left the moment the port is deleted from a working URL, and a
+        # query string sing-box builds for itself.
+        assert remote["server"] == "dns.example"
+        assert remote["path"] == "/dns-query"
+        assert "server_port" not in remote
+
+
+def test_a_doh_resolver_given_as_an_ipv6_literal_reaches_sing_box_unbracketed():
+    """Sing-box's `server` takes a bare address, and the brackets belong to the
+    URL, not to it. Left in, the resolver simply never comes up."""
+    custom = profile().model_copy(update={"dns": ProfileDns(servers=["https://[2606:4700::1111]:8443/dns-query"])})
+
+    config = build_singbox_profile(custom, [make_endpoint("primary", "de")])
+
+    remote = next(server for server in config["dns"]["servers"] if server["tag"] == "dns-remote")
+    assert remote["server"] == "2606:4700::1111"
+    assert remote["server_port"] == 8443
+
+
+def test_a_singbox_user_picks_a_server_by_its_name_not_its_hash():
+    """A sing-box tag is what the client prints in its server list.
+
+    The machine tag exists so the Xray observatory can match on a prefix; it is
+    a sha256 slice. Using it here meant the group a user opens shows three
+    entries called pg-proxy-9888a123122de322-0001, which is unusable for the
+    thing the group is for -- picking a server.
+    """
+    endpoints = [make_endpoint("primary", "se"), make_endpoint("primary", "nl")]
+    endpoints[0].inbound.remark = "Stockholm A"
+    endpoints[1].inbound.remark = "Amsterdam"
+
+    config = build_singbox_profile(profile(), endpoints)
+
+    proxies = [
+        outbound for outbound in config["outbounds"] if outbound.get("type") not in ("selector", "urltest", "direct")
+    ]
+    assert sorted(outbound["tag"] for outbound in proxies) == ["Amsterdam", "Stockholm A"]
+    assert not any(outbound["tag"].startswith("pg-proxy-") for outbound in config["outbounds"])
+
+    # The groups have to reference the same names, or the config is invalid.
+    auto = next(outbound for outbound in config["outbounds"] if outbound["type"] == "urltest")
+    assert sorted(auto["outbounds"]) == ["Amsterdam", "Stockholm A"]
+
+
+def test_two_hosts_sharing_a_remark_still_get_distinct_singbox_tags():
+    """Nothing stops an operator naming two hosts the same, and a duplicate tag
+    makes the config invalid rather than merely confusing."""
+    endpoints = [make_endpoint("primary", "se"), make_endpoint("primary", "nl")]
+    for endpoint in endpoints:
+        endpoint.inbound.remark = "Stockholm"
+
+    config = build_singbox_profile(profile(), endpoints)
+
+    tags = [outbound["tag"] for outbound in config["outbounds"]]
+    assert len(tags) == len(set(tags))
+    assert "Stockholm" in tags and "Stockholm 2" in tags
+
+
+def test_xray_drops_a_rule_for_a_generated_group_this_user_cannot_reach():
+    custom = profile().model_copy(
+        update={
+            "routing_rules": [
+                {"type": "field", "domain": ["geosite:netflix"], "balancerTag": "pg-country-nl"},
+                {"type": "field", "protocol": ["bittorrent"], "outboundTag": "direct"},
+            ]
+        }
+    )
+
+    configs = build_xray_profile_configs(custom, [make_endpoint("primary", "se")])
+
+    assert configs
+    for config in configs:
+        assert not any(rule.get("balancerTag") == "pg-country-nl" for rule in config["routing"]["rules"])
+        assert any(rule.get("outboundTag") == "direct" for rule in config["routing"]["rules"])
+
+
+def test_xray_keeps_a_rule_for_a_generated_group_this_user_can_reach():
+    custom = profile().model_copy(
+        update={"routing_rules": [{"type": "field", "domain": ["geosite:netflix"], "balancerTag": "pg-country-nl"}]}
+    )
+
+    configs = build_xray_profile_configs(
+        custom,
+        [make_endpoint("primary", "se"), make_endpoint("primary", "nl", host_id=2)],
+    )
+
+    group_config = next(config for config in configs if config["remarks"] == "Auto (SE)")
+    assert any(rule.get("balancerTag") == "pg-country-nl" for rule in group_config["routing"]["rules"])
+
+
+@pytest.mark.parametrize("target", ["pg-cuntry-nl", "pg-auto-primray", "pg-country-nll"])
+def test_xray_still_rejects_a_misspelled_group(target):
+    custom = profile().model_copy(
+        update={"routing_rules": [{"type": "field", "domain": ["geosite:netflix"], "balancerTag": target}]}
+    )
+
+    with pytest.raises(ProfileValidationError, match="unknown balancer"):
+        build_xray_profile_configs(custom, [make_endpoint("primary", "se")])
+
+
+@pytest.mark.parametrize("target", ["NL", "NL · Auto", "fallback", "fallback · Auto"])
+def test_singbox_drops_only_valid_groups_that_are_absent_for_this_user(target):
+    absent_group = profile().model_copy(update={"routing_rules": [{"rule_set": "geosite-netflix", "outbound": target}]})
+    config = build_singbox_profile(absent_group, [make_endpoint("primary", "se")])
+    assert not any(rule.get("outbound") == target for rule in config["route"]["rules"])
+
+
+@pytest.mark.parametrize("target", ["Nowhere", "Auto (NL)", "Auto (primary)", "primray", "pg-auto-primary", "NLL"])
+def test_singbox_rejects_unknown_group_names(target):
+    misspelled = profile().model_copy(update={"routing_rules": [{"rule_set": "geosite-netflix", "outbound": target}]})
+    with pytest.raises(ProfileValidationError, match="unknown outbound"):
+        build_singbox_profile(misspelled, [make_endpoint("primary", "se")])
+
+
+@pytest.mark.parametrize("target", ["NL", "NL · Auto", "primary", "primary · Auto"])
+def test_singbox_preserves_rules_for_reachable_generated_groups(target):
+    custom = profile().model_copy(update={"routing_rules": [{"domain": ["example.com"], "outbound": target}]})
+    config = build_singbox_profile(custom, [make_endpoint("primary", "nl")])
+    assert any(rule.get("outbound") == target for rule in config["route"]["rules"])
+
+
+@pytest.mark.parametrize("country", ["nl", "se"])
+@pytest.mark.parametrize("label", ["NL", "NL · Auto"])
+def test_singbox_country_filter_uses_collision_disambiguated_tags(country, label):
+    target = f"{label} 2"
+    custom = profile().model_copy(update={"routing_rules": [{"domain": ["example.com"], "outbound": target}]})
+    config = build_singbox_profile(custom, [make_endpoint("primary", country, remark=label)])
+    assert any(rule.get("outbound") == target for rule in config["route"]["rules"]) is (country == "nl")
+
+
+@pytest.mark.parametrize("present", [False, True])
+@pytest.mark.parametrize("label", ["Emergency", "Emergency · Auto"])
+def test_singbox_optional_pool_uses_its_title_and_collision_suffix(present, label):
+    target = f"{label} 2"
+    custom = profile().model_copy(
+        update={
+            "pools": [ProfilePool(id="primary"), ProfilePool(id="fallback", title="Emergency")],
+            "routing_rules": [{"domain": ["example.com"], "outbound": target}],
+        }
+    )
+    endpoints = [make_endpoint("primary", "se", remark=label)]
+    if present:
+        endpoints.append(make_endpoint("fallback", "nl", host_id=2))
+    config = build_singbox_profile(custom, endpoints)
+    assert any(rule.get("outbound") == target for rule in config["route"]["rules"]) is present
+
+
+def test_singbox_manual_only_group_omits_its_unavailable_auto_rule():
+    custom = profile().model_copy(update={"routing_rules": [{"domain": ["example.com"], "outbound": "NL · Auto"}]})
+    config = build_singbox_profile(
+        custom, [make_endpoint("primary", "se"), make_endpoint("primary", "nl", host_id=2, exclude_from_auto=True)]
+    )
+    assert any(outbound.get("tag") == "NL" for outbound in config["outbounds"])
+    assert not any(rule.get("outbound") == "NL · Auto" for rule in config["route"]["rules"])
+
+
+def test_xray_drops_absent_declared_pool_but_keeps_unrelated_rules():
+    custom = profile().model_copy(
+        update={
+            "routing_rules": [
+                {"type": "field", "domain": ["example.com"], "balancerTag": "pg-auto-fallback"},
+                {"type": "field", "protocol": ["bittorrent"], "outboundTag": "direct"},
+            ]
+        }
+    )
+    config = build_xray_profile(custom, [make_endpoint("primary", "se")])
+    assert not any(rule.get("balancerTag") == "pg-auto-fallback" for rule in config["routing"]["rules"])
+    assert any(rule.get("outboundTag") == "direct" for rule in config["routing"]["rules"])
+
+
+def test_a_singbox_template_group_written_by_hand_is_not_overwritten():
+    template = json.dumps(
+        {
+            "outbounds": [
+                {"type": "selector", "tag": "proxy", "outbounds": None},
+                {"type": "urltest", "tag": "Sweden", "outbounds": ["Stockholm"]},
+                {"type": "selector", "tag": "Legacy placeholder", "outbounds": []},
+                {"type": "urltest", "tag": "Legacy automatic", "outbounds": []},
+            ]
+        }
+    )
+    config = SingBoxConfiguration(
+        singbox_template_content=template,
+        user_agent_template_content='{"list": ["UA/1.0"]}',
+    )
+    for index, remark in enumerate(("Stockholm", "Amsterdam")):
+        inbound = make_endpoint("primary", "se", remark=remark, host_id=900 + index).inbound
+        config.add(
+            remark=remark,
+            address="edge.example.test",
+            inbound=inbound,
+            settings={"id": "11111111-1111-1111-1111-111111111111"},
+        )
+
+    outbounds = {entry["tag"]: entry.get("outbounds") for entry in json.loads(config.render())["outbounds"]}
+    assert outbounds["Sweden"] == ["Stockholm"]
+    assert set(outbounds["Legacy placeholder"]) >= {"Stockholm", "Amsterdam"}
+    assert set(outbounds["Legacy automatic"]) == {"Stockholm", "Amsterdam"}
+    assert set(outbounds["proxy"]) >= {"Stockholm", "Amsterdam"}
+
+
+def test_singbox_geo_rules_declare_the_rule_sets_they_name():
+    """Sing-box matches geo data only through a declared rule set.
+
+    Xray reads `geosite:` straight out of a rule, so the same profile written
+    for Sing-box needs the set declared alongside. Leaving the reference
+    dangling is not a soft failure: `sing-box check` accepts the config and the
+    client then dies with "rule-set not found", taking the whole VPN with it.
+    """
+    custom = profile().model_copy(
+        update={
+            "routing_rules": [
+                {"rule_set": "geosite-netflix", "outbound": "direct"},
+                {"rule_set": ["geoip-cn"], "outbound": "direct"},
+            ]
+        }
+    )
+
+    config = build_singbox_profile(custom, [make_endpoint("primary", "de")])
+
+    declared = {entry["tag"]: entry for entry in config["route"]["rule_set"]}
+    assert set(declared) == {"geosite-netflix", "geoip-cn"}
+    # The published file is named after the whole tag, not the bare name.
+    assert declared["geosite-netflix"]["url"].endswith("/geosite-netflix.srs")
+    assert declared["geoip-cn"]["url"].endswith("/geoip-cn.srs")
+    assert all(entry["type"] == "remote" for entry in declared.values())
+
+
+def test_an_unresolvable_rule_set_is_refused_when_the_profile_is_saved():
+    """Rejecting it only at build time is worse than not checking at all.
+
+    The profile saves cleanly, and then every subscription bound to it answers
+    422 -- so the operator learns about their typo from users with no working
+    config, and nothing in the panel says why.
+    """
+    custom = profile().model_copy(update={"routing_rules": [{"rule_set": "my-block-list", "outbound": "direct"}]})
+
+    with pytest.raises(ProfileValidationError, match="cannot be resolved"):
+        validate_profile_routing_rules(custom, "sing_box")
+
+    # A resolvable one still passes, and Xray never sees this check at all.
+    fine = profile().model_copy(update={"routing_rules": [{"rule_set": "geosite-ads", "outbound": "direct"}]})
+    validate_profile_routing_rules(fine, "sing_box")
+
+
+def test_a_doh_resolver_on_a_custom_port_stays_reachable():
+    """Sing-box resolves `server` literally, so a host:port string there is a
+    hostname lookup that can never succeed. The port belongs in its own field."""
+    custom = profile().model_copy(update={"dns": ProfileDns(servers=["https://dns.example:8443/dns-query?ck=1"])})
+
+    config = build_singbox_profile(custom, [make_endpoint("primary", "de")])
+
+    remote = next(server for server in config["dns"]["servers"] if server["tag"] == "dns-remote")
+    assert remote["server"] == "dns.example"
+    assert remote["server_port"] == 8443
+    # A query string belongs to neither field; sing-box builds its own request.
+    assert remote["path"] == "/dns-query"
+
+
+def test_the_local_proxy_sniffs_like_the_tun_does():
+    """`hijack-dns` and every domain rule match on data only sniffing provides.
+
+    Sniffing just the tun leaves a desktop client that dials the mixed inbound
+    with rules that never match and DNS queries that leave the tunnel -- the
+    exact failure the tun rule exists to prevent.
+    """
+    config = build_singbox_profile(profile(), [make_endpoint("primary", "de")])
+
+    sniff = next(rule for rule in config["route"]["rules"] if rule.get("action") == "sniff")
+    inbounds = sniff["inbound"] if isinstance(sniff["inbound"], list) else [sniff["inbound"]]
+    declared = {inbound["tag"] for inbound in config["inbounds"]}
+    assert declared <= set(inbounds), f"inbounds not sniffed: {declared - set(inbounds)}"
+
+
+def test_singbox_declares_only_the_resolver_it_can_reach():
+    """`final` names one server and the profile emits no dns.rules, so a second
+    entry would be declared and used by nothing. Xray takes the whole list."""
+    custom = profile().model_copy(update={"dns": ProfileDns(servers=["9.9.9.9", "1.1.1.1"])})
+    endpoints = [make_endpoint("primary", "de")]
+
+    singbox = build_singbox_profile(custom, endpoints)
+    remotes = [server for server in singbox["dns"]["servers"] if server["tag"].startswith("dns-remote")]
+    assert [server["server"] for server in remotes] == ["9.9.9.9"]
+    assert singbox["dns"]["final"] == "dns-remote"
+
+    assert build_xray_profile(custom, endpoints)["dns"]["servers"] == ["9.9.9.9", "1.1.1.1"]
+
+
+def test_singbox_rejects_a_rule_set_it_cannot_resolve():
+    """An unresolvable name has to fail here rather than at the client.
+
+    A profile is edited once and served to everyone, so a typo that only
+    surfaces as a dead client on someone's phone is the worst outcome.
+    """
+    custom = profile().model_copy(update={"routing_rules": [{"rule_set": "mystery", "outbound": "direct"}]})
+
+    with pytest.raises(ProfileValidationError, match="cannot be resolved"):
+        build_singbox_profile(custom, [make_endpoint("primary", "de")])
+
+
+def test_singbox_without_geo_rules_declares_no_rule_sets():
+    """Profiles that never mention one must emit exactly what they did before."""
+    config = build_singbox_profile(profile(), [make_endpoint("primary", "de")])
+
+    assert "rule_set" not in config["route"]
+
+
+def test_singbox_profile_is_usable_on_a_device():
+    """A Sing-box client is handed this config and expected to run a VPN with it.
+
+    Regression guard: the profile used to emit a lone mixed proxy on
+    127.0.0.1:1080 and a bare route block. `sing-box check` accepted it and it
+    even carried traffic as a local proxy, which is why the gap was easy to
+    miss, but a client in tun mode had nothing to capture packets with, no
+    sniffing so domain rules could not match, no DNS hijack so queries left the
+    tunnel, and no auto_detect_interface to find the real egress.
+    """
+    config = build_singbox_profile(profile(), [make_endpoint("primary", "de")])
+
+    inbounds = {item["type"]: item for item in config["inbounds"]}
+    assert "tun" in inbounds, "VPN mode needs a tun inbound to capture traffic"
+    assert inbounds["tun"]["auto_route"] is True
+    assert "mixed" in inbounds, "a plain local proxy is still useful on desktop"
+
+    route = config["route"]
+    assert route["auto_detect_interface"] is True, "without this a device routes into itself"
+    # sing-box 1.14 refuses to start without it, so its absence is fatal, not cosmetic.
+    assert route["default_domain_resolver"] == {"server": "dns-local"}
+    # Sing-box only accepts override_android_vpn on Android and refuses to
+    # start elsewhere, so one cross-platform profile must not carry it.
+    assert "override_android_vpn" not in route
+
+    actions = [rule.get("action") for rule in route["rules"]]
+    assert "sniff" in actions, "domain rules cannot match without sniffing"
+    assert "hijack-dns" in actions, "DNS would otherwise bypass the tunnel"
+
+    remote = next(server for server in config["dns"]["servers"] if server["tag"] == "dns-remote")
+    assert remote["detour"] == "proxy", "resolving outside the tunnel leaks the destination"
+
+
 def test_singbox_routing_rules_address_groups_by_their_label():
     """Group tags are the labels, so that is what a routing rule has to name."""
     endpoints = [make_endpoint("primary", "de", host_id=611)]
@@ -1313,7 +1851,10 @@ def test_singbox_routing_rules_address_groups_by_their_label():
         SubscriptionProfile(**base, routing_rules=[{"protocol": "bittorrent", "outbound": "Fastest"}]),
         endpoints,
     )
-    assert config["route"]["rules"][0]["outbound"] == "Fastest"
+    # The sniff and hijack-dns rules the client needs come first, so locate the
+    # operator's rule by what it matches rather than by position.
+    operator_rule = next(r for r in config["route"]["rules"] if r.get("protocol") == "bittorrent")
+    assert operator_rule["outbound"] == "Fastest"
 
     # A stale machine-readable tag must fail loudly rather than silently produce
     # a config the client rejects.

@@ -9,10 +9,12 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import re
 from collections import defaultdict
 from copy import deepcopy
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import urlsplit
 
 from app.models.subscription import SubscriptionInboundData
 from app.models.subscription_profile import SubscriptionProfile
@@ -93,6 +95,76 @@ def validate_profile_routing_rules(profile: SubscriptionProfile, config_format: 
         if not any(isinstance(rule.get(key), str) and rule[key] for key in ("action", "outbound")):
             raise ProfileValidationError(f"{prefix} logical rule must set Sing-box action or outbound")
 
+    if config_format == "sing_box":
+        # The generator refuses a rule set it cannot turn into a source URL. If
+        # that refusal only happened at build time the profile would save
+        # cleanly and then 422 every subscription fetch bound to it, so the
+        # operator would hear about the typo from their users.
+        _singbox_rule_sets(_collect_rule_set_tags(profile.routing_rules))
+
+
+def _singbox_dns_server(server: str, tag: str, detour: str | None) -> dict[str, Any]:
+    """Sing-box wants the transport spelled out; Xray infers it from the string."""
+    entry: dict[str, Any] = {"tag": tag}
+    if server.startswith("https://"):
+        # ProfileDns already refused anything urlsplit cannot read, so hostname
+        # and port are trustworthy here. `server` has to be the bare host --
+        # sing-box resolves it as written, so "dns.example:8443" or a bracketed
+        # IPv6 literal there becomes a lookup that always fails.
+        parts = urlsplit(server)
+        entry.update({"type": "https", "server": parts.hostname})
+        if parts.port is not None:
+            entry["server_port"] = parts.port
+        # A query string belongs to neither field; sing-box sends its own.
+        entry["path"] = parts.path
+    else:
+        entry.update({"type": "udp", "server": server})
+    if detour:
+        entry["detour"] = detour
+    return entry
+
+
+def _balancer_strategy(profile: SubscriptionProfile) -> dict[str, Any]:
+    """Xray reads leastLoad's tuning from a nested `settings` object.
+
+    Without it leastLoad ranks the endpoints and sends everything to the
+    winner, so the strategy that is supposed to spread load behaves exactly
+    like leastPing. Omitted entirely when unset, to keep the emitted config
+    identical for the strategies that ignore it.
+    """
+    strategy: dict[str, Any] = {"type": profile.balancer_strategy.value}
+    if profile.balancer_settings is not None:
+        settings = profile.balancer_settings.model_dump(exclude_none=True)
+        if settings:
+            strategy["settings"] = settings
+    return strategy
+
+
+def _applicable_xray_rules(
+    rules: list[dict[str, Any]], generated: set[str], profile: SubscriptionProfile
+) -> list[dict[str, Any]]:
+    """Drop rules for generated groups this user cannot reach.
+
+    Country and pool groups are created from the endpoints available to one
+    user. A missing generated group is therefore expected; an arbitrary name
+    remains in the output so validation still reports a typo.
+    """
+    declared_pools = {f"pg-auto-{pool.id}" for pool in profile.pools}
+    return [
+        rule
+        for rule in rules
+        if not (
+            isinstance(rule.get("balancerTag"), str)
+            and not rule.get("outboundTag")
+            and (rule["balancerTag"] in declared_pools or re.fullmatch(r"pg-country-[a-z]{2}", rule["balancerTag"]))
+            and rule["balancerTag"] not in generated
+        )
+    ]
+
+
+def _singbox_rule_applies(outbound: str | None, reachable: set[str], optional: set[str]) -> bool:
+    return not outbound or outbound in reachable or outbound not in optional
+
 
 def _validate_xray_output_routing(config: dict[str, Any]) -> None:
     outbound_tags = {outbound.get("tag") for outbound in config["outbounds"] if outbound.get("tag")}
@@ -107,6 +179,67 @@ def _validate_xray_output_routing(config: dict[str, Any]) -> None:
             raise ProfileValidationError(f"{prefix}.outboundTag references unknown outbound '{outbound_tag}'")
         if balancer_tag and balancer_tag not in balancer_tags:
             raise ProfileValidationError(f"{prefix}.balancerTag references unknown balancer '{balancer_tag}'")
+
+
+# Sing-box matches geo data through rule sets that have to be declared next to
+# the rules that name them. Xray reads `geosite:`/`geoip:` straight out of a
+# rule, so a profile written for one core has no equivalent for the other.
+# The published file is named after the whole tag, so "geosite-netflix" lives
+# at .../rule-set/geosite-netflix.srs; the prefix only selects the repository.
+SINGBOX_RULE_SET_SOURCES = {
+    "geosite": "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/{tag}.srs",
+    "geoip": "https://raw.githubusercontent.com/SagerNet/sing-geoip/rule-set/{tag}.srs",
+}
+
+
+def _collect_rule_set_tags(rules: list[dict[str, Any]]) -> list[str]:
+    """Every rule set named anywhere in the operator's rules, including nested ones."""
+    tags: list[str] = []
+
+    def visit(rule: dict[str, Any]) -> None:
+        referenced = rule.get("rule_set")
+        if isinstance(referenced, str):
+            tags.append(referenced)
+        elif isinstance(referenced, list):
+            tags.extend(tag for tag in referenced if isinstance(tag, str))
+        for nested in rule.get("rules", []) or []:
+            if isinstance(nested, dict):
+                visit(nested)
+
+    for rule in rules:
+        if isinstance(rule, dict):
+            visit(rule)
+    return list(dict.fromkeys(tags))
+
+
+def _singbox_rule_sets(tags: list[str]) -> list[dict[str, Any]]:
+    """Declare each referenced rule set as a remote source.
+
+    An undeclared reference is not a soft failure: `sing-box check` accepts the
+    config and the client then refuses to start with "rule-set not found", so
+    the profile has to emit these or reject the rule outright.
+    """
+    declared: list[dict[str, Any]] = []
+    for tag in tags:
+        prefix, _, name = tag.partition("-")
+        template = SINGBOX_RULE_SET_SOURCES.get(prefix)
+        if template is None or not name:
+            raise ProfileValidationError(
+                f"rule set '{tag}' cannot be resolved; name it 'geosite-<name>' or 'geoip-<name>'"
+            )
+        declared.append(
+            {
+                "type": "remote",
+                "tag": tag,
+                "format": "binary",
+                "url": template.format(tag=tag),
+                # download_detour is omitted on purpose: sing-box 1.14 deprecates
+                # it and drops it in 1.16, and the default already fetches
+                # outside the tunnel, which is what this needs anyway.
+                "update_interval": "1d",
+            }
+        )
+    return declared
 
 
 def _validate_singbox_output_routing(config: dict[str, Any]) -> None:
@@ -261,7 +394,7 @@ def build_xray_profile(
         balancer: dict[str, Any] = {
             "tag": f"pg-auto-{pool.id}",
             "selector": candidates,
-            "strategy": {"type": profile.balancer_strategy.value},
+            "strategy": _balancer_strategy(profile),
         }
         if pool.fallback_pool and auto_pool_tags[pool.fallback_pool]:
             # Xray requires fallbackTag to name an outbound, not another
@@ -275,11 +408,12 @@ def build_xray_profile(
             {
                 "tag": f"pg-country-{country.lower()}",
                 "selector": actor_tags,
-                "strategy": {"type": profile.balancer_strategy.value},
+                "strategy": _balancer_strategy(profile),
             }
         )
 
-    rules = list(profile.routing_rules)
+    generated_groups = {balancer["tag"] for balancer in balancers}
+    rules = _applicable_xray_rules(profile.routing_rules, generated_groups, profile)
     rules.append({"type": "field", "network": "tcp,udp", "balancerTag": f"pg-auto-{profile.default_pool}"})
     outbounds.extend(
         [
@@ -289,9 +423,33 @@ def build_xray_profile(
     )
     subject_selector = [tag for pool in profile.pools for tag in auto_pool_tags.get(pool.id, [])]
     config = {
+        # Clients hand this file to the core untouched and then dial the local
+        # proxy themselves, so the listener has to be where they look for it.
+        # A socks-in on port 1080 left tun2socks with nothing to connect to.
+        # These match the default Xray subscription template this panel ships,
+        # which is the shape the clients are known to accept.
         "inbounds": [
-            {"tag": "socks-in", "listen": "127.0.0.1", "port": 1080, "protocol": "socks", "settings": {"udp": True}}
+            {
+                "tag": "socks",
+                "listen": "127.0.0.1",
+                "port": 10808,
+                "protocol": "socks",
+                # Without destOverride the core only ever sees IP addresses, so
+                # every domain routing rule in the profile silently never matches.
+                "sniffing": {"enabled": True, "destOverride": ["http", "tls"], "routeOnly": False},
+                "settings": {"auth": "noauth", "udp": True, "allowTransparent": False},
+            },
+            {
+                "tag": "http",
+                "listen": "127.0.0.1",
+                "port": 10809,
+                "protocol": "http",
+                "sniffing": {"enabled": True, "destOverride": ["http", "tls"], "routeOnly": False},
+                "settings": {"auth": "noauth", "udp": True, "allowTransparent": False},
+            },
         ],
+        "log": {"loglevel": "warning"},
+        "dns": {"servers": list(profile.dns.servers)},
         "outbounds": outbounds,
         "routing": {
             "domainStrategy": profile.domain_strategy.value,
@@ -307,7 +465,7 @@ def build_xray_profile(
             "pingConfig": {
                 "destination": profile.health_check.url,
                 "interval": profile.health_check.interval,
-                "timeout": profile.health_check.timeout,
+                "timeout": profile.health_check.probe_timeout,
                 "sampling": 3,
             },
         }
@@ -388,9 +546,20 @@ def build_xray_profile_configs(
         endpoint_tags = _endpoint_tags(ordered)
         for endpoint in ordered:
             config = copy.deepcopy(base)
+            endpoint_tag = endpoint_tags[id(endpoint)]
             catch_all = config["routing"]["rules"][-1]
             catch_all.pop("balancerTag", None)
-            catch_all["outboundTag"] = endpoint_tags[id(endpoint)]
+            catch_all["outboundTag"] = endpoint_tag
+            # This config offers one server, so it carries no balancer. An
+            # operator rule that names one still has to go somewhere: pointing
+            # it at this endpoint keeps the rule's own matcher intact and means
+            # the traffic it selects stays on the server the user picked.
+            # Leaving the reference dangling made the whole subscription fail
+            # validation, so a single balancer rule broke every config at once.
+            for rule in config["routing"]["rules"]:
+                if rule.get("balancerTag"):
+                    rule.pop("balancerTag")
+                    rule["outboundTag"] = endpoint_tag
             config["routing"]["balancers"] = []
             config.pop("observatory", None)
             config.pop("burstObservatory", None)
@@ -433,7 +602,6 @@ def build_singbox_profile(
 ) -> dict[str, Any]:
     groups = _grouped_endpoints(profile, endpoints)
     endpoints = [endpoint for entries in groups.values() for endpoint in entries]
-    tags = _endpoint_tags(endpoints)
     outbounds: list[dict[str, Any]] = []
     singbox_endpoints: list[dict[str, Any]] = []
     pool_tags: dict[str, list[str]] = defaultdict(list)
@@ -441,9 +609,16 @@ def build_singbox_profile(
     country_tags: dict[str, list[str]] = defaultdict(list)
     auto_country_tags: dict[str, list[str]] = defaultdict(list)
     pool_selector_tags: dict[str, str] = {}
+    # One namespace for endpoints and groups alike: a tag is what the client
+    # prints in its server list, and a collision between the two would make the
+    # config invalid rather than merely confusing.
+    used_labels: set[str] = {"proxy", "direct"}
 
     for endpoint in sorted(endpoints, key=lambda item: (item.priority, item.machine_key, item.stable_tie_breaker)):
-        tag = tags[id(endpoint)]
+        # The machine tag exists so the Xray observatory can match on a prefix.
+        # Sing-box has no such requirement and shows the tag to the user, so
+        # putting it here meant picking a server from a list of hashes.
+        tag = _unique_label(endpoint.inbound.remark, used_labels)
         container, generated_endpoint = _singbox_endpoint(endpoint, tag, client_templates)
         (outbounds if container == "outbounds" else singbox_endpoints).append(generated_endpoint)
         pool_tags[endpoint.pool].append(tag)
@@ -455,11 +630,16 @@ def build_singbox_profile(
                 auto_country_tags[endpoint.country].append(tag)
 
     selection_tags: list[str] = []
-    used_labels: set[str] = {"proxy", "direct"}
+    optional_tags: set[str] = set()
     for pool in profile.pools:
-        if pool.id not in groups:
-            continue
         pool_label = pool.title or pool.id
+        if pool.id not in groups:
+            # Use the same allocation order and namespace as a present pool,
+            # without reserving names for groups that are not emitted.
+            absent_labels = set(used_labels)
+            optional_tags.add(_unique_label(f"{pool_label} · Auto", absent_labels))
+            optional_tags.add(_unique_label(pool_label, absent_labels))
+            continue
         auto_tag = _unique_label(f"{pool_label} · Auto", used_labels)
         automatic_tags = auto_pool_tags[pool.id]
         if not automatic_tags and pool.id == profile.default_pool:
@@ -478,6 +658,8 @@ def build_singbox_profile(
                     "idle_timeout": profile.health_check.timeout,
                 }
             )
+        else:
+            optional_tags.add(auto_tag)
         pool_tag = _unique_label(pool_label, used_labels)
         pool_selector_tags[pool.id] = pool_tag
         outbounds.append(
@@ -504,6 +686,8 @@ def build_singbox_profile(
                     "idle_timeout": profile.health_check.timeout,
                 }
             )
+        else:
+            optional_tags.add(auto_country_tag)
         outbounds.append(
             {
                 "type": "selector",
@@ -512,6 +696,20 @@ def build_singbox_profile(
             }
         )
         selection_tags.append(country_tag)
+
+    # Country groups use "NL" / "NL · Auto", with collision suffixes from
+    # _unique_label. Recognize only the exact names this generator would emit;
+    # "Auto (NL)" belongs to Xray's display labels, not Sing-box targets.
+    for rule in profile.routing_rules:
+        target = rule.get("outbound")
+        country_match = (
+            re.fullmatch(r"([A-Z]{2})(?: · Auto)?(?: [1-9]\d*)?", target) if isinstance(target, str) else None
+        )
+        if country_match and country_match[1] not in country_tags:
+            country = country_match[1]
+            absent_labels = set(used_labels)
+            optional_tags.add(_unique_label(country, absent_labels))
+            optional_tags.add(_unique_label(f"{country} · Auto", absent_labels))
 
     root_selector = pool_selector_tags[profile.default_pool]
     root_choices = list(dict.fromkeys([root_selector, *selection_tags]))
@@ -524,12 +722,83 @@ def build_singbox_profile(
     # Sing-box urltest selects the best member of its own list; it has no native
     # fallbackTag equivalent.  The selector intentionally exposes each pool so
     # clients can choose a fallback without promising strict failover.
-    route_rules = list(profile.routing_rules)
+    # Everything below mirrors the Sing-box subscription template this panel
+    # ships, which is the shape its clients are known to accept. The profile
+    # used to emit a bare mixed proxy on 127.0.0.1:1080 and nothing else: no
+    # tun for VPN mode to capture traffic, no sniffing so every domain rule
+    # silently failed to match, no DNS hijack so queries escaped the tunnel,
+    # and no auto_detect_interface, which a device needs to find its real
+    # egress instead of routing into itself.
+    reachable = {outbound["tag"] for outbound in outbounds} | {entry["tag"] for entry in singbox_endpoints}
+    route_rules = [
+        # Both inbounds, not just the tun: hijack-dns matches on `protocol`, and
+        # so does every domain rule below, and only sniffing fills that in. A
+        # desktop client dialling the local mixed proxy would otherwise see its
+        # domain rules never match and its DNS queries leave the tunnel.
+        {"inbound": ["tun-in", "mixed-in"], "action": "sniff"},
+        {"protocol": "dns", "action": "hijack-dns"},
+        *(
+            rule
+            for rule in profile.routing_rules
+            if _singbox_rule_applies(rule.get("outbound"), reachable, optional_tags)
+        ),
+    ]
+    rule_sets = _singbox_rule_sets(_collect_rule_set_tags(route_rules))
     config = {
-        "inbounds": [{"type": "mixed", "tag": "mixed-in", "listen": "127.0.0.1", "listen_port": 1080}],
+        "log": {"level": "warn", "timestamp": False},
+        "dns": {
+            "servers": [
+                # Only the first resolver: `final` names one server and this
+                # profile emits no dns.rules, so any further entry would be
+                # declared and referenced by nothing. Sing-box has no "try the
+                # next one" list -- extra servers are reachable only through a
+                # rule that selects them. Xray takes the whole list.
+                # Resolving through the proxy keeps queries off the local network.
+                _singbox_dns_server(profile.dns.servers[0], "dns-remote", "proxy"),
+                # Reaching the servers themselves must not depend on the tunnel.
+                {"type": "local", "tag": "dns-local"},
+            ],
+            "final": "dns-remote",
+        },
+        "inbounds": [
+            {
+                "type": "tun",
+                "tag": "tun-in",
+                "interface_name": "sing-tun",
+                "address": ["172.19.0.1/30", "fdfe:dcba:9876::1/126"],
+                "auto_route": True,
+                "route_exclude_address": [
+                    "192.168.0.0/16",
+                    "10.0.0.0/8",
+                    "169.254.0.0/16",
+                    "172.16.0.0/12",
+                    "fe80::/10",
+                    "fc00::/7",
+                ],
+            },
+            # Kept alongside the tun so a desktop client, or anything that only
+            # wants a local proxy, still has somewhere to connect.
+            {"type": "mixed", "tag": "mixed-in", "listen": "127.0.0.1", "listen_port": 2080},
+        ],
         "outbounds": outbounds,
-        "route": {"rules": route_rules, "final": "proxy"},
+        "route": {
+            "rules": route_rules,
+            "final": "proxy",
+            # Required since sing-box 1.14: without it the client refuses to
+            # start at all. Outbound addresses resolve locally on purpose, so
+            # reaching the servers never depends on the tunnel being up first.
+            "default_domain_resolver": {"server": "dns-local"},
+            "auto_detect_interface": True,
+            # override_android_vpn is deliberately absent. The shipped template
+            # sets it, but Sing-box refuses to start with it anywhere except
+            # Android ("initialize network manager: `override_android_vpn` is
+            # only supported on Android"), and one profile is served to every
+            # platform.
+        },
+        "experimental": {"cache_file": {"enabled": True, "store_dns": True}},
     }
+    if rule_sets:
+        config["route"]["rule_set"] = rule_sets
     if singbox_endpoints:
         config["endpoints"] = singbox_endpoints
     _validate_singbox_output_routing(config)

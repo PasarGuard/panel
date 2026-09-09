@@ -11,7 +11,9 @@ import base64
 import binascii
 import re
 from enum import StrEnum
+from ipaddress import ip_address
 from typing import Any
+from urllib.parse import urlsplit
 
 from pydantic import AliasChoices, BaseModel, Field, field_validator, model_validator
 
@@ -72,6 +74,9 @@ class HealthCheckSettings(BaseModel):
     # Sing-box maps this to urltest.idle_timeout, so it must outlive an
     # interval rather than represent a single HTTP request timeout.
     timeout: str = Field(default="30m", pattern=r"^\d+(?:ms|s|m|h)$")
+    # Xray burstObservatory's deadline for one probe, independent of the
+    # Sing-box idle timeout and of the interval between measurement batches.
+    probe_timeout: str = Field(default="5s", pattern=r"^\d+(?:ms|s|m|h)$")
     # `burstObservatory` measures concurrently and feeds leastLoad/leastPing;
     # plain `observatory` only tracks alive/dead for fallbackTag.
     burst: bool = False
@@ -87,7 +92,80 @@ class HealthCheckSettings(BaseModel):
 
         if milliseconds(self.timeout) < milliseconds(self.interval):
             raise ValueError("health_check.timeout must be greater than or equal to health_check.interval")
+        if milliseconds(self.probe_timeout) <= 0:
+            raise ValueError("health_check.probe_timeout must be positive")
         return self
+
+
+class BalancerSettings(BaseModel):
+    """Tuning for the strategies that read the observatory's rankings.
+
+    Measured against two servers, three endpoints: `leastLoad` on its own picks
+    the single best endpoint and every request follows it, exactly like
+    `leastPing`. With `expected` set it draws at random from the best N, which
+    spreads the load while still leaving a failed endpoint out of the draw --
+    the one combination that both distributes traffic and survives an outage.
+    `random` and `roundRobin` distribute but keep dispatching to a dead server.
+
+    Ignored by strategies that do not consult the observatory.
+    """
+
+    expected: int | None = Field(default=None, ge=1, le=64)
+    # Xray treats an endpoint slower than every baseline as a last resort.
+    baselines: list[str] | None = Field(default=None, max_length=8)
+
+    @field_validator("baselines")
+    @classmethod
+    def validate_baselines(cls, value: list[str] | None) -> list[str] | None:
+        if value is None:
+            return None
+        for baseline in value:
+            if not re.fullmatch(r"\d+(?:ms|s|m|h)", baseline):
+                raise ValueError("balancer baselines must look like '1500ms' or '2s'")
+        return value
+
+
+class ProfileDns(BaseModel):
+    """Resolver the client uses once the tunnel is up.
+
+    Both cores previously carried a hardcoded public resolver, which cannot be
+    right everywhere: an operator running their own DoH endpoint, or serving a
+    region where a given resolver is blocked, had no way to change it.
+
+    Each entry is a plain IP or an `https://host/path` DoH URL. Sing-box needs
+    the two forms expressed as different server types, so anything else is
+    rejected here rather than emitted as a config the client will refuse.
+    """
+
+    servers: list[str] = Field(default_factory=lambda: ["1.1.1.1"], min_length=1, max_length=8)
+
+    @field_validator("servers")
+    @classmethod
+    def validate_servers(cls, value: list[str]) -> list[str]:
+        for server in value:
+            if server.startswith("https://"):
+                # urlsplit, not string surgery: it unwraps an IPv6 literal's
+                # brackets and range-checks the port, both of which sing-box
+                # needs as separate fields. Anything it cannot read has to be
+                # refused here -- reaching the generator would mean a config
+                # that saves cleanly and then fails for every client.
+                try:
+                    parts = urlsplit(server)
+                    host, port = parts.hostname, parts.port
+                except ValueError as exc:
+                    raise ValueError(f"DoH resolver '{server}' is not a usable URL: {exc}") from None
+                if not host or not parts.path or parts.path == "/":
+                    raise ValueError(
+                        f"DoH resolver '{server}' needs a host and a path, e.g. https://dns.example/dns-query"
+                    )
+                if port is not None and not 1 <= port <= 65535:
+                    raise ValueError(f"DoH resolver '{server}' has a port outside 1-65535")
+                continue
+            try:
+                ip_address(server)
+            except ValueError:
+                raise ValueError(f"DNS server '{server}' must be an IP address or an https:// DoH URL") from None
+        return value
 
 
 class ProfilePool(BaseModel):
@@ -116,9 +194,12 @@ class SubscriptionProfile(BaseModel):
     default_pool: str = Field(default="primary", min_length=1, max_length=64)
     pools: list[ProfilePool] = Field(default_factory=lambda: [ProfilePool(id="primary")], min_length=1, max_length=64)
     health_check: HealthCheckSettings = Field(default_factory=HealthCheckSettings)
+    dns: ProfileDns = Field(default_factory=ProfileDns)
     routing_rules: list[dict[str, Any]] = Field(default_factory=list, max_length=256)
     domain_strategy: DomainStrategy = DomainStrategy.as_is
     balancer_strategy: BalancerStrategy = BalancerStrategy.random
+    # Only meaningful for leastLoad/leastPing; see BalancerSettings.
+    balancer_settings: BalancerSettings | None = None
     # Publish a config per endpoint next to the automatic groups, so a user
     # can pick one server instead of only a group.
     publish_endpoint_configs: bool = True
