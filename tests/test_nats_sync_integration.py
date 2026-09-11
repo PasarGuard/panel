@@ -272,8 +272,12 @@ async def test_enqueue_is_claimable_even_when_watch_notifications_are_delayed(je
     try:
         assert await store.claim_users("1", "local", 10, 30) == []
         await store.enqueue_users("1", [User(email="immediate")])
-        claimed = await store.claim_users("1", "local", 10, 30)
+        claimed = await store.claim_users("1", "local", 10, 0)
         assert [item.user.email for item in claimed] == ["immediate"]
+        recovered = await store.claim_users("1", "local", 10, 30)
+        assert [item.user.email for item in recovered] == ["immediate"]
+        assert recovered[0].token != claimed[0].token
+        claimed = recovered
         await store.requeue_users("1", claimed)
         assert [item.user.email for item in await store.claim_users("1", "local", 10, 30)] == ["immediate"]
     finally:

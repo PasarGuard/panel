@@ -201,8 +201,14 @@ class NatsUserSyncStore:
             self._ensure_value_size(claimed_key, claimed_value)
             try:
                 # Create-only so two workers cannot claim into the same token key.
-                if not await kv_cas_json(self._kv, claimed_key, claimed_value, 0):
+                try:
+                    claimed_revision = await self._kv.create(
+                        claimed_key, json.dumps(claimed_value, separators=(",", ":")).encode()
+                    )
+                except nats.errors.Error as exc:
+                    logger.debug("Failed to create claim key=%s: %s", claimed_key, exc)
                     continue
+                self._key_index.observe_put(claimed_key, claimed_revision)
                 await self._kv.delete(pending_key, last=rev)
             except Exception as exc:
                 logger.debug("Claim race for pending key=%s: %s", pending_key, exc)
