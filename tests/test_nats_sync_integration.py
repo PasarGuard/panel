@@ -19,6 +19,7 @@ from nats.js.errors import KeyNotFoundError
 from PasarGuardNodeBridge.common.service_pb2 import User
 
 from app.nats.kv_cleanup import compact_deleted_keys
+from app.nats.kv_watch import KvWatcher, watch_kv
 from app.node.nats_memory import NatsUserSyncStore
 
 
@@ -83,6 +84,96 @@ async def wait_for_keys(store, prefix, count, timeout=10):
     async with asyncio.timeout(timeout):
         while len(await store._key_index.keys(prefix)) != count:
             await asyncio.sleep(0.005)
+
+
+@pytest.mark.parametrize("snapshot_only", [False, True])
+async def test_snapshot_pauses_delivery_until_reader_requests_next_batch(jetstream, monkeypatch, snapshot_only):
+    monkeypatch.setattr(KvWatcher, "BATCH_SIZE", 8)
+    expected = {}
+    for number in range(100):
+        key = f"p.1.{number}"
+        await jetstream.kv.put(key, b"value")
+        expected[key] = "DEL" if number % 2 else None
+        if number % 2:
+            await jetstream.kv.delete(key)
+    watcher = await watch_kv(jetstream.kv, ">", snapshot_only=snapshot_only)
+    try:
+        first = await anext(watcher)
+        delivered = (await watcher._snapshot.consumer_info()).delivered.consumer_seq
+        await asyncio.sleep(0.1)
+        assert (await watcher._snapshot.consumer_info()).delivered.consumer_seq == delivered == 8
+        assert watcher._snapshot.pending_msgs == 0
+        actual = {first.key: first.operation}
+        async for entry in watcher:
+            if entry is None:
+                break
+            assert entry.key not in actual
+            actual[entry.key] = entry.operation
+        assert actual == expected
+        info = await jetstream.js.stream_info(f"KV_{jetstream.bucket}")
+        assert info.state.consumer_count == (0 if snapshot_only else 1)
+    finally:
+        await watcher.stop()
+    assert (await jetstream.js.stream_info(f"KV_{jetstream.bucket}")).state.consumer_count == 0
+
+
+async def test_snapshot_to_live_handoff_preserves_concurrent_changes(jetstream, monkeypatch):
+    await jetstream.kv.put("p.1.existing", b"old")
+    subscribe = jetstream.js.subscribe
+    revisions = {}
+
+    async def write_before_live_subscription(*args, **kwargs):
+        revisions["p.1.existing"] = await jetstream.kv.put("p.1.existing", b"new")
+        revisions["p.1.added"] = await jetstream.kv.put("p.1.added", b"new")
+        await jetstream.kv.delete("p.1.existing")
+        return await subscribe(*args, **kwargs)
+
+    monkeypatch.setattr(jetstream.js, "subscribe", write_before_live_subscription)
+    watcher = await watch_kv(jetstream.kv, ">")
+    try:
+        assert (await anext(watcher)).key == "p.1.existing"
+        assert await anext(watcher) is None
+        async with asyncio.timeout(5):
+            entries = [await anext(watcher) for _ in range(2)]
+        assert [(entry.key, entry.operation) for entry in entries] == [
+            ("p.1.added", None),
+            ("p.1.existing", "DEL"),
+        ]
+        # A history-one bucket retains the final delete instead of the
+        # intermediate put. Both keys' latest state must reach the index.
+        assert entries[0].revision == revisions["p.1.added"]
+        assert entries[1].revision > revisions["p.1.existing"]
+    finally:
+        await watcher.stop()
+
+
+async def test_interrupted_snapshot_is_rejected_and_consumer_is_removed(jetstream, monkeypatch):
+    monkeypatch.setattr(KvWatcher, "BATCH_SIZE", 1)
+    for number in range(3):
+        await jetstream.kv.put(f"p.1.{number}", b"value")
+    nc = await nats.connect(jetstream.url, reconnect_time_wait=0.05)
+    watcher = await watch_kv(await nc.jetstream().key_value(jetstream.bucket), ">")
+    try:
+        await anext(watcher)
+        nc._transport.close()
+        async with asyncio.timeout(5):
+            while nc.stats["reconnects"] == 0:
+                await asyncio.sleep(0.02)
+        with pytest.raises(RuntimeError, match="connection changed during KV snapshot"):
+            await anext(watcher)
+        assert (await jetstream.js.stream_info(f"KV_{jetstream.bucket}")).state.consumer_count == 0
+    finally:
+        await watcher.stop()
+        await nc.close()
+
+
+async def test_stopping_partial_snapshot_removes_consumer(jetstream):
+    for number in range(3):
+        await jetstream.kv.put(f"p.1.{number}", b"value")
+    watcher = await watch_kv(jetstream.kv, ">")
+    await anext(watcher)
+    await watcher.stop()
+    assert (await jetstream.js.stream_info(f"KV_{jetstream.bucket}")).state.consumer_count == 0
 
 
 async def test_idle_polls_do_not_create_consumers_or_send_requests(jetstream):
@@ -153,9 +244,9 @@ async def test_live_enqueue_and_expired_claim_recovery(jetstream):
         await second.close()
 
 
-async def test_enqueue_is_claimable_even_when_watch_notifications_are_delayed(jetstream):
+async def test_enqueue_is_claimable_even_when_watch_notifications_are_delayed(jetstream, monkeypatch):
     gate = asyncio.Event()
-    real_watch = jetstream.kv.watch
+    real_watch = watch_kv
 
     class DelayedWatcher:
         def __init__(self, watcher):
@@ -176,7 +267,7 @@ async def test_enqueue_is_claimable_even_when_watch_notifications_are_delayed(je
     async def delayed_watch(*args, **kwargs):
         return DelayedWatcher(await real_watch(*args, **kwargs))
 
-    jetstream.kv.watch = delayed_watch
+    monkeypatch.setattr("app.nats.kv_index.watch_kv", delayed_watch)
     store = NatsUserSyncStore(jetstream.kv)
     try:
         assert await store.claim_users("1", "local", 10, 30) == []

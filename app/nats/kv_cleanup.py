@@ -8,13 +8,15 @@ from datetime import UTC, datetime
 from nats.js.client import JetStreamContext
 from nats.js.errors import BucketNotFoundError
 
+from app.nats.kv_watch import watch_kv
+
 
 async def compact_deleted_keys(js: JetStreamContext, bucket: str, *, older_than: float = 300) -> int:
     try:
         kv = await js.key_value(bucket)
     except BucketNotFoundError:
         return 0
-    watcher = await kv.watch(">", meta_only=True, inactive_threshold=5)
+    watcher = await watch_kv(kv, ">", inactive_threshold=5, snapshot_only=True)
     cutoff = datetime.now(UTC).timestamp() - older_than
     purged = 0
     try:

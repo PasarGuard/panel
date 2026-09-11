@@ -10,12 +10,15 @@ import asyncio
 import contextlib
 
 from app.nats.kv_cas import CasKv, kv_list_keys
+from app.nats.kv_watch import watch_kv
 from app.utils.logger import get_logger
 
 logger = get_logger("nats-kv-index")
 
 
 class KvKeyIndex:
+    SNAPSHOT_STALL_TIMEOUT = 30
+
     def __init__(self, kv: CasKv):
         self._kv = kv
         self._keys: dict[str, dict[str, int]] = {}
@@ -34,8 +37,16 @@ class KvKeyIndex:
             # No await between checking and setting: all node callers share one
             # watcher per process, including concurrent first-time callers.
             self._task = asyncio.create_task(self._run(), name="node-sync-key-index")
-        async with asyncio.timeout(30):
-            await self._ready.wait()
+        while not self._ready.is_set():
+            revision = self._last_revision
+            try:
+                async with asyncio.timeout(self.SNAPSHOT_STALL_TIMEOUT):
+                    await self._ready.wait()
+            except TimeoutError:
+                # Large snapshots can take longer than one timeout interval.
+                # Fail only when replay has stopped making progress.
+                if self._last_revision <= revision:
+                    raise
         if self._closed:
             raise RuntimeError("NATS key index is closed")
         return dict(self._keys.get(prefix, {}))
@@ -79,7 +90,7 @@ class KvKeyIndex:
             try:
                 # Replay once, then consume changes. Do not ignore deletes:
                 # removing them from the index bounds memory by live work.
-                watcher = await self._kv.watch(">", meta_only=True, inactive_threshold=30)
+                watcher = await watch_kv(self._kv, ">", inactive_threshold=30)
                 async for entry in watcher:
                     if entry is None:
                         self._ready.set()

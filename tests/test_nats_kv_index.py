@@ -74,6 +74,32 @@ async def test_initial_snapshot_is_complete_before_exposing_keys():
         await index.close()
 
 
+async def test_slow_snapshot_can_finish_while_replay_keeps_progressing(monkeypatch):
+    monkeypatch.setattr(KvKeyIndex, "SNAPSHOT_STALL_TIMEOUT", 0.1)
+    watcher = Watcher()
+    index = KvKeyIndex(WatchedKv(watcher))
+    pending = asyncio.create_task(index.keys("p.1."))
+    try:
+        for revision in range(1, 13):
+            watcher.queue.put_nowait(entry("p.1.a", revision))
+            await asyncio.sleep(0.02)
+        assert not pending.done()
+        watcher.queue.put_nowait(None)
+        assert await pending == ["p.1.a"]
+    finally:
+        await index.close()
+
+
+async def test_stalled_snapshot_still_times_out(monkeypatch):
+    monkeypatch.setattr(KvKeyIndex, "SNAPSHOT_STALL_TIMEOUT", 0.05)
+    index = KvKeyIndex(WatchedKv(Watcher()))
+    try:
+        with pytest.raises(TimeoutError):
+            await index.keys("p.1.")
+    finally:
+        await index.close()
+
+
 async def test_changes_remove_deleted_keys_and_empty_node_indexes():
     watcher = Watcher([entry("p.1.a"), None])
     index = KvKeyIndex(WatchedKv(watcher))

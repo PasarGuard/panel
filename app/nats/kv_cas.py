@@ -12,6 +12,7 @@ import nats.errors as nats_errors
 import nats.js.errors as nats_js_errors
 from nats.js.kv import KeyValue
 
+from app.nats.kv_watch import watch_kv
 from app.utils.logger import get_logger
 
 logger = get_logger("nats-kv-cas")
@@ -96,7 +97,7 @@ async def kv_list_keys(kv: CasKv, prefix: str) -> list[str]:
     # filter subject, so use that to filter server-side to this prefix only.
     watch = getattr(kv, "watch", None)
     if callable(watch):
-        watcher = await watch(f"{prefix}*", ignore_deletes=True, meta_only=True, inactive_threshold=5)
+        watcher = await watch_kv(kv, f"{prefix}*", ignore_deletes=True, inactive_threshold=5, snapshot_only=True)
         try:
             keys: list[str] = []
             async for entry in watcher:
