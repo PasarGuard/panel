@@ -9,12 +9,14 @@ from nats.js.api import AckPolicy, ConsumerConfig, DeliverPolicy
 from nats.js.kv import KV_DEL, KV_MARKER_REASON, KV_OP, KV_PURGE, KeyValue
 
 
-async def watch_kv(kv, pattern: str, *, ignore_deletes=False, inactive_threshold=30, snapshot_only=False):
+async def watch_kv(
+    kv, pattern: str, *, ignore_deletes=False, inactive_threshold=30, snapshot_only=False, start_revision=None
+):
     if not isinstance(kv, KeyValue):
         return await kv.watch(
             pattern, ignore_deletes=ignore_deletes, meta_only=True, inactive_threshold=inactive_threshold
         )
-    return KvWatcher(kv, pattern, ignore_deletes, inactive_threshold, snapshot_only)
+    return KvWatcher(kv, pattern, ignore_deletes, inactive_threshold, snapshot_only, start_revision)
 
 
 class KvWatcher:
@@ -26,12 +28,13 @@ class KvWatcher:
 
     BATCH_SIZE = 256
 
-    def __init__(self, kv, pattern, ignore_deletes, inactive_threshold, snapshot_only):
+    def __init__(self, kv, pattern, ignore_deletes, inactive_threshold, snapshot_only, start_revision):
         self._kv = kv
         self._pattern = pattern
         self._ignore_deletes = ignore_deletes
         self._inactive_threshold = inactive_threshold
         self._snapshot_only = snapshot_only
+        self._start_revision = start_revision
         # The KV API does not expose a bounded snapshot operation. Keep its
         # underlying JetStream connection and subject access in this adapter.
         self._js = kv._js
@@ -84,12 +87,17 @@ class KvWatcher:
         nc = self._js._nc
         reconnects = nc.stats["reconnects"]
         try:
-            watermark = (await self._js.stream_info(self._stream)).state.last_seq
+            watermark = 0 if self._snapshot_only else (await self._js.stream_info(self._stream)).state.last_seq
             self._snapshot = await self._js.pull_subscribe(
                 self._subject,
                 stream=self._stream,
                 config=ConsumerConfig(
-                    deliver_policy=DeliverPolicy.LAST_PER_SUBJECT,
+                    deliver_policy=(
+                        DeliverPolicy.BY_START_SEQUENCE
+                        if self._start_revision is not None
+                        else DeliverPolicy.LAST_PER_SUBJECT
+                    ),
+                    opt_start_seq=self._start_revision,
                     ack_policy=AckPolicy.NONE,
                     headers_only=True,
                     inactive_threshold=max(self._inactive_threshold, 60),
@@ -108,7 +116,8 @@ class KvWatcher:
                 if not nc.is_connected or nc.stats["reconnects"] != reconnects:
                     raise RuntimeError("NATS connection changed during KV snapshot")
                 for msg in messages:
-                    watermark = max(watermark, msg.metadata.sequence.stream)
+                    if not self._snapshot_only:
+                        watermark = max(watermark, msg.metadata.sequence.stream)
                     entry = self._entry(msg)
                     if entry is not None:
                         yield entry

@@ -204,6 +204,68 @@ async def test_idle_polls_do_not_create_consumers_or_send_requests(jetstream):
         await asyncio.gather(*(store.close() for store in stores))
 
 
+async def test_repeated_clear_does_not_replay_old_deletion_markers(jetstream):
+    for number in range(1000):
+        await jetstream.kv.delete(f"c.1.{number}")
+    store = NatsUserSyncStore(jetstream.kv)
+    try:
+        assert await store._key_index.keys("c.1.") == []
+        received = jetstream.nc.stats["in_msgs"]
+        for _ in range(20):
+            await store.clear("1")
+        assert jetstream.nc.stats["in_msgs"] - received < 400
+        assert (await jetstream.js.stream_info(f"KV_{jetstream.bucket}")).state.consumer_count == 1
+    finally:
+        await store.close()
+
+
+async def test_clear_catches_unobserved_writes_and_preserves_other_nodes(jetstream, monkeypatch):
+    gate = asyncio.Event()
+    gate.set()
+    real_watch = watch_kv
+
+    class DelayedWatcher:
+        def __init__(self, watcher):
+            self.watcher = watcher
+
+        def __aiter__(self):
+            return self
+
+        async def __anext__(self):
+            entry = await anext(self.watcher)
+            if entry is not None:
+                await gate.wait()
+            return entry
+
+        async def stop(self):
+            await self.watcher.stop()
+
+    async def delayed_watch(*args, **kwargs):
+        return DelayedWatcher(await real_watch(*args, **kwargs))
+
+    monkeypatch.setattr("app.nats.kv_index.watch_kv", delayed_watch)
+    kv = jetstream.kv
+    for key in ("p.1.cached", "c.1.cached"):
+        await kv.put(key, b"{}")
+    store = NatsUserSyncStore(kv)
+    try:
+        assert await store._key_index.keys("p.1.") == ["p.1.cached"]
+        gate.clear()
+        for key in ("p.1.new", "c.1.new", "p.2.keep"):
+            await kv.put(key, b"{}")
+        await kv.delete("p.1.cached")
+        await kv.put("p.1.cached", b"{}")
+        await store.enqueue_users("1", [User(email="local")])
+        await store.clear("1")
+        for key in ("p.1.cached", "c.1.cached", "p.1.new", "c.1.new", store._pending_key("1", "local")):
+            with pytest.raises(KeyNotFoundError):
+                await kv.get(key)
+        assert (await kv.get("p.2.keep")).value == b"{}"
+        assert (await jetstream.js.stream_info(f"KV_{jetstream.bucket}")).state.consumer_count == 1
+    finally:
+        await store.close()
+
+
 async def test_concurrent_workers_claim_each_update_once(jetstream):
     stores = [NatsUserSyncStore(jetstream.kv) for _ in range(4)]
     users = [User(email=f"user{i}", inbounds=["in"]) for i in range(80)]

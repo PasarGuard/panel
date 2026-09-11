@@ -29,6 +29,7 @@ from app.nats import needs_shared_bridge_memory
 from app.nats.client import create_nats_client, get_jetstream_context, get_or_create_kv_bucket
 from app.nats.kv_cas import CasKv, cas_retry_backoff, kv_cas_json, kv_get_json, kv_list_keys, kv_put_json
 from app.nats.kv_index import KvKeyIndex
+from app.nats.kv_watch import watch_kv
 from app.utils.logger import get_logger
 from config import nats_settings
 
@@ -269,9 +270,26 @@ class NatsUserSyncStore:
             logger.debug("Failed to clear key=%s: %s", key, exc)
 
     async def clear(self, node_id: str) -> None:
-        pending_keys = await kv_list_keys(self._kv, self._pending_prefix(node_id))
-        claimed_keys = await kv_list_keys(self._kv, self._claimed_prefix(node_id))
-        await self._run_bounded(self._clear_one, [*pending_keys, *claimed_keys])
+        prefixes = (self._pending_prefix(node_id), self._claimed_prefix(node_id))
+        if isinstance(self._kv, KeyValue):
+            keys, revision = await self._key_index.snapshot(prefixes)
+            # Include acknowledged writes from other workers even if their live
+            # notifications are delayed. Replaying only the tail avoids reading
+            # the node's entire deletion history on every reconnect.
+            watcher = await watch_kv(
+                self._kv, f"*.{node_id}.*", ignore_deletes=True, snapshot_only=True, start_revision=revision + 1
+            )
+            try:
+                async for entry in watcher:
+                    if entry is None:
+                        break
+                    if entry.key.startswith(prefixes):
+                        keys.add(entry.key)
+            finally:
+                await watcher.stop()
+        else:
+            keys = set(await kv_list_keys(self._kv, prefixes[0])) | set(await kv_list_keys(self._kv, prefixes[1]))
+        await self._run_bounded(self._clear_one, keys)
 
 
 class NatsNodeLifecycleCoordinator:

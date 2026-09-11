@@ -54,6 +54,11 @@ class KvKeyIndex:
     async def keys(self, prefix: str) -> list[str]:
         return list(await self.entries(prefix))
 
+    async def snapshot(self, prefixes: tuple[str, ...]) -> tuple[set[str], int]:
+        """Copy candidate keys and their replay checkpoint without yielding."""
+        await self.entries(prefixes[0])
+        return {key for prefix in prefixes for key in self._keys.get(prefix, {})}, self._last_revision
+
     def observe_put(self, key: str, revision: int) -> None:
         """Expose an acknowledged local write before its watch event arrives.
 
