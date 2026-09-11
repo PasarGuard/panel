@@ -187,7 +187,7 @@ class XRayConfig(dict):
         settings["pinnedPeerCertSha256"] = tls_settings.get("pinnedPeerCertSha256", "")
         settings["fp"] = tls_settings.get("fingerprint", "chrome")
         if sni := tls_settings.get("serverName"):
-            settings["sni"].append(sni)
+            settings["sni"].append(str(sni))
         for certificate in tls_settings.get("certificates", []):
             serve_on_node = certificate.pop("serveOnNode", False)
             if serve_on_node:
@@ -224,7 +224,7 @@ class XRayConfig(dict):
         """Handle Reality security settings."""
         settings["fp"] = tls_settings.get("fingerprint", "chrome")
         settings["tls"] = "reality"
-        settings["sni"] = tls_settings.get("serverNames", [])
+        settings["sni"] = [str(sni) for sni in (tls_settings.get("serverNames") or [])]
 
         pvk = tls_settings.get("privateKey")
         if not pvk:

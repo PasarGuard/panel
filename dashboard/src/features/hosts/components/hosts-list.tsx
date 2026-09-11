@@ -214,10 +214,9 @@ export default function HostsList({
             xray:
               host.noise_settings.xray?.map(noise => ({
                 type: noise.type,
-                packet: noise.packet,
-                delay: noise.delay,
+                packet: Array.isArray(noise.packet) ? noise.packet.join(',') : (noise.packet ?? ''),
+                delay: noise.delay != null ? String(noise.delay) : '',
                 apply_to: (noise.apply_to as 'ip' | 'ipv4' | 'ipv6') || 'ip',
-                rand_range: noise.rand_range ?? undefined,
               })) ?? undefined,
           }
         : undefined,
@@ -394,6 +393,7 @@ export default function HostsList({
         wireguard_overrides: host.wireguard_overrides ?? undefined,
         subscription_templates: host.subscription_templates ?? undefined,
         final_mask_settings: host.final_mask_settings ?? undefined,
+        cipher_suites: host.cipher_suites ?? undefined,
       }
 
       await createHost(newHost)
@@ -716,6 +716,7 @@ export default function HostsList({
         wireguard_overrides: host.wireguard_overrides ?? undefined,
         http_headers: host.http_headers || {},
         final_mask_settings: host.final_mask_settings ?? undefined,
+        cipher_suites: host.cipher_suites ?? undefined,
       }))
 
       // Make the API call to update priorities

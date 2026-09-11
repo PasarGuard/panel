@@ -25,7 +25,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import async_object_session
 from sqlalchemy.ext.hybrid import hybrid_property
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, query_expression, relationship
 from sqlalchemy.sql.expression import select, text
 
 from app.db.base import Base
@@ -237,6 +237,7 @@ class User(Base, CreatedAtUTCMixin):
     hwid_limit: Mapped[int | None] = mapped_column(BigInteger, default=None)
     edit_at: Mapped[dt | None] = mapped_column(DateTime(timezone=True), default=None)
     last_status_change: Mapped[dt | None] = mapped_column(DateTime(timezone=True), default=None)
+    _reseted_usage_query: Mapped[int | None] = query_expression(repr=False)
 
     @hybrid_property
     def expire(self) -> dt | None:
@@ -260,6 +261,8 @@ class User(Base, CreatedAtUTCMixin):
 
     @hybrid_property
     def reseted_usage(self) -> int:
+        if self._reseted_usage_query is not None:
+            return int(self._reseted_usage_query)
         return int(sum([log.used_traffic_at_reset for log in self.usage_logs]))
 
     @reseted_usage.expression
@@ -272,7 +275,7 @@ class User(Base, CreatedAtUTCMixin):
 
     @property
     def lifetime_used_traffic(self) -> int:
-        return int(sum([log.used_traffic_at_reset for log in self.usage_logs]) + self.used_traffic)
+        return self.reseted_usage + self.used_traffic
 
     @property
     def last_traffic_reset_time(self):
@@ -378,7 +381,10 @@ class User(Base, CreatedAtUTCMixin):
 
 class UserSubscriptionUpdate(Base, CreatedAtUTCMixin):
     __tablename__ = "user_subscription_updates"
-    __table_args__ = (Index("idx_user_subscription_updates_user_id", "user_id"),)
+    __table_args__ = (
+        Index("idx_user_subscription_updates_user_id", "user_id"),
+        Index("idx_user_subscription_updates_user_created", "user_id", "created_at"),
+    )
     user_id: Mapped[int] = fk_id_column("users.id", ondelete="CASCADE")
     user: Mapped[User] = relationship(back_populates="subscription_updates", init=False)
     user_agent: Mapped[str] = mapped_column(String(512))
@@ -575,10 +581,9 @@ class System(Base, IdMixin):
     downlink: Mapped[int] = mapped_column(BigInteger, default=0)
 
 
-class JWT(Base):
+class JWT(Base, IdMixin):
     __tablename__ = "jwt"
 
-    id: Mapped[int] = mapped_column(primary_key=True, init=False, autoincrement=True)
     secret_key: Mapped[str] = mapped_column(String(64), default=lambda: os.urandom(32).hex())
 
 
@@ -637,9 +642,13 @@ class Node(Base, CreatedAtUTCMixin):
     default_timeout: Mapped[int] = mapped_column(default=10, server_default=text("10"))
     internal_timeout: Mapped[int] = mapped_column(default=15, server_default=text("15"))
     proxy_url: Mapped[str | None] = mapped_column(String(256), default="", unique=False, nullable=True)
+    _reseted_uplink_query: Mapped[int | None] = query_expression(repr=False)
+    _reseted_downlink_query: Mapped[int | None] = query_expression(repr=False)
 
     @hybrid_property
     def reseted_uplink(self) -> int:
+        if self._reseted_uplink_query is not None:
+            return int(self._reseted_uplink_query)
         return int(sum([log.uplink for log in self.usage_logs]))
 
     @reseted_uplink.expression
@@ -652,6 +661,8 @@ class Node(Base, CreatedAtUTCMixin):
 
     @hybrid_property
     def reseted_downlink(self) -> int:
+        if self._reseted_downlink_query is not None:
+            return int(self._reseted_downlink_query)
         return int(sum([log.downlink for log in self.usage_logs]))
 
     @reseted_downlink.expression
@@ -847,13 +858,12 @@ class WireGuardSubnet(Base, IdMixin):
     free_offsets: Mapped[list] = mapped_column(JSON(True), default_factory=list)
 
 
-class ClientTemplate(Base):
+class ClientTemplate(Base, IdMixin):
     __tablename__ = "client_templates"
     __table_args__ = (
         UniqueConstraint("template_type", "name"),
         Index("ix_client_templates_template_type", "template_type"),
     )
-    id: Mapped[int] = mapped_column(primary_key=True, init=False, autoincrement=True)
     name: Mapped[str] = mapped_column(String(64), nullable=False)
     template_type: Mapped[str] = mapped_column(String(32), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)

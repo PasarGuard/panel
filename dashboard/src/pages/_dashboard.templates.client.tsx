@@ -164,7 +164,7 @@ export default function ClientTemplates() {
               isLoading={isCurrentlyLoading}
               loadingRows={6}
               className="gap-4"
-              gridClassName="transform-gpu animate-slide-up"
+              gridClassName=""
               gridStyle={{ animationDuration: '500ms', animationDelay: '100ms', animationFillMode: 'both' }}
               enableSelection={canDeleteTemplates}
               injectSelectionProps={canDeleteTemplates}
