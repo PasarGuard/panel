@@ -9,6 +9,7 @@ import hashlib
 import json
 import os
 import time
+from itertools import islice
 from typing import Any
 from uuid import uuid4
 
@@ -27,6 +28,7 @@ from PasarGuardNodeBridge.storage import (
 from app.nats import needs_shared_bridge_memory
 from app.nats.client import create_nats_client, get_jetstream_context, get_or_create_kv_bucket
 from app.nats.kv_cas import CasKv, cas_retry_backoff, kv_cas_json, kv_get_json, kv_list_keys, kv_put_json
+from app.nats.kv_index import KvKeyIndex
 from app.utils.logger import get_logger
 from config import nats_settings
 
@@ -96,6 +98,24 @@ class NatsUserSyncStore:
 
     def __init__(self, kv: CasKv):
         self._kv = kv
+        self._key_index = KvKeyIndex(kv)
+        self._write_slots = asyncio.Semaphore(32)
+
+    async def close(self) -> None:
+        await self._key_index.close()
+
+    async def _run_bounded(self, operation, items) -> None:
+        async def run(item):
+            async with self._write_slots:
+                await operation(item)
+
+        items = iter(items)
+        while batch := list(islice(items, 32)):
+            # Bound both live tasks and concurrent KV operations during full syncs.
+            results = await asyncio.gather(*(run(item) for item in batch), return_exceptions=True)
+            for result in results:
+                if isinstance(result, BaseException):
+                    raise result
 
     def _pending_prefix(self, node_id: str) -> str:
         return f"p.{node_id}."
@@ -120,20 +140,22 @@ class NatsUserSyncStore:
         key = self._pending_key(node_id, email)
         value = {"email": email, "user": _b64_user(user)}
         self._ensure_value_size(key, value)
-        await kv_put_json(self._kv, key, value)
+        revision = await kv_put_json(self._kv, key, value)
+        self._key_index.observe_put(key, revision)
 
     async def enqueue_users(self, node_id: str, users: list[User]) -> None:
         if not users:
             return
         # Latest payload per email wins (dedupe across the batch first).
         by_email = {user.email: user for user in users}
-        await asyncio.gather(*(self._enqueue_one(node_id, email, user) for email, user in by_email.items()))
+        await self._run_bounded(lambda user: self._enqueue_one(node_id, user.email, user), by_email.values())
 
     async def _requeue_expired_claims(self, node_id: str) -> None:
         now = time.time()
-        for key in await kv_list_keys(self._kv, self._claimed_prefix(node_id)):
+        for key, indexed_revision in (await self._key_index.entries(self._claimed_prefix(node_id))).items():
             doc, rev = await kv_get_json(self._kv, key)
             if doc is None:
+                self._key_index.discard(key, indexed_revision)
                 continue
             if float(doc.get("expires_at", 0)) > now:
                 continue
@@ -142,7 +164,8 @@ class NatsUserSyncStore:
             if isinstance(email, str) and isinstance(user_b64, str):
                 pending_key = self._pending_key(node_id, email)
                 pending_value = {"email": email, "user": user_b64}
-                await kv_put_json(self._kv, pending_key, pending_value)
+                revision = await kv_put_json(self._kv, pending_key, pending_value)
+                self._key_index.observe_put(pending_key, revision)
             try:
                 await self._kv.delete(key, last=rev)
             except Exception as exc:
@@ -155,11 +178,12 @@ class NatsUserSyncStore:
 
         result: list[ClaimedUser] = []
         now = time.time()
-        for pending_key in await kv_list_keys(self._kv, self._pending_prefix(node_id)):
+        for pending_key, indexed_revision in (await self._key_index.entries(self._pending_prefix(node_id))).items():
             if len(result) >= limit:
                 break
             doc, rev = await kv_get_json(self._kv, pending_key)
             if doc is None:
+                self._key_index.discard(pending_key, indexed_revision)
                 continue
             email = doc.get("email")
             user_b64 = doc.get("user")
@@ -207,13 +231,14 @@ class NatsUserSyncStore:
     async def ack_users(self, node_id: str, tokens: list[str]) -> None:
         if not tokens:
             return
-        await asyncio.gather(*(self._ack_one(node_id, token) for token in tokens))
+        await self._run_bounded(lambda token: self._ack_one(node_id, token), tokens)
 
     async def _requeue_one(self, node_id: str, item: ClaimedUser) -> None:
         pending_key = self._pending_key(node_id, item.user.email)
         pending_value = {"email": item.user.email, "user": _b64_user(item.user)}
         self._ensure_value_size(pending_key, pending_value)
-        await kv_put_json(self._kv, pending_key, pending_value)
+        revision = await kv_put_json(self._kv, pending_key, pending_value)
+        self._key_index.observe_put(pending_key, revision)
         claimed_key = self._claimed_key(node_id, item.token)
         doc, rev = await kv_get_json(self._kv, claimed_key)
         if doc is None:
@@ -226,7 +251,7 @@ class NatsUserSyncStore:
     async def requeue_users(self, node_id: str, claimed_users: list[ClaimedUser]) -> None:
         if not claimed_users:
             return
-        await asyncio.gather(*(self._requeue_one(node_id, item) for item in claimed_users))
+        await self._run_bounded(lambda item: self._requeue_one(node_id, item), claimed_users)
 
     async def _clear_one(self, key: str) -> None:
         doc, rev = await kv_get_json(self._kv, key)
@@ -240,7 +265,7 @@ class NatsUserSyncStore:
     async def clear(self, node_id: str) -> None:
         pending_keys = await kv_list_keys(self._kv, self._pending_prefix(node_id))
         claimed_keys = await kv_list_keys(self._kv, self._claimed_prefix(node_id))
-        await asyncio.gather(*(self._clear_one(key) for key in [*pending_keys, *claimed_keys]))
+        await self._run_bounded(self._clear_one, [*pending_keys, *claimed_keys])
 
 
 class NatsNodeLifecycleCoordinator:
@@ -445,6 +470,8 @@ def get_bridge_memory() -> tuple[NatsUserSyncStore | None, NatsNodeLifecycleCoor
 
 async def shutdown_bridge_memory() -> None:
     global _nc, _user_sync_kv, _lifecycle_kv, _user_sync_store, _lifecycle_coordinator
+    if _user_sync_store is not None:
+        await _user_sync_store.close()
     if _nc is not None:
         await _nc.close()
     _nc = None
