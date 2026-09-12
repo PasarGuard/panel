@@ -4,6 +4,7 @@ import urllib.parse as urlparse
 from random import choice
 from urllib.parse import quote
 
+from app.models.proxy import GeneralAuthSettings
 from app.models.subscription import (
     GRPCTransportConfig,
     KCPTransportConfig,
@@ -24,10 +25,12 @@ class StandardLinks(BaseSubscription):
         self,
         user_agent_template_content: str | None = None,
         grpc_user_agent_template_content: str | None = None,
+        general_auth: GeneralAuthSettings | None = None,
     ):
         super().__init__(
             user_agent_template_content=user_agent_template_content,
             grpc_user_agent_template_content=grpc_user_agent_template_content,
+            general_auth=general_auth,
         )
         self.links = []
 

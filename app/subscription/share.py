@@ -9,6 +9,7 @@ from jdatetime import date as jd
 from app.core.hosts import host_manager
 from app.db.crud.wireguard import pick_peer_ip_for_inbound
 from app.db.models import UserStatus
+from app.models.proxy import GeneralAuthSettings
 from app.models.status_emojis import STATUS_EMOJIS
 from app.models.subscription import SubscriptionInboundData
 from app.models.user import UsersResponseWithInbounds
@@ -34,6 +35,7 @@ SERVER_IPV6 = "[::1]"
 def _build_subscription_config(
     config_format: str,
     client_templates: dict[str, str],
+    general_auth: GeneralAuthSettings,
 ) -> (
     StandardLinks
     | XrayConfiguration
@@ -47,6 +49,7 @@ def _build_subscription_config(
     common_kwargs = {
         "user_agent_template_content": client_templates["USER_AGENT_TEMPLATE"],
         "grpc_user_agent_template_content": client_templates["GRPC_USER_AGENT_TEMPLATE"],
+        "general_auth": general_auth,
     }
 
     if config_format == "links":
@@ -91,7 +94,7 @@ async def generate_subscription(
 
     client_templates = await subscription_client_templates()
     xray_template_overrides = await subscription_xray_templates() if config_format == "xray" else None
-    conf = _build_subscription_config(config_format, client_templates)
+    conf = _build_subscription_config(config_format, client_templates, user.proxy_settings.general_auth)
     if conf is None:
         raise ValueError(f'Unsupported format "{config_format}"')
 
@@ -401,6 +404,7 @@ async def _prepare_download_settings(
             xray_template_content=client_templates["XRAY_SUBSCRIPTION_TEMPLATE"],
             user_agent_template_content=client_templates["USER_AGENT_TEMPLATE"],
             grpc_user_agent_template_content=client_templates["GRPC_USER_AGENT_TEMPLATE"],
+            general_auth=conf.general_auth,
         )
         return xc._download_config(download_copy, link_format=True)
 
