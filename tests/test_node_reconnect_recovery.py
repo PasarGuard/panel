@@ -31,6 +31,8 @@ def setup_node(monkeypatch, *, health=Health.HEALTHY, state=None):
         get_lifecycle_state=AsyncMock(return_value=state),
         info=AsyncMock(return_value=info),
         connect=AsyncMock(),
+        _work_available=asyncio.Event(),
+        _ensure_sync_worker_running=AsyncMock(),
         update_observed_lifecycle=AsyncMock(),
         start=AsyncMock(return_value=info),
         stop=AsyncMock(),
@@ -66,6 +68,18 @@ async def test_sibling_attaches_to_running_core_without_loading_users(monkeypatc
     db_node, node, reads = setup_node(monkeypatch, health=Health.NOT_CONNECTED, state=state)
     await manager_sync.handle_node_message({"action": "connect", "node_id": db_node.id, "origin": "other"})
     node.connect.assert_awaited_once()
+    reads.assert_not_awaited()
+    node.start.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_shared_attachment_wakes_persisted_work_without_enqueuing_users(monkeypatch):
+    state = SimpleNamespace(desired=LifecycleStatus.HEALTHY, observed=LifecycleStatus.HEALTHY, epoch=3)
+    db_node, node, reads = setup_node(monkeypatch, health=Health.NOT_CONNECTED, state=state)
+    monkeypatch.setattr(node_operation, "needs_shared_bridge_memory", lambda: True)
+    await manager_sync.handle_node_message({"action": "connect", "node_id": db_node.id, "origin": "other"})
+    assert node._work_available.is_set()
+    node._ensure_sync_worker_running.assert_awaited_once()
     reads.assert_not_awaited()
     node.start.assert_not_awaited()
 

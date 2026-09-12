@@ -184,6 +184,114 @@ async def test_sync_recovery_preserves_queued_users_and_active_claims(jetstream,
         await store.close()
 
 
+async def test_restored_queue_retries_and_drains_after_attach(jetstream, monkeypatch):
+    from unittest.mock import AsyncMock
+
+    import certifi
+    from PasarGuardNodeBridge.controller import Controller
+
+    from app.operation import node as node_operation
+
+    original = NatsUserSyncStore(jetstream.kv)
+    try:
+        await original.enqueue_users("91", [User(email=f"restored-{index}") for index in range(1200)])
+    finally:
+        await original.close()
+    store = NatsUserSyncStore(jetstream.kv)
+    node = Controller(
+        server_ca=certifi.contents(),
+        api_key=str(uuid4()),
+        service_url="https://localhost:1",
+        node_id="91",
+        user_sync_store=store,
+        sync_lease_seconds=60,
+    )
+    info = SimpleNamespace(started=True, node_version="0.5.4", core_version="26.3.27")
+    monkeypatch.setattr(node, "get_lifecycle_state", AsyncMock(return_value=None))
+    monkeypatch.setattr(node, "info", AsyncMock(return_value=info), raising=False)
+    monkeypatch.setattr(node_operation, "needs_shared_bridge_memory", lambda: True)
+    delivered = []
+    attempts = 0
+
+    async def sync_chunked(*, users, **kwargs):
+        nonlocal attempts
+        attempts += 1
+        await asyncio.sleep(0.02)
+        if attempts == 1:
+            return users
+        delivered.extend(user.email for user in users)
+        return []
+
+    monkeypatch.setattr(node, "sync_users_chunked", sync_chunked, raising=False)
+    try:
+        assert not node._work_available.is_set()
+        assert node._sync_worker_task is None
+        assert await node_operation.NodeOperation._attach_if_running(node, "restored-node") is info
+        async with asyncio.timeout(45):
+            while len(delivered) != 1200:
+                await asyncio.sleep(0.02)
+            await wait_for_keys(store, "p.91.", 0)
+            await wait_for_keys(store, "c.91.", 0)
+        assert attempts == 2
+        assert len(set(delivered)) == 1200
+    finally:
+        await node.disconnect()
+        await store.close()
+
+
+async def test_health_poll_recovers_claim_that_expires_after_startup(jetstream, monkeypatch):
+    import time
+    from unittest.mock import AsyncMock
+
+    import certifi
+    from PasarGuardNodeBridge import Health
+    from PasarGuardNodeBridge.controller import Controller
+
+    from app.db.models import NodeStatus
+    from app.jobs import node_checker
+    from app.node import nats_memory
+    from app.operation import node as node_operation
+
+    store = NatsUserSyncStore(jetstream.kv)
+    now = [time.time()]
+    monkeypatch.setattr(nats_memory, "time", SimpleNamespace(time=lambda: now[0]))
+    await store.enqueue_users("93", [User(email="orphan")])
+    assert len(await store.claim_users("93", "departed-worker", 1, 60)) == 1
+    node = Controller(
+        server_ca=certifi.contents(),
+        api_key=str(uuid4()),
+        service_url="https://localhost:1",
+        node_id="93",
+        user_sync_store=store,
+        sync_poll_interval=0.01,
+    )
+    node._worker_idle_timeout = 0.02
+    monkeypatch.setattr(node_operation, "needs_shared_bridge_memory", lambda: True)
+    monkeypatch.setattr(node_checker, "needs_shared_bridge_memory", lambda: True)
+    monkeypatch.setattr(node_checker, "_sync_recovery_deadlines", {})
+    monkeypatch.setattr(
+        node_checker, "verify_node_backend_health", AsyncMock(return_value=(Health.HEALTHY, None, None))
+    )
+    sync = AsyncMock(return_value=[])
+    monkeypatch.setattr(node, "_sync_batch_users", sync, raising=False)
+    try:
+        await node.connect("0.5.4", "26.3.27")
+        await node_operation.NodeOperation._resume_shared_sync(node)
+        await asyncio.wait_for(node._sync_worker_task, timeout=5)
+        sync.assert_not_awaited()
+        now[0] += 61
+        await node_checker.process_node_health_check(
+            SimpleNamespace(id=93, name="restored", status=NodeStatus.connected), node
+        )
+        await asyncio.wait_for(node._sync_worker_task, timeout=5)
+        assert [user.email for user in sync.await_args.args[0]] == ["orphan"]
+        await wait_for_keys(store, "c.93.", 0)
+        await wait_for_keys(store, "p.93.", 0)
+    finally:
+        await node.disconnect()
+        await store.close()
+
+
 @pytest.mark.parametrize("snapshot_only", [False, True])
 async def test_snapshot_pauses_delivery_until_reader_requests_next_batch(jetstream, monkeypatch, snapshot_only):
     monkeypatch.setattr(KvWatcher, "BATCH_SIZE", 8)
@@ -466,6 +574,82 @@ async def test_compaction_keeps_pending_and_concurrently_recreated_values(jetstr
     with pytest.raises(KeyNotFoundError):
         await kv.get("c.1.completed")
     assert (await jetstream.js.stream_info(f"KV_{jetstream.bucket}")).state.messages == 2
+
+
+async def test_compaction_batches_history_without_losing_live_claims_or_new_updates(jetstream):
+    from unittest.mock import AsyncMock
+
+    kv = jetstream.kv
+    for offset in range(0, 2000, 32):
+        await asyncio.gather(*(kv.delete(f"c.1.done{number}") for number in range(offset, min(offset + 32, 2000))))
+    await kv.put("c.1.active", b"in flight")
+    await kv.delete("c.1.later", last=0)
+    await kv.put("p.1.pending", b"pending")
+    await kv.put("c.2.active", b"another node")
+    original_purge = jetstream.js.purge_stream
+
+    async def recreate_before_purge(stream, **kwargs):
+        if kwargs["subject"].endswith("c.1.*"):
+            await kv.put("c.1.done0", b"recreated")
+            await kv.put("c.1.new", b"new claim")
+        return await original_purge(stream, **kwargs)
+
+    purge = AsyncMock(side_effect=recreate_before_purge)
+    jetstream.js.purge_stream = purge
+    assert await compact_deleted_keys(jetstream.js, jetstream.bucket, older_than=0) == 2001
+    assert purge.await_count == 2
+    for key, value in {
+        "c.1.active": b"in flight",
+        "c.1.done0": b"recreated",
+        "c.1.new": b"new claim",
+        "c.2.active": b"another node",
+        "p.1.pending": b"pending",
+    }.items():
+        assert (await kv.get(key)).value == value
+    assert (await jetstream.js.stream_info(f"KV_{jetstream.bucket}")).state.messages == 5
+
+
+async def test_compaction_bounds_fallback_and_finishes_on_the_next_interval(jetstream):
+    from unittest.mock import AsyncMock
+
+    kv = jetstream.kv
+    await kv.put("c.1.active", b"retain oldest claim")
+    for offset in range(0, 1050, 32):
+        await asyncio.gather(*(kv.delete(f"c.1.done{number}") for number in range(offset, min(offset + 32, 1050))))
+    purge = AsyncMock(wraps=jetstream.js.purge_stream)
+    jetstream.js.purge_stream = purge
+    assert await compact_deleted_keys(jetstream.js, jetstream.bucket, older_than=0) == 1024
+    assert purge.await_count == 1024
+    assert await compact_deleted_keys(jetstream.js, jetstream.bucket, older_than=0) == 26
+    assert (await kv.get("c.1.active")).value == b"retain oldest claim"
+    assert (await jetstream.js.stream_info(f"KV_{jetstream.bucket}")).state.messages == 1
+
+
+@pytest.mark.parametrize("fail", [False, True])
+async def test_incomplete_compaction_snapshot_does_not_purge(jetstream, monkeypatch, fail):
+    from datetime import UTC, datetime, timedelta
+    from unittest.mock import AsyncMock
+
+    class InterruptedSnapshot:
+        def __aiter__(self):
+            return self.iterate()
+
+        async def iterate(self):
+            yield SimpleNamespace(
+                key="c.1.deleted", revision=1, operation="DEL", created=datetime.now(UTC) - timedelta(hours=1)
+            )
+            if fail:
+                raise RuntimeError("connection interrupted")
+
+        async def stop(self):
+            pass
+
+    monkeypatch.setattr("app.nats.kv_cleanup.watch_kv", AsyncMock(return_value=InterruptedSnapshot()))
+    purge = AsyncMock(wraps=jetstream.js.purge_stream)
+    jetstream.js.purge_stream = purge
+    with pytest.raises(RuntimeError):
+        await compact_deleted_keys(jetstream.js, jetstream.bucket)
+    purge.assert_not_awaited()
 
 
 async def test_watcher_resumes_after_network_disconnect(jetstream):

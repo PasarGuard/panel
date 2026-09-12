@@ -9,7 +9,7 @@ from app.db import GetDB
 from app.db.crud.node import get_limited_nodes, get_nodes
 from app.db.models import Node, NodeStatus
 from app.models.node import NodeListQuery, NodeNotification
-from app.nats import is_multi_worker
+from app.nats import is_multi_worker, needs_shared_bridge_memory
 from app.node import node_manager
 from app.node.nats_memory import ensure_bridge_memory, get_bridge_memory, shutdown_bridge_memory
 from app.operation import OperatorType
@@ -119,8 +119,8 @@ async def verify_node_backend_health(node: PasarGuardNode, node_name: str) -> tu
 async def process_node_health_check(db_node: Node, node: PasarGuardNode):
     """
     Process health check for a single node:
-    1. Check if node requires hard reset
-    2. Verify backend health
+    1. Verify backend health
+    2. Recover shared user sync when healthy
     3. Compare with database status
     4. Update status if needed
 
@@ -159,14 +159,21 @@ async def process_node_health_check(db_node: Node, node: PasarGuardNode):
 
         # Skip nodes that are already healthy and connected
         if health == Health.HEALTHY and db_node.status == NodeStatus.connected:
-            if node.requires_hard_reset():
+            requires_recovery = node.requires_hard_reset()
+            if requires_recovery or needs_shared_bridge_memory():
                 # A slow user-sync RPC does not mean the backend is dead. Repair
                 # this worker's attachment without restarting the core, clearing
                 # queued work, or broadcasting reconnects to sibling workers.
                 now = time.monotonic()
                 if now >= _sync_recovery_deadlines.get(db_node.id, 0):
                     _sync_recovery_deadlines[db_node.id] = now + _SYNC_RECOVERY_INTERVAL
-                    await NodeOperation._attach_if_running(node, db_node.name)
+                    if requires_recovery:
+                        await NodeOperation._attach_if_running(node, db_node.name)
+                    else:
+                        # An orphaned claim can expire after the first startup
+                        # poll. Retry discovery even without a fresh update;
+                        # the live KV index makes empty polls request-free.
+                        await NodeOperation._resume_shared_sync(node)
             return
 
         if health is Health.INVALID:

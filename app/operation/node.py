@@ -260,6 +260,12 @@ class NodeOperation(BaseOperation):
         return cores_by_id, users_by_core
 
     @staticmethod
+    async def _resume_shared_sync(pg_node: PasarGuardNode):
+        if needs_shared_bridge_memory():
+            pg_node._work_available.set()
+            await pg_node._ensure_sync_worker_running()
+
+    @staticmethod
     async def _attach_if_running(pg_node: PasarGuardNode, node_name: str):
         """Attach to an already-started remote core without calling Start RPC."""
         try:
@@ -276,6 +282,9 @@ class NodeOperation(BaseOperation):
                 return None
 
             await pg_node.connect(info.node_version, info.core_version)
+            # Shared pending work survives a panel restart. Attaching must
+            # wake the lazy bridge worker even without a fresh user update.
+            await NodeOperation._resume_shared_sync(pg_node)
             if state is not None:
                 await pg_node.update_observed_lifecycle(LifecycleStatus.HEALTHY, expected_epoch=state.epoch)
             logger.debug(
