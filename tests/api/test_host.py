@@ -344,7 +344,13 @@ def test_host_finalmask_new_types(access_token):
                 "type": "noise",
                 "settings": {
                     "reset": "30-60",
-                    "noise": [{"type": "array", "packet": [1, 2, 3], "rand": "1-8192", "delay": "10-20"}],
+                    "noise": [
+                        {
+                            "type": "array",
+                            "packet": [1, 2, 255],
+                            "delay": "10-20",
+                        }
+                    ],
                 },
             },
         ],
