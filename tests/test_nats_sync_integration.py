@@ -184,24 +184,31 @@ async def test_sync_recovery_preserves_queued_users_and_active_claims(jetstream,
         await store.close()
 
 
-async def test_restored_queue_retries_and_drains_after_attach(jetstream, monkeypatch):
+@pytest.mark.parametrize("transport", ["grpc", "rest"])
+async def test_restored_queue_retries_and_drains_after_attach(jetstream, monkeypatch, transport):
     from unittest.mock import AsyncMock
 
     import certifi
-    from PasarGuardNodeBridge.controller import Controller
+    from PasarGuardNodeBridge import NodeType
 
+    from app.node.bridge import create_node
     from app.operation import node as node_operation
+    from config import nats_settings
 
+    monkeypatch.setattr(nats_settings, "node_update_users_batch_size", 100)
     original = NatsUserSyncStore(jetstream.kv)
     try:
         await original.enqueue_users("91", [User(email=f"restored-{index}") for index in range(1200)])
     finally:
         await original.close()
     store = NatsUserSyncStore(jetstream.kv)
-    node = Controller(
+    node = create_node(
+        connection=NodeType(transport),
         server_ca=certifi.contents(),
         api_key=str(uuid4()),
-        service_url="https://localhost:1",
+        address="localhost",
+        port=1,
+        api_port=1,
         node_id="91",
         user_sync_store=store,
         sync_lease_seconds=60,
@@ -213,8 +220,10 @@ async def test_restored_queue_retries_and_drains_after_attach(jetstream, monkeyp
     delivered = []
     attempts = 0
 
-    async def sync_chunked(*, users, **kwargs):
+    async def sync_chunked(users, **kwargs):
         nonlocal attempts
+        assert 1 <= len(users) <= 100
+        assert kwargs["flush_pending"] is False
         attempts += 1
         await asyncio.sleep(0.02)
         if attempts == 1:
@@ -232,10 +241,12 @@ async def test_restored_queue_retries_and_drains_after_attach(jetstream, monkeyp
                 await asyncio.sleep(0.02)
             await wait_for_keys(store, "p.91.", 0)
             await wait_for_keys(store, "c.91.", 0)
-        assert attempts == 2
+        assert attempts == 13  # twelve bounded batches plus the failed first attempt
         assert len(set(delivered)) == 1200
     finally:
         await node.disconnect()
+        if hasattr(node, "channel"):
+            node.channel.close()
         await store.close()
 
 
