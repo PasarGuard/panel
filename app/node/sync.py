@@ -3,6 +3,8 @@ import asyncio
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_object_session
 
+from app.db import GetDB
+from app.db.crud.wireguard import get_users_accessible_tags
 from app.db.models import Admin, AdminRole, AdminStatus, User
 from app.models.user import UserNotificationResponse
 from app.nats.node_rpc import encode_node_command, node_nats_client
@@ -13,6 +15,53 @@ from app.utils.logger import get_logger
 from config import nats_settings, runtime_settings
 
 logger = get_logger("node-sync")
+_user_sync_locks: dict[int, asyncio.Lock] = {}
+
+
+async def _acquire_user_sync_locks(user_ids: list[int]) -> list[asyncio.Lock]:
+    """Acquire per-user dispatch locks in a stable order."""
+    locks = [_user_sync_locks.setdefault(user_id, asyncio.Lock()) for user_id in sorted(set(user_ids))]
+    acquired: list[asyncio.Lock] = []
+    try:
+        for lock in locks:
+            await lock.acquire()
+            acquired.append(lock)
+    except BaseException:
+        _release_user_sync_locks(acquired)
+        raise
+    return acquired
+
+
+def _release_user_sync_locks(locks: list[asyncio.Lock]) -> None:
+    """Release per-user dispatch locks in reverse acquisition order."""
+    for lock in reversed(locks):
+        lock.release()
+
+
+async def _load_current_inbound_tags(user_ids: list[int]) -> dict[int, set[str]]:
+    """Load current access in a short-lived transaction before node dispatch."""
+    async with GetDB() as db:
+        return await get_users_accessible_tags(db, user_ids)
+
+
+async def _dispatch_users_after_unlock(proto_users, locks: list[asyncio.Lock]) -> None:
+    """Dispatch a queued user update and release its ordering locks afterward."""
+    try:
+        await _dispatch_users_update(proto_users)
+    except Exception:
+        logger.exception("Failed to dispatch user updates")
+    finally:
+        _release_user_sync_locks(locks)
+
+
+async def _dispatch_user_update_after_unlock(proto_user, locks: list[asyncio.Lock]) -> None:
+    """Dispatch one queued user update and release its ordering lock."""
+    try:
+        await _dispatch_user_update(proto_user)
+    except Exception:
+        logger.exception("Failed to dispatch user update")
+    finally:
+        _release_user_sync_locks(locks)
 
 
 def _chunk_serialized_users_for_nats(users: list[dict]) -> list[list[dict]]:
@@ -146,29 +195,69 @@ else:
 
 
 async def sync_user(db_user: User) -> None:
-    if await _user_sync_blocked(db_user):
-        return
-
-    proto_user = await serialize_user(db_user)
-    asyncio.create_task(_dispatch_user_update(proto_user))
+    """Serialize and dispatch one user without overtaking another update."""
+    locks = await _acquire_user_sync_locks([db_user.id])
+    try:
+        if await _user_sync_blocked(db_user):
+            return
+        proto_user = await serialize_user(db_user)
+        asyncio.create_task(_dispatch_user_update_after_unlock(proto_user, locks))
+        locks = []
+    finally:
+        _release_user_sync_locks(locks)
 
 
 async def remove_user(user: UserNotificationResponse) -> None:
-    proto_user = _serialize_user_for_node(user.id, user.proxy_settings.dict())
-    asyncio.create_task(_dispatch_user_update(proto_user))
+    """Dispatch a removal update in order with other updates for the user."""
+    locks = await _acquire_user_sync_locks([user.id])
+    try:
+        proto_user = _serialize_user_for_node(user.id, user.proxy_settings.dict())
+        asyncio.create_task(_dispatch_user_update_after_unlock(proto_user, locks))
+        locks = []
+    finally:
+        _release_user_sync_locks(locks)
 
 
 async def remove_users(users: list[User]) -> None:
     """Batch-remove users from nodes (serialized without inbounds so nodes drop them)."""
     if not users:
         return
-    proto_users = [_serialize_user_for_node(u.id, u.proxy_settings) for u in users]
-    asyncio.create_task(_dispatch_users_update(proto_users))
+    locks = await _acquire_user_sync_locks([user.id for user in users])
+    try:
+        proto_users = [_serialize_user_for_node(user.id, user.proxy_settings) for user in users]
+        asyncio.create_task(_dispatch_users_after_unlock(proto_users, locks))
+        locks = []
+    finally:
+        _release_user_sync_locks(locks)
 
 
-async def sync_users(users: list[User]) -> None:
-    """Sync users to nodes, excluding users whose admin has users_sync_blocked."""
-    blocked_admin_ids = await _blocked_admin_ids_for_users(users)
-    filtered = [user for user in users if user.admin_id not in blocked_admin_ids]
-    proto_users = await serialize_users_for_node(filtered)
-    asyncio.create_task(_dispatch_users_update(proto_users))
+async def sync_users(
+    users: list[User],
+    *,
+    inbound_tags_by_user: dict[int, set[str]] | None = None,
+    refresh_inbound_tags: bool = False,
+    wait_for_dispatch: bool = False,
+) -> None:
+    """Sync users to nodes in order, excluding blocked administrators."""
+    locks = await _acquire_user_sync_locks([user.id for user in users])
+    try:
+        blocked_admin_ids = await _blocked_admin_ids_for_users(users)
+        filtered = [user for user in users if user.admin_id not in blocked_admin_ids]
+        if refresh_inbound_tags:
+            inbound_tags_by_user = await _load_current_inbound_tags([user.id for user in filtered])
+        if inbound_tags_by_user is None:
+            proto_users = await serialize_users_for_node(filtered)
+        else:
+            proto_users = await serialize_users_for_node(filtered, inbound_tags_by_user=inbound_tags_by_user)
+
+        if wait_for_dispatch:
+            await _dispatch_users_update(proto_users)
+            _release_user_sync_locks(locks)
+            locks = []
+        else:
+            # Keep the locks until the actual dispatch completes. This also
+            # preserves ordering for callers that intentionally do not wait.
+            asyncio.create_task(_dispatch_users_after_unlock(proto_users, locks))
+            locks = []
+    finally:
+        _release_user_sync_locks(locks)
