@@ -878,6 +878,31 @@ export const ECHQueryStrategy = {
 } as const;
 
 /**
+ * Xray-specific ECH settings.
+ */
+export interface XrayECHSettings {
+  config_list?: string | null;
+  query_strategy?: ECHQueryStrategy | null;
+}
+
+/**
+ * ECH settings shared by Mihomo and sing-box clients.
+ */
+export interface ClientECHSettings {
+  config?: string | null;
+  query_server_name?: string | null;
+}
+
+/**
+ * Per-client ECH settings stored together on a host.
+ */
+export interface ECHSettings {
+  xray?: XrayECHSettings | null;
+  mihomo?: ClientECHSettings | null;
+  sing_box?: ClientECHSettings | null;
+}
+
+/**
  * Optional per-host values merged into WireGuard subscription output.
  */
 export interface WireGuardHostOverrides {
@@ -1116,8 +1141,7 @@ export interface BaseHost {
   vless_route?: string | null;
   priority: number;
   status?: UserStatus[] | null;
-  ech_config_list?: string | null;
-  ech_query_strategy?: ECHQueryStrategy | null;
+  ech?: ECHSettings | null;
   pinned_peer_cert_sha256?: string | null;
   verify_peer_cert_by_name?: string[] | null;
   wireguard_overrides?: WireGuardHostOverrides | null;
@@ -1491,8 +1515,7 @@ export interface CreateHost {
   vless_route?: string | null;
   priority: number;
   status?: UserStatus[] | null;
-  ech_config_list?: string | null;
-  ech_query_strategy?: ECHQueryStrategy | null;
+  ech?: ECHSettings | null;
   pinned_peer_cert_sha256?: string | null;
   verify_peer_cert_by_name?: string[] | null;
   wireguard_overrides?: WireGuardHostOverrides | null;

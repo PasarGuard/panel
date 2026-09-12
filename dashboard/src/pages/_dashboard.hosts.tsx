@@ -69,14 +69,41 @@ export default function HostsPage() {
         priority = maxPriority + 1
       }
 
+      const { ech_config_list, ech_query_strategy, mihomo_ech_config, mihomo_ech_query_server_name, sing_box_ech_config, sing_box_ech_query_server_name, ...hostFields } = formData
+      const ech =
+        ech_config_list || ech_query_strategy || mihomo_ech_config || mihomo_ech_query_server_name || sing_box_ech_config || sing_box_ech_query_server_name
+          ? {
+              xray:
+                ech_config_list || ech_query_strategy
+                  ? {
+                      config_list: ech_config_list || undefined,
+                      query_strategy: ech_query_strategy || undefined,
+                    }
+                  : undefined,
+              mihomo:
+                mihomo_ech_config || mihomo_ech_query_server_name
+                  ? {
+                      config: mihomo_ech_config || undefined,
+                      query_server_name: mihomo_ech_query_server_name || undefined,
+                    }
+                  : undefined,
+              sing_box:
+                sing_box_ech_config || sing_box_ech_query_server_name
+                  ? {
+                      config: sing_box_ech_config || undefined,
+                      query_server_name: sing_box_ech_query_server_name || undefined,
+                    }
+                  : undefined,
+            }
+          : undefined
+
       // Convert HostFormValues to CreateHost type
       const hostData: CreateHost = {
-        ...formData,
+        ...hostFields,
         priority,
         alpn: formData.alpn as ProxyHostALPN[] | undefined,
         fingerprint: formData.fingerprint as ProxyHostFingerprint | undefined,
-        ech_config_list: formData.ech_config_list || undefined,
-        ech_query_strategy: formData.ech_query_strategy || undefined,
+        ech,
         pinned_peer_cert_sha256: formData.pinned_peer_cert_sha256 || undefined,
         verify_peer_cert_by_name: formData.verify_peer_cert_by_name && formData.verify_peer_cert_by_name.length > 0 ? formData.verify_peer_cert_by_name : undefined,
         vless_route: formData.vless_route || undefined,
