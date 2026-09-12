@@ -1,5 +1,6 @@
 from random import choice
 
+import yaml
 from pydantic import BaseModel
 
 from app.models.proxy import GeneralAuthSettings
@@ -30,6 +31,9 @@ class ClashConfiguration(BaseSubscription):
             general_auth=general_auth,
         )
         self.clash_template_content = clash_template_content
+        self.template_handlers = {
+            "authentication": self._configure_authentication,
+        }
         self.data = {
             "proxies": [],
             "proxy-groups": [],
@@ -60,10 +64,39 @@ class ClashConfiguration(BaseSubscription):
         }
 
     def render(self):
-        return render_template_string(
+        rendered = render_template_string(
             self.clash_template_content,
             {"conf": self.data, "proxy_remarks": self.proxy_remarks},
         )
+        if self.general_auth is None:
+            return rendered
+
+        config = yaml.safe_load(rendered)
+        return yaml.dump(
+            self._configure_template(config),
+            sort_keys=False,
+            allow_unicode=True,
+        )
+
+    def _configure_template(self, config: dict | None) -> dict | None:
+        if self.general_auth is None or not isinstance(config, dict):
+            return config
+
+        for field, handler in self.template_handlers.items():
+            if field in config:
+                handler(config[field])
+
+        return config
+
+    def _configure_authentication(self, authentication: object) -> None:
+        credentials = self.general_auth
+        if credentials is None or not isinstance(authentication, list):
+            return
+
+        replacement = f"{credentials.username}:{credentials.password}"
+        for index, value in enumerate(authentication):
+            if value == ":":
+                authentication[index] = replacement
 
     def __str__(self) -> str:
         return self.render()

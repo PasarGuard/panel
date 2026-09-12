@@ -35,6 +35,13 @@ class XrayConfiguration(BaseSubscription):
         self.config = []
         self.template = json.loads(xray_template_content) if xray_template_content else {}
 
+        # Registry for template handlers
+        self.template_inbound_handlers = {
+            "socks": self._configure_socks,
+            "http": self._configure_http,
+        }
+        self._configure_inbounds(self.template)
+
         # Registry for transport handlers
         self.transport_handlers = {
             "ws": self._transport_ws,
@@ -60,8 +67,7 @@ class XrayConfiguration(BaseSubscription):
             "wireguard": self._build_wireguard,
         }
 
-    def add_config(self, remarks, outbounds, template_content: str | None = None):
-        json_template = json.loads(template_content) if template_content is not None else self.template.copy()
+    def add_config(self, remarks, outbounds, json_template):
         json_template["remarks"] = remarks
         json_template["outbounds"] = outbounds + json_template["outbounds"]
         self.config.append(json_template)
@@ -97,7 +103,64 @@ class XrayConfiguration(BaseSubscription):
         else:
             all_outbounds = [result]
 
-        self.add_config(remarks=remark, outbounds=all_outbounds, template_content=template_content)
+        if template_content is not None:
+            json_template = json.loads(template_content)
+            self._configure_inbounds(json_template)
+        else:
+            json_template = self.template.copy()
+
+        self.add_config(remarks=remark, outbounds=all_outbounds, json_template=json_template)
+
+    # ========== Inbound Configurators (Registry Methods) ==========
+
+    def _configure_inbounds(self, config: dict) -> None:
+        if self.general_auth is None:
+            return
+
+        inbounds = config.get("inbounds")
+        if not isinstance(inbounds, list):
+            return
+
+        for inbound in inbounds:
+            if not isinstance(inbound, dict):
+                continue
+
+            handler = self.template_inbound_handlers.get(inbound.get("protocol"))
+            if handler is not None:
+                handler(inbound)
+
+    def _configure_socks(self, inbound: dict) -> None:
+        settings = inbound.get("settings")
+        if not isinstance(settings, dict):
+            return
+
+        if self._replace_user_placeholders(settings.get("users")):
+            settings["auth"] = "password"
+
+    def _configure_http(self, inbound: dict) -> None:
+        settings = inbound.get("settings")
+        if not isinstance(settings, dict):
+            return
+
+        self._replace_user_placeholders(settings.get("users"))
+
+    def _replace_user_placeholders(self, users: object) -> bool:
+        credentials = self.general_auth
+        if credentials is None or not isinstance(users, list):
+            return False
+
+        replaced = False
+        for user in users:
+            if not isinstance(user, dict):
+                continue
+            if user.get("user") != "" or user.get("pass") != "":
+                continue
+
+            user["user"] = credentials.username
+            user["pass"] = credentials.password
+            replaced = True
+
+        return replaced
 
     # ========== Transport Handlers (Registry Methods) ==========
 
