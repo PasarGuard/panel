@@ -15,6 +15,7 @@ from app.models.subscription import (
 )
 
 from . import BaseSubscription
+from .base import dumps_compact
 
 
 class XrayConfiguration(BaseSubscription):
@@ -63,7 +64,7 @@ class XrayConfiguration(BaseSubscription):
         self.config.append(json_template)
 
     def render(self):
-        return json.dumps(self.config, indent=4)
+        return dumps_compact(self.config)
 
     def add(
         self,

@@ -11,6 +11,7 @@ from app.models.subscription import (
 )
 
 from . import BaseSubscription
+from .base import dumps_compact
 
 
 class SingBoxConfiguration(BaseSubscription):
@@ -58,7 +59,7 @@ class SingBoxConfiguration(BaseSubscription):
 
     def render(self):
         self._finalize_config()
-        return json.dumps(self.config, indent=4)
+        return dumps_compact(self.config)
 
     def _finalize_config(self):
         urltest_types = ["vmess", "vless", "trojan", "shadowsocks", "hysteria2", "tuic", "http", "ssh"]

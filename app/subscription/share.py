@@ -14,6 +14,7 @@ from app.models.subscription import SubscriptionInboundData
 from app.models.user import UsersResponseWithInbounds
 from app.settings import subscription_settings
 from app.subscription.client_templates import subscription_client_templates, subscription_xray_templates
+from app.subscription.config_cache import get_sub_config, make_sub_config_key, put_sub_config
 from app.utils.system import readable_size
 
 from . import (
@@ -83,6 +84,11 @@ async def generate_subscription(
     as_base64: bool,
     randomize_order: bool = False,
 ) -> str | bytes:
+    cache_key = make_sub_config_key(user, config_format, as_base64, randomize_order)
+    cached = get_sub_config(cache_key)
+    if cached is not None:
+        return cached
+
     client_templates = await subscription_client_templates()
     xray_template_overrides = await subscription_xray_templates() if config_format == "xray" else None
     conf = _build_subscription_config(config_format, client_templates)
@@ -106,6 +112,7 @@ async def generate_subscription(
     if as_base64 and not isinstance(config, bytes):
         config = base64.b64encode(config.encode()).decode()
 
+    put_sub_config(cache_key, config)
     return config
 
 
@@ -338,36 +345,28 @@ async def process_host(
     if inbound.use_sni_as_host and sni:
         req_host = sni
 
-    # Create a copy of the inbound data with selected random values
-    # Deep copy tls_config and transport_config to avoid mutating cached host data
+    # Copy only the nested models we mutate so cached host objects stay intact.
+    transport_update: dict = {"host": req_host, "path": path}
+    if getattr(inbound.transport_config, "request", None):
+        transport_update["request"] = _format_dynamic_value(
+            inbound.transport_config.request,
+            format_variables,
+        )
+    if getattr(inbound.transport_config, "response", None):
+        transport_update["response"] = _format_dynamic_value(
+            inbound.transport_config.response,
+            format_variables,
+        )
     inbound_copy = inbound.model_copy(
         update={
-            "tls_config": inbound.tls_config.model_copy(deep=True),
-            "transport_config": inbound.transport_config.model_copy(deep=True),
+            "tls_config": inbound.tls_config.model_copy(
+                update={"sni": sni, "reality_short_id": reality_sid},
+            ),
+            "transport_config": inbound.transport_config.model_copy(update=transport_update),
+            "address": address,
+            "port": port,
         }
     )
-
-    # Update TLS config with selected values
-    inbound_copy.tls_config.sni = sni
-    inbound_copy.tls_config.reality_short_id = reality_sid
-
-    # Update transport config with selected host
-    inbound_copy.transport_config.host = req_host
-    inbound_copy.transport_config.path = path
-    if getattr(inbound_copy.transport_config, "request", None):
-        inbound_copy.transport_config.request = _format_dynamic_value(
-            inbound_copy.transport_config.request,
-            format_variables,
-        )
-    if getattr(inbound_copy.transport_config, "response", None):
-        inbound_copy.transport_config.response = _format_dynamic_value(
-            inbound_copy.transport_config.response,
-            format_variables,
-        )
-
-    # Update address and port with selected values
-    inbound_copy.address = address
-    inbound_copy.port = port
 
     return inbound_copy, settings
 

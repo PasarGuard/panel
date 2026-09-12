@@ -20,6 +20,7 @@ from app.db.models import ReminderType, User, UserStatus
 from app.jobs.dependencies import SYSTEM_ADMIN
 from app.models.settings import Webhook
 from app.models.user import UserNotificationResponse
+from app.node.sync import sync_users
 from app.operation import OperatorType
 from app.operation.user import UserOperation
 from app.settings import webhook_settings
@@ -30,48 +31,72 @@ logger = get_logger("review-users")
 user_operator = UserOperation(operator_type=OperatorType.SYSTEM)
 
 
-async def change_status(db: AsyncSession, db_user: User, status: UserStatus):
-    next_plan_activated = bool(db_user.next_plan) and status != UserStatus.active
-    if next_plan_activated:
-        db_user = await reset_user_by_next(
-            db,
-            db_user,
-            clean_chart_data=usage_settings.reset_user_usage_clean_chart_data,
-        )
-
-    user = await user_operator.update_user(db_user)
-
-    if next_plan_activated:
-        asyncio.create_task(notification.user_data_reset_by_next(user, SYSTEM_ADMIN))
-        logger.info(f'User "{db_user.username}" next plan activated')
-        return
-
+async def _notify_status_change(db_user: User, status: UserStatus) -> None:
+    user = await user_operator.validate_user(db_user)
     asyncio.create_task(notification.user_status_change(user, SYSTEM_ADMIN))
     logger.info(f'User "{user.username}" status changed to {status.value}')
+
+
+async def _notify_next_plan(db_user: User) -> None:
+    user = await user_operator.validate_user(db_user)
+    asyncio.create_task(notification.user_data_reset_by_next(user, SYSTEM_ADMIN))
+    logger.info(f'User "{db_user.username}" next plan activated')
+
+
+async def apply_status_changes(db: AsyncSession, users: list[User], status: UserStatus) -> None:
+    """Bulk-sync status changes, only walking next-plan users one by one."""
+    if not users:
+        return
+
+    next_plan_users: list[User] = []
+    plain_users: list[User] = []
+    for user in users:
+        if user.next_plan is not None and status != UserStatus.active:
+            next_plan_users.append(user)
+        else:
+            plain_users.append(user)
+
+    if plain_users:
+        if status in (UserStatus.expired, UserStatus.limited):
+            await update_users_status(db, plain_users, status)
+        await sync_users(plain_users)
+        for db_user in plain_users:
+            await _notify_status_change(db_user, status)
+
+    if not next_plan_users:
+        return
+
+    reset_users: list[User] = []
+    for db_user in next_plan_users:
+        reset_users.append(
+            await reset_user_by_next(
+                db,
+                db_user,
+                clean_chart_data=usage_settings.reset_user_usage_clean_chart_data,
+            )
+        )
+    await sync_users(reset_users)
+    for db_user in reset_users:
+        await _notify_next_plan(db_user)
 
 
 async def expire_users_job():
     async with GetDB() as db:
         if expired_users := await get_active_to_expire_users(db):
-            updated_users = await update_users_status(db, expired_users, UserStatus.expired)
-            for user in updated_users:
-                await change_status(db, user, UserStatus.expired)
+            await apply_status_changes(db, expired_users, UserStatus.expired)
 
 
 async def limit_users_job():
     async with GetDB() as db:
         if limited_users := await get_active_to_limited_users(db):
-            updated_users = await update_users_status(db, limited_users, UserStatus.limited)
-            for user in updated_users:
-                await change_status(db, user, UserStatus.limited)
+            await apply_status_changes(db, limited_users, UserStatus.limited)
 
 
 async def on_hold_to_active_users_job():
     async with GetDB() as db:
         if on_hold_users := await get_on_hold_to_active_users(db):
             updated_users = await start_users_expire(db, on_hold_users)
-            for user in updated_users:
-                await change_status(db, user, UserStatus.active)
+            await apply_status_changes(db, updated_users, UserStatus.active)
 
 
 async def usage_percent_notification_job():

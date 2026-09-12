@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 from collections import defaultdict
 from typing import Any
@@ -510,27 +511,89 @@ async def test_safe_execute_raises_after_deadlock_retries(monkeypatch: pytest.Mo
         await record_usages.safe_execute("stmt", [{"uid": 1}], max_retries=3)
 
 
+@pytest.fixture(autouse=True)
+def _reset_usage_job_state():
+    record_usages._usage_coefficient_cache.clear()
+    record_usages._user_usage_running = False
+    record_usages._node_usage_running = False
+    yield
+    record_usages._usage_coefficient_cache.clear()
+    record_usages._user_usage_running = False
+    record_usages._node_usage_running = False
+
+
 @pytest.mark.asyncio
-async def test_record_user_usages_skips_when_already_running(monkeypatch: pytest.MonkeyPatch):
+async def test_record_user_usages_skips_when_already_running(monkeypatch: pytest.MonkeyPatch, caplog):
     impl = AsyncMock()
     monkeypatch.setattr(record_usages, "_record_user_usages_impl", impl)
     record_usages._user_usage_running = True
-    try:
-        await record_usages.record_user_usages()
-    finally:
-        record_usages._user_usage_running = False
+    caplog.set_level(logging.WARNING)
+    await record_usages.record_user_usages()
 
     impl.assert_not_awaited()
+    assert "JOB_RECORD_USER_USAGES_INTERVAL" in caplog.text
+    assert "UVICORN_WORKERS" in caplog.text
 
 
 @pytest.mark.asyncio
-async def test_record_node_usages_skips_when_already_running(monkeypatch: pytest.MonkeyPatch):
+async def test_record_node_usages_skips_when_already_running(monkeypatch: pytest.MonkeyPatch, caplog):
     impl = AsyncMock()
     monkeypatch.setattr(record_usages, "_record_node_usages_impl", impl)
     record_usages._node_usage_running = True
-    try:
-        await record_usages.record_node_usages()
-    finally:
-        record_usages._node_usage_running = False
+    caplog.set_level(logging.WARNING)
+    await record_usages.record_node_usages()
 
     impl.assert_not_awaited()
+    assert "JOB_RECORD_NODE_USAGES_INTERVAL" in caplog.text
+    assert "UVICORN_WORKERS" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_record_user_usages_does_not_apply_global_timeout(monkeypatch: pytest.MonkeyPatch):
+    impl = AsyncMock()
+    wait_for = AsyncMock(side_effect=AssertionError("wait_for should not run"))
+    monkeypatch.setattr(record_usages, "_record_user_usages_impl", impl)
+    monkeypatch.setattr(record_usages.asyncio, "wait_for", wait_for)
+
+    await record_usages.record_user_usages()
+
+    impl.assert_awaited_once()
+    wait_for.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_record_user_usages_warns_when_slower_than_interval(monkeypatch: pytest.MonkeyPatch, caplog):
+    clock = {"t": 0.0}
+
+    async def impl():
+        clock["t"] = 15.0
+
+    monkeypatch.setattr(record_usages.time, "monotonic", lambda: clock["t"])
+    monkeypatch.setattr(record_usages, "_record_user_usages_impl", impl)
+    monkeypatch.setattr(record_usages.job_settings, "record_user_usages_interval", 10)
+    caplog.set_level(logging.WARNING)
+
+    await record_usages.record_user_usages()
+
+    assert "exceeds the 10s interval" in caplog.text
+    assert "UVICORN_WORKERS" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_usage_coefficient_is_cached_across_collects(monkeypatch: pytest.MonkeyPatch):
+    node = DummyNode(1, usage_coefficient=2)
+    extra_calls = {"n": 0}
+    original_get_extra = node.get_extra
+
+    async def counting_get_extra():
+        extra_calls["n"] += 1
+        return await original_get_extra()
+
+    node.get_extra = counting_get_extra
+    monkeypatch.setattr(record_usages, "get_users_stats", AsyncMock(return_value=[]))
+
+    first = await record_usages._collect_node_user_usage(node, 1)
+    second = await record_usages._collect_node_user_usage(node, 1)
+
+    assert extra_calls["n"] == 1
+    assert first[1] == second[1] == 2.0
