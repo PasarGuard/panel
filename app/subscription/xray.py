@@ -518,6 +518,7 @@ class XrayConfiguration(BaseSubscription):
             "protocol": "wireguard",
             "tag": "proxy",
             "settings": {
+                "remoteDNS": inbound.wireguard_dns,
                 "secretKey": private_key,
                 "address": peer_ips,
                 "peers": [self._normalize_and_remove_none_values(peer)],
