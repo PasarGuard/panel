@@ -32,6 +32,13 @@ class SingBoxConfiguration(BaseSubscription):
         self.config.setdefault("endpoints", [])
         self.config.setdefault("outbounds", [])
 
+        self.template_inbound_handlers = {
+            "mixed": self._configure_mixed,
+            "socks": self._configure_socks,
+            "http": self._configure_http,
+        }
+        self._configure_inbounds(self.config)
+
         # Registry for transport handlers
         self.transport_handlers = {
             "http": self._transport_http,
@@ -114,6 +121,51 @@ class SingBoxConfiguration(BaseSubscription):
                 self.add_endpoint(built)
             else:
                 self.add_outbound(built)
+
+    # ========== Inbound Configurators (Registry Methods) ==========
+
+    def _configure_inbounds(self, config: dict) -> None:
+        if self.general_auth is None:
+            return
+
+        inbounds = config.get("inbounds")
+        if not isinstance(inbounds, list):
+            return
+
+        for inbound in inbounds:
+            if not isinstance(inbound, dict):
+                continue
+
+            handler = self.template_inbound_handlers.get(inbound.get("type"))
+            if handler is not None:
+                handler(inbound)
+
+    def _configure_mixed(self, inbound: dict) -> None:
+        self._replace_user_placeholders(inbound.get("users"))
+
+    def _configure_socks(self, inbound: dict) -> None:
+        self._replace_user_placeholders(inbound.get("users"))
+
+    def _configure_http(self, inbound: dict) -> None:
+        self._replace_user_placeholders(inbound.get("users"))
+
+    def _replace_user_placeholders(self, users: object) -> bool:
+        credentials = self.general_auth
+        if credentials is None or not isinstance(users, list):
+            return False
+
+        replaced = False
+        for user in users:
+            if not isinstance(user, dict):
+                continue
+            if user.get("username") != "" or user.get("password") != "":
+                continue
+
+            user["username"] = credentials.username
+            user["password"] = credentials.password
+            replaced = True
+
+        return replaced
 
     # ========== Transport Handlers ==========
 
