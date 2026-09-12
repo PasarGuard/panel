@@ -2,7 +2,7 @@ import { DatePicker, type DatePickerAlign, type DatePickerSide } from '@/compone
 import { DecimalInput } from '@/components/common/decimal-input'
 import GroupsSelector from '@/components/common/groups-selector'
 import { TimeUnitSelect, TIME_UNIT_SECONDS, type TimeUnit } from '@/components/common/time-unit-select'
-import UsageModal from '@/features/users/dialogs/usage-modal'
+import UsageModal from '@/features/users/dialogs/usage-modal.lazy'
 import UserAllIPsModal from '@/features/users/dialogs/user-all-ips-modal'
 import { UserHwidsModal } from '@/features/users/dialogs/user-hwids-modal'
 import { UserSubscriptionClientsModal } from '@/features/users/dialogs/user-subscription-clients-modal'
