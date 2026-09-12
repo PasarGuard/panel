@@ -1,5 +1,7 @@
 """Compact completed node-sync work on the scheduler leader only."""
 
+import asyncio
+
 from app import scheduler
 from app.nats import needs_shared_bridge_memory
 from app.nats.client import create_nats_client, get_jetstream_context
@@ -18,9 +20,12 @@ async def cleanup_node_sync():
     if nc is None:
         return
     try:
-        count = await compact_deleted_keys(await get_jetstream_context(nc), nats_settings.node_user_sync_kv_bucket)
+        async with asyncio.timeout(240):
+            count = await compact_deleted_keys(await get_jetstream_context(nc), nats_settings.node_user_sync_kv_bucket)
         if count:
             logger.info("Compacted %s completed node-sync keys", count)
+    except TimeoutError:
+        logger.warning("node-sync key compaction timed out; retrying on the next interval")
     finally:
         await nc.close()
 

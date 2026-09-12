@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 from sqlalchemy import delete, event, func, select
 from sqlalchemy.exc import SQLAlchemyError
@@ -133,4 +135,68 @@ async def test_flush_discards_deleted_users(buffer_db, monkeypatch, include_live
     monkeypatch.setattr(sub_update_buffer, "FLUSH_BATCH_SIZE", 100)
     await sub_update_buffer.queue_user_sub_update(user_id, "next-client")
     assert await sub_update_buffer.flush_user_sub_updates() == 1
+    assert sub_update_buffer.pending_count() == 0
+
+
+@pytest.mark.asyncio
+async def test_second_flush_waits_until_in_flight_drain_commits(buffer_db, monkeypatch):
+    session, user_id = buffer_db
+    inner_cls = sub_update_buffer.GetDB
+    first_entered = asyncio.Event()
+    release = asyncio.Event()
+    calls = {"n": 0}
+
+    class WrappedGetDB:
+        def __init__(self):
+            self._inner = inner_cls()
+
+        async def __aenter__(self):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                first_entered.set()
+                await release.wait()
+            return await self._inner.__aenter__()
+
+        async def __aexit__(self, exc_type, exc_value, traceback):
+            return await self._inner.__aexit__(exc_type, exc_value, traceback)
+
+    monkeypatch.setattr(sub_update_buffer, "GetDB", WrappedGetDB)
+    await sub_update_buffer.queue_user_sub_update(user_id, "first-client")
+    first_flush = asyncio.create_task(sub_update_buffer.flush_user_sub_updates())
+    await first_entered.wait()
+    await sub_update_buffer.queue_user_sub_update(user_id, "second-client")
+    second_flush = asyncio.create_task(sub_update_buffer.flush_user_sub_updates())
+    await asyncio.sleep(0.05)
+    assert not second_flush.done()
+    release.set()
+    written = await first_flush + await second_flush
+    assert written == 2
+    assert second_flush.done()
+    assert sub_update_buffer.pending_count() == 0
+    rows = (await session.execute(select(UserSubscriptionUpdate))).scalars().all()
+    assert sorted(row.user_agent for row in rows) == ["first-client", "second-client"]
+    await session.commit()
+
+
+@pytest.mark.asyncio
+async def test_queue_spawns_flush_only_when_crossing_batch_size(buffer_db, monkeypatch):
+    _session, user_id = buffer_db
+    created: list[str | None] = []
+    real_create_task = asyncio.create_task
+
+    def tracking_create_task(coro, *args, **kwargs):
+        created.append(kwargs.get("name"))
+        coro.close()
+        return real_create_task(asyncio.sleep(0), name=kwargs.get("name"))
+
+    monkeypatch.setattr(sub_update_buffer.asyncio, "create_task", tracking_create_task)
+    monkeypatch.setattr(sub_update_buffer, "FLUSH_BATCH_SIZE", 2)
+
+    await sub_update_buffer.queue_user_sub_update(user_id, "one")
+    assert created == []
+    await sub_update_buffer.queue_user_sub_update(user_id, "two")
+    assert created == ["sub_update_flush"]
+    await sub_update_buffer.queue_user_sub_update(user_id, "three")
+    assert created == ["sub_update_flush"]
+    await sub_update_buffer.reset_user_sub_update_buffer()
     assert sub_update_buffer.pending_count() == 0

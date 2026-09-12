@@ -21,7 +21,6 @@ from app.models.subscription import SubscriptionUsageQuery
 from app.models.user import SubscriptionUserResponse, UsersResponseWithInbounds
 from app.settings import hwid_settings, subscription_settings
 from app.subscription import sub_update_buffer as _sub_update_buffer  # noqa: F401  # registers per-worker flush loop
-from app.subscription.config_cache import SUB_CONFIG_CACHE_TTL_S
 from app.subscription.share import (
     apply_custom_format_variables,
     encode_title,
@@ -212,10 +211,10 @@ class SubscriptionOperation(BaseOperation):
             "subscription-userinfo": "; ".join(f"{key}={val}" for key, val in user_info.items()),
             "announce": encode_title(formatted_announce),
             "announce-url": formatted_announce_url,
-            "Cache-Control": f"private, max-age={SUB_CONFIG_CACHE_TTL_S}",
         }
         if extra_headers:
             headers.update(extra_headers)
+        headers["Cache-Control"] = "no-store"
         return headers
 
     @classmethod

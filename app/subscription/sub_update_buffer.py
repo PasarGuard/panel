@@ -30,7 +30,7 @@ _HWID_MAX_LEN = UserSubscriptionUpdate.__table__.columns.hwid.type.length or 256
 
 _pending: list[dict[str, Any]] = []
 _lock = asyncio.Lock()
-_flushing = False
+_drain_lock = asyncio.Lock()
 _flush_task: asyncio.Task | None = None
 
 
@@ -52,10 +52,8 @@ def pending_count() -> int:
 
 async def reset_user_sub_update_buffer() -> None:
     """Drop queued rows without writing. Tests only."""
-    global _flushing
     async with _lock:
         _pending.clear()
-        _flushing = False
 
 
 async def queue_user_sub_update(user_id: int, user_agent: str, ip: str | None = None, hwid: str | None = None) -> None:
@@ -64,12 +62,13 @@ async def queue_user_sub_update(user_id: int, user_agent: str, ip: str | None = 
     should_flush = False
     dropped = 0
     async with _lock:
+        prev = len(_pending)
         _pending.append(record)
         overflow = len(_pending) - _MAX_BUFFER
         if overflow > 0:
             del _pending[:overflow]
             dropped = overflow
-        should_flush = len(_pending) >= FLUSH_BATCH_SIZE
+        should_flush = prev < FLUSH_BATCH_SIZE <= len(_pending)
     if dropped:
         logger.warning("Dropped %s buffered subscription updates; buffer full", dropped)
     if should_flush:
@@ -77,48 +76,42 @@ async def queue_user_sub_update(user_id: int, user_agent: str, ip: str | None = 
 
 
 async def flush_user_sub_updates() -> int:
-    """Persist queued rows. Returns the number of rows written in this call."""
-    global _flushing
-    written = 0
-    while True:
-        async with _lock:
-            if _flushing:
-                return written
-            if not _pending:
-                return written
-            _flushing = True
-            batch = _pending[:FLUSH_BATCH_SIZE]
-            del _pending[:FLUSH_BATCH_SIZE]
-        try:
-            async with GetDB() as db:
-                # Users can be deleted after their subscription request was queued.
-                # Lock surviving parents until commit so concurrent deletes cannot
-                # invalidate the foreign keys between this read and the insert.
-                user_ids = sorted({record["user_id"] for record in batch})
-                existing_user_ids = set(
-                    await db.scalars(
-                        select(User.id)
-                        .where(User.id.in_(user_ids))
-                        .order_by(User.id)
-                        .with_for_update(read=True, key_share=True)
+    """Persist queued rows. Concurrent callers wait, then drain anything left."""
+    async with _drain_lock:
+        written = 0
+        while True:
+            async with _lock:
+                if not _pending:
+                    return written
+                batch = _pending[:FLUSH_BATCH_SIZE]
+                del _pending[:FLUSH_BATCH_SIZE]
+            try:
+                async with GetDB() as db:
+                    # Users can be deleted after their subscription request was queued.
+                    # Lock surviving parents until commit so concurrent deletes cannot
+                    # invalidate the foreign keys between this read and the insert.
+                    user_ids = sorted({record["user_id"] for record in batch})
+                    existing_user_ids = set(
+                        await db.scalars(
+                            select(User.id)
+                            .where(User.id.in_(user_ids))
+                            .order_by(User.id)
+                            .with_for_update(read=True, key_share=True)
+                        )
                     )
-                )
-                live_records = [record for record in batch if record["user_id"] in existing_user_ids]
-                if live_records:
-                    await db.execute(insert(UserSubscriptionUpdate.__table__), live_records)
-                await db.commit()
-            written += len(live_records)
-        except Exception:
-            async with _lock:
-                _pending[0:0] = batch
-                overflow = len(_pending) - _MAX_BUFFER
-                if overflow > 0:
-                    del _pending[:overflow]
-            logger.exception("Failed to flush %s buffered subscription updates", len(batch))
-            raise
-        finally:
-            async with _lock:
-                _flushing = False
+                    live_records = [record for record in batch if record["user_id"] in existing_user_ids]
+                    if live_records:
+                        await db.execute(insert(UserSubscriptionUpdate.__table__), live_records)
+                    await db.commit()
+                written += len(live_records)
+            except Exception:
+                async with _lock:
+                    _pending[0:0] = batch
+                    overflow = len(_pending) - _MAX_BUFFER
+                    if overflow > 0:
+                        del _pending[:overflow]
+                logger.exception("Failed to flush %s buffered subscription updates", len(batch))
+                raise
 
 
 async def _flush_loop() -> None:
