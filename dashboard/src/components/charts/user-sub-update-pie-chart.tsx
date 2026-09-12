@@ -231,7 +231,7 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
   const [chartView, setChartView] = useState<'bar' | 'pie'>('pie')
   const [selectedAdmin, setSelectedAdmin] = useState<string>('all')
   const [selectedAdminId, setSelectedAdminId] = useState<number | null>(() => (adminId != null ? adminId : null))
-  const [selectedTime, setSelectedTime] = useState<TrafficShortcutKey>('all')
+  const [selectedTime, setSelectedTime] = useState<TrafficShortcutKey>('1m')
   const [periodOverride, setPeriodOverride] = useState<ChartPeriodOverride>(CHART_PERIOD_OVERRIDE_AUTO)
   const [showCustomRange, setShowCustomRange] = useState(false)
   const [customRange, setCustomRange] = useState<DateRange | undefined>(undefined)
