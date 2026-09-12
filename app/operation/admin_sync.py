@@ -1,8 +1,7 @@
 from app.db import AsyncSession, GetDB
 from app.db.crud.admin import get_active_to_limited_admins, update_admin_status
-from app.db.crud.user import get_users
+from app.db.crud.user import get_admin_users_for_node_sync
 from app.db.models import Admin, AdminStatus, UserStatus
-from app.models.user import UserListQuery
 from app.node.sync import remove_users as sync_remove_users, sync_users
 
 
@@ -31,14 +30,14 @@ async def sync_admin_users_for_block_transition(
         return 0
 
     if is_blocked:
-        users = await get_users(
+        users = await get_admin_users_for_node_sync(
             db,
-            query=UserListQuery(status=[UserStatus.active, UserStatus.on_hold]),
-            admin=admin,
+            admin.id,
+            statuses=[UserStatus.active, UserStatus.on_hold],
         )
         await sync_remove_users(users)
     else:
-        users = await get_users(db, query=UserListQuery(), admin=admin, load_admin_role=True)
+        users = await get_admin_users_for_node_sync(db, admin.id)
         await sync_users(users)
 
     return len(users)
