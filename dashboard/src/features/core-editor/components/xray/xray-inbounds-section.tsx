@@ -32,7 +32,7 @@ import { getInboundSecuritySelectOptions, getInboundTransportSelectOptions, tran
 import { profileDuplicateTagMessage, profileTagHasDuplicateUsage } from '@/features/core-editor/kit/profile-tag-uniqueness'
 import { remapIndexAfterArrayMove } from '@/features/core-editor/kit/remap-index-after-move'
 import { isPlaceholderTunnelRewriteAddress, normalizeTunnelNetworkForKit } from '@/features/core-editor/kit/sanitize-inbound'
-import { inferParityFieldMode, outboundSettingToString, parseOutboundSettingValue, stringifyJsonFormRecord } from '@/features/core-editor/kit/xray-parity-value'
+import { coerceVerifyPeerCertByNameList, inferParityFieldMode, outboundSettingToString, parseOutboundSettingValue, stringifyJsonFormRecord } from '@/features/core-editor/kit/xray-parity-value'
 import { useCoreEditorStore } from '@/features/core-editor/state/core-editor-store'
 import { RealityScanDialog } from '@/features/core-editor/components/xray/reality-scan-dialog'
 import useDirDetection from '@/hooks/use-dir-detection'
@@ -120,7 +120,8 @@ const INBOUND_SECURITY_PARITY_PLACEHOLDER: Readonly<Record<string, string>> = {
   mldsa65Seed: 'ML-DSA-65 seed (PQ REALITY)',
   mldsa65Verify: 'ML-DSA-65 verify public key',
   pinnedPeerCertificateChainSha256: 'SHA256 fingerprints of peer cert chain (base64, one per line)',
-  verifyPeerCertInNames: 'Certificate SAN/CN substring to verify',
+  verifyPeerCertByName: 'Certificate SAN/CN names to verify (comma-separated)',
+  verifyPeerCertInNames: 'Certificate SAN/CN names to verify (comma-separated)',
   echServerKeys: 'ECH server keys (PEM or base64 per Xray)',
   echConfigList: 'ECH ECHConfigList (base64)',
 }
@@ -2427,7 +2428,12 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
   const patchSecurity = (patch: Record<string, unknown>) => {
     const security = inbound ? getInboundSecurityRecord(inbound) : null
     if (!security) return
-    const merged = { ...security, ...patch } as Security
+    const merged = { ...security, ...patch } as Record<string, unknown>
+    if ('verifyPeerCertByName' in merged) {
+      const names = coerceVerifyPeerCertByNameList(merged.verifyPeerCertByName)
+      if (names === undefined) delete merged.verifyPeerCertByName
+      else merged.verifyPeerCertByName = names
+    }
     patchInbound({ security: merged } as Partial<Inbound>)
   }
 
