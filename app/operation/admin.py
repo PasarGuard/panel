@@ -38,7 +38,12 @@ from app.models.admin import (
 )
 from app.models.stats import Period, UserUsageStatsList
 from app.models.user import UserListQuery
-from app.node.sync import remove_user as sync_remove_user, sync_users
+from app.node.sync import (
+    finalize_users_removal,
+    remove_users_and_wait,
+    resolve_user_removal_after_db_error,
+    sync_users,
+)
 from app.operation import BaseOperation
 from app.operation.admin_sync import admin_users_sync_blocked, sync_admin_users_for_block_transition
 from app.operation.permissions import PermissionDenied, enforce_permission
@@ -268,9 +273,14 @@ class AdminOperation(BaseOperation):
         user_operation = UserOperation(self.operator_type)
         serialized_users = [await user_operation.validate_user(user) for user in users]
 
-        await remove_users(db, users)
-        for user in serialized_users:
-            await sync_remove_user(user)
+        revocation = await remove_users_and_wait(users)
+        try:
+            await remove_users(db, users)
+        except BaseException:
+            await resolve_user_removal_after_db_error(revocation, db)
+            raise
+        if revocation is not None:
+            await finalize_users_removal(revocation)
         for user in serialized_users:
             asyncio.create_task(notification.remove_user(user, admin))
 

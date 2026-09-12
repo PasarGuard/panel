@@ -15,9 +15,7 @@ from fastapi import status
 from sqlalchemy import delete, event, func, select, update
 
 from app.db.crud.hwid import register_user_hwid
-from app.db.crud.user import get_user as get_db_user
-from app.db.crud.user import get_users as get_db_users
-from app.db.crud.user import update_users_status
+from app.db.crud.user import get_user as get_db_user, get_users as get_db_users, update_users_status
 from app.db.models import NodeUserUsage, User, UserStatus, UserUsageResetLogs
 from app.models.settings import ConfigFormat, SubRule, Subscription
 from app.models.stats import Period, UserCountMetric, UserCountMetricStat, UserCountMetricStatsList
@@ -27,7 +25,7 @@ from app.operation.subscription import SubscriptionOperation
 from app.utils import jwt as jwt_utils
 from app.utils.crypto import generate_wireguard_keypair, get_wireguard_public_key
 from app.utils.jwt import create_admin_token, create_subscription_token, get_secret_key, get_subscription_payload
-from config import usage_settings
+from config import subscription_env_settings, usage_settings
 from tests.api import TestSession, client, engine
 from tests.api.helpers import (
     auth_headers,
@@ -979,6 +977,51 @@ def test_user_subscriptions(access_token):
         for host in hosts:
             client.delete(f"/api/host/{host['id']}", headers={"Authorization": f"Bearer {access_token}"})
         cleanup_groups(access_token, core, groups)
+
+
+def test_disabled_user_cannot_download_subscription_configs(access_token):
+    core, groups = setup_groups(access_token, 1)
+    hosts = create_hosts_for_inbounds(access_token)
+    user = create_user(
+        access_token,
+        group_ids=[group["id"] for group in groups],
+        payload={"username": unique_name("disabled_subscription")},
+    )
+    try:
+        disable_response = client.put(
+            f"/api/user/by-id/{user['id']}/disabled",
+            headers=auth_headers(access_token),
+            json={"disabled": True},
+        )
+        assert disable_response.status_code == status.HTTP_200_OK
+
+        for config_format in ("links", "xray", "clash", "sing_box", "apps"):
+            response = client.get(f"{user['subscription_url']}/{config_format}")
+            assert response.status_code == status.HTTP_403_FORBIDDEN
+
+        info_response = client.get(f"{user['subscription_url']}/info")
+        assert info_response.status_code == status.HTTP_200_OK
+        assert info_response.json()["status"] == "disabled"
+
+        raw_response = client.get(f"{user['subscription_url']}/raw")
+        assert raw_response.status_code == status.HTTP_200_OK
+        assert raw_response.json()["body"]["links"] == []
+
+        page_response = client.get(user["subscription_url"], headers={"Accept": "text/html"})
+        assert page_response.status_code == status.HTTP_200_OK
+        assert 'class="link-input"' not in page_response.text
+    finally:
+        delete_user(access_token, user["username"])
+        for host in hosts:
+            client.delete(f"/api/host/{host['id']}", headers=auth_headers(access_token))
+        cleanup_groups(access_token, core, groups)
+
+
+def test_public_subscription_openapi_documents_expected_errors():
+    schema = client.app.openapi()
+    documented = schema["paths"][f"/{subscription_env_settings.path}/{{token}}/"]["get"]["responses"]
+
+    assert {"400", "403", "404", "406", "422"}.issubset(documented)
 
 
 def test_user_subscription_head_route(access_token):

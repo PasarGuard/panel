@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
@@ -13,6 +14,18 @@ from app.operation import node as node_operation_module
 from app.operation.node import NodeOperation
 
 
+def _patch_locked_runtime(monkeypatch: pytest.MonkeyPatch, pg_node):
+    calls: list[int] = []
+
+    @asynccontextmanager
+    async def locked_runtime(node_id: int):
+        calls.append(node_id)
+        yield pg_node
+
+    monkeypatch.setattr(node_operation_module.node_manager, "locked_runtime", locked_runtime)
+    return calls
+
+
 def test_default_timeout_allows_slow_node_startup():
     assert NodeModify(default_timeout=300).default_timeout == 300
 
@@ -26,8 +39,10 @@ async def test_attach_requires_remote_core_to_be_started():
         observed=LifecycleStatus.BROKEN,
         desired=LifecycleStatus.HEALTHY,
         epoch=1,
+        operation=None,
     )
     pg_node = SimpleNamespace(
+        node_id="slow-node-namespace",
         get_lifecycle_state=AsyncMock(return_value=state),
         info=AsyncMock(
             return_value=SimpleNamespace(
@@ -45,8 +60,13 @@ async def test_attach_requires_remote_core_to_be_started():
 
 @pytest.mark.asyncio
 async def test_start_or_attach_probes_broken_desired_healthy_lifecycle(monkeypatch: pytest.MonkeyPatch):
-    state = SimpleNamespace(observed=LifecycleStatus.BROKEN, desired=LifecycleStatus.HEALTHY)
-    pg_node = SimpleNamespace(get_lifecycle_state=AsyncMock(return_value=state), start=AsyncMock())
+    state = SimpleNamespace(observed=LifecycleStatus.BROKEN, desired=LifecycleStatus.HEALTHY, operation=None)
+    pg_node = SimpleNamespace(
+        node_id="slow-node-namespace",
+        get_lifecycle_state=AsyncMock(return_value=state),
+        reconcile_users=AsyncMock(),
+        start=AsyncMock(),
+    )
     attached = object()
     attach = AsyncMock(return_value=attached)
     monkeypatch.setattr(NodeOperation, "_attach_if_running", attach)
@@ -61,6 +81,7 @@ async def test_start_or_attach_probes_broken_desired_healthy_lifecycle(monkeypat
 
     assert result is attached
     attach.assert_awaited_once_with(pg_node, "slow-node")
+    pg_node.reconcile_users.assert_awaited_once_with([])
     pg_node.start.assert_not_awaited()
 
 
@@ -68,7 +89,9 @@ async def test_start_or_attach_probes_broken_desired_healthy_lifecycle(monkeypat
 async def test_force_start_skips_attach_and_starts_core(monkeypatch: pytest.MonkeyPatch):
     started = SimpleNamespace(node_version="0.5.4", core_version="26.3.27")
     pg_node = SimpleNamespace(
-        get_lifecycle_state=AsyncMock(),
+        node_id="england-namespace",
+        get_lifecycle_state=AsyncMock(return_value=None),
+        info=AsyncMock(return_value=SimpleNamespace(user_sync_epoch_supported=True)),
         start=AsyncMock(return_value=started),
         stop=AsyncMock(),
     )
@@ -94,12 +117,12 @@ async def test_force_start_skips_attach_and_starts_core(monkeypatch: pytest.Monk
 
 @pytest.mark.asyncio
 async def test_connect_node_attaches_when_remote_start_finishes_after_timeout(monkeypatch: pytest.MonkeyPatch):
-    pg_node = object()
+    pg_node = SimpleNamespace(node_id="slow-node-namespace", reconcile_users=AsyncMock())
     db_node = SimpleNamespace(id=19, name="slow-node", status=NodeStatus.connecting)
     core = SimpleNamespace(type=object())
     attached = SimpleNamespace(node_version="0.5.4", core_version="1.0.20260223")
 
-    monkeypatch.setattr(node_operation_module.node_manager, "get_node", AsyncMock(return_value=pg_node))
+    runtime_calls = _patch_locked_runtime(monkeypatch, pg_node)
     monkeypatch.setattr(
         NodeOperation,
         "_start_or_attach_node",
@@ -119,12 +142,15 @@ async def test_connect_node_attaches_when_remote_start_finishes_after_timeout(mo
         "old_status": NodeStatus.connecting,
     }
     attach.assert_awaited_once_with(pg_node, "slow-node")
+    assert runtime_calls == [19]
+    pg_node.reconcile_users.assert_awaited_once_with([])
 
 
 @pytest.mark.asyncio
 async def test_health_check_attaches_ambiguous_timed_out_start_before_reconnect(monkeypatch: pytest.MonkeyPatch):
     state = SimpleNamespace(observed=LifecycleStatus.BROKEN, desired=LifecycleStatus.HEALTHY)
     node = MagicMock()
+    node._extra = {}
     node.requires_hard_reset.return_value = False
     node.get_lifecycle_state = AsyncMock(return_value=state)
     db_node = SimpleNamespace(id=19, name="slow-node", status=NodeStatus.error)
@@ -163,6 +189,7 @@ def _patch_health_check_db(monkeypatch: pytest.MonkeyPatch):
 async def test_health_check_reapplies_config_when_keep_alive_stopped_core(monkeypatch: pytest.MonkeyPatch):
     """pg-node keep-alive stops Xray but leaves HTTP up. Panel must POST /start again."""
     node = MagicMock()
+    node._extra = {}
     node.requires_hard_reset.return_value = False
     node.get_lifecycle_state = AsyncMock(return_value=None)
     node.update_observed_lifecycle = AsyncMock()
@@ -185,6 +212,7 @@ async def test_health_check_reapplies_config_when_keep_alive_stopped_core(monkey
 @pytest.mark.asyncio
 async def test_health_check_waits_when_core_not_started_during_in_flight_start(monkeypatch: pytest.MonkeyPatch):
     node = MagicMock()
+    node._extra = {}
     node.requires_hard_reset.return_value = False
     node.get_lifecycle_state = AsyncMock(return_value=None)
     node.update_observed_lifecycle = AsyncMock()
@@ -221,6 +249,7 @@ def test_should_reconnect_skips_core_not_started_500():
 async def test_health_check_waits_when_core_is_still_starting(monkeypatch: pytest.MonkeyPatch):
     """pg-node still has a backend object; another Start would kill that process."""
     node = MagicMock()
+    node._extra = {}
     node.requires_hard_reset.return_value = False
     node.get_lifecycle_state = AsyncMock(return_value=None)
     node.update_observed_lifecycle = AsyncMock()
@@ -241,19 +270,21 @@ async def test_health_check_waits_when_core_is_still_starting(monkeypatch: pytes
 
 
 @pytest.mark.asyncio
-async def test_connect_node_skips_when_already_healthy(monkeypatch: pytest.MonkeyPatch):
+async def test_connect_node_delegates_running_core_decision_to_lifecycle_path(monkeypatch: pytest.MonkeyPatch):
     pg_node = SimpleNamespace(
+        node_id="hetz-tunnel-namespace",
         get_health=AsyncMock(return_value=Health.HEALTHY),
         get_versions=AsyncMock(return_value=("0.5.4", "26.3.27")),
         start=AsyncMock(),
     )
     db_node = SimpleNamespace(id=3, name="Hetz Tunnel", status=NodeStatus.connected)
-    monkeypatch.setattr(node_operation_module.node_manager, "get_node", AsyncMock(return_value=pg_node))
-    start_or_attach = AsyncMock()
+    runtime_calls = _patch_locked_runtime(monkeypatch, pg_node)
+    start_or_attach = AsyncMock(return_value=None)
     monkeypatch.setattr(NodeOperation, "_start_or_attach_node", start_or_attach)
 
-    result = await NodeOperation.connect_node(db_node, object(), [])
+    result = await NodeOperation.connect_node(db_node, SimpleNamespace(type=None), [])
 
     assert result is None
-    start_or_attach.assert_not_awaited()
+    assert runtime_calls == [3]
+    start_or_attach.assert_awaited_once()
     pg_node.start.assert_not_awaited()

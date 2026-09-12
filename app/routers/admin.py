@@ -310,7 +310,7 @@ async def activate_all_disabled_users_by_id(
     return {}
 
 
-@router.delete("/{username}/users", responses={403: responses._403, 404: responses._404})
+@router.delete("/{username}/users", responses={403: responses._403, 404: responses._404, 503: responses._503})
 async def remove_all_users(
     username: str,
     db: AsyncSession = Depends(get_db),
@@ -321,7 +321,9 @@ async def remove_all_users(
     return {"detail": f"operation has been successfuly done {deleted} users deleted"}
 
 
-@router.delete("/by-username/{username}/users", responses={403: responses._403, 404: responses._404})
+@router.delete(
+    "/by-username/{username}/users", responses={403: responses._403, 404: responses._404, 503: responses._503}
+)
 async def remove_all_users_by_username(
     username: str,
     db: AsyncSession = Depends(get_db),
@@ -331,7 +333,7 @@ async def remove_all_users_by_username(
     return {"detail": f"operation has been successfuly done {deleted} users deleted"}
 
 
-@router.delete("/by-id/{admin_id}/users", responses={403: responses._403, 404: responses._404})
+@router.delete("/by-id/{admin_id}/users", responses={403: responses._403, 404: responses._404, 503: responses._503})
 async def remove_all_users_by_id(
     admin_id: int,
     db: AsyncSession = Depends(get_db),
@@ -456,7 +458,7 @@ async def bulk_activate_all_disabled_users(
 @router.delete(
     "s/bulk/users",
     response_model=BulkAdminsActionResponse,
-    responses={400: responses._400, 403: responses._403, 404: responses._404},
+    responses={400: responses._400, 403: responses._403, 404: responses._404, 503: responses._503},
 )
 async def bulk_remove_all_users(
     bulk_admins: BulkAdminSelection,

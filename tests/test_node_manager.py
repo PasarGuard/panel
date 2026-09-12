@@ -1,4 +1,5 @@
 import pytest
+from PasarGuardNodeBridge.common.service_pb2 import User as ProtoUser
 
 from app.db.models import Node
 from app.node import NodeManager
@@ -8,11 +9,16 @@ class _FakePGNode:
     def __init__(self, **kwargs):
         self.kwargs = kwargs
         self.name = kwargs.get("name")
+        self.node_id = kwargs.get("node_id")
+        self._extra = kwargs.get("extra", {})
         self.set_health_calls = 0
         self.stop_calls = 0
 
     async def get_extra(self):
         return self.kwargs.get("extra", {})
+
+    async def disconnect(self):
+        pass
 
     async def set_health(self, health):
         self.set_health_calls += 1
@@ -34,15 +40,17 @@ def _make_node(node_id: int, **overrides) -> Node:
     defaults.update(overrides)
     node = Node(**defaults)
     node.id = node_id
+    node.bridge_id = f"fixture-node-{node_id}"
     return node
 
 
 @pytest.mark.asyncio
 async def test_update_node_reuses_object_and_skips_remote_stop_when_unchanged(monkeypatch: pytest.MonkeyPatch):
     """A reconnect attempt (e.g. the health-check watchdog) with no config change must not
-    kill the remote backend — that used to defeat attach-if-already-running and turn a
+    kill the remote backend РІР‚вЂќ that used to defeat attach-if-already-running and turn a
     transient health-check false negative into a permanent Start/Stop restart loop."""
     manager = NodeManager()
+    manager._uses_shared_revocation_store = False
 
     monkeypatch.setattr("app.node.ensure_bridge_memory", lambda: _AwaitableNone())
     monkeypatch.setattr("app.node.get_bridge_memory", lambda: (None, None, None))
@@ -76,7 +84,7 @@ class _AwaitableNone:
 @pytest.mark.asyncio
 async def test_node_manager_bulk_user_sync_uses_bounded_chunked_batches(monkeypatch: pytest.MonkeyPatch):
     manager = NodeManager()
-    users = [object() for _ in range(5)]
+    users = [ProtoUser(email=str(index)) for index in range(5)]
 
     class FakeNode:
         def __init__(self):
@@ -102,7 +110,7 @@ async def test_node_manager_bulk_user_sync_falls_back_when_chunked_is_not_suppor
     monkeypatch: pytest.MonkeyPatch,
 ):
     manager = NodeManager()
-    users = [object() for _ in range(3)]
+    users = [ProtoUser(email=str(index)) for index in range(3)]
 
     class FakeNode:
         def __init__(self):
@@ -128,6 +136,7 @@ async def test_update_node_replaces_on_name_or_coefficient_change(monkeypatch: p
     """Test that if the node name or usage_coefficient changes, the node is replaced,
     since we cannot refresh metadata through the bridge API."""
     manager = NodeManager()
+    manager._uses_shared_revocation_store = False
 
     monkeypatch.setattr("app.node.ensure_bridge_memory", lambda: _AwaitableNone())
     monkeypatch.setattr("app.node.get_bridge_memory", lambda: (None, None, None))
@@ -136,16 +145,16 @@ async def test_update_node_replaces_on_name_or_coefficient_change(monkeypatch: p
 
     node1 = _make_node(1, name="old-name", usage_coefficient=1.0)
     first = await manager.update_node(node1)
-    
+
     # Unchanged
     same = await manager.update_node(_make_node(1, name="old-name", usage_coefficient=1.0))
     assert same is first
-    
+
     # Name change
     node2 = _make_node(1, name="new-name", usage_coefficient=1.0)
     second = await manager.update_node(node2)
     assert second is not first
-    
+
     # Coefficient change
     node3 = _make_node(1, name="new-name", usage_coefficient=2.0)
     third = await manager.update_node(node3)

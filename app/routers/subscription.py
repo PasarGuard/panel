@@ -7,11 +7,22 @@ from app.models.stats import UserUsageStatsList
 from app.models.user import SubscriptionUserResponse
 from app.operation import OperatorType
 from app.operation.subscription import SubscriptionOperation
+from app.utils import responses
 from config import subscription_env_settings
 
 from .dependencies import get_subscription_headers, get_subscription_usage_query
 
-router = APIRouter(tags=["Subscription"], prefix=f"/{subscription_env_settings.path}")
+router = APIRouter(
+    tags=["Subscription"],
+    prefix=f"/{subscription_env_settings.path}",
+    responses={
+        400: responses._400,
+        403: responses._403,
+        404: responses._404,
+        406: responses._406,
+        422: responses._422,
+    },
+)
 subscription_operator = SubscriptionOperation(operator_type=OperatorType.API)
 
 
