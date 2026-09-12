@@ -17,9 +17,10 @@ import { CoreEditorFormDialog } from '@/features/core-editor/components/shared/c
 import { TcpHeaderObfuscationForm } from '@/features/core-editor/components/shared/tcp-header-obfuscation-form'
 import { VlessAdvancedGenerationModal } from '@/features/core-editor/components/shared/vless-advanced-generation-modal'
 import { isBooleanParityField, isJsonRawMessageField, transportParityFieldLabel, XrayParityFormControl } from '@/features/core-editor/components/shared/xray-parity-form-control'
-import { pruneSockoptObject, XrayStreamSockoptInboundAccordion } from '@/features/core-editor/components/shared/xray-stream-sockopt-editor'
 import { XrayStreamFinalmaskInboundAccordion } from '@/features/core-editor/components/shared/xray-stream-finalmask-editor'
+import { pruneSockoptObject, XrayStreamSockoptInboundAccordion } from '@/features/core-editor/components/shared/xray-stream-sockopt-editor'
 import { InboundFallbacksEditor } from '@/features/core-editor/components/xray/inbound-fallbacks-editor'
+import { RealityScanDialog } from '@/features/core-editor/components/xray/reality-scan-dialog'
 import { useSectionHeaderAddPulseEffect, type SectionHeaderAddPulse } from '@/features/core-editor/hooks/use-section-header-add-pulse'
 import { useXrayPersistModifyGuard } from '@/features/core-editor/hooks/use-xray-persist-modify-guard'
 import {
@@ -34,7 +35,6 @@ import { remapIndexAfterArrayMove } from '@/features/core-editor/kit/remap-index
 import { isPlaceholderTunnelRewriteAddress, normalizeTunnelNetworkForKit } from '@/features/core-editor/kit/sanitize-inbound'
 import { coerceVerifyPeerCertByNameList, inferParityFieldMode, outboundSettingToString, parseOutboundSettingValue, stringifyJsonFormRecord } from '@/features/core-editor/kit/xray-parity-value'
 import { useCoreEditorStore } from '@/features/core-editor/state/core-editor-store'
-import { RealityScanDialog } from '@/features/core-editor/components/xray/reality-scan-dialog'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { cn } from '@/lib/utils'
 import {
@@ -443,10 +443,7 @@ function hysteriaSalamanderSettingsForForm(inbound: Inbound): HysteriaSalamander
 }
 
 /** Write Salamander into `streamSettings.finalmask.udp` per Xray docs; clear legacy `transport.udpmasks`. */
-function applyHysteriaSalamanderToStreamAdvanced(
-  inbound: Inbound,
-  next: { password?: string; packetSize?: string } | undefined,
-): Record<string, unknown> | undefined {
+function applyHysteriaSalamanderToStreamAdvanced(inbound: Inbound, next: { password?: string; packetSize?: string } | undefined): Record<string, unknown> | undefined {
   const streamAdvanced = (inbound as { streamAdvanced?: unknown }).streamAdvanced
   const nextStreamAdvanced = isPlainRecord(streamAdvanced) ? { ...streamAdvanced } : {}
   const finalmask = isPlainRecord(nextStreamAdvanced.finalmask) ? { ...nextStreamAdvanced.finalmask } : {}
@@ -553,7 +550,7 @@ function stripHysteriaInboundAuth(ib: Inbound): Inbound {
   const nextTransport = { ...ib.transport } as Record<string, unknown>
   delete nextTransport.auth
   // Hysteria requires TLS — coerce legacy `none` security.
-  const security = ib.security.type === 'none' ? ({ type: 'tls' as const, serverName: '' }) : ib.security
+  const security = ib.security.type === 'none' ? { type: 'tls' as const, serverName: '' } : ib.security
   return {
     ...ib,
     clients: [],
@@ -1287,11 +1284,13 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
       let network = watchedTransport
       if (watchedProtocol === 'shadowsocks') network = watchedShadowsocksNetwork
 
-      if (network) tag += `${tagSeparator}${network}`
+      if (watchedProtocol === 'hysteria' && network === 'hysteria') tag += ''
+      else if (network) tag += `${tagSeparator}${network}`
       if (watchedSecurity && watchedSecurity !== 'none') tag += `${tagSeparator}${watchedSecurity}`
       if (watchedPort) tag += `${tagSeparator}${watchedPort}`
 
       tag = tag.toUpperCase()
+      tag = tag.replace(',', tagSeparator)
 
       form.setValue('tag', tag)
       patchInbound({ tag })
@@ -2070,11 +2069,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
   )
 
   const patchHysteriaServerSettings = useCallback(
-    (patch: {
-      udpIdleTimeout?: number | undefined
-      masquerade?: Record<string, unknown> | undefined
-      salamander?: { password?: string; packetSize?: string } | undefined
-    }) => {
+    (patch: { udpIdleTimeout?: number | undefined; masquerade?: Record<string, unknown> | undefined; salamander?: { password?: string; packetSize?: string } | undefined }) => {
       if (!inbound || inbound.protocol !== 'hysteria' || inbound.transport.type !== 'hysteria') return
       // Xray Hysteria inbound JSON must keep settings.clients empty and omit hysteriaSettings.auth.
       const nextTransport = { ...inbound.transport } as Record<string, unknown>
@@ -2879,12 +2874,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
 
                 {inbound.protocol === 'vless' && (
                   <div className="flex flex-col gap-2 sm:col-span-2 sm:flex-row">
-                    <LoaderButton
-                      type="button"
-                      onClick={openInboundVlessGenerator}
-                      className="h-10 w-full flex-1 text-sm font-medium transition-all hover:shadow-md sm:h-11"
-                      isLoading={false}
-                    >
+                    <LoaderButton type="button" onClick={openInboundVlessGenerator} className="h-10 w-full flex-1 text-sm font-medium transition-all hover:shadow-md sm:h-11" isLoading={false}>
                       <span className="flex items-center gap-2 truncate">
                         {vlessDecryptionJustGenerated && <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-green-500 ring-2 ring-green-500/20" />}
                         {t('coreConfigModal.generateVLESSEncryption')}
@@ -3189,9 +3179,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                       render={({ field }) => (
                         <FormItem className="flex min-h-10 flex-row items-center justify-between gap-3 space-y-0 rounded-md border px-3 py-2 sm:col-span-2">
                           <div className="min-w-0 space-y-0.5">
-                            <FormLabel className="cursor-pointer text-sm font-medium">
-                              {t('coreEditor.inbound.hysteria.obfs', { defaultValue: 'Salamander obfuscation (FinalMask)' })}
-                            </FormLabel>
+                            <FormLabel className="cursor-pointer text-sm font-medium">{t('coreEditor.inbound.hysteria.obfs', { defaultValue: 'Salamander obfuscation (FinalMask)' })}</FormLabel>
                             <p className="text-muted-foreground text-[11px]">
                               {t('coreEditor.inbound.hysteria.obfsHint', {
                                 defaultValue: 'Writes streamSettings.finalmask.udp salamander. Optional packetSize enables Gecko (max 2048).',
@@ -3372,9 +3360,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                             name="hysteriaMasqueradeRewriteHost"
                             render={({ field }) => (
                               <FormItem className="flex min-h-10 flex-row items-center justify-between gap-3 space-y-0 rounded-md border px-3 py-2">
-                                <FormLabel className="cursor-pointer text-sm font-medium">
-                                  {t('coreEditor.inbound.hysteria.masqueradeRewriteHost', { defaultValue: 'Rewrite Host' })}
-                                </FormLabel>
+                                <FormLabel className="cursor-pointer text-sm font-medium">{t('coreEditor.inbound.hysteria.masqueradeRewriteHost', { defaultValue: 'Rewrite Host' })}</FormLabel>
                                 <FormControl>
                                   <Switch
                                     checked={field.value === 'true'}
@@ -3392,9 +3378,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                             name="hysteriaMasqueradeInsecure"
                             render={({ field }) => (
                               <FormItem className="flex min-h-10 flex-row items-center justify-between gap-3 space-y-0 rounded-md border px-3 py-2">
-                                <FormLabel className="cursor-pointer text-sm font-medium">
-                                  {t('coreEditor.inbound.hysteria.masqueradeInsecure', { defaultValue: 'Insecure' })}
-                                </FormLabel>
+                                <FormLabel className="cursor-pointer text-sm font-medium">{t('coreEditor.inbound.hysteria.masqueradeInsecure', { defaultValue: 'Insecure' })}</FormLabel>
                                 <FormControl>
                                   <Switch
                                     checked={field.value === 'true'}
@@ -3624,18 +3608,14 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
 
                         {inboundTransportType === 'xhttp' &&
                           (() => {
-                            const sessionPlacementValue = String(
-                              getTransportMetaValue(xhttpExtra, 'sessionidplacement') ?? getTransportMetaValue(xhttpExtra, 'sessionplacement') ?? '',
-                            )
-                            const sessionKeyValue = String(
-                              getTransportMetaValue(xhttpExtra, 'sessionidkey') ?? getTransportMetaValue(xhttpExtra, 'sessionkey') ?? '',
-                            )
+                            const sessionPlacementValue = String(getTransportMetaValue(xhttpExtra, 'sessionidplacement') ?? getTransportMetaValue(xhttpExtra, 'sessionplacement') ?? '')
+                            const sessionKeyValue = String(getTransportMetaValue(xhttpExtra, 'sessionidkey') ?? getTransportMetaValue(xhttpExtra, 'sessionkey') ?? '')
                             const placementKey = 'sessionidplacement'
                             const placementOtherKey = 'sessionplacement'
                             const keyKey = 'sessionidkey'
                             const keyOtherKey = 'sessionkey'
                             return (
-                              <div className="grid gap-3 sm:grid-cols-2 sm:col-span-2">
+                              <div className="grid gap-3 sm:col-span-2 sm:grid-cols-2">
                                 <FormItem>
                                   <FormLabel className="text-xs font-medium">{t('hostsDialog.xhttp.sessionPlacement', { defaultValue: 'Session Placement' })}</FormLabel>
                                   <Select
@@ -3663,12 +3643,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                                 <FormItem>
                                   <FormLabel className="text-xs font-medium">{t('hostsDialog.xhttp.sessionKey', { defaultValue: 'Session Key' })}</FormLabel>
                                   <FormControl>
-                                    <Input
-                                      dir="ltr"
-                                      className="h-10 text-xs"
-                                      value={sessionKeyValue}
-                                      onChange={e => updateXhttpMetaBatch({ [keyKey]: e.target.value, [keyOtherKey]: undefined })}
-                                    />
+                                    <Input dir="ltr" className="h-10 text-xs" value={sessionKeyValue} onChange={e => updateXhttpMetaBatch({ [keyKey]: e.target.value, [keyOtherKey]: undefined })} />
                                   </FormControl>
                                 </FormItem>
                               </div>
@@ -5831,8 +5806,6 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
           toast.success(t('coreConfigModal.vlessEncryptionGenerated'))
         }}
       />
-
-
 
       <RealityScanDialog open={isRealityScanOpen} onOpenChange={setIsRealityScanOpen} initialTarget={realityScanTarget} />
 
