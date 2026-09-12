@@ -429,10 +429,26 @@ class BulkUsersProxy(BulkUserFilter):
     method: ShadowsocksMethods | None = Field(default=None)
 
 
+class BulkWireGuardPeerIPs(BulkUserFilter):
+    """Re-seat WireGuard peer IPs (same scoping as BulkUser: users, admins, group_ids, status)."""
+
+    confirm: bool = False
+    replace_all: bool = False
+
+
 class BulkOperationDryRunResponse(BaseModel):
     """Preview for bulk user/group operations (no DB writes)."""
 
     dry_run: bool = True
+    affected_users: int
+
+
+class WireGuardPeerIPsReallocateResponse(BaseModel):
+    wireguard_inbound_tags: int
+    candidates: int
+    updated: int
+    dry_run: bool
+    sample_usernames: list[str]
     affected_users: int
 
 

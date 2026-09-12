@@ -80,9 +80,20 @@ def _serialize_user_for_node(
     if ProxyProtocol.hysteria in allowed_protocols:
         proxy_kwargs["hysteria_auth"] = user_settings.get("hysteria", {}).get("auth")
 
+    proxy = create_proxy(**proxy_kwargs)
+    if (
+        pre_shared_key := wireguard_settings.get("pre_shared_key")
+        if ProxyProtocol.wireguard in allowed_protocols
+        else None
+    ):
+        try:
+            proxy.wireguard.pre_shared_key = pre_shared_key
+        except AttributeError as exc:
+            raise RuntimeError("PasarGuardNodeBridge protobufs do not support WireGuard pre_shared_key") from exc
+
     return create_user(
         str(id),
-        create_proxy(**proxy_kwargs),
+        proxy,
         inbounds,
     )
 
