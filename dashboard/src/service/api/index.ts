@@ -3,7 +3,7 @@
  * Do not edit manually.
  * PasarGuardAPI
  * Unified GUI Censorship Resistant Solution
- * OpenAPI spec version: 5.4.0
+ * OpenAPI spec version: 5.4.1
  */
 import {
   useMutation,
