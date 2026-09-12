@@ -86,6 +86,104 @@ async def wait_for_keys(store, prefix, count, timeout=10):
             await asyncio.sleep(0.005)
 
 
+async def test_connect_broadcasts_do_not_reload_users_in_four_processes(jetstream):
+    subject = "reconnect." + uuid4().hex
+    workers = []
+    try:
+        for index in range(4):
+            worker = await asyncio.create_subprocess_exec(
+                sys.executable,
+                str(Path(__file__).with_name("node_reconnect_process_worker.py")),
+                jetstream.url,
+                subject,
+                f"worker-{index}",
+                "40",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            workers.append(worker)
+        for worker in workers:
+            async with asyncio.timeout(30):
+                assert (await worker.stdout.readline()).strip() == b"READY"
+        for _ in range(40):
+            await jetstream.nc.publish(
+                subject, json.dumps({"action": "connect", "node_id": 91, "origin": "external"}).encode()
+            )
+        await jetstream.nc.flush()
+        for worker in workers:
+            async with asyncio.timeout(30):
+                stdout, stderr = await worker.communicate()
+            assert worker.returncode == 0, stderr.decode()
+            result = json.loads(stdout)
+            assert result == {"handled": 40, "user_reads": 0, "starts": 0}
+    finally:
+        for worker in workers:
+            if worker.returncode is None:
+                worker.kill()
+                await worker.wait()
+
+
+async def test_sync_recovery_preserves_queued_users_and_active_claims(jetstream, monkeypatch):
+    from unittest.mock import AsyncMock
+
+    import certifi
+    from PasarGuardNodeBridge.controller import Controller, Health
+
+    from app.db.models import NodeStatus
+    from app.jobs import node_checker
+
+    store = NatsUserSyncStore(jetstream.kv)
+    node = Controller(
+        server_ca=certifi.contents(),
+        api_key=str(uuid4()),
+        service_url="https://localhost:1",
+        node_id="91",
+        user_sync_store=store,
+    )
+    worker = asyncio.create_task(asyncio.sleep(60))
+    node._sync_worker_task = worker
+    monkeypatch.setattr(node, "get_lifecycle_state", AsyncMock(return_value=None))
+    monkeypatch.setattr(
+        node,
+        "info",
+        AsyncMock(
+            return_value=SimpleNamespace(
+                started=True,
+                node_version="0.5.4",
+                core_version="26.3.27",
+            )
+        ),
+        raising=False,
+    )
+    monkeypatch.setattr(node_checker, "_sync_recovery_deadlines", {})
+    monkeypatch.setattr(
+        node_checker, "verify_node_backend_health", AsyncMock(return_value=(Health.HEALTHY, None, None))
+    )
+    try:
+        await node.connect("0.5.4", "26.3.27")
+        await store.enqueue_users("91", [User(email=f"user-{index}") for index in range(20)])
+        claimed = await store.claim_users("91", "original-worker", 5, 60)
+        for _ in range(5):
+            await node._increment_user_sync_failure()
+        assert node.requires_hard_reset()
+        revision = (await jetstream.js.stream_info(f"KV_{jetstream.bucket}")).state.last_seq
+        await node_checker.process_node_health_check(
+            SimpleNamespace(id=91, name="slow-node", status=NodeStatus.connected), node
+        )
+        assert not node.requires_hard_reset()
+        assert not worker.done()
+        assert (await jetstream.js.stream_info(f"KV_{jetstream.bucket}")).state.last_seq == revision
+        remaining = await store.claim_users("91", "other-worker", 30, 60)
+        assert {item.user.email for item in claimed + remaining} == {f"user-{index}" for index in range(20)}
+        assert len(claimed + remaining) == 20
+        await store.ack_users("91", [item.token for item in claimed + remaining])
+    finally:
+        worker.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await worker
+        await store.close()
+
+
 @pytest.mark.parametrize("snapshot_only", [False, True])
 async def test_snapshot_pauses_delivery_until_reader_requests_next_batch(jetstream, monkeypatch, snapshot_only):
     monkeypatch.setattr(KvWatcher, "BATCH_SIZE", 8)
