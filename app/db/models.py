@@ -261,9 +261,15 @@ class User(Base, CreatedAtUTCMixin):
 
     @hybrid_property
     def reseted_usage(self) -> int:
-        if self._reseted_usage_query is not None:
-            return int(self._reseted_usage_query)
-        return int(sum([log.used_traffic_at_reset for log in self.usage_logs]))
+        expr = self.__dict__.get("_reseted_usage_query")
+        if expr is None:
+            expr = self._reseted_usage_query
+        if expr is not None:
+            return int(expr)
+        usage_logs = self.__dict__.get("usage_logs")
+        if usage_logs is None:
+            return 0
+        return int(sum(log.used_traffic_at_reset for log in usage_logs))
 
     @reseted_usage.expression
     def reseted_usage(cls):
@@ -323,11 +329,17 @@ class User(Base, CreatedAtUTCMixin):
 
     @property
     def group_ids(self):
-        return [group.id for group in self.groups]
+        groups = self.__dict__.get("groups")
+        if groups is None:
+            return []
+        return [group.id for group in groups]
 
     @property
     def group_names(self):
-        return [group.name for group in self.groups]
+        groups = self.__dict__.get("groups")
+        if groups is None:
+            return []
+        return [group.name for group in groups]
 
     @hybrid_property
     def is_expired(self) -> bool:

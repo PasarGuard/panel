@@ -91,6 +91,17 @@ def _user_reset_traffic_subquery():
     )
 
 
+def _snapshot_reseted_usage(users: list[User]) -> dict[int, int]:
+    """Keep the already-loaded lifetime aggregate across bulk UPDATEs."""
+    return {user.id: int(user.reseted_usage) for user in users}
+
+
+def _restore_reseted_usage(users: list[User], reseted_usage: dict[int, int]) -> None:
+    for user in users:
+        if user.id in reseted_usage:
+            user.__dict__["_reseted_usage_query"] = reseted_usage[user.id]
+
+
 def _safe_on_hold_expire_duration(duration: int | None) -> int | None:
     if duration is None or duration <= 0:
         return None
@@ -1752,7 +1763,13 @@ async def update_users_status(db: AsyncSession, users: list[User], status: UserS
 
     user_ids = [user.id for user in users]
     changed_at = datetime.now(UTC)
-    stmt = update(User).where(User.id.in_(user_ids)).values(status=status, last_status_change=changed_at)
+    reseted_usage = _snapshot_reseted_usage(users)
+    stmt = (
+        update(User)
+        .where(User.id.in_(user_ids))
+        .values(status=status, last_status_change=changed_at)
+        .execution_options(synchronize_session=False)
+    )
     await db.execute(stmt)
     await db.commit()
 
@@ -1761,6 +1778,7 @@ async def update_users_status(db: AsyncSession, users: list[User], status: UserS
     for user in users:
         user.status = status
         user.last_status_change = changed_at
+    _restore_reseted_usage(users, reseted_usage)
     return users
 
 
@@ -1848,6 +1866,9 @@ async def start_users_expire(db: AsyncSession, users: list[User]) -> list[User]:
 
     now = datetime.now(UTC)
     params = []
+    # Core UPDATE expires mapped state, including query_expression. Keep the
+    # already-loaded lifetime aggregate so later pydantic validation stays async-safe.
+    reseted_usage = _snapshot_reseted_usage(users)
     for user in users:
         duration = _safe_on_hold_expire_duration(user.on_hold_expire_duration)
         expire_time = now + timedelta(seconds=duration) if duration is not None else None
@@ -1865,10 +1886,12 @@ async def start_users_expire(db: AsyncSession, users: list[User]) -> list[User]:
             on_hold_expire_duration=None,
             on_hold_timeout=None,
             status=UserStatus.active,
-        ),
+        )
+        .execution_options(synchronize_session=False),
         params,
     )
     await db.commit()
+    _restore_reseted_usage(users, reseted_usage)
     return users
 
 

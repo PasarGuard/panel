@@ -412,7 +412,13 @@ class UserOperation(BaseOperation):
         return [user.subscription_url for user in users_list]
 
     async def validate_user(self, db_user: User, include_subscription_url: bool = True) -> UserNotificationResponse:
+        lifetime_used_traffic = db_user.lifetime_used_traffic
+        group_ids = list(db_user.group_ids or [])
+        group_names = list(db_user.group_names or [])
         user = UserNotificationResponse.model_validate(db_user)
+        user.lifetime_used_traffic = lifetime_used_traffic
+        user.group_ids = group_ids
+        user.group_names = group_names
         if include_subscription_url:
             user.subscription_url = await self.generate_subscription_url(user)
         return user
