@@ -429,10 +429,10 @@ class NodeOperation(BaseOperation):
         finally:
             NodeOperation._in_flight_connects.discard(db_node.id)
 
-    async def _connect_single_node_background(self, node_id: int) -> None:
+    async def _connect_single_node_background(self, node_id: int, *, force_start: bool = False) -> None:
         try:
             async with GetDB() as db:
-                await self._connect_single_impl(db, node_id)
+                await self._connect_single_impl(db, node_id, force_start=force_start)
         except Exception as exc:
             logger.error(f"Background node connection failed for node {node_id}: {exc}")
 
@@ -471,7 +471,9 @@ class NodeOperation(BaseOperation):
         else:
             try:
                 await self._update_node_impl(db_node)
-                asyncio.create_task(self._connect_single_node_background(db_node.id))
+                # force_start=True ensures the node always receives the updated config
+                # (e.g. core_config_id, usage_coefficient) even when already healthy.
+                asyncio.create_task(self._connect_single_node_background(db_node.id, force_start=True))
             except NodeAPIError as e:
                 await self._update_single_node_status(db, db_node.id, NodeStatus.error, message=e.detail)
 
