@@ -216,6 +216,8 @@ class SingBoxConfiguration(BaseSubscription):
     def _apply_tls(self, tls_config: TLSConfig, fragment_settings: dict | None = None) -> dict:
         """Apply TLS settings - receives TLS config and optional fragment settings"""
         fingerprint = "chrome" if tls_config.fingerprint == "unsafe" else tls_config.fingerprint
+        ech_config = self._format_ech_config(tls_config.sing_box_ech_config)
+        ech_enabled = bool(ech_config or tls_config.sing_box_ech_query_server_name)
 
         config = {
             "enabled": tls_config.tls in ("tls", "reality"),
@@ -235,10 +237,12 @@ class SingBoxConfiguration(BaseSubscription):
             "alpn": tls_config.alpn_singbox,  # Pre-formatted for sing-box!
             "ech": {
                 "enabled": True,
-                "config": [],
-                "config_path": "",
+                "config": ech_config,
+                # query_server_name was introduced in sing-box 1.13.0. Subscription
+                # output is not version-targeted, so configured hosts require 1.13+.
+                "query_server_name": tls_config.sing_box_ech_query_server_name,
             }
-            if tls_config.ech_config_list
+            if ech_enabled
             else None,
             "reality": {
                 "enabled": tls_config.tls == "reality",
@@ -254,6 +258,17 @@ class SingBoxConfiguration(BaseSubscription):
             config.update(singbox_fragment)
 
         return self._normalize_and_remove_none_values(config)
+
+    @staticmethod
+    def _format_ech_config(ech_config: str | None) -> list[str] | None:
+        """Convert a base64 or PEM ECH config to sing-box's PEM line-array format."""
+        if not ech_config or not (raw_config := ech_config.strip()):
+            return None
+
+        if raw_config.startswith("-----BEGIN"):
+            return raw_config.splitlines()
+
+        return ["-----BEGIN ECH CONFIGS-----", raw_config, "-----END ECH CONFIGS-----"]
 
     # ========== Protocol Builders ==========
 

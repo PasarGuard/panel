@@ -319,6 +319,24 @@ class ClashConfiguration(BaseSubscription):
                 "short-id": tls_config.reality_short_id or "",
             }
 
+        self._apply_mihomo_ech(node, tls_config)
+
+    @staticmethod
+    def _apply_mihomo_ech(node: dict, tls_config: TLSConfig):
+        """Apply Mihomo ECH settings without reusing Xray's incompatible ECH value."""
+        if not (tls_config.mihomo_ech_config or tls_config.mihomo_ech_query_server_name):
+            return
+
+        node["ech-opts"] = {
+            "enable": True,
+            **({"config": tls_config.mihomo_ech_config} if tls_config.mihomo_ech_config else {}),
+            **(
+                {"query-server-name": tls_config.mihomo_ech_query_server_name}
+                if tls_config.mihomo_ech_query_server_name
+                else {}
+            ),
+        }
+
     @staticmethod
     def _mihomo_reuse_settings(xmux: dict | BaseModel | None) -> dict | None:
         """Convert Xray XMUX settings to Mihomo reuse-settings."""
@@ -622,6 +640,8 @@ class ClashMetaConfiguration(ClashConfiguration):
                 "public-key": tls_config.reality_public_key,
                 "short-id": tls_config.reality_short_id or "",
             }
+
+        self._apply_mihomo_ech(node, tls_config)
 
     def _build_vless(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict) -> dict:
         """Build VLESS node (Clash Meta only)"""

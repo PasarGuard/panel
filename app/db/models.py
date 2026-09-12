@@ -562,8 +562,7 @@ class ProxyHost(Base, IdMixin):
     transport_settings: Mapped[dict[str, Any] | None] = mapped_column(JSON(none_as_null=True), default=None)
     mux_settings: Mapped[dict[str, Any] | None] = mapped_column(JSON(none_as_null=True), default=None)
     status: Mapped[list[UserStatus] | None] = mapped_column(EnumArray(UserStatus, 60), default=list, server_default="")
-    ech_config_list: Mapped[str | None] = mapped_column(String(512), default=None)
-    ech_query_strategy: Mapped[str | None] = mapped_column(String(8), default=None)
+    ech: Mapped[dict[str, Any] | None] = mapped_column(JSON(none_as_null=True), default=None)
     vless_route: Mapped[str | None] = mapped_column(String(4), default=None)
     pinned_peer_cert_sha256: Mapped[str | None] = mapped_column(String(128), default=None)
     verify_peer_cert_by_name: Mapped[set[str] | None] = mapped_column(
