@@ -15,6 +15,21 @@ def _user(email: str, inbound: str = "in") -> User:
 
 
 @pytest.mark.asyncio
+async def test_shared_queue_uses_configured_batch_budget_without_dropping_remainder(monkeypatch):
+    monkeypatch.setattr("app.node.nats_memory.nats_settings.node_update_users_batch_size", 3)
+    store = NatsUserSyncStore(MemoryCasKv())
+    await store.enqueue_users("1", [_user(f"user-{number}") for number in range(8)])
+    delivered = []
+    for expected_size in (3, 3, 2):
+        claimed = await store.claim_users("1", "worker", limit=2000, lease_seconds=30)
+        assert len(claimed) == expected_size
+        delivered.extend(item.user.email for item in claimed)
+        await store.ack_users("1", [item.token for item in claimed])
+    assert len(set(delivered)) == 8
+    assert await store.claim_users("1", "worker", limit=2000, lease_seconds=30) == []
+
+
+@pytest.mark.asyncio
 async def test_user_sync_enqueue_claim_ack_is_exclusive():
     store = NatsUserSyncStore(MemoryCasKv())
     await store.enqueue_users("1", [_user("a@example.com"), _user("b@example.com")])

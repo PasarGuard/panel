@@ -175,6 +175,9 @@ class NatsUserSyncStore:
     async def claim_users(self, node_id: str, worker_id: str, limit: int, lease_seconds: float) -> list[ClaimedUser]:
         if limit <= 0:
             return []
+        # Apply the same batch budget as direct user updates. Large shared
+        # claims can exceed the node RPC deadline and repeatedly requeue work.
+        limit = min(limit, max(1, nats_settings.node_update_users_batch_size))
         await self._requeue_expired_claims(node_id)
 
         result: list[ClaimedUser] = []
