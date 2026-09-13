@@ -67,7 +67,10 @@ async def main():
 
 
 async def current_state(kv, node_id, emails):
-    """The test's source of truth: a JSON map kept in the same bucket by the parent."""
+    """The test's source of truth: a JSON map kept in the same bucket by the parent.
+
+    Every test seeds it before enqueuing, so deliveries always read fresh state.
+    """
     entry = await kv.get(f"testdb.{node_id}.state")
     database = json.loads(entry.value)
     return [User(email=email, inbounds=database.get(email, [])) for email in emails]

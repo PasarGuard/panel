@@ -782,11 +782,21 @@ async def test_refresh_request_never_displaces_a_queued_payload_or_an_active_cla
         assert [item.user.email for item in claimed] == ["claimed"]
         await store.enqueue_users(node.node_id, [User(email="queued", inbounds=["payload"])])
         await node.request_refresh([User(email="queued"), User(email="claimed"), User(email="fresh")])
+        # Raw queue invariants: the queued payload and the sibling's claim are untouched, only "fresh" got a marker.
+        docs = {
+            json.loads(v)["email"]: json.loads(v)
+            for k, (v, _) in kv._data.items()
+            if k.startswith(f"p.{node.node_id}.")
+        }
+        assert "user" in docs["queued"] and "refresh" not in docs["queued"]
+        assert docs["claimed"]["claim"]["worker"] == "other" and "user" in docs["claimed"]
+        assert docs["fresh"] == {"email": "fresh", "refresh": True}
         _, active = await store.capture_queued(node.node_id)
         assert active == 1  # the sibling's in-flight claim is still visible
         await node.connect("0.5.4", "26.3.27")
         await wait_until(lambda: {"queued", "fresh"} <= set(state.users))
-        assert state.users["queued"] == ["payload"] and state.users["fresh"] == ["db"]
+        # Delivery itself always sends the state read from the source of truth at send time.
+        assert state.users["queued"] == ["db"] and state.users["fresh"] == ["db"]
         assert "claimed" not in state.users  # owned by the other worker
         await other.ack_users(node.node_id, [item.token for item in claimed])
     finally:
@@ -794,6 +804,83 @@ async def test_refresh_request_never_displaces_a_queued_payload_or_an_active_cla
         await close_node(node)
         await store.close()
         await other.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("shared_store", [False, True])
+async def test_edits_queued_in_reverse_commit_order_converge_to_the_database_state(monkeypatch, shared_store):
+    """Edit A (disable) commits first, edit B (new inbounds) second; A's enqueue lands last."""
+    store = NatsUserSyncStore(MemoryCasKv()) if shared_store else None
+    node = make_node("grpc", store)
+    state = attach_fake_transport(monkeypatch, node, FakeNodeState())
+    database = {"u": ["v2"]}  # final committed state is B's
+    register_refresh_handler(
+        AsyncMock(side_effect=lambda node_id, emails: [User(email=e, inbounds=database.get(e, [])) for e in emails])
+    )
+    try:
+        await node.connect("0.5.4", "26.3.27")
+        await node.update_user(User(email="u", inbounds=["v2"]))  # B's serialization, enqueued first
+        await node.update_user(User(email="u", inbounds=[]))  # A's older serialization, enqueued last
+        await wait_until(lambda: state.users.get("u") == ["v2"], timeout=10)
+        await asyncio.wait_for(node._sync_worker_task, 10)
+        assert state.users["u"] == ["v2"]  # never regressed to A's state
+    finally:
+        register_refresh_handler(None)
+        await close_node(node)
+        if store is not None:
+            await store.close()
+
+
+@pytest.mark.asyncio
+async def test_stale_single_update_after_a_bulk_update_converges(monkeypatch):
+    kv = MemoryCasKv()
+    store = NatsUserSyncStore(kv)
+    node = make_node("grpc", store)
+    state = attach_fake_transport(monkeypatch, node, FakeNodeState())
+    manager = await make_manager(node)
+    database = {f"u{n}": ["bulk-v2"] for n in range(5)}
+    register_refresh_handler(
+        AsyncMock(side_effect=lambda node_id, emails: [User(email=e, inbounds=database.get(e, [])) for e in emails])
+    )
+    try:
+        await manager._sync_users_to_node(1, node, [User(email=f"u{n}", inbounds=["bulk-v2"]) for n in range(5)])
+        await store.enqueue_users(node.node_id, [User(email="u2", inbounds=["single-v1"])])  # older edit, later enqueue
+        await node.connect("0.5.4", "26.3.27")
+        await wait_until(lambda: len(state.users) == 5, timeout=10)
+        await asyncio.wait_for(node._sync_worker_task, 10)
+        assert state.users == database
+    finally:
+        register_refresh_handler(None)
+        await close_node(node)
+        await store.close()
+
+
+@pytest.mark.asyncio
+async def test_failed_current_state_read_requeues_the_batch_and_never_acknowledges_stale_state(monkeypatch):
+    store = NatsUserSyncStore(MemoryCasKv())
+    node = make_node("grpc", store)
+    state = attach_fake_transport(monkeypatch, node, FakeNodeState())
+    attempts = 0
+
+    async def flaky(node_id, emails):
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise RuntimeError("database unavailable")
+        return [User(email=e, inbounds=["db"]) for e in emails]
+
+    register_refresh_handler(flaky)
+    try:
+        await node.connect("0.5.4", "26.3.27")
+        await node.update_user(User(email="u", inbounds=["queued"]))
+        await wait_until(lambda: state.users.get("u") == ["db"], timeout=10)
+        assert attempts == 2 and state.deltas == [["u"]]  # nothing was sent while the read was failing
+        await asyncio.wait_for(node._sync_worker_task, 10)
+        assert (await store.capture_queued(node.node_id)) == ({}, 0)
+    finally:
+        register_refresh_handler(None)
+        await close_node(node)
+        await store.close()
 
 
 @pytest.mark.asyncio

@@ -119,12 +119,31 @@ class _QueuedBatchSync:
             self.logger.warning(f"[{self.name}] Delivery of {len(users)} user(s) cancelled before its claim expired")
             return list(users)
 
+    async def _current_state(self, users: list[User]) -> list[User]:
+        """Replace queued payloads with the state committed now, keeping identity and order.
+
+        Two edits of one user can be queued in the opposite order of their
+        commits; the queue only marks the user dirty. Reading the source of
+        truth after the claim makes the delivered state the latest one. A
+        failed read raises, so the bridge requeues the batch instead of
+        acknowledging a possibly stale payload.
+        """
+        handler = _refresh_handler
+        if handler is None:
+            return users
+        fresh = {user.email: user for user in await handler(self.node_id, [user.email for user in users])}
+        return [fresh.get(user.email, user) for user in users]
+
     async def sync_users_chunked(self, users, chunk_size=100, flush_pending=False, timeout=None):
         if not _queued_sync.get() or not users:
             return await super().sync_users_chunked(users, chunk_size, flush_pending, timeout)
-        return await self._within_delivery_deadline(
-            users, lambda: super(_QueuedBatchSync, self).sync_users_chunked(users, chunk_size, flush_pending, timeout)
-        )
+
+        async def send():
+            # The fresh read counts against the same delivery budget as the send.
+            current = await self._current_state(users)
+            return await super(_QueuedBatchSync, self).sync_users_chunked(current, chunk_size, flush_pending, timeout)
+
+        return await self._within_delivery_deadline(users, send)
 
     async def _sync_batch_users(self, users: list[User]) -> list[User]:
         # The bridge normally switches to per-user RPCs below 1000 users.
@@ -137,9 +156,12 @@ class _QueuedBatchSync:
             return await self.sync_users_chunked(
                 users, chunk_size=min(100, len(users)), flush_pending=False, timeout=self._internal_timeout
             )
-        return await self._within_delivery_deadline(
-            users, lambda: super(_QueuedBatchSync, self)._sync_batch_users(users)
-        )
+
+        async def send():
+            current = await self._current_state(users)
+            return await super(_QueuedBatchSync, self)._sync_batch_users(current)
+
+        return await self._within_delivery_deadline(users, send)
 
     # ------------------------------------------------------------ worker lifecycle
     async def _sync_worker(self):

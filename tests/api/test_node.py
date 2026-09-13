@@ -455,6 +455,116 @@ async def test_core_users_only_excludes_admins_with_blocking_sync_roles(monkeypa
     assert all(user["inbounds"] == [inbound_tag] for user in users)
 
 
+async def test_core_users_can_be_restricted_to_ids_with_one_query(monkeypatch):
+    inbound_tag = unique_name("state_inbound")
+    user_prefix = unique_name("state_user")
+    monkeypatch.setattr(
+        node_user_module,
+        "_serialize_user_for_node",
+        lambda id, user_settings, inbounds, allowed_protocols=None: {"id": id, "inbounds": inbounds},
+    )
+    async with TestSession() as session:
+        inbound = ProxyInbound(tag=inbound_tag)
+        group = Group(name=unique_name("state_group"), inbounds=[inbound])
+        session.add(group)
+        await session.flush()
+        active = User(
+            username=f"{user_prefix}_active", proxy_settings=ProxyTable().dict(no_obj=True), status=UserStatus.active
+        )
+        disabled = User(
+            username=f"{user_prefix}_disabled",
+            proxy_settings=ProxyTable().dict(no_obj=True),
+            status=UserStatus.disabled,
+        )
+        other = User(
+            username=f"{user_prefix}_other", proxy_settings=ProxyTable().dict(no_obj=True), status=UserStatus.active
+        )
+        session.add_all([active, disabled, other])
+        await session.flush()
+        await session.execute(
+            users_groups_association.insert(),
+            [{"user_id": u.id, "groups_id": group.id} for u in (active, disabled, other)],
+        )
+        await session.commit()
+        ids = {"active": active.id, "disabled": disabled.id, "other": other.id}
+
+    async with TestSession() as session:
+        users = await node_user_module.core_users(session, user_ids=[ids["active"], ids["disabled"], 10**9])
+        assert {user["id"] for user in users} == {ids["active"]}  # disabled and unknown ids are not carried
+        assert users[0]["inbounds"] == [inbound_tag]
+        assert await node_user_module.core_users(session, user_ids=[]) == []
+        everyone = {user["id"] for user in await node_user_module.core_users(session, inbound_tags=[inbound_tag])}
+        assert {ids["active"], ids["other"]} <= everyone
+
+
+async def test_current_state_reads_at_burst_scale_use_few_indexed_statements(monkeypatch):
+    """12 node deliveries of 100-user batches: real session, real statements counted, coalesced reads."""
+    import time
+
+    from app.node import sync as node_sync
+    from tests.api import GetTestDB
+
+    inbound_tag = unique_name("burst_inbound")
+    user_prefix = unique_name("burst_user")
+    async with TestSession() as session:
+        inbound = ProxyInbound(tag=inbound_tag)
+        group = Group(name=unique_name("burst_group"), inbounds=[inbound])
+        session.add(group)
+        await session.flush()
+        users = [
+            User(username=f"{user_prefix}_{n}", proxy_settings=ProxyTable().dict(no_obj=True), status=UserStatus.active)
+            for n in range(1200)
+        ]
+        session.add_all(users)
+        await session.flush()
+        await session.execute(
+            users_groups_association.insert(), [{"user_id": u.id, "groups_id": group.id} for u in users]
+        )
+        await session.commit()
+        ids = [u.id for u in users]
+
+    statements: list[str] = []
+
+    def before_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+        statements.append(statement)
+
+    event.listen(engine.sync_engine, "before_cursor_execute", before_cursor_execute)
+    monkeypatch.setattr(node_sync, "GetDB", GetTestDB)
+    reader = node_sync.CurrentStateReader(gather_seconds=0.005, max_ids_per_query=400)
+    monkeypatch.setattr(node_sync, "_current_state", reader)
+    try:
+        # Same 100 users delivered to 12 nodes at once (one API burst fanning out).
+        started = time.perf_counter()
+        results = await asyncio.gather(
+            *(node_sync.refresh_node_users(str(node), [str(i) for i in ids[:100]]) for node in range(12))
+        )
+        same_users_seconds = time.perf_counter() - started
+        same_users_statements = len(statements)
+        assert all(len(r) == 100 and all(list(p.inbounds) == [inbound_tag] for p in r) for r in results)
+        # 12 nodes each delivering a different 100-user batch (1200 distinct users).
+        statements.clear()
+        started = time.perf_counter()
+        results = await asyncio.gather(
+            *(
+                node_sync.refresh_node_users(str(node), [str(i) for i in ids[node * 100 : (node + 1) * 100]])
+                for node in range(12)
+            )
+        )
+        distinct_users_seconds = time.perf_counter() - started
+        distinct_users_statements = len(statements)
+        assert all(len(r) == 100 for r in results)
+        # One coalesced query (chunked at 400 ids) per gather window, never a statement per user or per node.
+        assert same_users_statements <= 2, statements
+        assert distinct_users_statements <= 4, statements
+        assert all("IN (" in stmt or " in (" in stmt.lower() for stmt in statements if "users" in stmt.lower())
+        print(
+            f"\ncurrent-state reads: same-100x12 statements={same_users_statements} {same_users_seconds * 1000:.0f} ms; "
+            f"distinct-1200 statements={distinct_users_statements} {distinct_users_seconds * 1000:.0f} ms"
+        )
+    finally:
+        event.remove(engine.sync_engine, "before_cursor_execute", before_cursor_execute)
+
+
 def node_create_payload(**overrides) -> dict:
     payload = {
         "name": "new-node",

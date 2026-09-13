@@ -208,8 +208,10 @@ async def test_worker_process_that_dies_after_sending_and_before_acking_is_recov
         node = make_local_node(local, node_id, port, "parent")
         manager = NodeManager()
         manager._nodes[1] = node
+        database = Database(jetstream.kv, node_id)
         worker = await start_worker(jetstream, node_id, port, "worker-a", mode="die-after-send")
         try:
+            await database.set("slow-user", ["delta"])  # the state every delivery reads
             await writer.enqueue_users(node_id, [service.User(email="slow-user", inbounds=["delta"])])
             await asyncio.wait_for(receiver.delta_landed.wait(), 10)
             worker.stdin.write(b"die\n")
@@ -237,26 +239,37 @@ async def test_worker_process_that_dies_after_sending_and_before_acking_is_recov
 
 
 @pytest.mark.asyncio
-async def test_two_processes_and_the_parent_deliver_a_burst_exactly_once(jetstream):  # noqa: F811
+async def test_two_child_workers_deliver_a_shared_burst_without_loss_in_bounded_batches(jetstream):  # noqa: F811
+    """Two independent delivery processes share one 650-user burst: every user reaches the node, batches stay
+    within the 100-user budget, and only the explicitly re-enqueued user may be delivered a second time."""
     node_id = "burst-" + uuid4().hex[:6]
     async with receiver_server() as (receiver, port):
         writer = NatsUserSyncStore(jetstream.kv)
+        database = Database(jetstream.kv, node_id)
+        expected = {f"user-{number}" for number in range(650)}
+        for email in expected:
+            database.state[email] = ["in"]
+        await jetstream.kv.put(database.key, json.dumps(database.state).encode())
         workers = [await start_worker(jetstream, node_id, port, f"worker-{index}", seconds="15") for index in range(2)]
         try:
-            expected = {f"user-{number}" for number in range(650)}
             await writer.enqueue_users(node_id, [service.User(email=email, inbounds=["in"]) for email in expected])
             # Wake the processes' lazy workers the way a sibling connect would: their
             # own health poll is not part of this test, so re-enqueue one user.
             await asyncio.sleep(0.2)
             await writer.enqueue_users(node_id, [service.User(email="user-0", inbounds=["in"])])
             await wait_until(lambda: set(receiver.users) >= expected, timeout=40)
-            delivered = [email for kind, entries in receiver.events for email in entries]
-            assert len(delivered) >= 650
             async with asyncio.timeout(20):
                 while (await writer.capture_queued(node_id)) != ({}, 0):
                     await asyncio.sleep(0.05)
-            for _, entries in receiver.events:
-                assert 1 <= len(entries) <= 100
+            delivered = [
+                entry.split("=")[0] for kind, entries in receiver.events for entry in entries if kind == "delta"
+            ]
+            counts = {email: delivered.count(email) for email in expected}
+            assert all(count >= 1 for count in counts.values())
+            assert all(count == 1 for email, count in counts.items() if email != "user-0")
+            assert counts["user-0"] in (1, 2)  # re-enqueued once: at most one replay
+            assert all(1 <= len(entries) <= 100 for kind, entries in receiver.events if kind == "delta")
+            assert receiver.users == database.state
         finally:
             for worker in workers:
                 await finish_worker(worker)
