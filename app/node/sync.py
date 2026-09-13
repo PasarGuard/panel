@@ -1,13 +1,16 @@
 import asyncio
 
+from PasarGuardNodeBridge.common.service_pb2 import User as ProtoUser
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_object_session
 
+from app.db import GetDB
 from app.db.models import Admin, AdminRole, AdminStatus, User
 from app.models.user import UserNotificationResponse
 from app.nats.node_rpc import encode_node_command, node_nats_client
 from app.nats.proto_utils import serialize_proto_message, serialize_proto_messages
 from app.node import node_manager
+from app.node.bridge import register_refresh_handler
 from app.node.user import _serialize_user_for_node, serialize_user, serialize_users_for_node
 from app.utils.logger import get_logger
 from config import nats_settings, runtime_settings
@@ -143,6 +146,35 @@ else:
         users_dicts = serialize_proto_messages(proto_users)
         for users_chunk in _chunk_serialized_users_for_nats(users_dicts):
             await node_nats_client.publish("update_users", {"users": users_chunk})
+
+
+async def refresh_node_users(node_id: str, emails: list[str]) -> list[ProtoUser]:
+    """Return the current database state of users for a node's refresh markers.
+
+    Used when a delivered payload could not be confirmed as the latest state
+    (the queue entry vanished underneath the acknowledgement). Users that no
+    longer exist, or whose admin blocks synchronization, resolve to removals,
+    matching what a full snapshot would send. The store replaces exactly the
+    marker revision with these payloads, so nothing newer is overwritten.
+    """
+    ids = [int(email) for email in dict.fromkeys(emails) if email.isdigit()]
+    if not ids:
+        return []
+    protos: list[ProtoUser] = []
+    async with GetDB() as db:
+        rows = (await db.execute(select(User).where(User.id.in_(ids)))).scalars().all()
+        found = set()
+        for db_user in rows:
+            found.add(db_user.id)
+            if await _user_sync_blocked(db_user):
+                protos.append(_serialize_user_for_node(db_user.id, db_user.proxy_settings))
+            else:
+                protos.append(await serialize_user(db_user))
+    protos.extend(_serialize_user_for_node(user_id, {}) for user_id in ids if user_id not in found)
+    return protos
+
+
+register_refresh_handler(refresh_node_users)
 
 
 async def sync_user(db_user: User) -> None:

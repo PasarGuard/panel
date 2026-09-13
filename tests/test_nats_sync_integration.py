@@ -514,13 +514,67 @@ async def test_live_enqueue_and_expired_claim_recovery(jetstream):
         await wait_for_keys(second, "p.1.", 1)
         claimed = await first.claim_users("1", "crashed", 10, 0)
         assert len(claimed) == 1
-        await wait_for_keys(second, "p.1.", 0)
-        await wait_for_keys(second, "c.1.", 1)
+        # The claim lives on the same entry; the other worker sees it as expired and takes it over.
+        async with asyncio.timeout(10):
+            while (await second._key_index.entries("p.1.")).get(first._pending_key("1", "recover")) is None:
+                await asyncio.sleep(0.005)
         recovered = await second.claim_users("1", "replacement", 10, 30)
         assert [item.user.email for item in recovered] == ["recover"]
+        assert recovered[0].token != claimed[0].token
+        await second.ack_users("1", [item.token for item in recovered])
+        await wait_for_keys(second, "p.1.", 0)
     finally:
         await first.close()
         await second.close()
+
+
+async def test_capture_sees_another_workers_claim_before_its_watch_event_arrives(jetstream, monkeypatch):
+    """Quiescence must not trust a lagging live index: the tail is replayed in order first."""
+    gate = asyncio.Event()
+    gate.set()
+    real_watch = watch_kv
+
+    class DelayedWatcher:
+        def __init__(self, watcher):
+            self.watcher = watcher
+
+        def __aiter__(self):
+            return self
+
+        async def __anext__(self):
+            entry = await anext(self.watcher)
+            if entry is not None:
+                await gate.wait()
+            return entry
+
+        async def stop(self):
+            await self.watcher.stop()
+
+    async def delayed_watch(*args, **kwargs):
+        return DelayedWatcher(await real_watch(*args, **kwargs))
+
+    monkeypatch.setattr("app.nats.kv_index.watch_kv", delayed_watch)
+    waiter = NatsUserSyncStore(jetstream.kv)
+    other = NatsUserSyncStore(jetstream.kv)
+    try:
+        await other.enqueue_users("1", [User(email="u", inbounds=["in"])])
+        await wait_for_keys(waiter, "p.1.", 1)
+        await wait_for_keys(other, "p.1.", 1)  # both live indexes are built while events still flow
+        assert await waiter.capture_queued("1") == (
+            {waiter._pending_key("1", "u"): (await jetstream.kv.get(waiter._pending_key("1", "u"))).revision},
+            0,
+        )
+        gate.clear()  # the waiter's live index stops receiving events
+        claimed = await other.claim_users("1", "other", 10, 30)
+        assert len(claimed) == 1
+        captured, active = await waiter.capture_queued("1")
+        assert (captured, active) == ({}, 1)
+        await other.ack_users("1", [item.token for item in claimed])
+        assert await waiter.capture_queued("1") == ({}, 0)
+    finally:
+        gate.set()
+        await waiter.close()
+        await other.close()
 
 
 async def test_enqueue_is_claimable_even_when_watch_notifications_are_delayed(jetstream, monkeypatch):

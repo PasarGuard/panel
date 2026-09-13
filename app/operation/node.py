@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 from collections.abc import AsyncIterator, Awaitable, Callable
 from typing import ClassVar
 
@@ -315,27 +316,33 @@ class NodeOperation(BaseOperation):
                     return
 
         # Healthy attachments and in-flight starts do not need a user snapshot.
-        # Resolve it only when the remote backend really needs to be started.
-        if callable(users):
-            users = await users()
-        start_kwargs = {
-            "config": core.to_str(),
-            "backend_type": backend_type,
-            "users": users,
-            "keep_alive": db_node.keep_alive,
-        }
-        if core.type == CoreType.xray:
-            start_kwargs["exclude_inbounds"] = core.exclude_inbound_tags
+        # Resolve it only when the remote backend really needs to be started,
+        # inside the node's full-sync fence: Start replaces the core's user set
+        # with this snapshot, so deltas must not land between the read and it.
+        fence = getattr(pg_node, "full_sync_fence", None)
+        async with fence() if callable(fence) else contextlib.nullcontext() as held:
+            if callable(users):
+                users = await users()
+            if held is not None:
+                held.check()
+            start_kwargs = {
+                "config": core.to_str(),
+                "backend_type": backend_type,
+                "users": users,
+                "keep_alive": db_node.keep_alive,
+            }
+            if core.type == CoreType.xray:
+                start_kwargs["exclude_inbounds"] = core.exclude_inbound_tags
 
-        if force_start:
-            try:
-                await pg_node.stop()
-            except Exception as exc:
-                logger.debug(f'Stop before force start of "{db_node.name}" skipped: {exc}')
+            if force_start:
+                try:
+                    await pg_node.stop()
+                except Exception as exc:
+                    logger.debug(f'Stop before force start of "{db_node.name}" skipped: {exc}')
 
-        log = logger.info if force_start else logger.debug
-        log(f'Starting "{db_node.name}" node')
-        return await pg_node.start(**start_kwargs)
+            log = logger.info if force_start else logger.debug
+            log(f'Starting "{db_node.name}" node')
+            return await pg_node.start(**start_kwargs)
 
     @staticmethod
     async def connect_node(db_node: Node, core, users: CoreUsers, *, force_start: bool = False) -> dict | None:
@@ -1128,7 +1135,10 @@ class NodeOperation(BaseOperation):
 
         try:
             core_id = db_node.core_config_id or 1
-            _, users_by_core = await self._get_core_users_map(db, {core_id})
+            # Defer the snapshot read: sync_full takes it inside the node's
+            # fence, after any queued deltas were drained, so nothing created
+            # between the read and the flush can be lost.
+            _, users_by_core = await self._get_core_users_map(db, {core_id}, lazy=True)
             users = users_by_core.get(core_id, [])
             if await node_manager.sync_full(node_id, users, flush_pending=flush_users) is None:
                 await self.raise_error(message="Node is not connected", code=409)
