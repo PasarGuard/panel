@@ -1549,8 +1549,18 @@ export interface Forbidden {
   detail?: string;
 }
 
+export type OnHoldTimeoutAction = typeof OnHoldTimeoutAction[keyof typeof OnHoldTimeoutAction];
+
+
+export const OnHoldTimeoutAction = {
+  activate: 'activate',
+  disable: 'disable',
+  delete: 'delete',
+} as const;
+
 export interface General {
   default_method?: ShadowsocksMethods;
+  on_hold_timeout_action?: OnHoldTimeoutAction;
   custom_variables?: CustomVariable[] | null;
 }
 
