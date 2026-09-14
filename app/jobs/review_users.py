@@ -21,7 +21,7 @@ from app.db.models import ReminderType, User, UserStatus
 from app.jobs.dependencies import SYSTEM_ADMIN
 from app.models.settings import OnHoldTimeoutAction, Webhook
 from app.models.user import UserNotificationResponse
-from app.node.sync import remove_user as sync_remove_user, sync_users
+from app.node.sync import remove_user_awaited as sync_remove_user_awaited, sync_users
 from app.operation import OperatorType
 from app.operation.user import UserOperation
 from app.settings import general_settings, webhook_settings
@@ -96,10 +96,18 @@ async def limit_users_job():
 async def remove_on_hold_users(db: AsyncSession, db_users: list[User]):
     users = [await user_operator.validate_user(db_user, include_subscription_url=False) for db_user in db_users]
 
+    # Await node cleanup for every user before touching the database.
+    # If the node update fails (serialization error, NATS publish failure, etc.)
+    # an exception is raised here and remove_users is never called, leaving the
+    # rows intact so the next job cycle can retry.
+    for user in users:
+        await sync_remove_user_awaited(user)
+
+    # Node updates confirmed – now commit the database deletions atomically.
     await remove_users(db, db_users)
 
+    # Notifications and logging run after successful removal, same as before.
     for user in users:
-        await sync_remove_user(user)
         asyncio.create_task(notification.remove_user(user, SYSTEM_ADMIN))
         logger.info(f'User "{user.username}" removed after on-hold timeout')
 
