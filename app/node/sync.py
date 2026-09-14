@@ -158,6 +158,17 @@ async def remove_user(user: UserNotificationResponse) -> None:
     asyncio.create_task(_dispatch_user_update(proto_user))
 
 
+async def remove_user_awaited(user: UserNotificationResponse) -> None:
+    """Remove a user from nodes and await confirmation before returning.
+
+    Unlike :func:`remove_user`, this coroutine directly awaits the node
+    dispatch so callers can be sure the node update completed (or raised)
+    before committing the corresponding database deletion.
+    """
+    proto_user = _serialize_user_for_node(user.id, user.proxy_settings.dict())
+    await _dispatch_user_update(proto_user)
+
+
 async def remove_users(users: list[User]) -> None:
     """Batch-remove users from nodes (serialized without inbounds so nodes drop them)."""
     if not users:
