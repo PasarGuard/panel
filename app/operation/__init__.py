@@ -139,15 +139,34 @@ class BaseOperation:
             await self.raise_error(message="Host not found", code=404)
         return db_host
 
-    async def get_validated_sub(self, db: AsyncSession, token: str, *, load_admin_role: bool = False) -> User:
+    async def get_validated_sub(
+        self,
+        db: AsyncSession,
+        token: str,
+        *,
+        load_admin: bool = True,
+        load_admin_role: bool = False,
+        load_next_plan: bool = True,
+        load_usage_logs: bool = True,
+        load_groups: bool = True,
+        load_lifetime_used_traffic: bool = False,
+    ) -> User:
         sub = await get_subscription_payload(token)
 
         db_user = None
         if sub:
+            load_kwargs = {
+                "load_admin": load_admin,
+                "load_admin_role": load_admin_role,
+                "load_next_plan": load_next_plan,
+                "load_usage_logs": load_usage_logs,
+                "load_groups": load_groups,
+                "load_lifetime_used_traffic": load_lifetime_used_traffic,
+            }
             if sub.get("user_id"):
-                db_user = await get_user_by_id(db, sub["user_id"], load_admin_role=load_admin_role)
+                db_user = await get_user_by_id(db, sub["user_id"], **load_kwargs)
             elif sub.get("username"):
-                db_user = await get_user(db, sub["username"], load_admin_role=load_admin_role)
+                db_user = await get_user(db, sub["username"], **load_kwargs)
 
         if (
             not db_user

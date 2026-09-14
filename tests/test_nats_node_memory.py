@@ -73,6 +73,31 @@ async def test_user_sync_enqueue_shards_per_email_key():
 
 
 @pytest.mark.asyncio
+async def test_bulk_sync_bounds_concurrent_writes_across_nodes():
+    kv = MemoryCasKv()
+    store = NatsUserSyncStore(kv)
+    create = kv.create
+    active = peak = 0
+
+    async def slow_create(key, value):
+        nonlocal active, peak
+        active += 1
+        peak = max(peak, active)
+        try:
+            await asyncio.sleep(0.001)
+            return await create(key, value)
+        finally:
+            active -= 1
+
+    kv.create = slow_create
+    users = [_user(f"user{i}") for i in range(200)]
+    await asyncio.gather(*(store.enqueue_users(str(node), users) for node in range(4)))
+    assert len(kv._data) == 800
+    assert 1 < peak <= 32
+    assert active == 0
+
+
+@pytest.mark.asyncio
 async def test_claim_cleans_up_claimed_key_when_pending_delete_fails():
     kv = MemoryCasKv()
     store = NatsUserSyncStore(kv)
