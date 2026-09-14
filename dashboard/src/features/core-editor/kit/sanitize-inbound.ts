@@ -1,4 +1,5 @@
 import type { Inbound, Profile } from '@pasarguard/xray-config-kit'
+import { coerceVerifyPeerCertByNameList } from '@/features/core-editor/kit/xray-parity-value'
 
 /** Loopback values often come from Xray samples, browser autofill, or legacy defaults — not a meaningful rewrite target in the editor. */
 export function isPlaceholderTunnelRewriteAddress(v: unknown): boolean {
@@ -131,6 +132,12 @@ function sanitizeSecurityArrays(inbound: Inbound): Inbound {
         sanitized[key] = filtered
       }
     }
+  }
+
+  if ('verifyPeerCertByName' in sanitized) {
+    const names = coerceVerifyPeerCertByNameList(sanitized.verifyPeerCertByName)
+    if (names === undefined) delete sanitized.verifyPeerCertByName
+    else sanitized.verifyPeerCertByName = names
   }
 
   // REALITY: never persist invalid `publicKey` (kit validates when set). Empty / legacy placeholder / bad encoding → omit.

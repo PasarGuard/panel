@@ -17,9 +17,10 @@ import { CoreEditorFormDialog } from '@/features/core-editor/components/shared/c
 import { TcpHeaderObfuscationForm } from '@/features/core-editor/components/shared/tcp-header-obfuscation-form'
 import { VlessAdvancedGenerationModal } from '@/features/core-editor/components/shared/vless-advanced-generation-modal'
 import { isBooleanParityField, isJsonRawMessageField, transportParityFieldLabel, XrayParityFormControl } from '@/features/core-editor/components/shared/xray-parity-form-control'
-import { pruneSockoptObject, XrayStreamSockoptInboundAccordion } from '@/features/core-editor/components/shared/xray-stream-sockopt-editor'
 import { XrayStreamFinalmaskInboundAccordion } from '@/features/core-editor/components/shared/xray-stream-finalmask-editor'
+import { pruneSockoptObject, XrayStreamSockoptInboundAccordion } from '@/features/core-editor/components/shared/xray-stream-sockopt-editor'
 import { InboundFallbacksEditor } from '@/features/core-editor/components/xray/inbound-fallbacks-editor'
+import { RealityScanDialog } from '@/features/core-editor/components/xray/reality-scan-dialog'
 import { useSectionHeaderAddPulseEffect, type SectionHeaderAddPulse } from '@/features/core-editor/hooks/use-section-header-add-pulse'
 import { useXrayPersistModifyGuard } from '@/features/core-editor/hooks/use-xray-persist-modify-guard'
 import {
@@ -32,9 +33,8 @@ import { getInboundSecuritySelectOptions, getInboundTransportSelectOptions, tran
 import { profileDuplicateTagMessage, profileTagHasDuplicateUsage } from '@/features/core-editor/kit/profile-tag-uniqueness'
 import { remapIndexAfterArrayMove } from '@/features/core-editor/kit/remap-index-after-move'
 import { isPlaceholderTunnelRewriteAddress, normalizeTunnelNetworkForKit } from '@/features/core-editor/kit/sanitize-inbound'
-import { inferParityFieldMode, outboundSettingToString, parseOutboundSettingValue, stringifyJsonFormRecord } from '@/features/core-editor/kit/xray-parity-value'
+import { coerceVerifyPeerCertByNameList, inferParityFieldMode, outboundSettingToString, parseOutboundSettingValue, stringifyJsonFormRecord } from '@/features/core-editor/kit/xray-parity-value'
 import { useCoreEditorStore } from '@/features/core-editor/state/core-editor-store'
-import { RealityScanDialog } from '@/features/core-editor/components/xray/reality-scan-dialog'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { cn } from '@/lib/utils'
 import {
@@ -120,7 +120,8 @@ const INBOUND_SECURITY_PARITY_PLACEHOLDER: Readonly<Record<string, string>> = {
   mldsa65Seed: 'ML-DSA-65 seed (PQ REALITY)',
   mldsa65Verify: 'ML-DSA-65 verify public key',
   pinnedPeerCertificateChainSha256: 'SHA256 fingerprints of peer cert chain (base64, one per line)',
-  verifyPeerCertInNames: 'Certificate SAN/CN substring to verify',
+  verifyPeerCertByName: 'Certificate SAN/CN names to verify (comma-separated)',
+  verifyPeerCertInNames: 'Certificate SAN/CN names to verify (comma-separated)',
   echServerKeys: 'ECH server keys (PEM or base64 per Xray)',
   echConfigList: 'ECH ECHConfigList (base64)',
 }
@@ -442,10 +443,7 @@ function hysteriaSalamanderSettingsForForm(inbound: Inbound): HysteriaSalamander
 }
 
 /** Write Salamander into `streamSettings.finalmask.udp` per Xray docs; clear legacy `transport.udpmasks`. */
-function applyHysteriaSalamanderToStreamAdvanced(
-  inbound: Inbound,
-  next: { password?: string; packetSize?: string } | undefined,
-): Record<string, unknown> | undefined {
+function applyHysteriaSalamanderToStreamAdvanced(inbound: Inbound, next: { password?: string; packetSize?: string } | undefined): Record<string, unknown> | undefined {
   const streamAdvanced = (inbound as { streamAdvanced?: unknown }).streamAdvanced
   const nextStreamAdvanced = isPlainRecord(streamAdvanced) ? { ...streamAdvanced } : {}
   const finalmask = isPlainRecord(nextStreamAdvanced.finalmask) ? { ...nextStreamAdvanced.finalmask } : {}
@@ -552,7 +550,7 @@ function stripHysteriaInboundAuth(ib: Inbound): Inbound {
   const nextTransport = { ...ib.transport } as Record<string, unknown>
   delete nextTransport.auth
   // Hysteria requires TLS — coerce legacy `none` security.
-  const security = ib.security.type === 'none' ? ({ type: 'tls' as const, serverName: '' }) : ib.security
+  const security = ib.security.type === 'none' ? { type: 'tls' as const, serverName: '' } : ib.security
   return {
     ...ib,
     clients: [],
@@ -1018,9 +1016,9 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
 
   const inbound = useMemo(() => {
     if (!profile) return undefined
-    if (dialogMode === 'add' && draftInbound) return draftInbound
+    if (draftInbound) return draftInbound
     return profile.inbounds[selected]
-  }, [profile, dialogMode, draftInbound, selected])
+  }, [profile, draftInbound, selected])
 
   const visibility = useMemo(() => (inbound ? getInboundFieldVisibility(inbound) : null), [inbound])
   const caps = useMemo(() => getInboundFormCapabilities(), [])
@@ -1148,7 +1146,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
     if (!detailOpen) return
     const p = profileRef.current
     if (!p) return
-    const row = dialogMode === 'add' && draftInbound ? draftInbound : p.inbounds[selected]
+    const row = draftInbound ?? p.inbounds[selected]
     if (!row || row.protocol === 'unmanaged') return
 
     const security = getInboundSecurityRecord(row)
@@ -1263,7 +1261,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
     if (!detailOpen) return
     const p = profileRef.current
     if (!p) return
-    const row = dialogMode === 'add' && draftInbound ? draftInbound : p.inbounds[selected]
+    const row = draftInbound ?? p.inbounds[selected]
     if (row && isTunnelInboundProtocol(row.protocol)) setTunnelBlankPortMapRows([])
   }, [detailOpen, selected, dialogMode, draftInbound])
 
@@ -1286,11 +1284,13 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
       let network = watchedTransport
       if (watchedProtocol === 'shadowsocks') network = watchedShadowsocksNetwork
 
-      if (network) tag += `${tagSeparator}${network}`
+      if (watchedProtocol === 'hysteria' && network === 'hysteria') tag += ''
+      else if (network) tag += `${tagSeparator}${network}`
       if (watchedSecurity && watchedSecurity !== 'none') tag += `${tagSeparator}${watchedSecurity}`
       if (watchedPort) tag += `${tagSeparator}${watchedPort}`
 
       tag = tag.toUpperCase()
+      tag = tag.replace(',', tagSeparator)
 
       form.setValue('tag', tag)
       patchInbound({ tag })
@@ -1831,7 +1831,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
       nextInbound = vlessNext as Inbound
     }
 
-    replaceEffectiveInbound(nextInbound)
+    updateXrayProfile(p => replaceInbound(p, selected, nextInbound))
     if ('security' in nextInbound && nextInbound.security) form.setValue('security', nextInbound.security.type)
     if ('transport' in nextInbound && nextInbound.transport) form.setValue('transport', nextInbound.transport.type)
     if (nextInbound.protocol === 'vless') {
@@ -1843,7 +1843,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
   }
 
   const replaceEffectiveInbound = (next: Inbound) => {
-    if (dialogMode === 'add' && draftInbound !== null) setDraftInbound(next)
+    if (draftInbound !== null) setDraftInbound(next)
     else updateXrayProfile(p => replaceInbound(p, selected, next))
   }
 
@@ -1882,8 +1882,16 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
     const baseRec = { ...(inbound as Record<string, unknown>) }
     const prevSa = (baseRec.streamAdvanced as Record<string, unknown> | undefined) ?? {}
     const sa = { ...prevSa }
-    if (next === undefined) delete sa.finalmask
-    else sa.finalmask = next
+    if (next === undefined) {
+      delete sa.finalmask
+      delete sa.quicParams
+    } else {
+      sa.finalmask = next
+      // The kit importer also exposes finalmask.quicParams as a typed sibling.
+      // Keep that copy in sync because the compiler gives it precedence over finalmask.quicParams.
+      if (isPlainRecord(next.quicParams)) sa.quicParams = { ...next.quicParams }
+      else delete sa.quicParams
+    }
     if (Object.keys(sa).length === 0) delete baseRec.streamAdvanced
     else baseRec.streamAdvanced = sa
     // Prefer canonical finalmask over legacy hysteria transport.udpmasks.
@@ -1945,7 +1953,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
       base.network = normalizeTunnelNetworkForKit(base.network)
     }
     const merged = base as Inbound
-    if (dialogMode === 'add' && draftInbound !== null) setDraftInbound(merged)
+    if (draftInbound !== null) setDraftInbound(merged)
     else updateXrayProfile(p => replaceInbound(p, selected, merged))
   }
 
@@ -2061,11 +2069,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
   )
 
   const patchHysteriaServerSettings = useCallback(
-    (patch: {
-      udpIdleTimeout?: number | undefined
-      masquerade?: Record<string, unknown> | undefined
-      salamander?: { password?: string; packetSize?: string } | undefined
-    }) => {
+    (patch: { udpIdleTimeout?: number | undefined; masquerade?: Record<string, unknown> | undefined; salamander?: { password?: string; packetSize?: string } | undefined }) => {
       if (!inbound || inbound.protocol !== 'hysteria' || inbound.transport.type !== 'hysteria') return
       // Xray Hysteria inbound JSON must keep settings.clients empty and omit hysteriaSettings.auth.
       const nextTransport = { ...inbound.transport } as Record<string, unknown>
@@ -2419,7 +2423,12 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
   const patchSecurity = (patch: Record<string, unknown>) => {
     const security = inbound ? getInboundSecurityRecord(inbound) : null
     if (!security) return
-    const merged = { ...security, ...patch } as Security
+    const merged = { ...security, ...patch } as Record<string, unknown>
+    if ('verifyPeerCertByName' in merged) {
+      const names = coerceVerifyPeerCertByNameList(merged.verifyPeerCertByName)
+      if (names === undefined) delete merged.verifyPeerCertByName
+      else merged.verifyPeerCertByName = names
+    }
     patchInbound({ security: merged } as Partial<Inbound>)
   }
 
@@ -2549,9 +2558,10 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
             setBlockAddWhileDraftOpen(true)
             return
           }
-          setDraftInbound(null)
+          const cloned = cloneInbound(profile.inbounds[rowIndex])
+          setDraftInbound(cloned)
           setDialogMode('edit')
-          setEditOriginalInbound(cloneInbound(profile.inbounds[rowIndex]))
+          setEditOriginalInbound(cloneInbound(cloned))
           setSelected(rowIndex)
           setDetailOpen(true)
         }}
@@ -2605,7 +2615,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
             : (editOriginalInbound ?? null)
         }
         getCurrentData={() => {
-          const cur = dialogMode === 'add' ? draftInbound : inbound
+          const cur = draftInbound ?? inbound
           const copy = cur ? JSON.parse(JSON.stringify(cur)) : null
           if (dialogMode === 'add' && copy) {
             if (isTagAutoGenerated) delete copy.tag
@@ -2864,12 +2874,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
 
                 {inbound.protocol === 'vless' && (
                   <div className="flex flex-col gap-2 sm:col-span-2 sm:flex-row">
-                    <LoaderButton
-                      type="button"
-                      onClick={openInboundVlessGenerator}
-                      className="h-10 w-full flex-1 text-sm font-medium transition-all hover:shadow-md sm:h-11"
-                      isLoading={false}
-                    >
+                    <LoaderButton type="button" onClick={openInboundVlessGenerator} className="h-10 w-full flex-1 text-sm font-medium transition-all hover:shadow-md sm:h-11" isLoading={false}>
                       <span className="flex items-center gap-2 truncate">
                         {vlessDecryptionJustGenerated && <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-green-500 ring-2 ring-green-500/20" />}
                         {t('coreConfigModal.generateVLESSEncryption')}
@@ -3174,9 +3179,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                       render={({ field }) => (
                         <FormItem className="flex min-h-10 flex-row items-center justify-between gap-3 space-y-0 rounded-md border px-3 py-2 sm:col-span-2">
                           <div className="min-w-0 space-y-0.5">
-                            <FormLabel className="cursor-pointer text-sm font-medium">
-                              {t('coreEditor.inbound.hysteria.obfs', { defaultValue: 'Salamander obfuscation (FinalMask)' })}
-                            </FormLabel>
+                            <FormLabel className="cursor-pointer text-sm font-medium">{t('coreEditor.inbound.hysteria.obfs', { defaultValue: 'Salamander obfuscation (FinalMask)' })}</FormLabel>
                             <p className="text-muted-foreground text-[11px]">
                               {t('coreEditor.inbound.hysteria.obfsHint', {
                                 defaultValue: 'Writes streamSettings.finalmask.udp salamander. Optional packetSize enables Gecko (max 2048).',
@@ -3357,9 +3360,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                             name="hysteriaMasqueradeRewriteHost"
                             render={({ field }) => (
                               <FormItem className="flex min-h-10 flex-row items-center justify-between gap-3 space-y-0 rounded-md border px-3 py-2">
-                                <FormLabel className="cursor-pointer text-sm font-medium">
-                                  {t('coreEditor.inbound.hysteria.masqueradeRewriteHost', { defaultValue: 'Rewrite Host' })}
-                                </FormLabel>
+                                <FormLabel className="cursor-pointer text-sm font-medium">{t('coreEditor.inbound.hysteria.masqueradeRewriteHost', { defaultValue: 'Rewrite Host' })}</FormLabel>
                                 <FormControl>
                                   <Switch
                                     checked={field.value === 'true'}
@@ -3377,9 +3378,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                             name="hysteriaMasqueradeInsecure"
                             render={({ field }) => (
                               <FormItem className="flex min-h-10 flex-row items-center justify-between gap-3 space-y-0 rounded-md border px-3 py-2">
-                                <FormLabel className="cursor-pointer text-sm font-medium">
-                                  {t('coreEditor.inbound.hysteria.masqueradeInsecure', { defaultValue: 'Insecure' })}
-                                </FormLabel>
+                                <FormLabel className="cursor-pointer text-sm font-medium">{t('coreEditor.inbound.hysteria.masqueradeInsecure', { defaultValue: 'Insecure' })}</FormLabel>
                                 <FormControl>
                                   <Switch
                                     checked={field.value === 'true'}
@@ -3528,6 +3527,18 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                             {xPaddingObfsEnabled && (
                               <div className="grid gap-3 sm:grid-cols-2">
                                 <FormItem>
+                                  <FormLabel className="text-xs font-medium">{t('hostsDialog.xhttp.xPaddingBytes', { defaultValue: 'X-Padding Bytes' })}</FormLabel>
+                                  <FormControl>
+                                    <Input
+                                      dir="ltr"
+                                      className="h-10 text-xs"
+                                      value={String(getTransportMetaValue(xhttpExtra, 'xpaddingbytes') ?? '')}
+                                      onChange={e => updateXhttpMeta('xpaddingbytes', e.target.value)}
+                                    />
+                                  </FormControl>
+                                </FormItem>
+
+                                <FormItem>
                                   <FormLabel className="text-xs font-medium">{t('hostsDialog.xhttp.xPaddingKey', { defaultValue: 'X-Padding Key' })}</FormLabel>
                                   <FormControl>
                                     <Input
@@ -3597,18 +3608,14 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
 
                         {inboundTransportType === 'xhttp' &&
                           (() => {
-                            const sessionPlacementValue = String(
-                              getTransportMetaValue(xhttpExtra, 'sessionidplacement') ?? getTransportMetaValue(xhttpExtra, 'sessionplacement') ?? '',
-                            )
-                            const sessionKeyValue = String(
-                              getTransportMetaValue(xhttpExtra, 'sessionidkey') ?? getTransportMetaValue(xhttpExtra, 'sessionkey') ?? '',
-                            )
+                            const sessionPlacementValue = String(getTransportMetaValue(xhttpExtra, 'sessionidplacement') ?? getTransportMetaValue(xhttpExtra, 'sessionplacement') ?? '')
+                            const sessionKeyValue = String(getTransportMetaValue(xhttpExtra, 'sessionidkey') ?? getTransportMetaValue(xhttpExtra, 'sessionkey') ?? '')
                             const placementKey = 'sessionidplacement'
                             const placementOtherKey = 'sessionplacement'
                             const keyKey = 'sessionidkey'
                             const keyOtherKey = 'sessionkey'
                             return (
-                              <div className="grid gap-3 sm:grid-cols-2 sm:col-span-2">
+                              <div className="grid gap-3 sm:col-span-2 sm:grid-cols-2">
                                 <FormItem>
                                   <FormLabel className="text-xs font-medium">{t('hostsDialog.xhttp.sessionPlacement', { defaultValue: 'Session Placement' })}</FormLabel>
                                   <Select
@@ -3636,12 +3643,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                                 <FormItem>
                                   <FormLabel className="text-xs font-medium">{t('hostsDialog.xhttp.sessionKey', { defaultValue: 'Session Key' })}</FormLabel>
                                   <FormControl>
-                                    <Input
-                                      dir="ltr"
-                                      className="h-10 text-xs"
-                                      value={sessionKeyValue}
-                                      onChange={e => updateXhttpMetaBatch({ [keyKey]: e.target.value, [keyOtherKey]: undefined })}
-                                    />
+                                    <Input dir="ltr" className="h-10 text-xs" value={sessionKeyValue} onChange={e => updateXhttpMetaBatch({ [keyKey]: e.target.value, [keyOtherKey]: undefined })} />
                                   </FormControl>
                                 </FormItem>
                               </div>
@@ -5804,8 +5806,6 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
           toast.success(t('coreConfigModal.vlessEncryptionGenerated'))
         }}
       />
-
-
 
       <RealityScanDialog open={isRealityScanOpen} onOpenChange={setIsRealityScanOpen} initialTarget={realityScanTarget} />
 
