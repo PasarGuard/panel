@@ -22,7 +22,8 @@ venv*
 LICENSE
 install_service.sh
 PasarGuard.code-workspace
-scripts
+scripts/*
+!scripts/regenerate_node_bridge_proto.py
 
 # Dev tooling / CI (not used at runtime)
 Makefile
@@ -45,12 +46,11 @@ test.db
 .AGENT
 graphify-out
 
-# Dashboard: the frontend is prebuilt in CI (build.yml / build-dev.yml) and the
-# compiled output is copied into the context as dashboard/build/. At runtime only
-# the Python integration module and the compiled assets are used (build() never
-# runs because dashboard/build/ already exists), so exclude all source/tooling.
-# Excluding+re-including direct children avoids Docker's "can't re-include a file
-# under an excluded parent directory" limitation.
-dashboard/*
-!dashboard/__init__.py
-!dashboard/build
+# Dashboard sources are kept in the context: Dockerfile.ci builds the frontend
+# inside the image instead of relying on a prebuilt dashboard/build/.
+dashboard/build
+dashboard/node_modules
+
+# Пин патч-версии (3.14.0) расходится с питоном базового образа (3.14.2),
+# а UV_PYTHON_DOWNLOADS=0 — из-за этого uv sync в сборке не находит интерпретатор.
+.python-version

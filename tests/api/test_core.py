@@ -119,6 +119,7 @@ def test_wireguard_core_create_skips_user_scan_and_allocates_on_group(access_tok
         delete_core(access_token, wg_core["id"])
         delete_core(access_token, starter["id"])
 
+
 def test_core_update(access_token):
     """Test that the core update route is accessible."""
 

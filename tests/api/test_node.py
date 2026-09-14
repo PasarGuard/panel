@@ -945,7 +945,7 @@ async def test_node_create_and_modify_schedule_background_reconnect(monkeypatch:
     operator = NodeOperation(operator_type=OperatorType.API)
     scheduled_node_ids: list[int] = []
 
-    async def record_background_connect(node_id: int) -> None:
+    async def record_background_connect(node_id: int, *, force_start: bool = False) -> None:
         scheduled_node_ids.append(node_id)
 
     monkeypatch.setattr(operator, "_update_node_impl", AsyncMock())
