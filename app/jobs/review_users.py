@@ -52,7 +52,7 @@ async def apply_status_changes(db: AsyncSession, users: list[User], status: User
     next_plan_users: list[User] = []
     plain_users: list[User] = []
     for user in users:
-        if user.next_plan is not None and status != UserStatus.active:
+        if user.next_plan is not None and status in (UserStatus.expired, UserStatus.limited):
             next_plan_users.append(user)
         else:
             plain_users.append(user)
