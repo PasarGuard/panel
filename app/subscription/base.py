@@ -6,6 +6,7 @@ from enum import Enum
 from typing import Any, Literal
 from urllib.parse import quote, urlencode
 
+from app.models.proxy import GeneralAuthSettings
 from app.models.subscription import SubscriptionInboundData
 
 
@@ -66,6 +67,7 @@ class BaseSubscription:
         self,
         user_agent_template_content: str | None = None,
         grpc_user_agent_template_content: str | None = None,
+        general_auth: GeneralAuthSettings | None = None,
     ):
         self.proxy_remarks = []
         user_agent_data = json.loads(user_agent_template_content) if user_agent_template_content else {}
@@ -80,6 +82,8 @@ class BaseSubscription:
             self.grpc_user_agent_data = grpc_user_agent_data["list"]
         else:
             self.grpc_user_agent_data = []
+
+        self.general_auth = general_auth
 
         del user_agent_data, grpc_user_agent_data
 
