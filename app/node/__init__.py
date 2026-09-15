@@ -21,6 +21,7 @@ class NodeManager:
         self._nodes: dict[int, PasarGuardNode] = {}
         self._node_signatures: dict[int, tuple] = {}
         self._user_sync_locks: dict[int, asyncio.Lock] = {}
+        self._user_sync_tasks: dict[int, set[asyncio.Task]] = {}
         self._lock = RWLock(fast=True)
         self.logger = get_logger("node-manager")
 
@@ -73,24 +74,54 @@ class NodeManager:
         except Exception:
             pass
 
+    async def _cancel_user_syncs(self, node_id: int) -> None:
+        current = asyncio.current_task()
+        tasks = [task for task in self._user_sync_tasks.get(node_id, ()) if task is not current and not task.done()]
+        for task in tasks:
+            task.cancel()
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+
+    def _track_user_sync(self, node_id: int) -> asyncio.Task | None:
+        task = asyncio.current_task()
+        if task is not None:
+            self._user_sync_tasks.setdefault(node_id, set()).add(task)
+        return task
+
+    def _untrack_user_sync(self, node_id: int, task: asyncio.Task | None) -> None:
+        if task is None:
+            return
+        tasks = self._user_sync_tasks.get(node_id)
+        if tasks is None:
+            return
+        tasks.discard(task)
+        if not tasks:
+            self._user_sync_tasks.pop(node_id, None)
+
     async def update_node(self, node: Node) -> PasarGuardNode:
         await ensure_bridge_memory()
 
-        # Serialize against in-flight full syncs (sync_full) so a reconnect/health-check
-        # restart doesn't swap the node object out from under a slow peer sync — that race
-        # is what turns a slow sync into a stop/start restart loop.
+        signature = self._connection_signature(node)
+        async with self._lock.reader_lock:
+            existing = self._nodes.get(node.id)
+
+        # update_node() runs on every reconnect attempt, including the automated
+        # ones the health-check watchdog fires every ~minute. If nothing about the
+        # connection actually changed, reuse the live object without interrupting sync.
+        if existing is not None and self._node_signatures.get(node.id) == signature:
+            existing_extra = await existing.get_extra()
+            if existing.name == node.name and existing_extra.get("usage_coefficient") == node.usage_coefficient:
+                return existing
+
+        # A real configuration change takes precedence over an old user sync. Cancelling
+        # it prevents a failed bridge fallback from holding this node's lock for minutes.
+        await self._cancel_user_syncs(node.id)
+
         lock = self._user_sync_locks.setdefault(node.id, asyncio.Lock())
         async with lock:
-            signature = self._connection_signature(node)
+            # Another update may have completed while this call was waiting.
             async with self._lock.reader_lock:
                 existing = self._nodes.get(node.id)
-
-            # update_node() runs on every reconnect attempt, including the automated
-            # ones the health-check watchdog fires every ~minute. If nothing about the
-            # connection actually changed, reuse the live object instead of killing a
-            # possibly-healthy remote backend (a real Stop RPC) just to recreate it —
-            # that used to defeat the attach-if-already-running logic below and turned
-            # transient health-check false negatives into a permanent restart loop.
             if existing is not None and self._node_signatures.get(node.id) == signature:
                 existing_extra = await existing.get_extra()
                 if existing.name == node.name and existing_extra.get("usage_coefficient") == node.usage_coefficient:
@@ -110,14 +141,15 @@ class NodeManager:
         return new_node
 
     async def remove_node(self, id: int, *, remote_stop: bool = True) -> None:
-        # Serialize against in-flight sync_full/update_node the same way update_node does,
-        # so removal can't tear the node down mid-sync and can't drop the lock entry while
-        # a current waiter still holds that lock identity.
+        await self._cancel_user_syncs(id)
+
+        # Keep the per-node lock identity stable for the lifetime of the manager so a
+        # waiter cannot overlap a later operation through a newly-created lock.
         lock = self._user_sync_locks.setdefault(id, asyncio.Lock())
         async with lock, self._lock.writer_lock:
             old_node: PasarGuardNode | None = self._nodes.pop(id, None)
             self._node_signatures.pop(id, None)
-            self._user_sync_locks.pop(id, None)
+            self._user_sync_tasks.pop(id, None)
 
         # Do cleanup without holding the lock to avoid slow delete operations.
         asyncio.create_task(self._shutdown_node(old_node, remote_stop=remote_stop))
@@ -185,14 +217,24 @@ class NodeManager:
 
         return len(users_to_sync)
 
-    async def _sync_users_to_node(self, node_id: int, node: PasarGuardNode, users: list[ProtoUser]):
+    async def _sync_users_to_node(self, node_id: int, node: PasarGuardNode | None, users: list[ProtoUser]):
         batch_size = max(1, nats_settings.node_update_users_batch_size)
         lock = self._user_sync_locks.setdefault(node_id, asyncio.Lock())
         failed_count = 0
+        task = self._track_user_sync(node_id)
 
-        async with lock:
+        try:
             for batch in self._chunk_users(users, batch_size):
-                failed_count += await self._sync_user_batch_to_node(node, batch)
+                # Release the lock after every bounded batch so node lifecycle operations
+                # can preempt a large sync. Managed calls resolve the current node again
+                # after every yield and therefore never continue on a replaced instance.
+                async with lock:
+                    current_node = node if node is not None else await self.get_node(node_id)
+                    if current_node is None:
+                        return
+                    failed_count += await self._sync_user_batch_to_node(current_node, batch)
+        finally:
+            self._untrack_user_sync(node_id, task)
 
         if failed_count:
             raise RuntimeError(f"failed to sync {failed_count}/{len(users)} users to node {node_id}")
@@ -200,18 +242,22 @@ class NodeManager:
     async def sync_full(
         self, node_id: int, users: list[ProtoUser], *, flush_pending: bool = False
     ) -> PasarGuardNode | None:
-        """Push a full user snapshot to a node, serialized against update_node/remove_node.
+        """Push a full user snapshot to a node, coordinated with update_node/remove_node.
 
-        Guards against the reconnect/health-check watchdog tearing down the node object
-        mid-sync (which previously restarted the sync from scratch and could loop).
+        Lifecycle changes cancel this tracked task before taking the per-node lock, while
+        unchanged health-check reconnects reuse the current node without interrupting it.
         """
         lock = self._user_sync_locks.setdefault(node_id, asyncio.Lock())
-        async with lock:
-            node = await self.get_node(node_id)
-            if node is None:
-                return None
-            await node.sync_users(users, flush_pending=flush_pending)
-            return node
+        task = self._track_user_sync(node_id)
+        try:
+            async with lock:
+                node = await self.get_node(node_id)
+                if node is None:
+                    return None
+                await node.sync_users(users, flush_pending=flush_pending)
+                return node
+        finally:
+            self._untrack_user_sync(node_id, task)
 
     async def _update_users(self, users: list[ProtoUser]):
         nodes = await self._snapshot_node_items()
@@ -219,7 +265,7 @@ class NodeManager:
             return
 
         results = await asyncio.gather(
-            *(self._sync_users_to_node(node_id, node, users) for node_id, node in nodes), return_exceptions=True
+            *(self._sync_users_to_node(node_id, None, users) for node_id, _node in nodes), return_exceptions=True
         )
         for result in results:
             if isinstance(result, Exception):
