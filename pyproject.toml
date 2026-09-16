@@ -41,6 +41,8 @@ dependencies = [
     "typer>=0.27.2",
     "pasarguard-node-bridge>=0.9.1",
     "nats-py>=2.15.0",
+    "mcp>=2.2.0",
+    "httpx>=0.28.1",
 ]
 
 [tool.ruff]

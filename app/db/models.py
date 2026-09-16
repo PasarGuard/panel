@@ -918,6 +918,7 @@ class Settings(Base, IdMixin):
     subscription: Mapped[dict] = mapped_column(JSON())
     hwid: Mapped[dict] = mapped_column(JSON())
     general: Mapped[dict] = mapped_column(JSON())
+    mcp: Mapped[dict] = mapped_column(JSON(), default_factory=dict)
 
 
 class AdminRole(Base, CreatedAtUTCMixin):
@@ -995,6 +996,18 @@ class APIKey(Base, CreatedAtUTCMixin):
         if self.admin is None or self.admin.status == AdminStatus.disabled:
             return False
         return not self.is_expired
+
+
+class MCPOAuthClient(Base):
+    __tablename__ = "mcp_oauth_clients"
+
+    client_id: Mapped[str] = mapped_column(String(36), primary_key=True, init=True)
+    client_name: Mapped[str | None] = mapped_column(String(256), default=None)
+    client_secret: Mapped[str | None] = mapped_column(String(128), default=None)
+    redirect_uris: Mapped[list] = mapped_column(JSON(), default_factory=list)
+    grant_types: Mapped[list] = mapped_column(JSON(), default_factory=list)
+    token_endpoint_auth_method: Mapped[str] = mapped_column(String(32), default="none")
+    created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), default_factory=lambda: dt.now(UTC), init=False)
 
 
 class TempKey(Base):

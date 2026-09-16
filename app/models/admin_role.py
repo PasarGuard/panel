@@ -95,6 +95,14 @@ class HwidsPermissions(_ResourcePermissions):
     delete: RoleActionValue | None = None
 
 
+class MCPPermissions(_ResourcePermissions):
+    """read = MCP page, update = MCP settings, connect = open an MCP session (tools still use resource permissions)."""
+
+    read: RoleActionValue | None = None
+    update: RoleActionValue | None = None
+    connect: RoleActionValue | None = None
+
+
 class RoleLimits(BaseModel):
     max_users: int | None = None
     data_limit_min: int | None = None
@@ -143,6 +151,7 @@ class RolePermissions(BaseModel):
     hwids: HwidsPermissions | None = None
     admin_roles: CRUDPermissions | None = None
     api_keys: APIKeysPermissions | None = None
+    mcp: MCPPermissions | None = None
 
     model_config = ConfigDict(from_attributes=True)
 

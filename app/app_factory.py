@@ -372,6 +372,10 @@ def create_app() -> FastAPI:
         dashboard.setup_dashboard(app)
         app.include_router(api_router)
 
+        from app.mcp.server import setup_mcp
+
+        setup_mcp(app)
+
     if runtime_settings.role.runs_node:
         from app.node import worker as node_worker  # noqa: F401
 
