@@ -1,9 +1,9 @@
 from app.db import AsyncSession
-from app.db.crud.admin import get_admin_by_id
-from app.db.crud.api_key import get_api_key_by_id
+from app.db.crud.admin import build_admin_details, get_admin_by_id
 from app.db.crud.mcp import (
     api_key_mcp_settings,
     get_admin_mcp_settings,
+    get_api_key_with_admin,
     set_admin_mcp_settings,
     set_api_key_mcp_settings,
 )
@@ -26,6 +26,7 @@ from app.models.mcp import (
 )
 from app.operation.api_key import _check_permissions_not_exceed_admin
 from app.operation.permissions import PermissionDenied, enforce_permission
+from app.routers.authentication import apply_api_key_permissions
 
 from . import BaseOperation
 
@@ -61,7 +62,7 @@ class MCPOperation(BaseOperation):
         return db_admin
 
     async def _get_db_key(self, db: AsyncSession, admin: AdminDetails, key_id: int) -> APIKey:
-        db_key = await get_api_key_by_id(db, key_id)
+        db_key = await get_api_key_with_admin(db, key_id)
         if db_key is None or (db_key.admin_id != admin.id and not admin.is_owner):
             await self.raise_error(message="API key not found", code=404)
         return db_key
@@ -81,26 +82,28 @@ class MCPOperation(BaseOperation):
 
     async def _resolve(
         self, db: AsyncSession, admin: AdminDetails, api_key_id: int | None
-    ) -> tuple[MCPSettings, MCPAccess]:
-        """Settings shown on the page and the access they produce, for the admin or one of their keys."""
+    ) -> tuple[MCPSettings, MCPAccess, AdminDetails]:
+        """Settings shown on the page, the access they produce and who a session would act as."""
         if api_key_id is None:
             settings = await get_admin_mcp_settings(db, admin.id) if admin.id is not None else MCPSettings()
-            return settings, MCPAccess.build(settings)
+            return settings, MCPAccess.build(settings), admin
         db_key = await self._get_db_key(db, admin, api_key_id)
         key_settings = api_key_mcp_settings(db_key)
-        owner_settings = await get_admin_mcp_settings(db, db_key.admin_id)
+        owner_settings = MCPSettings.model_validate(db_key.admin.mcp or {})
         shown = MCPSettings(
             enable=key_settings.enable,
             oauth=owner_settings.oauth,
             read_only=key_settings.read_only,
             disabled_tools=key_settings.disabled_tools,
         )
-        return shown, MCPAccess.build(owner_settings, key_settings)
+        # A key session acts with the key's permission snapshot, not the viewer's role
+        key_admin = apply_api_key_permissions(build_admin_details(db_key.admin), db_key)
+        return shown, MCPAccess.build(owner_settings, key_settings), key_admin
 
     async def get_settings(
         self, db: AsyncSession, admin: AdminDetails, api_key_id: int | None = None
     ) -> MCPSettingsResponse:
-        settings, access = await self._resolve(db, admin, api_key_id)
+        settings, access, _ = await self._resolve(db, admin, api_key_id)
         return self._build_response(settings, access, api_key_id)
 
     async def modify_settings(
@@ -131,13 +134,13 @@ class MCPOperation(BaseOperation):
         except ValueError as exc:
             await self.raise_error(message=str(exc), code=400)
         await set_api_key_mcp_settings(db, db_key, new_key_settings)
-        settings, access = await self._resolve(db, admin, api_key_id)
+        settings, access, _ = await self._resolve(db, admin, api_key_id)
         return self._build_response(settings, access, api_key_id)
 
     async def list_tools(
         self, db: AsyncSession, admin: AdminDetails, api_key_id: int | None = None
     ) -> MCPToolsResponse:
-        _, access = await self._resolve(db, admin, api_key_id)
+        _, access, actor = await self._resolve(db, admin, api_key_id)
 
         tools: list[MCPToolInfo] = []
         for spec in sorted(get_tool_specs(), key=lambda item: (_group_sort_key(item.group), item.name)):
@@ -159,7 +162,7 @@ class MCPOperation(BaseOperation):
                     ],
                     enabled=reason is None,
                     disabled_reason=reason,
-                    allowed=admin_can_use_tool(admin, spec),
+                    allowed=admin_can_use_tool(actor, spec),
                 )
             )
         return MCPToolsResponse(tools=tools, total=len(tools))

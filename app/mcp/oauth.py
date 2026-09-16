@@ -1,6 +1,6 @@
 import secrets
 import time
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from urllib.parse import urlencode
 
 import jwt
@@ -19,17 +19,28 @@ from mcp.server.auth.provider import (
 from mcp.server.auth.settings import ClientRegistrationOptions
 from mcp.shared.auth import OAuthClientInformationFull, OAuthMetadata, OAuthToken, ProtectedResourceMetadata
 from pydantic import AnyHttpUrl
+from sqlalchemy.exc import IntegrityError
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
 
 from app.db import GetDB
+from app.db.crud.admin import get_admin_by_id
 from app.db.crud.api_key import create_api_key, delete_api_key, get_api_key_by_raw_key
-from app.db.crud.mcp import create_oauth_client, get_oauth_client
+from app.db.crud.mcp import (
+    create_oauth_client,
+    create_oauth_code,
+    get_api_key_names,
+    get_oauth_client,
+    get_oauth_code,
+    use_oauth_code,
+)
+from app.db.models import AdminStatus, MCPOAuthCode
 from app.models.admin import AdminDetails
 from app.models.admin_role import MCPPermissions, RolePermissions
 from app.models.api_key import APIKeyCreate
 from app.routers.authentication import get_admin_from_api_key
+from app.utils.helpers import fix_datetime_timezone
 from app.utils.jwt import get_secret_key
 from config import dashboard_settings
 
@@ -66,10 +77,19 @@ def _client_info(db_client) -> OAuthClientInformationFull:
         client_secret=db_client.client_secret,
         client_name=db_client.client_name,
         redirect_uris=db_client.redirect_uris,
-        grant_types=db_client.grant_types or ["authorization_code", "refresh_token"],
+        grant_types=db_client.grant_types or ["authorization_code"],
         token_endpoint_auth_method=db_client.token_endpoint_auth_method,
         client_id_issued_at=int(db_client.created_at.timestamp()) if db_client.created_at else None,
     )
+
+
+async def _unique_key_name(db, admin_id: int, base: str) -> str:
+    taken = await get_api_key_names(db, admin_id, base)
+    name, counter = base, 2
+    while name in taken:
+        name = f"{base} ({counter})"
+        counter += 1
+    return name
 
 
 class PanelOAuthProvider(OAuthAuthorizationServerProvider[AuthorizationCode, RefreshToken, AccessToken]):
@@ -85,7 +105,7 @@ class PanelOAuthProvider(OAuthAuthorizationServerProvider[AuthorizationCode, Ref
             await create_oauth_client(
                 db,
                 client_id=client_info.client_id,
-                client_name=client_info.client_name,
+                client_name=(client_info.client_name or "")[:256] or None,
                 client_secret=client_info.client_secret,
                 redirect_uris=[str(uri) for uri in client_info.redirect_uris or []],
                 grant_types=list(client_info.grant_types or []),
@@ -96,6 +116,7 @@ class PanelOAuthProvider(OAuthAuthorizationServerProvider[AuthorizationCode, Ref
         request_token = await _encode(
             {
                 "typ": "mcp_authreq",
+                "jti": secrets.token_hex(16),
                 "cid": client.client_id,
                 "ru": str(params.redirect_uri),
                 "rue": params.redirect_uri_provided_explicitly,
@@ -112,29 +133,54 @@ class PanelOAuthProvider(OAuthAuthorizationServerProvider[AuthorizationCode, Ref
     async def load_authorization_code(
         self, client: OAuthClientInformationFull, authorization_code: str
     ) -> AuthorizationCode | None:
-        claims = await _decode(authorization_code, "mcp_code")
-        if not claims or claims.get("cid") != client.client_id:
+        async with GetDB() as db:
+            db_code = await get_oauth_code(db, authorization_code)
+        if db_code is None or db_code.used_at is not None or db_code.client_id != client.client_id:
             return None
         return AuthorizationCode(
-            code=authorization_code,
-            scopes=claims.get("sc", []),
-            expires_at=float(claims["exp"]),
+            code=db_code.code,
+            scopes=list(db_code.scopes or []),
+            expires_at=fix_datetime_timezone(db_code.expires_at).timestamp(),
             client_id=client.client_id,
-            code_challenge=claims["cc"],
-            redirect_uri=AnyHttpUrl(claims["ru"]),
-            redirect_uri_provided_explicitly=bool(claims.get("rue")),
-            resource=claims.get("res"),
-            subject=claims["sub"],
+            code_challenge=db_code.code_challenge,
+            redirect_uri=AnyHttpUrl(db_code.redirect_uri),
+            redirect_uri_provided_explicitly=db_code.redirect_uri_explicit,
+            resource=db_code.resource,
+            subject=str(db_code.admin_id),
         )
 
     async def exchange_authorization_code(
         self, client: OAuthClientInformationFull, authorization_code: AuthorizationCode
     ) -> OAuthToken:
-        claims = await _decode(authorization_code.code, "mcp_code")
-        if not claims:
-            raise TokenError("invalid_grant", "authorization code is invalid or expired")
-        # The API key created on consent is the access token; deleting the key revokes it
-        return OAuthToken(access_token=claims["key"], token_type="Bearer", scope=" ".join(claims.get("sc", [])) or None)
+        # The key is created here, after PKCE passed, so the code itself never carries a secret
+        async with GetDB() as db:
+            db_code = await get_oauth_code(db, authorization_code.code)
+            if db_code is None or db_code.used_at is not None:
+                raise TokenError("invalid_grant", "authorization code is invalid or expired")
+            await use_oauth_code(db, db_code)
+            db_admin = await get_admin_by_id(db, db_code.admin_id, load_users=False, load_usage_logs=False)
+            if db_admin is None or db_admin.status == AdminStatus.disabled:
+                await db.commit()
+                raise TokenError("invalid_grant", "admin is not available")
+
+            client_name = db_code.client_name or "MCP client"
+            permissions = RolePermissions.model_validate(db_code.permissions) if db_code.permissions else None
+            if permissions is not None:
+                # Every key issued here must be able to open an MCP session
+                permissions.mcp = (permissions.mcp or MCPPermissions()).model_copy(update={"connect": True})
+            name = await _unique_key_name(db, db_admin.id, f"{client_name} {datetime.now(UTC):%Y-%m-%d %H:%M}"[:110])
+            raw_key, _ = await create_api_key(
+                db,
+                db_admin.id,
+                APIKeyCreate(
+                    name=name,
+                    note=f"Created by MCP OAuth sign-in for {client_name}",
+                    permissions=permissions or RolePermissions(),
+                    inherit_permissions=permissions is None,
+                ),
+            )
+            await db.commit()
+        return OAuthToken(access_token=raw_key, token_type="Bearer", scope=" ".join(authorization_code.scopes) or None)
 
     async def load_refresh_token(self, client: OAuthClientInformationFull, refresh_token: str) -> RefreshToken | None:
         return None
@@ -178,7 +224,7 @@ async def authorization_server_metadata(request: Request) -> Response:
         token_endpoint=AnyHttpUrl(base + TOKEN_PATH),
         registration_endpoint=AnyHttpUrl(base + REGISTER_PATH),
         response_types_supported=["code"],
-        grant_types_supported=["authorization_code", "refresh_token"],
+        grant_types_supported=["authorization_code"],
         token_endpoint_auth_methods_supported=["none", "client_secret_post", "client_secret_basic"],
         code_challenge_methods_supported=["S256"],
     )
@@ -214,43 +260,31 @@ def _redirect_with(claims: dict, query: dict) -> str:
 async def grant_request(
     request_token: str, admin: AdminDetails, permissions: RolePermissions | None = None
 ) -> str | None:
+    """Store a single-use authorization code for the request. Returns None if the request is invalid or already used."""
     claims = await _decode(request_token, "mcp_authreq")
-    if not claims:
+    if not claims or "jti" not in claims:
         return None
     client = await provider.get_client(claims["cid"])
-    client_name = (client.client_name if client else None) or "MCP client"
-    if permissions is not None:
-        # Every key issued here must be able to open an MCP session
-        permissions.mcp = MCPPermissions(**{**(permissions.mcp or MCPPermissions()).model_dump(), "connect": True})
-    async with GetDB() as db:
-        raw_key, _ = await create_api_key(
-            db,
-            admin.id,
-            APIKeyCreate(
-                name=f"{client_name} {datetime.now(UTC):%Y-%m-%d %H:%M}"[:128],
-                note=f"Created by MCP OAuth sign-in for {client_name}",
-                permissions=permissions or RolePermissions(),
-                inherit_permissions=permissions is None,
-            ),
-        )
-        await db.commit()
-    code = await _encode(
-        {
-            "typ": "mcp_code",
-            "sub": admin.username,
-            "aid": admin.id,
-            "key": raw_key,
-            "cid": claims["cid"],
-            "cc": claims["cc"],
-            "ru": claims["ru"],
-            "rue": claims.get("rue", False),
-            "sc": claims.get("sc", []),
-            "res": claims.get("res"),
-            "jti": secrets.token_hex(8),
-        },
-        CODE_TTL,
+    db_code = MCPOAuthCode(
+        code=secrets.token_urlsafe(32),
+        request_id=claims["jti"],
+        admin_id=admin.id,
+        client_id=claims["cid"],
+        redirect_uri=claims["ru"],
+        code_challenge=claims["cc"],
+        expires_at=datetime.now(UTC) + timedelta(seconds=CODE_TTL),
+        client_name=client.client_name if client else None,
+        redirect_uri_explicit=bool(claims.get("rue")),
+        scopes=list(claims.get("sc", [])),
+        resource=claims.get("res"),
+        permissions=permissions.model_dump(exclude_none=True) if permissions is not None else None,
     )
-    return _redirect_with(claims, {"code": code})
+    async with GetDB() as db:
+        try:
+            await create_oauth_code(db, db_code, keep_for=timedelta(seconds=REQUEST_TTL))
+        except IntegrityError:
+            return None
+    return _redirect_with(claims, {"code": db_code.code})
 
 
 async def deny_request(request_token: str) -> str | None:

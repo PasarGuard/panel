@@ -11,15 +11,11 @@ import { savePendingOAuthRequest } from '@/features/mcp/utils/oauth-request'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { RolePermissions, useGetCurrentAdmin, useGetMcpOauthRequest, useMcpOauthConsent } from '@/service/api'
 import { getAuthToken } from '@/utils/authStorage'
+import { getErrorMessage, isAuthenticationError } from '@/utils/error-utils'
 import { Bot, CircleAlertIcon, KeyRound, ShieldCheck } from 'lucide-react'
 import { FC, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useSearchParams } from 'react-router'
-
-const errorMessage = (error: unknown) => {
-  const err = error as { data?: { detail?: string }; message?: string } | null
-  return err?.data?.detail || err?.message
-}
 
 export const McpAuthorize: FC = () => {
   const { t } = useTranslation()
@@ -31,26 +27,20 @@ export const McpAuthorize: FC = () => {
   const [redirecting, setRedirecting] = useState(false)
   const [inheritPermissions, setInheritPermissions] = useState(true)
   const [permissions, setPermissions] = useState<RolePermissionFormMap>({})
+  const [consentError, setConsentError] = useState<string | null>(null)
   const hasToken = !!getAuthToken()
-
-  useEffect(() => {
-    if (!request) return
-    if (!hasToken) {
-      savePendingOAuthRequest(request)
-      navigate('/login', { replace: true })
-    }
-  }, [request, hasToken, navigate])
 
   const { data: admin, error: adminError } = useGetCurrentAdmin({ query: { enabled: !!request && hasToken, retry: false } })
   const { data: info, error: requestError, isLoading } = useGetMcpOauthRequest({ request }, { query: { enabled: !!request && hasToken && !!admin, retry: false } })
   const { mutateAsync: consent, isPending } = useMcpOauthConsent()
 
   useEffect(() => {
-    if (adminError) {
+    if (!request) return
+    if (!hasToken || isAuthenticationError(adminError)) {
       savePendingOAuthRequest(request)
       navigate('/login', { replace: true })
     }
-  }, [adminError, request, navigate])
+  }, [request, hasToken, adminError, navigate])
 
   // Same ceiling as the API key dialog: owners may pick anything, others only what their role has
   const permissionCeiling = useMemo(() => (admin?.role?.is_owner ? undefined : sanitizeRolePermissions(admin?.role?.permissions)), [admin])
@@ -63,18 +53,19 @@ export const McpAuthorize: FC = () => {
   }, [inheritPermissions, admin, permissions, permissionCeiling])
 
   const answer = async (approve: boolean) => {
+    setConsentError(null)
     try {
       const response = await consent({
         data: { request, approve, permissions: approve && !inheritPermissions ? (visiblePermissions as RolePermissions) : undefined },
       })
       setRedirecting(true)
       window.location.href = response.redirect_url
-    } catch {
-      return
+    } catch (err) {
+      setConsentError(getErrorMessage(err))
     }
   }
 
-  const error = !request ? t('mcp.authorize.invalid') : requestError ? errorMessage(requestError) || t('mcp.authorize.invalid') : null
+  const error = !request ? t('mcp.authorize.invalid') : requestError ? getErrorMessage(requestError) : adminError && !isAuthenticationError(adminError) ? getErrorMessage(adminError) : null
   const busy = isPending || redirecting
 
   return (
@@ -130,6 +121,12 @@ export const McpAuthorize: FC = () => {
                     <Bot className="mt-0.5 h-4 w-4 shrink-0" />
                     <span>{t('mcp.authorize.scope')}</span>
                   </div>
+                  {consentError && (
+                    <Alert variant="destructive">
+                      <CircleAlertIcon className="h-4 w-4" />
+                      <AlertDescription>{consentError}</AlertDescription>
+                    </Alert>
+                  )}
                   <div className="flex flex-col gap-2 sm:flex-row-reverse">
                     <LoaderButton isLoading={busy} className="flex w-full items-center gap-2 sm:flex-1" onClick={() => answer(true)}>
                       <ShieldCheck className="h-4 w-4" />

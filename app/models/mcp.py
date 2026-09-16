@@ -1,4 +1,6 @@
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from typing import Annotated
+
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field
 
 from app.mcp.catalog import DEFAULT_DISABLED_TOOLS
 from app.models.admin_role import RolePermissions
@@ -19,22 +21,20 @@ def _clean_tool_names(value):
     return cleaned
 
 
+ToolNames = Annotated[list[str], BeforeValidator(_clean_tool_names)]
+
+
 class MCPSettings(BaseModel):
     """Per-admin MCP settings, stored in admins.mcp."""
 
     enable: bool = Field(default=False)
     oauth: bool = Field(default=True, description="Allow OAuth sign-in for clients that cannot send an API key")
     read_only: bool = Field(default=False, description="Only expose read-only tools")
-    disabled_tools: list[str] = Field(
+    disabled_tools: ToolNames = Field(
         default_factory=lambda: sorted(DEFAULT_DISABLED_TOOLS), description="Tool names hidden from MCP clients"
     )
 
     model_config = ConfigDict(from_attributes=True)
-
-    @field_validator("disabled_tools", mode="before")
-    @classmethod
-    def validate_disabled_tools(cls, value):
-        return _clean_tool_names(value)
 
 
 class MCPKeySettings(BaseModel):
@@ -42,14 +42,9 @@ class MCPKeySettings(BaseModel):
 
     enable: bool = Field(default=True)
     read_only: bool = Field(default=False)
-    disabled_tools: list[str] = Field(default_factory=list)
+    disabled_tools: ToolNames = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True)
-
-    @field_validator("disabled_tools", mode="before")
-    @classmethod
-    def validate_disabled_tools(cls, value):
-        return _clean_tool_names(value)
 
 
 class MCPSettingsResponse(MCPSettings):
@@ -64,7 +59,7 @@ class MCPSettingsModify(BaseModel):
     enable: bool | None = None
     oauth: bool | None = None
     read_only: bool | None = None
-    disabled_tools: list[str] | None = None
+    disabled_tools: ToolNames | None = None
 
 
 class MCPToolPermission(BaseModel):

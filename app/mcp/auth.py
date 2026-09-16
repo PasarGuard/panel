@@ -1,16 +1,16 @@
-import json
-
 from fastapi import HTTPException
 from starlette.requests import Request
+from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from app.db import GetDB
+from app.db.crud.admin import build_admin_details
 from app.db.crud.api_key import get_api_key_by_raw_key
 from app.db.crud.mcp import api_key_mcp_settings, get_admin_mcp_settings
 from app.models.admin import AdminDetails, AdminStatus
-from app.models.mcp import MCPKeySettings, MCPSettings
+from app.models.mcp import MCPSettings
 from app.operation.permissions import PermissionDenied, enforce_permission
-from app.routers.authentication import get_admin, get_admin_from_api_key
+from app.routers.authentication import apply_api_key_permissions, get_admin
 
 from .registry import ACCESS_STATE_KEY, ADMIN_STATE_KEY, MCP_PATH, MCPAccess
 
@@ -39,40 +39,28 @@ def extract_credentials(request: Request) -> tuple[str | None, str | None]:
     return None, None
 
 
-async def authenticate_mcp_request(request: Request) -> tuple[AdminDetails | None, MCPKeySettings | None]:
-    """Resolve the admin behind the request and, for API keys, the key's own MCP settings."""
+async def authenticate_mcp_request(request: Request) -> tuple[AdminDetails | None, MCPAccess | None]:
+    """Resolve the admin behind the request and what their MCP settings (and the key's, if any) allow."""
     token, api_key = extract_credentials(request)
     if not token and not api_key:
         return None, None
 
     async with GetDB() as db:
         if api_key:
-            admin = await get_admin_from_api_key(db, api_key)
-            if admin is None:
-                return None, None
             db_key = await get_api_key_by_raw_key(db, api_key)
-            return admin, api_key_mcp_settings(db_key) if db_key is not None else None
+            if db_key is None or not db_key.is_usable:
+                return None, None
+            admin = apply_api_key_permissions(build_admin_details(db_key.admin), db_key)
+            settings = MCPSettings.model_validate(db_key.admin.mcp or {})
+            return admin, MCPAccess.build(settings, api_key_mcp_settings(db_key))
         try:
-            return await get_admin(db, token), None
+            admin = await get_admin(db, token)
         except HTTPException:
             return None, None
-
-
-async def load_mcp_access(admin: AdminDetails, key_settings: MCPKeySettings | None = None) -> MCPAccess:
-    if admin.id is None:
-        return MCPAccess.build(MCPSettings())
-    async with GetDB() as db:
-        settings = await get_admin_mcp_settings(db, admin.id)
-    return MCPAccess.build(settings, key_settings)
-
-
-async def _send_json(send: Send, status: int, payload: dict, headers: dict[str, str] | None = None) -> None:
-    body = json.dumps(payload).encode()
-    raw_headers = [(b"content-type", b"application/json"), (b"content-length", str(len(body)).encode())]
-    for key, value in (headers or {}).items():
-        raw_headers.append((key.lower().encode(), value.encode()))
-    await send({"type": "http.response.start", "status": status, "headers": raw_headers})
-    await send({"type": "http.response.body", "body": body})
+        if admin is None:
+            return None, None
+        settings = await get_admin_mcp_settings(db, admin.id) if admin.id is not None else MCPSettings()
+        return admin, MCPAccess.build(settings)
 
 
 class MCPAuthMiddleware:
@@ -87,27 +75,27 @@ class MCPAuthMiddleware:
             return
 
         request = Request(scope, receive)
-        admin, key_settings = await authenticate_mcp_request(request)
-        if admin is None:
+        admin, access = await authenticate_mcp_request(request)
+        if admin is None or access is None:
             metadata_url = f"{request.url.scheme}://{request.url.netloc}/.well-known/oauth-protected-resource{MCP_PATH}"
             challenge = f'Bearer realm="PasarGuard MCP", resource_metadata="{metadata_url}"'
-            await _send_json(send, 401, {"detail": "Could not validate credentials"}, {"WWW-Authenticate": challenge})
-            return
-        if admin.status == AdminStatus.disabled:
-            await _send_json(send, 403, {"detail": "your account has been disabled"})
-            return
-        try:
-            enforce_permission(admin, "mcp", "connect")
-        except PermissionDenied as exc:
-            await _send_json(send, 403, {"detail": str(exc)})
-            return
-
-        access = await load_mcp_access(admin, key_settings)
-        if not access.enable:
-            await _send_json(send, 403, {"detail": "MCP is turned off for this account"})
-            return
-
-        state = scope.setdefault("state", {})
-        state[ADMIN_STATE_KEY] = admin
-        state[ACCESS_STATE_KEY] = access
-        await self.app(scope, receive, send)
+            response = JSONResponse(
+                {"detail": "Could not validate credentials"}, status_code=401, headers={"WWW-Authenticate": challenge}
+            )
+        elif admin.status == AdminStatus.disabled:
+            response = JSONResponse({"detail": "your account has been disabled"}, status_code=403)
+        else:
+            try:
+                enforce_permission(admin, "mcp", "connect")
+            except PermissionDenied as exc:
+                response = JSONResponse({"detail": str(exc)}, status_code=403)
+            else:
+                if not access.enable:
+                    response = JSONResponse({"detail": "MCP is turned off for this account"}, status_code=403)
+                else:
+                    state = scope.setdefault("state", {})
+                    state[ADMIN_STATE_KEY] = admin
+                    state[ACCESS_STATE_KEY] = access
+                    await self.app(scope, receive, send)
+                    return
+        await response(scope, receive, send)

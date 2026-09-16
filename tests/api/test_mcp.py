@@ -584,6 +584,25 @@ def test_oauth_flow_issues_tokens_that_open_mcp_sessions(access_token, role_with
         assert tokens["access_token"].startswith("pg_key_")
         assert not tokens.get("refresh_token")
 
+        # Codes are single use and a consent request cannot be approved twice
+        replay = client.post(
+            "/mcp/oauth/token",
+            data={
+                "grant_type": "authorization_code",
+                "code": code,
+                "redirect_uri": "http://localhost:9999/callback",
+                "client_id": client_id,
+                "code_verifier": verifier,
+            },
+        )
+        assert replay.status_code == status.HTTP_400_BAD_REQUEST
+        again = client.post(
+            "/api/mcp/oauth/consent",
+            json={"request": request_token, "approve": True},
+            headers=auth_headers(admin_token),
+        )
+        assert again.status_code == status.HTTP_400_BAD_REQUEST
+
         names = _tool_names(_mcp_post({"Authorization": f"Bearer {tokens['access_token']}"}, _rpc("tools/list")))
         assert "get_users" in names
         assert "get_system_stats" not in names
@@ -594,7 +613,8 @@ def test_oauth_flow_issues_tokens_that_open_mcp_sessions(access_token, role_with
         assert created[0]["inherit_permissions"] is False
         assert created[0]["permissions"]["mcp"]["connect"] is True
 
-        removed = client.delete(f"/api/api_key/{created[0]['id']}", headers=auth_headers(access_token))
+        # Deleting the key on the API Keys page is how access is revoked
+        removed = client.delete(f"/api/api_key/{created[0]['id']}", headers=auth_headers(admin_token))
         assert removed.status_code == status.HTTP_204_NO_CONTENT
         revoked = _mcp_post({"Authorization": f"Bearer {tokens['access_token']}"}, _rpc("tools/list"))
         assert revoked.status_code == status.HTTP_401_UNAUTHORIZED

@@ -1,6 +1,7 @@
 import inspect
 import re
 from typing import Annotated, Any
+from urllib.parse import quote
 
 import httpx
 from fastapi import FastAPI
@@ -10,6 +11,7 @@ from mcp.server.mcpserver import Context
 from mcp.server.mcpserver.exceptions import ToolError
 from pydantic import BaseModel, Field
 
+from app.routers.authentication import get_current, get_current_with_metrics
 from app.utils.logger import get_logger
 
 from .auth import extract_credentials
@@ -29,17 +31,8 @@ INTERNAL_BASE_URL = "http://mcp.internal"
 DEFAULT_LIST_LIMIT = 50
 CONFIRM_PARAM = "confirm"
 
-# Auth, setup, webhooks and streaming endpoints are not exposed as tools
-EXCLUDED_ROUTE_NAMES = {
-    "admin_token",
-    "admin_mini_app_token",
-    "webhook_handler",
-    "create_owner",
-    "reset_owner_password",
-    "delete_owner",
-    "upgrade_owner",
-    "node_logs",
-}
+# Streams logs; every other route without an admin dependency is skipped automatically
+EXCLUDED_ROUTE_NAMES = {"node_logs"}
 EXCLUDED_PATH_PREFIXES = ("/api/mcp",)
 # Legacy duplicates of the username-based routes
 EXCLUDED_PATH_PARTS = ("/by-username/", "/by-id/")
@@ -74,24 +67,28 @@ def iter_api_routes(routes) -> list[APIRoute]:
     return found
 
 
-def _route_permissions(dependant: Dependant) -> tuple[tuple[ToolPermission, ...], bool]:
+def _route_permissions(dependant: Dependant) -> tuple[tuple[ToolPermission, ...], bool, bool]:
+    """Permissions, owner-only flag and whether the route authenticates an admin at all."""
     permissions: list[ToolPermission] = []
     owner_only = False
+    requires_admin = False
     for dep in dependant.dependencies:
         fn = dep.call
-        code = getattr(fn, "__code__", None)
-        closure = getattr(fn, "__closure__", None)
-        if closure and code and code.co_freevars:
-            values = dict(zip(code.co_freevars, [cell.cell_contents for cell in closure], strict=False))
-            if "resource" in values and "action" in values:
-                scope_all = "require_scope_all" in getattr(fn, "__qualname__", "")
-                permissions.append(ToolPermission(values["resource"], values["action"], scope_all))
-        if getattr(fn, "__name__", "") == "require_owner":
-            owner_only = True
-        sub_permissions, sub_owner = _route_permissions(dep)
+        permission = getattr(fn, "permission", None)
+        if permission:
+            permissions.append(ToolPermission(*permission, getattr(fn, "scope_all", False)))
+        owner_only = owner_only or getattr(fn, "owner_only", False)
+        requires_admin = (
+            requires_admin
+            or fn in (get_current, get_current_with_metrics)
+            or bool(permission)
+            or getattr(fn, "owner_only", False)
+        )
+        sub_permissions, sub_owner, sub_admin = _route_permissions(dep)
         permissions.extend(sub_permissions)
         owner_only = owner_only or sub_owner
-    return tuple(permissions), owner_only
+        requires_admin = requires_admin or sub_admin
+    return tuple(permissions), owner_only, requires_admin
 
 
 def _collect_params(dependant: Dependant, kind: str) -> list:
@@ -137,7 +134,10 @@ def _spec_for(route: APIRoute) -> ToolSpec | None:
     if any(part in route.path for part in EXCLUDED_PATH_PARTS):
         return None
     method = min(route.methods)
-    permissions, owner_only = _route_permissions(route.dependant)
+    permissions, owner_only, requires_admin = _route_permissions(route.dependant)
+    # Login, setup and webhook routes have no admin behind them
+    if not requires_admin:
+        return None
     title, description = TOOL_TEXT.get(route.name, (_humanize(route.name), _description(route)))
     return ToolSpec(
         name=route.name,
@@ -197,7 +197,7 @@ def _build_handler(app: FastAPI, route: APIRoute, spec: ToolSpec):
 
         path = route.path
         for name in path_names:
-            path = path.replace("{" + name + "}", str(kwargs.get(name)))
+            path = path.replace("{" + name + "}", quote(str(kwargs.get(name)), safe=""))
 
         query: dict[str, Any] = {}
         for name, model_field in query_by_name.items():

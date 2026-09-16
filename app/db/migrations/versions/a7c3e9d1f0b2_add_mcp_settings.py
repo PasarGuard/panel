@@ -35,8 +35,29 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("client_id"),
     )
 
+    op.create_table(
+        "mcp_oauth_codes",
+        sa.Column("code", sa.String(length=64), nullable=False),
+        sa.Column("request_id", sa.String(length=32), nullable=False),
+        sa.Column("admin_id", sa.BigInteger().with_variant(sa.Integer(), "sqlite"), nullable=False),
+        sa.Column("client_id", sa.String(length=36), nullable=False),
+        sa.Column("redirect_uri", sa.String(length=2048), nullable=False),
+        sa.Column("code_challenge", sa.String(length=128), nullable=False),
+        sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("client_name", sa.String(length=256), nullable=True),
+        sa.Column("redirect_uri_explicit", sa.Boolean(), nullable=False),
+        sa.Column("scopes", sa.JSON(), nullable=False),
+        sa.Column("resource", sa.String(length=2048), nullable=True),
+        sa.Column("permissions", sa.JSON(), nullable=True),
+        sa.Column("used_at", sa.DateTime(timezone=True), nullable=True),
+        sa.ForeignKeyConstraint(["admin_id"], ["admins.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("code"),
+        sa.UniqueConstraint("request_id"),
+    )
+
 
 def downgrade() -> None:
+    op.drop_table("mcp_oauth_codes")
     op.drop_table("mcp_oauth_clients")
     with op.batch_alter_table("api_keys") as batch_op:
         batch_op.drop_column("mcp")

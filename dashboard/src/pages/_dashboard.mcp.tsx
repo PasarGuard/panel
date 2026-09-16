@@ -20,6 +20,7 @@ import { McpAccessPresets } from '@/features/mcp/components/mcp-access-presets'
 import { mcpSettingsDefaultValues, mcpSettingsSchema, toMcpSettingsFormValues, type McpSettingsFormInput } from '@/features/mcp/forms/mcp-settings-form'
 import { buildMcpUrl } from '@/features/mcp/utils/mcp-clients'
 import { useAdmin } from '@/hooks/use-admin'
+import { getErrorMessage } from '@/utils/error-utils'
 import { hasPermission } from '@/utils/rbac'
 import { getGetMcpSettingsQueryKey, getListMcpToolsQueryKey, useGetMcpSettings, useListApiKeys, useListMcpTools, useModifyMcpSettings } from '@/service/api'
 
@@ -38,7 +39,7 @@ export default function McpPage() {
 
   const { data: settings, isLoading: isSettingsLoading, error: settingsError } = useGetMcpSettings(params)
   const { data: toolsResponse, isLoading: isToolsLoading } = useListMcpTools(params)
-  const { data: apiKeysResponse } = useListApiKeys({ limit: 200 }, { query: { enabled: canReadApiKeys } })
+  const { data: apiKeysResponse } = useListApiKeys({ limit: 200, status: 'active' }, { query: { enabled: canReadApiKeys } })
   const apiKeys = useMemo(() => (apiKeysResponse?.api_keys ?? []).filter(key => key.admin_id === admin?.id), [apiKeysResponse, admin?.id])
 
   const form = useForm<McpSettingsFormInput>({
@@ -59,10 +60,7 @@ export default function McpPage() {
         queryClient.invalidateQueries({ queryKey: getListMcpToolsQueryKey(params) })
       },
       onError: (error: unknown) => {
-        const err = error as { data?: { detail?: string }; message?: string } | null
-        toast.error(t('mcp.saveFailed'), {
-          description: err?.data?.detail || err?.message,
-        })
+        toast.error(t('mcp.saveFailed'), { description: getErrorMessage(error) })
       },
     },
   })

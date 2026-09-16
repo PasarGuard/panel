@@ -4,7 +4,6 @@ from mcp.server.context import ServerRequestContext
 from mcp.server.mcpserver import MCPServer
 from mcp.server.streamable_http_manager import StreamableHTTPASGIApp, StreamableHTTPSessionManager
 from mcp.server.transport_security import TransportSecuritySettings
-from mcp.types import ListToolsResult
 from starlette.routing import Route
 
 from app.utils.logger import get_logger
@@ -51,9 +50,6 @@ async def _visibility_middleware(ctx: ServerRequestContext, call_next):
         spec = get_tool_spec(tool_name)
         return spec is None or is_tool_visible(spec, access, admin)
 
-    # The SDK may pass the pydantic result or its serialized dict
-    if isinstance(result, ListToolsResult):
-        return result.model_copy(update={"tools": [tool for tool in result.tools if _visible(tool.name)]})
     if isinstance(result, dict) and isinstance(result.get("tools"), list):
         return {**result, "tools": [tool for tool in result["tools"] if _visible(tool.get("name", ""))]}
     return result

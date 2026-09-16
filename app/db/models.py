@@ -1011,6 +1011,24 @@ class MCPOAuthClient(Base):
     created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), default_factory=lambda: dt.now(UTC), init=False)
 
 
+class MCPOAuthCode(Base):
+    __tablename__ = "mcp_oauth_codes"
+
+    code: Mapped[str] = mapped_column(String(64), primary_key=True, init=True)
+    request_id: Mapped[str] = mapped_column(String(32), unique=True)
+    admin_id: Mapped[int] = fk_id_column("admins.id", ondelete="CASCADE")
+    client_id: Mapped[str] = mapped_column(String(36))
+    redirect_uri: Mapped[str] = mapped_column(String(2048))
+    code_challenge: Mapped[str] = mapped_column(String(128))
+    expires_at: Mapped[dt] = mapped_column(DateTime(timezone=True))
+    client_name: Mapped[str | None] = mapped_column(String(256), default=None)
+    redirect_uri_explicit: Mapped[bool] = mapped_column(default=False)
+    scopes: Mapped[list] = mapped_column(JSON(), default_factory=list)
+    resource: Mapped[str | None] = mapped_column(String(2048), default=None)
+    permissions: Mapped[dict | None] = mapped_column(JSON(), default=None)
+    used_at: Mapped[dt | None] = mapped_column(DateTime(timezone=True), default=None)
+
+
 class TempKey(Base):
     __tablename__ = "temp_keys"
 

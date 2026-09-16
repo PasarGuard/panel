@@ -32,7 +32,7 @@ def _get_resource_action(admin: AdminDetails, resource: str, action: str):
     return (resource_perms or {}).get(action) if resource_perms is not None else None
 
 
-_READ_ACTIONS = frozenset({"read", "read_simple", "read_general", "logs", "stats"})
+_READ_ACTIONS = frozenset({"read", "read_simple", "read_general", "logs", "stats", "connect"})
 
 
 def enforce_permission(admin: AdminDetails, resource: str, action: str) -> None:
