@@ -18,6 +18,7 @@ const Dashboard = lazyWithChunkRecovery(() => import('../pages/_dashboard._index
 const AdminsPage = lazyWithChunkRecovery(() => import('../pages/_dashboard.admins'))
 const AdminRolesPage = lazyWithChunkRecovery(() => import('../pages/_dashboard.admin-roles'))
 const ApiKeysPage = lazyWithChunkRecovery(() => import('../pages/_dashboard.api-keys'))
+const McpPage = lazyWithChunkRecovery(() => import('../pages/_dashboard.mcp'))
 const BulkPage = lazyWithChunkRecovery(() => import('../pages/_dashboard.bulk'))
 const BulkCreatePage = lazyWithChunkRecovery(() => import('../pages/_dashboard.bulk.create'))
 const BulkDataPage = lazyWithChunkRecovery(() => import('../pages/_dashboard.bulk.data'))
@@ -44,6 +45,7 @@ const UserTemplates = lazyWithChunkRecovery(() => import('../pages/_dashboard.te
 const ClientTemplates = lazyWithChunkRecovery(() => import('../pages/_dashboard.templates.client'))
 const Users = lazyWithChunkRecovery(() => import('../pages/_dashboard.users'))
 const Login = lazyWithChunkRecovery(() => import('../pages/login'))
+const McpAuthorize = lazyWithChunkRecovery(() => import('../pages/mcp-authorize'))
 
 // Component to handle default settings routing based on user permissions
 function SettingsIndex() {
@@ -259,6 +261,14 @@ export const router = createHashRouter([
         ),
       },
       {
+        path: '/mcp',
+        element: (
+          <Suspense fallback={<LoadingSpinner />}>
+            <McpPage />
+          </Suspense>
+        ),
+      },
+      {
         path: '/settings',
         element: (
           <Suspense fallback={<TabbedRouteSuspenseFallback />}>
@@ -416,6 +426,20 @@ export const router = createHashRouter([
     element: (
       <Suspense fallback={<LoadingSpinner />}>
         <Login />
+      </Suspense>
+    ),
+    errorElement: (
+      <Suspense fallback={<LoadingSpinner />}>
+        <RouteErrorPage />
+      </Suspense>
+    ),
+  },
+  {
+    path: '/mcp/authorize',
+    hydrateFallbackElement: <LoadingSpinner />,
+    element: (
+      <Suspense fallback={<LoadingSpinner />}>
+        <McpAuthorize />
       </Suspense>
     ),
     errorElement: (

@@ -68,6 +68,14 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
     ],
   },
   {
+    labelKey: 'mcp',
+    actions: [
+      { resource: 'mcp', action: 'read' },
+      { resource: 'mcp', action: 'update' },
+      { resource: 'mcp', action: 'connect' },
+    ],
+  },
+  {
     labelKey: 'nodes',
     actions: [
       { resource: 'nodes', action: 'read' },

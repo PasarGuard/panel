@@ -827,6 +827,128 @@
     "bulkDeleteTitle": "Удалить выбранные API ключи",
     "bulkDeletePrompt": "Вы уверены, что хотите удалить выбранные API ключи ({{count}})? Это действие нельзя отменить."
   },
+  "mcp": {
+    "title": "Сервер MCP",
+    "description": "Позвольте ИИ-ассистентам управлять панелью через Model Context Protocol в рамках прав каждого администратора",
+    "loadFailed": "Не удалось загрузить настройки MCP",
+    "saveSuccess": "Настройки MCP сохранены",
+    "saveFailed": "Не удалось сохранить настройки MCP",
+    "cancelSuccess": "Изменения отменены",
+    "server": {
+      "title": "Сервер",
+      "description": "Конечная точка MCP работает внутри панели и использует её аутентификацию и права ролей",
+      "enabled": "Включён",
+      "disabled": "Выключен",
+      "toolsEnabled": "Включено инструментов: {{enabled}} из {{total}}",
+      "enable": "Включить сервер MCP",
+      "enableDescription": "Открывает конечную точку MCP. Сессию могут открыть только администраторы, у роли которых есть право «MCP → Подключение».",
+      "readOnly": "Режим только для чтения",
+      "readOnlyDescription": "Скрывает все инструменты, которые создают, изменяют или удаляют данные, независимо от роли администратора",
+      "oauth": "Разрешить вход через OAuth",
+      "oauthDescription": "Позволяет веб-коннекторам (Claude.ai, ChatGPT) входить под учётной записью администратора панели вместо API-ключа"
+    },
+    "endpoint": {
+      "title": "Конечная точка",
+      "description": "Транспорт Streamable HTTP. Укажите этот URL в любом MCP-совместимом клиенте.",
+      "url": "URL MCP",
+      "copied": "URL MCP скопирован",
+      "authTitle": "Аутентификация",
+      "authDescription": "Передавайте API-ключ как Bearer-токен (Authorization: Bearer pg_key_…). Администратор ключа должен иметь право «MCP → Подключение»; каждый инструмент дополнительно требует то же право, что и его REST-эндпоинт.",
+      "createKey": "Создать API-ключ",
+      "manageKeys": "Управление API-ключами"
+    },
+    "clients": {
+      "title": "Подключение клиента",
+      "description": "Выберите клиент и замените {{placeholder}} на API-ключ. Адрес этой панели уже подставлен в примеры.",
+      "copied": "Конфигурация скопирована",
+      "claudeWeb": "Claude.ai (веб)",
+      "claudeWebHint": "Settings → Connectors → Add custom connector. Вставьте этот URL; будет предложено войти под администратором панели.",
+      "chatgpt": "ChatGPT",
+      "chatgptHint": "Settings → Connectors → Create. Вставьте этот URL и выберите OAuth; войдите под администратором панели.",
+      "claudeCode": "Claude Code",
+      "claudeCodeHint": "Выполните в терминале, чтобы зарегистрировать сервер для текущего проекта.",
+      "claudeDesktop": "Claude Desktop",
+      "claudeDesktopHint": "Добавьте в claude_desktop_config.json (Settings → Developer). mcp-remote служит мостом к HTTP-транспорту.",
+      "cursor": "Cursor",
+      "cursorHint": "Добавьте в ~/.cursor/mcp.json или в .cursor/mcp.json проекта.",
+      "vscode": "VS Code (Copilot)",
+      "vscodeHint": "Добавьте в .vscode/mcp.json рабочей области или в профиль через MCP: Add Server.",
+      "windsurf": "Windsurf",
+      "windsurfHint": "Добавьте в ~/.codeium/windsurf/mcp_config.json.",
+      "geminiCli": "Gemini CLI",
+      "geminiCliHint": "Добавьте в ~/.gemini/settings.json или в .gemini/settings.json проекта.",
+      "codex": "OpenAI Codex CLI",
+      "codexHint": "Добавьте в ~/.codex/config.toml.",
+      "cline": "Cline",
+      "clineHint": "Добавьте через Cline → MCP Servers → Configure или отредактируйте cline_mcp_settings.json.",
+      "zed": "Zed",
+      "zedHint": "Добавьте в settings.json Zed в раздел context_servers.",
+      "http": "Чистый HTTP",
+      "httpHint": "Любой MCP-клиент с поддержкой Streamable HTTP может использовать конечную точку напрямую."
+    },
+    "tools": {
+      "title": "Тонкая настройка инструментов",
+      "description": "Для каждого раздела: все, только чтение или выключено. Откройте раздел для отдельных инструментов.",
+      "name": "Инструмент",
+      "kind": "Тип",
+      "permission": "Требуемое право",
+      "enabled": "Включён",
+      "readOnly": "Только чтение",
+      "write": "Запись",
+      "destructive": "Разрушающий",
+      "hiddenByReadOnly": "Скрыт в режиме только для чтения",
+      "expandAll": "Развернуть все",
+      "collapseAll": "Свернуть все",
+      "noTools": "Инструменты не зарегистрированы",
+      "ownerOnly": "Только владелец",
+      "scopeAll": "все пользователи",
+      "resetDefaults": "Сбросить к значениям по умолчанию",
+      "modeAll": "Все",
+      "modeRead": "Чтение",
+      "modeOff": "Выкл"
+    },
+    "groups": {
+      "system": "Система",
+      "users": "Пользователи",
+      "admins": "Администраторы",
+      "admin_roles": "Роли администраторов",
+      "api_keys": "API-ключи",
+      "nodes": "Ноды",
+      "cores": "Ядра",
+      "hosts": "Хосты",
+      "groups": "Группы",
+      "templates": "Шаблоны пользователей",
+      "client_templates": "Шаблоны клиентов",
+      "hwids": "HWID",
+      "settings": "Настройки"
+    },
+    "authorize": {
+      "title": "Подтверждение доступа",
+      "description": "{{client}} хочет работать с панелью через MCP от имени {{username}}.",
+      "scope": "После подтверждения в разделе API Keys появится ключ с этими правами и именем этого приложения. Удалите ключ, чтобы отозвать доступ.",
+      "approve": "Разрешить",
+      "deny": "Отмена",
+      "invalid": "Запрос недействителен или истёк. Начните заново из ИИ-клиента."
+    },
+    "presets": {
+      "title": "Уровень доступа",
+      "description": "Выберите, что разрешено ИИ-клиенту. При необходимости настройте отдельные инструменты ниже.",
+      "toolCount": "{{count}} из {{total}} инструментов",
+      "custom": "Пользовательский набор. Выберите уровень выше, чтобы сбросить.",
+      "read_only": {
+        "title": "Только чтение",
+        "description": "Просмотр пользователей, нод, статистики и настроек. Ничего нельзя изменить."
+      },
+      "recommended": {
+        "title": "Рекомендуемый",
+        "description": "Управление пользователями, нодами, хостами и группами. Секреты, роли, аккаунты администраторов и массовые удаления отключены."
+      },
+      "full": {
+        "title": "Полный доступ",
+        "description": "Все действия API, включая настройки, конфигурации ядер, API-ключи и роли."
+      }
+    }
+  },
   "adminRoles": {
     "title": "Роли администраторов",
     "description": "Управление ролями панели и правами RBAC",
@@ -895,6 +1017,7 @@
       "apiKeys": "API Ключи",
       "nodes": "Узлы",
       "coreHosts": "Ядра и хосты",
+      "mcp": "MCP",
       "groupsTemplates": "Группы и шаблоны",
       "settings": "Настройки"
     },
@@ -929,6 +1052,11 @@
         "read_general": "Просмотр общих настроек",
         "update": "Изменение настроек"
       },
+      "mcp": {
+        "read": "Просмотр MCP",
+        "update": "Изменение настроек MCP",
+        "connect": "Подключение через MCP"
+      },
       "system": {
         "read": "Просмотр системы",
         "update": "Изменение системы"
@@ -945,6 +1073,7 @@
       }
     },
     "resources": {
+      "mcp": "MCP",
       "users": "Пользователи",
       "admins": "Админы",
       "admin_roles": "Роли",

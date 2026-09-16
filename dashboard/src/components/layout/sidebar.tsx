@@ -23,6 +23,7 @@ import {
   ArrowUpDown,
   Bell,
   BookOpen,
+  Bot,
   Calendar,
   ChevronsLeft,
   ChevronsRight,
@@ -69,6 +70,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const canReadGroups = canReadResourcePage(admin, 'groups')
   const canReadAdmins = canReadResourcePage(admin, 'admins')
   const canReadApiKeys = canReadResourcePage(admin, 'api_keys')
+  const canReadMcp = canReadResourcePage(admin, 'mcp')
   const canReadNodes = canReadResourcePage(admin, 'nodes')
   const canReadCores = canReadResourcePage(admin, 'cores')
   const canReadTemplates = canReadResourcePage(admin, 'templates')
@@ -261,6 +263,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             title: 'apiKeys.title',
             url: '/api-keys',
             icon: Key,
+          }]
+        : []),
+      ...(canReadMcp
+        ? [{
+            title: 'mcp.title',
+            url: '/mcp',
+            icon: Bot,
           }]
         : []),
       ...(nodeNavItems.length > 0

@@ -686,6 +686,128 @@
     "bulkDeleteTitle": "حذف کلیدهای API انتخاب‌شده",
     "bulkDeletePrompt": "آیا از حذف {{count}} کلید API انتخاب‌شده مطمئن هستید؟ این عملیات قابل بازگشت نیست."
   },
+  "mcp": {
+    "title": "سرور MCP",
+    "description": "اجازه بدهید دستیارهای هوش مصنوعی با پنل کار کنند، در حد مجوزهای هر مدیر",
+    "loadFailed": "بارگذاری تنظیمات MCP ناموفق بود",
+    "saveSuccess": "تنظیمات MCP ذخیره شد",
+    "saveFailed": "ذخیره تنظیمات MCP ناموفق بود",
+    "cancelSuccess": "تغییرات لغو شد",
+    "server": {
+      "title": "سرور",
+      "description": "داخل خود پنل اجرا می‌شود و از همان ورود و نقش‌ها استفاده می‌کند",
+      "enabled": "فعال",
+      "disabled": "غیرفعال",
+      "toolsEnabled": "{{enabled}} از {{total}} ابزار فعال",
+      "enable": "فعال‌سازی سرور MCP",
+      "enableDescription": "فقط مدیرانی که نقش‌شان «اتصال از طریق MCP» دارد می‌توانند وصل شوند.",
+      "readOnly": "حالت فقط‌خواندنی",
+      "readOnlyDescription": "همهٔ ابزارهایی که داده را تغییر می‌دهند برای همهٔ مدیران مخفی می‌شوند",
+      "oauth": "ورود با OAuth",
+      "oauthDescription": "به Claude.ai و ChatGPT اجازه می‌دهد به‌جای کلید API با حساب پنل وارد شوند"
+    },
+    "endpoint": {
+      "title": "نقطه اتصال",
+      "description": "هر کلاینت MCP را به این آدرس وصل کنید.",
+      "url": "آدرس MCP",
+      "copied": "آدرس MCP کپی شد",
+      "authTitle": "احراز هویت",
+      "authDescription": "کلید API را به صورت Bearer بفرستید. مدیرِ کلید باید «اتصال از طریق MCP» داشته باشد؛ هر ابزار همان مجوز endpoint خودش را می‌خواهد.",
+      "createKey": "ایجاد کلید API",
+      "manageKeys": "مدیریت کلیدهای API"
+    },
+    "clients": {
+      "title": "اتصال کلاینت",
+      "description": "کلاینت را انتخاب کنید و به جای {{placeholder}} کلید API بگذارید. آدرس از قبل پر شده است.",
+      "copied": "پیکربندی کپی شد",
+      "claudeWeb": "Claude.ai (وب)",
+      "claudeWebHint": "Settings، Connectors، Add custom connector. این آدرس را وارد کنید و با حساب مدیر پنل وارد شوید.",
+      "chatgpt": "ChatGPT",
+      "chatgptHint": "Settings، Connectors، Create. این آدرس را وارد کنید، OAuth را انتخاب کنید و با حساب مدیر پنل وارد شوید.",
+      "claudeCode": "Claude Code",
+      "claudeCodeHint": "در ترمینال اجرا کنید تا سرور برای پروژه فعلی ثبت شود.",
+      "claudeDesktop": "Claude Desktop",
+      "claudeDesktopHint": "به claude_desktop_config.json (Settings ← Developer) اضافه کنید. mcp-remote ترنسپورت HTTP را پل می‌زند.",
+      "cursor": "Cursor",
+      "cursorHint": "به ~/.cursor/mcp.json یا .cursor/mcp.json پروژه اضافه کنید.",
+      "vscode": "VS Code (Copilot)",
+      "vscodeHint": "به .vscode/mcp.json در workspace اضافه کنید، یا از طریق MCP: Add Server به پروفایل کاربر.",
+      "windsurf": "Windsurf",
+      "windsurfHint": "به ~/.codeium/windsurf/mcp_config.json اضافه کنید.",
+      "geminiCli": "Gemini CLI",
+      "geminiCliHint": "به ~/.gemini/settings.json یا .gemini/settings.json پروژه اضافه کنید.",
+      "codex": "OpenAI Codex CLI",
+      "codexHint": "به ~/.codex/config.toml اضافه کنید.",
+      "cline": "Cline",
+      "clineHint": "از مسیر Cline ← MCP Servers ← Configure اضافه کنید یا cline_mcp_settings.json را ویرایش کنید.",
+      "zed": "Zed",
+      "zedHint": "در settings.json برنامه Zed زیر context_servers اضافه کنید.",
+      "http": "HTTP خام",
+      "httpHint": "هر کلاینت MCP که Streamable HTTP را پشتیبانی کند می‌تواند مستقیماً از این نقطه اتصال استفاده کند."
+    },
+    "tools": {
+      "title": "تنظیم دقیق ابزارها",
+      "description": "هر بخش را روی همه، خواندن یا خاموش بگذارید. برای ابزارهای تکی بخش را باز کنید.",
+      "name": "ابزار",
+      "kind": "نوع",
+      "permission": "مجوز لازم",
+      "enabled": "فعال",
+      "readOnly": "فقط‌خواندنی",
+      "write": "نوشتنی",
+      "destructive": "مخرب",
+      "hiddenByReadOnly": "در حالت فقط‌خواندنی مخفی است",
+      "expandAll": "باز کردن همه",
+      "collapseAll": "بستن همه",
+      "noTools": "ابزاری ثبت نشده است",
+      "ownerOnly": "فقط مالک",
+      "scopeAll": "همهٔ کاربران",
+      "resetDefaults": "بازگشت به پیش‌فرض",
+      "modeAll": "همه",
+      "modeRead": "خواندن",
+      "modeOff": "خاموش"
+    },
+    "groups": {
+      "system": "سیستم",
+      "users": "کاربران",
+      "admins": "مدیران",
+      "admin_roles": "نقش‌های مدیر",
+      "api_keys": "کلیدهای API",
+      "nodes": "گره‌ها",
+      "cores": "هسته‌ها",
+      "hosts": "هاست‌ها",
+      "groups": "گروه‌ها",
+      "templates": "قالب‌های کاربر",
+      "client_templates": "قالب‌های کلاینت",
+      "hwids": "HWID",
+      "settings": "تنظیمات"
+    },
+    "authorize": {
+      "title": "تأیید دسترسی",
+      "description": "{{client}} می‌خواهد از طریق MCP با حساب {{username}} با پنل کار کند.",
+      "scope": "با تأیید، یک کلید API با همین مجوزها و به نام این برنامه در بخش API Keys ساخته می‌شود. برای لغو دسترسی همان کلید را حذف کنید.",
+      "approve": "تأیید",
+      "deny": "انصراف",
+      "invalid": "این درخواست نامعتبر است یا منقضی شده. از کلاینت هوش مصنوعی دوباره شروع کنید."
+    },
+    "presets": {
+      "title": "سطح دسترسی",
+      "description": "انتخاب کنید کلاینت هوش مصنوعی چقدر اختیار داشته باشد. اگر لازم شد ابزارهای تکی را پایین تنظیم کنید.",
+      "toolCount": "{{count}} از {{total}} ابزار",
+      "custom": "انتخاب سفارشی. برای بازنشانی یک سطح را انتخاب کنید.",
+      "read_only": {
+        "title": "فقط‌خواندنی",
+        "description": "مشاهدهٔ کاربران، گره‌ها، آمار و تنظیمات. هیچ چیزی تغییر نمی‌کند."
+      },
+      "recommended": {
+        "title": "پیشنهادی",
+        "description": "مدیریت کاربران، گره‌ها، هاست‌ها و گروه‌ها. رمزها، نقش‌ها، حساب مدیران و حذف گروهی خاموش می‌مانند."
+      },
+      "full": {
+        "title": "دسترسی کامل",
+        "description": "همهٔ عملیات API شامل تنظیمات، کانفیگ هسته، کلیدهای API و نقش‌ها."
+      }
+    }
+  },
   "adminRoles": {
     "title": "نقش‌های مدیر",
     "description": "مدیریت نقش‌های داشبورد و مجوزهای RBAC",
@@ -754,6 +876,7 @@
       "apiKeys": "کلیدهای API",
       "nodes": "گره‌ها",
       "coreHosts": "هسته و هاست‌ها",
+      "mcp": "MCP",
       "groupsTemplates": "گروه‌ها و قالب‌ها",
       "settings": "تنظیمات"
     },
@@ -788,6 +911,11 @@
         "read_general": "مشاهده تنظیمات عمومی",
         "update": "ویرایش تنظیمات"
       },
+      "mcp": {
+        "read": "مشاهده MCP",
+        "update": "ویرایش تنظیمات MCP",
+        "connect": "اتصال از طریق MCP"
+      },
       "system": {
         "read": "مشاهده سیستم",
         "update": "ویرایش سیستم"
@@ -804,6 +932,7 @@
       }
     },
     "resources": {
+      "mcp": "MCP",
       "users": "کاربران",
       "admins": "مدیران",
       "admin_roles": "نقش‌ها",

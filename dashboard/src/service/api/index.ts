@@ -197,6 +197,21 @@ export interface APIKeysPermissions {
   delete?: APIKeysPermissionsDelete;
 }
 
+export type MCPPermissionsRead = boolean | {[key: string]: PermissionScope | number} | null;
+
+export type MCPPermissionsUpdate = boolean | {[key: string]: PermissionScope | number} | null;
+
+export type MCPPermissionsConnect = boolean | {[key: string]: PermissionScope | number} | null;
+
+/**
+ * read = MCP page, update = MCP settings, connect = open an MCP session (tools still use resource permissions).
+ */
+export interface MCPPermissions {
+  read?: MCPPermissionsRead;
+  update?: MCPPermissionsUpdate;
+  connect?: MCPPermissionsConnect;
+}
+
 /**
  * Typed permission map. Missing resource or action = denied.
  * Each action value is True (allowed), {"scope": N} (scoped), or None (denied).
@@ -215,6 +230,7 @@ export interface RolePermissions {
   hwids?: HwidsPermissions | null;
   admin_roles?: CRUDPermissions | null;
   api_keys?: APIKeysPermissions | null;
+  mcp?: MCPPermissions | null;
 }
 
 export interface APIKeyCreate {
@@ -1671,6 +1687,85 @@ export interface InboundSummary {
   network?: string | null;
 }
 
+export interface Mcp {
+  enable?: boolean;
+  /** Allow OAuth sign-in for clients that cannot send an API key */
+  oauth?: boolean;
+  /** Only expose read-only tools, even to admins with write access */
+  read_only?: boolean;
+  /** Tool names hidden from every MCP client */
+  disabled_tools?: string[];
+}
+
+export interface MCPOAuthConsent {
+  /** @minLength 1 */
+  request: string;
+  approve?: boolean;
+  /** Permissions stored on the issued key; None inherits the admin's role */
+  permissions?: RolePermissions | null;
+}
+
+export interface MCPOAuthConsentResponse {
+  redirect_url: string;
+}
+
+export interface MCPOAuthRequestInfo {
+  client_id: string;
+  client_name: string;
+}
+
+export interface MCPSettingsModify {
+  enable?: boolean | null;
+  oauth?: boolean | null;
+  read_only?: boolean | null;
+  disabled_tools?: string[] | null;
+}
+
+export interface MCPSettingsResponse {
+  enable?: boolean;
+  /** Allow OAuth sign-in for clients that cannot send an API key */
+  oauth?: boolean;
+  /** Only expose read-only tools, even to admins with write access */
+  read_only?: boolean;
+  /** Tool names hidden from every MCP client */
+  disabled_tools?: string[];
+  /** Path of the MCP endpoint on this panel (e.g. /mcp) */
+  endpoint_path: string;
+  default_disabled_tools?: string[];
+  tools_total?: number;
+  tools_enabled?: number;
+}
+
+export interface MCPToolPermission {
+  resource: string;
+  action: string;
+  scope_all?: boolean;
+}
+
+export interface MCPToolInfo {
+  name: string;
+  title: string;
+  group: string;
+  description: string;
+  method: string;
+  path: string;
+  read_only: boolean;
+  destructive: boolean;
+  owner_only?: boolean;
+  permissions: MCPToolPermission[];
+  /** Not disabled globally (settings.disabled_tools / read-only mode) */
+  enabled: boolean;
+  /** 'disabled' or 'read_only' when not enabled */
+  disabled_reason?: string | null;
+  /** Whether the requesting admin's role permits this tool */
+  allowed: boolean;
+}
+
+export interface MCPToolsResponse {
+  tools: MCPToolInfo[];
+  total: number;
+}
+
 export interface ModifyUserByTemplate {
   user_template_id: number;
   note?: string | null;
@@ -2185,6 +2280,7 @@ export interface SettingsSchema {
   subscription?: Subscription | null;
   hwid?: HWIDSettings | null;
   general?: General | null;
+  mcp?: Mcp | null;
 }
 
 export interface SubscriptionUserResponse {
@@ -2618,6 +2714,10 @@ search?: string | null;
 offset?: number | null;
 limit?: number | null;
 sort?: string | null;
+};
+
+export type GetMcpOauthRequestParams = {
+request: string;
 };
 
 export type DeleteOwnerParams = {
@@ -8584,6 +8684,613 @@ export const useCreateRole = <TError = ErrorType<Unauthorized | Forbidden | Conf
         TContext
       > => {
       return useMutation(getCreateRoleMutationOptions(options), queryClient);
+    }
+
+export type getMcpSettingsResponse200 = {
+  data: MCPSettingsResponse
+  status: 200
+}
+
+export type getMcpSettingsResponse401 = {
+  data: Unauthorized
+  status: 401
+}
+
+export type getMcpSettingsResponse403 = {
+  data: Forbidden
+  status: 403
+}
+
+export type getMcpSettingsResponseSuccess = (getMcpSettingsResponse200) & {
+  headers: Headers;
+};
+export type getMcpSettingsResponseError = (getMcpSettingsResponse401 | getMcpSettingsResponse403) & {
+  headers: Headers;
+};
+
+export type getMcpSettingsResponse = (getMcpSettingsResponseSuccess | getMcpSettingsResponseError)
+
+export const getGetMcpSettingsUrl = () => {
+
+
+
+
+  return `/api/mcp/settings`
+}
+
+/**
+ * MCP server settings and endpoint information.
+ * @summary Get Mcp Settings
+ */
+export const getMcpSettings = async ( options?: RequestInit): Promise<getMcpSettingsResponse> => {
+
+  return orvalFetcher<getMcpSettingsResponse>(getGetMcpSettingsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMcpSettingsQueryKey = () => {
+    return [
+    `/api/mcp/settings`
+    ] as const;
+    }
+
+
+export const getGetMcpSettingsQueryOptions = <TData = Awaited<ReturnType<typeof getMcpSettings>>, TError = ErrorType<Unauthorized | Forbidden>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMcpSettings>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMcpSettingsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMcpSettings>>> = ({ signal }) => getMcpSettings({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMcpSettings>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetMcpSettingsQueryResult = NonNullable<Awaited<ReturnType<typeof getMcpSettings>>>
+export type GetMcpSettingsQueryError = ErrorType<Unauthorized | Forbidden>
+
+
+export function useGetMcpSettings<TData = Awaited<ReturnType<typeof getMcpSettings>>, TError = ErrorType<Unauthorized | Forbidden>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMcpSettings>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMcpSettings>>,
+          TError,
+          Awaited<ReturnType<typeof getMcpSettings>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMcpSettings<TData = Awaited<ReturnType<typeof getMcpSettings>>, TError = ErrorType<Unauthorized | Forbidden>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMcpSettings>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMcpSettings>>,
+          TError,
+          Awaited<ReturnType<typeof getMcpSettings>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMcpSettings<TData = Awaited<ReturnType<typeof getMcpSettings>>, TError = ErrorType<Unauthorized | Forbidden>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMcpSettings>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get Mcp Settings
+ */
+
+export function useGetMcpSettings<TData = Awaited<ReturnType<typeof getMcpSettings>>, TError = ErrorType<Unauthorized | Forbidden>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMcpSettings>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetMcpSettingsQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type modifyMcpSettingsResponse200 = {
+  data: MCPSettingsResponse
+  status: 200
+}
+
+export type modifyMcpSettingsResponse400 = {
+  data: HTTPException
+  status: 400
+}
+
+export type modifyMcpSettingsResponse401 = {
+  data: Unauthorized
+  status: 401
+}
+
+export type modifyMcpSettingsResponse403 = {
+  data: Forbidden
+  status: 403
+}
+
+export type modifyMcpSettingsResponse422 = {
+  data: HTTPValidationError
+  status: 422
+}
+
+export type modifyMcpSettingsResponseSuccess = (modifyMcpSettingsResponse200) & {
+  headers: Headers;
+};
+export type modifyMcpSettingsResponseError = (modifyMcpSettingsResponse400 | modifyMcpSettingsResponse401 | modifyMcpSettingsResponse403 | modifyMcpSettingsResponse422) & {
+  headers: Headers;
+};
+
+export type modifyMcpSettingsResponse = (modifyMcpSettingsResponseSuccess | modifyMcpSettingsResponseError)
+
+export const getModifyMcpSettingsUrl = () => {
+
+
+
+
+  return `/api/mcp/settings`
+}
+
+/**
+ * Enable/disable the MCP server, toggle read-only mode and disable individual tools.
+ * @summary Modify Mcp Settings
+ */
+export const modifyMcpSettings = async (mCPSettingsModify: MCPSettingsModify, options?: RequestInit): Promise<modifyMcpSettingsResponse> => {
+
+  return orvalFetcher<modifyMcpSettingsResponse>(getModifyMcpSettingsUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(mCPSettingsModify)
+  }
+);}
+
+
+
+
+
+export const getModifyMcpSettingsMutationOptions = <TError = ErrorType<HTTPException | Unauthorized | Forbidden | HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof modifyMcpSettings>>, TError,{data: BodyType<MCPSettingsModify>}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
+): UseMutationOptions<Awaited<ReturnType<typeof modifyMcpSettings>>, TError,{data: BodyType<MCPSettingsModify>}, TContext> => {
+
+const mutationKey = ['modifyMcpSettings'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof modifyMcpSettings>>, {data: BodyType<MCPSettingsModify>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  modifyMcpSettings(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ModifyMcpSettingsMutationResult = NonNullable<Awaited<ReturnType<typeof modifyMcpSettings>>>
+    export type ModifyMcpSettingsMutationBody = BodyType<MCPSettingsModify>
+    export type ModifyMcpSettingsMutationError = ErrorType<HTTPException | Unauthorized | Forbidden | HTTPValidationError>
+
+    /**
+ * @summary Modify Mcp Settings
+ */
+export const useModifyMcpSettings = <TError = ErrorType<HTTPException | Unauthorized | Forbidden | HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof modifyMcpSettings>>, TError,{data: BodyType<MCPSettingsModify>}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof modifyMcpSettings>>,
+        TError,
+        {data: BodyType<MCPSettingsModify>},
+        TContext
+      > => {
+      return useMutation(getModifyMcpSettingsMutationOptions(options), queryClient);
+    }
+
+export type listMcpToolsResponse200 = {
+  data: MCPToolsResponse
+  status: 200
+}
+
+export type listMcpToolsResponse401 = {
+  data: Unauthorized
+  status: 401
+}
+
+export type listMcpToolsResponse403 = {
+  data: Forbidden
+  status: 403
+}
+
+export type listMcpToolsResponseSuccess = (listMcpToolsResponse200) & {
+  headers: Headers;
+};
+export type listMcpToolsResponseError = (listMcpToolsResponse401 | listMcpToolsResponse403) & {
+  headers: Headers;
+};
+
+export type listMcpToolsResponse = (listMcpToolsResponseSuccess | listMcpToolsResponseError)
+
+export const getListMcpToolsUrl = () => {
+
+
+
+
+  return `/api/mcp/tools`
+}
+
+/**
+ * Catalog of MCP tools with their REST permission mapping and availability for the current admin.
+ * @summary List Mcp Tools
+ */
+export const listMcpTools = async ( options?: RequestInit): Promise<listMcpToolsResponse> => {
+
+  return orvalFetcher<listMcpToolsResponse>(getListMcpToolsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListMcpToolsQueryKey = () => {
+    return [
+    `/api/mcp/tools`
+    ] as const;
+    }
+
+
+export const getListMcpToolsQueryOptions = <TData = Awaited<ReturnType<typeof listMcpTools>>, TError = ErrorType<Unauthorized | Forbidden>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMcpTools>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListMcpToolsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMcpTools>>> = ({ signal }) => listMcpTools({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listMcpTools>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListMcpToolsQueryResult = NonNullable<Awaited<ReturnType<typeof listMcpTools>>>
+export type ListMcpToolsQueryError = ErrorType<Unauthorized | Forbidden>
+
+
+export function useListMcpTools<TData = Awaited<ReturnType<typeof listMcpTools>>, TError = ErrorType<Unauthorized | Forbidden>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMcpTools>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listMcpTools>>,
+          TError,
+          Awaited<ReturnType<typeof listMcpTools>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListMcpTools<TData = Awaited<ReturnType<typeof listMcpTools>>, TError = ErrorType<Unauthorized | Forbidden>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMcpTools>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listMcpTools>>,
+          TError,
+          Awaited<ReturnType<typeof listMcpTools>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListMcpTools<TData = Awaited<ReturnType<typeof listMcpTools>>, TError = ErrorType<Unauthorized | Forbidden>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMcpTools>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary List Mcp Tools
+ */
+
+export function useListMcpTools<TData = Awaited<ReturnType<typeof listMcpTools>>, TError = ErrorType<Unauthorized | Forbidden>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMcpTools>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListMcpToolsQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type getMcpOauthRequestResponse200 = {
+  data: MCPOAuthRequestInfo
+  status: 200
+}
+
+export type getMcpOauthRequestResponse400 = {
+  data: HTTPException
+  status: 400
+}
+
+export type getMcpOauthRequestResponse401 = {
+  data: Unauthorized
+  status: 401
+}
+
+export type getMcpOauthRequestResponse403 = {
+  data: Forbidden
+  status: 403
+}
+
+export type getMcpOauthRequestResponse422 = {
+  data: HTTPValidationError
+  status: 422
+}
+
+export type getMcpOauthRequestResponseSuccess = (getMcpOauthRequestResponse200) & {
+  headers: Headers;
+};
+export type getMcpOauthRequestResponseError = (getMcpOauthRequestResponse400 | getMcpOauthRequestResponse401 | getMcpOauthRequestResponse403 | getMcpOauthRequestResponse422) & {
+  headers: Headers;
+};
+
+export type getMcpOauthRequestResponse = (getMcpOauthRequestResponseSuccess | getMcpOauthRequestResponseError)
+
+export const getGetMcpOauthRequestUrl = (params: GetMcpOauthRequestParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/mcp/oauth/request?${stringifiedParams}` : `/api/mcp/oauth/request`
+}
+
+/**
+ * Describe a pending OAuth authorization request so the dashboard can ask for consent.
+ * @summary Get Mcp Oauth Request
+ */
+export const getMcpOauthRequest = async (params: GetMcpOauthRequestParams, options?: RequestInit): Promise<getMcpOauthRequestResponse> => {
+
+  return orvalFetcher<getMcpOauthRequestResponse>(getGetMcpOauthRequestUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMcpOauthRequestQueryKey = (params?: GetMcpOauthRequestParams,) => {
+    return [
+    `/api/mcp/oauth/request`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetMcpOauthRequestQueryOptions = <TData = Awaited<ReturnType<typeof getMcpOauthRequest>>, TError = ErrorType<HTTPException | Unauthorized | Forbidden | HTTPValidationError>>(params: GetMcpOauthRequestParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMcpOauthRequest>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMcpOauthRequestQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMcpOauthRequest>>> = ({ signal }) => getMcpOauthRequest(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMcpOauthRequest>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetMcpOauthRequestQueryResult = NonNullable<Awaited<ReturnType<typeof getMcpOauthRequest>>>
+export type GetMcpOauthRequestQueryError = ErrorType<HTTPException | Unauthorized | Forbidden | HTTPValidationError>
+
+
+export function useGetMcpOauthRequest<TData = Awaited<ReturnType<typeof getMcpOauthRequest>>, TError = ErrorType<HTTPException | Unauthorized | Forbidden | HTTPValidationError>>(
+ params: GetMcpOauthRequestParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMcpOauthRequest>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMcpOauthRequest>>,
+          TError,
+          Awaited<ReturnType<typeof getMcpOauthRequest>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMcpOauthRequest<TData = Awaited<ReturnType<typeof getMcpOauthRequest>>, TError = ErrorType<HTTPException | Unauthorized | Forbidden | HTTPValidationError>>(
+ params: GetMcpOauthRequestParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMcpOauthRequest>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMcpOauthRequest>>,
+          TError,
+          Awaited<ReturnType<typeof getMcpOauthRequest>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMcpOauthRequest<TData = Awaited<ReturnType<typeof getMcpOauthRequest>>, TError = ErrorType<HTTPException | Unauthorized | Forbidden | HTTPValidationError>>(
+ params: GetMcpOauthRequestParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMcpOauthRequest>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get Mcp Oauth Request
+ */
+
+export function useGetMcpOauthRequest<TData = Awaited<ReturnType<typeof getMcpOauthRequest>>, TError = ErrorType<HTTPException | Unauthorized | Forbidden | HTTPValidationError>>(
+ params: GetMcpOauthRequestParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMcpOauthRequest>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetMcpOauthRequestQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type mcpOauthConsentResponse200 = {
+  data: MCPOAuthConsentResponse
+  status: 200
+}
+
+export type mcpOauthConsentResponse400 = {
+  data: HTTPException
+  status: 400
+}
+
+export type mcpOauthConsentResponse401 = {
+  data: Unauthorized
+  status: 401
+}
+
+export type mcpOauthConsentResponse403 = {
+  data: Forbidden
+  status: 403
+}
+
+export type mcpOauthConsentResponse422 = {
+  data: HTTPValidationError
+  status: 422
+}
+
+export type mcpOauthConsentResponseSuccess = (mcpOauthConsentResponse200) & {
+  headers: Headers;
+};
+export type mcpOauthConsentResponseError = (mcpOauthConsentResponse400 | mcpOauthConsentResponse401 | mcpOauthConsentResponse403 | mcpOauthConsentResponse422) & {
+  headers: Headers;
+};
+
+export type mcpOauthConsentResponse = (mcpOauthConsentResponseSuccess | mcpOauthConsentResponseError)
+
+export const getMcpOauthConsentUrl = () => {
+
+
+
+
+  return `/api/mcp/oauth/consent`
+}
+
+/**
+ * Approve or deny a pending OAuth authorization request for the signed-in admin.
+ * @summary Mcp Oauth Consent
+ */
+export const mcpOauthConsent = async (mCPOAuthConsent: MCPOAuthConsent, options?: RequestInit): Promise<mcpOauthConsentResponse> => {
+
+  return orvalFetcher<mcpOauthConsentResponse>(getMcpOauthConsentUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(mCPOAuthConsent)
+  }
+);}
+
+
+
+
+
+export const getMcpOauthConsentMutationOptions = <TError = ErrorType<HTTPException | Unauthorized | Forbidden | HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof mcpOauthConsent>>, TError,{data: BodyType<MCPOAuthConsent>}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
+): UseMutationOptions<Awaited<ReturnType<typeof mcpOauthConsent>>, TError,{data: BodyType<MCPOAuthConsent>}, TContext> => {
+
+const mutationKey = ['mcpOauthConsent'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof mcpOauthConsent>>, {data: BodyType<MCPOAuthConsent>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  mcpOauthConsent(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type McpOauthConsentMutationResult = NonNullable<Awaited<ReturnType<typeof mcpOauthConsent>>>
+    export type McpOauthConsentMutationBody = BodyType<MCPOAuthConsent>
+    export type McpOauthConsentMutationError = ErrorType<HTTPException | Unauthorized | Forbidden | HTTPValidationError>
+
+    /**
+ * @summary Mcp Oauth Consent
+ */
+export const useMcpOauthConsent = <TError = ErrorType<HTTPException | Unauthorized | Forbidden | HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof mcpOauthConsent>>, TError,{data: BodyType<MCPOAuthConsent>}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof mcpOauthConsent>>,
+        TError,
+        {data: BodyType<MCPOAuthConsent>},
+        TContext
+      > => {
+      return useMutation(getMcpOauthConsentMutationOptions(options), queryClient);
     }
 
 export type createOwnerResponse201 = {
