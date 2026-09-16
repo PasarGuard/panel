@@ -97,7 +97,13 @@ def role_with_mcp(access_token):
                 "mcp": {"read": True, "update": True, "connect": True},
                 "users": {"read": {"scope": 2}, "read_simple": {"scope": 2}},
                 "system": {"read": True},
-                "api_keys": {"create": True, "read": {"scope": 1}, "delete": {"scope": 1}},
+                "api_keys": {
+                    "create": True,
+                    "read": {"scope": 1},
+                    "read_simple": {"scope": 1},
+                    "update": {"scope": 1},
+                    "delete": {"scope": 1},
+                },
             },
         },
     )
@@ -181,7 +187,13 @@ def test_mcp_connect_requires_api_key_permissions(access_token):
             "name": unique_name("mcp_ok_role"),
             "permissions": {
                 "mcp": {"connect": True},
-                "api_keys": {"create": True, "read": {"scope": 1}, "delete": {"scope": 1}},
+                "api_keys": {
+                    "create": True,
+                    "read": {"scope": 1},
+                    "read_simple": {"scope": 1},
+                    "update": {"scope": 1},
+                    "delete": {"scope": 1},
+                },
             },
         },
     )
@@ -513,6 +525,7 @@ def test_oauth_flow_issues_tokens_that_open_mcp_sessions(access_token, role_with
         )
         assert info.status_code == status.HTTP_200_OK, info.text
         assert info.json()["client_name"] == "Test client"
+        assert info.json()["key_name"].startswith("Test client ")
 
         # MCP is off for a new admin until they turn it on; OAuth sign-in can be turned off separately
         off = client.post(
@@ -561,6 +574,8 @@ def test_oauth_flow_issues_tokens_that_open_mcp_sessions(access_token, role_with
                 "request": request_token,
                 "approve": True,
                 "permissions": {"users": {"read": {"scope": 2}}},
+                "mcp": {"read_only": True, "disabled_tools": ["get_user"]},
+                "name": "Test client on my laptop",
             },
             headers=auth_headers(admin_token),
         )
@@ -606,12 +621,17 @@ def test_oauth_flow_issues_tokens_that_open_mcp_sessions(access_token, role_with
         names = _tool_names(_mcp_post({"Authorization": f"Bearer {tokens['access_token']}"}, _rpc("tools/list")))
         assert "get_users" in names
         assert "get_system_stats" not in names
+        assert "get_user" not in names
 
         keys = client.get("/api/api_keys", headers=auth_headers(admin_token)).json()["api_keys"]
-        created = [key for key in keys if key["name"].startswith("Test client")]
+        created = [key for key in keys if key["name"] == "Test client on my laptop"]
         assert len(created) == 1
         assert created[0]["inherit_permissions"] is False
         assert created[0]["permissions"]["mcp"]["connect"] is True
+        key_settings = client.get(
+            "/api/mcp/settings", params={"api_key_id": created[0]["id"]}, headers=auth_headers(admin_token)
+        ).json()
+        assert key_settings["read_only"] is True and key_settings["disabled_tools"] == ["get_user"]
 
         # Deleting the key on the API Keys page is how access is revoked
         removed = client.delete(f"/api/api_key/{created[0]['id']}", headers=auth_headers(admin_token))

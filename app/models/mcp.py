@@ -92,6 +92,7 @@ class MCPToolsResponse(BaseModel):
 class MCPOAuthRequestInfo(BaseModel):
     client_id: str
     client_name: str
+    key_name: str = Field(description="Suggested name for the API key that approving creates")
 
 
 class MCPOAuthConsent(BaseModel):
@@ -100,6 +101,8 @@ class MCPOAuthConsent(BaseModel):
     permissions: RolePermissions | None = Field(
         default=None, description="Permissions stored on the issued key; None inherits the admin's role"
     )
+    mcp: MCPKeySettings | None = Field(default=None, description="MCP settings stored on the issued key")
+    name: str | None = Field(default=None, min_length=1, max_length=128, description="Name of the issued key")
 
 
 class MCPOAuthConsentResponse(BaseModel):

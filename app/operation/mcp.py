@@ -192,7 +192,12 @@ class MCPOperation(BaseOperation):
                     _check_permissions_not_exceed_admin(admin, consent.permissions)
                 except ValueError as e:
                     await self.raise_error(message=str(e), code=403)
-            redirect_url = await grant_request(consent.request, admin, consent.permissions)
+            if consent.mcp is not None:
+                known = {spec.name for spec in get_tool_specs()}
+                unknown = [name for name in consent.mcp.disabled_tools if name not in known]
+                if unknown:
+                    await self.raise_error(message=f"Unknown MCP tools: {', '.join(unknown)}", code=400)
+            redirect_url = await grant_request(consent.request, admin, consent.permissions, consent.mcp, consent.name)
         else:
             redirect_url = await deny_request(consent.request)
         if redirect_url is None:

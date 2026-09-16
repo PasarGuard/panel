@@ -74,7 +74,7 @@ export function PermissionEditor({ permissions, onPermissionsChange, className, 
       // Connectors are issued API keys, so the role must be able to manage its own keys
       const apiKeys = { ...(next.api_keys || {}) }
       if (apiKeys.create !== true) apiKeys.create = true
-      for (const action of ['read', 'delete'] as const) {
+      for (const action of ['read', 'read_simple', 'update', 'delete'] as const) {
         if (getRolePermissionScopeLimit(apiKeys[action]) === 0) apiKeys[action] = { scope: 1 }
       }
       next.api_keys = apiKeys

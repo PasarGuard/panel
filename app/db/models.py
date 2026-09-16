@@ -1026,6 +1026,8 @@ class MCPOAuthCode(Base):
     scopes: Mapped[list] = mapped_column(JSON(), default_factory=list)
     resource: Mapped[str | None] = mapped_column(String(2048), default=None)
     permissions: Mapped[dict | None] = mapped_column(JSON(), default=None)
+    mcp: Mapped[dict | None] = mapped_column(JSON(), default=None)
+    key_name: Mapped[str | None] = mapped_column(String(128), default=None)
     used_at: Mapped[dt | None] = mapped_column(DateTime(timezone=True), default=None)
 
 

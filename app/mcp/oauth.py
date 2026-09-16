@@ -39,6 +39,7 @@ from app.db.models import AdminStatus, MCPOAuthCode
 from app.models.admin import AdminDetails
 from app.models.admin_role import MCPPermissions, RolePermissions
 from app.models.api_key import APIKeyCreate
+from app.models.mcp import MCPKeySettings
 from app.routers.authentication import get_admin_from_api_key
 from app.utils.helpers import fix_datetime_timezone
 from app.utils.jwt import get_secret_key
@@ -81,6 +82,10 @@ def _client_info(db_client) -> OAuthClientInformationFull:
         token_endpoint_auth_method=db_client.token_endpoint_auth_method,
         client_id_issued_at=int(db_client.created_at.timestamp()) if db_client.created_at else None,
     )
+
+
+def default_key_name(client_name: str | None) -> str:
+    return f"{client_name or 'MCP client'} {datetime.now(UTC):%Y-%m-%d %H:%M}"[:110]
 
 
 async def _unique_key_name(db, admin_id: int, base: str) -> str:
@@ -168,8 +173,8 @@ class PanelOAuthProvider(OAuthAuthorizationServerProvider[AuthorizationCode, Ref
             if permissions is not None:
                 # Every key issued here must be able to open an MCP session
                 permissions.mcp = (permissions.mcp or MCPPermissions()).model_copy(update={"connect": True})
-            name = await _unique_key_name(db, db_admin.id, f"{client_name} {datetime.now(UTC):%Y-%m-%d %H:%M}"[:110])
-            raw_key, _ = await create_api_key(
+            name = await _unique_key_name(db, db_admin.id, (db_code.key_name or default_key_name(client_name))[:110])
+            raw_key, db_key = await create_api_key(
                 db,
                 db_admin.id,
                 APIKeyCreate(
@@ -179,6 +184,8 @@ class PanelOAuthProvider(OAuthAuthorizationServerProvider[AuthorizationCode, Ref
                     inherit_permissions=permissions is None,
                 ),
             )
+            if db_code.mcp:
+                db_key.mcp = db_code.mcp
             await db.commit()
         return OAuthToken(access_token=raw_key, token_type="Bearer", scope=" ".join(authorization_code.scopes) or None)
 
@@ -247,7 +254,12 @@ async def describe_request(request_token: str) -> dict | None:
     if not claims:
         return None
     client = await provider.get_client(claims["cid"])
-    return {"client_id": claims["cid"], "client_name": (client.client_name if client else None) or claims["cid"]}
+    client_name = client.client_name if client else None
+    return {
+        "client_id": claims["cid"],
+        "client_name": client_name or claims["cid"],
+        "key_name": default_key_name(client_name),
+    }
 
 
 def _redirect_with(claims: dict, query: dict) -> str:
@@ -258,7 +270,11 @@ def _redirect_with(claims: dict, query: dict) -> str:
 
 
 async def grant_request(
-    request_token: str, admin: AdminDetails, permissions: RolePermissions | None = None
+    request_token: str,
+    admin: AdminDetails,
+    permissions: RolePermissions | None = None,
+    mcp: MCPKeySettings | None = None,
+    key_name: str | None = None,
 ) -> str | None:
     """Store a single-use authorization code for the request. Returns None if the request is invalid or already used."""
     claims = await _decode(request_token, "mcp_authreq")
@@ -278,6 +294,8 @@ async def grant_request(
         scopes=list(claims.get("sc", [])),
         resource=claims.get("res"),
         permissions=permissions.model_dump(exclude_none=True) if permissions is not None else None,
+        mcp=mcp.model_dump() if mcp is not None else None,
+        key_name=key_name.strip() if key_name and key_name.strip() else None,
     )
     async with GetDB() as db:
         try:

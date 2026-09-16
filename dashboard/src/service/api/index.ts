@@ -1687,12 +1687,25 @@ export interface InboundSummary {
   network?: string | null;
 }
 
+/**
+ * Per-key MCP settings, stored in api_keys.mcp. Applied on top of the owning admin's settings.
+ */
+export interface MCPKeySettings {
+  enable?: boolean;
+  read_only?: boolean;
+  disabled_tools?: string[];
+}
+
 export interface MCPOAuthConsent {
   /** @minLength 1 */
   request: string;
   approve?: boolean;
   /** Permissions stored on the issued key; None inherits the admin's role */
   permissions?: RolePermissions | null;
+  /** MCP settings stored on the issued key */
+  mcp?: MCPKeySettings | null;
+  /** Name of the issued key */
+  name?: string | null;
 }
 
 export interface MCPOAuthConsentResponse {
@@ -1702,6 +1715,8 @@ export interface MCPOAuthConsentResponse {
 export interface MCPOAuthRequestInfo {
   client_id: string;
   client_name: string;
+  /** Suggested name for the API key that approving creates */
+  key_name: string;
 }
 
 export interface MCPSettingsModify {

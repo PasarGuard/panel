@@ -49,6 +49,8 @@ def upgrade() -> None:
         sa.Column("scopes", sa.JSON(), nullable=False),
         sa.Column("resource", sa.String(length=2048), nullable=True),
         sa.Column("permissions", sa.JSON(), nullable=True),
+        sa.Column("mcp", sa.JSON(), nullable=True),
+        sa.Column("key_name", sa.String(length=128), nullable=True),
         sa.Column("used_at", sa.DateTime(timezone=True), nullable=True),
         sa.ForeignKeyConstraint(["admin_id"], ["admins.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("code"),

@@ -160,8 +160,8 @@ class RolePermissions(BaseModel):
         return getattr(self, resource, default)
 
 
-# Connectors are issued API keys, so an MCP role must be able to create, list and delete its own keys
-MCP_REQUIRED_API_KEY_ACTIONS = ("create", "read", "delete")
+# Connectors are issued API keys, so an MCP role must be able to manage its own keys
+MCP_REQUIRED_API_KEY_ACTIONS = ("create", "read", "read_simple", "update", "delete")
 
 
 def _action_granted(value: RoleActionValue | None) -> bool:
