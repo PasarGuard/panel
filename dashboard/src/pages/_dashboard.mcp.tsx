@@ -14,13 +14,14 @@ import ApiKeyModal from '@/features/api-keys/dialogs/api-key-modal'
 import { McpServerCard } from '@/features/mcp/components/mcp-server-card'
 import { McpEndpointCard } from '@/features/mcp/components/mcp-endpoint-card'
 import { McpClientSnippets } from '@/features/mcp/components/mcp-client-snippets'
+import { McpTargetSelect, MCP_TARGET_ME } from '@/features/mcp/components/mcp-target-select'
 import { McpToolsTable } from '@/features/mcp/components/mcp-tools-table'
 import { McpAccessPresets } from '@/features/mcp/components/mcp-access-presets'
 import { mcpSettingsDefaultValues, mcpSettingsSchema, toMcpSettingsFormValues, type McpSettingsFormInput } from '@/features/mcp/forms/mcp-settings-form'
 import { buildMcpUrl } from '@/features/mcp/utils/mcp-clients'
 import { useAdmin } from '@/hooks/use-admin'
 import { hasPermission } from '@/utils/rbac'
-import { getGetMcpSettingsQueryKey, getListMcpToolsQueryKey, useGetMcpSettings, useListMcpTools, useModifyMcpSettings } from '@/service/api'
+import { getGetMcpSettingsQueryKey, getListMcpToolsQueryKey, useGetMcpSettings, useListApiKeys, useListMcpTools, useModifyMcpSettings } from '@/service/api'
 
 export default function McpPage() {
   const { t } = useTranslation()
@@ -30,9 +31,15 @@ export default function McpPage() {
   const canCreateApiKey = hasPermission(admin, 'api_keys', 'create')
   const canReadApiKeys = hasPermission(admin, 'api_keys', 'read')
   const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false)
+  const [target, setTarget] = useState(MCP_TARGET_ME)
 
-  const { data: settings, isLoading: isSettingsLoading, error: settingsError } = useGetMcpSettings()
-  const { data: toolsResponse, isLoading: isToolsLoading } = useListMcpTools()
+  const apiKeyId = target === MCP_TARGET_ME ? undefined : Number(target)
+  const params = apiKeyId ? { api_key_id: apiKeyId } : undefined
+
+  const { data: settings, isLoading: isSettingsLoading, error: settingsError } = useGetMcpSettings(params)
+  const { data: toolsResponse, isLoading: isToolsLoading } = useListMcpTools(params)
+  const { data: apiKeysResponse } = useListApiKeys({ limit: 200 }, { query: { enabled: canReadApiKeys } })
+  const apiKeys = useMemo(() => (apiKeysResponse?.api_keys ?? []).filter(key => key.admin_id === admin?.id), [apiKeysResponse, admin?.id])
 
   const form = useForm<McpSettingsFormInput>({
     resolver: zodResolver(mcpSettingsSchema),
@@ -47,9 +54,9 @@ export default function McpPage() {
     mutation: {
       onSuccess: updated => {
         toast.success(t('mcp.saveSuccess'))
-        queryClient.setQueryData(getGetMcpSettingsQueryKey(), updated)
-        queryClient.invalidateQueries({ queryKey: getGetMcpSettingsQueryKey() })
-        queryClient.invalidateQueries({ queryKey: getListMcpToolsQueryKey() })
+        queryClient.setQueryData(getGetMcpSettingsQueryKey(params), updated)
+        queryClient.invalidateQueries({ queryKey: getGetMcpSettingsQueryKey(params) })
+        queryClient.invalidateQueries({ queryKey: getListMcpToolsQueryKey(params) })
       },
       onError: (error: unknown) => {
         const err = error as { data?: { detail?: string }; message?: string } | null
@@ -64,9 +71,10 @@ export default function McpPage() {
     if (!canUpdate) return
     try {
       await modifySettings({
+        params,
         data: {
           enable: values.enable ?? false,
-          oauth: values.oauth ?? true,
+          oauth: apiKeyId ? undefined : (values.oauth ?? true),
           read_only: values.read_only ?? false,
           disabled_tools: values.disabled_tools ?? [],
         },
@@ -101,7 +109,7 @@ export default function McpPage() {
       </div>
 
       <div className="w-full p-4">
-        {isSettingsLoading ? (
+        {isSettingsLoading && !settings ? (
           <div className="space-y-4">
             <Skeleton className="h-6 w-48" />
             <Skeleton className="h-16" />
@@ -115,7 +123,9 @@ export default function McpPage() {
         ) : (
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-6 sm:gap-8">
-              <McpServerCard form={form} disabled={!canUpdate} toolsEnabled={toolsEnabled} toolsTotal={tools.length} />
+              {apiKeys.length > 0 && <McpTargetSelect value={target} apiKeys={apiKeys} disabled={isSaving} onChange={setTarget} />}
+
+              <McpServerCard form={form} disabled={!canUpdate} forApiKey={!!apiKeyId} toolsEnabled={toolsEnabled} toolsTotal={tools.length} />
 
               <McpEndpointCard mcpUrl={mcpUrl} canCreateApiKey={canCreateApiKey} canReadApiKeys={canReadApiKeys} onCreateApiKey={() => setIsApiKeyModalOpen(true)} />
 

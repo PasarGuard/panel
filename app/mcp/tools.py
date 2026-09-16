@@ -14,7 +14,14 @@ from app.utils.logger import get_logger
 
 from .auth import extract_credentials
 from .catalog import TOOL_TEXT
-from .registry import ToolPermission, ToolSpec, check_tool_access, get_admin_from_context, register_tool
+from .registry import (
+    ToolPermission,
+    ToolSpec,
+    check_tool_access,
+    get_access_from_context,
+    get_admin_from_context,
+    register_tool,
+)
 
 logger = get_logger("mcp")
 
@@ -184,7 +191,7 @@ def _build_handler(app: FastAPI, route: APIRoute, spec: ToolSpec):
 
     async def handler(ctx: Context, **kwargs):
         admin = get_admin_from_context(ctx)
-        await check_tool_access(spec, admin)
+        check_tool_access(spec, admin, get_access_from_context(ctx))
         if spec.destructive and kwargs.pop(CONFIRM_PARAM, False) is not True:
             raise ToolError(f"'{spec.name}' cannot be undone; call it again with {CONFIRM_PARAM}=true")
 

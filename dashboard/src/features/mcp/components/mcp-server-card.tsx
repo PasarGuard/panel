@@ -9,11 +9,12 @@ import type { McpSettingsFormInput } from '../forms/mcp-settings-form'
 interface McpServerCardProps {
   form: UseFormReturn<McpSettingsFormInput>
   disabled?: boolean
+  forApiKey?: boolean
   toolsEnabled?: number
   toolsTotal?: number
 }
 
-export function McpServerCard({ form, disabled = false, toolsEnabled = 0, toolsTotal = 0 }: McpServerCardProps) {
+export function McpServerCard({ form, disabled = false, forApiKey = false, toolsEnabled = 0, toolsTotal = 0 }: McpServerCardProps) {
   const { t } = useTranslation()
   const enabled = form.watch('enable')
 
@@ -40,7 +41,7 @@ export function McpServerCard({ form, disabled = false, toolsEnabled = 0, toolsT
                 <Bot className="h-4 w-4" />
                 {t('mcp.server.enable')}
               </FormLabel>
-              <FormDescription className="text-muted-foreground text-xs sm:text-sm">{t('mcp.server.enableDescription')}</FormDescription>
+              <FormDescription className="text-muted-foreground text-xs sm:text-sm">{t(forApiKey ? 'mcp.server.enableKeyDescription' : 'mcp.server.enableDescription')}</FormDescription>
             </div>
             <FormControl>
               <Switch checked={!!field.value} onCheckedChange={field.onChange} disabled={disabled} />
@@ -49,24 +50,26 @@ export function McpServerCard({ form, disabled = false, toolsEnabled = 0, toolsT
         )}
       />
 
-      <FormField
-        control={form.control}
-        name="oauth"
-        render={({ field }) => (
-          <FormItem className="bg-card hover:bg-accent/50 flex flex-row items-center justify-between space-y-0 gap-x-3 rounded-lg border p-3 transition-colors sm:p-4">
-            <div className="space-y-0.5">
-              <FormLabel className="flex cursor-pointer items-center gap-2 text-xs font-medium sm:text-sm">
-                <Globe className="h-4 w-4" />
-                {t('mcp.server.oauth')}
-              </FormLabel>
-              <FormDescription className="text-muted-foreground text-xs sm:text-sm">{t('mcp.server.oauthDescription')}</FormDescription>
-            </div>
-            <FormControl>
-              <Switch checked={!!field.value} onCheckedChange={field.onChange} disabled={disabled} />
-            </FormControl>
-          </FormItem>
-        )}
-      />
+      {!forApiKey && (
+        <FormField
+          control={form.control}
+          name="oauth"
+          render={({ field }) => (
+            <FormItem className="bg-card hover:bg-accent/50 flex flex-row items-center justify-between space-y-0 gap-x-3 rounded-lg border p-3 transition-colors sm:p-4">
+              <div className="space-y-0.5">
+                <FormLabel className="flex cursor-pointer items-center gap-2 text-xs font-medium sm:text-sm">
+                  <Globe className="h-4 w-4" />
+                  {t('mcp.server.oauth')}
+                </FormLabel>
+                <FormDescription className="text-muted-foreground text-xs sm:text-sm">{t('mcp.server.oauthDescription')}</FormDescription>
+              </div>
+              <FormControl>
+                <Switch checked={!!field.value} onCheckedChange={field.onChange} disabled={disabled} />
+              </FormControl>
+            </FormItem>
+          )}
+        />
+      )}
 
       <FormField
         control={form.control}

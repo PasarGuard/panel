@@ -1,16 +1,63 @@
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.mcp.catalog import DEFAULT_DISABLED_TOOLS
 from app.models.admin_role import RolePermissions
-from app.models.settings import MCP
 
 
-class MCPSettingsResponse(MCP):
+def _clean_tool_names(value):
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        raise ValueError("disabled_tools must be a list of tool names")  # noqa: TRY004 (pydantic needs ValueError)
+    cleaned: list[str] = []
+    for item in value:
+        if not isinstance(item, str):
+            raise ValueError("disabled_tools must be a list of tool names")  # noqa: TRY004
+        name = item.strip()
+        if name and name not in cleaned:
+            cleaned.append(name)
+    return cleaned
+
+
+class MCPSettings(BaseModel):
+    """Per-admin MCP settings, stored in admins.mcp."""
+
+    enable: bool = Field(default=False)
+    oauth: bool = Field(default=True, description="Allow OAuth sign-in for clients that cannot send an API key")
+    read_only: bool = Field(default=False, description="Only expose read-only tools")
+    disabled_tools: list[str] = Field(
+        default_factory=lambda: sorted(DEFAULT_DISABLED_TOOLS), description="Tool names hidden from MCP clients"
+    )
+
+    model_config = ConfigDict(from_attributes=True)
+
+    @field_validator("disabled_tools", mode="before")
+    @classmethod
+    def validate_disabled_tools(cls, value):
+        return _clean_tool_names(value)
+
+
+class MCPKeySettings(BaseModel):
+    """Per-key MCP settings, stored in api_keys.mcp. Applied on top of the owning admin's settings."""
+
+    enable: bool = Field(default=True)
+    read_only: bool = Field(default=False)
+    disabled_tools: list[str] = Field(default_factory=list)
+
+    model_config = ConfigDict(from_attributes=True)
+
+    @field_validator("disabled_tools", mode="before")
+    @classmethod
+    def validate_disabled_tools(cls, value):
+        return _clean_tool_names(value)
+
+
+class MCPSettingsResponse(MCPSettings):
+    api_key_id: int | None = Field(default=None, description="Set when the response describes an API key")
     endpoint_path: str = Field(description="Path of the MCP endpoint on this panel (e.g. /mcp)")
     default_disabled_tools: list[str] = Field(default_factory=list)
     tools_total: int = 0
     tools_enabled: int = 0
-
-    model_config = ConfigDict(from_attributes=True)
 
 
 class MCPSettingsModify(BaseModel):
@@ -37,7 +84,7 @@ class MCPToolInfo(BaseModel):
     destructive: bool
     owner_only: bool = False
     permissions: list[MCPToolPermission]
-    enabled: bool = Field(description="Not disabled globally (settings.disabled_tools / read-only mode)")
+    enabled: bool = Field(description="Not disabled by the admin or key settings (disabled_tools / read-only mode)")
     disabled_reason: str | None = Field(default=None, description="'disabled' or 'read_only' when not enabled")
     allowed: bool = Field(description="Whether the requesting admin's role permits this tool")
 

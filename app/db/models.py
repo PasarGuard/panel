@@ -104,6 +104,7 @@ class Admin(Base, CreatedAtUTCMixin):
     profile_title: Mapped[str | None] = mapped_column(String(512), default=None)
     support_url: Mapped[str | None] = mapped_column(String(1024), default=None)
     custom_variables: Mapped[list[dict[str, str]] | None] = mapped_column(PostgresJSONB, default=None)
+    mcp: Mapped[dict | None] = mapped_column(JSON(), default=None)
     notification_enable: Mapped[dict | None] = mapped_column(PostgresJSONB, default=None)
     note: Mapped[str | None] = mapped_column(String(500), default=None)
     role_id: Mapped[int] = fk_id_column("admin_roles.id", default=0)
@@ -918,7 +919,6 @@ class Settings(Base, IdMixin):
     subscription: Mapped[dict] = mapped_column(JSON())
     hwid: Mapped[dict] = mapped_column(JSON())
     general: Mapped[dict] = mapped_column(JSON())
-    mcp: Mapped[dict] = mapped_column(JSON(), default_factory=dict)
 
 
 class AdminRole(Base, CreatedAtUTCMixin):
@@ -967,6 +967,7 @@ class APIKey(Base, CreatedAtUTCMixin):
     api_key_trimmed: Mapped[str] = mapped_column(String(16))
     permissions: Mapped[dict] = mapped_column(PostgresJSONB, default_factory=dict)
     inherit_permissions: Mapped[bool] = mapped_column(default=True, server_default="1")
+    mcp: Mapped[dict | None] = mapped_column(JSON(), default=None)
     note: Mapped[str | None] = mapped_column(String(512), default=None)
     expire_date: Mapped[dt | None] = mapped_column(DateTime(timezone=True), default=None)
     revoked_at: Mapped[dt | None] = mapped_column(DateTime(timezone=True), default=None)

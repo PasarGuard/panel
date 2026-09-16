@@ -448,7 +448,6 @@ def mock_settings(monkeypatch: pytest.MonkeyPatch):
             "max_limit": 0,
         },
         "general": {"default_method": "chacha20-ietf-poly1305"},
-        "mcp": {"enable": False, "read_only": False, "disabled_tools": []},
     }
     db_settings = Settings(**settings)
 

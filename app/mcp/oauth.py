@@ -30,7 +30,6 @@ from app.models.admin import AdminDetails
 from app.models.admin_role import MCPPermissions, RolePermissions
 from app.models.api_key import APIKeyCreate
 from app.routers.authentication import get_admin_from_api_key
-from app.settings import mcp_settings
 from app.utils.jwt import get_secret_key
 from config import dashboard_settings
 
@@ -171,18 +170,7 @@ def _base_url(request: Request) -> str:
     return f"{request.url.scheme}://{request.url.netloc}"
 
 
-async def _oauth_enabled() -> bool:
-    settings = await mcp_settings()
-    return settings.enable and settings.oauth
-
-
-def _disabled_response() -> Response:
-    return JSONResponse({"detail": "MCP OAuth is disabled"}, status_code=404)
-
-
 async def authorization_server_metadata(request: Request) -> Response:
-    if not await _oauth_enabled():
-        return _disabled_response()
     base = _base_url(request)
     metadata = OAuthMetadata(
         issuer=AnyHttpUrl(base),
@@ -198,8 +186,6 @@ async def authorization_server_metadata(request: Request) -> Response:
 
 
 async def protected_resource_metadata(request: Request) -> Response:
-    if not await _oauth_enabled():
-        return _disabled_response()
     base = _base_url(request)
     metadata = ProtectedResourceMetadata(
         resource=AnyHttpUrl(base + MCP_PATH),
@@ -274,21 +260,12 @@ async def deny_request(request_token: str) -> str | None:
     return _redirect_with(claims, {"error": "access_denied"})
 
 
-def _gated(handler):
-    async def endpoint(request: Request) -> Response:
-        if not await _oauth_enabled():
-            return _disabled_response()
-        return await handler(request)
-
-    return endpoint
-
-
 def oauth_routes() -> list[Route]:
     client_authenticator = ClientAuthenticator(provider)
     return [
         Route(AS_METADATA_PATH, authorization_server_metadata, methods=["GET"]),
         Route(RS_METADATA_PATH, protected_resource_metadata, methods=["GET"]),
-        Route(AUTHORIZE_PATH, _gated(AuthorizationHandler(provider).handle), methods=["GET", "POST"]),
-        Route(TOKEN_PATH, _gated(TokenHandler(provider, client_authenticator).handle), methods=["POST"]),
-        Route(REGISTER_PATH, _gated(RegistrationHandler(provider, _registration_options).handle), methods=["POST"]),
+        Route(AUTHORIZE_PATH, AuthorizationHandler(provider).handle, methods=["GET", "POST"]),
+        Route(TOKEN_PATH, TokenHandler(provider, client_authenticator).handle, methods=["POST"]),
+        Route(REGISTER_PATH, RegistrationHandler(provider, _registration_options).handle, methods=["POST"]),
     ]

@@ -836,23 +836,29 @@
   },
   "mcp": {
     "title": "MCP 服务器",
-    "description": "让 AI 助手通过 Model Context Protocol 操作面板，并受每位管理员权限的限制",
+    "description": "让 AI 助手操作面板。每位管理员单独设置自己的访问权限，每个 API 密钥还可以进一步收窄。",
     "loadFailed": "加载 MCP 设置失败",
     "saveSuccess": "MCP 设置已保存",
     "saveFailed": "保存 MCP 设置失败",
     "cancelSuccess": "已放弃更改",
     "server": {
       "title": "服务器",
-      "description": "MCP 端点运行在面板内部，复用面板的身份验证和角色权限",
+      "description": "您的 MCP 访问权限，只影响您自己的令牌和连接器。",
       "enabled": "已启用",
       "disabled": "已禁用",
       "toolsEnabled": "已启用 {{enabled}} / {{total}} 个工具",
-      "enable": "启用 MCP 服务器",
-      "enableDescription": "开放 MCP 端点。只有角色拥有「MCP → 连接」权限的管理员才能建立会话。",
+      "enable": "启用 MCP",
+      "enableDescription": "允许您的令牌和连接器打开 MCP 会话。您的角色仍需具备“通过 MCP 连接”权限。",
       "readOnly": "只读模式",
-      "readOnlyDescription": "隐藏所有会创建、修改或删除数据的工具，无论管理员角色如何",
+      "readOnlyDescription": "隐藏所有会更改数据的工具",
       "oauth": "允许 OAuth 登录",
-      "oauthDescription": "允许网页连接器（Claude.ai、ChatGPT）使用面板管理员账号登录，而不是 API 密钥"
+      "oauthDescription": "允许 Claude.ai 和 ChatGPT 使用您的面板账户登录，而不是 API 密钥",
+      "enableKeyDescription": "允许此密钥打开 MCP 会话。"
+    },
+    "target": {
+      "title": "设置对象",
+      "description": "您的账户或您的某个 API 密钥。密钥的权限只能少于账户。",
+      "me": "我的账户"
     },
     "endpoint": {
       "title": "端点",
@@ -932,7 +938,7 @@
     "authorize": {
       "title": "授权访问",
       "description": "{{client}} 想以 {{username}} 的身份通过 MCP 使用面板。",
-      "scope": "授权后会在 API Keys 中创建一个以该应用命名、带有这些权限的密钥。删除该密钥即可撤销访问。",
+      "scope": "授权后会在 API Keys 中创建一个以该应用命名、带有这些权限的密钥。您的 MCP 设置会应用到它；删除该密钥即可撤销访问。",
       "approve": "授权",
       "deny": "取消",
       "invalid": "此授权请求无效或已过期。请从 AI 客户端重新开始。"
@@ -976,6 +982,7 @@
     "limitsAndFeatures": "限制与功能",
     "limitsHint": "留空以使用默认值。设置为 0 表示禁用。",
     "roleFormHint": "带范围的用户操作使用「无」、「自己的」或「全部」。其他操作为布尔开关。",
+    "mcpHint": "“通过 MCP 连接”还需要该角色对自己 API 密钥的创建、查看和删除权限；它们会随之开启。",
     "scopedActionInfo": "选择权限范围：无表示拒绝访问，自己的仅限管理员自己的用户，全部表示完全访问。",
     "allowAll": "允许全部",
     "features": "功能",

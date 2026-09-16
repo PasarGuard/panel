@@ -160,6 +160,26 @@ class RolePermissions(BaseModel):
         return getattr(self, resource, default)
 
 
+# Connectors are issued API keys, so an MCP role must be able to create, list and delete its own keys
+MCP_REQUIRED_API_KEY_ACTIONS = ("create", "read", "delete")
+
+
+def _action_granted(value: RoleActionValue | None) -> bool:
+    if isinstance(value, dict):
+        return int(value.get("scope", 0)) > 0
+    return value is True
+
+
+def validate_mcp_permissions(permissions: RolePermissions) -> RolePermissions:
+    if permissions.mcp is None or not _action_granted(permissions.mcp.connect):
+        return permissions
+    api_keys = permissions.api_keys or APIKeysPermissions()
+    missing = [action for action in MCP_REQUIRED_API_KEY_ACTIONS if not _action_granted(api_keys.get(action))]
+    if missing:
+        raise ValueError(f"mcp.connect requires api_keys permissions: {', '.join(missing)}")
+    return permissions
+
+
 class AdminRoleBase(BaseModel):
     name: str = Field(max_length=64)
     permissions: RolePermissions = Field(default_factory=RolePermissions)
@@ -175,12 +195,21 @@ class AdminRoleBase(BaseModel):
 
 
 class AdminRoleCreate(AdminRoleBase):
-    pass
+    @field_validator("permissions")
+    @classmethod
+    def validate_permissions(cls, value: RolePermissions) -> RolePermissions:
+        return validate_mcp_permissions(value)
 
 
 class AdminRoleModify(BaseModel):
     name: str | None = Field(default=None, max_length=64)
     permissions: RolePermissions | None = None
+
+    @field_validator("permissions")
+    @classmethod
+    def validate_permissions(cls, value: RolePermissions | None) -> RolePermissions | None:
+        return validate_mcp_permissions(value) if value is not None else value
+
     limits: RoleLimits | None = None
     features: RoleFeatures | None = None
     access: RoleAccess | None = None

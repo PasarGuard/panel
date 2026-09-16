@@ -4,7 +4,6 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from app.mcp.catalog import DEFAULT_DISABLED_TOOLS
 from app.models.proxy import ShadowsocksMethods
 
 from .notification_enable import NotificationEnable
@@ -376,31 +375,6 @@ class General(BaseModel):
         return validate_custom_variables(value)
 
 
-class MCP(BaseModel):
-    enable: bool = Field(default=False)
-    oauth: bool = Field(default=True, description="Allow OAuth sign-in for clients that cannot send an API key")
-    read_only: bool = Field(default=False, description="Only expose read-only tools, even to admins with write access")
-    disabled_tools: list[str] = Field(
-        default_factory=lambda: sorted(DEFAULT_DISABLED_TOOLS), description="Tool names hidden from every MCP client"
-    )
-
-    @field_validator("disabled_tools", mode="before")
-    @classmethod
-    def validate_disabled_tools(cls, value):
-        if value is None:
-            return []
-        if not isinstance(value, list):
-            raise ValueError("disabled_tools must be a list of tool names")  # noqa: TRY004 (pydantic needs ValueError)
-        cleaned: list[str] = []
-        for item in value:
-            if not isinstance(item, str):
-                raise ValueError("disabled_tools must be a list of tool names")  # noqa: TRY004
-            name = item.strip()
-            if name and name not in cleaned:
-                cleaned.append(name)
-        return cleaned
-
-
 class SettingsSchema(BaseModel):
     telegram: Telegram | None = Field(default=None)
     webhook: Webhook | None = Field(default=None)
@@ -409,6 +383,5 @@ class SettingsSchema(BaseModel):
     subscription: Subscription | None = Field(default=None)
     hwid: HWIDSettings | None = Field(default=None)
     general: General | None = Field(default=None)
-    mcp: MCP | None = Field(default=None)
 
     model_config = ConfigDict(from_attributes=True)

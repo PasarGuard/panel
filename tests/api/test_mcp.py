@@ -1,10 +1,14 @@
 """Tests for /api/mcp endpoints and the /mcp Streamable HTTP transport (auth + RBAC)."""
 
+import asyncio
+
 import pytest
 from fastapi import status
+from sqlalchemy import select
 
-from app.models.settings import MCP
-from tests.api import client
+from app.db.models import Admin, AdminRole
+from app.models.admin import hash_password
+from tests.api import TestSession, client
 from tests.api.helpers import auth_headers, create_admin, delete_admin, unique_name
 
 MCP_HEADERS = {"Accept": "application/json, text/event-stream", "Content-Type": "application/json"}
@@ -37,26 +41,48 @@ def _tool_names(response) -> set[str]:
     return {tool["name"] for tool in data["result"]["tools"]}
 
 
+def _set_mcp(token: str, api_key_id: int | None = None, **settings) -> dict:
+    params = {"api_key_id": api_key_id} if api_key_id else None
+    response = client.put("/api/mcp/settings", headers=auth_headers(token), params=params, json=settings)
+    assert response.status_code == status.HTTP_200_OK, response.text
+    return response.json()
+
+
+@pytest.fixture(scope="module")
+def owner_token():
+    """Token of a database owner admin; the env admin has no row to keep MCP settings in."""
+    username, password = unique_name("mcp_owner"), "OwnerPass#99"
+
+    async def _create() -> int:
+        async with TestSession() as session:
+            role_id = (await session.execute(select(AdminRole.id).where(AdminRole.is_owner.is_(True)))).scalar_one()
+            admin = Admin(username=username, hashed_password=await hash_password(password), role_id=role_id)
+            session.add(admin)
+            await session.commit()
+            return admin.id
+
+    async def _delete(admin_id: int) -> None:
+        async with TestSession() as session:
+            admin = (await session.execute(select(Admin).where(Admin.id == admin_id))).scalar_one_or_none()
+            if admin:
+                await session.delete(admin)
+                await session.commit()
+
+    admin_id = asyncio.run(_create())
+    yield _login(username, password)
+    asyncio.run(_delete(admin_id))
+
+
 @pytest.fixture
-def mcp_config(monkeypatch: pytest.MonkeyPatch):
-    """Override cached MCP settings for the MCP layer."""
+def mcp_config(owner_token):
+    """Set the owner's MCP settings for a test and restore them afterwards."""
+    before = client.get("/api/mcp/settings", headers=auth_headers(owner_token)).json()
 
     def _apply(**kwargs):
-        settings = MCP(**kwargs)
+        return _set_mcp(owner_token, **kwargs)
 
-        async def _fake():
-            return settings
-
-        for target in (
-            "app.mcp.auth.mcp_settings",
-            "app.mcp.registry.mcp_settings",
-            "app.mcp.server.mcp_settings",
-            "app.mcp.oauth.mcp_settings",
-        ):
-            monkeypatch.setattr(target, _fake)
-        return settings
-
-    return _apply
+    yield _apply
+    _set_mcp(owner_token, **{key: before[key] for key in ("enable", "oauth", "read_only", "disabled_tools")})
 
 
 @pytest.fixture
@@ -68,10 +94,10 @@ def role_with_mcp(access_token):
         json={
             "name": unique_name("mcp_role"),
             "permissions": {
-                "mcp": {"read": True, "connect": True},
+                "mcp": {"read": True, "update": True, "connect": True},
                 "users": {"read": {"scope": 2}, "read_simple": {"scope": 2}},
                 "system": {"read": True},
-                "api_keys": {"create": True, "read": {"scope": 1}},
+                "api_keys": {"create": True, "read": {"scope": 1}, "delete": {"scope": 1}},
             },
         },
     )
@@ -86,8 +112,8 @@ def role_with_mcp(access_token):
 # ---------------------------------------------------------------------------
 
 
-def test_owner_can_read_and_update_mcp_settings(access_token):
-    response = client.get("/api/mcp/settings", headers=auth_headers(access_token))
+def test_owner_can_read_and_update_mcp_settings(owner_token):
+    response = client.get("/api/mcp/settings", headers=auth_headers(owner_token))
     assert response.status_code == status.HTTP_200_OK
     data = response.json()
     assert data["endpoint_path"] == "/mcp"
@@ -97,7 +123,7 @@ def test_owner_can_read_and_update_mcp_settings(access_token):
     try:
         update = client.put(
             "/api/mcp/settings",
-            headers=auth_headers(access_token),
+            headers=auth_headers(owner_token),
             json={"enable": True, "read_only": True, "disabled_tools": ["remove_user"]},
         )
         assert update.status_code == status.HTTP_200_OK, update.text
@@ -107,17 +133,17 @@ def test_owner_can_read_and_update_mcp_settings(access_token):
         assert updated["disabled_tools"] == ["remove_user"]
         assert updated["tools_enabled"] < updated["tools_total"]
 
-        again = client.get("/api/mcp/settings", headers=auth_headers(access_token)).json()
+        again = client.get("/api/mcp/settings", headers=auth_headers(owner_token)).json()
         assert again["enable"] is True and again["disabled_tools"] == ["remove_user"]
     finally:
-        restore = client.put("/api/mcp/settings", headers=auth_headers(access_token), json=original)
+        restore = client.put("/api/mcp/settings", headers=auth_headers(owner_token), json=original)
         assert restore.status_code == status.HTTP_200_OK
 
 
-def test_unknown_tool_in_disabled_tools_is_rejected(access_token):
+def test_unknown_tool_in_disabled_tools_is_rejected(owner_token):
     response = client.put(
         "/api/mcp/settings",
-        headers=auth_headers(access_token),
+        headers=auth_headers(owner_token),
         json={"disabled_tools": ["not_a_tool"]},
     )
     assert response.status_code == status.HTTP_400_BAD_REQUEST
@@ -139,6 +165,30 @@ def test_tool_catalog_reports_permissions_and_availability(access_token):
     assert all(tool["allowed"] for tool in data["tools"])  # owner
 
 
+def test_mcp_connect_requires_api_key_permissions(access_token):
+    response = client.post(
+        "/api/admin-role",
+        headers=auth_headers(access_token),
+        json={"name": unique_name("mcp_bad_role"), "permissions": {"mcp": {"connect": True}}},
+    )
+    assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT, response.text
+    assert "api_keys" in response.text
+
+    response = client.post(
+        "/api/admin-role",
+        headers=auth_headers(access_token),
+        json={
+            "name": unique_name("mcp_ok_role"),
+            "permissions": {
+                "mcp": {"connect": True},
+                "api_keys": {"create": True, "read": {"scope": 1}, "delete": {"scope": 1}},
+            },
+        },
+    )
+    assert response.status_code == status.HTTP_201_CREATED, response.text
+    client.delete(f"/api/admin-role/{response.json()['id']}", headers=auth_headers(access_token))
+
+
 def test_operator_without_mcp_permission_is_denied(access_token):
     operator = create_admin(access_token, role_id=3)
     token = _login(operator["username"], operator["password"])
@@ -153,7 +203,7 @@ def test_operator_without_mcp_permission_is_denied(access_token):
         delete_admin(access_token, operator["username"])
 
 
-def test_role_with_mcp_read_can_view_but_not_update(access_token, role_with_mcp):
+def test_settings_are_stored_per_admin(access_token, owner_token, role_with_mcp):
     admin = create_admin(access_token, role_id=role_with_mcp["id"])
     token = _login(admin["username"], admin["password"])
     try:
@@ -163,12 +213,46 @@ def test_role_with_mcp_read_can_view_but_not_update(access_token, role_with_mcp)
         assert by_name["get_users"]["allowed"] is True
         assert by_name["remove_user"]["allowed"] is False
         assert by_name["get_admins"]["allowed"] is False
-        assert (
-            client.put("/api/mcp/settings", headers=auth_headers(token), json={"enable": True}).status_code
-            == status.HTTP_403_FORBIDDEN
-        )
+
+        mine = _set_mcp(token, enable=True, read_only=True, disabled_tools=["get_users"])
+        assert mine["enable"] is True and mine["disabled_tools"] == ["get_users"]
+
+        owner = client.get("/api/mcp/settings", headers=auth_headers(owner_token)).json()
+        assert "get_users" not in owner["disabled_tools"]
+        assert owner["read_only"] is False
     finally:
         delete_admin(access_token, admin["username"])
+
+
+def test_api_key_settings_narrow_the_admin_settings(owner_token, mcp_config):
+    mcp_config(enable=True, read_only=False, disabled_tools=["get_admins"])
+    created = client.post("/api/api_key", headers=auth_headers(owner_token), json={"name": unique_name("mcp_key")})
+    assert created.status_code == status.HTTP_201_CREATED, created.text
+    key_id, raw_key = created.json()["id"], created.json()["api_key"]
+    try:
+        shown = client.get("/api/mcp/settings", params={"api_key_id": key_id}, headers=auth_headers(owner_token))
+        assert shown.status_code == status.HTTP_200_OK
+        assert shown.json()["api_key_id"] == key_id and shown.json()["disabled_tools"] == []
+
+        names = _tool_names(_mcp_post({"X-Api-Key": raw_key}, _rpc("tools/list")))
+        assert "get_admins" not in names and "create_user" in names
+
+        _set_mcp(owner_token, api_key_id=key_id, read_only=True, disabled_tools=["get_users"])
+        names = _tool_names(_mcp_post({"X-Api-Key": raw_key}, _rpc("tools/list")))
+        assert "get_admins" not in names and "get_users" not in names and "create_user" not in names
+        assert "get_system_stats" in names
+
+        # The admin's own session is not affected by the key's settings
+        names = _tool_names(_mcp_post(auth_headers(owner_token), _rpc("tools/list")))
+        assert "get_users" in names and "create_user" in names
+
+        _set_mcp(owner_token, api_key_id=key_id, enable=False)
+        assert _mcp_post({"X-Api-Key": raw_key}, _rpc("tools/list")).status_code == status.HTTP_403_FORBIDDEN
+
+        missing = client.get("/api/mcp/settings", params={"api_key_id": 999999}, headers=auth_headers(owner_token))
+        assert missing.status_code == status.HTTP_404_NOT_FOUND
+    finally:
+        client.delete(f"/api/api_key/{key_id}", headers=auth_headers(owner_token))
 
 
 # ---------------------------------------------------------------------------
@@ -176,29 +260,30 @@ def test_role_with_mcp_read_can_view_but_not_update(access_token, role_with_mcp)
 # ---------------------------------------------------------------------------
 
 
-def test_mcp_endpoint_is_404_when_disabled(access_token, mcp_config):
+def test_mcp_endpoint_is_403_when_turned_off_for_the_admin(owner_token, mcp_config):
     mcp_config(enable=False)
-    response = _mcp_post(auth_headers(access_token), _rpc("tools/list"))
-    assert response.status_code == status.HTTP_404_NOT_FOUND
+    response = _mcp_post(auth_headers(owner_token), _rpc("tools/list"))
+    assert response.status_code == status.HTTP_403_FORBIDDEN
+    assert "turned off" in response.json()["detail"]
 
 
 def test_mcp_endpoint_requires_credentials(mcp_config):
     mcp_config(enable=True)
     response = _mcp_post({}, _rpc("tools/list"))
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
-    assert "www-authenticate" in {k.lower() for k in response.headers}
+    assert "resource_metadata=" in response.headers["www-authenticate"]
 
     response = _mcp_post({"Authorization": "Bearer not-a-token"}, _rpc("tools/list"))
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
 
-def test_owner_lists_and_calls_tools_with_jwt(access_token, mcp_config):
+def test_owner_lists_and_calls_tools_with_jwt(owner_token, mcp_config):
     mcp_config(enable=True, disabled_tools=[])
-    names = _tool_names(_mcp_post(auth_headers(access_token), _rpc("tools/list")))
+    names = _tool_names(_mcp_post(auth_headers(owner_token), _rpc("tools/list")))
     assert {"get_system_stats", "get_users", "create_user", "remove_user", "modify_node", "modify_hosts"} <= names
 
     call = _mcp_post(
-        auth_headers(access_token),
+        auth_headers(owner_token),
         _rpc("tools/call", {"name": "get_system_stats", "arguments": {}}, request_id=2),
     )
     assert call.status_code == status.HTTP_200_OK, call.text
@@ -209,14 +294,14 @@ def test_owner_lists_and_calls_tools_with_jwt(access_token, mcp_config):
     assert "version" in str(payload)
 
 
-def test_read_only_mode_hides_and_blocks_write_tools(access_token, mcp_config):
+def test_read_only_mode_hides_and_blocks_write_tools(owner_token, mcp_config):
     mcp_config(enable=True, read_only=True)
-    names = _tool_names(_mcp_post(auth_headers(access_token), _rpc("tools/list")))
+    names = _tool_names(_mcp_post(auth_headers(owner_token), _rpc("tools/list")))
     assert "get_users" in names
     assert "create_user" not in names and "remove_user" not in names
 
     call = _mcp_post(
-        auth_headers(access_token),
+        auth_headers(owner_token),
         _rpc("tools/call", {"name": "remove_user", "arguments": {"username": "nobody"}}, request_id=3),
     )
     assert call.status_code == status.HTTP_200_OK, call.text
@@ -225,13 +310,13 @@ def test_read_only_mode_hides_and_blocks_write_tools(access_token, mcp_config):
     assert "read-only" in result["content"][0]["text"]
 
 
-def test_disabled_tool_is_hidden_and_blocked(access_token, mcp_config):
+def test_disabled_tool_is_hidden_and_blocked(owner_token, mcp_config):
     mcp_config(enable=True, disabled_tools=["get_admins"])
-    names = _tool_names(_mcp_post(auth_headers(access_token), _rpc("tools/list")))
+    names = _tool_names(_mcp_post(auth_headers(owner_token), _rpc("tools/list")))
     assert "get_admins" not in names
 
     call = _mcp_post(
-        auth_headers(access_token),
+        auth_headers(owner_token),
         _rpc("tools/call", {"name": "get_admins", "arguments": {}}, request_id=4),
     )
     result = call.json()["result"]
@@ -251,11 +336,11 @@ def test_operator_without_connect_permission_gets_403(access_token, mcp_config):
         delete_admin(access_token, operator["username"])
 
 
-def test_tool_visibility_and_enforcement_follow_role_permissions(access_token, mcp_config, role_with_mcp):
-    mcp_config(enable=True)
+def test_tool_visibility_and_enforcement_follow_role_permissions(access_token, role_with_mcp):
     admin = create_admin(access_token, role_id=role_with_mcp["id"])
     token = _login(admin["username"], admin["password"])
     try:
+        _set_mcp(token, enable=True)
         names = _tool_names(_mcp_post(auth_headers(token), _rpc("tools/list")))
         assert {"get_users", "get_user", "get_system_stats"} <= names
         assert "remove_user" not in names
@@ -282,11 +367,11 @@ def test_tool_visibility_and_enforcement_follow_role_permissions(access_token, m
         delete_admin(access_token, admin["username"])
 
 
-def test_api_key_authenticates_mcp_session(access_token, mcp_config, role_with_mcp):
-    mcp_config(enable=True)
+def test_api_key_authenticates_mcp_session(access_token, role_with_mcp):
     admin = create_admin(access_token, role_id=role_with_mcp["id"])
     admin_token = _login(admin["username"], admin["password"])
     try:
+        _set_mcp(admin_token, enable=True)
         # Key inheriting the role: sees exactly what the role allows.
         inherited = client.post(
             "/api/api_key",
@@ -346,8 +431,8 @@ def test_api_key_authenticates_mcp_session(access_token, mcp_config, role_with_m
 # ---------------------------------------------------------------------------
 
 
-def test_sensitive_tools_are_disabled_by_default(access_token):
-    response = client.get("/api/mcp/settings", headers=auth_headers(access_token))
+def test_sensitive_tools_are_disabled_by_default(owner_token):
+    response = client.get("/api/mcp/settings", headers=auth_headers(owner_token))
     assert response.status_code == status.HTTP_200_OK
     data = response.json()
     assert "modify_settings" in data["default_disabled_tools"]
@@ -355,10 +440,10 @@ def test_sensitive_tools_are_disabled_by_default(access_token):
     assert data["oauth"] is True
 
 
-def test_destructive_tool_requires_confirm(access_token, mcp_config):
+def test_destructive_tool_requires_confirm(owner_token, mcp_config):
     mcp_config(enable=True)
     call = _mcp_post(
-        auth_headers(access_token),
+        auth_headers(owner_token),
         _rpc("tools/call", {"name": "remove_user", "arguments": {"username": "nobody"}}, request_id=8),
     )
     result = call.json()["result"]
@@ -366,7 +451,7 @@ def test_destructive_tool_requires_confirm(access_token, mcp_config):
     assert "confirm=true" in result["content"][0]["text"]
 
     call = _mcp_post(
-        auth_headers(access_token),
+        auth_headers(owner_token),
         _rpc("tools/call", {"name": "remove_user", "arguments": {"username": "nobody", "confirm": True}}, request_id=9),
     )
     result = call.json()["result"]
@@ -384,8 +469,7 @@ def _pkce_pair() -> tuple[str, str]:
     return verifier, base64.urlsafe_b64encode(digest).rstrip(b"=").decode()
 
 
-def test_oauth_flow_issues_tokens_that_open_mcp_sessions(access_token, mcp_config, role_with_mcp):
-    mcp_config(enable=True, oauth=True)
+def test_oauth_flow_issues_tokens_that_open_mcp_sessions(access_token, role_with_mcp):
     admin = create_admin(access_token, role_id=role_with_mcp["id"])
     try:
         metadata = client.get("/.well-known/oauth-protected-resource/mcp")
@@ -429,6 +513,22 @@ def test_oauth_flow_issues_tokens_that_open_mcp_sessions(access_token, mcp_confi
         )
         assert info.status_code == status.HTTP_200_OK, info.text
         assert info.json()["client_name"] == "Test client"
+
+        # MCP is off for a new admin until they turn it on; OAuth sign-in can be turned off separately
+        off = client.post(
+            "/api/mcp/oauth/consent",
+            json={"request": request_token, "approve": True},
+            headers=auth_headers(admin_token),
+        )
+        assert off.status_code == status.HTTP_403_FORBIDDEN
+        _set_mcp(admin_token, enable=True, oauth=False)
+        off = client.post(
+            "/api/mcp/oauth/consent",
+            json={"request": request_token, "approve": True},
+            headers=auth_headers(admin_token),
+        )
+        assert off.status_code == status.HTTP_403_FORBIDDEN
+        _set_mcp(admin_token, oauth=True)
 
         operator = create_admin(access_token, role_id=3)
         operator_token = _login(operator["username"], operator["password"])
@@ -500,12 +600,3 @@ def test_oauth_flow_issues_tokens_that_open_mcp_sessions(access_token, mcp_confi
         assert revoked.status_code == status.HTTP_401_UNAUTHORIZED
     finally:
         delete_admin(access_token, admin["username"])
-
-
-def test_oauth_is_hidden_when_disabled(mcp_config):
-    mcp_config(enable=True, oauth=False)
-    assert client.get("/.well-known/oauth-authorization-server").status_code == status.HTTP_404_NOT_FOUND
-    assert (
-        client.post("/mcp/oauth/register", json={"redirect_uris": ["http://x/cb"]}).status_code
-        == status.HTTP_404_NOT_FOUND
-    )

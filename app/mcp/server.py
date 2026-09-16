@@ -7,14 +7,13 @@ from mcp.server.transport_security import TransportSecuritySettings
 from mcp.types import ListToolsResult
 from starlette.routing import Route
 
-from app.models.admin import AdminDetails
-from app.settings import mcp_settings
 from app.utils.logger import get_logger
 from app.version import __version__
 
 from .auth import MCPAuthMiddleware
 from .oauth import oauth_routes
 from .registry import (
+    ACCESS_STATE_KEY,
     ADMIN_STATE_KEY,
     MCP_PATH,
     clear_tools,
@@ -36,27 +35,21 @@ SERVER_INSTRUCTIONS = (
 )
 
 
-def _admin_from_ctx(ctx: ServerRequestContext) -> AdminDetails | None:
-    request = ctx.request
-    state = getattr(request, "state", None)
-    return getattr(state, ADMIN_STATE_KEY, None) if state is not None else None
-
-
 async def _visibility_middleware(ctx: ServerRequestContext, call_next):
     """Drop tools the caller cannot use from tools/list."""
     result = await call_next(ctx)
     if ctx.method != "tools/list":
         return result
 
-    admin = _admin_from_ctx(ctx)
-    if admin is None:
+    state = getattr(ctx.request, "state", None)
+    admin = getattr(state, ADMIN_STATE_KEY, None) if state is not None else None
+    access = getattr(state, ACCESS_STATE_KEY, None) if state is not None else None
+    if admin is None or access is None:
         return result
-
-    settings = await mcp_settings()
 
     def _visible(tool_name: str) -> bool:
         spec = get_tool_spec(tool_name)
-        return spec is None or is_tool_visible(spec, settings, admin)
+        return spec is None or is_tool_visible(spec, access, admin)
 
     # The SDK may pass the pydantic result or its serialized dict
     if isinstance(result, ListToolsResult):

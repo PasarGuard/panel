@@ -1,24 +1,31 @@
 from app.db import AsyncSession
-from app.db.crud.settings import get_settings, modify_settings
+from app.db.crud.admin import get_admin_by_id
+from app.db.crud.api_key import get_api_key_by_id
+from app.db.crud.mcp import (
+    api_key_mcp_settings,
+    get_admin_mcp_settings,
+    set_admin_mcp_settings,
+    set_api_key_mcp_settings,
+)
+from app.db.models import APIKey
 from app.mcp.catalog import DEFAULT_DISABLED_TOOLS
 from app.mcp.oauth import deny_request, describe_request, grant_request
-from app.mcp.registry import MCP_PATH, admin_can_use_tool, get_tool_specs, tool_disabled_reason
+from app.mcp.registry import MCP_PATH, MCPAccess, admin_can_use_tool, get_tool_specs, tool_disabled_reason
 from app.models.admin import AdminDetails
 from app.models.mcp import (
+    MCPKeySettings,
     MCPOAuthConsent,
     MCPOAuthConsentResponse,
     MCPOAuthRequestInfo,
+    MCPSettings,
     MCPSettingsModify,
     MCPSettingsResponse,
     MCPToolInfo,
     MCPToolPermission,
     MCPToolsResponse,
 )
-from app.models.settings import MCP, SettingsSchema
-from app.nats.message import MessageTopic
-from app.nats.router import router
 from app.operation.api_key import _check_permissions_not_exceed_admin
-from app.settings import refresh_caches
+from app.operation.permissions import PermissionDenied, enforce_permission
 
 from . import BaseOperation
 
@@ -45,26 +52,60 @@ def _group_sort_key(group: str) -> tuple[int, str]:
 
 
 class MCPOperation(BaseOperation):
+    async def _get_db_admin(self, db: AsyncSession, admin: AdminDetails):
+        if admin.id is None:
+            await self.raise_error(message="MCP settings are not available for env admins", code=403)
+        db_admin = await get_admin_by_id(db, admin.id, load_users=False, load_usage_logs=False)
+        if db_admin is None:
+            await self.raise_error(message="Admin not found", code=404)
+        return db_admin
+
+    async def _get_db_key(self, db: AsyncSession, admin: AdminDetails, key_id: int) -> APIKey:
+        db_key = await get_api_key_by_id(db, key_id)
+        if db_key is None or (db_key.admin_id != admin.id and not admin.is_owner):
+            await self.raise_error(message="API key not found", code=404)
+        return db_key
+
     @staticmethod
-    def _build_settings_response(settings: MCP) -> MCPSettingsResponse:
+    def _build_response(settings: MCPSettings, access: MCPAccess, api_key_id: int | None) -> MCPSettingsResponse:
         specs = get_tool_specs()
-        enabled = sum(1 for spec in specs if tool_disabled_reason(spec, settings) is None)
+        enabled = sum(1 for spec in specs if tool_disabled_reason(spec, access) is None)
         return MCPSettingsResponse(
             **settings.model_dump(),
+            api_key_id=api_key_id,
             endpoint_path=MCP_PATH,
             default_disabled_tools=sorted(DEFAULT_DISABLED_TOOLS),
             tools_total=len(specs),
             tools_enabled=enabled,
         )
 
-    async def get_settings(self, db: AsyncSession) -> MCPSettingsResponse:
-        db_settings = await get_settings(db)
-        return self._build_settings_response(MCP.model_validate(db_settings.mcp or {}))
+    async def _resolve(
+        self, db: AsyncSession, admin: AdminDetails, api_key_id: int | None
+    ) -> tuple[MCPSettings, MCPAccess]:
+        """Settings shown on the page and the access they produce, for the admin or one of their keys."""
+        if api_key_id is None:
+            settings = await get_admin_mcp_settings(db, admin.id) if admin.id is not None else MCPSettings()
+            return settings, MCPAccess.build(settings)
+        db_key = await self._get_db_key(db, admin, api_key_id)
+        key_settings = api_key_mcp_settings(db_key)
+        owner_settings = await get_admin_mcp_settings(db, db_key.admin_id)
+        shown = MCPSettings(
+            enable=key_settings.enable,
+            oauth=owner_settings.oauth,
+            read_only=key_settings.read_only,
+            disabled_tools=key_settings.disabled_tools,
+        )
+        return shown, MCPAccess.build(owner_settings, key_settings)
 
-    async def modify_settings(self, db: AsyncSession, modify: MCPSettingsModify) -> MCPSettingsResponse:
-        db_settings = await get_settings(db)
-        current = MCP.model_validate(db_settings.mcp or {})
+    async def get_settings(
+        self, db: AsyncSession, admin: AdminDetails, api_key_id: int | None = None
+    ) -> MCPSettingsResponse:
+        settings, access = await self._resolve(db, admin, api_key_id)
+        return self._build_response(settings, access, api_key_id)
 
+    async def modify_settings(
+        self, db: AsyncSession, admin: AdminDetails, modify: MCPSettingsModify, api_key_id: int | None = None
+    ) -> MCPSettingsResponse:
         changes = modify.model_dump(exclude_none=True)
         if "disabled_tools" in changes:
             known = {spec.name for spec in get_tool_specs()}
@@ -72,25 +113,35 @@ class MCPOperation(BaseOperation):
             if unknown:
                 await self.raise_error(message=f"Unknown MCP tools: {', '.join(unknown)}", code=400)
 
+        if api_key_id is None:
+            db_admin = await self._get_db_admin(db, admin)
+            current = MCPSettings.model_validate(db_admin.mcp or {})
+            try:
+                new_settings = MCPSettings.model_validate(current.model_copy(update=changes).model_dump())
+            except ValueError as exc:
+                await self.raise_error(message=str(exc), code=400)
+            await set_admin_mcp_settings(db, db_admin, new_settings)
+            return self._build_response(new_settings, MCPAccess.build(new_settings), None)
+
+        db_key = await self._get_db_key(db, admin, api_key_id)
+        changes.pop("oauth", None)
+        current = api_key_mcp_settings(db_key)
         try:
-            new_settings = current.model_copy(update=changes)
-            new_settings = MCP.model_validate(new_settings.model_dump())
+            new_key_settings = MCPKeySettings.model_validate(current.model_copy(update=changes).model_dump())
         except ValueError as exc:
             await self.raise_error(message=str(exc), code=400)
+        await set_api_key_mcp_settings(db, db_key, new_key_settings)
+        settings, access = await self._resolve(db, admin, api_key_id)
+        return self._build_response(settings, access, api_key_id)
 
-        await modify_settings(db, db_settings, SettingsSchema(mcp=new_settings))
-        await refresh_caches()
-        # All workers refresh their settings cache (same path as the settings page)
-        await router.publish(MessageTopic.SETTING, {"action": "refresh"})
-        return self._build_settings_response(new_settings)
-
-    async def list_tools(self, db: AsyncSession, admin: AdminDetails) -> MCPToolsResponse:
-        db_settings = await get_settings(db)
-        settings = MCP.model_validate(db_settings.mcp or {})
+    async def list_tools(
+        self, db: AsyncSession, admin: AdminDetails, api_key_id: int | None = None
+    ) -> MCPToolsResponse:
+        _, access = await self._resolve(db, admin, api_key_id)
 
         tools: list[MCPToolInfo] = []
         for spec in sorted(get_tool_specs(), key=lambda item: (_group_sort_key(item.group), item.name)):
-            reason = tool_disabled_reason(spec, settings)
+            reason = tool_disabled_reason(spec, access)
             tools.append(
                 MCPToolInfo(
                     name=spec.name,
@@ -119,8 +170,20 @@ class MCPOperation(BaseOperation):
             await self.raise_error(message="Authorization request is invalid or expired", code=400)
         return MCPOAuthRequestInfo(**info)
 
-    async def consent_oauth_request(self, admin: AdminDetails, consent: MCPOAuthConsent) -> MCPOAuthConsentResponse:
+    async def consent_oauth_request(
+        self, db: AsyncSession, admin: AdminDetails, consent: MCPOAuthConsent
+    ) -> MCPOAuthConsentResponse:
         if consent.approve:
+            settings = await get_admin_mcp_settings(db, admin.id) if admin.id is not None else MCPSettings()
+            if not settings.enable:
+                await self.raise_error(message="MCP is turned off for this account", code=403)
+            if not settings.oauth:
+                await self.raise_error(message="OAuth sign-in is turned off for this account", code=403)
+            # Approving issues an API key, so the same permission as the API Keys page applies
+            try:
+                enforce_permission(admin, "api_keys", "create")
+            except PermissionDenied as e:
+                await self.raise_error(message=str(e), code=403)
             if consent.permissions is not None:
                 try:
                     _check_permissions_not_exceed_admin(admin, consent.permissions)
