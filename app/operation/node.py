@@ -318,7 +318,14 @@ class NodeOperation(BaseOperation):
 
         log = logger.info if force_start else logger.debug
         log(f'Starting "{db_node.name}" node')
-        info = await pg_node.start(**start_kwargs)
+        if batch_wireguard_users:
+            try:
+                info = await pg_node.start(**start_kwargs)
+            except asyncio.CancelledError:
+                await NodeOperation._cleanup_cancelled_batched_start(db_node.id, pg_node)
+                raise
+        else:
+            info = await pg_node.start(**start_kwargs)
         if batch_wireguard_users:
             try:
                 synced_node = await node_manager.sync_users_batched(
@@ -327,18 +334,7 @@ class NodeOperation(BaseOperation):
                 if synced_node is None:
                     raise RuntimeError("node connection changed during initial user sync")
             except asyncio.CancelledError:
-                cleanup_task = asyncio.create_task(node_manager.stop_node_if_current(db_node.id, pg_node))
-                try:
-                    await asyncio.shield(cleanup_task)
-                except asyncio.CancelledError:
-                    # Keep waiting if shutdown requests cancellation again while
-                    # the backend is being returned to a consistent stopped state.
-                    try:
-                        await cleanup_task
-                    except Exception:
-                        pass
-                except Exception:
-                    pass
+                await NodeOperation._cleanup_cancelled_batched_start(db_node.id, pg_node)
                 raise
             except Exception as exc:
                 try:
@@ -347,6 +343,21 @@ class NodeOperation(BaseOperation):
                     pass
                 raise NodeAPIError(500, f"Failed to sync users after starting WireGuard: {exc}") from exc
         return info
+
+    @staticmethod
+    async def _cleanup_cancelled_batched_start(node_id: int, pg_node: PasarGuardNode) -> None:
+        cleanup_task = asyncio.create_task(node_manager.stop_node_if_current(node_id, pg_node))
+        try:
+            await asyncio.shield(cleanup_task)
+        except asyncio.CancelledError:
+            # Keep waiting if shutdown requests cancellation again while the
+            # backend is being returned to a consistent stopped state.
+            try:
+                await cleanup_task
+            except Exception:
+                pass
+        except Exception:
+            pass
 
     @staticmethod
     async def connect_node(db_node: Node, core, users: list, *, force_start: bool = False) -> dict | None:
