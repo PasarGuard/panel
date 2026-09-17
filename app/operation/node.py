@@ -328,7 +328,7 @@ class NodeOperation(BaseOperation):
                     raise RuntimeError("node connection changed during initial user sync")
             except Exception as exc:
                 try:
-                    await pg_node.stop()
+                    await node_manager.stop_node_if_current(db_node.id, pg_node)
                 except Exception:
                     pass
                 raise NodeAPIError(500, f"Failed to sync users after starting WireGuard: {exc}") from exc
