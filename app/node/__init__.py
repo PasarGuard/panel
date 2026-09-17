@@ -187,17 +187,33 @@ class NodeManager:
 
         return len(users_to_sync)
 
-    async def _sync_users_to_node(self, node_id: int, node: PasarGuardNode, users: list[ProtoUser]):
-        batch_size = max(1, nats_settings.node_update_users_batch_size)
-        lock = self._user_sync_locks.setdefault(node_id, asyncio.Lock())
+    async def _sync_user_batches(
+        self, node_id: int, node: PasarGuardNode, users: list[ProtoUser], *, batch_size: int | None = None
+    ) -> None:
+        batch_size = max(1, batch_size or nats_settings.node_update_users_batch_size)
         failed_count = 0
 
-        async with lock:
-            for batch in self._chunk_users(users, batch_size):
-                failed_count += await self._sync_user_batch_to_node(node, batch)
+        for batch in self._chunk_users(users, batch_size):
+            failed_count += await self._sync_user_batch_to_node(node, batch)
 
         if failed_count:
             raise RuntimeError(f"failed to sync {failed_count}/{len(users)} users to node {node_id}")
+
+    async def _sync_users_to_node(self, node_id: int, node: PasarGuardNode, users: list[ProtoUser]):
+        lock = self._user_sync_locks.setdefault(node_id, asyncio.Lock())
+        async with lock:
+            await self._sync_user_batches(node_id, node, users)
+
+    async def sync_users_batched(
+        self, node_id: int, node: PasarGuardNode, users: list[ProtoUser], *, batch_size: int | None = None
+    ) -> PasarGuardNode | None:
+        """Apply a large initial user set through bounded delta batches."""
+        lock = self._user_sync_locks.setdefault(node_id, asyncio.Lock())
+        async with lock:
+            if await self.get_node(node_id) is not node:
+                return None
+            await self._sync_user_batches(node_id, node, users, batch_size=batch_size)
+        return node
 
     async def sync_full(
         self, node_id: int, users: list[ProtoUser], *, flush_pending: bool = False

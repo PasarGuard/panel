@@ -75,6 +75,8 @@ MAX_MESSAGE_LENGTH = 128
 # Cap parallel start/attach so ~100 nodes don't stampede NATS lifecycle KV.
 CONNECT_CONCURRENCY = 10
 NODE_RESTART_FIELDS = frozenset({"core_config_id", "keep_alive"})
+WIREGUARD_BATCHED_START_THRESHOLD = 1000
+WIREGUARD_START_BATCH_SIZE = 100
 
 logger = get_logger("node-operation")
 
@@ -293,10 +295,16 @@ class NodeOperation(BaseOperation):
                     # Skip; the next retry cycle will check again once it's done.
                     return
 
+        batch_wireguard_users = (
+            backend_type == service.BackendType.WIREGUARD and len(users) >= WIREGUARD_BATCHED_START_THRESHOLD
+        )
         start_kwargs = {
             "config": core.to_str(),
             "backend_type": backend_type,
-            "users": users,
+            # Starting WireGuard with thousands of peers makes the lifecycle RPC
+            # exceed its short timeout. Bring up the interface first, then apply
+            # peers through the node's bounded delta-sync path below.
+            "users": [] if batch_wireguard_users else users,
             "keep_alive": db_node.keep_alive,
         }
         if core.type == CoreType.xray:
@@ -310,7 +318,21 @@ class NodeOperation(BaseOperation):
 
         log = logger.info if force_start else logger.debug
         log(f'Starting "{db_node.name}" node')
-        return await pg_node.start(**start_kwargs)
+        info = await pg_node.start(**start_kwargs)
+        if batch_wireguard_users:
+            try:
+                synced_node = await node_manager.sync_users_batched(
+                    db_node.id, pg_node, users, batch_size=WIREGUARD_START_BATCH_SIZE
+                )
+                if synced_node is None:
+                    raise RuntimeError("node connection changed during initial user sync")
+            except Exception as exc:
+                try:
+                    await pg_node.stop()
+                except Exception:
+                    pass
+                raise NodeAPIError(500, f"Failed to sync users after starting WireGuard: {exc}") from exc
+        return info
 
     @staticmethod
     async def connect_node(db_node: Node, core, users: list, *, force_start: bool = False) -> dict | None:
