@@ -84,6 +84,7 @@ class NodeManager:
             signature = self._connection_signature(node)
             async with self._lock.reader_lock:
                 existing = self._nodes.get(node.id)
+                existing_signature = self._node_signatures.get(node.id)
 
             # update_node() runs on every reconnect attempt, including the automated
             # ones the health-check watchdog fires every ~minute. If nothing about the
@@ -91,7 +92,7 @@ class NodeManager:
             # possibly-healthy remote backend (a real Stop RPC) just to recreate it —
             # that used to defeat the attach-if-already-running logic below and turned
             # transient health-check false negatives into a permanent restart loop.
-            if existing is not None and self._node_signatures.get(node.id) == signature:
+            if existing is not None and existing_signature == signature:
                 existing_extra = await existing.get_extra()
                 if existing.name == node.name and existing_extra.get("usage_coefficient") == node.usage_coefficient:
                     return existing
@@ -104,8 +105,9 @@ class NodeManager:
                 self._nodes[node.id] = new_node
                 self._node_signatures[node.id] = signature
 
-            # Stop the old node after releasing the lock.
-            await self._shutdown_node(old_node)
+            # Metadata-only changes require a fresh bridge object, but must not stop a
+            # healthy remote backend. The reconnect path will attach the replacement.
+            await self._shutdown_node(old_node, remote_stop=existing_signature != signature)
 
         return new_node
 

@@ -74,6 +74,7 @@ from config import runtime_settings
 MAX_MESSAGE_LENGTH = 128
 # Cap parallel start/attach so ~100 nodes don't stampede NATS lifecycle KV.
 CONNECT_CONCURRENCY = 10
+NODE_RESTART_FIELDS = frozenset({"core_config_id", "keep_alive"})
 
 logger = get_logger("node-operation")
 
@@ -461,6 +462,11 @@ class NodeOperation(BaseOperation):
         if modified_node.core_config_id is not None:
             await self.get_validated_core_config(db, modified_node.core_config_id)
 
+        updates = modified_node.model_dump(exclude_none=True)
+        force_start = any(
+            field in updates and updates[field] != getattr(db_node, field) for field in NODE_RESTART_FIELDS
+        )
+
         try:
             db_node = await modify_node(db, db_node, modified_node)
         except IntegrityError:
@@ -471,9 +477,7 @@ class NodeOperation(BaseOperation):
         else:
             try:
                 await self._update_node_impl(db_node)
-                # force_start=True ensures the node always receives the updated config
-                # (e.g. core_config_id, usage_coefficient) even when already healthy.
-                asyncio.create_task(self._connect_single_node_background(db_node.id, force_start=True))
+                asyncio.create_task(self._connect_single_node_background(db_node.id, force_start=force_start))
             except NodeAPIError as e:
                 await self._update_single_node_status(db, db_node.id, NodeStatus.error, message=e.detail)
 
