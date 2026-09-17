@@ -128,6 +128,15 @@ class NodeManager:
         async with self._lock.reader_lock:
             return self._nodes.get(id, None)
 
+    async def stop_node_if_current(self, node_id: int, node: PasarGuardNode) -> bool:
+        """Stop a node only while it is still the manager's current connection."""
+        lock = self._user_sync_locks.setdefault(node_id, asyncio.Lock())
+        async with lock:
+            if await self.get_node(node_id) is not node:
+                return False
+            await node.stop()
+            return True
+
     async def get_nodes(self) -> dict[int, PasarGuardNode]:
         async with self._lock.reader_lock:
             return self._nodes
