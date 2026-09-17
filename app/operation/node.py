@@ -326,6 +326,20 @@ class NodeOperation(BaseOperation):
                 )
                 if synced_node is None:
                     raise RuntimeError("node connection changed during initial user sync")
+            except asyncio.CancelledError:
+                cleanup_task = asyncio.create_task(node_manager.stop_node_if_current(db_node.id, pg_node))
+                try:
+                    await asyncio.shield(cleanup_task)
+                except asyncio.CancelledError:
+                    # Keep waiting if shutdown requests cancellation again while
+                    # the backend is being returned to a consistent stopped state.
+                    try:
+                        await cleanup_task
+                    except Exception:
+                        pass
+                except Exception:
+                    pass
+                raise
             except Exception as exc:
                 try:
                     await node_manager.stop_node_if_current(db_node.id, pg_node)
