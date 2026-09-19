@@ -300,13 +300,19 @@ class UsersUsageQuery(UserUsageQuery):
 
 class ExpiredUsersQuery(BaseModel):
     admin_username: str | None = Field(default=None)
-    target: Literal["expired", "limited", "on_hold", "disabled"] = Field(default="expired")
+    target: Literal["expired", "limited", "on_hold", "disabled", "inactive"] = Field(default="expired")
     expired_after: OptionalAwareDatetime = Field(default=None, examples=["2024-01-01T00:00:00+03:30"])
     expired_before: OptionalAwareDatetime = Field(default=None, examples=["2024-01-31T23:59:59+03:30"])
     dry_run: bool = Field(
         default=False,
         description="If true, returns users that would be deleted without actually deleting them.",
     )
+
+    @model_validator(mode="after")
+    def validate_inactive_cutoff(self):
+        if self.target == "inactive" and self.expired_before is None:
+            raise ValueError("expired_before is required when target is inactive")
+        return self
 
 
 class UserSubscriptionUpdateSchema(BaseModel):

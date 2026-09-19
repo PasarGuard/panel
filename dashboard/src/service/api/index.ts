@@ -2890,6 +2890,7 @@ export const GetExpiredUsersTarget = {
   limited: 'limited',
   on_hold: 'on_hold',
   disabled: 'disabled',
+  inactive: 'inactive',
 } as const;
 
 export type DeleteExpiredUsersParams = {
@@ -2908,6 +2909,7 @@ export const DeleteExpiredUsersTarget = {
   limited: 'limited',
   on_hold: 'on_hold',
   disabled: 'disabled',
+  inactive: 'inactive',
 } as const;
 
 export type GetSubUserUsageParams = {
@@ -22920,10 +22922,11 @@ export const getGetExpiredUsersUrl = (params?: GetExpiredUsersParams,) => {
 /**
  * Get cleanup-target users in the specified scope.
  *
- * - **target**: `expired` | `limited` | `on_hold` | `disabled`
+ * - **target**: `expired` | `limited` | `on_hold` | `disabled` | `inactive`
  * - **expired_after** / **expired_before** UTC datetime (optional)
  * - For `expired`: filters by expiration date.
  * - For `limited` / `on_hold` / `disabled`: filters by last_status_change (when they entered that status).
+ * - For `inactive`: filters by last activity (online_at, or created_at if never online); expired_before is required.
  * @summary Get Expired Users
  */
 export const getExpiredUsers = async (params?: GetExpiredUsersParams, options?: RequestInit): Promise<getExpiredUsersResponse> => {
@@ -23058,10 +23061,11 @@ export const getDeleteExpiredUsersUrl = (params?: DeleteExpiredUsersParams,) => 
 /**
  * Delete cleanup-target users in the specified scope.
  *
- * - **target**: `expired` | `limited` | `on_hold` | `disabled`
+ * - **target**: `expired` | `limited` | `on_hold` | `disabled` | `inactive`
  * - **expired_after** / **expired_before** UTC datetime (optional)
  * - For `expired`: filters by expiration date.
  * - For `limited` / `on_hold` / `disabled`: filters by last_status_change (when they entered that status).
+ * - For `inactive`: filters by last activity (online_at, or created_at if never online); expired_before is required.
  * - **dry_run**: if true, returns users that would be deleted without deleting them.
  * @summary Delete Expired Users
  */
