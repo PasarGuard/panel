@@ -2469,7 +2469,10 @@
       "generatePreSharedKey": "生成预共享密钥",
       "preSharedKeyGenerated": "已生成预共享密钥",
       "preSharedKeyFailed": "无法生成预共享密钥",
+      "mtuPlaceholder": "节点默认值",
+      "mtuDescription": "可选，576–9000 字节。需要节点支持核心 MTU。客户端 MTU 在主机设置中单独配置。",
       "fields": {
+        "mtu": "服务器接口 MTU",
         "interfaceName": "接口名称",
         "privateKey": "私钥",
         "publicKey": "公钥",
