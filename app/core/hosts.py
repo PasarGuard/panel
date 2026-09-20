@@ -29,10 +29,10 @@ from app.nats.client import setup_nats_kv
 from app.nats.kv_cas import is_kv_miss
 from app.nats.message import MessageTopic
 from app.nats.router import router
+from app.subscription.base import normalize_and_remove_none_values
 from app.utils.logger import get_logger
 from config import runtime_settings
 from role import Role
-from app.subscription.base import normalize_and_remove_none_values
 
 
 def _string_list(value) -> list[str]:
@@ -124,7 +124,7 @@ async def _prepare_subscription_inbound_data(
             transport_config=TCPTransportConfig(path="", host=[]),
             mux_settings=None,
             wireguard_public_key=inbound_config.get("public_key", ""),
-            wireguard_pre_shared_key=inbound_config.get("pre_shared_key", None),
+            wireguard_pre_shared_key=inbound_config.get("pre_shared_key") or "",
             wireguard_local_address=inbound_config.get("address", []) or [],
             wireguard_allowed_ips=allowed_ips,
             wireguard_keepalive=keepalive,
