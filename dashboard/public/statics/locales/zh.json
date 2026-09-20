@@ -834,6 +834,138 @@
     "bulkDeleteTitle": "删除所选 API 密钥",
     "bulkDeletePrompt": "确定要删除选中的 {{count}} 个 API 密钥吗？此操作无法撤销。"
   },
+  "mcp": {
+    "title": "MCP 服务器",
+    "description": "让 AI 助手操作面板。每位管理员单独设置自己的访问权限，每个 API 密钥还可以进一步收窄。",
+    "loadFailed": "加载 MCP 设置失败",
+    "saveSuccess": "MCP 设置已保存",
+    "saveFailed": "保存 MCP 设置失败",
+    "cancelSuccess": "已放弃更改",
+    "server": {
+      "title": "服务器",
+      "description": "您的 MCP 访问权限，只影响您自己的令牌和连接器。",
+      "enabled": "已启用",
+      "disabled": "已禁用",
+      "toolsEnabled": "已启用 {{enabled}} / {{total}} 个工具",
+      "enable": "启用 MCP",
+      "enableDescription": "允许您的令牌和连接器打开 MCP 会话。您的角色仍需具备“通过 MCP 连接”权限。",
+      "readOnly": "只读模式",
+      "readOnlyDescription": "隐藏所有会更改数据的工具",
+      "oauth": "允许 OAuth 登录",
+      "oauthDescription": "允许 Claude.ai 和 ChatGPT 使用您的面板账户登录，而不是 API 密钥",
+      "enableKeyDescription": "允许此密钥打开 MCP 会话。"
+    },
+    "target": {
+      "title": "设置对象",
+      "description": "您的账户或您的某个 API 密钥。密钥的权限只能少于账户。",
+      "me": "我的账户"
+    },
+    "endpoint": {
+      "title": "端点",
+      "description": "Streamable HTTP 传输。将任何兼容 MCP 的客户端指向此 URL。",
+      "url": "MCP URL",
+      "copied": "MCP URL 已复制",
+      "authTitle": "身份验证",
+      "authDescription": "以 Bearer 令牌形式发送 API 密钥（Authorization: Bearer pg_key_…）。密钥所属管理员必须拥有「MCP → 连接」权限；每个工具还需要与其 REST 接口相同的权限。",
+      "createKey": "创建 API 密钥",
+      "manageKeys": "管理 API 密钥"
+    },
+    "clients": {
+      "title": "连接客户端",
+      "description": "选择客户端，并将 {{placeholder}} 替换为 API 密钥。示例中已包含本面板地址。",
+      "copied": "配置已复制",
+      "claudeWeb": "Claude.ai（网页）",
+      "claudeWebHint": "Settings → Connectors → Add custom connector。粘贴此 URL，然后使用面板管理员账号登录。",
+      "chatgpt": "ChatGPT",
+      "chatgptHint": "Settings → Connectors → Create。粘贴此 URL 并选择 OAuth，然后使用面板管理员账号登录。",
+      "claudeCode": "Claude Code",
+      "claudeCodeHint": "在终端中运行，为当前项目注册该服务器。",
+      "claudeDesktop": "Claude Desktop",
+      "claudeDesktopHint": "添加到 claude_desktop_config.json（Settings → Developer）。mcp-remote 用于桥接 HTTP 传输。",
+      "cursor": "Cursor",
+      "cursorHint": "添加到 ~/.cursor/mcp.json 或项目的 .cursor/mcp.json。",
+      "vscode": "VS Code (Copilot)",
+      "vscodeHint": "添加到工作区的 .vscode/mcp.json，或通过 MCP: Add Server 添加到用户配置。",
+      "windsurf": "Windsurf",
+      "windsurfHint": "添加到 ~/.codeium/windsurf/mcp_config.json。",
+      "geminiCli": "Gemini CLI",
+      "geminiCliHint": "添加到 ~/.gemini/settings.json 或项目的 .gemini/settings.json。",
+      "codex": "OpenAI Codex CLI",
+      "codexHint": "添加到 ~/.codex/config.toml。",
+      "cline": "Cline",
+      "clineHint": "通过 Cline → MCP Servers → Configure 添加，或编辑 cline_mcp_settings.json。",
+      "zed": "Zed",
+      "zedHint": "添加到 Zed 的 settings.json 中的 context_servers。",
+      "http": "原始 HTTP",
+      "httpHint": "任何支持 Streamable HTTP 的 MCP 客户端都可以直接使用该端点。"
+    },
+    "tools": {
+      "title": "微调工具",
+      "description": "每个分区：全部、只读或关闭。展开分区可切换单个工具。",
+      "name": "工具",
+      "kind": "类型",
+      "permission": "所需权限",
+      "enabled": "已启用",
+      "readOnly": "只读",
+      "write": "写入",
+      "destructive": "破坏性",
+      "hiddenByReadOnly": "只读模式下已隐藏",
+      "expandAll": "全部展开",
+      "collapseAll": "全部折叠",
+      "noTools": "未注册任何工具",
+      "ownerOnly": "仅所有者",
+      "scopeAll": "所有用户",
+      "resetDefaults": "恢复默认",
+      "modeAll": "全部",
+      "modeRead": "只读",
+      "modeOff": "关闭"
+    },
+    "groups": {
+      "system": "系统",
+      "users": "用户",
+      "admins": "管理员",
+      "admin_roles": "管理员角色",
+      "api_keys": "API 密钥",
+      "nodes": "节点",
+      "cores": "核心",
+      "hosts": "主机",
+      "groups": "组",
+      "templates": "用户模板",
+      "client_templates": "客户端模板",
+      "hwids": "HWID",
+      "settings": "设置"
+    },
+    "authorize": {
+      "title": "授权访问",
+      "description": "{{client}} 想以 {{username}} 的身份通过 MCP 使用面板。",
+      "keyName": "密钥名称",
+      "access": "MCP 访问权限",
+      "accessDescription": "此连接器通过 MCP 可以执行的操作。以您自己的 MCP 设置为起点，只能更窄。",
+      "permissions": "API 权限",
+      "scope": "授权后会在 API Keys 中创建一个以该应用命名、带有这些权限的密钥。您的 MCP 设置会应用到它；删除该密钥即可撤销访问。",
+      "approve": "授权",
+      "deny": "取消",
+      "invalid": "此授权请求无效或已过期。请从 AI 客户端重新开始。"
+    },
+    "presets": {
+      "title": "访问级别",
+      "description": "选择 AI 客户端可以做多少事。如有需要，可在下方微调单个工具。",
+      "toolCount": "{{count}} / {{total}} 个工具",
+      "custom": "自定义选择。选择上方任一级别可重置。",
+      "read_only": {
+        "title": "只读",
+        "description": "查看用户、节点、统计和设置。无法更改任何内容。"
+      },
+      "recommended": {
+        "title": "推荐",
+        "description": "管理用户、节点、主机和组。密钥、角色、管理员账号和批量删除保持关闭。"
+      },
+      "full": {
+        "title": "完全访问",
+        "description": "所有 API 操作，包括设置、核心配置、API 密钥和角色。"
+      }
+    }
+  },
   "adminRoles": {
     "title": "管理员角色",
     "description": "管理仪表板角色和 RBAC 权限",
@@ -854,6 +986,7 @@
     "limitsAndFeatures": "限制与功能",
     "limitsHint": "留空以使用默认值。设置为 0 表示禁用。",
     "roleFormHint": "带范围的用户操作使用「无」、「自己的」或「全部」。其他操作为布尔开关。",
+    "mcpHint": "“通过 MCP 连接”还需要该角色对自己 API 密钥的权限（创建、查看、更新、删除）；它们会随之开启。",
     "scopedActionInfo": "选择权限范围：无表示拒绝访问，自己的仅限管理员自己的用户，全部表示完全访问。",
     "allowAll": "允许全部",
     "features": "功能",
@@ -902,6 +1035,7 @@
       "apiKeys": "API 密钥",
       "nodes": "节点",
       "coreHosts": "核心和主机",
+      "mcp": "MCP",
       "groupsTemplates": "组和模板",
       "settings": "设置"
     },
@@ -936,6 +1070,11 @@
         "read_general": "查看常规设置",
         "update": "更新设置"
       },
+      "mcp": {
+        "read": "查看 MCP",
+        "update": "更新 MCP 设置",
+        "connect": "通过 MCP 连接"
+      },
       "system": {
         "read": "查看系统",
         "update": "更新系统"
@@ -952,6 +1091,7 @@
       }
     },
     "resources": {
+      "mcp": "MCP",
       "users": "用户",
       "admins": "管理员",
       "admin_roles": "角色",

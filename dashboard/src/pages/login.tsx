@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { LoaderButton } from '@/components/ui/loader-button'
 import { PasswordInput } from '@/components/ui/password-input'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { postLoginPath } from '@/features/mcp/utils/oauth-request'
 import { getCurrentAdmin, useAdminMiniAppToken, useAdminToken, useCreateOwner, useDeleteOwner, useResetOwnerPassword, useUpgradeOwner } from '@/service/api'
 import { $fetch } from '@/service/http'
 import { getAuthToken, removeAuthToken, setAuthToken } from '@/utils/authStorage'
@@ -160,7 +161,7 @@ export const Login: FC = () => {
     // whether to redirect to the dashboard or drop the stale session
     getCurrentAdmin(controller.signal)
       .then(() => {
-        navigate('/', { replace: true })
+        navigate(postLoginPath(), { replace: true })
       })
       .catch((error: any) => {
         if (error?.name === 'AbortError') return
@@ -189,7 +190,7 @@ export const Login: FC = () => {
     mutation: {
       onSuccess({ access_token }) {
         setAuthToken(access_token)
-        navigate('/', { replace: true })
+        navigate(postLoginPath(), { replace: true })
       },
     },
   })
@@ -201,7 +202,7 @@ export const Login: FC = () => {
         // Assume data contains access_token
         if (data && data.access_token) {
           setAuthToken(data.access_token)
-          navigate('/', { replace: true })
+          navigate(postLoginPath(), { replace: true })
         }
       },
     },
@@ -218,7 +219,7 @@ export const Login: FC = () => {
         })
         if (data && data.access_token) {
           setAuthToken(data.access_token)
-          navigate('/', { replace: true })
+          navigate(postLoginPath(), { replace: true })
         } else {
           throw new Error(data?.detail || 'Telegram login failed')
         }
@@ -356,7 +357,7 @@ export const Login: FC = () => {
         .then((data: any) => {
           if (data && data.access_token) {
             setAuthToken(data.access_token)
-            navigate('/', { replace: true })
+            navigate(postLoginPath(), { replace: true })
           } else {
             throw new Error(data?.detail || 'Telegram login failed')
           }

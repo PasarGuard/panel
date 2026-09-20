@@ -165,7 +165,7 @@ export default function AdminRoleModal({ isDialogOpen, onOpenChange, form, editi
                   </AccordionTrigger>
                   <AccordionContent className="px-1 pt-1">
                     <fieldset disabled={readOnly} className={cn('disabled:opacity-100', readOnly && 'pointer-events-none')}>
-                      <PermissionEditor permissions={permissions} onPermissionsChange={next => form.setValue('permissions', next, { shouldDirty: true })} />
+                      <PermissionEditor permissions={permissions} onPermissionsChange={next => form.setValue('permissions', next, { shouldDirty: true })} linkMcpToApiKeys />
                     </fieldset>
                   </AccordionContent>
                 </AccordionItem>

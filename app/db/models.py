@@ -104,6 +104,7 @@ class Admin(Base, CreatedAtUTCMixin):
     profile_title: Mapped[str | None] = mapped_column(String(512), default=None)
     support_url: Mapped[str | None] = mapped_column(String(1024), default=None)
     custom_variables: Mapped[list[dict[str, str]] | None] = mapped_column(PostgresJSONB, default=None)
+    mcp: Mapped[dict | None] = mapped_column(JSON(), default=None)
     notification_enable: Mapped[dict | None] = mapped_column(PostgresJSONB, default=None)
     note: Mapped[str | None] = mapped_column(String(500), default=None)
     role_id: Mapped[int] = fk_id_column("admin_roles.id", default=0)
@@ -966,6 +967,7 @@ class APIKey(Base, CreatedAtUTCMixin):
     api_key_trimmed: Mapped[str] = mapped_column(String(16))
     permissions: Mapped[dict] = mapped_column(PostgresJSONB, default_factory=dict)
     inherit_permissions: Mapped[bool] = mapped_column(default=True, server_default="1")
+    mcp: Mapped[dict | None] = mapped_column(JSON(), default=None)
     note: Mapped[str | None] = mapped_column(String(512), default=None)
     expire_date: Mapped[dt | None] = mapped_column(DateTime(timezone=True), default=None)
     revoked_at: Mapped[dt | None] = mapped_column(DateTime(timezone=True), default=None)
@@ -995,6 +997,38 @@ class APIKey(Base, CreatedAtUTCMixin):
         if self.admin is None or self.admin.status == AdminStatus.disabled:
             return False
         return not self.is_expired
+
+
+class MCPOAuthClient(Base):
+    __tablename__ = "mcp_oauth_clients"
+
+    client_id: Mapped[str] = mapped_column(String(36), primary_key=True, init=True)
+    client_name: Mapped[str | None] = mapped_column(String(256), default=None)
+    client_secret: Mapped[str | None] = mapped_column(String(128), default=None)
+    redirect_uris: Mapped[list] = mapped_column(JSON(), default_factory=list)
+    grant_types: Mapped[list] = mapped_column(JSON(), default_factory=list)
+    token_endpoint_auth_method: Mapped[str] = mapped_column(String(32), default="none")
+    created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), default_factory=lambda: dt.now(UTC), init=False)
+
+
+class MCPOAuthCode(Base):
+    __tablename__ = "mcp_oauth_codes"
+
+    code: Mapped[str] = mapped_column(String(64), primary_key=True, init=True)
+    request_id: Mapped[str] = mapped_column(String(32), unique=True)
+    admin_id: Mapped[int] = fk_id_column("admins.id", ondelete="CASCADE")
+    client_id: Mapped[str] = mapped_column(String(36))
+    redirect_uri: Mapped[str] = mapped_column(String(2048))
+    code_challenge: Mapped[str] = mapped_column(String(128))
+    expires_at: Mapped[dt] = mapped_column(DateTime(timezone=True))
+    client_name: Mapped[str | None] = mapped_column(String(256), default=None)
+    redirect_uri_explicit: Mapped[bool] = mapped_column(default=False)
+    scopes: Mapped[list] = mapped_column(JSON(), default_factory=list)
+    resource: Mapped[str | None] = mapped_column(String(2048), default=None)
+    permissions: Mapped[dict | None] = mapped_column(JSON(), default=None)
+    mcp: Mapped[dict | None] = mapped_column(JSON(), default=None)
+    key_name: Mapped[str | None] = mapped_column(String(128), default=None)
+    used_at: Mapped[dt | None] = mapped_column(DateTime(timezone=True), default=None)
 
 
 class TempKey(Base):

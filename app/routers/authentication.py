@@ -16,7 +16,7 @@ from app.db.crud.admin import (
     get_admin_by_telegram_id,
 )
 from app.db.crud.api_key import get_api_key_by_raw_key
-from app.db.models import Admin, AdminUsageLogs, User
+from app.db.models import Admin, AdminUsageLogs, APIKey, User
 from app.models.admin import AdminDetails, AdminRoleData, AdminStatus, AdminValidationResult, verify_password
 from app.models.admin_role import RoleAccess, RoleFeatures, RoleLimits, RolePermissions
 from app.models.settings import Telegram
@@ -116,6 +116,10 @@ async def _get_admin_from_api_key_internal(
     else:
         admin = build_admin_details(db_admin)
 
+    return apply_api_key_permissions(admin, db_key)
+
+
+def apply_api_key_permissions(admin: AdminDetails, db_key: APIKey) -> AdminDetails:
     if not db_key.inherit_permissions and db_key.permissions:
         # Build a minimal AdminRoleData from the stored permissions snapshot
         role_data = dict(admin.role.model_dump() if admin.role else {})
@@ -289,6 +293,7 @@ def require_permission(resource: str, action: str):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
         return admin
 
+    _check.permission = (resource, action)
     return _check
 
 
@@ -312,6 +317,8 @@ def require_scope_all(resource: str, action: str):
             )
         return admin
 
+    _check.permission = (resource, action)
+    _check.scope_all = True
     return _check
 
 
@@ -320,6 +327,9 @@ async def require_owner(admin: AdminDetails = Depends(get_current)):
     if not admin.is_owner:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the owner can perform this action")
     return admin
+
+
+require_owner.owner_only = True
 
 
 async def validate_admin(db: AsyncSession, username: str, password: str) -> AdminValidationResult | None:

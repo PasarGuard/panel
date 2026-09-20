@@ -834,6 +834,138 @@
     "bulkDeleteTitle": "Delete selected API keys",
     "bulkDeletePrompt": "Are you sure you want to delete {{count}} selected API keys? This action cannot be undone."
   },
+  "mcp": {
+    "title": "MCP Server",
+    "description": "Let AI assistants work with the panel. Every admin sets up their own access, and each API key can be narrowed further.",
+    "loadFailed": "Failed to load MCP settings",
+    "saveSuccess": "MCP settings saved",
+    "saveFailed": "Failed to save MCP settings",
+    "cancelSuccess": "Changes discarded",
+    "server": {
+      "title": "Server",
+      "description": "Your MCP access. It only affects your own tokens and connectors.",
+      "enabled": "Enabled",
+      "disabled": "Disabled",
+      "toolsEnabled": "{{enabled}} of {{total}} tools enabled",
+      "enable": "Enable MCP",
+      "enableDescription": "Lets your tokens and connectors open MCP sessions. Your role still needs \"Connect via MCP\".",
+      "readOnly": "Read-only mode",
+      "readOnlyDescription": "Hides every tool that changes data",
+      "oauth": "OAuth sign-in",
+      "oauthDescription": "Lets Claude.ai and ChatGPT sign in with your panel account instead of an API key",
+      "enableKeyDescription": "Lets this key open MCP sessions."
+    },
+    "target": {
+      "title": "Settings for",
+      "description": "Your account, or one of your API keys. A key can only get less than your account.",
+      "me": "My account"
+    },
+    "endpoint": {
+      "title": "Endpoint",
+      "description": "Point any MCP client at this address.",
+      "url": "MCP URL",
+      "copied": "MCP URL copied to clipboard",
+      "authTitle": "Authentication",
+      "authDescription": "Send an API key as a Bearer token. The key's admin needs \"Connect via MCP\"; each tool needs the same permission as its API endpoint.",
+      "createKey": "Create API key",
+      "manageKeys": "Manage API keys"
+    },
+    "clients": {
+      "title": "Connect a client",
+      "description": "Pick a client and replace {{placeholder}} with an API key. The address is already filled in.",
+      "copied": "Configuration copied to clipboard",
+      "claudeWeb": "Claude.ai (web)",
+      "claudeWebHint": "Settings, Connectors, Add custom connector. Paste this address and sign in with a panel admin account.",
+      "chatgpt": "ChatGPT",
+      "chatgptHint": "Settings, Connectors, Create. Paste this address, choose OAuth and sign in with a panel admin account.",
+      "claudeCode": "Claude Code",
+      "claudeCodeHint": "Run in a terminal to add the server to the current project.",
+      "claudeDesktop": "Claude Desktop",
+      "claudeDesktopHint": "Add to claude_desktop_config.json (Settings, Developer). mcp-remote bridges the HTTP transport.",
+      "cursor": "Cursor",
+      "cursorHint": "Add to ~/.cursor/mcp.json or the project's .cursor/mcp.json.",
+      "vscode": "VS Code (Copilot)",
+      "vscodeHint": "Add to .vscode/mcp.json in the workspace.",
+      "windsurf": "Windsurf",
+      "windsurfHint": "Add to ~/.codeium/windsurf/mcp_config.json.",
+      "geminiCli": "Gemini CLI",
+      "geminiCliHint": "Add to ~/.gemini/settings.json.",
+      "codex": "OpenAI Codex CLI",
+      "codexHint": "Add to ~/.codex/config.toml.",
+      "cline": "Cline",
+      "clineHint": "Add through Cline, MCP Servers, Configure.",
+      "zed": "Zed",
+      "zedHint": "Add to Zed settings.json under context_servers.",
+      "http": "Raw HTTP",
+      "httpHint": "Any client that speaks Streamable HTTP can use the endpoint directly."
+    },
+    "tools": {
+      "title": "Fine-tune tools",
+      "description": "Set each section to All, Read or Off. Open a section to switch single tools.",
+      "name": "Tool",
+      "kind": "Type",
+      "permission": "Required permission",
+      "enabled": "Enabled",
+      "readOnly": "Read-only",
+      "write": "Write",
+      "destructive": "Destructive",
+      "hiddenByReadOnly": "Hidden while read-only mode is on",
+      "expandAll": "Expand all",
+      "collapseAll": "Collapse all",
+      "noTools": "No tools registered",
+      "ownerOnly": "Owner only",
+      "scopeAll": "all users",
+      "resetDefaults": "Reset to defaults",
+      "modeAll": "All",
+      "modeRead": "Read",
+      "modeOff": "Off"
+    },
+    "groups": {
+      "system": "System",
+      "users": "Users",
+      "admins": "Admins",
+      "admin_roles": "Admin roles",
+      "api_keys": "API keys",
+      "nodes": "Nodes",
+      "cores": "Cores",
+      "hosts": "Hosts",
+      "groups": "Groups",
+      "templates": "User templates",
+      "client_templates": "Client templates",
+      "hwids": "HWID",
+      "settings": "Settings"
+    },
+    "authorize": {
+      "title": "Authorize access",
+      "description": "{{client}} wants to use the panel through MCP as {{username}}.",
+      "keyName": "Key name",
+      "access": "MCP access",
+      "accessDescription": "What this connector may do over MCP. Starts from your own MCP settings and can only be narrower.",
+      "permissions": "API permissions",
+      "scope": "Approving creates an API key with these permissions, named after this app in API Keys. Your MCP settings apply to it; delete the key there to revoke access.",
+      "approve": "Authorize",
+      "deny": "Cancel",
+      "invalid": "This request is invalid or has expired. Start again from your AI client."
+    },
+    "presets": {
+      "title": "Access level",
+      "description": "Choose how much an AI client may do. Adjust single tools below if you need to.",
+      "toolCount": "{{count}} of {{total}} tools",
+      "custom": "Custom selection. Pick a level to reset it.",
+      "read_only": {
+        "title": "Read only",
+        "description": "View users, nodes, stats and settings. Nothing can be changed."
+      },
+      "recommended": {
+        "title": "Recommended",
+        "description": "Manage users, nodes, hosts and groups. Secrets, roles, admin accounts and bulk deletions stay off."
+      },
+      "full": {
+        "title": "Full access",
+        "description": "Every API action, including settings, core configs, API keys and roles."
+      }
+    }
+  },
   "adminRoles": {
     "title": "Admin Roles",
     "description": "Manage dashboard roles and RBAC permissions",
@@ -854,6 +986,7 @@
     "limitsAndFeatures": "Limits & Features",
     "limitsHint": "Leave empty to inherit defaults. Set to 0 to disable.",
     "roleFormHint": "Scoped actions use none, own, or all. Other actions are boolean toggles.",
+    "mcpHint": "Connect via MCP also needs the role's own API key permissions (create, view, update, delete); they are turned on with it.",
     "scopedActionInfo": "Choose ownership scope: none denies access, own limits to the admin's own users, all grants full access.",
     "allowAll": "Allow all",
     "features": "Features",
@@ -902,6 +1035,7 @@
       "apiKeys": "API Keys",
       "nodes": "Nodes",
       "coreHosts": "Core and hosts",
+      "mcp": "MCP",
       "groupsTemplates": "Groups and templates",
       "settings": "Settings"
     },
@@ -936,6 +1070,11 @@
         "read_general": "View general settings",
         "update": "Update settings"
       },
+      "mcp": {
+        "read": "View MCP",
+        "update": "Update MCP settings",
+        "connect": "Connect via MCP"
+      },
       "system": {
         "read": "View system",
         "update": "Update system"
@@ -952,6 +1091,7 @@
       }
     },
     "resources": {
+      "mcp": "MCP",
       "users": "Users",
       "admins": "Admins",
       "admin_roles": "Roles",

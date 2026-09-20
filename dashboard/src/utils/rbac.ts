@@ -64,6 +64,7 @@ export const firstAllowedRoute = (admin: AdminDetails | null | undefined) => {
   if (hasPermission(admin, 'nodes', 'logs')) return '/nodes/logs'
   if (canReadResourcePage(admin, 'templates')) return '/templates/user'
   if (canReadResourcePage(admin, 'client_templates')) return '/templates/client'
+  if (canReadResourcePage(admin, 'mcp')) return '/mcp'
   return '/settings/theme'
 }
 
@@ -82,6 +83,7 @@ export const canAccessRoute = (admin: AdminDetails | null | undefined, pathname:
   if (pathname.startsWith('/admin-roles')) return isOwner(admin)
   if (pathname.startsWith('/admins')) return canReadResourcePage(admin, 'admins')
   if (pathname.startsWith('/api-keys')) return canReadResourcePage(admin, 'api_keys')
+  if (pathname.startsWith('/mcp')) return canReadResourcePage(admin, 'mcp')
   if (pathname === '/nodes/cores') return canReadResourcePage(admin, 'cores')
   if (pathname === '/nodes/cores/new') return hasPermission(admin, 'cores', 'create')
   if (pathname.startsWith('/nodes/cores/')) return hasPermission(admin, 'cores', 'update')

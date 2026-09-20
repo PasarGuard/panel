@@ -95,6 +95,14 @@ class HwidsPermissions(_ResourcePermissions):
     delete: RoleActionValue | None = None
 
 
+class MCPPermissions(_ResourcePermissions):
+    """read = MCP page, update = MCP settings, connect = open an MCP session (tools still use resource permissions)."""
+
+    read: RoleActionValue | None = None
+    update: RoleActionValue | None = None
+    connect: RoleActionValue | None = None
+
+
 class RoleLimits(BaseModel):
     max_users: int | None = None
     data_limit_min: int | None = None
@@ -143,12 +151,33 @@ class RolePermissions(BaseModel):
     hwids: HwidsPermissions | None = None
     admin_roles: CRUDPermissions | None = None
     api_keys: APIKeysPermissions | None = None
+    mcp: MCPPermissions | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
     def get(self, resource: str, default: Any = None) -> _ResourcePermissions | None:
         """Dict-like access so permissions.py can call permissions.get('users')."""
         return getattr(self, resource, default)
+
+
+# Connectors are issued API keys, so an MCP role must be able to manage its own keys
+MCP_REQUIRED_API_KEY_ACTIONS = ("create", "read", "read_simple", "update", "delete")
+
+
+def _action_granted(value: RoleActionValue | None) -> bool:
+    if isinstance(value, dict):
+        return int(value.get("scope", 0)) > 0
+    return value is True
+
+
+def validate_mcp_permissions(permissions: RolePermissions) -> RolePermissions:
+    if permissions.mcp is None or not _action_granted(permissions.mcp.connect):
+        return permissions
+    api_keys = permissions.api_keys or APIKeysPermissions()
+    missing = [action for action in MCP_REQUIRED_API_KEY_ACTIONS if not _action_granted(api_keys.get(action))]
+    if missing:
+        raise ValueError(f"mcp.connect requires api_keys permissions: {', '.join(missing)}")
+    return permissions
 
 
 class AdminRoleBase(BaseModel):
@@ -166,12 +195,21 @@ class AdminRoleBase(BaseModel):
 
 
 class AdminRoleCreate(AdminRoleBase):
-    pass
+    @field_validator("permissions")
+    @classmethod
+    def validate_permissions(cls, value: RolePermissions) -> RolePermissions:
+        return validate_mcp_permissions(value)
 
 
 class AdminRoleModify(BaseModel):
     name: str | None = Field(default=None, max_length=64)
     permissions: RolePermissions | None = None
+
+    @field_validator("permissions")
+    @classmethod
+    def validate_permissions(cls, value: RolePermissions | None) -> RolePermissions | None:
+        return validate_mcp_permissions(value) if value is not None else value
+
     limits: RoleLimits | None = None
     features: RoleFeatures | None = None
     access: RoleAccess | None = None

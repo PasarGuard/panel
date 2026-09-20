@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils'
 
 import {
   getRolePermissionAllowedScope,
+  getRolePermissionScopeLimit,
   isRolePermissionActionAllowed,
   limitRolePermissionsToAllowed,
   PERMISSION_GROUPS,
@@ -23,6 +24,8 @@ interface PermissionEditorProps {
   onPermissionsChange: (permissions: RolePermissionFormMap) => void
   className?: string
   allowedPermissions?: RolePermissionFormMap
+  /** Turning on mcp.connect also grants the API key permissions a role needs for MCP */
+  linkMcpToApiKeys?: boolean
 }
 
 export function countEnabledPermissions(permissions?: RolePermissionFormMap | null): number {
@@ -49,7 +52,7 @@ export function PermissionCountBadge({ permissions }: { permissions?: RolePermis
   )
 }
 
-export function PermissionEditor({ permissions, onPermissionsChange, className, allowedPermissions }: PermissionEditorProps) {
+export function PermissionEditor({ permissions, onPermissionsChange, className, allowedPermissions, linkMcpToApiKeys = false }: PermissionEditorProps) {
   const { t } = useTranslation()
 
   const visibleGroups = useMemo(
@@ -67,6 +70,15 @@ export function PermissionEditor({ permissions, onPermissionsChange, className, 
       ? { scope: Math.min(value.scope, getRolePermissionAllowedScope(item, allowedPermissions)) as RoleScope }
       : value
     next[item.resource] = { ...(next[item.resource] || {}), [item.action]: nextValue }
+    if (linkMcpToApiKeys && item.resource === 'mcp' && item.action === 'connect' && value === true) {
+      // Connectors are issued API keys, so the role must be able to manage its own keys
+      const apiKeys = { ...(next.api_keys || {}) }
+      if (apiKeys.create !== true) apiKeys.create = true
+      for (const action of ['read', 'read_simple', 'update', 'delete'] as const) {
+        if (getRolePermissionScopeLimit(apiKeys[action]) === 0) apiKeys[action] = { scope: 1 }
+      }
+      next.api_keys = apiKeys
+    }
     onPermissionsChange(limitRolePermissionsToAllowed(next, allowedPermissions))
   }
 
@@ -126,6 +138,7 @@ export function PermissionEditor({ permissions, onPermissionsChange, className, 
                 </Button>
               </div>
             </div>
+            {linkMcpToApiKeys && group.labelKey === 'mcp' && <p className="text-muted-foreground px-3 pt-2 text-xs">{t('adminRoles.mcpHint')}</p>}
             <div className="grid gap-2 p-2 sm:grid-cols-2">
               {group.actions.map(item => {
                 const current = permissions?.[item.resource]?.[item.action]
