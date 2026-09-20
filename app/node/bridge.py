@@ -32,7 +32,6 @@ _queued_sync: ContextVar[bool] = ContextVar("queued_node_user_sync", default=Fal
 # renewed while the snapshot is in progress; a crashed holder's fence expires
 # after this and deltas resume on their own.
 FULL_SYNC_LEASE_SECONDS = 120.0
-_MAX_WORKER_REENTRY_DELAY = 30.0
 # Safety margin between the delivery budget and the claim lease itself.
 DELIVERY_DEADLINE_MARGIN = 1.0
 
@@ -84,8 +83,6 @@ class _QueuedBatchSync:
         # a process-local generation for stores without a shared fence.
         self._local_full_syncs = 0
         self._local_fence_generation = 0
-        self._fence_generation_seen = 0
-        self._worker_progress = 0
         # Wall-clock deadline of the batch currently being delivered: the claim
         # lease measured from before the claim was taken. Nothing is sent past it.
         self._delivery_deadline = 0.0
@@ -166,93 +163,25 @@ class _QueuedBatchSync:
     # ------------------------------------------------------------ worker lifecycle
     async def _sync_worker(self):
         token = _queued_sync.set(True)
-        reentries = 0
         try:
             while True:
-                progress = self._worker_progress
                 await super()._sync_worker()
                 if self.is_shutting_down() or asyncio.current_task().cancelling():
                     return
                 if await self.get_health() in (Health.NOT_CONNECTED, Health.INVALID):
                     return
-                # The bridge loop exits after its idle timeout. An update that
-                # arrived while it was winding down found a still-running task
-                # and did not spawn a replacement, so keep draining here. No
-                # await sits between this check and the task finishing.
+                # An enqueue during the base worker's idle exit can see its
+                # still-running task and skip spawning a replacement.
                 if not self._work_available.is_set():
                     return
-                # The loop also exits on an unexpected error; back off before
-                # re-entering unless the previous pass delivered something.
-                reentries = 0 if self._worker_progress != progress else reentries + 1
-                if reentries:
-                    await asyncio.sleep(min(self._sync_poll_interval * 2**reentries, _MAX_WORKER_REENTRY_DELAY))
         finally:
             _queued_sync.reset(token)
 
-    async def _claim_pending_users(self, limit: int = 2000) -> list[ClaimedUser]:
-        active, generation = await self._fence_state()
-        if active:
-            # Keep the wake signal so the loop polls again after its interval;
-            # deltas resume once the snapshot has been applied.
-            return []
-        self._fence_generation_seen = generation
-        # The lease starts counting before the claim is written, so store
-        # latency is inside the delivery budget as well.
+    async def _deliver_claimed_users(self, claimed_users: list[ClaimedUser]) -> list[User]:
+        # The bridge bounds the entire claim-and-delivery operation by the
+        # lease. Keep the adapter's smaller transport budget within it.
         self._delivery_deadline = time.time() + self._sync_lease_seconds
-        # Consume the wake before reading the queue: an update enqueued during
-        # the read sets it again and is picked up on the next pass instead of
-        # being cleared by this pass's (older) empty result.
-        self._work_available.clear()
-        try:
-            claimed = await self._user_sync_store.claim_users(
-                self.node_id, self.worker_id, limit=limit, lease_seconds=self._sync_lease_seconds
-            )
-        except BaseException:
-            # The wake was consumed but nothing was claimed; keep it so the
-            # worker re-enters (with backoff) instead of stranding the queue.
-            self._work_available.set()
-            raise
-        if not claimed:
-            return claimed
-        # The claims are now durable registrations a full-sync waiter can see.
-        # Re-check the fence before sending: if a snapshot began between the
-        # first check and the claim, nothing was sent yet, so simply return the
-        # payloads to the queue for delivery after the snapshot.
-        active, current = await self._fence_state()
-        if active or current != generation:
-            await self._user_sync_store.requeue_users(self.node_id, claimed)
-            self._work_available.set()
-            return []
-        # A bounded batch may leave more behind; keep the loop draining.
-        self._work_available.set()
-        return claimed
-
-    async def _ack_claimed_users(self, claimed_users: list[ClaimedUser]):
-        if not claimed_users:
-            return
-        active, generation = await self._fence_state()
-        if active or generation != self._fence_generation_seen:
-            # A full snapshot started after this batch was claimed. Its
-            # database read may predate these payloads while its RPC may land
-            # after them. Replaying the delivered payload could regress state
-            # the snapshot already carries, so leave durable markers that
-            # re-derive the current state on top of the snapshot instead.
-            self.logger.debug(f"[{self.name}] Re-deriving {len(claimed_users)} user(s) delivered across a full sync")
-            refresh = getattr(self._user_sync_store, "refresh_claimed", None)
-            if callable(refresh):
-                await refresh(self.node_id, claimed_users)
-            else:
-                await self._user_sync_store.requeue_users(self.node_id, claimed_users)
-            self._work_available.set()
-            return
-        self._worker_progress += 1
-        unconfirmed = await self._user_sync_store.ack_users(self.node_id, [item.token for item in claimed_users])
-        if unconfirmed:
-            # Our copy may have landed after a newer delivery of the same user
-            # that has already been acknowledged. Leave a durable marker that
-            # the next pass resolves from the source of truth.
-            await self._user_sync_store.request_refresh(self.node_id, list(unconfirmed))
-            self._work_available.set()
+        return await super()._deliver_claimed_users(claimed_users)
 
     async def _cleanup_sync_worker(self):
         # Stop only this process's worker. Queued work is shared with sibling

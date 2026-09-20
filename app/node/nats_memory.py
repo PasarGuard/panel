@@ -139,6 +139,13 @@ class NatsUserSyncStore:
     async def close(self) -> None:
         await self._key_index.close()
 
+    async def has_pending(self, node_id: str) -> bool:
+        """Keep polling for leased work without scanning every KV value."""
+        return bool(
+            await self._key_index.entries(self._pending_prefix(node_id))
+            or await self._key_index.entries(self._legacy_claimed_prefix(node_id))
+        )
+
     async def _run_bounded(self, operation, items) -> None:
         async def run(item):
             async with self._write_slots:

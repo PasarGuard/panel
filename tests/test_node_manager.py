@@ -170,16 +170,16 @@ async def test_update_node_replaces_on_name_or_coefficient_change(monkeypatch: p
 
     node1 = _make_node(1, name="old-name", usage_coefficient=1.0)
     first = await manager.update_node(node1)
-    
+
     # Unchanged
     same = await manager.update_node(_make_node(1, name="old-name", usage_coefficient=1.0))
     assert same is first
-    
+
     # Name change
     node2 = _make_node(1, name="new-name", usage_coefficient=1.0)
     second = await manager.update_node(node2)
     assert second is not first
-    
+
     # Coefficient change
     node3 = _make_node(1, name="new-name", usage_coefficient=2.0)
     third = await manager.update_node(node3)

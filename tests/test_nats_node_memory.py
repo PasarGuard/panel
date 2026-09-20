@@ -20,6 +20,22 @@ def _user(email: str, inbound: str = "in") -> User:
 
 
 @pytest.mark.asyncio
+async def test_has_pending_includes_leased_work_without_reading_values():
+    kv = MemoryCasKv()
+    store = NatsUserSyncStore(kv)
+    assert await store.has_pending("1") is False
+    await store.enqueue_users("1", [_user("a@example.com")])
+    claimed = await store.claim_users("1", "worker", limit=1, lease_seconds=30)
+    assert len(claimed) == 1
+
+    async def unexpected_get(_key):
+        raise AssertionError("queue presence must use the key index, not read values")
+
+    kv.get = unexpected_get  # type: ignore[method-assign]
+    assert await store.has_pending("1") is True
+
+
+@pytest.mark.asyncio
 async def test_shared_queue_uses_configured_batch_budget_without_dropping_remainder(monkeypatch):
     monkeypatch.setattr("app.node.nats_memory.nats_settings.node_update_users_batch_size", 3)
     store = NatsUserSyncStore(MemoryCasKv())
