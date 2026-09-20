@@ -124,6 +124,40 @@ async def test_node_manager_bulk_user_sync_falls_back_when_chunked_is_not_suppor
 
 
 @pytest.mark.asyncio
+async def test_full_sync_does_not_use_incomplete_bridge_fence():
+    manager = NodeManager()
+
+    class FakeNode:
+        def __init__(self):
+            self.sync_calls = []
+            self.fence_calls = 0
+
+        def full_sync_fence(self):
+            self.fence_calls += 1
+            raise AssertionError("local sync must not enter the shared fence")
+
+        async def sync_users(self, users, flush_pending=False):
+            self.sync_calls.append((users, flush_pending))
+
+    fake_node = FakeNode()
+    manager._nodes[1] = fake_node
+
+    loaded = object()
+    result = await manager.sync_full(1, lambda: _resolved(loaded), flush_pending=True)
+
+    assert result is fake_node
+    assert fake_node.fence_calls == 0
+    assert fake_node.sync_calls == [([loaded], True)]
+
+
+def _resolved(value):
+    async def load():
+        return [value]
+
+    return load()
+
+
+@pytest.mark.asyncio
 async def test_update_node_replaces_on_name_or_coefficient_change(monkeypatch: pytest.MonkeyPatch):
     """Test that if the node name or usage_coefficient changes, the node is replaced,
     since we cannot refresh metadata through the bridge API."""

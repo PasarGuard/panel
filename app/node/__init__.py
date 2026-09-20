@@ -192,11 +192,12 @@ class NodeManager:
         return list(users_to_sync)
 
     async def _sync_users_to_node(self, node_id: int, node: PasarGuardNode, users: list[ProtoUser]):
-        if callable(getattr(node, "full_sync_fence", None)):
+        # The bridge exposes the fence methods on local nodes too, but the
+        # process-local store cannot provide shared fencing/recovery. Keep the
+        # direct path unless the complete shared protocol is available.
+        if self._supports_shared_sync(node):
             # Bulk updates use the same durable, fenced delivery as single
-            # updates: every payload is recorded before it is sent, so a full
-            # snapshot can wait for it, a crash cannot lose it, and a failed
-            # batch is retried by the worker instead of only being logged.
+            # updates only when the shared-store protocol is available.
             await node.update_users(users)
             return
 
@@ -210,6 +211,19 @@ class NodeManager:
 
         if failed_count:
             raise RuntimeError(f"failed to sync {failed_count}/{len(users)} users to node {node_id}")
+
+    @staticmethod
+    def _supports_shared_sync(node: PasarGuardNode) -> bool:
+        # The panel adapter implements a safe process-local fence as well as
+        # the NATS-backed one. The upstream bridge's base fence alone is not
+        # enough: it lacks the capture/release protocol used below.
+        required = (
+            "full_sync_fence",
+            "capture_queued_work",
+            "release_queued_work",
+            "retire_queued_work",
+        )
+        return all(callable(getattr(node, name, None)) for name in required)
 
     async def sync_full(
         self,
@@ -235,13 +249,15 @@ class NodeManager:
             node = await self.get_node(node_id)
             if node is None:
                 return None
-            fence = getattr(node, "full_sync_fence", None)
-            if not callable(fence):
+
+            # Do not call full_sync_fence merely because bridge 0.9.x exposes
+            # it: without a shared snapshot store it raises NodeAPIError.
+            if not self._supports_shared_sync(node):
                 if callable(users):
                     users = await users()
                 await node.sync_users(users, flush_pending=flush_pending)
                 return node
-            async with fence() as held:
+            async with node.full_sync_fence() as held:
                 # Always wait for in-flight deliveries to settle; retire the
                 # captured entries only when flushing was requested.
                 captured = await node.capture_queued_work()
