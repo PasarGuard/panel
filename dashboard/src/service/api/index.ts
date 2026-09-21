@@ -1837,6 +1837,7 @@ export interface NodeSimple {
   id: number;
   name: string;
   status: NodeStatus;
+  core_config_id?: number | null;
 }
 
 export interface NodeStats {
@@ -2863,6 +2864,8 @@ group_by_node?: boolean;
 start?: string | null;
 end?: string | null;
 admin?: string[] | null;
+core_id?: number | null;
+group_by_admin?: boolean;
 };
 
 export type GetUsersCountMetricParams = {

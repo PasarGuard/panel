@@ -7,16 +7,33 @@ import { type ChartConfig, ChartContainer, ChartTooltip } from '@/components/ui/
 import { useTranslation } from 'react-i18next'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { useChartViewType } from '@/hooks/use-chart-view-type'
-import { Period, type NodeUsageStat, type UserUsageStat, useGetAdminUsageById, useGetAdminUsageByUsername, useGetNodesSimple, type NodeSimple, useGetUsage } from '@/service/api'
+import {
+  Period,
+  type AdminSimple,
+  type CoreSimple,
+  type NodeUsageStat,
+  type UserUsageStat,
+  useGetAdminUsageById,
+  useGetAdminUsageByUsername,
+  useGetAdminsSimple,
+  useGetCoresSimple,
+  useGetNodesSimple,
+  type NodeSimple,
+  useGetUsage,
+  useGetUsersUsage,
+} from '@/service/api'
 import { formatBytes, formatGigabytes } from '@/utils/formatByte'
 import { Skeleton } from '@/components/ui/skeleton'
 import ChartBrush from './chart-brush'
 import DenseChartAreaHint from './dense-chart-area-hint'
 import { EmptyState } from './empty-state'
-import { BarChart3, Calendar, Download, Info, PieChart as PieChartIcon, Upload } from 'lucide-react'
+import { BarChart3, Calendar, Cpu, Download, Info, PieChart as PieChartIcon, Share2, Upload, UserCog } from 'lucide-react'
 import { useTheme } from '@/app/providers/theme-provider'
 import NodeStatsModal from '@/features/nodes/dialogs/node-stats-modal'
 import AdminFilterCombobox from '@/components/common/admin-filter-combobox'
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { useAdmin } from '@/hooks/use-admin'
+import { hasPermission, hasScopeAll } from '@/utils/rbac'
 import TimeSelector, { TRAFFIC_TIME_SELECTOR_SHORTCUTS } from './time-selector'
 import PeriodSelector from './period-selector'
 import { TimeRangeSelector } from '@/components/common/time-range-selector'
@@ -48,6 +65,19 @@ type NodePieChartDataPoint = {
   fill: string
 }
 
+type UsageStat = NodeUsageStat | UserUsageStat
+type UsageBreakdown = 'node' | 'core' | 'admin'
+type ChartSeries = {
+  id: number
+  name: string
+}
+
+const USAGE_SCOPE_ALL = 'all'
+const NO_CORE_SERIES_ID = 0
+const NO_ADMIN_SERIES_ID = 0
+const OTHER_ADMINS_SERIES_ID = -2
+const MAX_ADMIN_SERIES = 9
+
 const isNodeUsageStat = (point: NodeUsageStat | UserUsageStat): point is NodeUsageStat => 'uplink' in point && 'downlink' in point
 
 const getTrafficBytes = (point: NodeUsageStat | UserUsageStat) => {
@@ -71,6 +101,33 @@ const getDirectionalTraffic = (point: NodeUsageStat | UserUsageStat) => {
   }
 }
 
+const sumTrafficBytes = (stats: UsageStat[]) => stats.reduce((sum, point) => sum + getTrafficBytes(point), 0)
+
+const mergeUsageStats = (statsGroups: UsageStat[][]): UsageStat[] => {
+  const merged = new Map<string, UsageStat>()
+
+  statsGroups.forEach(stats => {
+    stats.forEach(point => {
+      const current = merged.get(point.period_start)
+      if (!current) {
+        merged.set(point.period_start, { ...point })
+        return
+      }
+
+      if ('total_traffic' in current) {
+        current.total_traffic = Number(current.total_traffic || 0) + getTrafficBytes(point)
+        return
+      }
+
+      const directionalTraffic = getDirectionalTraffic(point)
+      current.uplink = Number(current.uplink || 0) + directionalTraffic.uplink
+      current.downlink = Number(current.downlink || 0) + directionalTraffic.downlink
+    })
+  })
+
+  return Array.from(merged.values())
+}
+
 const STACKED_BAR_RADIUS = 4
 type StackBarRadius = [number, number, number, number]
 type CellRadiusProps = Partial<ComponentProps<typeof Cell>>
@@ -78,8 +135,8 @@ const SQUARE_STACK_RADIUS: StackBarRadius = [0, 0, 0, 0]
 
 const getCellRadiusProps = (radius: StackBarRadius) => ({ radius }) as unknown as CellRadiusProps
 
-const getStackedNodeRadius = (row: NodeChartDataPoint, nodeName: string, nodeList: NodeSimple[]): StackBarRadius => {
-  const visibleNodes = nodeList.filter(node => Number(row[node.name] || 0) > 0)
+const getStackedNodeRadius = (row: NodeChartDataPoint, nodeName: string, seriesList: ChartSeries[]): StackBarRadius => {
+  const visibleNodes = seriesList.filter(node => Number(row[node.name] || 0) > 0)
   const visibleIndex = visibleNodes.findIndex(node => node.name === nodeName)
 
   if (visibleIndex < 0) return SQUARE_STACK_RADIUS
@@ -210,6 +267,8 @@ function NodePieTooltip({ active, payload }: TooltipProps<number, string>) {
 
 export function AllNodesStackedBarChart() {
   const [chartView, setChartView] = useState<'bar' | 'pie'>('bar')
+  const [breakdown, setBreakdown] = useState<UsageBreakdown>('node')
+  const [usageScope, setUsageScope] = useState<string>(USAGE_SCOPE_ALL)
   const [selectedAdmin, setSelectedAdmin] = useState<string>('all')
   const [selectedAdminId, setSelectedAdminId] = useState<number | null>(null)
   const [selectedTime, setSelectedTime] = useState<TrafficShortcutKey>('1w')
@@ -225,11 +284,23 @@ export function AllNodesStackedBarChart() {
   const { t, i18n } = useTranslation()
   const dir = useDirDetection()
   const chartViewType = useChartViewType()
+  const { admin } = useAdmin()
+  const canBreakdownByCore = hasPermission(admin, 'cores', 'read_simple')
+  const canBreakdownByAdmin = hasScopeAll(admin, 'users', 'read') && hasPermission(admin, 'admins', 'read_simple')
   const { data: nodesResponse } = useGetNodesSimple({ all: true }, { query: { enabled: true } })
+  const { data: coresResponse } = useGetCoresSimple({ all: true }, { query: { enabled: canBreakdownByCore } })
   const { resolvedTheme } = useTheme()
+  const isAdminBreakdown = breakdown === 'admin'
   const shouldUseNodeUsage = selectedAdmin === 'all'
+  const scopeCoreId = usageScope.startsWith('core:') ? Number(usageScope.slice(5)) : null
+  const scopeNodeId = usageScope.startsWith('node:') ? Number(usageScope.slice(5)) : null
 
   const nodeList: NodeSimple[] = useMemo(() => nodesResponse?.nodes || [], [nodesResponse])
+  // Only cores that still have nodes can own usage rows
+  const coreList: CoreSimple[] = useMemo(
+    () => (coresResponse?.cores || []).filter((core: CoreSimple) => nodeList.some(node => node.core_config_id === core.id)),
+    [coresResponse, nodeList],
+  )
 
   const generateDistinctColor = useCallback((index: number, isDark: boolean): string => {
     const distinctHues = [0, 30, 60, 120, 180, 210, 240, 270, 300, 330, 15, 45, 75, 150, 200, 225, 255, 285, 315, 345]
@@ -240,25 +311,6 @@ export function AllNodesStackedBarChart() {
     const lightness = lightnessVariations[index % lightnessVariations.length]
     return `hsl(${hue}, ${saturation}%, ${lightness}%)`
   }, [])
-
-  const chartConfig = useMemo(() => {
-    const config: ChartConfig = {}
-    const isDark = resolvedTheme === 'dark'
-    nodeList.forEach((node, index) => {
-      if (index === 0) {
-        config[node.name] = { label: node.name, color: 'hsl(var(--primary))' }
-        return
-      }
-
-      if (index < 5) {
-        config[node.name] = { label: node.name, color: `hsl(var(--chart-${index + 1}))` }
-        return
-      }
-
-      config[node.name] = { label: node.name, color: generateDistinctColor(index, isDark) }
-    })
-    return config
-  }, [generateDistinctColor, nodeList, resolvedTheme])
 
   const activeQueryRange = useMemo(() => {
     const periodOptions = { minuteForOneHour: true, periodOverride: resolvePeriodOverride(periodOverride) }
@@ -288,7 +340,7 @@ export function AllNodesStackedBarChart() {
     error: nodesUsageError,
   } = useGetUsage(usageParams, {
     query: {
-      enabled: shouldUseNodeUsage,
+      enabled: !isAdminBreakdown && shouldUseNodeUsage,
       refetchInterval: 1000 * 60 * 5,
     },
   })
@@ -299,7 +351,7 @@ export function AllNodesStackedBarChart() {
     error: adminUsageByIdError,
   } = useGetAdminUsageById(selectedAdminId ?? 0, usageParams, {
     query: {
-      enabled: !shouldUseNodeUsage && selectedAdmin !== 'all' && selectedAdminId != null,
+      enabled: !isAdminBreakdown && !shouldUseNodeUsage && selectedAdmin !== 'all' && selectedAdminId != null,
       refetchInterval: 1000 * 60 * 5,
     },
   })
@@ -310,15 +362,130 @@ export function AllNodesStackedBarChart() {
     error: adminUsageByUsernameError,
   } = useGetAdminUsageByUsername(selectedAdmin, usageParams, {
     query: {
-      enabled: !shouldUseNodeUsage && selectedAdmin !== 'all' && selectedAdminId == null,
+      enabled: !isAdminBreakdown && !shouldUseNodeUsage && selectedAdmin !== 'all' && selectedAdminId == null,
       refetchInterval: 1000 * 60 * 5,
     },
   })
 
-  const usageData = shouldUseNodeUsage ? nodeUsageData : selectedAdminId != null ? adminUsageByIdData : adminUsageByUsernameData
-  const isLoading = shouldUseNodeUsage ? isLoadingNodesUsage : selectedAdminId != null ? isLoadingAdminUsageById : isLoadingAdminUsageByUsername
-  const error = shouldUseNodeUsage ? nodesUsageError : selectedAdminId != null ? adminUsageByIdError : adminUsageByUsernameError
-  const statsByNode = useMemo(() => toStatsRecord<NodeUsageStat | UserUsageStat>(usageData?.stats), [usageData?.stats])
+  const adminBreakdownParams = useMemo(
+    () => ({
+      period: activePeriod,
+      start: activeQueryRange.startDate,
+      end: activeQueryRange.endDate,
+      group_by_admin: true,
+      ...(scopeCoreId != null ? { core_id: scopeCoreId } : {}),
+      ...(scopeNodeId != null ? { node_id: scopeNodeId } : {}),
+    }),
+    [activePeriod, activeQueryRange.startDate, activeQueryRange.endDate, scopeCoreId, scopeNodeId],
+  )
+
+  const {
+    data: adminBreakdownData,
+    isLoading: isLoadingAdminBreakdown,
+    error: adminBreakdownError,
+  } = useGetUsersUsage(adminBreakdownParams, {
+    query: {
+      enabled: isAdminBreakdown,
+      refetchInterval: 1000 * 60 * 5,
+    },
+  })
+
+  const nodeScopedUsageData = shouldUseNodeUsage ? nodeUsageData : selectedAdminId != null ? adminUsageByIdData : adminUsageByUsernameData
+  const isLoadingNodeScopedUsage = shouldUseNodeUsage ? isLoadingNodesUsage : selectedAdminId != null ? isLoadingAdminUsageById : isLoadingAdminUsageByUsername
+  const nodeScopedUsageError = shouldUseNodeUsage ? nodesUsageError : selectedAdminId != null ? adminUsageByIdError : adminUsageByUsernameError
+  const usageData = isAdminBreakdown ? adminBreakdownData : nodeScopedUsageData
+  const isLoading = isAdminBreakdown ? isLoadingAdminBreakdown : isLoadingNodeScopedUsage
+  const error = isAdminBreakdown ? adminBreakdownError : nodeScopedUsageError
+  const statsBySource = useMemo(() => toStatsRecord<UsageStat>(usageData?.stats), [usageData?.stats])
+
+  const rankedAdminIds = useMemo(() => {
+    if (!isAdminBreakdown) return [] as number[]
+
+    return Object.entries(statsBySource)
+      .map(([adminId, stats]) => ({ id: Number(adminId), bytes: sumTrafficBytes(stats) }))
+      .filter(item => item.bytes > 0)
+      .sort((a, b) => b.bytes - a.bytes)
+      .map(item => item.id)
+  }, [isAdminBreakdown, statsBySource])
+
+  const topAdminIds = useMemo(() => rankedAdminIds.slice(0, MAX_ADMIN_SERIES), [rankedAdminIds])
+  const namedAdminIds = useMemo(() => topAdminIds.filter(adminId => adminId !== NO_ADMIN_SERIES_ID), [topAdminIds])
+
+  const { data: adminsResponse } = useGetAdminsSimple(
+    { ids: namedAdminIds },
+    {
+      query: {
+        enabled: isAdminBreakdown && namedAdminIds.length > 0,
+      },
+    },
+  )
+
+  const { seriesList, statsBySeries } = useMemo(() => {
+    if (breakdown === 'admin') {
+      const adminNames = new Map<number, string>((adminsResponse?.admins || []).map((item: AdminSimple) => [item.id, item.username]))
+      const series: ChartSeries[] = topAdminIds.map(adminId => ({
+        id: adminId,
+        name: adminId === NO_ADMIN_SERIES_ID ? t('statistics.noAdmin') : adminNames.get(adminId) || `#${adminId}`,
+      }))
+      const stats: Record<string, UsageStat[]> = {}
+      topAdminIds.forEach(adminId => {
+        stats[String(adminId)] = statsBySource[String(adminId)] || []
+      })
+
+      const otherAdminIds = rankedAdminIds.slice(MAX_ADMIN_SERIES)
+      if (otherAdminIds.length > 0) {
+        series.push({ id: OTHER_ADMINS_SERIES_ID, name: t('statistics.otherAdmins') })
+        stats[String(OTHER_ADMINS_SERIES_ID)] = mergeUsageStats(otherAdminIds.map(adminId => statsBySource[String(adminId)] || []))
+      }
+
+      return { seriesList: series, statsBySeries: stats }
+    }
+
+    if (breakdown === 'core') {
+      const series: ChartSeries[] = coreList.map(core => ({ id: core.id, name: core.name }))
+      if (nodeList.some(node => node.core_config_id == null)) {
+        series.push({ id: NO_CORE_SERIES_ID, name: t('statistics.noCore') })
+      }
+
+      const stats: Record<string, UsageStat[]> = {}
+      series.forEach(core => {
+        const coreNodes = nodeList.filter(node => (node.core_config_id ?? NO_CORE_SERIES_ID) === core.id)
+        stats[String(core.id)] = mergeUsageStats(coreNodes.map(node => statsBySource[String(node.id)] || []))
+      })
+
+      return { seriesList: series, statsBySeries: stats }
+    }
+
+    const visibleNodes = scopeCoreId == null ? nodeList : nodeList.filter(node => node.core_config_id === scopeCoreId)
+    return {
+      seriesList: visibleNodes.map(node => ({ id: node.id, name: node.name })),
+      statsBySeries: statsBySource,
+    }
+  }, [breakdown, adminsResponse, topAdminIds, rankedAdminIds, statsBySource, coreList, nodeList, scopeCoreId, t])
+
+  const chartConfig = useMemo(() => {
+    const config: ChartConfig = {}
+    const isDark = resolvedTheme === 'dark'
+    seriesList.forEach((series, index) => {
+      if (series.id === OTHER_ADMINS_SERIES_ID) {
+        config[series.name] = { label: series.name, color: 'hsl(var(--muted-foreground))' }
+        return
+      }
+
+      if (index === 0) {
+        config[series.name] = { label: series.name, color: 'hsl(var(--primary))' }
+        return
+      }
+
+      if (index < 5) {
+        config[series.name] = { label: series.name, color: `hsl(var(--chart-${index + 1}))` }
+        return
+      }
+
+      config[series.name] = { label: series.name, color: generateDistinctColor(index, isDark) }
+    })
+    return config
+  }, [generateDistinctColor, seriesList, resolvedTheme])
 
   const labelRangeHint = useMemo(
     () => ({
@@ -329,16 +496,16 @@ export function AllNodesStackedBarChart() {
   )
 
   const { chartData, totalUsage } = useMemo(() => {
-    const statsKeys = Object.keys(statsByNode)
+    const statsKeys = Object.keys(statsBySource)
     if (statsKeys.length === 0) {
       return { chartData: [] as NodeChartDataPoint[], totalUsage: null }
     }
 
     const hasIndividualNodeData = statsKeys.some(key => key !== '-1')
-    const nodeCount = Math.max(nodeList.length, 1)
+    const nodeCount = Math.max(seriesList.length, 1)
 
-    if (!hasIndividualNodeData && Array.isArray(statsByNode['-1'])) {
-      const aggregatedStats = statsByNode['-1']
+    if (!hasIndividualNodeData && Array.isArray(statsBySource['-1'])) {
+      const aggregatedStats = statsBySource['-1']
       const aggregatedChartData = aggregatedStats.map(point => {
         const usageBytes = getTrafficBytes(point)
         const directionalTraffic = getDirectionalTraffic(point)
@@ -349,7 +516,7 @@ export function AllNodesStackedBarChart() {
           _period_start: point.period_start,
         }
 
-        nodeList.forEach(node => {
+        seriesList.forEach(node => {
           entry[node.name] = parseFloat(usagePerNodeInGb.toFixed(2))
           entry[`_uplink_${node.name}`] = directionalTraffic.uplink / nodeCount
           entry[`_downlink_${node.name}`] = directionalTraffic.downlink / nodeCount
@@ -365,8 +532,11 @@ export function AllNodesStackedBarChart() {
       }
     }
 
+    const isScopedToCore = breakdown === 'node' && scopeCoreId != null
+    const visibleStats = isScopedToCore ? seriesList.map(series => statsBySeries[String(series.id)] || []) : Object.values(statsBySource)
+
     const allPeriods = new Set<string>()
-    Object.values(statsByNode).forEach(statsArray => {
+    visibleStats.forEach(statsArray => {
       statsArray.forEach(stat => allPeriods.add(stat.period_start))
     })
 
@@ -377,8 +547,8 @@ export function AllNodesStackedBarChart() {
         _period_start: periodStart,
       }
 
-      nodeList.forEach(node => {
-        const nodeStats = statsByNode[String(node.id)]?.find(stat => stat.period_start === periodStart)
+      seriesList.forEach(node => {
+        const nodeStats = statsBySeries[String(node.id)]?.find(stat => stat.period_start === periodStart)
         if (!nodeStats) {
           row[node.name] = 0
           row[`_uplink_${node.name}`] = 0
@@ -396,18 +566,13 @@ export function AllNodesStackedBarChart() {
       return row
     })
 
-    let totalBytes = 0
-    Object.values(statsByNode).forEach(statsArray => {
-      statsArray.forEach(stat => {
-        totalBytes += getTrafficBytes(stat)
-      })
-    })
+    const totalBytes = visibleStats.reduce((sum, statsArray) => sum + sumTrafficBytes(statsArray), 0)
 
     return {
       chartData: chartRows,
       totalUsage: totalBytes > 0 ? String(formatBytes(totalBytes, 2)) : null,
     }
-  }, [statsByNode, nodeList, activePeriod, i18n.language, labelRangeHint])
+  }, [statsBySource, statsBySeries, seriesList, breakdown, scopeCoreId, activePeriod, i18n.language, labelRangeHint])
 
   const xAxisInterval = useMemo(
     () =>
@@ -423,15 +588,15 @@ export function AllNodesStackedBarChart() {
   )
 
   const { isAnimationActive, usePerBarRadius, useAccessibilityLayer, areaCurveType } = useMemo(
-    () => getChartRenderFlags(chartData.length, nodeList.length),
-    [chartData.length, nodeList.length],
+    () => getChartRenderFlags(chartData.length, seriesList.length),
+    [chartData.length, seriesList.length],
   )
-  const brushWindow = useMemo(() => getChartBrushWindow(chartData.length, nodeList.length), [chartData.length, nodeList.length])
+  const brushWindow = useMemo(() => getChartBrushWindow(chartData.length, seriesList.length), [chartData.length, seriesList.length])
 
   const pieData = useMemo<NodePieChartDataPoint[]>(() => {
-    if (chartData.length === 0 || nodeList.length === 0) return []
+    if (chartData.length === 0 || seriesList.length === 0) return []
 
-    const nodesWithUsage = nodeList
+    const nodesWithUsage = seriesList
       .map((node, index) => {
         const usageInGb = chartData.reduce((sum, row) => sum + Number(row[node.name] || 0), 0)
         const bytes = usageInGb * 1024 * 1024 * 1024
@@ -452,7 +617,7 @@ export function AllNodesStackedBarChart() {
         percentage: totalBytes > 0 ? (node.bytes * 100) / totalBytes : 0,
       }))
       .sort((a, b) => b.bytes - a.bytes)
-  }, [chartData, nodeList, chartConfig])
+  }, [chartData, seriesList, chartConfig])
 
   const pieChartConfig = useMemo<ChartConfig>(
     () =>
@@ -464,6 +629,7 @@ export function AllNodesStackedBarChart() {
   )
 
   const piePaddingAngle = pieData.length > 1 ? 1 : 0
+  const hasChartData = chartData.length > 0 && seriesList.length > 0
 
   useEffect(() => {
     const handleResize = () => {
@@ -473,6 +639,65 @@ export function AllNodesStackedBarChart() {
     handleResize()
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
+  const breakdownOptions = useMemo(
+    () => [
+      { value: 'node' as UsageBreakdown, label: t('statistics.breakdownByNode'), icon: Share2 },
+      ...(canBreakdownByCore ? [{ value: 'core' as UsageBreakdown, label: t('statistics.breakdownByCore'), icon: Cpu }] : []),
+      ...(canBreakdownByAdmin ? [{ value: 'admin' as UsageBreakdown, label: t('statistics.breakdownByAdmin'), icon: UserCog }] : []),
+    ],
+    [canBreakdownByAdmin, canBreakdownByCore, t],
+  )
+
+  const renderBreakdownLabel = useCallback(
+    (value: UsageBreakdown, trigger = false) => {
+      const option = breakdownOptions.find(item => item.value === value) ?? breakdownOptions[0]
+      const Icon = option.icon
+      if (trigger) {
+        return (
+          <div className="flex min-w-0 items-center gap-1.5">
+            <Icon className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">{option.label}</span>
+          </div>
+        )
+      }
+
+      return (
+        <span className="flex min-w-0 items-center gap-1.5">
+          <Icon className="h-3.5 w-3.5 shrink-0" />
+          <span className="truncate">{option.label}</span>
+        </span>
+      )
+    },
+    [breakdownOptions],
+  )
+
+  const statsModalLabels = useMemo(() => {
+    if (breakdown === 'core') {
+      return {
+        title: t('statistics.coreStats'),
+        distributionTitle: t('statistics.coreTrafficDistribution'),
+        description: t('statistics.coreStatsDescription'),
+      }
+    }
+
+    if (breakdown === 'admin') {
+      return {
+        title: t('statistics.adminStats'),
+        distributionTitle: t('statistics.adminTrafficDistribution'),
+        description: t('statistics.adminStatsDescription'),
+      }
+    }
+
+    return {}
+  }, [breakdown, t])
+
+  const showScopeSelect = breakdown !== 'core' && (isAdminBreakdown ? nodeList.length > 0 : coreList.length > 0)
+
+  const handleBreakdownChange = useCallback((value: string) => {
+    setBreakdown(value as UsageBreakdown)
+    setUsageScope(USAGE_SCOPE_ALL)
   }, [])
 
   const handleTimeSelect = useCallback((value: string) => {
@@ -555,16 +780,72 @@ export function AllNodesStackedBarChart() {
                   </button>
                 </div>
               </div>
-              <div className="flex w-full items-center gap-2">
-                <AdminFilterCombobox
-                  value={selectedAdmin}
-                  onValueChange={username => {
-                    setSelectedAdmin(username)
-                    setSelectedAdminId(null)
-                  }}
-                  onAdminSelect={admin => setSelectedAdminId(admin?.id ?? null)}
-                  className="min-w-0 flex-1 sm:w-[220px] sm:flex-none"
-                />
+              <div className="flex w-full flex-wrap items-center gap-2">
+                {breakdownOptions.length > 1 && (
+                  <Select value={breakdown} onValueChange={handleBreakdownChange}>
+                    <SelectTrigger aria-label={t('statistics.breakdown')} className="h-8 w-full text-xs sm:w-[9.5rem]" dir={dir}>
+                      {renderBreakdownLabel(breakdown, true)}
+                    </SelectTrigger>
+                    <SelectContent dir={dir}>
+                      {breakdownOptions.map(option => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {renderBreakdownLabel(option.value)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+                {!isAdminBreakdown && (
+                  <AdminFilterCombobox
+                    value={selectedAdmin}
+                    onValueChange={username => {
+                      setSelectedAdmin(username)
+                      setSelectedAdminId(null)
+                    }}
+                    onAdminSelect={admin => setSelectedAdminId(admin?.id ?? null)}
+                    className="min-w-0 flex-1 sm:w-[220px] sm:flex-none"
+                  />
+                )}
+                {showScopeSelect && (
+                  <Select value={usageScope} onValueChange={setUsageScope}>
+                    <SelectTrigger
+                      aria-label={t('statistics.usageScope')}
+                      className={`h-8 text-xs sm:w-[180px] sm:flex-none [&>span]:truncate ${isAdminBreakdown ? 'min-w-0 flex-1' : 'order-last w-full sm:order-none'}`}
+                      dir={dir}
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent dir={dir}>
+                      <SelectItem value={USAGE_SCOPE_ALL}>{isAdminBreakdown ? t('statistics.scopeAllNodes') : t('statistics.scopeAllCores')}</SelectItem>
+                      {coreList.length > 0 && (
+                        <SelectGroup>
+                          <SelectLabel className="text-muted-foreground text-xs font-medium">{t('statistics.scopeCores')}</SelectLabel>
+                          {coreList.map(core => (
+                            <SelectItem key={`core-${core.id}`} value={`core:${core.id}`}>
+                              <span className="flex min-w-0 items-center gap-1.5">
+                                <Cpu className="h-3.5 w-3.5 shrink-0" />
+                                <span className="truncate">{core.name}</span>
+                              </span>
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      )}
+                      {isAdminBreakdown && (
+                        <SelectGroup>
+                          <SelectLabel className="text-muted-foreground text-xs font-medium">{t('statistics.scopeNodes')}</SelectLabel>
+                          {nodeList.map(node => (
+                            <SelectItem key={`node-${node.id}`} value={`node:${node.id}`}>
+                              <span className="flex min-w-0 items-center gap-1.5">
+                                <Share2 className="h-3.5 w-3.5 shrink-0" />
+                                <span className="truncate">{node.name}</span>
+                              </span>
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      )}
+                    </SelectContent>
+                  </Select>
+                )}
                 <div className="bg-muted/30 inline-flex h-8 shrink-0 items-center gap-1 rounded-md border p-1">
                   <button
                     type="button"
@@ -612,14 +893,14 @@ export function AllNodesStackedBarChart() {
             <div className="mx-auto w-full">
               {chartView === 'bar' && <DenseChartAreaHint pointCount={chartData.length} />}
               <ChartContainer dir="ltr" config={chartView === 'pie' ? pieChartConfig : chartConfig} className="h-[200px] w-full sm:h-[320px] lg:h-[400px]">
-                {chartData.length > 0 && chartView === 'bar' ? (
+                {hasChartData && chartView === 'bar' ? (
                   chartViewType === 'area' ? (
                     <AreaChart {...(useAccessibilityLayer ? { accessibilityLayer: true } : {})} data={chartData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }} onClick={handleChartPointClick}>
                       <defs>
-                        {nodeList.map((node, index) => {
+                        {seriesList.map((node, index) => {
                           const color = chartConfig[node.name]?.color || `hsl(var(--chart-${(index % 5) + 1}))`
                           return (
-                            <linearGradient key={node.id} id={`node-area-gradient-${node.id}`} x1="0" y1="0" x2="0" y2="1">
+                            <linearGradient key={node.id} id={`node-area-gradient-${breakdown}-${node.id}`} x1="0" y1="0" x2="0" y2="1">
                               <stop offset="0%" stopColor={color} stopOpacity={0.45} />
                               <stop offset="100%" stopColor={color} stopOpacity={0.05} />
                             </linearGradient>
@@ -643,13 +924,13 @@ export function AllNodesStackedBarChart() {
                         tickMargin={2}
                       />
                       <ChartTooltip cursor={false} content={props => <CustomTooltip {...(props as TooltipProps<number, string>)} chartConfig={chartConfig} dir={dir} period={activePeriod} />} />
-                      {nodeList.map((node, index) => (
+                      {seriesList.map((node, index) => (
                         <Area
                           key={node.id}
                           type={areaCurveType}
                           dataKey={node.name}
                           stackId="a"
-                          fill={`url(#node-area-gradient-${node.id})`}
+                          fill={`url(#node-area-gradient-${breakdown}-${node.id})`}
                           stroke={chartConfig[node.name]?.color || `hsl(var(--chart-${(index % 5) + 1}))`}
                           strokeWidth={1.5}
                           dot={false}
@@ -680,7 +961,7 @@ export function AllNodesStackedBarChart() {
                         tickMargin={2}
                       />
                       <ChartTooltip cursor={false} content={props => <CustomTooltip {...(props as TooltipProps<number, string>)} chartConfig={chartConfig} dir={dir} period={activePeriod} />} />
-                      {nodeList.map((node, index) => (
+                      {seriesList.map((node, index) => (
                         <Bar
                           key={node.id}
                           dataKey={node.name}
@@ -692,7 +973,7 @@ export function AllNodesStackedBarChart() {
                         >
                           {usePerBarRadius &&
                             chartData.map(row => (
-                              <Cell key={`${node.id}-${row._period_start}`} {...getCellRadiusProps(getStackedNodeRadius(row, node.name, nodeList))} />
+                              <Cell key={`${node.id}-${row._period_start}`} {...getCellRadiusProps(getStackedNodeRadius(row, node.name, seriesList))} />
                             ))}
                         </Bar>
                       ))}
@@ -701,7 +982,7 @@ export function AllNodesStackedBarChart() {
                       )}
                     </BarChart>
                   )
-                ) : chartData.length > 0 && chartView === 'pie' ? (
+                ) : hasChartData && chartView === 'pie' ? (
                   pieData.length > 0 ? (
                     <PieChart>
                       <ChartTooltip cursor={false} content={props => <NodePieTooltip {...(props as TooltipProps<number, string>)} />} />
@@ -718,10 +999,10 @@ export function AllNodesStackedBarChart() {
                   <EmptyState type="no-data" title={t('statistics.noDataInRange')} description={t('statistics.noDataInRangeDescription')} className="max-h-[400px] min-h-[200px]" />
                 )}
               </ChartContainer>
-              {chartData.length > 0 && (
+              {hasChartData && (
                 <div className="overflow-x-auto pt-3">
                   <div className="flex min-w-max items-center justify-center gap-4">
-                    {(chartView === 'pie' ? pieData : nodeList).map(item => {
+                    {(chartView === 'pie' ? pieData : seriesList).map(item => {
                       const nodeName = typeof item === 'object' && 'name' in item ? item.name : ''
                       const itemConfig = chartConfig[nodeName]
                       const percentage = typeof item === 'object' && 'percentage' in item ? item.percentage : undefined
@@ -757,7 +1038,8 @@ export function AllNodesStackedBarChart() {
         allChartData={chartData}
         currentIndex={currentDataIndex}
         onNavigate={handleModalNavigate}
-        hideUplinkDownlink={selectedAdmin !== 'all'}
+        hideUplinkDownlink={isAdminBreakdown || selectedAdmin !== 'all'}
+        {...statsModalLabels}
       />
     </>
   )
