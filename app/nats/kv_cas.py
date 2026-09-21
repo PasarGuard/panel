@@ -12,6 +12,7 @@ import nats.errors as nats_errors
 import nats.js.errors as nats_js_errors
 from nats.js.kv import KeyValue
 
+from app.nats.kv_watch import watch_kv
 from app.utils.logger import get_logger
 
 logger = get_logger("nats-kv-cas")
@@ -22,6 +23,14 @@ _CAS_RETRY_BASE_DELAY = 0.01
 async def cas_retry_backoff() -> None:
     """Small jittered delay between CAS retry attempts to avoid hammering NATS under contention."""
     await asyncio.sleep(_CAS_RETRY_BASE_DELAY * (1 + random.random()))
+
+
+def is_kv_miss(exc: BaseException) -> bool:
+    """True when JetStream KV has no value yet (first boot / deleted key)."""
+    if isinstance(exc, (nats_js_errors.KeyNotFoundError, nats_js_errors.KeyDeletedError)):
+        return True
+    text = str(exc).lower()
+    return "key not found" in text or "key deleted" in text
 
 
 class CasKv(Protocol):
@@ -39,9 +48,11 @@ class CasKv(Protocol):
 async def kv_get_json(kv: CasKv, key: str) -> tuple[dict[str, Any] | None, int]:
     try:
         entry = await kv.get(key)
-    except (nats_js_errors.KeyNotFoundError, nats_js_errors.KeyDeletedError) as exc:
-        logger.debug("NATS KV miss for key=%s: %s", key, exc)
-        return None, 0
+    except Exception as exc:
+        if is_kv_miss(exc):
+            logger.debug("NATS KV miss for key=%s: %s", key, exc)
+            return None, 0
+        raise
     if not entry or not entry.value:
         return None, getattr(entry, "revision", 0) or 0
     return json.loads(entry.value), entry.revision
@@ -60,12 +71,17 @@ async def kv_cas_json(kv: CasKv, key: str, value: dict[str, Any], revision: int)
         return False
 
 
-async def kv_put_json(kv: CasKv, key: str, value: dict[str, Any]) -> None:
+async def kv_put_json(kv: CasKv, key: str, value: dict[str, Any]) -> int:
     """Upsert JSON with CAS retries (latest value wins)."""
+    payload = json.dumps(value, separators=(",", ":")).encode()
     for attempt in range(32):
         _, rev = await kv_get_json(kv, key)
-        if await kv_cas_json(kv, key, value, rev):
-            return
+        try:
+            if rev == 0:
+                return await kv.create(key, payload)
+            return await kv.update(key, payload, last=rev)
+        except nats_errors.Error as exc:
+            logger.debug("NATS KV put attempt failed for key=%s revision=%s: %s", key, rev, exc)
         if attempt < 31:
             await cas_retry_backoff()
     raise RuntimeError(f"failed to put NATS KV key={key} after CAS retries")
@@ -81,7 +97,7 @@ async def kv_list_keys(kv: CasKv, prefix: str) -> list[str]:
     # filter subject, so use that to filter server-side to this prefix only.
     watch = getattr(kv, "watch", None)
     if callable(watch):
-        watcher = await watch(f"{prefix}*", ignore_deletes=True, meta_only=True)
+        watcher = await watch_kv(kv, f"{prefix}*", ignore_deletes=True, inactive_threshold=5, snapshot_only=True)
         try:
             keys: list[str] = []
             async for entry in watcher:
@@ -159,3 +175,7 @@ class MemoryCasKv:
         if not matched:
             raise nats_js_errors.NoKeysError
         return matched
+
+    async def list_entries(self, prefix: str) -> dict[str, int]:
+        """Current revision per key under ``prefix`` (what a live index would know)."""
+        return {key: revision for key, (_, revision) in self._data.items() if key.startswith(prefix)}
