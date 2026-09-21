@@ -3,7 +3,7 @@ from datetime import UTC, datetime
 from sqlalchemy import and_, bindparam, case, delete, func, literal_column, or_, select, update
 from sqlalchemy.exc import InvalidRequestError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, with_expression
 from sqlalchemy.sql.functions import coalesce
 
 from app.db.compiles_types import DateDiff
@@ -44,6 +44,15 @@ def _build_node_simple_sort_clause(sort_option: NodeSimpleSortOption):
     }
     column = field_map[sort_option.field]
     return column.desc() if sort_option.value.startswith("-") else column.asc()
+
+
+def _node_reset_traffic_subquery(column):
+    return (
+        select(func.coalesce(func.sum(column), 0))
+        .where(NodeUsageResetLogs.node_id == Node.id)
+        .correlate(Node)
+        .scalar_subquery()
+    )
 
 
 async def load_node_attrs(node: Node, *, load_usage_logs: bool = True):
@@ -94,6 +103,7 @@ async def get_nodes(
     query: NodeListQuery,
     *,
     load_usage_logs: bool = True,
+    load_lifetime_usage: bool = False,
 ) -> tuple[list[Node], int]:
     """
     Retrieves nodes based on optional status, enabled, id, and search filters.
@@ -101,6 +111,8 @@ async def get_nodes(
     Args:
         db (AsyncSession): The database session.
         query: Structured node list query.
+        load_usage_logs: Whether to materialize reset-history rows.
+        load_lifetime_usage: Whether to calculate lifetime usage with aggregates.
 
     Returns:
         tuple: A tuple containing:
@@ -147,9 +159,17 @@ async def get_nodes(
     # Order by created_at and id for consistent results
     stmt = stmt.order_by(Node.created_at.asc(), Node.id.asc())
 
-    # Eagerly load usage_logs for API lifetime_* fields (skip for jobs/connect)
+    # Load either full reset history or only the aggregate fields needed by list responses.
     if load_usage_logs:
         stmt = stmt.options(selectinload(Node.usage_logs))
+    if load_lifetime_usage:
+        stmt = stmt.options(
+            with_expression(Node._reseted_uplink_query, _node_reset_traffic_subquery(NodeUsageResetLogs.uplink)),
+            with_expression(
+                Node._reseted_downlink_query,
+                _node_reset_traffic_subquery(NodeUsageResetLogs.downlink),
+            ),
+        )
 
     db_nodes = (await db.execute(stmt)).unique().scalars().all()
 
@@ -489,7 +509,7 @@ async def update_node_status(
     """
     stmt = (
         update(Node)
-        .where(Node.id == db_node.id)
+        .where(Node.id == db_node.id, Node.status.not_in((NodeStatus.disabled, NodeStatus.limited)))
         .values(
             status=status,
             message=message,
@@ -541,7 +561,11 @@ async def bulk_update_node_status(
 
     stmt = (
         update(Node)
-        .where(Node.id == bindparam("node_id"))
+        .where(
+            Node.id == bindparam("node_id"),
+            Node.status != NodeStatus.disabled,
+            Node.status != NodeStatus.limited,
+        )
         .values(
             status=bindparam("status"),
             message=bindparam("message"),
@@ -614,8 +638,7 @@ async def get_nodes_to_reset_usage(db: AsyncSession) -> list[Node]:
     # because the calculation is complex (encoded time values)
 
     stmt = (
-        select(Node)
-        .options(selectinload(Node.usage_logs))
+        select(Node, last_reset_time.label("last_reset_at"))
         .outerjoin(last_reset_subq, Node.id == last_reset_subq.c.node_id)
         .where(
             Node.status.in_([NodeStatus.connected, NodeStatus.limited, NodeStatus.error, NodeStatus.connecting]),
@@ -629,26 +652,18 @@ async def get_nodes_to_reset_usage(db: AsyncSession) -> list[Node]:
         )
     )
 
-    nodes = list((await db.execute(stmt)).unique().scalars().all())
-
-    # usage_logs already eagerly loaded via selectinload — no extra queries needed
+    nodes = (await db.execute(stmt)).unique().all()
 
     # For nodes with reset_time >= 0, filter based on absolute time
 
     filtered_nodes = []
-    for node in nodes:
+    for node, last_reset in nodes:
         if node.reset_time == -1:
             # Already filtered by SQL query
             filtered_nodes.append(node)
         else:
             # Time-based reset: check if current time matches the schedule
             now = datetime.now(UTC)
-
-            # Get last reset time
-            if node.usage_logs:
-                last_reset = max(log.created_at for log in node.usage_logs)
-            else:
-                last_reset = node.created_at
 
             should_reset = False
 
@@ -800,10 +815,18 @@ async def bulk_reset_node_usage(db: AsyncSession, nodes: list[Node]) -> list[Nod
 
     await db.commit()
 
-    # Re-fetch all nodes in a single query instead of N individual refreshes
+    # Refresh both existing history and new log timestamps from the database so
+    # notification consumers can compare timestamps consistently (including SQLite).
     node_ids = [node.id for node in nodes]
     refreshed = (
-        (await db.execute(select(Node).options(selectinload(Node.usage_logs)).where(Node.id.in_(node_ids))))
+        (
+            await db.execute(
+                select(Node)
+                .options(selectinload(Node.usage_logs))
+                .where(Node.id.in_(node_ids))
+                .execution_options(populate_existing=True)
+            )
+        )
         .unique()
         .scalars()
         .all()

@@ -271,19 +271,9 @@ export function createInboundDialogSchema(caps: Caps, t: TFunction) {
       const p = typeof data.protocol === 'string' ? data.protocol.trim() : ''
       if (p !== 'tunnel' && p !== 'dokodemo-door') return
 
-      const targetLabel = t('coreEditor.inbound.tunnel.targetAddress', { defaultValue: 'Target address' })
       const destPortLabel = t('coreEditor.inbound.tunnel.destinationPort', { defaultValue: 'Destination port' })
 
       const raw = data as Record<string, unknown>
-      const addr = typeof raw.tunnelRewriteAddress === 'string' ? raw.tunnelRewriteAddress.trim() : ''
-      if (addr === '') {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: required(targetLabel),
-          path: ['tunnelRewriteAddress'],
-        })
-      }
-
       const portRaw = typeof raw.tunnelRewritePort === 'string' ? raw.tunnelRewritePort.trim() : ''
       if (portRaw === '') {
         ctx.addIssue({

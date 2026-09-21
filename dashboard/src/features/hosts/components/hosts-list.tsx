@@ -197,8 +197,12 @@ export default function HostsList({
       vless_route: host.vless_route || '',
       priority: host.priority || 0,
       is_disabled: host.is_disabled || false,
-      ech_config_list: host.ech_config_list || undefined,
-      ech_query_strategy: host.ech_query_strategy || undefined,
+      ech_config_list: host.ech?.xray?.config_list || undefined,
+      ech_query_strategy: host.ech?.xray?.query_strategy || undefined,
+      mihomo_ech_config: host.ech?.mihomo?.config || undefined,
+      mihomo_ech_query_server_name: host.ech?.mihomo?.query_server_name || undefined,
+      sing_box_ech_config: host.ech?.sing_box?.config || undefined,
+      sing_box_ech_query_server_name: host.ech?.sing_box?.query_server_name || undefined,
       pinned_peer_cert_sha256: host.pinned_peer_cert_sha256 || undefined,
       verify_peer_cert_by_name: host.verify_peer_cert_by_name || [],
       subscription_templates: host.subscription_templates
@@ -214,10 +218,9 @@ export default function HostsList({
             xray:
               host.noise_settings.xray?.map(noise => ({
                 type: noise.type,
-                packet: noise.packet,
-                delay: noise.delay,
+                packet: Array.isArray(noise.packet) ? noise.packet.join(',') : (noise.packet ?? ''),
+                delay: noise.delay != null ? String(noise.delay) : '',
                 apply_to: (noise.apply_to as 'ip' | 'ipv4' | 'ipv6') || 'ip',
-                rand_range: noise.rand_range ?? undefined,
               })) ?? undefined,
           }
         : undefined,
@@ -382,8 +385,7 @@ export default function HostsList({
         use_sni_as_host: host.use_sni_as_host || false,
         vless_route: host.vless_route || undefined,
         priority: newPriority,
-        ech_config_list: host.ech_config_list,
-        ech_query_strategy: host.ech_query_strategy || undefined,
+        ech: host.ech,
         pinned_peer_cert_sha256: host.pinned_peer_cert_sha256 || undefined,
         verify_peer_cert_by_name: host.verify_peer_cert_by_name || undefined,
         fragment_settings: host.fragment_settings,
@@ -394,6 +396,7 @@ export default function HostsList({
         wireguard_overrides: host.wireguard_overrides ?? undefined,
         subscription_templates: host.subscription_templates ?? undefined,
         final_mask_settings: host.final_mask_settings ?? undefined,
+        cipher_suites: host.cipher_suites ?? undefined,
       }
 
       await createHost(newHost)
@@ -586,8 +589,7 @@ export default function HostsList({
         use_sni_as_host: host.use_sni_as_host || false,
         vless_route: host.vless_route || undefined,
         priority: index, // New priority based on position
-        ech_config_list: host.ech_config_list,
-        ech_query_strategy: host.ech_query_strategy || undefined,
+        ech: host.ech,
         pinned_peer_cert_sha256: host.pinned_peer_cert_sha256 || undefined,
         verify_peer_cert_by_name: host.verify_peer_cert_by_name || undefined,
         subscription_templates: host.subscription_templates ?? undefined,
@@ -716,6 +718,7 @@ export default function HostsList({
         wireguard_overrides: host.wireguard_overrides ?? undefined,
         http_headers: host.http_headers || {},
         final_mask_settings: host.final_mask_settings ?? undefined,
+        cipher_suites: host.cipher_suites ?? undefined,
       }))
 
       // Make the API call to update priorities

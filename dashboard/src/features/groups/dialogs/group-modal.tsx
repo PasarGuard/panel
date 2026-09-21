@@ -95,91 +95,93 @@ export default function GroupModal({ isDialogOpen, onOpenChange, form, editingGr
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t('name')}</FormLabel>
-                  <FormControl>
-                    <Input isError={!!form.formState.errors.name} {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="inbound_tags"
-              render={({ field }) => {
-                const currentTags = field.value || []
-                const allSelected = inbounds && inbounds.length > 0 && inbounds.every(inbound => currentTags.includes(inbound))
-                const handleSelectAll = () => {
-                  if (allSelected) {
-                    field.onChange([])
-                  } else {
-                    field.onChange(inbounds || [])
-                  }
-                }
-                return (
+            <div className="-mr-4 max-h-[75dvh] space-y-4 overflow-y-auto px-2 pr-4 sm:max-h-[70dvh]">
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t('inboundTags')}</FormLabel>
-                    <div className="space-y-2">
-                      {inbounds && inbounds.length > 0 && (
-                        <div className="mb-2 flex justify-end">
-                          <Button type="button" variant="ghost" size="sm" onClick={handleSelectAll} className="h-7 text-xs" disabled={isLoadingInbounds}>
-                            {allSelected ? t('deselectAll') : t('selectAll')}
-                          </Button>
-                        </div>
-                      )}
-                      <Command className="mb-3 rounded-md border">
-                        <CommandInput placeholder={t('searchInbounds')} disabled={isLoadingInbounds} />
-                        {!isLoadingInbounds && <CommandEmpty>{t('noInboundsFound')}</CommandEmpty>}
-                        <CommandGroup dir="ltr" className="max-h-40 overflow-auto">
-                          {isLoadingInbounds ? (
-                            <div className="space-y-2 px-2 py-3">
-                              {Array.from({ length: 4 }).map((_, index) => (
-                                <div key={index} className="flex items-center gap-2">
-                                  <Skeleton className="h-4 w-4 rounded-sm" />
-                                  <Skeleton className="h-4 w-full max-w-[220px]" />
-                                </div>
-                              ))}
-                            </div>
-                          ) : (
-                            inbounds?.map(inbound => (
-                              <CommandItem
-                                key={inbound}
-                                onSelect={() => {
-                                  const newTags = currentTags.includes(inbound) ? currentTags.filter(tag => tag !== inbound) : [...currentTags, inbound]
-                                  field.onChange(newTags)
-                                }}
-                              >
-                                <div className={cn('mr-2 h-4 w-4 rounded-sm border', currentTags.includes(inbound) ? 'border-primary bg-primary' : 'border-muted')} />
-                                {inbound}
-                              </CommandItem>
-                            ))
-                          )}
-                        </CommandGroup>
-                      </Command>
-                      <div className="flex flex-wrap gap-2">
-                        {currentTags.map(tag => (
-                          <Badge key={tag} variant="secondary" className="flex items-center gap-1">
-                            {tag}
-                            <X
-                              className="h-3 w-3 cursor-pointer"
-                              onClick={() => {
-                                field.onChange(currentTags.filter(t => t !== tag))
-                              }}
-                            />
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
+                    <FormLabel>{t('name')}</FormLabel>
+                    <FormControl>
+                      <Input isError={!!form.formState.errors.name} {...field} />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
-                )
-              }}
-            />
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="inbound_tags"
+                render={({ field }) => {
+                  const currentTags = field.value || []
+                  const allSelected = inbounds && inbounds.length > 0 && inbounds.every(inbound => currentTags.includes(inbound))
+                  const handleSelectAll = () => {
+                    if (allSelected) {
+                      field.onChange([])
+                    } else {
+                      field.onChange(inbounds || [])
+                    }
+                  }
+                  return (
+                    <FormItem>
+                      <FormLabel>{t('inboundTags')}</FormLabel>
+                      <div className="space-y-2">
+                        {inbounds && inbounds.length > 0 && (
+                          <div className="mb-2 flex justify-end">
+                            <Button type="button" variant="ghost" size="sm" onClick={handleSelectAll} className="h-7 text-xs" disabled={isLoadingInbounds}>
+                              {allSelected ? t('deselectAll') : t('selectAll')}
+                            </Button>
+                          </div>
+                        )}
+                        <Command className="mb-3 rounded-md border">
+                          <CommandInput placeholder={t('searchInbounds')} disabled={isLoadingInbounds} />
+                          {!isLoadingInbounds && <CommandEmpty>{t('noInboundsFound')}</CommandEmpty>}
+                          <CommandGroup dir="ltr" className="max-h-40 overflow-auto">
+                            {isLoadingInbounds ? (
+                              <div className="space-y-2 px-2 py-3">
+                                {Array.from({ length: 4 }).map((_, index) => (
+                                  <div key={index} className="flex items-center gap-2">
+                                    <Skeleton className="h-4 w-4 rounded-sm" />
+                                    <Skeleton className="h-4 w-full max-w-[220px]" />
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              inbounds?.map(inbound => (
+                                <CommandItem
+                                  key={inbound}
+                                  onSelect={() => {
+                                    const newTags = currentTags.includes(inbound) ? currentTags.filter(tag => tag !== inbound) : [...currentTags, inbound]
+                                    field.onChange(newTags)
+                                  }}
+                                >
+                                  <div className={cn('mr-2 h-4 w-4 rounded-sm border', currentTags.includes(inbound) ? 'border-primary bg-primary' : 'border-muted')} />
+                                  {inbound}
+                                </CommandItem>
+                              ))
+                            )}
+                          </CommandGroup>
+                        </Command>
+                        <div className="flex flex-wrap gap-2">
+                          {currentTags.map(tag => (
+                            <Badge key={tag} variant="secondary" className="flex items-center gap-1">
+                              {tag}
+                              <X
+                                className="h-3 w-3 cursor-pointer"
+                                onClick={() => {
+                                  field.onChange(currentTags.filter(t => t !== tag))
+                                }}
+                              />
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                      <FormMessage />
+                    </FormItem>
+                  )
+                }}
+              />
+            </div>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => onOpenChange(false)}>
                 {t('cancel')}

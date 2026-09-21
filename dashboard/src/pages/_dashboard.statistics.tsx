@@ -51,7 +51,7 @@ const Statistics = () => {
       case 'limited':
         return 'bg-orange-500'
       default:
-        return 'bg-gray-400 dark:bg-gray-600'
+        return 'bg-muted-foreground/40'
     }
   }
 
@@ -79,14 +79,14 @@ const Statistics = () => {
 
   return (
     <div className="flex w-full flex-col items-start gap-2">
-      <div className="animate-fade-in w-full transform-gpu" style={{ animationDuration: '400ms' }}>
+      <div className="w-full transform-gpu">
         <PageHeader title="statistics" description="monitorServers" />
         <Separator />
       </div>
 
       {canViewNodeStats && (canViewSystemStats || nodesData.length > 0) && (
         <div className="w-full px-3 pt-2 sm:px-4 sm:pt-4">
-          <div className="animate-slide-up transform-gpu" style={{ animationDuration: '500ms', animationDelay: '50ms', animationFillMode: 'both' }}>
+          <div className="transform-gpu">
             <Card>
               <CardContent className="p-4 sm:p-6">
                 <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center sm:gap-4">
@@ -129,7 +129,7 @@ const Statistics = () => {
 
       <div className="w-full">
         <div className="w-full px-3 pt-2 sm:px-4">
-          <div className="animate-slide-up transform-gpu" style={{ animationDuration: '500ms', animationDelay: '100ms', animationFillMode: 'both' }}>
+          <div className="transform-gpu">
             <Card>
               <CardContent className="p-4 sm:p-6">
                 <MainContent

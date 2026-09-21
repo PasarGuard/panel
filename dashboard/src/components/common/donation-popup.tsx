@@ -9,6 +9,10 @@ const DONATION_STORAGE_KEY = 'donation_popup_data'
 const FIRST_SHOW_DELAY = 10 * 60 * 1000 // 10 minutes in milliseconds
 const SECRET_SALT = 'pasarguard_donation_v1' // Simple salt for checksum
 const MAX_TIMEOUT_MS = 2_147_483_647 // Browser timeout limit (~24.8 days)
+const MODAL_BUSY_RETRY_MS = 2000 // Re-check interval while another dialog is open
+
+// Any Radix Dialog/AlertDialog/Sheet currently open renders role="dialog"|"alertdialog" with data-state="open"
+const isAnotherModalOpen = (): boolean => document.querySelector('[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"]') !== null
 
 interface DonationData {
   lastShown: string | null
@@ -167,6 +171,14 @@ export default function DonationPopup() {
     if (hasShownRef.current) {
       return
     }
+
+    // Don't pop the donation modal over an in-progress dialog (e.g. the user modal) - wait until it closes.
+    if (isAnotherModalOpen()) {
+      const timeoutId = window.setTimeout(() => showPopup(), MODAL_BUSY_RETRY_MS)
+      timeoutIdsRef.current.push(timeoutId)
+      return
+    }
+
     hasShownRef.current = true
 
     const now = Date.now()

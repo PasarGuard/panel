@@ -28,11 +28,11 @@ export default function PageHeader({ title, description, buttonText, onButtonCli
   const docsUrl = tutorialUrl || getDocsUrl(location.pathname)
 
   return (
-    <div dir={dir} className={cn('relative mx-auto flex w-full flex-row items-start justify-between gap-4 overflow-hidden px-4 py-4 md:pt-6', className)}>
+    <div dir={dir} className={cn('bg-background/80 sticky top-0 z-20 mx-auto flex w-full flex-row items-start justify-between gap-4 overflow-hidden px-4 py-4 backdrop-blur-md md:pt-6', className)}>
       <Snowfall className="snowfall--header" />
       <div className="relative z-10 flex min-w-0 flex-1 flex-col gap-y-1">
         <div className="flex min-w-0 items-center gap-2.5">
-          <h1 className="truncate text-lg font-medium sm:text-xl">{t(title)}</h1>
+          <h1 className="truncate text-2xl font-semibold tracking-tight">{t(title)}</h1>
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -40,7 +40,7 @@ export default function PageHeader({ title, description, buttonText, onButtonCli
                   href={docsUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-primary hover:border-primary/40 hover:bg-primary/5 hover:text-primary focus-visible:ring-ring inline-flex h-7 w-7 items-center justify-center rounded-md border-0 transition-colors hover:border-2 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+                  className="text-primary hover:border-primary/40 hover:bg-primary/5 hover:text-primary focus-visible:ring-ring inline-flex h-7 w-7 items-center justify-center rounded-md border-0 transition-colors hover:border-2 focus-visible:ring-2 focus-visible:outline-none"
                   aria-label={t('tutorial', { defaultValue: 'View tutorial' })}
                 >
                   <HelpCircle className="h-4 w-4" />
@@ -52,7 +52,7 @@ export default function PageHeader({ title, description, buttonText, onButtonCli
             </Tooltip>
           </TooltipProvider>
         </div>
-        {description && <span className="text-muted-foreground text-xs whitespace-normal sm:text-sm">{t(description)}</span>}
+        {description && <span className="text-muted-foreground text-sm leading-relaxed whitespace-normal">{t(description)}</span>}
       </div>
       {buttonText && onButtonClick && (
         <div className="relative z-10 shrink-0">

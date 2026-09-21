@@ -3,7 +3,7 @@ from datetime import UTC, datetime
 from sqlalchemy import and_, case, delete, func, not_, select, update
 from sqlalchemy.exc import InvalidRequestError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import joinedload, selectinload
 from sqlalchemy.orm.exc import DetachedInstanceError
 
 from app.db.crud.general import (
@@ -149,7 +149,7 @@ async def get_admin(
 ) -> Admin:
     stmt = select(Admin).where(Admin.username == username)
     if load_role:
-        stmt = stmt.options(selectinload(Admin.role))
+        stmt = stmt.options(joinedload(Admin.role))
     admin = (await db.execute(stmt)).unique().scalar_one_or_none()
     if admin:
         await _load_admin_non_role_attrs(admin, load_users=load_users, load_usage_logs=load_usage_logs)
@@ -258,7 +258,7 @@ async def get_admin_by_id(
 ) -> Admin:
     stmt = select(Admin).where(Admin.id == id)
     if load_role:
-        stmt = stmt.options(selectinload(Admin.role))
+        stmt = stmt.options(joinedload(Admin.role))
     admin = (await db.execute(stmt)).unique().scalar_one_or_none()
     if admin:
         await _load_admin_non_role_attrs(admin, load_users=load_users, load_usage_logs=load_usage_logs)

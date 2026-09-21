@@ -1,8 +1,6 @@
-import json
-
 from app.models.subscription import SubscriptionInboundData
 
-from .base import BaseSubscription
+from .base import BaseSubscription, dumps_compact
 
 
 class OutlineConfiguration(BaseSubscription):
@@ -13,7 +11,7 @@ class OutlineConfiguration(BaseSubscription):
         self.config.update(data)
 
     def render(self):
-        return json.dumps(self.config, indent=0)
+        return dumps_compact(self.config)
 
     def _build_shadowsocks(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict) -> dict:
         """Build Shadowsocks outbound with 2022 support"""
