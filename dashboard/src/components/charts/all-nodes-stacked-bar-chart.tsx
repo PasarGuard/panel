@@ -425,7 +425,7 @@ export function AllNodesStackedBarChart() {
       const adminNames = new Map<number, string>((adminsResponse?.admins || []).map((item: AdminSimple) => [item.id, item.username]))
       const series: ChartSeries[] = topAdminIds.map(adminId => ({
         id: adminId,
-        name: adminId === NO_ADMIN_SERIES_ID ? t('statistics.noAdmin') : adminNames.get(adminId) || `#${adminId}`,
+        name: adminId === NO_ADMIN_SERIES_ID ? t('statistics.noAdmin', { defaultValue: 'No admin' }) : adminNames.get(adminId) || `#${adminId}`,
       }))
       const stats: Record<string, UsageStat[]> = {}
       topAdminIds.forEach(adminId => {
@@ -434,7 +434,7 @@ export function AllNodesStackedBarChart() {
 
       const otherAdminIds = rankedAdminIds.slice(MAX_ADMIN_SERIES)
       if (otherAdminIds.length > 0) {
-        series.push({ id: OTHER_ADMINS_SERIES_ID, name: t('statistics.otherAdmins') })
+        series.push({ id: OTHER_ADMINS_SERIES_ID, name: t('statistics.otherAdmins', { defaultValue: 'Other admins' }) })
         stats[String(OTHER_ADMINS_SERIES_ID)] = mergeUsageStats(otherAdminIds.map(adminId => statsBySource[String(adminId)] || []))
       }
 
@@ -444,7 +444,7 @@ export function AllNodesStackedBarChart() {
     if (breakdown === 'core') {
       const series: ChartSeries[] = coreList.map(core => ({ id: core.id, name: core.name }))
       if (nodeList.some(node => node.core_config_id == null)) {
-        series.push({ id: NO_CORE_SERIES_ID, name: t('statistics.noCore') })
+        series.push({ id: NO_CORE_SERIES_ID, name: t('statistics.noCore', { defaultValue: 'No core' }) })
       }
 
       const stats: Record<string, UsageStat[]> = {}
@@ -643,9 +643,9 @@ export function AllNodesStackedBarChart() {
 
   const breakdownOptions = useMemo(
     () => [
-      { value: 'node' as UsageBreakdown, label: t('statistics.breakdownByNode'), icon: Share2 },
-      ...(canBreakdownByCore ? [{ value: 'core' as UsageBreakdown, label: t('statistics.breakdownByCore'), icon: Cpu }] : []),
-      ...(canBreakdownByAdmin ? [{ value: 'admin' as UsageBreakdown, label: t('statistics.breakdownByAdmin'), icon: UserCog }] : []),
+      { value: 'node' as UsageBreakdown, label: t('statistics.breakdownByNode', { defaultValue: 'By node' }), icon: Share2 },
+      ...(canBreakdownByCore ? [{ value: 'core' as UsageBreakdown, label: t('statistics.breakdownByCore', { defaultValue: 'By core' }), icon: Cpu }] : []),
+      ...(canBreakdownByAdmin ? [{ value: 'admin' as UsageBreakdown, label: t('statistics.breakdownByAdmin', { defaultValue: 'By admin' }), icon: UserCog }] : []),
     ],
     [canBreakdownByAdmin, canBreakdownByCore, t],
   )
@@ -676,17 +676,17 @@ export function AllNodesStackedBarChart() {
   const statsModalLabels = useMemo(() => {
     if (breakdown === 'core') {
       return {
-        title: t('statistics.coreStats'),
-        distributionTitle: t('statistics.coreTrafficDistribution'),
-        description: t('statistics.coreStatsDescription'),
+        title: t('statistics.coreStats', { defaultValue: 'Core Statistics' }),
+        distributionTitle: t('statistics.coreTrafficDistribution', { defaultValue: 'Core Traffic Distribution' }),
+        description: t('statistics.coreStatsDescription', { defaultValue: 'Detailed traffic statistics for each core at this time period. Click on bars in the chart to view more details.' }),
       }
     }
 
     if (breakdown === 'admin') {
       return {
-        title: t('statistics.adminStats'),
-        distributionTitle: t('statistics.adminTrafficDistribution'),
-        description: t('statistics.adminStatsDescription'),
+        title: t('statistics.adminStats', { defaultValue: 'Admin Statistics' }),
+        distributionTitle: t('statistics.adminTrafficDistribution', { defaultValue: 'Admin Traffic Distribution' }),
+        description: t('statistics.adminStatsDescription', { defaultValue: 'Detailed traffic statistics for each admin at this time period. Click on bars in the chart to view more details.' }),
       }
     }
 
@@ -783,7 +783,7 @@ export function AllNodesStackedBarChart() {
               <div className="flex w-full flex-wrap items-center gap-2">
                 {breakdownOptions.length > 1 && (
                   <Select value={breakdown} onValueChange={handleBreakdownChange}>
-                    <SelectTrigger aria-label={t('statistics.breakdown')} className="h-8 w-full text-xs sm:w-[9.5rem]" dir={dir}>
+                    <SelectTrigger aria-label={t('statistics.breakdown', { defaultValue: 'Breakdown' })} className="h-8 w-full text-xs sm:w-[9.5rem]" dir={dir}>
                       {renderBreakdownLabel(breakdown, true)}
                     </SelectTrigger>
                     <SelectContent dir={dir}>
@@ -809,17 +809,19 @@ export function AllNodesStackedBarChart() {
                 {showScopeSelect && (
                   <Select value={usageScope} onValueChange={setUsageScope}>
                     <SelectTrigger
-                      aria-label={t('statistics.usageScope')}
+                      aria-label={t('statistics.usageScope', { defaultValue: 'Filter by core or node' })}
                       className={`h-8 text-xs sm:w-[180px] sm:flex-none [&>span]:truncate ${isAdminBreakdown ? 'min-w-0 flex-1' : 'order-last w-full sm:order-none'}`}
                       dir={dir}
                     >
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent dir={dir}>
-                      <SelectItem value={USAGE_SCOPE_ALL}>{isAdminBreakdown ? t('statistics.scopeAllNodes') : t('statistics.scopeAllCores')}</SelectItem>
+                      <SelectItem value={USAGE_SCOPE_ALL}>
+                        {isAdminBreakdown ? t('statistics.scopeAllNodes', { defaultValue: 'All nodes' }) : t('statistics.scopeAllCores', { defaultValue: 'All cores' })}
+                      </SelectItem>
                       {coreList.length > 0 && (
                         <SelectGroup>
-                          <SelectLabel className="text-muted-foreground text-xs font-medium">{t('statistics.scopeCores')}</SelectLabel>
+                          <SelectLabel className="text-muted-foreground text-xs font-medium">{t('statistics.scopeCores', { defaultValue: 'Cores' })}</SelectLabel>
                           {coreList.map(core => (
                             <SelectItem key={`core-${core.id}`} value={`core:${core.id}`}>
                               <span className="flex min-w-0 items-center gap-1.5">
@@ -832,7 +834,7 @@ export function AllNodesStackedBarChart() {
                       )}
                       {isAdminBreakdown && (
                         <SelectGroup>
-                          <SelectLabel className="text-muted-foreground text-xs font-medium">{t('statistics.scopeNodes')}</SelectLabel>
+                          <SelectLabel className="text-muted-foreground text-xs font-medium">{t('statistics.scopeNodes', { defaultValue: 'Nodes' })}</SelectLabel>
                           {nodeList.map(node => (
                             <SelectItem key={`node-${node.id}`} value={`node:${node.id}`}>
                               <span className="flex min-w-0 items-center gap-1.5">
