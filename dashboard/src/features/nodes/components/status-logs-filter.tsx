@@ -58,10 +58,10 @@ export function StatusLogsFilter({ value = [], setValue, title, options }: Statu
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="outline" size="sm" className="bg-input h-9 w-full text-sm placeholder-gray-400 sm:w-auto">
-          {title}
-          <Separator orientation="vertical" className="mx-2 h-4" />
-          <div className="flex space-x-1">{getSelectedBadges()}</div>
+        <Button variant="outline" size="sm" className="bg-input h-9 w-full min-w-0 justify-start text-sm lg:w-auto">
+          <span className="truncate">{title}</span>
+          <Separator orientation="vertical" className="mx-2 h-4 shrink-0" />
+          <div className="flex min-w-0 items-center gap-1 overflow-hidden">{getSelectedBadges()}</div>
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[200px] p-0" align="start">

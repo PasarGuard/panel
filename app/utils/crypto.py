@@ -9,14 +9,14 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import x25519
 
 
-def get_cert_SANs(cert: bytes):
+def get_cert_SANs(cert: bytes) -> list[str]:
+    """Return SAN values as strings (IP SANs are ipaddress objects)."""
     cert = x509.load_pem_x509_certificate(cert, default_backend())
-    san_list = []
+    san_list: list[str] = []
     for extension in cert.extensions:
         if isinstance(extension.value, x509.SubjectAlternativeName):
-            san = extension.value
-            for name in san:
-                san_list.append(name.value)
+            for name in extension.value:
+                san_list.append(str(name.value))
     return san_list
 
 
