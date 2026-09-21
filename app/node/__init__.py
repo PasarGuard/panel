@@ -1,10 +1,12 @@
 import asyncio
+from collections.abc import Awaitable, Callable
 
 from aiorwlock import RWLock
-from PasarGuardNodeBridge import Health, NodeType, PasarGuardNode, create_node
+from PasarGuardNodeBridge import Health, NodeType, PasarGuardNode
 from PasarGuardNodeBridge.common.service_pb2 import User as ProtoUser
 
 from app.db.models import Node, NodeConnectionType
+from app.node.bridge import create_node
 from app.node.nats_memory import ensure_bridge_memory, get_bridge_memory
 from app.node.user import core_users
 from app.utils.logger import get_logger
@@ -55,6 +57,9 @@ class NodeManager:
             "proxy": node.proxy_url,
             "extra": {"id": node.id, "usage_coefficient": node.usage_coefficient},
             "node_id": str(node.id),
+            # A delivery claim must outlive the slowest single RPC so an expired
+            # claim always means its send is no longer in flight.
+            "sync_lease_seconds": max(30.0, 2.0 * float(node.internal_timeout or 15) + 5.0),
         }
         store, coordinator, worker_id = get_bridge_memory()
         if store is not None and coordinator is not None:
@@ -195,7 +200,8 @@ class NodeManager:
     def _chunk_users(users: list[ProtoUser], size: int) -> list[list[ProtoUser]]:
         return [users[start : start + size] for start in range(0, len(users), size)]
 
-    async def _sync_user_batch_to_node(self, node: PasarGuardNode, batch: list[ProtoUser]) -> int:
+    async def _sync_user_batch_to_node(self, node: PasarGuardNode, batch: list[ProtoUser]) -> list[ProtoUser]:
+        """Deliver one bounded batch directly; returns the users that failed."""
         users_to_sync = batch
         supports_chunked = True
         supports_chunked_check = getattr(node, "_supports_chunked_sync", None)
@@ -209,13 +215,13 @@ class NodeManager:
                 flush_pending=False,
             )
             if not users_to_sync:
-                return 0
+                return []
 
         sync_batch_users = getattr(node, "_sync_batch_users", None)
         if callable(sync_batch_users):
             users_to_sync = await sync_batch_users(users_to_sync)
 
-        return len(users_to_sync)
+        return list(users_to_sync)
 
     async def _sync_users_to_node(self, node_id: int, node: PasarGuardNode | None, users: list[ProtoUser]):
         batch_size = max(1, nats_settings.node_update_users_batch_size)
@@ -224,6 +230,21 @@ class NodeManager:
         task = self._track_user_sync(node_id)
 
         try:
+            # The bridge exposes the fence methods on local nodes too, but the
+            # process-local store cannot provide shared fencing/recovery. Keep the
+            # direct path unless the complete shared protocol is available.
+            current_node = node
+            if current_node is None:
+                async with lock:
+                    current_node = await self.get_node(node_id)
+            if current_node is None:
+                return
+            if self._supports_shared_sync(current_node):
+                # Bulk updates use the same durable, fenced delivery as single
+                # updates only when the shared-store protocol is available.
+                await current_node.update_users(users)
+                return
+
             for batch in self._chunk_users(users, batch_size):
                 # Release the lock after every bounded batch so node lifecycle operations
                 # can preempt a large sync. Managed calls resolve the current node again
@@ -232,18 +253,44 @@ class NodeManager:
                     current_node = node if node is not None else await self.get_node(node_id)
                     if current_node is None:
                         return
-                    failed_count += await self._sync_user_batch_to_node(current_node, batch)
+                    failed_count += len(await self._sync_user_batch_to_node(current_node, batch))
         finally:
             self._untrack_user_sync(node_id, task)
 
         if failed_count:
             raise RuntimeError(f"failed to sync {failed_count}/{len(users)} users to node {node_id}")
 
+    @staticmethod
+    def _supports_shared_sync(node: PasarGuardNode) -> bool:
+        # The panel adapter implements a safe process-local fence as well as
+        # the NATS-backed one. The upstream bridge's base fence alone is not
+        # enough: it lacks the capture/release protocol used below.
+        required = (
+            "full_sync_fence",
+            "capture_queued_work",
+            "release_queued_work",
+            "retire_queued_work",
+        )
+        return all(callable(getattr(node, name, None)) for name in required)
+
     async def sync_full(
-        self, node_id: int, users: list[ProtoUser], *, flush_pending: bool = False
+        self,
+        node_id: int,
+        users: list[ProtoUser] | Callable[[], Awaitable[list[ProtoUser]]],
+        *,
+        flush_pending: bool = False,
     ) -> PasarGuardNode | None:
         """Push a full user snapshot to a node, coordinated with update_node/remove_node.
 
+        ``users`` may be a deferred loader. It is resolved inside the node's
+        full-sync fence, so every update queued afterwards stays queued until
+        the snapshot has landed. Flushing is non-destructive: the queued
+        entries the snapshot covers are recorded first and retired only after
+        the RPC succeeded, so a failed read, a failed RPC, or a crash leaves the
+        original queue intact.
+
+        Guards against the reconnect/health-check watchdog tearing down the node object
+        mid-sync (which previously restarted the sync from scratch and could loop).
         Lifecycle changes cancel this tracked task before taking the per-node lock, while
         unchanged health-check reconnects reuse the current node without interrupting it.
         """
@@ -254,7 +301,34 @@ class NodeManager:
                 node = await self.get_node(node_id)
                 if node is None:
                     return None
-                await node.sync_users(users, flush_pending=flush_pending)
+
+                # Do not call full_sync_fence merely because bridge 0.9.x exposes
+                # it: without a shared snapshot store it raises NodeAPIError.
+                if not self._supports_shared_sync(node):
+                    if callable(users):
+                        users = await users()
+                    await node.sync_users(users, flush_pending=flush_pending)
+                    return node
+                async with node.full_sync_fence() as held:
+                    # Always wait for in-flight deliveries to settle; retire the
+                    # captured entries only when flushing was requested.
+                    captured = await node.capture_queued_work()
+                    if not flush_pending:
+                        captured = {} if isinstance(captured, dict) else captured
+                    try:
+                        if callable(users):
+                            users = await users()
+                        # A fence this worker no longer owns must not send or retire.
+                        held.check()
+                        await node.sync_users(users, flush_pending=False)
+                        held.check()
+                    except BaseException:
+                        await node.release_queued_work(captured)
+                        raise
+                    if flush_pending:
+                        await node.retire_queued_work(captured)
+                    else:
+                        await node.release_queued_work(captured)
                 return node
         finally:
             self._untrack_user_sync(node_id, task)
