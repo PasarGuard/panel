@@ -1,7 +1,5 @@
 from random import choice
-from uuid import UUID
 
-import yaml
 from pydantic import BaseModel
 
 from app.models.subscription import (
@@ -13,7 +11,6 @@ from app.models.subscription import (
     XHTTPTransportConfig,
 )
 from app.templates import render_template_string
-from app.utils.helpers import yml_uuid_representer
 
 from . import BaseSubscription
 
@@ -60,16 +57,9 @@ class ClashConfiguration(BaseSubscription):
         }
 
     def render(self):
-        yaml.add_representer(UUID, yml_uuid_representer)
-        return yaml.dump(
-            yaml.safe_load(
-                render_template_string(
-                    self.clash_template_content,
-                    {"conf": self.data, "proxy_remarks": self.proxy_remarks},
-                ),
-            ),
-            sort_keys=False,
-            allow_unicode=True,
+        return render_template_string(
+            self.clash_template_content,
+            {"conf": self.data, "proxy_remarks": self.proxy_remarks},
         )
 
     def __str__(self) -> str:
@@ -244,7 +234,7 @@ class ClashConfiguration(BaseSubscription):
             "alpn": tls_settings.get("alpn"),
             "skip-cert-verify": tls_settings.get("allowInsecure"),
             "servername": tls_settings.get("serverName"),
-            "client-fingerprint": tls_settings.get("fingerprint"),
+            "client-fingerprint": self._mihomo_client_fingerprint(tls_settings.get("fingerprint")),
             "reality-opts": {
                 "public-key": tls_settings.get("publicKey"),
                 "short-id": tls_settings.get("shortId") or "",
@@ -292,6 +282,10 @@ class ClashConfiguration(BaseSubscription):
             return address[0]
         return ""
 
+    @staticmethod
+    def _mihomo_client_fingerprint(fingerprint: str | None) -> str | None:
+        return "chrome" if fingerprint == "unsafe" else fingerprint
+
     def _apply_mihomo_download_tls(self, node: dict, tls_config: TLSConfig):
         if not tls_config.tls:
             return
@@ -306,7 +300,7 @@ class ClashConfiguration(BaseSubscription):
         node["skip-cert-verify"] = tls_config.allowinsecure
 
         if tls_config.fingerprint:
-            node["client-fingerprint"] = tls_config.fingerprint
+            node["client-fingerprint"] = self._mihomo_client_fingerprint(tls_config.fingerprint)
 
         if tls_config.tls == "reality" and tls_config.reality_public_key:
             # Do not map mldsa65Verify → support-x25519mlkem768; those are different PQ features.
@@ -314,6 +308,24 @@ class ClashConfiguration(BaseSubscription):
                 "public-key": tls_config.reality_public_key,
                 "short-id": tls_config.reality_short_id or "",
             }
+
+        self._apply_mihomo_ech(node, tls_config)
+
+    @staticmethod
+    def _apply_mihomo_ech(node: dict, tls_config: TLSConfig):
+        """Apply Mihomo ECH settings without reusing Xray's incompatible ECH value."""
+        if not (tls_config.mihomo_ech_config or tls_config.mihomo_ech_query_server_name):
+            return
+
+        node["ech-opts"] = {
+            "enable": True,
+            **({"config": tls_config.mihomo_ech_config} if tls_config.mihomo_ech_config else {}),
+            **(
+                {"query-server-name": tls_config.mihomo_ech_query_server_name}
+                if tls_config.mihomo_ech_query_server_name
+                else {}
+            ),
+        }
 
     @staticmethod
     def _mihomo_reuse_settings(xmux: dict | BaseModel | None) -> dict | None:
@@ -609,7 +621,7 @@ class ClashMetaConfiguration(ClashConfiguration):
 
         # Add fingerprint
         if tls_config.fingerprint:
-            node["client-fingerprint"] = tls_config.fingerprint
+            node["client-fingerprint"] = self._mihomo_client_fingerprint(tls_config.fingerprint)
 
         # Add Reality opts
         if tls_config.tls == "reality" and tls_config.reality_public_key:
@@ -618,6 +630,8 @@ class ClashMetaConfiguration(ClashConfiguration):
                 "public-key": tls_config.reality_public_key,
                 "short-id": tls_config.reality_short_id or "",
             }
+
+        self._apply_mihomo_ech(node, tls_config)
 
     def _build_vless(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict) -> dict:
         """Build VLESS node (Clash Meta only)"""
@@ -681,11 +695,8 @@ class ClashMetaConfiguration(ClashConfiguration):
         obfs_password, quic_params = self._get_hysteria_data_from_finalmask(inbound.finalmask)
 
         node["ports"] = quic_params.get("udpHop", {}).get("ports", "")
-        node["hop-interval"] = (
-            f"{quic_params.get('udpHop', {}).get('hopInterval', '')}s"
-            if quic_params.get("udpHop", {}).get("interval")
-            else None
-        )
+        hop_interval = quic_params.get("udpHop", {}).get("interval")
+        node["hop-interval"] = f"{str(hop_interval).rstrip('s')}s" if hop_interval not in (None, "") else None
 
         if obfs_password:
             node["obfs"] = "salamander"

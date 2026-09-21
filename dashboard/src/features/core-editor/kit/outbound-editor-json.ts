@@ -1,12 +1,20 @@
 import type { Outbound } from '@pasarguard/xray-config-kit'
-import { deepPruneEmptyJsonObjects } from '@/features/core-editor/kit/xray-parity-value'
+import { deepPruneEmptyJsonObjects, stringifyVerifyPeerCertByName } from '@/features/core-editor/kit/xray-parity-value'
 
 /** Deep-prune empty objects; use for `streamSettings`, `mux`, `proxySettings`, etc. (avoid `{}` in JSON / profile). Preserves sockopt even if empty. */
 export function normalizeOutboundStreamSettings(value: unknown): unknown {
   if (value === undefined || value === null) return undefined
   if (typeof value !== 'object' || Array.isArray(value)) return value
 
-  const obj = value as Record<string, unknown>
+  const obj = { ...(value as Record<string, unknown>) }
+  const tlsSettings = obj.tlsSettings
+  if (tlsSettings && typeof tlsSettings === 'object' && !Array.isArray(tlsSettings) && 'verifyPeerCertByName' in tlsSettings) {
+    const names = stringifyVerifyPeerCertByName((tlsSettings as Record<string, unknown>).verifyPeerCertByName)
+    const nextTls = { ...(tlsSettings as Record<string, unknown>) }
+    if (names === undefined) delete nextTls.verifyPeerCertByName
+    else nextTls.verifyPeerCertByName = names
+    obj.tlsSettings = nextTls
+  }
   const sockopt = obj.sockopt
   const pruned = deepPruneEmptyJsonObjects(obj)
 
@@ -137,11 +145,22 @@ export function flattenOutboundSettings(ob: Outbound): Record<string, unknown> {
   return { ...raw }
 }
 
-/** Xray Hysteria outbound is v2-only; `version: 2` is implied — omit from saved JSON / editor body. */
-export function stripHysteriaOutboundRedundantVersion(settings: Record<string, unknown>): Record<string, unknown> {
-  if (settings.version !== 2 && settings.version !== '2') return settings
-  const { version: _removed, ...rest } = settings
-  return rest
+/** Xray rejects Hysteria outbound settings unless the required v2 discriminator is present. */
+export function normalizeHysteriaOutboundSettings(settings: Record<string, unknown>): Record<string, unknown> {
+  return { ...settings, version: 2 }
+}
+
+/** Hysteria2 share links imply TLS even though they commonly omit the generic `security` query parameter. */
+export function normalizeOutboundShareUriForImport(uri: string): string {
+  const schemeEnd = uri.indexOf(':')
+  const scheme = schemeEnd >= 0 ? uri.slice(0, schemeEnd).toLowerCase() : ''
+  if (scheme !== 'hysteria2' && scheme !== 'hy2') return uri
+
+  const parsed = new URL(uri)
+  if (!parsed.searchParams.has('security')) {
+    parsed.searchParams.set('security', 'tls')
+  }
+  return parsed.toString()
 }
 
 /** Map mistaken `rewrite*` keys (older UI) onto Xray `DNSOutboundConfig` (`network`, `address`, `port`). */
@@ -212,7 +231,7 @@ export function outboundEditorBodyFromOutbound(ob: Outbound): Record<string, unk
     return { protocol: 'unmanaged', tag: ob.tag, raw: (ob as { raw: unknown }).raw }
   }
   const flat = flattenOutboundSettings(ob) as Record<string, unknown>
-  const settingsBody = ob.protocol === 'hysteria' ? stripHysteriaOutboundRedundantVersion(flat) : ob.protocol === 'dns' ? pruneDnsOutboundSettings(flat) : flat
+  const settingsBody = ob.protocol === 'hysteria' ? normalizeHysteriaOutboundSettings(flat) : ob.protocol === 'dns' ? pruneDnsOutboundSettings(flat) : flat
   const body: Record<string, unknown> = {
     protocol: ob.protocol,
     tag: ob.tag,
@@ -232,11 +251,11 @@ export function normalizeSettingsFromEditor(protocol: string, settings: Record<s
   if (protocol === 'vless') {
     const next = { ...settings }
     const reverse = normalizeVlessReverseSetting(next.reverse)
-    if (reverse) return { reverse }
 
     if (typeof next.flow === 'string' && next.flow === '') delete next.flow
     if (Array.isArray(next.vnext) && next.vnext.length === 0) delete next.vnext
-    delete next.reverse
+    if (reverse) next.reverse = reverse
+    else delete next.reverse
     for (const key of ['address', 'port', 'id', 'encryption', 'level', 'email'] as const) {
       if (next[key] === undefined || next[key] === null || next[key] === '') delete next[key]
     }
@@ -284,7 +303,7 @@ export function normalizeSettingsFromEditor(protocol: string, settings: Record<s
     return { ...settings }
   }
   if (protocol === 'hysteria') {
-    return stripHysteriaOutboundRedundantVersion({ ...settings })
+    return normalizeHysteriaOutboundSettings(settings)
   }
   if (protocol === 'dns') {
     return pruneDnsOutboundSettings({ ...settings })

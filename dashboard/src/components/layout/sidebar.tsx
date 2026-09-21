@@ -415,7 +415,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   return (
     <>
-      <div className="sticky top-0 z-30 lg:hidden">
+      <div className="sticky top-0 z-30 shrink-0 lg:hidden">
         <div className="bg-sidebar h-[env(safe-area-inset-top)]" />
         <div className="border-sidebar-border bg-sidebar/80 supports-[backdrop-filter]:bg-sidebar/65 flex items-center justify-between border-b px-4 py-3 backdrop-blur-md">
           <Link to="/" className="flex items-center gap-2">

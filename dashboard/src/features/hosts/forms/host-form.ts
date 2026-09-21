@@ -64,6 +64,10 @@ export interface HostFormValues {
   priority: number
   ech_config_list?: string
   ech_query_strategy?: 'none' | 'half' | 'full'
+  mihomo_ech_config?: string
+  mihomo_ech_query_server_name?: string
+  sing_box_ech_config?: string
+  sing_box_ech_query_server_name?: string
   pinned_peer_cert_sha256?: string
   verify_peer_cert_by_name?: string[]
   fragment_settings?: {
@@ -84,7 +88,6 @@ export interface HostFormValues {
       packet: string
       delay: string
       apply_to: 'ip' | 'ipv4' | 'ipv6'
-      rand_range?: string
     }[]
   }
   mux_settings?: MuxSettings
@@ -96,7 +99,7 @@ export interface HostFormValues {
     dns?: string[]
   }
   subscription_templates?: {
-    xray?: number
+    xray?: number | null
   }
   transport_settings?: {
     xhttp_settings?: {
@@ -355,6 +358,10 @@ export const HostFormSchema = z.object({
   is_disabled: z.boolean().default(false),
   ech_config_list: z.string().optional(),
   ech_query_strategy: z.enum(['none', 'half', 'full']).optional(),
+  mihomo_ech_config: z.string().optional(),
+  mihomo_ech_query_server_name: z.string().max(255).optional(),
+  sing_box_ech_config: z.string().optional(),
+  sing_box_ech_query_server_name: z.string().max(255).optional(),
   pinned_peer_cert_sha256: z.string().max(128, 'Pinned peer cert SHA256 must be at most 128 characters').optional(),
   verify_peer_cert_by_name: z.array(z.string()).default([]),
   fragment_settings: z
@@ -392,12 +399,6 @@ export const HostFormSchema = z.object({
                 message: "Delay must be in format like '10-20' or '10'",
               }),
             apply_to: z.enum(['ip', 'ipv4', 'ipv6']).default('ip'),
-            rand_range: z
-              .string()
-              .optional()
-              .refine(val => !val || /^\d{1,16}(-\d{1,16})?$/.test(val), {
-                message: "Rand range must be in format like '10-20' or '10'",
-              }),
           }),
         )
         .optional(),
@@ -465,7 +466,7 @@ export const HostFormSchema = z.object({
     .optional(),
   subscription_templates: z
     .object({
-      xray: z.number().int().positive().optional(),
+      xray: z.number().int().positive().nullable().optional(),
     })
     .optional(),
   final_mask_settings: z.custom<FinalMask>().optional(),
@@ -493,6 +494,10 @@ export const hostFormDefaultValues: HostFormValues = {
   priority: 0,
   ech_config_list: undefined,
   ech_query_strategy: undefined,
+  mihomo_ech_config: undefined,
+  mihomo_ech_query_server_name: undefined,
+  sing_box_ech_config: undefined,
+  sing_box_ech_query_server_name: undefined,
   pinned_peer_cert_sha256: undefined,
   verify_peer_cert_by_name: [],
   fragment_settings: undefined,
@@ -521,4 +526,3 @@ export function mapHostFragmentSettingsForForm(fragmentSettings: { xray?: Record
     sing_box: fragmentSettings.sing_box ?? undefined,
   }
 }
-
