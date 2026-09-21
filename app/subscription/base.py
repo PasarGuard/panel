@@ -56,6 +56,11 @@ def normalize_and_remove_none_values(data: dict) -> dict:
     return clean_dict(data)
 
 
+def dumps_compact(obj: Any) -> str:
+    """JSON for clients: no pretty-print whitespace."""
+    return json.dumps(obj, separators=(",", ":"), ensure_ascii=False)
+
+
 class BaseSubscription:
     def __init__(
         self,

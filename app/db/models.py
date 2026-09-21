@@ -261,9 +261,15 @@ class User(Base, CreatedAtUTCMixin):
 
     @hybrid_property
     def reseted_usage(self) -> int:
-        if self._reseted_usage_query is not None:
-            return int(self._reseted_usage_query)
-        return int(sum([log.used_traffic_at_reset for log in self.usage_logs]))
+        expr = self.__dict__.get("_reseted_usage_query")
+        if expr is None:
+            expr = self._reseted_usage_query
+        if expr is not None:
+            return int(expr)
+        usage_logs = self.__dict__.get("usage_logs")
+        if usage_logs is None:
+            return 0
+        return int(sum(log.used_traffic_at_reset for log in usage_logs))
 
     @reseted_usage.expression
     def reseted_usage(cls):
@@ -283,6 +289,21 @@ class User(Base, CreatedAtUTCMixin):
 
     async def inbounds(self) -> list[str]:
         """Returns a flat list of all included inbound tags for enabled groups."""
+        loaded_groups = self.__dict__.get("groups")
+        if loaded_groups is not None:
+            inbound_tags: set[str] = set()
+            inbounds_loaded = True
+            for group in loaded_groups:
+                if "inbounds" not in group.__dict__:
+                    inbounds_loaded = False
+                    break
+                if group.is_disabled:
+                    continue
+                for inbound in group.__dict__.get("inbounds") or []:
+                    inbound_tags.add(inbound.tag)
+            if inbounds_loaded:
+                return list(inbound_tags)
+
         session = async_object_session(self)
         if session is not None:
             stmt = (
@@ -299,7 +320,7 @@ class User(Base, CreatedAtUTCMixin):
 
         # Fallback for detached instances: use already-loaded attrs only.
         included_tags = set()
-        for group in self.__dict__.get("groups") or []:
+        for group in loaded_groups or []:
             if group.is_disabled:
                 continue
             for inbound in group.__dict__.get("inbounds") or []:
@@ -308,11 +329,17 @@ class User(Base, CreatedAtUTCMixin):
 
     @property
     def group_ids(self):
-        return [group.id for group in self.groups]
+        groups = self.__dict__.get("groups")
+        if groups is None:
+            return []
+        return [group.id for group in groups]
 
     @property
     def group_names(self):
-        return [group.name for group in self.groups]
+        groups = self.__dict__.get("groups")
+        if groups is None:
+            return []
+        return [group.name for group in groups]
 
     @hybrid_property
     def is_expired(self) -> bool:
@@ -562,8 +589,7 @@ class ProxyHost(Base, IdMixin):
     transport_settings: Mapped[dict[str, Any] | None] = mapped_column(JSON(none_as_null=True), default=None)
     mux_settings: Mapped[dict[str, Any] | None] = mapped_column(JSON(none_as_null=True), default=None)
     status: Mapped[list[UserStatus] | None] = mapped_column(EnumArray(UserStatus, 60), default=list, server_default="")
-    ech_config_list: Mapped[str | None] = mapped_column(String(512), default=None)
-    ech_query_strategy: Mapped[str | None] = mapped_column(String(8), default=None)
+    ech: Mapped[dict[str, Any] | None] = mapped_column(JSON(none_as_null=True), default=None)
     vless_route: Mapped[str | None] = mapped_column(String(4), default=None)
     pinned_peer_cert_sha256: Mapped[str | None] = mapped_column(String(128), default=None)
     verify_peer_cert_by_name: Mapped[set[str] | None] = mapped_column(

@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 
 from alembic.command import upgrade
 from alembic.config import Config
@@ -78,9 +79,20 @@ def run_migrations_sync():
         alembic_cfg = Config("alembic.ini")
         alembic_cfg.set_main_option("sqlalchemy.url", sync_db_url)
 
-        with create_engine(sync_db_url).begin() as connection:
-            alembic_cfg.attributes["connection"] = connection
-            upgrade(alembic_cfg, "head")
+        # Alembic's fileConfig disables pre-existing application loggers. Keep
+        # migration setup from making later log assertions depend on test order.
+        logger_states = {
+            logger: logger.disabled
+            for logger in logging.root.manager.loggerDict.values()
+            if isinstance(logger, logging.Logger)
+        }
+        try:
+            with create_engine(sync_db_url).begin() as connection:
+                alembic_cfg.attributes["connection"] = connection
+                upgrade(alembic_cfg, "head")
+        finally:
+            for logger, disabled in logger_states.items():
+                logger.disabled = disabled
         print("[migrations] Migrations completed successfully")
         return True  # Migrations ran successfully
     except Exception as e:

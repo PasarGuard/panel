@@ -1,7 +1,7 @@
 """add coordination locks
 
 Revision ID: 9e2a1d0f7c3b
-Revises: 8e2f1a9c4b70
+Revises: 48a6bcb8bba1
 Create Date: 2026-09-08 12:00:00.000000
 
 """
@@ -11,7 +11,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "9e2a1d0f7c3b"
-down_revision = "8e2f1a9c4b70"
+down_revision = "48a6bcb8bba1"
 branch_labels = None
 depends_on = None
 
