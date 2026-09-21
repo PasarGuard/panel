@@ -30,9 +30,10 @@ runtime_settings = RuntimeSettings()
 
 class DatabaseSettings(EnvSettings):
     url: str = Field(default="sqlite+aiosqlite:///db.sqlite3", validation_alias="SQLALCHEMY_DATABASE_URL")
-    pool_size: int = Field(default=25, validation_alias="SQLALCHEMY_POOL_SIZE")
-    max_overflow: int = Field(default=60, validation_alias="SQLALCHEMY_MAX_OVERFLOW")
-    pool_recycle: int = Field(default=300, validation_alias="SQLALCHEMY_POOL_RECYCLE")
+    pool_size: int = Field(default=5, ge=1, validation_alias="SQLALCHEMY_POOL_SIZE")
+    max_overflow: int = Field(default=5, ge=0, validation_alias="SQLALCHEMY_MAX_OVERFLOW")
+    pool_recycle: int = Field(default=300, ge=-1, validation_alias="SQLALCHEMY_POOL_RECYCLE")
+    pool_timeout: int = Field(default=5, gt=0, validation_alias="SQLALCHEMY_POOL_TIMEOUT")
     connect_timeout: int = Field(default=5, gt=0, validation_alias="SQLALCHEMY_CONNECT_TIMEOUT")
     echo_queries: bool = Field(default=False, validation_alias="ECHO_SQL_QUERIES")
 
@@ -47,6 +48,14 @@ class DatabaseSettings(EnvSettings):
     @cached_property
     def is_sqlite(self) -> bool:
         return self.url.startswith("sqlite")
+
+    def connection_ceiling(self, process_count: int = 1) -> int:
+        """Return the configured QueuePool connection ceiling across processes."""
+        if process_count < 1:
+            raise ValueError("process_count must be at least 1")
+        if self.is_sqlite:
+            return 0
+        return (self.pool_size + self.max_overflow) * process_count
 
 
 class ServerSettings(EnvSettings):
