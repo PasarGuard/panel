@@ -1,4 +1,5 @@
 import asyncio
+import time
 
 from PasarGuardNodeBridge import Health, NodeAPIError, PasarGuardNode
 from PasarGuardNodeBridge.storage import LifecycleStatus
@@ -8,7 +9,7 @@ from app.db import GetDB
 from app.db.crud.node import get_limited_nodes, get_nodes
 from app.db.models import Node, NodeStatus
 from app.models.node import NodeListQuery, NodeNotification
-from app.nats import is_multi_worker
+from app.nats import is_multi_worker, needs_shared_bridge_memory
 from app.node import node_manager
 from app.node.nats_memory import ensure_bridge_memory, get_bridge_memory, shutdown_bridge_memory
 from app.operation import OperatorType
@@ -23,6 +24,8 @@ logger = get_logger("node-checker")
 # Limits concurrent node health check operations
 NODE_CHECK_SEM = asyncio.Semaphore(5)  # Max 5 concurrent node health checks
 ACTIVE_NODE_STATUSES = [NodeStatus.connected, NodeStatus.connecting, NodeStatus.error]
+_SYNC_RECOVERY_INTERVAL = 60.0
+_sync_recovery_deadlines: dict[int, float] = {}
 
 
 # pg-node returns these while the HTTP API is up. They are not interchangeable:
@@ -116,8 +119,8 @@ async def verify_node_backend_health(node: PasarGuardNode, node_name: str) -> tu
 async def process_node_health_check(db_node: Node, node: PasarGuardNode):
     """
     Process health check for a single node:
-    1. Check if node requires hard reset
-    2. Verify backend health
+    1. Verify backend health
+    2. Recover shared user sync when healthy
     3. Compare with database status
     4. Update status if needed
 
@@ -131,12 +134,6 @@ async def process_node_health_check(db_node: Node, node: PasarGuardNode):
 
     # Limit concurrent health checks to prevent DB/API overload
     async with NODE_CHECK_SEM:
-        # Handle hard reset requirement
-        if node.requires_hard_reset():
-            async with GetDB() as db:
-                await node_operator.connect_single_node(db, db_node.id)
-            return
-
         try:
             health, error_code, error_message = await verify_node_backend_health(node, db_node.name)
         except TimeoutError:
@@ -162,6 +159,21 @@ async def process_node_health_check(db_node: Node, node: PasarGuardNode):
 
         # Skip nodes that are already healthy and connected
         if health == Health.HEALTHY and db_node.status == NodeStatus.connected:
+            requires_recovery = node.requires_hard_reset()
+            if requires_recovery or needs_shared_bridge_memory():
+                # A slow user-sync RPC does not mean the backend is dead. Repair
+                # this worker's attachment without restarting the core, clearing
+                # queued work, or broadcasting reconnects to sibling workers.
+                now = time.monotonic()
+                if now >= _sync_recovery_deadlines.get(db_node.id, 0):
+                    _sync_recovery_deadlines[db_node.id] = now + _SYNC_RECOVERY_INTERVAL
+                    if requires_recovery:
+                        await NodeOperation._attach_if_running(node, db_node.name)
+                    else:
+                        # An orphaned claim can expire after the first startup
+                        # poll. Retry discovery even without a fresh update;
+                        # the live KV index makes empty polls request-free.
+                        await NodeOperation._resume_shared_sync(node)
             return
 
         if health is Health.INVALID:
@@ -291,6 +303,8 @@ async def node_health_check():
         db_nodes, _ = await get_nodes(db=db, query=NodeListQuery(status=ACTIVE_NODE_STATUSES), load_usage_logs=False)
 
     dict_nodes = await node_manager.get_nodes()
+    for node_id in _sync_recovery_deadlines.keys() - dict_nodes.keys():
+        _sync_recovery_deadlines.pop(node_id, None)
     check_tasks = [process_node_health_check(db_node, dict_nodes.get(db_node.id)) for db_node in db_nodes]
     await asyncio.gather(*check_tasks, return_exceptions=True)
 

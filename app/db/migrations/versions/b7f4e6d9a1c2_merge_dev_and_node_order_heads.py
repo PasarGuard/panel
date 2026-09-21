@@ -1,13 +1,13 @@
 """merge the dev and node ordering migration heads
 
 Revision ID: b7f4e6d9a1c2
-Revises: d73f8a2c4e91, 8e2f1a9c4b70
+Revises: d73f8a2c4e91, 48a6bcb8bba1
 Create Date: 2026-09-09 00:00:00.000000
 
 """
 
 revision = "b7f4e6d9a1c2"
-down_revision = ("d73f8a2c4e91", "8e2f1a9c4b70")
+down_revision = ("d73f8a2c4e91", "48a6bcb8bba1")
 branch_labels = None
 depends_on = None
 

@@ -153,7 +153,13 @@ export const defaultSubscriptionRules: SubscriptionRuleFormData[] = [
     target: 'outline',
   },
   {
-    pattern: '^([Vv]2rayNG|[Vv]2rayN|[Ss]treisand|[Hh]app|[Kk]tor\\-client)',
+    // v2rayN and v2rayNG import share links natively.
+    pattern: '^([Vv]2rayNG|[Vv]2rayN)',
+    target: 'links',
+  },
+  {
+    // Happ, Streisand and Ktor consume a full Xray JSON config.
+    pattern: '^([Ss]treisand|[Hh]app|[Kk]tor\\-client)',
     target: 'xray',
   },
   {
