@@ -175,3 +175,7 @@ class MemoryCasKv:
         if not matched:
             raise nats_js_errors.NoKeysError
         return matched
+
+    async def list_entries(self, prefix: str) -> dict[str, int]:
+        """Current revision per key under ``prefix`` (what a live index would know)."""
+        return {key: revision for key, (_, revision) in self._data.items() if key.startswith(prefix)}

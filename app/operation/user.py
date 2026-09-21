@@ -97,6 +97,7 @@ from app.models.user import (
     UserUsageQuery,
 )
 from app.node.sync import remove_user as sync_remove_user, sync_user, sync_users
+from app.node.user import node_payload_signature
 from app.operation import BaseOperation, OperatorType
 from app.operation.permissions import (
     PermissionDenied,
@@ -841,15 +842,23 @@ class UserOperation(BaseOperation):
         admin: AdminDetails,
         *,
         validated_groups=None,
+        before: tuple | None = None,
     ) -> UserNotificationResponse:
         old_status = db_user.status
+        if before is None:
+            before = await node_payload_signature(db_user)
 
         self._apply_explicit_null_hwid_limit(db_user, modified_user)
         try:
             db_user = await crud_modify_user(db, db_user, modified_user, groups=validated_groups)
         except ValueError as exc:  # WireGuard subnet exhausted
             await self.raise_error(message=str(exc), code=400, db=db)
-        user = await self.update_user(db_user)
+        if await node_payload_signature(db_user) == before:
+            # Nothing a node receives changed (credentials, inbounds from
+            # enabled groups, status incl. implicit flips): no fan-out to nodes.
+            user = await self.validate_user(db_user)
+        else:
+            user = await self.update_user(db_user)
 
         logger.info(f'User "{user.username}" with id "{db_user.id}" modified by admin "{admin.username}"')
 
@@ -902,10 +911,14 @@ class UserOperation(BaseOperation):
         if not skip_role_limits:
             await self._enforce_manual_user_write_access(admin, db)
 
+        # Canonical node payload before anything is prepared or written.
+        before = await node_payload_signature(db_user)
         validated_groups = await self._prepare_modified_user(
             db, db_user, modified_user, admin, skip_role_limits=skip_role_limits
         )
-        return await self._apply_modified_user(db, db_user, modified_user, admin, validated_groups=validated_groups)
+        return await self._apply_modified_user(
+            db, db_user, modified_user, admin, validated_groups=validated_groups, before=before
+        )
 
     async def modify_user(
         self, db: AsyncSession, username: str, modified_user: UserModify, admin: AdminDetails
