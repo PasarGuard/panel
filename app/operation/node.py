@@ -1,5 +1,6 @@
 import asyncio
-from collections.abc import AsyncIterator, Callable
+import contextlib
+from collections.abc import AsyncIterator, Awaitable, Callable
 from typing import ClassVar
 
 from fastapi import HTTPException
@@ -77,6 +78,7 @@ CONNECT_CONCURRENCY = 10
 NODE_RESTART_FIELDS = frozenset({"core_config_id", "keep_alive"})
 WIREGUARD_BATCHED_START_THRESHOLD = 1000
 WIREGUARD_START_BATCH_SIZE = 100
+type CoreUsers = list | Callable[[], Awaitable[list]]
 
 logger = get_logger("node-operation")
 
@@ -224,15 +226,30 @@ class NodeOperation(BaseOperation):
 
     @staticmethod
     async def _get_core_users_map(
-        db: AsyncSession, core_ids: set[int]
-    ) -> tuple[dict[int, object | None], dict[int, list]]:
+        db: AsyncSession, core_ids: set[int], *, lazy: bool = False
+    ) -> tuple[dict[int, object | None], dict[int, CoreUsers]]:
         if not core_ids:
             return {}, {}
 
         resolved_cores = await core_manager.get_cores(core_ids | {1})
         default_core = resolved_cores.get(1)
         cores_by_id: dict[int, object | None] = {}
-        users_by_core: dict[int, list] = {}
+        users_by_core: dict[int, CoreUsers] = {}
+        loaded_users: dict[int, list] = {}
+        load_lock = asyncio.Lock()
+
+        def user_loader(core_id, core):
+            async def load():
+                # Bulk connects share one session. Serialize first reads and reuse
+                # the same snapshot for nodes that actually need a Start RPC.
+                async with load_lock:
+                    if core_id not in loaded_users:
+                        loaded_users[core_id] = await core_users(
+                            db=db, inbound_tags=core.inbounds, allowed_protocols=core.protocols
+                        )
+                    return loaded_users[core_id]
+
+            return load
 
         for core_id in core_ids:
             core = resolved_cores.get(core_id) or default_core
@@ -241,13 +258,16 @@ class NodeOperation(BaseOperation):
                 users_by_core[core_id] = []
                 continue
 
-            users_by_core[core_id] = await core_users(
-                db=db,
-                inbound_tags=core.inbounds,
-                allowed_protocols=core.protocols,
-            )
+            load = user_loader(core_id, core)
+            users_by_core[core_id] = load if lazy else await load()
 
         return cores_by_id, users_by_core
+
+    @staticmethod
+    async def _resume_shared_sync(pg_node: PasarGuardNode):
+        if needs_shared_bridge_memory():
+            pg_node._work_available.set()
+            await pg_node._ensure_sync_worker_running()
 
     @staticmethod
     async def _attach_if_running(pg_node: PasarGuardNode, node_name: str):
@@ -266,6 +286,9 @@ class NodeOperation(BaseOperation):
                 return None
 
             await pg_node.connect(info.node_version, info.core_version)
+            # Shared pending work survives a panel restart. Attaching must
+            # wake the lazy bridge worker even without a fresh user update.
+            await NodeOperation._resume_shared_sync(pg_node)
             if state is not None:
                 await pg_node.update_observed_lifecycle(LifecycleStatus.HEALTHY, expected_epoch=state.epoch)
             logger.debug(
@@ -278,7 +301,7 @@ class NodeOperation(BaseOperation):
 
     @staticmethod
     async def _start_or_attach_node(
-        pg_node: PasarGuardNode, db_node: Node, core, users: list, backend_type, *, force_start: bool = False
+        pg_node: PasarGuardNode, db_node: Node, core, users: CoreUsers, backend_type, *, force_start: bool = False
     ):
         if not force_start:
             state = await pg_node.get_lifecycle_state()
@@ -295,54 +318,67 @@ class NodeOperation(BaseOperation):
                     # Skip; the next retry cycle will check again once it's done.
                     return
 
-        batch_wireguard_users = (
-            backend_type == service.BackendType.WIREGUARD and len(users) >= WIREGUARD_BATCHED_START_THRESHOLD
-        )
-        start_kwargs = {
-            "config": core.to_str(),
-            "backend_type": backend_type,
-            # Starting WireGuard with thousands of peers makes the lifecycle RPC
-            # exceed its short timeout. Bring up the interface first, then apply
-            # peers through the node's bounded delta-sync path below.
-            "users": [] if batch_wireguard_users else users,
-            "keep_alive": db_node.keep_alive,
-        }
-        if core.type == CoreType.xray:
-            start_kwargs["exclude_inbounds"] = core.exclude_inbound_tags
+        # Healthy attachments and in-flight starts do not need a user snapshot.
+        # Resolve it only when the remote backend really needs to be started,
+        # inside the node's full-sync fence: Start replaces the core's user set
+        # with this snapshot, so deltas must not land between the read and it.
+        fence = getattr(pg_node, "full_sync_fence", None)
+        async with fence() if callable(fence) else contextlib.nullcontext() as held:
+            if callable(users):
+                users = await users()
+            if held is not None:
+                held.check()
+            batch_wireguard_users = (
+                backend_type == service.BackendType.WIREGUARD
+                and len(users) >= WIREGUARD_BATCHED_START_THRESHOLD
+            )
+            start_kwargs = {
+                "config": core.to_str(),
+                "backend_type": backend_type,
+                # Starting WireGuard with thousands of peers makes the lifecycle RPC
+                # exceed its short timeout. Bring up the interface first, then apply
+                # peers through the node's bounded delta-sync path below.
+                "users": [] if batch_wireguard_users else users,
+                "keep_alive": db_node.keep_alive,
+            }
+            if core.type == CoreType.xray:
+                start_kwargs["exclude_inbounds"] = core.exclude_inbound_tags
 
-        if force_start:
-            try:
-                await pg_node.stop()
-            except Exception as exc:
-                logger.debug(f'Stop before force start of "{db_node.name}" skipped: {exc}')
-
-        log = logger.info if force_start else logger.debug
-        log(f'Starting "{db_node.name}" node')
-        if batch_wireguard_users:
-            try:
-                info = await pg_node.start(**start_kwargs)
-            except asyncio.CancelledError:
-                await NodeOperation._cleanup_cancelled_batched_start(db_node.id, pg_node)
-                raise
-        else:
-            info = await pg_node.start(**start_kwargs)
-        if batch_wireguard_users:
-            try:
-                synced_node = await node_manager.sync_users_batched(
-                    db_node.id, pg_node, users, batch_size=WIREGUARD_START_BATCH_SIZE
-                )
-                if synced_node is None:
-                    raise RuntimeError("node connection changed during initial user sync")
-            except asyncio.CancelledError:
-                await NodeOperation._cleanup_cancelled_batched_start(db_node.id, pg_node)
-                raise
-            except Exception as exc:
+            if force_start:
                 try:
-                    await node_manager.stop_node_if_current(db_node.id, pg_node)
-                except Exception:
-                    pass
-                raise NodeAPIError(500, f"Failed to sync users after starting WireGuard: {exc}") from exc
-        return info
+                    await pg_node.stop()
+                except Exception as exc:
+                    logger.debug(f'Stop before force start of "{db_node.name}" skipped: {exc}')
+
+            log = logger.info if force_start else logger.debug
+            log(f'Starting "{db_node.name}" node')
+            if batch_wireguard_users:
+                try:
+                    info = await pg_node.start(**start_kwargs)
+                except asyncio.CancelledError:
+                    await NodeOperation._cleanup_cancelled_batched_start(db_node.id, pg_node)
+                    raise
+            else:
+                info = await pg_node.start(**start_kwargs)
+            if batch_wireguard_users:
+                try:
+                    synced_node = await node_manager.sync_users_batched(
+                        db_node.id, pg_node, users, batch_size=WIREGUARD_START_BATCH_SIZE
+                    )
+                    if synced_node is None:
+                        raise RuntimeError("node connection changed during initial user sync")
+                    if held is not None:
+                        held.check()
+                except asyncio.CancelledError:
+                    await NodeOperation._cleanup_cancelled_batched_start(db_node.id, pg_node)
+                    raise
+                except Exception as exc:
+                    try:
+                        await node_manager.stop_node_if_current(db_node.id, pg_node)
+                    except Exception:
+                        pass
+                    raise NodeAPIError(500, f"Failed to sync users after starting WireGuard: {exc}") from exc
+            return info
 
     @staticmethod
     async def _cleanup_cancelled_batched_start(node_id: int, pg_node: PasarGuardNode) -> None:
@@ -360,14 +396,14 @@ class NodeOperation(BaseOperation):
             pass
 
     @staticmethod
-    async def connect_node(db_node: Node, core, users: list, *, force_start: bool = False) -> dict | None:
+    async def connect_node(db_node: Node, core, users: CoreUsers, *, force_start: bool = False) -> dict | None:
         """
         Connect to a node and return status result (does NOT update database).
 
         Args:
             db_node (Node): Node object from database.
             core: Pre-fetched core config for this node.
-            users (list): Pre-fetched core users list.
+            users: Core users or a deferred snapshot loader, used only for Start.
             force_start: If True, push a new Start RPC even when the core is already running.
 
         Returns:
@@ -772,12 +808,14 @@ class NodeOperation(BaseOperation):
     async def _remove_node_remote(self, node_id: int) -> None:
         await node_nats_client.publish("remove_node", {"node_id": node_id})
 
-    async def _connect_nodes_bulk_local(self, db: AsyncSession, nodes: list[Node], *, force_start: bool = False) -> None:
+    async def _connect_nodes_bulk_local(
+        self, db: AsyncSession, nodes: list[Node], *, force_start: bool = False
+    ) -> None:
         if not nodes:
             return
 
         core_ids = {node.core_config_id or 1 for node in nodes}
-        cores_by_id, users_by_core = await self._get_core_users_map(db, core_ids)
+        cores_by_id, users_by_core = await self._get_core_users_map(db, core_ids, lazy=True)
         sem = asyncio.Semaphore(CONNECT_CONCURRENCY)
 
         async def connect_single(node: Node) -> dict | None:
@@ -848,7 +886,9 @@ class NodeOperation(BaseOperation):
             if node is not None and node.status not in (NodeStatus.disabled, NodeStatus.limited):
                 await publish_node_sync("connect", node.id)
 
-    async def _connect_nodes_bulk_remote(self, db: AsyncSession, nodes: list[Node], *, force_start: bool = False) -> None:
+    async def _connect_nodes_bulk_remote(
+        self, db: AsyncSession, nodes: list[Node], *, force_start: bool = False
+    ) -> None:
         if not nodes:
             return
         await node_nats_client.publish(
@@ -856,13 +896,13 @@ class NodeOperation(BaseOperation):
             {"node_ids": [node.id for node in nodes], "force_start": force_start},
         )
 
-    async def _connect_single_node_local(self, db: AsyncSession, node_id: int, *, force_start: bool = False) -> None:
+    async def _connect_single_node_local(self, db: AsyncSession, node_id: int, *, force_start: bool = False) -> bool:
         db_node = await get_node_by_id(db, node_id, load_usage_logs=False)
         if db_node is None or db_node.status in (NodeStatus.disabled, NodeStatus.limited):
-            return
+            return False
 
         core_id = db_node.core_config_id or 1
-        cores_by_id, users_by_core = await self._get_core_users_map(db, {core_id})
+        cores_by_id, users_by_core = await self._get_core_users_map(db, {core_id}, lazy=True)
         core = cores_by_id.get(core_id)
         users = users_by_core.get(core_id, [])
 
@@ -886,13 +926,13 @@ class NodeOperation(BaseOperation):
                     message=e.detail,
                 )
                 asyncio.create_task(notification.error_node(node_notif))
-            return
+            return False
 
         # Connect the node
         result = await NodeOperation.connect_node(db_node, core, users, force_start=force_start)
 
         if not result:
-            return
+            return False
 
         # Update status using simple CRUD (NOT bulk!)
         await update_node_status(
@@ -921,9 +961,11 @@ class NodeOperation(BaseOperation):
             )
             asyncio.create_task(notification.error_node(node_notif))
 
+        return True
+
     async def _connect_single_node_sync(self, db: AsyncSession, node_id: int, *, force_start: bool = False) -> None:
-        await self._connect_single_node_local(db, node_id, force_start=force_start)
-        await publish_node_sync("connect", node_id)
+        if await self._connect_single_node_local(db, node_id, force_start=force_start):
+            await publish_node_sync("connect", node_id)
 
     async def _connect_single_node_remote(self, db: AsyncSession, node_id: int, *, force_start: bool = False) -> None:
         await node_nats_client.publish("connect_node", {"node_id": node_id, "force_start": force_start})
@@ -1147,7 +1189,10 @@ class NodeOperation(BaseOperation):
 
         try:
             core_id = db_node.core_config_id or 1
-            _, users_by_core = await self._get_core_users_map(db, {core_id})
+            # Defer the snapshot read: sync_full takes it inside the node's
+            # fence, after any queued deltas were drained, so nothing created
+            # between the read and the flush can be lost.
+            _, users_by_core = await self._get_core_users_map(db, {core_id}, lazy=True)
             users = users_by_core.get(core_id, [])
             if await node_manager.sync_full(node_id, users, flush_pending=flush_users) is None:
                 await self.raise_error(message="Node is not connected", code=409)
