@@ -1051,7 +1051,7 @@ def test_realtime_node_stats(access_token, node_operator_mock):
 
 
 @pytest.mark.asyncio
-async def test_node_create_and_modify_schedule_background_reconnect(monkeypatch: pytest.MonkeyPatch):
+async def test_node_metadata_modify_schedules_background_reconnect_without_force(monkeypatch: pytest.MonkeyPatch):
     operator = NodeOperation(operator_type=OperatorType.API)
     scheduled_node_ids: list[int] = []
     forced_starts: list[bool] = []
@@ -1088,7 +1088,9 @@ async def test_node_create_and_modify_schedule_background_reconnect(monkeypatch:
             await asyncio.sleep(0)
 
             assert scheduled_node_ids == [created.id, modified.id]
-            assert forced_starts == [False, True]
+            # Name-only edits replace the local bridge object, but the replacement
+            # attaches to the healthy remote backend instead of restarting it.
+            assert forced_starts == [False, False]
         finally:
             if node_id is not None:
                 db_node = await session.get(Node, node_id)
