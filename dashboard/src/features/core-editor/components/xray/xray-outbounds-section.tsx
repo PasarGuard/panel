@@ -33,6 +33,7 @@ import { remapIndexAfterArrayMove } from '@/features/core-editor/kit/remap-index
 import {
   flattenOutboundSettings,
   mergeEditorBodyIntoOutbound,
+  normalizeOutboundShareUriForImport,
   normalizeSettingsFromEditor,
   outboundEditorBodyFromOutbound,
   stripEmptyStreamSettingsFromRecord,
@@ -74,7 +75,7 @@ const OUTBOUND_SETTINGS_KIT_BLOCKLIST = new Set(['testseed'])
 
 /**
  * Kit parity keys to hide in the outbound form (we render dedicated controls instead), or omit from JSON.
- * - hysteria: `version: 2` is implied by Xray.
+ * - hysteria: `version: 2` is fixed and persisted automatically.
  * - loopback: inbound tag picklist is filled from profile inbounds.
  */
 const OUTBOUND_HIDDEN_SETTINGS_KEYS: Partial<Record<string, ReadonlySet<string>>> = {
@@ -563,9 +564,9 @@ export function XrayOutboundsSection({ headerAddPulse, headerAddEpoch }: XrayOut
 
   const ob = useMemo(() => {
     if (!profile) return undefined
-    if (dialogMode === 'add' && draftOutbound) return draftOutbound
+    if (draftOutbound) return draftOutbound
     return outbounds[selected]
-  }, [profile, dialogMode, draftOutbound, outbounds, selected])
+  }, [profile, draftOutbound, outbounds, selected])
 
   const outboundCaps = useMemo(() => getOutboundFormCapabilities(), [])
   const outboundCapsRef = useRef(outboundCaps)
@@ -625,7 +626,7 @@ export function XrayOutboundsSection({ headerAddPulse, headerAddEpoch }: XrayOut
     if (!detailOpen) return
     const p = profileRef.current
     if (!p) return
-    const row = dialogMode === 'add' && draftOutbound ? draftOutbound : p.outbounds?.[selected]
+    const row = draftOutbound ?? p.outbounds?.[selected]
     if (!row || row.protocol === 'unmanaged') return
     form.reset(buildOutboundDetailFormValues(row as Outbound, outboundCapsRef.current))
   }, [detailOpen, selected, dialogMode, draftOutbound, settingsFormSeed, form])
@@ -691,7 +692,7 @@ export function XrayOutboundsSection({ headerAddPulse, headerAddEpoch }: XrayOut
 
   const patchOutbound = (next: Outbound) => {
     const sanitized = sanitizeOutboundForState(next)
-    if (dialogMode === 'add' && draftOutbound !== null) {
+    if (draftOutbound !== null) {
       setDraftOutbound(sanitized)
       return
     }
@@ -743,7 +744,7 @@ export function XrayOutboundsSection({ headerAddPulse, headerAddEpoch }: XrayOut
     const raw = uriDraft.trim()
     if (!raw || !ob || ob.protocol === 'unmanaged') return
     try {
-      const imported = generateXrayOutboundFromUri(raw) as Outbound
+      const imported = generateXrayOutboundFromUri(normalizeOutboundShareUriForImport(raw)) as Outbound
       const merged = { ...(ob as object), ...(imported as object) } as Outbound
       const normalized = stripSparseOutboundEnvelope({
         ...merged,
@@ -878,9 +879,10 @@ export function XrayOutboundsSection({ headerAddPulse, headerAddEpoch }: XrayOut
             setBlockAddWhileDraftOpen(true)
             return
           }
-          setDraftOutbound(null)
+          const cloned = cloneOutbound(outbounds[rowIndex])
+          setDraftOutbound(cloned)
           setDialogMode('edit')
-          setEditOriginalOutbound(cloneOutbound(outbounds[rowIndex]))
+          setEditOriginalOutbound(cloneOutbound(cloned))
           setSelected(rowIndex)
           setOutboundDialogTab('form')
           setUriDraft('')
@@ -927,9 +929,9 @@ export function XrayOutboundsSection({ headerAddPulse, headerAddEpoch }: XrayOut
         initialData={
           dialogMode === 'add'
             ? { outbound: initialDraftRef.current, uriDraft: '', tab: 'form', json: '' }
-            : { outbound: editOriginalOutbound ?? ob, uriDraft: '', tab: outboundDialogTab, json: outboundJsonText }
+            : { outbound: editOriginalOutbound, uriDraft: '', tab: 'form', json: '' }
         }
-        getCurrentData={() => ({ outbound: dialogMode === 'add' ? draftOutbound : ob, uriDraft, tab: outboundDialogTab, json: outboundJsonText })}
+        getCurrentData={() => ({ outbound: draftOutbound ?? ob, uriDraft, tab: outboundDialogTab, json: outboundJsonText })}
         discardTitle={
           dialogMode === 'add' ? t('coreEditor.outbound.discardDraftTitle', { defaultValue: 'Discard new outbound?' }) : t('coreEditor.outbound.discardEditTitle', { defaultValue: 'Discard changes?' })
         }
