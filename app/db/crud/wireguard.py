@@ -242,15 +242,23 @@ async def tags_from_groups(groups: Iterable) -> set[str]:
     return tags
 
 
-def _ensure_wireguard_keys(db_user: User) -> bool:
+def _wireguard_public_key(wg: dict) -> str | None:
+    if wg.get("public_key"):
+        return wg["public_key"]
+    if wg.get("private_key"):
+        return get_wireguard_public_key(wg["private_key"])
+    return None
+
+
+def _ensure_wireguard_keys(db_user: User, shared_keys: frozenset[str] = frozenset()) -> bool:
     """Fill missing WG keys in proxy_settings. Returns True if the user was changed."""
     proxy_settings = dict(db_user.proxy_settings or {})
     wg = dict(proxy_settings.get("wireguard") or {})
-    private_key = wg.get("private_key")
-    if private_key and wg.get("public_key"):
-        return False
-    if private_key:
-        wg["public_key"] = get_wireguard_public_key(private_key)
+    public_key = _wireguard_public_key(wg)
+    if wg.get("private_key") and public_key not in shared_keys:
+        if wg.get("public_key"):
+            return False
+        wg["public_key"] = public_key
     else:
         wg["private_key"], wg["public_key"] = generate_wireguard_keypair()
     proxy_settings["wireguard"] = wg
@@ -344,6 +352,22 @@ async def _user_ids_with_peer_ips(db: AsyncSession) -> list[int]:
     return list(rows)
 
 
+async def _shared_public_keys(db: AsyncSession, users: list[User]) -> frozenset[str]:
+    holders: dict[str, set[int]] = {}
+    for user in users:
+        if public_key := _wireguard_public_key((user.proxy_settings or {}).get("wireguard") or {}):
+            holders.setdefault(public_key, set()).add(user.id)
+    if not holders:
+        return frozenset()
+
+    batch_ids = {user.id for user in users}
+    column = User.proxy_settings["wireguard"]["public_key"].as_string()
+    for user_id, public_key in (await db.execute(select(User.id, column).where(column.in_(list(holders))))).all():
+        if user_id not in batch_ids and public_key in holders:
+            holders[public_key].add(user_id)
+    return frozenset(public_key for public_key, user_ids in holders.items() if len(user_ids) > 1)
+
+
 async def _load_user_proxy_settings(db: AsyncSession, user_ids: list[int]) -> list[tuple[int, dict | None]]:
     """Load (id, proxy_settings) for the given ids in stable chunks."""
     if not user_ids:
@@ -433,6 +457,10 @@ async def sync_users_allocations(
             if host is not None and (ns := match_namespace(namespaces, *host)):
                 touched_keys.add(ns.key)
     rows = await _lock_subnet_rows(db, touched_keys)
+    shared_keys = await _shared_public_keys(
+        db,
+        [user for user in users if any(ns.tags & tags_by_user.get(user.id, set()) for ns in namespaces.values())],
+    )
 
     changed: list[User] = []
     for user in users:
@@ -465,7 +493,7 @@ async def sync_users_allocations(
         if new_ips != old_ips:
             _set_user_peer_ips(user, new_ips)
             user_changed = True
-        if targets and _ensure_wireguard_keys(user):
+        if targets and _ensure_wireguard_keys(user, shared_keys):
             user_changed = True
         if user_changed:
             changed.append(user)
