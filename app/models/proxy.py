@@ -38,6 +38,13 @@ class HysteriaSettings(BaseModel):
     auth: str = Field(default_factory=random_password, min_length=1)
 
 
+class GeneralAuthSettings(BaseModel):
+    """Stable credentials for local client authentication inbounds."""
+
+    username: str = Field(default_factory=random_password, min_length=1)
+    password: str = Field(default_factory=random_password, min_length=1)
+
+
 class WireGuardPeerIPs(BaseModel):
     peer_ips: list[str] = Field(default_factory=list)
 
@@ -105,6 +112,7 @@ class ProxyTable(BaseModel):
     shadowsocks: ShadowsocksSettings = Field(default_factory=ShadowsocksSettings)
     wireguard: WireGuardSettings = Field(default_factory=WireGuardSettings)
     hysteria: HysteriaSettings = Field(default_factory=HysteriaSettings)
+    general_auth: GeneralAuthSettings = Field(default_factory=GeneralAuthSettings)
 
     def dict(self, *, no_obj=True, **kwargs):
         if no_obj:
