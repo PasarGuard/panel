@@ -158,7 +158,7 @@ export const Login: FC = () => {
 
     // A token exists - check whether it's still valid before deciding
     // whether to redirect to the dashboard or drop the stale session
-    getCurrentAdmin(controller.signal)
+    getCurrentAdmin({ signal: controller.signal })
       .then(() => {
         navigate('/', { replace: true })
       })
