@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 from uuid import UUID, uuid4
 
@@ -10,6 +11,7 @@ from fastapi import status
 from sqlalchemy import event, func, inspect, select
 from sqlalchemy.orm import selectinload
 
+from app.core.manager import core_manager
 from app.db.crud.core import create_core_config, remove_core_config
 from app.db.crud.node import create_node as db_create_node, remove_node as db_remove_node
 from app.db.models import (
@@ -34,6 +36,7 @@ from app.db.models import (
 from app.models.admin import AdminDetails, AdminRoleData
 from app.models.core import CoreCreate
 from app.models.node import NodeCreate, NodeModify, NodeResponse, NodeSettings, NodesResponse
+from app.models.protocol import ProxyProtocol
 from app.models.proxy import ProxyTable
 from app.models.stats import (
     NodeRealtimeStats,
@@ -495,6 +498,171 @@ async def test_core_users_can_be_restricted_to_ids_with_one_query(monkeypatch):
         assert await node_user_module.core_users(session, user_ids=[]) == []
         everyone = {user["id"] for user in await node_user_module.core_users(session, inbound_tags=[inbound_tag])}
         assert {ids["active"], ids["other"]} <= everyone
+
+
+async def _seed_core_user_matrix() -> tuple[dict[str, str], dict[str, int]]:
+    tags = {name: unique_name(f"matrix_{name}") for name in ("a", "b", "c", "d")}
+    memberships = {
+        "ab": (UserStatus.active, ["ab"]),
+        "abc": (UserStatus.on_hold, ["ab", "bc"]),
+        "d": (UserStatus.active, ["d"]),
+        "bc_off": (UserStatus.active, ["bc", "off"]),
+        "off": (UserStatus.active, ["off"]),
+        "no_inbounds": (UserStatus.active, ["empty"]),
+        "disabled": (UserStatus.disabled, ["ab"]),
+    }
+    async with TestSession() as session:
+        inbounds = {name: ProxyInbound(tag=tag) for name, tag in tags.items()}
+        groups = {
+            "ab": Group(name=unique_name("matrix_ab"), inbounds=[inbounds["a"], inbounds["b"]]),
+            "bc": Group(name=unique_name("matrix_bc"), inbounds=[inbounds["b"], inbounds["c"]]),
+            "d": Group(name=unique_name("matrix_d"), inbounds=[inbounds["d"]]),
+            "off": Group(name=unique_name("matrix_off"), inbounds=[inbounds["c"], inbounds["d"]], is_disabled=True),
+            "empty": Group(name=unique_name("matrix_empty"), inbounds=[]),
+        }
+        session.add_all(groups.values())
+        await session.flush()
+        users = {
+            key: User(
+                username=unique_name(f"matrix_{key}"), proxy_settings=ProxyTable().dict(no_obj=True), status=status
+            )
+            for key, (status, _) in memberships.items()
+        }
+        session.add_all(users.values())
+        await session.flush()
+        await session.execute(
+            users_groups_association.insert(),
+            [
+                {"user_id": users[key].id, "groups_id": groups[group_key].id}
+                for key, (_, group_keys) in memberships.items()
+                for group_key in group_keys
+            ],
+        )
+        await session.commit()
+        return tags, {key: user.id for key, user in users.items()}
+
+
+def _matrix_core(inbounds: list[str], *protocols: ProxyProtocol) -> SimpleNamespace:
+    return SimpleNamespace(inbounds=inbounds, protocols=frozenset(protocols))
+
+
+def _inbounds_by_user(users, user_ids: dict[str, int]) -> dict[str, list[str]]:
+    keys = {user_id: key for key, user_id in user_ids.items()}
+    return {keys[int(user.email)]: sorted(user.inbounds) for user in users if int(user.email) in keys}
+
+
+async def test_core_users_map_matches_core_users_for_every_core(monkeypatch):
+    tags, user_ids = await _seed_core_user_matrix()
+    cores = {
+        1: _matrix_core([tags["a"], tags["b"]], ProxyProtocol.vless),
+        2: _matrix_core([tags["b"], tags["c"]], ProxyProtocol.vmess, ProxyProtocol.trojan),
+        3: _matrix_core([tags["d"]]),
+        4: _matrix_core([], ProxyProtocol.shadowsocks),
+        5: _matrix_core([unique_name("matrix_unknown")], ProxyProtocol.vless),
+    }
+    monkeypatch.setattr(core_manager, "get_cores", AsyncMock(return_value=cores))
+
+    async with TestSession() as session:
+        _, users_by_core = await NodeOperation._get_core_users_map(session, set(cores))
+        per_core = {
+            core_id: await node_user_module.core_users(
+                session, inbound_tags=core.inbounds, allowed_protocols=core.protocols
+            )
+            for core_id, core in cores.items()
+        }
+
+    for core_id in cores:
+        assert {user.email: user for user in users_by_core[core_id]} == {user.email: user for user in per_core[core_id]}
+
+    assert {core_id: _inbounds_by_user(users, user_ids) for core_id, users in users_by_core.items()} == {
+        1: {"ab": sorted([tags["a"], tags["b"]]), "abc": sorted([tags["a"], tags["b"]]), "bc_off": [tags["b"]]},
+        2: {"ab": [tags["b"]], "abc": sorted([tags["b"], tags["c"]]), "bc_off": sorted([tags["b"], tags["c"]])},
+        3: {"d": [tags["d"]]},
+        4: {
+            "ab": sorted([tags["a"], tags["b"]]),
+            "abc": sorted([tags["a"], tags["b"], tags["c"]]),
+            "d": [tags["d"]],
+            "bc_off": sorted([tags["b"], tags["c"]]),
+        },
+        5: {},
+    }
+
+    ab_user = str(user_ids["ab"])
+    vless_only = next(user for user in users_by_core[1] if user.email == ab_user)
+    assert vless_only.proxies.vless.id and not vless_only.proxies.vmess.id and not vless_only.proxies.trojan.password
+    vmess_trojan = next(user for user in users_by_core[2] if user.email == ab_user)
+    assert vmess_trojan.proxies.vmess.id and vmess_trojan.proxies.trojan.password and not vmess_trojan.proxies.vless.id
+
+
+async def test_core_users_map_reads_users_once_for_all_cores(monkeypatch):
+    tags, _ = await _seed_core_user_matrix()
+    cores = {
+        core_id: _matrix_core([tags[name] for name in names])
+        for core_id, names in enumerate([["a"], ["b"], ["c"], ["d"], ["a", "b"], ["b", "c", "d"], []], start=1)
+    }
+    monkeypatch.setattr(core_manager, "get_cores", AsyncMock(return_value=cores))
+    user_queries = 0
+
+    def count_user_queries(_, __, statement, *args):
+        nonlocal user_queries
+        if "inbounds_groups_association" in statement.lower():
+            user_queries += 1
+
+    event.listen(engine.sync_engine, "before_cursor_execute", count_user_queries)
+    try:
+        async with TestSession() as session:
+            await NodeOperation._get_core_users_map(session, set(cores))
+            assert user_queries == 1
+
+            user_queries = 0
+            _, loaders = await NodeOperation._get_core_users_map(session, set(cores), lazy=True)
+            assert user_queries == 0
+            await asyncio.gather(*(loader() for loader in loaders.values()))
+            await asyncio.gather(*(loader() for loader in loaders.values()))
+            assert user_queries == 1
+    finally:
+        event.remove(engine.sync_engine, "before_cursor_execute", count_user_queries)
+
+
+async def test_core_without_inbounds_carries_every_enabled_inbound(monkeypatch):
+    tags, user_ids = await _seed_core_user_matrix()
+    cores = {1: _matrix_core([]), 2: _matrix_core([tags["a"]])}
+    monkeypatch.setattr(core_manager, "get_cores", AsyncMock(return_value=cores))
+
+    async with TestSession() as session:
+        _, users_by_core = await NodeOperation._get_core_users_map(session, {1, 2})
+
+    assert _inbounds_by_user(users_by_core[1], user_ids) == {
+        "ab": sorted([tags["a"], tags["b"]]),
+        "abc": sorted([tags["a"], tags["b"], tags["c"]]),
+        "d": [tags["d"]],
+        "bc_off": sorted([tags["b"], tags["c"]]),
+    }
+    assert _inbounds_by_user(users_by_core[2], user_ids) == {"ab": [tags["a"]], "abc": [tags["a"]]}
+
+
+async def test_core_users_map_keeps_each_core_tag_list_whole(monkeypatch):
+    first = [f"{unique_name('matrix_first')}_{'x' * 100}" for _ in range(7)]
+    second = [f"{unique_name('matrix_second')}_{'y' * 100}" for _ in range(7)]
+    async with TestSession() as session:
+        group = Group(name=unique_name("matrix_long"), inbounds=[ProxyInbound(tag=tag) for tag in first + second])
+        user = User(
+            username=unique_name("matrix_long"), proxy_settings=ProxyTable().dict(no_obj=True), status=UserStatus.active
+        )
+        session.add_all([group, user])
+        await session.flush()
+        await session.execute(users_groups_association.insert(), [{"user_id": user.id, "groups_id": group.id}])
+        await session.commit()
+        user_ids = {"long": user.id}
+
+    cores = {1: _matrix_core(first), 2: _matrix_core(second)}
+    monkeypatch.setattr(core_manager, "get_cores", AsyncMock(return_value=cores))
+
+    async with TestSession() as session:
+        _, users_by_core = await NodeOperation._get_core_users_map(session, {1, 2})
+
+    assert _inbounds_by_user(users_by_core[1], user_ids) == {"long": sorted(first)}
+    assert _inbounds_by_user(users_by_core[2], user_ids) == {"long": sorted(second)}
 
 
 async def test_current_state_reads_at_burst_scale_use_few_indexed_statements(monkeypatch):
