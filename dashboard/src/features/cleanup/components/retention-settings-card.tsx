@@ -137,7 +137,7 @@ export function RetentionSettingsCard({ value, isLoading, isSaving, onSave }: Re
             </CardTitle>
             <CardDescription className="max-w-2xl text-xs leading-relaxed sm:text-sm">{t('settings.cleanup.retention.description')}</CardDescription>
           </div>
-          <div className="border-primary/20 bg-background/80 text-muted-foreground hidden rounded-full border px-3 py-1 text-xs font-medium backdrop-blur sm:block">
+          <div className="border-primary/20 bg-background/80 text-muted-foreground hidden shrink-0 rounded-full border px-3 py-1 text-xs font-medium backdrop-blur sm:block">
             {t('settings.cleanup.retention.hourly')}
           </div>
         </div>
@@ -151,27 +151,27 @@ export function RetentionSettingsCard({ value, isLoading, isSaving, onSave }: Re
             const Icon = item.icon
 
             return (
-              <section key={item.key} className="border-border/80 bg-background/75 flex min-h-64 flex-col rounded-xl border p-4 shadow-sm backdrop-blur-sm transition-shadow hover:shadow-md">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex min-w-0 items-start gap-3">
+              <section key={item.key} className="border-border/80 bg-background/75 grid min-w-0 gap-4 rounded-xl border p-4 shadow-sm xl:row-span-4 xl:grid-rows-subgrid">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex min-w-0 items-center gap-3">
                     <span className={`${item.surface} ${item.tone} flex h-9 w-9 shrink-0 items-center justify-center rounded-lg`}>
                       <Icon className="h-4.5 w-4.5" />
                     </span>
-                    <div className="min-w-0">
-                      <h3 className="text-sm font-semibold">{item.title}</h3>
-                      <p className="text-muted-foreground mt-1 text-xs leading-relaxed">{item.description}</p>
-                    </div>
+                    <h3 className="min-w-0 text-sm font-semibold">{item.title}</h3>
                   </div>
                   <Switch checked={enabled} onCheckedChange={checked => setEnabled(item.key, checked)} aria-label={item.title} />
                 </div>
+                <p id={`${item.key}-description`} className="text-muted-foreground text-xs leading-relaxed">
+                  {item.description}
+                </p>
 
-                <div className="mt-5 flex items-center gap-2">
+                <div className="flex items-center gap-2">
                   <Input
-                    type="number"
+                    type={enabled ? 'number' : 'text'}
                     min={item.minimum}
                     max={36_500}
                     step={1}
-                    value={enabled ? days : ENABLE_DEFAULTS[item.key]}
+                    value={enabled ? days : t('settings.cleanup.retention.forever')}
                     onChange={event => {
                       const rawValue = event.target.value
                       const parsedValue = rawValue.trim() === '' ? '' : Number(rawValue)
@@ -180,23 +180,16 @@ export function RetentionSettingsCard({ value, isLoading, isSaving, onSave }: Re
                       setValidationError(null)
                     }}
                     disabled={!enabled}
-                    className="h-10 font-mono text-sm tabular-nums"
+                    className="h-10 min-w-0 text-sm tabular-nums"
                     aria-label={`${item.title}: ${t('settings.cleanup.retention.days')}`}
+                    aria-describedby={`${item.key}-description`}
                   />
-                  <span className="text-muted-foreground shrink-0 text-xs font-medium">{t('settings.cleanup.retention.days')}</span>
+                  {enabled && <span className="text-muted-foreground shrink-0 text-xs font-medium">{t('settings.cleanup.retention.days')}</span>}
                 </div>
 
-                <div className="mt-auto pt-5" dir="ltr">
-                  <div className="text-muted-foreground mb-2 flex items-center justify-between text-[10px] font-medium tracking-wide uppercase">
-                    <span>{enabled ? t('settings.cleanup.retention.purge') : t('settings.cleanup.retention.forever')}</span>
-                    <span>{t('settings.cleanup.retention.today')}</span>
-                  </div>
-                  <div className="bg-muted relative h-2 overflow-hidden rounded-full">
-                    <div className={`absolute inset-y-0 right-0 rounded-full transition-all ${enabled ? 'bg-primary/70 w-3/4' : 'bg-primary/35 w-full'}`} />
-                    {enabled && <div className="border-background bg-primary absolute top-1/2 left-1/4 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 shadow-sm" />}
-                  </div>
-                  <div className="text-muted-foreground mt-2 flex items-center gap-1.5 text-[11px]">
-                    {enabled ? <Trash2 className="h-3 w-3" /> : <CalendarClock className="h-3 w-3" />}
+                <div className="border-border/60 border-t pt-3">
+                  <div className="text-muted-foreground flex items-start gap-2 text-xs leading-relaxed">
+                    {enabled ? <Trash2 className="mt-0.5 h-3.5 w-3.5 shrink-0" /> : <CalendarClock className="mt-0.5 h-3.5 w-3.5 shrink-0" />}
                     <span>{enabled ? t('settings.cleanup.retention.cutoff', { days }) : t('settings.cleanup.retention.disabledHint')}</span>
                   </div>
                 </div>
@@ -205,7 +198,7 @@ export function RetentionSettingsCard({ value, isLoading, isSaving, onSave }: Re
           })}
         </div>
 
-        <Alert className="border-amber-500/25 bg-amber-500/5">
+        <Alert className="border-amber-500/25 bg-amber-500/5 rtl:[&>svg]:right-4 rtl:[&>svg]:left-auto rtl:[&>svg~*]:pr-7 rtl:[&>svg~*]:pl-0">
           <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
           <AlertDescription className="text-xs leading-relaxed sm:text-sm">{t('settings.cleanup.retention.cascadeWarning')}</AlertDescription>
         </Alert>

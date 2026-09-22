@@ -172,6 +172,25 @@ function normParityFieldKey(field: XrayGeneratedFormField): string {
     .toLowerCase()
 }
 
+/** Xray `verifyPeerCertByName` is a comma-separated string; the kit may also see a legacy array. */
+export function coerceVerifyPeerCertByNameList(value: unknown): string[] | undefined {
+  if (value == null) return undefined
+  if (typeof value === 'string') {
+    const parts = value.split(/[\n,]+/).map(item => item.trim()).filter(Boolean)
+    return parts.length > 0 ? parts : undefined
+  }
+  if (Array.isArray(value)) {
+    const parts = value.map(item => String(item ?? '').trim()).filter(Boolean)
+    return parts.length > 0 ? parts : undefined
+  }
+  return undefined
+}
+
+export function stringifyVerifyPeerCertByName(value: unknown): string | undefined {
+  const parts = coerceVerifyPeerCertByNameList(value)
+  return parts && parts.length > 0 ? parts.join(',') : undefined
+}
+
 function isVlessReverseField(field: XrayGeneratedFormField): boolean {
   return normParityFieldKey(field) === 'reverse' && field.type.replace(/^\*+/, '') === 'VLessReverseConfig'
 }
@@ -195,6 +214,10 @@ export function outboundSettingToString(value: unknown, field: XrayGeneratedForm
   if (isVlessReverseField(field) && value && typeof value === 'object' && !Array.isArray(value)) {
     const tag = (value as Record<string, unknown>).tag
     if (typeof tag === 'string') return tag
+  }
+
+  if (normParityFieldKey(field) === 'verifypeercertbyname') {
+    return stringifyVerifyPeerCertByName(value) ?? ''
   }
 
   const mode = inferParityFieldMode(field)
@@ -225,6 +248,10 @@ export function parseOutboundSettingValue(field: XrayGeneratedFormField, raw: st
       // Treat plain text as the reverse outbound tag.
     }
     return { tag: t }
+  }
+
+  if (normParityFieldKey(field) === 'verifypeercertbyname') {
+    return stringifyVerifyPeerCertByName(raw)
   }
 
   const mode = inferParityFieldMode(field)

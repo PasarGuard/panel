@@ -1,7 +1,7 @@
 """add cleanup retention settings
 
 Revision ID: 7b3d1e9c4a6f
-Revises: 7c4bd5128e62
+Revises: 48a6bcb8bba1
 Create Date: 2026-08-17 00:00:00.000000
 """
 
@@ -11,7 +11,7 @@ from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 revision = "7b3d1e9c4a6f"
-down_revision = "7c4bd5128e62"
+down_revision = "48a6bcb8bba1"
 branch_labels = None
 depends_on = None
 
