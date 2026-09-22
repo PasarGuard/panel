@@ -34,6 +34,28 @@ class ECHQueryStrategy(str, Enum):
     full = "full"
 
 
+class XrayECHSettings(BaseModel):
+    """Xray-specific ECH settings."""
+
+    config_list: str | None = Field(default=None)
+    query_strategy: ECHQueryStrategy | None = Field(default=None)
+
+
+class ClientECHSettings(BaseModel):
+    """ECH settings shared by Mihomo and sing-box clients."""
+
+    config: str | None = Field(default=None)
+    query_server_name: str | None = Field(default=None, max_length=255)
+
+
+class ECHSettings(BaseModel):
+    """Per-client ECH settings stored together on a host."""
+
+    xray: XrayECHSettings | None = Field(default=None)
+    mihomo: ClientECHSettings | None = Field(default=None)
+    sing_box: ClientECHSettings | None = Field(default=None)
+
+
 class XrayFragmentSettings(BaseModel):
     model_config = ConfigDict(extra="allow", populate_by_name=True)
 
@@ -55,7 +77,7 @@ class FragmentSettings(BaseModel):
 
 
 class XrayNoiseSettings(BaseModel):
-    type: str = Field(pattern=r"^$|^(:?rand|array|str|base64|hex)$")
+    type: str = Field(pattern=r"^$|^(:?rand|str|base64|hex)$")
     packet: str | list[int] | None = Field(default=None)
     delay: str | int | None = Field(default=None)
     apply_to: str = Field(default="ip", pattern=r"ip|ipv4|ipv6")
@@ -140,7 +162,7 @@ class FinalMaskQuicCongestion(str, Enum):
 class FinalMaskNoiseItem(FinalMaskBaseModel):
     """Packet camouflage item used by FinalMask. Unlike Freedom noise, this has no apply_to."""
 
-    type: str | None = Field(default=None, pattern=r"^$|^(:?rand|array|str|base64|hex)$")
+    type: str | None = Field(default=None, pattern=r"^$|^(:?array|str|base64|hex)$")
     packet: str | list[int] | None = Field(default=None)
     delay: str | int | None = Field(default=None)
     rand: int | str | None = Field(default=None)
@@ -597,8 +619,7 @@ class BaseHost(BaseModel):
     vless_route: str | None = Field(default=None, pattern=r"^$|^[0-9a-fA-F]{4}$")
     priority: int
     status: set[UserStatus] | None = Field(default_factory=set)
-    ech_config_list: str | None = Field(default=None)
-    ech_query_strategy: ECHQueryStrategy | None = Field(default=None)
+    ech: ECHSettings | None = Field(default=None)
     pinned_peer_cert_sha256: str | None = Field(default=None)
     verify_peer_cert_by_name: set[str] | None = Field(default_factory=set)
     wireguard_overrides: WireGuardHostOverrides | None = Field(None)

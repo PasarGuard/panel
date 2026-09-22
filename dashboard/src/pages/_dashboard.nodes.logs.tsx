@@ -10,14 +10,18 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import useDirDetection from '@/hooks/use-dir-detection'
+import { useDebouncedSearch } from '@/hooks/use-debounced-search'
 import { cn } from '@/lib/utils'
 import { TerminalLine } from '@/features/nodes/components/terminal-line'
 import { LineCountFilter } from '@/features/nodes/components/line-count-filter'
 import { SinceLogsFilter, type TimeFilter } from '@/features/nodes/components/since-logs-filter'
 import { StatusLogsFilter } from '@/features/nodes/components/status-logs-filter'
+import { appendTrim, parseLogs, type LogLine } from '@/utils/logsUtils'
+import { EventSource } from 'eventsource'
 
 /** Max raw SSE chunks kept in memory; display "lines" is sliced client-side (no reconnect). */
 const RAW_LOG_BUFFER_MAX = 10000
+const LOG_FLUSH_MS = 100
 
 const SINCE_DURATION_MS: Record<Exclude<TimeFilter, 'all'>, number> = {
   '1m': 60 * 1000,
@@ -30,8 +34,6 @@ const SINCE_DURATION_MS: Record<Exclude<TimeFilter, 'all'>, number> = {
   '12h': 12 * 60 * 60 * 1000,
   '24h': 24 * 60 * 60 * 1000,
 }
-import { parseLogs, type LogLine } from '@/utils/logsUtils'
-import { EventSource } from 'eventsource'
 
 export const priorities = [
   {
@@ -56,18 +58,18 @@ export default function NodeLogs() {
   const { t } = useTranslation()
   const dir = useDirDetection()
   const [selectedNode, setSelectedNode] = useState<number>(0)
-  const [rawLogs, setRawLogs] = React.useState<LogLine[]>([])
-  const [autoScroll, setAutoScroll] = React.useState(true)
-  const [lines, setLines] = React.useState<number>(1000)
-  const [search, setSearch] = React.useState<string>('')
-  const [showTimestamp, setShowTimestamp] = React.useState(true)
-  const [since, setSince] = React.useState<TimeFilter>('all')
-  const [typeFilter, setTypeFilter] = React.useState<string[]>([])
-  const [isPaused, setIsPaused] = React.useState(false)
-  const [messageBuffer, setMessageBuffer] = React.useState<LogLine[]>([])
+  const [rawLogs, setRawLogs] = useState<LogLine[]>([])
+  const [lines, setLines] = useState<number>(1000)
+  const { search, debouncedSearch, setSearch } = useDebouncedSearch('', 200)
+  const [showTimestamp, setShowTimestamp] = useState(true)
+  const [since, setSince] = useState<TimeFilter>('all')
+  const [typeFilter, setTypeFilter] = useState<string[]>([])
+  const [isPaused, setIsPaused] = useState(false)
+  const [messageBuffer, setMessageBuffer] = useState<LogLine[]>([])
   const isPausedRef = useRef(false)
+  const autoScrollRef = useRef(true)
   const scrollRef = useRef<HTMLDivElement>(null)
-  const [isLoading, setIsLoading] = React.useState(false)
+  const [isLoading, setIsLoading] = useState(false)
 
   const eventSourceRef = useRef<EventSource | null>(null)
 
@@ -89,7 +91,7 @@ export default function NodeLogs() {
   }, [connectedNodes, selectedNode])
 
   const scrollToBottom = () => {
-    if (autoScroll && scrollRef.current) {
+    if (autoScrollRef.current && scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     }
   }
@@ -99,7 +101,9 @@ export default function NodeLogs() {
 
     const { scrollTop, scrollHeight, clientHeight } = scrollRef.current
     const isAtBottom = Math.abs(scrollHeight - scrollTop - clientHeight) < 10
-    setAutoScroll(isAtBottom)
+    if (isAtBottom !== autoScrollRef.current) {
+      autoScrollRef.current = isAtBottom
+    }
   }
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -118,10 +122,7 @@ export default function NodeLogs() {
     if (isPaused) {
       // Resume: Apply all buffered messages
       if (messageBuffer.length > 0) {
-        setRawLogs(prev => {
-          const combined = [...prev, ...messageBuffer]
-          return combined.slice(-RAW_LOG_BUFFER_MAX)
-        })
+        setRawLogs(prev => appendTrim(prev, messageBuffer, RAW_LOG_BUFFER_MAX))
         setMessageBuffer([])
       }
     }
@@ -137,6 +138,7 @@ export default function NodeLogs() {
     setMessageBuffer([])
     setIsPaused(false)
     isPausedRef.current = false
+    autoScrollRef.current = true
     if (eventSourceRef.current) {
       eventSourceRef.current.close()
       eventSourceRef.current = null
@@ -150,13 +152,31 @@ export default function NodeLogs() {
     }
 
     let isCurrentConnection = true
-    let noDataTimeout: NodeJS.Timeout
+    let noDataTimeout: ReturnType<typeof setTimeout>
+    let flushTimer: ReturnType<typeof setTimeout> | null = null
+    const pending: LogLine[] = []
+    let loadingCleared = false
     setIsLoading(true)
     setRawLogs([])
     setMessageBuffer([])
     // Reset pause state when container changes
     setIsPaused(false)
     isPausedRef.current = false
+    autoScrollRef.current = true
+
+    const flushPending = () => {
+      flushTimer = null
+      if (!isCurrentConnection || pending.length === 0) {
+        pending.length = 0
+        return
+      }
+      const batch = pending.splice(0, pending.length)
+      if (isPausedRef.current) {
+        setMessageBuffer(prev => appendTrim(prev, batch, RAW_LOG_BUFFER_MAX))
+      } else {
+        setRawLogs(prev => appendTrim(prev, batch, RAW_LOG_BUFFER_MAX))
+      }
+    }
 
     const baseUrl =
       import.meta.env.VITE_BASE_API && typeof import.meta.env.VITE_BASE_API === 'string' && import.meta.env.VITE_BASE_API.trim() !== '/' && import.meta.env.VITE_BASE_API.startsWith('http')
@@ -199,20 +219,17 @@ export default function NodeLogs() {
       if (!isCurrentConnection) return
 
       const parsedLogs = parseLogs(e.data)
+      if (parsedLogs.length === 0) return
 
-      if (isPausedRef.current) {
-        // When paused, buffer the messages instead of displaying them
-        setMessageBuffer(prev => [...prev, ...parsedLogs])
-      } else {
-        // When not paused, display messages normally
-        setRawLogs(prev => {
-          const updated = [...prev, ...parsedLogs]
-          return updated.slice(-RAW_LOG_BUFFER_MAX)
-        })
+      pending.push(...parsedLogs)
+      if (!loadingCleared) {
+        loadingCleared = true
+        setIsLoading(false)
       }
-
-      setIsLoading(false)
       if (noDataTimeout) clearTimeout(noDataTimeout)
+      if (flushTimer == null) {
+        flushTimer = setTimeout(flushPending, LOG_FLUSH_MS)
+      }
     }
 
     eventSource.onerror = error => {
@@ -225,6 +242,8 @@ export default function NodeLogs() {
     return () => {
       isCurrentConnection = false
       if (noDataTimeout) clearTimeout(noDataTimeout)
+      if (flushTimer != null) clearTimeout(flushTimer)
+      pending.length = 0
       eventSource.close()
     }
   }, [selectedNode])
@@ -235,38 +254,27 @@ export default function NodeLogs() {
   }, [isPaused])
 
   const filteredLogs = useMemo(() => {
-    const sortedLogs = [...rawLogs].sort((a, b) => {
-      if (!a.timestamp && !b.timestamp) return 0
-      if (!a.timestamp) return 1
-      if (!b.timestamp) return -1
-      return a.timestamp.getTime() - b.timestamp.getTime()
-    })
-
+    const query = (debouncedSearch || '').toLowerCase()
     const cutoffMs = since === 'all' ? null : Date.now() - SINCE_DURATION_MS[since]
+    const hasTypeFilter = typeFilter.length > 0
 
-    return sortedLogs
-      .filter(log => {
-        if (typeFilter.length > 0 && !typeFilter.includes(log.type)) {
-          return false
-        }
-        if (search && !log.message.toLowerCase().includes(search.toLowerCase())) {
-          return false
-        }
-        if (cutoffMs !== null && log.timestamp && log.timestamp.getTime() < cutoffMs) {
-          return false
-        }
-        return true
-      })
-      .slice(-lines)
-  }, [rawLogs, search, lines, since, typeFilter])
+    const noTimestamp: LogLine[] = []
+    const timestamped: LogLine[] = []
+    for (let i = 0; i < rawLogs.length; i++) {
+      const log = rawLogs[i]
+      if (hasTypeFilter && !typeFilter.includes(log.type)) continue
+      if (query && !log.message.toLowerCase().includes(query)) continue
+      if (cutoffMs !== null && log.timestamp && log.timestamp.getTime() < cutoffMs) continue
+      if (!log.timestamp) noTimestamp.push(log)
+      else timestamped.push(log)
+    }
+    const visibleTimestamped = timestamped.length > lines ? timestamped.slice(-lines) : timestamped
+    return noTimestamp.length === 0 ? visibleTimestamped : noTimestamp.concat(visibleTimestamped)
+  }, [rawLogs, debouncedSearch, lines, since, typeFilter])
 
   useEffect(() => {
     scrollToBottom()
-
-    if (autoScroll && scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-    }
-  }, [filteredLogs, autoScroll])
+  }, [filteredLogs])
 
   const handleDownload = () => {
     const logContent = filteredLogs.map(({ timestamp, message }: { timestamp: Date | null; message: string }) => `${timestamp?.toISOString() || 'No timestamp'} ${message}`).join('\n')
@@ -285,90 +293,88 @@ export default function NodeLogs() {
   }
 
   return (
-    <div className={cn('flex w-full flex-col gap-4 p-4', dir === 'rtl' && 'rtl')}>
-      <div className="flex flex-col gap-4">
-        <div className="w-full sm:w-auto">
-          <Label htmlFor="node-select" className="mb-1 block text-sm">
-            {t('nodes.title')}
-          </Label>
-          <Select value={selectedNode.toString()} onValueChange={value => handleNodeChange(Number(value))} disabled={connectedNodes.length === 0}>
-            <SelectTrigger id="node-select" className="h-9 w-full text-sm sm:w-[250px]" disabled={connectedNodes.length === 0}>
-              <SelectValue placeholder={connectedNodes.length === 0 ? t('nodes.noNodes') : t('nodes.selectNode')} />
-            </SelectTrigger>
-            <SelectContent>
-              {connectedNodes.map(node => (
-                <SelectItem key={node.id} value={node.id.toString()} className="text-sm">
-                  {node.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="flex flex-col gap-4">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div className="flex flex-wrap items-center gap-2 sm:gap-4">
-              <LineCountFilter value={lines} onValueChange={handleLines} />
-
-              <SinceLogsFilter value={since} onValueChange={handleSince} showTimestamp={showTimestamp} onTimestampChange={setShowTimestamp} />
-
-              <StatusLogsFilter value={typeFilter} setValue={setTypeFilter} title={t('nodes.logs.filter')} options={priorities} />
-
-              <Input
-                type="search"
-                placeholder={t('nodes.logs.search')}
-                value={search}
-                onChange={handleSearch}
-                className="inline-flex h-9 w-full min-w-[200px] text-sm placeholder-gray-400 sm:w-auto sm:min-w-0"
-              />
-            </div>
-
-            <div className={cn('flex w-full gap-2 sm:w-auto', dir === 'rtl' && 'flex-row-reverse')}>
-              <Button variant="outline" size="sm" className="h-9 flex-1 sm:flex-initial" onClick={handlePauseResume} title={isPaused ? t('nodes.logs.resume') : t('nodes.logs.pause')}>
-                {isPaused ? <Play className={cn('h-4 w-4 sm:mr-2', dir === 'rtl' && 'sm:mr-0 sm:ml-2')} /> : <Pause className={cn('h-4 w-4 sm:mr-2', dir === 'rtl' && 'sm:mr-0 sm:ml-2')} />}
-                <span className="hidden sm:inline">{isPaused ? t('nodes.logs.resume') : t('nodes.logs.pause')}</span>
-              </Button>
-              <Button variant="outline" size="sm" className="h-9 flex-1 sm:flex-initial" onClick={handleDownload} disabled={filteredLogs.length === 0}>
-                <DownloadIcon className={cn('h-4 w-4 sm:mr-2', dir === 'rtl' && 'sm:mr-0 sm:ml-2')} />
-                <span className="hidden sm:inline">{t('nodes.logs.download')}</span>
-              </Button>
-            </div>
+    <div className={cn('flex w-full min-w-0 flex-col gap-3 p-3 sm:gap-4 sm:p-4', dir === 'rtl' && 'rtl')}>
+      <div className="flex min-w-0 flex-col gap-2 sm:gap-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <div className="min-w-0 flex-1 sm:max-w-[250px]">
+            <Label htmlFor="node-select" className="sr-only">
+              {t('nodes.title')}
+            </Label>
+            <Select value={selectedNode.toString()} onValueChange={value => handleNodeChange(Number(value))} disabled={connectedNodes.length === 0}>
+              <SelectTrigger id="node-select" className="h-9 w-full min-w-0 overflow-hidden text-sm" disabled={connectedNodes.length === 0}>
+                <SelectValue placeholder={connectedNodes.length === 0 ? t('nodes.noNodes') : t('nodes.selectNode')} />
+              </SelectTrigger>
+              <SelectContent>
+                {connectedNodes.map(node => (
+                  <SelectItem key={node.id} value={node.id.toString()} className="text-sm">
+                    {node.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-          {isPaused && (
-            <Alert className="border-amber-500/50 bg-amber-500/15 text-amber-700 dark:text-amber-400">
-              <Pause className="h-4 w-4" />
-              <AlertDescription>
-                {t('nodes.logs.paused')}
-                {messageBuffer.length > 0 && (
-                  <span className="ml-1 font-medium">
-                    ({messageBuffer.length} {t('nodes.logs.messagesBuffered')})
-                  </span>
-                )}
-              </AlertDescription>
-            </Alert>
-          )}
-          <Card className="bg-background">
-            <CardContent className="p-1 sm:p-2">
-              <div
-                ref={scrollRef}
-                onScroll={handleScroll}
-                dir="ltr"
-                className="custom-logs-scrollbar bg-background/75 h-[calc(100vh-280px)] max-h-[720px] min-h-[400px] space-y-0 overflow-x-hidden overflow-y-auto rounded sm:h-[720px] sm:min-h-0"
-              >
-                {filteredLogs.length > 0 ? (
-                  filteredLogs.map((filteredLog: LogLine) => <TerminalLine key={filteredLog.id} log={filteredLog} searchTerm={search} noTimestamp={!showTimestamp} />)
-                ) : isLoading ? (
-                  <div className="text-muted-foreground flex h-full items-center justify-center">
-                    <Loader2 className="h-6 w-6" />
-                  </div>
-                ) : (
-                  <div className="text-muted-foreground flex h-full items-center justify-center">{t('nodes.logs.noLogs')}</div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+
+          <div className="flex shrink-0 gap-2">
+            <Button variant="outline" size="sm" className="h-9 px-2.5 sm:px-3" onClick={handlePauseResume} title={isPaused ? t('nodes.logs.resume') : t('nodes.logs.pause')}>
+              {isPaused ? <Play className="h-4 w-4 sm:me-2" /> : <Pause className="h-4 w-4 sm:me-2" />}
+              <span className="hidden sm:inline">{isPaused ? t('nodes.logs.resume') : t('nodes.logs.pause')}</span>
+            </Button>
+            <Button variant="outline" size="sm" className="h-9 px-2.5 sm:px-3" onClick={handleDownload} disabled={filteredLogs.length === 0} title={t('nodes.logs.download')}>
+              <DownloadIcon className="h-4 w-4 sm:me-2" />
+              <span className="hidden sm:inline">{t('nodes.logs.download')}</span>
+            </Button>
+          </div>
         </div>
+
+        <div className="grid min-w-0 grid-cols-2 gap-2 lg:flex lg:flex-wrap lg:items-center">
+          <LineCountFilter value={lines} onValueChange={handleLines} />
+
+          <SinceLogsFilter value={since} onValueChange={handleSince} showTimestamp={showTimestamp} onTimestampChange={setShowTimestamp} />
+
+          <div className="w-full min-w-0 lg:w-auto">
+            <StatusLogsFilter value={typeFilter} setValue={setTypeFilter} title={t('nodes.logs.filter')} options={priorities} />
+          </div>
+
+          <div className="col-span-2 w-full min-w-0 lg:w-56 xl:w-72">
+            <Input type="search" placeholder={t('nodes.logs.search')} value={search} onChange={handleSearch} className="h-9 text-sm" />
+          </div>
+        </div>
+
+        {isPaused && (
+          <Alert className="border-amber-500/50 bg-amber-500/15 text-amber-700 dark:text-amber-400">
+            <Pause className="h-4 w-4" />
+            <AlertDescription>
+              {t('nodes.logs.paused')}
+              {messageBuffer.length > 0 && (
+                <span className="ms-1 font-medium">
+                  ({messageBuffer.length} {t('nodes.logs.messagesBuffered')})
+                </span>
+              )}
+            </AlertDescription>
+          </Alert>
+        )}
       </div>
+
+      <Card className="bg-background min-w-0">
+        <CardContent className="p-1 sm:p-2">
+          <div
+            ref={scrollRef}
+            onScroll={handleScroll}
+            dir="ltr"
+            className="custom-logs-scrollbar bg-background/75 h-[calc(100vh-280px)] max-h-[720px] min-h-[400px] space-y-0 overflow-x-hidden overflow-y-auto rounded sm:h-[720px] sm:min-h-0"
+          >
+            {filteredLogs.length > 0 ? (
+              filteredLogs.map((filteredLog: LogLine) => <TerminalLine key={filteredLog.id} log={filteredLog} searchTerm={debouncedSearch || ''} noTimestamp={!showTimestamp} />)
+            ) : isLoading ? (
+              <div className="text-muted-foreground flex h-full items-center justify-center">
+                <Loader2 className="h-6 w-6" />
+              </div>
+            ) : (
+              <div className="text-muted-foreground flex h-full items-center justify-center px-4 text-center">{t('nodes.logs.noLogs')}</div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }
