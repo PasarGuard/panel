@@ -1119,11 +1119,14 @@ async def test_get_nodes_simple_basic(access_token):
         assert "total" in data
 
         for node in data["nodes"]:
-            assert set(node.keys()) == {"id", "name", "status"}
+            assert set(node.keys()) == {"id", "name", "status", "core_config_id"}
 
         response_names = [n["name"] for n in data["nodes"]]
         for name in names:
             assert name in response_names
+
+        created_nodes = [n for n in data["nodes"] if n["id"] in node_ids]
+        assert all(n["core_config_id"] == core_id for n in created_nodes)
     finally:
         await cleanup_nodes_simple(core_id, node_ids)
 
