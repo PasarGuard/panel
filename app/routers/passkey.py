@@ -37,7 +37,7 @@ class PasskeyOptionsRequest(BaseModel):
 
 class PasskeyRegistrationRequest(BaseModel):
     credential: dict
-    name: str = Field(default="Passkey", max_length=128)
+    name: str = Field(default="This device", max_length=128)
 
 
 class PasskeyAuthenticationRequest(BaseModel):
@@ -298,7 +298,7 @@ async def passkey_register_verify(body: PasskeyRegistrationRequest, request: Req
         )
     except Exception as exc:
         raise HTTPException(status_code=400, detail="Passkey registration failed") from exc
-    db.add(AdminPasskey(admin_id=db_admin.id, credential_id=verified.credential_id, public_key=verified.credential_public_key, sign_count=verified.sign_count, name=body.name.strip() or "Passkey"))
+    db.add(AdminPasskey(admin_id=db_admin.id, credential_id=verified.credential_id, public_key=verified.credential_public_key, sign_count=verified.sign_count, name=body.name.strip() or "This device"))
     await db.commit()
     return {"ok": True}
 

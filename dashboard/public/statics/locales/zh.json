@@ -692,6 +692,7 @@
     "passkeyDevicesHint": "为此管理员添加多个通行密钥，例如笔记本电脑、手机或安全密钥。",
     "manageOwnPasskeys": "管理我的通行密钥",
     "passkeySelfServiceHint": "添加多个设备，无需密码即可登录。",
+    "passkeyName": "设备名称",
     "passkeyReadyHint": "使用指纹、面容解锁、PIN 或安全密钥登录。",
     "passkeyEmptyHint": "为此设备添加通行密钥，以便更快地免密码登录。",
     "addPasskey": "添加通行密钥",

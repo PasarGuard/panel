@@ -13,3 +13,10 @@ export const serializeCredential = (credential: any) => ({
       .map(key => [key, toBase64Url(credential.response[key])]),
   ),
 })
+
+export const getDefaultPasskeyName = () => {
+  const userAgent = navigator.userAgent
+  const browser = userAgent.includes('Edg/') ? 'Edge' : userAgent.includes('Chrome/') ? 'Chrome' : userAgent.includes('Firefox/') ? 'Firefox' : userAgent.includes('Safari/') ? 'Safari' : 'Browser'
+  const platform = navigator.platform?.replace(/^Win\w+/, 'Windows').replace(/^Mac\w+/, 'macOS') || 'device'
+  return `${browser} on ${platform}`
+}

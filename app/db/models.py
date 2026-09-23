@@ -181,7 +181,7 @@ class AdminPasskey(Base, IdMixin):
     credential_id: Mapped[bytes] = mapped_column(WebAuthnCredentialId(1024), unique=True)
     public_key: Mapped[bytes] = mapped_column(WebAuthnBinary(4096))
     sign_count: Mapped[int] = mapped_column(BigInteger, default=0)
-    name: Mapped[str] = mapped_column(String(128), default="Passkey")
+    name: Mapped[str] = mapped_column(String(128), default="This device")
 
 
 class PasskeyChallenge(Base):

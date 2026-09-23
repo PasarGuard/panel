@@ -692,6 +692,7 @@
     "passkeyDevicesHint": "Add multiple passkeys for this admin, such as a laptop, phone, or security key.",
     "manageOwnPasskeys": "Manage my passkeys",
     "passkeySelfServiceHint": "Add multiple devices so you can sign in without a password.",
+    "passkeyName": "Device name",
     "passkeyReadyHint": "Use a fingerprint, face unlock, PIN, or security key to sign in.",
     "passkeyEmptyHint": "Add a passkey for faster, password-free sign-in on this device.",
     "addPasskey": "Add passkey",

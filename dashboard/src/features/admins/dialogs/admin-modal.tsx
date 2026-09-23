@@ -15,7 +15,7 @@ import { CustomVariablesPopover, normalizeCustomVariableKey, VariablesPopover } 
 import { useAdmin } from '@/hooks/use-admin'
 import useDynamicErrorHandler from '@/hooks/use-dynamic-errors.ts'
 import { deleteAdminPasskeyForAdmin, getAdminPasskeyRegistrationOptionsForAdmin, getAdminPasskeysForAdmin, registerAdminPasskeyForAdmin, useCreateAdmin, useGetRolesSimple, useModifyAdminById } from '@/service/api'
-import { fromBase64Url, serializeCredential } from '@/utils/passkeys'
+import { fromBase64Url, getDefaultPasskeyName, serializeCredential } from '@/utils/passkeys'
 import type { AdminDetails, RoleLimits } from '@/service/api'
 import { builtInVariableKeys, normalizeCustomVariablesForPayload } from '@/features/subscriptions/components/subscription-settings-schema'
 import { upsertAdminInAdminsCache } from '@/utils/adminsCache'
@@ -108,6 +108,7 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
   )
   const [passkeys, setPasskeys] = useState<Array<{ id: number; name: string }>>([])
   const [passkeysLoading, setPasskeysLoading] = useState(false)
+  const [passkeyName, setPasskeyName] = useState('')
   const [passkeyBusy, setPasskeyBusy] = useState(false)
   const customVariables = form.watch('custom_variables') || []
   const typedCustomVariables = customVariables.filter((v): v is { key: string; value?: string } => v.key !== undefined)
@@ -173,7 +174,7 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
       options.excludeCredentials = options.excludeCredentials?.map((item: any) => ({ ...item, id: fromBase64Url(item.id) }))
       const credential = await navigator.credentials.create({ publicKey: options })
       if (!credential) throw new Error('No passkey was created')
-      await registerAdminPasskeyForAdmin(passkeyAdminId, { credential: serializeCredential(credential) })
+      await registerAdminPasskeyForAdmin(passkeyAdminId, { credential: serializeCredential(credential), name: passkeyName.trim() || getDefaultPasskeyName() })
       const updated = await getAdminPasskeysForAdmin(passkeyAdminId)
       setPasskeys(updated)
       toast.success(t('admins.passkeyAdded', { defaultValue: 'Passkey added successfully' }))
@@ -479,7 +480,7 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
                       </div>
                     </AccordionTrigger>
                     <AccordionContent className="px-1 pt-1">
-                      <div className="bg-muted/20 flex flex-col gap-3 rounded-md border p-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="bg-muted/20 flex flex-col gap-3 rounded-md border p-3">
                         <div className="flex min-w-0 items-start gap-3">
                           <div className="min-w-0">
                             <p className="text-sm font-semibold">{t('admins.passkeyDevicesTitle', { defaultValue: 'Sign-in devices' })}</p>
@@ -488,10 +489,13 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
                             </p>
                           </div>
                         </div>
-                        <Button type="button" size="sm" className="w-full shrink-0 sm:w-auto" onClick={registerPasskey} disabled={passkeyBusy || passkeysLoading}>
-                          {passkeyBusy ? <LoaderCircle className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Plus className="mr-1.5 h-3.5 w-3.5" />}
-                          {t('admins.addPasskey', { defaultValue: 'Add passkey' })}
-                        </Button>
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                          <label className="flex min-w-0 flex-1 items-center gap-2"><span className="text-muted-foreground shrink-0 text-xs">{t('admins.passkeyName', { defaultValue: 'Device name' })}</span><Input value={passkeyName} onChange={event => setPasskeyName(event.target.value)} placeholder={getDefaultPasskeyName()} maxLength={128} autoComplete="off" className="h-9 sm:w-56" /></label>
+                          <Button type="button" size="sm" className="w-full shrink-0 sm:w-auto" onClick={registerPasskey} disabled={passkeyBusy || passkeysLoading}>
+                            {passkeyBusy ? <LoaderCircle className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Plus className="mr-1.5 h-3.5 w-3.5" />}
+                            {t('admins.addPasskey', { defaultValue: 'Add passkey' })}
+                          </Button>
+                        </div>
                       </div>
                       {passkeysLoading ? (
                         <div className="mt-3 grid gap-2 sm:grid-cols-2"><div className="bg-muted/50 h-14 animate-pulse rounded-md" /><div className="bg-muted/50 h-14 animate-pulse rounded-md" /></div>

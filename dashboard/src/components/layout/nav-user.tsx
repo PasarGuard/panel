@@ -21,7 +21,8 @@ import { statusColors } from '@/constants/UserSettings'
 import { cn } from '@/lib/utils'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { deleteAdminPasskeyForAdmin, getAdminPasskeyRegistrationOptionsForAdmin, getAdminPasskeysForAdmin, registerAdminPasskeyForAdmin } from '@/service/api'
-import { fromBase64Url, serializeCredential } from '@/utils/passkeys'
+import { fromBase64Url, getDefaultPasskeyName, serializeCredential } from '@/utils/passkeys'
+import { Input } from '@/components/ui/input'
 import { LoaderCircle, Plus, ShieldCheck, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
@@ -271,6 +272,7 @@ function SelfPasskeyDialog({ admin, compact = false }: { admin: AdminDetails; co
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [passkeys, setPasskeys] = useState<Array<{ id: number; name: string }> | null>(null)
+  const [passkeyName, setPasskeyName] = useState('')
 
   useEffect(() => {
     if (!open || admin.id == null) return
@@ -291,7 +293,7 @@ function SelfPasskeyDialog({ admin, compact = false }: { admin: AdminDetails; co
       options.excludeCredentials = options.excludeCredentials?.map((item: any) => ({ ...item, id: fromBase64Url(item.id) }))
       const credential = await navigator.credentials.create({ publicKey: options })
       if (!credential) throw new Error('No passkey was created')
-      await registerAdminPasskeyForAdmin(admin.id, { credential: serializeCredential(credential) })
+      await registerAdminPasskeyForAdmin(admin.id, { credential: serializeCredential(credential), name: passkeyName.trim() || getDefaultPasskeyName() })
       setPasskeys(await getAdminPasskeysForAdmin(admin.id))
       toast.success(t('admins.passkeyAdded', { defaultValue: 'Passkey added successfully' }))
     } catch (error: any) {
@@ -306,7 +308,7 @@ function SelfPasskeyDialog({ admin, compact = false }: { admin: AdminDetails; co
     setBusy(true)
     try {
       await deleteAdminPasskeyForAdmin(admin.id, passkeyId)
-      setPasskeys(current => current.filter(passkey => passkey.id !== passkeyId))
+      setPasskeys(current => current ? current.filter(passkey => passkey.id !== passkeyId) : current)
       toast.success(t('admins.passkeyRemoved', { defaultValue: 'Passkey removed' }))
     } catch (error: any) {
       toast.error(t('admins.passkeyRemoveFailed', { defaultValue: 'Could not remove passkey' }), { description: error?.data?.detail || error?.message })
@@ -343,10 +345,13 @@ function SelfPasskeyDialog({ admin, compact = false }: { admin: AdminDetails; co
                   <p className="text-muted-foreground text-xs">{t('admins.passkeyReady', { defaultValue: 'Ready for password-free sign-in' })}</p>
                 </div>
               </div>
-              <Button type="button" size="sm" className="w-full sm:w-auto" onClick={addPasskey} disabled={busy || passkeys === null}>
-                {busy ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
-                {t('admins.addPasskey', { defaultValue: 'Add passkey' })}
-              </Button>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <label className="flex min-w-0 flex-1 items-center gap-2"><span className="text-muted-foreground shrink-0 text-xs">{t('admins.passkeyName', { defaultValue: 'Device name' })}</span><Input value={passkeyName} onChange={event => setPasskeyName(event.target.value)} placeholder={getDefaultPasskeyName()} maxLength={128} autoComplete="off" className="h-9 sm:w-52" /></label>
+                <Button type="button" size="sm" className="w-full sm:w-auto" onClick={addPasskey} disabled={busy || passkeys === null}>
+                  {busy ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
+                  {t('admins.addPasskey', { defaultValue: 'Add passkey' })}
+                </Button>
+              </div>
             </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between"><p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">{t('admins.passkeyDevicesTitle', { defaultValue: 'Sign-in devices' })}</p><span className="text-muted-foreground text-xs">{passkeys?.length ?? '—'}</span></div>
