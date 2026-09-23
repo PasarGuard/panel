@@ -190,8 +190,15 @@ export const Login: FC = () => {
   } = useAdminToken({
     mutation: {
       onSuccess(response) {
-        if (response.status !== 200) return
-        setAuthToken(response.data.access_token)
+        // The shared fetcher returns the parsed response body directly, while
+        // the generated type also contains the HTTP-envelope shape.
+        const responseBody = response as unknown as {
+          access_token?: string
+          data?: { access_token?: string }
+        }
+        const accessToken = responseBody.access_token ?? responseBody.data?.access_token
+        if (!accessToken) return
+        setAuthToken(accessToken)
         navigate('/', { replace: true })
       },
     },
