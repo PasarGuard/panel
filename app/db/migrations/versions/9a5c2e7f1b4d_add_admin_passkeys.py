@@ -7,7 +7,7 @@ Revises: 48a6bcb8bba1
 from alembic import op
 import sqlalchemy as sa
 from app.db.compiles_types import SqliteCompatibleBigInteger
-from app.db.compiles_types import WebAuthnBinary, WebAuthnCredentialId
+from app.db.compiles_types import WebAuthnBinary, WebAuthnChallenge, WebAuthnCredentialId
 
 
 revision = "9a5c2e7f1b4d"
@@ -32,7 +32,7 @@ def upgrade() -> None:
     op.create_table(
         "passkey_challenges",
         sa.Column("id", SqliteCompatibleBigInteger(), autoincrement=True, nullable=False),
-        sa.Column("challenge", WebAuthnBinary(128), nullable=False),
+        sa.Column("challenge", WebAuthnChallenge(128), nullable=False),
         sa.Column("admin_id", SqliteCompatibleBigInteger(), nullable=True),
         sa.Column("kind", sa.String(length=16), nullable=False),
         sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),

@@ -36,6 +36,7 @@ from app.db.compiles_types import (
     EnumArray,
     SqliteCompatibleBigInteger,
     StringArray,
+    WebAuthnChallenge,
     WebAuthnBinary,
     WebAuthnCredentialId,
 )
@@ -186,7 +187,7 @@ class AdminPasskey(Base, IdMixin):
 class PasskeyChallenge(Base):
     __tablename__ = "passkey_challenges"
     id: Mapped[int] = mapped_column(SqliteCompatibleBigInteger, primary_key=True, autoincrement=True, init=False)
-    challenge: Mapped[bytes] = mapped_column(WebAuthnBinary(128), unique=True)
+    challenge: Mapped[bytes] = mapped_column(WebAuthnChallenge(128), unique=True)
     kind: Mapped[str] = mapped_column(String(16))
     expires_at: Mapped[dt] = mapped_column(DateTime(timezone=True))
     admin_id: Mapped[int | None] = fk_id_column("admins.id", ondelete="CASCADE", default=None)

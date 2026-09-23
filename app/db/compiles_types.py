@@ -46,6 +46,22 @@ class WebAuthnCredentialId(TypeDecorator):
         return dialect.type_descriptor(LargeBinary(self.length))
 
 
+class WebAuthnChallenge(TypeDecorator):
+    """Short binary challenges that remain indexable on MySQL."""
+
+    impl = LargeBinary
+    cache_ok = True
+
+    def __init__(self, length: int = 128):
+        self.length = length
+        super().__init__(length=length)
+
+    def load_dialect_impl(self, dialect):
+        if dialect.name == "mysql":
+            return dialect.type_descriptor(mysql.VARBINARY(self.length))
+        return dialect.type_descriptor(LargeBinary(self.length))
+
+
 @compiles(SqliteCompatibleBigInteger, "sqlite")
 def compile_sqlite_compatible_big_integer(element, compiler, **kw):
     return "INTEGER"

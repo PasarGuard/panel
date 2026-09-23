@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 from alembic import context
 
 from app.db.base import Base
-from app.db.compiles_types import SqliteCompatibleBigInteger, WebAuthnBinary, WebAuthnCredentialId
+from app.db.compiles_types import SqliteCompatibleBigInteger, WebAuthnBinary, WebAuthnChallenge, WebAuthnCredentialId
 from config import database_settings
 
 # this is the Alembic Config object, which provides
@@ -58,6 +58,10 @@ def _compare_type(context, inspected_column, metadata_column, inspected_type, me
             return False
 
     if context.dialect.name == "mysql" and isinstance(metadata_type, WebAuthnCredentialId):
+        if isinstance(inspected_type, mysql.VARBINARY) and inspected_type.length == metadata_type.length:
+            return False
+
+    if context.dialect.name == "mysql" and isinstance(metadata_type, WebAuthnChallenge):
         if isinstance(inspected_type, mysql.VARBINARY) and inspected_type.length == metadata_type.length:
             return False
 
