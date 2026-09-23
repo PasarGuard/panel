@@ -185,6 +185,8 @@ class LoggingSettings(EnvSettings):
 class AuthSettings(EnvSettings):
     sudo_username: str = Field(default="", validation_alias="SUDO_USERNAME")
     sudo_password: str = Field(default="", validation_alias="SUDO_PASSWORD")
+    passkey_rp_id: str = Field(default="", validation_alias="PASSKEY_RP_ID")
+    passkey_origin: str = Field(default="", validation_alias="PASSKEY_ORIGIN")
     sudoers: dict[str, str] = Field(default_factory=dict)
 
     @model_validator(mode="after")

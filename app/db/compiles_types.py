@@ -1,4 +1,5 @@
-from sqlalchemy import BigInteger, Numeric, String, TypeDecorator
+from sqlalchemy import BigInteger, LargeBinary, Numeric, String, TypeDecorator
+from sqlalchemy.dialects import mysql
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.sql.expression import FunctionElement
 
@@ -10,6 +11,55 @@ class CaseSensitiveString(String):
 
 class SqliteCompatibleBigInteger(BigInteger):
     pass
+
+
+class WebAuthnBinary(TypeDecorator):
+    """Binary storage that preserves MySQL's compact blob type for challenges."""
+
+    impl = LargeBinary
+    cache_ok = True
+
+    def __init__(self, length: int):
+        self.length = length
+        super().__init__(length=length)
+
+    def load_dialect_impl(self, dialect):
+        if dialect.name == "mysql":
+            blob_type = mysql.TINYBLOB() if self.length <= 255 else mysql.BLOB()
+            return dialect.type_descriptor(blob_type)
+        return dialect.type_descriptor(LargeBinary(self.length))
+
+
+class WebAuthnCredentialId(TypeDecorator):
+    """Binary credential IDs that remain indexable on MySQL."""
+
+    impl = LargeBinary
+    cache_ok = True
+
+    def __init__(self, length: int = 1024):
+        self.length = length
+        super().__init__(length=length)
+
+    def load_dialect_impl(self, dialect):
+        if dialect.name == "mysql":
+            return dialect.type_descriptor(mysql.VARBINARY(self.length))
+        return dialect.type_descriptor(LargeBinary(self.length))
+
+
+class WebAuthnChallenge(TypeDecorator):
+    """Short binary challenges that remain indexable on MySQL."""
+
+    impl = LargeBinary
+    cache_ok = True
+
+    def __init__(self, length: int = 128):
+        self.length = length
+        super().__init__(length=length)
+
+    def load_dialect_impl(self, dialect):
+        if dialect.name == "mysql":
+            return dialect.type_descriptor(mysql.VARBINARY(self.length))
+        return dialect.type_descriptor(LargeBinary(self.length))
 
 
 @compiles(SqliteCompatibleBigInteger, "sqlite")

@@ -29,10 +29,11 @@ from app.nats.client import setup_nats_kv
 from app.nats.kv_cas import is_kv_miss
 from app.nats.message import MessageTopic
 from app.nats.router import router
+from app.subscription.base import normalize_and_remove_none_values
+from app.subscription.config_cache import clear_sub_config_cache
 from app.utils.logger import get_logger
 from config import runtime_settings
 from role import Role
-from app.subscription.base import normalize_and_remove_none_values
 
 
 def _string_list(value) -> list[str]:
@@ -572,6 +573,7 @@ class HostManager:
 
     async def _reset_cache(self):
         await self.get_hosts.cache.clear()
+        clear_sub_config_cache()
 
     @staticmethod
     async def _prepare_host_entry(
