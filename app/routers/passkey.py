@@ -24,6 +24,7 @@ from app.db import AsyncSession, get_db
 from app.db.models import Admin, AdminPasskey, AdminStatus, PasskeyChallenge
 from app.models.admin import AdminDetails, Token
 from app.utils.jwt import create_admin_token
+from app.operation.permissions import PermissionDenied, enforce_permission
 
 from .authentication import get_current
 
@@ -31,7 +32,7 @@ router = APIRouter(tags=["Passkeys"], prefix="/api/admin/passkey")
 
 
 class PasskeyOptionsRequest(BaseModel):
-    username: str = Field(min_length=1, max_length=128)
+    username: str | None = Field(default=None, max_length=128)
 
 
 class PasskeyRegistrationRequest(BaseModel):
@@ -40,7 +41,7 @@ class PasskeyRegistrationRequest(BaseModel):
 
 
 class PasskeyAuthenticationRequest(BaseModel):
-    username: str = Field(min_length=1, max_length=128)
+    username: str | None = Field(default=None, max_length=128)
     credential: dict
 
 
@@ -50,6 +51,52 @@ async def list_passkeys(admin: AdminDetails = Depends(get_current), db: AsyncSes
         await db.execute(select(AdminPasskey).where(AdminPasskey.admin_id == admin.id).order_by(AdminPasskey.id))
     ).scalars().all()
     return [{"id": row.id, "name": row.name} for row in rows]
+
+
+async def _authorize_target_admin(target_id: int, current_admin: AdminDetails, db: AsyncSession) -> Admin:
+    target = (await db.execute(select(Admin).where(Admin.id == target_id))).scalar_one_or_none()
+    if target is None:
+        raise HTTPException(status_code=404, detail="Admin not found")
+
+    # Every admin may manage their own passkeys. Managing another admin's
+    # credentials requires the dedicated admins.passkeys permission.
+    if current_admin.id != target_id:
+        try:
+            enforce_permission(current_admin, "admins", "passkeys")
+        except PermissionDenied as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+    return target
+
+
+@router.get("/admins/{admin_id}")
+async def list_admin_passkeys(
+    admin_id: int,
+    current_admin: AdminDetails = Depends(get_current),
+    db: AsyncSession = Depends(get_db),
+):
+    target = await _authorize_target_admin(admin_id, current_admin, db)
+    rows = (
+        await db.execute(select(AdminPasskey).where(AdminPasskey.admin_id == target.id).order_by(AdminPasskey.id))
+    ).scalars().all()
+    return [{"id": row.id, "name": row.name} for row in rows]
+
+
+@router.delete("/admins/{admin_id}/{passkey_id}")
+async def delete_admin_passkey(
+    admin_id: int,
+    passkey_id: int,
+    current_admin: AdminDetails = Depends(get_current),
+    db: AsyncSession = Depends(get_db),
+):
+    target = await _authorize_target_admin(admin_id, current_admin, db)
+    passkey = (
+        await db.execute(select(AdminPasskey).where(AdminPasskey.id == passkey_id, AdminPasskey.admin_id == target.id))
+    ).scalar_one_or_none()
+    if passkey is None:
+        raise HTTPException(status_code=404, detail="Passkey not found")
+    await db.delete(passkey)
+    await db.commit()
+    return {"ok": True}
 
 
 @router.delete("/{passkey_id}")
@@ -141,41 +188,55 @@ async def _consume_challenge(db: AsyncSession, challenge: bytes, kind: str, admi
 
 @router.post("/login/options")
 async def passkey_login_options(body: PasskeyOptionsRequest, request: Request, db: AsyncSession = Depends(get_db)):
-    admin = (await db.execute(select(Admin).where(Admin.username == body.username))).scalar_one_or_none()
-    if admin is None or admin.status == AdminStatus.disabled:
-        raise HTTPException(status_code=401, detail="Incorrect username or passkey")
-    passkeys = (await db.execute(select(AdminPasskey).where(AdminPasskey.admin_id == admin.id))).scalars().all()
-    if not passkeys:
-        raise HTTPException(status_code=404, detail="No passkey is registered for this account")
+    username = body.username.strip() if body.username else None
+    admin = None
+    passkeys = []
+    if username:
+        admin = (await db.execute(select(Admin).where(Admin.username == username))).scalar_one_or_none()
+        if admin is None or admin.status == AdminStatus.disabled:
+            raise HTTPException(status_code=401, detail="Incorrect username or passkey")
+        passkeys = (await db.execute(select(AdminPasskey).where(AdminPasskey.admin_id == admin.id))).scalars().all()
+        if not passkeys:
+            raise HTTPException(status_code=404, detail="No passkey is registered for this account")
     rp_id, _ = _rp_config(request)
     challenge = secrets.token_bytes(32)
     options = generate_authentication_options(
         rp_id=rp_id,
         challenge=challenge,
-        allow_credentials=[PublicKeyCredentialDescriptor(id=key.credential_id) for key in passkeys],
+        allow_credentials=(
+            [PublicKeyCredentialDescriptor(id=key.credential_id) for key in passkeys] if username else None
+        ),
         user_verification=UserVerificationRequirement.PREFERRED,
     )
-    await _save_challenge(db, challenge, "login", admin.id)
+    # A blank username uses a discoverable credential, so keep the challenge
+    # unscoped until the credential identifies the admin during verification.
+    await _save_challenge(db, challenge, "login", admin.id if admin else None)
     return json.loads(options_to_json(options))
 
 
 @router.post("/login/verify", response_model=Token)
 async def passkey_login_verify(body: PasskeyAuthenticationRequest, request: Request, db: AsyncSession = Depends(get_db)):
-    admin = (await db.execute(select(Admin).where(Admin.username == body.username))).scalar_one_or_none()
-    if admin is None or admin.status == AdminStatus.disabled:
-        raise HTTPException(status_code=401, detail="Incorrect username or passkey")
+    username = body.username.strip() if body.username else None
+    admin = None
+    if username:
+        admin = (await db.execute(select(Admin).where(Admin.username == username))).scalar_one_or_none()
+        if admin is None or admin.status == AdminStatus.disabled:
+            raise HTTPException(status_code=401, detail="Incorrect username or passkey")
     credential_id = _credential_id(body.credential)
-    passkey = (
-        await db.execute(
-            select(AdminPasskey).where(AdminPasskey.admin_id == admin.id, AdminPasskey.credential_id == credential_id)
-        )
-    ).scalar_one_or_none()
+    passkey_query = select(AdminPasskey).where(AdminPasskey.credential_id == credential_id)
+    if admin is not None:
+        passkey_query = passkey_query.where(AdminPasskey.admin_id == admin.id)
+    passkey = (await db.execute(passkey_query)).scalar_one_or_none()
     if passkey is None:
         raise HTTPException(status_code=401, detail="Passkey is not registered for this account")
+    if admin is None:
+        admin = (await db.execute(select(Admin).where(Admin.id == passkey.admin_id))).scalar_one_or_none()
+        if admin is None or admin.status == AdminStatus.disabled:
+            raise HTTPException(status_code=401, detail="Incorrect username or passkey")
     import base64
     client_data = json.loads(base64.urlsafe_b64decode(body.credential["response"]["clientDataJSON"] + "=="))
     challenge_bytes = base64.urlsafe_b64decode(client_data["challenge"] + "==")
-    await _consume_challenge(db, challenge_bytes, "login", admin.id)
+    await _consume_challenge(db, challenge_bytes, "login", admin.id if username else None)
     rp_id, origin = _rp_config(request)
     try:
         verified = verify_authentication_response(
@@ -209,7 +270,7 @@ async def passkey_register_options(request: Request, admin: AdminDetails = Depen
         user_display_name=db_admin.username,
         challenge=challenge,
         authenticator_selection=AuthenticatorSelectionCriteria(
-            resident_key=ResidentKeyRequirement.PREFERRED,
+            resident_key=ResidentKeyRequirement.REQUIRED,
             user_verification=UserVerificationRequirement.PREFERRED,
         ),
         exclude_credentials=[PublicKeyCredentialDescriptor(id=key.credential_id) for key in existing],
@@ -240,6 +301,31 @@ async def passkey_register_verify(body: PasskeyRegistrationRequest, request: Req
     db.add(AdminPasskey(admin_id=db_admin.id, credential_id=verified.credential_id, public_key=verified.credential_public_key, sign_count=verified.sign_count, name=body.name.strip() or "Passkey"))
     await db.commit()
     return {"ok": True}
+
+
+@router.post("/admins/{admin_id}/register/options")
+async def admin_passkey_register_options(
+    admin_id: int,
+    request: Request,
+    current_admin: AdminDetails = Depends(get_current),
+    db: AsyncSession = Depends(get_db),
+):
+    target = await _authorize_target_admin(admin_id, current_admin, db)
+    target_details = AdminDetails(id=target.id, username=target.username, status=target.status)
+    return await passkey_register_options(request=request, admin=target_details, db=db)
+
+
+@router.post("/admins/{admin_id}/register/verify")
+async def admin_passkey_register_verify(
+    admin_id: int,
+    body: PasskeyRegistrationRequest,
+    request: Request,
+    current_admin: AdminDetails = Depends(get_current),
+    db: AsyncSession = Depends(get_db),
+):
+    target = await _authorize_target_admin(admin_id, current_admin, db)
+    target_details = AdminDetails(id=target.id, username=target.username, status=target.status)
+    return await passkey_register_verify(body=body, request=request, admin=target_details, db=db)
 
 
 def _credential_id(credential: dict) -> bytes:

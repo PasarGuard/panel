@@ -686,6 +686,12 @@
     "title": "Admins",
     "description": "Manage system administrators",
     "passkeys": "Passkeys",
+    "passkey": "Passkey",
+    "passkeyReady": "Ready for sign-in",
+    "passkeyDevicesTitle": "Sign-in devices",
+    "passkeyDevicesHint": "Add multiple passkeys for this admin, such as a laptop, phone, or security key.",
+    "manageOwnPasskeys": "Manage my passkeys",
+    "passkeySelfServiceHint": "Add multiple devices so you can sign in without a password.",
     "passkeyReadyHint": "Use a fingerprint, face unlock, PIN, or security key to sign in.",
     "passkeyEmptyHint": "Add a passkey for faster, password-free sign-in on this device.",
     "addPasskey": "Add passkey",
@@ -938,7 +944,8 @@
         "activate_next_plan": "Activate next plan"
       },
       "admins": {
-        "reset_usage": "Reset admin usage"
+        "reset_usage": "Reset admin usage",
+        "passkeys": "Manage admin passkeys"
       },
       "settings": {
         "read": "View settings",

@@ -14,15 +14,16 @@ import { Textarea } from '@/components/ui/textarea'
 import { CustomVariablesPopover, normalizeCustomVariableKey, VariablesPopover } from '@/components/ui/variables-popover'
 import { useAdmin } from '@/hooks/use-admin'
 import useDynamicErrorHandler from '@/hooks/use-dynamic-errors.ts'
-import { deleteAdminPasskey, getAdminPasskeyRegistrationOptions, getAdminPasskeys, registerAdminPasskey, useCreateAdmin, useGetRolesSimple, useModifyAdminById } from '@/service/api'
+import { deleteAdminPasskeyForAdmin, getAdminPasskeyRegistrationOptionsForAdmin, getAdminPasskeysForAdmin, registerAdminPasskeyForAdmin, useCreateAdmin, useGetRolesSimple, useModifyAdminById } from '@/service/api'
 import { fromBase64Url, serializeCredential } from '@/utils/passkeys'
 import type { AdminDetails, RoleLimits } from '@/service/api'
 import { builtInVariableKeys, normalizeCustomVariablesForPayload } from '@/features/subscriptions/components/subscription-settings-schema'
 import { upsertAdminInAdminsCache } from '@/utils/adminsCache'
 import { removeAuthToken } from '@/utils/authStorage'
+import { hasPermission } from '@/utils/rbac'
 import { bytesToFormGigabytes, formatBytes, gbToBytes } from '@/utils/formatByte'
 import { useQueryClient } from '@tanstack/react-query'
-import { Bell, IdCard, KeyRound, Pencil, Plus, ShieldCheck, Sliders, Trash2, UserCog } from 'lucide-react'
+import { Bell, IdCard, KeyRound, LoaderCircle, Pencil, Plus, ShieldCheck, Sliders, Trash2, UserCog } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { UseFormReturn, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -99,7 +100,14 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
   const rolesQuery = useGetRolesSimple()
   const selectedRoleId = form.watch('role_id')
   const isEditingCurrentAdmin = Boolean(editingAdmin && currentAdminDetails && ((currentAdminDetails.id != null && editingAdminId === currentAdminDetails.id) || form.getValues('username') === currentAdminDetails.username))
+  const passkeyAdminId = editingAdminId ?? (isEditingCurrentAdmin ? currentAdminDetails?.id : null)
+  const canManagePasskeys = Boolean(
+    editingAdmin &&
+    passkeyAdminId != null &&
+    (isEditingCurrentAdmin || hasPermission(currentAdminDetails, 'admins', 'passkeys')),
+  )
   const [passkeys, setPasskeys] = useState<Array<{ id: number; name: string }>>([])
+  const [passkeysLoading, setPasskeysLoading] = useState(false)
   const [passkeyBusy, setPasskeyBusy] = useState(false)
   const customVariables = form.watch('custom_variables') || []
   const typedCustomVariables = customVariables.filter((v): v is { key: string; value?: string } => v.key !== undefined)
@@ -115,7 +123,7 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
     })
 
     return Array.from(rolesById.values()).sort((a, b) => a.id - b.id)
-  }, [rolesQuery.data?.roles])
+  }, [rolesQuery.data])
   const selectedRoleExists = selectedRoleId == null || roleOptions.some(role => role.id === selectedRoleId)
 
   useEffect(() => {
@@ -125,11 +133,13 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
   }, [isDialogOpen])
 
   useEffect(() => {
-    if (!isDialogOpen || !isEditingCurrentAdmin) return
-    getAdminPasskeys()
+    if (!isDialogOpen || !canManagePasskeys || passkeyAdminId == null) return
+    setPasskeysLoading(true)
+    getAdminPasskeysForAdmin(passkeyAdminId)
       .then(setPasskeys)
       .catch(() => setPasskeys([]))
-  }, [isDialogOpen, isEditingCurrentAdmin])
+      .finally(() => setPasskeysLoading(false))
+  }, [isDialogOpen, canManagePasskeys, passkeyAdminId])
 
   // Accordion: only one section open at a time
   const [openSection, setOpenSection] = useState<string | undefined>(undefined)
@@ -150,20 +160,21 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
   }
 
   const registerPasskey = async () => {
+    if (passkeyAdminId == null) return
     if (!window.PublicKeyCredential) {
       toast.error(t('admins.passkeyUnsupported', { defaultValue: 'Passkeys are not supported in this browser.' }))
       return
     }
     setPasskeyBusy(true)
     try {
-      const options: any = await getAdminPasskeyRegistrationOptions()
+      const options: any = await getAdminPasskeyRegistrationOptionsForAdmin(passkeyAdminId)
       options.challenge = fromBase64Url(options.challenge)
       options.user.id = fromBase64Url(options.user.id)
       options.excludeCredentials = options.excludeCredentials?.map((item: any) => ({ ...item, id: fromBase64Url(item.id) }))
       const credential = await navigator.credentials.create({ publicKey: options })
       if (!credential) throw new Error('No passkey was created')
-      await registerAdminPasskey({ credential: serializeCredential(credential) })
-      const updated = await getAdminPasskeys()
+      await registerAdminPasskeyForAdmin(passkeyAdminId, { credential: serializeCredential(credential) })
+      const updated = await getAdminPasskeysForAdmin(passkeyAdminId)
       setPasskeys(updated)
       toast.success(t('admins.passkeyAdded', { defaultValue: 'Passkey added successfully' }))
     } catch (error: any) {
@@ -174,9 +185,10 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
   }
 
   const removePasskey = async (id: number) => {
+    if (passkeyAdminId == null) return
     setPasskeyBusy(true)
     try {
-      await deleteAdminPasskey(id)
+      await deleteAdminPasskeyForAdmin(passkeyAdminId, id)
       setPasskeys(current => current.filter(passkey => passkey.id !== id))
       toast.success(t('admins.passkeyRemoved', { defaultValue: 'Passkey removed' }))
     } catch (error: any) {
@@ -323,7 +335,7 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
 
   return (
     <Dialog open={isDialogOpen} onOpenChange={handleClose}>
-      <DialogContent className="h-auto max-w-[640px]" onOpenAutoFocus={e => e.preventDefault()}>
+      <DialogContent className="max-h-[calc(100dvh-1rem)] h-auto max-w-[calc(100vw-1rem)] overflow-hidden p-4 sm:max-w-160 sm:p-6" onOpenAutoFocus={e => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             {editingAdmin ? <Pencil className="h-5 w-5" /> : <UserCog className="h-5 w-5" />}
@@ -455,50 +467,59 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
                 <AdminDataLimitField form={form} />
               </div>
 
-              {isEditingCurrentAdmin && (
-                <div className="rounded-lg border bg-muted/20 p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex min-w-0 items-start gap-3">
-                      <div className="bg-primary/10 text-primary flex h-9 w-9 shrink-0 items-center justify-center rounded-full">
-                        <KeyRound className="h-4 w-4" />
-                      </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <h3 className="text-sm font-semibold">{t('admins.passkeys', { defaultValue: 'Passkeys' })}</h3>
-                          {passkeys.length > 0 && <ShieldCheck className="h-4 w-4 text-emerald-500" />}
-                        </div>
-                        <p className="text-muted-foreground mt-1 text-xs leading-5">
-                          {passkeys.length > 0
-                            ? t('admins.passkeyReadyHint', { defaultValue: 'Use a fingerprint, face unlock, PIN, or security key to sign in.' })
-                            : t('admins.passkeyEmptyHint', { defaultValue: 'Add a passkey for faster, password-free sign-in on this device.' })}
-                        </p>
-                      </div>
-                    </div>
-                    <Button type="button" size="sm" variant="outline" onClick={registerPasskey} disabled={passkeyBusy}>
-                      <Plus className="mr-1.5 h-3.5 w-3.5" />
-                      {t('admins.addPasskey', { defaultValue: 'Add passkey' })}
-                    </Button>
-                  </div>
-                  {passkeys.length > 0 && (
-                    <div className="mt-3 space-y-2 border-t pt-3">
-                      {passkeys.map(passkey => (
-                        <div key={passkey.id} className="bg-background flex items-center justify-between rounded-md border px-3 py-2">
-                          <div className="flex min-w-0 items-center gap-2">
-                            <KeyRound className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
-                            <span className="truncate text-xs font-medium">{passkey.name}</span>
-                          </div>
-                          <Button type="button" variant="ghost" size="sm" className="text-destructive h-7 px-2 text-xs" onClick={() => removePasskey(passkey.id)} disabled={passkeyBusy}>
-                            {t('remove', { defaultValue: 'Remove' })}
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-
               {/* Advanced settings: collapsed by default */}
               <Accordion type="single" collapsible value={openSection} onValueChange={handleAccordionChange} className="!mt-0 flex w-full flex-col gap-y-3">
+                {canManagePasskeys && (
+                  <AccordionItem className="rounded-md border px-4 [&_[data-state=closed]]:no-underline [&_[data-state=open]]:no-underline" value="passkeys">
+                    <AccordionTrigger>
+                      <div className="flex items-center gap-2">
+                        <KeyRound className="h-4 w-4" />
+                        <span>{t('admins.passkeys', { defaultValue: 'Passkeys' })}</span>
+                        <span className="text-muted-foreground text-xs">{passkeysLoading ? '—' : passkeys.length}</span>
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent className="px-1 pt-1">
+                      <div className="bg-muted/20 flex flex-col gap-3 rounded-md border p-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex min-w-0 items-start gap-3">
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold">{t('admins.passkeyDevicesTitle', { defaultValue: 'Sign-in devices' })}</p>
+                            <p className="text-muted-foreground mt-1 text-xs leading-5">
+                              {t('admins.passkeyDevicesHint', { defaultValue: 'Add multiple passkeys for this admin, such as a laptop, phone, or security key.' })}
+                            </p>
+                          </div>
+                        </div>
+                        <Button type="button" size="sm" className="w-full shrink-0 sm:w-auto" onClick={registerPasskey} disabled={passkeyBusy || passkeysLoading}>
+                          {passkeyBusy ? <LoaderCircle className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Plus className="mr-1.5 h-3.5 w-3.5" />}
+                          {t('admins.addPasskey', { defaultValue: 'Add passkey' })}
+                        </Button>
+                      </div>
+                      {passkeysLoading ? (
+                        <div className="mt-3 grid gap-2 sm:grid-cols-2"><div className="bg-muted/50 h-14 animate-pulse rounded-md" /><div className="bg-muted/50 h-14 animate-pulse rounded-md" /></div>
+                      ) : passkeys.length > 0 ? (
+                        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                          {passkeys.map((passkey, index) => (
+                            <div key={passkey.id} className="bg-background group flex min-w-0 items-center justify-between gap-3 rounded-md border p-3 transition-colors hover:bg-muted/30">
+                              <div className="flex min-w-0 items-center gap-2.5">
+                                <KeyRound className="text-primary h-4 w-4 shrink-0" />
+                                <div className="min-w-0">
+                                  <p className="truncate text-xs font-medium">{passkey.name || `${t('admins.passkey', { defaultValue: 'Passkey' })} ${index + 1}`}</p>
+                                  <p className="text-muted-foreground text-[11px]">{t('admins.passkeyReady', { defaultValue: 'Ready for sign-in' })}</p>
+                                </div>
+                              </div>
+                              <Button type="button" variant="ghost" size="sm" className="text-muted-foreground hover:text-destructive h-8 shrink-0 px-2 text-xs opacity-70 transition-opacity group-hover:opacity-100" onClick={() => removePasskey(passkey.id)} disabled={passkeyBusy}>
+                                <Trash2 className="mr-1.5 h-3.5 w-3.5" />{t('remove', { defaultValue: 'Remove' })}
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-muted-foreground mt-3 rounded-lg border border-dashed px-3 py-4 text-center text-xs">
+                          {t('admins.passkeyEmptyHint', { defaultValue: 'No passkeys have been added yet.' })}
+                        </div>
+                      )}
+                    </AccordionContent>
+                  </AccordionItem>
+                )}
                 <AccordionItem className="rounded-md border px-4 [&_[data-state=closed]]:no-underline [&_[data-state=open]]:no-underline" value="profile">
                   <AccordionTrigger>
                     <div className="flex items-center gap-2">

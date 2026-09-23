@@ -686,6 +686,12 @@
     "title": "管理员",
     "description": "管理系统管理员",
     "passkeys": "通行密钥",
+    "passkey": "通行密钥",
+    "passkeyReady": "可用于登录",
+    "passkeyDevicesTitle": "登录设备",
+    "passkeyDevicesHint": "为此管理员添加多个通行密钥，例如笔记本电脑、手机或安全密钥。",
+    "manageOwnPasskeys": "管理我的通行密钥",
+    "passkeySelfServiceHint": "添加多个设备，无需密码即可登录。",
     "passkeyReadyHint": "使用指纹、面容解锁、PIN 或安全密钥登录。",
     "passkeyEmptyHint": "为此设备添加通行密钥，以便更快地免密码登录。",
     "addPasskey": "添加通行密钥",
@@ -938,7 +944,8 @@
         "activate_next_plan": "激活下一计划"
       },
       "admins": {
-        "reset_usage": "重置管理员用量"
+        "reset_usage": "重置管理员用量",
+        "passkeys": "管理管理员通行密钥"
       },
       "settings": {
         "read": "查看设置",

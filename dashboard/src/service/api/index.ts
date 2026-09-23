@@ -80,6 +80,8 @@ export type AdminsPermissionsDelete = boolean | {[key: string]: PermissionScope 
 
 export type AdminsPermissionsResetUsage = boolean | {[key: string]: PermissionScope | number} | null;
 
+export type AdminsPermissionsPasskeys = boolean | {[key: string]: PermissionScope | number} | null;
+
 export interface AdminsPermissions {
   create?: AdminsPermissionsCreate;
   read?: AdminsPermissionsRead;
@@ -87,6 +89,7 @@ export interface AdminsPermissions {
   update?: AdminsPermissionsUpdate;
   delete?: AdminsPermissionsDelete;
   reset_usage?: AdminsPermissionsResetUsage;
+  passkeys?: AdminsPermissionsPasskeys;
 }
 
 export type NodesPermissionsCreate = boolean | {[key: string]: PermissionScope | number} | null;
@@ -26916,7 +26919,7 @@ export interface PasskeySummary {
 }
 
 export interface PasskeyOptionsRequest {
-  username: string;
+  username?: string;
 }
 
 export interface PasskeyRegistrationRequest {
@@ -26925,12 +26928,15 @@ export interface PasskeyRegistrationRequest {
 }
 
 export interface PasskeyAuthenticationRequest {
-  username: string;
+  username?: string;
   credential: Record<string, unknown>;
 }
 
 export const getAdminPasskeys = async (options?: RequestInit): Promise<PasskeySummary[]> =>
   orvalFetcher<PasskeySummary[]>('/api/admin/passkey', { ...options, method: 'GET' });
+
+export const getAdminPasskeysForAdmin = async (adminId: number, options?: RequestInit): Promise<PasskeySummary[]> =>
+  orvalFetcher<PasskeySummary[]>(`/api/admin/passkey/admins/${adminId}`, { ...options, method: 'GET' });
 
 export const getAdminPasskeyLoginOptions = async (body: PasskeyOptionsRequest, options?: RequestInit): Promise<Record<string, unknown>> =>
   orvalFetcher<Record<string, unknown>>('/api/admin/passkey/login/options', {
@@ -26959,5 +26965,19 @@ export const registerAdminPasskey = async (body: PasskeyRegistrationRequest, opt
     body: JSON.stringify(body),
   });
 
+export const getAdminPasskeyRegistrationOptionsForAdmin = async (adminId: number, options?: RequestInit): Promise<Record<string, unknown>> =>
+  orvalFetcher<Record<string, unknown>>(`/api/admin/passkey/admins/${adminId}/register/options`, { ...options, method: 'POST' });
+
+export const registerAdminPasskeyForAdmin = async (adminId: number, body: PasskeyRegistrationRequest, options?: RequestInit): Promise<{ ok: boolean }> =>
+  orvalFetcher<{ ok: boolean }>(`/api/admin/passkey/admins/${adminId}/register/verify`, {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(body),
+  });
+
 export const deleteAdminPasskey = async (passkeyId: number, options?: RequestInit): Promise<{ ok: boolean }> =>
   orvalFetcher<{ ok: boolean }>(`/api/admin/passkey/${passkeyId}`, { ...options, method: 'DELETE' });
+
+export const deleteAdminPasskeyForAdmin = async (adminId: number, passkeyId: number, options?: RequestInit): Promise<{ ok: boolean }> =>
+  orvalFetcher<{ ok: boolean }>(`/api/admin/passkey/admins/${adminId}/${passkeyId}`, { ...options, method: 'DELETE' });

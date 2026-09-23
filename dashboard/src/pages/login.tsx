@@ -248,22 +248,18 @@ export const Login: FC = () => {
   const [passkeyLoading, setPasskeyLoading] = useState(false)
   const handlePasskeyLogin = async () => {
     const username = getValues('username').trim()
-    if (!username) {
-      toast.error(t('login.fieldRequired', { defaultValue: 'Enter your username first.' }))
-      return
-    }
     if (!window.PublicKeyCredential) {
       toast.error(t('login.passkeyUnsupported', { defaultValue: 'Passkeys are not supported in this browser.' }))
       return
     }
     setPasskeyLoading(true)
     try {
-      const options: any = await getAdminPasskeyLoginOptions({ username })
+      const options: any = await getAdminPasskeyLoginOptions(username ? { username } : {})
       options.challenge = fromBase64Url(options.challenge)
       options.allowCredentials = options.allowCredentials?.map((item: any) => ({ ...item, id: fromBase64Url(item.id) }))
       const credential = await navigator.credentials.get({ publicKey: options })
       if (!credential) throw new Error('No passkey was provided')
-      const data = await verifyAdminPasskeyLogin({ username, credential: serializeCredential(credential) })
+      const data = await verifyAdminPasskeyLogin({ ...(username ? { username } : {}), credential: serializeCredential(credential) })
       setAuthToken(data.access_token)
       navigate('/', { replace: true })
     } catch (err: any) {
