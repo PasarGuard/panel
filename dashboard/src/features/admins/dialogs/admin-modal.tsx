@@ -14,14 +14,15 @@ import { Textarea } from '@/components/ui/textarea'
 import { CustomVariablesPopover, normalizeCustomVariableKey, VariablesPopover } from '@/components/ui/variables-popover'
 import { useAdmin } from '@/hooks/use-admin'
 import useDynamicErrorHandler from '@/hooks/use-dynamic-errors.ts'
-import { useCreateAdmin, useGetRolesSimple, useModifyAdminById } from '@/service/api'
-import type { RoleLimits } from '@/service/api'
+import { deleteAdminPasskey, getAdminPasskeyRegistrationOptions, getAdminPasskeys, registerAdminPasskey, useCreateAdmin, useGetRolesSimple, useModifyAdminById } from '@/service/api'
+import { fromBase64Url, serializeCredential } from '@/utils/passkeys'
+import type { AdminDetails, RoleLimits } from '@/service/api'
 import { builtInVariableKeys, normalizeCustomVariablesForPayload } from '@/features/subscriptions/components/subscription-settings-schema'
 import { upsertAdminInAdminsCache } from '@/utils/adminsCache'
 import { removeAuthToken } from '@/utils/authStorage'
 import { bytesToFormGigabytes, formatBytes, gbToBytes } from '@/utils/formatByte'
 import { useQueryClient } from '@tanstack/react-query'
-import { Bell, IdCard, Pencil, Plus, Sliders, Trash2, UserCog } from 'lucide-react'
+import { Bell, IdCard, KeyRound, Pencil, Plus, ShieldCheck, Sliders, Trash2, UserCog } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { UseFormReturn, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -92,17 +93,22 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
   const handleError = useDynamicErrorHandler()
   const queryClient = useQueryClient()
   const { admin: currentAdmin } = useAdmin()
+  const currentAdminDetails = currentAdmin as unknown as AdminDetails | null
   const addAdminMutation = useCreateAdmin()
   const modifyAdminMutation = useModifyAdminById()
   const rolesQuery = useGetRolesSimple()
   const selectedRoleId = form.watch('role_id')
+  const isEditingCurrentAdmin = Boolean(editingAdmin && currentAdminDetails && ((currentAdminDetails.id != null && editingAdminId === currentAdminDetails.id) || form.getValues('username') === currentAdminDetails.username))
+  const [passkeys, setPasskeys] = useState<Array<{ id: number; name: string }>>([])
+  const [passkeyBusy, setPasskeyBusy] = useState(false)
   const customVariables = form.watch('custom_variables') || []
   const typedCustomVariables = customVariables.filter((v): v is { key: string; value?: string } => v.key !== undefined)
   const builtInKeys = new Set<string>(builtInVariableKeys)
   const roleOptions = useMemo(() => {
     const rolesById = new Map<number, { id: number; name: string; is_owner: boolean }>()
     BUILTIN_ADMIN_ROLES.forEach(role => rolesById.set(role.id, role))
-    ;(rolesQuery.data?.roles || []).forEach(role => {
+    const roles = (rolesQuery.data as unknown as { roles?: Array<{ id: number; name: string; is_owner: boolean }> } | undefined)?.roles || []
+    roles.forEach(role => {
       if (!role.is_owner && role.id !== 1) {
         rolesById.set(role.id, role)
       }
@@ -117,6 +123,13 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
       setOpenSection(undefined)
     }
   }, [isDialogOpen])
+
+  useEffect(() => {
+    if (!isDialogOpen || !isEditingCurrentAdmin) return
+    getAdminPasskeys()
+      .then(setPasskeys)
+      .catch(() => setPasskeys([]))
+  }, [isDialogOpen, isEditingCurrentAdmin])
 
   // Accordion: only one section open at a time
   const [openSection, setOpenSection] = useState<string | undefined>(undefined)
@@ -134,6 +147,43 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
 
   const handleAccordionChange = (value: string) => {
     setOpenSection(prev => (prev === value ? undefined : value))
+  }
+
+  const registerPasskey = async () => {
+    if (!window.PublicKeyCredential) {
+      toast.error(t('admins.passkeyUnsupported', { defaultValue: 'Passkeys are not supported in this browser.' }))
+      return
+    }
+    setPasskeyBusy(true)
+    try {
+      const options: any = await getAdminPasskeyRegistrationOptions()
+      options.challenge = fromBase64Url(options.challenge)
+      options.user.id = fromBase64Url(options.user.id)
+      options.excludeCredentials = options.excludeCredentials?.map((item: any) => ({ ...item, id: fromBase64Url(item.id) }))
+      const credential = await navigator.credentials.create({ publicKey: options })
+      if (!credential) throw new Error('No passkey was created')
+      await registerAdminPasskey({ credential: serializeCredential(credential) })
+      const updated = await getAdminPasskeys()
+      setPasskeys(updated)
+      toast.success(t('admins.passkeyAdded', { defaultValue: 'Passkey added successfully' }))
+    } catch (error: any) {
+      toast.error(t('admins.passkeyAddFailed', { defaultValue: 'Could not add passkey' }), { description: error?.data?.detail || error?.message })
+    } finally {
+      setPasskeyBusy(false)
+    }
+  }
+
+  const removePasskey = async (id: number) => {
+    setPasskeyBusy(true)
+    try {
+      await deleteAdminPasskey(id)
+      setPasskeys(current => current.filter(passkey => passkey.id !== id))
+      toast.success(t('admins.passkeyRemoved', { defaultValue: 'Passkey removed' }))
+    } catch (error: any) {
+      toast.error(t('admins.passkeyRemoveFailed', { defaultValue: 'Could not remove passkey' }), { description: error?.data?.detail || error?.message })
+    } finally {
+      setPasskeyBusy(false)
+    }
   }
 
   const setCustomVariables = (variables: NonNullable<AdminFormValuesInput['custom_variables']>) => {
@@ -167,7 +217,7 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
   const onSubmit = async (values: AdminFormValuesInput) => {
     try {
       const passwordChanged = typeof values.password === 'string' && values.password.length > 0
-      const isEditingCurrentAdmin = editingAdmin && currentAdmin != null && ((currentAdmin.id != null && editingAdminId === currentAdmin.id) || values.username === currentAdmin.username)
+      const isEditingCurrentAdmin = editingAdmin && currentAdminDetails != null && ((currentAdminDetails.id != null && editingAdminId === currentAdminDetails.id) || values.username === currentAdminDetails.username)
       const dataLimitChanged = !!form.formState.dirtyFields.data_limit
       const dataLimitHasValue = values.data_limit !== null && values.data_limit !== undefined && values.data_limit !== ''
       const dataLimitPayload = editingAdmin
@@ -198,7 +248,7 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
           adminId: editingAdminId,
           data: editData,
         })
-        upsertAdminInAdminsCache(queryClient, updatedAdmin, { allowInsert: true })
+        upsertAdminInAdminsCache(queryClient, updatedAdmin as unknown as AdminDetails, { allowInsert: true })
         if (passwordChanged && isEditingCurrentAdmin) {
           toast.success(t('admins.passwordChangedTitle', { defaultValue: 'Password changed' }), {
             description: t('admins.passwordChangedLogout', { defaultValue: 'Please sign in again with your new password.' }),
@@ -239,7 +289,7 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
         const createdAdmin = await addAdminMutation.mutateAsync({
           data: createData,
         })
-        upsertAdminInAdminsCache(queryClient, createdAdmin, { allowInsert: true })
+        upsertAdminInAdminsCache(queryClient, createdAdmin as unknown as AdminDetails, { allowInsert: true })
         toast.success(
           t('admins.createSuccess', {
             name: values.username,
@@ -404,6 +454,48 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
                 />
                 <AdminDataLimitField form={form} />
               </div>
+
+              {isEditingCurrentAdmin && (
+                <div className="rounded-lg border bg-muted/20 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex min-w-0 items-start gap-3">
+                      <div className="bg-primary/10 text-primary flex h-9 w-9 shrink-0 items-center justify-center rounded-full">
+                        <KeyRound className="h-4 w-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-sm font-semibold">{t('admins.passkeys', { defaultValue: 'Passkeys' })}</h3>
+                          {passkeys.length > 0 && <ShieldCheck className="h-4 w-4 text-emerald-500" />}
+                        </div>
+                        <p className="text-muted-foreground mt-1 text-xs leading-5">
+                          {passkeys.length > 0
+                            ? t('admins.passkeyReadyHint', { defaultValue: 'Use a fingerprint, face unlock, PIN, or security key to sign in.' })
+                            : t('admins.passkeyEmptyHint', { defaultValue: 'Add a passkey for faster, password-free sign-in on this device.' })}
+                        </p>
+                      </div>
+                    </div>
+                    <Button type="button" size="sm" variant="outline" onClick={registerPasskey} disabled={passkeyBusy}>
+                      <Plus className="mr-1.5 h-3.5 w-3.5" />
+                      {t('admins.addPasskey', { defaultValue: 'Add passkey' })}
+                    </Button>
+                  </div>
+                  {passkeys.length > 0 && (
+                    <div className="mt-3 space-y-2 border-t pt-3">
+                      {passkeys.map(passkey => (
+                        <div key={passkey.id} className="bg-background flex items-center justify-between rounded-md border px-3 py-2">
+                          <div className="flex min-w-0 items-center gap-2">
+                            <KeyRound className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
+                            <span className="truncate text-xs font-medium">{passkey.name}</span>
+                          </div>
+                          <Button type="button" variant="ghost" size="sm" className="text-destructive h-7 px-2 text-xs" onClick={() => removePasskey(passkey.id)} disabled={passkeyBusy}>
+                            {t('remove', { defaultValue: 'Remove' })}
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Advanced settings: collapsed by default */}
               <Accordion type="single" collapsible value={openSection} onValueChange={handleAccordionChange} className="!mt-0 flex w-full flex-col gap-y-3">

@@ -12,6 +12,7 @@ from sqlalchemy import (
     Float,
     ForeignKey,
     Index,
+    LargeBinary,
     String,
     Table,
     Text,
@@ -87,6 +88,9 @@ class Admin(Base, CreatedAtUTCMixin):
     api_keys: Mapped[list[APIKey]] = relationship(
         back_populates="admin", init=False, default_factory=list, cascade="all, delete-orphan"
     )
+    passkeys: Mapped[list["AdminPasskey"]] = relationship(
+        back_populates="admin", init=False, default_factory=list, cascade="all, delete-orphan"
+    )
 
     password_reset_at: Mapped[dt | None] = mapped_column(DateTime(timezone=True), default=None)
     telegram_id: Mapped[int | None] = mapped_column(BigInteger, default=None)
@@ -159,6 +163,25 @@ class Admin(Base, CreatedAtUTCMixin):
     def has_api_keys(self) -> bool:
         """True when the admin owns at least one API key."""
         return len(self.api_keys) > 0
+
+
+class AdminPasskey(Base, IdMixin):
+    __tablename__ = "admin_passkeys"
+    admin_id: Mapped[int] = fk_id_column("admins.id", ondelete="CASCADE")
+    admin: Mapped[Admin] = relationship(back_populates="passkeys", init=False)
+    credential_id: Mapped[bytes] = mapped_column(LargeBinary(1024), unique=True)
+    public_key: Mapped[bytes] = mapped_column(LargeBinary(4096))
+    sign_count: Mapped[int] = mapped_column(BigInteger, default=0)
+    name: Mapped[str] = mapped_column(String(128), default="Passkey")
+
+
+class PasskeyChallenge(Base):
+    __tablename__ = "passkey_challenges"
+    id: Mapped[int] = mapped_column(SqliteCompatibleBigInteger, primary_key=True, autoincrement=True, init=False)
+    challenge: Mapped[bytes] = mapped_column(LargeBinary(128), unique=True)
+    kind: Mapped[str] = mapped_column(String(16))
+    expires_at: Mapped[dt] = mapped_column(DateTime(timezone=True))
+    admin_id: Mapped[int | None] = fk_id_column("admins.id", ondelete="CASCADE", default=None)
 
 
 class AdminUsageLogs(Base, IdMixin):
