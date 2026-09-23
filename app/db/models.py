@@ -781,7 +781,7 @@ class NodeUserUsage(Base, IdMixin):
     node_id: Mapped[int | None] = fk_id_column("nodes.id", ondelete="CASCADE")
     node: Mapped[Node] = relationship(back_populates="user_usages", init=False)
     used_traffic: Mapped[int] = mapped_column(BigInteger, default=0)
-    is_daily: Mapped[bool] = mapped_column(default=False, server_default=text("0"))
+    is_daily: Mapped[bool] = mapped_column(default=False, server_default=text("false"))
 
 
 class NodeUsage(Base, IdMixin):
@@ -798,7 +798,7 @@ class NodeUsage(Base, IdMixin):
     node: Mapped[Node] = relationship(back_populates="usages", init=False)
     uplink: Mapped[int] = mapped_column(BigInteger, default=0)
     downlink: Mapped[int] = mapped_column(BigInteger, default=0)
-    is_daily: Mapped[bool] = mapped_column(default=False, server_default=text("0"))
+    is_daily: Mapped[bool] = mapped_column(default=False, server_default=text("false"))
 
 
 class NodeUsageResetLogs(Base, CreatedAtUTCMixin):

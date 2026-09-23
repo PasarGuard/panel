@@ -16,7 +16,7 @@ depends_on = None
 def upgrade() -> None:
     for table in ("node_user_usages", "node_usages"):
         with op.batch_alter_table(table) as batch:
-            batch.add_column(sa.Column("is_daily", sa.Boolean(), nullable=False, server_default=sa.text("0")))
+            batch.add_column(sa.Column("is_daily", sa.Boolean(), nullable=False, server_default=sa.false()))
         op.create_index(f"ix_{table}_is_daily_created_at", table, ["is_daily", "created_at"])
 
 
