@@ -4,12 +4,13 @@ from sqlalchemy import JSON
 from sqlalchemy import BigInteger
 from sqlalchemy import pool
 from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects import mysql
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 from alembic import context
 
 from app.db.base import Base
-from app.db.compiles_types import SqliteCompatibleBigInteger
+from app.db.compiles_types import SqliteCompatibleBigInteger, WebAuthnBinary, WebAuthnCredentialId
 from config import database_settings
 
 # this is the Alembic Config object, which provides
@@ -48,6 +49,16 @@ def _compare_type(context, inspected_column, metadata_column, inspected_type, me
             or (isinstance(inspected_type, SqliteCompatibleBigInteger) and isinstance(metadata_type, BigInteger))
         )
         if sqlite_bigint_equivalent:
+            return False
+
+    # MySQL reflects WebAuthnBinary as TINYBLOB for challenges and BLOB for
+    # credential/public-key data. Both are intentional size-specific mappings.
+    if context.dialect.name == "mysql" and isinstance(metadata_type, WebAuthnBinary):
+        if isinstance(inspected_type, (mysql.TINYBLOB, mysql.BLOB)):
+            return False
+
+    if context.dialect.name == "mysql" and isinstance(metadata_type, WebAuthnCredentialId):
+        if isinstance(inspected_type, mysql.VARBINARY) and inspected_type.length == metadata_type.length:
             return False
 
     # PostgreSQL reflection can report JSON with explicit astext_type while

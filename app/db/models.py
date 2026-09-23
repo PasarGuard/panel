@@ -30,7 +30,15 @@ from sqlalchemy.orm import Mapped, mapped_column, query_expression, relationship
 from sqlalchemy.sql.expression import select, text
 
 from app.db.base import Base
-from app.db.compiles_types import CaseSensitiveString, DaysDiff, EnumArray, SqliteCompatibleBigInteger, StringArray, WebAuthnBinary
+from app.db.compiles_types import (
+    CaseSensitiveString,
+    DaysDiff,
+    EnumArray,
+    SqliteCompatibleBigInteger,
+    StringArray,
+    WebAuthnBinary,
+    WebAuthnCredentialId,
+)
 
 PostgresJSONB = JSON().with_variant(JSONB(none_as_null=True), "postgresql")
 
@@ -169,7 +177,7 @@ class AdminPasskey(Base, IdMixin):
     __tablename__ = "admin_passkeys"
     admin_id: Mapped[int] = fk_id_column("admins.id", ondelete="CASCADE")
     admin: Mapped[Admin] = relationship(back_populates="passkeys", init=False)
-    credential_id: Mapped[bytes] = mapped_column(WebAuthnBinary(1024), unique=True)
+    credential_id: Mapped[bytes] = mapped_column(WebAuthnCredentialId(1024), unique=True)
     public_key: Mapped[bytes] = mapped_column(WebAuthnBinary(4096))
     sign_count: Mapped[int] = mapped_column(BigInteger, default=0)
     name: Mapped[str] = mapped_column(String(128), default="Passkey")

@@ -7,7 +7,7 @@ Revises: 48a6bcb8bba1
 from alembic import op
 import sqlalchemy as sa
 from app.db.compiles_types import SqliteCompatibleBigInteger
-from app.db.compiles_types import WebAuthnBinary
+from app.db.compiles_types import WebAuthnBinary, WebAuthnCredentialId
 
 
 revision = "9a5c2e7f1b4d"
@@ -21,7 +21,7 @@ def upgrade() -> None:
         "admin_passkeys",
         sa.Column("id", SqliteCompatibleBigInteger(), autoincrement=True, nullable=False),
         sa.Column("admin_id", SqliteCompatibleBigInteger(), nullable=False),
-        sa.Column("credential_id", WebAuthnBinary(1024), nullable=False),
+        sa.Column("credential_id", WebAuthnCredentialId(1024), nullable=False),
         sa.Column("public_key", WebAuthnBinary(4096), nullable=False),
         sa.Column("sign_count", sa.BigInteger(), nullable=False, server_default="0"),
         sa.Column("name", sa.String(length=128), nullable=False, server_default="Passkey"),
