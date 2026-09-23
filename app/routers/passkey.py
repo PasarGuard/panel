@@ -67,19 +67,45 @@ async def delete_passkey(passkey_id: int, admin: AdminDetails = Depends(get_curr
 def _rp_config(request: Request) -> tuple[str, str]:
     from config import auth_settings
 
-    origin = auth_settings.passkey_origin.strip()
-    if origin:
-        parsed = urlsplit(origin)
-        if not parsed.hostname:
-            raise HTTPException(status_code=500, detail="PASSKEY_ORIGIN must be a valid origin")
-        return auth_settings.passkey_rp_id.strip() or parsed.hostname, origin.rstrip("/")
+    # The browser's Origin header is the most reliable source when the API is
+    # behind a proxy or the dashboard is opened through a different hostname.
+    # WebAuthn requires the RP ID to be the current host or one of its suffixes.
+    browser_origin = request.headers.get("origin", "").strip().rstrip("/")
+    if browser_origin:
+        browser_parsed = urlsplit(browser_origin)
+        browser_host = browser_parsed.hostname
+        if not browser_host:
+            raise HTTPException(status_code=500, detail="Origin must be a valid browser origin")
+        current_origin = browser_origin
+    else:
+        scheme = request.headers.get("x-forwarded-proto", request.url.scheme).split(",")[0].strip()
+        host = request.headers.get("x-forwarded-host", request.url.netloc).split(",")[0].strip()
+        current_origin = f"{scheme}://{host}".rstrip("/")
+        browser_parsed = urlsplit(current_origin)
+        browser_host = browser_parsed.hostname
 
-    scheme = request.headers.get("x-forwarded-proto", request.url.scheme).split(",")[0].strip()
-    host = request.headers.get("x-forwarded-host", request.url.netloc).split(",")[0].strip()
-    parsed = urlsplit(f"{scheme}://{host}")
-    if not parsed.hostname:
+    if not browser_host:
         raise HTTPException(status_code=500, detail="Could not determine passkey relying-party host")
-    return parsed.hostname, f"{scheme}://{host}"
+
+    configured_origin = auth_settings.passkey_origin.strip().rstrip("/")
+    configured_rp_id = auth_settings.passkey_rp_id.strip()
+    if configured_origin:
+        configured_parsed = urlsplit(configured_origin)
+        configured_host = configured_parsed.hostname
+        if not configured_host:
+            raise HTTPException(status_code=500, detail="PASSKEY_ORIGIN must be a valid origin")
+
+        configured_rp_id = configured_rp_id or configured_host
+        matches_current_host = browser_host == configured_rp_id or browser_host.endswith(f".{configured_rp_id}")
+        if matches_current_host:
+            # The RP ID may be shared by subdomains, but verification must use
+            # the exact origin from which the dashboard was opened.
+            return configured_rp_id, current_origin
+
+    # A configured origin for another deployment must not be sent to the
+    # browser. Fall back to the actual dashboard host so local/IP deployments
+    # and alternate reverse-proxy domains can register passkeys correctly.
+    return browser_host, current_origin
 
 
 async def _save_challenge(db: AsyncSession, challenge: bytes, kind: str, admin_id: int | None) -> None:
