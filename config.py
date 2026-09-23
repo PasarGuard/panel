@@ -211,7 +211,6 @@ class JobSettings(EnvSettings):
     remove_expired_users_interval: int = Field(default=3600, validation_alias="JOB_REMOVE_EXPIRED_USERS_INTERVAL")
     reset_user_data_usage_interval: int = Field(default=600, validation_alias="JOB_RESET_USER_DATA_USAGE_INTERVAL")
     reset_node_usage_interval: int = Field(default=60, validation_alias="JOB_RESET_NODE_USAGE_INTERVAL")
-    compact_usage_interval: int = Field(default=3600, validation_alias="JOB_COMPACT_USAGE_INTERVAL")
     check_node_limits_interval: int = Field(default=60, validation_alias="JOB_CHECK_NODE_LIMITS_INTERVAL")
     cleanup_subscription_updates_interval: int = Field(
         default=600, validation_alias="JOB_CLEANUP_SUBSCRIPTION_UPDATES_INTERVAL"
