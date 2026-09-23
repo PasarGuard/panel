@@ -8,7 +8,7 @@ from app import scheduler
 from app.db import GetDB
 from app.db.models import NodeUsage, NodeUserUsage
 from app.utils.logger import get_logger
-from config import job_settings, runtime_settings
+from config import runtime_settings
 
 logger = get_logger("jobs")
 RETENTION_DAYS = 7
@@ -102,7 +102,7 @@ if runtime_settings.role.runs_scheduler:
     scheduler.add_job(
         compact_old_usages,
         "interval",
-        seconds=job_settings.compact_usage_interval,
+        seconds=3600,
         start_date=datetime.now(UTC) + timedelta(minutes=5),
         coalesce=True,
         max_instances=1,

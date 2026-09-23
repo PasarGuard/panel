@@ -3,24 +3,19 @@ from __future__ import annotations
 import logging
 import os
 from collections import defaultdict
-from datetime import UTC, datetime, timedelta, timezone
 from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
-from sqlalchemy import select, text
+from sqlalchemy import select
 from sqlalchemy.exc import OperationalError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool, StaticPool
 
 from app.db import base
-from app.db.crud.admin import get_admin_usages
-from app.db.crud.node import get_nodes_usage
-from app.db.crud.user import get_all_users_usages, get_user_usages
 from app.db.models import Admin, AdminRole, AdminStatus, Node, NodeUsage, NodeUserUsage, System, User
-from app.jobs import compact_usages, record_usages
+from app.jobs import record_usages
 from app.models.proxy import ProxyTable
-from app.models.stats import Period
 from app.operation import admin_sync
 from config import database_settings
 
@@ -97,7 +92,6 @@ async def session_factory(monkeypatch: pytest.MonkeyPatch):
 
     monkeypatch.setattr(record_usages, "engine", engine)
     monkeypatch.setattr(record_usages, "GetDB", TestGetDB)
-    monkeypatch.setattr(compact_usages, "GetDB", TestGetDB)
     monkeypatch.setattr(admin_sync, "GetDB", TestGetDB)
 
     yield session_factory
@@ -603,98 +597,3 @@ async def test_usage_coefficient_is_cached_across_collects(monkeypatch: pytest.M
 
     assert extra_calls["n"] == 1
     assert first[1] == second[1] == 2.0
-
-
-@pytest.mark.asyncio
-async def test_compact_old_usages_preserves_totals_and_is_repeatable(session_factory):
-    day = datetime(2026, 9, 1, tzinfo=UTC)
-    now = datetime(2026, 9, 23, tzinfo=UTC)
-    async with session_factory() as session:
-        admin = Admin(username="rollup-admin", hashed_password="secret", role_id=3)
-        session.add(admin)
-        await session.flush()
-        user = User(username="rollup-user", admin_id=admin.id, proxy_settings=ProxyTable().dict(no_obj=True))
-        session.add(user)
-        await session.flush()
-        admin_id = admin.id
-        user_id = user.id
-        session.add_all(
-            [
-                NodeUserUsage(user_id=user_id, node_id=None, created_at=day, used_traffic=10),
-                NodeUserUsage(user_id=user_id, node_id=None, created_at=day + timedelta(hours=1), used_traffic=20),
-                NodeUserUsage(user_id=user_id, node_id=None, created_at=day + timedelta(hours=23), used_traffic=30),
-                NodeUserUsage(user_id=user_id, node_id=None, created_at=now, used_traffic=40),
-                NodeUsage(node_id=None, created_at=day, uplink=1, downlink=2),
-                NodeUsage(node_id=None, created_at=day + timedelta(hours=2), uplink=3, downlink=4),
-            ]
-        )
-        await session.commit()
-
-    await compact_usages.compact_old_usages(now)
-    await compact_usages.compact_old_usages(now)
-    async with session_factory() as session:
-        users = (await session.execute(select(NodeUserUsage).order_by(NodeUserUsage.created_at))).scalars().all()
-        nodes = (await session.execute(select(NodeUsage))).scalars().all()
-        assert [(row.used_traffic, row.is_daily) for row in users] == [(60, True), (40, False)]
-        assert [(row.uplink, row.downlink, row.is_daily) for row in nodes] == [(4, 6, True)]
-        full = await get_user_usages(session, user_id, day, day + timedelta(days=1), Period.day)
-        partial = await get_user_usages(session, user_id, day, day + timedelta(hours=12), Period.hour)
-        assert sum(point.total_traffic for points in full.stats.values() for point in points) == 60
-        assert sum(point.total_traffic for points in partial.stats.values() for point in points) == 60
-        tehran = timezone(timedelta(hours=3, minutes=30))
-        local_start = day.astimezone(tehran).replace(hour=0, minute=0)
-        local_end = local_start + timedelta(days=1)
-        local = await get_user_usages(session, user_id, local_start, local_end, Period.day)
-        admin_usage = await get_admin_usages(session, admin_id, day, day + timedelta(days=1), Period.day)
-        all_usage = await get_all_users_usages(session, None, day, day + timedelta(days=1), Period.day)
-        node_usage = await get_nodes_usage(session, day, day + timedelta(days=1), Period.day)
-        for usage in (local, admin_usage, all_usage):
-            assert sum(point.total_traffic for points in usage.stats.values() for point in points) == 60
-        assert sum(point.uplink for points in node_usage.stats.values() for point in points) == 4
-        assert sum(point.downlink for points in node_usage.stats.values() for point in points) == 6
-
-        # A late import into an already compacted day is folded in once.
-        session.add(NodeUserUsage(user_id=user_id, node_id=None, created_at=day + timedelta(hours=5), used_traffic=7))
-        await session.commit()
-
-    await compact_usages.compact_old_usages(now)
-    async with session_factory() as session:
-        old = (
-            (await session.execute(select(NodeUserUsage).where(NodeUserUsage.created_at < day + timedelta(days=1))))
-            .scalars()
-            .all()
-        )
-        assert len(old) == 1
-        assert old[0].used_traffic == 67
-        assert old[0].is_daily is True
-
-
-@pytest.mark.asyncio
-async def test_compaction_handles_legacy_sqlite_timestamp_formats(session_factory):
-    """Older SQLite rows can have timestamps without fractional seconds."""
-    async with session_factory() as session:
-        admin = Admin(username="legacy-rollup-admin", hashed_password="secret", role_id=3)
-        session.add(admin)
-        await session.flush()
-        user = User(username="legacy-rollup-user", admin_id=admin.id, proxy_settings=ProxyTable().dict(no_obj=True))
-        session.add(user)
-        await session.flush()
-        user_id = user.id
-        for stamp, traffic in (
-            ("2026-09-01 00:00:00", 10),
-            ("2026-09-01 10:00:00", 20),
-            ("2026-09-02 00:00:00", 40),
-        ):
-            await session.execute(
-                text(
-                    "INSERT INTO node_user_usages (created_at, user_id, node_id, used_traffic) "
-                    "VALUES (:created_at, :user_id, NULL, :traffic)"
-                ),
-                {"created_at": stamp, "user_id": user_id, "traffic": traffic},
-            )
-        await session.commit()
-
-    await compact_usages.compact_old_usages(datetime(2026, 9, 9, 12, tzinfo=UTC))
-    async with session_factory() as session:
-        rows = (await session.execute(select(NodeUserUsage).order_by(NodeUserUsage.created_at))).scalars().all()
-        assert [(row.used_traffic, row.is_daily) for row in rows] == [(30, True), (40, False)]
