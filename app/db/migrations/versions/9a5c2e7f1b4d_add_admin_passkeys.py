@@ -7,6 +7,7 @@ Revises: 48a6bcb8bba1
 from alembic import op
 import sqlalchemy as sa
 from app.db.compiles_types import SqliteCompatibleBigInteger
+from app.db.compiles_types import WebAuthnBinary
 
 
 revision = "9a5c2e7f1b4d"
@@ -20,8 +21,8 @@ def upgrade() -> None:
         "admin_passkeys",
         sa.Column("id", SqliteCompatibleBigInteger(), autoincrement=True, nullable=False),
         sa.Column("admin_id", SqliteCompatibleBigInteger(), nullable=False),
-        sa.Column("credential_id", sa.LargeBinary(length=1024), nullable=False),
-        sa.Column("public_key", sa.LargeBinary(length=4096), nullable=False),
+        sa.Column("credential_id", WebAuthnBinary(1024), nullable=False),
+        sa.Column("public_key", WebAuthnBinary(4096), nullable=False),
         sa.Column("sign_count", sa.BigInteger(), nullable=False, server_default="0"),
         sa.Column("name", sa.String(length=128), nullable=False, server_default="Passkey"),
         sa.ForeignKeyConstraint(["admin_id"], ["admins.id"], ondelete="CASCADE"),
@@ -31,7 +32,7 @@ def upgrade() -> None:
     op.create_table(
         "passkey_challenges",
         sa.Column("id", SqliteCompatibleBigInteger(), autoincrement=True, nullable=False),
-        sa.Column("challenge", sa.LargeBinary(length=128), nullable=False),
+        sa.Column("challenge", WebAuthnBinary(128), nullable=False),
         sa.Column("admin_id", SqliteCompatibleBigInteger(), nullable=True),
         sa.Column("kind", sa.String(length=16), nullable=False),
         sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
