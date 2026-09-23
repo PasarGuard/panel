@@ -289,6 +289,8 @@ class User(Base, CreatedAtUTCMixin):
 
     async def inbounds(self) -> list[str]:
         """Returns a flat list of all included inbound tags for enabled groups."""
+        if "_wireguard_inbounds" in self.__dict__:
+            return list(self.__dict__["_wireguard_inbounds"])
         loaded_groups = self.__dict__.get("groups")
         if loaded_groups is not None:
             inbound_tags: set[str] = set()

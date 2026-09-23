@@ -18,11 +18,13 @@ from app.db.models import (
     NextPlan,
     NodeUserUsage,
     NotificationReminder,
+    ProxyInbound,
     ReminderType,
     User,
     UserStatus,
     UserSubscriptionUpdate,
     UserUsageResetLogs,
+    inbounds_groups_association,
     users_groups_association,
 )
 from app.models.proxy import ProxyTable
@@ -270,6 +272,42 @@ async def get_user_by_id(
         stmt = stmt.where(User.admin_id == admin_id)
 
     return (await db.execute(stmt)).unique().scalar_one_or_none()
+
+
+async def get_wireguard_subscription_user(
+    db: AsyncSession,
+    user_id: int,
+    *,
+    load_admin_role: bool = True,
+    admin_id: int | None = None,
+) -> User | None:
+    """Load only the ORM state required to render a WireGuard subscription."""
+    stmt = _build_user_select_stmt(
+        load_admin=True,
+        load_admin_role=load_admin_role,
+        load_next_plan=False,
+        load_usage_logs=False,
+        load_groups=False,
+        load_lifetime_used_traffic=False,
+    ).where(User.id == user_id)
+    if admin_id is not None:
+        stmt = stmt.where(User.admin_id == admin_id)
+
+    user = (await db.execute(stmt)).unique().scalar_one_or_none()
+    if user is None:
+        return None
+
+    tags_stmt = (
+        select(ProxyInbound.tag)
+        .select_from(users_groups_association)
+        .join(Group, users_groups_association.c.groups_id == Group.id)
+        .join(inbounds_groups_association, Group.id == inbounds_groups_association.c.group_id)
+        .join(ProxyInbound, inbounds_groups_association.c.inbound_id == ProxyInbound.id)
+        .where(users_groups_association.c.user_id == user_id, Group.is_disabled.is_(False))
+        .distinct()
+    )
+    user.__dict__["_wireguard_inbounds"] = list((await db.execute(tags_stmt)).scalars().all())
+    return user
 
 
 async def get_user_lifetime_used_traffic(db: AsyncSession, user_id: int) -> int:
