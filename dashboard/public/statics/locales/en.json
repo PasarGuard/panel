@@ -693,6 +693,7 @@
     "manageOwnPasskeys": "Manage my passkeys",
     "passkeySelfServiceHint": "Add multiple devices so you can sign in without a password.",
     "passkeyName": "Device name",
+    "passkeyViewOnlyHint": "You can view and remove passkeys here. Only the admin can add a new passkey.",
     "passkeyReadyHint": "Use a fingerprint, face unlock, PIN, or security key to sign in.",
     "passkeyEmptyHint": "Add a passkey for faster, password-free sign-in on this device.",
     "addPasskey": "Add passkey",

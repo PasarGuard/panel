@@ -106,6 +106,7 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
     passkeyAdminId != null &&
     (isEditingCurrentAdmin || hasPermission(currentAdminDetails, 'admins', 'passkeys')),
   )
+  const canRegisterPasskeys = Boolean(canManagePasskeys && isEditingCurrentAdmin)
   const [passkeys, setPasskeys] = useState<Array<{ id: number; name: string }>>([])
   const [passkeysLoading, setPasskeysLoading] = useState(false)
   const [passkeyName, setPasskeyName] = useState('')
@@ -161,7 +162,7 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
   }
 
   const registerPasskey = async () => {
-    if (passkeyAdminId == null) return
+    if (passkeyAdminId == null || !canRegisterPasskeys) return
     if (!window.PublicKeyCredential) {
       toast.error(t('admins.passkeyUnsupported', { defaultValue: 'Passkeys are not supported in this browser.' }))
       return
@@ -489,13 +490,17 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
                             </p>
                           </div>
                         </div>
-                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                          <label className="flex min-w-0 flex-1 items-center gap-2"><span className="text-muted-foreground shrink-0 text-xs">{t('admins.passkeyName', { defaultValue: 'Device name' })}</span><Input value={passkeyName} onChange={event => setPasskeyName(event.target.value)} placeholder={getDefaultPasskeyName()} maxLength={128} autoComplete="off" className="h-9 sm:w-56" /></label>
-                          <Button type="button" size="sm" className="w-full shrink-0 sm:w-auto" onClick={registerPasskey} disabled={passkeyBusy || passkeysLoading}>
-                            {passkeyBusy ? <LoaderCircle className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Plus className="mr-1.5 h-3.5 w-3.5" />}
-                            {t('admins.addPasskey', { defaultValue: 'Add passkey' })}
-                          </Button>
-                        </div>
+                        {canRegisterPasskeys ? (
+                          <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                            <label className="flex min-w-0 flex-1 flex-col gap-1"><span className="text-muted-foreground text-xs">{t('admins.passkeyName', { defaultValue: 'Device name' })}</span><Input value={passkeyName} onChange={event => setPasskeyName(event.target.value)} placeholder={getDefaultPasskeyName()} maxLength={128} autoComplete="off" className="h-9 w-full" /></label>
+                            <Button type="button" size="sm" className="w-full shrink-0 sm:w-auto" onClick={registerPasskey} disabled={passkeyBusy || passkeysLoading}>
+                              {passkeyBusy ? <LoaderCircle className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Plus className="mr-1.5 h-3.5 w-3.5" />}
+                              {t('admins.addPasskey', { defaultValue: 'Add passkey' })}
+                            </Button>
+                          </div>
+                        ) : (
+                          <p className="text-muted-foreground rounded-md border border-dashed px-3 py-2 text-xs">{t('admins.passkeyViewOnlyHint', { defaultValue: 'You can view and remove passkeys here. Only the admin can add a new passkey.' })}</p>
+                        )}
                       </div>
                       {passkeysLoading ? (
                         <div className="mt-3 grid gap-2 sm:grid-cols-2"><div className="bg-muted/50 h-14 animate-pulse rounded-md" /><div className="bg-muted/50 h-14 animate-pulse rounded-md" /></div>

@@ -337,7 +337,7 @@ function SelfPasskeyDialog({ admin, compact = false }: { admin: AdminDetails; co
             <DialogDescription>{t('admins.passkeySelfServiceHint', { defaultValue: 'Add multiple devices so you can sign in without a password.' })}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="bg-muted/20 flex flex-col gap-3 rounded-md border p-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="bg-muted/20 flex flex-col gap-3 rounded-md border p-3">
               <div className="flex items-center gap-3">
                 <ShieldCheck className="h-5 w-5 shrink-0 text-emerald-500" />
                 <div>
@@ -345,8 +345,8 @@ function SelfPasskeyDialog({ admin, compact = false }: { admin: AdminDetails; co
                   <p className="text-muted-foreground text-xs">{t('admins.passkeyReady', { defaultValue: 'Ready for password-free sign-in' })}</p>
                 </div>
               </div>
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                <label className="flex min-w-0 flex-1 items-center gap-2"><span className="text-muted-foreground shrink-0 text-xs">{t('admins.passkeyName', { defaultValue: 'Device name' })}</span><Input value={passkeyName} onChange={event => setPasskeyName(event.target.value)} placeholder={getDefaultPasskeyName()} maxLength={128} autoComplete="off" className="h-9 sm:w-52" /></label>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                <label className="flex min-w-0 flex-1 flex-col gap-1"><span className="text-muted-foreground text-xs">{t('admins.passkeyName', { defaultValue: 'Device name' })}</span><Input value={passkeyName} onChange={event => setPasskeyName(event.target.value)} placeholder={getDefaultPasskeyName()} maxLength={128} autoComplete="off" className="h-9 w-full" /></label>
                 <Button type="button" size="sm" className="w-full sm:w-auto" onClick={addPasskey} disabled={busy || passkeys === null}>
                   {busy ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
                   {t('admins.addPasskey', { defaultValue: 'Add passkey' })}

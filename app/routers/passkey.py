@@ -311,6 +311,8 @@ async def admin_passkey_register_options(
     db: AsyncSession = Depends(get_db),
 ):
     target = await _authorize_target_admin(admin_id, current_admin, db)
+    if current_admin.id != target.id:
+        raise HTTPException(status_code=403, detail="You can only register passkeys for your own account")
     target_details = AdminDetails(id=target.id, username=target.username, status=target.status)
     return await passkey_register_options(request=request, admin=target_details, db=db)
 
@@ -324,6 +326,8 @@ async def admin_passkey_register_verify(
     db: AsyncSession = Depends(get_db),
 ):
     target = await _authorize_target_admin(admin_id, current_admin, db)
+    if current_admin.id != target.id:
+        raise HTTPException(status_code=403, detail="You can only register passkeys for your own account")
     target_details = AdminDetails(id=target.id, username=target.username, status=target.status)
     return await passkey_register_verify(body=body, request=request, admin=target_details, db=db)
 
