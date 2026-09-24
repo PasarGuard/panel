@@ -2531,7 +2531,10 @@
       "generatePreSharedKey": "Generate pre-shared key",
       "preSharedKeyGenerated": "Pre-shared key generated",
       "preSharedKeyFailed": "Could not generate pre-shared key",
+      "mtuPlaceholder": "Node default",
+      "mtuDescription": "Optional, 576–9000 bytes. Requires a node with core MTU support. Client MTU is configured separately in hosts.",
       "fields": {
+        "mtu": "Server interface MTU",
         "interfaceName": "Interface name",
         "privateKey": "Private key",
         "publicKey": "Public key",
