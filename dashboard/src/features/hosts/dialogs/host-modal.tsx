@@ -492,15 +492,16 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
           </div>
         </AccordionTrigger>
         <AccordionContent className="px-2">
-          <Tabs key={isWireGuardInbound ? 'wg' : 'non-wg'} dir={dir} defaultValue={isWireGuardInbound ? 'amneziawg' : 'xray'} className="w-full">
-            <TabsList className={`mb-4 grid w-full ${isWireGuardInbound ? 'grid-cols-1' : 'grid-cols-2'}`}>
-              {!isWireGuardInbound && <TabsTrigger value="xray">Xray</TabsTrigger>}
-              {!isWireGuardInbound && <TabsTrigger value="singbox">SingBox</TabsTrigger>}
-              {isWireGuardInbound && <TabsTrigger value="amneziawg">AmneziaWG</TabsTrigger>}
+          <Tabs key={isWireGuardInbound ? 'wg' : 'non-wg'} dir={dir} defaultValue="xray" className="w-full">
+            <TabsList className="mb-4 grid w-full grid-cols-2">
+              <TabsTrigger value="xray">Xray</TabsTrigger>
+              {isWireGuardInbound ? (
+                <TabsTrigger value="amneziawg">AmneziaWG</TabsTrigger>
+              ) : (
+                <TabsTrigger value="singbox">SingBox</TabsTrigger>
+              )}
             </TabsList>
-            {!isWireGuardInbound && (
-              <>
-                <TabsContent dir={dir} value="xray">
+            <TabsContent dir={dir} value="xray">
                   <div className="space-y-6">
                     {showFragmentNoiseDeprecatedWarning && (
                       <Alert className="border-amber-500/40 bg-amber-500/10 text-amber-900 dark:text-amber-100">
@@ -615,7 +616,8 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                     {renderFinalMaskSettings()}
                   </div>
                 </TabsContent>
-                <TabsContent dir={dir} value="singbox">
+            {!isWireGuardInbound && (
+              <TabsContent dir={dir} value="singbox">
                   <div className="space-y-6">
                     <div className="space-y-4">
                       <div className="flex items-center justify-between">
@@ -684,7 +686,6 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                     </div>
                   </div>
                 </TabsContent>
-              </>
             )}
 
             {isWireGuardInbound && (
@@ -1209,8 +1210,6 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                       />
                     </div>
                   </div>
-
-                  {renderFinalMaskSettings()}
                 </div>
               </TabsContent>
             )}
