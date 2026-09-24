@@ -1,3 +1,4 @@
+import base64
 import io
 import zipfile
 
@@ -8,20 +9,21 @@ from app.subscription.wireguard import WireGuardConfiguration
 
 
 def test_amnezia_properties_v31():
+    valid_key = base64.b64encode(b"k" * 32).decode()
     props = AmneziaProperties(
         jc=4,
         jmin=40,
         jmax=70,
-        s1=0,
-        s2=0,
-        s3=0,
-        s4=0,
+        s1=12,
+        s2=12,
+        s3=12,
+        s4=12,
         h1="1",
         h2="2",
         h3="3",
         h4="4",
         i1="some_mimic",
-        header_protection_key="secret_key_base64",
+        header_protection_key=valid_key,
         content_padding_addition="0-16",
         rekey_after_time=120,
         rekey_timeout=5,
@@ -33,7 +35,7 @@ def test_amnezia_properties_v31():
     )
     dumped = props.model_dump(exclude_none=True)
     assert dumped["jc"] == 4
-    assert dumped["header_protection_key"] == "secret_key_base64"
+    assert dumped["header_protection_key"] == valid_key
     assert dumped["content_padding_addition"] == "0-16"
     assert dumped["rekey_after_time"] == 120
     assert dumped["rekey_timeout"] == 5
@@ -57,6 +59,87 @@ def test_amnezia_properties_empty_and_bool_normalization():
     assert props.rekey_after_time is None
     assert props.random_trailers == "on"
     assert props.disable_cookies == "off"
+
+
+def test_header_protection_validation():
+    import pytest
+    from pydantic import ValidationError
+
+    valid_key = base64.b64encode(b"a" * 32).decode()
+
+    # Valid HP key and s1-s4 >= 12
+    p = AmneziaProperties(header_protection_key=valid_key, s1=12, s2=12, s3=12, s4=12)
+    assert p.header_protection_key == valid_key
+
+    # HP not configured (None or "") allows s1-s4 < 12
+    p2 = AmneziaProperties(header_protection_key=None, s1=0, s2=0, s3=0, s4=0)
+    assert p2.s1 == 0
+    p3 = AmneziaProperties(header_protection_key="", s1=0, s2=0, s3=0, s4=0)
+    assert p3.header_protection_key is None
+
+    # Invalid base64
+    with pytest.raises(ValidationError):
+        AmneziaProperties(header_protection_key="not-base64-@@", s1=12, s2=12, s3=12, s4=12)
+
+    # Invalid length (16 bytes instead of 32)
+    short_key = base64.b64encode(b"a" * 16).decode()
+    with pytest.raises(ValidationError):
+        AmneziaProperties(header_protection_key=short_key, s1=12, s2=12, s3=12, s4=12)
+
+    # S1 < 12
+    with pytest.raises(ValidationError):
+        AmneziaProperties(header_protection_key=valid_key, s1=11, s2=12, s3=12, s4=12)
+
+    # S4 is None
+    with pytest.raises(ValidationError):
+        AmneziaProperties(header_protection_key=valid_key, s1=12, s2=12, s3=12, s4=None)
+
+
+def test_amnezia_numeric_ranges_and_toggles():
+    import pytest
+    from pydantic import ValidationError
+
+    # Integer inputs normalized to int
+    p1 = AmneziaProperties(rekey_after_time=120, rekey_timeout="5")
+    assert p1.rekey_after_time == 120
+    assert p1.rekey_timeout == 5
+
+    # Range inputs accepted and formatted
+    p2 = AmneziaProperties(
+        rekey_after_time="120-180",
+        rekey_timeout=" 5 - 10 ",
+        reject_after_time="150-200",
+        keepalive_timeout="10-25",
+        max_handshake_attempts="15-20",
+    )
+    assert p2.rekey_after_time == "120-180"
+    assert p2.rekey_timeout == "5-10"
+    assert p2.reject_after_time == "150-200"
+    assert p2.keepalive_timeout == "10-25"
+    assert p2.max_handshake_attempts == "15-20"
+
+    # Invalid ranges: lower > upper
+    with pytest.raises(ValidationError):
+        AmneziaProperties(rekey_after_time="180-120")
+
+    # Invalid non-numeric / negative / exceeding 65535
+    for bad in ("abc", "-5", "70000", "10-70000", True):
+        with pytest.raises(ValidationError):
+            AmneziaProperties(rekey_after_time=bad)
+
+    # Toggle validation: only "on" or "off"
+    assert AmneziaProperties(random_trailers="on").random_trailers == "on"
+    assert AmneziaProperties(random_trailers="off").random_trailers == "off"
+    assert AmneziaProperties(random_trailers="ON").random_trailers == "on"
+    assert AmneziaProperties(random_trailers=True).random_trailers == "on"
+    assert AmneziaProperties(random_trailers=False).random_trailers == "off"
+
+    # Unsupported toggle value like "maybe"
+    for invalid_toggle in ("maybe", "unknown", "1", "0", 123):
+        with pytest.raises(ValidationError):
+            AmneziaProperties(random_trailers=invalid_toggle)
+        with pytest.raises(ValidationError):
+            AmneziaProperties(disable_cookies=invalid_toggle)
 
 
 def test_content_padding_addition_validation():

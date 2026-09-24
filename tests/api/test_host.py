@@ -1,3 +1,5 @@
+import base64
+
 from fastapi import status
 
 from app.utils.crypto import generate_wireguard_keypair
@@ -276,6 +278,7 @@ def test_host_with_wireguard_amnezia(access_token):
     assert inbound_list, "No inbounds available for host updates"
     inbound = inbound_list[0]
 
+    valid_hp_key = base64.b64encode(b"K" * 32).decode()
     create_response = client.post(
         "/api/host",
         headers={"Authorization": f"Bearer {access_token}"},
@@ -290,10 +293,13 @@ def test_host_with_wireguard_amnezia(access_token):
                 "jc": 4,
                 "jmin": 40,
                 "jmax": 70,
-                "s1": 0,
+                "s1": 12,
+                "s2": 12,
+                "s3": 12,
+                "s4": 12,
                 "h1": "1",
                 "i1": "some_mimic_data",
-                "header_protection_key": "some_base64_key",
+                "header_protection_key": valid_hp_key,
                 "content_padding_addition": "0-16",
                 "rekey_after_time": 120,
                 "rekey_timeout": 5,
@@ -311,8 +317,8 @@ def test_host_with_wireguard_amnezia(access_token):
     assert create_response.json()["wireguard_amnezia"]["jmin"] == 40
     assert create_response.json()["wireguard_amnezia"]["h1"] == "1"
     assert create_response.json()["wireguard_amnezia"]["i1"] == "some_mimic_data"
-    assert create_response.json()["wireguard_amnezia"]["s2"] is None
-    assert create_response.json()["wireguard_amnezia"]["header_protection_key"] == "some_base64_key"
+    assert create_response.json()["wireguard_amnezia"]["s2"] == 12
+    assert create_response.json()["wireguard_amnezia"]["header_protection_key"] == valid_hp_key
     assert create_response.json()["wireguard_amnezia"]["content_padding_addition"] == "0-16"
     assert create_response.json()["wireguard_amnezia"]["rekey_after_time"] == 120
     assert create_response.json()["wireguard_amnezia"]["rekey_timeout"] == 5

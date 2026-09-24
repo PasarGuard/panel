@@ -599,11 +599,11 @@ export interface AmneziaProperties {
   i5?: string | null;
   header_protection_key?: string | null;
   content_padding_addition?: string | null;
-  rekey_after_time?: number | null;
-  rekey_timeout?: number | null;
-  reject_after_time?: number | null;
-  keepalive_timeout?: number | null;
-  max_handshake_attempts?: number | null;
+  rekey_after_time?: number | string | null;
+  rekey_timeout?: number | string | null;
+  reject_after_time?: number | string | null;
+  keepalive_timeout?: number | string | null;
+  max_handshake_attempts?: number | string | null;
   random_trailers?: string | null;
   disable_cookies?: string | null;
 }

@@ -61,11 +61,11 @@ interface AmneziaProperties {
   i5?: string
   header_protection_key?: string
   content_padding_addition?: string
-  rekey_after_time?: number | ''
-  rekey_timeout?: number | ''
-  reject_after_time?: number | ''
-  keepalive_timeout?: number | ''
-  max_handshake_attempts?: number | ''
+  rekey_after_time?: number | string | ''
+  rekey_timeout?: number | string | ''
+  reject_after_time?: number | string | ''
+  keepalive_timeout?: number | string | ''
+  max_handshake_attempts?: number | string | ''
   random_trailers?: string
   disable_cookies?: string
 }
@@ -520,11 +520,11 @@ export const HostFormSchema = z.object({
       i5: z.string().optional(),
       header_protection_key: z.string().optional(),
       content_padding_addition: z.string().optional(),
-      rekey_after_time: z.number().optional().or(z.literal('')),
-      rekey_timeout: z.number().optional().or(z.literal('')),
-      reject_after_time: z.number().optional().or(z.literal('')),
-      keepalive_timeout: z.number().optional().or(z.literal('')),
-      max_handshake_attempts: z.number().optional().or(z.literal('')),
+      rekey_after_time: z.union([z.number(), z.string()]).optional().or(z.literal('')),
+      rekey_timeout: z.union([z.number(), z.string()]).optional().or(z.literal('')),
+      reject_after_time: z.union([z.number(), z.string()]).optional().or(z.literal('')),
+      keepalive_timeout: z.union([z.number(), z.string()]).optional().or(z.literal('')),
+      max_handshake_attempts: z.union([z.number(), z.string()]).optional().or(z.literal('')),
       random_trailers: z.string().optional(),
       disable_cookies: z.string().optional(),
     })

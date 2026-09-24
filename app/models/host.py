@@ -1,6 +1,7 @@
+import base64
 from enum import Enum
 from ipaddress import ip_network
-from typing import Any
+from typing import Any, Self
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -616,11 +617,11 @@ class AmneziaProperties(BaseModel):
     i5: str | None = Field(default=None)
     header_protection_key: str | None = Field(default=None)
     content_padding_addition: str | None = Field(default=None, pattern=r"^\d{1,16}(-\d{1,16})?$")
-    rekey_after_time: int | None = Field(default=None)
-    rekey_timeout: int | None = Field(default=None)
-    reject_after_time: int | None = Field(default=None)
-    keepalive_timeout: int | None = Field(default=None)
-    max_handshake_attempts: int | None = Field(default=None)
+    rekey_after_time: int | str | None = Field(default=None)
+    rekey_timeout: int | str | None = Field(default=None)
+    reject_after_time: int | str | None = Field(default=None)
+    keepalive_timeout: int | str | None = Field(default=None)
+    max_handshake_attempts: int | str | None = Field(default=None)
     random_trailers: str | None = Field(default=None)
     disable_cookies: str | None = Field(default=None)
 
@@ -643,11 +644,6 @@ class AmneziaProperties(BaseModel):
         "i5",
         "header_protection_key",
         "content_padding_addition",
-        "rekey_after_time",
-        "rekey_timeout",
-        "reject_after_time",
-        "keepalive_timeout",
-        "max_handshake_attempts",
         mode="before",
     )
     @classmethod
@@ -656,14 +652,69 @@ class AmneziaProperties(BaseModel):
             return None
         return v
 
+    @field_validator(
+        "rekey_after_time",
+        "rekey_timeout",
+        "reject_after_time",
+        "keepalive_timeout",
+        "max_handshake_attempts",
+        mode="before",
+    )
+    @classmethod
+    def validate_numeric_range_or_int(cls, v: Any) -> int | str | None:
+        if v == "" or v is None:
+            return None
+        if isinstance(v, int) and not isinstance(v, bool):
+            if v < 0 or v > 65535:
+                raise ValueError("Value must be between 0 and 65535")
+            return v
+        if isinstance(v, str):
+            cleaned = v.strip()
+            if cleaned.isdigit():
+                val = int(cleaned)
+                if val > 65535:
+                    raise ValueError("Value must not exceed 65535")
+                return val
+            if "-" in cleaned:
+                parts = [p.strip() for p in cleaned.split("-")]
+                if len(parts) == 2 and parts[0].isdigit() and parts[1].isdigit():
+                    low = int(parts[0])
+                    high = int(parts[1])
+                    if low > high:
+                        raise ValueError("Range lower bound cannot exceed upper bound")
+                    if low < 0 or high > 65535:
+                        raise ValueError("Range values must be between 0 and 65535")
+                    return f"{low}-{high}"
+        raise ValueError("Value must be an integer (0-65535) or numeric range 'min-max'")
+
     @field_validator("random_trailers", "disable_cookies", mode="before")
     @classmethod
-    def normalize_amnezia_toggles(cls, v: Any) -> Any:
+    def normalize_amnezia_toggles(cls, v: Any) -> str | None:
         if v == "" or v is None:
             return None
         if isinstance(v, bool):
             return "on" if v else "off"
-        return str(v)
+        if isinstance(v, str):
+            val = v.strip().lower()
+            if val in ("on", "off"):
+                return val
+        raise ValueError("Value must be 'on' or 'off'")
+
+    @model_validator(mode="after")
+    def validate_header_protection(self) -> Self:
+        if self.header_protection_key is not None:
+            try:
+                decoded = base64.b64decode(self.header_protection_key.strip(), validate=True)
+                if len(decoded) != 32:
+                    raise ValueError("header_protection_key must decode to exactly 32 bytes")
+            except Exception as e:
+                raise ValueError("header_protection_key must be a valid base64-encoded 32-byte key") from e
+
+            for field_name in ("s1", "s2", "s3", "s4"):
+                val = getattr(self, field_name)
+                if val is None or val < 12:
+                    raise ValueError(f"{field_name} must be at least 12 when header_protection_key is configured")
+        return self
 
 
 class BaseHost(BaseModel):

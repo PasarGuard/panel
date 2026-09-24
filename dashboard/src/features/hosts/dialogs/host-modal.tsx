@@ -1085,11 +1085,10 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                             <FormLabel>RekeyAfterTime (s)</FormLabel>
                             <FormControl>
                               <Input
-                                type="number"
-                                placeholder="120"
+                                placeholder="120 or 120-180"
                                 {...field}
                                 value={field.value ?? ''}
-                                onChange={e => field.onChange(e.target.value === '' ? '' : Number(e.target.value))}
+                                onChange={e => field.onChange(e.target.value)}
                               />
                             </FormControl>
                             <FormMessage />
@@ -1104,11 +1103,10 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                             <FormLabel>RekeyTimeout (s)</FormLabel>
                             <FormControl>
                               <Input
-                                type="number"
-                                placeholder="5"
+                                placeholder="5 or 5-10"
                                 {...field}
                                 value={field.value ?? ''}
-                                onChange={e => field.onChange(e.target.value === '' ? '' : Number(e.target.value))}
+                                onChange={e => field.onChange(e.target.value)}
                               />
                             </FormControl>
                             <FormMessage />
@@ -1123,11 +1121,10 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                             <FormLabel>RejectAfterTime (s)</FormLabel>
                             <FormControl>
                               <Input
-                                type="number"
-                                placeholder="180"
+                                placeholder="180 or 150-200"
                                 {...field}
                                 value={field.value ?? ''}
-                                onChange={e => field.onChange(e.target.value === '' ? '' : Number(e.target.value))}
+                                onChange={e => field.onChange(e.target.value)}
                               />
                             </FormControl>
                             <FormMessage />
@@ -1142,11 +1139,10 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                             <FormLabel>KeepaliveTimeout (s)</FormLabel>
                             <FormControl>
                               <Input
-                                type="number"
-                                placeholder="10"
+                                placeholder="10 or 10-25"
                                 {...field}
                                 value={field.value ?? ''}
-                                onChange={e => field.onChange(e.target.value === '' ? '' : Number(e.target.value))}
+                                onChange={e => field.onChange(e.target.value)}
                               />
                             </FormControl>
                             <FormMessage />
@@ -1163,11 +1159,10 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                             <FormLabel>MaxHandshakeAttempts</FormLabel>
                             <FormControl>
                               <Input
-                                type="number"
-                                placeholder="18"
+                                placeholder="18 or 15-20"
                                 {...field}
                                 value={field.value ?? ''}
-                                onChange={e => field.onChange(e.target.value === '' ? '' : Number(e.target.value))}
+                                onChange={e => field.onChange(e.target.value)}
                               />
                             </FormControl>
                             <FormMessage />
