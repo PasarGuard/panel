@@ -121,7 +121,7 @@ def test_wireguard_config_generator_v31():
         assert "DisableCookies = off" in content
 
 
-def test_singbox_config_v31():
+def test_singbox_config_ignores_amnezia():
     inbound = SubscriptionInboundData(
         remark="test_profile",
         inbound_tag="wg_inbound",
@@ -154,9 +154,12 @@ def test_singbox_config_v31():
         },
     )
 
-    assert endpoint["jc"] == 4
-    assert endpoint["header_protection_key"] == "my_hp_key"
-    assert endpoint["content_padding_addition"] == "0-16"
-    assert endpoint["rekey_after_time"] == 120
-    assert endpoint["random_trailers"] is True
-    assert endpoint["disable_cookies"] is False
+    # Sing-box does not support AmneziaWG; verify standard WireGuard endpoint without amnezia properties
+    assert "jc" not in endpoint
+    assert "header_protection_key" not in endpoint
+    assert "content_padding_addition" not in endpoint
+    assert "rekey_after_time" not in endpoint
+    assert "random_trailers" not in endpoint
+    assert "disable_cookies" not in endpoint
+    assert endpoint["type"] == "wireguard"
+    assert endpoint["tag"] == "test_profile"

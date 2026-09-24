@@ -394,40 +394,6 @@ class SingBoxConfiguration(BaseSubscription):
             "private_key": private_key,
             "peers": [self._normalize_and_remove_none_values(peer)],
         }
-
-        if inbound.wireguard_amnezia:
-            for key, val in inbound.wireguard_amnezia.items():
-                if val is not None:
-                    if key in (
-                        "jc",
-                        "jmin",
-                        "jmax",
-                        "s1",
-                        "s2",
-                        "s3",
-                        "s4",
-                        "rekey_after_time",
-                        "rekey_timeout",
-                        "reject_after_time",
-                        "keepalive_timeout",
-                        "max_handshake_attempts",
-                    ):
-                        try:
-                            endpoint[key] = int(val)
-                        except (ValueError, TypeError):
-                            endpoint[key] = val
-                    elif key in ("random_trailers", "disable_cookies"):
-                        if isinstance(val, bool):
-                            endpoint[key] = val
-                        elif isinstance(val, str) and val.lower() in ("true", "on", "1"):
-                            endpoint[key] = True
-                        elif isinstance(val, str) and val.lower() in ("false", "off", "0"):
-                            endpoint[key] = False
-                        else:
-                            endpoint[key] = val
-                    else:
-                        endpoint[key] = val
-
         return self._normalize_and_remove_none_values(endpoint)
 
     def _build_outbound(
