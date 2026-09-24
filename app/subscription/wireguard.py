@@ -23,6 +23,12 @@ class WireGuardConfiguration(BaseSubscription):
         return "\n".join(output).strip()
 
     def add(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict):
+        """Append a WireGuard configuration for a client endpoint.
+
+        Do nothing if the client private key, peer IPs, or server public key is
+        missing. AmneziaWG values other than None become Interface directives.
+        A missing allowed IPs value raises KeyError when building the Peer section.
+        """
         components = self._build_wireguard_components(remark, address, inbound, settings)
         if not components:
             return

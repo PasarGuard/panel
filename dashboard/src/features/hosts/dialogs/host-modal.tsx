@@ -326,6 +326,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
   const hasNoisePopulated = (selectedNoiseSettings || []).some(noise => noise && (String(noise.packet ?? '').trim() || String(noise.delay ?? '').trim()))
   const showFragmentNoiseDeprecatedWarning = hasFragmentPopulated || hasNoisePopulated
 
+  /** Replace the basic AmneziaWG fields with defaults and clear mimic prefixes. */
   const setWgAmneziaDefaults = () => {
     form.setValue('wireguard_amnezia', {
       ...form.getValues('wireguard_amnezia'),
@@ -348,6 +349,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
     }, { shouldDirty: true, shouldTouch: true })
   }
 
+  /** Apply v3.1 defaults, retain existing size offsets, and enable random trailers. */
   const setWgAmneziaV31Preset = () => {
     form.setValue('wireguard_amnezia', {
       ...form.getValues('wireguard_amnezia'),
@@ -373,6 +375,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
     }, { shouldDirty: true, shouldTouch: true })
   }
 
+  /** Set QUIC mimic prefixes and fill missing basic settings without clearing other fields. */
   const setWgAmneziaQuicMimic = () => {
     form.setValue('wireguard_amnezia', {
       ...form.getValues('wireguard_amnezia'),
@@ -395,6 +398,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
     }, { shouldDirty: true, shouldTouch: true })
   }
 
+  /** Set the DNS mimic prefix, clear the second prefix, and fill missing basic settings. */
   const setWgAmneziaDnsMimic = () => {
     form.setValue('wireguard_amnezia', {
       ...form.getValues('wireguard_amnezia'),
@@ -417,6 +421,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
     }, { shouldDirty: true, shouldTouch: true })
   }
 
+  /** Set SIP mimic prefixes and fill missing basic settings without clearing other fields. */
   const setWgAmneziaSipMimic = () => {
     form.setValue('wireguard_amnezia', {
       ...form.getValues('wireguard_amnezia'),

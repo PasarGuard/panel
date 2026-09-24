@@ -650,6 +650,7 @@ class AmneziaProperties(BaseModel):
     )
     @classmethod
     def empty_to_none(cls, v: Any) -> Any:
+        """Treat empty input for AmneziaWG fields as an omitted value."""
         if v == "" or v is None:
             return None
         return v
@@ -664,6 +665,11 @@ class AmneziaProperties(BaseModel):
     )
     @classmethod
     def validate_numeric_range_or_int(cls, v: Any) -> int | str | None:
+        """Normalize timer and attempt values to 0–65535 or an ordered range.
+
+        Empty input becomes None. Invalid values raise ValueError, which Pydantic
+        reports as a validation error when constructing the model.
+        """
         if v == "" or v is None:
             return None
         if isinstance(v, int) and not isinstance(v, bool):
@@ -692,6 +698,11 @@ class AmneziaProperties(BaseModel):
 
     @model_validator(mode="after")
     def validate_header_protection(self) -> Self:
+        """When a header protection key is set, require 32 decoded Base64 bytes and s1–s4 of at least 12.
+
+        Invalid keys or missing or smaller s1–s4 values raise ValueError, which
+        Pydantic reports as a validation error when constructing the model.
+        """
         if self.header_protection_key is not None:
             try:
                 decoded = base64.b64decode(self.header_protection_key.strip(), validate=True)
