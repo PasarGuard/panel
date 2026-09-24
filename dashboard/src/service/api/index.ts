@@ -3473,6 +3473,24 @@ export interface Application {
   download_links: DownloadLink[]
 }
 
+export type AmneziaPropertiesDisableCookies = string | null
+
+export type AmneziaPropertiesRandomTrailers = string | null
+
+export type AmneziaPropertiesMaxHandshakeAttempts = number | null
+
+export type AmneziaPropertiesKeepaliveTimeout = number | null
+
+export type AmneziaPropertiesRejectAfterTime = number | null
+
+export type AmneziaPropertiesRekeyTimeout = number | null
+
+export type AmneziaPropertiesRekeyAfterTime = number | null
+
+export type AmneziaPropertiesContentPaddingAddition = string | null
+
+export type AmneziaPropertiesHeaderProtectionKey = string | null
+
 export type AmneziaPropertiesI5 = string | null
 
 export type AmneziaPropertiesI4 = string | null
@@ -3525,6 +3543,15 @@ export interface AmneziaProperties {
   i3?: AmneziaPropertiesI3
   i4?: AmneziaPropertiesI4
   i5?: AmneziaPropertiesI5
+  header_protection_key?: AmneziaPropertiesHeaderProtectionKey
+  content_padding_addition?: AmneziaPropertiesContentPaddingAddition
+  rekey_after_time?: AmneziaPropertiesRekeyAfterTime
+  rekey_timeout?: AmneziaPropertiesRekeyTimeout
+  reject_after_time?: AmneziaPropertiesRejectAfterTime
+  keepalive_timeout?: AmneziaPropertiesKeepaliveTimeout
+  max_handshake_attempts?: AmneziaPropertiesMaxHandshakeAttempts
+  random_trailers?: AmneziaPropertiesRandomTrailers
+  disable_cookies?: AmneziaPropertiesDisableCookies
 }
 
 /**

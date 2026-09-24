@@ -74,7 +74,16 @@ class WireGuardConfiguration(BaseSubscription):
                         "i3": "I3",
                         "i4": "I4",
                         "i5": "I5",
-                    }.get(key, key)
+                        "header_protection_key": "HeaderProtectionKey",
+                        "content_padding_addition": "ContentPaddingAddition",
+                        "rekey_after_time": "RekeyAfterTime",
+                        "rekey_timeout": "RekeyTimeout",
+                        "reject_after_time": "RejectAfterTime",
+                        "keepalive_timeout": "KeepaliveTimeout",
+                        "max_handshake_attempts": "MaxHandshakeAttempts",
+                        "random_trailers": "RandomTrailers",
+                        "disable_cookies": "DisableCookies",
+                    }.get(key.lower(), key)
                     config_data["Interface"][conf_key] = str(val)
 
         # Optional Peer settings

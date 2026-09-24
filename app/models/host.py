@@ -506,6 +506,15 @@ class AmneziaProperties(BaseModel):
     i3: str | None = Field(default=None)
     i4: str | None = Field(default=None)
     i5: str | None = Field(default=None)
+    header_protection_key: str | None = Field(default=None)
+    content_padding_addition: str | None = Field(default=None)
+    rekey_after_time: int | None = Field(default=None)
+    rekey_timeout: int | None = Field(default=None)
+    reject_after_time: int | None = Field(default=None)
+    keepalive_timeout: int | None = Field(default=None)
+    max_handshake_attempts: int | None = Field(default=None)
+    random_trailers: str | None = Field(default=None)
+    disable_cookies: str | None = Field(default=None)
 
     @field_validator(
         "jc",
@@ -524,6 +533,13 @@ class AmneziaProperties(BaseModel):
         "i3",
         "i4",
         "i5",
+        "header_protection_key",
+        "content_padding_addition",
+        "rekey_after_time",
+        "rekey_timeout",
+        "reject_after_time",
+        "keepalive_timeout",
+        "max_handshake_attempts",
         mode="before",
     )
     @classmethod
@@ -531,6 +547,15 @@ class AmneziaProperties(BaseModel):
         if v == "" or v is None:
             return None
         return v
+
+    @field_validator("random_trailers", "disable_cookies", mode="before")
+    @classmethod
+    def normalize_amnezia_toggles(cls, v: Any) -> Any:
+        if v == "" or v is None:
+            return None
+        if isinstance(v, bool):
+            return "on" if v else "off"
+        return str(v)
 
 
 class BaseHost(BaseModel):

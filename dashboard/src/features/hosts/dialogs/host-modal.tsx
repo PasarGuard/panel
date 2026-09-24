@@ -259,6 +259,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
 
   const setWgAmneziaDefaults = () => {
     form.setValue('wireguard_amnezia', {
+      ...form.getValues('wireguard_amnezia'),
       jc: 4,
       jmin: 40,
       jmax: 70,
@@ -280,6 +281,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
 
   const setWgAmneziaQuicMimic = () => {
     form.setValue('wireguard_amnezia', {
+      ...form.getValues('wireguard_amnezia'),
       jc: form.getValues('wireguard_amnezia.jc') || 4,
       jmin: form.getValues('wireguard_amnezia.jmin') || 40,
       jmax: form.getValues('wireguard_amnezia.jmax') || 70,
@@ -301,6 +303,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
 
   const setWgAmneziaDnsMimic = () => {
     form.setValue('wireguard_amnezia', {
+      ...form.getValues('wireguard_amnezia'),
       jc: form.getValues('wireguard_amnezia.jc') || 4,
       jmin: form.getValues('wireguard_amnezia.jmin') || 40,
       jmax: form.getValues('wireguard_amnezia.jmax') || 70,
@@ -322,6 +325,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
 
   const setWgAmneziaSipMimic = () => {
     form.setValue('wireguard_amnezia', {
+      ...form.getValues('wireguard_amnezia'),
       jc: form.getValues('wireguard_amnezia.jc') || 4,
       jmin: form.getValues('wireguard_amnezia.jmin') || 40,
       jmax: form.getValues('wireguard_amnezia.jmax') || 70,
@@ -910,6 +914,182 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                             <FormControl>
                               <Input
                                 placeholder="e.g. <b 0x1A2B3C>"
+                                {...field}
+                                value={field.value || ''}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Group 5: AmneziaWG 3.0 & 3.1 Settings */}
+                  <div className="space-y-4 pt-2 border-t">
+                    <h4 className="text-sm font-medium text-muted-foreground">
+                      {t('hostsDialog.amneziawg.v3SettingsTitle', { defaultValue: 'AmneziaWG 3.0 & 3.1 Settings' })}
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="wireguard_amnezia.header_protection_key"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>HeaderProtectionKey</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="base64 key"
+                                {...field}
+                                value={field.value || ''}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="wireguard_amnezia.content_padding_addition"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>ContentPaddingAddition</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="0-16"
+                                {...field}
+                                value={field.value || ''}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+                      <FormField
+                        control={form.control}
+                        name="wireguard_amnezia.rekey_after_time"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>RekeyAfterTime (s)</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                placeholder="120"
+                                {...field}
+                                value={field.value ?? ''}
+                                onChange={e => field.onChange(e.target.value === '' ? '' : Number(e.target.value))}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="wireguard_amnezia.rekey_timeout"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>RekeyTimeout (s)</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                placeholder="5"
+                                {...field}
+                                value={field.value ?? ''}
+                                onChange={e => field.onChange(e.target.value === '' ? '' : Number(e.target.value))}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="wireguard_amnezia.reject_after_time"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>RejectAfterTime (s)</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                placeholder="180"
+                                {...field}
+                                value={field.value ?? ''}
+                                onChange={e => field.onChange(e.target.value === '' ? '' : Number(e.target.value))}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="wireguard_amnezia.keepalive_timeout"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>KeepaliveTimeout (s)</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                placeholder="10"
+                                {...field}
+                                value={field.value ?? ''}
+                                onChange={e => field.onChange(e.target.value === '' ? '' : Number(e.target.value))}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="wireguard_amnezia.max_handshake_attempts"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>MaxHandshakeAttempts</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                placeholder="18"
+                                {...field}
+                                value={field.value ?? ''}
+                                onChange={e => field.onChange(e.target.value === '' ? '' : Number(e.target.value))}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="wireguard_amnezia.random_trailers"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>RandomTrailers (v3.1)</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="on, off"
+                                {...field}
+                                value={field.value || ''}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="wireguard_amnezia.disable_cookies"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>DisableCookies (v3.1)</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="on, off"
                                 {...field}
                                 value={field.value || ''}
                               />

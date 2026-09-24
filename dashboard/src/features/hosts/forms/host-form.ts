@@ -59,6 +59,15 @@ interface AmneziaProperties {
   i3?: string
   i4?: string
   i5?: string
+  header_protection_key?: string
+  content_padding_addition?: string
+  rekey_after_time?: number | ''
+  rekey_timeout?: number | ''
+  reject_after_time?: number | ''
+  keepalive_timeout?: number | ''
+  max_handshake_attempts?: number | ''
+  random_trailers?: string
+  disable_cookies?: string
 }
 
 export interface HostFormValues {
@@ -490,6 +499,15 @@ export const HostFormSchema = z.object({
       i3: z.string().optional(),
       i4: z.string().optional(),
       i5: z.string().optional(),
+      header_protection_key: z.string().optional(),
+      content_padding_addition: z.string().optional(),
+      rekey_after_time: z.number().optional().or(z.literal('')),
+      rekey_timeout: z.number().optional().or(z.literal('')),
+      reject_after_time: z.number().optional().or(z.literal('')),
+      keepalive_timeout: z.number().optional().or(z.literal('')),
+      max_handshake_attempts: z.number().optional().or(z.literal('')),
+      random_trailers: z.string().optional(),
+      disable_cookies: z.string().optional(),
     })
     .optional(),
 })

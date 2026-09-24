@@ -291,7 +291,16 @@ def test_host_with_wireguard_amnezia(access_token):
                 "jmax": 70,
                 "s1": 0,
                 "h1": "1",
-                "i1": "some_mimic_data"
+                "i1": "some_mimic_data",
+                "header_protection_key": "some_base64_key",
+                "content_padding_addition": "0-16",
+                "rekey_after_time": 120,
+                "rekey_timeout": 5,
+                "reject_after_time": 180,
+                "keepalive_timeout": 10,
+                "max_handshake_attempts": 18,
+                "random_trailers": "on",
+                "disable_cookies": "off"
             }
         },
     )
@@ -302,6 +311,15 @@ def test_host_with_wireguard_amnezia(access_token):
     assert create_response.json()["wireguard_amnezia"]["h1"] == "1"
     assert create_response.json()["wireguard_amnezia"]["i1"] == "some_mimic_data"
     assert create_response.json()["wireguard_amnezia"]["s2"] is None
+    assert create_response.json()["wireguard_amnezia"]["header_protection_key"] == "some_base64_key"
+    assert create_response.json()["wireguard_amnezia"]["content_padding_addition"] == "0-16"
+    assert create_response.json()["wireguard_amnezia"]["rekey_after_time"] == 120
+    assert create_response.json()["wireguard_amnezia"]["rekey_timeout"] == 5
+    assert create_response.json()["wireguard_amnezia"]["reject_after_time"] == 180
+    assert create_response.json()["wireguard_amnezia"]["keepalive_timeout"] == 10
+    assert create_response.json()["wireguard_amnezia"]["max_handshake_attempts"] == 18
+    assert create_response.json()["wireguard_amnezia"]["random_trailers"] == "on"
+    assert create_response.json()["wireguard_amnezia"]["disable_cookies"] == "off"
 
     # test update
     update_response = client.put(
@@ -318,6 +336,8 @@ def test_host_with_wireguard_amnezia(access_token):
                 "jc": 8,
                 "jmin": 50,
                 "h1": "2",
+                "random_trailers": "off",
+                "disable_cookies": "on"
             }
         },
     )
@@ -326,6 +346,8 @@ def test_host_with_wireguard_amnezia(access_token):
     assert update_response.json()["wireguard_amnezia"]["jmin"] == 50
     assert update_response.json()["wireguard_amnezia"]["h1"] == "2"
     assert update_response.json()["wireguard_amnezia"]["i1"] is None
+    assert update_response.json()["wireguard_amnezia"]["random_trailers"] == "off"
+    assert update_response.json()["wireguard_amnezia"]["disable_cookies"] == "on"
 
     client.delete(f"/api/host/{host_id}", headers={"Authorization": f"Bearer {access_token}"})
     delete_core(access_token, core["id"])
