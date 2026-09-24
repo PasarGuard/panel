@@ -20,7 +20,7 @@ import { isOwner, roleLabel } from '@/utils/rbac'
 import { statusColors } from '@/constants/UserSettings'
 import { cn } from '@/lib/utils'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { deleteAdminPasskeyForAdmin, getAdminPasskeyRegistrationOptionsForAdmin, getAdminPasskeysForAdmin, registerAdminPasskeyForAdmin } from '@/service/api'
+import { adminPasskeyRegisterOptions, adminPasskeyRegisterVerify, deleteAdminPasskey, listAdminPasskeys } from '@/service/api'
 import { fromBase64Url, getDefaultPasskeyName, serializeCredential } from '@/utils/passkeys'
 import { Input } from '@/components/ui/input'
 import { LoaderCircle, Plus, ShieldCheck, Trash2 } from 'lucide-react'
@@ -277,7 +277,7 @@ function SelfPasskeyDialog({ admin, compact = false }: { admin: AdminDetails; co
   useEffect(() => {
     if (!open || admin.id == null) return
     setPasskeys(null)
-    getAdminPasskeysForAdmin(admin.id).then(setPasskeys).catch(() => setPasskeys([]))
+    listAdminPasskeys(admin.id).then((res: any) => setPasskeys(res)).catch(() => setPasskeys([]))
   }, [open, admin.id])
 
   const addPasskey = async () => {
@@ -287,14 +287,15 @@ function SelfPasskeyDialog({ admin, compact = false }: { admin: AdminDetails; co
     }
     setBusy(true)
     try {
-      const options: any = await getAdminPasskeyRegistrationOptionsForAdmin(admin.id)
+      const options: any = await adminPasskeyRegisterOptions(admin.id)
       options.challenge = fromBase64Url(options.challenge)
       options.user.id = fromBase64Url(options.user.id)
       options.excludeCredentials = options.excludeCredentials?.map((item: any) => ({ ...item, id: fromBase64Url(item.id) }))
       const credential = await navigator.credentials.create({ publicKey: options })
       if (!credential) throw new Error('No passkey was created')
-      await registerAdminPasskeyForAdmin(admin.id, { credential: serializeCredential(credential), name: passkeyName.trim() || getDefaultPasskeyName() })
-      setPasskeys(await getAdminPasskeysForAdmin(admin.id))
+      await adminPasskeyRegisterVerify(admin.id, { credential: serializeCredential(credential), name: passkeyName.trim() || getDefaultPasskeyName() })
+      const updated: any = await listAdminPasskeys(admin.id)
+      setPasskeys(updated)
       toast.success(t('admins.passkeyAdded', { defaultValue: 'Passkey added successfully' }))
     } catch (error: any) {
       toast.error(t('admins.passkeyAddFailed', { defaultValue: 'Could not add passkey' }), { description: error?.data?.detail || error?.message })
@@ -307,7 +308,7 @@ function SelfPasskeyDialog({ admin, compact = false }: { admin: AdminDetails; co
     if (admin.id == null) return
     setBusy(true)
     try {
-      await deleteAdminPasskeyForAdmin(admin.id, passkeyId)
+      await deleteAdminPasskey(admin.id, passkeyId)
       setPasskeys(current => current ? current.filter(passkey => passkey.id !== passkeyId) : current)
       toast.success(t('admins.passkeyRemoved', { defaultValue: 'Passkey removed' }))
     } catch (error: any) {
