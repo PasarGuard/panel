@@ -91,6 +91,7 @@ async def remove_core_config(db: AsyncSession, db_core_config: CoreConfig) -> No
         db (AsyncSession): The database session.
         db_core_config (CoreConfig): The CoreConfig object to be removed.
     """
+    await db.execute(update(Node).where(Node.core_config_id == db_core_config.id).values(core_config_id=None))
     await db.delete(db_core_config)
     await db.commit()
 
