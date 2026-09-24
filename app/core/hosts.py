@@ -75,10 +75,11 @@ async def _prepare_subscription_inbound_data(
     host: BaseHost,
     down_settings: SubscriptionInboundData | None = None,
 ) -> SubscriptionInboundData:
-    """
-    Prepare host data - creates small config instances ONCE.
-    Merges inbound config with host config.
-    Random selection happens in share.py on every request!
+    """Build subscription data by merging a host with its inbound configuration.
+
+    WireGuard hosts contribute their configured AmneziaWG properties, excluding
+    unset values. ``down_settings`` can supply an XHTTP download configuration;
+    address and port choices remain available for subscription generation.
     """
     # Get inbound configuration
     inbound_config = await core_manager.get_inbound_by_tag(host.inbound_tag)

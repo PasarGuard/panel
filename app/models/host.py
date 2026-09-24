@@ -650,6 +650,7 @@ class AmneziaProperties(BaseModel):
     )
     @classmethod
     def empty_to_none(cls, v: Any) -> Any:
+        """Treat an empty string as an unset AmneziaWG property."""
         if v == "" or v is None:
             return None
         return v
@@ -664,6 +665,12 @@ class AmneziaProperties(BaseModel):
     )
     @classmethod
     def validate_numeric_range_or_int(cls, v: Any) -> int | str | None:
+        """Normalize a timing or attempt limit to an integer or numeric range.
+
+        Empty input becomes ``None``. Values and range bounds must be from 0 to
+        65535; invalid input raises ``ValueError``, surfaced as a Pydantic
+        ``ValidationError`` when constructing the model.
+        """
         if v == "" or v is None:
             return None
         if isinstance(v, int) and not isinstance(v, bool):
@@ -692,6 +699,12 @@ class AmneziaProperties(BaseModel):
 
     @model_validator(mode="after")
     def validate_header_protection(self) -> Self:
+        """Require a 32-byte base64 key and packet offsets of at least 12.
+
+        The offset requirement applies only when a header protection key is set.
+        Invalid keys or offsets raise ``ValueError``, surfaced as a Pydantic
+        ``ValidationError`` when constructing the model.
+        """
         if self.header_protection_key is not None:
             try:
                 decoded = base64.b64decode(self.header_protection_key.strip(), validate=True)

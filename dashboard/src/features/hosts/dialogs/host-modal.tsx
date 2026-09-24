@@ -326,6 +326,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
   const hasNoisePopulated = (selectedNoiseSettings || []).some(noise => noise && (String(noise.packet ?? '').trim() || String(noise.delay ?? '').trim()))
   const showFragmentNoiseDeprecatedWarning = hasFragmentPopulated || hasNoisePopulated
 
+  /** Reset the basic AmneziaWG fields while retaining unrelated configured options. */
   const setWgAmneziaDefaults = () => {
     form.setValue('wireguard_amnezia', {
       ...form.getValues('wireguard_amnezia'),
@@ -348,6 +349,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
     }, { shouldDirty: true, shouldTouch: true })
   }
 
+  /** Apply v3.1 defaults and force random trailers on. */
   const setWgAmneziaV31Preset = () => {
     form.setValue('wireguard_amnezia', {
       ...form.getValues('wireguard_amnezia'),
@@ -373,6 +375,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
     }, { shouldDirty: true, shouldTouch: true })
   }
 
+  /** Set QUIC mimic prefixes while keeping existing I3-I5 prefixes. */
   const setWgAmneziaQuicMimic = () => {
     form.setValue('wireguard_amnezia', {
       ...form.getValues('wireguard_amnezia'),
@@ -395,6 +398,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
     }, { shouldDirty: true, shouldTouch: true })
   }
 
+  /** Set the DNS mimic I1 prefix, clear I2, and keep I3-I5. */
   const setWgAmneziaDnsMimic = () => {
     form.setValue('wireguard_amnezia', {
       ...form.getValues('wireguard_amnezia'),
@@ -417,6 +421,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
     }, { shouldDirty: true, shouldTouch: true })
   }
 
+  /** Set SIP mimic prefixes while keeping existing I3-I5 prefixes. */
   const setWgAmneziaSipMimic = () => {
     form.setValue('wireguard_amnezia', {
       ...form.getValues('wireguard_amnezia'),

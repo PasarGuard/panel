@@ -10,15 +10,11 @@ from app.models.subscription import SubscriptionInboundData
 
 
 def normalize_and_remove_none_values(data: dict) -> dict:
-    """
-    Clean dictionary by removing None, empty strings, and 0 values.
-    Converts Enum values and recursively cleans nested dictionaries and lists.
+    """Remove unset dictionary values while preserving explicit ``False`` values.
 
-    Args:
-        data: Input dictionary to clean
-
-    Returns:
-        Cleaned dictionary with empty values removed
+    Removes ``None``, empty strings, zero, and empty lists from dictionaries;
+    recursively cleans nested dictionaries and lists and converts enum values.
+    Zero and ``False`` elements in lists are retained.
     """
     if not isinstance(data, dict):
         return data
@@ -218,6 +214,13 @@ class BaseSubscription:
     def _build_wireguard_components(
         self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict
     ) -> dict | None:
+        """Build WireGuard link data, including configured AmneziaWG query values.
+
+        ``settings`` must provide a client private key and peer IPs, and the
+        inbound needs a server public key. Return ``None`` if any are missing.
+        Successful builds reserve a unique remark in ``proxy_remarks`` and return
+        the remark, key, peer IPs, normalized payload, and encoded URI.
+        """
         private_key = settings.get("private_key", "")
         peer_ips = list(settings.get("peer_ips") or [])
         public_key = inbound.wireguard_public_key
