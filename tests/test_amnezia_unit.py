@@ -1,6 +1,5 @@
 import io
 import zipfile
-import pytest
 from app.models.host import AmneziaProperties
 from app.models.subscription import TCPTransportConfig, SubscriptionInboundData, TLSConfig
 from app.subscription.wireguard import WireGuardConfiguration

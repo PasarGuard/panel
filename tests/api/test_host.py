@@ -300,8 +300,8 @@ def test_host_with_wireguard_amnezia(access_token):
                 "keepalive_timeout": 10,
                 "max_handshake_attempts": 18,
                 "random_trailers": "on",
-                "disable_cookies": "off"
-            }
+                "disable_cookies": "off",
+            },
         },
     )
     assert create_response.status_code == status.HTTP_201_CREATED
@@ -332,13 +332,7 @@ def test_host_with_wireguard_amnezia(access_token):
             "sni": ["test_sni_updated.com"],
             "inbound_tag": inbound,
             "priority": 2,
-            "wireguard_amnezia": {
-                "jc": 8,
-                "jmin": 50,
-                "h1": "2",
-                "random_trailers": "off",
-                "disable_cookies": "on"
-            }
+            "wireguard_amnezia": {"jc": 8, "jmin": 50, "h1": "2", "random_trailers": "off", "disable_cookies": "on"},
         },
     )
     assert update_response.status_code == status.HTTP_200_OK

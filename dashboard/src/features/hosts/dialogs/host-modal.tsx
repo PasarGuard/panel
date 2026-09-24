@@ -279,6 +279,31 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
     }, { shouldDirty: true, shouldTouch: true })
   }
 
+  const setWgAmneziaV31Preset = () => {
+    form.setValue('wireguard_amnezia', {
+      ...form.getValues('wireguard_amnezia'),
+      jc: form.getValues('wireguard_amnezia.jc') || 4,
+      jmin: form.getValues('wireguard_amnezia.jmin') || 40,
+      jmax: form.getValues('wireguard_amnezia.jmax') || 70,
+      s1: form.getValues('wireguard_amnezia.s1') ?? 0,
+      s2: form.getValues('wireguard_amnezia.s2') ?? 0,
+      s3: form.getValues('wireguard_amnezia.s3') ?? 0,
+      s4: form.getValues('wireguard_amnezia.s4') ?? 0,
+      h1: form.getValues('wireguard_amnezia.h1') || '1',
+      h2: form.getValues('wireguard_amnezia.h2') || '2',
+      h3: form.getValues('wireguard_amnezia.h3') || '3',
+      h4: form.getValues('wireguard_amnezia.h4') || '4',
+      content_padding_addition: form.getValues('wireguard_amnezia.content_padding_addition') || '0-16',
+      rekey_after_time: form.getValues('wireguard_amnezia.rekey_after_time') || 120,
+      rekey_timeout: form.getValues('wireguard_amnezia.rekey_timeout') || 5,
+      reject_after_time: form.getValues('wireguard_amnezia.reject_after_time') || 180,
+      keepalive_timeout: form.getValues('wireguard_amnezia.keepalive_timeout') || 10,
+      max_handshake_attempts: form.getValues('wireguard_amnezia.max_handshake_attempts') || 18,
+      random_trailers: 'on',
+      disable_cookies: form.getValues('wireguard_amnezia.disable_cookies') || 'off',
+    }, { shouldDirty: true, shouldTouch: true })
+  }
+
   const setWgAmneziaQuicMimic = () => {
     form.setValue('wireguard_amnezia', {
       ...form.getValues('wireguard_amnezia'),
@@ -588,6 +613,9 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                   <div className="flex flex-wrap gap-2 pt-1 pb-3">
                     <Button type="button" variant="outline" size="sm" onClick={setWgAmneziaDefaults}>
                       {t('hostsDialog.amneziawg.setDefaults', { defaultValue: 'Set Defaults' })}
+                    </Button>
+                    <Button type="button" variant="outline" size="sm" onClick={setWgAmneziaV31Preset}>
+                      {t('hostsDialog.amneziawg.v31Preset', { defaultValue: 'v3.1 Preset' })}
                     </Button>
                     <Button type="button" variant="outline" size="sm" onClick={setWgAmneziaQuicMimic}>
                       {t('hostsDialog.amneziawg.quicMimic', { defaultValue: 'QUIC Mimic' })}
