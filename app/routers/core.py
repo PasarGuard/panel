@@ -1,6 +1,9 @@
 from fastapi import APIRouter, Depends, status
+from sqlalchemy import select
 
 from app.db import AsyncSession, get_db
+from app.db.crud.node import get_nodes
+from app.db.models import Node, NodeStatus
 from app.models.admin import AdminDetails
 from app.models.core import (
     BulkCoreSelection,
@@ -10,6 +13,7 @@ from app.models.core import (
     CoresSimpleResponse,
     RemoveCoresResponse,
 )
+from app.models.node import NodeListQuery
 from app.models.reality_scan import RealityScanRequest, RealityScanResult
 from app.operation import OperatorType
 from app.operation.core import CoreOperation
@@ -22,6 +26,26 @@ from .dependencies import get_core_list_query, get_core_simple_list_query
 core_operator = CoreOperation(operator_type=OperatorType.API)
 node_operator = NodeOperation(operator_type=OperatorType.API)
 router = APIRouter(tags=["Core"], prefix="/api/core", responses={401: responses._401, 403: responses._403})
+
+
+async def _core_node_ids(db: AsyncSession, core_ids: list[int]) -> list[int]:
+    result = await db.scalars(select(Node.id).where(Node.core_config_id.in_(core_ids)))
+    return list(result.all())
+
+
+async def _restart_deleted_core_nodes(db: AsyncSession, node_ids: list[int]) -> None:
+    if not node_ids:
+        return
+
+    nodes, _ = await get_nodes(
+        db,
+        query=NodeListQuery(
+            ids=node_ids,
+            status=[NodeStatus.connected, NodeStatus.connecting, NodeStatus.error],
+        ),
+        load_usage_logs=False,
+    )
+    await node_operator.connect_nodes_bulk(db, nodes, force_start=True)
 
 
 @router.post("", response_model=CoreResponse, status_code=status.HTTP_201_CREATED)
@@ -75,10 +99,10 @@ async def delete_core_config(
     db: AsyncSession = Depends(get_db),
 ):
     """Delete a core configuration."""
+    node_ids = await _core_node_ids(db, [core_id]) if restart_nodes else []
     await core_operator.delete_core(db, core_id, admin)
 
-    if restart_nodes:
-        await node_operator.restart_all_node(db=db, core_id=core_id, admin=admin)
+    await _restart_deleted_core_nodes(db, node_ids)
 
     return {}
 
@@ -131,4 +155,7 @@ async def bulk_delete_cores(
     admin: AdminDetails = Depends(require_permission("cores", "delete")),
 ):
     """Delete selected cores by ID."""
-    return await core_operator.bulk_remove_cores(db, bulk_cores, admin)
+    node_ids = await _core_node_ids(db, list(bulk_cores.ids))
+    response = await core_operator.bulk_remove_cores(db, bulk_cores, admin)
+    await _restart_deleted_core_nodes(db, node_ids)
+    return response
