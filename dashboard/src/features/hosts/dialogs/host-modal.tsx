@@ -443,6 +443,45 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
     form.setValue('wireguard_amnezia', undefined, { shouldDirty: true, shouldTouch: true })
   }
 
+  const renderFinalMaskSettings = () => (
+    <div className="space-y-4 pt-4 border-t">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <h4 className="text-sm font-medium">{t('hostsDialog.finalmask.title', { defaultValue: 'FinalMask Settings' })}</h4>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button type="button" variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent">
+                <Info className="text-muted-foreground h-4 w-4" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
+              <div className="space-y-1.5">
+                <p className="text-muted-foreground text-[11px]">{t('hostsDialog.finalmask.info', { defaultValue: 'Configure custom finalmask client configurations (TCP, UDP, and QUIC params).' })}</p>
+              </div>
+            </PopoverContent>
+          </Popover>
+        </div>
+        <Switch
+          checked={form.watch('final_mask_settings') !== undefined && form.watch('final_mask_settings') !== null}
+          onCheckedChange={(checked) => {
+            if (checked) {
+              form.setValue('final_mask_settings', {
+                tcp: [],
+                udp: [],
+                quicParams: {}
+              }, { shouldDirty: true, shouldTouch: true })
+            } else {
+              form.setValue('final_mask_settings', undefined, { shouldDirty: true, shouldTouch: true })
+            }
+          }}
+        />
+      </div>
+      {form.watch('final_mask_settings') !== undefined && form.watch('final_mask_settings') !== null && (
+        <FinalMaskSettings form={form} />
+      )}
+    </div>
+  )
+
   const renderCamouflageSection = () => {
     return (
       <AccordionItem className="rounded-sm border px-4 [&_[data-state=closed]]:no-underline [&_[data-state=open]]:no-underline" value="camouflag">
@@ -573,43 +612,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                       </div>
                     </div>
 
-                    {/* FinalMask Settings */}
-                    <div className="space-y-4 pt-4 border-t">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <h4 className="text-sm font-medium">{t('hostsDialog.finalmask.title', { defaultValue: 'FinalMask Settings' })}</h4>
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <Button type="button" variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent">
-                                <Info className="text-muted-foreground h-4 w-4" />
-                              </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
-                              <div className="space-y-1.5">
-                                <p className="text-muted-foreground text-[11px]">{t('hostsDialog.finalmask.info', { defaultValue: 'Configure custom finalmask client configurations (TCP, UDP, and QUIC params).' })}</p>
-                              </div>
-                            </PopoverContent>
-                          </Popover>
-                        </div>
-                        <Switch
-                          checked={form.watch('final_mask_settings') !== undefined && form.watch('final_mask_settings') !== null}
-                          onCheckedChange={(checked) => {
-                            if (checked) {
-                              form.setValue('final_mask_settings', {
-                                tcp: [],
-                                udp: [],
-                                quicParams: {}
-                              }, { shouldDirty: true, shouldTouch: true })
-                            } else {
-                              form.setValue('final_mask_settings', undefined, { shouldDirty: true, shouldTouch: true })
-                            }
-                          }}
-                        />
-                      </div>
-                      {form.watch('final_mask_settings') !== undefined && form.watch('final_mask_settings') !== null && (
-                        <FinalMaskSettings form={form} />
-                      )}
-                    </div>
+                    {renderFinalMaskSettings()}
                   </div>
                 </TabsContent>
                 <TabsContent dir={dir} value="singbox">
@@ -1206,6 +1209,8 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                       />
                     </div>
                   </div>
+
+                  {renderFinalMaskSettings()}
                 </div>
               </TabsContent>
             )}

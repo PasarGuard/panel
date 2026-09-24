@@ -615,7 +615,7 @@ class AmneziaProperties(BaseModel):
     i4: str | None = Field(default=None)
     i5: str | None = Field(default=None)
     header_protection_key: str | None = Field(default=None)
-    content_padding_addition: str | None = Field(default=None)
+    content_padding_addition: str | None = Field(default=None, pattern=r"^\d{1,16}(-\d{1,16})?$")
     rekey_after_time: int | None = Field(default=None)
     rekey_timeout: int | None = Field(default=None)
     reject_after_time: int | None = Field(default=None)

@@ -1,9 +1,10 @@
 import io
 import zipfile
+
 from app.models.host import AmneziaProperties
-from app.models.subscription import TCPTransportConfig, SubscriptionInboundData, TLSConfig
-from app.subscription.wireguard import WireGuardConfiguration
+from app.models.subscription import SubscriptionInboundData, TCPTransportConfig, TLSConfig
 from app.subscription.singbox import SingBoxConfiguration
+from app.subscription.wireguard import WireGuardConfiguration
 
 
 def test_amnezia_properties_v31():
@@ -56,6 +57,28 @@ def test_amnezia_properties_empty_and_bool_normalization():
     assert props.rekey_after_time is None
     assert props.random_trailers == "on"
     assert props.disable_cookies == "off"
+
+
+def test_content_padding_addition_validation():
+    import pytest
+    from pydantic import ValidationError
+
+    # Valid values
+    assert AmneziaProperties(content_padding_addition=None).content_padding_addition is None
+    assert AmneziaProperties(content_padding_addition="").content_padding_addition is None
+    assert AmneziaProperties(content_padding_addition="0").content_padding_addition == "0"
+    assert AmneziaProperties(content_padding_addition="16").content_padding_addition == "16"
+    assert AmneziaProperties(content_padding_addition="0-16").content_padding_addition == "0-16"
+    assert AmneziaProperties(content_padding_addition="1234567890123456").content_padding_addition == "1234567890123456"
+    assert (
+        AmneziaProperties(content_padding_addition="1-1234567890123456").content_padding_addition
+        == "1-1234567890123456"
+    )
+
+    # Invalid values
+    for invalid in ("abc", "0-16-32", "12345678901234567", "0-", "-16", "0 16", "0,16", "1.5"):
+        with pytest.raises(ValidationError):
+            AmneziaProperties(content_padding_addition=invalid)
 
 
 def test_wireguard_config_generator_v31():
