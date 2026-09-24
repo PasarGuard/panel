@@ -584,5 +584,4 @@ export function mapHostFragmentSettingsForForm(fragmentSettings: { xray?: Record
       : undefined,
     sing_box: fragmentSettings.sing_box ?? undefined,
   }
->>>>>>> dev
 }
