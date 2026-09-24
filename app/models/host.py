@@ -622,8 +622,8 @@ class AmneziaProperties(BaseModel):
     reject_after_time: int | str | None = Field(default=None)
     keepalive_timeout: int | str | None = Field(default=None)
     max_handshake_attempts: int | str | None = Field(default=None)
-    random_trailers: str | None = Field(default=None)
-    disable_cookies: str | None = Field(default=None)
+    random_trailers: str | None = Field(default=None, pattern=r"^(on|off)$")
+    disable_cookies: str | None = Field(default=None, pattern=r"^(on|off)$")
 
     @field_validator(
         "jc",
@@ -644,6 +644,8 @@ class AmneziaProperties(BaseModel):
         "i5",
         "header_protection_key",
         "content_padding_addition",
+        "random_trailers",
+        "disable_cookies",
         mode="before",
     )
     @classmethod
@@ -687,18 +689,6 @@ class AmneziaProperties(BaseModel):
                     return f"{low}-{high}"
         raise ValueError("Value must be an integer (0-65535) or numeric range 'min-max'")
 
-    @field_validator("random_trailers", "disable_cookies", mode="before")
-    @classmethod
-    def normalize_amnezia_toggles(cls, v: Any) -> str | None:
-        if v == "" or v is None:
-            return None
-        if isinstance(v, bool):
-            return "on" if v else "off"
-        if isinstance(v, str):
-            val = v.strip().lower()
-            if val in ("on", "off"):
-                return val
-        raise ValueError("Value must be 'on' or 'off'")
 
     @model_validator(mode="after")
     def validate_header_protection(self) -> Self:

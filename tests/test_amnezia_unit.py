@@ -46,13 +46,13 @@ def test_amnezia_properties_v31():
     assert dumped["disable_cookies"] == "off"
 
 
-def test_amnezia_properties_empty_and_bool_normalization():
+def test_amnezia_properties_empty_normalization():
     props = AmneziaProperties(
         jc="",
         header_protection_key="",
         rekey_after_time="",
-        random_trailers=True,
-        disable_cookies=False,
+        random_trailers="on",
+        disable_cookies="off",
     )
     assert props.jc is None
     assert props.header_protection_key is None
@@ -127,15 +127,16 @@ def test_amnezia_numeric_ranges_and_toggles():
         with pytest.raises(ValidationError):
             AmneziaProperties(rekey_after_time=bad)
 
-    # Toggle validation: only "on" or "off"
+    # Toggle validation: strictly "on" or "off" via pattern r"^(on|off)$"
     assert AmneziaProperties(random_trailers="on").random_trailers == "on"
     assert AmneziaProperties(random_trailers="off").random_trailers == "off"
-    assert AmneziaProperties(random_trailers="ON").random_trailers == "on"
-    assert AmneziaProperties(random_trailers=True).random_trailers == "on"
-    assert AmneziaProperties(random_trailers=False).random_trailers == "off"
+    assert AmneziaProperties(disable_cookies="on").disable_cookies == "on"
+    assert AmneziaProperties(disable_cookies="off").disable_cookies == "off"
+    assert AmneziaProperties(random_trailers=None).random_trailers is None
+    assert AmneziaProperties(random_trailers="").random_trailers is None
 
-    # Unsupported toggle value like "maybe"
-    for invalid_toggle in ("maybe", "unknown", "1", "0", 123):
+    # Unsupported toggle values
+    for invalid_toggle in ("maybe", "unknown", "1", "0", 123, True, False, "true", "false", "ON", "OFF"):
         with pytest.raises(ValidationError):
             AmneziaProperties(random_trailers=invalid_toggle)
         with pytest.raises(ValidationError):
@@ -269,3 +270,60 @@ def test_singbox_config_ignores_amnezia():
     assert "disable_cookies" not in endpoint
     assert endpoint["type"] == "wireguard"
     assert endpoint["tag"] == "test_profile"
+
+
+def test_wireguard_toggles_controlled_and_serialized():
+    from app.subscription.base import BaseSubscription
+
+    inbound = SubscriptionInboundData(
+        remark="test_profile",
+        inbound_tag="wg_inbound",
+        tls_config=TLSConfig(),
+        transport_config=TCPTransportConfig(),
+        priority=1,
+        protocol="wireguard",
+        network="udp",
+        port=51820,
+        wireguard_public_key="server_pub_key",
+        wireguard_allowed_ips=["0.0.0.0/0"],
+        wireguard_amnezia={
+            "random_trailers": "on",
+            "disable_cookies": "off",
+        },
+    )
+
+    # 1. Test WireGuardConfiguration outputs strictly "on" and "off"
+    generator = WireGuardConfiguration()
+    generator.add(
+        remark="test_profile",
+        address="198.51.100.1",
+        inbound=inbound,
+        settings={
+            "private_key": "client_priv_key",
+            "peer_ips": ["10.0.0.2/32"],
+        },
+    )
+    rendered_bytes = generator.render()
+    with zipfile.ZipFile(io.BytesIO(rendered_bytes)) as zf:
+        content = zf.read(zf.namelist()[0]).decode("utf-8")
+        assert "RandomTrailers = on" in content
+        assert "DisableCookies = off" in content
+        assert "True" not in content
+        assert "False" not in content
+
+    # 2. Test BaseSubscription URI outputs strictly "on" and "off"
+    base = BaseSubscription()
+    built = base._build_wireguard_components(
+        remark="test_profile",
+        address="198.51.100.1",
+        inbound=inbound,
+        settings={
+            "private_key": "client_priv_key",
+            "peer_ips": ["10.0.0.2/32"],
+        },
+    )
+    assert built is not None
+    assert built["payload"]["random_trailers"] == "on"
+    assert built["payload"]["disable_cookies"] == "off"
+    assert "random_trailers=on" in built["uri"]
+    assert "disable_cookies=off" in built["uri"]

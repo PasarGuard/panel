@@ -66,8 +66,8 @@ interface AmneziaProperties {
   reject_after_time?: number | string | ''
   keepalive_timeout?: number | string | ''
   max_handshake_attempts?: number | string | ''
-  random_trailers?: string
-  disable_cookies?: string
+  random_trailers?: 'on' | 'off'
+  disable_cookies?: 'on' | 'off'
 }
 
 export interface HostFormValues {
@@ -525,8 +525,8 @@ export const HostFormSchema = z.object({
       reject_after_time: z.union([z.number(), z.string()]).optional().or(z.literal('')),
       keepalive_timeout: z.union([z.number(), z.string()]).optional().or(z.literal('')),
       max_handshake_attempts: z.union([z.number(), z.string()]).optional().or(z.literal('')),
-      random_trailers: z.string().optional(),
-      disable_cookies: z.string().optional(),
+      random_trailers: z.string().regex(/^(on|off)$/).optional(),
+      disable_cookies: z.string().regex(/^(on|off)$/).optional(),
     })
     .optional(),
 })

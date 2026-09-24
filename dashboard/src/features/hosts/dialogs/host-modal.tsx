@@ -1150,7 +1150,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                         )}
                       />
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <FormField
                         control={form.control}
                         name="wireguard_amnezia.max_handshake_attempts"
@@ -1169,20 +1169,27 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                           </FormItem>
                         )}
                       />
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <FormField
                         control={form.control}
                         name="wireguard_amnezia.random_trailers"
                         render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>RandomTrailers (v3.1)</FormLabel>
+                          <FormItem
+                            className="flex cursor-pointer flex-row items-center justify-between space-y-0 rounded-lg border p-4"
+                            onClick={() => field.onChange(field.value === 'on' ? 'off' : 'on')}
+                          >
+                            <div className="space-y-0.5">
+                              <FormLabel className="cursor-pointer text-base">RandomTrailers (v3.1)</FormLabel>
+                            </div>
                             <FormControl>
-                              <Input
-                                placeholder="on, off"
-                                {...field}
-                                value={field.value || ''}
-                              />
+                              <div onClick={e => e.stopPropagation()}>
+                                <Switch
+                                  checked={field.value === 'on'}
+                                  onCheckedChange={checked => field.onChange(checked ? 'on' : 'off')}
+                                />
+                              </div>
                             </FormControl>
-                            <FormMessage />
                           </FormItem>
                         )}
                       />
@@ -1190,16 +1197,21 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                         control={form.control}
                         name="wireguard_amnezia.disable_cookies"
                         render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>DisableCookies (v3.1)</FormLabel>
+                          <FormItem
+                            className="flex cursor-pointer flex-row items-center justify-between space-y-0 rounded-lg border p-4"
+                            onClick={() => field.onChange(field.value === 'on' ? 'off' : 'on')}
+                          >
+                            <div className="space-y-0.5">
+                              <FormLabel className="cursor-pointer text-base">DisableCookies (v3.1)</FormLabel>
+                            </div>
                             <FormControl>
-                              <Input
-                                placeholder="on, off"
-                                {...field}
-                                value={field.value || ''}
-                              />
+                              <div onClick={e => e.stopPropagation()}>
+                                <Switch
+                                  checked={field.value === 'on'}
+                                  onCheckedChange={checked => field.onChange(checked ? 'on' : 'off')}
+                                />
+                              </div>
                             </FormControl>
-                            <FormMessage />
                           </FormItem>
                         )}
                       />
@@ -1502,6 +1514,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
         }
       } else {
         payload.wireguard_overrides = undefined
+        payload.wireguard_amnezia = undefined
       }
 
       // If SingBox fragment is disabled, clear related fields
