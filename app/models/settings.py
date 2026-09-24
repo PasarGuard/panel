@@ -269,7 +269,7 @@ class CustomVariable(BaseModel):
     @classmethod
     def normalize_key(cls, value):
         if not isinstance(value, str):
-            raise ValueError("Variable key must be a string")
+            raise TypeError("Variable key must be a string")
         value = value.strip()
         if value.startswith("{") and value.endswith("}"):
             value = value[1:-1].strip()
@@ -350,14 +350,21 @@ class Subscription(BaseModel):
 class HWIDSettings(BaseModel):
     enabled: bool = Field(default=True)
     forced: bool = Field(default=False)
-    require_hwid_for_manual_sub: bool = Field(default=True)
+    require_hwid_for_manual_sub: bool = Field(default=False)
     fallback_limit: int | None = Field(default=None, ge=0)
     min_limit: int | None = Field(default=None, ge=0)
     max_limit: int | None = Field(default=None, ge=0)
 
 
+class OnHoldTimeoutAction(StrEnum):
+    activate = "activate"
+    disable = "disable"
+    delete = "delete"
+
+
 class General(BaseModel):
     default_method: ShadowsocksMethods = Field(default=ShadowsocksMethods.CHACHA20_POLY1305)
+    on_hold_timeout_action: OnHoldTimeoutAction = Field(default=OnHoldTimeoutAction.activate)
     custom_variables: list[CustomVariable] | None = Field(default=None)
 
     @field_validator("custom_variables")

@@ -1,19 +1,18 @@
-from datetime import datetime as dt, timezone as tz
+from datetime import UTC, datetime as dt
 from enum import Enum
-from typing import Type
 
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
 
-from app.settings import webhook_settings
 from app.models.admin import AdminDetails
 from app.models.user import UserNotificationResponse, UserStatus
 from app.notification.queue_manager import enqueue_webhook
+from app.settings import webhook_settings
 
 
 def get_current_timestamp() -> float:
     """Factory function to get current timestamp"""
-    return dt.now(tz.utc).timestamp()
+    return dt.now(UTC).timestamp()
 
 
 class Notification(BaseModel):
@@ -118,18 +117,16 @@ async def status_change(user: UserNotificationResponse):
         await notify(UserExpired(username=user.username, user=user))
     elif user.status == UserStatus.disabled:
         await notify(UserDisabled(username=user.username, user=user))
-    elif user.status == UserStatus.active:
-        await notify(UserEnabled(username=user.username, user=user))
-    elif user.status == UserStatus.on_hold:
+    elif user.status == UserStatus.active or user.status == UserStatus.on_hold:
         await notify(UserEnabled(username=user.username, user=user))
 
 
-async def notify(message: Type[Notification]) -> None:
+async def notify(message: type[Notification]) -> None:
     if (await webhook_settings()).enable:
         await enqueue_webhook(jsonable_encoder(message))
 
 
-async def bulk_notify(messages: list[Type[Notification]]) -> None:
+async def bulk_notify(messages: list[type[Notification]]) -> None:
     if (await webhook_settings()).enable:
         for message in messages:
             await enqueue_webhook(jsonable_encoder(message))

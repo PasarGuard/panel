@@ -1,10 +1,8 @@
 import asyncio
-from typing import List
 
-from sqlalchemy import bindparam, delete, select
-from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy import bindparam, delete, insert, select
 from sqlalchemy.dialects.mysql import insert as mysql_insert
-from sqlalchemy import insert
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import ProxyHost, ProxyInbound
@@ -76,7 +74,7 @@ async def get_or_create_inbound(db: AsyncSession, inbound_tag: str) -> ProxyInbo
     return result[inbound_tag]
 
 
-async def get_inbounds_not_in_tags(db: AsyncSession, excluded_tags: List[str]) -> List[ProxyInbound]:
+async def get_inbounds_not_in_tags(db: AsyncSession, excluded_tags: list[str]) -> list[ProxyInbound]:
     """
     Get all inbounds where the tag is not in the provided list of tags.
 
@@ -92,7 +90,7 @@ async def get_inbounds_not_in_tags(db: AsyncSession, excluded_tags: List[str]) -
     return result.scalars().all()
 
 
-async def remove_inbounds(db: AsyncSession, inbounds: List[ProxyInbound]) -> None:
+async def remove_inbounds(db: AsyncSession, inbounds: list[ProxyInbound]) -> None:
     """
     Remove a list of inbounds from the database.
 

@@ -1,23 +1,160 @@
+import warnings
+
 from fastapi import FastAPI, Request, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.openapi.docs import get_swagger_ui_html
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.routing import APIRoute
 from sqlalchemy.exc import DBAPIError
 
+from app.db.base import database_pool_summary
 from app.lifecycle import on_shutdown, on_startup
-from app.nats import is_nats_enabled
 from app.middlewares import setup_middleware
+from app.nats import is_multi_worker, require_nats_if_multiworker
 from app.nats.message import MessageTopic
 from app.nats.router import router
 from app.settings import handle_settings_message
 from app.subscription.client_templates import handle_client_template_message
 from app.utils.logger import get_logger
 from app.version import __version__
-from config import runtime_settings, subscription_env_settings
-
+from config import database_settings, runtime_settings, server_settings, subscription_env_settings
 
 logger = get_logger("app-factory")
+
+# Swagger UI ships no dark theme; hand-tune one instead of the harsher filter-invert hack
+# (and instead of swagger-ui-dist's built-in `html.dark-mode` theme, which reads too dark).
+_SWAGGER_DARK_CSS = """
+    <style>
+        body {
+            background-color: #22262b;
+            color: #c9d1d9;
+        }
+        .swagger-ui { color: #c9d1d9; }
+        .swagger-ui .topbar { background-color: #1c2024; }
+        .swagger-ui .info .title,
+        .swagger-ui .info li, .swagger-ui .info p, .swagger-ui .info table,
+        .swagger-ui .scheme-container .schemes-title,
+        .swagger-ui label, .swagger-ui .opblock-tag,
+        .swagger-ui .opblock .opblock-summary-operation-id,
+        .swagger-ui .opblock .opblock-summary-path,
+        .swagger-ui .opblock .opblock-summary-path__deprecated,
+        .swagger-ui .opblock .opblock-summary-description,
+        .swagger-ui .parameter__name, .swagger-ui .parameter__type,
+        .swagger-ui .parameter__in, .swagger-ui .prop-type,
+        .swagger-ui table thead tr td, .swagger-ui table thead tr th,
+        .swagger-ui .response-col_status, .swagger-ui .response-col_links,
+        .swagger-ui .tab li, .swagger-ui .opblock-description-wrapper p,
+        .swagger-ui .btn, .swagger-ui section.models h4,
+        .swagger-ui section.models .model-container,
+        .swagger-ui .model, .swagger-ui .model-title,
+        .swagger-ui .model-toggle:after {
+            color: #c9d1d9;
+        }
+        .swagger-ui .scheme-container,
+        .swagger-ui section.models,
+        .swagger-ui section.models .model-container,
+        .swagger-ui .opblock-tag {
+            background-color: #262b31;
+            border-color: #3a3f45;
+        }
+        .swagger-ui .opblock {
+            background-color: #262b31;
+            border-color: #3a3f45;
+        }
+        .swagger-ui .opblock .opblock-section-header {
+            background-color: #262b31cc;
+        }
+        .swagger-ui .opblock.opblock-get { border-color: #3a6ea5; background: #1f2b36; }
+        .swagger-ui .opblock.opblock-get .opblock-summary-method { background: #3a6ea5; }
+        .swagger-ui .opblock.opblock-post { border-color: #3f9142; background: #1f3323; }
+        .swagger-ui .opblock.opblock-post .opblock-summary-method { background: #3f9142; }
+        .swagger-ui .opblock.opblock-put { border-color: #a3752f; background: #332a1c; }
+        .swagger-ui .opblock.opblock-put .opblock-summary-method { background: #a3752f; }
+        .swagger-ui .opblock.opblock-delete { border-color: #a5423a; background: #332020; }
+        .swagger-ui .opblock.opblock-delete .opblock-summary-method { background: #a5423a; }
+        .swagger-ui .opblock.opblock-patch { border-color: #3a9187; background: #1c3230; }
+        .swagger-ui .opblock.opblock-patch .opblock-summary-method { background: #3a9187; }
+        .swagger-ui input, .swagger-ui select, .swagger-ui textarea {
+            background-color: #1c2024;
+            color: #c9d1d9;
+            border-color: #3a3f45;
+        }
+        .swagger-ui .btn {
+            background-color: #2d333b;
+            border-color: #3a3f45;
+        }
+        .swagger-ui .highlight-code, .swagger-ui .microlight {
+            background-color: #1c2024;
+        }
+        .swagger-ui .body-param__example {
+            background-color: #1c2024;
+            color: #c9d1d9;
+        }
+        .swagger-ui .responses-inner h4, .swagger-ui .responses-inner h5 {
+            color: #c9d1d9;
+        }
+        .swagger-ui .model-box {
+            background-color: #1c2024;
+        }
+        .swagger-ui .dialog-ux .backdrop-ux {
+            background: rgba(0, 0, 0, 0.6);
+        }
+        .swagger-ui .dialog-ux .modal-ux {
+            background-color: #262b31;
+            border-color: #3a3f45;
+        }
+        .swagger-ui .dialog-ux .modal-ux-header,
+        .swagger-ui .dialog-ux .modal-ux-content {
+            border-color: #3a3f45;
+        }
+        .swagger-ui .dialog-ux .modal-ux-header h3,
+        .swagger-ui .dialog-ux .modal-ux-content h4,
+        .swagger-ui .dialog-ux .modal-ux-content h5,
+        .swagger-ui .dialog-ux .modal-ux-content p,
+        .swagger-ui .dialog-ux .modal-ux-content label,
+        .swagger-ui .dialog-ux .modal-ux-content .auth-container p,
+        .swagger-ui .dialog-ux .modal-ux-content .auth-container h4,
+        .swagger-ui .dialog-ux .modal-ux-content .auth-container em {
+            color: #c9d1d9;
+        }
+        .swagger-ui .dialog-ux .modal-ux-content input {
+            background-color: #1c2024;
+            color: #c9d1d9;
+            border-color: #3a3f45;
+        }
+        .swagger-ui .dialog-ux .auth-container {
+            border-color: #3a3f45;
+        }
+        .swagger-ui .dialog-ux .close-modal svg {
+            fill: #c9d1d9;
+        }
+    </style>
+"""
+
+
+def _setup_swagger_ui(app: FastAPI) -> None:
+    if not runtime_settings.docs:
+        return
+
+    @app.get("/docs", include_in_schema=False)
+    async def custom_swagger_ui_html() -> HTMLResponse:
+        response = get_swagger_ui_html(
+            openapi_url=app.openapi_url,
+            title=f"{app.title} - Swagger UI",
+            swagger_ui_parameters={"docExpansion": "none"},
+        )
+        html = response.body.decode().replace("</head>", f"{_SWAGGER_DARK_CSS}</head>")
+        return HTMLResponse(html)
+
+
+def _log_database_pool_budget() -> None:
+    process_count = max(server_settings.workers or 1, 1) if runtime_settings.role.runs_panel else 1
+    logger.info(database_pool_summary(database_settings, process_count))
+
+
+async def _ignore_worker_sync_message(_: dict):
+    return None
 
 
 async def database_operational_error_handler(request: Request, exc: DBAPIError):
@@ -52,7 +189,13 @@ def _validate_subscription_path(app: FastAPI) -> None:
         )
 
 
-def _register_nats_handlers(enable_router: bool, enable_settings: bool, enable_client_templates: bool):
+def _register_nats_handlers(
+    enable_router: bool,
+    enable_settings: bool,
+    enable_client_templates: bool,
+    ignore_host_messages: bool = False,
+    enable_node_sync: bool = False,
+):
     if enable_router:
         on_startup(router.start)
         on_shutdown(router.stop)
@@ -60,6 +203,15 @@ def _register_nats_handlers(enable_router: bool, enable_settings: bool, enable_c
         router.register_handler(MessageTopic.SETTING, handle_settings_message)
     if enable_client_templates:
         router.register_handler(MessageTopic.CLIENT_TEMPLATE, handle_client_template_message)
+    if ignore_host_messages:
+        router.register_handler(MessageTopic.HOST, _ignore_worker_sync_message)
+    if enable_node_sync:
+        from app.node.manager_sync import register_node_sync_handler
+
+        register_node_sync_handler()
+    elif enable_router:
+        # Split roles (e.g. backend/scheduler) still subscribe to worker_sync;
+        router.register_handler(MessageTopic.NODE, _ignore_worker_sync_message)
 
 
 def _register_scheduler_hooks():
@@ -71,19 +223,105 @@ def _register_scheduler_hooks():
     if not (runtime_settings.role.runs_node or runtime_settings.role.runs_scheduler):
         return
 
+    import asyncio
+    import contextlib
+
+    from apscheduler.schedulers.base import STATE_PAUSED
+
+    from app.nats.leader import (
+        HEARTBEAT_INTERVAL,
+        is_job_leader,
+        needs_job_leader,
+        set_on_leadership_lost,
+        start_job_leader,
+        stop_job_leader,
+    )
     from app.scheduler import scheduler
 
-    on_startup(scheduler.start)
-    on_shutdown(scheduler.shutdown)
+    started_notifications = {"value": False}
+    reclaim_task: dict[str, asyncio.Task | None] = {"task": None}
 
-    # Notification dispatcher (consumer loop) is only needed by scheduler role
-    if not runtime_settings.role.runs_scheduler:
-        return
+    async def _resume_jobs_on_leadership_gained():
+        if scheduler.state == STATE_PAUSED:
+            scheduler.resume()
+        elif not scheduler.running:
+            scheduler.start()
 
-    from app.notification.client import start_notification_dispatcher, stop_notification_dispatcher
+        if runtime_settings.role.runs_scheduler and not started_notifications["value"]:
+            from app.notification.client import start_notification_dispatcher
 
-    on_startup(start_notification_dispatcher)
-    on_shutdown(stop_notification_dispatcher)
+            await start_notification_dispatcher()
+            started_notifications["value"] = True
+
+    async def _reclaim_leadership_loop():
+        # start_job_leader = try_become_leader + heartbeat restart
+        while True:
+            await asyncio.sleep(HEARTBEAT_INTERVAL)
+            if is_job_leader():
+                return
+            if await start_job_leader():
+                await _resume_jobs_on_leadership_gained()
+                return
+
+    def _ensure_reclaim_task():
+        task = reclaim_task["task"]
+        if task is not None and not task.done():
+            return
+        reclaim_task["task"] = asyncio.create_task(_reclaim_leadership_loop())
+
+    async def _cancel_reclaim_task():
+        task = reclaim_task["task"]
+        reclaim_task["task"] = None
+        if task is None or task.done():
+            return
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+
+    async def _pause_jobs_on_leadership_lost():
+        if started_notifications["value"]:
+            from app.notification.client import stop_notification_dispatcher
+
+            await stop_notification_dispatcher()
+            started_notifications["value"] = False
+        if scheduler.running:
+            scheduler.pause()
+        _ensure_reclaim_task()
+
+    set_on_leadership_lost(_pause_jobs_on_leadership_lost)
+
+    async def _start_scheduler_if_leader():
+        if await start_job_leader():
+            scheduler.start()
+        elif needs_job_leader():
+            _ensure_reclaim_task()
+
+    on_startup(_start_scheduler_if_leader)
+
+    # Notification dispatcher (consumer loop) is only needed by scheduler role + leader
+    if runtime_settings.role.runs_scheduler:
+        from app.notification.client import start_notification_dispatcher, stop_notification_dispatcher
+
+        async def _start_notification_dispatcher_if_leader():
+            if is_job_leader():
+                await start_notification_dispatcher()
+                started_notifications["value"] = True
+
+        async def _stop_notification_dispatcher_if_started():
+            if started_notifications["value"]:
+                await stop_notification_dispatcher()
+                started_notifications["value"] = False
+
+        on_startup(_start_notification_dispatcher_if_leader)
+        on_shutdown(_stop_notification_dispatcher_if_started)
+
+    async def _stop_scheduler_and_leader():
+        await _cancel_reclaim_task()
+        if scheduler.running:
+            scheduler.shutdown()
+        await stop_job_leader()
+
+    on_shutdown(_stop_scheduler_and_leader)
 
 
 def _register_jobs():
@@ -92,11 +330,25 @@ def _register_jobs():
     from app import jobs  # noqa: F401
 
 
+def _warn_deprecated_role():
+    role = runtime_settings.role
+    if not role.is_deprecated:
+        return
+    message = (
+        f"ROLE={role.value} is deprecated and will be removed in PasarGuard 7.0.0. "
+        "Use ROLE=all-in-one with NATS_ENABLED=1 and UVICORN_WORKERS>1 for multi-worker deployments."
+    )
+    warnings.warn(message, DeprecationWarning, stacklevel=2)
+    logger.warning(message)
+
+
 def create_app() -> FastAPI:
     from app.lifecycle import lifespan
 
-    if runtime_settings.role.requires_nats and not is_nats_enabled():
-        raise RuntimeError("NATS must be enabled for backend / node / scheduler roles.")
+    # Fail fast before NATS handlers / queues register (covers all-in-one + UVICORN_WORKERS>1).
+    require_nats_if_multiworker(is_multi_worker())
+
+    _warn_deprecated_role()
 
     app = FastAPI(
         title="PasarGuardAPI",
@@ -104,7 +356,9 @@ def create_app() -> FastAPI:
         version=__version__,
         lifespan=lifespan,
         openapi_url="/openapi.json" if runtime_settings.docs else None,
+        docs_url=None,
     )
+    _setup_swagger_ui(app)
 
     setup_middleware(app)
 
@@ -132,13 +386,18 @@ def create_app() -> FastAPI:
     )
     enable_settings = runtime_settings.role.runs_panel or runtime_settings.role.runs_scheduler
     enable_client_templates = runtime_settings.role.runs_panel or runtime_settings.role.runs_scheduler
-    _register_nats_handlers(enable_router, enable_settings, enable_client_templates)
+    ignore_host_messages = not runtime_settings.role.runs_panel
+    enable_node_sync = runtime_settings.role.runs_node
+    _register_nats_handlers(
+        enable_router, enable_settings, enable_client_templates, ignore_host_messages, enable_node_sync
+    )
     _register_scheduler_hooks()
     _register_jobs()
 
     _use_route_names_as_operation_ids(app)
 
     on_startup(lambda: logger.info(f"PasarGuard v{__version__} ({runtime_settings.role.value})"))
+    on_startup(_log_database_pool_budget)
 
     @app.exception_handler(RequestValidationError)
     def validation_exception_handler(request: Request, exc: RequestValidationError):
@@ -152,7 +411,7 @@ def create_app() -> FastAPI:
 
     app.add_exception_handler(DBAPIError, database_operational_error_handler)
 
-    from app.operation.permissions import LimitExceeded, PermissionDenied  # noqa: F401
+    from app.operation.permissions import LimitExceeded, PermissionDenied
 
     @app.exception_handler(PermissionDenied)
     async def permission_denied_handler(request: Request, exc: PermissionDenied):

@@ -204,8 +204,14 @@ rules = [
         "target": "clash_meta",
     },
     {"pattern": r"^([Cc]lash|[Ss]tash)", "target": "clash"},
-    {"pattern": r"^(SFA|SFI|SFM|SFT|[Kk]aring|[Hh]iddify[Nn]ext|[Ii]n[Hh]ive)|.*[Ss]ing[\-b]?ox.*", "target": "sing_box"},
+    {"pattern": r"^(SFA|SFI|SFM|SFT|[Kk]aring|[Hh]iddify[Nn]ext)|.*[Ss]ing[\-b]?ox.*", "target": "sing_box"},
     {"pattern": r"^(SS|SSR|SSD|SSS|Outline|Shadowsocks|SSconf)", "target": "outline"},
+    {
+        # InHive: universal client (sing-box fork + Xray parity); ingests raw
+        # share-links / Xray-JSON natively. Serve the full, unstripped xray format.
+        "pattern": r"^[Ii]n[Hh]ive",
+        "target": "xray",
+    },
     {
         "pattern": r"^.*",  # Default catch-all pattern
         "target": "links_base64",

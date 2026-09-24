@@ -2,14 +2,15 @@ import asyncio
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import Settings
 from app.db.crud.settings import get_settings, modify_settings
+from app.db.models import Settings
 from app.models.settings import General, SettingsSchema, Subscription
 from app.nats.message import MessageTopic
 from app.nats.router import router
-from app.settings import refresh_caches
 from app.notification.client import define_client
+from app.settings import refresh_caches
 from app.telegram import startup_telegram_bot
+
 from . import BaseOperation
 
 

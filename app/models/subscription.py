@@ -5,14 +5,14 @@ Broken down into small, focused models - each transport/protocol gets only what 
 
 from __future__ import annotations
 
-from datetime import datetime as dt
 from typing import Any
 
 from pydantic import BaseModel, Field, computed_field, field_validator
 
 from app.models.host import FinalMask
 from app.models.stats import Period
-from app.utils.helpers import fix_datetime_timezone
+
+from .validators import OptionalAwareDatetime
 
 
 class TLSConfig(BaseModel):
@@ -25,8 +25,13 @@ class TLSConfig(BaseModel):
     alpn_list: list[str] = Field(default_factory=list)
     ech_config_list: str | None = Field(None)
     ech_query_strategy: str | None = Field(None)
+    mihomo_ech_config: str | None = Field(None)
+    mihomo_ech_query_server_name: str | None = Field(None)
+    sing_box_ech_config: str | None = Field(None)
+    sing_box_ech_query_server_name: str | None = Field(None)
     pinned_peer_cert_sha256: str | None = Field(default=None)
     verify_peer_cert_by_name: list[str] | None = Field(default_factory=list)
+    cipher_suites: str | None = Field(None)
 
     # Reality specific
     reality_public_key: str = Field("")
@@ -114,6 +119,10 @@ class XHTTPTransportConfig(BaseTransportConfig):
     uplink_http_method: str | None = Field(None, serialization_alias="uplinkHTTPMethod")
     session_placement: str | None = Field(None, serialization_alias="sessionPlacement")
     session_key: str | None = Field(None, serialization_alias="sessionKey")
+    session_id_table: str | None = Field(None, serialization_alias="sessionIDTable")
+    session_id_length: str | None = Field(
+        None, serialization_alias="sessionIDLength", pattern=r"^\d{1,16}(?:-\d{1,16})?$"
+    )
     seq_placement: str | None = Field(None, serialization_alias="seqPlacement")
     seq_key: str | None = Field(None, serialization_alias="seqKey")
     uplink_data_placement: str | None = Field(None, serialization_alias="uplinkDataPlacement")
@@ -131,6 +140,7 @@ class XHTTPTransportConfig(BaseTransportConfig):
         "sc_min_posts_interval_ms",
         "x_padding_bytes",
         "uplink_chunk_size",
+        "session_id_length",
         mode="before",
     )
     @classmethod
@@ -293,15 +303,8 @@ class SubscriptionInboundData(BaseModel):
 
 class SubscriptionUsageQuery(BaseModel):
     period: Period = Field(default=Period.hour)
-    start: dt | None = Field(default=None, examples=["2024-01-01T00:00:00+03:30"])
-    end: dt | None = Field(default=None, examples=["2024-01-31T23:59:59+03:30"])
-
-    @field_validator("start", "end", mode="before")
-    @classmethod
-    def validate_datetimes(cls, value):
-        if not value:
-            return value
-        return fix_datetime_timezone(value)
+    start: OptionalAwareDatetime = Field(default=None, examples=["2024-01-01T00:00:00+03:30"])
+    end: OptionalAwareDatetime = Field(default=None, examples=["2024-01-31T23:59:59+03:30"])
 
 
 class SubscriptionHeaders(BaseModel):

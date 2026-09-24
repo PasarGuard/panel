@@ -8,9 +8,10 @@ import { Input } from '@/components/ui/input'
 import { LoaderButton } from '@/components/ui/loader-button'
 import { PasswordInput } from '@/components/ui/password-input'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { useAdminMiniAppToken, useAdminToken, useCreateOwner, useDeleteOwner, useResetOwnerPassword, useUpgradeOwner } from '@/service/api'
+import { getAdminPasskeyLoginOptions, verifyAdminPasskeyLogin, getCurrentAdmin, useAdminMiniAppToken, useAdminToken, useCreateOwner, useDeleteOwner, useResetOwnerPassword, useUpgradeOwner } from '@/service/api'
 import { $fetch } from '@/service/http'
-import { removeAuthToken, setAuthToken } from '@/utils/authStorage'
+import { getAuthToken, removeAuthToken, setAuthToken } from '@/utils/authStorage'
+import { fromBase64Url, serializeCredential } from '@/utils/passkeys'
 import { queryClient } from '@/utils/query-client'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { retrieveRawInitData } from '@telegram-apps/sdk'
@@ -119,6 +120,7 @@ export const Login: FC = () => {
   const { resolvedTheme } = useTheme()
   const {
     register,
+    getValues,
     formState: { errors },
     handleSubmit,
   } = useForm<LoginSchema>({
@@ -128,18 +130,6 @@ export const Login: FC = () => {
     },
     resolver: zodResolver(schema),
   })
-
-  useEffect(() => {
-    // Cancel all ongoing queries first to stop any in-flight requests
-    queryClient.cancelQueries()
-    // Remove the auth token
-    removeAuthToken()
-    // Clear all React Query cache to ensure fresh state after logout
-    queryClient.clear()
-    if (location.pathname !== '/login') {
-      navigate('/login', { replace: true })
-    }
-  }, [location.pathname, navigate])
 
   let isTelegram = false
   let initDataRaw = ''
@@ -151,14 +141,64 @@ export const Login: FC = () => {
     initDataRaw = ''
   }
 
+  useEffect(() => {
+    if (location.pathname !== '/login') {
+      navigate('/login', { replace: true })
+    }
+  }, [location.pathname, navigate])
+
+  useEffect(() => {
+    // The Telegram MiniApp flow below owns its own auth exchange - let it run
+    // undisturbed rather than racing it over the stored token.
+    if (isTelegram) return
+
+    const token = getAuthToken()
+    // No token: nothing to verify, show the login form
+    if (!token) return
+
+    const controller = new AbortController()
+
+    // A token exists - check whether it's still valid before deciding
+    // whether to redirect to the dashboard or drop the stale session
+    getCurrentAdmin({ signal: controller.signal })
+      .then(() => {
+        navigate('/', { replace: true })
+      })
+      .catch((error: any) => {
+        if (error?.name === 'AbortError') return
+        // Another flow (e.g. a manual login) already replaced the token - don't clobber it
+        if (getAuthToken() !== token) return
+        // Only drop the session on a confirmed auth failure; transient/network
+        // errors shouldn't log out an otherwise-valid session
+        if (error?.status !== 401 && error?.status !== 403) return
+
+        // Cancel all ongoing queries first to stop any in-flight requests
+        queryClient.cancelQueries()
+        // Remove the auth token
+        removeAuthToken()
+        // Clear all React Query cache to ensure fresh state after logout
+        queryClient.clear()
+      })
+
+    return () => controller.abort()
+  }, [navigate, isTelegram])
+
   const {
     mutate: login,
     isPending: loading,
     error,
   } = useAdminToken({
     mutation: {
-      onSuccess({ access_token }) {
-        setAuthToken(access_token)
+      onSuccess(response) {
+        // The shared fetcher returns the parsed response body directly, while
+        // the generated type also contains the HTTP-envelope shape.
+        const responseBody = response as unknown as {
+          access_token?: string
+          data?: { access_token?: string }
+        }
+        const accessToken = responseBody.access_token ?? responseBody.data?.access_token
+        if (!accessToken) return
+        setAuthToken(accessToken)
         navigate('/', { replace: true })
       },
     },
@@ -202,6 +242,30 @@ export const Login: FC = () => {
           grant_type: 'password',
         },
       })
+    }
+  }
+
+  const [passkeyLoading, setPasskeyLoading] = useState(false)
+  const handlePasskeyLogin = async () => {
+    const username = getValues('username').trim()
+    if (!window.PublicKeyCredential) {
+      toast.error(t('login.passkeyUnsupported', { defaultValue: 'Passkeys are not supported in this browser.' }))
+      return
+    }
+    setPasskeyLoading(true)
+    try {
+      const options: any = await getAdminPasskeyLoginOptions(username ? { username } : {})
+      options.challenge = fromBase64Url(options.challenge)
+      options.allowCredentials = options.allowCredentials?.map((item: any) => ({ ...item, id: fromBase64Url(item.id) }))
+      const credential = await navigator.credentials.get({ publicKey: options })
+      if (!credential) throw new Error('No passkey was provided')
+      const data = await verifyAdminPasskeyLogin({ ...(username ? { username } : {}), credential: serializeCredential(credential) })
+      setAuthToken(data.access_token)
+      navigate('/', { replace: true })
+    } catch (err: any) {
+      toast.error(t('login.passkeyFailed', { defaultValue: 'Passkey login failed' }), { description: getOwnerSetupErrorMessage(err) })
+    } finally {
+      setPasskeyLoading(false)
     }
   }
 
@@ -341,18 +405,18 @@ export const Login: FC = () => {
   }, [])
 
   return (
-    <div className="flex min-h-screen w-full flex-col justify-between p-6">
+    <div className="flex min-h-screen w-full flex-col justify-between px-6 pb-10 pt-6">
       <div className="w-full">
         <div className="flex w-full items-center justify-between">
           <Language />
           <ThemeToggle />
         </div>
         <div className="flex w-full items-center justify-center">
-          <div className="mt-6 w-full max-w-[340px]">
+              <div className="mt-6 w-full max-w-85">
             <div className="flex flex-col items-center gap-2">
               <img src={resolvedTheme === 'dark' ? '/statics/favicon/logo.png' : '/statics/favicon/logo-dark.png'} alt="PasarGuard Logo" className="h-20 w-20 object-contain" />
               <span className="text-2xl font-semibold">{view === 'login' ? t('login.loginYourAccount') : t('setup.ownerAccess', { defaultValue: 'Owner access' })}</span>
-              <span className="text-center text-gray-600 dark:text-gray-400">
+              <span className="text-center text-muted-foreground">
                 {view === 'login'
                   ? t('login.welcomeBack')
                   : t('setup.ownerAccessDescription', {
@@ -361,7 +425,7 @@ export const Login: FC = () => {
               </span>
             </div>
 
-            <div className="mx-auto w-full max-w-[300px] pt-4">
+            <div className="mx-auto w-full max-w-75 pt-4">
               {view === 'login' ? (
                 <form onSubmit={handleSubmit(handleLogin)} autoComplete="on">
                   <div className="mt-4 flex flex-col gap-y-2">
@@ -378,8 +442,12 @@ export const Login: FC = () => {
                         <LogInIcon size="18px" />
                         <span>{t('login')}</span>
                       </LoaderButton>
-                      <Button type="button" variant="outline" className="flex w-full items-center gap-2" onClick={switchToSetup}>
+                      <Button type="button" variant="outline" className="flex w-full items-center gap-2" onClick={handlePasskeyLogin} disabled={passkeyLoading}>
                         <KeyRound className="h-4 w-4" />
+                        <span>{t('login.usePasskey', { defaultValue: 'Use a passkey' })}</span>
+                      </Button>
+                      <Button type="button" variant="ghost" className="text-muted-foreground hover:text-foreground mt-1 flex w-full items-center gap-2 text-xs" onClick={switchToSetup}>
+                        <ShieldCheck className="h-3.5 w-3.5" />
                         <span>{t('setup.ownerAccess', { defaultValue: 'Owner access' })}</span>
                       </Button>
                     </div>
@@ -506,7 +574,9 @@ export const Login: FC = () => {
           </div>
         </div>
       </div>
-      <Footer />
+      <div className="mt-8">
+        <Footer />
+      </div>
     </div>
   )
 }

@@ -1,7 +1,7 @@
 """add_wireguard_amnezia_to_hosts
 
 Revision ID: 9cd8735ab938
-Revises: f976bfcf4738
+Revises: b4c7e8f1a2d3
 Create Date: 2026-07-12 04:18:28.202056
 
 """
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = '9cd8735ab938'
-down_revision = 'f976bfcf4738'
+down_revision = 'b4c7e8f1a2d3'
 branch_labels = None
 depends_on = None
 

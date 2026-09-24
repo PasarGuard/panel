@@ -1,6 +1,8 @@
 import json
 from random import choice
 
+from pydantic import BaseModel
+
 from app.models.subscription import (
     GRPCTransportConfig,
     KCPTransportConfig,
@@ -11,9 +13,9 @@ from app.models.subscription import (
     WebSocketTransportConfig,
     XHTTPTransportConfig,
 )
-from app.utils.helpers import UUIDEncoder
 
 from . import BaseSubscription
+from .base import dumps_compact
 
 
 class XrayConfiguration(BaseSubscription):
@@ -62,7 +64,7 @@ class XrayConfiguration(BaseSubscription):
         self.config.append(json_template)
 
     def render(self):
-        return json.dumps(self.config, indent=4, cls=UUIDEncoder)
+        return dumps_compact(self.config)
 
     def add(
         self,
@@ -148,8 +150,10 @@ class XrayConfiguration(BaseSubscription):
             "xPaddingPlacement": config.x_padding_placement,
             "xPaddingMethod": config.x_padding_method,
             "uplinkHTTPMethod": config.uplink_http_method,
-            "sessionPlacement": config.session_placement,
-            "sessionKey": config.session_key,
+            "sessionIDPlacement": config.session_placement,
+            "sessionIDKey": config.session_key,
+            "sessionIDTable": config.session_id_table,
+            "sessionIDLength": config.session_id_length,
             "seqPlacement": config.seq_placement,
             "seqKey": config.seq_key,
             "uplinkDataPlacement": config.uplink_data_placement,
@@ -239,16 +243,13 @@ class XrayConfiguration(BaseSubscription):
         else:
             tcp_settings = {"header": {"type": headers}}
 
-        if any((path, host, config.random_user_agent)):
-            if "request" not in tcp_settings["header"]:
-                tcp_settings["header"]["request"] = {}
+        if any((path, host, config.random_user_agent)) and "request" not in tcp_settings["header"]:
+            tcp_settings["header"]["request"] = {}
 
-        if any((config.random_user_agent, host)):
-            if (
-                "headers" not in tcp_settings["header"]["request"]
-                or tcp_settings["header"]["request"]["headers"] is None
-            ):
-                tcp_settings["header"]["request"]["headers"] = {}
+        if any((config.random_user_agent, host)) and (
+            "headers" not in tcp_settings["header"]["request"] or tcp_settings["header"]["request"]["headers"] is None
+        ):
+            tcp_settings["header"]["request"]["headers"] = {}
 
         if path:
             tcp_settings["header"]["request"]["path"] = [path]
@@ -339,6 +340,7 @@ class XrayConfiguration(BaseSubscription):
                 "verifyPeerCertByName": ",".join(tls_config.verify_peer_cert_by_name)
                 if tls_config.verify_peer_cert_by_name
                 else "",
+                "cipherSuites": tls_config.cipher_suites if tls_config.fingerprint == "unsafe" else "",
             }
             if tls_config.alpn_list:
                 config["alpn"] = tls_config.alpn_list  # Use list for xray
@@ -417,7 +419,7 @@ class XrayConfiguration(BaseSubscription):
     def _build_vless(self, address: str, inbound: SubscriptionInboundData, settings: dict) -> tuple:
         """Build VLESS outbound - returns (main_outbound, extra_outbounds_list)"""
         # Handle vless-route if needed (only affects ID)
-        id = settings["id"]
+        id = str(settings["id"])
         if inbound.vless_route:
             id = self.vless_route(id, inbound.vless_route)
 
@@ -516,6 +518,7 @@ class XrayConfiguration(BaseSubscription):
             "protocol": "wireguard",
             "tag": "proxy",
             "settings": {
+                "remoteDNS": inbound.wireguard_dns,
                 "secretKey": private_key,
                 "address": peer_ips,
                 "peers": [self._normalize_and_remove_none_values(peer)],
@@ -667,7 +670,10 @@ class XrayConfiguration(BaseSubscription):
             stream_settings["sockopt"] = sockopt
 
         if finalmask is not None:
-            stream_settings["finalmask"] = finalmask
+            if isinstance(finalmask, BaseModel):
+                stream_settings["finalmask"] = finalmask.model_dump(exclude_none=True, by_alias=True, mode="json")
+            else:
+                stream_settings["finalmask"] = finalmask
 
         return stream_settings
 

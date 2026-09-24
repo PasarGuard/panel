@@ -1,8 +1,7 @@
-from fastapi import Depends, APIRouter, status
+from fastapi import APIRouter, Depends, status
 
 from app.db import AsyncSession, get_db
 from app.models.admin import AdminDetails
-from .authentication import require_permission
 from app.models.user_template import (
     BulkUserTemplatesActionResponse,
     BulkUserTemplateSelection,
@@ -15,8 +14,9 @@ from app.models.user_template import (
 from app.operation import OperatorType
 from app.operation.user_template import UserTemplateOperation
 from app.utils import responses
-from .dependencies import get_user_template_list_query, get_user_template_simple_list_query
 
+from .authentication import require_permission
+from .dependencies import get_user_template_list_query, get_user_template_simple_list_query
 
 router = APIRouter(tags=["User Template"], prefix="/api/user_template")
 template_operator = UserTemplateOperation(OperatorType.API)

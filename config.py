@@ -30,9 +30,10 @@ runtime_settings = RuntimeSettings()
 
 class DatabaseSettings(EnvSettings):
     url: str = Field(default="sqlite+aiosqlite:///db.sqlite3", validation_alias="SQLALCHEMY_DATABASE_URL")
-    pool_size: int = Field(default=25, validation_alias="SQLALCHEMY_POOL_SIZE")
-    max_overflow: int = Field(default=60, validation_alias="SQLALCHEMY_MAX_OVERFLOW")
-    pool_recycle: int = Field(default=300, validation_alias="SQLALCHEMY_POOL_RECYCLE")
+    pool_size: int = Field(default=5, ge=1, validation_alias="SQLALCHEMY_POOL_SIZE")
+    max_overflow: int = Field(default=5, ge=0, validation_alias="SQLALCHEMY_MAX_OVERFLOW")
+    pool_recycle: int = Field(default=300, ge=-1, validation_alias="SQLALCHEMY_POOL_RECYCLE")
+    pool_timeout: int = Field(default=5, gt=0, validation_alias="SQLALCHEMY_POOL_TIMEOUT")
     connect_timeout: int = Field(default=5, gt=0, validation_alias="SQLALCHEMY_CONNECT_TIMEOUT")
     echo_queries: bool = Field(default=False, validation_alias="ECHO_SQL_QUERIES")
 
@@ -47,6 +48,14 @@ class DatabaseSettings(EnvSettings):
     @cached_property
     def is_sqlite(self) -> bool:
         return self.url.startswith("sqlite")
+
+    def connection_ceiling(self, process_count: int = 1) -> int:
+        """Return the configured QueuePool connection ceiling across processes."""
+        if process_count < 1:
+            raise ValueError("process_count must be at least 1")
+        if self.is_sqlite:
+            return 0
+        return (self.pool_size + self.max_overflow) * process_count
 
 
 class ServerSettings(EnvSettings):
@@ -88,9 +97,20 @@ class NatsSettings(EnvSettings):
     node_log_subject: str = Field(default="pasarguard.node.logs", validation_alias="NATS_NODE_LOG_SUBJECT")
     node_rpc_timeout: float = Field(default=30.0, validation_alias="NATS_NODE_RPC_TIMEOUT")
     scheduler_rpc_timeout: float = Field(default=5.0, validation_alias="NATS_SCHEDULER_RPC_TIMEOUT")
+    node_command_max_payload_bytes: int = Field(default=900000, validation_alias="NATS_NODE_COMMAND_MAX_PAYLOAD_BYTES")
+    node_update_users_batch_size: int = Field(default=100, validation_alias="NATS_NODE_UPDATE_USERS_BATCH_SIZE")
     core_pubsub_channel: str = Field(default="core_hosts_updates", validation_alias="CORE_PUBSUB_CHANNEL")
     host_pubsub_channel: str = Field(default="host_manager_updates", validation_alias="HOST_PUBSUB_CHANNEL")
     telegram_kv_bucket: str = Field(default="pasarguard_telegram", validation_alias="NATS_TELEGRAM_KV_BUCKET")
+    node_user_sync_kv_bucket: str = Field(
+        default="pasarguard_node_user_sync", validation_alias="NATS_NODE_USER_SYNC_KV_BUCKET"
+    )
+    node_lifecycle_kv_bucket: str = Field(
+        default="pasarguard_node_lifecycle", validation_alias="NATS_NODE_LIFECYCLE_KV_BUCKET"
+    )
+    scheduler_leader_kv_bucket: str = Field(
+        default="pasarguard_scheduler_leader", validation_alias="NATS_SCHEDULER_LEADER_KV_BUCKET"
+    )
     notification_stream: str = Field(default="NOTIFICATIONS", validation_alias="NATS_NOTIFICATION_STREAM")
     notification_subject: str = Field(default="notifications.queue", validation_alias="NATS_NOTIFICATION_SUBJECT")
     notification_consumer: str = Field(default="notification_workers", validation_alias="NATS_NOTIFICATION_CONSUMER")
@@ -159,10 +179,12 @@ class LoggingSettings(EnvSettings):
 class AuthSettings(EnvSettings):
     sudo_username: str = Field(default="", validation_alias="SUDO_USERNAME")
     sudo_password: str = Field(default="", validation_alias="SUDO_PASSWORD")
+    passkey_rp_id: str = Field(default="", validation_alias="PASSKEY_RP_ID")
+    passkey_origin: str = Field(default="", validation_alias="PASSKEY_ORIGIN")
     sudoers: dict[str, str] = Field(default_factory=dict)
 
     @model_validator(mode="after")
-    def build_sudoers(self) -> "AuthSettings":
+    def build_sudoers(self) -> AuthSettings:
         if self.sudo_username and self.sudo_password and not self.sudoers:
             self.sudoers[self.sudo_username] = self.sudo_password
         return self
@@ -199,12 +221,6 @@ class FeatureSettings(EnvSettings):
     stop_nodes_on_shutdown: bool = Field(default=True, validation_alias="STOP_NODES_ON_SHUTDOWN")
 
 
-class WireGuardSettings(EnvSettings):
-    enabled: bool = Field(default=True, validation_alias="WIREGUARD_ENABLED")
-    global_pool: str = Field(default="10.0.0.0/8", validation_alias="WIREGUARD_GLOBAL_POOL")
-    reserved: str = Field(default="10.0.0.0/31", validation_alias="WIREGUARD_RESERVED")
-
-
 database_settings = DatabaseSettings()
 server_settings = ServerSettings()
 dashboard_settings = DashboardSettings()
@@ -220,7 +236,6 @@ auth_settings = AuthSettings()
 usage_settings = UsageSettings()
 job_settings = JobSettings()
 feature_settings = FeatureSettings()
-wireguard_settings = WireGuardSettings()
 
 if not database_settings.is_postgresql:
     usage_settings.enable_recording_nodes_stats = False

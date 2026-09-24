@@ -1,5 +1,5 @@
 import * as z from 'zod'
-import type { FinalMaskInput } from '@/service/api'
+import type { FinalMask } from '@/service/api'
 
 interface Brutal {
   enable?: boolean
@@ -92,6 +92,10 @@ export interface HostFormValues {
   priority: number
   ech_config_list?: string
   ech_query_strategy?: 'none' | 'half' | 'full'
+  mihomo_ech_config?: string
+  mihomo_ech_query_server_name?: string
+  sing_box_ech_config?: string
+  sing_box_ech_query_server_name?: string
   pinned_peer_cert_sha256?: string
   verify_peer_cert_by_name?: string[]
   fragment_settings?: {
@@ -112,7 +116,6 @@ export interface HostFormValues {
       packet: string
       delay: string
       apply_to: 'ip' | 'ipv4' | 'ipv6'
-      rand_range?: string
     }[]
   }
   mux_settings?: MuxSettings
@@ -124,7 +127,7 @@ export interface HostFormValues {
     dns?: string[]
   }
   subscription_templates?: {
-    xray?: number
+    xray?: number | null
   }
   transport_settings?: {
     xhttp_settings?: {
@@ -139,6 +142,8 @@ export interface HostFormValues {
       uplink_http_method?: string
       session_placement?: string
       session_key?: string
+      session_id_table?: string
+      session_id_length?: string
       seq_placement?: string
       seq_key?: string
       uplink_data_placement?: string
@@ -190,7 +195,8 @@ export interface HostFormValues {
       heartbeatPeriod?: number
     }
   }
-  final_mask_settings?: FinalMaskInput
+  final_mask_settings?: FinalMask
+  cipher_suites?: string
   wireguard_amnezia?: AmneziaProperties
 }
 
@@ -209,6 +215,20 @@ const transportSettingsSchema = z
         uplink_http_method: z.string().nullish().optional(),
         session_placement: z.string().nullish().optional(),
         session_key: z.string().nullish().optional(),
+        session_id_table: z
+          .string()
+          .nullish()
+          .optional()
+          .refine(val => !val || /^[\x20-\x7E]*$/.test(val), {
+            message: 'Session ID Table must contain only printable ASCII characters',
+          }),
+        session_id_length: z
+          .string()
+          .nullish()
+          .optional()
+          .refine(val => !val || /^\d{1,16}(-\d{1,16})?$/.test(val), {
+            message: "Session ID Length must be in format like '10-20' or '10'",
+          }),
         seq_placement: z.string().nullish().optional(),
         seq_key: z.string().nullish().optional(),
         uplink_data_placement: z.string().nullish().optional(),
@@ -367,6 +387,10 @@ export const HostFormSchema = z.object({
   is_disabled: z.boolean().default(false),
   ech_config_list: z.string().optional(),
   ech_query_strategy: z.enum(['none', 'half', 'full']).optional(),
+  mihomo_ech_config: z.string().optional(),
+  mihomo_ech_query_server_name: z.string().max(255).optional(),
+  sing_box_ech_config: z.string().optional(),
+  sing_box_ech_query_server_name: z.string().max(255).optional(),
   pinned_peer_cert_sha256: z.string().max(128, 'Pinned peer cert SHA256 must be at most 128 characters').optional(),
   verify_peer_cert_by_name: z.array(z.string()).default([]),
   fragment_settings: z
@@ -404,12 +428,6 @@ export const HostFormSchema = z.object({
                 message: "Delay must be in format like '10-20' or '10'",
               }),
             apply_to: z.enum(['ip', 'ipv4', 'ipv6']).default('ip'),
-            rand_range: z
-              .string()
-              .optional()
-              .refine(val => !val || /^\d{1,16}(-\d{1,16})?$/.test(val), {
-                message: "Rand range must be in format like '10-20' or '10'",
-              }),
           }),
         )
         .optional(),
@@ -477,10 +495,11 @@ export const HostFormSchema = z.object({
     .optional(),
   subscription_templates: z
     .object({
-      xray: z.number().int().positive().optional(),
+      xray: z.number().int().positive().nullable().optional(),
     })
     .optional(),
-  final_mask_settings: z.custom<FinalMaskInput>().optional(),
+  final_mask_settings: z.custom<FinalMask>().optional(),
+  cipher_suites: z.string().optional(),
   wireguard_amnezia: z
     .object({
       jc: z.number().optional().or(z.literal('')),
@@ -533,10 +552,37 @@ export const hostFormDefaultValues: HostFormValues = {
   priority: 0,
   ech_config_list: undefined,
   ech_query_strategy: undefined,
+  mihomo_ech_config: undefined,
+  mihomo_ech_query_server_name: undefined,
+  sing_box_ech_config: undefined,
+  sing_box_ech_query_server_name: undefined,
   pinned_peer_cert_sha256: undefined,
   verify_peer_cert_by_name: [],
   fragment_settings: undefined,
   subscription_templates: undefined,
   final_mask_settings: undefined,
+  cipher_suites: undefined,
   wireguard_amnezia: undefined,
+}
+
+/** Normalize API fragment settings for the host form (accept legacy `delay` as `interval`). */
+export function mapHostFragmentSettingsForForm(fragmentSettings: { xray?: Record<string, unknown> | null; sing_box?: NonNullable<HostFormValues['fragment_settings']>['sing_box'] | null } | null | undefined): HostFormValues['fragment_settings'] | undefined {
+  if (!fragmentSettings) return undefined
+  const xrayRaw = fragmentSettings.xray
+  if (!xrayRaw && fragmentSettings.sing_box == null) return undefined
+
+  const intervalValue = xrayRaw?.interval ?? xrayRaw?.delay
+  const interval = typeof intervalValue === 'string' && intervalValue ? intervalValue : undefined
+
+  return {
+    xray: xrayRaw
+      ? {
+          packets: typeof xrayRaw.packets === 'string' ? xrayRaw.packets : undefined,
+          length: typeof xrayRaw.length === 'string' ? xrayRaw.length : undefined,
+          interval,
+        }
+      : undefined,
+    sing_box: fragmentSettings.sing_box ?? undefined,
+  }
+>>>>>>> dev
 }

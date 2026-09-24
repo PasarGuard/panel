@@ -326,9 +326,12 @@ function normalizeHysteriaSettingsForCore(config: Record<string, unknown>): Reco
     }
     if (udpmasks && udpmasks.length > 0) {
       const finalmask = isRecord(streamSettings.finalmask) ? { ...streamSettings.finalmask } : {}
-      finalmask.udp = udpmasks
-      streamSettings.finalmask = finalmask
-      inboundChanged = true
+      // Prefer an existing finalmask.udp (password + packetSize, etc.); only migrate legacy udpmasks when absent.
+      if (!Array.isArray(finalmask.udp) || finalmask.udp.length === 0) {
+        finalmask.udp = udpmasks
+        streamSettings.finalmask = finalmask
+        inboundChanged = true
+      }
     }
 
     const settings = isRecord(compiledInbound.settings) ? { ...compiledInbound.settings } : {}
@@ -363,6 +366,8 @@ function applyHysteriaTransportUdpmasksToCompiledConfig(profile: Profile, config
 
     const streamSettings = isRecord(compiledInbound.streamSettings) ? { ...compiledInbound.streamSettings } : {}
     const finalmask = isRecord(streamSettings.finalmask) ? { ...streamSettings.finalmask } : {}
+    // Do not clobber finalmask.udp already compiled from streamAdvanced (includes packetSize / other layers).
+    if (Array.isArray(finalmask.udp) && finalmask.udp.length > 0) return compiledInbound
     finalmask.udp = udpmasks
     streamSettings.finalmask = finalmask
     changed = true

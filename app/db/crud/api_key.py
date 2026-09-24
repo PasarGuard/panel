@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime as dt, timezone as tz
+from datetime import UTC, datetime as dt
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -110,7 +110,7 @@ async def revoke_api_key(db: AsyncSession, db_key: APIKey) -> tuple[str, APIKey]
     raw_key = f"pg_key_{raw_uuid}"
     db_key.key_hash = hash_api_key(raw_key)
     db_key.api_key_trimmed = f"pg_key_{raw_uuid[:3]}***{raw_uuid[-3:]}"
-    db_key.revoked_at = dt.now(tz.utc)
+    db_key.revoked_at = dt.now(UTC)
     db_key.status = APIKeyStatus.active
     await db.flush()
     await db.refresh(db_key)

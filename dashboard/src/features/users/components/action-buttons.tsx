@@ -326,6 +326,8 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
   const canReadAllUsers = hasScopeAll(currentAdmin, 'users', 'read')
   const canDeleteUsers = hasPermission(currentAdmin, 'users', 'delete')
   const topDropdownActionCount = (canUpdateUsers ? 1 : 0) + (canUpdateAllUsers ? 1 : 0) + (canReadAllUsers ? 1 : 0)
+  // Edit is desktop-only (`hidden md:flex`); don't count it for the mobile top separator.
+  const mobileTopDropdownActionCount = (canUpdateAllUsers ? 1 : 0) + (canReadAllUsers ? 1 : 0)
   const middleDropdownActionCount = (canUpdateUsers ? 2 : 0) + 3 + (canUpdateUsers && user.next_plan ? 1 : 0) + (canReadAllUsers ? 1 : 0)
   const destructiveDropdownActionCount = canDeleteUsers ? 1 : 0
 
@@ -726,7 +728,9 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
                 </DropdownMenuItem>
               )}
 
-              {topDropdownActionCount > 0 && middleDropdownActionCount > 0 && <DropdownMenuSeparator />}
+              {topDropdownActionCount > 0 && middleDropdownActionCount > 0 && (
+                <DropdownMenuSeparator className={mobileTopDropdownActionCount === 0 ? 'hidden md:block' : undefined} />
+              )}
 
               {/* Revoke Sub */}
               {canUpdateUsers && (

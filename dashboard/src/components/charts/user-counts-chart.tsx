@@ -17,16 +17,23 @@ import useDirDetection from '@/hooks/use-dir-detection'
 import { useChartViewType } from '@/hooks/use-chart-view-type'
 import { Period, UserCountMetric, type GetUsersCountMetricParams, type NodeSimple, type UserCountMetricStat, useGetUsersCountMetric } from '@/service/api'
 import {
+  CHART_PERIOD_OVERRIDE_AUTO,
+  type ChartPeriodOverride,
   formatPeriodLabelForPeriod,
   formatTooltipDate,
   getChartQueryRangeFromDateRange,
   getChartQueryRangeFromShortcut,
-  getXAxisIntervalForShortcut,
+  getChartXAxisInterval,
+  resolvePeriodOverride,
   toStatsRecord,
   TrafficShortcutKey,
 } from '@/utils/chart-period-utils'
+import { getChartBrushWindow, getChartRenderFlags } from '@/utils/chart-performance'
 
+import ChartBrush from './chart-brush'
+import DenseChartAreaHint from './dense-chart-area-hint'
 import { EmptyState } from './empty-state'
+import PeriodSelector from './period-selector'
 import TimeSelector, { TRAFFIC_TIME_SELECTOR_SHORTCUTS } from './time-selector'
 import { TimeRangeSelector } from '@/components/common/time-range-selector'
 
@@ -182,6 +189,7 @@ export function UserCountsChart({ nodeId, isSudo, nodesData = [] }: UserCountsCh
   const [selectedAdmin, setSelectedAdmin] = useState<string>('all')
   const [groupByNode, setGroupByNode] = useState(false)
   const [selectedTime, setSelectedTime] = useState<TrafficShortcutKey>('1w')
+  const [periodOverride, setPeriodOverride] = useState<ChartPeriodOverride>(CHART_PERIOD_OVERRIDE_AUTO)
   const [showCustomRange, setShowCustomRange] = useState(false)
   const [customRange, setCustomRange] = useState<DateRange | undefined>(undefined)
   const [windowWidth, setWindowWidth] = useState<number>(() => (typeof window !== 'undefined' ? window.innerWidth : 1024))
@@ -190,12 +198,14 @@ export function UserCountsChart({ nodeId, isSudo, nodesData = [] }: UserCountsCh
   const [currentDataIndex, setCurrentDataIndex] = useState(0)
 
   const activeQueryRange = useMemo(() => {
+    const periodOptions = { minuteForOneHour: true, periodOverride: resolvePeriodOverride(periodOverride) }
+
     if (showCustomRange && customRange?.from && customRange?.to) {
-      return getChartQueryRangeFromDateRange(customRange, selectedTime)
+      return getChartQueryRangeFromDateRange(customRange, selectedTime, periodOptions)
     }
 
-    return getChartQueryRangeFromShortcut(selectedTime, new Date(), { minuteForOneHour: true })
-  }, [showCustomRange, customRange, selectedTime])
+    return getChartQueryRangeFromShortcut(selectedTime, new Date(), periodOptions)
+  }, [showCustomRange, customRange, selectedTime, periodOverride])
 
   const activePeriod = activeQueryRange.period
   const canGroupByNode = isSudo && nodeId === undefined && selectedMetric === UserCountMetric.online
@@ -332,6 +342,14 @@ export function UserCountsChart({ nodeId, isSudo, nodesData = [] }: UserCountsCh
 
   const stackedSeries = useMemo(() => series.filter(item => item.stackId), [series])
 
+  const labelRangeHint = useMemo(
+    () => ({
+      shortcut: showCustomRange ? undefined : selectedTime,
+      customRange: showCustomRange ? customRange : undefined,
+    }),
+    [customRange, selectedTime, showCustomRange],
+  )
+
   const chartData = useMemo<CountDataPoint[]>(() => {
     const periods = new Set<string>()
 
@@ -343,7 +361,7 @@ export function UserCountsChart({ nodeId, isSudo, nodesData = [] }: UserCountsCh
       .sort()
       .map(periodStart => {
         const row: CountDataPoint = {
-          time: formatPeriodLabelForPeriod(periodStart, activePeriod, i18n.language),
+          time: formatPeriodLabelForPeriod(periodStart, activePeriod, i18n.language, labelRangeHint),
           _period_start: periodStart,
         }
 
@@ -365,7 +383,7 @@ export function UserCountsChart({ nodeId, isSudo, nodesData = [] }: UserCountsCh
 
         return row
       })
-  }, [activePeriod, effectiveGroupByNode, groupKeys, i18n.language, metricStatsByGroup, series])
+  }, [activePeriod, effectiveGroupByNode, groupKeys, i18n.language, labelRangeHint, metricStatsByGroup, series])
 
   const singleMetricTotal = useMemo(() => Number(metricCountsData?.count_during_period || 0), [metricCountsData?.count_during_period])
 
@@ -401,24 +419,24 @@ export function UserCountsChart({ nodeId, isSudo, nodesData = [] }: UserCountsCh
 
   const piePaddingAngle = pieData.length > 1 ? 1 : 0
 
-  const xAxisInterval = useMemo(() => {
-    if (showCustomRange && customRange?.from && customRange?.to) {
-      if (activePeriod === Period.hour || activePeriod === Period.minute) {
-        return Math.max(1, Math.floor(chartData.length / 8))
-      }
+  const xAxisInterval = useMemo(
+    () =>
+      getChartXAxisInterval({
+        dataLength: chartData.length,
+        period: activePeriod,
+        shortcut: selectedTime,
+        windowWidth,
+        customRange: showCustomRange ? customRange : undefined,
+        periodOverride: resolvePeriodOverride(periodOverride),
+      }),
+    [activePeriod, chartData.length, customRange, selectedTime, showCustomRange, windowWidth, periodOverride],
+  )
 
-      const daysDiff = Math.ceil(Math.abs(customRange.to.getTime() - customRange.from.getTime()) / (1000 * 60 * 60 * 24))
-      if (daysDiff > 30) return Math.max(1, Math.floor(chartData.length / 5))
-      if (daysDiff > 7) return Math.max(1, Math.floor(chartData.length / 8))
-      return 0
-    }
-
-    if (windowWidth < 500 && selectedTime === '1w') {
-      return chartData.length <= 4 ? 0 : Math.max(1, Math.floor(chartData.length / 4))
-    }
-
-    return getXAxisIntervalForShortcut(selectedTime, chartData.length, { minuteForOneHour: true })
-  }, [activePeriod, chartData.length, customRange, selectedTime, showCustomRange, windowWidth])
+  const { isAnimationActive, usePerBarRadius, useAccessibilityLayer, areaCurveType } = useMemo(
+    () => getChartRenderFlags(chartData.length, series.length),
+    [chartData.length, series.length],
+  )
+  const brushWindow = useMemo(() => getChartBrushWindow(chartData.length, series.length), [chartData.length, series.length])
 
   useEffect(() => {
     const handleResize = () => setWindowWidth(window.innerWidth)
@@ -511,23 +529,26 @@ export function UserCountsChart({ nodeId, isSudo, nodesData = [] }: UserCountsCh
                 </span>
               </p>
             </div>
-            <div className="flex w-full min-w-0 flex-wrap items-center gap-2">
-              <div className="flex w-full min-w-0 items-center gap-2 sm:w-auto sm:flex-none">
+            <div className="flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+              <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
                 <TimeSelector selectedTime={selectedTime} setSelectedTime={handleTimeSelect} shortcuts={TRAFFIC_TIME_SELECTOR_SHORTCUTS} maxVisible={5} className="w-full sm:w-fit" />
-                <button
-                  type="button"
-                  aria-label={t('statistics.customRange', { defaultValue: 'Custom Range' })}
-                  className={`shrink-0 rounded border p-1 ${showCustomRange ? 'bg-muted' : ''}`}
-                  onClick={() => {
-                    const next = !showCustomRange
-                    setShowCustomRange(next)
-                    if (!next) {
-                      setCustomRange(undefined)
-                    }
-                  }}
-                >
-                  <Calendar className="h-4 w-4" />
-                </button>
+                <div className="flex w-full items-center gap-2 sm:w-auto">
+                  <PeriodSelector value={periodOverride} onValueChange={setPeriodOverride} className="min-w-0 flex-1 sm:w-[7rem] sm:flex-none" />
+                  <button
+                    type="button"
+                    aria-label={t('statistics.customRange', { defaultValue: 'Custom Range' })}
+                    className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border ${showCustomRange ? 'bg-muted' : ''}`}
+                    onClick={() => {
+                      const next = !showCustomRange
+                      setShowCustomRange(next)
+                      if (!next) {
+                        setCustomRange(undefined)
+                      }
+                    }}
+                  >
+                    <Calendar className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
               {isNodeScopedCounts ? (
                 <div className="bg-muted/20 text-muted-foreground flex h-9 w-full items-center gap-1.5 rounded-md border px-3 text-xs sm:w-[204px]">{renderMetricLabel(UserCountMetric.online)}</div>
@@ -578,7 +599,7 @@ export function UserCountsChart({ nodeId, isSudo, nodesData = [] }: UserCountsCh
               </div>
             )}
           </div>
-          <div className="m-0 flex min-w-[180px] flex-col justify-center gap-2 p-4 xl:border-l xl:p-5 xl:px-6">
+          <div className="m-0 flex w-full flex-col justify-center gap-2 p-4 xl:w-auto xl:min-w-[180px] xl:border-l xl:p-5 xl:px-6">
             <span className="text-muted-foreground text-sm">{t('statistics.countDuringPeriod', { defaultValue: 'Count During Period' })}</span>
             {isLoadingMetricCounts ? (
               <div className="flex justify-center">
@@ -601,10 +622,11 @@ export function UserCountsChart({ nodeId, isSudo, nodesData = [] }: UserCountsCh
             <EmptyState type="error" className="max-h-[300px] min-h-[150px] sm:max-h-[400px] sm:min-h-[200px]" />
           ) : (
             <div className="mx-auto w-full max-w-7xl">
+              {(!effectiveGroupByNode || chartView === 'bar') && <DenseChartAreaHint pointCount={chartData.length} />}
               <ChartContainer dir="ltr" config={effectiveGroupByNode && chartView === 'pie' ? pieChartConfig : chartConfig} className="h-[220px] w-full overflow-x-auto sm:h-[320px] lg:h-[400px]">
                 {chartData.length > 0 && (!effectiveGroupByNode || chartView === 'bar') ? (
                   chartViewType === 'area' ? (
-                    <AreaChart accessibilityLayer data={chartData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }} onClick={handleChartPointClick}>
+                    <AreaChart {...(useAccessibilityLayer ? { accessibilityLayer: true } : {})} data={chartData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }} onClick={handleChartPointClick}>
                       <defs>
                         {series.map(item => (
                           <linearGradient key={item.key} id={`user-count-gradient-${item.key}`} x1="0" y1="0" x2="0" y2="1">
@@ -621,7 +643,7 @@ export function UserCountsChart({ nodeId, isSudo, nodesData = [] }: UserCountsCh
                         tickMargin={8}
                         axisLine={false}
                         interval={xAxisInterval}
-                        minTickGap={5}
+                        minTickGap={28}
                         tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 8, fontWeight: 500 }}
                       />
                       <YAxis
@@ -639,19 +661,21 @@ export function UserCountsChart({ nodeId, isSudo, nodesData = [] }: UserCountsCh
                           key={item.key}
                           dataKey={item.key}
                           name={item.label}
-                          type="monotone"
+                          type={areaCurveType}
                           fill={`url(#user-count-gradient-${item.key})`}
                           stroke={item.color}
                           strokeWidth={1.8}
                           dot={false}
-                          activeDot={{ r: 4 }}
+                          activeDot={false}
+                          isAnimationActive={isAnimationActive}
                           stackId={item.stackId}
                           cursor={effectiveGroupByNode ? 'pointer' : undefined}
                         />
                       ))}
+                      {brushWindow && <ChartBrush startIndex={brushWindow.startIndex} endIndex={brushWindow.endIndex} />}
                     </AreaChart>
                   ) : (
-                    <BarChart accessibilityLayer data={chartData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }} onClick={handleChartPointClick}>
+                    <BarChart {...(useAccessibilityLayer ? { accessibilityLayer: true } : {})} data={chartData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }} onClick={handleChartPointClick}>
                       <CartesianGrid direction="ltr" vertical={false} />
                       <XAxis
                         direction="ltr"
@@ -660,7 +684,7 @@ export function UserCountsChart({ nodeId, isSudo, nodesData = [] }: UserCountsCh
                         tickMargin={8}
                         axisLine={false}
                         interval={xAxisInterval}
-                        minTickGap={5}
+                        minTickGap={28}
                         tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 8, fontWeight: 500 }}
                       />
                       <YAxis
@@ -685,11 +709,15 @@ export function UserCountsChart({ nodeId, isSudo, nodesData = [] }: UserCountsCh
                             radius={isStacked ? SQUARE_RADIUS : BAR_RADIUS}
                             stackId={item.stackId}
                             cursor={effectiveGroupByNode ? 'pointer' : undefined}
+                            isAnimationActive={isAnimationActive}
                           >
-                            {isStacked && chartData.map(row => <Cell key={`${item.key}-${row._period_start}`} {...getCellRadiusProps(getStackedBarRadius(row, item.key, stackedSeries))} />)}
+                            {isStacked &&
+                              usePerBarRadius &&
+                              chartData.map(row => <Cell key={`${item.key}-${row._period_start}`} {...getCellRadiusProps(getStackedBarRadius(row, item.key, stackedSeries))} />)}
                           </Bar>
                         )
                       })}
+                      {brushWindow && <ChartBrush startIndex={brushWindow.startIndex} endIndex={brushWindow.endIndex} />}
                     </BarChart>
                   )
                 ) : chartData.length > 0 && effectiveGroupByNode && chartView === 'pie' ? (

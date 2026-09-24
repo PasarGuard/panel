@@ -1,4 +1,4 @@
-from datetime import datetime as dt, timezone as tz
+from datetime import UTC, datetime as dt
 from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -34,7 +34,7 @@ class APIKeyCreate(APIKeyBase):
         if value is None:
             return None
         parsed = fix_datetime_timezone(value)
-        if parsed <= dt.now(tz.utc):
+        if parsed <= dt.now(UTC):
             raise ValueError("expire_date must be in the future")
         return parsed
 
@@ -54,7 +54,7 @@ class APIKeyUpdate(BaseModel):
         if value is None:
             return None
         parsed = fix_datetime_timezone(value)
-        if parsed <= dt.now(tz.utc):
+        if parsed <= dt.now(UTC):
             raise ValueError("expire_date must be in the future")
         return parsed
 

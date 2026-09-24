@@ -45,6 +45,7 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
       { resource: 'admins', action: 'update' },
       { resource: 'admins', action: 'delete' },
       { resource: 'admins', action: 'reset_usage' },
+      { resource: 'admins', action: 'passkeys' },
     ],
   },
   {

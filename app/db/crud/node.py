@@ -1,9 +1,9 @@
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 from sqlalchemy import and_, bindparam, case, delete, func, literal_column, or_, select, update
 from sqlalchemy.exc import InvalidRequestError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload, with_expression
 from sqlalchemy.sql.functions import coalesce
 
 from app.db.compiles_types import DateDiff
@@ -46,14 +46,25 @@ def _build_node_simple_sort_clause(sort_option: NodeSimpleSortOption):
     return column.desc() if sort_option.value.startswith("-") else column.asc()
 
 
-async def load_node_attrs(node: Node):
+def _node_reset_traffic_subquery(column):
+    return (
+        select(func.coalesce(func.sum(column), 0))
+        .where(NodeUsageResetLogs.node_id == Node.id)
+        .correlate(Node)
+        .scalar_subquery()
+    )
+
+
+async def load_node_attrs(node: Node, *, load_usage_logs: bool = True):
+    if not load_usage_logs:
+        return
     try:
         await node.awaitable_attrs.usage_logs
     except AttributeError:
         pass
 
 
-async def get_node(db: AsyncSession, name: str) -> Optional[Node]:
+async def get_node(db: AsyncSession, name: str, *, load_usage_logs: bool = True) -> Node | None:
     """
     Retrieves a node by its name.
 
@@ -66,11 +77,11 @@ async def get_node(db: AsyncSession, name: str) -> Optional[Node]:
     """
     node = (await db.execute(select(Node).where(Node.name == name))).unique().scalar_one_or_none()
     if node:
-        await load_node_attrs(node)
+        await load_node_attrs(node, load_usage_logs=load_usage_logs)
     return node
 
 
-async def get_node_by_id(db: AsyncSession, node_id: int) -> Optional[Node]:
+async def get_node_by_id(db: AsyncSession, node_id: int, *, load_usage_logs: bool = True) -> Node | None:
     """
     Retrieves a node by its ID.
 
@@ -83,13 +94,16 @@ async def get_node_by_id(db: AsyncSession, node_id: int) -> Optional[Node]:
     """
     node = (await db.execute(select(Node).where(Node.id == node_id))).unique().scalar_one_or_none()
     if node:
-        await load_node_attrs(node)
+        await load_node_attrs(node, load_usage_logs=load_usage_logs)
     return node
 
 
 async def get_nodes(
     db: AsyncSession,
     query: NodeListQuery,
+    *,
+    load_usage_logs: bool = True,
+    load_lifetime_usage: bool = False,
 ) -> tuple[list[Node], int]:
     """
     Retrieves nodes based on optional status, enabled, id, and search filters.
@@ -97,6 +111,8 @@ async def get_nodes(
     Args:
         db (AsyncSession): The database session.
         query: Structured node list query.
+        load_usage_logs: Whether to materialize reset-history rows.
+        load_lifetime_usage: Whether to calculate lifetime usage with aggregates.
 
     Returns:
         tuple: A tuple containing:
@@ -143,9 +159,19 @@ async def get_nodes(
     # Order by created_at and id for consistent results
     stmt = stmt.order_by(Node.created_at.asc(), Node.id.asc())
 
-    db_nodes = (await db.execute(stmt)).scalars().all()
-    for node in db_nodes:
-        await load_node_attrs(node)
+    # Load either full reset history or only the aggregate fields needed by list responses.
+    if load_usage_logs:
+        stmt = stmt.options(selectinload(Node.usage_logs))
+    if load_lifetime_usage:
+        stmt = stmt.options(
+            with_expression(Node._reseted_uplink_query, _node_reset_traffic_subquery(NodeUsageResetLogs.uplink)),
+            with_expression(
+                Node._reseted_downlink_query,
+                _node_reset_traffic_subquery(NodeUsageResetLogs.downlink),
+            ),
+        )
+
+    db_nodes = (await db.execute(stmt)).unique().scalars().all()
 
     return db_nodes, count
 
@@ -164,7 +190,7 @@ async def get_nodes_simple(
     Returns:
         Tuple of (list of (id, name) tuples, total_count).
     """
-    stmt = select(Node.id, Node.name, Node.status)
+    stmt = select(Node.id, Node.name, Node.status, Node.core_config_id)
 
     if query.ids:
         stmt = stmt.where(Node.id.in_(query.ids))
@@ -213,9 +239,7 @@ async def get_limited_nodes(db: AsyncSession) -> list[Node]:
             Node.is_limited,
         )
     )
-    nodes = (await db.execute(query)).scalars().all()
-    for node in nodes:
-        await load_node_attrs(node)
+    nodes = (await db.execute(query)).unique().scalars().all()
     return nodes
 
 
@@ -453,9 +477,7 @@ async def modify_node(db: AsyncSession, db_node: Node, modify: NodeModify) -> No
 
     if db_node.is_limited:
         db_node.status = NodeStatus.limited
-    elif db_node.status == NodeStatus.limited:
-        db_node.status = NodeStatus.connecting
-    elif db_node.status not in (NodeStatus.disabled, NodeStatus.limited):
+    elif db_node.status == NodeStatus.limited or db_node.status not in (NodeStatus.disabled, NodeStatus.limited):
         db_node.status = NodeStatus.connecting
 
     await db.commit()
@@ -487,13 +509,13 @@ async def update_node_status(
     """
     stmt = (
         update(Node)
-        .where(Node.id == db_node.id)
+        .where(Node.id == db_node.id, Node.status.not_in((NodeStatus.disabled, NodeStatus.limited)))
         .values(
             status=status,
             message=message,
             xray_version=xray_version,
             node_version=node_version,
-            last_status_change=datetime.now(timezone.utc),
+            last_status_change=datetime.now(UTC),
         )
     )
     await db.execute(stmt)
@@ -506,7 +528,6 @@ async def update_node_status(
         # If the instance was detached (e.g., used across sessions), re-fetch it
         db_node = (await db.execute(select(Node).where(Node.id == db_node.id))).scalar_one()
 
-    await load_node_attrs(db_node)
     return db_node
 
 
@@ -540,7 +561,11 @@ async def bulk_update_node_status(
 
     stmt = (
         update(Node)
-        .where(Node.id == bindparam("node_id"))
+        .where(
+            Node.id == bindparam("node_id"),
+            Node.status != NodeStatus.disabled,
+            Node.status != NodeStatus.limited,
+        )
         .values(
             status=bindparam("status"),
             message=bindparam("message"),
@@ -551,7 +576,7 @@ async def bulk_update_node_status(
     )
 
     # Add timestamp to each update
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     for upd in updates:
         upd["now"] = now
 
@@ -566,9 +591,9 @@ async def clear_usage_data(
 ):
     filters = []
     if start:
-        filters.append(getattr(_table_model(table), "created_at") >= start.replace(tzinfo=timezone.utc))
+        filters.append(_table_model(table).created_at >= start.replace(tzinfo=UTC))
     if end:
-        filters.append(getattr(_table_model(table), "created_at") < end.replace(tzinfo=timezone.utc))
+        filters.append(_table_model(table).created_at < end.replace(tzinfo=UTC))
 
     stmt = delete(_table_model(table))
     if filters:
@@ -613,7 +638,7 @@ async def get_nodes_to_reset_usage(db: AsyncSession) -> list[Node]:
     # because the calculation is complex (encoded time values)
 
     stmt = (
-        select(Node)
+        select(Node, last_reset_time.label("last_reset_at"))
         .outerjoin(last_reset_subq, Node.id == last_reset_subq.c.node_id)
         .where(
             Node.status.in_([NodeStatus.connected, NodeStatus.limited, NodeStatus.error, NodeStatus.connecting]),
@@ -627,28 +652,18 @@ async def get_nodes_to_reset_usage(db: AsyncSession) -> list[Node]:
         )
     )
 
-    nodes = list((await db.execute(stmt)).unique().scalars().all())
-
-    # Load node attributes to avoid greenlet errors
-    for node in nodes:
-        await load_node_attrs(node)
+    nodes = (await db.execute(stmt)).unique().all()
 
     # For nodes with reset_time >= 0, filter based on absolute time
 
     filtered_nodes = []
-    for node in nodes:
+    for node, last_reset in nodes:
         if node.reset_time == -1:
             # Already filtered by SQL query
             filtered_nodes.append(node)
         else:
             # Time-based reset: check if current time matches the schedule
-            now = datetime.now(timezone.utc)
-
-            # Get last reset time
-            if node.usage_logs:
-                last_reset = max(log.created_at for log in node.usage_logs)
-            else:
-                last_reset = node.created_at
+            now = datetime.now(UTC)
 
             should_reset = False
 
@@ -695,24 +710,21 @@ async def get_nodes_to_reset_usage(db: AsyncSession) -> list[Node]:
 
                 # Check if we're past the target day and time in current month
                 # and last reset was before this month's target time
-                if current_day > target_day or (current_day == target_day and current_seconds >= target_seconds):
-                    # Check if last reset was in a previous month or before target time this month
-                    if (
-                        now.year > last_reset.year
-                        or now.month > last_reset.month
-                        or (
-                            now.month == last_reset.month
-                            and (
-                                last_reset.day < target_day
-                                or (
-                                    last_reset.day == target_day
-                                    and last_reset.hour * 3600 + last_reset.minute * 60 + last_reset.second
-                                    < target_seconds
-                                )
+                if (current_day > target_day or (current_day == target_day and current_seconds >= target_seconds)) and (
+                    now.year > last_reset.year
+                    or now.month > last_reset.month
+                    or (
+                        now.month == last_reset.month
+                        and (
+                            last_reset.day < target_day
+                            or (
+                                last_reset.day == target_day
+                                and last_reset.hour * 3600 + last_reset.minute * 60 + last_reset.second < target_seconds
                             )
                         )
-                    ):
-                        should_reset = True
+                    )
+                ):
+                    should_reset = True
 
             elif node.data_limit_reset_strategy == DataLimitResetStrategy.year:
                 # reset_time is day_of_year * 86400 + seconds
@@ -726,13 +738,14 @@ async def get_nodes_to_reset_usage(db: AsyncSession) -> list[Node]:
 
                 # Check if we're past the target day in current year
                 # and last reset was before this year's target time
-                if current_day_of_year > target_day_of_year or (
-                    current_day_of_year == target_day_of_year and current_seconds >= target_seconds
+                if (
+                    current_day_of_year > target_day_of_year
+                    or (current_day_of_year == target_day_of_year and current_seconds >= target_seconds)
+                ) and (
+                    now.year > last_reset.year
+                    or (now.year == last_reset.year and last_reset_day_of_year < target_day_of_year)
                 ):
-                    if now.year > last_reset.year or (
-                        now.year == last_reset.year and last_reset_day_of_year < target_day_of_year
-                    ):
-                        should_reset = True
+                    should_reset = True
 
             if should_reset:
                 filtered_nodes.append(node)
@@ -801,10 +814,26 @@ async def bulk_reset_node_usage(db: AsyncSession, nodes: list[Node]) -> list[Nod
             db_node.status = NodeStatus.connecting
 
     await db.commit()
-    for node in nodes:
-        await db.refresh(node)
-        await load_node_attrs(node)
-    return nodes
+
+    # Refresh both existing history and new log timestamps from the database so
+    # notification consumers can compare timestamps consistently (including SQLite).
+    node_ids = [node.id for node in nodes]
+    refreshed = (
+        (
+            await db.execute(
+                select(Node)
+                .options(selectinload(Node.usage_logs))
+                .where(Node.id.in_(node_ids))
+                .execution_options(populate_existing=True)
+            )
+        )
+        .unique()
+        .scalars()
+        .all()
+    )
+    # Preserve input order
+    refreshed_by_id = {n.id: n for n in refreshed}
+    return [refreshed_by_id[nid] for nid in node_ids if nid in refreshed_by_id]
 
 
 async def remove_nodes(db: AsyncSession, node_ids: list[int]) -> None:

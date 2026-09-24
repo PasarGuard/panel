@@ -11,8 +11,6 @@ import sqlalchemy as sa
 from alembic import op
 
 from app.utils.crypto import generate_wireguard_keypair, get_wireguard_public_key
-from app.utils.ip_pool import WireGuardPeerIPAllocator, collect_used_peer_networks_from_proxy_settings_rows
-from config import wireguard_settings
 
 revision = "a1b2c3d4e5f6"
 down_revision = "6b7a1e8c2d14"
@@ -30,12 +28,6 @@ def upgrade() -> None:
     )
 
     users = bind.execute(sa.select(users_table.c.id, users_table.c.proxy_settings)).fetchall()
-    user_rows = [{"id": user_id, "proxy_settings": proxy_settings} for user_id, proxy_settings in users]
-    allocator = (
-        WireGuardPeerIPAllocator(collect_used_peer_networks_from_proxy_settings_rows(user_rows))
-        if wireguard_settings.enabled
-        else None
-    )
 
     updates = []
     for user_id, proxy_settings in users:
@@ -56,11 +48,6 @@ def upgrade() -> None:
         elif not wg.get("public_key"):
             wg["public_key"] = get_wireguard_public_key(wg["private_key"])
             changed = True
-        if allocator is not None and not wg.get("peer_ips"):
-            peer_ip = allocator.allocate()
-            if peer_ip:
-                wg["peer_ips"] = [peer_ip]
-                changed = True
         if changed:
             proxy_settings["wireguard"] = wg
             updates.append({"_id": user_id, "proxy_settings": proxy_settings})

@@ -1,7 +1,7 @@
 import os
-from datetime import datetime as dt, timezone as tz
+from datetime import UTC, datetime as dt
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from sqlalchemy import (
     JSON,
@@ -12,6 +12,7 @@ from sqlalchemy import (
     Float,
     ForeignKey,
     Index,
+    LargeBinary,
     String,
     Table,
     Text,
@@ -25,11 +26,20 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import async_object_session
 from sqlalchemy.ext.hybrid import hybrid_property
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, query_expression, relationship
 from sqlalchemy.sql.expression import select, text
 
 from app.db.base import Base
-from app.db.compiles_types import CaseSensitiveString, DaysDiff, EnumArray, SqliteCompatibleBigInteger, StringArray
+from app.db.compiles_types import (
+    CaseSensitiveString,
+    DaysDiff,
+    EnumArray,
+    SqliteCompatibleBigInteger,
+    StringArray,
+    WebAuthnChallenge,
+    WebAuthnBinary,
+    WebAuthnCredentialId,
+)
 
 PostgresJSONB = JSON().with_variant(JSONB(none_as_null=True), "postgresql")
 
@@ -70,45 +80,48 @@ class IdMixin:
 
 
 class CreatedAtUTCMixin(IdMixin):
-    created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), default_factory=lambda: dt.now(tz.utc), init=False)
+    created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), default_factory=lambda: dt.now(UTC), init=False)
 
 
 class Admin(Base, CreatedAtUTCMixin):
     __tablename__ = "admins"
     username: Mapped[str] = mapped_column(String(34), unique=True, index=True)
     hashed_password: Mapped[str] = mapped_column(String(128))
-    users: Mapped[List["User"]] = relationship(back_populates="admin", init=False, default_factory=list)
-    usage_logs: Mapped[List["AdminUsageLogs"]] = relationship(
+    users: Mapped[list[User]] = relationship(back_populates="admin", init=False, default_factory=list)
+    usage_logs: Mapped[list[AdminUsageLogs]] = relationship(
         back_populates="admin", init=False, default_factory=list, cascade="all, delete-orphan"
     )
-    notification_reminders: Mapped[List["AdminNotificationReminder"]] = relationship(
+    notification_reminders: Mapped[list[AdminNotificationReminder]] = relationship(
         back_populates="admin", init=False, default_factory=list, cascade="all, delete-orphan"
     )
-    api_keys: Mapped[List["APIKey"]] = relationship(
+    api_keys: Mapped[list[APIKey]] = relationship(
+        back_populates="admin", init=False, default_factory=list, cascade="all, delete-orphan"
+    )
+    passkeys: Mapped[list["AdminPasskey"]] = relationship(
         back_populates="admin", init=False, default_factory=list, cascade="all, delete-orphan"
     )
 
-    password_reset_at: Mapped[Optional[dt]] = mapped_column(DateTime(timezone=True), default=None)
-    telegram_id: Mapped[Optional[int]] = mapped_column(BigInteger, default=None)
-    discord_webhook: Mapped[Optional[str]] = mapped_column(String(1024), default=None)
+    password_reset_at: Mapped[dt | None] = mapped_column(DateTime(timezone=True), default=None)
+    telegram_id: Mapped[int | None] = mapped_column(BigInteger, default=None)
+    discord_webhook: Mapped[str | None] = mapped_column(String(1024), default=None)
     used_traffic: Mapped[int] = mapped_column(BigInteger, default=0)
-    data_limit: Mapped[Optional[int]] = mapped_column(BigInteger, default=None)
+    data_limit: Mapped[int | None] = mapped_column(BigInteger, default=None)
     status: Mapped[AdminStatus] = mapped_column(
         SQLEnum(AdminStatus, name="adminstatus", create_constraint=True),
         default=AdminStatus.active,
         server_default="active",
     )
-    last_status_change: Mapped[Optional[dt]] = mapped_column(DateTime(timezone=True), default=None)
-    sub_template: Mapped[Optional[str]] = mapped_column(String(1024), default=None)
-    sub_domain: Mapped[Optional[str]] = mapped_column(String(256), default=None)
-    profile_title: Mapped[Optional[str]] = mapped_column(String(512), default=None)
-    support_url: Mapped[Optional[str]] = mapped_column(String(1024), default=None)
-    custom_variables: Mapped[Optional[list[dict[str, str]]]] = mapped_column(PostgresJSONB, default=None)
-    notification_enable: Mapped[Optional[Dict]] = mapped_column(PostgresJSONB, default=None)
-    note: Mapped[Optional[str]] = mapped_column(String(500), default=None)
+    last_status_change: Mapped[dt | None] = mapped_column(DateTime(timezone=True), default=None)
+    sub_template: Mapped[str | None] = mapped_column(String(1024), default=None)
+    sub_domain: Mapped[str | None] = mapped_column(String(256), default=None)
+    profile_title: Mapped[str | None] = mapped_column(String(512), default=None)
+    support_url: Mapped[str | None] = mapped_column(String(1024), default=None)
+    custom_variables: Mapped[list[dict[str, str]] | None] = mapped_column(PostgresJSONB, default=None)
+    notification_enable: Mapped[dict | None] = mapped_column(PostgresJSONB, default=None)
+    note: Mapped[str | None] = mapped_column(String(500), default=None)
     role_id: Mapped[int] = fk_id_column("admin_roles.id", default=0)
-    role: Mapped[Optional[AdminRole]] = relationship(back_populates="admins", init=False, lazy="select")
-    permission_overrides: Mapped[Optional[Dict]] = mapped_column(PostgresJSONB, default=None)
+    role: Mapped[AdminRole | None] = relationship(back_populates="admins", init=False, lazy="select")
+    permission_overrides: Mapped[dict | None] = mapped_column(PostgresJSONB, default=None)
 
     @hybrid_property
     def is_disabled(self) -> bool:
@@ -161,12 +174,31 @@ class Admin(Base, CreatedAtUTCMixin):
         return len(self.api_keys) > 0
 
 
+class AdminPasskey(Base, IdMixin):
+    __tablename__ = "admin_passkeys"
+    admin_id: Mapped[int] = fk_id_column("admins.id", ondelete="CASCADE")
+    admin: Mapped[Admin] = relationship(back_populates="passkeys", init=False)
+    credential_id: Mapped[bytes] = mapped_column(WebAuthnCredentialId(1024), unique=True)
+    public_key: Mapped[bytes] = mapped_column(WebAuthnBinary(4096))
+    sign_count: Mapped[int] = mapped_column(BigInteger, default=0)
+    name: Mapped[str] = mapped_column(String(128), default="This device")
+
+
+class PasskeyChallenge(Base):
+    __tablename__ = "passkey_challenges"
+    id: Mapped[int] = mapped_column(SqliteCompatibleBigInteger, primary_key=True, autoincrement=True, init=False)
+    challenge: Mapped[bytes] = mapped_column(WebAuthnChallenge(128), unique=True)
+    kind: Mapped[str] = mapped_column(String(16))
+    expires_at: Mapped[dt] = mapped_column(DateTime(timezone=True))
+    admin_id: Mapped[int | None] = fk_id_column("admins.id", ondelete="CASCADE", default=None)
+
+
 class AdminUsageLogs(Base, IdMixin):
     __tablename__ = "admin_usage_logs"
     admin_id: Mapped[int] = fk_id_column("admins.id")
-    admin: Mapped["Admin"] = relationship(back_populates="usage_logs", init=False)
+    admin: Mapped[Admin] = relationship(back_populates="usage_logs", init=False)
     used_traffic_at_reset: Mapped[int] = mapped_column(BigInteger, nullable=False)
-    reset_at: Mapped[dt] = mapped_column(DateTime(timezone=True), default=lambda: dt.now(tz.utc), init=False)
+    reset_at: Mapped[dt] = mapped_column(DateTime(timezone=True), default=lambda: dt.now(UTC), init=False)
 
 
 class ReminderType(str, Enum):
@@ -198,50 +230,51 @@ class User(Base, CreatedAtUTCMixin):
         Index("idx_users_admin_created", "admin_id", "created_at"),
     )
     username: Mapped[str] = mapped_column(CaseSensitiveString(128), unique=True, index=True)
-    node_usages: Mapped[List["NodeUserUsage"]] = relationship(
+    node_usages: Mapped[list[NodeUserUsage]] = relationship(
         back_populates="user",
         cascade="all, delete-orphan",
         init=False,
     )
-    notification_reminders: Mapped[List["NotificationReminder"]] = relationship(
+    notification_reminders: Mapped[list[NotificationReminder]] = relationship(
         back_populates="user", cascade="all, delete-orphan", init=False
     )
-    subscription_updates: Mapped[List["UserSubscriptionUpdate"]] = relationship(
+    subscription_updates: Mapped[list[UserSubscriptionUpdate]] = relationship(
         back_populates="user", cascade="all, delete-orphan", init=False
     )
-    usage_logs: Mapped[List["UserUsageResetLogs"]] = relationship(back_populates="user", init=False)
-    admin: Mapped["Admin"] = relationship(back_populates="users", init=False)
-    next_plan: Mapped[Optional["NextPlan"]] = relationship(
+    usage_logs: Mapped[list[UserUsageResetLogs]] = relationship(back_populates="user", init=False)
+    admin: Mapped[Admin] = relationship(back_populates="users", init=False)
+    next_plan: Mapped[NextPlan | None] = relationship(
         uselist=False, back_populates="user", cascade="all, delete-orphan", init=False
     )
-    hwids: Mapped[List["UserHWID"]] = relationship(back_populates="user", cascade="all, delete-orphan", init=False)
-    groups: Mapped[List["Group"]] = relationship(secondary=users_groups_association, back_populates="users", init=False)
-    proxy_settings: Mapped[Dict[str, Any]] = mapped_column(
+    hwids: Mapped[list[UserHWID]] = relationship(back_populates="user", cascade="all, delete-orphan", init=False)
+    groups: Mapped[list[Group]] = relationship(secondary=users_groups_association, back_populates="users", init=False)
+    proxy_settings: Mapped[dict[str, Any]] = mapped_column(
         JSON(True), server_default=text("'{}'"), default_factory=dict
     )
     status: Mapped[UserStatus] = mapped_column(SQLEnum(UserStatus), default=UserStatus.active)
     used_traffic: Mapped[int] = mapped_column(BigInteger, default=0)
-    data_limit: Mapped[Optional[int]] = mapped_column(BigInteger, default=None)
+    data_limit: Mapped[int | None] = mapped_column(BigInteger, default=None)
     data_limit_reset_strategy: Mapped[DataLimitResetStrategy] = mapped_column(
         SQLEnum(DataLimitResetStrategy),
         default=DataLimitResetStrategy.no_reset,
     )
-    _expire: Mapped[Optional[dt]] = mapped_column("expire", DateTime(timezone=True), default=None, init=False)
-    admin_id: Mapped[Optional[int]] = fk_id_column("admins.id", default=None)
-    sub_revoked_at: Mapped[Optional[dt]] = mapped_column(DateTime(timezone=True), default=None)
-    note: Mapped[Optional[str]] = mapped_column(String(500), default=None)
-    online_at: Mapped[Optional[dt]] = mapped_column(DateTime(timezone=True), default=None)
-    on_hold_expire_duration: Mapped[Optional[int]] = mapped_column(BigInteger, default=None)
-    on_hold_timeout: Mapped[Optional[dt]] = mapped_column(DateTime(timezone=True), default=None)
-    auto_delete_in_days: Mapped[Optional[int]] = mapped_column(default=None)
-    hwid_limit: Mapped[Optional[int]] = mapped_column(BigInteger, default=None)
-    edit_at: Mapped[Optional[dt]] = mapped_column(DateTime(timezone=True), default=None)
-    last_status_change: Mapped[Optional[dt]] = mapped_column(DateTime(timezone=True), default=None)
+    _expire: Mapped[dt | None] = mapped_column("expire", DateTime(timezone=True), default=None, init=False)
+    admin_id: Mapped[int | None] = fk_id_column("admins.id", default=None)
+    sub_revoked_at: Mapped[dt | None] = mapped_column(DateTime(timezone=True), default=None)
+    note: Mapped[str | None] = mapped_column(String(500), default=None)
+    online_at: Mapped[dt | None] = mapped_column(DateTime(timezone=True), default=None)
+    on_hold_expire_duration: Mapped[int | None] = mapped_column(BigInteger, default=None)
+    on_hold_timeout: Mapped[dt | None] = mapped_column(DateTime(timezone=True), default=None)
+    auto_delete_in_days: Mapped[int | None] = mapped_column(default=None)
+    hwid_limit: Mapped[int | None] = mapped_column(BigInteger, default=None)
+    edit_at: Mapped[dt | None] = mapped_column(DateTime(timezone=True), default=None)
+    last_status_change: Mapped[dt | None] = mapped_column(DateTime(timezone=True), default=None)
+    _reseted_usage_query: Mapped[int | None] = query_expression(repr=False)
 
     @hybrid_property
-    def expire(self) -> Optional[dt]:
+    def expire(self) -> dt | None:
         if self._expire and self._expire.tzinfo is None:
-            return self._expire.replace(tzinfo=tz.utc)
+            return self._expire.replace(tzinfo=UTC)
         return self._expire
 
     @expire.inplace.expression
@@ -249,18 +282,26 @@ class User(Base, CreatedAtUTCMixin):
         return cls._expire
 
     @expire.setter
-    def expire(self, value: Optional[dt]):
+    def expire(self, value: dt | None):
         if value is None:
             self._expire = None
             return
         if value.tzinfo is None:
-            self._expire = value.replace(tzinfo=tz.utc)
+            self._expire = value.replace(tzinfo=UTC)
             return
-        self._expire = value.astimezone(tz.utc)
+        self._expire = value.astimezone(UTC)
 
     @hybrid_property
     def reseted_usage(self) -> int:
-        return int(sum([log.used_traffic_at_reset for log in self.usage_logs]))
+        expr = self.__dict__.get("_reseted_usage_query")
+        if expr is None:
+            expr = self._reseted_usage_query
+        if expr is not None:
+            return int(expr)
+        usage_logs = self.__dict__.get("usage_logs")
+        if usage_logs is None:
+            return 0
+        return int(sum(log.used_traffic_at_reset for log in usage_logs))
 
     @reseted_usage.expression
     def reseted_usage(cls):
@@ -272,7 +313,7 @@ class User(Base, CreatedAtUTCMixin):
 
     @property
     def lifetime_used_traffic(self) -> int:
-        return int(sum([log.used_traffic_at_reset for log in self.usage_logs]) + self.used_traffic)
+        return self.reseted_usage + self.used_traffic
 
     @property
     def last_traffic_reset_time(self):
@@ -280,6 +321,23 @@ class User(Base, CreatedAtUTCMixin):
 
     async def inbounds(self) -> list[str]:
         """Returns a flat list of all included inbound tags for enabled groups."""
+        if "_wireguard_inbounds" in self.__dict__:
+            return list(self.__dict__["_wireguard_inbounds"])
+        loaded_groups = self.__dict__.get("groups")
+        if loaded_groups is not None:
+            inbound_tags: set[str] = set()
+            inbounds_loaded = True
+            for group in loaded_groups:
+                if "inbounds" not in group.__dict__:
+                    inbounds_loaded = False
+                    break
+                if group.is_disabled:
+                    continue
+                for inbound in group.__dict__.get("inbounds") or []:
+                    inbound_tags.add(inbound.tag)
+            if inbounds_loaded:
+                return list(inbound_tags)
+
         session = async_object_session(self)
         if session is not None:
             stmt = (
@@ -296,7 +354,7 @@ class User(Base, CreatedAtUTCMixin):
 
         # Fallback for detached instances: use already-loaded attrs only.
         included_tags = set()
-        for group in self.__dict__.get("groups") or []:
+        for group in loaded_groups or []:
             if group.is_disabled:
                 continue
             for inbound in group.__dict__.get("inbounds") or []:
@@ -305,15 +363,21 @@ class User(Base, CreatedAtUTCMixin):
 
     @property
     def group_ids(self):
-        return [group.id for group in self.groups]
+        groups = self.__dict__.get("groups")
+        if groups is None:
+            return []
+        return [group.id for group in groups]
 
     @property
     def group_names(self):
-        return [group.name for group in self.groups]
+        groups = self.__dict__.get("groups")
+        if groups is None:
+            return []
+        return [group.name for group in groups]
 
     @hybrid_property
     def is_expired(self) -> bool:
-        return self.expire is not None and self.expire <= dt.now(tz.utc)
+        return self.expire is not None and self.expire <= dt.now(UTC)
 
     @is_expired.expression
     def is_expired(cls):
@@ -329,18 +393,15 @@ class User(Base, CreatedAtUTCMixin):
 
     @hybrid_property
     def become_online(self) -> bool:
-        now = dt.now(tz.utc)
+        now = dt.now(UTC)
 
         # Check if online_at is set and greater than or equal to base time
         if self.online_at:
-            base_time = (self.edit_at or self.created_at).replace(tzinfo=tz.utc)
-            return self.online_at.replace(tzinfo=tz.utc) >= base_time
+            base_time = (self.edit_at or self.created_at).replace(tzinfo=UTC)
+            return self.online_at.replace(tzinfo=UTC) >= base_time
 
         # Check if on_hold_timeout has passed
-        if self.on_hold_timeout and self.on_hold_timeout.replace(tzinfo=tz.utc) <= now:
-            return True
-
-        return False
+        return bool(self.on_hold_timeout and self.on_hold_timeout.replace(tzinfo=UTC) <= now)
 
     @become_online.expression
     def become_online(cls):
@@ -371,22 +432,25 @@ class User(Base, CreatedAtUTCMixin):
     def days_left(self) -> int:
         if not self.expire:
             return 0
-        remaining_days = (self.expire.replace(tzinfo=tz.utc) - dt.now(tz.utc)).days
+        remaining_days = (self.expire.replace(tzinfo=UTC) - dt.now(UTC)).days
         return max(remaining_days, 0)
 
     @days_left.expression
     def days_left(cls):
-        return case((cls.expire.isnot(None), func.floor(DaysDiff())), else_=0)
+        return case((cls.expire.isnot(None), func.floor(DaysDiff(cls.expire))), else_=0)
 
 
 class UserSubscriptionUpdate(Base, CreatedAtUTCMixin):
     __tablename__ = "user_subscription_updates"
-    __table_args__ = (Index("idx_user_subscription_updates_user_id", "user_id"),)
+    __table_args__ = (
+        Index("idx_user_subscription_updates_user_id", "user_id"),
+        Index("idx_user_subscription_updates_user_created", "user_id", "created_at"),
+    )
     user_id: Mapped[int] = fk_id_column("users.id", ondelete="CASCADE")
-    user: Mapped["User"] = relationship(back_populates="subscription_updates", init=False)
+    user: Mapped[User] = relationship(back_populates="subscription_updates", init=False)
     user_agent: Mapped[str] = mapped_column(String(512))
-    ip: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, default=None)
-    hwid: Mapped[Optional[str]] = mapped_column(String(256), nullable=True, default=None)
+    ip: Mapped[str | None] = mapped_column(String(64), nullable=True, default=None)
+    hwid: Mapped[str | None] = mapped_column(String(256), nullable=True, default=None)
 
 
 class UserHWID(Base, CreatedAtUTCMixin):
@@ -399,14 +463,12 @@ class UserHWID(Base, CreatedAtUTCMixin):
         Index("ix_user_hwids_last_used_at", "last_used_at"),
     )
     user_id: Mapped[int] = fk_id_column("users.id", ondelete="CASCADE")
-    user: Mapped["User"] = relationship(back_populates="hwids", init=False)
+    user: Mapped[User] = relationship(back_populates="hwids", init=False)
     hwid: Mapped[str] = mapped_column(String(256), nullable=False)
-    device_os: Mapped[Optional[str]] = mapped_column(String(256), default=None)
-    os_version: Mapped[Optional[str]] = mapped_column(String(128), default=None)
-    device_model: Mapped[Optional[str]] = mapped_column(String(256), default=None)
-    last_used_at: Mapped[dt] = mapped_column(
-        DateTime(timezone=True), default_factory=lambda: dt.now(tz.utc), init=False
-    )
+    device_os: Mapped[str | None] = mapped_column(String(256), default=None)
+    os_version: Mapped[str | None] = mapped_column(String(128), default=None)
+    device_model: Mapped[str | None] = mapped_column(String(256), default=None)
+    last_used_at: Mapped[dt] = mapped_column(DateTime(timezone=True), default_factory=lambda: dt.now(UTC), init=False)
 
 
 template_group_association = Table(
@@ -425,11 +487,11 @@ class NextPlan(Base, IdMixin):
         Index("ix_next_plans_user_template_id", "user_template_id"),
     )
     user_id: Mapped[int] = fk_id_column("users.id", ondelete="CASCADE")
-    user_template_id: Mapped[Optional[int]] = fk_id_column("user_templates.id", ondelete="SET NULL")
-    user: Mapped["User"] = relationship(back_populates="next_plan", init=False)
-    user_template: Mapped[Optional["UserTemplate"]] = relationship(back_populates="next_plans", init=False)
+    user_template_id: Mapped[int | None] = fk_id_column("user_templates.id", ondelete="SET NULL")
+    user: Mapped[User] = relationship(back_populates="next_plan", init=False)
+    user_template: Mapped[UserTemplate | None] = relationship(back_populates="next_plans", init=False)
     data_limit: Mapped[int] = mapped_column(BigInteger, default=0)
-    expire: Mapped[Optional[int]] = mapped_column(default=None)
+    expire: Mapped[int | None] = mapped_column(default=None)
     add_remaining_traffic: Mapped[bool] = mapped_column(default=False, server_default="0")
 
 
@@ -441,17 +503,17 @@ class UserStatusCreate(str, Enum):
 class UserTemplate(Base, IdMixin):
     __tablename__ = "user_templates"
     name: Mapped[str] = mapped_column(String(64), unique=True)
-    username_prefix: Mapped[Optional[str]] = mapped_column(String(20))
-    username_suffix: Mapped[Optional[str]] = mapped_column(String(20))
-    extra_settings: Mapped[Optional[Dict]] = mapped_column(JSON(True))
-    next_plans: Mapped[List["NextPlan"]] = relationship(
+    username_prefix: Mapped[str | None] = mapped_column(String(20))
+    username_suffix: Mapped[str | None] = mapped_column(String(20))
+    extra_settings: Mapped[dict | None] = mapped_column(JSON(True))
+    next_plans: Mapped[list[NextPlan]] = relationship(
         back_populates="user_template", cascade="all, delete-orphan", init=False
     )
-    groups: Mapped[List["Group"]] = relationship(secondary=template_group_association, back_populates="templates")
+    groups: Mapped[list[Group]] = relationship(secondary=template_group_association, back_populates="templates")
     data_limit: Mapped[int] = mapped_column(BigInteger, default=0)
-    hwid_limit: Mapped[Optional[int]] = mapped_column(BigInteger, default=None)
+    hwid_limit: Mapped[int | None] = mapped_column(BigInteger, default=None)
     expire_duration: Mapped[int] = mapped_column(BigInteger, default=0)  # in seconds
-    on_hold_timeout: Mapped[Optional[int]] = mapped_column(default=None)
+    on_hold_timeout: Mapped[int | None] = mapped_column(default=None)
     status: Mapped[UserStatusCreate] = mapped_column(SQLEnum(UserStatusCreate), default=UserStatusCreate.active)
     reset_usages: Mapped[bool] = mapped_column(default=False, server_default="0")
     data_limit_reset_strategy: Mapped[DataLimitResetStrategy] = mapped_column(
@@ -472,17 +534,17 @@ class UserUsageResetLogs(Base, IdMixin):
         # Index for user-specific queries sorted by time
         Index("ix_user_usage_logs_user_id_reset_at", "user_id", "reset_at"),
     )
-    user_id: Mapped[Optional[int]] = fk_id_column("users.id", ondelete="CASCADE", nullable=True)
-    user: Mapped["User"] = relationship(back_populates="usage_logs", init=False)
+    user_id: Mapped[int | None] = fk_id_column("users.id", ondelete="CASCADE", nullable=True)
+    user: Mapped[User] = relationship(back_populates="usage_logs", init=False)
     used_traffic_at_reset: Mapped[int] = mapped_column(BigInteger, nullable=False)
-    reset_at: Mapped[dt] = mapped_column(DateTime(timezone=True), default=lambda: dt.now(tz.utc), init=False)
+    reset_at: Mapped[dt] = mapped_column(DateTime(timezone=True), default=lambda: dt.now(UTC), init=False)
 
 
 class ProxyInbound(Base, IdMixin):
     __tablename__ = "inbounds"
     tag: Mapped[str] = mapped_column(String(256), unique=True, index=True)
-    hosts: Mapped[List["ProxyHost"]] = relationship(back_populates="inbound", init=False)
-    groups: Mapped[List["Group"]] = relationship(
+    hosts: Mapped[list[ProxyHost]] = relationship(back_populates="inbound", init=False)
+    groups: Mapped[list[Group]] = relationship(
         secondary=inbounds_groups_association, back_populates="inbounds", init=False
     )
 
@@ -529,53 +591,49 @@ ProxyHostFingerprint = Enum(
 class ProxyHost(Base, IdMixin):
     __tablename__ = "hosts"
     remark: Mapped[str] = mapped_column(String(256), unique=False, nullable=False)
-    port: Mapped[Optional[int]] = mapped_column(nullable=True)
-    path: Mapped[Optional[str]] = mapped_column(String(256), unique=False, nullable=True)
+    port: Mapped[int | None] = mapped_column(nullable=True)
+    path: Mapped[str | None] = mapped_column(String(256), unique=False, nullable=True)
     priority: Mapped[int] = mapped_column(nullable=False)
-    allowinsecure: Mapped[Optional[bool]] = mapped_column(nullable=True)
+    allowinsecure: Mapped[bool | None] = mapped_column(nullable=True)
     address: Mapped[set[str]] = mapped_column(StringArray(256), default_factory=set, unique=False, nullable=False)
-    sni: Mapped[Optional[set[str]]] = mapped_column(StringArray(1000), default_factory=set, unique=False, nullable=True)
-    host: Mapped[Optional[set[str]]] = mapped_column(
-        StringArray(1000), default_factory=set, unique=False, nullable=True
-    )
-    inbound_tag: Mapped[Optional[str]] = mapped_column(
+    sni: Mapped[set[str] | None] = mapped_column(StringArray(1000), default_factory=set, unique=False, nullable=True)
+    host: Mapped[set[str] | None] = mapped_column(StringArray(1000), default_factory=set, unique=False, nullable=True)
+    inbound_tag: Mapped[str | None] = mapped_column(
         String(256), ForeignKey("inbounds.tag", ondelete="SET NULL", onupdate="CASCADE"), nullable=True, init=False
     )
-    inbound: Mapped[Optional["ProxyInbound"]] = relationship(back_populates="hosts", init=False)
+    inbound: Mapped[ProxyInbound | None] = relationship(back_populates="hosts", init=False)
     security: Mapped[ProxyHostSecurity] = mapped_column(
         SQLEnum(ProxyHostSecurity),
         unique=False,
         default=ProxyHostSecurity.inbound_default,
     )
-    alpn: Mapped[Optional[list[ProxyHostALPN]]] = mapped_column(EnumArray(ProxyHostALPN, 14), default=list)
+    alpn: Mapped[list[ProxyHostALPN] | None] = mapped_column(EnumArray(ProxyHostALPN, 14), default=list)
     fingerprint: Mapped[ProxyHostFingerprint] = mapped_column(
         SQLEnum(ProxyHostFingerprint),
         unique=False,
         default=ProxyHostSecurity.none,
         server_default=ProxyHostSecurity.none.name,
     )
-    is_disabled: Mapped[Optional[bool]] = mapped_column(default=False)
-    fragment_settings: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON(none_as_null=True), default=None)
-    noise_settings: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON(none_as_null=True), default=None)
+    is_disabled: Mapped[bool | None] = mapped_column(default=False)
+    fragment_settings: Mapped[dict[str, Any] | None] = mapped_column(JSON(none_as_null=True), default=None)
+    noise_settings: Mapped[dict[str, Any] | None] = mapped_column(JSON(none_as_null=True), default=None)
     random_user_agent: Mapped[bool] = mapped_column(default=False, server_default="0")
     use_sni_as_host: Mapped[bool] = mapped_column(default=False, server_default="0")
-    http_headers: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON(none_as_null=True), default=None)
-    transport_settings: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON(none_as_null=True), default=None)
-    mux_settings: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON(none_as_null=True), default=None)
-    status: Mapped[Optional[list[UserStatus]]] = mapped_column(
-        EnumArray(UserStatus, 60), default=list, server_default=""
-    )
-    ech_config_list: Mapped[Optional[str]] = mapped_column(String(512), default=None)
-    ech_query_strategy: Mapped[Optional[str]] = mapped_column(String(8), default=None)
-    vless_route: Mapped[Optional[str]] = mapped_column(String(4), default=None)
-    pinned_peer_cert_sha256: Mapped[Optional[str]] = mapped_column(String(128), default=None)
-    verify_peer_cert_by_name: Mapped[Optional[set[str]]] = mapped_column(
+    http_headers: Mapped[dict[str, Any] | None] = mapped_column(JSON(none_as_null=True), default=None)
+    transport_settings: Mapped[dict[str, Any] | None] = mapped_column(JSON(none_as_null=True), default=None)
+    mux_settings: Mapped[dict[str, Any] | None] = mapped_column(JSON(none_as_null=True), default=None)
+    status: Mapped[list[UserStatus] | None] = mapped_column(EnumArray(UserStatus, 60), default=list, server_default="")
+    ech: Mapped[dict[str, Any] | None] = mapped_column(JSON(none_as_null=True), default=None)
+    vless_route: Mapped[str | None] = mapped_column(String(4), default=None)
+    pinned_peer_cert_sha256: Mapped[str | None] = mapped_column(String(128), default=None)
+    verify_peer_cert_by_name: Mapped[set[str] | None] = mapped_column(
         StringArray(1000), default_factory=set, unique=False, nullable=True
     )
-    wireguard_overrides: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON(none_as_null=True), default=None)
-    subscription_templates: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON(none_as_null=True), default=None)
-    final_mask_settings: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON(none_as_null=True), default=None)
-    wireguard_amnezia: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON(none_as_null=True), default=None)
+    wireguard_overrides: Mapped[dict[str, Any] | None] = mapped_column(JSON(none_as_null=True), default=None)
+    subscription_templates: Mapped[dict[str, Any] | None] = mapped_column(JSON(none_as_null=True), default=None)
+    final_mask_settings: Mapped[dict[str, Any] | None] = mapped_column(JSON(none_as_null=True), default=None)
+    cipher_suites: Mapped[str | None] = mapped_column(String(1024), default=None)
+    wireguard_amnezia: Mapped[dict[str, Any] | None] = mapped_column(JSON(none_as_null=True), default=None)
 
 
 class System(Base, IdMixin):
@@ -584,10 +642,9 @@ class System(Base, IdMixin):
     downlink: Mapped[int] = mapped_column(BigInteger, default=0)
 
 
-class JWT(Base):
+class JWT(Base, IdMixin):
     __tablename__ = "jwt"
 
-    id: Mapped[int] = mapped_column(primary_key=True, init=False, autoincrement=True)
     secret_key: Mapped[str] = mapped_column(String(64), default=lambda: os.urandom(32).hex())
 
 
@@ -610,23 +667,23 @@ class Node(Base, CreatedAtUTCMixin):
     address: Mapped[str] = mapped_column(String(256), unique=False, nullable=False)
     port: Mapped[int] = mapped_column(unique=False, nullable=False)
     api_port: Mapped[int] = mapped_column(unique=False, nullable=False, server_default="62051")
-    xray_version: Mapped[Optional[str]] = mapped_column(String(32), nullable=True, init=False)
-    message: Mapped[Optional[str]] = mapped_column(String(1024), nullable=True, init=False)
+    xray_version: Mapped[str | None] = mapped_column(String(32), nullable=True, init=False)
+    message: Mapped[str | None] = mapped_column(String(1024), nullable=True, init=False)
     server_ca: Mapped[str] = mapped_column(String(2048), nullable=False)
     api_key: Mapped[str | None] = mapped_column(String(36))
-    node_version: Mapped[Optional[str]] = mapped_column(String(32), nullable=True, init=False)
-    core_config_id: Mapped[Optional[int]] = fk_id_column("core_configs.id", ondelete="SET NULL", nullable=True)
-    user_usages: Mapped[List["NodeUserUsage"]] = relationship(
+    node_version: Mapped[str | None] = mapped_column(String(32), nullable=True, init=False)
+    core_config_id: Mapped[int | None] = fk_id_column("core_configs.id", ondelete="SET NULL", nullable=True)
+    user_usages: Mapped[list[NodeUserUsage]] = relationship(
         back_populates="node", cascade="all, delete-orphan", init=False
     )
-    usages: Mapped[List["NodeUsage"]] = relationship(back_populates="node", cascade="all, delete-orphan", init=False)
-    usage_logs: Mapped[List["NodeUsageResetLogs"]] = relationship(
+    usages: Mapped[list[NodeUsage]] = relationship(back_populates="node", cascade="all, delete-orphan", init=False)
+    usage_logs: Mapped[list[NodeUsageResetLogs]] = relationship(
         back_populates="node", cascade="all, delete-orphan", init=False
     )
-    core_config: Mapped[Optional["CoreConfig"]] = relationship("CoreConfig", init=False)
-    stats: Mapped[List["NodeStat"]] = relationship(back_populates="node", cascade="all, delete-orphan", init=False)
+    core_config: Mapped[CoreConfig | None] = relationship("CoreConfig", init=False)
+    stats: Mapped[list[NodeStat]] = relationship(back_populates="node", cascade="all, delete-orphan", init=False)
     status: Mapped[NodeStatus] = mapped_column(SQLEnum(NodeStatus), default=NodeStatus.connecting)
-    last_status_change: Mapped[Optional[dt]] = mapped_column(DateTime(timezone=True), init=False)
+    last_status_change: Mapped[dt | None] = mapped_column(DateTime(timezone=True), init=False)
     uplink: Mapped[int] = mapped_column(BigInteger, default=0)
     downlink: Mapped[int] = mapped_column(BigInteger, default=0)
     data_limit: Mapped[int] = mapped_column(BigInteger, default=0)
@@ -646,9 +703,13 @@ class Node(Base, CreatedAtUTCMixin):
     default_timeout: Mapped[int] = mapped_column(default=10, server_default=text("10"))
     internal_timeout: Mapped[int] = mapped_column(default=15, server_default=text("15"))
     proxy_url: Mapped[str | None] = mapped_column(String(256), default="", unique=False, nullable=True)
+    _reseted_uplink_query: Mapped[int | None] = query_expression(repr=False)
+    _reseted_downlink_query: Mapped[int | None] = query_expression(repr=False)
 
     @hybrid_property
     def reseted_uplink(self) -> int:
+        if self._reseted_uplink_query is not None:
+            return int(self._reseted_uplink_query)
         return int(sum([log.uplink for log in self.usage_logs]))
 
     @reseted_uplink.expression
@@ -661,6 +722,8 @@ class Node(Base, CreatedAtUTCMixin):
 
     @hybrid_property
     def reseted_downlink(self) -> int:
+        if self._reseted_downlink_query is not None:
+            return int(self._reseted_downlink_query)
         return int(sum([log.downlink for log in self.usage_logs]))
 
     @reseted_downlink.expression
@@ -715,9 +778,9 @@ class NodeUserUsage(Base, IdMixin):
     )
     created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), unique=False)  # 10 minute per record
     user_id: Mapped[int] = fk_id_column("users.id", ondelete="CASCADE")
-    user: Mapped["User"] = relationship(back_populates="node_usages", init=False)
-    node_id: Mapped[Optional[int]] = fk_id_column("nodes.id", ondelete="CASCADE")
-    node: Mapped["Node"] = relationship(back_populates="user_usages", init=False)
+    user: Mapped[User] = relationship(back_populates="node_usages", init=False)
+    node_id: Mapped[int | None] = fk_id_column("nodes.id", ondelete="CASCADE")
+    node: Mapped[Node] = relationship(back_populates="user_usages", init=False)
     used_traffic: Mapped[int] = mapped_column(BigInteger, default=0)
 
 
@@ -730,8 +793,8 @@ class NodeUsage(Base, IdMixin):
         # The unique constraint already creates an index on (created_at, node_id)
     )
     created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), unique=False)  # 10 minute per record
-    node_id: Mapped[Optional[int]] = fk_id_column("nodes.id", ondelete="CASCADE")
-    node: Mapped["Node"] = relationship(back_populates="usages", init=False)
+    node_id: Mapped[int | None] = fk_id_column("nodes.id", ondelete="CASCADE")
+    node: Mapped[Node] = relationship(back_populates="usages", init=False)
     uplink: Mapped[int] = mapped_column(BigInteger, default=0)
     downlink: Mapped[int] = mapped_column(BigInteger, default=0)
 
@@ -743,7 +806,7 @@ class NodeUsageResetLogs(Base, CreatedAtUTCMixin):
         Index("ix_node_usage_reset_logs_node_id_created_at", "node_id", "created_at"),
     )
     node_id: Mapped[int] = fk_id_column("nodes.id", ondelete="CASCADE")
-    node: Mapped["Node"] = relationship(back_populates="usage_logs", init=False)
+    node: Mapped[Node] = relationship(back_populates="usage_logs", init=False)
     uplink: Mapped[int] = mapped_column(BigInteger, nullable=False)
     downlink: Mapped[int] = mapped_column(BigInteger, nullable=False)
 
@@ -751,29 +814,32 @@ class NodeUsageResetLogs(Base, CreatedAtUTCMixin):
 class NotificationReminder(Base, CreatedAtUTCMixin):
     __tablename__ = "notification_reminders"
     user_id: Mapped[int] = fk_id_column("users.id", ondelete="CASCADE")
-    user: Mapped["User"] = relationship(back_populates="notification_reminders", init=False)
+    user: Mapped[User] = relationship(back_populates="notification_reminders", init=False)
     type: Mapped[ReminderType] = mapped_column(SQLEnum(ReminderType))
-    threshold: Mapped[Optional[int]] = mapped_column(default=None)
-    expires_at: Mapped[Optional[dt]] = mapped_column(DateTime(timezone=True), default=None)
+    threshold: Mapped[int | None] = mapped_column(default=None)
+    expires_at: Mapped[dt | None] = mapped_column(DateTime(timezone=True), default=None)
 
 
 class AdminNotificationReminder(Base, CreatedAtUTCMixin):
     __tablename__ = "admin_notification_reminders"
-    __table_args__ = (Index("ix_admin_notification_reminders_admin_id_type", "admin_id", "type"),)
+    __table_args__ = (
+        Index("ix_admin_notification_reminders_admin_id_type", "admin_id", "type"),
+        UniqueConstraint(
+            "admin_id", "type", "threshold", name="uq_admin_notification_reminders_admin_id_type_threshold"
+        ),
+    )
     admin_id: Mapped[int] = fk_id_column("admins.id", ondelete="CASCADE")
-    admin: Mapped["Admin"] = relationship(back_populates="notification_reminders", init=False)
+    admin: Mapped[Admin] = relationship(back_populates="notification_reminders", init=False)
     type: Mapped[ReminderType] = mapped_column(SQLEnum(ReminderType))
-    threshold: Mapped[Optional[int]] = mapped_column(default=None)
+    threshold: Mapped[int] = mapped_column(server_default="0", default=0)
 
 
 class Group(Base, IdMixin):
     __tablename__ = "groups"
     name: Mapped[str] = mapped_column(String(64))
-    users: Mapped[List["User"]] = relationship(secondary=users_groups_association, back_populates="groups", init=False)
-    inbounds: Mapped[List["ProxyInbound"]] = relationship(
-        secondary=inbounds_groups_association, back_populates="groups"
-    )
-    templates: Mapped[List["UserTemplate"]] = relationship(
+    users: Mapped[list[User]] = relationship(secondary=users_groups_association, back_populates="groups", init=False)
+    inbounds: Mapped[list[ProxyInbound]] = relationship(secondary=inbounds_groups_association, back_populates="groups")
+    templates: Mapped[list[UserTemplate]] = relationship(
         secondary=template_group_association, back_populates="groups", init=False
     )
     is_disabled: Mapped[bool] = mapped_column(server_default="0", default=False)
@@ -832,19 +898,33 @@ class CoreType(str, Enum):
 class CoreConfig(Base, CreatedAtUTCMixin):
     __tablename__ = "core_configs"
     name: Mapped[str] = mapped_column(String(256))
-    config: Mapped[Dict[str, Any]] = mapped_column(JSON(False))
+    config: Mapped[dict[str, Any]] = mapped_column(JSON(False))
     type: Mapped[CoreType] = mapped_column(SQLEnum(CoreType), default=CoreType.xray, server_default=CoreType.xray)
-    exclude_inbound_tags: Mapped[Optional[set[str]]] = mapped_column(StringArray(2048), default_factory=set)
-    fallbacks_inbound_tags: Mapped[Optional[set[str]]] = mapped_column(StringArray(2048), default_factory=set)
+    exclude_inbound_tags: Mapped[set[str] | None] = mapped_column(StringArray(2048), default_factory=set)
+    fallbacks_inbound_tags: Mapped[set[str] | None] = mapped_column(StringArray(2048), default_factory=set)
 
 
-class ClientTemplate(Base):
+class WireGuardSubnet(Base, IdMixin):
+    """Allocation state of one WireGuard client subnet: a free-list plus a high-water offset.
+
+    One row per exact client network (identical CIDRs across cores share the row). Allocating
+    pops the free-list or takes next_offset; releasing pushes the offset back. Users' assigned
+    IPs stay in their proxy_settings; this row only guarantees no offset is handed out twice.
+    Resizing changes the network key — reconcile rebuilds the row and keeps peer IPs that still fit.
+    """
+
+    __tablename__ = "wireguard_subnets"
+    network: Mapped[str] = mapped_column(String(64), unique=True)  # canonical CIDR, e.g. 10.0.0.0/24 or fd00::/64
+    next_offset: Mapped[int] = mapped_column(SqliteCompatibleBigInteger, default=1)
+    free_offsets: Mapped[list] = mapped_column(JSON(True), default_factory=list)
+
+
+class ClientTemplate(Base, IdMixin):
     __tablename__ = "client_templates"
     __table_args__ = (
         UniqueConstraint("template_type", "name"),
         Index("ix_client_templates_template_type", "template_type"),
     )
-    id: Mapped[int] = mapped_column(primary_key=True, init=False, autoincrement=True)
     name: Mapped[str] = mapped_column(String(64), nullable=False)
     template_type: Mapped[str] = mapped_column(String(32), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
@@ -855,7 +935,7 @@ class ClientTemplate(Base):
 class NodeStat(Base, CreatedAtUTCMixin):
     __tablename__ = "node_stats"
     node_id: Mapped[int] = fk_id_column("nodes.id")
-    node: Mapped["Node"] = relationship(back_populates="stats", init=False)
+    node: Mapped[Node] = relationship(back_populates="stats", init=False)
     mem_total: Mapped[int] = mapped_column(BigInteger, unique=False, nullable=False)
     mem_used: Mapped[int] = mapped_column(BigInteger, unique=False, nullable=False)
     cpu_cores: Mapped[int] = mapped_column(unique=False, nullable=False)
@@ -879,15 +959,15 @@ class AdminRole(Base, CreatedAtUTCMixin):
     __tablename__ = "admin_roles"
     name: Mapped[str] = mapped_column(String(64), unique=True)
     is_owner: Mapped[bool] = mapped_column(default=False, server_default="0")
-    permissions: Mapped[Dict] = mapped_column(PostgresJSONB, default_factory=dict)
-    limits: Mapped[Dict] = mapped_column(PostgresJSONB, default_factory=dict)
-    features: Mapped[Dict] = mapped_column(PostgresJSONB, default_factory=dict)
-    access: Mapped[Dict] = mapped_column(PostgresJSONB, default_factory=dict)
-    hwid: Mapped[Dict] = mapped_column(PostgresJSONB, default_factory=dict)
+    permissions: Mapped[dict] = mapped_column(PostgresJSONB, default_factory=dict)
+    limits: Mapped[dict] = mapped_column(PostgresJSONB, default_factory=dict)
+    features: Mapped[dict] = mapped_column(PostgresJSONB, default_factory=dict)
+    access: Mapped[dict] = mapped_column(PostgresJSONB, default_factory=dict)
+    hwid: Mapped[dict] = mapped_column(PostgresJSONB, default_factory=dict)
     disabled_when_limited: Mapped[bool] = mapped_column(default=False, server_default="0")
     disconnect_users_when_limited: Mapped[bool] = mapped_column(default=True, server_default="1")
     disconnect_users_when_disabled: Mapped[bool] = mapped_column(default=True, server_default="1")
-    admins: Mapped[List["Admin"]] = relationship(back_populates="role", init=False, viewonly=True, lazy="noload")
+    admins: Mapped[list[Admin]] = relationship(back_populates="role", init=False, viewonly=True, lazy="noload")
 
     @hybrid_property
     def is_builtin(self) -> bool:
@@ -915,15 +995,15 @@ class APIKey(Base, CreatedAtUTCMixin):
     )
 
     admin_id: Mapped[int] = fk_id_column("admins.id", ondelete="CASCADE")
-    admin: Mapped["Admin"] = relationship(back_populates="api_keys", init=False)
+    admin: Mapped[Admin] = relationship(back_populates="api_keys", init=False)
     name: Mapped[str] = mapped_column(String(128), nullable=False)
     key_hash: Mapped[str] = mapped_column(String(128), nullable=False)
     api_key_trimmed: Mapped[str] = mapped_column(String(16))
-    permissions: Mapped[Dict] = mapped_column(PostgresJSONB, default_factory=dict)
+    permissions: Mapped[dict] = mapped_column(PostgresJSONB, default_factory=dict)
     inherit_permissions: Mapped[bool] = mapped_column(default=True, server_default="1")
-    note: Mapped[Optional[str]] = mapped_column(String(512), default=None)
-    expire_date: Mapped[Optional[dt]] = mapped_column(DateTime(timezone=True), default=None)
-    revoked_at: Mapped[Optional[dt]] = mapped_column(DateTime(timezone=True), default=None)
+    note: Mapped[str | None] = mapped_column(String(512), default=None)
+    expire_date: Mapped[dt | None] = mapped_column(DateTime(timezone=True), default=None)
+    revoked_at: Mapped[dt | None] = mapped_column(DateTime(timezone=True), default=None)
     status: Mapped[APIKeyStatus] = mapped_column(
         SQLEnum(APIKeyStatus, name="apikeystatus", create_constraint=True),
         default=APIKeyStatus.active,
@@ -935,8 +1015,8 @@ class APIKey(Base, CreatedAtUTCMixin):
         """True when expire_date is set and is in the past."""
         if self.expire_date is None:
             return False
-        expire_at = self.expire_date if self.expire_date.tzinfo else self.expire_date.replace(tzinfo=tz.utc)
-        return expire_at <= dt.now(tz.utc)
+        expire_at = self.expire_date if self.expire_date.tzinfo else self.expire_date.replace(tzinfo=UTC)
+        return expire_at <= dt.now(UTC)
 
     @is_expired.expression
     def is_expired(cls):
@@ -958,5 +1038,5 @@ class TempKey(Base):
     key: Mapped[str] = mapped_column(String(36), primary_key=True, init=True)
     action: Mapped[str] = mapped_column(String(32))
     expires_at: Mapped[dt] = mapped_column(DateTime(timezone=True))
-    used_at: Mapped[Optional[dt]] = mapped_column(DateTime(timezone=True), default=None)
-    used_by_ip: Mapped[Optional[str]] = mapped_column(String(45), default=None)
+    used_at: Mapped[dt | None] = mapped_column(DateTime(timezone=True), default=None)
+    used_by_ip: Mapped[str | None] = mapped_column(String(45), default=None)

@@ -1,10 +1,9 @@
 from app import scheduler
+from app.core.manager import core_manager
 from app.db import GetDB
 from app.db.crud.host import get_inbounds_not_in_tags, remove_inbounds
-from app.core.manager import core_manager
 from app.utils.logger import get_logger
 from config import job_settings, runtime_settings
-
 
 logger = get_logger("jobs")
 

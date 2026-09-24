@@ -29,7 +29,7 @@ class AbstractCore(ABC):
 
     @classmethod
     @abstractmethod
-    def from_json(cls, data: dict) -> "AbstractCore":
+    def from_json(cls, data: dict) -> AbstractCore:
         """Reconstruct the core config from a dictionary."""
         raise NotImplementedError
 

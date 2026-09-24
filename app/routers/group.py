@@ -20,9 +20,9 @@ from app.models.group import (
 from app.operation import OperatorType
 from app.operation.group import GroupOperation
 from app.utils import responses
-from .dependencies import get_group_list_query, get_group_simple_list_query
 
 from .authentication import require_permission
+from .dependencies import get_group_list_query, get_group_simple_list_query
 
 router = APIRouter(prefix="/api/group", tags=["Groups"], responses={401: responses._401, 403: responses._403})
 group_operator = GroupOperation(OperatorType.API)
@@ -207,7 +207,7 @@ async def remove_group(
 async def bulk_add_groups_to_users(
     bulk_group: BulkGroup,
     db: AsyncSession = Depends(get_db),
-    _: AdminDetails = Depends(require_permission("groups", "update")),
+    admin: AdminDetails = Depends(require_permission("groups", "update")),
 ):
     """
     Bulk assign groups to multiple users, users under specific admins, or all users.
@@ -221,7 +221,7 @@ async def bulk_add_groups_to_users(
     - Existing user-group associations will be ignored (no duplication)
     - Returns list of affected users (those who received new group associations)
     """
-    return await group_operator.bulk_add_groups(db, bulk_group)
+    return await group_operator.bulk_add_groups(db, bulk_group, admin)
 
 
 @router.post(
@@ -232,7 +232,7 @@ async def bulk_add_groups_to_users(
 async def bulk_remove_users_from_groups(
     bulk_group: BulkGroup,
     db: AsyncSession = Depends(get_db),
-    _: AdminDetails = Depends(require_permission("groups", "update")),
+    admin: AdminDetails = Depends(require_permission("groups", "update")),
 ):
     """
     Bulk remove groups from multiple users, users under specific admins, or all users.
@@ -246,7 +246,7 @@ async def bulk_remove_users_from_groups(
     - Only existing user-group associations will be removed
     - Returns list of affected users (those who had groups removed)
     """
-    return await group_operator.bulk_remove_groups(db, bulk_group)
+    return await group_operator.bulk_remove_groups(db, bulk_group, admin)
 
 
 @router.post(

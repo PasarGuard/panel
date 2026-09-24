@@ -31,9 +31,8 @@ async def user_status_change(user: UserNotificationResponse, by: str):
     if settings.notify_telegram:
         chat_id, topic_id = get_telegram_channel(settings, ENTITY)
         await send_telegram_message(data, chat_id, topic_id)
-    if user.admin and user.admin.telegram_id:
-        if should_send_admin_notification(user.admin, "status_change"):
-            await send_telegram_message(data, chat_id=user.admin.telegram_id)
+    if user.admin and user.admin.telegram_id and should_send_admin_notification(user.admin, "status_change"):
+        await send_telegram_message(data, chat_id=user.admin.telegram_id)
 
 
 async def create_user(user: UserNotificationResponse, by: str):
@@ -52,9 +51,8 @@ async def create_user(user: UserNotificationResponse, by: str):
     if settings.notify_telegram:
         chat_id, topic_id = get_telegram_channel(settings, ENTITY)
         await send_telegram_message(data, chat_id, topic_id)
-    if user.admin and user.admin.telegram_id:
-        if should_send_admin_notification(user.admin, "create"):
-            await send_telegram_message(data, chat_id=user.admin.telegram_id)
+    if user.admin and user.admin.telegram_id and should_send_admin_notification(user.admin, "create"):
+        await send_telegram_message(data, chat_id=user.admin.telegram_id)
 
 
 async def modify_user(user: UserNotificationResponse, by: str):
@@ -73,9 +71,8 @@ async def modify_user(user: UserNotificationResponse, by: str):
     if settings.notify_telegram:
         chat_id, topic_id = get_telegram_channel(settings, ENTITY)
         await send_telegram_message(data, chat_id, topic_id)
-    if user.admin and user.admin.telegram_id:
-        if should_send_admin_notification(user.admin, "modify"):
-            await send_telegram_message(data, chat_id=user.admin.telegram_id)
+    if user.admin and user.admin.telegram_id and should_send_admin_notification(user.admin, "modify"):
+        await send_telegram_message(data, chat_id=user.admin.telegram_id)
 
 
 async def remove_user(user: UserNotificationResponse, by: str):
@@ -89,9 +86,8 @@ async def remove_user(user: UserNotificationResponse, by: str):
     if settings.notify_telegram:
         chat_id, topic_id = get_telegram_channel(settings, ENTITY)
         await send_telegram_message(data, chat_id, topic_id)
-    if user.admin and user.admin.telegram_id:
-        if should_send_admin_notification(user.admin, "delete"):
-            await send_telegram_message(data, chat_id=user.admin.telegram_id)
+    if user.admin and user.admin.telegram_id and should_send_admin_notification(user.admin, "delete"):
+        await send_telegram_message(data, chat_id=user.admin.telegram_id)
 
 
 async def reset_user_data_usage(user: UserNotificationResponse, by: str):
@@ -106,9 +102,8 @@ async def reset_user_data_usage(user: UserNotificationResponse, by: str):
     if settings.notify_telegram:
         chat_id, topic_id = get_telegram_channel(settings, ENTITY)
         await send_telegram_message(data, chat_id, topic_id)
-    if user.admin and user.admin.telegram_id:
-        if should_send_admin_notification(user.admin, "reset_data_usage"):
-            await send_telegram_message(data, chat_id=user.admin.telegram_id)
+    if user.admin and user.admin.telegram_id and should_send_admin_notification(user.admin, "reset_data_usage"):
+        await send_telegram_message(data, chat_id=user.admin.telegram_id)
 
 
 async def user_data_reset_by_next(user: UserNotificationResponse, by: str):
@@ -124,9 +119,8 @@ async def user_data_reset_by_next(user: UserNotificationResponse, by: str):
     if settings.notify_telegram:
         chat_id, topic_id = get_telegram_channel(settings, ENTITY)
         await send_telegram_message(data, chat_id, topic_id)
-    if user.admin and user.admin.telegram_id:
-        if should_send_admin_notification(user.admin, "data_reset_by_next"):
-            await send_telegram_message(data, chat_id=user.admin.telegram_id)
+    if user.admin and user.admin.telegram_id and should_send_admin_notification(user.admin, "data_reset_by_next"):
+        await send_telegram_message(data, chat_id=user.admin.telegram_id)
 
 
 async def user_subscription_revoked(user: UserNotificationResponse, by: str):
@@ -140,6 +134,5 @@ async def user_subscription_revoked(user: UserNotificationResponse, by: str):
     if settings.notify_telegram:
         chat_id, topic_id = get_telegram_channel(settings, ENTITY)
         await send_telegram_message(data, chat_id, topic_id)
-    if user.admin and user.admin.telegram_id:
-        if should_send_admin_notification(user.admin, "subscription_revoked"):
-            await send_telegram_message(data, chat_id=user.admin.telegram_id)
+    if user.admin and user.admin.telegram_id and should_send_admin_notification(user.admin, "subscription_revoked"):
+        await send_telegram_message(data, chat_id=user.admin.telegram_id)

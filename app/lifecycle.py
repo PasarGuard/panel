@@ -2,7 +2,6 @@ import asyncio
 import inspect
 from contextlib import asynccontextmanager
 
-
 startup_functions = []
 shutdown_functions = []
 

@@ -724,6 +724,12 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
                 copiedMessage="coreConfigModal.mldsa65VerifyCopied"
                 defaultMessage="coreConfigModal.copyMldsa65Verify"
               />
+              <p className="text-muted-foreground text-xs leading-relaxed">
+                {t('coreConfigModal.mldsa65DestCertHint', {
+                  defaultValue:
+                    'Optional. Requires a matching seed+verify pair. The REALITY target should use a large (typically RSA) certificate — ECDSA targets often fail silently with no useful client/server logs.',
+                })}
+              </p>
             </div>
           )
 

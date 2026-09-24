@@ -85,7 +85,7 @@ class ClientTemplateOperation(BaseOperation):
                 if not out:
                     raise ValueError("Subscription template content must contain at least one outbound proxy")
         except Exception as exc:
-            await self.raise_error(message=f"Invalid template content: {str(exc)}", code=400)
+            await self.raise_error(message=f"Invalid template content: {exc!s}", code=400)
 
     async def create_client_template(
         self,

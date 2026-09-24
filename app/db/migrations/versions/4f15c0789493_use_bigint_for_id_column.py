@@ -88,6 +88,8 @@ def _upgrade_mysql() -> None:
 def _upgrade_postgresql() -> None:
     """PostgreSQL: Direct column alteration (automatically cascades to FKs)"""
     _alter_columns_to_bigint()
+    # ALTER COLUMN ... TYPE BIGINT does not change SERIAL sequence types.
+    # Sequence widening is handled by 8e2f1a9c4b70.
 
 
 def _is_bigint_type(sqlalchemy_type) -> bool:

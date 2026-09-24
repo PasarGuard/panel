@@ -7,9 +7,9 @@ from app.models.api_key import (
     APIKeyCreate,
     APIKeyCreateResponse,
     APIKeyResponse,
-    APIKeyUpdate,
     APIKeysQuery,
     APIKeysResponse,
+    APIKeyUpdate,
     BulkAPIKeySelection,
     RemoveAPIKeysResponse,
 )

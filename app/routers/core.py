@@ -10,6 +10,7 @@ from app.models.core import (
     CoresSimpleResponse,
     RemoveCoresResponse,
 )
+from app.models.reality_scan import RealityScanRequest, RealityScanResult
 from app.operation import OperatorType
 from app.operation.core import CoreOperation
 from app.operation.node import NodeOperation
@@ -31,6 +32,14 @@ async def create_core_config(
 ):
     """Create a new core configuration."""
     return await core_operator.create_core(db, new_core, admin)
+
+
+@router.post("/reality-scan", response_model=RealityScanResult)
+async def scan_reality_target(
+    request: RealityScanRequest,
+    _: AdminDetails = Depends(require_permission("cores", "read")),
+):
+    return await core_operator.scan_reality_target(request)
 
 
 @router.get("/{core_id}", response_model=CoreResponse)

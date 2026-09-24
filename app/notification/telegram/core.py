@@ -1,13 +1,13 @@
 from html import escape
 
-from app.notification.client import send_telegram_message
-from app.notification.helpers import get_telegram_channel
 from app.models.core import CoreResponse
 from app.models.settings import NotificationSettings
+from app.notification.client import send_telegram_message
+from app.notification.helpers import get_telegram_channel
 from app.settings import notification_settings
 
-from .utils import escape_html_core
 from . import messages
+from .utils import escape_html_core
 
 ENTITY = "core"
 

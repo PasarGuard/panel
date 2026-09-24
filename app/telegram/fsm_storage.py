@@ -79,7 +79,7 @@ class NatsFSMStorage(BaseStorage):
         self,
         lock_ttl: float = DEFAULT_LOCK_TTL_SECONDS,
         retry_delay: float = DEFAULT_LOCK_RETRY_DELAY_SECONDS,
-    ) -> "NatsEventIsolation":
+    ) -> NatsEventIsolation:
         return NatsEventIsolation(
             storage=self,
             key_builder=self.key_builder,
@@ -351,7 +351,7 @@ class NatsEventIsolation(BaseEventIsolation):
             logger.warning(f"Failed to release Telegram FSM lock in NATS KV: {exc}")
 
     @asynccontextmanager
-    async def lock(self, key: StorageKey) -> AsyncGenerator[None, None]:
+    async def lock(self, key: StorageKey) -> AsyncGenerator[None]:
         lock_key = self.storage.build_kv_key(key, "lock", key_builder=self.key_builder)
         kv = await self.storage.ensure_kv()
 

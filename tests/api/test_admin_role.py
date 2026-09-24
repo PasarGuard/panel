@@ -207,7 +207,7 @@ def test_create_role(access_token):
         "fallback_limit": None,
         "min_limit": None,
         "max_limit": None,
-        "require_hwid_for_manual_sub": True,
+        "require_hwid_for_manual_sub": False,
     }
     _delete_role(access_token, data["id"])
 
@@ -229,7 +229,7 @@ def test_create_and_modify_role_hwid_policy(access_token):
             "fallback_limit": None,
             "min_limit": None,
             "max_limit": None,
-            "require_hwid_for_manual_sub": True,
+            "require_hwid_for_manual_sub": False,
         }
 
         update_response = client.put(
@@ -245,7 +245,7 @@ def test_create_and_modify_role_hwid_policy(access_token):
             "fallback_limit": None,
             "min_limit": None,
             "max_limit": None,
-            "require_hwid_for_manual_sub": True,
+            "require_hwid_for_manual_sub": False,
         }
     finally:
         _delete_role(access_token, role["id"])

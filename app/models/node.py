@@ -1,5 +1,4 @@
 import re
-from datetime import datetime as dt
 from enum import Enum
 from ipaddress import ip_address
 from uuid import UUID
@@ -9,9 +8,8 @@ from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validat
 
 from app.db.models import DataLimitResetStrategy, NodeConnectionType, NodeStatus
 from app.models.stats import Period
-from app.utils.helpers import fix_datetime_timezone
 
-from .validators import ListValidator, ProxyValidator
+from .validators import ListValidator, OptionalAwareDatetime, ProxyValidator
 
 # Basic PEM format validation
 CERT_PATTERN = r"-----BEGIN CERTIFICATE-----(.*?)-----END CERTIFICATE-----"
@@ -43,7 +41,7 @@ class Node(BaseModel):
     address: str
     port: int = 62050
     api_port: int = 62051
-    usage_coefficient: float = Field(gt=0, default=1.0)
+    usage_coefficient: float = Field(ge=0, default=1.0)
     connection_type: NodeConnectionType
     server_ca: str
     keep_alive: int
@@ -52,7 +50,7 @@ class Node(BaseModel):
     data_limit: int = Field(default=0)
     data_limit_reset_strategy: DataLimitResetStrategy = Field(default=DataLimitResetStrategy.no_reset)
     reset_time: int = Field(default=-1)
-    default_timeout: int = Field(default=10, ge=3, le=60)
+    default_timeout: int = Field(default=10, ge=3)
     internal_timeout: int = Field(default=15, ge=3, le=60)
     proxy_url: str | None = Field(default=None, max_length=256)
 
@@ -120,7 +118,6 @@ class NodeCreate(Node):
 
         try:
             load_pem_x509_certificate(v.encode("utf-8"))
-            pass
         except Exception:
             raise ValueError("Invalid certificate structure")
 
@@ -174,7 +171,7 @@ class NodeModify(NodeCreate):
     address: str | None = Field(default=None)
     port: int | None = Field(default=None)
     status: NodeStatus | None = Field(default=None)
-    usage_coefficient: float | None = Field(default=None)
+    usage_coefficient: float | None = Field(default=None, ge=0)
     server_ca: str | None = Field(default=None)
     connection_type: NodeConnectionType | None = Field(default=None)
     keep_alive: int | None = Field(default=None)
@@ -183,7 +180,7 @@ class NodeModify(NodeCreate):
     data_limit: int | None = None
     data_limit_reset_strategy: DataLimitResetStrategy | None = None
     reset_time: int | None = None
-    default_timeout: int | None = Field(default=None, ge=3, le=60)
+    default_timeout: int | None = Field(default=None, ge=3)
     internal_timeout: int | None = Field(default=None, ge=3, le=60)
 
     model_config = ConfigDict(
@@ -236,6 +233,7 @@ class NodeSimple(BaseModel):
     id: int
     name: str
     status: NodeStatus
+    core_config_id: int | None = None
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -299,40 +297,19 @@ class NodeUsageQuery(BaseModel):
     period: Period = Field(default=Period.hour)
     node_id: int | None = None
     group_by_node: bool = False
-    start: dt | None = Field(default=None, examples=["2024-01-01T00:00:00+03:30"])
-    end: dt | None = Field(default=None, examples=["2024-01-31T23:59:59+03:30"])
-
-    @field_validator("start", "end", mode="before")
-    @classmethod
-    def validate_datetimes(cls, value):
-        if not value:
-            return value
-        return fix_datetime_timezone(value)
+    start: OptionalAwareDatetime = Field(default=None, examples=["2024-01-01T00:00:00+03:30"])
+    end: OptionalAwareDatetime = Field(default=None, examples=["2024-01-31T23:59:59+03:30"])
 
 
 class NodeStatsPeriodQuery(BaseModel):
     period: Period = Field(default=Period.hour)
-    start: dt | None = Field(default=None, examples=["2024-01-01T00:00:00+03:30"])
-    end: dt | None = Field(default=None, examples=["2024-01-31T23:59:59+03:30"])
-
-    @field_validator("start", "end", mode="before")
-    @classmethod
-    def validate_datetimes(cls, value):
-        if not value:
-            return value
-        return fix_datetime_timezone(value)
+    start: OptionalAwareDatetime = Field(default=None, examples=["2024-01-01T00:00:00+03:30"])
+    end: OptionalAwareDatetime = Field(default=None, examples=["2024-01-31T23:59:59+03:30"])
 
 
 class NodeClearUsageQuery(BaseModel):
-    start: dt | None = Field(default=None)
-    end: dt | None = Field(default=None)
-
-    @field_validator("start", "end", mode="before")
-    @classmethod
-    def validate_datetimes(cls, value):
-        if not value:
-            return value
-        return fix_datetime_timezone(value)
+    start: OptionalAwareDatetime = Field(default=None)
+    end: OptionalAwareDatetime = Field(default=None)
 
 
 class NodeNotification(BaseModel):

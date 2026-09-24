@@ -1,4 +1,4 @@
-from datetime import datetime as dt, timezone as tz
+from datetime import UTC, datetime as dt
 
 from sqlalchemy.exc import IntegrityError
 
@@ -13,22 +13,22 @@ from app.db.crud.api_key import (
     revoke_api_key as revoke_api_key_crud,
     update_api_key,
 )
-from app.notification import (
-    create_api_key as notify_create,
-    modify_api_key as notify_modify,
-    remove_api_key as notify_delete,
-)
 from app.models.admin import AdminDetails
 from app.models.admin_role import RolePermissions
 from app.models.api_key import (
     APIKeyCreate,
     APIKeyCreateResponse,
     APIKeyResponse,
-    APIKeyUpdate,
     APIKeysQuery,
     APIKeysResponse,
+    APIKeyUpdate,
     BulkAPIKeySelection,
     RemoveAPIKeysResponse,
+)
+from app.notification import (
+    create_api_key as notify_create,
+    modify_api_key as notify_modify,
+    remove_api_key as notify_delete,
 )
 from app.operation import BaseOperation
 
@@ -102,7 +102,7 @@ class APIKeyOperation(BaseOperation):
         if duplicates:
             await self.raise_error(message="API key name already exists", code=409)
 
-        if model.expire_date is not None and model.expire_date <= dt.now(tz.utc):
+        if model.expire_date is not None and model.expire_date <= dt.now(UTC):
             await self.raise_error(message="expire_date must be in the future", code=422)
 
         try:

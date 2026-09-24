@@ -13,15 +13,21 @@ import { formatOffsetDateTime } from '@/utils/dateTimeParsing'
 import { useTheme } from 'next-themes'
 import {
   buildPeriodOptions,
+  CHART_PERIOD_OVERRIDE_AUTO,
+  type ChartPeriodOverride,
   formatPeriodLabel,
   formatTooltipDate,
+  getChartXAxisInterval,
   getDateRangeForPeriodOption,
   getDefaultPeriodOption,
-  getXAxisInterval,
   PeriodOption,
+  resolvePeriodOverride,
   toChartQueryEndDate,
 } from '@/utils/chart-period-utils'
+import { getChartRenderFlags } from '@/utils/chart-performance'
 import useDirDetection from '@/hooks/use-dir-detection'
+
+import PeriodSelector from './period-selector'
 
 type DataPoint = {
   time: string
@@ -83,10 +89,27 @@ export function AreaCostumeChart({ nodeId, currentStats, realtimeStats, realtime
 
   const PERIOD_OPTIONS = useMemo(() => buildPeriodOptions(t), [t])
   const [periodOption, setPeriodOption] = useState<PeriodOption>(() => getDefaultPeriodOption(PERIOD_OPTIONS))
+  const [periodOverride, setPeriodOverride] = useState<ChartPeriodOverride>(CHART_PERIOD_OVERRIDE_AUTO)
 
   useEffect(() => {
-    setPeriodOption(previous => PERIOD_OPTIONS.find(option => option.value === previous.value) ?? getDefaultPeriodOption(PERIOD_OPTIONS))
+    setPeriodOption(previous => {
+      const current = PERIOD_OPTIONS.find(option => option.value === previous.value)
+      if (current) return current
+      if (previous.value === '30d') {
+        return PERIOD_OPTIONS.find(option => option.value === '1m') ?? getDefaultPeriodOption(PERIOD_OPTIONS)
+      }
+      return getDefaultPeriodOption(PERIOD_OPTIONS)
+    })
   }, [PERIOD_OPTIONS])
+
+  const activePeriod = resolvePeriodOverride(periodOverride) ?? periodOption.period
+  const labelPeriodOption = useMemo<PeriodOption>(
+    () => ({
+      ...periodOption,
+      period: activePeriod,
+    }),
+    [activePeriod, periodOption],
+  )
 
   const chartConfig = useMemo<ChartConfig>(
     () => ({
@@ -196,9 +219,9 @@ export function AreaCostumeChart({ nodeId, currentStats, realtimeStats, realtime
     () => ({
       start: startDate,
       end: toChartQueryEndDate(endDate),
-      period: periodOption.period,
+      period: activePeriod,
     }),
-    [startDate, endDate, periodOption.period],
+    [startDate, endDate, activePeriod],
   )
 
   const {
@@ -217,17 +240,28 @@ export function AreaCostumeChart({ nodeId, currentStats, realtimeStats, realtime
     if (!Array.isArray(statsArray)) return []
 
     return statsArray.map((point: NodeStats) => ({
-      time: formatPeriodLabel(point.period_start, periodOption, i18n.language),
+      time: formatPeriodLabel(point.period_start, labelPeriodOption, i18n.language),
       cpu: point.cpu_usage_percentage,
       ram: point.mem_usage_percentage,
       _period_start: point.period_start,
     }))
-  }, [historicalData?.stats, periodOption, i18n.language])
+  }, [historicalData?.stats, labelPeriodOption, i18n.language])
 
   const chartData = viewMode === 'historical' ? historicalHistory : realtimeHistory
   const isLoading = viewMode === 'historical' ? isLoadingHistorical : realtimeHistory.length === 0 && !realtimeError && !!realtimeStats
   const error = viewMode === 'historical' ? historicalError : realtimeError
-  const historicalXAxisInterval = useMemo(() => getXAxisInterval(periodOption, historicalHistory.length), [periodOption, historicalHistory.length])
+  const historicalXAxisInterval = useMemo(
+    () =>
+      getChartXAxisInterval({
+        dataLength: chartData.length,
+        period: activePeriod,
+        shortcut: periodOption.value,
+        periodOverride: resolvePeriodOverride(periodOverride),
+      }),
+    [activePeriod, chartData.length, periodOption.value, periodOverride],
+  )
+
+  const { isAnimationActive, areaCurveType } = useMemo(() => getChartRenderFlags(chartData.length, 2), [chartData.length])
 
   let displayCpuUsage: string | ReactNode = <Skeleton className="h-5 w-16" />
   let displayRamUsage: string | ReactNode = <Skeleton className="h-5 w-16" />
@@ -303,26 +337,29 @@ export function AreaCostumeChart({ nodeId, currentStats, realtimeStats, realtime
               <h4 className="text-foreground text-sm font-semibold">{t('statistics.selectTimeRange')}</h4>
               <p className="text-muted-foreground text-xs">{t('statistics.selectTimeRangeDescription')}</p>
             </div>
-            <Select
-              value={periodOption.value}
-              onValueChange={value => {
-                const nextOption = PERIOD_OPTIONS.find(option => option.value === value)
-                if (nextOption) {
-                  setPeriodOption(nextOption)
-                }
-              }}
-            >
-              <SelectTrigger className="h-9 w-full text-xs sm:w-32" dir={dir}>
-                <SelectValue>{periodOption.label}</SelectValue>
-              </SelectTrigger>
-              <SelectContent dir={dir}>
-                {PERIOD_OPTIONS.map(option => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex w-full items-center gap-2 sm:w-auto">
+              <Select
+                value={periodOption.value}
+                onValueChange={value => {
+                  const nextOption = PERIOD_OPTIONS.find(option => option.value === value)
+                  if (nextOption) {
+                    setPeriodOption(nextOption)
+                  }
+                }}
+              >
+                <SelectTrigger className="h-8 min-w-0 flex-1 text-xs sm:h-9 sm:w-32 sm:flex-none" dir={dir}>
+                  <SelectValue>{periodOption.label}</SelectValue>
+                </SelectTrigger>
+                <SelectContent dir={dir}>
+                  {PERIOD_OPTIONS.map(option => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <PeriodSelector value={periodOverride} onValueChange={setPeriodOverride} />
+            </div>
           </div>
         </div>
       )}
@@ -373,7 +410,7 @@ export function AreaCostumeChart({ nodeId, currentStats, realtimeStats, realtime
                     fontWeight: 500,
                   }}
                   interval={viewMode === 'historical' ? historicalXAxisInterval : 'preserveStartEnd'}
-                  minTickGap={viewMode === 'historical' ? 5 : 30}
+                  minTickGap={viewMode === 'historical' ? 28 : 30}
                 />
 
                 <YAxis
@@ -391,7 +428,7 @@ export function AreaCostumeChart({ nodeId, currentStats, realtimeStats, realtime
                 />
 
                 <Tooltip
-                  content={props => <CustomTooltip {...(props as TooltipProps<number, string>)} period={viewMode === 'historical' ? periodOption.period : Period.hour} />}
+                  content={props => <CustomTooltip {...(props as TooltipProps<number, string>)} period={viewMode === 'historical' ? activePeriod : Period.hour} />}
                   cursor={{
                     stroke: 'hsl(var(--border))',
                     strokeWidth: 1,
@@ -402,12 +439,12 @@ export function AreaCostumeChart({ nodeId, currentStats, realtimeStats, realtime
 
                 <Area
                   dataKey="cpu"
-                  type="monotone"
+                  type={viewMode === 'realtime' ? 'monotone' : areaCurveType}
                   fill={`url(#${gradientDefs.cpu.id})`}
                   stroke={gradientDefs.cpu.color1}
                   strokeWidth={2}
                   dot={
-                    viewMode === 'realtime'
+                    viewMode === 'realtime' || !isAnimationActive
                       ? false
                       : {
                           fill: 'white',
@@ -416,26 +453,30 @@ export function AreaCostumeChart({ nodeId, currentStats, realtimeStats, realtime
                           r: 3,
                         }
                   }
-                  activeDot={{
-                    r: 6,
-                    fill: 'white',
-                    stroke: gradientDefs.cpu.color1,
-                    strokeWidth: 2,
-                  }}
+                  activeDot={
+                    isAnimationActive
+                      ? {
+                          r: 6,
+                          fill: 'white',
+                          stroke: gradientDefs.cpu.color1,
+                          strokeWidth: 2,
+                        }
+                      : false
+                  }
                   animationDuration={viewMode === 'realtime' ? 800 : 1500}
                   animationEasing="ease-out"
-                  isAnimationActive={true}
+                  isAnimationActive={isAnimationActive}
                   animationBegin={0}
                 />
 
                 <Area
                   dataKey="ram"
-                  type="monotone"
+                  type={viewMode === 'realtime' ? 'monotone' : areaCurveType}
                   fill={`url(#${gradientDefs.ram.id})`}
                   stroke={gradientDefs.ram.color1}
                   strokeWidth={2}
                   dot={
-                    viewMode === 'realtime'
+                    viewMode === 'realtime' || !isAnimationActive
                       ? false
                       : {
                           fill: 'white',
@@ -444,15 +485,19 @@ export function AreaCostumeChart({ nodeId, currentStats, realtimeStats, realtime
                           r: 3,
                         }
                   }
-                  activeDot={{
-                    r: 6,
-                    fill: 'white',
-                    stroke: gradientDefs.ram.color1,
-                    strokeWidth: 2,
-                  }}
+                  activeDot={
+                    isAnimationActive
+                      ? {
+                          r: 6,
+                          fill: 'white',
+                          stroke: gradientDefs.ram.color1,
+                          strokeWidth: 2,
+                        }
+                      : false
+                  }
                   animationDuration={viewMode === 'realtime' ? 800 : 1500}
                   animationEasing="ease-out"
-                  isAnimationActive={true}
+                  isAnimationActive={isAnimationActive}
                   animationBegin={100}
                 />
               </AreaChart>

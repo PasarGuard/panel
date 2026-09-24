@@ -1,17 +1,17 @@
-from aiogram import Router, types, F
+from aiogram import F, Router, types
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import CommandStart
+from aiogram.fsm.context import FSMContext
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.admin import AdminDetails
-from app.telegram.keyboards.admin import AdminPanel
-from app.telegram.keyboards.base import CancelAction, CancelKeyboard
-from aiogram.fsm.context import FSMContext
 from app.operation import OperatorType
 from app.operation.system import SystemOperation
-from app.telegram.utils.texts import Message as Texts
-from app.telegram.utils.shared import delete_messages
 from app.settings import telegram_settings
+from app.telegram.keyboards.admin import AdminPanel
+from app.telegram.keyboards.base import CancelAction, CancelKeyboard
+from app.telegram.utils.shared import delete_messages
+from app.telegram.utils.texts import Message as Texts
 
 system_operator = SystemOperation(OperatorType.TELEGRAM)
 

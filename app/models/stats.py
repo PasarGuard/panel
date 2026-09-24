@@ -1,11 +1,8 @@
-from datetime import datetime as dt
 from enum import Enum
 
 from pydantic import BaseModel, Field, field_validator
 
-from app.utils.helpers import ensure_datetime_timezone
-
-from .validators import NumericValidatorMixin
+from .validators import AwareDatetime, NumericValidatorMixin
 
 
 class Period(str, Enum):
@@ -17,31 +14,20 @@ class Period(str, Enum):
 
 class StatList(BaseModel):
     period: Period | None = None
-    start: dt
-    end: dt
-
-    @field_validator("start", "end", mode="before")
-    @classmethod
-    def validator_date(cls, v):
-        if not v:
-            return v
-        return ensure_datetime_timezone(v)
+    start: AwareDatetime
+    end: AwareDatetime
 
 
-class UserUsageStat(BaseModel):
+class PeriodStartStat(BaseModel):
+    period_start: AwareDatetime
+
+
+class UserUsageStat(PeriodStartStat):
     total_traffic: int
-    period_start: dt
 
     @field_validator("total_traffic", mode="before")
     def cast_to_int(cls, v):
         return NumericValidatorMixin.cast_to_int(v)
-
-    @field_validator("period_start", mode="before")
-    @classmethod
-    def validator_date(cls, v):
-        if not v:
-            return v
-        return ensure_datetime_timezone(v)
 
 
 class UserUsageStatsList(StatList):
@@ -61,20 +47,12 @@ def validate_user_count_metric_scope(
         raise ValueError("Only online user counts support node_id or group_by_node")
 
 
-class UserCountMetricStat(BaseModel):
+class UserCountMetricStat(PeriodStartStat):
     count: int
-    period_start: dt
 
     @field_validator("count", mode="before")
     def cast_to_int(cls, v):
         return NumericValidatorMixin.cast_to_int(v)
-
-    @field_validator("period_start", mode="before")
-    @classmethod
-    def validator_date(cls, v):
-        if not v:
-            return v
-        return ensure_datetime_timezone(v)
 
 
 class UserCountMetricStatsList(StatList):
@@ -83,21 +61,13 @@ class UserCountMetricStatsList(StatList):
     stats: dict[int, list[UserCountMetricStat]]
 
 
-class NodeUsageStat(BaseModel):
+class NodeUsageStat(PeriodStartStat):
     uplink: int
     downlink: int
-    period_start: dt
 
     @field_validator("downlink", "uplink", mode="before")
     def cast_to_int(cls, v):
         return NumericValidatorMixin.cast_to_int(v)
-
-    @field_validator("period_start", mode="before")
-    @classmethod
-    def validator_date(cls, v):
-        if not v:
-            return v
-        return ensure_datetime_timezone(v)
 
 
 class NodeUsageStatsList(StatList):
@@ -128,8 +98,7 @@ class NodeOutboundsLatencyResponse(BaseModel):
     latencies: list[NodeOutboundLatency]
 
 
-class NodeStats(BaseModel):
-    period_start: dt
+class NodeStats(PeriodStartStat):
     mem_usage_percentage: float
     cpu_usage_percentage: float
     incoming_bandwidth_speed: float
@@ -144,13 +113,6 @@ class NodeStats(BaseModel):
     )
     def cast_to_float(cls, v):
         return NumericValidatorMixin.cast_to_float(v)
-
-    @field_validator("period_start", mode="before")
-    @classmethod
-    def validator_date(cls, v):
-        if not v:
-            return v
-        return ensure_datetime_timezone(v)
 
 
 class NodeStatsList(StatList):

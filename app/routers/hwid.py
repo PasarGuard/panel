@@ -6,6 +6,7 @@ from app.models.user import UserHWIDListResponse
 from app.operation import OperatorType
 from app.operation.hwid import HWIDOperation
 from app.utils import responses
+
 from .authentication import require_permission
 
 hwid_operator = HWIDOperation(operator_type=OperatorType.API)

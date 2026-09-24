@@ -2,7 +2,7 @@ from enum import Enum
 from ipaddress import ip_network
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.db.models import ProxyHostALPN, ProxyHostFingerprint, ProxyHostSecurity, UserStatus
 
@@ -34,22 +34,35 @@ class ECHQueryStrategy(str, Enum):
     full = "full"
 
 
+class XrayECHSettings(BaseModel):
+    """Xray-specific ECH settings."""
+
+    config_list: str | None = Field(default=None)
+    query_strategy: ECHQueryStrategy | None = Field(default=None)
+
+
+class ClientECHSettings(BaseModel):
+    """ECH settings shared by Mihomo and sing-box clients."""
+
+    config: str | None = Field(default=None)
+    query_server_name: str | None = Field(default=None, max_length=255)
+
+
+class ECHSettings(BaseModel):
+    """Per-client ECH settings stored together on a host."""
+
+    xray: XrayECHSettings | None = Field(default=None)
+    mihomo: ClientECHSettings | None = Field(default=None)
+    sing_box: ClientECHSettings | None = Field(default=None)
+
+
 class XrayFragmentSettings(BaseModel):
     model_config = ConfigDict(extra="allow", populate_by_name=True)
 
     packets: str = Field(pattern=r"^(:?tlshello|[\d-]{1,16})$")
     length: str = Field(pattern=r"^[\d-]{1,16}$")
-    interval: str = Field(pattern=r"^[\d-]{1,16}$", serialization_alias="delay")
+    interval: str = Field(pattern=r"^[\d-]{1,16}$", validation_alias=AliasChoices("interval", "delay"))
     max_split: str | None = Field(default=None, alias="maxSplit")
-
-    @model_validator(mode="before")
-    @classmethod
-    def delay_to_interval(cls, value):
-        if isinstance(value, dict) and "delay" in value:
-            value = {**value}
-            delay = value.pop("delay")
-            value.setdefault("interval", delay)
-        return value
 
 
 class SingBoxFragmentSettings(BaseModel):
@@ -64,12 +77,11 @@ class FragmentSettings(BaseModel):
 
 
 class XrayNoiseSettings(BaseModel):
-    type: str = Field(pattern=r"^$|^(:?rand|array|str|base64|hex)$")
+    type: str = Field(pattern=r"^$|^(:?rand|str|base64|hex)$")
     packet: str | list[int] | None = Field(default=None)
     delay: str | int | None = Field(default=None)
     apply_to: str = Field(default="ip", pattern=r"ip|ipv4|ipv6")
     rand: int | str | None = Field(default=None)
-    rand_range: str | None = Field(default=None, alias="randRange", pattern=r"^\d{1,16}(-\d{1,16})?$")
 
     model_config = ConfigDict(extra="allow", populate_by_name=True)
 
@@ -82,14 +94,54 @@ class FinalMaskBaseModel(BaseModel):
     model_config = ConfigDict(extra="allow", populate_by_name=True, use_enum_values=True)
 
 
+class FinalMaskFragmentSettings(FinalMaskBaseModel):
+    packets: str | None = Field(default=None, pattern=r"^$|^(:?tlshello|[\d-]{1,16})$")
+    lengths: list[str | int] | None = Field(default=None)
+    delays: list[str | int] | None = Field(default=None)
+    max_split: str | int | None = Field(default=None, alias="maxSplit")
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_legacy_fields(cls, value):
+        if not isinstance(value, dict):
+            return value
+
+        value = {**value}
+
+        length = value.pop("length", None)
+        existing_lengths = value.get("lengths")
+        if length is not None and (not isinstance(existing_lengths, list) or len(existing_lengths) == 0):
+            value["lengths"] = [length]
+
+        # FinalMask uses "delay"/"delays"; older UI used Freedom-style "interval"
+        delay = value.pop("delay", None)
+        interval = value.pop("interval", None)
+        legacy_delay = delay if delay not in (None, "") else interval
+        existing_delays = value.get("delays")
+        if legacy_delay not in (None, "") and (not isinstance(existing_delays, list) or len(existing_delays) == 0):
+            value["delays"] = [legacy_delay]
+
+        return value
+
+
 class FinalMaskTcpType(str, Enum):
     header_custom = "header-custom"
     fragment = "fragment"
     sudoku = "sudoku"
+    xmc = "xmc"
 
 
 class FinalMaskUdpType(str, Enum):
     header_custom = "header-custom"
+    mkcp_legacy = "mkcp-legacy"
+    noise = "noise"
+    salamander = "salamander"
+    sudoku = "sudoku"
+    xdns = "xdns"
+    xicmp = "xicmp"
+    realm = "realm"
+
+    # Legacy aliases
     header_dns = "header-dns"
     header_dtls = "header-dtls"
     header_srtp = "header-srtp"
@@ -98,11 +150,6 @@ class FinalMaskUdpType(str, Enum):
     header_wireguard = "header-wireguard"
     mkcp_original = "mkcp-original"
     mkcp_aes128gcm = "mkcp-aes128gcm"
-    noise = "noise"
-    salamander = "salamander"
-    sudoku = "sudoku"
-    xdns = "xdns"
-    xicmp = "xicmp"
 
 
 class FinalMaskQuicCongestion(str, Enum):
@@ -112,15 +159,25 @@ class FinalMaskQuicCongestion(str, Enum):
     force_brutal = "force-brutal"
 
 
+class FinalMaskNoiseItem(FinalMaskBaseModel):
+    """Packet camouflage item used by FinalMask. Unlike Freedom noise, this has no apply_to."""
+
+    type: str | None = Field(default=None, pattern=r"^$|^(:?array|str|base64|hex)$")
+    packet: str | list[int] | None = Field(default=None)
+    delay: str | int | None = Field(default=None)
+    rand: int | str | None = Field(default=None)
+    rand_range: str | None = Field(default=None, alias="randRange", pattern=r"^\d{1,16}(-\d{1,16})?$")
+
+
 class FinalMaskTcpHeaderCustomSettings(FinalMaskBaseModel):
-    clients: list[list[XrayNoiseSettings]] | None = Field(default=None)
-    servers: list[list[XrayNoiseSettings]] | None = Field(default=None)
-    errors: list[list[XrayNoiseSettings]] | None = Field(default=None)
+    clients: list[list[FinalMaskNoiseItem]] | None = Field(default=None)
+    servers: list[list[FinalMaskNoiseItem]] | None = Field(default=None)
+    errors: list[list[FinalMaskNoiseItem]] | None = Field(default=None)
 
 
 class FinalMaskUdpHeaderCustomSettings(FinalMaskBaseModel):
-    client: list[XrayNoiseSettings] | None = Field(default=None)
-    server: list[XrayNoiseSettings] | None = Field(default=None)
+    client: list[FinalMaskNoiseItem] | None = Field(default=None)
+    server: list[FinalMaskNoiseItem] | None = Field(default=None)
 
 
 class FinalMaskPasswordSettings(FinalMaskBaseModel):
@@ -135,18 +192,55 @@ class FinalMaskSudokuSettings(FinalMaskPasswordSettings):
     padding_max: int | None = Field(default=None, alias="paddingMax")
 
 
+class FinalMaskXmcProfile(FinalMaskBaseModel):
+    username: str
+    uuid: str
+    textures_value: str = Field(alias="texturesValue")
+    textures_signature: str = Field(alias="texturesSignature")
+
+
+class FinalMaskXmcSettings(FinalMaskBaseModel):
+    hostname: str | None = Field(default=None)
+    password: str | None = Field(default=None)
+    profiles: list[FinalMaskXmcProfile] | None = Field(default=None)
+    usernames: list[str] | None = Field(default=None)
+
+
 class FinalMaskDomainSettings(FinalMaskBaseModel):
     domain: str | None = Field(default=None)
 
 
+class FinalMaskXdnsSettings(FinalMaskBaseModel):
+    domains: list[str] | None = Field(default=None)
+    resolvers: list[str] | None = Field(default=None)
+    domain: str | None = Field(default=None)
+
+
 class FinalMaskXicmpSettings(FinalMaskBaseModel):
+    dgram: bool | None = Field(default=None)
+    ips: list[str] | None = Field(default=None)
     listen_ip: str | None = Field(default=None, alias="listenIp")
     id: int | None = Field(default=None)
 
 
+class FinalMaskSalamanderSettings(FinalMaskPasswordSettings):
+    packet_size: Any | None = Field(default=None, alias="packetSize")
+
+
+class FinalMaskRealmSettings(FinalMaskBaseModel):
+    url: str | None = Field(default=None)
+    stun_servers: list[str] | None = Field(default=None, alias="stunServers")
+    tls_config: dict[str, Any] | None = Field(default=None, alias="tlsConfig")
+
+
+class FinalMaskMkcpLegacySettings(FinalMaskBaseModel):
+    header: str | None = Field(default=None)
+    value: str | None = Field(default=None)
+
+
 class FinalMaskNoiseSettings(FinalMaskBaseModel):
-    reset: int | None = Field(default=None)
-    noise: list[XrayNoiseSettings] | None = Field(default=None)
+    reset: str | int | None = Field(default=None)
+    noise: list[FinalMaskNoiseItem] | None = Field(default=None)
 
 
 class FinalMaskUdpHop(FinalMaskBaseModel):
@@ -157,8 +251,9 @@ class FinalMaskUdpHop(FinalMaskBaseModel):
 class FinalMaskQuicParams(FinalMaskBaseModel):
     congestion: FinalMaskQuicCongestion | None = Field(default=None)
     debug: bool | None = Field(default=None)
-    brutal_up: str | int | None = Field(default=None, alias="brutalUp")
-    brutal_down: str | int | None = Field(default=None, alias="brutalDown")
+    bbr_profile: str | None = Field(default=None, alias="bbrProfile")
+    brutal_up: str | int | float | None = Field(default=None, alias="brutalUp")
+    brutal_down: str | int | float | None = Field(default=None, alias="brutalDown")
     udp_hop: FinalMaskUdpHop | None = Field(default=None, alias="udpHop")
     init_stream_receive_window: int | None = Field(default=None, alias="initStreamReceiveWindow")
     max_stream_receive_window: int | None = Field(default=None, alias="maxStreamReceiveWindow")
@@ -171,28 +266,38 @@ class FinalMaskQuicParams(FinalMaskBaseModel):
 
 
 FinalMaskTcpSettings = (
-    FinalMaskTcpHeaderCustomSettings | XrayFragmentSettings | FinalMaskSudokuSettings | dict[str, Any]
+    FinalMaskTcpHeaderCustomSettings
+    | FinalMaskFragmentSettings
+    | FinalMaskSudokuSettings
+    | FinalMaskXmcSettings
+    | dict[str, Any]
 )
 FinalMaskUdpSettings = (
     FinalMaskUdpHeaderCustomSettings
     | FinalMaskPasswordSettings
     | FinalMaskSudokuSettings
     | FinalMaskDomainSettings
+    | FinalMaskXdnsSettings
     | FinalMaskXicmpSettings
     | FinalMaskNoiseSettings
+    | FinalMaskSalamanderSettings
+    | FinalMaskRealmSettings
+    | FinalMaskMkcpLegacySettings
     | dict[str, Any]
 )
 
 
 FINAL_MASK_TCP_SETTINGS_MODELS = {
     FinalMaskTcpType.header_custom: FinalMaskTcpHeaderCustomSettings,
-    FinalMaskTcpType.fragment: XrayFragmentSettings,
+    FinalMaskTcpType.fragment: FinalMaskFragmentSettings,
     FinalMaskTcpType.sudoku: FinalMaskSudokuSettings,
+    FinalMaskTcpType.xmc: FinalMaskXmcSettings,
 }
 
 FINAL_MASK_UDP_SETTINGS_MODELS = {
     FinalMaskUdpType.header_custom: FinalMaskUdpHeaderCustomSettings,
-    FinalMaskUdpType.header_dns: FinalMaskDomainSettings,
+    FinalMaskUdpType.mkcp_legacy: FinalMaskMkcpLegacySettings,
+    FinalMaskUdpType.header_dns: FinalMaskXdnsSettings,
     FinalMaskUdpType.header_dtls: FinalMaskPasswordSettings,
     FinalMaskUdpType.header_srtp: FinalMaskPasswordSettings,
     FinalMaskUdpType.header_utp: FinalMaskPasswordSettings,
@@ -201,10 +306,11 @@ FINAL_MASK_UDP_SETTINGS_MODELS = {
     FinalMaskUdpType.mkcp_original: FinalMaskPasswordSettings,
     FinalMaskUdpType.mkcp_aes128gcm: FinalMaskPasswordSettings,
     FinalMaskUdpType.noise: FinalMaskNoiseSettings,
-    FinalMaskUdpType.salamander: FinalMaskPasswordSettings,
+    FinalMaskUdpType.salamander: FinalMaskSalamanderSettings,
     FinalMaskUdpType.sudoku: FinalMaskSudokuSettings,
-    FinalMaskUdpType.xdns: FinalMaskDomainSettings,
+    FinalMaskUdpType.xdns: FinalMaskXdnsSettings,
     FinalMaskUdpType.xicmp: FinalMaskXicmpSettings,
+    FinalMaskUdpType.realm: FinalMaskRealmSettings,
 }
 
 
@@ -263,16 +369,14 @@ class FinalMask(FinalMaskBaseModel):
 
 
 class XMuxSettings(BaseModel):
-    max_concurrency: str | None = Field(None, pattern=r"^\d{1,16}(-\d{1,16})?$", serialization_alias="maxConcurrency")
-    max_connections: str | None = Field(None, pattern=r"^\d{1,16}(-\d{1,16})?$", serialization_alias="maxConnections")
-    c_max_reuse_times: str | None = Field(None, pattern=r"^\d{1,16}(-\d{1,16})?$", serialization_alias="cMaxReuseTimes")
-    h_max_reusable_secs: str | None = Field(
-        None, pattern=r"^\d{1,16}(-\d{1,16})?$", serialization_alias="hMaxReusableSecs"
-    )
-    h_max_request_times: str | None = Field(
-        None, pattern=r"^\d{1,16}(-\d{1,16})?$", serialization_alias="hMaxRequestTimes"
-    )
-    h_keep_alive_period: int | None = Field(None, serialization_alias="hKeepAlivePeriod")
+    model_config = ConfigDict(populate_by_name=True)
+
+    max_concurrency: str | None = Field(None, pattern=r"^\d{1,16}(-\d{1,16})?$", alias="maxConcurrency")
+    max_connections: str | None = Field(None, pattern=r"^\d{1,16}(-\d{1,16})?$", alias="maxConnections")
+    c_max_reuse_times: str | None = Field(None, pattern=r"^\d{1,16}(-\d{1,16})?$", alias="cMaxReuseTimes")
+    h_max_reusable_secs: str | None = Field(None, pattern=r"^\d{1,16}(-\d{1,16})?$", alias="hMaxReusableSecs")
+    h_max_request_times: str | None = Field(None, pattern=r"^\d{1,16}(-\d{1,16})?$", alias="hMaxRequestTimes")
+    h_keep_alive_period: int | None = Field(None, alias="hKeepAlivePeriod")
 
     @field_validator(
         "max_concurrency",
@@ -301,6 +405,8 @@ class XHttpSettings(BaseModel):
     uplink_http_method: str | None = Field(default=None)
     session_placement: str | None = Field(default=None, pattern=r"^$|^(path|cookie|header|query)$")
     session_key: str | None = Field(default=None)
+    session_id_table: str | None = Field(default=None, pattern=r"^[\x20-\x7E]*$")
+    session_id_length: str | None = Field(default=None, pattern=r"^\d{1,16}(-\d{1,16})?$")
     seq_placement: str | None = Field(default=None, pattern=r"^$|^(path|cookie|header|query)$")
     seq_key: str | None = Field(default=None)
     uplink_data_placement: str | None = Field(default=None, pattern=r"^$|^(body|cookie|header)$")
@@ -322,6 +428,7 @@ class XHttpSettings(BaseModel):
         "uplink_chunk_size",
         "sc_max_each_post_bytes",
         "sc_min_posts_interval_ms",
+        "session_id_length",
         mode="before",
     )
     @classmethod
@@ -340,6 +447,7 @@ class XHttpSettings(BaseModel):
         "uplink_http_method",
         "session_placement",
         "session_key",
+        "session_id_table",
         "seq_placement",
         "seq_key",
         "uplink_data_placement",
@@ -467,7 +575,7 @@ class WireGuardHostOverrides(BaseModel):
         if value in (None, "", []):
             return None
         if not isinstance(value, list):
-            raise ValueError("allowed_ips must be a list of CIDR strings")
+            raise TypeError("allowed_ips must be a list of CIDR strings")
         normalized: list[str] = []
         for cidr in value:
             if not isinstance(cidr, str) or not cidr.strip():
@@ -582,14 +690,14 @@ class BaseHost(BaseModel):
     vless_route: str | None = Field(default=None, pattern=r"^$|^[0-9a-fA-F]{4}$")
     priority: int
     status: set[UserStatus] | None = Field(default_factory=set)
-    ech_config_list: str | None = Field(default=None)
-    ech_query_strategy: ECHQueryStrategy | None = Field(default=None)
+    ech: ECHSettings | None = Field(default=None)
     pinned_peer_cert_sha256: str | None = Field(default=None)
     verify_peer_cert_by_name: set[str] | None = Field(default_factory=set)
-    wireguard_overrides: WireGuardHostOverrides | None = None
-    subscription_templates: SubscriptionTemplates | None = None
-    final_mask_settings: FinalMask | None = None
-    wireguard_amnezia: AmneziaProperties | None = None
+    wireguard_overrides: WireGuardHostOverrides | None = Field(None)
+    subscription_templates: SubscriptionTemplates | None = Field(None)
+    final_mask_settings: FinalMask | None = Field(None)
+    cipher_suites: str | None = Field(None)
+    wireguard_amnezia: AmneziaProperties | None = Field(None)
 
     model_config = ConfigDict(from_attributes=True)
 

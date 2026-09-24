@@ -1,15 +1,65 @@
-from sqlalchemy import BigInteger, String, Numeric, TypeDecorator
-from sqlalchemy.sql.expression import FunctionElement
+from sqlalchemy import BigInteger, LargeBinary, Numeric, String, TypeDecorator
+from sqlalchemy.dialects import mysql
 from sqlalchemy.ext.compiler import compiles
+from sqlalchemy.sql.expression import FunctionElement
 
 
 class CaseSensitiveString(String):
     def __init__(self, length=None):
-        super(CaseSensitiveString, self).__init__(length)
+        super().__init__(length)
 
 
 class SqliteCompatibleBigInteger(BigInteger):
     pass
+
+
+class WebAuthnBinary(TypeDecorator):
+    """Binary storage that preserves MySQL's compact blob type for challenges."""
+
+    impl = LargeBinary
+    cache_ok = True
+
+    def __init__(self, length: int):
+        self.length = length
+        super().__init__(length=length)
+
+    def load_dialect_impl(self, dialect):
+        if dialect.name == "mysql":
+            blob_type = mysql.TINYBLOB() if self.length <= 255 else mysql.BLOB()
+            return dialect.type_descriptor(blob_type)
+        return dialect.type_descriptor(LargeBinary(self.length))
+
+
+class WebAuthnCredentialId(TypeDecorator):
+    """Binary credential IDs that remain indexable on MySQL."""
+
+    impl = LargeBinary
+    cache_ok = True
+
+    def __init__(self, length: int = 1024):
+        self.length = length
+        super().__init__(length=length)
+
+    def load_dialect_impl(self, dialect):
+        if dialect.name == "mysql":
+            return dialect.type_descriptor(mysql.VARBINARY(self.length))
+        return dialect.type_descriptor(LargeBinary(self.length))
+
+
+class WebAuthnChallenge(TypeDecorator):
+    """Short binary challenges that remain indexable on MySQL."""
+
+    impl = LargeBinary
+    cache_ok = True
+
+    def __init__(self, length: int = 128):
+        self.length = length
+        super().__init__(length=length)
+
+    def load_dialect_impl(self, dialect):
+        if dialect.name == "mysql":
+            return dialect.type_descriptor(mysql.VARBINARY(self.length))
+        return dialect.type_descriptor(LargeBinary(self.length))
 
 
 @compiles(SqliteCompatibleBigInteger, "sqlite")
@@ -39,7 +89,7 @@ class EnumArray(TypeDecorator):
     impl = String
 
     def __init__(self, enum_cls, length=255):
-        super(EnumArray, self).__init__(length=length)
+        super().__init__(length=length)
         self.enum_cls = enum_cls
 
     def process_bind_param(self, value, dialect):
@@ -63,7 +113,7 @@ class StringArray(TypeDecorator):
     impl = String
 
     def __init__(self, length=255, **kwargs):
-        super(StringArray, self).__init__(length=length, **kwargs)
+        super().__init__(length=length, **kwargs)
 
     def process_bind_param(self, value, dialect):
         """Convert list to a comma-separated string for storage."""
@@ -76,7 +126,7 @@ class StringArray(TypeDecorator):
         if value is None:
             return set()
         if isinstance(value, str):
-            return set(v for v in value.split(",") if v)
+            return {v for v in value.split(",") if v}
         return set(value)
 
 
@@ -85,20 +135,27 @@ class DaysDiff(FunctionElement):
     name = "days_diff"
     inherit_cache = True
 
+    def __init__(self, column, **kwargs):
+        super().__init__(**kwargs)
+        self.column = column
+
 
 @compiles(DaysDiff, "postgresql")
 def compile_days_diff_postgresql(element, compiler, **kw):
-    return "EXTRACT(EPOCH FROM (expire - CURRENT_TIMESTAMP)) / 86400"
+    col = compiler.process(element.column)
+    return f"EXTRACT(EPOCH FROM ({col} - CURRENT_TIMESTAMP)) / 86400"
 
 
 @compiles(DaysDiff, "mysql")
 def compile_days_diff_mysql(element, compiler, **kw):
-    return "DATEDIFF(expire, UTC_TIMESTAMP())"
+    col = compiler.process(element.column)
+    return f"DATEDIFF({col}, UTC_TIMESTAMP())"
 
 
 @compiles(DaysDiff, "sqlite")
 def compile_days_diff_sqlite(element, compiler, **kw):
-    return "(julianday(expire) - julianday('now'))"
+    col = compiler.process(element.column)
+    return f"(julianday({col}) - julianday('now'))"
 
 
 class DateDiff(FunctionElement):

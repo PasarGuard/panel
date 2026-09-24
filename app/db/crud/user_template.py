@@ -1,5 +1,3 @@
-from typing import List
-
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -144,7 +142,7 @@ async def get_user_template(db: AsyncSession, user_template_id: int) -> UserTemp
     return user_template
 
 
-async def get_user_templates(db: AsyncSession, query: UserTemplateListQuery) -> List[UserTemplate]:
+async def get_user_templates(db: AsyncSession, query: UserTemplateListQuery) -> list[UserTemplate]:
     """
     Retrieves a list of user templates with optional pagination.
 

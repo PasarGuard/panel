@@ -1,5 +1,5 @@
 import random
-from datetime import datetime as dt, timedelta as td
+from datetime import UTC, datetime as dt, timedelta as td
 from io import BytesIO
 
 from aiogram import F, Router
@@ -244,10 +244,10 @@ async def process_done(event: CallbackQuery, db: AsyncSession, admin: AdminDetai
         data["status"] = UserStatus.on_hold
         data["on_hold_expire_duration"] = td(days=duration).total_seconds() if duration else 0
         timeout = data.get("on_hold_timeout")
-        data["on_hold_timeout"] = (dt.now() + td(days=timeout)) if timeout else None
+        data["on_hold_timeout"] = (dt.now(UTC) + td(days=timeout)) if timeout else None
     else:
         data["status"] = UserStatus.active
-        data["expire"] = (dt.now() + td(days=duration)) if duration else None
+        data["expire"] = (dt.now(UTC) + td(days=duration)) if duration else None
 
     data["data_limit"] *= 1024**3
 
@@ -355,7 +355,7 @@ async def modify_expiry_done(event: Message, state: FSMContext, db: AsyncSession
         else:
             modified_user = UserModify(status=UserStatusModify.active, expire=0)
     else:
-        modified_user = UserModify(expire=(dt.now() + td(days=duration)) if duration else 0)
+        modified_user = UserModify(expire=(dt.now(UTC) + td(days=duration)) if duration else 0)
     user = await user_operations.modify_user(db, user.username, modified_user, admin)
     groups = await user_operations.validate_all_groups(db, user)
     await event.answer(Texts.user_details(user, groups), reply_markup=UserPanel(user, admin=admin).as_markup())

@@ -1,14 +1,14 @@
 from html import escape
 
-from app.notification.client import send_telegram_message
-from app.notification.helpers import get_telegram_channel
 from app.models.host import BaseHost
 from app.models.settings import NotificationSettings
+from app.notification.client import send_telegram_message
+from app.notification.helpers import get_telegram_channel
 from app.settings import notification_settings
 from app.utils.helpers import escape_tg_html
 
-from .utils import escape_html_host
 from . import messages
+from .utils import escape_html_host
 
 ENTITY = "host"
 

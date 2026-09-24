@@ -1,10 +1,10 @@
+from collections.abc import Callable
 from dataclasses import dataclass
 from inspect import Parameter, Signature
-from typing import Any, Callable, cast
+from typing import Any, cast
 
 from fastapi import Header, HTTPException, Query, status
-from fastapi.params import Header as HeaderParam
-from fastapi.params import Query as QueryParam
+from fastapi.params import Header as HeaderParam, Query as QueryParam
 from pydantic import BaseModel, ValidationError
 from pydantic_core import PydanticUndefined
 
