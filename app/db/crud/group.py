@@ -1,3 +1,5 @@
+from collections.abc import Sequence
+
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -18,6 +20,7 @@ from app.models.group import (
     GroupSimpleSortOption,
 )
 
+from .group_lock import lock_group_rows_for_sync
 from .host import upsert_inbounds
 
 
@@ -40,10 +43,68 @@ async def get_inbounds_by_tags(db: AsyncSession, tags: list[str]) -> list[ProxyI
 
 
 async def load_group_attrs(group: Group, *, load_users: bool = True, load_inbounds: bool = True):
+    """Load only the requested group relationships into the ORM instance."""
     if load_users:
         await group.awaitable_attrs.users
     if load_inbounds:
         await group.awaitable_attrs.inbounds
+
+
+async def get_group_user_count(db: AsyncSession, group_id: int) -> int:
+    """Count a group's memberships without loading the related User rows."""
+    stmt = select(func.count(users_groups_association.c.user_id)).where(
+        users_groups_association.c.groups_id == group_id
+    )
+    return int((await db.execute(stmt)).scalar_one())
+
+
+async def get_group_user_ids_batch(
+    db: AsyncSession,
+    group_id: int,
+    *,
+    after_user_id: int = 0,
+    limit: int = 1_000,
+) -> list[int]:
+    """Return one stable keyset-paginated batch of user IDs in a group."""
+    stmt = (
+        select(users_groups_association.c.user_id)
+        .where(
+            users_groups_association.c.groups_id == group_id,
+            users_groups_association.c.user_id > after_user_id,
+        )
+        .order_by(users_groups_association.c.user_id)
+        .limit(limit)
+    )
+    return list((await db.execute(stmt)).scalars().all())
+
+
+async def get_group_user_ids(db: AsyncSession, group_id: int, user_ids: Sequence[int]) -> set[int]:
+    """Return the requested users who are still members of a group."""
+    if not user_ids:
+        return set()
+    stmt = select(users_groups_association.c.user_id).where(
+        users_groups_association.c.groups_id == group_id,
+        users_groups_association.c.user_id.in_(user_ids),
+    )
+    return set((await db.execute(stmt)).scalars().all())
+
+
+async def get_group_for_sync_update(db: AsyncSession, group_id: int) -> Group | None:
+    """Lock and load a group while an access update or user-sync batch runs.
+
+    The no-op update intentionally obtains a database write lock. Unlike
+    ``SELECT FOR UPDATE``, this also coordinates SQLite workers. All group
+    access updates use this helper, so inbound relationship rewrites cannot
+    race a background batch even when they do not update the ``groups`` row.
+    """
+    await lock_group_rows_for_sync(db, [group_id])
+    stmt = (
+        select(Group)
+        .where(Group.id == group_id)
+        .options(selectinload(Group.inbounds))
+        .execution_options(populate_existing=True)
+    )
+    return (await db.execute(stmt)).unique().scalar_one_or_none()
 
 
 async def get_group_by_id(
@@ -208,7 +269,14 @@ async def get_groups_by_ids(
     return [groups_by_id[group_id] for group_id in group_ids if group_id in groups_by_id]
 
 
-async def modify_group(db: AsyncSession, db_group: Group, modified_group: GroupModify) -> Group:
+async def modify_group(
+    db: AsyncSession,
+    db_group: Group,
+    modified_group: GroupModify,
+    *,
+    load_users: bool = True,
+    load_inbounds: bool = True,
+) -> Group:
     """
     Modify an existing group with new information.
 
@@ -231,7 +299,7 @@ async def modify_group(db: AsyncSession, db_group: Group, modified_group: GroupM
 
     await db.commit()
     await db.refresh(db_group)
-    await load_group_attrs(db_group)
+    await load_group_attrs(db_group, load_users=load_users, load_inbounds=load_inbounds)
     return db_group
 
 
