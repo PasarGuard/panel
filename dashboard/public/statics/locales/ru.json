@@ -648,6 +648,13 @@
         "title": "Метод Shadowsocks по умолчанию",
         "description": "Автоматически заполнять метод шифрования для новых пользователей Shadowsocks"
       },
+      "onHoldTimeoutAction": {
+        "title": "Действие по истечении отложенного статуса",
+        "description": "Выберите, что произойдёт с пользователем, когда истечёт время ожидания (on-hold)",
+        "activate": "Активировать пользователя (по умолчанию)",
+        "disable": "Отключить пользователя",
+        "delete": "Удалить пользователя"
+      },
       "errorLoadingSettings": "Ошибка загрузки настроек"
     }
   },
@@ -671,6 +678,23 @@
   "admins": {
     "title": "Администраторы",
     "description": "Управление системными администраторами",
+    "passkeys": "Ключи доступа",
+    "passkey": "Ключ доступа",
+    "passkeyReady": "Готов для входа",
+    "passkeyDevicesTitle": "Устройства входа",
+    "passkeyDevicesHint": "Добавьте несколько ключей доступа для этого администратора: ноутбук, телефон или ключ безопасности.",
+    "manageOwnPasskeys": "Управление моими ключами доступа",
+    "passkeySelfServiceHint": "Добавьте несколько устройств для входа без пароля.",
+    "passkeyName": "Название устройства",
+    "passkeyViewOnlyHint": "Здесь можно просматривать и удалять ключи доступа. Добавить новый ключ может только сам администратор.",
+    "passkeyReadyHint": "Используйте отпечаток, распознавание лица, PIN-код или ключ безопасности для входа.",
+    "passkeyEmptyHint": "Добавьте ключ доступа для быстрого входа без пароля на этом устройстве.",
+    "addPasskey": "Добавить ключ доступа",
+    "passkeyAdded": "Ключ доступа добавлен",
+    "passkeyAddFailed": "Не удалось добавить ключ доступа",
+    "passkeyRemoved": "Ключ доступа удалён",
+    "passkeyRemoveFailed": "Не удалось удалить ключ доступа",
+    "passkeyUnsupported": "Этот браузер не поддерживает ключи доступа.",
     "createAdmin": "Создать администратора",
     "editAdmin": "Редактировать администратора",
     "profileSection": "Профиль и контакты",
@@ -915,7 +939,8 @@
         "activate_next_plan": "Активировать следующий план"
       },
       "admins": {
-        "reset_usage": "Сброс трафика администратора"
+        "reset_usage": "Сброс трафика администратора",
+        "passkeys": "Управление ключами доступа администраторов"
       },
       "settings": {
         "read": "Просмотр настроек",
@@ -1241,6 +1266,9 @@
   "login.fieldRequired": "Это поле обязательно для заполнения",
   "login.loginYourAccount": "Войдите в свой аккаунт",
   "login.welcomeBack": "Пожалуйста, введите свои данные",
+  "login.usePasskey": "Войти с ключом доступа",
+  "login.passkeyUnsupported": "Этот браузер не поддерживает ключи доступа.",
+  "login.passkeyFailed": "Не удалось войти с ключом доступа",
   "login.backToLogin": "Вернуться ко входу",
   "memoryUsage": "Память",
   "next": "Вперед",
@@ -2395,7 +2423,10 @@
       "generatePreSharedKey": "Сгенерировать предварительный общий ключ",
       "preSharedKeyGenerated": "Предварительный общий ключ сгенерирован",
       "preSharedKeyFailed": "Не удалось сгенерировать предварительный общий ключ",
+      "mtuPlaceholder": "По умолчанию на узле",
+      "mtuDescription": "Необязательно, 576–9000 байт. Требуется узел с поддержкой MTU ядра. MTU клиента настраивается отдельно в хостах.",
       "fields": {
+        "mtu": "MTU интерфейса сервера",
         "interfaceName": "Имя интерфейса",
         "privateKey": "Приватный ключ",
         "publicKey": "Публичный ключ",
@@ -3264,6 +3295,24 @@
   "statistics.userCountChartDescription": "Количество онлайн, истекших и ограниченных пользователей во времени",
   "statistics.userCountChartAccuracyNote": "Смена статуса может исказить историю. Сброс использования очищает историю графика только при включенной очистке данных.",
   "statistics.groupByNode": "Группировать по узлу",
+  "statistics.breakdown": "Разбивка",
+  "statistics.breakdownByNode": "По узлам",
+  "statistics.breakdownByCore": "По ядрам",
+  "statistics.breakdownByAdmin": "По администраторам",
+  "statistics.usageScope": "Фильтр по ядру или узлу",
+  "statistics.scopeAllNodes": "Все узлы",
+  "statistics.scopeAllCores": "Все ядра",
+  "statistics.scopeCores": "Ядра",
+  "statistics.scopeNodes": "Узлы",
+  "statistics.noCore": "Без ядра",
+  "statistics.noAdmin": "Без администратора",
+  "statistics.otherAdmins": "Другие администраторы",
+  "statistics.coreStats": "Статистика ядер",
+  "statistics.coreTrafficDistribution": "Распределение трафика ядер",
+  "statistics.coreStatsDescription": "Подробная статистика трафика для каждого ядра в этот период времени. Нажмите на столбцы диаграммы, чтобы просмотреть дополнительные детали.",
+  "statistics.adminStats": "Статистика администраторов",
+  "statistics.adminTrafficDistribution": "Распределение трафика администраторов",
+  "statistics.adminStatsDescription": "Подробная статистика трафика для каждого администратора в этот период времени. Нажмите на столбцы диаграммы, чтобы просмотреть дополнительные детали.",
   "statistics.countDuringPeriod": "Количество за период",
   "workersHealth.title": "Состояние воркеров",
   "workersHealth.subtitle": "Статус планировщика и воркера узла",

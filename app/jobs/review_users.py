@@ -12,18 +12,19 @@ from app.db.crud.user import (
     get_days_left_reached_users,
     get_on_hold_to_active_users,
     get_usage_percentage_reached_users,
+    remove_users,
     reset_user_by_next,
     start_users_expire,
     update_users_status,
 )
 from app.db.models import ReminderType, User, UserStatus
 from app.jobs.dependencies import SYSTEM_ADMIN
-from app.models.settings import Webhook
+from app.models.settings import OnHoldTimeoutAction, Webhook
 from app.models.user import UserNotificationResponse
-from app.node.sync import sync_users
+from app.node.sync import remove_user_awaited as sync_remove_user_awaited, sync_users
 from app.operation import OperatorType
 from app.operation.user import UserOperation
-from app.settings import webhook_settings
+from app.settings import general_settings, webhook_settings
 from app.utils.logger import get_logger
 from config import job_settings, runtime_settings, usage_settings
 
@@ -51,7 +52,7 @@ async def apply_status_changes(db: AsyncSession, users: list[User], status: User
     next_plan_users: list[User] = []
     plain_users: list[User] = []
     for user in users:
-        if user.next_plan is not None and status != UserStatus.active:
+        if user.next_plan is not None and status in (UserStatus.expired, UserStatus.limited):
             next_plan_users.append(user)
         else:
             plain_users.append(user)
@@ -92,11 +93,39 @@ async def limit_users_job():
             await apply_status_changes(db, limited_users, UserStatus.limited)
 
 
+async def remove_on_hold_users(db: AsyncSession, db_users: list[User]):
+    users = [await user_operator.validate_user(db_user, include_subscription_url=False) for db_user in db_users]
+
+    # Await node cleanup for every user before touching the database.
+    # If the node update fails (serialization error, NATS publish failure, etc.)
+    # an exception is raised here and remove_users is never called, leaving the
+    # rows intact so the next job cycle can retry.
+    for user in users:
+        await sync_remove_user_awaited(user)
+
+    # Node updates confirmed – now commit the database deletions atomically.
+    await remove_users(db, db_users)
+
+    # Notifications and logging run after successful removal, same as before.
+    for user in users:
+        asyncio.create_task(notification.remove_user(user, SYSTEM_ADMIN))
+        logger.info(f'User "{user.username}" removed after on-hold timeout')
+
+
 async def on_hold_to_active_users_job():
     async with GetDB() as db:
         if on_hold_users := await get_on_hold_to_active_users(db):
-            updated_users = await start_users_expire(db, on_hold_users)
-            await apply_status_changes(db, updated_users, UserStatus.active)
+            settings = await general_settings()
+
+            match settings.on_hold_timeout_action:
+                case OnHoldTimeoutAction.disable:
+                    updated_users = await update_users_status(db, on_hold_users, UserStatus.disabled)
+                    await apply_status_changes(db, updated_users, UserStatus.disabled)
+                case OnHoldTimeoutAction.delete:
+                    await remove_on_hold_users(db, on_hold_users)
+                case _:
+                    updated_users = await start_users_expire(db, on_hold_users)
+                    await apply_status_changes(db, updated_users, UserStatus.active)
 
 
 async def usage_percent_notification_job():
