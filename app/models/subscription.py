@@ -313,3 +313,12 @@ class SubscriptionHeaders(BaseModel):
     x_device_model: str | None = Field(default=None, alias="X-Device-Model")
 
     model_config = {"populate_by_name": True}
+
+    @field_validator("x_hwid")
+    @classmethod
+    def validate_hwid(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        if not value.strip() or len(value) > 256 or any(ord(char) < 32 or ord(char) == 127 for char in value):
+            raise ValueError("X-HWID must be a nonempty ID of at most 256 characters without control characters")
+        return value
