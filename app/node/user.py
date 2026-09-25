@@ -1,6 +1,9 @@
+from collections.abc import Iterable
+from dataclasses import dataclass
+
 from PasarGuardNodeBridge import create_proxy, create_user
 from PasarGuardNodeBridge.common.service_pb2 import User as ProtoUser
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, case, func, or_, select
 
 from app.db import AsyncSession
 from app.db.models import (
@@ -97,6 +100,17 @@ def _serialize_user_for_node(
     )
 
 
+@dataclass(frozen=True, slots=True)
+class CoreUserRow:
+    id: int
+    proxy_settings: dict
+    tags_by_filter: dict[frozenset[str], tuple[str, ...]]
+
+
+def _tag_filter(inbound_tags: Iterable[str] | None) -> frozenset[str]:
+    return frozenset(inbound_tags or ())
+
+
 async def core_users(
     db: AsyncSession,
     inbound_tags: list[str] | set[str] | None = None,
@@ -104,23 +118,36 @@ async def core_users(
     user_ids: list[int] | set[int] | None = None,
 ):
     """Serialize the users a core should carry, optionally restricted to ``user_ids`` (one indexed query)."""
+    rows = await fetch_core_user_rows(db, [inbound_tags], user_ids=user_ids)
+    return core_users_from_rows(rows, inbound_tags, allowed_protocols)
+
+
+async def fetch_core_user_rows(
+    db: AsyncSession,
+    inbound_tag_sets: Iterable[Iterable[str] | None],
+    user_ids: list[int] | set[int] | None = None,
+) -> list[CoreUserRow]:
     if user_ids is not None and not user_ids:
         return []
     dialect = db.bind.dialect.name
-    inbound_tags = list(dict.fromkeys(inbound_tags or []))
+    tag_filters = list(dict.fromkeys(_tag_filter(inbound_tags) for inbound_tags in inbound_tag_sets))
+    filtered_tags = [
+        case((ProxyInbound.tag.in_(sorted(tag_filter)), ProxyInbound.tag)) if tag_filter else ProxyInbound.tag
+        for tag_filter in tag_filters
+    ]
 
     # Use dialect-specific aggregation and grouping
     if dialect == "postgresql":
-        inbound_agg = func.string_agg(ProxyInbound.tag.distinct(), ",").label("inbound_tags")
+        inbound_aggs = [func.string_agg(tag.distinct(), ",") for tag in filtered_tags]
     else:
         # MySQL and SQLite use group_concat
-        inbound_agg = func.group_concat(ProxyInbound.tag.distinct()).label("inbound_tags")
+        inbound_aggs = [func.group_concat(tag.distinct()) for tag in filtered_tags]
 
     stmt = (
         select(
             User.id,
             User.proxy_settings,
-            inbound_agg,
+            *inbound_aggs,
         )
         .outerjoin(users_groups_association, User.id == users_groups_association.c.user_id)
         .outerjoin(
@@ -131,13 +158,7 @@ async def core_users(
             ),
         )
         .outerjoin(inbounds_groups_association, Group.id == inbounds_groups_association.c.group_id)
-        .outerjoin(
-            ProxyInbound,
-            and_(
-                inbounds_groups_association.c.inbound_id == ProxyInbound.id,
-                ProxyInbound.tag.in_(inbound_tags) if inbound_tags else True,
-            ),
-        )
+        .outerjoin(ProxyInbound, inbounds_groups_association.c.inbound_id == ProxyInbound.id)
         # Exclude users whose admin role blocks user sync for the admin's current status.
         .outerjoin(Admin, Admin.id == User.admin_id)
         .outerjoin(AdminRole, AdminRole.id == Admin.role_id)
@@ -155,17 +176,33 @@ async def core_users(
     if user_ids is not None:
         stmt = stmt.where(User.id.in_(list(user_ids)))
 
-    results = (await db.execute(stmt)).all()
+    rows: list[CoreUserRow] = []
+    for row in (await db.execute(stmt)).all():
+        tags_by_filter = {
+            tag_filter: tuple(sorted(aggregated.split(","))) if aggregated else ()
+            for tag_filter, aggregated in zip(tag_filters, row[2:], strict=True)
+        }
+        if any(tags_by_filter.values()):
+            rows.append(CoreUserRow(row.id, row.proxy_settings, tags_by_filter))
+    return rows
+
+
+def core_users_from_rows(
+    rows: list[CoreUserRow],
+    inbound_tags: Iterable[str] | None = None,
+    allowed_protocols: frozenset[ProxyProtocol] | None = None,
+) -> list[ProtoUser]:
+    tag_filter = _tag_filter(inbound_tags)
     bridge_users: list = []
 
-    for row in results:
-        inbound_tags = row.inbound_tags.split(",") if row.inbound_tags else []
-        if inbound_tags:
+    for row in rows:
+        tags = row.tags_by_filter[tag_filter]
+        if tags:
             bridge_users.append(
                 _serialize_user_for_node(
                     row.id,
                     row.proxy_settings,
-                    inbound_tags,
+                    list(tags),
                     allowed_protocols,
                 )
             )
