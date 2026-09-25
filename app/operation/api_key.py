@@ -34,16 +34,22 @@ from app.operation import BaseOperation
 
 
 def _check_permissions_not_exceed_admin(admin: AdminDetails, requested: RolePermissions) -> None:
-    """Raise ValueError if any permission in `requested` exceeds what `admin` has.
+    """Reject malformed scopes or permissions exceeding what `admin` has.
 
-    Owners are exempt — they can assign any permissions.
+    Owners are exempt from permission limits, but not scope validation.
     """
+    requested_permissions = requested.model_dump(exclude_none=True)
+    for resource_name, resource_perms in requested_permissions.items():
+        for action, value in resource_perms.items():
+            if isinstance(value, dict) and (set(value) != {"scope"} or value["scope"] not in PermissionScope):
+                raise ValueError(f"Invalid scope for '{resource_name}.{action}'")
+
     if admin.is_owner:
         return
 
     admin_perms = admin.role.permissions if admin.role else RolePermissions()
 
-    for resource_name, resource_perms in requested.model_dump(exclude_none=True).items():
+    for resource_name, resource_perms in requested_permissions.items():
         if resource_perms is None:
             continue
         admin_resource = admin_perms.get(resource_name)
@@ -56,11 +62,8 @@ def _check_permissions_not_exceed_admin(admin: AdminDetails, requested: RolePerm
             admin_action = admin_resource.get(action) if admin_resource else None
             if admin_action is None:
                 raise ValueError(f"You don't have the '{action}' permission on '{resource_name}'")
-            if isinstance(value, dict):
-                if set(value) != {"scope"} or value["scope"] not in PermissionScope:
-                    raise ValueError(f"Invalid scope for '{resource_name}.{action}'")
-                if admin_action is False:
-                    raise ValueError(f"You don't have the '{action}' permission on '{resource_name}'")
+            if isinstance(value, dict) and admin_action is False:
+                raise ValueError(f"You don't have the '{action}' permission on '{resource_name}'")
             # True means unrestricted — cannot grant if admin only has scoped access
             if value is True and admin_action is not True:
                 raise ValueError(
