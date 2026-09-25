@@ -1,10 +1,12 @@
 import asyncio
+from collections.abc import Awaitable, Callable
 
 from aiorwlock import RWLock
-from PasarGuardNodeBridge import Health, NodeType, PasarGuardNode, create_node
+from PasarGuardNodeBridge import Health, NodeType, PasarGuardNode
 from PasarGuardNodeBridge.common.service_pb2 import User as ProtoUser
 
 from app.db.models import Node, NodeConnectionType
+from app.node.bridge import create_node
 from app.node.nats_memory import ensure_bridge_memory, get_bridge_memory
 from app.node.user import core_users
 from app.utils.logger import get_logger
@@ -19,9 +21,25 @@ type_map = {
 class NodeManager:
     def __init__(self):
         self._nodes: dict[int, PasarGuardNode] = {}
+        self._node_signatures: dict[int, tuple] = {}
         self._user_sync_locks: dict[int, asyncio.Lock] = {}
         self._lock = RWLock(fast=True)
         self.logger = get_logger("node-manager")
+
+    @staticmethod
+    def _connection_signature(node: Node) -> tuple:
+        """Fields that, if changed, actually require tearing down the remote backend."""
+        return (
+            node.connection_type,
+            node.address,
+            node.port,
+            node.api_port,
+            node.server_ca,
+            node.api_key,
+            node.default_timeout,
+            node.internal_timeout,
+            node.proxy_url,
+        )
 
     def _create_node_kwargs(self, node: Node) -> dict:
         kwargs = {
@@ -38,6 +56,9 @@ class NodeManager:
             "proxy": node.proxy_url,
             "extra": {"id": node.id, "usage_coefficient": node.usage_coefficient},
             "node_id": str(node.id),
+            # A delivery claim must outlive the slowest single RPC so an expired
+            # claim always means its send is no longer in flight.
+            "sync_lease_seconds": max(30.0, 2.0 * float(node.internal_timeout or 15) + 5.0),
         }
         store, coordinator, worker_id = get_bridge_memory()
         if store is not None and coordinator is not None:
@@ -65,12 +86,28 @@ class NodeManager:
         # is what turns a slow sync into a stop/start restart loop.
         lock = self._user_sync_locks.setdefault(node.id, asyncio.Lock())
         async with lock:
+            signature = self._connection_signature(node)
+            async with self._lock.reader_lock:
+                existing = self._nodes.get(node.id)
+
+            # update_node() runs on every reconnect attempt, including the automated
+            # ones the health-check watchdog fires every ~minute. If nothing about the
+            # connection actually changed, reuse the live object instead of killing a
+            # possibly-healthy remote backend (a real Stop RPC) just to recreate it —
+            # that used to defeat the attach-if-already-running logic below and turned
+            # transient health-check false negatives into a permanent restart loop.
+            if existing is not None and self._node_signatures.get(node.id) == signature:
+                existing_extra = await existing.get_extra()
+                if existing.name == node.name and existing_extra.get("usage_coefficient") == node.usage_coefficient:
+                    return existing
+
             async with self._lock.writer_lock:
                 old_node: PasarGuardNode | None = self._nodes.pop(node.id, None)
 
                 new_node = create_node(**self._create_node_kwargs(node))
 
                 self._nodes[node.id] = new_node
+                self._node_signatures[node.id] = signature
 
             # Stop the old node after releasing the lock.
             await self._shutdown_node(old_node)
@@ -84,6 +121,7 @@ class NodeManager:
         lock = self._user_sync_locks.setdefault(id, asyncio.Lock())
         async with lock, self._lock.writer_lock:
             old_node: PasarGuardNode | None = self._nodes.pop(id, None)
+            self._node_signatures.pop(id, None)
             self._user_sync_locks.pop(id, None)
 
         # Do cleanup without holding the lock to avoid slow delete operations.
@@ -130,7 +168,8 @@ class NodeManager:
     def _chunk_users(users: list[ProtoUser], size: int) -> list[list[ProtoUser]]:
         return [users[start : start + size] for start in range(0, len(users), size)]
 
-    async def _sync_user_batch_to_node(self, node: PasarGuardNode, batch: list[ProtoUser]) -> int:
+    async def _sync_user_batch_to_node(self, node: PasarGuardNode, batch: list[ProtoUser]) -> list[ProtoUser]:
+        """Deliver one bounded batch directly; returns the users that failed."""
         users_to_sync = batch
         supports_chunked = True
         supports_chunked_check = getattr(node, "_supports_chunked_sync", None)
@@ -144,30 +183,63 @@ class NodeManager:
                 flush_pending=False,
             )
             if not users_to_sync:
-                return 0
+                return []
 
         sync_batch_users = getattr(node, "_sync_batch_users", None)
         if callable(sync_batch_users):
             users_to_sync = await sync_batch_users(users_to_sync)
 
-        return len(users_to_sync)
+        return list(users_to_sync)
 
     async def _sync_users_to_node(self, node_id: int, node: PasarGuardNode, users: list[ProtoUser]):
+        # The bridge exposes the fence methods on local nodes too, but the
+        # process-local store cannot provide shared fencing/recovery. Keep the
+        # direct path unless the complete shared protocol is available.
+        if self._supports_shared_sync(node):
+            # Bulk updates use the same durable, fenced delivery as single
+            # updates only when the shared-store protocol is available.
+            await node.update_users(users)
+            return
+
         batch_size = max(1, nats_settings.node_update_users_batch_size)
         lock = self._user_sync_locks.setdefault(node_id, asyncio.Lock())
         failed_count = 0
 
         async with lock:
             for batch in self._chunk_users(users, batch_size):
-                failed_count += await self._sync_user_batch_to_node(node, batch)
+                failed_count += len(await self._sync_user_batch_to_node(node, batch))
 
         if failed_count:
             raise RuntimeError(f"failed to sync {failed_count}/{len(users)} users to node {node_id}")
 
+    @staticmethod
+    def _supports_shared_sync(node: PasarGuardNode) -> bool:
+        # The panel adapter implements a safe process-local fence as well as
+        # the NATS-backed one. The upstream bridge's base fence alone is not
+        # enough: it lacks the capture/release protocol used below.
+        required = (
+            "full_sync_fence",
+            "capture_queued_work",
+            "release_queued_work",
+            "retire_queued_work",
+        )
+        return all(callable(getattr(node, name, None)) for name in required)
+
     async def sync_full(
-        self, node_id: int, users: list[ProtoUser], *, flush_pending: bool = False
+        self,
+        node_id: int,
+        users: list[ProtoUser] | Callable[[], Awaitable[list[ProtoUser]]],
+        *,
+        flush_pending: bool = False,
     ) -> PasarGuardNode | None:
         """Push a full user snapshot to a node, serialized against update_node/remove_node.
+
+        ``users`` may be a deferred loader. It is resolved inside the node's
+        full-sync fence, so every update queued afterwards stays queued until
+        the snapshot has landed. Flushing is non-destructive: the queued
+        entries the snapshot covers are recorded first and retired only after
+        the RPC succeeded, so a failed read, a failed RPC, or a crash leaves the
+        original queue intact.
 
         Guards against the reconnect/health-check watchdog tearing down the node object
         mid-sync (which previously restarted the sync from scratch and could loop).
@@ -177,7 +249,34 @@ class NodeManager:
             node = await self.get_node(node_id)
             if node is None:
                 return None
-            await node.sync_users(users, flush_pending=flush_pending)
+
+            # Do not call full_sync_fence merely because bridge 0.9.x exposes
+            # it: without a shared snapshot store it raises NodeAPIError.
+            if not self._supports_shared_sync(node):
+                if callable(users):
+                    users = await users()
+                await node.sync_users(users, flush_pending=flush_pending)
+                return node
+            async with node.full_sync_fence() as held:
+                # Always wait for in-flight deliveries to settle; retire the
+                # captured entries only when flushing was requested.
+                captured = await node.capture_queued_work()
+                if not flush_pending:
+                    captured = {} if isinstance(captured, dict) else captured
+                try:
+                    if callable(users):
+                        users = await users()
+                    # A fence this worker no longer owns must not send or retire.
+                    held.check()
+                    await node.sync_users(users, flush_pending=False)
+                    held.check()
+                except BaseException:
+                    await node.release_queued_work(captured)
+                    raise
+                if flush_pending:
+                    await node.retire_queued_work(captured)
+                else:
+                    await node.release_queued_work(captured)
             return node
 
     async def _update_users(self, users: list[ProtoUser]):

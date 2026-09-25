@@ -35,6 +35,7 @@ from app.models.user import (
     UserStatusToggle,
     UserSubscriptionUpdateChart,
     UserSubscriptionUpdateList,
+    UsersUsageBreakdownQuery,
     UsersUsageQuery,
     UserUsageQuery,
 )
@@ -50,6 +51,7 @@ from .dependencies import (
     get_user_list_query,
     get_user_simple_list_query,
     get_user_usage_query,
+    get_users_usage_breakdown_query,
     get_users_usage_query,
 )
 
@@ -577,7 +579,7 @@ async def get_user_usage_by_id(
 
 @router.get("s/usage", response_model=UserUsageStatsList)
 async def get_users_usage(
-    query: Annotated[UsersUsageQuery, Depends(get_users_usage_query)],
+    query: Annotated[UsersUsageBreakdownQuery, Depends(get_users_usage_breakdown_query)],
     db: AsyncSession = Depends(get_db),
     admin: AdminDetails = Depends(require_permission("users", "read")),
 ):
