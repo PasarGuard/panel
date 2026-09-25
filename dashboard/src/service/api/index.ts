@@ -2181,6 +2181,13 @@ export interface Subscription {
   custom_variables?: CustomVariable[];
 }
 
+/** Automatic retention periods. null keeps the corresponding data indefinitely. */
+export interface CleanupSettings {
+  expired_users_retention_days?: number | null;
+  usage_history_retention_days?: number | null;
+  node_stats_retention_days?: number | null;
+}
+
 export interface SettingsSchema {
   telegram?: Telegram | null;
   webhook?: Webhook | null;
@@ -2189,6 +2196,7 @@ export interface SettingsSchema {
   subscription?: Subscription | null;
   hwid?: HWIDSettings | null;
   general?: General | null;
+  cleanup?: CleanupSettings | null;
 }
 
 export interface SubscriptionUserResponse {
