@@ -23,7 +23,7 @@ from app.models.admin_role import RoleAccess, RoleFeatures, RoleLimits, RolePerm
 from app.models.settings import Telegram
 from app.operation.permissions import PermissionDenied, enforce_permission, is_scope_all
 from app.settings import telegram_settings
-from app.utils.jwt import get_admin_payload, get_admin_token_binding
+from app.utils.jwt import get_admin_payload, get_admin_token_binding, get_secret_key
 from config import auth_settings, runtime_settings
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/admin/token", auto_error=False)
@@ -38,10 +38,11 @@ _ENV_ADMIN_ROLE = AdminRoleData(
 )
 
 
-async def _is_token_valid_for_admin(db_admin: Admin, payload: dict) -> bool:
+def _is_token_valid_for_admin(db_admin: Admin, payload: dict, secret_key: str) -> bool:
+    """Match a signed token to the current database admin credentials."""
     if db_admin.username != payload["username"] or not payload.get("binding"):
         return False
-    if not hmac.compare_digest(payload["binding"], await get_admin_token_binding(db_admin.hashed_password)):
+    if not hmac.compare_digest(payload["binding"], get_admin_token_binding(db_admin.hashed_password, secret_key)):
         return False
     if not db_admin.password_reset_at:
         return True
@@ -131,7 +132,8 @@ async def _get_admin_from_api_key_internal(
 
 
 async def get_admin(db: AsyncSession, token: str) -> AdminDetails | None:
-    payload = await get_admin_payload(token)
+    secret_key = await get_secret_key()
+    payload = await get_admin_payload(token, secret_key=secret_key)
     if not payload:
         return None
 
@@ -143,7 +145,7 @@ async def get_admin(db: AsyncSession, token: str) -> AdminDetails | None:
         db_admin = await get_admin_by_username(db, payload["username"], load_users=False, load_usage_logs=False)
 
     if db_admin:
-        if not await _is_token_valid_for_admin(db_admin, payload):
+        if not _is_token_valid_for_admin(db_admin, payload, secret_key):
             return None
         return build_admin_details(db_admin)
 
@@ -155,7 +157,8 @@ async def get_admin(db: AsyncSession, token: str) -> AdminDetails | None:
 
 
 async def get_admin_with_metrics(db: AsyncSession, token: str) -> AdminDetails | None:
-    payload = await get_admin_payload(token)
+    secret_key = await get_secret_key()
+    payload = await get_admin_payload(token, secret_key=secret_key)
     if not payload:
         return None
 
@@ -178,7 +181,7 @@ async def get_admin_with_metrics(db: AsyncSession, token: str) -> AdminDetails |
 
     if admin_row:
         db_admin, total_users, reseted_usage = admin_row
-        if not await _is_token_valid_for_admin(db_admin, payload):
+        if not _is_token_valid_for_admin(db_admin, payload, secret_key):
             return None
         return build_admin_details(db_admin, total_users=total_users, reseted_usage=reseted_usage)
 

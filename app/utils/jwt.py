@@ -24,8 +24,9 @@ def _admin_token_binding(hashed_password: str, secret_key: str) -> str:
     return hmac.new(secret_key.encode(), b"admin-token-binding:" + hashed_password.encode(), sha256).hexdigest()
 
 
-async def get_admin_token_binding(hashed_password: str) -> str:
-    return _admin_token_binding(hashed_password, await get_secret_key())
+def get_admin_token_binding(hashed_password: str, secret_key: str) -> str:
+    """Derive an admin binding with the key already used to verify the token."""
+    return _admin_token_binding(hashed_password, secret_key)
 
 
 async def create_admin_token(admin_id: int | None, username: str, hashed_password: str | None = None) -> str:
@@ -43,9 +44,12 @@ async def create_admin_token(admin_id: int | None, username: str, hashed_passwor
     return encoded_jwt
 
 
-async def get_admin_payload(token: str) -> dict | None:
+async def get_admin_payload(token: str, *, secret_key: str | None = None) -> dict | None:
+    """Decode an admin token, optionally reusing a previously loaded signing key."""
     try:
-        payload = jwt.decode(token, await get_secret_key(), algorithms=["HS256"], leeway=5)
+        if secret_key is None:
+            secret_key = await get_secret_key()
+        payload = jwt.decode(token, secret_key, algorithms=["HS256"], leeway=5)
         username: str = payload.get("sub")
         access: str = payload.get("access")
         admin_id = payload.get("aid")
