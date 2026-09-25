@@ -646,7 +646,10 @@ class SubscriptionOperation(BaseOperation):
         is_hwid_enabled = await self.is_user_hwid_enabled(db_user)
 
         links = []
-        if sub_settings.allow_browser_config:
+        global_hwid_conf: HWIDSettings = await hwid_settings()
+        if sub_settings.allow_browser_config and (
+            not is_hwid_enabled or not global_hwid_conf.require_hwid_for_manual_sub
+        ):
             conf, _ = await self.fetch_config(user, ConfigFormat.links)
             links = conf.splitlines()
         format_variables = await self.get_format_variables(user)
