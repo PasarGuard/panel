@@ -7,11 +7,13 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from sqlalchemy import event, inspect as sa_inspect
+from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
 
 from app.db import base
+from sqlalchemy import event
+
 from app.db.crud.user import (
     get_active_to_expire_users,
     get_active_to_limited_users,
