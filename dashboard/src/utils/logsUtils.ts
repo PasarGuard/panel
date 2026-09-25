@@ -2,6 +2,7 @@ export type LogType = 'error' | 'warning' | 'info' | 'debug'
 export type LogVariant = 'red' | 'yellow' | 'blue' | 'orange'
 
 export interface LogLine {
+  id: string
   rawTimestamp: string | null
   timestamp: Date | null
   type: LogType
@@ -36,6 +37,20 @@ const LOG_STYLES: Record<LogType, LogStyle> = {
     color: 'bg-yellow-500/40',
   },
 } as const
+
+let logSeq = 0
+
+function nextLogId(): string {
+  logSeq += 1
+  return String(logSeq)
+}
+
+export function appendTrim<T>(prev: T[], next: T[], max: number): T[] {
+  if (next.length === 0) return prev
+  const total = prev.length + next.length
+  if (total <= max) return prev.length === 0 ? next : prev.concat(next)
+  return prev.concat(next).slice(-max)
+}
 
 export function parseLogs(logString: string): LogLine[] {
   // Regex to match the log line format
@@ -86,6 +101,7 @@ export function parseLogs(logString: string): LogLine[] {
       cleanedMessage = cleanedMessage.replace(/^(Debug|Info|Warn|Warning|Error):\s*/i, '')
 
       return {
+        id: nextLogId(),
         rawTimestamp: timestamp ?? null,
         timestamp: parsedTimestamp,
         type,

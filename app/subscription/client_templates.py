@@ -3,6 +3,7 @@ from aiocache import cached
 from app.db import GetDB
 from app.db.crud.client_template import get_client_template_contents_by_type, get_client_template_values
 from app.models.client_template import ClientTemplateType
+from app.subscription.config_cache import clear_sub_config_cache
 
 
 @cached()
@@ -20,6 +21,7 @@ async def subscription_xray_templates() -> dict[int, str]:
 async def refresh_client_templates_cache() -> None:
     await subscription_client_templates.cache.clear()
     await subscription_xray_templates.cache.clear()
+    clear_sub_config_cache()
 
 
 async def handle_client_template_message(_: dict) -> None:

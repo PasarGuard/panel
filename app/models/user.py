@@ -298,6 +298,11 @@ class UsersUsageQuery(UserUsageQuery):
     model_config = ConfigDict(populate_by_name=True)
 
 
+class UsersUsageBreakdownQuery(UsersUsageQuery):
+    core_id: int | None = Field(default=None)
+    group_by_admin: bool = Field(default=False)
+
+
 class ExpiredUsersQuery(BaseModel):
     admin_username: str | None = Field(default=None)
     target: Literal["expired", "limited", "on_hold", "disabled"] = Field(default="expired")

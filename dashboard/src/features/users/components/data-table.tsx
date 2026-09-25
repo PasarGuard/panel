@@ -1,5 +1,5 @@
 import { ColumnDef, RowSelectionState, flexRender, getCoreRowModel, useReactTable } from '@tanstack/react-table'
-import React, { useState, useCallback, useMemo, memo, useEffect } from 'react'
+import React, { useState, useCallback, useMemo, memo, useEffect, useRef } from 'react'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { cn } from '@/lib/utils'
@@ -20,6 +20,131 @@ interface DataTableProps<TData extends UserResponse, TValue> {
   onEdit?: (user: UserResponse) => void
   onSelectionChange?: (selectedIds: number[]) => void
   resetSelectionKey?: number
+}
+
+const SCROLLBAR_HIDE_DELAY = 900
+const SCROLLBAR_GAP = 6
+const SCROLLBAR_MIN_THUMB = 20
+
+function useTableOverlayScrollbar() {
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const headerRef = useRef<HTMLTableSectionElement>(null)
+  const trackRef = useRef<HTMLDivElement>(null)
+  const thumbRef = useRef<HTMLDivElement>(null)
+  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const dragRef = useRef<{ startY: number; startScroll: number } | null>(null)
+
+  const layout = useCallback(() => {
+    const scroller = scrollRef.current
+    const header = headerRef.current
+    const track = trackRef.current
+    const thumb = thumbRef.current
+    if (!scroller || !track || !thumb) return false
+
+    const headerH = header?.offsetHeight ?? 40
+    const { scrollTop, scrollHeight, clientHeight } = scroller
+    const needed = scrollHeight > clientHeight + 1
+    const trackHeight = Math.max(0, clientHeight - headerH - SCROLLBAR_GAP * 2)
+
+    track.style.top = `${headerH + SCROLLBAR_GAP}px`
+    track.style.height = `${trackHeight}px`
+
+    if (!needed || trackHeight <= 0) {
+      track.style.opacity = '0'
+      track.style.pointerEvents = 'none'
+      return false
+    }
+
+    const thumbHeight = Math.max(SCROLLBAR_MIN_THUMB, (clientHeight / scrollHeight) * trackHeight)
+    const maxScroll = Math.max(1, scrollHeight - clientHeight)
+    const maxOffset = Math.max(0, trackHeight - thumbHeight)
+    thumb.style.height = `${thumbHeight}px`
+    thumb.style.transform = `translateY(${(scrollTop / maxScroll) * maxOffset}px)`
+    return true
+  }, [])
+
+  const reveal = useCallback(() => {
+    const track = trackRef.current
+    if (!track || !layout()) return
+
+    track.style.opacity = '1'
+    track.style.pointerEvents = 'auto'
+    if (hideTimerRef.current) clearTimeout(hideTimerRef.current)
+    if (dragRef.current) return
+
+    hideTimerRef.current = setTimeout(() => {
+      if (dragRef.current || !trackRef.current) return
+      trackRef.current.style.opacity = '0'
+      trackRef.current.style.pointerEvents = 'none'
+    }, SCROLLBAR_HIDE_DELAY)
+  }, [layout])
+
+  const onThumbPointerDown = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      const scroller = scrollRef.current
+      if (!scroller) return
+      event.preventDefault()
+      event.stopPropagation()
+      event.currentTarget.setPointerCapture(event.pointerId)
+      dragRef.current = { startY: event.clientY, startScroll: scroller.scrollTop }
+      reveal()
+    },
+    [reveal],
+  )
+
+  const onThumbPointerMove = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    const drag = dragRef.current
+    const scroller = scrollRef.current
+    const header = headerRef.current
+    if (!drag || !scroller) return
+
+    const headerH = header?.offsetHeight ?? 40
+    const { scrollHeight, clientHeight } = scroller
+    const trackHeight = Math.max(0, clientHeight - headerH - SCROLLBAR_GAP * 2)
+    const thumbHeight = Math.max(SCROLLBAR_MIN_THUMB, (clientHeight / scrollHeight) * trackHeight)
+    const maxOffset = Math.max(0, trackHeight - thumbHeight)
+    if (maxOffset <= 0) return
+
+    scroller.scrollTop = drag.startScroll + ((event.clientY - drag.startY) / maxOffset) * Math.max(1, scrollHeight - clientHeight)
+  }, [])
+
+  const onThumbPointerUp = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      if (!dragRef.current) return
+      dragRef.current = null
+      event.currentTarget.releasePointerCapture(event.pointerId)
+      reveal()
+    },
+    [reveal],
+  )
+
+  useEffect(() => {
+    const scroller = scrollRef.current
+    if (!scroller) return
+
+    const observer = new ResizeObserver(() => layout())
+    observer.observe(scroller)
+    const inner = scroller.firstElementChild
+    if (inner) observer.observe(inner)
+
+    layout()
+    return () => {
+      observer.disconnect()
+      if (hideTimerRef.current) clearTimeout(hideTimerRef.current)
+    }
+  }, [layout])
+
+  return {
+    scrollRef,
+    headerRef,
+    trackRef,
+    thumbRef,
+    onScroll: reveal,
+    onThumbPointerDown,
+    onThumbPointerMove,
+    onThumbPointerUp,
+    layout,
+  }
 }
 
 const ExpandedRowContent = memo(({ row }: { row: { original: UserResponse } }) => (
@@ -54,6 +179,7 @@ export const DataTable = memo(
     const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
     const dir = useDirDetection()
     const isRTL = dir === 'rtl'
+    const { scrollRef, headerRef, trackRef, thumbRef, onScroll, onThumbPointerDown, onThumbPointerMove, onThumbPointerUp, layout } = useTableOverlayScrollbar()
     const hasSelectionColumn = useMemo(() => columns.some(column => column.id === 'select'), [columns])
 
     const handleRowSelectionChange = useCallback(
@@ -207,17 +333,22 @@ export const DataTable = memo(
       [columns.length, t],
     )
 
+    useEffect(() => {
+      layout()
+    }, [data, expandedRow, isLoadingData, layout])
+
     return (
-      <div className="overflow-hidden rounded-md border">
-        <Table dir={isRTL ? 'rtl' : 'ltr'}>
-          <TableHeader>
+      <div className="relative overflow-hidden rounded-xl border">
+        <div ref={scrollRef} onScroll={onScroll} className="scrollbar-hide max-h-[min(70vh,800px)] overflow-auto">
+          <Table dir={isRTL ? 'rtl' : 'ltr'} containerClassName="overflow-visible">
+            <TableHeader ref={headerRef}>
             {table.getHeaderGroups().map(headerGroup => (
               <TableRow key={headerGroup.id} className="uppercase">
                 {headerGroup.headers.map(header => (
                   <TableHead
                     key={header.id}
                     className={cn(
-                      'bg-background sticky z-10 text-xs',
+                      'bg-card sticky top-0 z-20 text-xs',
                       isRTL && 'text-right',
                       header.id === 'select' && 'w-8 !px-1 py-1.5',
                       header.id === 'username' && 'w-auto md:w-auto',
@@ -257,6 +388,7 @@ export const DataTable = memo(
                               data-role={cell.column.id === 'select' ? 'row-selector' : undefined}
                               className={cn(
                                 'text-sm',
+                                cell.column.id === 'details' && 'tabular-nums',
                                 cell.column.id !== 'details' && 'whitespace-nowrap',
                                 cell.column.id === 'details' && 'md:whitespace-nowrap',
                                 cell.column.id !== 'details' && 'py-1.5',
@@ -298,6 +430,21 @@ export const DataTable = memo(
                 : EmptyState}
           </TableBody>
         </Table>
+        </div>
+        <div
+          ref={trackRef}
+          aria-hidden
+          className={cn('pointer-events-none absolute z-20 w-[3px] rounded-full opacity-0 transition-opacity duration-300', isRTL ? 'left-1' : 'right-1')}
+        >
+          <div
+            ref={thumbRef}
+            className="bg-foreground/25 hover:bg-foreground/45 absolute inset-x-0 cursor-grab touch-none rounded-full active:cursor-grabbing"
+            onPointerDown={onThumbPointerDown}
+            onPointerMove={onThumbPointerMove}
+            onPointerUp={onThumbPointerUp}
+            onPointerCancel={onThumbPointerUp}
+          />
+        </div>
       </div>
     )
   },

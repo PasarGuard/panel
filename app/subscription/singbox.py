@@ -11,6 +11,7 @@ from app.models.subscription import (
 )
 
 from . import BaseSubscription
+from .base import dumps_compact
 
 
 class SingBoxConfiguration(BaseSubscription):
@@ -58,7 +59,7 @@ class SingBoxConfiguration(BaseSubscription):
 
     def render(self):
         self._finalize_config()
-        return json.dumps(self.config, indent=4)
+        return dumps_compact(self.config)
 
     def _finalize_config(self):
         urltest_types = ["vmess", "vless", "trojan", "shadowsocks", "hysteria2", "tuic", "http", "ssh"]
@@ -215,6 +216,10 @@ class SingBoxConfiguration(BaseSubscription):
 
     def _apply_tls(self, tls_config: TLSConfig, fragment_settings: dict | None = None) -> dict:
         """Apply TLS settings - receives TLS config and optional fragment settings"""
+        fingerprint = "chrome" if tls_config.fingerprint == "unsafe" else tls_config.fingerprint
+        ech_config = self._format_ech_config(tls_config.sing_box_ech_config)
+        ech_enabled = bool(ech_config or tls_config.sing_box_ech_query_server_name)
+
         config = {
             "enabled": tls_config.tls in ("tls", "reality"),
             "server_name": tls_config.sni
@@ -225,18 +230,20 @@ class SingBoxConfiguration(BaseSubscription):
             if tls_config.pinned_peer_cert_sha256
             else None,
             "utls": {
-                "enabled": bool(tls_config.fingerprint) or tls_config.tls == "reality",
-                "fingerprint": tls_config.fingerprint,
+                "enabled": bool(fingerprint) or tls_config.tls == "reality",
+                "fingerprint": fingerprint,
             }
-            if tls_config.fingerprint or tls_config.tls == "reality"
+            if fingerprint or tls_config.tls == "reality"
             else None,
             "alpn": tls_config.alpn_singbox,  # Pre-formatted for sing-box!
             "ech": {
                 "enabled": True,
-                "config": [],
-                "config_path": "",
+                "config": ech_config,
+                # query_server_name was introduced in sing-box 1.13.0. Subscription
+                # output is not version-targeted, so configured hosts require 1.13+.
+                "query_server_name": tls_config.sing_box_ech_query_server_name,
             }
-            if tls_config.ech_config_list
+            if ech_enabled
             else None,
             "reality": {
                 "enabled": tls_config.tls == "reality",
@@ -253,6 +260,17 @@ class SingBoxConfiguration(BaseSubscription):
 
         return self._normalize_and_remove_none_values(config)
 
+    @staticmethod
+    def _format_ech_config(ech_config: str | None) -> list[str] | None:
+        """Convert a base64 or PEM ECH config to sing-box's PEM line-array format."""
+        if not ech_config or not (raw_config := ech_config.strip()):
+            return None
+
+        if raw_config.startswith("-----BEGIN"):
+            return raw_config.splitlines()
+
+        return ["-----BEGIN ECH CONFIGS-----", raw_config, "-----END ECH CONFIGS-----"]
+
     # ========== Protocol Builders ==========
 
     def _build_vmess(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict) -> dict:
@@ -268,7 +286,7 @@ class SingBoxConfiguration(BaseSubscription):
     def _build_vless(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict) -> dict:
         """Build VLESS outbound"""
         # Handle vless-route if needed (only affects ID)
-        id = settings["id"]
+        id = str(settings["id"])
         if inbound.vless_route:
             id = self.vless_route(id, inbound.vless_route)
         user_settings = {"uuid": id}
