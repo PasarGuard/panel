@@ -14,10 +14,11 @@ interface CoreProps {
   canCreate?: boolean
   canDelete?: boolean
   selectionControl?: ReactNode
+  reorderControl?: ReactNode
   selected?: boolean
 }
 
-export default function Core({ core, onEdit, onDuplicate, onDelete, canUpdate = true, canCreate = true, canDelete = true, selectionControl, selected = false }: CoreProps) {
+export default function Core({ core, onEdit, onDuplicate, onDelete, canUpdate = true, canCreate = true, canDelete = true, selectionControl, reorderControl, selected = false }: CoreProps) {
   return (
     <Card
       className={cn('group relative h-full px-4 py-5 transition-colors', canUpdate && 'hover:bg-accent cursor-pointer', selected && 'border-primary/50 bg-accent/30')}
@@ -26,6 +27,7 @@ export default function Core({ core, onEdit, onDuplicate, onDelete, canUpdate = 
       }}
     >
       <div className="flex items-start gap-3">
+        {reorderControl}
         {selectionControl ? <div className="pt-1">{selectionControl}</div> : null}
         <div className="flex min-w-0 flex-1 items-start gap-3">
           <div className="min-w-0 flex-1">

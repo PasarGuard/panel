@@ -30,6 +30,7 @@ from app.models.node import (
     UserIPList,
     UserIPListAll,
 )
+from app.models.ordering import ReorderRequest
 from app.models.stats import (
     NodeOutboundsLatencyResponse,
     NodeRealtimeStats,
@@ -202,6 +203,16 @@ async def reconnect_all_node(
     """
     await node_operator.restart_all_node(db=db, admin=admin, core_id=core_id)
     return {}
+
+
+@router.put("s/order", status_code=status.HTTP_204_NO_CONTENT)
+async def reorder_nodes(
+    payload: ReorderRequest,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(require_permission("nodes", "update")),
+):
+    """Persist the display order of nodes."""
+    await node_operator.reorder_nodes(db, payload.ordered_ids, admin)
 
 
 @router.post(

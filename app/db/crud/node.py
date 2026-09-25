@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload, with_expression
 from sqlalchemy.sql.functions import coalesce
 
+from app.db.base import begin_immediate_if_sqlite
 from app.db.compiles_types import DateDiff
 from app.db.models import (
     DataLimitResetStrategy,
@@ -150,14 +151,14 @@ async def get_nodes(
     count_query = select(func.count()).select_from(stmt.subquery())
     count = (await db.execute(count_query)).scalar_one()
 
+    # Apply the user-defined order before pagination so every page is stable.
+    stmt = stmt.order_by(Node.sort_order.asc(), Node.id.asc())
+
     # Apply pagination
     if params.offset:
         stmt = stmt.offset(params.offset)
     if params.limit:
         stmt = stmt.limit(params.limit)
-
-    # Order by created_at and id for consistent results
-    stmt = stmt.order_by(Node.created_at.asc(), Node.id.asc())
 
     # Load either full reset history or only the aggregate fields needed by list responses.
     if load_usage_logs:
@@ -201,6 +202,8 @@ async def get_nodes_simple(
 
     if query.sort:
         stmt = stmt.order_by(*[_build_node_simple_sort_clause(sort_option) for sort_option in query.sort])
+    else:
+        stmt = stmt.order_by(Node.sort_order.asc(), Node.id.asc())
 
     # Get count BEFORE pagination (always)
     count_stmt = select(func.count()).select_from(stmt.subquery())
@@ -422,13 +425,41 @@ async def create_node(db: AsyncSession, node: NodeCreate) -> Node:
     Returns:
         Node: The newly created Node object.
     """
-    db_node = Node(**node.model_dump())
+    await begin_immediate_if_sqlite(db)
+    next_sort_order = (await db.execute(select(coalesce(func.max(Node.sort_order), -1) + 1))).scalar_one()
+    db_node = Node(**node.model_dump(), sort_order=next_sort_order)
 
     db.add(db_node)
     await db.commit()
     await db.refresh(db_node)
     await load_node_attrs(db_node)
     return db_node
+
+
+async def reorder_nodes(db: AsyncSession, ordered_ids: list[int]) -> bool:
+    """Reorder a page-sized subset while preserving every other node's position."""
+    await begin_immediate_if_sqlite(db)
+    locked_ids = list(
+        (
+            await db.execute(select(Node.id).where(Node.id.in_(ordered_ids)).order_by(Node.id.asc()).with_for_update())
+        ).scalars()
+    )
+    if len(locked_ids) != len(ordered_ids):
+        return False
+
+    current_sort_orders = list(
+        (
+            await db.execute(
+                select(Node.id, Node.sort_order)
+                .where(Node.id.in_(ordered_ids))
+                .order_by(Node.sort_order.asc(), Node.id.asc())
+            )
+        ).all()
+    )
+    ordering = dict(zip(ordered_ids, (sort_order for _, sort_order in current_sort_orders), strict=True))
+    await db.execute(update(Node).where(Node.id.in_(ordered_ids)).values(sort_order=case(ordering, value=Node.id)))
+    await db.commit()
+    return True
 
 
 async def remove_node(db: AsyncSession, db_node: Node) -> None:
