@@ -14,7 +14,7 @@ from app.db.crud.api_key import (
     update_api_key,
 )
 from app.models.admin import AdminDetails
-from app.models.admin_role import RolePermissions
+from app.models.admin_role import PermissionScope, RolePermissions
 from app.models.api_key import (
     APIKeyCreate,
     APIKeyCreateResponse,
@@ -56,6 +56,11 @@ def _check_permissions_not_exceed_admin(admin: AdminDetails, requested: RolePerm
             admin_action = admin_resource.get(action) if admin_resource else None
             if admin_action is None:
                 raise ValueError(f"You don't have the '{action}' permission on '{resource_name}'")
+            if isinstance(value, dict):
+                if set(value) != {"scope"} or value["scope"] not in PermissionScope:
+                    raise ValueError(f"Invalid scope for '{resource_name}.{action}'")
+                if admin_action is False:
+                    raise ValueError(f"You don't have the '{action}' permission on '{resource_name}'")
             # True means unrestricted — cannot grant if admin only has scoped access
             if value is True and admin_action is not True:
                 raise ValueError(
