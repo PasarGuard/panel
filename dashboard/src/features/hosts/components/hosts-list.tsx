@@ -353,6 +353,35 @@ export default function HostsList({
             dns: host.wireguard_overrides.dns ?? [],
           }
         : undefined,
+      wireguard_amnezia: host.wireguard_amnezia
+        ? {
+            jc: host.wireguard_amnezia.jc ?? undefined,
+            jmin: host.wireguard_amnezia.jmin ?? undefined,
+            jmax: host.wireguard_amnezia.jmax ?? undefined,
+            s1: host.wireguard_amnezia.s1 ?? undefined,
+            s2: host.wireguard_amnezia.s2 ?? undefined,
+            s3: host.wireguard_amnezia.s3 ?? undefined,
+            s4: host.wireguard_amnezia.s4 ?? undefined,
+            h1: host.wireguard_amnezia.h1 ?? undefined,
+            h2: host.wireguard_amnezia.h2 ?? undefined,
+            h3: host.wireguard_amnezia.h3 ?? undefined,
+            h4: host.wireguard_amnezia.h4 ?? undefined,
+            i1: host.wireguard_amnezia.i1 ?? undefined,
+            i2: host.wireguard_amnezia.i2 ?? undefined,
+            i3: host.wireguard_amnezia.i3 ?? undefined,
+            i4: host.wireguard_amnezia.i4 ?? undefined,
+            i5: host.wireguard_amnezia.i5 ?? undefined,
+            header_protection_key: host.wireguard_amnezia.header_protection_key ?? undefined,
+            content_padding_addition: host.wireguard_amnezia.content_padding_addition ?? undefined,
+            rekey_after_time: host.wireguard_amnezia.rekey_after_time ?? undefined,
+            rekey_timeout: host.wireguard_amnezia.rekey_timeout ?? undefined,
+            reject_after_time: host.wireguard_amnezia.reject_after_time ?? undefined,
+            keepalive_timeout: host.wireguard_amnezia.keepalive_timeout ?? undefined,
+            max_handshake_attempts: host.wireguard_amnezia.max_handshake_attempts ?? undefined,
+            random_trailers: host.wireguard_amnezia.random_trailers ?? undefined,
+            disable_cookies: host.wireguard_amnezia.disable_cookies ?? undefined,
+          }
+        : undefined,
     }
     form.reset(formData)
     setEditingHost(host)
