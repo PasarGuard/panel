@@ -1,5 +1,5 @@
 import { isValidIconUrl, languageOptions, platformOptions, PlatformIcon } from '@/features/subscriptions/components/subscription-application-shared'
-import { subscriptionApplicationSchema, type SubscriptionApplicationFormData, type SubscriptionFormData } from '@/features/subscriptions/components/subscription-settings-schema'
+import { type SubscriptionSettingsForm, subscriptionApplicationSchema, type SubscriptionApplicationFormData, type SubscriptionFormData } from '@/features/subscriptions/components/subscription-settings-schema'
 import { Button } from '@/components/ui/button'
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
@@ -15,7 +15,7 @@ import { cn } from '@/lib/utils'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Info, Pencil, Plus, RotateCcw, Trash2 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import { useFieldArray, useForm, useFormContext, useFormState, useWatch, type Control, type FieldArrayPath, type FieldErrors, type FieldPath, type UseFormReturn } from 'react-hook-form'
+import { useFieldArray, useForm, useFormContext, useFormState, useWatch, type Control, type FieldArrayPath, type FieldErrors, type FieldPath } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
 function IconUrlInfoPopover() {
@@ -69,7 +69,7 @@ export type SubscriptionApplicationSheetProps =
     }
   | {
       variant: 'edit'
-      form: UseFormReturn<SubscriptionFormData>
+      form: SubscriptionSettingsForm
       applicationIndex: number
       rowId: string
       open: boolean
@@ -403,7 +403,7 @@ function ApplicationFieldsGridEdit({
   iconBroken,
   setIconBroken,
 }: {
-  form: UseFormReturn<SubscriptionFormData>
+  form: SubscriptionSettingsForm
   applicationIndex: number
   iconBroken: boolean
   setIconBroken: (v: boolean) => void

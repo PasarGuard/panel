@@ -8,7 +8,14 @@ import { SubscriptionManualFormatsSection } from '@/features/subscriptions/compo
 import { SubscriptionResponseHeadersSection } from '@/features/subscriptions/components/subscription-response-headers-section'
 import { SubscriptionRulesSection } from '@/features/subscriptions/components/subscription-rules-section'
 import { SubscriptionSettingsSkeleton } from '@/features/subscriptions/components/subscription-settings-skeleton'
-import { subscriptionSchema, type SubscriptionApplicationFormData, type SubscriptionFormData, defaultSubscriptionRules, normalizeCustomVariablesForPayload } from '@/features/subscriptions/components/subscription-settings-schema'
+import {
+  subscriptionSchema,
+  type SubscriptionApplicationFormData,
+  type SubscriptionFormData,
+  type SubscriptionFormInput,
+  defaultSubscriptionRules,
+  normalizeCustomVariablesForPayload,
+} from '@/features/subscriptions/components/subscription-settings-schema'
 import { Form } from '@/components/ui/form'
 import { Separator } from '@/components/ui/separator'
 import { type SubRule as ApiSubRule } from '@/service/api'
@@ -26,7 +33,7 @@ export default function SubscriptionSettings() {
   const { settings, isLoading, error, updateSettings, isSaving } = useSettingsContext()
   const [isAddAppOpen, setIsAddAppOpen] = useState(false)
 
-  const form = useForm<SubscriptionFormData>({
+  const form = useForm<SubscriptionFormInput, unknown, SubscriptionFormData>({
     resolver: zodResolver(subscriptionSchema),
     defaultValues: {
       url_prefix: '',
@@ -217,7 +224,7 @@ export default function SubscriptionSettings() {
     }
   }
 
-  const onInvalid = (errors: FieldErrors<SubscriptionFormData>) => {
+  const onInvalid = (errors: FieldErrors<SubscriptionFormInput>) => {
     const appsErrors = errors?.applications
     if (Array.isArray(appsErrors)) {
       for (let i = 0; i < appsErrors.length; i++) {

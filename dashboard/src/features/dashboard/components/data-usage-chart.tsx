@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton'
 import { useChartViewType } from '@/hooks/use-chart-view-type'
 import useDirDetection from '@/hooks/use-dir-detection'
-import { Period, useGetUsersUsage, UserUsageStat, UserUsageStatsList } from '@/service/api'
+import { Period, useGetUsersUsage, UserUsageStat } from '@/service/api'
 import {
   CHART_PERIOD_OVERRIDE_AUTO,
   type ChartPeriodOverride,

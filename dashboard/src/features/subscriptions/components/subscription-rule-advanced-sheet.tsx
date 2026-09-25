@@ -1,19 +1,18 @@
+import { withCustomVariableDefaults, type SubscriptionSettingsForm } from './subscription-settings-schema'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Textarea } from '@/components/ui/textarea'
-import type { SubscriptionFormData } from './subscription-settings-schema'
 import { CustomVariablesPopover, VariablesList } from '@/components/ui/variables-popover'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
 import { Info, Plus, Trash2 } from 'lucide-react'
-import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
 export interface SubscriptionRuleAdvancedSheetProps {
-  form: UseFormReturn<SubscriptionFormData>
+  form: SubscriptionSettingsForm
   ruleIndex: number
   rowId: string
   open: boolean
@@ -22,6 +21,7 @@ export interface SubscriptionRuleAdvancedSheetProps {
 
 export function SubscriptionRuleAdvancedSheet({ form, ruleIndex, rowId, open, onOpenChange }: SubscriptionRuleAdvancedSheetProps) {
   const { t } = useTranslation()
+  const customVariables = withCustomVariableDefaults(form.watch('custom_variables'))
   const dir = useDirDetection()
   const isMobile = useIsMobile()
   const infoPopoverSide = isMobile ? 'bottom' : dir === 'rtl' ? 'left' : 'right'
@@ -96,7 +96,7 @@ export function SubscriptionRuleAdvancedSheet({ form, ruleIndex, rowId, open, on
                     </div>
                   </PopoverContent>
                 </Popover>
-                <CustomVariablesPopover customVariables={form.watch('custom_variables') || []} side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5} />
+                <CustomVariablesPopover customVariables={customVariables} side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5} />
               </div>
             </div>
 

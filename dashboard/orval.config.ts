@@ -12,6 +12,10 @@ export default defineConfig({
       tslint: true,
       headers: false,
       override: {
+        fetch: {
+          // The custom fetcher returns the JSON body and throws on HTTP errors.
+          includeHttpResponseReturnType: false,
+        },
         mutator: {
           path: './src/service/http.ts',
           name: 'orvalFetcher',
