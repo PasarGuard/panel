@@ -89,6 +89,7 @@ class NodeManager:
             signature = self._connection_signature(node)
             async with self._lock.reader_lock:
                 existing = self._nodes.get(node.id)
+                existing_signature = self._node_signatures.get(node.id)
 
             # update_node() runs on every reconnect attempt, including the automated
             # ones the health-check watchdog fires every ~minute. If nothing about the
@@ -96,7 +97,7 @@ class NodeManager:
             # possibly-healthy remote backend (a real Stop RPC) just to recreate it —
             # that used to defeat the attach-if-already-running logic below and turned
             # transient health-check false negatives into a permanent restart loop.
-            if existing is not None and self._node_signatures.get(node.id) == signature:
+            if existing is not None and existing_signature == signature:
                 existing_extra = await existing.get_extra()
                 if existing.name == node.name and existing_extra.get("usage_coefficient") == node.usage_coefficient:
                     return existing
@@ -109,8 +110,9 @@ class NodeManager:
                 self._nodes[node.id] = new_node
                 self._node_signatures[node.id] = signature
 
-            # Stop the old node after releasing the lock.
-            await self._shutdown_node(old_node)
+            # Metadata-only changes require a fresh bridge object, but must not stop a
+            # healthy remote backend. The reconnect path will attach the replacement.
+            await self._shutdown_node(old_node, remote_stop=existing_signature != signature)
 
         return new_node
 
@@ -130,6 +132,15 @@ class NodeManager:
     async def get_node(self, id: int) -> PasarGuardNode | None:
         async with self._lock.reader_lock:
             return self._nodes.get(id, None)
+
+    async def stop_node_if_current(self, node_id: int, node: PasarGuardNode) -> bool:
+        """Stop a node only while it is still the manager's current connection."""
+        lock = self._user_sync_locks.setdefault(node_id, asyncio.Lock())
+        async with lock:
+            if await self.get_node(node_id) is not node:
+                return False
+            await node.stop()
+            return True
 
     async def get_nodes(self) -> dict[int, PasarGuardNode]:
         async with self._lock.reader_lock:
@@ -191,6 +202,18 @@ class NodeManager:
 
         return list(users_to_sync)
 
+    async def _sync_user_batches(
+        self, node_id: int, node: PasarGuardNode, users: list[ProtoUser], *, batch_size: int | None = None
+    ) -> None:
+        batch_size = max(1, batch_size or nats_settings.node_update_users_batch_size)
+        failed_count = 0
+
+        for batch in self._chunk_users(users, batch_size):
+            failed_count += len(await self._sync_user_batch_to_node(node, batch))
+
+        if failed_count:
+            raise RuntimeError(f"failed to sync {failed_count}/{len(users)} users to node {node_id}")
+
     async def _sync_users_to_node(self, node_id: int, node: PasarGuardNode, users: list[ProtoUser]):
         # The bridge exposes the fence methods on local nodes too, but the
         # process-local store cannot provide shared fencing/recovery. Keep the
@@ -211,6 +234,17 @@ class NodeManager:
 
         if failed_count:
             raise RuntimeError(f"failed to sync {failed_count}/{len(users)} users to node {node_id}")
+
+    async def sync_users_batched(
+        self, node_id: int, node: PasarGuardNode, users: list[ProtoUser], *, batch_size: int | None = None
+    ) -> PasarGuardNode | None:
+        """Apply a large initial user set through bounded delta batches."""
+        lock = self._user_sync_locks.setdefault(node_id, asyncio.Lock())
+        async with lock:
+            if await self.get_node(node_id) is not node:
+                return None
+            await self._sync_user_batches(node_id, node, users, batch_size=batch_size)
+        return node
 
     @staticmethod
     def _supports_shared_sync(node: PasarGuardNode) -> bool:
