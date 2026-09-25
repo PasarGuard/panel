@@ -14,7 +14,12 @@ from app.models.subscription import SubscriptionInboundData
 from app.models.user import UsersResponseWithInbounds
 from app.settings import subscription_settings
 from app.subscription.client_templates import subscription_client_templates, subscription_xray_templates
-from app.subscription.config_cache import get_sub_config, make_sub_config_key, put_sub_config
+from app.subscription.config_cache import (
+    get_or_create_sub_config,
+    get_sub_config,
+    make_sub_config_key,
+    put_sub_config,
+)
 from app.utils.system import readable_size
 
 from . import (
@@ -85,35 +90,38 @@ async def generate_subscription(
     randomize_order: bool = False,
 ) -> str | bytes:
     cache_key = make_sub_config_key(user, config_format, as_base64, randomize_order)
-    cached = get_sub_config(cache_key)
-    if cached is not None:
-        return cached
+    async def render() -> str | bytes:
+        client_templates = await subscription_client_templates()
+        xray_template_overrides = await subscription_xray_templates() if config_format == "xray" else None
+        conf = _build_subscription_config(config_format, client_templates)
+        if conf is None:
+            raise ValueError(f'Unsupported format "{config_format}"')
 
-    client_templates = await subscription_client_templates()
-    xray_template_overrides = await subscription_xray_templates() if config_format == "xray" else None
-    conf = _build_subscription_config(config_format, client_templates)
-    if conf is None:
-        raise ValueError(f'Unsupported format "{config_format}"')
+        sub_settings = await subscription_settings()
+        custom_variables = get_effective_custom_variables(user, sub_settings.custom_variables)
+        format_variables = setup_format_variables(user, sub_settings.custom_variables)
+        config = await process_inbounds_and_tags(
+            user,
+            format_variables,
+            conf,
+            client_templates,
+            xray_template_overrides=xray_template_overrides,
+            randomize_order=randomize_order,
+            custom_variables=custom_variables,
+        )
+        if as_base64 and not isinstance(config, bytes):
+            config = base64.b64encode(config.encode()).decode()
+        return config
 
-    sub_settings = await subscription_settings()
-    custom_variables = get_effective_custom_variables(user, sub_settings.custom_variables)
-    format_variables = setup_format_variables(user, sub_settings.custom_variables)
+    if config_format != "wireguard":
+        cached = get_sub_config(cache_key)
+        if cached is not None:
+            return cached
+        config = await render()
+        put_sub_config(cache_key, config)
+        return config
 
-    config = await process_inbounds_and_tags(
-        user,
-        format_variables,
-        conf,
-        client_templates,
-        xray_template_overrides=xray_template_overrides,
-        randomize_order=randomize_order,
-        custom_variables=custom_variables,
-    )
-
-    if as_base64 and not isinstance(config, bytes):
-        config = base64.b64encode(config.encode()).decode()
-
-    put_sub_config(cache_key, config)
-    return config
+    return await get_or_create_sub_config(cache_key, render)
 
 
 def format_time_left(seconds_left: int) -> str:

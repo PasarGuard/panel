@@ -93,6 +93,7 @@ from app.models.user import (
     UserSubscriptionUpdateChartSegment,
     UserSubscriptionUpdateChartStat,
     UserSubscriptionUpdateList,
+    UsersUsageBreakdownQuery,
     UsersUsageQuery,
     UserUsageQuery,
 )
@@ -1508,16 +1509,21 @@ class UserOperation(BaseOperation):
         self,
         db: AsyncSession,
         admin: AdminDetails,
-        query: UsersUsageQuery,
+        query: UsersUsageBreakdownQuery,
     ) -> UserUsageStatsList:
         """Get all users usage"""
         start, end = await self.validate_dates(query.start, query.end, True)
         node_id = query.node_id
+        core_id = query.core_id
         group_by_node = query.group_by_node
+
+        if group_by_node and query.group_by_admin:
+            await self.raise_error(message="group_by_node and group_by_admin can't be used together", code=400)
 
         can_use_node_scope = _has_permission(admin, "nodes", "stats")
         if not can_use_node_scope:
             node_id = None
+            core_id = None
             group_by_node = False
 
         admins_filter = await _resolve_users_usage_admins_filter(self, db, admin, query.owner)
@@ -1528,8 +1534,10 @@ class UserOperation(BaseOperation):
             end=end,
             period=query.period,
             node_id=node_id,
+            core_id=core_id,
             admins=admins_filter,
             group_by_node=group_by_node,
+            group_by_admin=query.group_by_admin,
         )
 
     async def get_users_count_metric(

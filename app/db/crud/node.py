@@ -190,7 +190,7 @@ async def get_nodes_simple(
     Returns:
         Tuple of (list of (id, name) tuples, total_count).
     """
-    stmt = select(Node.id, Node.name, Node.status)
+    stmt = select(Node.id, Node.name, Node.status, Node.core_config_id)
 
     if query.ids:
         stmt = stmt.where(Node.id.in_(query.ids))
