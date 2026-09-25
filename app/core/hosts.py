@@ -15,6 +15,7 @@ from app.db.crud.host import get_host_by_id, get_hosts, upsert_inbounds
 from app.db.models import ProxyHostSecurity
 from app.models.host import (
     BaseHost,
+    FinalMask,
     TransportSettings,
     WireGuardHostOverrides,
     dump_final_mask_for_xray,
@@ -31,8 +32,11 @@ from app.models.subscription import (
 )
 from app.nats import is_multi_worker, is_nats_enabled
 from app.nats.client import setup_nats_kv
+from app.nats.kv_cas import is_kv_miss
 from app.nats.message import MessageTopic
 from app.nats.router import router
+from app.subscription.base import normalize_and_remove_none_values
+from app.subscription.config_cache import clear_sub_config_cache
 from app.utils.logger import get_logger
 from config import runtime_settings
 from role import Role
@@ -49,6 +53,28 @@ def _string_list(value) -> list[str]:
         return [str(item) for item in value]
     except TypeError:
         return [str(value)]
+
+
+def _normalize_finalmask_link(final_mask_settings: FinalMask | dict | str | None) -> str | None:
+    if not final_mask_settings:
+        return None
+    fms = None
+    if isinstance(final_mask_settings, (FinalMask, dict)):
+        fms = dump_final_mask_for_xray(final_mask_settings)
+    elif isinstance(final_mask_settings, str):
+        try:
+            fms = json.loads(final_mask_settings)
+        except Exception:
+            return final_mask_settings
+        if isinstance(fms, dict):
+            fms = dump_final_mask_for_xray(fms)
+
+    if isinstance(fms, dict):
+        fms = normalize_and_remove_none_values(fms)
+
+    if fms:
+        return json.dumps(fms, separators=(",", ":"))
+    return None
 
 
 async def _prepare_subscription_inbound_data(
@@ -72,10 +98,7 @@ async def _prepare_subscription_inbound_data(
     path = host.path or inbound_config.get("path", "")
 
     final_mask_settings = host.final_mask_settings if host.final_mask_settings else inbound_config.get("finalmask")
-    finalmask_link = None
-    if final_mask_settings:
-        fms = dump_final_mask_for_xray(final_mask_settings)
-        finalmask_link = json.dumps(fms, separators=(",", ":"))
+    finalmask_link = _normalize_finalmask_link(final_mask_settings)
 
     if protocol == "wireguard":
         wg_over: WireGuardHostOverrides | None = host.wireguard_overrides
@@ -146,7 +169,11 @@ async def _prepare_subscription_inbound_data(
         host.pinned_peer_cert_sha256 if host.pinned_peer_cert_sha256 else inbound_config.get("pinnedPeerCertSha256", "")
     )
     verify_peer_cert_by_name = _string_list(host.verify_peer_cert_by_name) if host.verify_peer_cert_by_name else []
-    ech_query_strategy = host.ech_query_strategy or inbound_config.get("echForceQuery")
+    ech = host.ech
+    xray_ech = ech.xray if ech else None
+    mihomo_ech = ech.mihomo if ech else None
+    sing_box_ech = ech.sing_box if ech else None
+    ech_query_strategy = (xray_ech.query_strategy if xray_ech else None) or inbound_config.get("echForceQuery")
     alpn_list = [alpn.value for alpn in host.alpn] if host.alpn else inbound_config.get("alpn", [])
     fp = host.fingerprint.value if host.fingerprint.value != "none" else inbound_config.get("fp")
     fp = fp or ("chrome" if tls_value == "reality" else "")
@@ -162,8 +189,12 @@ async def _prepare_subscription_inbound_data(
         pinned_peer_cert_sha256=pinned_peer_cert_sha256,
         verify_peer_cert_by_name=verify_peer_cert_by_name,
         alpn_list=alpn_list,
-        ech_config_list=host.ech_config_list,
+        ech_config_list=xray_ech.config_list if xray_ech else None,
         ech_query_strategy=ech_query_strategy,
+        mihomo_ech_config=mihomo_ech.config if mihomo_ech else None,
+        mihomo_ech_query_server_name=mihomo_ech.query_server_name if mihomo_ech else None,
+        sing_box_ech_config=sing_box_ech.config if sing_box_ech else None,
+        sing_box_ech_query_server_name=sing_box_ech.query_server_name if sing_box_ech else None,
         reality_public_key=reality_pbk,
         reality_short_id=reality_sid,
         reality_short_ids=reality_sids,
@@ -495,6 +526,9 @@ class HostManager:
             await self._reset_cache()
             return True
         except Exception as exc:
+            if is_kv_miss(exc):
+                self._logger.debug("Host manager state cache is empty")
+                return False
             self._logger.error(f"Error loading host state from cache: {exc}")
             return False
 
@@ -545,6 +579,7 @@ class HostManager:
 
     async def _reset_cache(self):
         await self.get_hosts.cache.clear()
+        clear_sub_config_cache()
 
     @staticmethod
     async def _prepare_host_entry(

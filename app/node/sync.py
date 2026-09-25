@@ -1,14 +1,17 @@
 import asyncio
 
+from PasarGuardNodeBridge.common.service_pb2 import User as ProtoUser
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_object_session
 
+from app.db import GetDB
 from app.db.models import Admin, AdminRole, AdminStatus, User
 from app.models.user import UserNotificationResponse
 from app.nats.node_rpc import encode_node_command, node_nats_client
 from app.nats.proto_utils import serialize_proto_message, serialize_proto_messages
 from app.node import node_manager
-from app.node.user import _serialize_user_for_node, serialize_user, serialize_users_for_node
+from app.node.bridge import register_refresh_handler
+from app.node.user import _serialize_user_for_node, core_users, serialize_user, serialize_users_for_node
 from app.utils.logger import get_logger
 from config import nats_settings, runtime_settings
 
@@ -145,6 +148,98 @@ else:
             await node_nats_client.publish("update_users", {"users": users_chunk})
 
 
+class CurrentStateReader:
+    """Coalesces concurrent current-state reads into indexed queries, one per gather window.
+
+    A query starts only after every request it serves was registered, so a
+    delivery is never answered from a read that began before its own claim (and
+    therefore before the enqueue and commit that triggered it). Requests that
+    arrive while a query is running are served by the next query; the reader
+    keeps draining until nothing is pending. There is no cache. Each query
+    carries at most ``max_ids_per_query`` ids.
+    """
+
+    def __init__(self, gather_seconds: float = 0.005, max_ids_per_query: int = 400, query_timeout: float = 20.0):
+        self._gather_seconds = gather_seconds
+        self._max_ids = max(1, max_ids_per_query)
+        # A hung database call must fail its own batch, not block every later
+        # request behind it; waiters see a TimeoutError and their delivery is requeued.
+        self._query_timeout = query_timeout
+        self._pending: dict[int, list[asyncio.Future]] = {}
+        self._task: asyncio.Task | None = None
+
+    async def get(self, user_ids: list[int]) -> dict[int, ProtoUser | None]:
+        """Current node payload per id; ``None`` means the user is gone or must be removed from nodes."""
+        if not user_ids:
+            return {}
+        future: asyncio.Future = asyncio.get_running_loop().create_future()
+        for user_id in user_ids:
+            self._pending.setdefault(user_id, []).append(future)
+        if self._task is None or self._task.done():
+            self._task = asyncio.create_task(self._run(), name="node-current-state-reader")
+        result = await future
+        return {user_id: result.get(user_id) for user_id in user_ids}
+
+    async def _query(self, user_ids: list[int]) -> dict[int, ProtoUser | None]:
+        result: dict[int, ProtoUser | None] = dict.fromkeys(user_ids)
+        async with asyncio.timeout(self._query_timeout), GetDB() as db:
+            for start in range(0, len(user_ids), self._max_ids):
+                for proto in await core_users(db, user_ids=user_ids[start : start + self._max_ids]):
+                    result[int(proto.email)] = proto
+        return result
+
+    async def _run(self) -> None:
+        while True:
+            await asyncio.sleep(self._gather_seconds)
+            # Snapshot the requests registered so far; later ones wait for the
+            # next query. Nothing awaits between an empty check and returning,
+            # so a request registered after this point always finds a task to
+            # start or a loop that will pick it up.
+            pending, self._pending = self._pending, {}
+            if not pending:
+                return
+            futures = {future for waiters in pending.values() for future in waiters}
+            try:
+                result = await self._query(list(pending))
+            except asyncio.CancelledError:
+                for future in futures:
+                    if not future.done():
+                        future.cancel()
+                raise
+            except Exception as exc:
+                for future in futures:
+                    if not future.done():
+                        future.set_exception(exc)
+                continue
+            for future in futures:
+                if not future.done():
+                    future.set_result(result)
+
+
+_current_state = CurrentStateReader()
+
+
+async def refresh_node_users(node_id: str, emails: list[str]) -> list[ProtoUser]:
+    """Return the current database state of users, as node payloads, for delivery or refresh markers.
+
+    Called by the queue worker right before a claimed batch is sent (so what
+    reaches a node is the state committed at that moment, whatever order the
+    updates were queued in) and when a refresh marker is resolved. Users that
+    no longer exist, are not active/on-hold, have no inbounds, or whose admin
+    blocks synchronization resolve to removals, matching a full snapshot.
+    Non-numeric emails (not panel users) are not answered; callers keep their
+    queued payload for those.
+    """
+    ids = [int(email) for email in dict.fromkeys(emails) if email.isdigit()]
+    if not ids:
+        return []
+    state = await _current_state.get(ids)
+    return [proto if proto is not None else _serialize_user_for_node(user_id, {}) for user_id, proto in state.items()]
+
+
+register_refresh_handler(refresh_node_users)
+
+
 async def sync_user(db_user: User) -> None:
     if await _user_sync_blocked(db_user):
         return
@@ -156,6 +251,17 @@ async def sync_user(db_user: User) -> None:
 async def remove_user(user: UserNotificationResponse) -> None:
     proto_user = _serialize_user_for_node(user.id, user.proxy_settings.dict())
     asyncio.create_task(_dispatch_user_update(proto_user))
+
+
+async def remove_user_awaited(user: UserNotificationResponse) -> None:
+    """Remove a user from nodes and await confirmation before returning.
+
+    Unlike :func:`remove_user`, this coroutine directly awaits the node
+    dispatch so callers can be sure the node update completed (or raised)
+    before committing the corresponding database deletion.
+    """
+    proto_user = _serialize_user_for_node(user.id, user.proxy_settings.dict())
+    await _dispatch_user_update(proto_user)
 
 
 async def remove_users(users: list[User]) -> None:

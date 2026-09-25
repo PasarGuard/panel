@@ -80,6 +80,11 @@ class WireGuardConfig(dict):
         if not isinstance(listen_port, int) or listen_port <= 0 or listen_port > 65535:
             raise ValueError("listen_port must be an integer between 1 and 65535")
 
+        if "mtu" in self:
+            mtu = self["mtu"]
+            if isinstance(mtu, bool) or not isinstance(mtu, int) or not 576 <= mtu <= 9000:
+                raise ValueError("mtu must be an integer between 576 and 9000")
+
         addresses = self.get("address")
         if not isinstance(addresses, list):
             raise TypeError("address must be a list")
