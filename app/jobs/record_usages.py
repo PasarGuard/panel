@@ -7,7 +7,7 @@ from operator import attrgetter
 
 from PasarGuardNodeBridge import NodeAPIError, PasarGuardNode
 from PasarGuardNodeBridge.common.service_pb2 import StatType
-from sqlalchemy import BigInteger, DateTime, and_, bindparam, func, insert, select, union_all, update
+from sqlalchemy import BigInteger, DateTime, and_, bindparam, func, insert, or_, select, union_all, update
 from sqlalchemy.dialects.mysql import insert as mysql_insert
 from sqlalchemy.dialects.postgresql import ARRAY, insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
@@ -39,6 +39,7 @@ USER_TRAFFIC_UPDATE_BATCH_SIZE_BY_DIALECT = {
     "sqlite": 400,
 }
 USER_ADMIN_LOOKUP_BATCH_SIZE = 1_000
+ONLINE_AT_WRITE_INTERVAL = td(minutes=1)
 DEADLOCK_MAX_RETRIES = 5
 
 # Prevent overlapping usage jobs from stacking writes (and deadlocks) when
@@ -177,6 +178,110 @@ def build_node_user_usage_upsert(dialect: str, upsert_params: list[dict]):
         set_={"used_traffic": NodeUserUsage.used_traffic + stmt.excluded.used_traffic},
     )
     return [(stmt, stmt_params)]
+
+
+def build_user_traffic_update(dialect: str, usage_params: list[dict]):
+    """Build a set-based user traffic update when the database supports arrays."""
+    if dialect == "postgresql":
+        aggregated_usage = defaultdict(int)
+        for param in usage_params:
+            aggregated_usage[param["uid"]] += param["value"]
+
+        aggregated_usage = dict(sorted(aggregated_usage.items()))
+
+        source = (
+            func.unnest(
+                bindparam("uids", type_=ARRAY(BigInteger())),
+                bindparam("traffic_values", type_=ARRAY(BigInteger())),
+            )
+            .table_valued("uid", "value")
+            .render_derived(name="usage_source")
+        )
+        stmt = (
+            update(User)
+            .where(User.id == source.c.uid)
+            .values(used_traffic=User.used_traffic + source.c.value)
+            .execution_options(synchronize_session=False)
+        )
+        return (
+            stmt,
+            {
+                "uids": list(aggregated_usage),
+                "traffic_values": list(aggregated_usage.values()),
+            },
+        )
+
+    stmt = (
+        update(User)
+        .where(User.id == bindparam("uid"))
+        .values(used_traffic=User.used_traffic + bindparam("value"))
+        .execution_options(synchronize_session=False)
+    )
+    return stmt, usage_params
+
+
+def build_online_at_updates(dialect: str, user_ids: list[int], now: dt):
+    """Build throttled online timestamp updates without per-user statements."""
+    if not user_ids:
+        return []
+
+    cutoff = now - ONLINE_AT_WRITE_INTERVAL
+    stale_online_at = or_(User.online_at.is_(None), User.online_at <= cutoff)
+
+    if dialect == "postgresql":
+        source = (
+            func.unnest(bindparam("online_user_ids", type_=ARRAY(BigInteger())))
+            .table_valued("uid")
+            .render_derived(name="online_users")
+        )
+        stmt = (
+            update(User)
+            .where(User.id == source.c.uid, stale_online_at)
+            .values(online_at=now)
+            .execution_options(synchronize_session=False)
+        )
+        return [(stmt, {"online_user_ids": user_ids})]
+
+    batch_size = NODE_USER_USAGE_BATCH_SIZE_BY_DIALECT.get(dialect, len(user_ids))
+    return [
+        (
+            update(User)
+            .where(User.id.in_(batch), stale_online_at)
+            .values(online_at=now)
+            .execution_options(synchronize_session=False),
+            None,
+        )
+        for batch in _chunked(user_ids, batch_size)
+    ]
+
+
+async def update_users_traffic(usage_params: list[dict]) -> None:
+    if not usage_params:
+        return
+
+    dialect = await get_dialect()
+    ordered_params = sorted(usage_params, key=lambda item: int(item["uid"]))
+    stmt, params = build_user_traffic_update(dialect, ordered_params)
+    async with JOB_SEM:
+        if dialect == "postgresql":
+            await safe_execute(stmt, params)
+            return
+
+        batch_size = USER_TRAFFIC_UPDATE_BATCH_SIZE_BY_DIALECT.get(dialect, len(ordered_params))
+        for batch in _chunked(params, batch_size):
+            await safe_execute(stmt, batch)
+
+
+async def touch_users_online_at(user_ids: list[int], now: dt | None = None) -> None:
+    if not user_ids:
+        return
+
+    now = now or dt.now(UTC)
+    dialect = await get_dialect()
+    user_ids = sorted(set(user_ids))
+    async with JOB_SEM:
+        for stmt, params in build_online_at_updates(dialect, user_ids, now):
+            await safe_execute(stmt, params)
 
 
 def build_node_usage_upsert(dialect: str, upsert_param: dict):
@@ -684,18 +789,13 @@ async def _record_user_usages_impl():
 
         # Update User table with concurrency control
         if valid_users_usage:
-            valid_users_usage.sort(key=lambda item: int(item["uid"]))
-            user_stmt = (
-                update(User)
-                .where(User.id == bindparam("uid"))
-                .values(used_traffic=User.used_traffic + bindparam("value"), online_at=dt.now(UTC))
-                .execution_options(synchronize_session=False)
-            )
-            dialect = await get_dialect()
-            batch_size = USER_TRAFFIC_UPDATE_BATCH_SIZE_BY_DIALECT.get(dialect, len(valid_users_usage))
-            async with JOB_SEM:
-                for batch in _chunked(valid_users_usage, batch_size):
-                    await safe_execute(user_stmt, batch)
+            await update_users_traffic(valid_users_usage)
+            try:
+                await touch_users_online_at([int(usage["uid"]) for usage in valid_users_usage])
+            except Exception:
+                # Traffic totals are authoritative. A delayed online timestamp is
+                # preferable to aborting the rest of the usage accounting cycle.
+                logger.exception("Failed to update throttled user online timestamps")
             logger.debug(f"Updated {len(valid_users_usage)} users")
 
         # Update Admin table with concurrency control
