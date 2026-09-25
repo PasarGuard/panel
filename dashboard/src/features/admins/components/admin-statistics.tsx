@@ -73,26 +73,19 @@ export default function AdminStatisticsSection({ counts }: AdminsStatisticsProps
         <Card
           key={stat.label}
           dir={dir}
-          className={cn('group animate-fade-in relative w-full overflow-hidden rounded-md transition-all duration-500')}
+          className={cn('group relative w-full overflow-hidden transition-colors hover:bg-accent/40')}
           style={{
             animationDuration: '600ms',
             animationDelay: `${(idx + 1) * 100}ms`,
             animationFillMode: 'both',
           }}
         >
-          <div
-            className={cn(
-              'from-primary/10 absolute inset-0 bg-gradient-to-r to-transparent opacity-0 transition-opacity duration-500',
-              'dark:from-primary/5 dark:to-transparent',
-              'group-hover:opacity-100',
-            )}
-          />
-          <CardTitle className="relative z-10 flex items-center justify-between gap-x-4 px-4 py-6">
+          <CardTitle className="flex items-center justify-between gap-x-4 px-4 py-6">
             <div className="flex items-center gap-x-4">
               {React.createElement(stat.icon, { className: 'h-5 w-5' })}
               <span>{stat.label}</span>
             </div>
-            <span className={cn('mx-2 text-3xl transition-all duration-500', isIncreased[stat.key] ? 'animate-zoom-out' : '')} style={{ animationDuration: '400ms' }}>
+            <span className={cn('mx-2 text-3xl tabular-nums transition-all duration-500', isIncreased[stat.key] ? 'animate-zoom-out' : '')}>
               <CountUp end={stat.value} />
             </span>
           </CardTitle>

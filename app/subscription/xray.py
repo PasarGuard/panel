@@ -15,6 +15,7 @@ from app.models.subscription import (
 )
 
 from . import BaseSubscription
+from .base import dumps_compact
 
 
 class XrayConfiguration(BaseSubscription):
@@ -63,7 +64,7 @@ class XrayConfiguration(BaseSubscription):
         self.config.append(json_template)
 
     def render(self):
-        return json.dumps(self.config, indent=4)
+        return dumps_compact(self.config)
 
     def add(
         self,
@@ -339,7 +340,7 @@ class XrayConfiguration(BaseSubscription):
                 "verifyPeerCertByName": ",".join(tls_config.verify_peer_cert_by_name)
                 if tls_config.verify_peer_cert_by_name
                 else "",
-                "cipherSuites": tls_config.cipher_suites,
+                "cipherSuites": tls_config.cipher_suites if tls_config.fingerprint == "unsafe" else "",
             }
             if tls_config.alpn_list:
                 config["alpn"] = tls_config.alpn_list  # Use list for xray
@@ -418,7 +419,7 @@ class XrayConfiguration(BaseSubscription):
     def _build_vless(self, address: str, inbound: SubscriptionInboundData, settings: dict) -> tuple:
         """Build VLESS outbound - returns (main_outbound, extra_outbounds_list)"""
         # Handle vless-route if needed (only affects ID)
-        id = settings["id"]
+        id = str(settings["id"])
         if inbound.vless_route:
             id = self.vless_route(id, inbound.vless_route)
 
@@ -517,6 +518,7 @@ class XrayConfiguration(BaseSubscription):
             "protocol": "wireguard",
             "tag": "proxy",
             "settings": {
+                "remoteDNS": inbound.wireguard_dns,
                 "secretKey": private_key,
                 "address": peer_ips,
                 "peers": [self._normalize_and_remove_none_values(peer)],

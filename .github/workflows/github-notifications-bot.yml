@@ -10,8 +10,81 @@ on:
 
 jobs:
   notify:
-    uses: PasarGuard/.github/.github/workflows/telegram-notify.yml@main
-    secrets:
-      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-    with:
-      telegram_targets: ${{ vars.TELEGRAM_TARGETS }}
+    runs-on: ubuntu-latest
+    env:
+      BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_TARGETS: ${{ vars.TELEGRAM_TARGETS }}
+      EVENT_NAME: ${{ github.event_name }}
+      EVENT_ACTION: ${{ github.event.action }}
+      ACTOR: ${{ github.actor }}
+      REF_NAME: ${{ github.ref_name }}
+      COMPARE_URL: ${{ github.event.compare }}
+      PR_TITLE: ${{ github.event.pull_request.title }}
+      PR_URL: ${{ github.event.pull_request.html_url }}
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      REPOSITORY: ${{ github.repository }}
+      COMMITS_JSON: ${{ toJSON(github.event.commits) }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Send Telegram notification
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          html_escape() {
+            printf '%s' "$1" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g; s/"/\&quot;/g; s/'"'"'/\&#39;/g'
+          }
+
+          if [[ "$EVENT_NAME" == "push" ]]; then
+            branch=$(html_escape "$REF_NAME")
+            actor=$(html_escape "$ACTOR")
+            commits=$(jq -r 'limit(10; .[]) | "- " + (.message | gsub("\\n"; " ") | gsub("\\r"; " ")) + " (" + (.id | .[0:7]) + ")"' <<< "$COMMITS_JSON")
+            message="🔔 <b>New Push to $branch</b>"
+            message+=$'\n\n👤 By: '
+            message+="$actor"
+            message+=$'\n🔗 <a href="'
+            message+="$COMPARE_URL"
+            message+='">View Commits</a>'
+            message+=$'\n\n<b>Commits:</b>\n'
+            message+="$commits"
+          else
+            actor=$(html_escape "$ACTOR")
+            title=$(html_escape "$PR_TITLE")
+            if [[ "$EVENT_ACTION" == "opened" ]]; then
+              status='📢 <b>New Pull Request Opened</b>'
+            else
+              status='✅ <b>Pull Request Closed</b>'
+            fi
+            commits=$(curl --fail --silent \
+              -H "Authorization: token $GITHUB_TOKEN" \
+              -H 'Accept: application/vnd.github.v3+json' \
+              "https://api.github.com/repos/$REPOSITORY/pulls/$PR_NUMBER/commits" \
+              | jq -r 'limit(10; .[]) | "- " + (.commit.message | gsub("\\n"; " ") | gsub("\\r"; " ")) + " (" + (.sha | .[0:7]) + ")"')
+            message="$status"
+            message+=$'\n\n👤 By: '
+            message+="$actor"
+            message+=$'\nTitle: '
+            message+="$title"
+            message+=$'\n🔗 <a href="'
+            message+="$PR_URL"
+            message+='">View Pull Request</a>'
+            message+=$'\n\n<b>Commits:</b>\n'
+            message+="$commits"
+          fi
+
+          IFS=',' read -r -a targets <<< "$TELEGRAM_TARGETS"
+          for target in "${targets[@]}"; do
+            chat_id="${target%%^*}"
+            topic_id=''
+            if [[ "$target" == *'^'* ]]; then
+              topic_id="${target#*^}"
+            fi
+
+            curl_args=(-sS --fail -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
+              -d "chat_id=$chat_id" -d 'parse_mode=HTML' --data-urlencode "text=$message")
+            if [[ -n "$topic_id" ]]; then
+              curl_args+=(-d "message_thread_id=$topic_id")
+            fi
+            curl "${curl_args[@]}" >/dev/null
+            echo "Notification sent to $chat_id."
+          done
