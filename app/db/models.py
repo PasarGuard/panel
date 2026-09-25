@@ -12,7 +12,6 @@ from sqlalchemy import (
     Float,
     ForeignKey,
     Index,
-    LargeBinary,
     String,
     Table,
     Text,
@@ -36,8 +35,8 @@ from app.db.compiles_types import (
     EnumArray,
     SqliteCompatibleBigInteger,
     StringArray,
-    WebAuthnChallenge,
     WebAuthnBinary,
+    WebAuthnChallenge,
     WebAuthnCredentialId,
 )
 
@@ -97,7 +96,7 @@ class Admin(Base, CreatedAtUTCMixin):
     api_keys: Mapped[list[APIKey]] = relationship(
         back_populates="admin", init=False, default_factory=list, cascade="all, delete-orphan"
     )
-    passkeys: Mapped[list["AdminPasskey"]] = relationship(
+    passkeys: Mapped[list[AdminPasskey]] = relationship(
         back_populates="admin", init=False, default_factory=list, cascade="all, delete-orphan"
     )
 
@@ -774,13 +773,15 @@ class NodeUserUsage(Base, IdMixin):
             "ix_node_user_usages_node_id_created_at", "node_id", "created_at"
         ),  # Node-specific queries with time range
         Index("ix_node_user_usages_created_at", "created_at"),  # Time-based cleanup/aggregation
+        Index("ix_node_user_usages_is_daily_created_at", "is_daily", "created_at"),
     )
-    created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), unique=False)  # 10 minute per record
+    created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), unique=False)
     user_id: Mapped[int] = fk_id_column("users.id", ondelete="CASCADE")
     user: Mapped[User] = relationship(back_populates="node_usages", init=False)
     node_id: Mapped[int | None] = fk_id_column("nodes.id", ondelete="CASCADE")
     node: Mapped[Node] = relationship(back_populates="user_usages", init=False)
     used_traffic: Mapped[int] = mapped_column(BigInteger, default=0)
+    is_daily: Mapped[bool] = mapped_column(default=False, server_default=text("false"))
 
 
 class NodeUsage(Base, IdMixin):
@@ -789,13 +790,15 @@ class NodeUsage(Base, IdMixin):
         UniqueConstraint("created_at", "node_id"),
         # Index for time-based queries and cleanup
         Index("ix_node_usages_created_at", "created_at"),
+        Index("ix_node_usages_is_daily_created_at", "is_daily", "created_at"),
         # The unique constraint already creates an index on (created_at, node_id)
     )
-    created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), unique=False)  # 10 minute per record
+    created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), unique=False)
     node_id: Mapped[int | None] = fk_id_column("nodes.id", ondelete="CASCADE")
     node: Mapped[Node] = relationship(back_populates="usages", init=False)
     uplink: Mapped[int] = mapped_column(BigInteger, default=0)
     downlink: Mapped[int] = mapped_column(BigInteger, default=0)
+    is_daily: Mapped[bool] = mapped_column(default=False, server_default=text("false"))
 
 
 class NodeUsageResetLogs(Base, CreatedAtUTCMixin):
