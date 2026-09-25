@@ -916,7 +916,7 @@ class UserOperation(BaseOperation):
             DeprecationWarning,
             stacklevel=2,
         )
-        db_user = await self.get_validated_user(db, username, admin)
+        db_user = await self.get_validated_user(db, username, admin, scope_action="update")
 
         return await self._modify_user(db, db_user, modified_user, admin)
 
@@ -960,7 +960,7 @@ class UserOperation(BaseOperation):
             DeprecationWarning,
             stacklevel=2,
         )
-        db_user = await self.get_validated_user(db, username, admin)
+        db_user = await self.get_validated_user(db, username, admin, scope_action="delete")
         return await self._remove_user(db, db_user, admin)
 
     async def remove_user_by_id(self, db: AsyncSession, user_id: int, admin: AdminDetails):
@@ -1061,12 +1061,12 @@ class UserOperation(BaseOperation):
             DeprecationWarning,
             stacklevel=2,
         )
-        db_user = await self.get_validated_user(db, username, admin)
+        db_user = await self.get_validated_user(db, username, admin, scope_action="reset_usage")
 
         return await self._reset_user_data_usage(db, db_user, admin)
 
     async def reset_user_data_usage_by_id(self, db: AsyncSession, user_id: int, admin: AdminDetails):
-        db_user = await self.get_validated_user_by_id(db, user_id, admin, scope_action="update")
+        db_user = await self.get_validated_user_by_id(db, user_id, admin, scope_action="reset_usage")
         return await self._reset_user_data_usage(db, db_user, admin)
 
     async def bulk_reset_user_data_usage(
@@ -1110,7 +1110,7 @@ class UserOperation(BaseOperation):
             DeprecationWarning,
             stacklevel=2,
         )
-        db_user = await self.get_validated_user(db, username, admin)
+        db_user = await self.get_validated_user(db, username, admin, scope_action="revoke_sub")
         return await self._revoke_user_sub(db, db_user, admin)
 
     async def revoke_user_sub_by_id(self, db: AsyncSession, user_id: int, admin: AdminDetails) -> UserResponse:
@@ -1293,11 +1293,11 @@ class UserOperation(BaseOperation):
             DeprecationWarning,
             stacklevel=2,
         )
-        db_user = await self.get_validated_user(db, username, admin)
+        db_user = await self.get_validated_user(db, username, admin, scope_action="activate_next_plan")
         return await self._active_next_plan(db, db_user, admin)
 
     async def active_next_plan_by_id(self, db: AsyncSession, user_id: int, admin: AdminDetails) -> UserResponse:
-        db_user = await self.get_validated_user_by_id(db, user_id, admin, scope_action="update")
+        db_user = await self.get_validated_user_by_id(db, user_id, admin, scope_action="activate_next_plan")
         return await self._active_next_plan(db, db_user, admin)
 
     async def _set_owner(self, db: AsyncSession, db_user: User, new_admin, admin: AdminDetails) -> UserResponse:
@@ -1318,14 +1318,14 @@ class UserOperation(BaseOperation):
             stacklevel=2,
         )
         new_admin = await self.get_validated_admin(db, username=admin_username)
-        db_user = await self.get_validated_user(db, username, admin)
+        db_user = await self.get_validated_user(db, username, admin, scope_action="set_owner")
         return await self._set_owner(db, db_user, new_admin, admin)
 
     async def set_owner_by_id(
         self, db: AsyncSession, user_id: int, admin_username: str, admin: AdminDetails
     ) -> UserResponse:
         new_admin = await self.get_validated_admin(db, username=admin_username)
-        db_user = await self.get_validated_user_by_id(db, user_id, admin, scope_action="update")
+        db_user = await self.get_validated_user_by_id(db, user_id, admin, scope_action="set_owner")
         return await self._set_owner(db, db_user, new_admin, admin)
 
     async def bulk_set_owner(
@@ -1333,7 +1333,7 @@ class UserOperation(BaseOperation):
     ) -> BulkUsersActionResponse:
         new_admin = await self.get_validated_admin(db, username=bulk_users.admin_username)
         db_users = await self._get_validated_users_by_ids(
-            db, bulk_users.ids, admin, load_usage_logs=False, scope_action="update"
+            db, bulk_users.ids, admin, load_usage_logs=False, scope_action="set_owner"
         )
 
         db_users = await bulk_set_owner(db, db_users, new_admin)
@@ -1750,7 +1750,7 @@ class UserOperation(BaseOperation):
             DeprecationWarning,
             stacklevel=2,
         )
-        db_user = await self.get_validated_user(db, username, admin)
+        db_user = await self.get_validated_user(db, username, admin, scope_action="update")
         return await self._modify_user_with_template(db, db_user, modified_template, admin)
 
     async def modify_user_with_template_by_id(
