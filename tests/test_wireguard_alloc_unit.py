@@ -4,6 +4,7 @@ from types import SimpleNamespace
 import pytest
 
 from app.db.crud.wireguard import (
+    _ensure_wireguard_keys,
     _give_back,
     _peer_sort_key,
     _take_offset,
@@ -15,6 +16,7 @@ from app.db.crud.wireguard import (
     wg_core_subnets,
     wg_namespaces,
 )
+from app.utils.crypto import generate_wireguard_keypair, get_wireguard_public_key
 
 
 def core(interface_name, addresses):
@@ -23,6 +25,30 @@ def core(interface_name, addresses):
 
 def pool_row(next_offset=1, free_offsets=None):
     return SimpleNamespace(next_offset=next_offset, free_offsets=free_offsets or [])
+
+
+def test_shared_wireguard_key_is_rotated_only_for_the_reconciled_user():
+    private_key, public_key = generate_wireguard_keypair()
+    user = SimpleNamespace(
+        proxy_settings={"wireguard": {"private_key": private_key, "public_key": public_key}}
+    )
+    occupied = {public_key}
+
+    assert _ensure_wireguard_keys(user, shared_keys={public_key}, occupied_keys=occupied)
+    assert user.proxy_settings["wireguard"]["public_key"] != public_key
+    assert (
+        get_wireguard_public_key(user.proxy_settings["wireguard"]["private_key"])
+        == user.proxy_settings["wireguard"]["public_key"]
+    )
+    assert len(occupied) == 2
+
+
+def test_unique_private_key_derives_public_key_without_rotation():
+    private_key, public_key = generate_wireguard_keypair()
+    user = SimpleNamespace(proxy_settings={"wireguard": {"private_key": private_key}})
+
+    assert _ensure_wireguard_keys(user)
+    assert user.proxy_settings["wireguard"]["public_key"] == public_key
 
 
 def test_wg_core_subnets_v4_and_v6():
