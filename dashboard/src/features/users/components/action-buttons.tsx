@@ -444,10 +444,9 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
   }
 
   const handleCopyUserId = async () => {
-    try {
-      await navigator.clipboard.writeText(String(user.id))
+    if (await copy(String(user.id))) {
       toast.success(t('usersTable.copied', { defaultValue: 'Copied to clipboard' }))
-    } catch (error) {
+    } else {
       toast.error(t('copyFailed', { defaultValue: 'Failed to copy content' }))
     }
   }

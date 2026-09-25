@@ -1,5 +1,24 @@
 import { useState, useCallback } from 'react'
 
+function copyWithCopyEvent(text: string): boolean {
+  let written = false
+  const onCopy = (event: ClipboardEvent) => {
+    if (!event.clipboardData) return
+    event.clipboardData.setData('text/plain', text)
+    event.preventDefault()
+    written = true
+  }
+
+  document.addEventListener('copy', onCopy)
+  try {
+    return document.execCommand('copy') && written
+  } catch {
+    return false
+  } finally {
+    document.removeEventListener('copy', onCopy)
+  }
+}
+
 async function copyToClipboard(text: string): Promise<boolean> {
   // Try modern clipboard API first (required for iOS)
   if (navigator.clipboard && window.isSecureContext) {
@@ -12,7 +31,15 @@ async function copyToClipboard(text: string): Promise<boolean> {
     }
   }
 
-  // Fallback: use execCommand for older browsers and keep multiline content intact.
+  // Fallback for insecure contexts (plain HTTP on a LAN IP, UDS behind a proxy) where
+  // navigator.clipboard is unavailable. Write the text from a copy event instead of selecting a
+  // hidden textarea: inside a focus-trapping Radix menu or dialog the textarea cannot keep focus,
+  // so execCommand('copy') copies an empty selection while still returning true.
+  if (copyWithCopyEvent(text)) {
+    return true
+  }
+
+  // Last resort: select a hidden textarea and keep multiline content intact.
   const textarea = document.createElement('textarea')
   textarea.value = text
   textarea.style.position = 'fixed'
