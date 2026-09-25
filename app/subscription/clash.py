@@ -1,7 +1,5 @@
 from random import choice
-from uuid import UUID
 
-import yaml
 from pydantic import BaseModel
 
 from app.models.subscription import (
@@ -13,7 +11,6 @@ from app.models.subscription import (
     XHTTPTransportConfig,
 )
 from app.templates import render_template_string
-from app.utils.helpers import yml_uuid_representer
 
 from . import BaseSubscription
 
@@ -60,16 +57,9 @@ class ClashConfiguration(BaseSubscription):
         }
 
     def render(self):
-        yaml.add_representer(UUID, yml_uuid_representer)
-        return yaml.dump(
-            yaml.safe_load(
-                render_template_string(
-                    self.clash_template_content,
-                    {"conf": self.data, "proxy_remarks": self.proxy_remarks},
-                ),
-            ),
-            sort_keys=False,
-            allow_unicode=True,
+        return render_template_string(
+            self.clash_template_content,
+            {"conf": self.data, "proxy_remarks": self.proxy_remarks},
         )
 
     def __str__(self) -> str:
@@ -318,6 +308,24 @@ class ClashConfiguration(BaseSubscription):
                 "public-key": tls_config.reality_public_key,
                 "short-id": tls_config.reality_short_id or "",
             }
+
+        self._apply_mihomo_ech(node, tls_config)
+
+    @staticmethod
+    def _apply_mihomo_ech(node: dict, tls_config: TLSConfig):
+        """Apply Mihomo ECH settings without reusing Xray's incompatible ECH value."""
+        if not (tls_config.mihomo_ech_config or tls_config.mihomo_ech_query_server_name):
+            return
+
+        node["ech-opts"] = {
+            "enable": True,
+            **({"config": tls_config.mihomo_ech_config} if tls_config.mihomo_ech_config else {}),
+            **(
+                {"query-server-name": tls_config.mihomo_ech_query_server_name}
+                if tls_config.mihomo_ech_query_server_name
+                else {}
+            ),
+        }
 
     @staticmethod
     def _mihomo_reuse_settings(xmux: dict | BaseModel | None) -> dict | None:
@@ -622,6 +630,8 @@ class ClashMetaConfiguration(ClashConfiguration):
                 "public-key": tls_config.reality_public_key,
                 "short-id": tls_config.reality_short_id or "",
             }
+
+        self._apply_mihomo_ech(node, tls_config)
 
     def _build_vless(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict) -> dict:
         """Build VLESS node (Clash Meta only)"""

@@ -37,7 +37,7 @@ def build_default_subscription_rules(
     custom_json_patterns: list[str] = []
     candidates = (
         (use_custom_json_for_v2rayng, "[Vv]2rayNG"),
-        (use_custom_json_for_v2rayn, "[Vv]2rayN"),
+        (use_custom_json_for_v2rayn, "[Vv]2rayN(?![Gg])"),
         (use_custom_json_for_streisand, "[Ss]treisand"),
         (use_custom_json_for_happ, "[Hh]app"),
         (use_custom_json_for_npvtunnel, r"[Kk]tor\-client"),

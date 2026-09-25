@@ -2,10 +2,11 @@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar'
 import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useSidebar } from '@/components/ui/sidebar'
 import { type AdminDetails } from '@/service/api'
-import { ChevronsUpDown, LogOut, UserRoundKey, UsersIcon, UserCircle, ChartPie, ChartNoAxesColumn, UserRound } from 'lucide-react'
+import { ChevronsUpDown, KeyRound, LogOut, UserRoundKey, UsersIcon, UserCircle, ChartPie, ChartNoAxesColumn, UserRound } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 import { formatBytes } from '@/utils/formatByte'
@@ -18,6 +19,13 @@ import { Language } from '@/components/common/language'
 import { isOwner, roleLabel } from '@/utils/rbac'
 import { statusColors } from '@/constants/UserSettings'
 import { cn } from '@/lib/utils'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { deleteAdminPasskeyForAdmin, getAdminPasskeyRegistrationOptionsForAdmin, getAdminPasskeysForAdmin, registerAdminPasskeyForAdmin } from '@/service/api'
+import { fromBase64Url, getDefaultPasskeyName, serializeCredential } from '@/utils/passkeys'
+import { Input } from '@/components/ui/input'
+import { LoaderCircle, Plus, ShieldCheck, Trash2 } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { toast } from 'sonner'
 
 type EffectiveLimits = {
   dataLimit: number | null
@@ -146,6 +154,8 @@ export function NavUser({
                   <Language />
                 </div>
 
+                {admin?.id != null && <SelfPasskeyDialog admin={admin} compact />}
+
                 <Button variant="destructive" size="sm" onClick={handleLogout} className="mt-2 w-full">
                   <LogOut className="mr-2 h-4 w-4" />
                   {t('header.logout')}
@@ -244,6 +254,8 @@ export function NavUser({
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
+            {admin?.id != null && <SelfPasskeyDialog admin={admin} />}
+            <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:text-destructive cursor-pointer">
               <LogOut className="mr-2 size-4" />
               {t('header.logout')}
@@ -252,5 +264,107 @@ export function NavUser({
         </DropdownMenu>
       </SidebarMenuItem>
     </SidebarMenu>
+  )
+}
+
+function SelfPasskeyDialog({ admin, compact = false }: { admin: AdminDetails; compact?: boolean }) {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [passkeys, setPasskeys] = useState<Array<{ id: number; name: string }> | null>(null)
+  const [passkeyName, setPasskeyName] = useState('')
+
+  useEffect(() => {
+    if (!open || admin.id == null) return
+    setPasskeys(null)
+    getAdminPasskeysForAdmin(admin.id).then(setPasskeys).catch(() => setPasskeys([]))
+  }, [open, admin.id])
+
+  const addPasskey = async () => {
+    if (admin.id == null || !window.PublicKeyCredential) {
+      toast.error(t('admins.passkeyUnsupported', { defaultValue: 'Passkeys are not supported in this browser.' }))
+      return
+    }
+    setBusy(true)
+    try {
+      const options: any = await getAdminPasskeyRegistrationOptionsForAdmin(admin.id)
+      options.challenge = fromBase64Url(options.challenge)
+      options.user.id = fromBase64Url(options.user.id)
+      options.excludeCredentials = options.excludeCredentials?.map((item: any) => ({ ...item, id: fromBase64Url(item.id) }))
+      const credential = await navigator.credentials.create({ publicKey: options })
+      if (!credential) throw new Error('No passkey was created')
+      await registerAdminPasskeyForAdmin(admin.id, { credential: serializeCredential(credential), name: passkeyName.trim() || getDefaultPasskeyName() })
+      setPasskeys(await getAdminPasskeysForAdmin(admin.id))
+      toast.success(t('admins.passkeyAdded', { defaultValue: 'Passkey added successfully' }))
+    } catch (error: any) {
+      toast.error(t('admins.passkeyAddFailed', { defaultValue: 'Could not add passkey' }), { description: error?.data?.detail || error?.message })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const removePasskey = async (passkeyId: number) => {
+    if (admin.id == null) return
+    setBusy(true)
+    try {
+      await deleteAdminPasskeyForAdmin(admin.id, passkeyId)
+      setPasskeys(current => current ? current.filter(passkey => passkey.id !== passkeyId) : current)
+      toast.success(t('admins.passkeyRemoved', { defaultValue: 'Passkey removed' }))
+    } catch (error: any) {
+      toast.error(t('admins.passkeyRemoveFailed', { defaultValue: 'Could not remove passkey' }), { description: error?.data?.detail || error?.message })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <>
+      {compact ? (
+        <Button type="button" variant="outline" size="sm" className="w-full justify-start" onClick={() => setOpen(true)}>
+          <KeyRound className="mr-2 h-4 w-4" />
+          {t('admins.manageOwnPasskeys', { defaultValue: 'Manage my passkeys' })}
+        </Button>
+      ) : (
+        <DropdownMenuItem onSelect={event => { event.preventDefault(); setOpen(true) }} className="cursor-pointer">
+          <KeyRound className="mr-2 size-4" />
+          {t('admins.manageOwnPasskeys', { defaultValue: 'Manage my passkeys' })}
+        </DropdownMenuItem>
+      )}
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-h-[calc(100dvh-1rem)] max-w-[calc(100vw-1rem)] overflow-y-auto p-4 sm:max-w-xl sm:p-6">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base sm:text-lg"><KeyRound className="text-primary h-4 w-4" />{t('admins.manageOwnPasskeys', { defaultValue: 'Manage my passkeys' })}</DialogTitle>
+            <DialogDescription>{t('admins.passkeySelfServiceHint', { defaultValue: 'Add multiple devices so you can sign in without a password.' })}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="bg-muted/20 flex flex-col gap-3 rounded-md border p-3">
+              <div className="flex items-center gap-3">
+                <ShieldCheck className="h-5 w-5 shrink-0 text-emerald-500" />
+                <div>
+                  <p className="text-sm font-semibold">{passkeys === null ? '—' : passkeys.length} {t('admins.passkeys', { defaultValue: 'Passkeys' })}</p>
+                  <p className="text-muted-foreground text-xs">{t('admins.passkeyReady', { defaultValue: 'Ready for password-free sign-in' })}</p>
+                </div>
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                <label className="flex min-w-0 flex-1 flex-col gap-1"><span className="text-muted-foreground text-xs">{t('admins.passkeyName', { defaultValue: 'Device name' })}</span><Input value={passkeyName} onChange={event => setPasskeyName(event.target.value)} placeholder={getDefaultPasskeyName()} maxLength={128} autoComplete="off" className="h-9 w-full" /></label>
+                <Button type="button" size="sm" className="w-full sm:w-auto" onClick={addPasskey} disabled={busy || passkeys === null}>
+                  {busy ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
+                  {t('admins.addPasskey', { defaultValue: 'Add passkey' })}
+                </Button>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between"><p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">{t('admins.passkeyDevicesTitle', { defaultValue: 'Sign-in devices' })}</p><span className="text-muted-foreground text-xs">{passkeys?.length ?? '—'}</span></div>
+              {passkeys === null ? <div className="grid gap-2 sm:grid-cols-2"><Skeleton className="h-14" /><Skeleton className="h-14" /></div> : passkeys.length > 0 ? <div className="grid gap-2 sm:grid-cols-2">{passkeys.map((passkey, index) => (
+                <div key={passkey.id} className="bg-muted/20 group flex min-w-0 items-center justify-between gap-3 rounded-md border p-3 transition-colors hover:bg-muted/40">
+                  <div className="flex min-w-0 items-center gap-2.5"><KeyRound className="text-primary h-4 w-4 shrink-0" /><div className="min-w-0"><p className="truncate text-sm font-medium">{passkey.name || `${t('admins.passkey', { defaultValue: 'Passkey' })} ${index + 1}`}</p><p className="text-muted-foreground text-[11px]">{t('admins.passkeyReady', { defaultValue: 'Ready for sign-in' })}</p></div></div>
+                  <Button type="button" variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive h-8 w-8 shrink-0 opacity-70 transition-opacity group-hover:opacity-100" onClick={() => removePasskey(passkey.id)} disabled={busy} aria-label={t('remove', { defaultValue: 'Remove' })}><Trash2 className="h-4 w-4" /></Button>
+                </div>
+              ))}</div> : <div className="text-muted-foreground rounded-md border border-dashed px-4 py-6 text-center text-sm">{t('admins.passkeyEmptyHint', { defaultValue: 'No passkeys have been added yet.' })}</div>}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }

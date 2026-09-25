@@ -3,7 +3,7 @@ from datetime import UTC, datetime as dt
 from sqlalchemy import and_, case, cast, delete, func, or_, select, text, update
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import joinedload, selectinload
+from sqlalchemy.sql import Select
 
 from app.db.models import (
     Admin,
@@ -19,7 +19,17 @@ from app.models.group import BulkGroup
 from app.models.user import BulkUser, BulkUserFilter, BulkUsersProxy
 
 from .general import get_datetime_add_expression
-from .user import load_user_attrs
+from .user import _build_user_select_stmt
+
+
+def _bulk_user_reload_stmt() -> Select:
+    """Reload bulk results with batched relationships and aggregate lifetime usage."""
+    # Bulk SQL bypasses relationship collections; replace any cached memberships.
+    return _build_user_select_stmt(
+        load_admin_role=True,
+        load_usage_logs=False,
+        load_lifetime_used_traffic=True,
+    ).execution_options(populate_existing=True)
 
 
 async def reset_all_users_data_usage(
@@ -190,10 +200,8 @@ async def add_groups_to_users(db: AsyncSession, bulk_model: BulkGroup) -> tuple[
     await db.commit()
 
     # Return users that actually had groups added
-    result = await db.execute(select(User).where(User.id.in_({r["user_id"] for r in new_rows})))
+    result = await db.execute(_bulk_user_reload_stmt().where(User.id.in_({r["user_id"] for r in new_rows})))
     users = result.scalars().all()
-    for user in users:
-        await load_user_attrs(user, load_admin_role=True)
     return users, count_effctive_users
 
 
@@ -225,21 +233,21 @@ async def remove_groups_from_users(
         )
         .distinct()
     )
-    result = await db.execute(select(User).where(User.id.in_(subquery)))
-    users = result.scalars().all()
+    result = await db.execute(select(User.id).where(User.id.in_(subquery)))
+    affected_user_ids = result.scalars().all()
 
-    if not users:
+    if not affected_user_ids:
         return [], count_effctive_users
 
     await db.execute(
         delete(users_groups_association).where(
-            users_groups_association.c.user_id.in_([u.id for u in users]),
+            users_groups_association.c.user_id.in_(affected_user_ids),
             users_groups_association.c.groups_id.in_(bulk_model.group_ids),
         )
     )
     await db.commit()
-    for user in users:
-        await load_user_attrs(user, load_admin_role=True)
+    result = await db.execute(_bulk_user_reload_stmt().where(User.id.in_(affected_user_ids)))
+    users = result.scalars().all()
     return users, count_effctive_users
 
 
@@ -339,10 +347,8 @@ async def update_users_expire(db: AsyncSession, bulk_model: BulkUser) -> tuple[l
 
     # Return the users whose status changed
     if status_changed_user_ids:
-        result = await db.execute(select(User).where(User.id.in_(status_changed_user_ids)))
+        result = await db.execute(_bulk_user_reload_stmt().where(User.id.in_(status_changed_user_ids)))
         users = result.scalars().all()
-        for user in users:
-            await load_user_attrs(user, load_admin_role=True)
         return users, count_effctive_users
     return [], count_effctive_users
 
@@ -397,10 +403,8 @@ async def update_users_datalimit(db: AsyncSession, bulk_model: BulkUser) -> tupl
 
     # Return the users whose status changed
     if status_changed_user_ids:
-        result = await db.execute(select(User).where(User.id.in_(status_changed_user_ids)))
+        result = await db.execute(_bulk_user_reload_stmt().where(User.id.in_(status_changed_user_ids)))
         users = result.scalars().all()
-        for user in users:
-            await load_user_attrs(user, load_admin_role=True)
         return users, count_effctive_users
     return [], count_effctive_users
 
@@ -413,13 +417,13 @@ async def update_users_proxy_settings(
     """
     final_filter = _create_final_filter(bulk_model)
 
-    # First select the users that will be updated
-    select_stmt = select(User).where(final_filter)
+    # Capture target IDs without materializing users before the update.
+    select_stmt = select(User.id).where(final_filter)
     result = await db.execute(select_stmt)
-    users_to_update = result.scalars().all()
-    count_effctive_users = len(users_to_update)
+    updated_user_ids = result.scalars().all()
+    count_effctive_users = len(updated_user_ids)
 
-    if not users_to_update:
+    if not updated_user_ids:
         return [], count_effctive_users
 
     dialect = db.bind.dialect.name
@@ -446,18 +450,8 @@ async def update_users_proxy_settings(
     await db.execute(update_stmt)
     await db.commit()
 
-    # Re-fetch all updated users in a single query instead of N individual refreshes
-    updated_user_ids = [u.id for u in users_to_update]
-    result = await db.execute(
-        select(User)
-        .where(User.id.in_(updated_user_ids))
-        .options(
-            joinedload(User.admin).selectinload(Admin.role),
-            joinedload(User.next_plan),
-            selectinload(User.usage_logs),
-            selectinload(User.groups),
-        )
-    )
+    # Reload the captured targets and preserve their original selection order.
+    result = await db.execute(_bulk_user_reload_stmt().where(User.id.in_(updated_user_ids)))
     refreshed_users = result.scalars().all()
     refreshed_users_map = {user.id: user for user in refreshed_users}
     ordered_refreshed_users = [refreshed_users_map[uid] for uid in updated_user_ids if uid in refreshed_users_map]

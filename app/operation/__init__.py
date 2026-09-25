@@ -19,7 +19,7 @@ from app.db.crud import (
 )
 from app.db.crud.admin import get_admin_by_id
 from app.db.crud.group import get_groups_by_ids
-from app.db.crud.user import get_user_by_id
+from app.db.crud.user import get_user_by_id, get_wireguard_subscription_user
 from app.db.models import Admin as DBAdmin, ClientTemplate, CoreConfig, Group, Node, ProxyHost, User, UserTemplate
 from app.models.admin import AdminDetails
 from app.models.group import BulkGroup
@@ -139,15 +139,46 @@ class BaseOperation:
             await self.raise_error(message="Host not found", code=404)
         return db_host
 
-    async def get_validated_sub(self, db: AsyncSession, token: str, *, load_admin_role: bool = False) -> User:
+    async def get_validated_sub(
+        self,
+        db: AsyncSession,
+        token: str,
+        *,
+        load_admin: bool = True,
+        load_admin_role: bool = False,
+        load_next_plan: bool = True,
+        load_usage_logs: bool = True,
+        load_groups: bool = True,
+        load_lifetime_used_traffic: bool = False,
+        wireguard_fast: bool = False,
+    ) -> User:
         sub = await get_subscription_payload(token)
 
         db_user = None
         if sub:
-            if sub.get("user_id"):
-                db_user = await get_user_by_id(db, sub["user_id"], load_admin_role=load_admin_role)
+            load_kwargs = {
+                "load_admin": load_admin,
+                "load_admin_role": load_admin_role,
+                "load_next_plan": load_next_plan,
+                "load_usage_logs": load_usage_logs,
+                "load_groups": load_groups,
+                "load_lifetime_used_traffic": load_lifetime_used_traffic,
+            }
+            if sub.get("user_id") and wireguard_fast:
+                db_user = await get_wireguard_subscription_user(
+                    db, sub["user_id"], load_admin_role=load_admin_role
+                )
+            elif sub.get("user_id"):
+                db_user = await get_user_by_id(db, sub["user_id"], **load_kwargs)
             elif sub.get("username"):
-                db_user = await get_user(db, sub["username"], load_admin_role=load_admin_role)
+                if wireguard_fast:
+                    load_kwargs.update(
+                        load_next_plan=False,
+                        load_usage_logs=False,
+                        load_groups=False,
+                        load_lifetime_used_traffic=False,
+                    )
+                db_user = await get_user(db, sub["username"], **load_kwargs)
 
         if (
             not db_user

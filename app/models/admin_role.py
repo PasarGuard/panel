@@ -61,6 +61,7 @@ class UsersPermissions(CRUDPermissions):
 
 class AdminsPermissions(CRUDPermissions):
     reset_usage: RoleActionValue | None = None
+    passkeys: RoleActionValue | None = None
 
 
 class NodesPermissions(CRUDPermissions):
