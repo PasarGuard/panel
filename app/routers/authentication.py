@@ -192,6 +192,7 @@ async def _get_admin_from_request_credentials(
     token: str | None,
     *,
     with_metrics: bool = False,
+    allow_api_key: bool = True,
 ) -> AdminDetails | None:
     admin: AdminDetails | None = None
 
@@ -206,7 +207,7 @@ async def _get_admin_from_request_credentials(
                 raise
             admin = None
 
-    if not admin:
+    if not admin and allow_api_key:
         api_key = _extract_api_key(request)
         if api_key:
             admin = await get_admin_from_api_key(db, api_key, with_metrics=with_metrics)
@@ -218,14 +219,24 @@ async def get_current(request: Request, db: AsyncSession = Depends(get_db), toke
     return await get_current_for_request(request, db, token)
 
 
+async def get_current_session(
+    request: Request, db: AsyncSession = Depends(get_db), token: str | None = Depends(oauth2_scheme)
+):
+    """Require an admin session rather than an API key for credential enrollment."""
+    return await get_current_for_request(request, db, token, allow_api_key=False)
+
+
 async def get_current_for_request(
     request: Request,
     db: AsyncSession,
     token: str | None,
     *,
     with_metrics: bool = False,
+    allow_api_key: bool = True,
 ) -> AdminDetails:
-    admin = await _get_admin_from_request_credentials(request, db, token, with_metrics=with_metrics)
+    admin = await _get_admin_from_request_credentials(
+        request, db, token, with_metrics=with_metrics, allow_api_key=allow_api_key
+    )
 
     if not admin:
         raise HTTPException(
