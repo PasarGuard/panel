@@ -14,7 +14,7 @@ from app import scheduler
 from app.db import GetDB
 from app.db.base import engine
 from app.jobs._usage_queries import build_node_usage_upsert, build_node_user_usage_upsert
-from app.jobs._usage_storage import Receipt, UsageReceiptConflict, UsageStore
+from app.jobs._usage_storage import Receipt, UsageStore
 from app.node import node_manager
 from app.operation.admin_sync import enforce_admin_limits_now
 from app.utils.logger import get_logger
@@ -254,7 +254,7 @@ def _usage_job_hint(interval_env: str, interval: int) -> str:
 
 
 async def _await_usage_job(job_name: str, impl, interval: int, interval_env: str) -> None:
-    # No global wait_for kill: get_stats uses reset=True, so cancelling mid-run drops traffic.
+    # Let independent stream tasks finish their durable transaction on cancellation.
     start = time.monotonic()
     try:
         await impl()
@@ -292,25 +292,44 @@ async def _node_usage_coefficient(node: PasarGuardNode, node_id: int) -> float:
 
 
 async def _collect_node_user_usage(node: PasarGuardNode, node_id: int) -> tuple[int, float, list]:
-    # Resolve all metadata before the destructive stats RPC.
+    # Resolve accounting metadata before collecting a node-owned receipt.
     coeff = await _node_usage_coefficient(node, node_id)
     stats = [] if _stopping else await get_users_stats(node, node_id)
     return node_id, coeff, stats
+
+
+class CollectedUsage(list):
+    """Folded stats retaining transport identity without changing the list API."""
+
+    def __init__(self, stats, sample):
+        super().__init__(stats)
+        self.receipt_id = sample.receipt_id
+        self.collected_at = dt.fromtimestamp(sample.collected_at / 1000, UTC)
+
+
+async def _collect_receipt(node, stat_type, timeout):
+    collect = getattr(node, "collect_usage", None)
+    acknowledge = getattr(node, "acknowledge_usage", None)
+    if not callable(collect) or not callable(acknowledge):
+        raise TypeError("Upgrade Node Bridge and node: durable usage receipt protocol is required")
+    sample = await collect(stat_type=stat_type, timeout=timeout)
+    if sample is None or (sample.stats and not sample.receipt_id):
+        raise ValueError("Node returned usage without a durable receipt")
+    return sample
 
 
 async def get_users_stats(node: PasarGuardNode, node_id: int | None = None):
     """Fetch and fold user stats from one node. Dict folding stays on the event loop."""
     node_label = node_id if node_id is not None else getattr(node, "node_id", "unknown")
     try:
-        # The stream owns its RPC slot until this response is safely staged.
-        stats_response = await node.get_stats(stat_type=StatType.UsersStat, reset=True, timeout=30)
+        stats_response = await _collect_receipt(node, StatType.UsersStat, 30)
         validated_params, invalid_uids = _process_users_stats_response(stats_response)
 
         if invalid_uids:
             for uid in invalid_uids:
                 logger.warning("Skipping invalid UID: %s", uid)
 
-        return validated_params
+        return CollectedUsage(validated_params, stats_response)
     except NodeAPIError as e:
         logger.error("Failed to get users stats from node %s, error: %s", node_label, e.detail)
         raise
@@ -337,8 +356,8 @@ async def get_outbounds_stats(node: PasarGuardNode, node_id: int | None = None):
     node_label = node_id if node_id is not None else getattr(node, "node_id", "unknown")
     try:
         # Caller holds API_SEM so node RPCs stay bounded.
-        stats_response = await node.get_stats(stat_type=StatType.Outbounds, reset=True, timeout=10)
-        return _process_outbounds_stats_response(stats_response)
+        stats_response = await _collect_receipt(node, StatType.Outbounds, 30)
+        return CollectedUsage(_process_outbounds_stats_response(stats_response), stats_response)
     except NodeAPIError as e:
         logger.error("Failed to get outbounds stats from node %s, error: %s", node_label, e.detail)
         raise
@@ -347,9 +366,8 @@ async def get_outbounds_stats(node: PasarGuardNode, node_id: int | None = None):
         raise
 
 
-# One in-flight sample per node/stream. Failed staging stops further destructive
-# reads for that stream unless a permanent conflict is reported and discarded;
-# durable receipts are replayed before new samples.
+# One in-flight sample per node/stream. The node retains its durable receipt
+# until ACK; failed staging is also retried locally before another collection.
 _tasks: dict[tuple[str, int], asyncio.Task] = {}
 _unstaged: dict[tuple[str, int], Receipt] = {}
 _stopping = False
@@ -377,33 +395,11 @@ async def _enforce_limits():
 
 
 async def _stage_unstaged(store: UsageStore, key: tuple[str, int]):
-    """Retry transient staging failures, but retire an irreconcilable receipt.
-
-    A single-slot tombstone cannot distinguish an unstaged sample from one
-    already applied and superseded by another leader. Rebasing could charge
-    twice; report the potential loss and unblock the stream instead.
-    """
+    """Keep the exact receipt until its independent ledger insertion commits."""
     receipt = _unstaged[key]
-    try:
-        await store.stage(receipt)
-    except UsageReceiptConflict:
-        stats = receipt.payload["stats"]
-        totals = {field: sum(stat.get(field, 0) for stat in stats) for field in ("value", "up", "down")}
-        logger.error(
-            "Discarding conflicting usage receipt %s for %s/%s (previous=%s, collected_at=%s, "
-            "coefficient=%s, rows=%s, raw_totals=%s): accounting outcome unknown; "
-            "traffic may be lost; not rebasing to avoid double charging",
-            receipt.receipt_id,
-            receipt.kind,
-            receipt.node_id,
-            receipt.previous_id,
-            receipt.payload["collected_at"],
-            receipt.payload["coefficient"],
-            len(stats),
-            totals,
-        )
-    # Other failures propagate and retain the sample, blocking further resets.
-    del _unstaged[key]
+    await store.stage(receipt)
+    if _unstaged.get(key) is receipt:
+        del _unstaged[key]
 
 
 async def _process_stream(kind: str, node_id: int, node):
@@ -418,23 +414,37 @@ async def _process_stream(kind: str, node_id: int, node):
             accounting_attempted = await store.apply(kind, node_id)
             if node is None or _stopping:
                 return
-            previous = await store.prepare(kind, node_id)
+            await store.prepare(kind, node_id)
             if _stopping:
                 return
             coefficient = 1.0
+            stat_type = StatType.UsersStat if kind == "users" else StatType.Outbounds
             if kind == "users":
                 _, coefficient, stats = await _collect_node_user_usage(node, node_id)
             else:
                 stats = await get_outbounds_stats(node, node_id)
-            if not stats:
+            remote_id = getattr(stats, "receipt_id", None)
+            if not stats and not remote_id:
                 return
             receipt = Receipt.create(
-                kind, node_id, previous, stats, not usage_settings.disable_recording_node_usage, coefficient
+                kind,
+                node_id,
+                "",
+                stats,
+                not usage_settings.disable_recording_node_usage,
+                coefficient,
+                receipt_id=remote_id,
+                collected_at=getattr(stats, "collected_at", None),
             )
             _unstaged[key] = receipt
             await _stage_unstaged(store, key)
             accounting_attempted = True
             await store.apply(kind, node_id)
+            # Even if accounting has a larger backlog, staging committed first.
+            # An ACK timeout is safe: the node replays this ID, and the ledger
+            # ignores both pending duplicates and already-applied receipts.
+            if remote_id:
+                await node.acknowledge_usage(stat_type=stat_type, receipt_id=receipt.receipt_id, timeout=10)
     except Exception:
         logger.exception("Usage stream %s/%s failed; pending samples will be retried before new reads", kind, node_id)
     finally:
@@ -473,7 +483,7 @@ async def _dispatch(kind: str, *, wait: bool):
             task.add_done_callback(lambda completed, key=key: _stream_done(key, completed))
         active.append(task)
     if wait and active:
-        # A cancelled scheduler caller must not cancel a destructive read.
+        # Let stream tasks finish staging even if their scheduler caller exits.
         await asyncio.shield(asyncio.gather(*active))
     if kind == "users":
         enforcement = _request_enforcement()

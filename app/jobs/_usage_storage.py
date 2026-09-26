@@ -1,14 +1,9 @@
-"""Durable receipt inbox and atomic accounting, independent of node RPCs.
-
-The legacy node API resets counters before returning. This inbox guarantees
-replay only after staging succeeds; it cannot repair a lost RPC response or a
-process crash between the reset and staging. Never retry a destructive RPC.
-"""
+"""Durable receipt ledger and atomic accounting, independent of node RPCs."""
 
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from sqlalchemy import bindparam, case, select, update
 from sqlalchemy.dialects.mysql import insert as mysql_insert
@@ -33,24 +28,23 @@ class Receipt:
     payload: dict
 
     @classmethod
-    def create(cls, kind, node_id, previous_id, stats, history, coefficient=1.0):
+    def create(cls, kind, node_id, previous_id, stats, history, coefficient=1.0, *, receipt_id=None, collected_at=None):
+        # Node-generated IDs survive transport retries and leadership changes.
+        if receipt_id is not None:
+            receipt_id = str(UUID(receipt_id))
         return cls(
             kind,
             node_id,
             previous_id,
-            str(uuid4()),
+            receipt_id or str(uuid4()),
             {
                 "version": 1,
-                "collected_at": datetime.now(UTC).isoformat(),
+                "collected_at": (collected_at or datetime.now(UTC)).isoformat(),
                 "stats": stats,
                 "history": history,
                 "coefficient": coefficient,
             },
         )
-
-
-class UsageReceiptConflict(RuntimeError):
-    """The slot advanced; this receipt's accounting outcome is no longer known."""
 
 
 class UsageStore:
@@ -65,53 +59,67 @@ class UsageStore:
     async def pending_nodes(self, kind):
         async def read(conn):
             result = await conn.execute(
-                select(self.table.c.node_id).where(self.table.c.kind == kind, self.table.c.payload.is_not(None))
+                select(self.table.c.node_id)
+                .where(self.table.c.kind == kind, self.table.c.processed.is_(False))
+                .distinct()
             )
             return list(result.scalars())
 
         return await self.transaction(read)
 
     async def prepare(self, kind, node_id):
-        """Verify storage is available before resetting any remote counter."""
+        """Check storage before polling; every receipt now owns an independent row."""
 
         async def prepare(conn):
-            factory = {"mysql": mysql_insert, "postgresql": pg_insert, "sqlite": sqlite_insert}[self.dialect]
-            stmt = factory(self.table).values(node_id=node_id, kind=kind, receipt_id="", payload=None)
-            if self.dialect == "mysql":
-                stmt = stmt.on_duplicate_key_update(receipt_id=self.table.c.receipt_id)
-            else:
-                stmt = stmt.on_conflict_do_nothing(index_elements=["node_id", "kind"])
-            await conn.execute(stmt)
-            row = (
-                await conn.execute(select(self.table.c.receipt_id, self.table.c.payload).where(self.key(kind, node_id)))
-            ).one()
-            if row.payload is not None:
-                raise RuntimeError("Pending usage must be replayed before collecting another sample")
-            return row.receipt_id
+            await conn.execute(select(self.table.c.receipt_id).where(self.key(kind, node_id)).limit(1))
+            return ""
 
         return await self.transaction(prepare)
 
     async def stage(self, receipt):
-        """Persist or recognize a receipt; reject superseded IDs without rebasing."""
+        """Insert once without overwriting a pending payload or applied tombstone."""
 
         async def stage(conn):
-            key = self.key(receipt.kind, receipt.node_id)
-            # Compare-and-swap fences a stale producer and makes an ambiguous
-            # staging commit safe to retry. Never overwrite a pending receipt.
-            await conn.execute(
-                update(self.table)
-                .where(key, self.table.c.receipt_id == receipt.previous_id, self.table.c.payload.is_(None))
-                .values(receipt_id=receipt.receipt_id, payload=receipt.payload)
+            factory = {"mysql": mysql_insert, "postgresql": pg_insert, "sqlite": sqlite_insert}[self.dialect]
+            stmt = factory(self.table).values(
+                node_id=receipt.node_id,
+                kind=receipt.kind,
+                receipt_id=receipt.receipt_id,
+                payload=receipt.payload,
+                processed=False,
             )
-            actual = (await conn.execute(select(self.table.c.receipt_id).where(key))).scalar_one()
-            if actual != receipt.receipt_id:
-                raise UsageReceiptConflict("Usage receipt conflict: another collector advanced this stream")
+            if self.dialect == "mysql":
+                stmt = stmt.on_duplicate_key_update(receipt_id=self.table.c.receipt_id)
+            else:
+                stmt = stmt.on_conflict_do_nothing(index_elements=["node_id", "kind", "receipt_id"])
+            await conn.execute(stmt)
 
         await self.transaction(stage)
 
     async def apply(self, kind, node_id):
+        # Bound recovery work per tick; independent receipts never block staging
+        # newer ones. The next tick resumes any remaining durable backlog.
+        changed = False
+        for _ in range(100):
+            if not await self._apply_one(kind, node_id):
+                break
+            changed = True
+        return changed
+
+    async def _apply_one(self, kind, node_id):
         async def apply(conn):
             key = self.key(kind, node_id)
+            receipt_id = (
+                await conn.execute(
+                    select(self.table.c.receipt_id)
+                    .where(key, self.table.c.processed.is_(False))
+                    .order_by(self.table.c.receipt_id)
+                    .limit(1)
+                )
+            ).scalar_one_or_none()
+            if receipt_id is None:
+                return False
+            key = key & (self.table.c.receipt_id == receipt_id)
             # An UPDATE acquires a write lock on SQLite too, where FOR UPDATE
             # alone would allow two consumers to read the same pending payload.
             await conn.execute(update(self.table).where(key).values(receipt_id=self.table.c.receipt_id))
@@ -134,7 +142,7 @@ class UsageStore:
                 raise ValueError("Unknown usage stream")
             # Keep the receipt ID as a tombstone, releasing only the large payload.
             # This commit includes ALL accounting and history writes.
-            await conn.execute(update(self.table).where(key).values(payload=None))
+            await conn.execute(update(self.table).where(key).values(payload=None, processed=True))
             return True
 
         return await self.transaction(apply)
