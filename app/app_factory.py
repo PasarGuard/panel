@@ -242,6 +242,10 @@ def _register_scheduler_hooks():
     reclaim_task: dict[str, asyncio.Task | None] = {"task": None}
 
     async def _resume_jobs_on_leadership_gained():
+        if runtime_settings.role.runs_node:
+            from app.jobs.record_usages import resume_usage_recording
+
+            resume_usage_recording()
         if scheduler.state == STATE_PAUSED:
             scheduler.resume()
         elif not scheduler.running:
@@ -279,19 +283,27 @@ def _register_scheduler_hooks():
             await task
 
     async def _pause_jobs_on_leadership_lost():
+        if scheduler.running:
+            scheduler.pause()
+        if runtime_settings.role.runs_node:
+            from app.jobs.record_usages import drain_usage_recording
+
+            await drain_usage_recording()
         if started_notifications["value"]:
             from app.notification.client import stop_notification_dispatcher
 
             await stop_notification_dispatcher()
             started_notifications["value"] = False
-        if scheduler.running:
-            scheduler.pause()
         _ensure_reclaim_task()
 
     set_on_leadership_lost(_pause_jobs_on_leadership_lost)
 
     async def _start_scheduler_if_leader():
         if await start_job_leader():
+            if runtime_settings.role.runs_node:
+                from app.jobs.record_usages import resume_usage_recording
+
+                resume_usage_recording()
             scheduler.start()
         elif needs_job_leader():
             _ensure_reclaim_task()
@@ -317,6 +329,12 @@ def _register_scheduler_hooks():
 
     async def _stop_scheduler_and_leader():
         await _cancel_reclaim_task()
+        if scheduler.running:
+            scheduler.pause()
+        if runtime_settings.role.runs_node:
+            from app.jobs.record_usages import drain_usage_recording
+
+            await drain_usage_recording()
         if scheduler.running:
             scheduler.shutdown()
         await stop_job_leader()

@@ -1039,3 +1039,17 @@ class TempKey(Base):
     expires_at: Mapped[dt] = mapped_column(DateTime(timezone=True))
     used_at: Mapped[dt | None] = mapped_column(DateTime(timezone=True), default=None)
     used_by_ip: Mapped[str | None] = mapped_column(String(45), default=None)
+
+
+class UsageReceipt(Base):
+    """One durable inbox slot per node/stream, retaining its last receipt ID.
+
+    No node FK: removing a node must not discard unaccounted user traffic.
+    The last ID fences retries after an ambiguous commit without an unbounded ledger.
+    """
+
+    __tablename__ = "usage_receipts"
+    node_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    kind: Mapped[str] = mapped_column(String(16), primary_key=True)
+    receipt_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    payload: Mapped[dict | None] = mapped_column(JSON(none_as_null=True), nullable=True)
