@@ -195,9 +195,13 @@ class HostOperation(BaseOperation):
 
         for db_host in hosts_to_update:
             await db.refresh(db_host)
+
+        if hosts_to_update:
+            await host_manager.add_hosts(db, hosts_to_update)
+
+        for db_host in hosts_to_update:
             host = BaseHost.model_validate(db_host)
             asyncio.create_task(notification.modify_host(host, admin.username))
-            await host_manager.add_host(db, db_host)
             logger.info(
                 f'Host "{db_host.id}" bulk {"disabled" if is_disabled else "enabled"} by admin "{admin.username}"'
             )
