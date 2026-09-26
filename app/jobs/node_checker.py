@@ -327,6 +327,9 @@ async def initialize_nodes():
     if not runtime_settings.role.runs_node:
         return
 
+    from app.jobs.record_usages import validate_usage_bridge
+
+    validate_usage_bridge()
     await ensure_bridge_memory()
 
     startup_log = logger.debug if server_settings.workers > 1 else logger.info

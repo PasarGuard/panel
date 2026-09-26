@@ -6,13 +6,13 @@ from typing import Any
 from sqlalchemy import (
     JSON,
     BigInteger,
+    Boolean,
     Column,
     DateTime,
     Enum as SQLEnum,
     Float,
     ForeignKey,
     Index,
-    LargeBinary,
     String,
     Table,
     Text,
@@ -36,8 +36,8 @@ from app.db.compiles_types import (
     EnumArray,
     SqliteCompatibleBigInteger,
     StringArray,
-    WebAuthnChallenge,
     WebAuthnBinary,
+    WebAuthnChallenge,
     WebAuthnCredentialId,
 )
 
@@ -97,7 +97,7 @@ class Admin(Base, CreatedAtUTCMixin):
     api_keys: Mapped[list[APIKey]] = relationship(
         back_populates="admin", init=False, default_factory=list, cascade="all, delete-orphan"
     )
-    passkeys: Mapped[list["AdminPasskey"]] = relationship(
+    passkeys: Mapped[list[AdminPasskey]] = relationship(
         back_populates="admin", init=False, default_factory=list, cascade="all, delete-orphan"
     )
 
@@ -1039,3 +1039,16 @@ class TempKey(Base):
     expires_at: Mapped[dt] = mapped_column(DateTime(timezone=True))
     used_at: Mapped[dt | None] = mapped_column(DateTime(timezone=True), default=None)
     used_by_ip: Mapped[str | None] = mapped_column(String(45), default=None)
+
+
+class UsageReceipt(Base):
+    """Independent receipts; applied IDs remain as permanent deduplication keys."""
+
+    __tablename__ = "usage_receipt_ledger"
+    __table_args__ = (Index("ix_usage_ledger_pending", "kind", "processed", "node_id"),)
+    # No node FK: removing a node must not discard unaccounted user traffic.
+    node_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    kind: Mapped[str] = mapped_column(String(16), primary_key=True)
+    receipt_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    processed: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="0")
+    payload: Mapped[dict | None] = mapped_column(JSON(none_as_null=True), nullable=True)
