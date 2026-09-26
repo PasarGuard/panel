@@ -14,7 +14,7 @@ from app import scheduler
 from app.db import GetDB
 from app.db.base import engine
 from app.jobs._usage_queries import build_node_usage_upsert, build_node_user_usage_upsert
-from app.jobs._usage_storage import Receipt, UsageStore
+from app.jobs._usage_storage import Receipt, UsageReceiptConflict, UsageStore
 from app.node import node_manager
 from app.operation.admin_sync import enforce_admin_limits_now
 from app.utils.logger import get_logger
@@ -348,7 +348,8 @@ async def get_outbounds_stats(node: PasarGuardNode, node_id: int | None = None):
 
 
 # One in-flight sample per node/stream. Failed staging stops further destructive
-# reads for that stream; durable receipts are replayed before new samples.
+# reads for that stream unless a permanent conflict is reported and discarded;
+# durable receipts are replayed before new samples.
 _tasks: dict[tuple[str, int], asyncio.Task] = {}
 _unstaged: dict[tuple[str, int], Receipt] = {}
 _stopping = False
@@ -375,6 +376,36 @@ async def _enforce_limits():
             return
 
 
+async def _stage_unstaged(store: UsageStore, key: tuple[str, int]):
+    """Retry transient staging failures, but retire an irreconcilable receipt.
+
+    A single-slot tombstone cannot distinguish an unstaged sample from one
+    already applied and superseded by another leader. Rebasing could charge
+    twice; report the potential loss and unblock the stream instead.
+    """
+    receipt = _unstaged[key]
+    try:
+        await store.stage(receipt)
+    except UsageReceiptConflict:
+        stats = receipt.payload["stats"]
+        totals = {field: sum(stat.get(field, 0) for stat in stats) for field in ("value", "up", "down")}
+        logger.error(
+            "Discarding conflicting usage receipt %s for %s/%s (previous=%s, collected_at=%s, "
+            "coefficient=%s, rows=%s, raw_totals=%s): accounting outcome unknown; "
+            "traffic may be lost; not rebasing to avoid double charging",
+            receipt.receipt_id,
+            receipt.kind,
+            receipt.node_id,
+            receipt.previous_id,
+            receipt.payload["collected_at"],
+            receipt.payload["coefficient"],
+            len(stats),
+            totals,
+        )
+    # Other failures propagate and retain the sample, blocking further resets.
+    del _unstaged[key]
+
+
 async def _process_stream(kind: str, node_id: int, node):
     key = (kind, node_id)
     start = time.monotonic()
@@ -383,8 +414,7 @@ async def _process_stream(kind: str, node_id: int, node):
     try:
         async with API_SEM:
             if key in _unstaged:
-                await store.stage(_unstaged[key])
-                del _unstaged[key]
+                await _stage_unstaged(store, key)
             accounting_attempted = await store.apply(kind, node_id)
             if node is None or _stopping:
                 return
@@ -402,8 +432,7 @@ async def _process_stream(kind: str, node_id: int, node):
                 kind, node_id, previous, stats, not usage_settings.disable_recording_node_usage, coefficient
             )
             _unstaged[key] = receipt
-            await store.stage(receipt)
-            del _unstaged[key]
+            await _stage_unstaged(store, key)
             accounting_attempted = True
             await store.apply(kind, node_id)
     except Exception:
@@ -530,8 +559,7 @@ async def drain_usage_recording():
     store = UsageStore(_transaction, await get_dialect())
     for key, receipt in list(_unstaged.items()):
         try:
-            await store.stage(receipt)
-            del _unstaged[key]
+            await _stage_unstaged(store, key)
         except Exception:
             logger.exception("Unable to persist usage receipt %s during shutdown", receipt.receipt_id)
 

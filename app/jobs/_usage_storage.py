@@ -49,6 +49,10 @@ class Receipt:
         )
 
 
+class UsageReceiptConflict(RuntimeError):
+    """The slot advanced; this receipt's accounting outcome is no longer known."""
+
+
 class UsageStore:
     def __init__(self, transaction, dialect):
         self.transaction = transaction
@@ -88,6 +92,8 @@ class UsageStore:
         return await self.transaction(prepare)
 
     async def stage(self, receipt):
+        """Persist or recognize a receipt; reject superseded IDs without rebasing."""
+
         async def stage(conn):
             key = self.key(receipt.kind, receipt.node_id)
             # Compare-and-swap fences a stale producer and makes an ambiguous
@@ -99,7 +105,7 @@ class UsageStore:
             )
             actual = (await conn.execute(select(self.table.c.receipt_id).where(key))).scalar_one()
             if actual != receipt.receipt_id:
-                raise RuntimeError("Usage receipt conflict: another collector advanced this stream")
+                raise UsageReceiptConflict("Usage receipt conflict: another collector advanced this stream")
 
         await self.transaction(stage)
 
