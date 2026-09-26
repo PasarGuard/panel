@@ -25,6 +25,8 @@ logger = get_logger("record-usages")
 # SQLite has one writer; server databases allow a small bounded write pool.
 _write_gates = WeakKeyDictionary()
 API_SEM = asyncio.Semaphore(10)  # Max 10 concurrent node stats RPCs
+# Unreachable cores must not occupy the healthy nodes' collection slots.
+RECOVERY_API_SEM = asyncio.Semaphore(2)
 USAGE_COEFFICIENT_TTL_S = 60.0
 NODE_USER_USAGE_BATCH_SIZE_BY_DIALECT = {
     "mysql": 1_000,
@@ -318,6 +320,20 @@ async def _collect_receipt(node, stat_type, timeout):
     return sample
 
 
+def validate_usage_bridge():
+    """Reject an incompatible installed Bridge before node startup begins."""
+    from PasarGuardNodeBridge import GrpcNode, RestNode
+
+    for client in (GrpcNode, RestNode):
+        for method in ("collect_usage", "acknowledge_usage"):
+            implementation = getattr(client, method, None)
+            if not callable(implementation) or implementation is getattr(PasarGuardNode, method, None):
+                raise RuntimeError(
+                    "Upgrade pasarguard-node-bridge before starting this panel: "
+                    f"{client.__module__}.{client.__name__} has no durable usage {method} implementation"
+                )
+
+
 async def get_users_stats(node: PasarGuardNode, node_id: int | None = None):
     """Fetch and fold user stats from one node. Dict folding stays on the event loop."""
     node_label = node_id if node_id is not None else getattr(node, "node_id", "unknown")
@@ -402,18 +418,19 @@ async def _stage_unstaged(store: UsageStore, key: tuple[str, int]):
         del _unstaged[key]
 
 
-async def _process_stream(kind: str, node_id: int, node):
+async def _process_stream(kind: str, node_id: int, node, *, recovering: bool = False):
     key = (kind, node_id)
     start = time.monotonic()
     accounting_attempted = False
     store = UsageStore(_transaction, await get_dialect())
     try:
-        async with API_SEM:
-            if key in _unstaged:
-                await _stage_unstaged(store, key)
-            accounting_attempted = await store.apply(kind, node_id)
-            if node is None or _stopping:
-                return
+        # Local recovery needs no RPC slot, even while every remote call stalls.
+        if key in _unstaged:
+            await _stage_unstaged(store, key)
+        accounting_attempted = await store.apply(kind, node_id)
+        if node is None or _stopping:
+            return
+        async with RECOVERY_API_SEM if recovering else API_SEM:
             await store.prepare(kind, node_id)
             if _stopping:
                 return
@@ -466,18 +483,28 @@ async def _dispatch(kind: str, *, wait: bool):
     except Exception:
         logger.exception("Node discovery failed; recovering persisted usage without polling nodes")
         nodes = {}
+    broken = {}
+    try:
+        # A failed core health check does not invalidate receipts already on disk.
+        # Do not contact INVALID or deliberately disconnected nodes.
+        broken = dict(await node_manager.get_broken_nodes())
+    except Exception:
+        logger.exception("Broken-node discovery failed; healthy collection remains available")
     store = UsageStore(_transaction, await get_dialect())
     pending = await store.pending_nodes(kind)
     if _stopping:
         return
-    node_ids = set(nodes) | set(pending) | {nid for stream, nid in _unstaged if stream == kind}
+    node_ids = set(nodes) | set(broken) | set(pending) | {nid for stream, nid in _unstaged if stream == kind}
     active = []
     for node_id in sorted(node_ids):
         key = (kind, node_id)
         task = _tasks.get(key)
         if task is None or task.done():
             task = asyncio.create_task(
-                _process_stream(kind, node_id, nodes.get(node_id)), name=f"usage-{kind}-{node_id}"
+                _process_stream(
+                    kind, node_id, nodes.get(node_id) or broken.get(node_id), recovering=node_id not in nodes
+                ),
+                name=f"usage-{kind}-{node_id}",
             )
             _tasks[key] = task
             task.add_done_callback(lambda completed, key=key: _stream_done(key, completed))
