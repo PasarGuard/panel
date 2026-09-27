@@ -14,6 +14,7 @@ import { inferParityFieldMode, stringifyJsonFormRecord, TLS_CURVE_PREFERENCE_OPT
 import { cn } from '@/lib/utils'
 import { Plus, Trash2, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { useState } from 'react'
 
 /** Tags available from the current profile — used to render pickers for routing / balancer parity fields. */
 export type XrayProfileTagOptions = {
@@ -231,8 +232,40 @@ const ALPN_OPTIONS = ['h3', 'h2', 'http/1.1'] as const
 const TLS_CIPHER_SUITES_RECOMMENDED =
   'TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256:TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256:TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384:TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384:TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256:TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256'
 
+function normalizedJsonFormValue(value: string): string {
+  const parsed = parseJsonObject(value)
+  return parsed ? stringifyJsonFormRecord(parsed) : value.trim()
+}
+
+function XrayParityDraftFormControl(props: XrayParityFormControlProps) {
+  const [draft, setDraft] = useState({ source: props.value, value: props.value })
+  let value = draft.value
+  if (props.value !== draft.source) {
+    // Parent patches prune empty values. Keep unfinished rows when that patch is echoed back.
+    value = normalizedJsonFormValue(props.value) === normalizedJsonFormValue(draft.value) ? draft.value : props.value
+    setDraft({ source: props.value, value })
+  }
+  return (
+    <XrayParityFormControlContent
+      {...props}
+      value={value}
+      onChange={next => {
+        setDraft({ source: props.value, value: next })
+        props.onChange(next)
+      }}
+    />
+  )
+}
+
 /** Renders a single parity metadata field (scalar input, multiline list, or JSON). */
-export function XrayParityFormControl({ field, value, onChange, disabled, className, renderBooleanAsToggleRow = false, profileTagOptions, placeholder }: XrayParityFormControlProps) {
+export function XrayParityFormControl(props: XrayParityFormControlProps) {
+  if (isStringMapField(props.field) || isWebhookField(props.field)) {
+    return <XrayParityDraftFormControl key={`${props.field.go}:${props.field.json}`} {...props} />
+  }
+  return <XrayParityFormControlContent {...props} />
+}
+
+function XrayParityFormControlContent({ field, value, onChange, disabled, className, renderBooleanAsToggleRow = false, profileTagOptions, placeholder }: XrayParityFormControlProps) {
   const { t } = useTranslation()
   const key = normalizeFieldName(field)
 
@@ -351,7 +384,9 @@ export function XrayParityFormControl({ field, value, onChange, disabled, classN
         onChange(stringifyStringMapEntries(entries.filter((_, i) => i !== index)))
       }
       const addEntry = () => {
-        const nextKey = `header_${entries.length + 1}`
+        let suffix = entries.length + 1
+        while (entries.some(entry => entry.key === `header_${suffix}`)) suffix += 1
+        const nextKey = `header_${suffix}`
         onChange(stringifyStringMapEntries([...entries, { key: nextKey, value: '' }]))
       }
 
@@ -359,7 +394,7 @@ export function XrayParityFormControl({ field, value, onChange, disabled, classN
         <FormControl>
           <div className={cn('flex flex-col gap-2', className)}>
             <div className="flex items-center justify-end">
-              <Button type="button" variant="outline" size="icon" className="size-7" onClick={addEntry}>
+              <Button type="button" variant="outline" size="icon" className="size-7" onClick={addEntry} disabled={disabled}>
                 <Plus />
               </Button>
             </div>
@@ -719,7 +754,7 @@ export function XrayParityFormControl({ field, value, onChange, disabled, classN
         onChange('')
         return
       }
-      onChange(stringifyJsonFormRecord(cleaned))
+      onChange(JSON.stringify(cleaned, null, 2))
     }
 
     const setUrl = (next: string) => writeNext({ ...parsed, url: next })
@@ -756,7 +791,9 @@ export function XrayParityFormControl({ field, value, onChange, disabled, classN
       writeHeaders(headerEntries.filter((_, i) => i !== index))
     }
     const addHeader = () => {
-      writeHeaders([...headerEntries, { key: `Header_${headerEntries.length + 1}`, value: '' }])
+      let suffix = headerEntries.length + 1
+      while (headerEntries.some(entry => entry.key === `Header_${suffix}`)) suffix += 1
+      writeHeaders([...headerEntries, { key: `Header_${suffix}`, value: '' }])
     }
 
     return (
