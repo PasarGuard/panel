@@ -162,7 +162,8 @@ class NodeOperation(BaseOperation):
         xray_version: str = "",
         node_version: str = "",
         send_notification: bool = True,
-    ):
+        expected_status: NodeStatus | None = None,
+    ) -> bool:
         """
         Update single node status with optional notification.
 
@@ -174,33 +175,44 @@ class NodeOperation(BaseOperation):
             xray_version (str): Xray version.
             node_version (str): Node version.
             send_notification (bool): Whether to send notification.
+            expected_status: Ignore observations made before a concurrent status change.
         """
         db_node = await get_node_by_id(db, node_id, load_usage_logs=False)
         if not db_node:
-            return
+            return False
+        if expected_status is not None and db_node.status != expected_status:
+            return False
 
         if db_node.status in (NodeStatus.disabled, NodeStatus.limited) and status not in (
             NodeStatus.disabled,
             NodeStatus.limited,
         ):
-            return
+            return False
 
         old_status = db_node.status
 
+        if expected_status is not None and old_status == status and db_node.message == message:
+            return True
+
         if status == NodeStatus.error:
+            if expected_status is not None:
+                xray_version, node_version = db_node.xray_version, db_node.node_version
             logger.error(f"Failed to connect node {db_node.name} with id {db_node.id}, Error: {message}")
 
-        await update_node_status(
+        updated = await update_node_status(
             db=db,
             db_node=db_node,
             status=status,
             message=message,
             xray_version=xray_version,
             node_version=node_version,
+            expected_status=expected_status,
         )
 
+        if updated is None or db_node.status != status:
+            return False
         if not send_notification:
-            return
+            return True
 
         if status == NodeStatus.connected and old_status != NodeStatus.connected:
             node_notif = NodeNotification(
@@ -220,6 +232,8 @@ class NodeOperation(BaseOperation):
                 message=truncated_message,
             )
             asyncio.create_task(notification.error_node(node_notif))
+
+        return True
 
     @staticmethod
     async def _get_core_users_map(
@@ -581,7 +595,9 @@ class NodeOperation(BaseOperation):
         """
         await self._connect_bulk_impl(db, nodes, force_start=force_start)
 
-    async def connect_single_node(self, db: AsyncSession, node_id: int, *, force_start: bool = False) -> None:
+    async def connect_single_node(
+        self, db: AsyncSession, node_id: int, *, force_start: bool = False, health_check: bool = False
+    ) -> None:
         """
         Connect a single node and update its status (optimized for single-node operations).
 
@@ -592,7 +608,10 @@ class NodeOperation(BaseOperation):
             db (AsyncSession): Database session.
             node_id (int): ID of the node to connect.
             force_start: Push a new Start RPC (admin restart / core apply).
+            health_check: Defer automatic recovery status until probes confirm it.
         """
+        if health_check:
+            return await self.recover_node(db, node_id)
         return await self._connect_single_impl(db, node_id, force_start=force_start)
 
     async def disconnect_single_node(self, node_id: int) -> None:
@@ -842,7 +861,17 @@ class NodeOperation(BaseOperation):
             {"node_ids": [node.id for node in nodes], "force_start": force_start},
         )
 
-    async def _connect_single_node_local(self, db: AsyncSession, node_id: int, *, force_start: bool = False) -> bool:
+    async def recover_node(self, db: AsyncSession, node_id: int) -> None:
+        """Repair a node, leaving status/notifications to consecutive health probes."""
+        if (
+            await self._connect_single_node_local(db, node_id, defer_health_status=True)
+            and needs_shared_bridge_memory()
+        ):
+            await publish_node_sync("connect", node_id)
+
+    async def _connect_single_node_local(
+        self, db: AsyncSession, node_id: int, *, force_start: bool = False, defer_health_status: bool = False
+    ) -> bool:
         db_node = await get_node_by_id(db, node_id, load_usage_logs=False)
         if db_node is None or db_node.status in (NodeStatus.disabled, NodeStatus.limited):
             return False
@@ -857,6 +886,9 @@ class NodeOperation(BaseOperation):
         try:
             await node_manager.update_node(db_node)
         except NodeAPIError as e:
+            if defer_health_status:
+                logger.warning("Node recovery failed for %s: %s", node_id, e.detail)
+                return False
             # Update status to error using simple CRUD
             await update_node_status(
                 db=db,
@@ -879,6 +911,10 @@ class NodeOperation(BaseOperation):
 
         if not result:
             return False
+        if defer_health_status:
+            # A successful Start/attach is not yet a sustained health recovery.
+            # A failed repair must not bypass the health failure threshold either.
+            return result["status"] == NodeStatus.connected
 
         # Update status using simple CRUD (NOT bulk!)
         await update_node_status(
