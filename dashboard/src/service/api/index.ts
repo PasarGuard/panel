@@ -2531,8 +2531,68 @@ export interface UserUsageStatsList {
   stats: UserUsageStatsListStats;
 }
 
+export type UserListItemAdmin = AdminBase | null;
+
+export type UserListItemOnlineAt = string | null;
+
+export type UserListItemEditAt = string | null;
+
+export type UserListItemNextPlan = NextPlanModel | null;
+
+export type UserListItemHwidLimit = number | null;
+
+export type UserListItemAutoDeleteInDays = number | null;
+
+export type UserListItemGroupIds = number[] | null;
+
+export type UserListItemOnHoldTimeout = string | number | null;
+
+/**
+ * on_hold_expire_duration can be 0 or greater in seconds
+ */
+export type UserListItemOnHoldExpireDuration = number | null;
+
+export type UserListItemNote = string | null;
+
+export type UserListItemDataLimitResetStrategy = DataLimitResetStrategy | null;
+
+/**
+ * data_limit can be 0 or greater
+ */
+export type UserListItemDataLimit = number | null;
+
+export type UserListItemExpire = string | number | null;
+
+export interface UserListItem {
+  proxy_settings?: ProxyTable;
+  expire?: UserListItemExpire;
+  /** data_limit can be 0 or greater */
+  data_limit?: UserListItemDataLimit;
+  data_limit_reset_strategy?: UserListItemDataLimitResetStrategy;
+  note?: UserListItemNote;
+  /** on_hold_expire_duration can be 0 or greater in seconds */
+  on_hold_expire_duration?: UserListItemOnHoldExpireDuration;
+  on_hold_timeout?: UserListItemOnHoldTimeout;
+  group_ids?: UserListItemGroupIds;
+  auto_delete_in_days?: UserListItemAutoDeleteInDays;
+  hwid_limit?: UserListItemHwidLimit;
+  next_plan?: UserListItemNextPlan;
+  id: number;
+  username: string;
+  status: UserStatus;
+  used_traffic: number;
+  lifetime_used_traffic?: number;
+  created_at: string;
+  edit_at?: UserListItemEditAt;
+  online_at?: UserListItemOnlineAt;
+  subscription_url?: string;
+  admin?: UserListItemAdmin;
+  /** @minimum 0 */
+  hwid_count?: number;
+}
+
 export interface UsersResponse {
-  users: UserResponse[];
+  users: UserListItem[];
   total: number;
 }
 

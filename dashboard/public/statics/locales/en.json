@@ -1821,6 +1821,8 @@
   "revokeUserSub.success": "{{username}}'s subscription has revoked successfully.",
   "revokeUserSub.title": "Revoke User Subscription",
   "hwids": {
+    "count": "HWIDs",
+    "registeredCount": "Registered hardware IDs",
     "title": "Hardware IDs",
     "description": "Manage this user's registered hardware IDs.",
     "copy": "Copy hardware ID",
