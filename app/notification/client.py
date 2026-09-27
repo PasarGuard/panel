@@ -1,11 +1,15 @@
 import asyncio
+import json
+import math
+import time
 from contextlib import suppress
-from typing import Any
 
 import aiohttp
+from pydantic import ValidationError
 
 from app import on_startup
 from app.models.settings import NotificationSettings
+from app.notification.nats_queue import NotificationDelivery
 from app.notification.queue_manager import (
     DiscordNotification,
     TelegramNotification,
@@ -38,39 +42,26 @@ on_startup(define_client)
 logger = get_logger("Notification")
 
 
-async def _send_discord_webhook_direct(json_data, webhook, max_retries: int) -> bool:
-    """
-    Internal function to send Discord webhook with proper retry_after handling.
-    Returns True if successful, False otherwise.
-    """
-    retries = 0
-    while retries < max_retries:
-        try:
-            response = await client.post(webhook, json=json_data)
-            if response.status in [200, 204]:
-                logger.debug(f"Discord webhook payload delivered successfully, code {response.status}.")
-                return True
-            elif response.status == 429:
-                retries += 1
-                if retries < max_retries:
-                    # Extract retry_after from response
-                    try:
-                        retry_after = (await response.json()).get("retry_after", 0.5)
-                    except Exception:
-                        retry_after = 0.5
-                    logger.warning(f"Discord rate limit hit, waiting {retry_after}s (attempt {retries}/{max_retries})")
-                    await asyncio.sleep(retry_after)
-                    continue
-            else:
-                response_text = await response.text()
-                logger.error(f"Discord webhook failed: {response.status} - {response_text}")
-                return False
-        except Exception as err:
-            logger.error(f"Discord webhook failed Exception: {err!s}")
-            return False
-
-    logger.error(f"Discord webhook failed after {max_retries} retries")
-    return False
+async def _post_notification(url: str, **kwargs) -> tuple[bool, float]:
+    """Attempt once; queue delays keep rate-limited destinations off the worker."""
+    async with client.post(url, **kwargs) as response:
+        if response.status in (200, 204):
+            return True, 0
+        if response.status == 429:
+            try:
+                body_bytes = bytearray()
+                async for chunk in response.content.iter_chunked(1024):
+                    body_bytes.extend(chunk)
+                    if len(body_bytes) > 4096:
+                        raise ValueError("Rate-limit response is too large")
+                body = json.loads(body_bytes)
+                delay = float(body.get("parameters", body).get("retry_after", 1))
+                if math.isfinite(delay):
+                    return False, max(1, min(delay, 3600))
+            except ValueError, TypeError, AttributeError:
+                pass
+        logger.warning("Notification delivery failed with HTTP %s", response.status)
+    return False, 1
 
 
 async def send_discord_webhook(json_data, webhook: str | None):
@@ -78,60 +69,6 @@ async def send_discord_webhook(json_data, webhook: str | None):
     if not webhook:
         return
     await enqueue_discord(json_data, webhook)
-
-
-async def _send_telegram_message_direct(
-    message: str,
-    chat_id: int | None,
-    topic_id: int | None,
-    max_retries: int,
-    telegram_api_token: str,
-) -> bool:
-    """
-    Internal function to send Telegram message with proper retry_after handling.
-    Returns True if successful, False otherwise.
-    """
-    base_url = f"https://api.telegram.org/bot{telegram_api_token}/sendMessage"
-    payload = {"parse_mode": "HTML", "text": message}
-
-    # Validate chat_id is provided
-    if not chat_id:
-        logger.error("chat_id is required")
-        return False
-
-    # Set chat_id and optional topic_id
-    payload["chat_id"] = chat_id
-    if topic_id:
-        payload["message_thread_id"] = topic_id
-
-    retries = 0
-    while retries < max_retries:
-        try:
-            response = await client.post(base_url, data=payload)
-            if response.status == 200:
-                logger.debug(f"Telegram message sent successfully, code {response.status}.")
-                return True
-            elif response.status == 429:
-                retries += 1
-                if retries < max_retries:
-                    # Extract retry_after from Telegram response
-                    try:
-                        retry_after = (await response.json()).get("parameters", {}).get("retry_after", 0.5)
-                    except Exception:
-                        retry_after = 0.5
-                    logger.warning(f"Telegram rate limit hit, waiting {retry_after}s (attempt {retries}/{max_retries})")
-                    await asyncio.sleep(retry_after)
-                    continue
-            else:
-                response_text = await response.text()
-                logger.error(f"Telegram message failed: {response.status} - {response_text}")
-                return False
-        except Exception as err:
-            logger.error(f"Telegram message failed: {err!s}")
-            return False
-
-    logger.error(f"Telegram message failed after {max_retries} retries")
-    return False
 
 
 async def send_telegram_message(message, chat_id: int | None = None, topic_id: int | None = None):
@@ -147,59 +84,67 @@ async def send_telegram_message(message, chat_id: int | None = None, topic_id: i
     await enqueue_telegram(message, chat_id, topic_id)
 
 
-async def _process_discord_notification(notification: DiscordNotification):
-    settings: NotificationSettings = await notification_settings()
-    if not settings.notify_discord:
-        return
+async def process_notification(delivery: NotificationDelivery):
+    async with delivery:
+        item = delivery.data
+        try:
+            match item.get("type"):
+                case "discord":
+                    notification = DiscordNotification.model_validate(item)
+                case "telegram":
+                    notification = TelegramNotification.model_validate(item)
+                case _:
+                    logger.warning("Discarding unknown notification type")
+                    await delivery.ack()
+                    return
+        except ValidationError:
+            logger.error("Discarding malformed notification")
+            await delivery.ack()
+            return
 
-    success = await _send_discord_webhook_direct(
-        json_data=notification.json_data, webhook=notification.webhook, max_retries=settings.max_retries
-    )
+        settings: NotificationSettings = await notification_settings()
+        if notification.tries >= settings.max_retries:
+            await delivery.ack()
+            return
+        delay = notification.send_at - time.time()
+        if delay > 0:
+            await delivery.release(delay)
+            return
 
-    if success:
-        logger.debug("Discord notification delivered")
+        try:
+            if isinstance(notification, DiscordNotification):
+                if not settings.notify_discord:
+                    await delivery.ack()
+                    return
+                success, delay = await _post_notification(notification.webhook, json=notification.json_data)
+            else:
+                if not settings.notify_telegram or not settings.telegram_api_token or not notification.chat_id:
+                    await delivery.ack()
+                    return
+                payload = {"parse_mode": "HTML", "text": notification.message, "chat_id": notification.chat_id}
+                if notification.topic_id:
+                    payload["message_thread_id"] = notification.topic_id
+                success, delay = await _post_notification(
+                    f"https://api.telegram.org/bot{settings.telegram_api_token}/sendMessage", data=payload
+                )
+        except aiohttp.ClientError, TimeoutError:
+            logger.warning("Notification delivery failed due to a connection error or timeout")
+            success, delay = False, 1
 
-
-async def _process_telegram_notification(notification: TelegramNotification):
-    settings: NotificationSettings = await notification_settings()
-    if not settings.notify_telegram or not settings.telegram_api_token:
-        return
-
-    success = await _send_telegram_message_direct(
-        message=notification.message,
-        chat_id=notification.chat_id,
-        topic_id=notification.topic_id,
-        max_retries=settings.max_retries,
-        telegram_api_token=settings.telegram_api_token,
-    )
-
-    if success:
-        logger.debug("Telegram notification delivered")
-
-
-async def process_notification(item: dict | None):
-    if not item:
-        return
-
-    try:
-        match item.get("type"):
-            case "discord":
-                notification = DiscordNotification(**item)
-                await _process_discord_notification(notification)
-            case "telegram":
-                notification = TelegramNotification(**item)
-                await _process_telegram_notification(notification)
-            case _:
-                logger.warning(f"Unknown notification type received: {item}")
-    except Exception as err:
-        logger.error(f"Failed to process notification: {err}")
+        if success or notification.tries + 1 >= settings.max_retries:
+            if not success:
+                logger.warning("Notification exhausted its delivery attempts")
+            await delivery.ack()
+        else:
+            retry = notification.model_copy(update={"tries": notification.tries + 1, "send_at": time.time() + delay})
+            await delivery.retry(retry.model_dump(), delay=delay)
 
 
 async def run_notification_dispatcher():
     queue = get_queue()
     while True:
         try:
-            item: dict[str, Any] | None = await queue.dequeue(timeout=1)
+            item = await queue.dequeue(timeout=1)
             if item:
                 await process_notification(item)
         except asyncio.CancelledError:

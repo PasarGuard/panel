@@ -9,7 +9,7 @@ logger = get_logger("process-notification-queues")
 
 async def process_all_notification_queues():
     """
-    Drain queued notifications and process them.
+    Process a bounded number of queued notifications.
     """
     if not runtime_settings.role.runs_scheduler:
         return
@@ -17,7 +17,7 @@ async def process_all_notification_queues():
     logger.debug("Processing notification queues")
 
     queue = get_queue()
-    while True:
+    for _ in range(100):
         item = await queue.dequeue(timeout=0.1)
         if not item:
             break
