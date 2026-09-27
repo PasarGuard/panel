@@ -287,14 +287,22 @@ class NatsNotificationQueue(NotificationQueue):
                 or info.config.max_msgs < 0
                 or not info.config.max_bytes
                 or info.config.max_bytes < 0
-                or info.state.bytes >= info.config.max_bytes // 2
             ):
                 raise RuntimeError(f"Incompatible notification retry stream {self.RETRY_STREAM}")
+            if info.state.bytes >= info.config.max_bytes // 2:
+                # Reclaim stale checkpoints before rejecting recoverable state.
+                # Bound startup recovery by the observed number of records.
+                self._prune_sequence = 1
+                await self._prune_retry_state(limit=info.state.messages)
+                info = await self._js.stream_info(self.RETRY_STREAM)
+                if info.state.bytes >= info.config.max_bytes // 2:
+                    raise RuntimeError(f"Insufficient notification retry headroom in {self.RETRY_STREAM}")
+                return
         await self._prune_retry_state()
 
-    async def _prune_retry_state(self):
+    async def _prune_retry_state(self, limit: int = 100):
         """Incrementally reclaim checkpoints whose original message was acknowledged."""
-        for _ in range(100):
+        for _ in range(limit):
             try:
                 checkpoint = await self._js.get_msg(
                     self.RETRY_STREAM, seq=self._prune_sequence, subject=f"{self.RETRY_SUBJECT}.*", next=True
