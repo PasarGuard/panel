@@ -155,8 +155,12 @@ class UsersResponseWithInbounds(SubscriptionUserResponse):
     model_config = ConfigDict(from_attributes=True)
 
 
+class UserListItem(UserResponse):
+    hwid_count: int = Field(default=0, ge=0)
+
+
 class UsersResponse(BaseModel):
-    users: list[UserResponse]
+    users: list[UserListItem]
     total: int
 
 
@@ -176,6 +180,7 @@ class UsersSimpleResponse(BaseModel):
 
 
 class UserSortField(str, Enum):
+    hwid_count = "hwid_count"
     username = "username"
     used_traffic = "used_traffic"
     data_limit = "data_limit"
@@ -196,6 +201,8 @@ class SortDirection(str, Enum):
 
 
 class UserSortOption(str, Enum):
+    hwid_count = "hwid_count"
+    desc_hwid_count = "-hwid_count"
     username = "username"
     used_traffic = "used_traffic"
     data_limit = "data_limit"

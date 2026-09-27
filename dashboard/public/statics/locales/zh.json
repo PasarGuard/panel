@@ -1801,6 +1801,8 @@
   "revokeUserSub.success": "成功撤销用户 {{username}} 的订阅。",
   "revokeUserSub.title": "撤销用户订阅",
   "hwids": {
+    "count": "HWID 数量",
+    "registeredCount": "已注册的硬件 ID 数量",
     "title": "硬件 ID",
     "description": "管理此用户已注册的硬件 ID。",
     "copy": "复制硬件 ID",

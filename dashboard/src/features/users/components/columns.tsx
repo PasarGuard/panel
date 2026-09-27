@@ -1,6 +1,6 @@
-import { UserResponse, UserStatus } from '@/service/api'
+import { UserListItem, UserStatus } from '@/service/api'
 import type { ColumnDef, Row, Table } from '@tanstack/react-table'
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown, Fingerprint } from 'lucide-react'
 import ActionButtons from './action-buttons'
 import { OnlineBadge } from './online-badge'
 import { StatusBadge } from './status-badge'
@@ -28,7 +28,7 @@ export const setupColumns = ({
   dir: string
   showCreatedBy: boolean
   showSelectionCheckbox: boolean
-}): ColumnDef<UserResponse>[] => [
+}): ColumnDef<UserListItem>[] => [
   ...(showSelectionCheckbox
     ? (() => {
         const selectionCheckboxClassName =
@@ -40,7 +40,7 @@ export const setupColumns = ({
         return [
           {
             id: 'select',
-            header: ({ table }: { table: Table<UserResponse> }) => (
+            header: ({ table }: { table: Table<UserListItem> }) => (
               <div className="flex h-5 items-center justify-center">
                 <Checkbox
                   aria-label={t('selectAll')}
@@ -53,7 +53,7 @@ export const setupColumns = ({
                 />
               </div>
             ),
-            cell: ({ row }: { row: Row<UserResponse> }) => (
+            cell: ({ row }: { row: Row<UserListItem> }) => (
               <div className="flex h-5 items-center justify-center">
                 <Checkbox
                   aria-label={t('select')}
@@ -85,7 +85,7 @@ export const setupColumns = ({
         )}
       </button>
     ),
-    cell: ({ row }: { row: Row<UserResponse> }) => {
+    cell: ({ row }: { row: Row<UserListItem> }) => {
       const onlineAt = row.original.online_at
 
       const getOnlineTimeText = () => {
@@ -147,6 +147,12 @@ export const setupColumns = ({
                   <span className="text-blue-500">{row.original.admin?.username}</span>
                 </span>
               )}
+              <span className="text-muted-foreground flex items-center gap-1 text-xs tabular-nums md:hidden" title={t('hwids.registeredCount')}>
+                <Fingerprint className="h-3 w-3 shrink-0" aria-hidden="true" />
+                <span>
+                  {t('hwids.count')}: {row.original.hwid_count ?? 0}
+                </span>
+              </span>
             </div>
           </div>
         </div>
@@ -187,8 +193,8 @@ export const setupColumns = ({
         </div>
       </div>
     ),
-    cell: ({ row }: { row: Row<UserResponse> }) => {
-      const status: UserResponse['status'] = row.getValue('status')
+    cell: ({ row }: { row: Row<UserListItem> }) => {
+      const status: UserListItem['status'] = row.getValue('status')
       const expire = row.original.expire
       return (
         <div className="flex flex-col gap-y-2 py-1">
@@ -211,6 +217,21 @@ export const setupColumns = ({
     },
   },
   {
+    accessorKey: 'hwid_count',
+    header: () => (
+      <button onClick={() => handleSort('hwid_count')} className="flex w-full items-center gap-1 py-3" title={t('hwids.registeredCount')}>
+        <span className="text-xs">{t('hwids.count')}</span>
+        {filters.sort.replace(/^-/, '') === 'hwid_count' && <ChevronDown size={16} className={cn('shrink-0 transition-transform duration-300', filters.sort === 'hwid_count' && 'rotate-180')} />}
+      </button>
+    ),
+    cell: ({ row }) => (
+      <span className="flex items-center gap-1.5 text-sm tabular-nums" title={t('hwids.registeredCount')}>
+        <Fingerprint className="text-muted-foreground h-3.5 w-3.5" aria-hidden="true" />
+        {row.original.hwid_count ?? 0}
+      </span>
+    ),
+  },
+  {
     id: 'details',
     header: () => {
       const isRTL = useDirDetection() === 'rtl'
@@ -226,7 +247,7 @@ export const setupColumns = ({
         </button>
       )
     },
-    cell: ({ row }: { row: Row<UserResponse> }) => (
+    cell: ({ row }: { row: Row<UserListItem> }) => (
       <div className="flex items-center justify-between gap-1 py-1">
         <UsageSliderCompact total={row.original.data_limit} used={row.original.used_traffic} totalUsedTraffic={row.original.lifetime_used_traffic} status={row.original.status} />
         <div className="hidden w-[215px] px-2 py-1 md:block">

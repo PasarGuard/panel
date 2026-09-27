@@ -1466,6 +1466,7 @@ class UserOperation(BaseOperation):
             return_with_count=True,
             load_usage_logs=False,
             load_lifetime_used_traffic=True,
+            load_hwid_count=True,
         )
 
         if query.load_sub:

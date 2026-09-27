@@ -8,7 +8,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import useDirDetection from '@/hooks/use-dir-detection'
 import { cn } from '@/lib/utils'
 import { useDebouncedSearch } from '@/hooks/use-debounced-search'
-import { RefreshCw, SearchIcon, Filter, X, ArrowUpDown, User, Calendar, ChartPie, ChevronDown, Check, Clock } from 'lucide-react'
+import { RefreshCw, SearchIcon, Filter, X, ArrowUpDown, User, Calendar, ChartPie, ChevronDown, Check, Clock, Fingerprint } from 'lucide-react'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useGetUsers, UserStatus } from '@/service/api'
@@ -21,6 +21,15 @@ import { statusColors } from '@/constants/UserSettings'
 
 // Compact sort configuration: one row per field
 const sortSections = [
+  {
+    key: 'hwidCount',
+    icon: Fingerprint,
+    label: 'hwids.count',
+    asc: 'hwid_count',
+    desc: '-hwid_count',
+    ascHintKey: 'sort.hints.lowToHigh',
+    descHintKey: 'sort.hints.highToLow',
+  },
   {
     key: 'username',
     icon: User,
