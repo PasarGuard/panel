@@ -421,6 +421,7 @@ function XrayParityFormControlContent({ field, value, onChange, disabled, classN
                     <Input
                       dir="ltr"
                       className="min-h-9 min-w-0 flex-[2] text-xs"
+                      key={entry.value}
                       defaultValue={entry.value}
                       onBlur={e => {
                         if (e.target.value !== entry.value) updateEntry(index, { value: e.target.value })
@@ -865,6 +866,7 @@ function XrayParityFormControlContent({ field, value, onChange, disabled, classN
                     <Input
                       dir="ltr"
                       className="min-h-9 min-w-0 flex-[2] text-xs"
+                      key={entry.value}
                       defaultValue={entry.value}
                       onBlur={e => {
                         if (e.target.value !== entry.value) updateHeader(index, { value: e.target.value })
