@@ -135,13 +135,9 @@ async def enqueue_webhook(payload: dict, send_at: float | None = None, tries: in
     """Add a webhook notification to the queue"""
     import time
 
-    from app.settings import webhook_settings
-
-    settings = await webhook_settings()
     notification = WebhookNotification(
         payload=payload,
         send_at=send_at if send_at is not None else time.time(),
         tries=tries,
-        pending_webhooks=list(dict.fromkeys(webhook.url for webhook in settings.webhooks)),
     )
     await get_webhook_queue().enqueue(notification.model_dump())

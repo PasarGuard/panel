@@ -47,9 +47,20 @@ async def _send_batch(
 ):
     webhooks = {webhook.url: webhook for webhook in settings.webhooks}
     pending = {}
+    prepared = []
     for delivery, notification in batch:
         targets = notification.pending_webhooks
         pending[delivery] = set(webhooks if targets is None else targets).intersection(webhooks)
+        if pending[delivery]:
+            notification = notification.model_copy(update={"pending_webhooks": sorted(pending[delivery])})
+            try:
+                await delivery.prepare(notification.model_dump())
+            except asyncio.QueueFull:
+                logger.warning("Deferring webhook notification until retry capacity is available")
+                await delivery.release(delay=max(settings.timeout, 1))
+                continue
+        prepared.append((delivery, notification))
+    batch = prepared
 
     async def send_one(url):
         payloads = [notification.payload for delivery, notification in batch if url in pending[delivery]]

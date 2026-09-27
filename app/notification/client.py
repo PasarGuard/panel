@@ -116,6 +116,7 @@ async def process_notification(delivery: NotificationDelivery):
                 if not settings.notify_discord:
                     await delivery.ack()
                     return
+                await delivery.prepare(notification.model_dump())
                 success, delay = await _post_notification(notification.webhook, json=notification.json_data)
             else:
                 if not settings.notify_telegram or not settings.telegram_api_token or not notification.chat_id:
@@ -124,6 +125,7 @@ async def process_notification(delivery: NotificationDelivery):
                 payload = {"parse_mode": "HTML", "text": notification.message, "chat_id": notification.chat_id}
                 if notification.topic_id:
                     payload["message_thread_id"] = notification.topic_id
+                await delivery.prepare(notification.model_dump())
                 success, delay = await _post_notification(
                     f"https://api.telegram.org/bot{settings.telegram_api_token}/sendMessage", data=payload
                 )
