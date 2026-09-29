@@ -202,6 +202,12 @@ class ConfigFormat(str, Enum):
     block = "block"
 
 
+class HeaderPlacement(StrEnum):
+    header = "header"
+    body_start = "body_start"
+    body_end = "body_end"
+
+
 class SubRule(BaseModel):
     pattern: str
     target: ConfigFormat
@@ -314,6 +320,7 @@ class Subscription(BaseModel):
     announce: str = Field(default="", max_length=128)
     announce_url: str = Field(default="")
     response_headers: dict[str, Any] = Field(default_factory=dict)
+    header_placement: HeaderPlacement = Field(default=HeaderPlacement.header)
     # Rules To Seperate Clients And Send Config As Needed
     rules: list[SubRule]
     manual_sub_request: SubFormatEnable = Field(default_factory=SubFormatEnable)

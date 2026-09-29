@@ -2,6 +2,7 @@ import type { SubscriptionFormData } from '@/features/subscriptions/components/s
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { CustomVariablesPopover, VariablesList } from '@/components/ui/variables-popover'
 import useDirDetection from '@/hooks/use-dir-detection'
@@ -88,6 +89,30 @@ export function SubscriptionResponseHeadersSection({ form }: SubscriptionRespons
             {t('settings.subscriptions.responseHeaders.addHeader')}
           </Button>
         </div>
+      </div>
+
+      <div className="space-y-2">
+        <h4 className="text-base font-semibold sm:text-lg">{t('settings.subscriptions.responseHeaders.placement.title')}</h4>
+        <p className="text-muted-foreground text-xs sm:text-sm">{t('settings.subscriptions.responseHeaders.placement.description')}</p>
+        <Select
+          value={form.watch('header_placement') ?? 'header'}
+          onValueChange={value => form.setValue('header_placement', value as SubscriptionFormData['header_placement'], { shouldDirty: true })}
+        >
+          <SelectTrigger className="text-xs sm:text-sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="header" className="text-xs sm:text-sm">
+              {t('settings.subscriptions.responseHeaders.placement.header')}
+            </SelectItem>
+            <SelectItem value="body_start" className="text-xs sm:text-sm">
+              {t('settings.subscriptions.responseHeaders.placement.bodyStart')}
+            </SelectItem>
+            <SelectItem value="body_end" className="text-xs sm:text-sm">
+              {t('settings.subscriptions.responseHeaders.placement.bodyEnd')}
+            </SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="space-y-3">
