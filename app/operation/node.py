@@ -65,9 +65,10 @@ from app.models.stats import (
 )
 from app.nats import needs_shared_bridge_memory
 from app.nats.node_rpc import node_nats_client
-from app.node import core_users, node_manager
+from app.node import node_manager
 from app.node.manager_sync import publish_node_sync
 from app.node.nats_memory import clear_bridge_memory_for_node
+from app.node.user import CoreUserRow, core_users_from_rows, fetch_core_user_rows
 from app.operation import BaseOperation, OperatorType
 from app.utils.logger import get_logger
 from config import runtime_settings
@@ -230,27 +231,31 @@ class NodeOperation(BaseOperation):
 
         resolved_cores = await core_manager.get_cores(core_ids | {1})
         default_core = resolved_cores.get(1)
-        cores_by_id: dict[int, object | None] = {}
+        cores_by_id: dict[int, object | None] = {
+            core_id: resolved_cores.get(core_id) or default_core for core_id in core_ids
+        }
         users_by_core: dict[int, CoreUsers] = {}
         loaded_users: dict[int, list] = {}
+        user_rows: list[CoreUserRow] | None = None
         load_lock = asyncio.Lock()
+
+        inbound_tag_sets = [core.inbounds for core in cores_by_id.values() if core is not None]
 
         def user_loader(core_id, core):
             async def load():
+                nonlocal user_rows
                 # Bulk connects share one session. Serialize first reads and reuse
                 # the same snapshot for nodes that actually need a Start RPC.
                 async with load_lock:
+                    if user_rows is None:
+                        user_rows = await fetch_core_user_rows(db=db, inbound_tag_sets=inbound_tag_sets)
                     if core_id not in loaded_users:
-                        loaded_users[core_id] = await core_users(
-                            db=db, inbound_tags=core.inbounds, allowed_protocols=core.protocols
-                        )
+                        loaded_users[core_id] = core_users_from_rows(user_rows, core.inbounds, core.protocols)
                     return loaded_users[core_id]
 
             return load
 
-        for core_id in core_ids:
-            core = resolved_cores.get(core_id) or default_core
-            cores_by_id[core_id] = core
+        for core_id, core in cores_by_id.items():
             if core is None:
                 users_by_core[core_id] = []
                 continue

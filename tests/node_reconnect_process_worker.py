@@ -38,7 +38,7 @@ async def main():
     node_operation.node_manager.get_node = AsyncMock(return_value=node)
     node_operation.core_manager.get_cores = AsyncMock(return_value={1: core})
     reads = AsyncMock(return_value=[])
-    node_operation.core_users = reads
+    node_operation.fetch_core_user_rows = reads
     done = asyncio.Event()
     count = 0
 

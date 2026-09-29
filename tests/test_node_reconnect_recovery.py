@@ -9,6 +9,7 @@ from PasarGuardNodeBridge.storage import LifecycleStatus
 from app.db.models import NodeStatus
 from app.jobs import node_checker
 from app.node import manager_sync
+from app.node.user import CoreUserRow
 from app.operation import node as node_operation
 from app.operation.node import NodeOperation
 
@@ -43,8 +44,8 @@ def setup_node(monkeypatch, *, health=Health.HEALTHY, state=None):
     monkeypatch.setattr(node_operation.core_manager, "get_cores", AsyncMock(return_value={1: core}))
     monkeypatch.setattr(node_operation.node_manager, "update_node", AsyncMock(return_value=node))
     monkeypatch.setattr(node_operation.node_manager, "get_node", AsyncMock(return_value=node))
-    reads = AsyncMock(return_value=[object()])
-    monkeypatch.setattr(node_operation, "core_users", reads)
+    reads = AsyncMock(return_value=[CoreUserRow(7, {}, {frozenset({"in"}): ("in",)})])
+    monkeypatch.setattr(node_operation, "fetch_core_user_rows", reads)
     monkeypatch.setattr(node_operation, "update_node_status", AsyncMock())
     monkeypatch.setattr(node_operation, "bulk_update_node_status", AsyncMock())
     monkeypatch.setattr(node_operation.notification, "connect_node", AsyncMock())
@@ -89,7 +90,7 @@ async def test_sibling_loads_users_when_remote_core_needs_start(monkeypatch):
     db_node, node, reads = setup_node(monkeypatch, health=Health.NOT_CONNECTED)
     await manager_sync.handle_node_message({"action": "connect", "node_id": db_node.id, "origin": "other"})
     reads.assert_awaited_once()
-    assert node.start.await_args.kwargs["users"] is reads.return_value
+    assert [user.email for user in node.start.await_args.kwargs["users"]] == ["7"]
 
 
 @pytest.mark.asyncio
@@ -100,7 +101,9 @@ async def test_bulk_start_reuses_one_deferred_snapshot_per_core(monkeypatch):
     await operation._connect_nodes_bulk_local(FakeDB(), nodes)
     reads.assert_awaited_once()
     assert node.start.await_count == 12
-    assert all(call.kwargs["users"] is reads.return_value for call in node.start.await_args_list)
+    users = node.start.await_args_list[0].kwargs["users"]
+    assert [user.email for user in users] == ["7"]
+    assert all(call.kwargs["users"] is users for call in node.start.await_args_list)
 
 
 @pytest.mark.asyncio
@@ -109,21 +112,25 @@ async def test_deferred_core_reads_do_not_overlap_on_shared_session(monkeypatch)
     monkeypatch.setattr(node_operation.core_manager, "get_cores", AsyncMock(return_value=cores))
     active = 0
 
-    async def read(*, db, inbound_tags, allowed_protocols):
+    async def read(*, db, inbound_tag_sets):
         nonlocal active
         assert active == 0
         active += 1
         await asyncio.sleep(0.01)
         active -= 1
-        return inbound_tags
+        assert sorted(map(list, inbound_tag_sets)) == [["1"], ["2"]]
+        return [
+            CoreUserRow(1, {}, {frozenset({"1"}): ("1",), frozenset({"2"}): ()}),
+            CoreUserRow(2, {}, {frozenset({"1"}): (), frozenset({"2"}): ("2",)}),
+        ]
 
     reads = AsyncMock(side_effect=read)
-    monkeypatch.setattr(node_operation, "core_users", reads)
+    monkeypatch.setattr(node_operation, "fetch_core_user_rows", reads)
     _, loaders = await NodeOperation._get_core_users_map(FakeDB(), {1, 2}, lazy=True)
     reads.assert_not_awaited()
     result = await asyncio.gather(loaders[1](), loaders[2](), loaders[1](), loaders[2]())
-    assert result == [["1"], ["2"], ["1"], ["2"]]
-    assert reads.await_count == 2
+    assert [[user.email for user in users] for users in result] == [["1"], ["2"], ["1"], ["2"]]
+    assert reads.await_count == 1
 
 
 @pytest.mark.asyncio
