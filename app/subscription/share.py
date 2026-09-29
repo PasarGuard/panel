@@ -180,7 +180,7 @@ def apply_custom_format_variables(format_variables: dict, custom_variables: list
             continue
         try:
             format_variables[key] = raw_value.format_map(base_variables)
-        except ValueError, KeyError:
+        except (ValueError, KeyError):
             format_variables[key] = raw_value
 
     return format_variables
@@ -190,7 +190,7 @@ def _format_dynamic_value(value, format_variables: dict):
     if isinstance(value, str):
         try:
             return value.format_map(format_variables)
-        except ValueError, KeyError:
+        except (ValueError, KeyError):
             return value
     if isinstance(value, list):
         return [_format_dynamic_value(item, format_variables) for item in value]

@@ -179,7 +179,7 @@ class NatsUserSyncStore:
     def _unb64(text: str) -> str:
         try:
             return base64.urlsafe_b64decode(text.encode("ascii")).decode("utf-8")
-        except ValueError, UnicodeDecodeError:
+        except (ValueError, UnicodeDecodeError):
             return ""
 
     @classmethod

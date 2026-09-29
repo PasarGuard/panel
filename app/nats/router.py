@@ -94,7 +94,7 @@ class NatsMessageRouter:
             self._listener_task.cancel()
             try:
                 await asyncio.wait_for(self._listener_task, timeout=2.0)
-            except TimeoutError, asyncio.CancelledError:
+            except (TimeoutError, asyncio.CancelledError):
                 pass
 
         if self._nc:
