@@ -1,4 +1,4 @@
-﻿import type { AdminFormValuesInput } from '@/features/admins/forms/admin-form'
+import type { AdminFormValuesInput } from '@/features/admins/forms/admin-form'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -14,7 +14,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { CustomVariablesPopover, normalizeCustomVariableKey, VariablesPopover } from '@/components/ui/variables-popover'
 import { useAdmin } from '@/hooks/use-admin'
 import useDynamicErrorHandler from '@/hooks/use-dynamic-errors.ts'
-import { deleteAdminPasskeyForAdmin, getAdminPasskeyRegistrationOptionsForAdmin, getAdminPasskeysForAdmin, registerAdminPasskeyForAdmin, useCreateAdmin, useGetRolesSimple, useModifyAdminById } from '@/service/api'
+import { adminPasskeyRegisterOptions, adminPasskeyRegisterVerify, deleteAdminPasskey, listAdminPasskeys, useCreateAdmin, useGetRolesSimple, useModifyAdminById } from '@/service/api'
 import { fromBase64Url, getDefaultPasskeyName, serializeCredential } from '@/utils/passkeys'
 import type { AdminDetails, RoleLimits } from '@/service/api'
 import { builtInVariableKeys, normalizeCustomVariablesForPayload } from '@/features/subscriptions/components/subscription-settings-schema'
@@ -137,8 +137,8 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
   useEffect(() => {
     if (!isDialogOpen || !canManagePasskeys || passkeyAdminId == null) return
     setPasskeysLoading(true)
-    getAdminPasskeysForAdmin(passkeyAdminId)
-      .then(setPasskeys)
+    listAdminPasskeys(passkeyAdminId)
+      .then((res: any) => setPasskeys(res))
       .catch(() => setPasskeys([]))
       .finally(() => setPasskeysLoading(false))
   }, [isDialogOpen, canManagePasskeys, passkeyAdminId])
@@ -169,14 +169,14 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
     }
     setPasskeyBusy(true)
     try {
-      const options: any = await getAdminPasskeyRegistrationOptionsForAdmin(passkeyAdminId)
+      const options: any = await adminPasskeyRegisterOptions(passkeyAdminId)
       options.challenge = fromBase64Url(options.challenge)
       options.user.id = fromBase64Url(options.user.id)
       options.excludeCredentials = options.excludeCredentials?.map((item: any) => ({ ...item, id: fromBase64Url(item.id) }))
       const credential = await navigator.credentials.create({ publicKey: options })
       if (!credential) throw new Error('No passkey was created')
-      await registerAdminPasskeyForAdmin(passkeyAdminId, { credential: serializeCredential(credential), name: passkeyName.trim() || getDefaultPasskeyName() })
-      const updated = await getAdminPasskeysForAdmin(passkeyAdminId)
+      await adminPasskeyRegisterVerify(passkeyAdminId, { credential: serializeCredential(credential), name: passkeyName.trim() || getDefaultPasskeyName() })
+      const updated: any = await listAdminPasskeys(passkeyAdminId)
       setPasskeys(updated)
       toast.success(t('admins.passkeyAdded', { defaultValue: 'Passkey added successfully' }))
     } catch (error: any) {
@@ -190,7 +190,7 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
     if (passkeyAdminId == null) return
     setPasskeyBusy(true)
     try {
-      await deleteAdminPasskeyForAdmin(passkeyAdminId, id)
+      await deleteAdminPasskey(passkeyAdminId, id)
       setPasskeys(current => current.filter(passkey => passkey.id !== id))
       toast.success(t('admins.passkeyRemoved', { defaultValue: 'Passkey removed' }))
     } catch (error: any) {

@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input'
 import { LoaderButton } from '@/components/ui/loader-button'
 import { PasswordInput } from '@/components/ui/password-input'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { getAdminPasskeyLoginOptions, verifyAdminPasskeyLogin, getCurrentAdmin, useAdminMiniAppToken, useAdminToken, useCreateOwner, useDeleteOwner, useResetOwnerPassword, useUpgradeOwner } from '@/service/api'
+import { passkeyLoginOptions, passkeyLoginVerify, getCurrentAdmin, useAdminMiniAppToken, useAdminToken, useCreateOwner, useDeleteOwner, useResetOwnerPassword, useUpgradeOwner } from '@/service/api'
 import { $fetch } from '@/service/http'
 import { getAuthToken, removeAuthToken, setAuthToken } from '@/utils/authStorage'
 import { fromBase64Url, serializeCredential } from '@/utils/passkeys'
@@ -254,12 +254,12 @@ export const Login: FC = () => {
     }
     setPasskeyLoading(true)
     try {
-      const options: any = await getAdminPasskeyLoginOptions(username ? { username } : {})
+      const options: any = await passkeyLoginOptions(username ? { username } : {})
       options.challenge = fromBase64Url(options.challenge)
       options.allowCredentials = options.allowCredentials?.map((item: any) => ({ ...item, id: fromBase64Url(item.id) }))
       const credential = await navigator.credentials.get({ publicKey: options })
       if (!credential) throw new Error('No passkey was provided')
-      const data = await verifyAdminPasskeyLogin({ ...(username ? { username } : {}), credential: serializeCredential(credential) })
+      const data: any = await passkeyLoginVerify({ ...(username ? { username } : {}), credential: serializeCredential(credential) })
       setAuthToken(data.access_token)
       navigate('/', { replace: true })
     } catch (err: any) {

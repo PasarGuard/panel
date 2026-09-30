@@ -1,3 +1,5 @@
+import base64
+
 from fastapi import status
 
 from app.utils.crypto import generate_wireguard_keypair
@@ -268,6 +270,88 @@ def create_simple_host(access_token: str, inbound_tag: str, *, remark: str, prio
     )
     assert response.status_code == status.HTTP_201_CREATED
     return response.json()["id"]
+
+
+def test_host_with_wireguard_amnezia(access_token):
+    core = create_core(access_token)
+    inbound_list = get_inbounds(access_token)
+    assert inbound_list, "No inbounds available for host updates"
+    inbound = inbound_list[0]
+
+    valid_hp_key = base64.b64encode(b"K" * 32).decode()
+    create_response = client.post(
+        "/api/host",
+        headers={"Authorization": f"Bearer {access_token}"},
+        json={
+            "remark": unique_name("test_host_wireguard_amnezia"),
+            "address": ["127.0.0.1"],
+            "port": 443,
+            "sni": ["test_sni.com"],
+            "inbound_tag": inbound,
+            "priority": 1,
+            "wireguard_amnezia": {
+                "jc": 4,
+                "jmin": 40,
+                "jmax": 70,
+                "s1": 12,
+                "s2": 12,
+                "s3": 12,
+                "s4": 12,
+                "h1": "1",
+                "i1": "some_mimic_data",
+                "header_protection_key": valid_hp_key,
+                "content_padding_addition": "0-16",
+                "rekey_after_time": 120,
+                "rekey_timeout": 5,
+                "reject_after_time": 180,
+                "keepalive_timeout": 10,
+                "max_handshake_attempts": 18,
+                "random_trailers": "on",
+                "disable_cookies": "off",
+            },
+        },
+    )
+    assert create_response.status_code == status.HTTP_201_CREATED
+    host_id = create_response.json()["id"]
+    assert create_response.json()["wireguard_amnezia"]["jc"] == 4
+    assert create_response.json()["wireguard_amnezia"]["jmin"] == 40
+    assert create_response.json()["wireguard_amnezia"]["h1"] == "1"
+    assert create_response.json()["wireguard_amnezia"]["i1"] == "some_mimic_data"
+    assert create_response.json()["wireguard_amnezia"]["s2"] == 12
+    assert create_response.json()["wireguard_amnezia"]["header_protection_key"] == valid_hp_key
+    assert create_response.json()["wireguard_amnezia"]["content_padding_addition"] == "0-16"
+    assert create_response.json()["wireguard_amnezia"]["rekey_after_time"] == 120
+    assert create_response.json()["wireguard_amnezia"]["rekey_timeout"] == 5
+    assert create_response.json()["wireguard_amnezia"]["reject_after_time"] == 180
+    assert create_response.json()["wireguard_amnezia"]["keepalive_timeout"] == 10
+    assert create_response.json()["wireguard_amnezia"]["max_handshake_attempts"] == 18
+    assert create_response.json()["wireguard_amnezia"]["random_trailers"] == "on"
+    assert create_response.json()["wireguard_amnezia"]["disable_cookies"] == "off"
+
+    # test update
+    update_response = client.put(
+        f"/api/host/{host_id}",
+        headers={"Authorization": f"Bearer {access_token}"},
+        json={
+            "remark": unique_name("test_host_wireguard_amnezia_updated"),
+            "address": ["127.0.0.2"],
+            "port": 443,
+            "sni": ["test_sni_updated.com"],
+            "inbound_tag": inbound,
+            "priority": 2,
+            "wireguard_amnezia": {"jc": 8, "jmin": 50, "h1": "2", "random_trailers": "off", "disable_cookies": "on"},
+        },
+    )
+    assert update_response.status_code == status.HTTP_200_OK
+    assert update_response.json()["wireguard_amnezia"]["jc"] == 8
+    assert update_response.json()["wireguard_amnezia"]["jmin"] == 50
+    assert update_response.json()["wireguard_amnezia"]["h1"] == "2"
+    assert update_response.json()["wireguard_amnezia"]["i1"] is None
+    assert update_response.json()["wireguard_amnezia"]["random_trailers"] == "off"
+    assert update_response.json()["wireguard_amnezia"]["disable_cookies"] == "on"
+
+    client.delete(f"/api/host/{host_id}", headers={"Authorization": f"Bearer {access_token}"})
+    delete_core(access_token, core["id"])
 
 
 def test_host_finalmask_new_types(access_token):

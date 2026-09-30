@@ -411,7 +411,6 @@ class SingBoxConfiguration(BaseSubscription):
             "private_key": private_key,
             "peers": [self._normalize_and_remove_none_values(peer)],
         }
-
         return self._normalize_and_remove_none_values(endpoint)
 
     def _build_outbound(

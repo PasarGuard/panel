@@ -23,6 +23,12 @@ class WireGuardConfiguration(BaseSubscription):
         return "\n".join(output).strip()
 
     def add(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict):
+        """Append a WireGuard configuration for a client endpoint.
+
+        Do nothing if the client private key, peer IPs, or server public key is
+        missing. AmneziaWG values other than None become Interface directives.
+        A missing allowed IPs value raises KeyError when building the Peer section.
+        """
         components = self._build_wireguard_components(remark, address, inbound, settings)
         if not components:
             return
@@ -52,6 +58,39 @@ class WireGuardConfiguration(BaseSubscription):
                 config_data["Interface"]["DNS"] = dns_servers.replace(",", ", ")
             else:
                 config_data["Interface"]["DNS"] = ", ".join(dns_servers)
+
+        # Optional AmneziaWG settings under Interface
+        if inbound.wireguard_amnezia:
+            for key, val in inbound.wireguard_amnezia.items():
+                if val is not None:
+                    conf_key = {
+                        "jc": "Jc",
+                        "jmin": "Jmin",
+                        "jmax": "Jmax",
+                        "s1": "S1",
+                        "s2": "S2",
+                        "s3": "S3",
+                        "s4": "S4",
+                        "h1": "H1",
+                        "h2": "H2",
+                        "h3": "H3",
+                        "h4": "H4",
+                        "i1": "I1",
+                        "i2": "I2",
+                        "i3": "I3",
+                        "i4": "I4",
+                        "i5": "I5",
+                        "header_protection_key": "HeaderProtectionKey",
+                        "content_padding_addition": "ContentPaddingAddition",
+                        "rekey_after_time": "RekeyAfterTime",
+                        "rekey_timeout": "RekeyTimeout",
+                        "reject_after_time": "RejectAfterTime",
+                        "keepalive_timeout": "KeepaliveTimeout",
+                        "max_handshake_attempts": "MaxHandshakeAttempts",
+                        "random_trailers": "RandomTrailers",
+                        "disable_cookies": "DisableCookies",
+                    }.get(key.lower(), key)
+                    config_data["Interface"][conf_key] = str(val)
 
         # Optional Peer settings
         if preshared_key := payload.get("presharedkey"):

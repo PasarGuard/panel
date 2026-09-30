@@ -1,6 +1,7 @@
+import base64
 from enum import Enum
 from ipaddress import ip_network
-from typing import Any
+from typing import Any, Self
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -595,6 +596,128 @@ class SubscriptionTemplates(BaseModel):
         return v
 
 
+class AmneziaProperties(BaseModel):
+    """AmneziaWG properties for the host."""
+
+    jc: int | None = Field(default=None)
+    jmin: int | None = Field(default=None)
+    jmax: int | None = Field(default=None)
+    s1: int | None = Field(default=None)
+    s2: int | None = Field(default=None)
+    s3: int | None = Field(default=None)
+    s4: int | None = Field(default=None)
+    h1: str | None = Field(default=None)
+    h2: str | None = Field(default=None)
+    h3: str | None = Field(default=None)
+    h4: str | None = Field(default=None)
+    i1: str | None = Field(default=None)
+    i2: str | None = Field(default=None)
+    i3: str | None = Field(default=None)
+    i4: str | None = Field(default=None)
+    i5: str | None = Field(default=None)
+    header_protection_key: str | None = Field(default=None)
+    content_padding_addition: str | None = Field(default=None, pattern=r"^\d{1,16}(-\d{1,16})?$")
+    rekey_after_time: int | str | None = Field(default=None)
+    rekey_timeout: int | str | None = Field(default=None)
+    reject_after_time: int | str | None = Field(default=None)
+    keepalive_timeout: int | str | None = Field(default=None)
+    max_handshake_attempts: int | str | None = Field(default=None)
+    random_trailers: str | None = Field(default=None, pattern=r"^(on|off)$")
+    disable_cookies: str | None = Field(default=None, pattern=r"^(on|off)$")
+
+    @field_validator(
+        "jc",
+        "jmin",
+        "jmax",
+        "s1",
+        "s2",
+        "s3",
+        "s4",
+        "h1",
+        "h2",
+        "h3",
+        "h4",
+        "i1",
+        "i2",
+        "i3",
+        "i4",
+        "i5",
+        "header_protection_key",
+        "content_padding_addition",
+        "random_trailers",
+        "disable_cookies",
+        mode="before",
+    )
+    @classmethod
+    def empty_to_none(cls, v: Any) -> Any:
+        """Treat empty input for AmneziaWG fields as an omitted value."""
+        if v == "" or v is None:
+            return None
+        return v
+
+    @field_validator(
+        "rekey_after_time",
+        "rekey_timeout",
+        "reject_after_time",
+        "keepalive_timeout",
+        "max_handshake_attempts",
+        mode="before",
+    )
+    @classmethod
+    def validate_numeric_range_or_int(cls, v: Any) -> int | str | None:
+        """Normalize timer and attempt values to 0–65535 or an ordered range.
+
+        Empty input becomes None. Invalid values raise ValueError, which Pydantic
+        reports as a validation error when constructing the model.
+        """
+        if v == "" or v is None:
+            return None
+        if isinstance(v, int) and not isinstance(v, bool):
+            if v < 0 or v > 65535:
+                raise ValueError("Value must be between 0 and 65535")
+            return v
+        if isinstance(v, str):
+            cleaned = v.strip()
+            if cleaned.isdigit():
+                val = int(cleaned)
+                if val > 65535:
+                    raise ValueError("Value must not exceed 65535")
+                return val
+            if "-" in cleaned:
+                parts = [p.strip() for p in cleaned.split("-")]
+                if len(parts) == 2 and parts[0].isdigit() and parts[1].isdigit():
+                    low = int(parts[0])
+                    high = int(parts[1])
+                    if low > high:
+                        raise ValueError("Range lower bound cannot exceed upper bound")
+                    if low < 0 or high > 65535:
+                        raise ValueError("Range values must be between 0 and 65535")
+                    return f"{low}-{high}"
+        raise ValueError("Value must be an integer (0-65535) or numeric range 'min-max'")
+
+
+    @model_validator(mode="after")
+    def validate_header_protection(self) -> Self:
+        """When a header protection key is set, require 32 decoded Base64 bytes and s1–s4 of at least 12.
+
+        Invalid keys or missing or smaller s1–s4 values raise ValueError, which
+        Pydantic reports as a validation error when constructing the model.
+        """
+        if self.header_protection_key is not None:
+            try:
+                decoded = base64.b64decode(self.header_protection_key.strip(), validate=True)
+                if len(decoded) != 32:
+                    raise ValueError("header_protection_key must decode to exactly 32 bytes")
+            except Exception as e:
+                raise ValueError("header_protection_key must be a valid base64-encoded 32-byte key") from e
+
+            for field_name in ("s1", "s2", "s3", "s4"):
+                val = getattr(self, field_name)
+                if val is None or val < 12:
+                    raise ValueError(f"{field_name} must be at least 12 when header_protection_key is configured")
+        return self
+
+
 class BaseHost(BaseModel):
     id: int | None = Field(default=None)
     remark: str
@@ -626,6 +749,7 @@ class BaseHost(BaseModel):
     subscription_templates: SubscriptionTemplates | None = Field(None)
     final_mask_settings: FinalMask | None = Field(None)
     cipher_suites: str | None = Field(None)
+    wireguard_amnezia: AmneziaProperties | None = Field(None)
 
     model_config = ConfigDict(from_attributes=True)
 

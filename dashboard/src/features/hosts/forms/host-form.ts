@@ -42,6 +42,34 @@ interface MuxSettings {
   clash?: ClashMuxSettings
 }
 
+interface AmneziaProperties {
+  jc?: number | ''
+  jmin?: number | ''
+  jmax?: number | ''
+  s1?: number | ''
+  s2?: number | ''
+  s3?: number | ''
+  s4?: number | ''
+  h1?: string
+  h2?: string
+  h3?: string
+  h4?: string
+  i1?: string
+  i2?: string
+  i3?: string
+  i4?: string
+  i5?: string
+  header_protection_key?: string
+  content_padding_addition?: string
+  rekey_after_time?: number | string | ''
+  rekey_timeout?: number | string | ''
+  reject_after_time?: number | string | ''
+  keepalive_timeout?: number | string | ''
+  max_handshake_attempts?: number | string | ''
+  random_trailers?: 'on' | 'off'
+  disable_cookies?: 'on' | 'off'
+}
+
 export interface HostFormValues {
   id?: number
   remark: string
@@ -169,6 +197,7 @@ export interface HostFormValues {
   }
   final_mask_settings?: FinalMask
   cipher_suites?: string
+  wireguard_amnezia?: AmneziaProperties
 }
 
 const transportSettingsSchema = z
@@ -471,6 +500,35 @@ export const HostFormSchema = z.object({
     .optional(),
   final_mask_settings: z.custom<FinalMask>().optional(),
   cipher_suites: z.string().optional(),
+  wireguard_amnezia: z
+    .object({
+      jc: z.number().optional().or(z.literal('')),
+      jmin: z.number().optional().or(z.literal('')),
+      jmax: z.number().optional().or(z.literal('')),
+      s1: z.number().optional().or(z.literal('')),
+      s2: z.number().optional().or(z.literal('')),
+      s3: z.number().optional().or(z.literal('')),
+      s4: z.number().optional().or(z.literal('')),
+      h1: z.string().optional(),
+      h2: z.string().optional(),
+      h3: z.string().optional(),
+      h4: z.string().optional(),
+      i1: z.string().optional(),
+      i2: z.string().optional(),
+      i3: z.string().optional(),
+      i4: z.string().optional(),
+      i5: z.string().optional(),
+      header_protection_key: z.string().optional(),
+      content_padding_addition: z.string().optional(),
+      rekey_after_time: z.union([z.number(), z.string()]).optional().or(z.literal('')),
+      rekey_timeout: z.union([z.number(), z.string()]).optional().or(z.literal('')),
+      reject_after_time: z.union([z.number(), z.string()]).optional().or(z.literal('')),
+      keepalive_timeout: z.union([z.number(), z.string()]).optional().or(z.literal('')),
+      max_handshake_attempts: z.union([z.number(), z.string()]).optional().or(z.literal('')),
+      random_trailers: z.string().regex(/^(on|off)$/).optional(),
+      disable_cookies: z.string().regex(/^(on|off)$/).optional(),
+    })
+    .optional(),
 })
 
 export const hostFormDefaultValues: HostFormValues = {
@@ -504,6 +562,7 @@ export const hostFormDefaultValues: HostFormValues = {
   subscription_templates: undefined,
   final_mask_settings: undefined,
   cipher_suites: undefined,
+  wireguard_amnezia: undefined,
 }
 
 /** Normalize API fragment settings for the host form (accept legacy `delay` as `interval`). */
