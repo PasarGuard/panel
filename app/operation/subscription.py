@@ -15,7 +15,14 @@ from app.db.crud.hwid import (
 from app.db.crud.user import get_user_usages, user_sub_update
 from app.db.models import User
 from app.models.admin import AdminDetails
-from app.models.settings import Application, ConfigFormat, HWIDSettings, SubRule, Subscription as SubSettings
+from app.models.settings import (
+    Application,
+    ConfigFormat,
+    HeaderPlacement,
+    HWIDSettings,
+    SubRule,
+    Subscription as SubSettings,
+)
 from app.models.stats import UserUsageStatsList
 from app.models.subscription import SubscriptionUsageQuery
 from app.models.user import SubscriptionUserResponse, UsersResponseWithInbounds
@@ -26,6 +33,7 @@ from app.subscription.share import (
     encode_title,
     generate_subscription,
     get_effective_custom_variables,
+    inject_body_placement,
     setup_format_variables,
 )
 from app.templates import render_template
@@ -90,6 +98,13 @@ client_config = {
 
 class SubscriptionOperation(BaseOperation):
     _ENCODED_RULE_RESPONSE_HEADERS: ClassVar[set[str]] = {"announce", "profile-title"}
+    _ALWAYS_HTTP_HEADERS: ClassVar[set[str]] = {"content-disposition", "cache-control"}
+    _BODY_PLACEMENT_FORMATS: ClassVar[set[ConfigFormat]] = {
+        ConfigFormat.links,
+        ConfigFormat.links_base64,
+        ConfigFormat.clash,
+        ConfigFormat.clash_meta,
+    }
     _SUB_CONFIG_LOAD: ClassVar[dict[str, bool]] = {
         "load_next_plan": False,
         "load_usage_logs": False,
@@ -267,6 +282,26 @@ class SubscriptionOperation(BaseOperation):
             headers[header_name] = formatted_value
 
         return headers
+
+    @classmethod
+    def _split_headers_for_placement(
+        cls,
+        headers: dict[str, str],
+        placement: HeaderPlacement,
+        client_type: ConfigFormat | None,
+    ) -> tuple[dict[str, str], list[str]]:
+        """Split response headers into (still-HTTP headers, body comment lines) per placement setting."""
+        if placement == HeaderPlacement.header or client_type not in cls._BODY_PLACEMENT_FORMATS:
+            return headers, []
+
+        http_headers: dict[str, str] = {}
+        body_lines: list[str] = []
+        for key, value in headers.items():
+            if key.lower() in cls._ALWAYS_HTTP_HEADERS:
+                http_headers[key] = value
+            else:
+                body_lines.append(f"#{key}: {value}")
+        return http_headers, body_lines
 
     @staticmethod
     def _stringify_rule_header_value(value: Any, format_variables: dict[str, str | int | float]) -> str:
@@ -528,6 +563,17 @@ class SubscriptionOperation(BaseOperation):
             except ValueError as exc:
                 await self.raise_error(message=str(exc), code=400)
 
+            response_headers, body_lines = self._split_headers_for_placement(
+                response_headers, sub_settings.header_placement, client_type
+            )
+            if body_lines:
+                conf = inject_body_placement(
+                    conf,
+                    body_lines,
+                    sub_settings.header_placement.value,
+                    client_config.get(client_type, {}).get("as_base64", False),
+                )
+
         # Create response with appropriate headers
         return Response(content=conf, media_type=media_type, headers=response_headers)
 
@@ -608,6 +654,17 @@ class SubscriptionOperation(BaseOperation):
             await self.raise_error(message=str(exc), code=400)
         with phase("subscription.render"):
             conf, media_type = await self.fetch_config(user, client_type)
+
+        response_headers, body_lines = self._split_headers_for_placement(
+            response_headers, sub_settings.header_placement, client_type
+        )
+        if body_lines:
+            conf = inject_body_placement(
+                conf,
+                body_lines,
+                sub_settings.header_placement.value,
+                client_config.get(client_type, {}).get("as_base64", False),
+            )
 
         # Create response headers
         return Response(content=conf, media_type=media_type, headers=response_headers)
@@ -708,6 +765,17 @@ class SubscriptionOperation(BaseOperation):
         except ValueError as exc:
             await self.raise_error(message=str(exc), code=400)
         conf, media_type = await self.fetch_config(user, client_type)
+
+        response_headers, body_lines = self._split_headers_for_placement(
+            response_headers, sub_settings.header_placement, client_type
+        )
+        if body_lines:
+            conf = inject_body_placement(
+                conf,
+                body_lines,
+                sub_settings.header_placement.value,
+                client_config.get(client_type, {}).get("as_base64", False),
+            )
 
         return Response(content=conf, media_type=media_type, headers=response_headers)
 
@@ -815,6 +883,10 @@ class SubscriptionOperation(BaseOperation):
                 response_headers = self.sanitize_response_headers(response_headers)
             except ValueError as exc:
                 await self.raise_error(message=str(exc), code=400)
+
+            response_headers, _ = self._split_headers_for_placement(
+                response_headers, sub_settings.header_placement, client_type
+            )
 
             config = client_config.get(client_type, {})
             if "media_type" in config:

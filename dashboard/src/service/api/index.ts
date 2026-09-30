@@ -2172,6 +2172,7 @@ export interface Subscription {
   announce?: string;
   announce_url?: string;
   response_headers?: SubscriptionResponseHeaders;
+  header_placement?: 'header' | 'body_start' | 'body_end';
   rules: SubRule[];
   manual_sub_request?: SubFormatEnable;
   applications?: Application[];
