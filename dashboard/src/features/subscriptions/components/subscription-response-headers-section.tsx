@@ -98,7 +98,7 @@ export function SubscriptionResponseHeadersSection({ form }: SubscriptionRespons
           value={form.watch('header_placement') ?? 'header'}
           onValueChange={value => form.setValue('header_placement', value as SubscriptionFormData['header_placement'], { shouldDirty: true })}
         >
-          <SelectTrigger className="text-xs sm:text-sm">
+          <SelectTrigger aria-label={t('settings.subscriptions.responseHeaders.placement.title')} className="text-xs sm:text-sm">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
