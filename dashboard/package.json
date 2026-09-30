@@ -2,9 +2,14 @@
   "name": "pasarguard-dashboard",
   "private": true,
   "version": "5.4.1",
+  "engines": {
+    "node": ">=22.18.0"
+  },
   "scripts": {
     "dev": "vite dev",
     "build": "vite build",
+    "typecheck": "tsc -b",
+    "test:form-submissions": "node scripts/check-form-submissions.cjs",
     "preview": "vite preview",
     "gen:api": "orval",
     "wait-port": "wait-port http://localhost:$UVICORN_PORT/openapi.json",
@@ -94,6 +99,7 @@
     "@react-router/fs-routes": "^7.18.2",
     "@svgr/webpack": "^8.1.0",
     "@tailwindcss/vite": "^4.3.3",
+    "@types/bun": "^1.4.2",
     "@types/lodash.debounce": "^4.0.9",
     "@types/node": "^24.13.3",
     "@types/react": "^19.2.18",
@@ -103,6 +109,7 @@
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.26",
     "orval": "8.22.0",
+    "playwright": "1.62.1",
     "postcss": "^8.5.26",
     "prettier": "^3.9.6",
     "prettier-plugin-tailwindcss": "^0.8.1",

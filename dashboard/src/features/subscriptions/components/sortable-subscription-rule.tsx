@@ -1,6 +1,6 @@
+import type { SubscriptionSettingsForm } from './subscription-settings-schema'
 import { configFormatOptions } from '@/features/subscriptions/components/config-format-options'
 import { SubscriptionRuleAdvancedSheet } from '@/features/subscriptions/components/subscription-rule-advanced-sheet'
-import type { SubscriptionFormData } from '@/features/subscriptions/components/subscription-settings-schema'
 import { Button } from '@/components/ui/button'
 import { FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
@@ -9,13 +9,12 @@ import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { Bolt, GripVertical, Trash2 } from 'lucide-react'
 import { useState } from 'react'
-import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
 export interface SortableSubscriptionRuleProps {
   index: number
   onRemove: (index: number) => void
-  form: UseFormReturn<SubscriptionFormData>
+  form: SubscriptionSettingsForm
   id: string
 }
 
@@ -154,7 +153,7 @@ export function SortableSubscriptionRule({ index, onRemove, form, id }: Sortable
                             <SelectValue />
                           </SelectTrigger>
                         </FormControl>
-                        <SelectContent dir="ltr" className="scrollbar-thin z-[50]">
+                        <SelectContent dir="ltr" className="z-[50] scrollbar-thin">
                           {configFormatOptions.map(option => (
                             <SelectItem key={option.value} value={option.value}>
                               <div className="flex items-center gap-1.5">

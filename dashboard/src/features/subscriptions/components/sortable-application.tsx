@@ -1,5 +1,5 @@
+import type { SubscriptionSettingsForm } from './subscription-settings-schema'
 import { SubscriptionApplicationSheet } from '@/features/subscriptions/components/subscription-application-sheet'
-import type { SubscriptionFormData } from '@/features/subscriptions/components/subscription-settings-schema'
 import { platformOptions, PlatformIcon } from '@/features/subscriptions/components/subscription-application-shared'
 import { Button } from '@/components/ui/button'
 import { FormField } from '@/components/ui/form'
@@ -7,13 +7,12 @@ import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { GripVertical, Pencil, ShieldCheck, Star, Trash2 } from 'lucide-react'
 import { useState } from 'react'
-import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
 interface SortableApplicationProps {
   index: number
   onRemove: (index: number) => void
-  form: UseFormReturn<SubscriptionFormData>
+  form: SubscriptionSettingsForm
   id: string
 }
 
