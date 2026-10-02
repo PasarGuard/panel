@@ -1,5 +1,5 @@
 import type { QueryClient, QueryKey } from '@tanstack/react-query'
-import type { GetUsersParams, UserResponse, UsersResponse } from '@/service/api'
+import type { GetUsersParams, UserListItem, UserResponse, UsersResponse } from '@/service/api'
 
 const USERS_QUERY_KEY = '/api/users'
 const ONLINE_USERS_WINDOW_MS = 2 * 60 * 1000
@@ -37,8 +37,10 @@ const includesIgnoreCase = (value: string | null | undefined, needle: string): b
   return value.toLowerCase().includes(needle.toLowerCase())
 }
 
-const getSortableUserValue = (user: UserResponse, field: string): unknown => {
+const getSortableUserValue = (user: UserListItem, field: string): unknown => {
   switch (field) {
+    case 'hwid_count':
+      return user.hwid_count ?? 0
     case 'id':
       return user.id
     case 'username':
@@ -201,6 +203,7 @@ const compareBySort = (a: UserResponse, b: UserResponse, sort?: string | null): 
     }
   }
 
+  if (comparison === 0 && field === 'hwid_count') return a.id - b.id
   return desc ? -comparison : comparison
 }
 
@@ -220,7 +223,7 @@ const upsertInSingleUsersQuery = (oldData: UsersResponse, user: UserResponse, pa
 
   if (existingIndex >= 0) {
     if (matchesFilters) {
-      users = oldUsers.map(u => (u.id === user.id ? user : u))
+      users = oldUsers.map(u => (u.id === user.id ? { ...u, ...user } : u))
       changed = true
     } else {
       users = oldUsers.filter(u => u.id !== user.id)
