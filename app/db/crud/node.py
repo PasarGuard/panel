@@ -493,7 +493,8 @@ async def update_node_status(
     message: str = "",
     xray_version: str = "",
     node_version: str = "",
-) -> Node:
+    expected_status: NodeStatus | None = None,
+) -> Node | None:
     """
     Updates the status of a node.
 
@@ -505,7 +506,7 @@ async def update_node_status(
         version (str, optional): The version of the node software.
 
     Returns:
-        Node: The updated Node object.
+        Node: The updated node, or None if a guarded transition was superseded.
     """
     stmt = (
         update(Node)
@@ -518,8 +519,12 @@ async def update_node_status(
             last_status_change=datetime.now(UTC),
         )
     )
-    await db.execute(stmt)
+    if expected_status is not None:
+        stmt = stmt.where(Node.status == expected_status)
+    result = await db.execute(stmt)
     await db.commit()
+    if expected_status is not None and result.rowcount == 0:
+        return None
 
     try:
         # Prefer refreshing the existing instance to keep relationships loaded
