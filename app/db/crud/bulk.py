@@ -162,7 +162,10 @@ def _create_group_filter(bulk_model: BulkGroup):
 
 async def add_groups_to_users(db: AsyncSession, bulk_model: BulkGroup) -> tuple[list, int] | tuple[list[User], int]:
     """
-    Bulk add groups to users and return list of affected User objects.
+    Bulk add groups to users and return affected User objects.
+
+    The caller owns the transaction commit so association changes can be
+    coordinated with allocation reconciliation and node dispatch.
     """
     final_filter = _create_group_filter(bulk_model)
 
@@ -197,8 +200,6 @@ async def add_groups_to_users(db: AsyncSession, bulk_model: BulkGroup) -> tuple[
     BATCH_SIZE = 16_000
     for i in range(0, len(new_rows), BATCH_SIZE):
         await db.execute(users_groups_association.insert(), new_rows[i : i + BATCH_SIZE])
-    await db.commit()
-
     # Return users that actually had groups added
     result = await db.execute(_bulk_user_reload_stmt().where(User.id.in_({r["user_id"] for r in new_rows})))
     users = result.scalars().all()
@@ -209,7 +210,10 @@ async def remove_groups_from_users(
     db: AsyncSession, bulk_model: BulkGroup
 ) -> tuple[list, int] | tuple[list[User], int]:
     """
-    Bulk remove groups from users and return list of affected User objects.
+    Bulk remove groups from users and return affected User objects.
+
+    The caller owns the transaction commit so association changes can be
+    coordinated with allocation reconciliation and node dispatch.
     """
     final_filter = _create_group_filter(bulk_model)
 
@@ -245,7 +249,6 @@ async def remove_groups_from_users(
             users_groups_association.c.groups_id.in_(bulk_model.group_ids),
         )
     )
-    await db.commit()
     result = await db.execute(_bulk_user_reload_stmt().where(User.id.in_(affected_user_ids)))
     users = result.scalars().all()
     return users, count_effctive_users
