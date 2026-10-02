@@ -3,7 +3,7 @@ import secrets
 from datetime import UTC, datetime, timedelta
 from urllib.parse import urlsplit
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy import delete, select
 from webauthn import (
@@ -23,10 +23,10 @@ from webauthn.helpers.structs import (
 from app.db import AsyncSession, get_db
 from app.db.models import Admin, AdminPasskey, AdminStatus, PasskeyChallenge
 from app.models.admin import AdminDetails, Token
-from app.utils.jwt import create_admin_token
 from app.operation.permissions import PermissionDenied, enforce_permission
+from app.utils.jwt import create_admin_token
 
-from .authentication import get_current
+from .authentication import get_current, get_current_session
 
 router = APIRouter(tags=["Passkeys"], prefix="/api/admin/passkey")
 
@@ -255,7 +255,9 @@ async def passkey_login_verify(body: PasskeyAuthenticationRequest, request: Requ
 
 
 @router.post("/register/options")
-async def passkey_register_options(request: Request, admin: AdminDetails = Depends(get_current), db: AsyncSession = Depends(get_db)):
+async def passkey_register_options(
+    request: Request, admin: AdminDetails = Depends(get_current_session), db: AsyncSession = Depends(get_db)
+):
     db_admin = (await db.execute(select(Admin).where(Admin.id == admin.id))).scalar_one_or_none()
     if db_admin is None:
         raise HTTPException(status_code=400, detail="Passkeys are unavailable for this account")
@@ -280,7 +282,12 @@ async def passkey_register_options(request: Request, admin: AdminDetails = Depen
 
 
 @router.post("/register/verify")
-async def passkey_register_verify(body: PasskeyRegistrationRequest, request: Request, admin: AdminDetails = Depends(get_current), db: AsyncSession = Depends(get_db)):
+async def passkey_register_verify(
+    body: PasskeyRegistrationRequest,
+    request: Request,
+    admin: AdminDetails = Depends(get_current_session),
+    db: AsyncSession = Depends(get_db),
+):
     db_admin = (await db.execute(select(Admin).where(Admin.id == admin.id))).scalar_one_or_none()
     if db_admin is None:
         raise HTTPException(status_code=400, detail="Passkeys are unavailable for this account")
@@ -307,7 +314,7 @@ async def passkey_register_verify(body: PasskeyRegistrationRequest, request: Req
 async def admin_passkey_register_options(
     admin_id: int,
     request: Request,
-    current_admin: AdminDetails = Depends(get_current),
+    current_admin: AdminDetails = Depends(get_current_session),
     db: AsyncSession = Depends(get_db),
 ):
     target = await _authorize_target_admin(admin_id, current_admin, db)
@@ -322,7 +329,7 @@ async def admin_passkey_register_verify(
     admin_id: int,
     body: PasskeyRegistrationRequest,
     request: Request,
-    current_admin: AdminDetails = Depends(get_current),
+    current_admin: AdminDetails = Depends(get_current_session),
     db: AsyncSession = Depends(get_db),
 ):
     target = await _authorize_target_admin(admin_id, current_admin, db)
