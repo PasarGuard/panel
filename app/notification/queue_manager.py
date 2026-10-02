@@ -15,7 +15,8 @@ class TelegramNotification(BaseModel):
     message: str
     chat_id: int | None = Field(default=None)
     topic_id: int | None = Field(default=None)
-    tries: int = Field(default=0)
+    tries: int = Field(default=0, ge=0)
+    send_at: float = Field(default=0, allow_inf_nan=False)
 
 
 class DiscordNotification(BaseModel):
@@ -24,7 +25,8 @@ class DiscordNotification(BaseModel):
     type: Literal["discord"] = Field(default="discord")
     json_data: dict
     webhook: str
-    tries: int = Field(default=0)
+    tries: int = Field(default=0, ge=0)
+    send_at: float = Field(default=0, allow_inf_nan=False)
 
 
 class WebhookNotification(BaseModel):
@@ -32,8 +34,9 @@ class WebhookNotification(BaseModel):
 
     type: Literal["webhook"] = Field(default="webhook")
     payload: dict  # the jsonable_encoder'd notification (what gets POSTed to webhook URLs)
-    send_at: float  # when to send (for delayed retry)
-    tries: int = Field(default=0)
+    send_at: float = Field(allow_inf_nan=False)
+    tries: int = Field(default=0, ge=0)
+    pending_webhooks: list[str] | None = None
 
 
 # Telegram/Discord queue singleton

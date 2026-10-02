@@ -1,16 +1,18 @@
 import asyncio
+from contextlib import AsyncExitStack
 from datetime import UTC, datetime as dt, timedelta as td
 
 import aiohttp
+from pydantic import ValidationError
 from sqlalchemy import delete
 
 from app import on_shutdown, scheduler
 from app.db import GetDB
 from app.db.models import NotificationReminder
-from app.models.settings import Webhook
+from app.models.settings import Webhook, WebhookInfo
+from app.notification.nats_queue import NotificationDelivery
 from app.notification.queue_manager import (
     WebhookNotification,
-    enqueue_webhook,
     get_webhook_queue,
     shutdown_webhook_queue,
 )
@@ -22,104 +24,108 @@ from config import job_settings, runtime_settings
 logger = get_logger("send-notification")
 
 
-async def send_to_all_webhooks(client: aiohttp.ClientSession, notifications, webhooks):
-    """
-    Send the notifications to all webhooks concurrently.
-    Returns True if at least one webhook succeeds.
-    notifications: list of already JSON-serializable dicts (webhook payloads)
-    """
-    if not notifications:
-        return True
+BATCH_SIZE = 50
+MAX_BATCHES_PER_RUN = 10
+WEBHOOK_CONCURRENCY = 8
 
-    payload = notifications  # Already JSON-serializable, no need for jsonable_encoder
 
-    async def send_one(webhook):
-        webhook_headers = {"x-webhook-secret": webhook.secret} if webhook.secret else None
-        try:
-            r = await client.post(webhook.url, json=payload, headers=webhook_headers)
-            if r.status in (200, 201, 202, 204):
+async def _send_webhook(client: aiohttp.ClientSession, webhook: WebhookInfo, payloads: list[dict]) -> bool:
+    headers = {"x-webhook-secret": webhook.secret} if webhook.secret else None
+    try:
+        async with client.post(webhook.url, json=payloads, headers=headers) as response:
+            if response.status in (200, 201, 202, 204):
                 return True
-            else:
-                logger.error(f"Webhook {webhook.url} failed: {r.status} - {await r.text()}")
-        except Exception as err:
-            logger.error(f"Webhook {webhook.url} exception: {err}")
-        return False
+            # Response bodies and URLs can contain credentials or unbounded data.
+            logger.warning("Webhook delivery failed with HTTP %s", response.status)
+    except aiohttp.ClientError, TimeoutError:
+        logger.warning("Webhook delivery failed due to a connection error or timeout")
+    return False
 
-    results = await asyncio.gather(*(send_one(webhook) for webhook in webhooks))
-    return any(results)
+
+async def _send_batch(
+    client: aiohttp.ClientSession, settings: Webhook, batch: list[tuple[NotificationDelivery, WebhookNotification]]
+):
+    webhooks = {webhook.url: webhook for webhook in settings.webhooks}
+    pending = {}
+    prepared = []
+    for delivery, notification in batch:
+        targets = notification.pending_webhooks
+        pending[delivery] = set(webhooks if targets is None else targets).intersection(webhooks)
+        if pending[delivery]:
+            notification = notification.model_copy(update={"pending_webhooks": sorted(pending[delivery])})
+            try:
+                await delivery.prepare(notification.model_dump())
+            except asyncio.QueueFull:
+                logger.warning("Deferring webhook notification until retry capacity is available")
+                await delivery.release(delay=max(settings.timeout, 1))
+                continue
+        prepared.append((delivery, notification))
+    batch = prepared
+
+    async def send_one(url):
+        payloads = [notification.payload for delivery, notification in batch if url in pending[delivery]]
+        if payloads and await _send_webhook(client, webhooks[url], payloads):
+            for delivery, _ in batch:
+                pending[delivery].discard(url)
+
+    # Limit both live requests and tasks even with many configured destinations.
+    urls = list(webhooks)
+    for start in range(0, len(urls), WEBHOOK_CONCURRENCY):
+        async with asyncio.TaskGroup() as tasks:
+            for url in urls[start : start + WEBHOOK_CONCURRENCY]:
+                tasks.create_task(send_one(url))
+
+    retry_at = dt.now(UTC).timestamp() + settings.timeout
+    for delivery, notification in batch:
+        failed = pending[delivery]
+        if failed and notification.tries + 1 < settings.recurrent:
+            retry = notification.model_copy(
+                update={"pending_webhooks": sorted(failed), "tries": notification.tries + 1, "send_at": retry_at}
+            )
+            # Persist failed destinations before acknowledging the original.
+            await delivery.retry(retry.model_dump(), delay=settings.timeout)
+        else:
+            if failed:
+                logger.warning("Webhook notification exhausted its delivery attempts for %s destinations", len(failed))
+            await delivery.ack()
 
 
 async def send_notifications():
-    """Drain queued webhooks through a client-scoped trusted TLS context."""
+    """Deliver bounded batches while retaining ownership until delivery/retry is safe."""
     settings: Webhook = await webhook_settings()
     if not settings.enable:
         return
 
-    logger.debug("Processing notifications batch")
-
-    processed = 0
-    failed_to_requeue = []
-    ready_notifications = []
-    current_time = dt.now(UTC).timestamp()
-    should_requeue = settings.enable
-
-    try:
-        async with create_outbound_http_session(proxy=settings.proxy_url if settings.proxy_url else None) as client:
-            webhook_queue = get_webhook_queue()
-            while True:
-                try:
-                    item = await webhook_queue.dequeue(timeout=1)
-                except Exception:
-                    # Handle any dequeue errors gracefully
-                    break
-
-                if not item:
-                    break
-
-                try:
-                    notification = WebhookNotification(**item)
-
+    queue = get_webhook_queue()
+    async with create_outbound_http_session(proxy=settings.proxy_url or None) as client:
+        for _ in range(MAX_BATCHES_PER_RUN):
+            async with AsyncExitStack() as reservations:
+                batch = []
+                exhausted = False
+                for _ in range(BATCH_SIZE):
+                    delivery = await queue.dequeue(timeout=0.05)
+                    if delivery is None:
+                        exhausted = True
+                        break
+                    await reservations.enter_async_context(delivery)
+                    try:
+                        notification = WebhookNotification.model_validate(delivery.data)
+                    except ValidationError:
+                        logger.error("Discarding malformed webhook notification")
+                        await delivery.ack()
+                        continue
                     if notification.tries >= settings.recurrent:
+                        await delivery.ack()
                         continue
-
-                    if notification.send_at > current_time:
-                        failed_to_requeue.append(notification)
+                    delay = notification.send_at - dt.now(UTC).timestamp()
+                    if delay > 0:
+                        await delivery.release(delay=delay)
                         continue
-
-                    ready_notifications.append(notification)
-                except Exception:
-                    failed_to_requeue.append(notification)
-
-            if ready_notifications:
-                batch_size = 50
-                for start in range(0, len(ready_notifications), batch_size):
-                    batch = ready_notifications[start : start + batch_size]
-                    logger.info(
-                        f"Sending batch of {len(batch)} notifications to {len(settings.webhooks)} webhooks "
-                        f"(chunk {start // batch_size + 1})"
-                    )
-                    # Extract payloads from WebhookNotification objects
-                    payloads = [notif.payload for notif in batch]
-                    success = await send_to_all_webhooks(client, payloads, settings.webhooks)
-
-                    if not success:
-                        retry_at = dt.now(UTC).timestamp()
-                        for notification in batch:
-                            notification.tries += 1
-                            if notification.tries < settings.recurrent:
-                                notification.send_at = retry_at + settings.timeout
-                                failed_to_requeue.append(notification)
-
-                    processed += len(batch)
-
-    finally:
-        if should_requeue:
-            # Requeue failed items at the end
-            for notif in failed_to_requeue:
-                await enqueue_webhook(notif.payload, send_at=notif.send_at, tries=notif.tries)
-
-        if processed or failed_to_requeue:
-            logger.info(f"Processed {processed} notifications, requeued {len(failed_to_requeue)}")
+                    batch.append((delivery, notification))
+                if batch:
+                    await _send_batch(client, settings, batch)
+                if exhausted:
+                    break
 
 
 async def delete_expired_reminders() -> None:
