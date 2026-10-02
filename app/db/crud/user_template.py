@@ -1,5 +1,6 @@
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.db.models import NextPlan, UserTemplate, template_group_association
 from app.models.user_template import (
@@ -46,7 +47,9 @@ async def create_user_template(db: AsyncSession, user_template: UserTemplateCrea
         expire_duration=user_template.expire_duration,
         username_prefix=user_template.username_prefix,
         username_suffix=user_template.username_suffix,
-        groups=await get_groups_by_ids(db, user_template.group_ids) if user_template.group_ids else None,
+        groups=await get_groups_by_ids(db, user_template.group_ids, load_users=False, load_inbounds=False)
+        if user_template.group_ids
+        else None,
         extra_settings=user_template.extra_settings.dict() if user_template.extra_settings else None,
         status=user_template.status,
         reset_usages=user_template.reset_usages,
@@ -89,7 +92,9 @@ async def modify_user_template(
     if modified_user_template.username_suffix is not None:
         db_user_template.username_suffix = modified_user_template.username_suffix
     if modified_user_template.group_ids:
-        db_user_template.groups = await get_groups_by_ids(db, modified_user_template.group_ids)
+        db_user_template.groups = await get_groups_by_ids(
+            db, modified_user_template.group_ids, load_users=False, load_inbounds=False
+        )
     if modified_user_template.extra_settings is not None:
         db_user_template.extra_settings = modified_user_template.extra_settings.dict()
     if modified_user_template.status is not None:
@@ -154,7 +159,7 @@ async def get_user_templates(db: AsyncSession, query: UserTemplateListQuery) -> 
     Returns:
         List[UserTemplate]: A list of user template objects.
     """
-    stmt = select(UserTemplate).order_by(UserTemplate.id.asc())
+    stmt = select(UserTemplate).options(selectinload(UserTemplate.groups)).order_by(UserTemplate.id.asc())
     if query.ids:
         stmt = stmt.where(UserTemplate.id.in_(query.ids))
     if query.offset:
@@ -163,9 +168,6 @@ async def get_user_templates(db: AsyncSession, query: UserTemplateListQuery) -> 
         stmt = stmt.limit(query.limit)
 
     user_templates = (await db.execute(stmt)).scalars().all()
-    for template in user_templates:
-        await load_user_template_attrs(template)
-
     return user_templates
 
 
