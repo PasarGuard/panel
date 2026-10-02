@@ -3,7 +3,7 @@ import secrets
 from datetime import UTC, datetime, timedelta
 from urllib.parse import urlsplit
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy import delete, select
 from webauthn import (
@@ -23,8 +23,8 @@ from webauthn.helpers.structs import (
 from app.db import AsyncSession, get_db
 from app.db.models import Admin, AdminPasskey, AdminStatus, PasskeyChallenge
 from app.models.admin import AdminDetails, Token
-from app.utils.jwt import create_admin_token
 from app.operation.permissions import PermissionDenied, enforce_permission
+from app.utils.jwt import create_admin_token
 
 from .authentication import get_current
 
@@ -251,7 +251,7 @@ async def passkey_login_verify(body: PasskeyAuthenticationRequest, request: Requ
         raise HTTPException(status_code=401, detail="Passkey verification failed") from exc
     passkey.sign_count = verified.new_sign_count
     await db.commit()
-    return Token(access_token=await create_admin_token(admin.id, admin.username))
+    return Token(access_token=await create_admin_token(admin.id, admin.username, admin.hashed_password))
 
 
 @router.post("/register/options")
