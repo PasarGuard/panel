@@ -5,6 +5,8 @@ import svgr from 'vite-plugin-svgr'
 import path from 'path'
 import { VitePWA } from 'vite-plugin-pwa'
 
+const shellJavaScript = new Set<string>()
+
 export default defineConfig({
   base: process.env.BASE_URL,
   clearScreen: false,
@@ -18,112 +20,8 @@ export default defineConfig({
     outDir: 'build',
     assetsDir: 'statics',
     emptyOutDir: false,
-    rollupOptions: {
-      output: {
-        manualChunks(id) {
-          const normalizedId = id.replace(/\\/g, '/')
-
-          if (
-            normalizedId.includes('/node_modules/react/') ||
-            normalizedId.includes('/node_modules/react-dom/') ||
-            normalizedId.includes('/node_modules/scheduler/') ||
-            normalizedId.includes('react-dom/index.js?commonjs-es-import')
-          ) {
-            return 'react'
-          }
-
-          if (normalizedId.includes('/node_modules/react-router/') || normalizedId.includes('/node_modules/react-router-dom/')) {
-            return 'react-router'
-          }
-
-          if (normalizedId.includes('/node_modules/@tanstack/react-query/') || normalizedId.includes('/node_modules/@tanstack/query-core/')) {
-            return 'react-query'
-          }
-
-          if (normalizedId.includes('/node_modules/recharts/')) {
-            return 'recharts'
-          }
-
-          if (normalizedId.includes('/node_modules/@radix-ui/react-slot/')) {
-            return 'radix-slot'
-          }
-
-          if (
-            normalizedId.includes('/node_modules/@radix-ui/react-dialog/') ||
-            normalizedId.includes('/node_modules/@radix-ui/react-alert-dialog/') ||
-            normalizedId.includes('/node_modules/@radix-ui/react-toast/')
-          ) {
-            return 'radix-dialog'
-          }
-
-          if (
-            normalizedId.includes('/node_modules/@radix-ui/react-popover/') ||
-            normalizedId.includes('/node_modules/@radix-ui/react-dropdown-menu/') ||
-            normalizedId.includes('/node_modules/@radix-ui/react-hover-card/') ||
-            normalizedId.includes('/node_modules/@radix-ui/react-tooltip/') ||
-            normalizedId.includes('/node_modules/@radix-ui/react-select/')
-          ) {
-            return 'radix-popover'
-          }
-
-          if (
-            normalizedId.includes('/node_modules/@radix-ui/react-tabs/') ||
-            normalizedId.includes('/node_modules/@radix-ui/react-accordion/') ||
-            normalizedId.includes('/node_modules/@radix-ui/react-collapsible/')
-          ) {
-            return 'radix-navigation'
-          }
-
-          if (
-            normalizedId.includes('/node_modules/@radix-ui/react-checkbox/') ||
-            normalizedId.includes('/node_modules/@radix-ui/react-radio-group/') ||
-            normalizedId.includes('/node_modules/@radix-ui/react-switch/') ||
-            normalizedId.includes('/node_modules/@radix-ui/react-label/')
-          ) {
-            return 'radix-forms'
-          }
-
-          if (
-            normalizedId.includes('/node_modules/@radix-ui/react-scroll-area/') ||
-            normalizedId.includes('/node_modules/@radix-ui/react-separator/') ||
-            normalizedId.includes('/node_modules/@radix-ui/react-progress/') ||
-            normalizedId.includes('/node_modules/@radix-ui/react-avatar/')
-          ) {
-            return 'radix-layout'
-          }
-
-          if (normalizedId.includes('/node_modules/@radix-ui/react-toggle/') || normalizedId.includes('/node_modules/@radix-ui/react-toggle-group/')) {
-            return 'radix-toggle'
-          }
-
-          if (
-            normalizedId.includes('/node_modules/i18next/') ||
-            normalizedId.includes('/node_modules/react-i18next/') ||
-            normalizedId.includes('/node_modules/i18next-browser-languagedetector/') ||
-            normalizedId.includes('/node_modules/i18next-http-backend/')
-          ) {
-            return 'i18n'
-          }
-
-          if (normalizedId.includes('/node_modules/lodash.debounce/')) {
-            return 'lodash'
-          }
-
-          if (normalizedId.includes('/node_modules/dayjs/')) {
-            return 'dayjs'
-          }
-
-          if (
-            normalizedId.includes('/node_modules/clsx/') ||
-            normalizedId.includes('/node_modules/uuid/') ||
-            normalizedId.includes('/node_modules/date-fns/') ||
-            normalizedId.includes('/node_modules/date-fns-jalali/')
-          ) {
-            return 'utils'
-          }
-        },
-      },
-    },
+    // Let the bundler preserve lazy import boundaries; manual vendor groups
+    // pulled chart and dialog dependencies into the initial app shell.
   },
   resolve: {
     dedupe: ['react', 'react-dom'],
@@ -154,15 +52,47 @@ export default defineConfig({
     tailwindcss(),
     react(),
     svgr(),
+    {
+      name: 'collect-shell-precache',
+      generateBundle(_, bundle) {
+        shellJavaScript.clear()
+        const visit = (fileName: string) => {
+          const chunk = bundle[fileName]
+          if (chunk?.type !== 'chunk' || shellJavaScript.has(fileName)) return
+          shellJavaScript.add(fileName)
+          chunk.imports.forEach(visit)
+        }
+        // Follow static imports only; route, dialog and editor chunks stay deferred.
+        Object.values(bundle).forEach(chunk => {
+          if (chunk.type === 'chunk' && chunk.isEntry) visit(chunk.fileName)
+        })
+      },
+    },
     VitePWA({
       registerType: 'prompt',
       injectRegister: false,
       workbox: {
         navigateFallback: '/index.html',
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
-        // Monaco is loaded lazily in editor dialogs, so its largest chunks
-        // should stay network-fetched instead of bloating the app shell precache.
         globIgnores: ['statics/editor.api*.js', 'statics/ts.worker*.js'],
+        // Preserve the shell offline without downloading every lazy chunk on install.
+        manifestTransforms: [
+          async entries => ({
+            manifest: entries.filter(entry => !entry.url.endsWith('.js') || shellJavaScript.has(entry.url)),
+            warnings: [],
+          }),
+        ],
+        runtimeCaching: [
+          {
+            urlPattern: ({ request, url, sameOrigin }) => sameOrigin && request.destination === 'script' && /\/statics\/[^/]+\.js$/.test(url.pathname),
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'pasarguard-lazy-javascript',
+              cacheableResponse: { statuses: [200] },
+              expiration: { maxEntries: 128, maxAgeSeconds: 30 * 24 * 60 * 60 },
+            },
+          },
+        ],
         cleanupOutdatedCaches: false,
         skipWaiting: false,
         clientsClaim: false,
