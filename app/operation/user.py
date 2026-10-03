@@ -1588,10 +1588,11 @@ class UserOperation(BaseOperation):
         """
         Get users who match the cleanup target within the specified date range.
 
-        - **target**: `expired` | `limited` | `on_hold` | `disabled`
+        - **target**: `expired` | `limited` | `on_hold` | `disabled` | `inactive`
         - **expired_after** / **expired_before** UTC datetime (optional)
         - For `expired`: filters by expiration date.
         - For `limited` / `on_hold` / `disabled`: filters by last_status_change.
+        - For `inactive`: filters by last activity (online_at, or created_at if never online).
         - If both dates are omitted, returns all users matching target.
         """
 
@@ -1616,10 +1617,11 @@ class UserOperation(BaseOperation):
         """
         Delete users who match the cleanup target within the specified date range.
 
-        - **target**: `expired` | `limited` | `on_hold` | `disabled`
+        - **target**: `expired` | `limited` | `on_hold` | `disabled` | `inactive`
         - **expired_after** / **expired_before** UTC datetime (optional)
         - For `expired`: filters by expiration date.
         - For `limited` / `on_hold` / `disabled`: filters by last_status_change.
+        - For `inactive`: filters by last activity (online_at, or created_at if never online).
         - **dry_run**: if true, returns the list of users that would be deleted without deleting them.
         """
 
