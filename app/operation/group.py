@@ -94,6 +94,8 @@ class GroupOperation(BaseOperation):
             db,
             query=UserListQuery(group_ids=[db_group.id]),
             load_admin_role=True,
+            load_usage_logs=False,
+            load_group_inbounds=True,
         )
         await self._sync_users_allocations(db, users)
         await db.commit()
@@ -114,7 +116,13 @@ class GroupOperation(BaseOperation):
 
         await remove_group(db, db_group)
 
-        users = await get_users(db, query=UserListQuery(username=username_list), load_admin_role=True)
+        users = await get_users(
+            db,
+            query=UserListQuery(username=username_list),
+            load_admin_role=True,
+            load_usage_logs=False,
+            load_group_inbounds=True,
+        )
         await self._sync_users_allocations(db, users)
         await db.commit()
         await sync_users(users)
@@ -179,7 +187,11 @@ class GroupOperation(BaseOperation):
 
         if all_affected_usernames:
             users = await get_users(
-                db, query=UserListQuery(username=list(all_affected_usernames)), load_admin_role=True
+                db,
+                query=UserListQuery(username=list(all_affected_usernames)),
+                load_admin_role=True,
+                load_usage_logs=False,
+                load_group_inbounds=True,
             )
             await self._sync_users_allocations(db, users)
             await db.commit()
@@ -221,13 +233,15 @@ class GroupOperation(BaseOperation):
 
         for db_group in groups_to_update:
             await db.refresh(db_group)
-            await load_group_attrs(db_group)
+            await load_group_attrs(db, db_group)
 
         if groups_to_update:
             users = await get_users(
                 db,
                 query=UserListQuery(group_ids=[group.id for group in groups_to_update]),
                 load_admin_role=True,
+                load_usage_logs=False,
+                load_group_inbounds=True,
             )
             await self._sync_users_allocations(db, users)
             await db.commit()

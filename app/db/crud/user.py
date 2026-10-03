@@ -395,6 +395,7 @@ async def get_users(
     load_admin_role: bool = False,
     load_usage_logs: bool = True,
     load_lifetime_used_traffic: bool = False,
+    load_group_inbounds: bool = False,
 ) -> list[User] | tuple[list[User], int]:
     """
     Retrieves users based on various filters.
@@ -406,6 +407,8 @@ async def get_users(
         return_with_count: Whether to return total count.
         load_usage_logs: Whether to materialize reset-history rows.
         load_lifetime_used_traffic: Whether to calculate lifetime usage with an aggregate.
+        load_group_inbounds: Whether to eager-load each user's groups' inbounds (avoids a query per user when
+            serializing users for nodes).
 
     Returns:
         List of users or tuple with (users, count) if return_with_count is True.
@@ -414,10 +417,14 @@ async def get_users(
     if load_admin_role:
         admin_loader = admin_loader.selectinload(Admin.role)
 
+    groups_loader = selectinload(User.groups)
+    if load_group_inbounds:
+        groups_loader = groups_loader.selectinload(Group.inbounds)
+
     options = [
         admin_loader,
         selectinload(User.next_plan),
-        selectinload(User.groups),
+        groups_loader,
     ]
     if load_usage_logs:
         options.append(selectinload(User.usage_logs))
