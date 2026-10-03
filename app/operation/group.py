@@ -15,7 +15,7 @@ from app.db.crud.group import (
 )
 from app.db.crud.user import get_users
 from app.db.crud.wireguard import sync_users_allocations
-from app.db.models import Admin
+from app.db.models import Admin, User
 from app.models.group import (
     BulkGroup,
     BulkGroupsActionResponse,
@@ -55,6 +55,20 @@ class GroupOperation(BaseOperation):
             await sync_users_allocations(db, users)
         except ValueError as exc:  # WireGuard subnet exhausted
             await self.raise_error(message=str(exc), code=400, db=db)
+
+    @staticmethod
+    async def _get_users_for_sync(db: AsyncSession, usernames: list[str]) -> list[User]:
+        """Load users for a node sync, 10k usernames per query (asyncpg caps a statement at 32767 bind params)."""
+        users: list[User] = []
+        for start in range(0, len(usernames), 10_000):
+            users += await get_users(
+                db,
+                query=UserListQuery(username=usernames[start : start + 10_000]),
+                load_admin_role=True,
+                load_usage_logs=False,
+                load_group_inbounds=True,
+            )
+        return users
 
     async def create_group(self, db: AsyncSession, new_group: GroupCreate, admin: Admin) -> Group:
         await self.check_inbound_tags(new_group.inbound_tags)
@@ -116,13 +130,7 @@ class GroupOperation(BaseOperation):
 
         await remove_group(db, db_group)
 
-        users = await get_users(
-            db,
-            query=UserListQuery(username=username_list),
-            load_admin_role=True,
-            load_usage_logs=False,
-            load_group_inbounds=True,
-        )
+        users = await self._get_users_for_sync(db, username_list)
         await self._sync_users_allocations(db, users)
         await db.commit()
         await sync_users(users)
@@ -186,13 +194,7 @@ class GroupOperation(BaseOperation):
         await remove_groups(db, group_ids)
 
         if all_affected_usernames:
-            users = await get_users(
-                db,
-                query=UserListQuery(username=list(all_affected_usernames)),
-                load_admin_role=True,
-                load_usage_logs=False,
-                load_group_inbounds=True,
-            )
+            users = await self._get_users_for_sync(db, list(all_affected_usernames))
             await self._sync_users_allocations(db, users)
             await db.commit()
             await sync_users(users)

@@ -12,9 +12,11 @@ from sqlalchemy.pool import StaticPool
 from app.db import base
 from app.db.crud.group import get_group, get_group_by_id, load_group_attrs
 from app.db.crud.user import get_users
+from app.db.crud.wireguard import get_users_accessible_tags
 from app.db.models import Group, ProxyInbound, User, users_groups_association
 from app.models.group import GroupListQuery, GroupResponse
 from app.models.user import UserListQuery
+from app.operation.group import GroupOperation
 
 USERS = 30
 
@@ -109,3 +111,36 @@ async def test_get_users_load_group_inbounds_avoids_per_user_inbound_queries(db_
     assert statements == []  # every group's inbounds were already loaded
     assert all("in-a" in user_tags for user_tags in tags)
     assert sum("in-b" in user_tags for user_tags in tags) == (USERS + 1) // 2
+
+
+def _record_bind_counts(session):
+    counts: list[int] = []
+
+    @event.listens_for(session.bind.sync_engine, "before_cursor_execute")
+    def _record(conn, cursor, statement, parameters, context, executemany):
+        counts.append(len(parameters))
+
+    return counts
+
+
+@pytest.mark.asyncio
+async def test_get_users_accessible_tags_chunks_large_id_lists(db_session):
+    # asyncpg rejects statements with more than 32767 bind parameters.
+    counts = _record_bind_counts(db_session)
+
+    tags = await get_users_accessible_tags(db_session, list(range(1, 25_001)))
+
+    assert max(counts) <= 10_000
+    assert len(counts) == 3
+    assert "in-a" in tags[1] and "in-b" not in tags[2]
+
+
+@pytest.mark.asyncio
+async def test_get_users_for_sync_chunks_large_username_lists(db_session):
+    counts = _record_bind_counts(db_session)
+
+    names = [f"user{i}" for i in range(USERS)] + [f"missing{i}" for i in range(25_000)]
+    users = await GroupOperation._get_users_for_sync(db_session, names)
+
+    assert len(users) == USERS
+    assert max(counts) <= 10_000
