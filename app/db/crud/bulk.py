@@ -1,7 +1,7 @@
 from collections.abc import Iterator, Sequence
 from datetime import UTC, datetime as dt
 
-from sqlalchemy import and_, bindparam, case, cast, delete, func, insert, or_, select, text, true, update
+from sqlalchemy import and_, case, cast, delete, func, insert, or_, select, text, true, update
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import Select
@@ -20,7 +20,7 @@ from app.models.group import BulkGroup
 from app.models.user import BulkUser, BulkUserFilter, BulkUsersProxy
 
 from .general import get_datetime_add_expression
-from .user import _build_user_select_stmt
+from .user import _build_user_select_stmt, _explicit_ids
 
 
 def _bulk_user_reload_stmt(*, load_group_inbounds: bool = False) -> Select:
@@ -39,13 +39,6 @@ def _chunked(ids: Sequence[int]) -> Iterator[Sequence[int]]:
     statements bind the group ids next to the user ids, so stay well below 10k."""
     for start in range(0, len(ids), 5_000):
         yield ids[start : start + 5_000]
-
-
-def _explicit_ids(user_ids: Sequence[int]):
-    """`User.id IN (...)` for ids taken from the request body. The ids are rendered into the statement at execution
-    time instead of bound one by one, so a statement never exceeds asyncpg's 32767 bind parameters (a filter that is
-    OR-combined with other conditions cannot be split into chunks)."""
-    return User.id.in_(bindparam(None, list(user_ids), expanding=True, literal_execute=True))
 
 
 async def _reload_group_users(db: AsyncSession, user_ids: Sequence[int]) -> list[User]:
@@ -172,7 +165,7 @@ def _create_group_filter(bulk_model: BulkGroup):
 
     filter_conditions = []
     if user_ids:
-        filter_conditions.append(_explicit_ids(user_ids))
+        filter_conditions.append(_explicit_ids(User.id, user_ids))
     if other_conditions:
         filter_conditions.append(and_(*other_conditions))
 
@@ -312,7 +305,7 @@ def _create_final_filter(bulk_model: BulkUserFilter):
 
     filter_conditions = []
     if user_ids:
-        filter_conditions.append(_explicit_ids(user_ids))
+        filter_conditions.append(_explicit_ids(User.id, user_ids))
     if other_conditions:
         filter_conditions.append(and_(*other_conditions))
 

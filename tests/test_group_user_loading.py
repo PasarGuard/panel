@@ -20,7 +20,7 @@ from app.db.crud.bulk import (
     update_users_proxy_settings,
 )
 from app.db.crud.group import get_group, get_group_by_id, get_group_usernames, load_group_attrs, remove_group
-from app.db.crud.user import get_users
+from app.db.crud.user import get_users, get_users_by_ids, remove_users
 from app.db.crud.wireguard import get_users_accessible_tags
 from app.db.models import (
     Admin,
@@ -40,6 +40,7 @@ from app.models.user import BulkUser, BulkUsersProxy, UserListQuery
 from app.operation import OperatorType
 from app.operation.admin import AdminOperation
 from app.operation.group import GroupOperation
+from app.operation.user import UserOperation
 
 USERS = 30
 
@@ -458,3 +459,43 @@ async def test_admin_bulk_activate_and_disable_sync_users_without_usage_logs_or_
         statements.clear()
         assert all("in-a" in tags for tags in [await user.inbounds() for user in synced])
         assert statements == []
+
+
+@pytest.mark.asyncio
+async def test_by_id_user_loading_with_40k_ids_binds_no_id_parameters(db_session):
+    # The by-id bulk endpoints (disable, reset usage, revoke, apply template, ...) load the requested users with
+    # `ids` taken from the request body; asyncpg rejects statements with more than 32767 bind parameters.
+    ids = list(range(1, 40_001))
+    counts = _record_bind_counts(db_session)
+
+    by_query = await get_users(db_session, UserListQuery(ids=ids, limit=len(ids)))
+    by_ids = await get_users_by_ids(db_session, ids)
+
+    assert len(by_query) == len(by_ids) == USERS
+    assert max(counts) <= 10_000
+
+
+@pytest.mark.asyncio
+async def test_remove_users_binds_no_id_parameters(db_session):
+    await _add_big_group_members(db_session, 12_000)
+    users = await get_users_by_ids(db_session, (await db_session.execute(select(User.id))).scalars().all())
+    counts = _record_bind_counts(db_session)
+
+    await remove_users(db_session, users)
+
+    assert max(counts) <= 10_000
+    assert (await db_session.execute(select(func.count()).select_from(User))).scalar_one() == 0
+    assert (await db_session.execute(select(func.count()).select_from(users_groups_association))).scalar_one() == 0
+
+
+@pytest.mark.asyncio
+async def test_by_id_bulk_sync_reload_preloads_group_inbounds(db_session):
+    statements = _record_statements(db_session)
+    ids = (await db_session.execute(select(User.id))).scalars().all()
+
+    users = await UserOperation(OperatorType.API)._load_users_by_ids(db_session, ids)
+
+    assert len(users) == USERS
+    statements.clear()
+    assert all("in-a" in tags for tags in [await user.inbounds() for user in users])
+    assert statements == []  # sync_users reads the inbounds from the preloaded groups
