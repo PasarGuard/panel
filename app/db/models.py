@@ -841,6 +841,7 @@ class Group(Base, IdMixin):
         secondary=template_group_association, back_populates="groups", init=False
     )
     is_disabled: Mapped[bool] = mapped_column(server_default="0", default=False)
+    _total_users_query: Mapped[int | None] = query_expression(repr=False)
 
     @hybrid_property
     def inbound_ids(self) -> list[int]:
@@ -874,6 +875,10 @@ class Group(Base, IdMixin):
 
     @hybrid_property
     def total_users(self) -> int:
+        # Populated by a SQL COUNT (with_expression / load_group_attrs) so group
+        # summaries never have to hydrate every member.
+        if self._total_users_query is not None:
+            return int(self._total_users_query)
         return len(self.users)
 
     @total_users.expression

@@ -1,10 +1,12 @@
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, with_expression
+from sqlalchemy.orm.attributes import set_committed_value
 
 from app.db.models import (
     Group,
     ProxyInbound,
+    User,
     inbounds_groups_association,
     template_group_association,
     users_groups_association,
@@ -39,22 +41,26 @@ async def get_inbounds_by_tags(db: AsyncSession, tags: list[str]) -> list[ProxyI
     return [inbounds_map[tag] for tag in tags]
 
 
-async def load_group_attrs(group: Group, *, load_users: bool = True, load_inbounds: bool = True):
-    if load_users:
-        await group.awaitable_attrs.users
+async def load_group_attrs(
+    db: AsyncSession, group: Group, *, load_total_users: bool = True, load_inbounds: bool = True
+):
+    if load_total_users:
+        # Count memberships in SQL instead of hydrating every Group.users row.
+        total_users = (
+            await db.execute(
+                select(func.count(users_groups_association.c.user_id)).where(
+                    users_groups_association.c.groups_id == group.id
+                )
+            )
+        ).scalar_one()
+        set_committed_value(group, "_total_users_query", total_users)
     if load_inbounds:
         await group.awaitable_attrs.inbounds
 
 
-async def get_group_by_id(
-    db: AsyncSession,
-    group_id: int,
-    *,
-    load_users: bool = True,
-    load_inbounds: bool = True,
-) -> Group | None:
+async def get_group_by_id(db: AsyncSession, group_id: int) -> Group | None:
     """
-    Retrieves a group by its ID.
+    Retrieves a group by its ID, with its inbounds and a SQL-computed total_users.
 
     Args:
         db (AsyncSession): The database session.
@@ -63,10 +69,12 @@ async def get_group_by_id(
     Returns:
         Optional[Group]: The Group object if found, None otherwise.
     """
-    group = (await db.execute(select(Group).where(Group.id == group_id))).unique().scalar_one_or_none()
-    if group:
-        await load_group_attrs(group, load_users=load_users, load_inbounds=load_inbounds)
-    return group
+    stmt = (
+        select(Group)
+        .where(Group.id == group_id)
+        .options(with_expression(Group._total_users_query, Group.total_users), selectinload(Group.inbounds))
+    )
+    return (await db.execute(stmt)).unique().scalar_one_or_none()
 
 
 async def create_group(db: AsyncSession, group: GroupCreate) -> Group:
@@ -88,7 +96,7 @@ async def create_group(db: AsyncSession, group: GroupCreate) -> Group:
     db.add(db_group)
     await db.commit()
     await db.refresh(db_group)
-    await load_group_attrs(db_group)
+    await load_group_attrs(db, db_group)
     return db_group
 
 
@@ -105,7 +113,9 @@ async def get_group(db: AsyncSession, query: GroupListQuery) -> tuple[list[Group
             - list[Group]: A list of Group objects
             - int: The total count of groups
     """
-    groups = select(Group).options(selectinload(Group.users), selectinload(Group.inbounds))
+    groups = select(Group).options(
+        with_expression(Group._total_users_query, Group.total_users), selectinload(Group.inbounds)
+    )
     if query.ids:
         groups = groups.where(Group.id.in_(query.ids))
 
@@ -122,7 +132,7 @@ async def get_group(db: AsyncSession, query: GroupListQuery) -> tuple[list[Group
 
     count = (await db.execute(count_query)).scalar_one()
 
-    # users and inbounds already eagerly loaded via selectinload above
+    # inbounds are eagerly loaded and total_users is computed in SQL, so no User rows are loaded
     all_groups = (await db.execute(groups)).unique().scalars().all()
 
     return all_groups, count
@@ -231,8 +241,23 @@ async def modify_group(db: AsyncSession, db_group: Group, modified_group: GroupM
 
     await db.commit()
     await db.refresh(db_group)
-    await load_group_attrs(db_group)
+    await load_group_attrs(db, db_group)
     return db_group
+
+
+async def get_group_usernames(db: AsyncSession, group_ids: list[int]) -> list[str]:
+    """Distinct usernames of the members of any of the groups, without hydrating User rows."""
+    usernames: set[str] = set()
+    # 10k group ids per query: asyncpg caps a statement at 32767 bind parameters.
+    for start in range(0, len(group_ids), 10_000):
+        stmt = (
+            select(User.username)
+            .join(users_groups_association, users_groups_association.c.user_id == User.id)
+            .where(users_groups_association.c.groups_id.in_(group_ids[start : start + 10_000]))
+            .distinct()
+        )
+        usernames.update((await db.execute(stmt)).scalars())
+    return list(usernames)
 
 
 async def remove_group(db: AsyncSession, dbgroup: Group):
@@ -243,8 +268,8 @@ async def remove_group(db: AsyncSession, dbgroup: Group):
         db (AsyncSession): The database session.
         dbgroup (Group): The Group object to be removed.
     """
-    await db.delete(dbgroup)
-    await db.commit()
+    # db.delete(dbgroup) would load Group.users and delete the association rows one by one.
+    await remove_groups(db, [dbgroup.id])
 
 
 async def remove_groups(db: AsyncSession, group_ids: list[int]) -> None:
