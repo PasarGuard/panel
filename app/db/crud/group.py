@@ -6,6 +6,7 @@ from sqlalchemy.orm.attributes import set_committed_value
 from app.db.models import (
     Group,
     ProxyInbound,
+    User,
     inbounds_groups_association,
     template_group_association,
     users_groups_association,
@@ -244,6 +245,16 @@ async def modify_group(db: AsyncSession, db_group: Group, modified_group: GroupM
     return db_group
 
 
+async def get_group_usernames(db: AsyncSession, group_id: int) -> list[str]:
+    """Usernames of a group's members, without hydrating User rows."""
+    stmt = (
+        select(User.username)
+        .join(users_groups_association, users_groups_association.c.user_id == User.id)
+        .where(users_groups_association.c.groups_id == group_id)
+    )
+    return list((await db.execute(stmt)).scalars().all())
+
+
 async def remove_group(db: AsyncSession, dbgroup: Group):
     """
     Removes a group from the database.
@@ -252,8 +263,8 @@ async def remove_group(db: AsyncSession, dbgroup: Group):
         db (AsyncSession): The database session.
         dbgroup (Group): The Group object to be removed.
     """
-    await db.delete(dbgroup)
-    await db.commit()
+    # db.delete(dbgroup) would load Group.users and delete the association rows one by one.
+    await remove_groups(db, [dbgroup.id])
 
 
 async def remove_groups(db: AsyncSession, group_ids: list[int]) -> None:

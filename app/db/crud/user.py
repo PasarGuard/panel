@@ -130,6 +130,7 @@ def _build_user_select_stmt(
     load_usage_logs: bool = True,
     load_groups: bool = True,
     join_groups: bool = False,
+    load_group_inbounds: bool = False,
     load_lifetime_used_traffic: bool = False,
 ) -> Select:
     """Build a user select statement with eager-load options."""
@@ -145,7 +146,13 @@ def _build_user_select_stmt(
     if load_usage_logs:
         options.append(selectinload(User.usage_logs))
     if load_groups:
-        options.append(joinedload(User.groups) if join_groups else selectinload(User.groups))
+        if join_groups:
+            groups_loader = joinedload(User.groups)
+        else:
+            groups_loader = selectinload(User.groups)
+            if load_group_inbounds:
+                groups_loader = groups_loader.selectinload(Group.inbounds)
+        options.append(groups_loader)
     if options:
         stmt = stmt.options(*options)
     if load_lifetime_used_traffic:

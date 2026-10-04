@@ -1,6 +1,7 @@
+from collections.abc import Iterator, Sequence
 from datetime import UTC, datetime as dt
 
-from sqlalchemy import and_, case, cast, delete, func, or_, select, text, update
+from sqlalchemy import and_, case, cast, delete, func, insert, or_, select, text, true, update
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import Select
@@ -22,14 +23,31 @@ from .general import get_datetime_add_expression
 from .user import _build_user_select_stmt
 
 
-def _bulk_user_reload_stmt() -> Select:
+def _bulk_user_reload_stmt(*, load_group_inbounds: bool = False) -> Select:
     """Reload bulk results with batched relationships and aggregate lifetime usage."""
     # Bulk SQL bypasses relationship collections; replace any cached memberships.
     return _build_user_select_stmt(
         load_admin_role=True,
         load_usage_logs=False,
+        load_group_inbounds=load_group_inbounds,
         load_lifetime_used_traffic=True,
     ).execution_options(populate_existing=True)
+
+
+def _chunked(ids: Sequence[int]) -> Iterator[Sequence[int]]:
+    """Yield ids 5k at a time. asyncpg rejects statements with more than 32767 bind parameters, and these
+    statements bind the group ids next to the user ids, so stay well below 10k."""
+    for start in range(0, len(ids), 5_000):
+        yield ids[start : start + 5_000]
+
+
+async def _reload_group_users(db: AsyncSession, user_ids: Sequence[int]) -> list[User]:
+    """Reload users for a node sync after a bulk group change, with their groups' inbounds preloaded."""
+    users: list[User] = []
+    for chunk in _chunked(user_ids):
+        result = await db.execute(_bulk_user_reload_stmt(load_group_inbounds=True).where(User.id.in_(chunk)))
+        users += result.scalars().all()
+    return users
 
 
 async def reset_all_users_data_usage(
@@ -165,44 +183,48 @@ async def add_groups_to_users(db: AsyncSession, bulk_model: BulkGroup) -> tuple[
     Bulk add groups to users and return list of affected User objects.
     """
     final_filter = _create_group_filter(bulk_model)
+    count_effctive_users = await count_bulk_group_scope(db, bulk_model)
 
-    # Get target user IDs
-    result = await db.execute(select(User.id).where(final_filter))
-    user_ids = {row[0] for row in result.all()}
-
-    count_effctive_users = len(user_ids)
-
-    if not user_ids:
-        return [], count_effctive_users
-
-    # Fetch existing associations for target users
-    existing = await db.execute(
-        select(users_groups_association).where(users_groups_association.c.user_id.in_(user_ids))
+    # Users in scope that miss at least one of the requested groups (snapshot taken before any insert).
+    memberships = (
+        select(func.count(users_groups_association.c.groups_id))
+        .where(
+            users_groups_association.c.user_id == User.id,
+            users_groups_association.c.groups_id.in_(bulk_model.group_ids),
+        )
+        .scalar_subquery()
     )
-    existing_pairs = {(r.user_id, r.groups_id) for r in existing.all()}
+    missing_group = memberships < len(bulk_model.group_ids)
+    result = await db.execute(select(User.id).where(final_filter, missing_group))
+    affected_user_ids = result.scalars().all()
 
-    # Prepare new associations
-    new_rows = [
-        {"user_id": uid, "groups_id": gid}
-        for uid in user_ids
-        for gid in bulk_model.group_ids
-        if (uid, gid) not in existing_pairs
-    ]
-
-    if not new_rows:
+    if not affected_user_ids:
         return [], count_effctive_users
 
-    # PostgreSQL asyncpg limits bind parameters to 32767 per query.
-    # Each row has 2 columns (user_id, groups_id), so cap batches at 16000 rows.
-    BATCH_SIZE = 16_000
-    for i in range(0, len(new_rows), BATCH_SIZE):
-        await db.execute(users_groups_association.insert(), new_rows[i : i + BATCH_SIZE])
+    # Insert the missing (user, group) pairs server-side, one statement per chunk of users.
+    for user_ids in _chunked(affected_user_ids):
+        missing_pairs = (
+            select(User.id, Group.id)
+            .select_from(User)
+            .join(Group, true())
+            .where(
+                User.id.in_(user_ids),
+                Group.id.in_(bulk_model.group_ids),
+                ~select(users_groups_association.c.user_id)
+                .where(
+                    users_groups_association.c.user_id == User.id,
+                    users_groups_association.c.groups_id == Group.id,
+                )
+                .exists(),
+            )
+        )
+        await db.execute(
+            insert(users_groups_association).from_select(["user_id", "groups_id"], missing_pairs),
+        )
     await db.commit()
 
     # Return users that actually had groups added
-    result = await db.execute(_bulk_user_reload_stmt().where(User.id.in_({r["user_id"] for r in new_rows})))
-    users = result.scalars().all()
-    return users, count_effctive_users
+    return await _reload_group_users(db, affected_user_ids), count_effctive_users
 
 
 async def remove_groups_from_users(
@@ -212,43 +234,32 @@ async def remove_groups_from_users(
     Bulk remove groups from users and return list of affected User objects.
     """
     final_filter = _create_group_filter(bulk_model)
+    count_effctive_users = await count_bulk_group_scope(db, bulk_model)
 
-    # Get target user IDs
-    result = await db.execute(select(User.id).where(final_filter))
-    user_ids = {row[0] for row in result.all()}
-
-    count_effctive_users = len(user_ids)
-
-    if not user_ids:
-        return [], count_effctive_users
-
-    # Identify affected users (those who actually have the groups to be removed)
-    subquery = (
+    # Identify affected users (those in scope who actually have the groups to be removed)
+    has_group = (
         select(users_groups_association.c.user_id)
         .where(
-            and_(
-                users_groups_association.c.user_id.in_(user_ids),
-                users_groups_association.c.groups_id.in_(bulk_model.group_ids),
-            )
+            users_groups_association.c.user_id == User.id,
+            users_groups_association.c.groups_id.in_(bulk_model.group_ids),
         )
-        .distinct()
+        .exists()
     )
-    result = await db.execute(select(User.id).where(User.id.in_(subquery)))
+    result = await db.execute(select(User.id).where(final_filter, has_group))
     affected_user_ids = result.scalars().all()
 
     if not affected_user_ids:
         return [], count_effctive_users
 
-    await db.execute(
-        delete(users_groups_association).where(
-            users_groups_association.c.user_id.in_(affected_user_ids),
-            users_groups_association.c.groups_id.in_(bulk_model.group_ids),
+    for user_ids in _chunked(affected_user_ids):
+        await db.execute(
+            delete(users_groups_association).where(
+                users_groups_association.c.user_id.in_(user_ids),
+                users_groups_association.c.groups_id.in_(bulk_model.group_ids),
+            )
         )
-    )
     await db.commit()
-    result = await db.execute(_bulk_user_reload_stmt().where(User.id.in_(affected_user_ids)))
-    users = result.scalars().all()
-    return users, count_effctive_users
+    return await _reload_group_users(db, affected_user_ids), count_effctive_users
 
 
 async def count_bulk_expire_targets(db: AsyncSession, bulk_model: BulkUser) -> int:

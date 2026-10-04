@@ -6,6 +6,7 @@ from app.db.crud.bulk import add_groups_to_users, count_bulk_group_scope, remove
 from app.db.crud.group import (
     create_group,
     get_group,
+    get_group_usernames,
     get_groups_by_ids,
     get_groups_simple,
     load_group_attrs,
@@ -125,8 +126,7 @@ class GroupOperation(BaseOperation):
     async def remove_group(self, db: AsyncSession, group_id: int, admin: Admin) -> None:
         db_group = await self._get_group_with_access(db, group_id, admin)
 
-        users = await get_users(db, query=UserListQuery(group_ids=[db_group.id]))
-        username_list = [user.username for user in users]
+        username_list = await get_group_usernames(db, db_group.id)
 
         await remove_group(db, db_group)
 
