@@ -1,7 +1,7 @@
 from collections.abc import Iterator, Sequence
 from datetime import UTC, datetime as dt
 
-from sqlalchemy import and_, case, cast, delete, func, insert, or_, select, text, true, update
+from sqlalchemy import and_, bindparam, case, cast, delete, func, insert, or_, select, text, true, update
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import Select
@@ -41,8 +41,15 @@ def _chunked(ids: Sequence[int]) -> Iterator[Sequence[int]]:
         yield ids[start : start + 5_000]
 
 
+def _explicit_ids(user_ids: Sequence[int]):
+    """`User.id IN (...)` for ids taken from the request body. The ids are rendered into the statement at execution
+    time instead of bound one by one, so a statement never exceeds asyncpg's 32767 bind parameters (a filter that is
+    OR-combined with other conditions cannot be split into chunks)."""
+    return User.id.in_(bindparam(None, list(user_ids), expanding=True, literal_execute=True))
+
+
 async def _reload_group_users(db: AsyncSession, user_ids: Sequence[int]) -> list[User]:
-    """Reload users for a node sync after a bulk group change, with their groups' inbounds preloaded."""
+    """Reload users for a node sync after a bulk change, with their groups' inbounds preloaded."""
     users: list[User] = []
     for chunk in _chunked(user_ids):
         result = await db.execute(_bulk_user_reload_stmt(load_group_inbounds=True).where(User.id.in_(chunk)))
@@ -78,14 +85,13 @@ async def reset_all_users_data_usage(
         - This function assumes proper foreign key constraints and cascading rules are in place.
         - The function commits changes at the end of the operation.
     """
-    user_ids_query = select(User.id).where(User.admin_id == admin.id) if admin else select(User.id)
-    user_ids = (await db.execute(user_ids_query)).scalars().all()
-
-    if not user_ids:
-        return
+    user_ids = select(User.id).where(User.admin_id == admin.id) if admin else select(User.id)
 
     reset_status = case((User.status == UserStatus.limited, UserStatus.active), else_=User.status)
-    await db.execute(update(User).where(User.id.in_(user_ids)).values(used_traffic=0, status=reset_status))
+    reset_users = update(User).values(used_traffic=0, status=reset_status)
+    if admin:
+        reset_users = reset_users.where(User.admin_id == admin.id)
+    await db.execute(reset_users)
 
     await db.execute(delete(UserUsageResetLogs).where(UserUsageResetLogs.user_id.in_(user_ids)))
     if clean_chart_data:
@@ -166,7 +172,7 @@ def _create_group_filter(bulk_model: BulkGroup):
 
     filter_conditions = []
     if user_ids:
-        filter_conditions.append(User.id.in_(user_ids))
+        filter_conditions.append(_explicit_ids(user_ids))
     if other_conditions:
         filter_conditions.append(and_(*other_conditions))
 
@@ -306,7 +312,7 @@ def _create_final_filter(bulk_model: BulkUserFilter):
 
     filter_conditions = []
     if user_ids:
-        filter_conditions.append(User.id.in_(user_ids))
+        filter_conditions.append(_explicit_ids(user_ids))
     if other_conditions:
         filter_conditions.append(and_(*other_conditions))
 
@@ -358,8 +364,7 @@ async def update_users_expire(db: AsyncSession, bulk_model: BulkUser) -> tuple[l
 
     # Return the users whose status changed
     if status_changed_user_ids:
-        result = await db.execute(_bulk_user_reload_stmt().where(User.id.in_(status_changed_user_ids)))
-        users = result.scalars().all()
+        users = await _reload_group_users(db, status_changed_user_ids)
         return users, count_effctive_users
     return [], count_effctive_users
 
@@ -414,8 +419,7 @@ async def update_users_datalimit(db: AsyncSession, bulk_model: BulkUser) -> tupl
 
     # Return the users whose status changed
     if status_changed_user_ids:
-        result = await db.execute(_bulk_user_reload_stmt().where(User.id.in_(status_changed_user_ids)))
-        users = result.scalars().all()
+        users = await _reload_group_users(db, status_changed_user_ids)
         return users, count_effctive_users
     return [], count_effctive_users
 
@@ -462,8 +466,7 @@ async def update_users_proxy_settings(
     await db.commit()
 
     # Reload the captured targets and preserve their original selection order.
-    result = await db.execute(_bulk_user_reload_stmt().where(User.id.in_(updated_user_ids)))
-    refreshed_users = result.scalars().all()
+    refreshed_users = await _reload_group_users(db, updated_user_ids)
     refreshed_users_map = {user.id: user for user in refreshed_users}
     ordered_refreshed_users = [refreshed_users_map[uid] for uid in updated_user_ids if uid in refreshed_users_map]
 

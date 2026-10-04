@@ -2,31 +2,43 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
 import pytest
-from sqlalchemy import event, func, insert, inspect as sa_inspect, select
+from sqlalchemy import event, func, insert, inspect as sa_inspect, select, update
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
 
 from app.db import base
-from app.db.crud.bulk import add_groups_to_users, remove_groups_from_users
+from app.db.crud.bulk import (
+    add_groups_to_users,
+    remove_groups_from_users,
+    reset_all_users_data_usage,
+    update_users_datalimit,
+    update_users_expire,
+    update_users_proxy_settings,
+)
 from app.db.crud.group import get_group, get_group_by_id, get_group_usernames, load_group_attrs, remove_group
 from app.db.crud.user import get_users
 from app.db.crud.wireguard import get_users_accessible_tags
 from app.db.models import (
+    Admin,
     Group,
     ProxyInbound,
     User,
+    UserStatus,
     UserTemplate,
+    UserUsageResetLogs,
     inbounds_groups_association,
     template_group_association,
     users_groups_association,
 )
 from app.models.group import BulkGroup, BulkGroupSelection, GroupListQuery, GroupResponse
-from app.models.user import UserListQuery
+from app.models.proxy import ShadowsocksMethods
+from app.models.user import BulkUser, BulkUsersProxy, UserListQuery
 from app.operation import OperatorType
+from app.operation.admin import AdminOperation
 from app.operation.group import GroupOperation
 
 USERS = 30
@@ -325,3 +337,124 @@ async def test_bulk_remove_groups_by_id_syncs_each_member_once_without_any_remov
     statements.clear()
     assert [await user.inbounds() for user in synced] == [[]] * USERS
     assert statements == []
+
+
+@pytest.mark.asyncio
+async def test_bulk_group_filter_with_40k_explicit_ids_binds_no_id_parameters(db_session):
+    # asyncpg rejects statements with more than 32767 bind parameters; the explicit ids are OR-combined with
+    # the other conditions, so they cannot be chunked.
+    user_ids = (await db_session.execute(select(User.id).order_by(User.id))).scalars().all()
+    other_id, empty_id = await _group_id(db_session, "other"), await _group_id(db_session, "empty")
+    explicit = set(user_ids[:5]) | set(range(100_000, 140_000))  # 5 members and 40k ids that match nothing
+    bulk = BulkGroup(group_ids={empty_id}, has_group_ids={other_id}, users=explicit)
+    counts = _record_bind_counts(db_session)
+
+    users, effective = await add_groups_to_users(db_session, bulk)
+
+    # OR semantics: the 5 explicit users plus the 15 "other" members, where users 0, 2 and 4 are in both
+    assert effective == 17
+    assert sorted(user.id for user in users) == sorted(set(user_ids[:5]) | set(user_ids[::2]))
+    assert await _count_members(db_session, empty_id) == 17
+    assert max(counts) <= 10_000
+
+
+async def _prepare_explicit_users(session):
+    user_ids = (await session.execute(select(User.id).order_by(User.id))).scalars().all()
+    await session.execute(
+        update(User).values(
+            expire=datetime.now(UTC) + timedelta(hours=1), data_limit=1000, used_traffic=500, proxy_settings={}
+        )
+    )
+    await session.commit()
+    session.expunge_all()
+    return user_ids[:5], set(user_ids[:5]) | set(range(100_000, 140_000))  # 5 users and 40k ids that match nothing
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "operation,model",
+    [
+        (update_users_expire, lambda users: BulkUser(amount=-7200, users=users)),
+        (update_users_datalimit, lambda users: BulkUser(amount=-600, users=users)),
+        (
+            update_users_proxy_settings,
+            lambda users: BulkUsersProxy(method=ShadowsocksMethods.AES_256_GCM, users=users),
+        ),
+    ],
+)
+async def test_bulk_user_ops_with_40k_explicit_ids_and_preloaded_inbounds(db_session, operation, model):
+    members, explicit = await _prepare_explicit_users(db_session)
+    counts = _record_bind_counts(db_session)
+    statements = _record_statements(db_session)
+
+    users, effective = await operation(db_session, model(explicit))
+
+    assert effective == 5
+    assert sorted(user.id for user in users) == sorted(members)
+    assert max(counts) <= 10_000
+    statements.clear()
+    assert all("in-a" in tags for tags in [await user.inbounds() for user in users])
+    assert statements == []  # the node sync reads inbounds from the preloaded groups
+
+
+@pytest.mark.asyncio
+async def test_reset_all_users_data_usage_binds_no_user_ids(db_session):
+    await _add_big_group_members(db_session, 12_000)
+    first_user = (await db_session.execute(select(User.id).order_by(User.id).limit(1))).scalar_one()
+    db_session.add(UserUsageResetLogs(user_id=first_user, used_traffic_at_reset=7))
+    await db_session.execute(update(User).values(used_traffic=100, status=UserStatus.limited))
+    await db_session.execute(update(User).where(User.id <= 5).values(admin_id=1))
+    await db_session.commit()
+    counts = _record_bind_counts(db_session)
+
+    await reset_all_users_data_usage(db_session, SimpleNamespace(id=1))  # scoped to one admin's users
+
+    statuses = lambda: select(User.status, func.count()).group_by(User.status)
+    assert dict((await db_session.execute(statuses())).all()) == {
+        UserStatus.active: 5,
+        UserStatus.limited: 12_000 + USERS - 5,
+    }
+    assert (await db_session.execute(select(func.count()).select_from(UserUsageResetLogs))).scalar_one() == 0
+
+    await reset_all_users_data_usage(db_session)
+
+    assert dict((await db_session.execute(statuses())).all()) == {UserStatus.active: 12_000 + USERS}
+    assert (await db_session.execute(select(func.sum(User.used_traffic)))).scalar_one() == 0
+    assert max(counts) <= 10_000
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("how", ["activate", "disable"])
+async def test_admin_bulk_activate_and_disable_sync_users_without_usage_logs_or_inbound_queries(
+    db_session, monkeypatch, how
+):
+    admin = Admin(username="adm", hashed_password="x")
+    db_session.add(admin)
+    await db_session.flush()
+    before, after = (UserStatus.disabled, UserStatus.active) if how == "activate" else (UserStatus.active, None)
+    await db_session.execute(update(User).values(admin_id=admin.id, status=before))
+    await db_session.commit()
+    db_session.expunge_all()
+    admin = await db_session.get(Admin, admin.id)
+    synced: list[User] = []
+
+    async def fake_sync_users(users):
+        synced.extend(users)
+
+    monkeypatch.setattr("app.operation.admin.sync_users", fake_sync_users)
+    statements = _record_statements(db_session)
+    operation = AdminOperation(OperatorType.API)
+    actor = SimpleNamespace(username="tester")
+
+    if how == "activate":
+        await operation._activate_all_disabled_users_for_admin(db_session, admin, actor)
+    else:
+        await operation._disable_all_active_users_for_admin(db_session, admin, actor)
+
+    assert len(synced) == USERS
+    assert all("usage_logs" in sa_inspect(user).unloaded for user in synced)
+    if after is not None:
+        assert all(user.status == after for user in synced)
+        statements.clear()
+        assert all("in-a" in tags for tags in [await user.inbounds() for user in synced])
+        assert statements == []
