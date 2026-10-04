@@ -24,7 +24,7 @@ from app.db.models import (
     template_group_association,
     users_groups_association,
 )
-from app.models.group import BulkGroup, GroupListQuery, GroupResponse
+from app.models.group import BulkGroup, BulkGroupSelection, GroupListQuery, GroupResponse
 from app.models.user import UserListQuery
 from app.operation import OperatorType
 from app.operation.group import GroupOperation
@@ -241,7 +241,7 @@ async def test_remove_group_deletes_association_rows_in_bulk(db_session):
         if many:
             executemany.append(statement)
 
-    assert sorted(await get_group_usernames(db_session, big_id)) == sorted(f"user{i}" for i in range(USERS))
+    assert sorted(await get_group_usernames(db_session, [big_id])) == sorted(f"user{i}" for i in range(USERS))
 
     await remove_group(db_session, group)
 
@@ -262,7 +262,18 @@ async def test_remove_group_deletes_association_rows_in_bulk(db_session):
 
 
 @pytest.mark.asyncio
-async def test_group_operation_remove_group_syncs_users_without_the_removed_groups_inbounds(db_session, monkeypatch):
+async def test_get_group_usernames_is_distinct_and_chunks_large_id_lists(db_session):
+    counts = _record_bind_counts(db_session)
+    big_id, other_id = await _group_id(db_session, "big"), await _group_id(db_session, "other")
+
+    # every "other" member is also in "big": a user in several of the groups is returned once
+    names = await get_group_usernames(db_session, [big_id, other_id] + list(range(1_000, 26_000)))
+
+    assert sorted(names) == sorted(f"user{i}" for i in range(USERS))
+    assert max(counts) <= 10_000
+
+
+def _stub_node_sync(monkeypatch) -> list[User]:
     synced: list[User] = []
 
     async def fake_sync_users(users):
@@ -273,10 +284,44 @@ async def test_group_operation_remove_group_syncs_users_without_the_removed_grou
 
     monkeypatch.setattr("app.operation.group.sync_users", fake_sync_users)
     monkeypatch.setattr("app.operation.group.notification", SimpleNamespace(remove_group=fake_notify))
-    admin = SimpleNamespace(is_owner=True, role=None, username="tester")
+    return synced
 
-    await GroupOperation(OperatorType.API).remove_group(db_session, await _group_id(db_session, "big"), admin)
+
+async def _remove_via_operation(session, how, names):
+    ids = {await _group_id(session, name) for name in names}
+    admin = SimpleNamespace(is_owner=True, role=None, username="tester")
+    operation = GroupOperation(OperatorType.API)
+    if how == "remove_group":
+        (group_id,) = ids
+        await operation.remove_group(session, group_id, admin)
+    else:
+        await operation.bulk_remove_groups_by_id(session, BulkGroupSelection(ids=ids), admin)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("how", ["remove_group", "bulk_remove_groups_by_id"])
+async def test_group_removal_syncs_users_without_the_removed_groups_inbounds(db_session, monkeypatch, how):
+    synced = _stub_node_sync(monkeypatch)
+    statements = _record_statements(db_session)
+
+    await _remove_via_operation(db_session, how, ["big"])
 
     assert len(synced) == USERS
+    statements.clear()
+    tags = [await user.inbounds() for user in synced]
+    assert statements == []  # the synced users carry their (post-removal) groups' inbounds
     # "big" (in-a) is gone; only the odd users lose all inbounds, the rest keep "other" (in-b)
-    assert sorted([await user.inbounds() for user in synced]) == [[]] * (USERS // 2) + [["in-b"]] * ((USERS + 1) // 2)
+    assert sorted(tags) == [[]] * (USERS // 2) + [["in-b"]] * ((USERS + 1) // 2)
+
+
+@pytest.mark.asyncio
+async def test_bulk_remove_groups_by_id_syncs_each_member_once_without_any_removed_inbounds(db_session, monkeypatch):
+    synced = _stub_node_sync(monkeypatch)
+    statements = _record_statements(db_session)
+
+    await _remove_via_operation(db_session, "bulk_remove_groups_by_id", ["big", "other"])
+
+    assert len(synced) == USERS  # members of both groups are synced once
+    statements.clear()
+    assert [await user.inbounds() for user in synced] == [[]] * USERS
+    assert statements == []

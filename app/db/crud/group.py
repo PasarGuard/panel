@@ -245,14 +245,19 @@ async def modify_group(db: AsyncSession, db_group: Group, modified_group: GroupM
     return db_group
 
 
-async def get_group_usernames(db: AsyncSession, group_id: int) -> list[str]:
-    """Usernames of a group's members, without hydrating User rows."""
-    stmt = (
-        select(User.username)
-        .join(users_groups_association, users_groups_association.c.user_id == User.id)
-        .where(users_groups_association.c.groups_id == group_id)
-    )
-    return list((await db.execute(stmt)).scalars().all())
+async def get_group_usernames(db: AsyncSession, group_ids: list[int]) -> list[str]:
+    """Distinct usernames of the members of any of the groups, without hydrating User rows."""
+    usernames: set[str] = set()
+    # 10k group ids per query: asyncpg caps a statement at 32767 bind parameters.
+    for start in range(0, len(group_ids), 10_000):
+        stmt = (
+            select(User.username)
+            .join(users_groups_association, users_groups_association.c.user_id == User.id)
+            .where(users_groups_association.c.groups_id.in_(group_ids[start : start + 10_000]))
+            .distinct()
+        )
+        usernames.update((await db.execute(stmt)).scalars())
+    return list(usernames)
 
 
 async def remove_group(db: AsyncSession, dbgroup: Group):

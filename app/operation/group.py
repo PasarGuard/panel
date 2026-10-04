@@ -126,7 +126,7 @@ class GroupOperation(BaseOperation):
     async def remove_group(self, db: AsyncSession, group_id: int, admin: Admin) -> None:
         db_group = await self._get_group_with_access(db, group_id, admin)
 
-        username_list = await get_group_usernames(db, db_group.id)
+        username_list = await get_group_usernames(db, [db_group.id])
 
         await remove_group(db, db_group)
 
@@ -183,18 +183,14 @@ class GroupOperation(BaseOperation):
             if gid not in found_ids:
                 await self.raise_error("Group not found", 404)
 
-        all_affected_usernames = set()
-        for db_group in db_groups:
-            users = await get_users(db, query=UserListQuery(group_ids=[db_group.id]))
-            all_affected_usernames.update(user.username for user in users)
-
         group_ids = [g.id for g in db_groups]
         group_names = [g.name for g in db_groups]
+        all_affected_usernames = await get_group_usernames(db, group_ids)
 
         await remove_groups(db, group_ids)
 
         if all_affected_usernames:
-            users = await self._get_users_for_sync(db, list(all_affected_usernames))
+            users = await self._get_users_for_sync(db, all_affected_usernames)
             await self._sync_users_allocations(db, users)
             await db.commit()
             await sync_users(users)
