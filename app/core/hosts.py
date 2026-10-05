@@ -92,6 +92,9 @@ async def _prepare_subscription_inbound_data(
     path = host.path or inbound_config.get("path", "")
 
     final_mask_settings = host.final_mask_settings if host.final_mask_settings else inbound_config.get("finalmask")
+    if isinstance(final_mask_settings, FinalMask):
+        # Dump with aliases once, so builders and the NATS KV copy see Xray field names
+        final_mask_settings = final_mask_settings.model_dump(by_alias=True, exclude_none=True, mode="json")
     finalmask_link = _normalize_finalmask_link(final_mask_settings)
 
     if protocol == "wireguard":
