@@ -18,6 +18,7 @@ export interface XrayStreamFinalmaskFieldsProps {
   value: Record<string, any> | undefined
   onChange: (next: Record<string, any> | undefined) => void
   t: (key: string, opts?: Record<string, unknown>) => string
+  allowClientOnlyMasks?: boolean
 }
 
 function pruneQuicParams(q: any): any | undefined {
@@ -101,7 +102,7 @@ function hasFinalmaskContent(value: Record<string, any> | undefined): boolean {
   )
 }
 
-export function XrayStreamFinalmaskFields({ value, onChange }: XrayStreamFinalmaskFieldsProps) {
+export function XrayStreamFinalmaskFields({ value, onChange, allowClientOnlyMasks = true }: XrayStreamFinalmaskFieldsProps) {
   const dir = useDirDetection()
 
   const form = useForm<any>({
@@ -151,7 +152,7 @@ export function XrayStreamFinalmaskFields({ value, onChange }: XrayStreamFinalma
         </TabsContent>
 
         <TabsContent dir={dir} value="udp">
-          <UdpLayersForm form={form} />
+          <UdpLayersForm form={form} allowClientOnlyMasks={allowClientOnlyMasks} />
         </TabsContent>
 
         <TabsContent dir={dir} value="quic">
@@ -292,7 +293,7 @@ function TcpLayersForm({ form }: { form: UseFormReturn<any> }) {
 // ==========================================
 // UDP Layers component
 // ==========================================
-function UdpLayersForm({ form }: { form: UseFormReturn<any> }) {
+function UdpLayersForm({ form, allowClientOnlyMasks }: { form: UseFormReturn<any>; allowClientOnlyMasks: boolean }) {
   const { t } = useTranslation()
   const { fields, append, remove } = useFieldArray({
     control: form.control,
@@ -315,6 +316,8 @@ function UdpLayersForm({ form }: { form: UseFormReturn<any> }) {
       form.setValue(`udp.${index}.settings`, { header: 'wechat', value: '' })
     } else if (newType === 'realm') {
       form.setValue(`udp.${index}.settings`, { url: '', stunServers: [], tlsConfig: undefined })
+    } else if (newType === 'udphop') {
+      form.setValue(`udp.${index}.settings`, { mode: 'intervalRemote', interval: '30', remoteIPs: [], remotePorts: '' })
     } else if (newType === 'xdns') {
       form.setValue(`udp.${index}.settings`, { domains: [], resolvers: [] })
     } else if (newType === 'xicmp') {
@@ -373,6 +376,7 @@ function UdpLayersForm({ form }: { form: UseFormReturn<any> }) {
                           <SelectContent>
                             <SelectItem value="mkcp-legacy">mkcp-legacy</SelectItem>
                             <SelectItem value="realm">realm</SelectItem>
+                            {(allowClientOnlyMasks || selectField.value === 'udphop') && <SelectItem value="udphop">udphop</SelectItem>}
                             <SelectItem value="xdns">xdns</SelectItem>
                             <SelectItem value="xicmp">xicmp</SelectItem>
                             <SelectItem value="salamander">salamander</SelectItem>
@@ -481,6 +485,85 @@ function UdpLayersForm({ form }: { form: UseFormReturn<any> }) {
                     )}
                   />
                   <JsonObjectField form={form} name={`udp.${index}.settings.tlsConfig`} label={t('hostsDialog.finalmask.tlsConfig')} />
+                </div>
+              )}
+
+              {type === 'udphop' && (
+                <div className="bg-background grid grid-cols-2 gap-3 rounded-md border p-3">
+                  <p className="text-muted-foreground col-span-2 text-[11px] leading-relaxed">{t('hostsDialog.finalmask.udphopLastLayerHint')}</p>
+                  <FormField
+                    control={form.control}
+                    name={`udp.${index}.settings.mode`}
+                    render={({ field: selectField }) => (
+                      <FormItem>
+                        <FormLabel className="text-xs">{t('hostsDialog.finalmask.udphopMode')}</FormLabel>
+                        <Select onValueChange={selectField.onChange} value={selectField.value || 'intervalRemote'}>
+                          <FormControl>
+                            <SelectTrigger className="h-8 text-xs">
+                              <SelectValue placeholder={t('hostsDialog.finalmask.udphopMode')} />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent side="top">
+                            <SelectItem value="intervalRemote">intervalRemote</SelectItem>
+                            <SelectItem value="intervalLocal">intervalLocal</SelectItem>
+                            <SelectItem value="intervalLocal,intervalRemote">intervalLocal,intervalRemote</SelectItem>
+                            <SelectItem value="perConnRemote">perConnRemote</SelectItem>
+                            <SelectItem value="perConnRemote,intervalLocal">perConnRemote,intervalLocal</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name={`udp.${index}.settings.interval`}
+                    render={({ field: inputField }) => (
+                      <FormItem>
+                        <FormLabel className="text-xs">{t('hostsDialog.finalmask.interval')}</FormLabel>
+                        <FormControl>
+                          <Input placeholder={t('hostsDialog.finalmask.intervalPlaceholder')} {...inputField} value={inputField.value || ''} className="h-8 text-xs" />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name={`udp.${index}.settings.remotePorts`}
+                    render={({ field: inputField }) => (
+                      <FormItem>
+                        <FormLabel className="text-xs">{t('hostsDialog.finalmask.udphopRemotePorts')}</FormLabel>
+                        <FormControl>
+                          <Input placeholder={t('hostsDialog.finalmask.portsPlaceholder')} {...inputField} value={inputField.value || ''} className="h-8 text-xs" />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name={`udp.${index}.settings.remoteIPs`}
+                    render={({ field: inputField }) => (
+                      <FormItem>
+                        <FormLabel className="text-xs">{t('hostsDialog.finalmask.udphopRemoteIps')}</FormLabel>
+                        <FormControl>
+                          <StringArrayPopoverInput
+                            value={Array.isArray(inputField.value) ? inputField.value : []}
+                            onChange={(next: string[]) => inputField.onChange(next)}
+                            placeholder={t('hostsDialog.finalmask.udphopRemoteIpsPlaceholder')}
+                            addPlaceholder={t('arrayInput.addPlaceholder')}
+                            addButtonLabel={t('arrayInput.addButton')}
+                            itemsLabel={t('arrayInput.items')}
+                            emptyMessage={t('arrayInput.noItems')}
+                            duplicateErrorMessage={t('arrayInput.duplicateError')}
+                            clickToEditTitle={t('arrayInput.clickToEdit')}
+                            editItemTitle={t('arrayInput.editItem')}
+                            removeItemTitle={t('arrayInput.removeItem')}
+                            saveEditTitle={t('arrayInput.saveEdit')}
+                            cancelEditTitle={t('arrayInput.cancelEdit')}
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
                 </div>
               )}
 
@@ -789,6 +872,7 @@ function QuicParamsForm({ form }: { form: UseFormReturn<any> }) {
 
       <div className="border-t pt-3">
         <h5 className="mb-2 text-xs font-semibold">{t('hostsDialog.finalmask.udpHop')}</h5>
+        <p className="text-muted-foreground mb-2 text-[11px] leading-relaxed">{t('hostsDialog.finalmask.udpHopLegacyHint')}</p>
         <div className="bg-muted/5 grid grid-cols-2 gap-3 rounded-md border p-3">
           <FormField
             control={form.control}
@@ -1533,7 +1617,7 @@ export function XrayStreamFinalmaskInboundAccordion({ accordionItemClassName, va
               }}
             />
           </div>
-          {enabled && <XrayStreamFinalmaskFields value={value} onChange={onChange} t={t} />}
+          {enabled && <XrayStreamFinalmaskFields value={value} onChange={onChange} t={t} allowClientOnlyMasks={false} />}
         </AccordionContent>
       </AccordionItem>
     </Accordion>

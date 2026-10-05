@@ -3,9 +3,10 @@ from unittest.mock import AsyncMock
 from urllib.parse import parse_qs, urlparse
 
 import pytest
+from pydantic import ValidationError
 
 from app.core.hosts import _prepare_subscription_inbound_data
-from app.models.host import BaseHost
+from app.models.host import BaseHost, FinalMask
 from app.models.subscription import SubscriptionInboundData
 from app.subscription.clash import ClashMetaConfiguration
 from app.subscription.links import StandardLinks
@@ -87,3 +88,98 @@ async def test_hysteria2_builders_read_inbound_finalmask(hysteria_inbound):
     hysteria_inbound["finalmask"] = FINALMASK
 
     _assert_builders_read_finalmask(await _prepare())
+
+
+UDPHOP = {
+    "type": "udphop",
+    "settings": {
+        "mode": "intervalRemote",
+        "interval": "10-60",
+        "remoteIPs": ["203.0.113.0/24"],
+        "remotePorts": "20000-20010",
+    },
+}
+SALAMANDER = {"type": "salamander", "settings": {"password": "obfs-secret"}}
+XICMP = {"type": "xicmp", "settings": {"ips": ["198.51.100.7"]}}
+
+
+def _udphop_settings(**settings):
+    """Validated settings of a single udphop layer."""
+    layer = {"type": "udphop", "settings": {**UDPHOP["settings"], **settings}}
+    return FinalMask.model_validate({"udp": [layer]}).udp[0].settings
+
+
+def test_finalmask_accepts_udphop_with_xray_field_names():
+    dumped = FinalMask.model_validate({"udp": [SALAMANDER, UDPHOP]}).model_dump(by_alias=True, exclude_none=True)
+
+    assert dumped["udp"] == [SALAMANDER, UDPHOP]
+
+
+def test_finalmask_udphop_mode_is_case_insensitive():
+    assert _udphop_settings(mode="intervallocal,INTERVALREMOTE").mode == "intervallocal,INTERVALREMOTE"
+
+
+@pytest.mark.parametrize("mode", ["random", "intervalRemote,", "intervalRemote, intervalLocal", "", None])
+def test_finalmask_rejects_invalid_or_missing_udphop_mode(mode):
+    with pytest.raises(ValidationError):
+        _udphop_settings(mode=mode)
+
+
+@pytest.mark.parametrize(("interval", "expected"), [("", None), (None, None), (45, "45"), (" 5-10 ", "5-10")])
+def test_finalmask_udphop_interval_is_optional_and_normalized(interval, expected):
+    assert _udphop_settings(interval=interval).interval == expected
+
+
+@pytest.mark.parametrize("interval", ["abc", "30s", "10-", "3", "1-60", 4, "۳۰"])
+def test_finalmask_rejects_invalid_udphop_interval(interval):
+    with pytest.raises(ValidationError):
+        _udphop_settings(interval=interval)
+
+
+def test_finalmask_udphop_normalizes_remote_ips_and_ports():
+    settings = _udphop_settings(remoteIPs=["198.51.100.7", " ", "203.0.113.0/24"], remotePorts=[20000, " 20005-20010"])
+
+    assert settings.remote_ips == ["198.51.100.7/32", "203.0.113.0/24"]
+    assert settings.remote_ports == "20000,20005-20010"
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("remoteIPs", ["not-an-ip"]),
+        ("remoteIPs", [123, "198.51.100.7"]),
+        ("remotePorts", "20000-x"),
+        ("remotePorts", "20000-99999"),
+        ("remotePorts", "0"),
+        ("remotePorts", "20010-20000"),
+        ("remotePorts", "۲۰۰۰۰"),
+    ],
+)
+def test_finalmask_rejects_invalid_udphop_targets(field, value):
+    with pytest.raises(ValidationError):
+        _udphop_settings(**{field: value})
+
+
+@pytest.mark.parametrize(
+    ("udp", "error"),
+    [
+        ([UDPHOP, SALAMANDER], "udphop must be the last UDP layer and appear once"),
+        ([UDPHOP, UDPHOP], "udphop must be the last UDP layer and appear once"),
+        ([XICMP, UDPHOP], "udphop cannot be combined with xicmp"),
+        ([UDPHOP, XICMP], "udphop cannot be combined with xicmp"),
+        ([{"type": "udphop"}], "udphop needs settings with a mode"),
+    ],
+)
+def test_finalmask_rejects_udphop_layer_combinations_xray_cannot_dial(udp, error):
+    with pytest.raises(ValidationError, match=error):
+        FinalMask.model_validate({"udp": udp})
+
+
+@pytest.mark.usefixtures("hysteria_inbound")
+async def test_hysteria2_link_passes_udphop_through_fm():
+    query = _link_query(await _prepare(final_mask_settings={"udp": [SALAMANDER, UDPHOP]}))
+
+    assert json.loads(query["fm"][0])["udp"] == [SALAMANDER, UDPHOP]
+    assert query["obfs-password"] == ["obfs-secret"]
+    # Hop ports for non-Xray clients stay under the admin's control in quicParams.udpHop
+    assert "mports" not in query

@@ -1,3 +1,4 @@
+from app.models.host import FinalMask
 from app.subscription.xray import XrayConfiguration
 
 
@@ -28,3 +29,20 @@ def test_xray_finalmask_keeps_unrecognized_raw_values_unchanged():
     stream_settings = XrayConfiguration._stream_setting_config(finalmask=finalmask)
 
     assert stream_settings["finalmask"] == finalmask
+
+
+def test_xray_finalmask_keeps_udphop_with_xray_field_names():
+    udphop = {
+        "type": "udphop",
+        "settings": {
+            "mode": "intervalRemote",
+            "interval": "10-60",
+            "remoteIPs": ["203.0.113.0/24"],
+            "remotePorts": "20000-20010",
+        },
+    }
+    finalmask = FinalMask.model_validate({"udp": [udphop]}).model_dump(by_alias=True, exclude_none=True, mode="json")
+
+    stream_settings = XrayConfiguration._stream_setting_config(finalmask=finalmask)
+
+    assert stream_settings["finalmask"]["udp"] == [udphop]
