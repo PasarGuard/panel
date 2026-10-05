@@ -210,6 +210,8 @@ function TcpLayersForm({ form }: { form: UseFormReturn<any> }) {
   )
 }
 
+const UDPHOP_MODES = ['intervalRemote', 'intervalLocal', 'intervalLocal,intervalRemote', 'perConnRemote', 'perConnRemote,intervalLocal']
+
 // ==========================================
 // UDP Layers component
 // ==========================================
@@ -424,11 +426,14 @@ function UdpLayersForm({ form }: { form: UseFormReturn<any> }) {
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent side="top">
-                            <SelectItem value="intervalRemote">intervalRemote</SelectItem>
-                            <SelectItem value="intervalLocal">intervalLocal</SelectItem>
-                            <SelectItem value="intervalLocal,intervalRemote">intervalLocal,intervalRemote</SelectItem>
-                            <SelectItem value="perConnRemote">perConnRemote</SelectItem>
-                            <SelectItem value="perConnRemote,intervalLocal">perConnRemote,intervalLocal</SelectItem>
+                            {UDPHOP_MODES.map(mode => (
+                              <SelectItem key={mode} value={mode}>
+                                {mode}
+                              </SelectItem>
+                            ))}
+                            {typeof selectField.value === 'string' && selectField.value && !UDPHOP_MODES.includes(selectField.value) && (
+                              <SelectItem value={selectField.value}>{selectField.value}</SelectItem>
+                            )}
                           </SelectContent>
                         </Select>
                       </FormItem>
@@ -672,7 +677,7 @@ function UdpLayersForm({ form }: { form: UseFormReturn<any> }) {
                       </FormItem>
                     )}
                   />
-                  <XrayNoiseSettingsList form={form} name={`final_mask_settings.udp.${index}.settings.noise`} label={t('hostsDialog.finalmask.noiseSettings')} />
+                  <XrayNoiseSettingsList form={form} name={`final_mask_settings.udp.${index}.settings.noise`} label={t('hostsDialog.finalmask.noiseSettings')} allowExp />
                 </div>
               )}
 
@@ -1349,9 +1354,10 @@ interface XrayNoiseSettingsListProps {
   form: UseFormReturn<any>
   name: string
   label: string
+  allowExp?: boolean
 }
 
-function XrayNoiseSettingsList({ form, name, label }: XrayNoiseSettingsListProps) {
+function XrayNoiseSettingsList({ form, name, label, allowExp }: XrayNoiseSettingsListProps) {
   const { t } = useTranslation()
   const { fields, append, remove, insert } = useFieldArray({
     control: form.control,
@@ -1379,6 +1385,8 @@ function XrayNoiseSettingsList({ form, name, label }: XrayNoiseSettingsListProps
         {fields.map((field, index) => {
           const noiseType = form.watch(`${name}.${index}.type`)
           const isArrayType = noiseType === 'array'
+          const isExpType = allowExp && noiseType === 'exp'
+          const packetPlaceholderKey = isExpType ? 'hostsDialog.finalmask.noiseExpPlaceholder' : 'hostsDialog.noise.packet'
           return (
           <div key={field.id} className="bg-background space-y-2 rounded-md border p-2">
             <div className="flex items-center gap-2">
@@ -1399,6 +1407,11 @@ function XrayNoiseSettingsList({ form, name, label }: XrayNoiseSettingsListProps
                           if (Array.isArray(currentPacket)) {
                             form.setValue(`${name}.${index}.packet`, '')
                           }
+                          if (val === 'exp') {
+                            // Xray rejects exp with a non-zero rand; undefined drops both keys from the saved config
+                            form.setValue(`${name}.${index}.rand`, undefined)
+                            form.setValue(`${name}.${index}.randRange`, undefined)
+                          }
                         }
                       }}
                       value={inputField.value || 'array'}
@@ -1413,6 +1426,7 @@ function XrayNoiseSettingsList({ form, name, label }: XrayNoiseSettingsListProps
                         <SelectItem value="str">str</SelectItem>
                         <SelectItem value="hex">hex</SelectItem>
                         <SelectItem value="base64">base64</SelectItem>
+                        {allowExp && <SelectItem value="exp">exp</SelectItem>}
                       </SelectContent>
                     </Select>
                   </FormItem>
@@ -1440,7 +1454,7 @@ function XrayNoiseSettingsList({ form, name, label }: XrayNoiseSettingsListProps
                 control={form.control}
                 name={`${name}.${index}.packet`}
                 render={({ field: inputField }) => (
-                  <FormItem>
+                  <FormItem className={isExpType ? 'col-span-3' : undefined}>
                     <FormControl>
                       {isArrayType ? (
                         <StringArrayPopoverInput
@@ -1459,7 +1473,7 @@ function XrayNoiseSettingsList({ form, name, label }: XrayNoiseSettingsListProps
                           cancelEditTitle={t('arrayInput.cancelEdit')}
                         />
                       ) : (
-                        <Input placeholder={t('hostsDialog.noise.packet')} {...inputField} value={typeof inputField.value === 'string' ? inputField.value : ''} className="h-8 text-xs" />
+                        <Input placeholder={t(packetPlaceholderKey)} {...inputField} value={typeof inputField.value === 'string' ? inputField.value : ''} className="h-8 text-xs" />
                       )}
                     </FormControl>
                   </FormItem>
@@ -1476,28 +1490,32 @@ function XrayNoiseSettingsList({ form, name, label }: XrayNoiseSettingsListProps
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name={`${name}.${index}.rand`}
-                render={({ field: inputField }) => (
-                  <FormItem>
-                    <FormControl>
-                      <Input placeholder={t('hostsDialog.finalmask.noiseRandPlaceholder')} {...inputField} value={inputField.value || ''} className="h-8 text-xs" />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name={`${name}.${index}.randRange`}
-                render={({ field: inputField }) => (
-                  <FormItem>
-                    <FormControl>
-                      <Input placeholder={t('hostsDialog.finalmask.noiseRandRangePlaceholder')} {...inputField} value={inputField.value || ''} className="h-8 text-xs" />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
+              {!isExpType && (
+                <>
+                  <FormField
+                    control={form.control}
+                    name={`${name}.${index}.rand`}
+                    render={({ field: inputField }) => (
+                      <FormItem>
+                        <FormControl>
+                          <Input placeholder={t('hostsDialog.finalmask.noiseRandPlaceholder')} {...inputField} value={inputField.value || ''} className="h-8 text-xs" />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name={`${name}.${index}.randRange`}
+                    render={({ field: inputField }) => (
+                      <FormItem>
+                        <FormControl>
+                          <Input placeholder={t('hostsDialog.finalmask.noiseRandRangePlaceholder')} {...inputField} value={inputField.value || ''} className="h-8 text-xs" />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                </>
+              )}
             </div>
           </div>
           )

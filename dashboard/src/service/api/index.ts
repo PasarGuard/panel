@@ -1045,9 +1045,21 @@ export interface FinalMaskXicmpSettings {
   [key: string]: unknown;
  }
 
+/**
+ * Packet item of the UDP noise mask. Unlike header-custom items, it also accepts exp, a packet template.
+ */
+export interface FinalMaskNoiseMaskItem {
+  type?: string | null;
+  packet?: string | number[] | null;
+  delay?: string | number | null;
+  rand?: number | string | null;
+  randRange?: string | null;
+  [key: string]: unknown;
+ }
+
 export interface FinalMaskNoiseSettings {
   reset?: string | number | null;
-  noise?: FinalMaskNoiseItem[] | null;
+  noise?: FinalMaskNoiseMaskItem[] | null;
   [key: string]: unknown;
  }
 

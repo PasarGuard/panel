@@ -170,6 +170,19 @@ class FinalMaskNoiseItem(FinalMaskBaseModel):
     rand_range: str | None = Field(default=None, alias="randRange", pattern=r"^\d{1,16}(-\d{1,16})?$")
 
 
+class FinalMaskNoiseMaskItem(FinalMaskNoiseItem):
+    """Packet item of the UDP noise mask. Unlike header-custom items, it also accepts exp, a packet template."""
+
+    type: str | None = Field(default=None, pattern=r"^$|^(:?array|str|base64|hex|exp)$")
+
+    @model_validator(mode="after")
+    def validate_exp_packet(self):
+        """Xray parses an exp packet as a template string and rejects a missing or blank one."""
+        if self.type == "exp" and not (isinstance(self.packet, str) and self.packet.strip()):
+            raise ValueError("exp noise needs a non-empty packet template string")
+        return self
+
+
 class FinalMaskTcpHeaderCustomSettings(FinalMaskBaseModel):
     clients: list[list[FinalMaskNoiseItem]] | None = Field(default=None)
     servers: list[list[FinalMaskNoiseItem]] | None = Field(default=None)
@@ -310,7 +323,7 @@ class FinalMaskMkcpLegacySettings(FinalMaskBaseModel):
 
 class FinalMaskNoiseSettings(FinalMaskBaseModel):
     reset: str | int | None = Field(default=None)
-    noise: list[FinalMaskNoiseItem] | None = Field(default=None)
+    noise: list[FinalMaskNoiseMaskItem] | None = Field(default=None)
 
 
 class FinalMaskUdpHop(FinalMaskBaseModel):

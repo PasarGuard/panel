@@ -1571,7 +1571,8 @@
       "keepAlivePeriodPlaceholder": "e.g. 0",
       "disablePmtuDiscovery": "Disable PMTU Discovery",
       "noiseRandPlaceholder": "e.g. 1-8192",
-      "noiseRandRangePlaceholder": "e.g. 0-255"
+      "noiseRandRangePlaceholder": "e.g. 0-255",
+      "noiseExpPlaceholder": "e.g. <b 0d0a><t><r 24-48>"
     },
     "muxSettings": "Mux Settings",
     "enableMux": "Enable Mux",

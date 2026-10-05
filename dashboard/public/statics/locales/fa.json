@@ -1399,7 +1399,8 @@
       "keepAlivePeriodPlaceholder": "مثلاً 0",
       "disablePmtuDiscovery": "غیرفعال‌سازی کشف PMTU",
       "noiseRandPlaceholder": "مثلاً 1-8192",
-      "noiseRandRangePlaceholder": "مثلاً 0-255"
+      "noiseRandRangePlaceholder": "مثلاً 0-255",
+      "noiseExpPlaceholder": "مثلاً <b 0d0a><t><r 24-48>"
     },
     "muxSettings": "تنظیمات Mux",
     "enableMux": "فعال‌سازی Mux",

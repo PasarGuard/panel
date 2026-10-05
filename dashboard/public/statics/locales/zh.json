@@ -1537,7 +1537,8 @@
       "keepAlivePeriodPlaceholder": "例如 0",
       "disablePmtuDiscovery": "禁用 PMTU 发现",
       "noiseRandPlaceholder": "例如 1-8192",
-      "noiseRandRangePlaceholder": "例如 0-255"
+      "noiseRandRangePlaceholder": "例如 0-255",
+      "noiseExpPlaceholder": "例如 <b 0d0a><t><r 24-48>"
     },
     "muxSettings": "Mux 设置",
     "enableMux": "启用 Mux",

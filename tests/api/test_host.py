@@ -349,7 +349,8 @@ def test_host_finalmask_new_types(access_token):
                             "type": "array",
                             "packet": [1, 2, 255],
                             "delay": "10-20",
-                        }
+                        },
+                        {"type": "exp", "packet": "<b 0d0a><t><r 24>", "delay": "1-3"},
                     ],
                 },
             },
@@ -400,6 +401,11 @@ def test_host_finalmask_new_types(access_token):
         assert noise.get("packet") == [1, 2, 255]
         assert noise.get("rand") is None
         assert "apply_to" not in noise
+        exp_noise = fm["udp"][5]["settings"]["noise"][1]
+        assert exp_noise["type"] == "exp"
+        assert exp_noise["packet"] == "<b 0d0a><t><r 24>"
+        assert exp_noise["delay"] == "1-3"
+        assert exp_noise.get("rand") is None
     finally:
         client.delete(f"/api/host/{host_id}", headers={"Authorization": f"Bearer {access_token}"})
         delete_core(access_token, core["id"])
@@ -408,38 +414,42 @@ def test_host_finalmask_new_types(access_token):
 def test_host_finalmask_udphop(access_token):
     """Xray udphop UDP mask keeps its Xray field names and normalizes form values."""
     core = create_core(access_token)
-    inbound_list = get_inbounds(access_token)
-    assert inbound_list
-    inbound = inbound_list[0]
-
-    create_response = client.post(
-        "/api/host",
-        headers={"Authorization": f"Bearer {access_token}"},
-        json={
-            "remark": unique_name("test_host_finalmask_udphop"),
-            "address": ["127.0.0.1"],
-            "port": 443,
-            "inbound_tag": inbound,
-            "priority": 1,
-            "final_mask_settings": {
-                "udp": [
-                    {
-                        "type": "udphop",
-                        "settings": {
-                            "mode": "intervalLocal,intervalRemote",
-                            "interval": "",
-                            "remoteIPs": ["203.0.113.0/24"],
-                            "remotePorts": [20000, "20005-20010"],
-                        },
-                    }
-                ]
-            },
-        },
-    )
-    assert create_response.status_code == status.HTTP_201_CREATED, create_response.text
-    host_id = create_response.json()["id"]
+    created_ids = []
 
     try:
+        inbound_list = get_inbounds(access_token)
+        assert inbound_list
+        inbound = inbound_list[0]
+
+        create_response = client.post(
+            "/api/host",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={
+                "remark": unique_name("test_host_finalmask_udphop"),
+                "address": ["127.0.0.1"],
+                "port": 443,
+                "inbound_tag": inbound,
+                "priority": 1,
+                "final_mask_settings": {
+                    "udp": [
+                        {
+                            "type": "udphop",
+                            "settings": {
+                                "mode": "intervalLocal,intervalRemote",
+                                "interval": "",
+                                "remoteIPs": ["203.0.113.0/24"],
+                                "remotePorts": [20000, "20005-20010"],
+                            },
+                        }
+                    ]
+                },
+            },
+        )
+        if create_response.status_code == status.HTTP_201_CREATED:
+            created_ids.append(create_response.json()["id"])
+        assert create_response.status_code == status.HTTP_201_CREATED, create_response.text
+        host_id = create_response.json()["id"]
+
         get_res = client.get(f"/api/host/{host_id}", headers={"Authorization": f"Bearer {access_token}"})
         assert get_res.status_code == status.HTTP_200_OK
         layer = get_res.json()["final_mask_settings"]["udp"][0]
@@ -448,28 +458,59 @@ def test_host_finalmask_udphop(access_token):
         assert layer["settings"]["remoteIPs"] == ["203.0.113.0/24"]
         assert layer["settings"]["remotePorts"] == "20000,20005-20010"
         assert layer["settings"].get("interval") is None
-    finally:
-        client.delete(f"/api/host/{host_id}", headers={"Authorization": f"Bearer {access_token}"})
 
-    invalid_response = client.post(
-        "/api/host",
-        headers={"Authorization": f"Bearer {access_token}"},
-        json={
-            "remark": unique_name("test_host_finalmask_udphop_invalid"),
-            "address": ["127.0.0.1"],
-            "port": 443,
-            "inbound_tag": inbound,
-            "priority": 1,
-            "final_mask_settings": {"udp": [{"type": "udphop", "settings": {"mode": "random"}}]},
-        },
-    )
-    try:
+        invalid_response = client.post(
+            "/api/host",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={
+                "remark": unique_name("test_host_finalmask_udphop_invalid"),
+                "address": ["127.0.0.1"],
+                "port": 443,
+                "inbound_tag": inbound,
+                "priority": 1,
+                "final_mask_settings": {"udp": [{"type": "udphop", "settings": {"mode": "random"}}]},
+            },
+        )
+        if invalid_response.status_code == status.HTTP_201_CREATED:
+            created_ids.append(invalid_response.json()["id"])
         assert invalid_response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT, invalid_response.text
     finally:
-        if invalid_response.status_code == status.HTTP_201_CREATED:
-            client.delete(
-                f"/api/host/{invalid_response.json()['id']}", headers={"Authorization": f"Bearer {access_token}"}
-            )
+        for host_id in created_ids:
+            client.delete(f"/api/host/{host_id}", headers={"Authorization": f"Bearer {access_token}"})
+        delete_core(access_token, core["id"])
+
+
+def test_host_finalmask_noise_exp_invalid(access_token):
+    """exp noise needs a non-empty packet template."""
+    core = create_core(access_token)
+    created_ids = []
+
+    try:
+        inbound_list = get_inbounds(access_token)
+        assert inbound_list
+        inbound = inbound_list[0]
+
+        response = client.post(
+            "/api/host",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={
+                "remark": unique_name("test_host_finalmask_noise_exp_invalid"),
+                "address": ["127.0.0.1"],
+                "port": 443,
+                "inbound_tag": inbound,
+                "priority": 1,
+                "final_mask_settings": {
+                    "udp": [{"type": "noise", "settings": {"noise": [{"type": "exp", "packet": ""}]}}]
+                },
+            },
+        )
+        if response.status_code == status.HTTP_201_CREATED:
+            created_ids.append(response.json()["id"])
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT, response.text
+        assert "exp noise needs a non-empty packet template string" in response.text, response.text
+    finally:
+        for host_id in created_ids:
+            client.delete(f"/api/host/{host_id}", headers={"Authorization": f"Bearer {access_token}"})
         delete_core(access_token, core["id"])
 
 
