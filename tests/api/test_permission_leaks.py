@@ -2,6 +2,7 @@
 
 import asyncio
 
+import pytest
 from fastapi import status
 from sqlalchemy import select
 
@@ -11,10 +12,14 @@ from tests.api import TestSession, client
 from tests.api.helpers import (
     auth_headers,
     create_admin,
+    create_user,
     delete_admin,
     strong_password,
     unique_name,
 )
+
+SCOPE_OWN = {"scope": 1}
+SCOPE_ALL = {"scope": 2}
 
 
 def _login(username: str, password: str) -> str:
@@ -24,6 +29,26 @@ def _login(username: str, password: str) -> str:
     )
     assert response.status_code == status.HTTP_200_OK
     return response.json()["access_token"]
+
+
+def _create_role(access_token: str, permissions: dict, access: dict | None = None) -> dict:
+    response = client.post(
+        "/api/admin-role",
+        headers=auth_headers(access_token),
+        json={
+            "name": unique_name("role_leak"),
+            "permissions": permissions,
+            "limits": {},
+            "features": {},
+            "access": access or {},
+        },
+    )
+    assert response.status_code == status.HTTP_201_CREATED, response.text
+    return response.json()
+
+
+def _delete_role(access_token: str, role_id: int) -> None:
+    client.delete(f"/api/admin-role/{role_id}", headers=auth_headers(access_token))
 
 
 def _create_owner_admin() -> dict:
@@ -95,3 +120,166 @@ def test_owner_api_key_with_empty_custom_permissions_is_not_owner(access_token):
         assert response.status_code == status.HTTP_403_FORBIDDEN
     finally:
         _delete_admin_row(owner["username"])
+
+
+# --- User actions must be scoped on the action the route gates on ---
+
+# Can read every user, but may only change its own users.
+READ_ALL_WRITE_OWN = {
+    "users": {
+        "create": True,
+        "read": SCOPE_ALL,
+        "update": SCOPE_OWN,
+        "delete": SCOPE_OWN,
+        "reset_usage": SCOPE_OWN,
+        "revoke_sub": SCOPE_OWN,
+        "set_owner": SCOPE_OWN,
+        "activate_next_plan": SCOPE_OWN,
+    }
+}
+
+# Can update every user, but the dedicated actions are limited to its own users.
+UPDATE_ALL_ACTIONS_OWN = {
+    "users": {
+        "create": True,
+        "read": SCOPE_ALL,
+        "update": SCOPE_ALL,
+        "reset_usage": SCOPE_OWN,
+        "set_owner": SCOPE_OWN,
+        "activate_next_plan": SCOPE_OWN,
+    }
+}
+
+
+@pytest.fixture
+def scoped_actor(access_token):
+    """Build a non-owner admin with the given permissions, plus a user that admin does not own."""
+    created = []
+
+    def _build(permissions: dict) -> dict:
+        role = _create_role(access_token, permissions)
+        actor = create_admin(access_token, role_id=role["id"])
+        victim = create_user(access_token)
+        created.append((role, actor, victim))
+        return {"actor": actor, "token": _login(actor["username"], actor["password"]), "victim": victim}
+
+    yield _build
+
+    for role, actor, victim in created:
+        client.delete(f"/api/user/by-id/{victim['id']}", headers=auth_headers(access_token))
+        delete_admin(access_token, actor["username"])
+        _delete_role(access_token, role["id"])
+
+
+def _send_as_actor(context: dict, method: str, path: str, *, params: dict | None = None, json: dict | None = None):
+    """Send a request as the scoped actor against its victim; "<actor>" placeholders become the actor's username."""
+    victim = context["victim"]
+    actor_username = context["actor"]["username"]
+    if params is not None:
+        params = {key: actor_username if value == "<actor>" else value for key, value in params.items()}
+    if json is not None:
+        json = {key: actor_username if value == "<actor>" else value for key, value in json.items()}
+        if "ids" in json:
+            json["ids"] = [victim["id"]]
+    return client.request(
+        method,
+        path.format(username=victim["username"], user_id=victim["id"]),
+        headers=auth_headers(context["token"]),
+        params=params,
+        json=json,
+    )
+
+
+def _assert_victim_untouched(access_token: str, victim: dict) -> None:
+    response = client.get(f"/api/user/by-id/{victim['id']}", headers=auth_headers(access_token))
+    assert response.status_code == status.HTTP_200_OK
+    assert response.json()["note"] == victim["note"]
+    assert (response.json()["admin"] or {}).get("username") == (victim["admin"] or {}).get("username")
+
+
+@pytest.mark.parametrize(
+    ("method", "path", "kwargs"),
+    [
+        pytest.param("PUT", "/api/user/{username}", {"json": {"note": "changed"}}, id="modify-legacy"),
+        pytest.param("PUT", "/api/user/by-username/{username}", {"json": {"note": "changed"}}, id="modify"),
+        pytest.param("DELETE", "/api/user/by-username/{username}", {}, id="delete"),
+        pytest.param("POST", "/api/user/by-username/{username}/reset", {}, id="reset-usage"),
+        pytest.param("POST", "/api/user/by-username/{username}/revoke_sub", {}, id="revoke-sub"),
+        pytest.param(
+            "PUT",
+            "/api/user/by-username/{username}/set_owner",
+            {"params": {"admin_username": "<actor>"}},
+            id="set-owner",
+        ),
+        pytest.param("POST", "/api/user/by-username/{username}/active_next", {}, id="activate-next-plan"),
+        pytest.param(
+            "PUT",
+            "/api/user/from_template/by-username/{username}",
+            {"json": {"user_template_id": 999999}},
+            id="modify-with-template",
+        ),
+    ],
+)
+def test_username_user_actions_respect_write_scope(access_token, scoped_actor, method, path, kwargs):
+    context = scoped_actor(READ_ALL_WRITE_OWN)
+
+    response = _send_as_actor(context, method, path, **kwargs)
+
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+    assert response.json()["detail"] == "User not found"
+    _assert_victim_untouched(access_token, context["victim"])
+
+
+@pytest.mark.parametrize(
+    ("method", "path", "kwargs"),
+    [
+        pytest.param("POST", "/api/user/by-id/{user_id}/reset", {}, id="reset-usage"),
+        pytest.param("POST", "/api/user/by-id/{user_id}/active_next", {}, id="activate-next-plan"),
+        pytest.param(
+            "PUT",
+            "/api/user/by-id/{user_id}/set_owner",
+            {"params": {"admin_username": "<actor>"}},
+            id="set-owner",
+        ),
+        pytest.param(
+            "PUT",
+            "/api/users/bulk/set_owner",
+            {"json": {"ids": [], "admin_username": "<actor>"}},
+            id="bulk-set-owner",
+        ),
+    ],
+)
+def test_user_actions_by_id_use_their_own_scope(access_token, scoped_actor, method, path, kwargs):
+    context = scoped_actor(UPDATE_ALL_ACTIONS_OWN)
+
+    response = _send_as_actor(context, method, path, **kwargs)
+
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+    assert response.json()["detail"] == "User not found"
+    _assert_victim_untouched(access_token, context["victim"])
+
+
+@pytest.mark.parametrize(
+    ("method", "path", "expected_status"),
+    [
+        pytest.param("PUT", "/api/user/by-username/{username}", status.HTTP_200_OK, id="modify"),
+        pytest.param("POST", "/api/user/by-username/{username}/reset", status.HTTP_200_OK, id="reset-usage"),
+        pytest.param("POST", "/api/user/by-id/{user_id}/reset", status.HTTP_200_OK, id="reset-usage-by-id"),
+        pytest.param("POST", "/api/user/by-username/{username}/revoke_sub", status.HTTP_200_OK, id="revoke-sub"),
+        pytest.param("DELETE", "/api/user/by-username/{username}", status.HTTP_204_NO_CONTENT, id="delete"),
+    ],
+)
+def test_scoped_admin_can_still_act_on_own_users(scoped_actor, method, path, expected_status):
+    token = scoped_actor(READ_ALL_WRITE_OWN)["token"]
+    own_user = create_user(token)
+    try:
+        response = client.request(
+            method,
+            path.format(username=own_user["username"], user_id=own_user["id"]),
+            headers=auth_headers(token),
+            json={"note": "changed"} if method == "PUT" else None,
+        )
+
+        assert response.status_code == expected_status, response.text
+    finally:
+        client.delete(f"/api/user/by-id/{own_user['id']}", headers=auth_headers(token))
