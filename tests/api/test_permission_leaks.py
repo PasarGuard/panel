@@ -12,8 +12,13 @@ from tests.api import TestSession, client
 from tests.api.helpers import (
     auth_headers,
     create_admin,
+    create_core,
+    create_group,
     create_user,
+    create_user_template,
     delete_admin,
+    delete_core,
+    delete_group,
     strong_password,
     unique_name,
 )
@@ -283,3 +288,108 @@ def test_scoped_admin_can_still_act_on_own_users(scoped_actor, method, path, exp
         assert response.status_code == expected_status, response.text
     finally:
         client.delete(f"/api/user/by-id/{own_user['id']}", headers=auth_headers(token))
+
+
+# --- Group / template access lists ---
+
+
+@pytest.fixture
+def restricted_catalog(access_token):
+    """Two groups and two templates; a restricted admin may only see the first of each."""
+    core = create_core(access_token)
+    allowed_group = create_group(access_token)
+    hidden_group = create_group(access_token)
+    allowed_template = create_user_template(access_token, group_ids=[allowed_group["id"]])
+    hidden_template = create_user_template(access_token, group_ids=[hidden_group["id"]])
+    role = _create_role(
+        access_token,
+        {
+            "groups": {"read": True, "read_simple": True},
+            "templates": {"read": True, "read_simple": True, "update": True, "delete": True},
+        },
+        access={
+            "allowed_group_ids": [allowed_group["id"]],
+            "allowed_template_ids": [allowed_template["id"]],
+        },
+    )
+    admin = create_admin(access_token, role_id=role["id"])
+    try:
+        yield {
+            "token": _login(admin["username"], admin["password"]),
+            "allowed_group": allowed_group,
+            "hidden_group": hidden_group,
+            "allowed_template": allowed_template,
+            "hidden_template": hidden_template,
+        }
+    finally:
+        delete_admin(access_token, admin["username"])
+        _delete_role(access_token, role["id"])
+        for template in (allowed_template, hidden_template):
+            client.delete(f"/api/user_template/{template['id']}", headers=auth_headers(access_token))
+        for group in (allowed_group, hidden_group):
+            delete_group(access_token, group["id"])
+        delete_core(access_token, core["id"])
+
+
+@pytest.mark.parametrize(
+    ("path", "item", "list_key"),
+    [
+        pytest.param("/api/groups", "hidden_group", "groups", id="groups"),
+        pytest.param("/api/groups/simple", "hidden_group", "groups", id="groups-simple"),
+        pytest.param("/api/user_templates", "hidden_template", None, id="templates"),
+        pytest.param("/api/user_templates/simple", "hidden_template", "templates", id="templates-simple"),
+    ],
+)
+def test_listing_only_disallowed_ids_returns_nothing(restricted_catalog, path, item, list_key):
+    response = client.get(
+        path,
+        headers=auth_headers(restricted_catalog["token"]),
+        params={"ids": [restricted_catalog[item]["id"]]},
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    body = response.json()
+    items = body if list_key is None else body[list_key]
+    assert items == []
+    if list_key is not None:
+        assert body["total"] == 0
+
+
+@pytest.mark.parametrize("action", ["delete", "disable"])
+def test_bulk_template_action_on_disallowed_ids_touches_nothing(access_token, restricted_catalog, action):
+    response = client.post(
+        f"/api/user_templates/bulk/{action}",
+        headers=auth_headers(restricted_catalog["token"]),
+        json={"ids": [restricted_catalog["hidden_template"]["id"]]},
+    )
+
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+    for key in ("allowed_template", "hidden_template"):
+        template = client.get(
+            f"/api/user_template/{restricted_catalog[key]['id']}",
+            headers=auth_headers(access_token),
+        )
+        assert template.status_code == status.HTTP_200_OK
+        assert template.json()["is_disabled"] is False
+
+
+def test_role_with_empty_group_allowlist_lists_no_groups(access_token):
+    core = create_core(access_token)
+    group = create_group(access_token)
+    role = _create_role(
+        access_token,
+        {"groups": {"read": True}},
+        access={"allowed_group_ids": []},
+    )
+    admin = create_admin(access_token, role_id=role["id"])
+    try:
+        response = client.get("/api/groups", headers=auth_headers(_login(admin["username"], admin["password"])))
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["groups"] == []
+        assert response.json()["total"] == 0
+    finally:
+        delete_admin(access_token, admin["username"])
+        _delete_role(access_token, role["id"])
+        delete_group(access_token, group["id"])
+        delete_core(access_token, core["id"])
