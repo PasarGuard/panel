@@ -122,8 +122,9 @@ async def _get_admin_from_api_key_internal(
     else:
         admin = build_admin_details(db_admin)
 
-    if not db_key.inherit_permissions and db_key.permissions:
-        # Build a minimal AdminRoleData from the stored permissions snapshot
+    if not db_key.inherit_permissions:
+        # Build a minimal AdminRoleData from the stored permissions snapshot.
+        # An empty snapshot means "no permissions", never "fall back to the admin's role".
         role_data = dict(admin.role.model_dump() if admin.role else {})
         role_data["permissions"] = RolePermissions.model_validate(db_key.permissions).model_dump()
         role_data["is_owner"] = False  # API keys are never owner-level
