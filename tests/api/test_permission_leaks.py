@@ -290,6 +290,34 @@ def test_scoped_admin_can_still_act_on_own_users(scoped_actor, method, path, exp
         client.delete(f"/api/user/by-id/{own_user['id']}", headers=auth_headers(token))
 
 
+@pytest.mark.parametrize(
+    ("path", "params", "permissions"),
+    [
+        pytest.param(
+            "/api/users",
+            "username",
+            {"users": {"read": SCOPE_OWN, "read_simple": SCOPE_ALL}},
+            id="users-read-own-simple-all",
+        ),
+        pytest.param("/api/users", "username", {"users": {"read": SCOPE_OWN}}, id="users-read-own-no-simple"),
+        pytest.param(
+            "/api/users/simple",
+            "search",
+            {"users": {"read": SCOPE_ALL, "read_simple": SCOPE_OWN}},
+            id="users-simple-own",
+        ),
+    ],
+)
+def test_user_lists_use_the_scope_of_the_permission_their_route_checks(scoped_actor, path, params, permissions):
+    context = scoped_actor(permissions)
+    victim = context["victim"]
+
+    response = client.get(path, headers=auth_headers(context["token"]), params={params: victim["username"]})
+
+    assert response.status_code == status.HTTP_200_OK
+    assert victim["username"] not in {user["username"] for user in response.json()["users"]}
+
+
 # --- Group / template access lists ---
 
 
