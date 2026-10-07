@@ -206,14 +206,14 @@ class APIKeyOperation(BaseOperation):
         update_data = model.model_dump(exclude_unset=True)
         if update_data.get("admin_id") is None:
             update_data.pop("admin_id", None)
+        if model.permissions is None:
+            # An explicit null means "unchanged", like an omitted field; the column must never become NULL.
+            update_data.pop("permissions", None)
+        elif "permissions" in update_data:
+            update_data["permissions"] = model.permissions.model_dump(exclude_none=True)
         if final_inherit:
             # An inheriting key never keeps a stored snapshot (see the validation note above).
             update_data["permissions"] = {}
-        # Serialize permissions to plain dict for DB storage
-        if "permissions" in update_data and isinstance(update_data["permissions"], RolePermissions):
-            update_data["permissions"] = update_data["permissions"].model_dump(exclude_none=True)
-        elif "permissions" in update_data and model.permissions is not None:
-            update_data["permissions"] = model.permissions.model_dump(exclude_none=True)
 
         db_key = await update_api_key(db, db_key, update_data)
         await db.commit()
