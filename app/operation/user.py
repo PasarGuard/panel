@@ -1456,6 +1456,12 @@ class UserOperation(BaseOperation):
         query: UserListQuery,
     ) -> UsersResponse:
         """Get all users"""
+        # Routes gate this on users.read, but the Telegram inline search calls it directly, and a
+        # missing users.read would otherwise resolve to an unrestricted scope below.
+        try:
+            enforce_permission(admin, "users", "read")
+        except PermissionDenied as exc:
+            await self.raise_error(message=str(exc), code=403)
         scope_admin_id = get_scope_admin_id(admin, "users", "read")
         if scope_admin_id is not None:
             query = query.model_copy(update={"owner": [admin.username], "admin_ids": None})
