@@ -167,8 +167,17 @@ class APIKeyOperation(BaseOperation):
         if target_admin_id != db_key.admin_id and not admin.is_owner:
             await self.raise_error(message="Only the owner can assign API keys to another admin", code=403)
 
+        # Validate the key's resulting state, not just the fields in this request: permissions sent
+        # while the key inherits, or a later switch to custom permissions without new ones, must not
+        # leave the key with more than the caller and the target admin have.
+        final_inherit = db_key.inherit_permissions if model.inherit_permissions is None else model.inherit_permissions
+        permissions_changed = (
+            model.permissions is not None or model.inherit_permissions is not None or target_admin_id != db_key.admin_id
+        )
+        check_custom_permissions = not final_inherit and permissions_changed
+
         target_admin = None
-        if target_admin_id != db_key.admin_id or model.permissions is not None:
+        if target_admin_id != db_key.admin_id or check_custom_permissions:
             target_db_admin = await get_admin_by_id(
                 db, target_admin_id, load_users=False, load_usage_logs=False, load_role=True
             )
@@ -182,27 +191,23 @@ class APIKeyOperation(BaseOperation):
             if any(duplicate.id != db_key.id for duplicate in duplicates):
                 await self.raise_error(message="API key name already exists", code=409)
 
-        uses_custom_permissions = model.inherit_permissions is False or (
-            model.inherit_permissions is None and model.permissions is not None and not db_key.inherit_permissions
-        )
-
-        if model.permissions is not None and uses_custom_permissions:
+        if check_custom_permissions:
+            final_permissions = (
+                model.permissions
+                if model.permissions is not None
+                else RolePermissions.model_validate(db_key.permissions)
+            )
             try:
-                _check_permissions_not_exceed_admin(admin, model.permissions)
-                if target_admin is not None:
-                    _check_permissions_not_exceed_admin(target_admin, model.permissions)
-            except ValueError as exc:
-                await self.raise_error(message=str(exc), code=403)
-        elif target_admin is not None and not db_key.inherit_permissions:
-            try:
-                _check_permissions_not_exceed_admin(target_admin, RolePermissions.model_validate(db_key.permissions))
+                _check_permissions_not_exceed_admin(admin, final_permissions)
+                _check_permissions_not_exceed_admin(target_admin, final_permissions)
             except ValueError as exc:
                 await self.raise_error(message=str(exc), code=403)
 
         update_data = model.model_dump(exclude_unset=True)
         if update_data.get("admin_id") is None:
             update_data.pop("admin_id", None)
-        if update_data.get("inherit_permissions") is True:
+        if final_inherit:
+            # An inheriting key never keeps a stored snapshot (see the validation note above).
             update_data["permissions"] = {}
         # Serialize permissions to plain dict for DB storage
         if "permissions" in update_data and isinstance(update_data["permissions"], RolePermissions):

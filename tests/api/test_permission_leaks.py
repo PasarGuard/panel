@@ -318,6 +318,34 @@ def test_user_lists_use_the_scope_of_the_permission_their_route_checks(scoped_ac
     assert victim["username"] not in {user["username"] for user in response.json()["users"]}
 
 
+def test_api_key_patch_cannot_carry_permissions_beyond_the_admin(scoped_actor):
+    context = scoped_actor(
+        {
+            "users": {"read": SCOPE_OWN, "read_simple": SCOPE_OWN},
+            "api_keys": {"create": True, "read": True, "update": True},
+        }
+    )
+    created = client.post("/api/api_key", headers=auth_headers(context["token"]), json={"name": unique_name("api_key")})
+    assert created.status_code == status.HTTP_201_CREATED, created.text
+    key_id, raw_key = created.json()["id"], created.json()["api_key"]
+
+    # Store wider permissions while the key still inherits, then switch inheritance off.
+    client.patch(
+        f"/api/api_key/{key_id}",
+        headers=auth_headers(context["token"]),
+        json={"permissions": {"users": {"read": True, "read_simple": True}}},
+    )
+    client.patch(f"/api/api_key/{key_id}", headers=auth_headers(context["token"]), json={"inherit_permissions": False})
+
+    response = client.get(
+        "/api/users", headers={"X-Api-Key": raw_key}, params={"username": context["victim"]["username"]}
+    )
+
+    assert response.status_code in (status.HTTP_200_OK, status.HTTP_403_FORBIDDEN)
+    if response.status_code == status.HTTP_200_OK:
+        assert response.json()["users"] == []
+
+
 # --- Group / template access lists ---
 
 
