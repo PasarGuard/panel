@@ -346,6 +346,36 @@ def test_api_key_patch_cannot_carry_permissions_beyond_the_admin(scoped_actor):
         assert response.json()["users"] == []
 
 
+@pytest.mark.parametrize(
+    ("method", "path", "permissions"),
+    [
+        pytest.param(
+            "POST",
+            "/api/user/{user_id}/hwids/reset",
+            {"users": {"read": SCOPE_OWN}, "hwids": {"delete": True}},
+            id="reset-read-own",
+        ),
+        pytest.param("POST", "/api/user/{user_id}/hwids/reset", {"hwids": {"delete": True}}, id="reset-no-users-perms"),
+        pytest.param(
+            "DELETE",
+            "/api/user/{user_id}/hwids/some-device",
+            {"users": {"read": SCOPE_OWN}, "hwids": {"delete": True}},
+            id="delete-read-own",
+        ),
+        pytest.param("GET", "/api/user/{user_id}/hwids", {"hwids": {"read": True}}, id="list-no-users-perms"),
+    ],
+)
+def test_hwid_endpoints_only_reach_users_the_admin_can_see(scoped_actor, method, path, permissions):
+    context = scoped_actor(permissions)
+
+    response = client.request(
+        method, path.format(user_id=context["victim"]["id"]), headers=auth_headers(context["token"])
+    )
+
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+    assert response.json()["detail"] == "User not found"
+
+
 # --- Group / template access lists ---
 
 
