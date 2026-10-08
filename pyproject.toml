@@ -16,7 +16,7 @@ dependencies = [
     "click>=8.5.0",
     "commentjson==0.9.0",
     "cryptography==50.0.2",
-    "fastapi>=0.141.1",
+    "fastapi>=0.142.2",
     "jdatetime>=6.1.0",
     "psutil>=7.2.2",
     "pydantic>=2.13.5",
