@@ -13,7 +13,13 @@ from app.core.manager import core_manager
 from app.db import GetDB
 from app.db.crud.host import get_host_by_id, get_hosts, upsert_inbounds
 from app.db.models import ProxyHostSecurity
-from app.models.host import BaseHost, FinalMask, TransportSettings, WireGuardHostOverrides
+from app.models.host import (
+    BaseHost,
+    FinalMask,
+    TransportSettings,
+    WireGuardHostOverrides,
+    dump_final_mask_for_xray,
+)
 from app.models.subscription import (
     GRPCTransportConfig,
     KCPTransportConfig,
@@ -53,15 +59,15 @@ def _normalize_finalmask_link(final_mask_settings: FinalMask | dict | str | None
     if not final_mask_settings:
         return None
     fms = None
-    if isinstance(final_mask_settings, FinalMask):
-        fms = final_mask_settings.model_dump(by_alias=True, exclude_none=True)
-    elif isinstance(final_mask_settings, dict):
-        fms = deepcopy(final_mask_settings)
+    if isinstance(final_mask_settings, (FinalMask, dict)):
+        fms = dump_final_mask_for_xray(final_mask_settings)
     elif isinstance(final_mask_settings, str):
         try:
             fms = json.loads(final_mask_settings)
         except Exception:
             return final_mask_settings
+        if isinstance(fms, dict):
+            fms = dump_final_mask_for_xray(fms)
 
     if isinstance(fms, dict):
         fms = normalize_and_remove_none_values(fms)
