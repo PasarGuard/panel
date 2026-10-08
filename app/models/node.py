@@ -50,7 +50,7 @@ class Node(BaseModel):
     data_limit: int = Field(default=0)
     data_limit_reset_strategy: DataLimitResetStrategy = Field(default=DataLimitResetStrategy.no_reset)
     reset_time: int = Field(default=-1)
-    default_timeout: int = Field(default=10, ge=3, le=60)
+    default_timeout: int = Field(default=10, ge=3)
     internal_timeout: int = Field(default=15, ge=3, le=60)
     proxy_url: str | None = Field(default=None, max_length=256)
 
@@ -180,7 +180,7 @@ class NodeModify(NodeCreate):
     data_limit: int | None = None
     data_limit_reset_strategy: DataLimitResetStrategy | None = None
     reset_time: int | None = None
-    default_timeout: int | None = Field(default=None, ge=3, le=60)
+    default_timeout: int | None = Field(default=None, ge=3)
     internal_timeout: int | None = Field(default=None, ge=3, le=60)
 
     model_config = ConfigDict(
@@ -233,6 +233,7 @@ class NodeSimple(BaseModel):
     id: int
     name: str
     status: NodeStatus
+    core_config_id: int | None = None
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -342,6 +343,14 @@ class UserIPListAll(BaseModel):
 
 class NodeCoreUpdate(BaseModel):
     core_version: str = Field(default="latest", pattern=r"^(latest|v?\d+\.\d+\.\d+)$", examples=["v25.8.31"])
+
+    @field_validator("core_version")
+    @classmethod
+    def add_v_prefix(cls, value: str) -> str:
+        # node-serviced and pg-node look versions up by release tag, which always starts with "v".
+        if value != "latest" and not value.startswith("v"):
+            return f"v{value}"
+        return value
 
 
 class NodeGeoFilesUpdate(BaseModel):

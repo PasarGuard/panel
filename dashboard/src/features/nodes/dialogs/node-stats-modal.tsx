@@ -21,6 +21,9 @@ interface NodeStatsModalProps {
   currentIndex?: number
   onNavigate?: (index: number) => void
   hideUplinkDownlink?: boolean
+  title?: string
+  distributionTitle?: string
+  description?: string
 }
 
 interface NodeTrafficTooltipProps {
@@ -66,7 +69,20 @@ function NodeTrafficTooltip({ active, payload }: NodeTrafficTooltipProps) {
   )
 }
 
-const NodeStatsModal = ({ open, onClose, data, chartConfig, period, allChartData = [], currentIndex = 0, onNavigate, hideUplinkDownlink = false }: NodeStatsModalProps) => {
+const NodeStatsModal = ({
+  open,
+  onClose,
+  data,
+  chartConfig,
+  period,
+  allChartData = [],
+  currentIndex = 0,
+  onNavigate,
+  hideUplinkDownlink = false,
+  title,
+  distributionTitle,
+  description,
+}: NodeStatsModalProps) => {
   const { t, i18n } = useTranslation()
   const dir = useDirDetection()
 
@@ -145,7 +161,7 @@ const NodeStatsModal = ({ open, onClose, data, chartConfig, period, allChartData
           <div className="flex flex-col items-start gap-3">
             <DialogTitle className="flex items-center gap-2">
               <Activity className="h-4 w-4 sm:h-5 sm:w-5" />
-              {t('statistics.nodeStats', { defaultValue: 'Node Statistics' })}
+              {title ?? t('statistics.nodeStats', { defaultValue: 'Node Statistics' })}
             </DialogTitle>
             {hasNavigation && (
               <div className="flex w-full items-center justify-center gap-1">
@@ -198,7 +214,7 @@ const NodeStatsModal = ({ open, onClose, data, chartConfig, period, allChartData
 
             {/* Node Statistics */}
             <div className="space-y-2 sm:space-y-3">
-              <h4 className={`text-foreground text-xs font-semibold sm:text-sm`}>{t('statistics.nodeTrafficDistribution', { defaultValue: 'Node Traffic Distribution' })}</h4>
+              <h4 className={`text-foreground text-xs font-semibold sm:text-sm`}>{distributionTitle ?? t('statistics.nodeTrafficDistribution', { defaultValue: 'Node Traffic Distribution' })}</h4>
 
               {pieData.length > 0 ? (
                 <div className="flex flex-col gap-3 md:flex-row md:items-start">
@@ -258,9 +274,10 @@ const NodeStatsModal = ({ open, onClose, data, chartConfig, period, allChartData
 
             {/* Summary */}
             <div className={`text-muted-foreground hidden text-xs leading-tight sm:block ${isRTL ? 'text-right' : 'text-left'}`}>
-              {t('statistics.nodeStatsDescription', {
-                defaultValue: 'Detailed traffic statistics for each node at this time period. Click on bars in the chart to view more details.',
-              })}
+              {description ??
+                t('statistics.nodeStatsDescription', {
+                  defaultValue: 'Detailed traffic statistics for each node at this time period. Click on bars in the chart to view more details.',
+                })}
             </div>
           </CardContent>
         </Card>
