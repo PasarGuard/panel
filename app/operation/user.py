@@ -93,6 +93,7 @@ from app.models.user import (
     UserSubscriptionUpdateChartSegment,
     UserSubscriptionUpdateChartStat,
     UserSubscriptionUpdateList,
+    UsersUsageBreakdownQuery,
     UsersUsageQuery,
     UserUsageQuery,
 )
@@ -929,7 +930,7 @@ class UserOperation(BaseOperation):
             DeprecationWarning,
             stacklevel=2,
         )
-        db_user = await self.get_validated_user(db, username, admin)
+        db_user = await self.get_validated_user(db, username, admin, scope_action="update")
 
         return await self._modify_user(db, db_user, modified_user, admin)
 
@@ -973,7 +974,7 @@ class UserOperation(BaseOperation):
             DeprecationWarning,
             stacklevel=2,
         )
-        db_user = await self.get_validated_user(db, username, admin)
+        db_user = await self.get_validated_user(db, username, admin, scope_action="delete")
         return await self._remove_user(db, db_user, admin)
 
     async def remove_user_by_id(self, db: AsyncSession, user_id: int, admin: AdminDetails):
@@ -1074,12 +1075,12 @@ class UserOperation(BaseOperation):
             DeprecationWarning,
             stacklevel=2,
         )
-        db_user = await self.get_validated_user(db, username, admin)
+        db_user = await self.get_validated_user(db, username, admin, scope_action="reset_usage")
 
         return await self._reset_user_data_usage(db, db_user, admin)
 
     async def reset_user_data_usage_by_id(self, db: AsyncSession, user_id: int, admin: AdminDetails):
-        db_user = await self.get_validated_user_by_id(db, user_id, admin, scope_action="update")
+        db_user = await self.get_validated_user_by_id(db, user_id, admin, scope_action="reset_usage")
         return await self._reset_user_data_usage(db, db_user, admin)
 
     async def bulk_reset_user_data_usage(
@@ -1123,7 +1124,7 @@ class UserOperation(BaseOperation):
             DeprecationWarning,
             stacklevel=2,
         )
-        db_user = await self.get_validated_user(db, username, admin)
+        db_user = await self.get_validated_user(db, username, admin, scope_action="revoke_sub")
         return await self._revoke_user_sub(db, db_user, admin)
 
     async def revoke_user_sub_by_id(self, db: AsyncSession, user_id: int, admin: AdminDetails) -> UserResponse:
@@ -1306,11 +1307,11 @@ class UserOperation(BaseOperation):
             DeprecationWarning,
             stacklevel=2,
         )
-        db_user = await self.get_validated_user(db, username, admin)
+        db_user = await self.get_validated_user(db, username, admin, scope_action="activate_next_plan")
         return await self._active_next_plan(db, db_user, admin)
 
     async def active_next_plan_by_id(self, db: AsyncSession, user_id: int, admin: AdminDetails) -> UserResponse:
-        db_user = await self.get_validated_user_by_id(db, user_id, admin, scope_action="update")
+        db_user = await self.get_validated_user_by_id(db, user_id, admin, scope_action="activate_next_plan")
         return await self._active_next_plan(db, db_user, admin)
 
     async def _set_owner(self, db: AsyncSession, db_user: User, new_admin, admin: AdminDetails) -> UserResponse:
@@ -1331,14 +1332,14 @@ class UserOperation(BaseOperation):
             stacklevel=2,
         )
         new_admin = await self.get_validated_admin(db, username=admin_username)
-        db_user = await self.get_validated_user(db, username, admin)
+        db_user = await self.get_validated_user(db, username, admin, scope_action="set_owner")
         return await self._set_owner(db, db_user, new_admin, admin)
 
     async def set_owner_by_id(
         self, db: AsyncSession, user_id: int, admin_username: str, admin: AdminDetails
     ) -> UserResponse:
         new_admin = await self.get_validated_admin(db, username=admin_username)
-        db_user = await self.get_validated_user_by_id(db, user_id, admin, scope_action="update")
+        db_user = await self.get_validated_user_by_id(db, user_id, admin, scope_action="set_owner")
         return await self._set_owner(db, db_user, new_admin, admin)
 
     async def bulk_set_owner(
@@ -1346,7 +1347,7 @@ class UserOperation(BaseOperation):
     ) -> BulkUsersActionResponse:
         new_admin = await self.get_validated_admin(db, username=bulk_users.admin_username)
         db_users = await self._get_validated_users_by_ids(
-            db, bulk_users.ids, admin, load_usage_logs=False, scope_action="update"
+            db, bulk_users.ids, admin, load_usage_logs=False, scope_action="set_owner"
         )
 
         db_users = await bulk_set_owner(db, db_users, new_admin)
@@ -1455,7 +1456,13 @@ class UserOperation(BaseOperation):
         query: UserListQuery,
     ) -> UsersResponse:
         """Get all users"""
-        scope_admin_id = get_scope_admin_id(admin, "users", "read_simple")
+        # Routes gate this on users.read, but the Telegram inline search calls it directly, and a
+        # missing users.read would otherwise resolve to an unrestricted scope below.
+        try:
+            enforce_permission(admin, "users", "read")
+        except PermissionDenied as exc:
+            await self.raise_error(message=str(exc), code=403)
+        scope_admin_id = get_scope_admin_id(admin, "users", "read")
         if scope_admin_id is not None:
             query = query.model_copy(update={"owner": [admin.username], "admin_ids": None})
 
@@ -1485,7 +1492,7 @@ class UserOperation(BaseOperation):
         query: UserSimpleListQuery,
     ) -> UsersSimpleResponse:
         """Get lightweight user list with only id and username"""
-        scope_admin_id = get_scope_admin_id(admin, "users", "read")
+        scope_admin_id = get_scope_admin_id(admin, "users", "read_simple")
         admin_filter = (
             None
             if scope_admin_id is None
@@ -1508,16 +1515,21 @@ class UserOperation(BaseOperation):
         self,
         db: AsyncSession,
         admin: AdminDetails,
-        query: UsersUsageQuery,
+        query: UsersUsageBreakdownQuery,
     ) -> UserUsageStatsList:
         """Get all users usage"""
         start, end = await self.validate_dates(query.start, query.end, True)
         node_id = query.node_id
+        core_id = query.core_id
         group_by_node = query.group_by_node
+
+        if group_by_node and query.group_by_admin:
+            await self.raise_error(message="group_by_node and group_by_admin can't be used together", code=400)
 
         can_use_node_scope = _has_permission(admin, "nodes", "stats")
         if not can_use_node_scope:
             node_id = None
+            core_id = None
             group_by_node = False
 
         admins_filter = await _resolve_users_usage_admins_filter(self, db, admin, query.owner)
@@ -1528,8 +1540,10 @@ class UserOperation(BaseOperation):
             end=end,
             period=query.period,
             node_id=node_id,
+            core_id=core_id,
             admins=admins_filter,
             group_by_node=group_by_node,
+            group_by_admin=query.group_by_admin,
         )
 
     async def get_users_count_metric(
@@ -1763,7 +1777,7 @@ class UserOperation(BaseOperation):
             DeprecationWarning,
             stacklevel=2,
         )
-        db_user = await self.get_validated_user(db, username, admin)
+        db_user = await self.get_validated_user(db, username, admin, scope_action="update")
         return await self._modify_user_with_template(db, db_user, modified_template, admin)
 
     async def modify_user_with_template_by_id(

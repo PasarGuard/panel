@@ -1,5 +1,5 @@
 import { Button } from '@/components/ui/button'
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { PasswordInput } from '@/components/ui/password-input'
 import { Textarea } from '@/components/ui/textarea'
@@ -29,6 +29,7 @@ function draftToFormValues(draft: WireGuardCoreDraft, fieldOrder: readonly WireG
     const v = draft[k as keyof WireGuardCoreDraft]
     o[k] = Array.isArray(v) ? (v as string[]).join('\n') : String(v ?? '')
   }
+  o.mtu = String(draft.extra.mtu ?? '')
   return o
 }
 
@@ -331,6 +332,37 @@ export function WireGuardCoreForm({ className }: { className?: string }) {
             }
             return null
           })}
+          <FormField
+            control={form.control}
+            name="mtu"
+            render={({ field }) => (
+              <FormItem className="sm:col-span-2">
+                <FormLabel>{t('coreEditor.wg.fields.mtu')}</FormLabel>
+                <FormControl>
+                  <Input
+                    type="text"
+                    inputMode="numeric"
+                    dir="ltr"
+                    className="text-xs"
+                    placeholder={t('coreEditor.wg.mtuPlaceholder')}
+                    {...field}
+                    onChange={e => {
+                      const value = e.target.value
+                      field.onChange(value)
+                      updateWgDraft(d => {
+                        const extra = { ...d.extra }
+                        if (value === '') delete extra.mtu
+                        else extra.mtu = /^\d+$/.test(value) ? Number(value) : value
+                        return { ...d, extra }
+                      })
+                    }}
+                  />
+                </FormControl>
+                <FormDescription>{t('coreEditor.wg.mtuDescription')}</FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
         </div>
       </form>
     </Form>

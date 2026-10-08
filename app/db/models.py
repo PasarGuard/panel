@@ -25,11 +25,20 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import async_object_session
 from sqlalchemy.ext.hybrid import hybrid_property
-from sqlalchemy.orm import Mapped, mapped_column, query_expression, relationship
+from sqlalchemy.orm import Mapped, MappedAsDataclass, mapped_column, query_expression, relationship
 from sqlalchemy.sql.expression import select, text
 
 from app.db.base import Base
-from app.db.compiles_types import CaseSensitiveString, DaysDiff, EnumArray, SqliteCompatibleBigInteger, StringArray
+from app.db.compiles_types import (
+    CaseSensitiveString,
+    DaysDiff,
+    EnumArray,
+    SqliteCompatibleBigInteger,
+    StringArray,
+    WebAuthnBinary,
+    WebAuthnChallenge,
+    WebAuthnCredentialId,
+)
 
 PostgresJSONB = JSON().with_variant(JSONB(none_as_null=True), "postgresql")
 
@@ -65,7 +74,7 @@ class AdminStatus(str, Enum):
     limited = "limited"
 
 
-class IdMixin:
+class IdMixin(MappedAsDataclass):
     id: Mapped[int] = mapped_column(SqliteCompatibleBigInteger, primary_key=True, init=False, autoincrement=True)
 
 
@@ -85,6 +94,9 @@ class Admin(Base, CreatedAtUTCMixin):
         back_populates="admin", init=False, default_factory=list, cascade="all, delete-orphan"
     )
     api_keys: Mapped[list[APIKey]] = relationship(
+        back_populates="admin", init=False, default_factory=list, cascade="all, delete-orphan"
+    )
+    passkeys: Mapped[list[AdminPasskey]] = relationship(
         back_populates="admin", init=False, default_factory=list, cascade="all, delete-orphan"
     )
 
@@ -159,6 +171,25 @@ class Admin(Base, CreatedAtUTCMixin):
     def has_api_keys(self) -> bool:
         """True when the admin owns at least one API key."""
         return len(self.api_keys) > 0
+
+
+class AdminPasskey(Base, IdMixin):
+    __tablename__ = "admin_passkeys"
+    admin_id: Mapped[int] = fk_id_column("admins.id", ondelete="CASCADE")
+    admin: Mapped[Admin] = relationship(back_populates="passkeys", init=False)
+    credential_id: Mapped[bytes] = mapped_column(WebAuthnCredentialId(1024), unique=True)
+    public_key: Mapped[bytes] = mapped_column(WebAuthnBinary(4096))
+    sign_count: Mapped[int] = mapped_column(BigInteger, default=0)
+    name: Mapped[str] = mapped_column(String(128), default="This device")
+
+
+class PasskeyChallenge(Base):
+    __tablename__ = "passkey_challenges"
+    id: Mapped[int] = mapped_column(SqliteCompatibleBigInteger, primary_key=True, autoincrement=True, init=False)
+    challenge: Mapped[bytes] = mapped_column(WebAuthnChallenge(128), unique=True)
+    kind: Mapped[str] = mapped_column(String(16))
+    expires_at: Mapped[dt] = mapped_column(DateTime(timezone=True))
+    admin_id: Mapped[int | None] = fk_id_column("admins.id", ondelete="CASCADE", default=None)
 
 
 class AdminUsageLogs(Base, IdMixin):
@@ -289,6 +320,8 @@ class User(Base, CreatedAtUTCMixin):
 
     async def inbounds(self) -> list[str]:
         """Returns a flat list of all included inbound tags for enabled groups."""
+        if "_wireguard_inbounds" in self.__dict__:
+            return list(self.__dict__["_wireguard_inbounds"])
         loaded_groups = self.__dict__.get("groups")
         if loaded_groups is not None:
             inbound_tags: set[str] = set()
@@ -906,7 +939,7 @@ class NodeStat(Base, CreatedAtUTCMixin):
     mem_total: Mapped[int] = mapped_column(BigInteger, unique=False, nullable=False)
     mem_used: Mapped[int] = mapped_column(BigInteger, unique=False, nullable=False)
     cpu_cores: Mapped[int] = mapped_column(unique=False, nullable=False)
-    cpu_usage: Mapped[float] = mapped_column(unique=False, nullable=False)
+    cpu_usage: Mapped[float] = mapped_column(Float, unique=False, nullable=False)
     incoming_bandwidth_speed: Mapped[int] = mapped_column(BigInteger, unique=False, nullable=False)
     outgoing_bandwidth_speed: Mapped[int] = mapped_column(BigInteger, unique=False, nullable=False)
 

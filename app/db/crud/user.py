@@ -6,7 +6,7 @@ from typing import Literal
 
 from sqlalchemy import and_, bindparam, case, delete, desc, func, literal, not_, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import joinedload, selectinload, with_expression
+from sqlalchemy.orm import joinedload, load_only, selectinload, with_expression
 from sqlalchemy.sql import Select
 from sqlalchemy.sql.functions import coalesce
 
@@ -16,13 +16,16 @@ from app.db.models import (
     DataLimitResetStrategy,
     Group,
     NextPlan,
+    Node,
     NodeUserUsage,
     NotificationReminder,
+    ProxyInbound,
     ReminderType,
     User,
     UserStatus,
     UserSubscriptionUpdate,
     UserUsageResetLogs,
+    inbounds_groups_association,
     users_groups_association,
 )
 from app.models.proxy import ProxyTable
@@ -272,6 +275,42 @@ async def get_user_by_id(
     return (await db.execute(stmt)).unique().scalar_one_or_none()
 
 
+async def get_wireguard_subscription_user(
+    db: AsyncSession,
+    user_id: int,
+    *,
+    load_admin_role: bool = True,
+    admin_id: int | None = None,
+) -> User | None:
+    """Load only the ORM state required to render a WireGuard subscription."""
+    stmt = _build_user_select_stmt(
+        load_admin=True,
+        load_admin_role=load_admin_role,
+        load_next_plan=False,
+        load_usage_logs=False,
+        load_groups=False,
+        load_lifetime_used_traffic=False,
+    ).where(User.id == user_id)
+    if admin_id is not None:
+        stmt = stmt.where(User.admin_id == admin_id)
+
+    user = (await db.execute(stmt)).unique().scalar_one_or_none()
+    if user is None:
+        return None
+
+    tags_stmt = (
+        select(ProxyInbound.tag)
+        .select_from(users_groups_association)
+        .join(Group, users_groups_association.c.groups_id == Group.id)
+        .join(inbounds_groups_association, Group.id == inbounds_groups_association.c.group_id)
+        .join(ProxyInbound, inbounds_groups_association.c.inbound_id == ProxyInbound.id)
+        .where(users_groups_association.c.user_id == user_id, Group.is_disabled.is_(False))
+        .distinct()
+    )
+    user.__dict__["_wireguard_inbounds"] = list((await db.execute(tags_stmt)).scalars().all())
+    return user
+
+
 async def get_user_lifetime_used_traffic(db: AsyncSession, user_id: int) -> int:
     stmt = (
         select(
@@ -313,6 +352,27 @@ async def get_users_with_proxy_settings(
 
     result = await db.execute(stmt)
     return list(result.scalars().all())
+
+
+async def get_admin_users_for_node_sync(
+    db: AsyncSession,
+    admin_id: int,
+    *,
+    statuses: Sequence[UserStatus] | None = None,
+) -> list[User]:
+    """Load an admin's users for node dispatch, without response-only fields or history."""
+    stmt = (
+        select(User)
+        .where(User.admin_id == admin_id)
+        .options(
+            load_only(User.id, User.admin_id, User.status, User.proxy_settings),
+            joinedload(User.admin).joinedload(Admin.role),
+            selectinload(User.groups).selectinload(Group.inbounds),
+        )
+    )
+    if statuses is not None:
+        stmt = stmt.where(User.status.in_(statuses))
+    return list((await db.scalars(stmt)).all())
 
 
 def _build_user_sort_clause(sort_option: UserSortOption):
@@ -1554,6 +1614,8 @@ async def get_all_users_usages(
     period: Period = Period.hour,
     node_id: int | None = None,
     group_by_node: bool = False,
+    core_id: int | None = None,
+    group_by_admin: bool = False,
 ) -> UserUsageStatsList:
     """
     Retrieves aggregated usage data for all users of an admin within a specified time range,
@@ -1567,6 +1629,9 @@ async def get_all_users_usages(
         end (datetime): End of the period (with timezone).
         period (Period): Time period to group by ('minute', 'hour', 'day', 'month').
         node_id (Optional[int]): Filter results by specific node ID if provided
+        group_by_node (bool): Whether to group results by node.
+        core_id (Optional[int]): Filter results by the nodes of a specific core config if provided
+        group_by_admin (bool): Whether to group results by the users' admin (0 for users without admin).
 
     Returns:
         UserUsageStatsList: Aggregated usage data for each period.
@@ -1585,6 +1650,9 @@ async def get_all_users_usages(
     ]
     if admins_filter:
         conditions.append(Admin.username.in_(admins_filter))
+
+    if core_id is not None:
+        conditions.append(NodeUserUsage.node_id.in_(select(Node.id).where(Node.core_config_id == core_id)))
 
     if node_id is not None:
         conditions.append(NodeUserUsage.node_id == node_id)
@@ -1608,6 +1676,18 @@ async def get_all_users_usages(
             .group_by(trunc_expr, NodeUserUsage.node_id)
             .order_by(trunc_expr)
         )
+    elif group_by_admin:
+        stmt = (
+            select(
+                trunc_expr.label("period_start"),
+                func.coalesce(User.admin_id, 0).label("admin_id"),
+                func.sum(NodeUserUsage.used_traffic).label("total_traffic"),
+            )
+            .select_from(from_clause)
+            .where(and_(*conditions))
+            .group_by(trunc_expr, User.admin_id)
+            .order_by(trunc_expr)
+        )
     else:
         stmt = (
             select(trunc_expr.label("period_start"), func.sum(NodeUserUsage.used_traffic).label("total_traffic"))
@@ -1623,13 +1703,15 @@ async def get_all_users_usages(
     for row in result.mappings():
         row_dict = dict(row)
         node_id_val = row_dict.pop("node_id", node_id)
+        # Stats are keyed by admin id instead of node id when grouped by admin
+        stats_key = row_dict.pop("admin_id", node_id_val)
 
         # Attach timezone info to period_start
         attach_timezone_to_period_start(row_dict, start.tzinfo, dialect)
 
-        if node_id_val not in stats:
-            stats[node_id_val] = []
-        stats[node_id_val].append(UserUsageStat(**row_dict))
+        if stats_key not in stats:
+            stats[stats_key] = []
+        stats[stats_key].append(UserUsageStat(**row_dict))
 
     return UserUsageStatsList(period=period, start=start, end=end, stats=stats)
 
