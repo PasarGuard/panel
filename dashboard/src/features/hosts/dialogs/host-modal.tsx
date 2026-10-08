@@ -16,7 +16,7 @@ import { CustomVariablesPopover, VariablesList, VariablesPopover } from '@/compo
 import useDirDetection from '@/hooks/use-dir-detection'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
-import { ClientTemplateType, UserStatus, getHosts, useGetClientTemplatesSimple } from '@/service/api'
+import { ClientTemplateType, UserStatus, getGetHostsQueryKey, getHosts, useGetClientTemplatesSimple } from '@/service/api'
 import { queryClient } from '@/utils/query-client'
 import { useQuery } from '@tanstack/react-query'
 import { AlertTriangle, Cable, ChevronsLeftRightEllipsis, Copy, Pencil, GlobeLock, Info, Loader2, Lock, Network, Plus, Route, Trash2, X, ListTodo } from 'lucide-react'
@@ -699,7 +699,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
 
   // Update the hosts query to refetch only when needed (not on dialog open)
   const { data: hosts = [], isLoading: isLoadingHosts } = useQuery({
-    queryKey: ['getHostsQueryKey'],
+    queryKey: getGetHostsQueryKey(),
     queryFn: () => getHosts(),
     enabled: isDialogOpen && isTransportOpen,
     select: (data: any[]) => data.filter((host: any) => host.id != null),
@@ -878,9 +878,6 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
         throw new Error(`Operation failed with status: ${response.status}`)
       }
       handleModalOpenChange(false)
-      queryClient.invalidateQueries({
-        queryKey: ['getHostsQueryKey'],
-      })
     } catch (error) {
       console.error(error)
     } finally {
@@ -2430,7 +2427,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                           // Refresh hosts list when dropdown is opened
                                           if (open) {
                                             queryClient.invalidateQueries({
-                                              queryKey: ['getHostsQueryKey'],
+                                              queryKey: getGetHostsQueryKey(),
                                             })
                                           }
                                         }}
