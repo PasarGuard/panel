@@ -730,18 +730,14 @@ async def get_user(event: Message | CallbackQuery, admin: AdminDetails, db: Asyn
         )
 
 
-@router.inline_query(HasPermission("users", "read"))
+@router.inline_query()
 async def search_user(event: InlineQuery, admin: AdminDetails, db: AsyncSession):
-    # The bot's error handler does not cover inline queries, which fire on every keystroke:
-    # answer "not found" instead of raising if the operation refuses.
+    query = UserListQuery(search=event.query.strip(), limit=50)
+    # The bot's error handler does not cover inline queries, which fire on every keystroke. A
+    # HasPermission filter would leave them unanswered (and logged as unhandled), so let
+    # get_users refuse (no users.read) and answer "not found" instead.
     try:
-        users = (
-            await user_operations.get_users(
-                db,
-                admin,
-                UserListQuery(search=event.query.strip(), limit=50),
-            )
-        ).users
+        users = (await user_operations.get_users(db, admin, query)).users
     except ValueError:
         users = []
     result = [

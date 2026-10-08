@@ -399,8 +399,10 @@ def test_get_users_requires_users_read_without_a_router_gate(scoped_actor):
 def test_telegram_inline_search_answers_instead_of_raising_without_users_read(scoped_actor):
     # Inline queries fire on every keystroke and the bot's error handler does not cover them, so a
     # refusal must become an answer, not an exception (one traceback per keystroke otherwise).
-    actor_id = scoped_actor({"users": {"create": True}})["actor"]["id"]
-    event = SimpleNamespace(query="any", answer=AsyncMock())
+    context = scoped_actor({"users": {"create": True}})
+    actor_id = context["actor"]["id"]
+    # Search for a real user, so the test also fails if the refusal ever turns into a leak.
+    event = SimpleNamespace(query=context["victim"]["username"], answer=AsyncMock())
 
     async def _inline_search():
         async with TestSession() as db:
@@ -410,7 +412,8 @@ def test_telegram_inline_search_answers_instead_of_raising_without_users_read(sc
     asyncio.run(_inline_search())
 
     results = event.answer.await_args.args[0]
-    assert [result.id for result in results] == ["1"]  # only the "user not found" article
+    assert len(results) == 1  # only the "user not found" article (its id can equal a real user id)
+    assert context["victim"]["username"] not in results[0].title
 
 
 @pytest.mark.parametrize(
