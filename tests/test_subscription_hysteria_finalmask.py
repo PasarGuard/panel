@@ -125,12 +125,14 @@ def test_finalmask_rejects_invalid_or_missing_udphop_mode(mode):
         _udphop_settings(mode=mode)
 
 
-@pytest.mark.parametrize(("interval", "expected"), [("", None), (None, None), (45, "45"), (" 5-10 ", "5-10")])
+@pytest.mark.parametrize(
+    ("interval", "expected"), [("", None), (None, None), (45, "45"), (" 5-10 ", "5-10"), ("2147483647", "2147483647")]
+)
 def test_finalmask_udphop_interval_is_optional_and_normalized(interval, expected):
     assert _udphop_settings(interval=interval).interval == expected
 
 
-@pytest.mark.parametrize("interval", ["abc", "30s", "10-", "3", "1-60", 4, "۳۰"])
+@pytest.mark.parametrize("interval", ["abc", "30s", "10-", "3", "1-60", 4, "۳۰", "2147483648", "30-4294967326"])
 def test_finalmask_rejects_invalid_udphop_interval(interval):
     with pytest.raises(ValidationError):
         _udphop_settings(interval=interval)

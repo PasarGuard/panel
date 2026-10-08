@@ -269,10 +269,15 @@ class FinalMaskUdpHopSettings(FinalMaskBaseModel):
 
     @field_validator("interval")
     @classmethod
-    def interval_at_least_5(cls, value: str | None):
-        """Xray refuses to build an udphop mask whose shorter bound is below 5 seconds."""
-        if value is not None and min(int(bound) for bound in value.split("-")) < 5:
+    def interval_in_xray_range(cls, value: str | None):
+        """Xray refuses an udphop interval below 5 seconds and reads each bound as int32, so larger ones wrap."""
+        if value is None:
+            return value
+        bounds = [int(bound) for bound in value.split("-")]
+        if min(bounds) < 5:
             raise ValueError("interval must be at least 5 seconds")
+        if max(bounds) > 2_147_483_647:
+            raise ValueError("interval must be at most 2147483647 seconds")
         return value
 
     @field_validator("remote_ips", mode="before")
