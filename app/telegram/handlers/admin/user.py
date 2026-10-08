@@ -730,13 +730,20 @@ async def get_user(event: Message | CallbackQuery, admin: AdminDetails, db: Asyn
         )
 
 
-@router.inline_query()
+@router.inline_query(HasPermission("users", "read"))
 async def search_user(event: InlineQuery, admin: AdminDetails, db: AsyncSession):
-    search = await user_operations.get_users(
-        db,
-        admin,
-        UserListQuery(search=event.query.strip(), limit=50),
-    )
+    # The bot's error handler does not cover inline queries, which fire on every keystroke:
+    # answer "not found" instead of raising if the operation refuses.
+    try:
+        users = (
+            await user_operations.get_users(
+                db,
+                admin,
+                UserListQuery(search=event.query.strip(), limit=50),
+            )
+        ).users
+    except ValueError:
+        users = []
     result = [
         InlineQueryResultArticle(
             id=str(user.id),
@@ -745,7 +752,7 @@ async def search_user(event: InlineQuery, admin: AdminDetails, db: AsyncSession)
             url=user.subscription_url if user.subscription_url.startswith("https://") else None,
             input_message_content=InputTextMessageContent(message_text=user.username),
         )
-        for user in search.users
+        for user in users
     ]
     if not result:
         result = [

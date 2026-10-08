@@ -1,6 +1,8 @@
 """Regression tests for RBAC permission leaks."""
 
 import asyncio
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
 from fastapi import status
@@ -12,6 +14,7 @@ from app.models.admin import hash_password
 from app.models.user import UserListQuery
 from app.operation import OperatorType
 from app.operation.user import UserOperation
+from app.telegram.handlers.admin.user import search_user
 from tests.api import TestSession, client
 from tests.api.helpers import (
     auth_headers,
@@ -391,6 +394,23 @@ def test_get_users_requires_users_read_without_a_router_gate(scoped_actor):
 
     with pytest.raises(ValueError, match="users.read"):
         asyncio.run(_search())
+
+
+def test_telegram_inline_search_answers_instead_of_raising_without_users_read(scoped_actor):
+    # Inline queries fire on every keystroke and the bot's error handler does not cover them, so a
+    # refusal must become an answer, not an exception (one traceback per keystroke otherwise).
+    actor_id = scoped_actor({"users": {"create": True}})["actor"]["id"]
+    event = SimpleNamespace(query="any", answer=AsyncMock())
+
+    async def _inline_search():
+        async with TestSession() as db:
+            admin = build_admin_details(await get_admin_by_id(db, actor_id, load_users=False, load_usage_logs=False))
+            await search_user(event, admin, db)
+
+    asyncio.run(_inline_search())
+
+    results = event.answer.await_args.args[0]
+    assert [result.id for result in results] == ["1"]  # only the "user not found" article
 
 
 @pytest.mark.parametrize(
