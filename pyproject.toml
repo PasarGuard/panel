@@ -36,7 +36,7 @@ dependencies = [
     "aiocache>=0.12.3",
     "aiogram>=3.31.0",
     "aiohttp-socks>=0.12.0",
-    "uvloop>=0.22.1; sys_platform != 'win32'",
+    "uvloop>=0.23.0; sys_platform != 'win32'",
     "aiorwlock>=1.5.0",
     "typer>=0.27.2",
     "pasarguard-node-bridge>=0.9.2",
