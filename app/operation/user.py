@@ -1022,7 +1022,7 @@ class UserOperation(BaseOperation):
         return BulkUsersActionResponse(users=usernames, count=len(usernames))
 
     async def _load_users_by_ids(self, db: AsyncSession, user_ids: list[int]) -> list[User]:
-        return await get_users_by_ids(db, user_ids, load_admin_role=True)
+        return await get_users_by_ids(db, user_ids, load_admin_role=True, load_group_inbounds=True)
 
     async def _load_users_by_usernames(self, db: AsyncSession, usernames: list[str]) -> list[User]:
         return await get_users_by_usernames(db, usernames, load_admin_role=True)

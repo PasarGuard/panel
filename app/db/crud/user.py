@@ -122,6 +122,13 @@ def _resolve_enabled_user_status(user: User) -> UserStatus:
     return UserStatus.active
 
 
+def _explicit_ids(column, ids: Sequence[int]):
+    """`column IN (...)` for ids taken from the request body. The ids are rendered into the statement at execution
+    time instead of bound one by one, so a statement never exceeds asyncpg's 32767 bind parameters (a filter that is
+    OR-combined with other conditions cannot be split into chunks)."""
+    return column.in_(bindparam(None, list(ids), expanding=True, literal_execute=True))
+
+
 def _build_user_select_stmt(
     *,
     load_admin: bool = True,
@@ -130,6 +137,7 @@ def _build_user_select_stmt(
     load_usage_logs: bool = True,
     load_groups: bool = True,
     join_groups: bool = False,
+    load_group_inbounds: bool = False,
     load_lifetime_used_traffic: bool = False,
 ) -> Select:
     """Build a user select statement with eager-load options."""
@@ -145,7 +153,13 @@ def _build_user_select_stmt(
     if load_usage_logs:
         options.append(selectinload(User.usage_logs))
     if load_groups:
-        options.append(joinedload(User.groups) if join_groups else selectinload(User.groups))
+        if join_groups:
+            groups_loader = joinedload(User.groups)
+        else:
+            groups_loader = selectinload(User.groups)
+            if load_group_inbounds:
+                groups_loader = groups_loader.selectinload(Group.inbounds)
+        options.append(groups_loader)
     if options:
         stmt = stmt.options(*options)
     if load_lifetime_used_traffic:
@@ -395,6 +409,7 @@ async def get_users(
     load_admin_role: bool = False,
     load_usage_logs: bool = True,
     load_lifetime_used_traffic: bool = False,
+    load_group_inbounds: bool = False,
 ) -> list[User] | tuple[list[User], int]:
     """
     Retrieves users based on various filters.
@@ -406,6 +421,8 @@ async def get_users(
         return_with_count: Whether to return total count.
         load_usage_logs: Whether to materialize reset-history rows.
         load_lifetime_used_traffic: Whether to calculate lifetime usage with an aggregate.
+        load_group_inbounds: Whether to eager-load each user's groups' inbounds (avoids a query per user when
+            serializing users for nodes).
 
     Returns:
         List of users or tuple with (users, count) if return_with_count is True.
@@ -414,10 +431,14 @@ async def get_users(
     if load_admin_role:
         admin_loader = admin_loader.selectinload(Admin.role)
 
+    groups_loader = selectinload(User.groups)
+    if load_group_inbounds:
+        groups_loader = groups_loader.selectinload(Group.inbounds)
+
     options = [
         admin_loader,
         selectinload(User.next_plan),
-        selectinload(User.groups),
+        groups_loader,
     ]
     if load_usage_logs:
         options.append(selectinload(User.usage_logs))
@@ -427,7 +448,7 @@ async def get_users(
 
     filters = []
     if query.ids:
-        filters.append(User.id.in_(query.ids))
+        filters.append(_explicit_ids(User.id, query.ids))
     if query.username:
         filters.append(User.username.in_(query.username))
     if query.usernames:
@@ -881,11 +902,13 @@ async def get_users_by_ids(
     user_ids: Sequence[int],
     *,
     load_admin_role: bool = False,
+    load_group_inbounds: bool = False,
 ) -> list[User]:
     if not user_ids:
         return []
 
-    result = await db.execute(_build_user_select_stmt(load_admin_role=load_admin_role).where(User.id.in_(user_ids)))
+    stmt = _build_user_select_stmt(load_admin_role=load_admin_role, load_group_inbounds=load_group_inbounds)
+    result = await db.execute(stmt.where(_explicit_ids(User.id, user_ids)))
     users_by_id = {user.id: user for user in result.unique().scalars().all()}
     return [users_by_id[user_id] for user_id in user_ids if user_id in users_by_id]
 
@@ -1056,7 +1079,9 @@ async def _delete_user_dependencies(db: AsyncSession, user_ids: list[int]):
     if not user_ids:
         return
 
-    await db.execute(users_groups_association.delete().where(users_groups_association.c.user_id.in_(user_ids)))
+    await db.execute(
+        users_groups_association.delete().where(_explicit_ids(users_groups_association.c.user_id, user_ids))
+    )
 
 
 async def remove_user(db: AsyncSession, db_user: User) -> User:
@@ -1092,7 +1117,7 @@ async def remove_users(db: AsyncSession, db_users: list[User]):
 
     await release_users_allocations(db, db_users)
     await _delete_user_dependencies(db, user_ids)
-    await db.execute(delete(User).where(User.id.in_(user_ids)))
+    await db.execute(delete(User).where(_explicit_ids(User.id, user_ids)))
     await db.commit()
 
 
