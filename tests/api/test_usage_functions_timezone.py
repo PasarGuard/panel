@@ -16,6 +16,7 @@ from app.db.crud.node import get_nodes_usage
 from app.db.crud.user import get_all_users_usages, get_user_count_metric_stats, get_user_usages
 from app.db.models import (
     Admin,
+    CoreConfig,
     Node,
     NodeUsage,
     NodeUserUsage,
@@ -644,6 +645,69 @@ class TestGetAllUsersUsagesTimezone:
             assert total_traffic == expected_total_traffic, (
                 f"Expected total_traffic={expected_total_traffic}, got {total_traffic}"
             )
+
+    @pytest.mark.asyncio
+    async def test_all_users_usages_group_by_admin_and_core_filter(self):
+        """
+        Grouping by admin keys stats by admin id, and core_id only counts nodes of that core.
+        """
+        async with TestSession() as session:
+            first_admin_id, first_user_id, core_node_id = await setup_test_data(session, "first")
+            second_admin_id, second_user_id, other_node_id = await setup_test_data(session, "second")
+
+            core = CoreConfig(name=f"core_{uuid4().hex[:8]}", config={})
+            session.add(core)
+            await session.flush()
+            core_id = core.id
+            core_node = await session.get(Node, core_node_id)
+            core_node.core_config_id = core_id
+            await session.commit()
+
+            ts = datetime(2026, 9, 9, 21, 30, 0, tzinfo=UTC)
+            records = [
+                (first_user_id, core_node_id, 1000),
+                (first_user_id, other_node_id, 200),
+                (second_user_id, core_node_id, 30),
+                (second_user_id, other_node_id, 4),
+            ]
+            for user_id, node_id, used_traffic in records:
+                session.add(NodeUserUsage(created_at=ts, user_id=user_id, node_id=node_id, used_traffic=used_traffic))
+            await session.commit()
+
+            admin_usernames = list(
+                (
+                    await session.execute(select(Admin.username).where(Admin.id.in_([first_admin_id, second_admin_id])))
+                ).scalars()
+            )
+            tehran_tz = timezone(timedelta(hours=3, minutes=30))
+            start = datetime(2026, 9, 10, 0, 0, 0, tzinfo=tehran_tz)
+            end = datetime(2026, 9, 10, 3, 0, 0, tzinfo=tehran_tz)
+
+            result = await get_all_users_usages(
+                session,
+                admins=admin_usernames,
+                start=start,
+                end=end,
+                period=Period.hour,
+                group_by_admin=True,
+            )
+
+            assert set(result.stats.keys()) == {first_admin_id, second_admin_id}
+            assert sum(stat.total_traffic for stat in result.stats[first_admin_id]) == 1200
+            assert sum(stat.total_traffic for stat in result.stats[second_admin_id]) == 34
+
+            core_result = await get_all_users_usages(
+                session,
+                admins=admin_usernames,
+                start=start,
+                end=end,
+                period=Period.hour,
+                core_id=core_id,
+                group_by_admin=True,
+            )
+
+            assert sum(stat.total_traffic for stat in core_result.stats[first_admin_id]) == 1000
+            assert sum(stat.total_traffic for stat in core_result.stats[second_admin_id]) == 30
 
 
 class TestGetAdminUsagesTimezone:

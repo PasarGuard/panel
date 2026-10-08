@@ -116,12 +116,13 @@ async def get_group(db: AsyncSession, query: GroupListQuery) -> tuple[list[Group
         with_expression(Group.total_users, total_users),
         selectinload(Group.inbounds),
     )
-    if query.ids:
+    # ids=[] (e.g. none of the requested ids are in the admin's allowlist) must match nothing, not everything.
+    if query.ids is not None:
         groups = groups.where(Group.id.in_(query.ids))
 
     # Build count on the base filter before adding pagination or eager loads
     base_stmt = select(Group)
-    if query.ids:
+    if query.ids is not None:
         base_stmt = base_stmt.where(Group.id.in_(query.ids))
     count_query = select(func.count()).select_from(base_stmt.subquery())
 
@@ -155,7 +156,7 @@ async def get_groups_simple(
     """
     stmt = select(Group.id, Group.name)
 
-    if query.ids:
+    if query.ids is not None:
         stmt = stmt.where(Group.id.in_(query.ids))
     if query.search:
         stmt = stmt.where(Group.name.ilike(f"%{query.search}%"))

@@ -46,6 +46,10 @@ function routingRuleAsRecord(r: RoutingRule): Record<string, unknown> {
   return r as unknown as Record<string, unknown>
 }
 
+function cloneRoutingRule(rule: RoutingRule): RoutingRule {
+  return JSON.parse(JSON.stringify(rule)) as RoutingRule
+}
+
 function mergeRoutingRulePatch(rule: RoutingRule, patch: Partial<RoutingRule>): RoutingRule {
   const next = { ...routingRuleAsRecord(rule) }
   for (const [key, value] of Object.entries(patch as Record<string, unknown>)) {
@@ -210,15 +214,16 @@ export function XrayRoutingSection({ headerAddPulse, headerAddEpoch }: XrayRouti
   const [detailOpen, setDetailOpen] = useState(false)
   const [dialogMode, setDialogMode] = useState<DialogMode>('edit')
   const [draftRule, setDraftRule] = useState<RoutingRule | null>(null)
+  const [editOriginalRule, setEditOriginalRule] = useState<RoutingRule | null>(null)
   const [blockAddWhileDraftOpen, setBlockAddWhileDraftOpen] = useState(false)
   const [ruleDialogIssues, setRuleDialogIssues] = useState<Issue[]>([])
   const routing = profile?.routing ?? defaultRouting()
   const rules = routing.rules
 
   const rule = useMemo(() => {
-    if (dialogMode === 'add' && draftRule) return draftRule
+    if (draftRule) return draftRule
     return rules[selected]
-  }, [dialogMode, draftRule, rules, selected])
+  }, [draftRule, rules, selected])
 
   const routingCaps = useMemo(() => {
     const caps = getRoutingRuleFormCapabilities(profile ? { profile } : undefined)
@@ -268,7 +273,7 @@ export function XrayRoutingSection({ headerAddPulse, headerAddEpoch }: XrayRouti
     form.clearErrors('tag')
     const p = profileRef.current
     if (!p) return
-    const r = dialogMode === 'add' && draftRule ? draftRule : p.routing?.rules?.[selected]
+    const r = draftRule ?? p.routing?.rules?.[selected]
     if (!r) return
     const caps = routingCapsRef.current
     const next: Record<string, string> = {}
@@ -350,6 +355,7 @@ export function XrayRoutingSection({ headerAddPulse, headerAddEpoch }: XrayRouti
     setDetailOpen(false)
     setDialogMode('edit')
     setDraftRule(null)
+    setEditOriginalRule(null)
   }
 
   const handleDetailOpenChange = (open: boolean) => {
@@ -415,12 +421,13 @@ export function XrayRoutingSection({ headerAddPulse, headerAddEpoch }: XrayRouti
       return
     }
     setRuleDialogIssues([])
+    updateXrayProfile(p => replaceRule(p, selected, rule))
     finalizeDetailClose()
   }
 
   const patchRule = (patch: Partial<RoutingRule>) => {
     setRuleDialogIssues([])
-    if (dialogMode === 'add' && draftRule !== null) {
+    if (draftRule !== null) {
       setDraftRule(mergeRoutingRulePatch(draftRule, patch))
       return
     }
@@ -494,8 +501,10 @@ export function XrayRoutingSection({ headerAddPulse, headerAddEpoch }: XrayRouti
             setBlockAddWhileDraftOpen(true)
             return
           }
-          setDraftRule(null)
+          const cloned = cloneRoutingRule(rules[rowIndex])
+          setDraftRule(cloned)
           setDialogMode('edit')
+          setEditOriginalRule(cloneRoutingRule(cloned))
           setSelected(rowIndex)
           setDetailOpen(true)
         }}
@@ -527,8 +536,8 @@ export function XrayRoutingSection({ headerAddPulse, headerAddEpoch }: XrayRouti
       <CoreEditorFormDialog
         isDialogOpen={detailOpen}
         onOpenChange={handleDetailOpenChange}
-        initialData={dialogMode === 'add' ? initialDraftRef.current : null}
-        getCurrentData={() => (dialogMode === 'add' ? draftRule : rule)}
+        initialData={dialogMode === 'add' ? initialDraftRef.current : editOriginalRule}
+        getCurrentData={() => draftRule ?? rule}
         discardTitle={dialogMode === 'add' ? t('coreEditor.routing.discardDraftTitle', { defaultValue: 'Discard new rule?' }) : t('coreEditor.routing.discardEditTitle', { defaultValue: 'Discard changes?' })}
         discardDescription={dialogMode === 'add' ? t('coreEditor.routing.discardDraftDescription', { defaultValue: 'This rule is not in the list yet. Closing without adding will discard your changes.' }) : t('coreEditor.routing.discardDraftDescription', { defaultValue: 'Your modifications to this rule will be lost if you close now.' })}
         discardActionLabel={t('coreEditor.routing.discardDraftAction', { defaultValue: 'Discard' })}

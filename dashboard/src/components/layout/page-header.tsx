@@ -32,7 +32,7 @@ export default function PageHeader({ title, description, buttonText, onButtonCli
       <Snowfall className="snowfall--header" />
       <div className="relative z-10 flex min-w-0 flex-1 flex-col gap-y-1">
         <div className="flex min-w-0 items-center gap-2.5">
-          <h1 className="truncate text-2xl font-semibold tracking-tight">{t(title)}</h1>
+          <h1 className="truncate text-xl sm:text-2xl font-semibold tracking-tight">{t(title)}</h1>
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>

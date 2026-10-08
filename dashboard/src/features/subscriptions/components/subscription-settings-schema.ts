@@ -108,6 +108,7 @@ export const subscriptionSchema = z.object({
   randomize_order: z.boolean().optional(),
   custom_variables: customVariablesSchema,
   response_headers: z.record(z.string()).optional(),
+  header_placement: z.enum(['header', 'body_start', 'body_end']).optional(),
   rules: z.array(
     z.object({
       pattern: z.string().min(1, 'Pattern is required'),
@@ -153,7 +154,13 @@ export const defaultSubscriptionRules: SubscriptionRuleFormData[] = [
     target: 'outline',
   },
   {
-    pattern: '^([Vv]2rayNG|[Vv]2rayN|[Ss]treisand|[Hh]app|[Kk]tor\\-client)',
+    // v2rayN and v2rayNG import share links natively.
+    pattern: '^([Vv]2rayNG|[Vv]2rayN)',
+    target: 'links',
+  },
+  {
+    // Happ, Streisand and Ktor consume a full Xray JSON config.
+    pattern: '^([Ss]treisand|[Hh]app|[Kk]tor\\-client)',
     target: 'xray',
   },
   {
