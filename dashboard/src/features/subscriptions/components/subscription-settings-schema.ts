@@ -108,6 +108,7 @@ export const subscriptionSchema = z.object({
   randomize_order: z.boolean().optional(),
   custom_variables: customVariablesSchema,
   response_headers: z.record(z.string()).optional(),
+  header_placement: z.enum(['header', 'body_start', 'body_end']).optional(),
   rules: z.array(
     z.object({
       pattern: z.string().min(1, 'Pattern is required'),

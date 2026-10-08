@@ -12,7 +12,6 @@ from sqlalchemy import (
     Float,
     ForeignKey,
     Index,
-    LargeBinary,
     String,
     Table,
     Text,
@@ -26,7 +25,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import async_object_session
 from sqlalchemy.ext.hybrid import hybrid_property
-from sqlalchemy.orm import Mapped, mapped_column, query_expression, relationship
+from sqlalchemy.orm import Mapped, MappedAsDataclass, mapped_column, query_expression, relationship
 from sqlalchemy.sql.expression import select, text
 
 from app.db.base import Base
@@ -36,8 +35,8 @@ from app.db.compiles_types import (
     EnumArray,
     SqliteCompatibleBigInteger,
     StringArray,
-    WebAuthnChallenge,
     WebAuthnBinary,
+    WebAuthnChallenge,
     WebAuthnCredentialId,
 )
 
@@ -75,7 +74,7 @@ class AdminStatus(str, Enum):
     limited = "limited"
 
 
-class IdMixin:
+class IdMixin(MappedAsDataclass):
     id: Mapped[int] = mapped_column(SqliteCompatibleBigInteger, primary_key=True, init=False, autoincrement=True)
 
 
@@ -97,7 +96,7 @@ class Admin(Base, CreatedAtUTCMixin):
     api_keys: Mapped[list[APIKey]] = relationship(
         back_populates="admin", init=False, default_factory=list, cascade="all, delete-orphan"
     )
-    passkeys: Mapped[list["AdminPasskey"]] = relationship(
+    passkeys: Mapped[list[AdminPasskey]] = relationship(
         back_populates="admin", init=False, default_factory=list, cascade="all, delete-orphan"
     )
 
@@ -938,7 +937,7 @@ class NodeStat(Base, CreatedAtUTCMixin):
     mem_total: Mapped[int] = mapped_column(BigInteger, unique=False, nullable=False)
     mem_used: Mapped[int] = mapped_column(BigInteger, unique=False, nullable=False)
     cpu_cores: Mapped[int] = mapped_column(unique=False, nullable=False)
-    cpu_usage: Mapped[float] = mapped_column(unique=False, nullable=False)
+    cpu_usage: Mapped[float] = mapped_column(Float, unique=False, nullable=False)
     incoming_bandwidth_speed: Mapped[int] = mapped_column(BigInteger, unique=False, nullable=False)
     outgoing_bandwidth_speed: Mapped[int] = mapped_column(BigInteger, unique=False, nullable=False)
 

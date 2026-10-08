@@ -3,6 +3,7 @@ from random import choice
 
 from pydantic import BaseModel
 
+from app.models.host import FinalMask
 from app.models.subscription import (
     GRPCTransportConfig,
     KCPTransportConfig,
@@ -673,7 +674,12 @@ class XrayConfiguration(BaseSubscription):
             if isinstance(finalmask, BaseModel):
                 stream_settings["finalmask"] = finalmask.model_dump(exclude_none=True, by_alias=True, mode="json")
             else:
-                stream_settings["finalmask"] = finalmask
+                try:
+                    stream_settings["finalmask"] = FinalMask.model_validate(finalmask).model_dump(
+                        exclude_none=True, by_alias=True, mode="json"
+                    )
+                except (TypeError, ValueError):
+                    stream_settings["finalmask"] = finalmask
 
         return stream_settings
 
