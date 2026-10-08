@@ -46,7 +46,6 @@ jobs:
             message+="$COMPARE_URL"
             message+='">View Commits</a>'
             message+=$'\n\n<b>Commits:</b>\n'
-            message+="$commits"
           else
             actor=$(html_escape "$ACTOR")
             title=$(html_escape "$PR_TITLE")
@@ -69,8 +68,18 @@ jobs:
             message+="$PR_URL"
             message+='">View Pull Request</a>'
             message+=$'\n\n<b>Commits:</b>\n'
-            message+="$commits"
           fi
+
+          # Commit messages are free text (e.g. "Co-authored-by: Name <email>"), so escape them for
+          # parse_mode=HTML, and trim the list to stay under Telegram's 4096-character limit.
+          commits=$(html_escape "$commits")
+          budget=$(( 3900 - ${#message} ))
+          if (( budget < 0 )); then budget=0; fi
+          if (( ${#commits} > budget )); then
+            commits=$(printf '%s' "${commits:0:budget}" | sed -E 's/&[#a-z0-9]*$//')
+            commits+=$'\n...'
+          fi
+          message+="$commits"
 
           IFS=',' read -r -a targets <<< "$TELEGRAM_TARGETS"
           for target in "${targets[@]}"; do
