@@ -1,3 +1,4 @@
+import hmac
 from datetime import UTC
 from uuid import UUID
 
@@ -22,7 +23,7 @@ from app.models.admin_role import RoleAccess, RoleFeatures, RoleLimits, RolePerm
 from app.models.settings import Telegram
 from app.operation.permissions import PermissionDenied, enforce_permission, is_scope_all
 from app.settings import telegram_settings
-from app.utils.jwt import get_admin_payload
+from app.utils.jwt import get_admin_payload, get_admin_token_binding, get_secret_key
 from config import auth_settings, runtime_settings
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/admin/token", auto_error=False)
@@ -37,7 +38,12 @@ _ENV_ADMIN_ROLE = AdminRoleData(
 )
 
 
-def _is_token_valid_for_admin(db_admin: Admin, payload: dict) -> bool:
+def _is_token_valid_for_admin(db_admin: Admin, payload: dict, secret_key: str) -> bool:
+    """Match a signed token to the current database admin credentials."""
+    if db_admin.username != payload["username"] or not payload.get("binding"):
+        return False
+    if not hmac.compare_digest(payload["binding"], get_admin_token_binding(db_admin.hashed_password, secret_key)):
+        return False
     if not db_admin.password_reset_at:
         return True
     if not payload.get("created_at"):
@@ -116,8 +122,9 @@ async def _get_admin_from_api_key_internal(
     else:
         admin = build_admin_details(db_admin)
 
-    if not db_key.inherit_permissions and db_key.permissions:
-        # Build a minimal AdminRoleData from the stored permissions snapshot
+    if not db_key.inherit_permissions:
+        # Build a minimal AdminRoleData from the stored permissions snapshot.
+        # An empty snapshot means "no permissions", never "fall back to the admin's role".
         role_data = dict(admin.role.model_dump() if admin.role else {})
         role_data["permissions"] = RolePermissions.model_validate(db_key.permissions).model_dump()
         role_data["is_owner"] = False  # API keys are never owner-level
@@ -126,7 +133,8 @@ async def _get_admin_from_api_key_internal(
 
 
 async def get_admin(db: AsyncSession, token: str) -> AdminDetails | None:
-    payload = await get_admin_payload(token)
+    secret_key = await get_secret_key()
+    payload = await get_admin_payload(token, secret_key=secret_key)
     if not payload:
         return None
 
@@ -134,23 +142,24 @@ async def get_admin(db: AsyncSession, token: str) -> AdminDetails | None:
     if payload.get("admin_id") is not None:
         db_admin = await get_admin_by_id_crud(db, payload["admin_id"], load_users=False, load_usage_logs=False)
 
-    if not db_admin:
+    else:
         db_admin = await get_admin_by_username(db, payload["username"], load_users=False, load_usage_logs=False)
 
     if db_admin:
-        if not _is_token_valid_for_admin(db_admin, payload):
+        if not _is_token_valid_for_admin(db_admin, payload, secret_key):
             return None
         return build_admin_details(db_admin)
 
     # Env admin fallback — no DB record, but username is a known env admin
-    if payload["username"] in auth_settings.sudoers:
+    if payload["admin_id"] is None and payload["username"] in auth_settings.sudoers:
         return AdminDetails(username=payload["username"], role=_ENV_ADMIN_ROLE)
 
     return None
 
 
 async def get_admin_with_metrics(db: AsyncSession, token: str) -> AdminDetails | None:
-    payload = await get_admin_payload(token)
+    secret_key = await get_secret_key()
+    payload = await get_admin_payload(token, secret_key=secret_key)
     if not payload:
         return None
 
@@ -168,19 +177,17 @@ async def get_admin_with_metrics(db: AsyncSession, token: str) -> AdminDetails |
 
     if payload.get("admin_id") is not None:
         admin_row = (await db.execute(base_stmt.where(Admin.id == payload["admin_id"]))).one_or_none()
-        if admin_row is None:
-            admin_row = (await db.execute(base_stmt.where(Admin.username == payload["username"]))).one_or_none()
     else:
         admin_row = (await db.execute(base_stmt.where(Admin.username == payload["username"]))).one_or_none()
 
     if admin_row:
         db_admin, total_users, reseted_usage = admin_row
-        if not _is_token_valid_for_admin(db_admin, payload):
+        if not _is_token_valid_for_admin(db_admin, payload, secret_key):
             return None
         return build_admin_details(db_admin, total_users=total_users, reseted_usage=reseted_usage)
 
     # Env admin fallback — no DB record, but username is a known env admin
-    if payload["username"] in auth_settings.sudoers:
+    if payload["admin_id"] is None and payload["username"] in auth_settings.sudoers:
         return AdminDetails(username=payload["username"], role=_ENV_ADMIN_ROLE)
 
     return None
@@ -192,6 +199,7 @@ async def _get_admin_from_request_credentials(
     token: str | None,
     *,
     with_metrics: bool = False,
+    allow_api_key: bool = True,
 ) -> AdminDetails | None:
     admin: AdminDetails | None = None
 
@@ -206,7 +214,7 @@ async def _get_admin_from_request_credentials(
                 raise
             admin = None
 
-    if not admin:
+    if not admin and allow_api_key:
         api_key = _extract_api_key(request)
         if api_key:
             admin = await get_admin_from_api_key(db, api_key, with_metrics=with_metrics)
@@ -218,14 +226,24 @@ async def get_current(request: Request, db: AsyncSession = Depends(get_db), toke
     return await get_current_for_request(request, db, token)
 
 
+async def get_current_session(
+    request: Request, db: AsyncSession = Depends(get_db), token: str | None = Depends(oauth2_scheme)
+):
+    """Require an admin session rather than an API key for credential enrollment."""
+    return await get_current_for_request(request, db, token, allow_api_key=False)
+
+
 async def get_current_for_request(
     request: Request,
     db: AsyncSession,
     token: str | None,
     *,
     with_metrics: bool = False,
+    allow_api_key: bool = True,
 ) -> AdminDetails:
-    admin = await _get_admin_from_request_credentials(request, db, token, with_metrics=with_metrics)
+    admin = await _get_admin_from_request_credentials(
+        request, db, token, with_metrics=with_metrics, allow_api_key=allow_api_key
+    )
 
     if not admin:
         raise HTTPException(
@@ -330,6 +348,7 @@ async def validate_admin(db: AsyncSession, username: str, password: str) -> Admi
             id=db_admin.id,
             username=db_admin.username,
             status=db_admin.status,
+            hashed_password=db_admin.hashed_password,
         )
 
     # Env admin fallback — only allowed in debug/testing
@@ -373,5 +392,6 @@ async def validate_mini_app_admin(db: AsyncSession, token: str) -> AdminValidati
             id=db_admin.id,
             username=db_admin.username,
             status=db_admin.status,
+            hashed_password=db_admin.hashed_password,
         )
     return None

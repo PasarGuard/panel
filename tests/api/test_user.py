@@ -3,7 +3,7 @@ import io
 import json
 import time
 import zipfile
-from base64 import b64encode
+from base64 import b64decode, b64encode
 from copy import deepcopy
 from datetime import UTC, datetime, timedelta, timezone
 from hashlib import sha256
@@ -19,11 +19,12 @@ from app.db.crud.user import get_user as get_db_user
 from app.db.crud.user import get_users as get_db_users
 from app.db.crud.user import update_users_status
 from app.db.models import NodeUserUsage, User, UserStatus, UserUsageResetLogs
-from app.models.settings import ConfigFormat, SubRule, Subscription
+from app.models.settings import ConfigFormat, HeaderPlacement, SubRule, Subscription
 from app.models.stats import Period, UserCountMetric, UserCountMetricStat, UserCountMetricStatsList
 from app.models.user import UserListQuery
 from app.models.validators import MAX_ON_HOLD_EXPIRE_DURATION_SECONDS
 from app.operation.subscription import SubscriptionOperation
+from app.subscription.share import inject_body_placement
 from app.utils import jwt as jwt_utils
 from app.utils.crypto import generate_wireguard_keypair, get_wireguard_public_key
 from app.utils.jwt import create_admin_token, create_subscription_token, get_secret_key, get_subscription_payload
@@ -1282,6 +1283,64 @@ def test_user_subscription_applies_rule_response_headers(access_token):
         cleanup_groups(access_token, core, groups)
 
 
+def test_user_subscription_body_start_placement_moves_headers_into_body(access_token, mock_settings):
+    """When header_placement is body_start, subscription metadata moves into #comment lines."""
+    settings_response = client.get("/api/settings", headers=auth_headers(access_token))
+    assert settings_response.status_code == status.HTTP_200_OK
+    original_subscription = settings_response.json()["subscription"]
+
+    updated_subscription = {
+        **original_subscription,
+        "header_placement": "body_start",
+    }
+
+    update_response = client.put(
+        "/api/settings",
+        headers=auth_headers(access_token),
+        json={"subscription": updated_subscription},
+    )
+    assert update_response.status_code == status.HTTP_200_OK
+    assert update_response.json()["subscription"]["header_placement"] == "body_start"
+
+    # tests/api mocks app.settings.get_settings to a static snapshot (see conftest.mock_settings),
+    # so runtime subscription generation doesn't observe the PUT above; mirror it in the snapshot.
+    original_header_placement = mock_settings["subscription"].get("header_placement", "header")
+    mock_settings["subscription"]["header_placement"] = "body_start"
+
+    core, groups = setup_groups(access_token, 1)
+    hosts = create_hosts_for_inbounds(access_token)
+    user = create_user(
+        access_token,
+        group_ids=[groups[0]["id"]],
+        payload={"username": unique_name("test_user_body_start_placement")},
+    )
+
+    try:
+        response = client.get(user["subscription_url"], headers={"User-Agent": "GenericClient"})
+        assert response.status_code == status.HTTP_200_OK
+        assert "profile-update-interval" not in response.headers
+
+        decoded = b64decode(response.text).decode()
+        lines = [line for line in decoded.splitlines() if line]
+        assert lines
+        assert any(line.startswith("#profile-update-interval:") for line in lines)
+        config_line_index = next(i for i, line in enumerate(lines) if not line.startswith("#"))
+        comment_indexes = [i for i, line in enumerate(lines) if line.startswith("#")]
+        assert all(i < config_line_index for i in comment_indexes)
+    finally:
+        mock_settings["subscription"]["header_placement"] = original_header_placement
+        restore_response = client.put(
+            "/api/settings",
+            headers=auth_headers(access_token),
+            json={"subscription": original_subscription},
+        )
+        assert restore_response.status_code == status.HTTP_200_OK
+        delete_user(access_token, user["username"])
+        for host in hosts:
+            client.delete(f"/api/host/{host['id']}", headers=auth_headers(access_token))
+        cleanup_groups(access_token, core, groups)
+
+
 def test_wireguard_subscription_outputs_are_consistent(access_token):
     interface_private_key, _ = generate_wireguard_keypair()
     interface_public_key = get_wireguard_public_key(interface_private_key)
@@ -1872,6 +1931,84 @@ def test_detect_client_rule_matches_user_agent():
     assert matched_rule is not None
     assert matched_rule.target == ConfigFormat.links
     assert matched_rule.response_headers["x-subheader"] == "Hello {USERNAME}"
+
+
+def test_split_headers_for_placement_keeps_headers_unchanged_by_default():
+    headers = {"profile-update-interval": "1", "content-disposition": 'attachment; filename="x"'}
+
+    result_headers, body_lines = SubscriptionOperation._split_headers_for_placement(
+        headers, HeaderPlacement.header, ConfigFormat.links
+    )
+
+    assert result_headers == headers
+    assert body_lines == []
+
+
+def test_split_headers_for_placement_moves_headers_to_body_for_safe_format():
+    headers = {
+        "profile-update-interval": "1",
+        "content-disposition": 'attachment; filename="x"',
+        "cache-control": "no-store",
+    }
+
+    result_headers, body_lines = SubscriptionOperation._split_headers_for_placement(
+        headers, HeaderPlacement.body_start, ConfigFormat.links
+    )
+
+    assert result_headers == {
+        "content-disposition": 'attachment; filename="x"',
+        "cache-control": "no-store",
+    }
+    assert body_lines == ["#profile-update-interval: 1"]
+
+
+def test_split_headers_for_placement_falls_back_to_header_for_json_formats():
+    headers = {"profile-update-interval": "1"}
+
+    result_headers, body_lines = SubscriptionOperation._split_headers_for_placement(
+        headers, HeaderPlacement.body_start, ConfigFormat.xray
+    )
+
+    assert result_headers == headers
+    assert body_lines == []
+
+
+def test_inject_body_placement_prepends_lines_for_plain_text():
+    result = inject_body_placement("vless://example", ["#profile-update-interval: 1"], "body_start", False)
+
+    assert result == "#profile-update-interval: 1\nvless://example"
+
+
+def test_inject_body_placement_appends_lines_for_plain_text():
+    result = inject_body_placement("vless://example", ["#profile-update-interval: 1"], "body_end", False)
+
+    assert result == "vless://example\n#profile-update-interval: 1"
+
+
+def test_inject_body_placement_prepends_lines_for_base64():
+    encoded = b64encode(b"vless://example").decode()
+
+    result = inject_body_placement(encoded, ["#profile-update-interval: 1"], "body_start", True)
+
+    decoded = b64decode(result).decode()
+    assert decoded == "#profile-update-interval: 1\nvless://example"
+
+
+def test_inject_body_placement_appends_lines_for_base64():
+    encoded = b64encode(b"vless://example").decode()
+
+    result = inject_body_placement(encoded, ["#profile-update-interval: 1"], "body_end", True)
+
+    decoded = b64decode(result).decode()
+    assert decoded == "vless://example\n#profile-update-interval: 1"
+
+
+def test_inject_body_placement_leaves_bytes_untouched():
+    original = b"raw-binary-config"
+
+    result = inject_body_placement(original, ["#profile-update-interval: 1"], "body_start", False)
+
+    assert result is original
 
 
 def test_user_get(access_token):

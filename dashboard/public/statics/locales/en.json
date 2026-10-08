@@ -282,7 +282,14 @@
         "addHeader": "Add Header",
         "headerName": "Header name",
         "headerValue": "Header value",
-        "noHeaders": "No response headers configured. Add headers to include custom HTTP headers in subscription responses."
+        "noHeaders": "No response headers configured. Add headers to include custom HTTP headers in subscription responses.",
+        "placement": {
+          "title": "Header Placement",
+          "description": "Choose whether these headers are sent as real HTTP headers, or embedded as comment lines inside the subscription body — useful when a CDN strips or blocks custom headers.",
+          "header": "HTTP header (default)",
+          "bodyStart": "Body start",
+          "bodyEnd": "Body end"
+        }
       },
       "customVariables": {
         "title": "Custom Variables",
