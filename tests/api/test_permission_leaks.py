@@ -338,15 +338,17 @@ def test_api_key_patch_cannot_carry_permissions_beyond_the_admin(scoped_actor):
     assert created.status_code == status.HTTP_201_CREATED, created.text
     key_id, raw_key = created.json()["id"], created.json()["api_key"]
 
-    # Permissions sent while the key still inherits must not be stored...
-    client.patch(
+    # Permissions sent while the key still inherits are accepted but not stored...
+    patched = client.patch(
         f"/api/api_key/{key_id}", headers=headers, json={"permissions": {"users": {"read": True, "read_simple": True}}}
     )
+    assert patched.status_code == status.HTTP_200_OK, patched.text
     stored = client.get(f"/api/api_key/{key_id}", headers=headers).json()["permissions"]
     assert all(value is None for value in stored.values()), stored
 
     # ...so switching inheritance off afterwards leaves a key with no permissions at all.
-    client.patch(f"/api/api_key/{key_id}", headers=headers, json={"inherit_permissions": False})
+    switched = client.patch(f"/api/api_key/{key_id}", headers=headers, json={"inherit_permissions": False})
+    assert switched.status_code == status.HTTP_200_OK, switched.text
     response = client.get(
         "/api/users", headers={"X-Api-Key": raw_key}, params={"username": context["victim"]["username"]}
     )
@@ -373,6 +375,7 @@ def test_api_key_patch_with_null_permissions_keeps_the_key_working(scoped_actor)
         f"/api/api_key/{key_id}", headers=headers, json={"name": unique_name("renamed"), "permissions": None}
     )
     assert renamed.status_code == status.HTTP_200_OK, renamed.text
+    assert renamed.json()["permissions"] == created.json()["permissions"]
 
     assert client.get("/api/admin", headers={"X-Api-Key": raw_key}).status_code == status.HTTP_200_OK
 
@@ -386,7 +389,7 @@ def test_get_users_requires_users_read_without_a_router_gate(scoped_actor):
             admin = build_admin_details(await get_admin_by_id(db, actor_id, load_users=False, load_usage_logs=False))
             return await UserOperation(OperatorType.TELEGRAM).get_users(db, admin, UserListQuery(limit=50))
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="users.read"):
         asyncio.run(_search())
 
 
