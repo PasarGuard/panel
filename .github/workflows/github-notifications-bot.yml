@@ -11,6 +11,9 @@ on:
 jobs:
   notify:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
     env:
       BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_TARGETS: ${{ vars.TELEGRAM_TARGETS }}
@@ -90,7 +93,8 @@ jobs:
             fi
 
             curl_args=(-sS --fail -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
-              -d "chat_id=$chat_id" -d 'parse_mode=HTML' --data-urlencode "text=$message")
+              -d "chat_id=$chat_id" -d 'parse_mode=HTML' \
+              --data-urlencode 'link_preview_options={"is_disabled":true}' --data-urlencode "text=$message")
             if [[ -n "$topic_id" ]]; then
               curl_args+=(-d "message_thread_id=$topic_id")
             fi
