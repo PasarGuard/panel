@@ -50,7 +50,7 @@ export function WarpOutboundDialog({ open, onOpenChange }: WarpOutboundDialogPro
   const [testing, setTesting] = useState<number | null>(null)
   const [testResults, setTestResults] = useState<Record<number, TestResult>>({})
   const canUpdate = hasPermission(admin, 'cores', coreId === null ? 'create' : 'update')
-  const canTest = hasPermission(admin, 'nodes', 'read')
+  const canTest = hasPermission(admin, 'nodes', 'stats')
   const saved = coreId !== null && tag !== null && !hasChanges
   const { data, isLoading, isError, refetch } = useGetCoreWarp(coreId ?? 0, {
     query: { enabled: open && saved, refetchInterval: open && saved ? 5000 : false, refetchOnWindowFocus: false },
