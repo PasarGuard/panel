@@ -1465,6 +1465,7 @@ export interface CoreCreate {
   type?: CoreType | null;
   exclude_inbound_tags?: unknown[] | null;
   fallbacks_inbound_tags?: unknown[] | null;
+  warp_outbound_tag?: string | null;
 }
 
 export type CoreResponseConfig = { [key: string]: unknown };
@@ -1475,6 +1476,7 @@ export interface CoreResponse {
   type?: CoreType | null;
   exclude_inbound_tags: string[];
   fallbacks_inbound_tags: string[];
+  warp_outbound_tag?: string | null;
   id: number;
   created_at: string;
 }
@@ -1491,6 +1493,43 @@ export interface CoreSimple {
   id: number;
   name: string;
   type?: CoreType | null;
+}
+
+export type NodeStatus = typeof NodeStatus[keyof typeof NodeStatus];
+
+
+export const NodeStatus = {
+  connected: 'connected',
+  connecting: 'connecting',
+  error: 'error',
+  disabled: 'disabled',
+  limited: 'limited',
+} as const;
+
+export type WarpProfileStatus = typeof WarpProfileStatus[keyof typeof WarpProfileStatus];
+
+
+export const WarpProfileStatus = {
+  pending: 'pending',
+  registering: 'registering',
+  ready: 'ready',
+  applied: 'applied',
+  error: 'error',
+} as const;
+
+export interface WarpNodeResponse {
+  node_id: number;
+  name: string;
+  node_status: NodeStatus;
+  status: WarpProfileStatus;
+  registered_at?: string | null;
+  applied_at?: string | null;
+  last_error?: string | null;
+}
+
+export interface CoreWarpResponse {
+  outbound_tag: string | null;
+  nodes: WarpNodeResponse[];
 }
 
 /**
@@ -1758,17 +1797,6 @@ export interface NodeCreate {
 export interface NodeGeoFilesUpdate {
   region?: GeoFilseRegion;
 }
-
-export type NodeStatus = typeof NodeStatus[keyof typeof NodeStatus];
-
-
-export const NodeStatus = {
-  connected: 'connected',
-  connecting: 'connecting',
-  error: 'error',
-  disabled: 'disabled',
-  limited: 'limited',
-} as const;
 
 export interface NodeModify {
   name?: string | null;
@@ -2593,6 +2621,10 @@ export interface UsersResponse {
 export interface UsersSimpleResponse {
   users: UserSimple[];
   total: number;
+}
+
+export interface WarpRetryRequest {
+  node_id?: number | null;
 }
 
 export interface WireGuardSubnetUsage {
@@ -11594,34 +11626,180 @@ export const useBulkEnableGroups = <TError = ErrorType<HTTPException | Unauthori
       return useMutation(getBulkEnableGroupsMutationOptions(options), queryClient);
     }
 
-export type createCoreConfigResponse201 = {
-  data: CoreResponse
-  status: 201
+export const getGetCoreWarpUrl = (coreId: number,) => {
+
+
+
+
+  return `/api/core/${coreId}/warp`
 }
 
-export type createCoreConfigResponse401 = {
-  data: Unauthorized
-  status: 401
+/**
+ * Return WARP provisioning status without tunnel or account credentials.
+ * @summary Get Core Warp
+ */
+export const getCoreWarp = async (coreId: number, options?: RequestInit): Promise<CoreWarpResponse> => {
+
+  return orvalFetcher<CoreWarpResponse>(getGetCoreWarpUrl(coreId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCoreWarpQueryKey = (coreId: number,) => {
+    return [
+    `/api/core/${coreId}/warp`
+    ] as const;
+    }
+
+
+export const getGetCoreWarpQueryOptions = <TData = Awaited<ReturnType<typeof getCoreWarp>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(coreId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCoreWarp>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCoreWarpQueryKey(coreId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCoreWarp>>> = ({ signal }) => getCoreWarp(coreId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: coreId !== null && coreId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCoreWarp>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
 
-export type createCoreConfigResponse403 = {
-  data: Forbidden
-  status: 403
+export type GetCoreWarpQueryResult = NonNullable<Awaited<ReturnType<typeof getCoreWarp>>>
+export type GetCoreWarpQueryError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>
+
+
+export function useGetCoreWarp<TData = Awaited<ReturnType<typeof getCoreWarp>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+ coreId: number, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCoreWarp>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getCoreWarp>>,
+          TError,
+          Awaited<ReturnType<typeof getCoreWarp>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetCoreWarp<TData = Awaited<ReturnType<typeof getCoreWarp>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+ coreId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCoreWarp>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getCoreWarp>>,
+          TError,
+          Awaited<ReturnType<typeof getCoreWarp>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetCoreWarp<TData = Awaited<ReturnType<typeof getCoreWarp>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+ coreId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCoreWarp>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get Core Warp
+ */
+
+export function useGetCoreWarp<TData = Awaited<ReturnType<typeof getCoreWarp>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+ coreId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCoreWarp>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetCoreWarpQueryOptions(coreId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
 }
 
-export type createCoreConfigResponse422 = {
-  data: HTTPValidationError
-  status: 422
+
+
+
+
+
+
+export const getRetryCoreWarpUrl = (coreId: number,) => {
+
+
+
+
+  return `/api/core/${coreId}/warp/retry`
 }
 
-export type createCoreConfigResponseSuccess = (createCoreConfigResponse201) & {
-  headers: Headers;
-};
-export type createCoreConfigResponseError = (createCoreConfigResponse401 | createCoreConfigResponse403 | createCoreConfigResponse422) & {
-  headers: Headers;
-};
+/**
+ * Retry pending WARP profiles on connected nodes belonging to this core.
+ * @summary Retry Core Warp
+ */
+export const retryCoreWarp = async (coreId: number,
+    warpRetryRequest: WarpRetryRequest, options?: RequestInit): Promise<CoreWarpResponse> => {
 
-export type createCoreConfigResponse = (createCoreConfigResponseSuccess | createCoreConfigResponseError)
+  return orvalFetcher<CoreWarpResponse>(getRetryCoreWarpUrl(coreId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(warpRetryRequest)
+  }
+);}
+
+
+
+
+
+export const getRetryCoreWarpMutationOptions = <TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof retryCoreWarp>>, TError,{coreId: number;data: BodyType<WarpRetryRequest>}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
+): UseMutationOptions<Awaited<ReturnType<typeof retryCoreWarp>>, TError,{coreId: number;data: BodyType<WarpRetryRequest>}, TContext> => {
+
+const mutationKey = ['retryCoreWarp'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof retryCoreWarp>>, {coreId: number;data: BodyType<WarpRetryRequest>}> = (props) => {
+          const {coreId,data} = props ?? {};
+
+          return  retryCoreWarp(coreId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RetryCoreWarpMutationResult = NonNullable<Awaited<ReturnType<typeof retryCoreWarp>>>
+    export type RetryCoreWarpMutationBody = BodyType<WarpRetryRequest>
+    export type RetryCoreWarpMutationError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>
+
+    /**
+ * @summary Retry Core Warp
+ */
+export const useRetryCoreWarp = <TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof retryCoreWarp>>, TError,{coreId: number;data: BodyType<WarpRetryRequest>}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof retryCoreWarp>>,
+        TError,
+        {coreId: number;data: BodyType<WarpRetryRequest>},
+        TContext
+      > => {
+      return useMutation(getRetryCoreWarpMutationOptions(options), queryClient);
+    }
 
 export const getCreateCoreConfigUrl = () => {
 
@@ -11635,9 +11813,9 @@ export const getCreateCoreConfigUrl = () => {
  * Create a new core configuration.
  * @summary Create Core Config
  */
-export const createCoreConfig = async (coreCreate: CoreCreate, options?: RequestInit): Promise<createCoreConfigResponse> => {
+export const createCoreConfig = async (coreCreate: CoreCreate, options?: RequestInit): Promise<CoreResponse> => {
 
-  return orvalFetcher<createCoreConfigResponse>(getCreateCoreConfigUrl(),
+  return orvalFetcher<CoreResponse>(getCreateCoreConfigUrl(),
   {
     ...options,
     method: 'POST',
@@ -11795,35 +11973,6 @@ export const useScanRealityTarget = <TError = ErrorType<Unauthorized | Forbidden
       return useMutation(getScanRealityTargetMutationOptions(options), queryClient);
     }
 
-export type getCoreConfigResponse200 = {
-  data: CoreResponse
-  status: 200
-}
-
-export type getCoreConfigResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type getCoreConfigResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type getCoreConfigResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type getCoreConfigResponseSuccess = (getCoreConfigResponse200) & {
-  headers: Headers;
-};
-export type getCoreConfigResponseError = (getCoreConfigResponse401 | getCoreConfigResponse403 | getCoreConfigResponse422) & {
-  headers: Headers;
-};
-
-export type getCoreConfigResponse = (getCoreConfigResponseSuccess | getCoreConfigResponseError)
-
 export const getGetCoreConfigUrl = (coreId: number,) => {
 
 
@@ -11836,9 +11985,9 @@ export const getGetCoreConfigUrl = (coreId: number,) => {
  * Get a core configuration by its ID.
  * @summary Get Core Config
  */
-export const getCoreConfig = async (coreId: number, options?: RequestInit): Promise<getCoreConfigResponse> => {
+export const getCoreConfig = async (coreId: number, options?: RequestInit): Promise<CoreResponse> => {
 
-  return orvalFetcher<getCoreConfigResponse>(getGetCoreConfigUrl(coreId),
+  return orvalFetcher<CoreResponse>(getGetCoreConfigUrl(coreId),
   {
     ...options,
     method: 'GET'
@@ -11926,35 +12075,6 @@ export function useGetCoreConfig<TData = Awaited<ReturnType<typeof getCoreConfig
 
 
 
-export type modifyCoreConfigResponse200 = {
-  data: CoreResponse
-  status: 200
-}
-
-export type modifyCoreConfigResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type modifyCoreConfigResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type modifyCoreConfigResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type modifyCoreConfigResponseSuccess = (modifyCoreConfigResponse200) & {
-  headers: Headers;
-};
-export type modifyCoreConfigResponseError = (modifyCoreConfigResponse401 | modifyCoreConfigResponse403 | modifyCoreConfigResponse422) & {
-  headers: Headers;
-};
-
-export type modifyCoreConfigResponse = (modifyCoreConfigResponseSuccess | modifyCoreConfigResponseError)
-
 export const getModifyCoreConfigUrl = (coreId: number,
     params: ModifyCoreConfigParams,) => {
   const normalizedParams = new URLSearchParams();
@@ -11977,9 +12097,9 @@ export const getModifyCoreConfigUrl = (coreId: number,
  */
 export const modifyCoreConfig = async (coreId: number,
     coreCreate: CoreCreate,
-    params: ModifyCoreConfigParams, options?: RequestInit): Promise<modifyCoreConfigResponse> => {
+    params: ModifyCoreConfigParams, options?: RequestInit): Promise<CoreResponse> => {
 
-  return orvalFetcher<modifyCoreConfigResponse>(getModifyCoreConfigUrl(coreId,params),
+  return orvalFetcher<CoreResponse>(getModifyCoreConfigUrl(coreId,params),
   {
     ...options,
     method: 'PUT',

@@ -12,6 +12,13 @@ export default defineConfig({
       tslint: true,
       headers: false,
       override: {
+        operations: {
+          get_core_config: { fetch: { includeHttpResponseReturnType: false } },
+          create_core_config: { fetch: { includeHttpResponseReturnType: false } },
+          modify_core_config: { fetch: { includeHttpResponseReturnType: false } },
+          get_core_warp: { fetch: { includeHttpResponseReturnType: false } },
+          retry_core_warp: { fetch: { includeHttpResponseReturnType: false } },
+        },
         mutator: {
           path: './src/service/http.ts',
           name: 'orvalFetcher',

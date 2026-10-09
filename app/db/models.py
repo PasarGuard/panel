@@ -900,6 +900,21 @@ class CoreConfig(Base, CreatedAtUTCMixin):
     type: Mapped[CoreType] = mapped_column(SQLEnum(CoreType), default=CoreType.xray, server_default=CoreType.xray)
     exclude_inbound_tags: Mapped[set[str] | None] = mapped_column(StringArray(2048), default_factory=set)
     fallbacks_inbound_tags: Mapped[set[str] | None] = mapped_column(StringArray(2048), default_factory=set)
+    warp_outbound_tag: Mapped[str | None] = mapped_column(String(256), default=None)
+
+
+class NodeWarpProfile(Base):
+    __tablename__ = "node_warp_profiles"
+    node_id: Mapped[int] = fk_id_column("nodes.id", primary_key=True, ondelete="CASCADE")
+    settings: Mapped[dict | None] = mapped_column(JSON(none_as_null=True), default=None, repr=False)
+    registered_at: Mapped[dt | None] = mapped_column(DateTime(timezone=True), default=None)
+    last_attempt_at: Mapped[dt | None] = mapped_column(DateTime(timezone=True), default=None)
+    last_error: Mapped[str | None] = mapped_column(String(512), default=None)
+    lease_token: Mapped[str | None] = mapped_column(String(36), default=None, repr=False)
+    lease_expires_at: Mapped[dt | None] = mapped_column(DateTime(timezone=True), default=None)
+    applied_core_id: Mapped[int | None] = mapped_column(SqliteCompatibleBigInteger, default=None)
+    applied_tag: Mapped[str | None] = mapped_column(String(256), default=None)
+    applied_at: Mapped[dt | None] = mapped_column(DateTime(timezone=True), default=None)
 
 
 class WireGuardSubnet(Base, IdMixin):

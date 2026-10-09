@@ -136,6 +136,22 @@ class CoreOperation(BaseOperation):
         self, db: AsyncSession, core_id: int, modified_core: CoreCreate, admin: AdminDetails
     ) -> CoreResponse:
         db_core = await self.get_validated_core_config(db, core_id)
+        # Older API clients omit the new field: preserve a managed binding only while its placeholder remains.
+        if "warp_outbound_tag" not in modified_core.model_fields_set and db_core.warp_outbound_tag:
+            tag = db_core.warp_outbound_tag
+            outbounds = modified_core.config.get("outbounds", [])
+            if isinstance(outbounds, list) and any(isinstance(o, dict) and o.get("tag") == tag for o in outbounds):
+                try:
+                    modified_core = CoreCreate.model_validate({**modified_core.model_dump(), "warp_outbound_tag": tag})
+                except ValueError:
+                    await self.raise_error(
+                        "Restore the WARP placeholder or explicitly remove its managed binding", 400, db=db
+                    )
+            else:
+                modified_core.warp_outbound_tag = None
+                modified_core.model_fields_set.add("warp_outbound_tag")
+        if modified_core.warp_outbound_tag and (modified_core.type or db_core.type) != CoreType.xray:
+            await self.raise_error("Managed WARP outbounds are only available for Xray cores", 400, db=db)
         was_wg = db_core.type == CoreType.wg
         if modified_core.type == CoreType.wg:
             await self._validate_wireguard_subnet(db, modified_core.config, exclude_core_id=db_core.id)

@@ -1,6 +1,7 @@
 import { AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { Button } from '@/components/ui/button'
+import { WarpOutboundDialog } from './warp-outbound-dialog'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -50,7 +51,7 @@ import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { cn } from '@/lib/utils'
-import { ArrowDownToLine, Cable, Gauge, KeyRound, Pencil, Plus, RefreshCw, Shield, SlidersHorizontal } from 'lucide-react'
+import { ArrowDownToLine, Cable, Cloud, Gauge, KeyRound, Pencil, Plus, RefreshCw, Shield, SlidersHorizontal } from 'lucide-react'
 import { toast } from 'sonner'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -543,6 +544,8 @@ export function XrayOutboundsSection({ headerAddPulse, headerAddEpoch }: XrayOut
   const dir = useDirDetection()
   const profile = useCoreEditorStore(s => s.xrayProfile)
   const coreId = useCoreEditorStore(s => s.coreId)
+  const warpOutboundTag = useCoreEditorStore(s => s.warpOutboundTag)
+  const [warpOpen, setWarpOpen] = useState(false)
   const updateXrayProfile = useCoreEditorStore(s => s.updateXrayProfile)
   const { assertNoPersistBlockingErrors } = useXrayPersistModifyGuard()
 
@@ -648,10 +651,10 @@ export function XrayOutboundsSection({ headerAddPulse, headerAddEpoch }: XrayOut
       {
         accessorKey: 'protocol',
         header: () => t('coreEditor.col.protocol', { defaultValue: 'Protocol' }),
-        cell: ({ row }) => row.original.protocol,
+        cell: ({ row }) => (row.original.tag === warpOutboundTag ? 'Cloudflare WARP' : row.original.protocol),
       },
     ],
-    [t],
+    [t, warpOutboundTag],
   )
 
   // ─── Add / open ────────────────────────────────────────────────────────────
@@ -848,25 +851,40 @@ export function XrayOutboundsSection({ headerAddPulse, headerAddEpoch }: XrayOut
 
   // ─── Render ────────────────────────────────────────────────────────────────
 
+  const canRemoveOutbounds = (indices: number[]) => {
+    if (!warpOutboundTag || !indices.some(i => outbounds[i]?.tag === warpOutboundTag)) return true
+    const routing = profile.routing
+    const referenced = routing?.rules?.some(rule => rule.outboundTag === warpOutboundTag) || routing?.balancers?.some(balancer => balancer.selector?.some(prefix => warpOutboundTag.startsWith(prefix)))
+    if (!referenced) return true
+    toast.error(t('coreEditor.warp.removeReferences', { tag: warpOutboundTag }))
+    return false
+  }
+
   return (
     <div className="space-y-6">
       <CoreEditorDataTable
         columns={columns}
         data={outbounds}
         toolbarActions={
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="h-9 px-2 sm:px-3"
-            disabled={!hasOutbounds}
-            onClick={() => setLatencyTestScope({ mode: 'all' })}
-            aria-label={t('coreEditor.outbound.latency.testAll', { defaultValue: 'Test all' })}
-            title={t('coreEditor.outbound.latency.testAll', { defaultValue: 'Test all' })}
-          >
-            <Gauge className="h-4 w-4" />
-            <span className="hidden sm:inline">{t('coreEditor.outbound.latency.testAll', { defaultValue: 'Test all' })}</span>
-          </Button>
+          <>
+            <Button type="button" variant="outline" size="sm" className="h-9 px-2 sm:px-3" onClick={() => setWarpOpen(true)}>
+              <Cloud className="h-4 w-4" />
+              <span>{t(warpOutboundTag ? 'coreEditor.warp.manageButton' : 'coreEditor.warp.addTitle')}</span>
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-9 px-2 sm:px-3"
+              disabled={!hasOutbounds}
+              onClick={() => setLatencyTestScope({ mode: 'all' })}
+              aria-label={t('coreEditor.outbound.latency.testAll', { defaultValue: 'Test all' })}
+              title={t('coreEditor.outbound.latency.testAll', { defaultValue: 'Test all' })}
+            >
+              <Gauge className="h-4 w-4" />
+              <span className="hidden sm:inline">{t('coreEditor.outbound.latency.testAll', { defaultValue: 'Test all' })}</span>
+            </Button>
+          </>
         }
         getSearchableText={outboundSearchHaystack}
         getRowId={(_row: Outbound, i: number) => String(i)}
@@ -875,6 +893,10 @@ export function XrayOutboundsSection({ headerAddPulse, headerAddEpoch }: XrayOut
           defaultValue: 'At least one outbound is required.',
         })}
         onRowClick={(_row, rowIndex) => {
+          if (_row.tag === warpOutboundTag) {
+            setWarpOpen(true)
+            return
+          }
           if (detailOpen && dialogMode === 'add' && draftOutbound !== null) {
             setBlockAddWhileDraftOpen(true)
             return
@@ -890,10 +912,12 @@ export function XrayOutboundsSection({ headerAddPulse, headerAddEpoch }: XrayOut
           setDetailOpen(true)
         }}
         onRemoveRow={i => {
+          if (!canRemoveOutbounds([i])) return
           updateXrayProfile(p => removeOutbound(p, i))
           setSelected(0)
         }}
         onBulkRemove={indices => {
+          if (!canRemoveOutbounds(indices)) return
           const rm = new Set(indices)
           updateXrayProfile(p => updateOutbounds(p, current => current.filter((_, idx) => !rm.has(idx))))
           setSelected(0)
@@ -914,6 +938,8 @@ export function XrayOutboundsSection({ headerAddPulse, headerAddEpoch }: XrayOut
         ]}
       />
 
+      <WarpOutboundDialog open={warpOpen} onOpenChange={setWarpOpen} />
+
       <OutboundLatencyTestDialog
         open={latencyTestScope !== null}
         onOpenChange={open => {
@@ -926,11 +952,7 @@ export function XrayOutboundsSection({ headerAddPulse, headerAddEpoch }: XrayOut
       <CoreEditorFormDialog
         isDialogOpen={detailOpen}
         onOpenChange={handleDetailOpenChange}
-        initialData={
-          dialogMode === 'add'
-            ? { outbound: initialDraftRef.current, uriDraft: '', tab: 'form', json: '' }
-            : { outbound: editOriginalOutbound, uriDraft: '', tab: 'form', json: '' }
-        }
+        initialData={dialogMode === 'add' ? { outbound: initialDraftRef.current, uriDraft: '', tab: 'form', json: '' } : { outbound: editOriginalOutbound, uriDraft: '', tab: 'form', json: '' }}
         getCurrentData={() => ({ outbound: draftOutbound ?? ob, uriDraft, tab: outboundDialogTab, json: outboundJsonText })}
         discardTitle={
           dialogMode === 'add' ? t('coreEditor.outbound.discardDraftTitle', { defaultValue: 'Discard new outbound?' }) : t('coreEditor.outbound.discardEditTitle', { defaultValue: 'Discard changes?' })

@@ -15,9 +15,11 @@ from app.models.core import (
 )
 from app.models.node import NodeListQuery
 from app.models.reality_scan import RealityScanRequest, RealityScanResult
+from app.models.warp import CoreWarpResponse, WarpRetryRequest
 from app.operation import OperatorType
 from app.operation.core import CoreOperation
 from app.operation.node import NodeOperation
+from app.operation.warp import WarpOperation
 from app.utils import responses
 
 from .authentication import require_permission
@@ -25,7 +27,29 @@ from .dependencies import get_core_list_query, get_core_simple_list_query
 
 core_operator = CoreOperation(operator_type=OperatorType.API)
 node_operator = NodeOperation(operator_type=OperatorType.API)
+warp_operator = WarpOperation(operator_type=OperatorType.API)
 router = APIRouter(tags=["Core"], prefix="/api/core", responses={401: responses._401, 403: responses._403})
+
+
+@router.get("/{core_id}/warp", response_model=CoreWarpResponse)
+async def get_core_warp(
+    core_id: int,
+    _: AdminDetails = Depends(require_permission("cores", "read")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return WARP provisioning status without tunnel or account credentials."""
+    return await warp_operator.status(db, core_id)
+
+
+@router.post("/{core_id}/warp/retry", response_model=CoreWarpResponse)
+async def retry_core_warp(
+    core_id: int,
+    request: WarpRetryRequest,
+    _: AdminDetails = Depends(require_permission("cores", "update")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Retry pending WARP profiles on connected nodes belonging to this core."""
+    return await warp_operator.retry(db, core_id, request.node_id)
 
 
 async def _core_node_ids(db: AsyncSession, core_ids: list[int]) -> list[int]:

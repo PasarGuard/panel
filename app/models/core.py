@@ -1,6 +1,6 @@
 from enum import Enum
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.db.models import CoreType
 
@@ -13,6 +13,7 @@ class CoreBase(BaseModel):
     type: CoreType | None = Field(default=None)
     exclude_inbound_tags: set[str]
     fallbacks_inbound_tags: set[str]
+    warp_outbound_tag: str | None = Field(default=None, min_length=1, max_length=256)
 
     @property
     def exclude_tags(self) -> str:
@@ -32,6 +33,23 @@ class CoreCreate(CoreBase):
     type: CoreType | None = Field(default=None)
     exclude_inbound_tags: set | None = Field(default=None)
     fallbacks_inbound_tags: set | None = Field(default=None)
+
+    @model_validator(mode="after")
+    def validate_warp_outbound(self):
+        if self.warp_outbound_tag is None:
+            return self
+        if self.type not in (None, CoreType.xray):
+            raise ValueError("Managed WARP outbounds are only available for Xray cores")
+        tag = self.warp_outbound_tag
+        if tag != tag.strip():
+            raise ValueError("WARP outbound tag must not contain surrounding whitespace")
+        outbounds = self.config.get("outbounds", [])
+        if not isinstance(outbounds, list) or not all(isinstance(o, dict) for o in outbounds):
+            raise ValueError("WARP requires an outbounds array of objects")
+        matches = [o for o in outbounds if o.get("tag") == tag]
+        if len(matches) != 1 or matches[0].get("protocol") != "blackhole" or matches[0].get("settings", {}):
+            raise ValueError("Managed WARP needs one empty blackhole placeholder with its outbound tag")
+        return self
 
     @field_validator("config", mode="before")
     def validate_config(cls, v: dict) -> dict:

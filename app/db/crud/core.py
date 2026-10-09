@@ -52,6 +52,7 @@ async def create_core_config(db: AsyncSession, core_config: CoreCreate) -> CoreC
         config=core_config.config,
         exclude_inbound_tags=core_config.exclude_inbound_tags or set(),
         fallbacks_inbound_tags=core_config.fallbacks_inbound_tags or set(),
+        warp_outbound_tag=core_config.warp_outbound_tag,
     )
     db.add(db_core_config)
     await db.commit()
@@ -74,6 +75,8 @@ async def modify_core_config(
         CoreConfig: The updated CoreConfig object.
     """
     core_data = modified_core_config.model_dump(exclude_none=True)
+    if "warp_outbound_tag" in modified_core_config.model_fields_set:
+        core_data["warp_outbound_tag"] = modified_core_config.warp_outbound_tag
 
     for key, value in core_data.items():
         setattr(db_core_config, key, value)

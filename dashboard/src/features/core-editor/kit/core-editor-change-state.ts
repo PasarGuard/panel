@@ -61,6 +61,7 @@ export function selectCoreEditorHasActualChanges(s: CoreEditorStoreState): boole
   if (!snap) return s.dirty
   if (s.kind !== snap.kind) return true
   if (s.coreName.trim() !== snap.coreName.trim()) return true
+  if (s.warpOutboundTag !== (snap.warpOutboundTag ?? null)) return true
   if (!sameStringArray(s.fallbacksInboundTags, snap.fallbacksInboundTags)) return true
   if (!sameStringArray(s.excludeInboundTags, snap.excludeInboundTags)) return true
 

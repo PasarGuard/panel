@@ -15,6 +15,7 @@ from app.db.models import (
     NodeUsage,
     NodeUsageResetLogs,
     NodeUserUsage,
+    NodeWarpProfile,
 )
 from app.models.node import (
     NodeCreate,
@@ -446,6 +447,7 @@ async def remove_node(db: AsyncSession, db_node: Node) -> None:
     await db.execute(delete(NodeUsage).where(NodeUsage.node_id == node_id))
     await db.execute(delete(NodeUsageResetLogs).where(NodeUsageResetLogs.node_id == node_id))
     await db.execute(delete(NodeStat).where(NodeStat.node_id == node_id))
+    await db.execute(delete(NodeWarpProfile).where(NodeWarpProfile.node_id == node_id))
     await db.execute(delete(Node).where(Node.id == node_id))
 
     await db.commit()
@@ -851,5 +853,6 @@ async def remove_nodes(db: AsyncSession, node_ids: list[int]) -> None:
     await db.execute(delete(NodeUsage).where(NodeUsage.node_id.in_(node_ids)))
     await db.execute(delete(NodeUsageResetLogs).where(NodeUsageResetLogs.node_id.in_(node_ids)))
     await db.execute(delete(NodeStat).where(NodeStat.node_id.in_(node_ids)))
+    await db.execute(delete(NodeWarpProfile).where(NodeWarpProfile.node_id.in_(node_ids)))
     await db.execute(delete(Node).where(Node.id.in_(node_ids)))
     await db.commit()

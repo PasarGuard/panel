@@ -330,8 +330,13 @@ class NodeOperation(BaseOperation):
                 users = await users()
             if held is not None:
                 held.check()
+            from app.operation.warp import WarpOperation
+
+            config, warp_tag = await WarpOperation.node_config(db_node, core)
+            if held is not None:
+                held.check()
             start_kwargs = {
-                "config": core.to_str(),
+                "config": config,
                 "backend_type": backend_type,
                 "users": users,
                 "keep_alive": db_node.keep_alive,
@@ -347,7 +352,10 @@ class NodeOperation(BaseOperation):
 
             log = logger.info if force_start else logger.debug
             log(f'Starting "{db_node.name}" node')
-            return await pg_node.start(**start_kwargs)
+            info = await pg_node.start(**start_kwargs)
+            if warp_tag and info is not None:
+                await WarpOperation.applied(db_node, warp_tag)
+            return info
 
     @staticmethod
     async def connect_node(db_node: Node, core, users: CoreUsers, *, force_start: bool = False) -> dict | None:

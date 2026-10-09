@@ -46,6 +46,7 @@ class XRayConfig(dict):
             fallbacks_inbound_tags = set()
 
         self._type = CoreType.xray
+        self.warp_outbound_tag: str | None = None
         exclude_inbound_tags.update(fallbacks_inbound_tags)
         self.exclude_inbound_tags = exclude_inbound_tags
         self.fallbacks_inbound_tags = set(fallbacks_inbound_tags)
@@ -567,6 +568,7 @@ class XRayConfig(dict):
         """Convert the config to a JSON-serializable dictionary."""
         return {
             "type": self.type,
+            "warp_outbound_tag": getattr(self, "warp_outbound_tag", None),
             "config": dict(self),
             "exclude_inbound_tags": list(self.exclude_inbound_tags),
             "fallbacks_inbound_tags": list(self.fallbacks_inbound_tags),
@@ -592,6 +594,7 @@ class XRayConfig(dict):
         if "inbounds_by_tag" in data:
             instance._inbounds_by_tag = data["inbounds_by_tag"]
         instance._protocols = _protocols_from_inbounds_by_tag(instance._inbounds_by_tag)
+        instance.warp_outbound_tag = data.get("warp_outbound_tag")
         return instance
 
     def copy(self):

@@ -177,6 +177,7 @@ export default function CoreEditorPage() {
   const hydrated = useCoreEditorStore(s => s.hydrated)
   const kind = useCoreEditorStore(s => s.kind)
   const coreName = useCoreEditorStore(s => s.coreName)
+  const warpOutboundTag = useCoreEditorStore(s => s.warpOutboundTag)
   const setCoreName = useCoreEditorStore(s => s.setCoreName)
   const hasActualChanges = useCoreEditorStore(selectCoreEditorHasActualChanges)
   const discardDraft = useCoreEditorStore(s => s.discardDraft)
@@ -219,7 +220,7 @@ export default function CoreEditorPage() {
     }
   }, [isNew, initNew, searchParams])
 
-  const serverConfigJson = useMemo(() => (validId && coreData ? JSON.stringify(coreData.config) : null), [validId, coreData])
+  const serverConfigJson = useMemo(() => (validId && coreData ? JSON.stringify([coreData.config, coreData.warp_outbound_tag ?? null]) : null), [validId, coreData])
 
   useEffect(() => {
     if (isNew || !validId || !coreData || serverConfigJson === null) return
@@ -327,6 +328,7 @@ export default function CoreEditorPage() {
             data: {
               name,
               type: 'xray',
+              warp_outbound_tag: warpOutboundTag,
               config: cfg,
               exclude_inbound_tags: excludeInboundTags,
               fallbacks_inbound_tags: fallbacksInboundTags,
@@ -343,6 +345,7 @@ export default function CoreEditorPage() {
             data: {
               name,
               type: 'xray',
+              warp_outbound_tag: warpOutboundTag,
               config: cfg,
               exclude_inbound_tags: excludeInboundTags,
               fallbacks_inbound_tags: fallbacksInboundTags,
@@ -366,6 +369,7 @@ export default function CoreEditorPage() {
     }
   }, [
     coreName,
+    warpOutboundTag,
     kind,
     wgDraft,
     xrayProfile,

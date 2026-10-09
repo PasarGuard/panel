@@ -80,7 +80,7 @@ class CoreManager:
             # Deserialize state using JSON
             try:
                 cached_state = json.loads(entry.value.decode("utf-8"))
-            except (json.JSONDecodeError, UnicodeDecodeError):
+            except json.JSONDecodeError, UnicodeDecodeError:
                 self._logger.warning("Failed to decode CoreManager state as JSON, ignoring...")
                 return False
 
@@ -118,6 +118,7 @@ class CoreManager:
             "id": db_core_config.id,
             "type": db_core_config.type,
             "config": db_core_config.config,
+            "warp_outbound_tag": getattr(db_core_config, "warp_outbound_tag", None),
             "exclude_inbound_tags": list(db_core_config.exclude_inbound_tags or []),
             "fallbacks_inbound_tags": list(db_core_config.fallbacks_inbound_tags or []),
         }
@@ -135,7 +136,9 @@ class CoreManager:
     def _core_from_json(self, data: dict) -> AbstractCore:
         type = data.get("type")
         core_class = self._get_core_class(type)
-        return core_class.from_json(data)
+        core = core_class.from_json(data)
+        core.warp_outbound_tag = data.get("warp_outbound_tag")
+        return core
 
     async def _apply_core_payload(self, payload: dict):
         try:
@@ -156,6 +159,7 @@ class CoreManager:
                 self.type = type
                 self.exclude_inbound_tags = exclude
                 self.fallbacks_inbound_tags = fallbacks
+                self.warp_outbound_tag = payload.get("warp_outbound_tag")
 
         await self._update_core_local(_PayloadCore(core_id, config, type, exclude_tags, fallback_tags))
 
@@ -225,6 +229,7 @@ class CoreManager:
                     exc,
                 )
                 continue
+            core_config.warp_outbound_tag = getattr(config, "warp_outbound_tag", None)
             cores[config.id] = core_config
 
         async with self._lock:
@@ -263,6 +268,7 @@ class CoreManager:
                 )
                 return
 
+        core_config.warp_outbound_tag = getattr(db_core_config, "warp_outbound_tag", None)
         async with self._lock:
             self._cores.update({db_core_config.id: core_config})
 

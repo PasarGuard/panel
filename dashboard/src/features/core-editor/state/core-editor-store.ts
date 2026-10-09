@@ -22,6 +22,7 @@ function cloneWg(d: WireGuardCoreDraft): WireGuardCoreDraft {
 export interface PersistedSnapshot {
   kind: CoreKind
   coreName: string
+  warpOutboundTag: string | null
   fallbacksInboundTags: string[]
   excludeInboundTags: string[]
   xrayProfile: Profile | null
@@ -37,6 +38,7 @@ function captureSnapshot(s: CoreEditorStoreState): PersistedSnapshot {
   return {
     kind: s.kind,
     coreName: s.coreName,
+    warpOutboundTag: s.warpOutboundTag,
     fallbacksInboundTags: [...s.fallbacksInboundTags],
     excludeInboundTags: [...s.excludeInboundTags],
     xrayProfile: s.xrayProfile ? cloneProfile(s.xrayProfile) : null,
@@ -62,6 +64,7 @@ function applyPersistedSnapshot(snapshot: PersistedSnapshot): Partial<CoreEditor
     return {
       kind: snapshot.kind,
       coreName: snapshot.coreName,
+      warpOutboundTag: snapshot.warpOutboundTag ?? null,
       fallbacksInboundTags: [...snapshot.fallbacksInboundTags],
       excludeInboundTags: [...snapshot.excludeInboundTags],
       xrayProfile: null,
@@ -81,6 +84,7 @@ function applyPersistedSnapshot(snapshot: PersistedSnapshot): Partial<CoreEditor
     return {
       kind: snapshot.kind,
       coreName: snapshot.coreName,
+      warpOutboundTag: snapshot.warpOutboundTag ?? null,
       fallbacksInboundTags: [...snapshot.fallbacksInboundTags],
       excludeInboundTags: [...snapshot.excludeInboundTags],
       xrayProfile: p,
@@ -103,6 +107,7 @@ export interface CoreEditorStoreState {
   isNew: boolean
   coreId: number | null
   coreName: string
+  warpOutboundTag: string | null
   kind: CoreKind
   restartNodes: boolean
   fallbacksInboundTags: string[]
@@ -124,6 +129,7 @@ export interface CoreEditorStoreState {
   initNew: (kind: CoreKind, name?: string) => void
   reset: () => void
   setCoreName: (name: string) => void
+  setWarpOutboundTag: (tag: string | null) => void
   setActiveSection: (s: XrayCoreSection | WgCoreSection) => void
   setRestartNodes: (v: boolean) => void
   setFallbacksInboundTags: (tags: string[]) => void
@@ -147,6 +153,7 @@ export const useCoreEditorStore = create<CoreEditorStoreState>((set, get) => ({
   isNew: false,
   coreId: null,
   coreName: '',
+  warpOutboundTag: null,
   kind: 'xray',
   restartNodes: true,
   fallbacksInboundTags: [],
@@ -169,7 +176,8 @@ export const useCoreEditorStore = create<CoreEditorStoreState>((set, get) => ({
     const kind = apiCoreTypeToKind(core.type)
     const fallbacks = (core.fallbacks_inbound_tags ?? []).map(String)
     const excludes = (core.exclude_inbound_tags ?? []).map(String)
-    const serverJson = JSON.stringify(core.config)
+    const serverJson = JSON.stringify([core.config, core.warp_outbound_tag ?? null])
+    set({ warpOutboundTag: kind === 'xray' ? (core.warp_outbound_tag ?? null) : null })
     const nav =
       preserveNavigation && prev && prev.coreId === core.id ? { activeSection: prev.activeSection, restartNodes: prev.restartNodes } : { activeSection: defaultSection(kind), restartNodes: true }
     if (kind === 'wg') {
@@ -249,6 +257,7 @@ export const useCoreEditorStore = create<CoreEditorStoreState>((set, get) => ({
   },
 
   initNew: (kind, name = '') => {
+    set({ warpOutboundTag: null })
     if (kind === 'wg') {
       const draft = createNewWireGuardDraft()
       set({
@@ -304,6 +313,7 @@ export const useCoreEditorStore = create<CoreEditorStoreState>((set, get) => ({
       isNew: false,
       coreId: null,
       coreName: '',
+      warpOutboundTag: null,
       kind: 'xray',
       restartNodes: true,
       fallbacksInboundTags: [],
@@ -322,6 +332,7 @@ export const useCoreEditorStore = create<CoreEditorStoreState>((set, get) => ({
     }),
 
   setCoreName: coreName => set({ coreName, dirty: true }),
+  setWarpOutboundTag: warpOutboundTag => set({ warpOutboundTag, dirty: true }),
 
   setActiveSection: activeSection => set({ activeSection }),
 
@@ -332,7 +343,8 @@ export const useCoreEditorStore = create<CoreEditorStoreState>((set, get) => ({
   setExcludeInboundTags: excludeInboundTags => set({ excludeInboundTags, dirty: true }),
 
   setXrayProfile: xrayProfile => {
-    set({ xrayProfile, dirty: true })
+    const tag = get().warpOutboundTag
+    set({ xrayProfile, dirty: true, warpOutboundTag: tag && xrayProfile.outbounds?.some(o => o.tag === tag) ? tag : null })
     get().syncMonacoFromDraft()
   },
 
@@ -340,7 +352,8 @@ export const useCoreEditorStore = create<CoreEditorStoreState>((set, get) => ({
     const cur = get().xrayProfile
     if (!cur) return
     const next = updater(cloneProfile(cur))
-    set({ xrayProfile: next, dirty: true })
+    const tag = get().warpOutboundTag
+    set({ xrayProfile: next, dirty: true, warpOutboundTag: tag && next.outbounds?.some(o => o.tag === tag) ? tag : null })
     get().syncMonacoFromDraft()
   },
 
@@ -379,6 +392,7 @@ export const useCoreEditorStore = create<CoreEditorStoreState>((set, get) => ({
   switchKind: nextKind => {
     const cur = get().kind
     if (nextKind === cur) return
+    set({ warpOutboundTag: null })
     if (nextKind === 'wg') {
       const draft = createNewWireGuardDraft()
       set({
@@ -451,6 +465,7 @@ export const useCoreEditorStore = create<CoreEditorStoreState>((set, get) => ({
     const p = cloneProfile(profile)
     set({
       xrayProfile: p,
+      warpOutboundTag: get().warpOutboundTag && p.outbounds?.some(o => o.tag === get().warpOutboundTag) ? get().warpOutboundTag : null,
       dirty: true,
       monacoDirty: false,
       xrayImportWarnings: issues.filter(i => i.severity !== 'error').map(i => i.message),
