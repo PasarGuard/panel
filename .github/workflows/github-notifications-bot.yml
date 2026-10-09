@@ -12,7 +12,6 @@ jobs:
   notify:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
       pull-requests: read
     env:
       BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
