@@ -1497,6 +1497,8 @@
       "udphopRemoteIps": "Remote IPs",
       "udphopRemoteIpsPlaceholder": "e.g. 203.0.113.0/24",
       "udphopLastLayerHint": "Must be the last UDP layer; cannot be combined with xicmp.",
+      "udphopVersionHint": "Needs Xray 26.9.9 or newer (a pre-release); an older Xray rejects the whole config.",
+      "noiseExpVersionHint": "exp needs Xray 26.9.30 or newer (a pre-release); an older Xray rejects the whole config.",
       "tlsConfig": "TLS Config (JSON object, optional)",
       "mustBeJsonObject": "Must be a JSON object",
       "invalidJsonObject": "Invalid JSON",

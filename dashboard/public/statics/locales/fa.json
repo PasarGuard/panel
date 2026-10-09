@@ -1325,6 +1325,8 @@
       "udphopRemoteIps": "آی‌پی‌های مقصد",
       "udphopRemoteIpsPlaceholder": "مثلاً 203.0.113.0/24",
       "udphopLastLayerHint": "باید آخرین لایه UDP باشد و با xicmp قابل ترکیب نیست.",
+      "udphopVersionHint": "به Xray نسخه 26.9.9 یا جدیدتر (نسخه پیش‌انتشار) نیاز دارد؛ Xray قدیمی‌تر کل پیکربندی را رد می‌کند.",
+      "noiseExpVersionHint": "exp به Xray نسخه 26.9.30 یا جدیدتر (نسخه پیش‌انتشار) نیاز دارد؛ Xray قدیمی‌تر کل پیکربندی را رد می‌کند.",
       "tlsConfig": "پیکربندی TLS (شیء JSON، اختیاری)",
       "mustBeJsonObject": "باید یک شیء JSON باشد",
       "invalidJsonObject": "JSON نامعتبر است",

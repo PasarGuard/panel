@@ -1463,6 +1463,8 @@
       "udphopRemoteIps": "远程 IP",
       "udphopRemoteIpsPlaceholder": "例如 203.0.113.0/24",
       "udphopLastLayerHint": "必须是最后一个 UDP 层，且不能与 xicmp 同时使用。",
+      "udphopVersionHint": "需要 Xray 26.9.9 或更高版本（预发布版）；旧版 Xray 会拒绝整个配置。",
+      "noiseExpVersionHint": "exp 需要 Xray 26.9.30 或更高版本（预发布版）；旧版 Xray 会拒绝整个配置。",
       "tlsConfig": "TLS 配置（JSON 对象，可选）",
       "mustBeJsonObject": "必须是 JSON 对象",
       "invalidJsonObject": "无效的 JSON",
