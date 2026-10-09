@@ -413,6 +413,7 @@ function UdpLayersForm({ form }: { form: UseFormReturn<any> }) {
               {type === 'udphop' && (
                 <div className="bg-background grid grid-cols-2 gap-3 rounded-md border p-3">
                   <p className="text-muted-foreground col-span-2 text-[11px] leading-relaxed">{t('hostsDialog.finalmask.udphopLastLayerHint')}</p>
+                  <p className="text-muted-foreground col-span-2 text-[11px] leading-relaxed">{t('hostsDialog.finalmask.udphopVersionHint')}</p>
                   <FormField
                     control={form.control}
                     name={`final_mask_settings.udp.${index}.settings.mode`}
@@ -1517,6 +1518,7 @@ function XrayNoiseSettingsList({ form, name, label, allowExp }: XrayNoiseSetting
                 </>
               )}
             </div>
+            {isExpType && <p className="text-muted-foreground pl-7 text-[11px] leading-relaxed">{t('hostsDialog.finalmask.noiseExpVersionHint')}</p>}
           </div>
           )
         })}

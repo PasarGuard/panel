@@ -1727,6 +1727,8 @@
       "udphopRemoteIps": "Удалённые IP",
       "udphopRemoteIpsPlaceholder": "например 203.0.113.0/24",
       "udphopLastLayerHint": "Должен быть последним UDP-слоем; несовместим с xicmp.",
+      "udphopVersionHint": "Требуется Xray 26.9.9 или новее (предварительная версия); более старый Xray отклоняет всю конфигурацию.",
+      "noiseExpVersionHint": "exp требует Xray 26.9.30 или новее (предварительная версия); более старый Xray отклоняет всю конфигурацию.",
       "tlsConfig": "Конфигурация TLS (JSON-объект, необязательно)",
       "mustBeJsonObject": "Должен быть JSON-объектом",
       "invalidJsonObject": "Неверный JSON",
