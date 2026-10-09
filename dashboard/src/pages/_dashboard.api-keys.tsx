@@ -29,6 +29,7 @@ import ApiKeyAdvanceSearchModal from '@/features/api-keys/dialogs/api-key-advanc
 import { ApiKeyDeleteDialog, ApiKeyRevokeDialog, ApiKeySecretDialog } from '@/features/api-keys/dialogs/api-key-action-dialogs'
 import { usePersistedViewMode } from '@/hooks/use-persisted-view-mode'
 import { useAdmin } from '@/hooks/use-admin'
+import { useClipboard } from '@/hooks/use-clipboard'
 import { hasPermission } from '@/utils/rbac'
 import { BulkActionItem, BulkActionsBar } from '@/features/users/components/bulk-actions-bar'
 import { BulkActionAlertDialog } from '@/features/users/components/bulk-action-alert-dialog'
@@ -46,6 +47,7 @@ export default function ApiKeysPage() {
   const [keyToRevoke, setKeyToRevoke] = useState<APIKeyResponse | null>(null)
   const [newReissuedKey, setNewReissuedKey] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  const { copy } = useClipboard()
   const [selectedApiKeyIds, setSelectedApiKeyIds] = useState<number[]>([])
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false)
 
@@ -162,12 +164,14 @@ export default function ApiKeysPage() {
     }
   }
 
-  const copyToClipboard = () => {
-    if (newReissuedKey) {
-      navigator.clipboard.writeText(newReissuedKey)
+  const copyToClipboard = async () => {
+    if (!newReissuedKey) return
+    if (await copy(newReissuedKey)) {
       setCopied(true)
       toast.success(t('apiKeys.apiKeyCopySuccess'))
       setTimeout(() => setCopied(false), 2000)
+    } else {
+      toast.error(t('copyFailed', { defaultValue: 'Failed to copy content' }))
     }
   }
 
