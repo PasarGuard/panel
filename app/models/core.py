@@ -46,6 +46,7 @@ class CoreCreate(CoreBase):
 
 class CoreResponse(CoreBase):
     id: int
+    sort_order: int = 0
     created_at: AwareDatetime
 
     model_config = ConfigDict(from_attributes=True)

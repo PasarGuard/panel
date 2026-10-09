@@ -1,7 +1,7 @@
 from typing import Any
 
-from sqlalchemy import MetaData, event
-from sqlalchemy.ext.asyncio import AsyncAttrs, async_sessionmaker, create_async_engine
+from sqlalchemy import MetaData, event, text
+from sqlalchemy.ext.asyncio import AsyncAttrs, AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, MappedAsDataclass
 
 from config import DatabaseSettings, database_settings
@@ -60,6 +60,20 @@ if database_settings.is_sqlite:
 
 
 SessionLocal = async_sessionmaker(autocommit=False, autoflush=False, expire_on_commit=False, bind=engine)
+
+
+async def begin_immediate_if_sqlite(db: AsyncSession) -> None:
+    """Serialize a SQLite read-then-write transaction before its first read."""
+    if db.bind is None or db.bind.dialect.name != "sqlite":
+        return
+
+    # Authentication and validation can leave a read-only implicit transaction
+    # open on the request-scoped session. End it before acquiring SQLite's single
+    # writer slot; otherwise BEGIN IMMEDIATE would be nested and fail.
+    if db.in_transaction():
+        await db.rollback()
+    await db.execute(text("BEGIN IMMEDIATE"))
+
 
 naming_convention = {
     "ix": "ix_%(column_0_label)s",
