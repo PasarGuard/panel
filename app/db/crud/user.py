@@ -538,6 +538,21 @@ async def get_users(
     return users
 
 
+async def get_users_for_node_sync(db: AsyncSession, user_ids: list[int]) -> list[User]:
+    """Load only the User columns needed for allocation and node synchronization."""
+    if not user_ids:
+        return []
+
+    stmt = (
+        select(User)
+        .where(User.id.in_(user_ids))
+        .options(load_only(User.id, User.admin_id, User.status, User.proxy_settings))
+    )
+    users = list((await db.execute(stmt)).scalars().all())
+    users_by_id = {user.id: user for user in users}
+    return [users_by_id[user_id] for user_id in user_ids if user_id in users_by_id]
+
+
 async def get_users_simple(
     db: AsyncSession,
     query: UserSimpleListQuery,
