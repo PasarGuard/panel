@@ -56,8 +56,6 @@ export const formatOffsetDateTime = (value: DateInput, options: ParseDateInputOp
 
 export const toLocalOffsetDateTime = (value: DateInput, options: ParseDateInputOptions = {}) => parseDateInput(value, options).local().format(OFFSET_DATE_TIME_FORMAT)
 
-export const formatOffsetStartOfDay = (value: DateInput, options: ParseDateInputOptions = {}) => parseDateInput(value, options).startOf('day').format(OFFSET_DATE_TIME_FORMAT)
-
 export const formatOffsetEndOfDay = (value: DateInput, options: ParseDateInputOptions = {}) => parseDateInput(value, options).endOf('day').format(OFFSET_DATE_TIME_FORMAT)
 
 export const toUnixSeconds = (value: DateInput, options: ParseDateInputOptions = {}) => parseDateInput(value, options).unix()

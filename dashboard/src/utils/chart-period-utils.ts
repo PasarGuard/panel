@@ -3,7 +3,7 @@ import { Period } from '@/service/api'
 import type { TFunction } from 'i18next'
 import { DateRange } from 'react-day-picker'
 import { getPeriodFromDateRange } from './datePickerUtils'
-import { formatOffsetDateTime, formatOffsetEndOfDay, formatOffsetStartOfDay, parseDateInput } from './dateTimeParsing'
+import { formatOffsetEndOfDay, parseDateInput } from './dateTimeParsing'
 import { getDateRangeFromShortcut } from './timeShortcutUtils'
 
 export type PeriodOption = {
@@ -81,6 +81,9 @@ export const buildPeriodOptions = (t: TFunction): PeriodOption[] => [
 
 export const getDefaultPeriodOption = (options: PeriodOption[]) => options[2] ?? options[0]
 
+const formatStartInEndOffset = (start: dayjs.Dayjs, end: dayjs.Dayjs, keepWallClock: boolean) =>
+  keepWallClock ? `${start.format('YYYY-MM-DD')}T00:00:00${end.format('Z')}` : `${dayjs.utc(start).add(end.utcOffset(), 'minute').format('YYYY-MM-DDTHH:mm:ss')}${end.format('Z')}`
+
 export const getDateRangeForPeriodOption = (periodOption: PeriodOption) => {
   const now = dayjs()
   let start: dayjs.Dayjs
@@ -98,9 +101,11 @@ export const getDateRangeForPeriodOption = (periodOption: PeriodOption) => {
     start = now
   }
 
+  const keepWallClock = !periodOption.hours
+
   return {
-    startDate: formatOffsetDateTime(start.toDate()),
-    endDate: formatOffsetDateTime(now.toDate()),
+    startDate: formatStartInEndOffset(start, now, keepWallClock),
+    endDate: now.format(),
   }
 }
 
@@ -415,10 +420,10 @@ type ChartQueryRange = {
 
 const buildChartQueryRange = (period: Period, from: Date, to: Date): ChartQueryRange => {
   const useDayBounds = period === Period.day || period === Period.month
-  const startDate = useDayBounds ? formatOffsetStartOfDay(from) : formatOffsetDateTime(from)
-  const endDate = useDayBounds ? formatOffsetEndOfDay(to) : formatOffsetDateTime(to)
+  const end = useDayBounds ? dayjs(to).endOf('day') : dayjs(to)
+  const start = useDayBounds ? dayjs(from).startOf('day') : dayjs(from)
 
-  return { period, startDate, endDate }
+  return { period, startDate: formatStartInEndOffset(start, end, useDayBounds), endDate: end.format() }
 }
 
 export const getChartQueryRangeFromShortcut = (shortcut: string, now = new Date(), options?: ShortcutPeriodOptions): ChartQueryRange => {
@@ -436,7 +441,7 @@ export const getChartQueryRangeFromDateRange = (range: DateRange, fallbackShortc
   }
 
   const period = options?.periodOverride ?? getPeriodFromDateRange(range)
-  return buildChartQueryRange(period, range.from, range.to)
+  return buildChartQueryRange(period, dayjs(range.from).startOf('day').toDate(), dayjs(range.to).endOf('day').toDate())
 }
 
 export const formatPeriodLabelForPeriod = (periodStart: string, period: Period, language: string, rangeHint?: ChartLabelRangeHint) => {
