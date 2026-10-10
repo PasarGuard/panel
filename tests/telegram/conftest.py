@@ -119,5 +119,5 @@ def fake_user():
         next_plan=None,
         admin=SimpleNamespace(username="owner"),
     )
-    user.model_dump = lambda: {}
+    user.model_dump = dict
     return user
