@@ -1,7 +1,7 @@
 """add subscription update created_at index
 
 Revision ID: 86f7c2a14d3e
-Revises: b4c7e8f1a2d3
+Revises: b7e2c4d91f60
 Create Date: 2026-09-04 00:00:00.000000
 
 """
@@ -9,7 +9,7 @@ Create Date: 2026-09-04 00:00:00.000000
 from alembic import op
 
 revision = "86f7c2a14d3e"
-down_revision = "b4c7e8f1a2d3"
+down_revision = "b7e2c4d91f60"
 branch_labels = None
 depends_on = None
 
