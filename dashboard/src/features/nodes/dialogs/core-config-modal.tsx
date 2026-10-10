@@ -1039,7 +1039,7 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
                         {/* API services: opt into optional Xray API services.
                             The node always injects the required ones regardless. */}
                         <div className="space-y-2">
-                          <FormLabel>{t('coreConfigModal.apiServices', { defaultValue: 'API Services' })}</FormLabel>
+                          <Label className="block">{t('coreConfigModal.apiServices', { defaultValue: 'API Services' })}</Label>
                           <div className="space-y-2 rounded-md border p-3">
                             {REQUIRED_API_SERVICES.map(svc => (
                               <label key={svc} className="flex items-center gap-2 opacity-60">
