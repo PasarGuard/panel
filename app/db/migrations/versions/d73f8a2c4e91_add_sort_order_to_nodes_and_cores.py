@@ -1,7 +1,7 @@
 """add sort order to nodes and core configs
 
 Revision ID: d73f8a2c4e91
-Revises: b4c7e8f1a2d3
+Revises: 86f7c2a14d3e
 Create Date: 2026-09-07 13:00:00.000000
 
 """
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "d73f8a2c4e91"
-down_revision = "b4c7e8f1a2d3"
+down_revision = "86f7c2a14d3e"
 branch_labels = None
 depends_on = None
 
