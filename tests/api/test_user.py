@@ -45,6 +45,7 @@ from tests.api.helpers import (
     delete_group,
     delete_user,
     delete_user_template,
+    set_user_hwids,
     unique_name,
 )
 from tests.api.sample_data import XRAY_CONFIG
@@ -3588,3 +3589,24 @@ def test_get_users_sub_update_chart_operator_can_view_own(access_token):
         assert response.status_code == status.HTTP_200_OK
     finally:
         delete_admin(access_token, operator["username"])
+
+
+def test_get_users_returns_and_sorts_by_hwid_count(access_token):
+    tag = unique_name("hwid_count")
+    users = [create_user(access_token, username=f"{tag}_{name}") for name in ("a", "b", "c")]
+    try:
+        for user, devices in zip(users, (2, 0, 1)):
+            set_user_hwids(user["id"], devices)
+
+        for sort, expected in (("hwid_count", [0, 1, 2]), ("-hwid_count", [2, 1, 0])):
+            response = client.get(
+                "/api/users", headers=auth_headers(access_token), params={"search": tag, "sort": sort}
+            )
+            assert response.status_code == status.HTTP_200_OK, response.text
+            body = response.json()
+            # The count expression must not change the total
+            assert body["total"] == 3
+            assert [user["hwid_count"] for user in body["users"]] == expected
+    finally:
+        for user in users:
+            delete_user(access_token, user["username"])
