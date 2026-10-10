@@ -2402,6 +2402,9 @@
     "excludedInbound": "Excluded inbound",
     "selectInbound": "Select inbound",
     "inbound": "Inbound",
+    "apiServices": "API Services",
+    "apiServiceAlwaysOn": "always on",
+    "apiServicesUnknown": "Unrecognized API service(s): {{names}}. Remove or fix them to save.",
     "generateKeyPair": "Key Pair",
     "generateShortId": "Short ID",
     "backendType": "Type",
@@ -2518,6 +2521,7 @@
     },
     "section": {
       "label": "Section",
+      "api": "API",
       "inbounds": "Inbounds",
       "outbounds": "Outbounds",
       "routing": "Routing",
@@ -2529,6 +2533,7 @@
     },
     "sectionDesc": {
       "wgInterface": "WireGuard interface and keys",
+      "api": "Xray gRPC API services",
       "advanced": "JSON editing and diagnostics",
       "inbounds": "Inbound listeners and protocols",
       "outbounds": "Outbound connections and upstreams",
@@ -2536,6 +2541,12 @@
       "balancers": "Outbound load balancing setup",
       "dns": "DNS resolver and server config",
       "bindings": "Inbound tag fallbacks and exclusions"
+    },
+    "api": {
+      "title": "API Services",
+      "hint": "gRPC API services exposed by this core. The node always enables the required services; enable optional ones as needed.",
+      "alwaysOn": "always on",
+      "unknown": "Unrecognized API service(s): {{names}}. Fix them in the Advanced tab."
     },
     "wg": {
       "interfaceBlurb": "WireGuard interface settings and key material for this core.",
