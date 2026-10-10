@@ -13,7 +13,13 @@ from app.core.manager import core_manager
 from app.db import GetDB
 from app.db.crud.host import get_host_by_id, get_hosts, upsert_inbounds
 from app.db.models import ProxyHostSecurity
-from app.models.host import BaseHost, FinalMask, TransportSettings, WireGuardHostOverrides
+from app.models.host import (
+    BaseHost,
+    FinalMask,
+    TransportSettings,
+    WireGuardHostOverrides,
+    dump_final_mask_for_xray,
+)
 from app.models.subscription import (
     GRPCTransportConfig,
     KCPTransportConfig,
@@ -29,10 +35,11 @@ from app.nats.client import setup_nats_kv
 from app.nats.kv_cas import is_kv_miss
 from app.nats.message import MessageTopic
 from app.nats.router import router
+from app.subscription.base import normalize_and_remove_none_values
+from app.subscription.config_cache import clear_sub_config_cache
 from app.utils.logger import get_logger
 from config import runtime_settings
 from role import Role
-from app.subscription.base import normalize_and_remove_none_values
 
 
 def _string_list(value) -> list[str]:
@@ -52,15 +59,15 @@ def _normalize_finalmask_link(final_mask_settings: FinalMask | dict | str | None
     if not final_mask_settings:
         return None
     fms = None
-    if isinstance(final_mask_settings, FinalMask):
-        fms = final_mask_settings.model_dump(by_alias=True, exclude_none=True)
-    elif isinstance(final_mask_settings, dict):
-        fms = deepcopy(final_mask_settings)
+    if isinstance(final_mask_settings, (FinalMask, dict)):
+        fms = dump_final_mask_for_xray(final_mask_settings)
     elif isinstance(final_mask_settings, str):
         try:
             fms = json.loads(final_mask_settings)
         except Exception:
             return final_mask_settings
+        if isinstance(fms, dict):
+            fms = dump_final_mask_for_xray(fms)
 
     if isinstance(fms, dict):
         fms = normalize_and_remove_none_values(fms)
@@ -91,6 +98,9 @@ async def _prepare_subscription_inbound_data(
     path = host.path or inbound_config.get("path", "")
 
     final_mask_settings = host.final_mask_settings if host.final_mask_settings else inbound_config.get("finalmask")
+    if isinstance(final_mask_settings, FinalMask):
+        # Dump with aliases once, so builders and the NATS KV copy see Xray field names
+        final_mask_settings = final_mask_settings.model_dump(by_alias=True, exclude_none=True, mode="json")
     finalmask_link = _normalize_finalmask_link(final_mask_settings)
 
     if protocol == "wireguard":
@@ -572,6 +582,7 @@ class HostManager:
 
     async def _reset_cache(self):
         await self.get_hosts.cache.clear()
+        clear_sub_config_cache()
 
     @staticmethod
     async def _prepare_host_entry(
