@@ -1,7 +1,7 @@
 """Bind generated Xray client proxy inbounds to loopback.
 
 Revision ID: a8c2d491e705
-Revises: 8e2f1a9c4b70
+Revises: a4d8c7e91b32
 Create Date: 2026-08-09
 """
 
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "a8c2d491e705"
-down_revision = "8e2f1a9c4b70"
+down_revision = "a4d8c7e91b32"
 branch_labels = None
 depends_on = None
 
