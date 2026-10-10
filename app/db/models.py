@@ -270,6 +270,7 @@ class User(Base, CreatedAtUTCMixin):
     edit_at: Mapped[dt | None] = mapped_column(DateTime(timezone=True), default=None)
     last_status_change: Mapped[dt | None] = mapped_column(DateTime(timezone=True), default=None)
     _reseted_usage_query: Mapped[int | None] = query_expression(repr=False)
+    hwid_count: Mapped[int | None] = query_expression(repr=False)
 
     @hybrid_property
     def expire(self) -> dt | None:

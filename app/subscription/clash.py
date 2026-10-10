@@ -694,8 +694,9 @@ class ClashMetaConfiguration(ClashConfiguration):
 
         obfs_password, quic_params = self._get_hysteria_data_from_finalmask(inbound.finalmask)
 
-        node["ports"] = quic_params.get("udpHop", {}).get("ports", "")
-        hop_interval = quic_params.get("udpHop", {}).get("interval")
+        udp_hop = quic_params.get("udpHop") or {}
+        node["ports"] = udp_hop.get("ports", "")
+        hop_interval = udp_hop.get("interval")
         node["hop-interval"] = f"{str(hop_interval).rstrip('s')}s" if hop_interval not in (None, "") else None
 
         if obfs_password:

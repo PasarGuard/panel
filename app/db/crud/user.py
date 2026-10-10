@@ -23,7 +23,9 @@ from app.db.models import (
     ProxyInbound,
     ReminderType,
     User,
+    UserHWID,
     UserStatus,
+    UserStatusCreate,
     UserSubscriptionUpdate,
     UserUsageResetLogs,
     inbounds_groups_association,
@@ -355,6 +357,10 @@ async def get_users_with_proxy_settings(
     return list(result.scalars().all())
 
 
+def _user_hwid_count_subquery():
+    return select(func.count(UserHWID.id)).where(UserHWID.user_id == User.id).correlate(User).scalar_subquery()
+
+
 async def get_admin_users_for_node_sync(
     db: AsyncSession,
     admin_id: int,
@@ -377,6 +383,10 @@ async def get_admin_users_for_node_sync(
 
 
 def _build_user_sort_clause(sort_option: UserSortOption):
+    if sort_option.field == UserSortField.hwid_count:
+        count = _user_hwid_count_subquery()
+        return count.desc() if sort_option.value.startswith("-") else count.asc()
+
     field_map = {
         UserSortField.username: User.username,
         UserSortField.used_traffic: User.used_traffic,
@@ -441,6 +451,7 @@ async def get_users(
     load_admin_role: bool = False,
     load_usage_logs: bool = True,
     load_lifetime_used_traffic: bool = False,
+    load_hwid_count: bool = False,
 ) -> list[User] | tuple[list[User], int]:
     """
     Retrieves users based on various filters.
@@ -470,6 +481,8 @@ async def get_users(
     if load_lifetime_used_traffic:
         options.append(with_expression(User._reseted_usage_query, _user_reset_traffic_subquery()))
     stmt = select(User).options(*options)
+    if load_hwid_count:
+        stmt = stmt.options(with_expression(User.hwid_count, _user_hwid_count_subquery()))
 
     filters = []
     if query.ids:
@@ -1343,14 +1356,17 @@ async def reset_user_by_next(db: AsyncSession, db_user: User, *, clean_chart_dat
     Returns:
         User: The updated user object.
     """
+    now = datetime.now(UTC)
+    db_user.status = UserStatus.active
+    db_user.on_hold_expire_duration = None
+    db_user.on_hold_timeout = None
+    db_user.edit_at = now
     remaining_traffic = (db_user.data_limit or 0) - db_user.used_traffic
     if db_user.next_plan.user_template_id is None:
         db_user.data_limit = db_user.next_plan.data_limit + (
             0 if not db_user.next_plan.add_remaining_traffic else remaining_traffic
         )
-        db_user.expire = (
-            timedelta(seconds=db_user.next_plan.expire) + datetime.now(UTC) if db_user.next_plan.expire else None
-        )
+        db_user.expire = now + timedelta(seconds=db_user.next_plan.expire) if db_user.next_plan.expire else None
     else:
         await db_user.next_plan.awaitable_attrs.user_template
         await db_user.next_plan.user_template.awaitable_attrs.groups
@@ -1359,14 +1375,20 @@ async def reset_user_by_next(db: AsyncSession, db_user: User, *, clean_chart_dat
         db_user.data_limit = db_user.next_plan.user_template.data_limit + (
             0 if not db_user.next_plan.add_remaining_traffic else remaining_traffic
         )
-        if db_user.next_plan.user_template.status is UserStatus.on_hold:
+        if db_user.next_plan.user_template.status is UserStatusCreate.on_hold:
             db_user.status = UserStatus.on_hold
             db_user.on_hold_expire_duration = db_user.next_plan.user_template.expire_duration
-            db_user.on_hold_timeout = db_user.next_plan.user_template.on_hold_timeout
+            db_user.on_hold_timeout = (
+                now + timedelta(seconds=db_user.next_plan.user_template.on_hold_timeout)
+                if db_user.next_plan.user_template.on_hold_timeout
+                else None
+            )
+            # Only connections after renewal may start this plan.
+            db_user.online_at = None
             db_user.expire = None
         else:
             db_user.expire = (
-                timedelta(seconds=db_user.next_plan.user_template.expire_duration) + datetime.now(UTC)
+                now + timedelta(seconds=db_user.next_plan.user_template.expire_duration)
                 if db_user.next_plan.user_template.expire_duration
                 else None
             )
@@ -1385,8 +1407,6 @@ async def reset_user_by_next(db: AsyncSession, db_user: User, *, clean_chart_dat
     await delete_user_passed_notification_reminders(db, db_user.id, ReminderType.data_usage, 0)
     if clean_chart_data:
         await clear_user_node_usages(db, db_user.id)
-    db_user.status = UserStatus.active
-
     await db.commit()
     await refresh_and_load_user(db, db_user)
     return db_user

@@ -37,7 +37,7 @@ import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Layers, Link2Off, Power, PowerOff, RefreshCcw, Trash2, UserCog, Users } from 'lucide-react'
-import UserModal from '../dialogs/user-modal'
+import UserModal from '../dialogs/user-modal.lazy'
 import { PaginationControls } from './filters'
 import AdvanceSearchModal from '@/features/users/dialogs/advance-search-modal'
 import type { AdvanceSearchFormValue } from '@/features/users/forms/advance-search-form'
@@ -164,6 +164,7 @@ const UsersTable = memo(() => {
   const isInitializingFromURLRef = useRef(false)
   const { admin } = useAdmin()
   const canReadAllUsers = hasScopeAll(admin, 'users', 'read')
+  const canReadHwids = hasPermission(admin, 'hwids', 'read')
   const canUpdateUsers = hasPermission(admin, 'users', 'update')
   const canUpdateAllUsers = hasScopeAll(admin, 'users', 'update')
   const canDeleteUsers = hasPermission(admin, 'users', 'delete')
@@ -1016,6 +1017,7 @@ const UsersTable = memo(() => {
         dir,
         showCreatedBy: canReadAllUsers && showCreatedBy,
         showSelectionCheckbox: showSelectionCheckbox && canBulkMutateUsers,
+        showHwidCount: canReadHwids,
         handleSort,
         filters: {
           sort: filters.sort,
@@ -1023,7 +1025,7 @@ const UsersTable = memo(() => {
         },
         handleStatusFilter,
       }),
-    [t, dir, canReadAllUsers, showCreatedBy, showSelectionCheckbox, canBulkMutateUsers, handleSort, filters.sort, filters.status, handleStatusFilter],
+    [t, dir, canReadAllUsers, showCreatedBy, showSelectionCheckbox, canBulkMutateUsers, canReadHwids, handleSort, filters.sort, filters.status, handleStatusFilter],
   )
 
   const handleAdvanceSearchSubmit = async (values: AdvanceSearchFormValue) => {
@@ -1190,6 +1192,7 @@ const UsersTable = memo(() => {
         autoRefetch={handleAutoRefresh}
         handleSort={handleSort}
         onClearAdvanceSearch={handleClearAdvanceSearch}
+        canSortByHwidCount={canReadHwids}
       />
       {canBulkMutateUsers && <BulkActionsBar selectedCount={selectedCount} onClear={clearSelection} actions={bulkActions} />}
       {isEmpty && (
