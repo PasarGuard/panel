@@ -1,6 +1,6 @@
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload, with_expression
+from sqlalchemy.orm import selectinload
 
 from app.db.models import (
     Group,
@@ -42,7 +42,6 @@ async def get_inbounds_by_tags(db: AsyncSession, tags: list[str]) -> list[ProxyI
 async def load_group_attrs(group: Group, *, load_users: bool = True, load_inbounds: bool = True):
     if load_users:
         await group.awaitable_attrs.users
-        group.total_users = len(group.users)
     if load_inbounds:
         await group.awaitable_attrs.inbounds
 
@@ -106,16 +105,7 @@ async def get_group(db: AsyncSession, query: GroupListQuery) -> tuple[list[Group
             - list[Group]: A list of Group objects
             - int: The total count of groups
     """
-    total_users = (
-        select(func.count(users_groups_association.c.user_id))
-        .where(users_groups_association.c.groups_id == Group.id)
-        .correlate(Group)
-        .scalar_subquery()
-    )
-    groups = select(Group).options(
-        with_expression(Group.total_users, total_users),
-        selectinload(Group.inbounds),
-    )
+    groups = select(Group).options(selectinload(Group.users), selectinload(Group.inbounds))
     # ids=[] (e.g. none of the requested ids are in the admin's allowlist) must match nothing, not everything.
     if query.ids is not None:
         groups = groups.where(Group.id.in_(query.ids))
@@ -133,8 +123,7 @@ async def get_group(db: AsyncSession, query: GroupListQuery) -> tuple[list[Group
 
     count = (await db.execute(count_query)).scalar_one()
 
-    # Inbounds are eagerly loaded; total_users is populated by the SQL expression
-    # without materializing the User relationship.
+    # users and inbounds already eagerly loaded via selectinload above
     all_groups = (await db.execute(groups)).unique().scalars().all()
 
     return all_groups, count
