@@ -67,6 +67,20 @@ users_groups_association = Table(
     fk_id_table_column("groups_id", "groups.id", primary_key=True),
 )
 
+# The association primary keys are ordered from the owning entity to the group.
+# Reverse indexes keep group-centric joins, counts, and bulk deletes from scanning
+# every membership row on databases that do not auto-index foreign keys.
+Index(
+    "ix_inbounds_groups_association_group_id_inbound_id",
+    inbounds_groups_association.c.group_id,
+    inbounds_groups_association.c.inbound_id,
+)
+Index(
+    "ix_users_groups_association_groups_id_user_id",
+    users_groups_association.c.groups_id,
+    users_groups_association.c.user_id,
+)
+
 
 class AdminStatus(str, Enum):
     active = "active"
