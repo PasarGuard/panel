@@ -4,7 +4,7 @@ from copy import deepcopy
 from datetime import UTC, datetime, timedelta
 from typing import Literal
 
-from sqlalchemy import and_, bindparam, case, delete, desc, func, literal, not_, or_, select, update
+from sqlalchemy import Row, and_, bindparam, case, delete, desc, func, literal, not_, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, load_only, selectinload, with_expression
 from sqlalchemy.sql import Select
@@ -711,19 +711,25 @@ async def remove_expired_users(
     admin_id: int | None = None,
     target: Literal["expired", "limited", "on_hold", "disabled", "inactive"] = "expired",
     dry_run: bool = False,
-) -> list[str]:
+) -> tuple[list[str], list[Row]]:
+    """
+    Delete the users matching a cleanup target.
+
+    Returns the usernames, plus the deleted users that nodes still serve (active and on_hold,
+    as `id`/`proxy_settings` rows) so the caller can remove them from the nodes.
+    """
     conditions = _cleanup_target_user_conditions(expired_after, expired_before, admin_id, target)
 
-    rows = (await db.execute(select(User.id, User.username).where(*conditions))).all()
+    rows = (await db.execute(select(User.id, User.username, User.status, User.proxy_settings).where(*conditions))).all()
     if not rows:
-        return []
+        return [], []
 
-    usernames = [username for _, username in rows]
+    usernames = [row.username for row in rows]
 
     if dry_run:
-        return usernames
+        return usernames, []
 
-    user_ids = [user_id for user_id, _ in rows]
+    user_ids = [row.id for row in rows]
 
     for start in range(0, len(user_ids), 1000):
         chunk = user_ids[start : start + 1000]
@@ -732,7 +738,7 @@ async def remove_expired_users(
         await db.execute(delete(User).where(User.id.in_(chunk)))
     await db.commit()
 
-    return usernames
+    return usernames, [row for row in rows if row.status in (UserStatus.active, UserStatus.on_hold)]
 
 
 async def get_active_to_expire_users(db: AsyncSession) -> list[User]:

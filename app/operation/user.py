@@ -97,7 +97,7 @@ from app.models.user import (
     UsersUsageQuery,
     UserUsageQuery,
 )
-from app.node.sync import remove_user as sync_remove_user, sync_user, sync_users
+from app.node.sync import remove_user as sync_remove_user, remove_users as sync_remove_users, sync_user, sync_users
 from app.node.user import node_payload_signature
 from app.operation import BaseOperation, OperatorType
 from app.operation.permissions import (
@@ -1646,7 +1646,7 @@ class UserOperation(BaseOperation):
             admin_id = (await self.get_validated_admin(db, query.admin_username)).id
         else:
             admin_id = None
-        username_list = await remove_expired_users(
+        username_list, node_users = await remove_expired_users(
             db,
             expired_after,
             expired_before,
@@ -1655,6 +1655,8 @@ class UserOperation(BaseOperation):
             dry_run=query.dry_run,
         )
         if not query.dry_run:
+            # Active and on_hold users are still on the nodes (the inactive target includes them).
+            await sync_remove_users(node_users)
             await self.remove_users_logger(users=username_list, by=admin.username)
 
         return RemoveUsersResponse(users=username_list, count=len(username_list))
