@@ -129,7 +129,9 @@ async def test_touch_users_online_at_throttles_indexed_timestamp_writes(session_
         await session.commit()
         user_id = user.id
 
-    first_seen = datetime.now(UTC)
+    # Whole seconds: MySQL stores DATETIME without fractions and rounds them, which would
+    # move the stored time past the 60 second cutoff the test checks
+    first_seen = datetime.now(UTC).replace(microsecond=0)
     await record_usages.touch_users_online_at([user_id], first_seen)
 
     async def get_online_at():
