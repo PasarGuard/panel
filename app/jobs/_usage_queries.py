@@ -1,11 +1,97 @@
 """Dialect-specific history statements; callers own the transaction."""
 
-from sqlalchemy import BigInteger, DateTime, bindparam, func, select, union_all
+from collections import defaultdict
+from datetime import datetime as dt, timedelta as td
+
+from sqlalchemy import BigInteger, DateTime, bindparam, func, or_, select, union_all, update
 from sqlalchemy.dialects.mysql import insert as mysql_insert
 from sqlalchemy.dialects.postgresql import ARRAY, insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from app.db.models import NodeUsage, NodeUserUsage, User
+
+ONLINE_AT_WRITE_INTERVAL = td(minutes=1)
+NODE_USER_USAGE_BATCH_SIZE_BY_DIALECT = {"mysql": 1000, "sqlite": 400}
+
+
+def _chunked(items: list, size: int):
+    for index in range(0, len(items), size):
+        yield items[index : index + size]
+
+
+def build_user_traffic_update(dialect: str, usage_params: list[dict]):
+    """Build a set-based user traffic update when the database supports arrays."""
+    if dialect == "postgresql":
+        aggregated_usage = defaultdict(int)
+        for param in usage_params:
+            aggregated_usage[param["uid"]] += param["value"]
+
+        aggregated_usage = dict(sorted(aggregated_usage.items()))
+
+        source = (
+            func.unnest(
+                bindparam("uids", type_=ARRAY(BigInteger())),
+                bindparam("traffic_values", type_=ARRAY(BigInteger())),
+            )
+            .table_valued("uid", "value")
+            .render_derived(name="usage_source")
+        )
+        stmt = (
+            update(User)
+            .where(User.id == source.c.uid)
+            .values(used_traffic=User.used_traffic + source.c.value)
+            .execution_options(synchronize_session=False)
+        )
+        return (
+            stmt,
+            {
+                "uids": list(aggregated_usage),
+                "traffic_values": list(aggregated_usage.values()),
+            },
+        )
+
+    stmt = (
+        update(User)
+        .where(User.id == bindparam("uid"))
+        .values(used_traffic=User.used_traffic + bindparam("value"))
+        .execution_options(synchronize_session=False)
+    )
+    return stmt, usage_params
+
+
+def build_online_at_updates(dialect: str, user_ids: list[int], now: dt):
+    """Build throttled online timestamp updates without per-user statements."""
+    if not user_ids:
+        return []
+
+    cutoff = now - ONLINE_AT_WRITE_INTERVAL
+    stale_online_at = or_(User.online_at.is_(None), User.online_at <= cutoff)
+
+    if dialect == "postgresql":
+        source = (
+            func.unnest(bindparam("online_user_ids", type_=ARRAY(BigInteger())))
+            .table_valued("uid")
+            .render_derived(name="online_users")
+        )
+        stmt = (
+            update(User)
+            .where(User.id == source.c.uid, stale_online_at)
+            .values(online_at=now)
+            .execution_options(synchronize_session=False)
+        )
+        return [(stmt, {"online_user_ids": user_ids})]
+
+    batch_size = NODE_USER_USAGE_BATCH_SIZE_BY_DIALECT.get(dialect, len(user_ids))
+    return [
+        (
+            update(User)
+            .where(User.id.in_(batch), stale_online_at)
+            .values(online_at=now)
+            .execution_options(synchronize_session=False),
+            None,
+        )
+        for batch in _chunked(user_ids, batch_size)
+    ]
 
 
 def build_node_user_usage_upsert(dialect: str, upsert_params: list[dict]):

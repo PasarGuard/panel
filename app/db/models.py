@@ -26,7 +26,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import async_object_session
 from sqlalchemy.ext.hybrid import hybrid_property
-from sqlalchemy.orm import Mapped, mapped_column, query_expression, relationship
+from sqlalchemy.orm import Mapped, MappedAsDataclass, mapped_column, query_expression, relationship
 from sqlalchemy.sql.expression import select, text
 
 from app.db.base import Base
@@ -75,7 +75,7 @@ class AdminStatus(str, Enum):
     limited = "limited"
 
 
-class IdMixin:
+class IdMixin(MappedAsDataclass):
     id: Mapped[int] = mapped_column(SqliteCompatibleBigInteger, primary_key=True, init=False, autoincrement=True)
 
 
@@ -270,6 +270,7 @@ class User(Base, CreatedAtUTCMixin):
     edit_at: Mapped[dt | None] = mapped_column(DateTime(timezone=True), default=None)
     last_status_change: Mapped[dt | None] = mapped_column(DateTime(timezone=True), default=None)
     _reseted_usage_query: Mapped[int | None] = query_expression(repr=False)
+    hwid_count: Mapped[int | None] = query_expression(repr=False)
 
     @hybrid_property
     def expire(self) -> dt | None:
@@ -938,7 +939,7 @@ class NodeStat(Base, CreatedAtUTCMixin):
     mem_total: Mapped[int] = mapped_column(BigInteger, unique=False, nullable=False)
     mem_used: Mapped[int] = mapped_column(BigInteger, unique=False, nullable=False)
     cpu_cores: Mapped[int] = mapped_column(unique=False, nullable=False)
-    cpu_usage: Mapped[float] = mapped_column(unique=False, nullable=False)
+    cpu_usage: Mapped[float] = mapped_column(Float, unique=False, nullable=False)
     incoming_bandwidth_speed: Mapped[int] = mapped_column(BigInteger, unique=False, nullable=False)
     outgoing_bandwidth_speed: Mapped[int] = mapped_column(BigInteger, unique=False, nullable=False)
 

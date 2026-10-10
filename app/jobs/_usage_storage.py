@@ -5,13 +5,18 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import bindparam, case, select, update
+from sqlalchemy import bindparam, select, update
 from sqlalchemy.dialects.mysql import insert as mysql_insert
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from app.db.models import Admin, Node, System, UsageReceipt, User
-from app.jobs._usage_queries import build_node_usage_upsert, build_node_user_usage_upsert
+from app.jobs._usage_queries import (
+    build_node_usage_upsert,
+    build_node_user_usage_upsert,
+    build_online_at_updates,
+    build_user_traffic_update,
+)
 
 
 def chunks(items, size=400):
@@ -166,18 +171,22 @@ class UsageStore:
         for stat in user_params:
             if owners[stat["uid"]] is not None:
                 admins[owners[stat["uid"]]] += stat["value"]
-        # Core tables avoid ORM bulk-update semantics and identity-map overhead.
-        users = User.__table__
-        stmt = (
-            update(users)
-            .where(users.c.id == bindparam("uid"))
-            .values(
-                used_traffic=users.c.used_traffic + bindparam("value"),
-                online_at=case((users.c.online_at > collected_at, users.c.online_at), else_=collected_at),
-            )
-        )
-        for batch in chunks(user_params):
-            await conn.execute(stmt, batch)
+        # Keep set-based PostgreSQL writes and throttled timestamps inside the
+        # receipt transaction, so retries cannot charge a partially applied batch.
+        if user_params:
+            stmt, parameters = build_user_traffic_update(self.dialect, user_params)
+            if self.dialect == "postgresql":
+                await conn.execute(stmt, parameters)
+            else:
+                for batch in chunks(parameters):
+                    await conn.execute(stmt, batch)
+            for stmt, parameters in build_online_at_updates(
+                self.dialect, [stat["uid"] for stat in user_params], collected_at
+            ):
+                if parameters is None:
+                    await conn.execute(stmt)
+                else:
+                    await conn.execute(stmt, parameters)
         if admins:
             table = Admin.__table__
             await conn.execute(

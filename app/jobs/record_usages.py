@@ -13,7 +13,12 @@ from sqlalchemy.exc import DatabaseError, OperationalError
 from app import scheduler
 from app.db import GetDB
 from app.db.base import engine
-from app.jobs._usage_queries import build_node_usage_upsert, build_node_user_usage_upsert
+from app.jobs._usage_queries import (
+    build_node_usage_upsert,
+    build_node_user_usage_upsert,
+    build_online_at_updates,
+    build_user_traffic_update,  # noqa: F401 - preserve the public statement builder
+)
 from app.jobs._usage_storage import Receipt, UsageStore
 from app.node import node_manager
 from app.operation.admin_sync import enforce_admin_limits_now
@@ -106,6 +111,22 @@ async def safe_execute(stmt, params=None, max_retries: int = DEADLOCK_MAX_RETRIE
             await conn.execute(stmt, params)
 
     await _transaction(execute, max_retries)
+
+
+async def touch_users_online_at(user_ids: list[int], now: dt | None = None) -> None:
+    if not user_ids:
+        return
+    dialect = await get_dialect()
+    queries = build_online_at_updates(dialect, sorted(set(user_ids)), now or dt.now(UTC))
+
+    async def execute(conn):
+        for stmt, params in queries:
+            if params is None:
+                await conn.execute(stmt)
+            else:
+                await conn.execute(stmt, params)
+
+    await _transaction(execute)
 
 
 def _get_time_bucket(now: dt | None = None) -> dt:
