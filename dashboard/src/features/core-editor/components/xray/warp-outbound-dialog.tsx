@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { CoreEditorFormDialog } from '@/features/core-editor/components/shared/core-editor-form-dialog'
 import { selectCoreEditorHasActualChanges } from '@/features/core-editor/kit/core-editor-change-state'
+import { profileDuplicateTagMessage, profileTagHasDuplicateUsage } from '@/features/core-editor/kit/profile-tag-uniqueness'
 import { useCoreEditorStore } from '@/features/core-editor/state/core-editor-store'
 import {
   NodeStatus,
@@ -73,8 +74,8 @@ export function WarpOutboundDialog({ open, onOpenChange }: WarpOutboundDialogPro
       setTagError(t('coreEditor.warp.tagRequired'))
       return
     }
-    if (state.xrayProfile?.outbounds?.some(o => o.tag === value)) {
-      setTagError(t('coreEditor.warp.tagDuplicate'))
+    if (state.xrayProfile && profileTagHasDuplicateUsage(state.xrayProfile, value)) {
+      setTagError(profileDuplicateTagMessage(t, value))
       return
     }
     if (!state.xrayProfile || state.warpOutboundTag) return

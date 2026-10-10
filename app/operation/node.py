@@ -332,7 +332,14 @@ class NodeOperation(BaseOperation):
                 held.check()
             from app.operation.warp import WarpOperation
 
-            config, warp_tag = await WarpOperation.node_config(db_node, core)
+            try:
+                config, warp_tag = await WarpOperation.node_config(db_node, core)
+            except Exception as exc:
+                logger.warning(
+                    f'WARP config unavailable for "{db_node.name}" ({type(exc).__name__}); using core template'
+                )
+                # Keep unresolved WARP traffic blocked without interrupting other node connections.
+                config, warp_tag = core.to_str(), None
             if held is not None:
                 held.check()
             start_kwargs = {
