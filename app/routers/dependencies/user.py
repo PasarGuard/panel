@@ -7,6 +7,7 @@ from app.models.user import (
     UserSimpleListQuery,
     UsersUsageBreakdownQuery,
     UsersUsageQuery,
+    UsersUsageTotalsQuery,
     UserUsageQuery,
 )
 
@@ -84,6 +85,17 @@ get_users_usage_breakdown_query = make_query_dependency(
         "owner": Query(None, alias="admin"),
         "core_id": Query(None),
         "group_by_admin": Query(False),
+    },
+)
+get_users_usage_totals_query = make_query_dependency(
+    UsersUsageTotalsQuery,
+    field_overrides={
+        "node_id": Query(None),
+        "group_by_node": Query(False),
+        "start": Query(None, examples=["2024-01-01T00:00:00+03:30"]),
+        "end": Query(None, examples=["2024-01-31T23:59:59+03:30"]),
+        "owner": Query(None, alias="admin"),
+        "limit": Query(10, ge=1, le=100),
     },
 )
 get_expired_users_query = make_query_dependency(

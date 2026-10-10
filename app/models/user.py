@@ -303,6 +303,16 @@ class UsersUsageBreakdownQuery(UsersUsageQuery):
     group_by_admin: bool = Field(default=False)
 
 
+class UsersUsageTotalsQuery(BaseModel):
+    node_id: int | None = Field(default=None)
+    group_by_node: bool = Field(default=False)
+    start: OptionalAwareDatetime = Field(default=None, examples=["2024-01-01T00:00:00+03:30"])
+    end: OptionalAwareDatetime = Field(default=None, examples=["2024-01-31T23:59:59+03:30"])
+    owner: list[str] | None = Field(default=None, alias="admin")
+    limit: int = Field(default=10, ge=1, le=100)
+    model_config = ConfigDict(populate_by_name=True)
+
+
 class ExpiredUsersQuery(BaseModel):
     admin_username: str | None = Field(default=None)
     target: Literal["expired", "limited", "on_hold", "disabled"] = Field(default="expired")

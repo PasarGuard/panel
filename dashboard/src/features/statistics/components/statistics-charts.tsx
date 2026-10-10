@@ -10,6 +10,7 @@ import { AllNodesStackedBarChart } from '@/components/charts/all-nodes-stacked-b
 import { AreaCostumeChart } from '@/components/charts/area-costume-chart'
 import { BarChart3 } from 'lucide-react'
 import { UserCountsChart } from '@/components/charts/user-counts-chart'
+import { UsersTrafficCard } from './users-traffic-card'
 
 interface StatisticsChartsProps {
   data?: SystemResourceStats
@@ -140,6 +141,9 @@ export default function StatisticsCharts({ data, usersData, isLoading, error, se
             {actualSelectedServer === 'master' ? <AllNodesStackedBarChart /> : <CostumeBarChart nodeId={selectedNodeId} />}
           </div>
         )}
+        <div className="transform-gpu">
+          <UsersTrafficCard nodeId={selectedNodeId} nodesData={nodesData} />
+        </div>
         <div className="transform-gpu">
           <UserCountsChart nodeId={selectedNodeId} isSudo={canViewNodeStats} nodesData={nodesData} />
         </div>

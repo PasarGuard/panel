@@ -42,6 +42,7 @@ from app.db.crud.user import (
     get_users_sub_update_list,
     get_users_subscription_agent_counts,
     get_users_subscription_agent_stats,
+    get_users_usage_totals,
     load_user_attrs,
     lock_admin_quota_row,
     modify_user as crud_modify_user,
@@ -62,6 +63,7 @@ from app.models.stats import (
     UserCountMetric,
     UserCountMetricStatsList,
     UserUsageStatsList,
+    UserUsageTotalsList,
     validate_user_count_metric_scope,
 )
 from app.models.user import (
@@ -95,6 +97,7 @@ from app.models.user import (
     UserSubscriptionUpdateList,
     UsersUsageBreakdownQuery,
     UsersUsageQuery,
+    UsersUsageTotalsQuery,
     UserUsageQuery,
 )
 from app.node.sync import remove_user as sync_remove_user, sync_user, sync_users
@@ -1544,6 +1547,39 @@ class UserOperation(BaseOperation):
             admins=admins_filter,
             group_by_node=group_by_node,
             group_by_admin=query.group_by_admin,
+        )
+
+    async def get_users_usage_totals(
+        self,
+        db: AsyncSession,
+        admin: AdminDetails,
+        query: UsersUsageTotalsQuery,
+    ) -> UserUsageTotalsList:
+        """Get users ranked by total usage"""
+        start, end = await self.validate_dates(query.start, query.end, True)
+        node_id = query.node_id
+        group_by_node = query.group_by_node
+
+        can_use_node_scope = _has_permission(admin, "nodes", "stats")
+        if not can_use_node_scope:
+            node_id = None
+            group_by_node = False
+
+        if is_scope_all(admin, "users", "read"):
+            admins_filter = await _resolve_users_usage_admins_filter(self, db, admin, query.owner)
+        else:
+            if any(username != admin.username for username in query.owner or []):
+                await self.raise_error(message="You're not allowed", code=403)
+            admins_filter = [admin.username]
+
+        return await get_users_usage_totals(
+            db=db,
+            admins=admins_filter,
+            start=start,
+            end=end,
+            node_id=node_id,
+            group_by_node=group_by_node,
+            limit=query.limit,
         )
 
     async def get_users_count_metric(
