@@ -1003,6 +1003,7 @@ export const FinalMaskUdpType = {
   xdns: 'xdns',
   xicmp: 'xicmp',
   realm: 'realm',
+  udphop: 'udphop',
   'header-dns': 'header-dns',
   'header-dtls': 'header-dtls',
   'header-srtp': 'header-srtp',
@@ -1044,9 +1045,21 @@ export interface FinalMaskXicmpSettings {
   [key: string]: unknown;
  }
 
+/**
+ * Packet item of the UDP noise mask. Unlike header-custom items, it also accepts exp, a packet template.
+ */
+export interface FinalMaskNoiseMaskItem {
+  type?: string | null;
+  packet?: string | number[] | null;
+  delay?: string | number | null;
+  rand?: number | string | null;
+  randRange?: string | null;
+  [key: string]: unknown;
+ }
+
 export interface FinalMaskNoiseSettings {
   reset?: string | number | null;
-  noise?: FinalMaskNoiseItem[] | null;
+  noise?: FinalMaskNoiseMaskItem[] | null;
   [key: string]: unknown;
  }
 
@@ -1065,13 +1078,22 @@ export interface FinalMaskRealmSettings {
   [key: string]: unknown;
  }
 
+export interface FinalMaskUdpHopSettings {
+  /** @pattern ^(?i:intervalLocal|intervalRemote|perConnRemote)(,(?i:intervalLocal|intervalRemote|perConnRemote))*$ */
+  mode: string;
+  interval?: string | null;
+  remoteIPs?: string[] | null;
+  remotePorts?: string | null;
+  [key: string]: unknown;
+ }
+
 export interface FinalMaskMkcpLegacySettings {
   header?: string | null;
   value?: string | null;
   [key: string]: unknown;
  }
 
-export type FinalMaskUdpLayerSettings = FinalMaskUdpHeaderCustomSettings | FinalMaskPasswordSettings | FinalMaskSudokuSettings | FinalMaskDomainSettings | FinalMaskXdnsSettings | FinalMaskXicmpSettings | FinalMaskNoiseSettings | FinalMaskSalamanderSettings | FinalMaskRealmSettings | FinalMaskMkcpLegacySettings | { [key: string]: unknown };
+export type FinalMaskUdpLayerSettings = FinalMaskUdpHeaderCustomSettings | FinalMaskPasswordSettings | FinalMaskSudokuSettings | FinalMaskDomainSettings | FinalMaskXdnsSettings | FinalMaskXicmpSettings | FinalMaskNoiseSettings | FinalMaskSalamanderSettings | FinalMaskRealmSettings | FinalMaskUdpHopSettings | FinalMaskMkcpLegacySettings | { [key: string]: unknown };
 
 export interface FinalMaskUdpLayer {
   type: FinalMaskUdpType;
@@ -2379,6 +2401,33 @@ export interface UserIPListAll {
   nodes: UserIPListAllNodes;
 }
 
+export interface UserListItem {
+  proxy_settings?: ProxyTable;
+  expire?: string | number | null;
+  /** data_limit can be 0 or greater */
+  data_limit?: number | null;
+  data_limit_reset_strategy?: DataLimitResetStrategy | null;
+  note?: string | null;
+  /** on_hold_expire_duration can be 0 or greater in seconds */
+  on_hold_expire_duration?: number | null;
+  on_hold_timeout?: string | number | null;
+  group_ids?: number[] | null;
+  auto_delete_in_days?: number | null;
+  hwid_limit?: number | null;
+  next_plan?: NextPlanModel | null;
+  id: number;
+  username: string;
+  status: UserStatus;
+  used_traffic: number;
+  lifetime_used_traffic?: number;
+  created_at: string;
+  edit_at?: string | null;
+  online_at?: string | null;
+  subscription_url?: string;
+  admin?: AdminBase | null;
+  hwid_count?: number | null;
+}
+
 export interface UserModify {
   proxy_settings?: ProxyTable | null;
   expire?: string | number | null;
@@ -2561,7 +2610,7 @@ export interface UserUsageStatsList {
 }
 
 export interface UsersResponse {
-  users: UserResponse[];
+  users: UserListItem[];
   total: number;
 }
 

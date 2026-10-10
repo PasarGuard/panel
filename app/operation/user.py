@@ -86,6 +86,7 @@ from app.models.user import (
     UserResponse,
     UserSimple,
     UserSimpleListQuery,
+    UserSortField,
     UsersResponse,
     UsersSimpleResponse,
     UserStatusToggle,
@@ -1466,12 +1467,21 @@ class UserOperation(BaseOperation):
         if scope_admin_id is not None:
             query = query.model_copy(update={"owner": [admin.username], "admin_ids": None})
 
+        # Device counts are HWID data: without hwids.read they are not loaded and the sort is
+        # ignored, the same way node filters are ignored without nodes.stats.
+        can_read_hwids = _has_permission(admin, "hwids", "read")
+        if not can_read_hwids and any(option.field == UserSortField.hwid_count for option in query.sort):
+            query = query.model_copy(
+                update={"sort": [option for option in query.sort if option.field != UserSortField.hwid_count]}
+            )
+
         users, count = await get_users(
             db=db,
             query=query,
             return_with_count=True,
             load_usage_logs=False,
             load_lifetime_used_traffic=True,
+            load_hwid_count=can_read_hwids,
         )
 
         if query.load_sub:
