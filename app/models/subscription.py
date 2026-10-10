@@ -317,8 +317,9 @@ class SubscriptionHeaders(BaseModel):
     @field_validator("x_hwid")
     @classmethod
     def validate_hwid(cls, value: str | None) -> str | None:
-        if value is None:
+        # Some clients send the header blank when device ID is off: treat that as no header.
+        if value is None or not value.strip():
             return None
-        if not value.strip() or len(value) > 256 or any(ord(char) < 32 or ord(char) == 127 for char in value):
-            raise ValueError("X-HWID must be a nonempty ID of at most 256 characters without control characters")
+        if len(value) > 256 or any(ord(char) < 32 or ord(char) == 127 for char in value):
+            raise ValueError("X-HWID must be an ID of at most 256 characters without control characters")
         return value
