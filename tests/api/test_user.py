@@ -2051,6 +2051,77 @@ def test_reset_by_next_user_usage(access_token):
         cleanup_groups(access_token, core, groups)
 
 
+def _activate_next_plan_template(access_token: str, username: str, template_id: int) -> dict:
+    """Give the user a template next plan and activate it now."""
+    update = client.put(
+        f"/api/user/{username}",
+        headers=auth_headers(access_token),
+        json={"next_plan": {"user_template_id": template_id}},
+    )
+    assert update.status_code == status.HTTP_200_OK, update.text
+    response = client.post(f"/api/user/{username}/active_next", headers=auth_headers(access_token))
+    assert response.status_code == status.HTTP_200_OK, response.text
+    return response.json()
+
+
+def test_next_plan_with_on_hold_template_keeps_user_on_hold(access_token):
+    """An on-hold template renewal stays on hold, with the template's timeout turned into a deadline."""
+    core, groups = setup_groups(access_token, 1)
+    template = create_user_template(
+        access_token,
+        group_ids=[groups[0]["id"]],
+        expire_duration=86400 * 30,
+        status_value="on_hold",
+        on_hold_timeout=86400 * 7,
+    )
+    user = create_user(
+        access_token,
+        group_ids=[groups[0]["id"]],
+        payload={"username": unique_name("test_next_plan_on_hold")},
+    )
+    try:
+        before = datetime.now(UTC)
+        body = _activate_next_plan_template(access_token, user["username"], template["id"])
+
+        assert body["status"] == "on_hold"
+        assert not body["expire"]
+        assert body["on_hold_expire_duration"] == 86400 * 30
+        on_hold_timeout = datetime.fromisoformat(body["on_hold_timeout"])
+        if on_hold_timeout.tzinfo is None:
+            on_hold_timeout = on_hold_timeout.replace(tzinfo=UTC)
+        assert timedelta(days=7, minutes=-2) < on_hold_timeout - before < timedelta(days=7, minutes=2)
+    finally:
+        delete_user(access_token, user["username"])
+        delete_user_template(access_token, template["id"])
+        cleanup_groups(access_token, core, groups)
+
+
+def test_next_plan_with_active_template_clears_on_hold_fields(access_token):
+    """Moving an on-hold user to an immediate plan drops the old hold, so it cannot start later."""
+    core, groups = setup_groups(access_token, 1)
+    template = create_user_template(access_token, group_ids=[groups[0]["id"]], expire_duration=86400 * 30)
+    user = create_user(
+        access_token,
+        group_ids=[groups[0]["id"]],
+        payload={
+            "username": unique_name("test_next_plan_active"),
+            "status": "on_hold",
+            "on_hold_expire_duration": 3600,
+        },
+    )
+    try:
+        body = _activate_next_plan_template(access_token, user["username"], template["id"])
+
+        assert body["status"] == "active"
+        assert body["expire"]
+        assert not body["on_hold_expire_duration"]
+        assert not body["on_hold_timeout"]
+    finally:
+        delete_user(access_token, user["username"])
+        delete_user_template(access_token, template["id"])
+        cleanup_groups(access_token, core, groups)
+
+
 def test_revoke_user_subscription(access_token):
     """Test revoke user subscription info."""
     core, groups = setup_groups(access_token, 1)
