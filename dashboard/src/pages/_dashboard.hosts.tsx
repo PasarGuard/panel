@@ -2,7 +2,7 @@ import MainSection from '@/features/hosts/components/hosts-list'
 import { type HostFormValues } from '@/features/hosts/forms/host-form'
 import PageHeader from '@/components/layout/page-header'
 import { Separator } from '@/components/ui/separator'
-import { BaseHost, createHost, CreateHost, getHosts, modifyHost, MultiplexProtocol, ProxyHostALPN, ProxyHostFingerprint, Xudp } from '@/service/api'
+import { BaseHost, createHost, CreateHost, getGetHostsQueryKey, getHosts, modifyHost, MultiplexProtocol, ProxyHostALPN, ProxyHostFingerprint, Xudp } from '@/service/api'
 import { useAdmin } from '@/hooks/use-admin'
 import { hasPermission } from '@/utils/rbac'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -19,7 +19,7 @@ export default function HostsPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingHost, setEditingHost] = useState<BaseHost | null>(null)
   const { data, refetch, isFetching } = useQuery({
-    queryKey: ['getGetHostsQueryKey'],
+    queryKey: getGetHostsQueryKey(),
     queryFn: () => getHosts(),
   })
   const { t } = useTranslation()
@@ -69,14 +69,41 @@ export default function HostsPage() {
         priority = maxPriority + 1
       }
 
+      const { ech_config_list, ech_query_strategy, mihomo_ech_config, mihomo_ech_query_server_name, sing_box_ech_config, sing_box_ech_query_server_name, ...hostFields } = formData
+      const ech =
+        ech_config_list || ech_query_strategy || mihomo_ech_config || mihomo_ech_query_server_name || sing_box_ech_config || sing_box_ech_query_server_name
+          ? {
+              xray:
+                ech_config_list || ech_query_strategy
+                  ? {
+                      config_list: ech_config_list || undefined,
+                      query_strategy: ech_query_strategy || undefined,
+                    }
+                  : undefined,
+              mihomo:
+                mihomo_ech_config || mihomo_ech_query_server_name
+                  ? {
+                      config: mihomo_ech_config || undefined,
+                      query_server_name: mihomo_ech_query_server_name || undefined,
+                    }
+                  : undefined,
+              sing_box:
+                sing_box_ech_config || sing_box_ech_query_server_name
+                  ? {
+                      config: sing_box_ech_config || undefined,
+                      query_server_name: sing_box_ech_query_server_name || undefined,
+                    }
+                  : undefined,
+            }
+          : undefined
+
       // Convert HostFormValues to CreateHost type
       const hostData: CreateHost = {
-        ...formData,
+        ...hostFields,
         priority,
         alpn: formData.alpn as ProxyHostALPN[] | undefined,
         fingerprint: formData.fingerprint as ProxyHostFingerprint | undefined,
-        ech_config_list: formData.ech_config_list || undefined,
-        ech_query_strategy: formData.ech_query_strategy || undefined,
+        ech,
         pinned_peer_cert_sha256: formData.pinned_peer_cert_sha256 || undefined,
         verify_peer_cert_by_name: formData.verify_peer_cert_by_name && formData.verify_peer_cert_by_name.length > 0 ? formData.verify_peer_cert_by_name : undefined,
         vless_route: formData.vless_route || undefined,
@@ -173,14 +200,12 @@ export default function HostsPage() {
       }
 
       if (editingHost?.id) {
-        // This is an edit operation
         await modifyHost(editingHost.id, hostData)
-        return { status: 200 }
       } else {
-        // This is a new host
         await createHost(hostData)
-        return { status: 200 }
       }
+      await queryClient.invalidateQueries({ queryKey: getGetHostsQueryKey() })
+      return { status: 200 }
     } catch (error: any) {
       console.error('Error submitting host:', error)
       console.error('Error response:', error?.response)
@@ -225,11 +250,6 @@ export default function HostsPage() {
       const toastMessage = errorField ? `${errorField}: ${errorMessage}` : errorMessage
       toast.error(toastMessage)
       return { status: 500 }
-    } finally {
-      // Refresh the hosts data
-      queryClient.invalidateQueries({
-        queryKey: ['/api/hosts'],
-      })
     }
   }
 

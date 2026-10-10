@@ -1,3 +1,4 @@
+from copy import deepcopy
 from enum import Enum
 from ipaddress import ip_network
 from typing import Any
@@ -32,6 +33,28 @@ class ECHQueryStrategy(str, Enum):
     none = "none"
     half = "half"
     full = "full"
+
+
+class XrayECHSettings(BaseModel):
+    """Xray-specific ECH settings."""
+
+    config_list: str | None = Field(default=None)
+    query_strategy: ECHQueryStrategy | None = Field(default=None)
+
+
+class ClientECHSettings(BaseModel):
+    """ECH settings shared by Mihomo and sing-box clients."""
+
+    config: str | None = Field(default=None)
+    query_server_name: str | None = Field(default=None, max_length=255)
+
+
+class ECHSettings(BaseModel):
+    """Per-client ECH settings stored together on a host."""
+
+    xray: XrayECHSettings | None = Field(default=None)
+    mihomo: ClientECHSettings | None = Field(default=None)
+    sing_box: ClientECHSettings | None = Field(default=None)
 
 
 class XrayFragmentSettings(BaseModel):
@@ -118,6 +141,7 @@ class FinalMaskUdpType(str, Enum):
     xdns = "xdns"
     xicmp = "xicmp"
     realm = "realm"
+    udphop = "udphop"
 
     # Legacy aliases
     header_dns = "header-dns"
@@ -145,6 +169,19 @@ class FinalMaskNoiseItem(FinalMaskBaseModel):
     delay: str | int | None = Field(default=None)
     rand: int | str | None = Field(default=None)
     rand_range: str | None = Field(default=None, alias="randRange", pattern=r"^\d{1,16}(-\d{1,16})?$")
+
+
+class FinalMaskNoiseMaskItem(FinalMaskNoiseItem):
+    """Packet item of the UDP noise mask. Unlike header-custom items, it also accepts exp, a packet template."""
+
+    type: str | None = Field(default=None, pattern=r"^$|^(:?array|str|base64|hex|exp)$")
+
+    @model_validator(mode="after")
+    def validate_exp_packet(self):
+        """Xray parses an exp packet as a template string and rejects a missing or blank one."""
+        if self.type == "exp" and not (isinstance(self.packet, str) and self.packet.strip()):
+            raise ValueError("exp noise needs a non-empty packet template string")
+        return self
 
 
 class FinalMaskTcpHeaderCustomSettings(FinalMaskBaseModel):
@@ -211,6 +248,80 @@ class FinalMaskRealmSettings(FinalMaskBaseModel):
     tls_config: dict[str, Any] | None = Field(default=None, alias="tlsConfig")
 
 
+class FinalMaskUdpHopSettings(FinalMaskBaseModel):
+    mode: str = Field(
+        pattern=r"^(?i:intervalLocal|intervalRemote|perConnRemote)(,(?i:intervalLocal|intervalRemote|perConnRemote))*$",
+    )
+    interval: str | None = Field(default=None, pattern=r"^[0-9]{1,16}(-[0-9]{1,16})?$")
+    remote_ips: list[str] | None = Field(default=None, alias="remoteIPs")
+    remote_ports: str | None = Field(
+        default=None, alias="remotePorts", pattern=r"^[0-9]{1,5}(-[0-9]{1,5})?(,[0-9]{1,5}(-[0-9]{1,5})?)*$"
+    )
+
+    @field_validator("mode", "interval", mode="before")
+    @classmethod
+    def empty_str_to_none(cls, value):
+        """Strip form input, turn blanks into None and integers into strings."""
+        if isinstance(value, int):
+            return str(value)
+        if isinstance(value, str):
+            value = value.strip()
+        return value or None
+
+    @field_validator("interval")
+    @classmethod
+    def interval_in_xray_range(cls, value: str | None):
+        """Xray refuses an udphop interval below 5 seconds and reads each bound as int32, so larger ones wrap."""
+        if value is None:
+            return value
+        bounds = [int(bound) for bound in value.split("-")]
+        if min(bounds) < 5:
+            raise ValueError("interval must be at least 5 seconds")
+        if max(bounds) > 2_147_483_647:
+            raise ValueError("interval must be at most 2147483647 seconds")
+        return value
+
+    @field_validator("remote_ips", mode="before")
+    @classmethod
+    def normalize_remote_ips(cls, value):
+        """Normalize IPs and CIDRs the way WireGuard allowed_ips are normalized."""
+        if value in (None, "", []):
+            return None
+        if not isinstance(value, list):
+            return value
+        # Non-string items are left for the list[str] check, so they fail as 422 instead of being dropped
+        normalized = [
+            str(ip_network(ip.strip(), strict=False)) if isinstance(ip, str) else ip
+            for ip in value
+            if not isinstance(ip, str) or ip.strip()
+        ]
+        return normalized or None
+
+    @field_validator("remote_ports", mode="before")
+    @classmethod
+    def normalize_remote_ports(cls, value):
+        """Xray's PortList takes a "a-b,c" string or a single number, never a JSON array."""
+        if isinstance(value, list):
+            value = ",".join(str(port) for port in value)
+        if isinstance(value, int):
+            return str(value)
+        if isinstance(value, str):
+            return ",".join(part.strip() for part in value.split(",") if part.strip()) or None
+        return value
+
+    @field_validator("remote_ports")
+    @classmethod
+    def remote_ports_in_range(cls, value: str | None):
+        """Ports must be 1-65535 and ranges ascending: Xray expands a reversed range to no ports."""
+        for part in (value or "").split(","):
+            if not part:
+                continue
+            bounds = [int(port) for port in part.split("-")]
+            if any(not 1 <= port <= 65535 for port in bounds) or bounds != sorted(bounds):
+                raise ValueError("remotePorts must be ports or ascending ranges between 1 and 65535")
+        return value
+
+
 class FinalMaskMkcpLegacySettings(FinalMaskBaseModel):
     header: str | None = Field(default=None)
     value: str | None = Field(default=None)
@@ -218,7 +329,7 @@ class FinalMaskMkcpLegacySettings(FinalMaskBaseModel):
 
 class FinalMaskNoiseSettings(FinalMaskBaseModel):
     reset: str | int | None = Field(default=None)
-    noise: list[FinalMaskNoiseItem] | None = Field(default=None)
+    noise: list[FinalMaskNoiseMaskItem] | None = Field(default=None)
 
 
 class FinalMaskUdpHop(FinalMaskBaseModel):
@@ -260,6 +371,7 @@ FinalMaskUdpSettings = (
     | FinalMaskNoiseSettings
     | FinalMaskSalamanderSettings
     | FinalMaskRealmSettings
+    | FinalMaskUdpHopSettings
     | FinalMaskMkcpLegacySettings
     | dict[str, Any]
 )
@@ -289,6 +401,7 @@ FINAL_MASK_UDP_SETTINGS_MODELS = {
     FinalMaskUdpType.xdns: FinalMaskXdnsSettings,
     FinalMaskUdpType.xicmp: FinalMaskXicmpSettings,
     FinalMaskUdpType.realm: FinalMaskRealmSettings,
+    FinalMaskUdpType.udphop: FinalMaskUdpHopSettings,
 }
 
 
@@ -344,6 +457,51 @@ class FinalMask(FinalMaskBaseModel):
     tcp: list[FinalMaskTcpLayer] | None = Field(default=None)
     udp: list[FinalMaskUdpLayer] | None = Field(default=None)
     quic_params: FinalMaskQuicParams | None = Field(default=None, alias="quicParams")
+
+    @model_validator(mode="after")
+    def validate_udphop_layer(self):
+        """Xray applies UDP layers last to first and allows one dialing layer (udphop or xicmp), applied first."""
+        layers = self.udp or []
+        types = [layer.type for layer in layers]
+        if FinalMaskUdpType.udphop not in types:
+            return self
+        if FinalMaskUdpType.xicmp in types:
+            raise ValueError("udphop cannot be combined with xicmp")
+        if types[-1] != FinalMaskUdpType.udphop or types.count(FinalMaskUdpType.udphop) > 1:
+            raise ValueError("udphop must be the last UDP layer and appear once")
+        if not getattr(layers[-1].settings, "mode", None):
+            raise ValueError("udphop needs settings with a mode")
+        return self
+
+
+def dump_final_mask_for_xray(final_mask: FinalMask | dict[str, Any]) -> dict[str, Any]:
+    """Serialize FinalMask with fragment keys understood by stable and newer Xray cores."""
+    if isinstance(final_mask, FinalMask):
+        result = final_mask.model_dump(exclude_none=True, by_alias=True, mode="json")
+    else:
+        result = deepcopy(final_mask)
+
+    tcp_layers = result.get("tcp")
+    if not isinstance(tcp_layers, list):
+        return result
+
+    for layer in tcp_layers:
+        if not isinstance(layer, dict) or layer.get("type") != FinalMaskTcpType.fragment.value:
+            continue
+        settings = layer.get("settings")
+        if not isinstance(settings, dict):
+            continue
+
+        # Xray v26.3.27 reads the singular fields. Development builds added the
+        # plural lists later, so emitting both lets each schema consume its own keys.
+        lengths = settings.get("lengths")
+        if settings.get("length") in (None, "") and isinstance(lengths, list) and lengths:
+            settings["length"] = lengths[0]
+        delays = settings.get("delays")
+        if settings.get("delay") in (None, "") and isinstance(delays, list) and delays:
+            settings["delay"] = delays[0]
+
+    return result
 
 
 class XMuxSettings(BaseModel):
@@ -597,8 +755,7 @@ class BaseHost(BaseModel):
     vless_route: str | None = Field(default=None, pattern=r"^$|^[0-9a-fA-F]{4}$")
     priority: int
     status: set[UserStatus] | None = Field(default_factory=set)
-    ech_config_list: str | None = Field(default=None)
-    ech_query_strategy: ECHQueryStrategy | None = Field(default=None)
+    ech: ECHSettings | None = Field(default=None)
     pinned_peer_cert_sha256: str | None = Field(default=None)
     verify_peer_cert_by_name: set[str] | None = Field(default_factory=set)
     wireguard_overrides: WireGuardHostOverrides | None = Field(None)

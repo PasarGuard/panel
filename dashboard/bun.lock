@@ -11,7 +11,7 @@
         "@hookform/resolvers": "^5.9.0",
         "@monaco-editor/react": "^4.7.0",
         "@noble/post-quantum": "^0.5.4",
-        "@pasarguard/core-kit": "0.2.8",
+        "@pasarguard/core-kit": "0.2.9",
         "@pasarguard/xray-config-kit": "^0.3.8",
         "@radix-ui/react-accordion": "^1.2.20",
         "@radix-ui/react-alert-dialog": "^1.1.23",
@@ -471,7 +471,7 @@
 
     "@oxc-project/types": ["@oxc-project/types@0.144.0", "", {}, "sha512-nuhZIOLuI6TFQ32I/WnUx+SCPY7SdSKwgnFHydAuoS1+Z4BRcaP+RRJmGzl9lw+0OFF7UmaESf7KQRXaNLHypg=="],
 
-    "@pasarguard/core-kit": ["@pasarguard/core-kit@0.2.8", "", { "dependencies": { "@pasarguard/wireguard-config-kit": "0.1.0", "@pasarguard/xray-config-kit": "0.3.8" } }, "sha512-tSLZ+lNtTQEgBcuVJ9wY4B+pTtcG8ypYnSB4C/qss4lrTSZxPTspMe1BRgqgQEVv4602HzjpGNWZb08L5cR0MQ=="],
+    "@pasarguard/core-kit": ["@pasarguard/core-kit@0.2.9", "", { "dependencies": { "@pasarguard/wireguard-config-kit": "0.1.0", "@pasarguard/xray-config-kit": "0.3.9" } }, "sha512-/Yb4JG3KRnGp3NrJ53f2VqwW8t0S5kf8i0BkPmyBfW8McGQ98c9JtrpLdejYk8TjS5N+/kaO3TfXQXsoJ5bQPA=="],
 
     "@pasarguard/wireguard-config-kit": ["@pasarguard/wireguard-config-kit@0.1.0", "", { "dependencies": { "@stablelib/x25519": "^2.0.1", "zod": "^3.25.76" } }, "sha512-vC4ULRfrgsN+W9mFLHFkr74G+6yPmMtxj1/1ZjIwulHPeQ5qHVGA0ed1vSMxL9f722rmV3jj/eMeRQCasGJsrw=="],
 
@@ -1828,6 +1828,8 @@
     "@orval/core/jsesc": ["jsesc@3.1.0", "", { "bin": { "jsesc": "bin/jsesc" } }, "sha512-/sM3dO2FOzXjKQhJuo0Q173wf2KOo8t4I8vHy6lF9poUp7bKT0/NHE8fPX23PwfhnykfqnC2xRxOnVw5XuGIaA=="],
 
     "@orval/zod/jsesc": ["jsesc@3.1.0", "", { "bin": { "jsesc": "bin/jsesc" } }, "sha512-/sM3dO2FOzXjKQhJuo0Q173wf2KOo8t4I8vHy6lF9poUp7bKT0/NHE8fPX23PwfhnykfqnC2xRxOnVw5XuGIaA=="],
+
+    "@pasarguard/core-kit/@pasarguard/xray-config-kit": ["@pasarguard/xray-config-kit@0.3.9", "", { "dependencies": { "@noble/post-quantum": "^0.5.4", "@stablelib/x25519": "^2.0.1", "mlkem": "^2.7.0", "zod": "^3.23.8", "zod-to-json-schema": "^3.25.2" } }, "sha512-UPNgD9P9/OZja3QqyuFnTjZYYUUPBvecTach2C081tasDmIReJzh2V17CaEABtopnItS+mrv94EqqPxCdwGpLA=="],
 
     "@scalar/json-magic/pathe": ["pathe@2.0.3", "", {}, "sha512-WUjGcAqP1gQacoQe+OBJsFA7Ld4DyXuUIjZ5cc75cLHvJ7dtNsTugphxIADwspS+AraAUePCKrSVtPLFj/F88w=="],
 

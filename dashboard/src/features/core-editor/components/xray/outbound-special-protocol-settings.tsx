@@ -919,7 +919,13 @@ function OutboundWireGuardSettings({ ob, patchOutbound, t }: { ob: Outbound; pat
   const workers = s.workers !== undefined && s.workers !== null ? String(s.workers) : ''
   const reserved = Array.isArray(s.reserved) ? JSON.stringify(s.reserved) : typeof s.reserved === 'string' ? s.reserved : ''
   const domainStrategy = typeof s.domainStrategy === 'string' && s.domainStrategy.trim() ? s.domainStrategy : '__default__'
-  const dns = typeof s.DNS === 'string' ? s.DNS : ''
+  const dnsServers: string[] = Array.isArray(s.remoteDNS)
+    ? s.remoteDNS.map(v => String(v).trim()).filter(Boolean)
+    : typeof s.remoteDNS === 'string' && s.remoteDNS.trim()
+      ? [s.remoteDNS.trim()]
+      : typeof s.DNS === 'string' && s.DNS.trim()
+        ? [s.DNS.trim()]
+        : []
   const kernelModeValue = typeof s.kernelMode === 'boolean' ? String(s.kernelMode) : '__default__'
 
   const commitWireGuard = (next: Record<string, unknown>) => {
@@ -1099,18 +1105,21 @@ function OutboundWireGuardSettings({ ob, patchOutbound, t }: { ob: Outbound; pat
 
         <div className="flex w-full min-w-0 flex-col gap-2">
           <Label className="text-xs font-medium">{t('coreEditor.outbound.wireguard.dns', { defaultValue: 'DNS' })}</Label>
-          <Input
-            dir="ltr"
-            className="h-10 w-full min-w-0 text-xs"
-            placeholder="1.1.1.1"
-            value={dns}
-            onChange={e => {
-              const v = e.target.value
+          <StringArrayPopoverInput
+            value={dnsServers}
+            onChange={nextDns => {
               const next = { ...readSettings(ob) }
-              if (!v.trim()) delete next.DNS
-              else next.DNS = v
+              delete next.DNS
+              if (nextDns.length > 0) next.remoteDNS = nextDns
+              else delete next.remoteDNS
               commitWireGuard(next)
             }}
+            placeholder="1.1.1.1"
+            addPlaceholder={t('coreEditor.outbound.wireguard.dnsAddPlaceholder', { defaultValue: 'Add DNS server' })}
+            addButtonLabel={t('coreEditor.outbound.wireguard.addItem', { defaultValue: 'Add' })}
+            itemsLabel={t('coreEditor.outbound.wireguard.dnsItems', { defaultValue: 'DNS servers' })}
+            emptyMessage={t('coreEditor.outbound.wireguard.noDns', { defaultValue: 'No DNS server added.' })}
+            className="h-10 w-full max-w-none min-w-0"
           />
         </div>
 

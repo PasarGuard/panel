@@ -1,12 +1,20 @@
 import type { Outbound } from '@pasarguard/xray-config-kit'
-import { deepPruneEmptyJsonObjects } from '@/features/core-editor/kit/xray-parity-value'
+import { deepPruneEmptyJsonObjects, stringifyVerifyPeerCertByName } from '@/features/core-editor/kit/xray-parity-value'
 
 /** Deep-prune empty objects; use for `streamSettings`, `mux`, `proxySettings`, etc. (avoid `{}` in JSON / profile). Preserves sockopt even if empty. */
 export function normalizeOutboundStreamSettings(value: unknown): unknown {
   if (value === undefined || value === null) return undefined
   if (typeof value !== 'object' || Array.isArray(value)) return value
 
-  const obj = value as Record<string, unknown>
+  const obj = { ...(value as Record<string, unknown>) }
+  const tlsSettings = obj.tlsSettings
+  if (tlsSettings && typeof tlsSettings === 'object' && !Array.isArray(tlsSettings) && 'verifyPeerCertByName' in tlsSettings) {
+    const names = stringifyVerifyPeerCertByName((tlsSettings as Record<string, unknown>).verifyPeerCertByName)
+    const nextTls = { ...(tlsSettings as Record<string, unknown>) }
+    if (names === undefined) delete nextTls.verifyPeerCertByName
+    else nextTls.verifyPeerCertByName = names
+    obj.tlsSettings = nextTls
+  }
   const sockopt = obj.sockopt
   const pruned = deepPruneEmptyJsonObjects(obj)
 

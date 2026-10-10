@@ -3,6 +3,7 @@ from random import choice
 
 from pydantic import BaseModel
 
+from app.models.host import FinalMask, dump_final_mask_for_xray
 from app.models.subscription import (
     GRPCTransportConfig,
     KCPTransportConfig,
@@ -15,6 +16,7 @@ from app.models.subscription import (
 )
 
 from . import BaseSubscription
+from .base import dumps_compact
 
 
 class XrayConfiguration(BaseSubscription):
@@ -63,7 +65,7 @@ class XrayConfiguration(BaseSubscription):
         self.config.append(json_template)
 
     def render(self):
-        return json.dumps(self.config, indent=4)
+        return dumps_compact(self.config)
 
     def add(
         self,
@@ -517,6 +519,7 @@ class XrayConfiguration(BaseSubscription):
             "protocol": "wireguard",
             "tag": "proxy",
             "settings": {
+                "remoteDNS": inbound.wireguard_dns,
                 "secretKey": private_key,
                 "address": peer_ips,
                 "peers": [self._normalize_and_remove_none_values(peer)],
@@ -669,7 +672,13 @@ class XrayConfiguration(BaseSubscription):
 
         if finalmask is not None:
             if isinstance(finalmask, BaseModel):
-                stream_settings["finalmask"] = finalmask.model_dump(exclude_none=True, by_alias=True, mode="json")
+                finalmask = finalmask.model_dump(exclude_none=True, by_alias=True, mode="json")
+            try:
+                finalmask = FinalMask.model_validate(finalmask)
+            except (TypeError, ValueError):
+                pass
+            if isinstance(finalmask, (FinalMask, dict)):
+                stream_settings["finalmask"] = dump_final_mask_for_xray(finalmask)
             else:
                 stream_settings["finalmask"] = finalmask
 

@@ -25,11 +25,20 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import async_object_session
 from sqlalchemy.ext.hybrid import hybrid_property
-from sqlalchemy.orm import Mapped, mapped_column, query_expression, relationship
+from sqlalchemy.orm import Mapped, MappedAsDataclass, mapped_column, query_expression, relationship
 from sqlalchemy.sql.expression import select, text
 
 from app.db.base import Base
-from app.db.compiles_types import CaseSensitiveString, DaysDiff, EnumArray, SqliteCompatibleBigInteger, StringArray
+from app.db.compiles_types import (
+    CaseSensitiveString,
+    DaysDiff,
+    EnumArray,
+    SqliteCompatibleBigInteger,
+    StringArray,
+    WebAuthnBinary,
+    WebAuthnChallenge,
+    WebAuthnCredentialId,
+)
 
 PostgresJSONB = JSON().with_variant(JSONB(none_as_null=True), "postgresql")
 
@@ -58,6 +67,20 @@ users_groups_association = Table(
     fk_id_table_column("groups_id", "groups.id", primary_key=True),
 )
 
+# The association primary keys are ordered from the owning entity to the group.
+# Reverse indexes keep group-centric joins, counts, and bulk deletes from scanning
+# every membership row on databases that do not auto-index foreign keys.
+Index(
+    "ix_inbounds_groups_association_group_id_inbound_id",
+    inbounds_groups_association.c.group_id,
+    inbounds_groups_association.c.inbound_id,
+)
+Index(
+    "ix_users_groups_association_groups_id_user_id",
+    users_groups_association.c.groups_id,
+    users_groups_association.c.user_id,
+)
+
 
 class AdminStatus(str, Enum):
     active = "active"
@@ -65,7 +88,7 @@ class AdminStatus(str, Enum):
     limited = "limited"
 
 
-class IdMixin:
+class IdMixin(MappedAsDataclass):
     id: Mapped[int] = mapped_column(SqliteCompatibleBigInteger, primary_key=True, init=False, autoincrement=True)
 
 
@@ -85,6 +108,9 @@ class Admin(Base, CreatedAtUTCMixin):
         back_populates="admin", init=False, default_factory=list, cascade="all, delete-orphan"
     )
     api_keys: Mapped[list[APIKey]] = relationship(
+        back_populates="admin", init=False, default_factory=list, cascade="all, delete-orphan"
+    )
+    passkeys: Mapped[list[AdminPasskey]] = relationship(
         back_populates="admin", init=False, default_factory=list, cascade="all, delete-orphan"
     )
 
@@ -161,6 +187,25 @@ class Admin(Base, CreatedAtUTCMixin):
         return len(self.api_keys) > 0
 
 
+class AdminPasskey(Base, IdMixin):
+    __tablename__ = "admin_passkeys"
+    admin_id: Mapped[int] = fk_id_column("admins.id", ondelete="CASCADE")
+    admin: Mapped[Admin] = relationship(back_populates="passkeys", init=False)
+    credential_id: Mapped[bytes] = mapped_column(WebAuthnCredentialId(1024), unique=True)
+    public_key: Mapped[bytes] = mapped_column(WebAuthnBinary(4096))
+    sign_count: Mapped[int] = mapped_column(BigInteger, default=0)
+    name: Mapped[str] = mapped_column(String(128), default="This device")
+
+
+class PasskeyChallenge(Base):
+    __tablename__ = "passkey_challenges"
+    id: Mapped[int] = mapped_column(SqliteCompatibleBigInteger, primary_key=True, autoincrement=True, init=False)
+    challenge: Mapped[bytes] = mapped_column(WebAuthnChallenge(128), unique=True)
+    kind: Mapped[str] = mapped_column(String(16))
+    expires_at: Mapped[dt] = mapped_column(DateTime(timezone=True))
+    admin_id: Mapped[int | None] = fk_id_column("admins.id", ondelete="CASCADE", default=None)
+
+
 class AdminUsageLogs(Base, IdMixin):
     __tablename__ = "admin_usage_logs"
     admin_id: Mapped[int] = fk_id_column("admins.id")
@@ -193,6 +238,7 @@ class DataLimitResetStrategy(str, Enum):
 class User(Base, CreatedAtUTCMixin):
     __tablename__ = "users"
     __table_args__ = (
+        Index("idx_users_created_at_id", "created_at", "id"),
         Index("idx_users_admin_online", "admin_id", "online_at"),
         Index("idx_users_admin_status", "admin_id", "status"),
         Index("idx_users_admin_created", "admin_id", "created_at"),
@@ -238,6 +284,7 @@ class User(Base, CreatedAtUTCMixin):
     edit_at: Mapped[dt | None] = mapped_column(DateTime(timezone=True), default=None)
     last_status_change: Mapped[dt | None] = mapped_column(DateTime(timezone=True), default=None)
     _reseted_usage_query: Mapped[int | None] = query_expression(repr=False)
+    hwid_count: Mapped[int | None] = query_expression(repr=False)
 
     @hybrid_property
     def expire(self) -> dt | None:
@@ -261,9 +308,15 @@ class User(Base, CreatedAtUTCMixin):
 
     @hybrid_property
     def reseted_usage(self) -> int:
-        if self._reseted_usage_query is not None:
-            return int(self._reseted_usage_query)
-        return int(sum([log.used_traffic_at_reset for log in self.usage_logs]))
+        expr = self.__dict__.get("_reseted_usage_query")
+        if expr is None:
+            expr = self._reseted_usage_query
+        if expr is not None:
+            return int(expr)
+        usage_logs = self.__dict__.get("usage_logs")
+        if usage_logs is None:
+            return 0
+        return int(sum(log.used_traffic_at_reset for log in usage_logs))
 
     @reseted_usage.expression
     def reseted_usage(cls):
@@ -283,6 +336,23 @@ class User(Base, CreatedAtUTCMixin):
 
     async def inbounds(self) -> list[str]:
         """Returns a flat list of all included inbound tags for enabled groups."""
+        if "_wireguard_inbounds" in self.__dict__:
+            return list(self.__dict__["_wireguard_inbounds"])
+        loaded_groups = self.__dict__.get("groups")
+        if loaded_groups is not None:
+            inbound_tags: set[str] = set()
+            inbounds_loaded = True
+            for group in loaded_groups:
+                if "inbounds" not in group.__dict__:
+                    inbounds_loaded = False
+                    break
+                if group.is_disabled:
+                    continue
+                for inbound in group.__dict__.get("inbounds") or []:
+                    inbound_tags.add(inbound.tag)
+            if inbounds_loaded:
+                return list(inbound_tags)
+
         session = async_object_session(self)
         if session is not None:
             stmt = (
@@ -299,7 +369,7 @@ class User(Base, CreatedAtUTCMixin):
 
         # Fallback for detached instances: use already-loaded attrs only.
         included_tags = set()
-        for group in self.__dict__.get("groups") or []:
+        for group in loaded_groups or []:
             if group.is_disabled:
                 continue
             for inbound in group.__dict__.get("inbounds") or []:
@@ -308,11 +378,17 @@ class User(Base, CreatedAtUTCMixin):
 
     @property
     def group_ids(self):
-        return [group.id for group in self.groups]
+        groups = self.__dict__.get("groups")
+        if groups is None:
+            return []
+        return [group.id for group in groups]
 
     @property
     def group_names(self):
-        return [group.name for group in self.groups]
+        groups = self.__dict__.get("groups")
+        if groups is None:
+            return []
+        return [group.name for group in groups]
 
     @hybrid_property
     def is_expired(self) -> bool:
@@ -384,6 +460,7 @@ class UserSubscriptionUpdate(Base, CreatedAtUTCMixin):
     __table_args__ = (
         Index("idx_user_subscription_updates_user_id", "user_id"),
         Index("idx_user_subscription_updates_user_created", "user_id", "created_at"),
+        Index("idx_user_subscription_updates_created_at", "created_at"),
     )
     user_id: Mapped[int] = fk_id_column("users.id", ondelete="CASCADE")
     user: Mapped[User] = relationship(back_populates="subscription_updates", init=False)
@@ -562,8 +639,7 @@ class ProxyHost(Base, IdMixin):
     transport_settings: Mapped[dict[str, Any] | None] = mapped_column(JSON(none_as_null=True), default=None)
     mux_settings: Mapped[dict[str, Any] | None] = mapped_column(JSON(none_as_null=True), default=None)
     status: Mapped[list[UserStatus] | None] = mapped_column(EnumArray(UserStatus, 60), default=list, server_default="")
-    ech_config_list: Mapped[str | None] = mapped_column(String(512), default=None)
-    ech_query_strategy: Mapped[str | None] = mapped_column(String(8), default=None)
+    ech: Mapped[dict[str, Any] | None] = mapped_column(JSON(none_as_null=True), default=None)
     vless_route: Mapped[str | None] = mapped_column(String(4), default=None)
     pinned_peer_cert_sha256: Mapped[str | None] = mapped_column(String(128), default=None)
     verify_peer_cert_by_name: Mapped[set[str] | None] = mapped_column(
@@ -642,6 +718,7 @@ class Node(Base, CreatedAtUTCMixin):
     default_timeout: Mapped[int] = mapped_column(default=10, server_default=text("10"))
     internal_timeout: Mapped[int] = mapped_column(default=15, server_default=text("15"))
     proxy_url: Mapped[str | None] = mapped_column(String(256), default="", unique=False, nullable=True)
+    sort_order: Mapped[int] = mapped_column(default=0, server_default=text("0"))
     _reseted_uplink_query: Mapped[int | None] = query_expression(repr=False)
     _reseted_downlink_query: Mapped[int | None] = query_expression(repr=False)
 
@@ -782,6 +859,7 @@ class Group(Base, IdMixin):
         secondary=template_group_association, back_populates="groups", init=False
     )
     is_disabled: Mapped[bool] = mapped_column(server_default="0", default=False)
+    _total_users_query: Mapped[int | None] = query_expression(repr=False)
 
     @hybrid_property
     def inbound_ids(self) -> list[int]:
@@ -815,6 +893,10 @@ class Group(Base, IdMixin):
 
     @hybrid_property
     def total_users(self) -> int:
+        # Populated by a SQL COUNT (with_expression / load_group_attrs) so group
+        # summaries never have to hydrate every member.
+        if self._total_users_query is not None:
+            return int(self._total_users_query)
         return len(self.users)
 
     @total_users.expression
@@ -841,6 +923,7 @@ class CoreConfig(Base, CreatedAtUTCMixin):
     type: Mapped[CoreType] = mapped_column(SQLEnum(CoreType), default=CoreType.xray, server_default=CoreType.xray)
     exclude_inbound_tags: Mapped[set[str] | None] = mapped_column(StringArray(2048), default_factory=set)
     fallbacks_inbound_tags: Mapped[set[str] | None] = mapped_column(StringArray(2048), default_factory=set)
+    sort_order: Mapped[int] = mapped_column(default=0, server_default=text("0"))
 
 
 class WireGuardSubnet(Base, IdMixin):
@@ -878,7 +961,7 @@ class NodeStat(Base, CreatedAtUTCMixin):
     mem_total: Mapped[int] = mapped_column(BigInteger, unique=False, nullable=False)
     mem_used: Mapped[int] = mapped_column(BigInteger, unique=False, nullable=False)
     cpu_cores: Mapped[int] = mapped_column(unique=False, nullable=False)
-    cpu_usage: Mapped[float] = mapped_column(unique=False, nullable=False)
+    cpu_usage: Mapped[float] = mapped_column(Float, unique=False, nullable=False)
     incoming_bandwidth_speed: Mapped[int] = mapped_column(BigInteger, unique=False, nullable=False)
     outgoing_bandwidth_speed: Mapped[int] = mapped_column(BigInteger, unique=False, nullable=False)
 

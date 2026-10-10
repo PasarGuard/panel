@@ -3,6 +3,7 @@ from sqlalchemy import delete, func, select
 from app import scheduler
 from app.db import GetDB
 from app.db.models import UserSubscriptionUpdate
+from app.subscription.sub_update_buffer import flush_user_sub_updates
 from app.utils.logger import get_logger
 from config import job_settings, runtime_settings, subscription_env_settings
 
@@ -11,6 +12,8 @@ logger = get_logger("jobs")
 
 async def cleanup_user_subscription_updates():
     """Clean up excess user subscription updates."""
+
+    await flush_user_sub_updates()
 
     async with GetDB() as db:
         # First query: Find users that have more than the limit

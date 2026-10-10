@@ -203,6 +203,7 @@ class NodeModify(NodeCreate):
 
 class NodeResponse(Node):
     id: int
+    sort_order: int = 0
     api_key: str | None
     core_config_id: int | None
     xray_version: str | None
@@ -233,6 +234,7 @@ class NodeSimple(BaseModel):
     id: int
     name: str
     status: NodeStatus
+    core_config_id: int | None = None
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -342,6 +344,14 @@ class UserIPListAll(BaseModel):
 
 class NodeCoreUpdate(BaseModel):
     core_version: str = Field(default="latest", pattern=r"^(latest|v?\d+\.\d+\.\d+)$", examples=["v25.8.31"])
+
+    @field_validator("core_version")
+    @classmethod
+    def add_v_prefix(cls, value: str) -> str:
+        # node-serviced and pg-node look versions up by release tag, which always starts with "v".
+        if value != "latest" and not value.startswith("v"):
+            return f"v{value}"
+        return value
 
 
 class NodeGeoFilesUpdate(BaseModel):
