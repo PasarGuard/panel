@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Card, CardHeader, CardContent, CardFooter } from '@/components/ui/card'
 import { ChartContainer, ChartTooltip, ChartConfig } from '@/components/ui/chart'
 import { BarChart3, PieChart as PieChartIcon, TrendingUp, Calendar, Info } from 'lucide-react'
+import PeriodSelector from '@/components/charts/period-selector'
 import TimeSelector, { TRAFFIC_TIME_SELECTOR_SHORTCUTS } from '@/components/charts/time-selector'
 import { useTranslation } from 'react-i18next'
 import { Period, useGetNodesSimple, useGetCurrentAdmin, useGetUserUsageById } from '@/service/api'
@@ -14,19 +15,26 @@ import { Button } from '@/components/ui/button'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { TooltipProps, Area, AreaChart, Bar, BarChart, CartesianGrid, XAxis, YAxis, Cell, Pie, PieChart as RechartsPieChart } from 'recharts'
+import ChartBrush from '@/components/charts/chart-brush'
+import DenseChartAreaHint from '@/components/charts/dense-chart-area-hint'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { useChartViewType } from '@/hooks/use-chart-view-type'
 import { useTheme } from '@/app/providers/theme-provider'
 import NodeStatsModal from '@/features/nodes/dialogs/node-stats-modal'
 import { hasScopeAll } from '@/utils/rbac'
+import { getChartSeriesColor } from '@/utils/chart-colors'
 import {
+  CHART_PERIOD_OVERRIDE_AUTO,
+  type ChartPeriodOverride,
   TrafficShortcutKey,
   formatTooltipDate,
   getChartQueryRangeFromDateRange,
   getChartQueryRangeFromShortcut,
   formatPeriodLabelForPeriod,
-  getXAxisIntervalForShortcut,
+  getChartXAxisInterval,
+  resolvePeriodOverride,
 } from '@/utils/chart-period-utils'
+import { getChartBrushWindow, getChartRenderFlags } from '@/utils/chart-performance'
 
 interface UsageModalProps {
   open: boolean
@@ -218,6 +226,7 @@ const UsageModal = ({ open, onClose, userId }: UsageModalProps) => {
   }, [open])
 
   const [period, setPeriod] = useState<TrafficShortcutKey>('1w')
+  const [periodOverride, setPeriodOverride] = useState<ChartPeriodOverride>(CHART_PERIOD_OVERRIDE_AUTO)
   const [customRange, setCustomRange] = useState<DateRange | undefined>(undefined)
   const [showCustomRange, setShowCustomRange] = useState(false)
   const { t, i18n } = useTranslation()
@@ -226,7 +235,6 @@ const UsageModal = ({ open, onClose, userId }: UsageModalProps) => {
   const [modalOpen, setModalOpen] = useState(false)
   const [selectedData, setSelectedData] = useState<UsageChartDataPoint | null>(null)
   const [currentDataIndex, setCurrentDataIndex] = useState(0)
-  const [chartData, setChartData] = useState<UsageChartDataPoint[] | null>(null)
   const [chartView, setChartView] = useState<'bar' | 'pie'>('bar')
   const chartViewType = useChartViewType()
 
@@ -260,86 +268,31 @@ const UsageModal = ({ open, onClose, userId }: UsageModalProps) => {
     },
   )
 
-  // Navigation handler for modal
-  const handleModalNavigate = (index: number) => {
-    if (chartData && chartData[index]) {
-      setCurrentDataIndex(index)
-      setSelectedData(chartData[index])
-    }
-  }
-
   // Build color palette for nodes
   const nodeList: NodeSimple[] = useMemo(() => nodesResponse?.nodes || [], [nodesResponse])
-
-  // Function to generate distinct colors based on theme
-  const generateDistinctColor = useCallback((index: number, _totalNodes: number, isDark: boolean): string => {
-    // Define a more distinct color palette with better contrast
-    const distinctHues = [
-      0, // Red
-      30, // Orange
-      60, // Yellow
-      120, // Green
-      180, // Cyan
-      210, // Blue
-      240, // Indigo
-      270, // Purple
-      300, // Magenta
-      330, // Pink
-      15, // Red-orange
-      45, // Yellow-orange
-      75, // Yellow-green
-      150, // Green-cyan
-      200, // Cyan-blue
-      225, // Blue-indigo
-      255, // Indigo-purple
-      285, // Purple-magenta
-      315, // Magenta-pink
-      345, // Pink-red
-    ]
-
-    const hue = distinctHues[index % distinctHues.length]
-
-    // Create more distinct saturation and lightness values
-    const saturationVariations = [65, 75, 85, 70, 80, 60, 90, 55, 95, 50]
-    const lightnessVariations = isDark ? [45, 55, 35, 50, 40, 60, 30, 65, 25, 70] : [40, 50, 30, 45, 35, 55, 25, 60, 20, 65]
-
-    const saturation = saturationVariations[index % saturationVariations.length]
-    const lightness = lightnessVariations[index % lightnessVariations.length]
-
-    return `hsl(${hue}, ${saturation}%, ${lightness}%)`
-  }, [])
 
   // Build chart config dynamically based on nodes
   const chartConfig = useMemo(() => {
     const config: ChartConfig = {}
     const isDark = resolvedTheme === 'dark'
     nodeList.forEach((node, idx) => {
-      let color
-      if (idx === 0) {
-        // First node uses primary color like CostumeBarChart
-        color = 'hsl(var(--primary))'
-      } else if (idx < 5) {
-        // Use palette colors for nodes 2-5: --chart-2, --chart-3, ...
-        color = `hsl(var(--chart-${idx + 1}))`
-      } else {
-        // Generate distinct colors for nodes beyond palette
-        color = generateDistinctColor(idx, nodeList.length, isDark)
-      }
       config[node.name] = {
         label: node.name,
-        color: color,
+        color: getChartSeriesColor(idx, isDark),
       }
     })
     return config
-  }, [nodeList, resolvedTheme, generateDistinctColor])
+  }, [nodeList, resolvedTheme])
 
   const queryRange = useMemo(() => {
+    const periodOptions = { minuteForOneHour: true, periodOverride: resolvePeriodOverride(periodOverride) }
+
     if (showCustomRange && customRange?.from && customRange?.to) {
-      return getChartQueryRangeFromDateRange(customRange, period)
+      return getChartQueryRangeFromDateRange(customRange, period, periodOptions)
     }
 
-    return getChartQueryRangeFromShortcut(period, new Date(rangeNow), { minuteForOneHour: true })
-  }, [showCustomRange, customRange, period, rangeNow])
+    return getChartQueryRangeFromShortcut(period, new Date(rangeNow), periodOptions)
+  }, [showCustomRange, customRange, period, periodOverride, rangeNow])
 
   const backendPeriod = queryRange.period
 
@@ -363,6 +316,14 @@ const UsageModal = ({ open, onClose, userId }: UsageModalProps) => {
 
   // Only fetch when modal is open
   const { data, isLoading } = useGetUserUsageById(userId, userUsageParams, { query: { enabled: open && !!userId } })
+
+  const labelRangeHint = useMemo(
+    () => ({
+      shortcut: showCustomRange ? undefined : period,
+      customRange: showCustomRange ? customRange : undefined,
+    }),
+    [customRange, period, showCustomRange],
+  )
 
   // Prepare chart data for BarChart with node grouping
   const processedChartData = useMemo<UsageChartDataPoint[]>(() => {
@@ -402,7 +363,7 @@ const UsageModal = ({ open, onClose, userId }: UsageModalProps) => {
             const usageInGB = point.total_traffic / (1024 * 1024 * 1024)
             // Create entry with all nodes having the same usage (aggregated)
             const entry: UsageChartDataPoint = {
-              time: formatPeriodLabelForPeriod(point.period_start, backendPeriod, i18n.language),
+              time: formatPeriodLabelForPeriod(point.period_start, backendPeriod, i18n.language, labelRangeHint),
               _period_start: point.period_start,
             }
             nodeList.forEach(node => {
@@ -429,7 +390,7 @@ const UsageModal = ({ open, onClose, userId }: UsageModalProps) => {
           // Build chart data: [{ time, [nodeName]: usage, ... }]
           const data = sortedPeriods.map((periodStart): UsageChartDataPoint => {
             const entry: UsageChartDataPoint = {
-              time: formatPeriodLabelForPeriod(periodStart, backendPeriod, i18n.language),
+              time: formatPeriodLabelForPeriod(periodStart, backendPeriod, i18n.language, labelRangeHint),
               _period_start: periodStart,
             }
 
@@ -482,18 +443,13 @@ const UsageModal = ({ open, onClose, userId }: UsageModalProps) => {
       return flatStats.map((point): UsageChartDataPoint => {
         const usageInGB = point.total_traffic / (1024 * 1024 * 1024)
         return {
-          time: formatPeriodLabelForPeriod(point.period_start, backendPeriod, i18n.language),
+          time: formatPeriodLabelForPeriod(point.period_start, backendPeriod, i18n.language, labelRangeHint),
           usage: usageInGB,
           _period_start: point.period_start,
         }
       })
     }
-  }, [data, backendPeriod, selectedNodeId, nodeList, i18n.language, canReadAllUserUsage])
-
-  // Update chartData state when processedChartData changes
-  useEffect(() => {
-    setChartData(processedChartData)
-  }, [processedChartData])
+  }, [data, backendPeriod, selectedNodeId, nodeList, i18n.language, canReadAllUserUsage, labelRangeHint])
 
   // Calculate total usage during period
   const totalUsageDuringPeriod = useMemo(() => {
@@ -537,30 +493,25 @@ const UsageModal = ({ open, onClose, userId }: UsageModalProps) => {
     return percent
   }, [processedChartData, selectedNodeId, canReadAllUserUsage])
 
-  const xAxisInterval = useMemo(() => {
-    if (showCustomRange && customRange?.from && customRange?.to) {
-      if (backendPeriod === Period.hour || backendPeriod === Period.minute) {
-        return Math.max(1, Math.floor(processedChartData.length / 8))
-      }
+  const seriesCount = allNodesSelected ? Math.max(nodeList.length, 1) : 1
+  const xAxisInterval = useMemo(
+    () =>
+      getChartXAxisInterval({
+        dataLength: processedChartData.length,
+        period: backendPeriod,
+        shortcut: period,
+        windowWidth: width,
+        customRange: showCustomRange ? customRange : undefined,
+        periodOverride: resolvePeriodOverride(periodOverride),
+      }),
+    [showCustomRange, customRange, backendPeriod, processedChartData.length, period, width, periodOverride],
+  )
 
-      const daysDiff = Math.ceil(Math.abs(customRange.to.getTime() - customRange.from.getTime()) / (1000 * 60 * 60 * 24))
-      if (daysDiff > 30) {
-        return Math.max(1, Math.floor(processedChartData.length / 5))
-      }
-
-      if (daysDiff > 7) {
-        return Math.max(1, Math.floor(processedChartData.length / 8))
-      }
-
-      return 0
-    }
-
-    if (width < 500 && period === '1w') {
-      return processedChartData.length <= 4 ? 0 : Math.max(1, Math.floor(processedChartData.length / 4))
-    }
-
-    return getXAxisIntervalForShortcut(period, processedChartData.length, { minuteForOneHour: true })
-  }, [showCustomRange, customRange, backendPeriod, processedChartData.length, period, width])
+  const { isAnimationActive, usePerBarRadius, useAccessibilityLayer, areaCurveType } = useMemo(
+    () => getChartRenderFlags(processedChartData.length, seriesCount),
+    [processedChartData.length, seriesCount],
+  )
+  const brushWindow = useMemo(() => getChartBrushWindow(processedChartData.length, seriesCount), [processedChartData.length, seriesCount])
 
   const pieData = useMemo<NodePieChartDataPoint[]>(() => {
     if (!allNodesSelected || processedChartData.length === 0 || nodeList.length === 0) return []
@@ -611,9 +562,18 @@ const UsageModal = ({ open, onClose, userId }: UsageModalProps) => {
     setCustomRange(undefined)
   }, [])
 
+  const handleModalNavigate = useCallback(
+    (index: number) => {
+      if (!processedChartData[index]) return
+      setCurrentDataIndex(index)
+      setSelectedData(processedChartData[index])
+    },
+    [processedChartData],
+  )
+
   const handleTrafficChartClick = useCallback(
     (data: unknown) => {
-      if (!processedChartData || processedChartData.length === 0) return
+      if (!processedChartData.length) return
 
       const chartClick = data as { activeTooltipIndex?: unknown; activePayload?: Array<{ payload?: unknown }> } | null
       const clickedIndex = typeof chartClick?.activeTooltipIndex === 'number' ? chartClick.activeTooltipIndex : -1
@@ -650,7 +610,7 @@ const UsageModal = ({ open, onClose, userId }: UsageModalProps) => {
         <Card className="w-full border-none bg-transparent shadow-none">
           <CardHeader className="pb-2">
             <div className="flex flex-col items-center gap-4 pt-1">
-              <div className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-2 sm:flex sm:justify-center">
+              <div className="flex w-full flex-col items-stretch gap-2 sm:items-center">
                 <TimeSelector
                   selectedTime={period}
                   setSelectedTime={value => handleTimeSelect(value as TrafficShortcutKey)}
@@ -658,22 +618,23 @@ const UsageModal = ({ open, onClose, userId }: UsageModalProps) => {
                   maxVisible={5}
                   className="w-full sm:w-auto"
                 />
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label={t('usersTable.selectCustomRange', { defaultValue: 'Select custom range' })}
-                  className={`shrink-0 ${showCustomRange ? 'text-primary' : ''}`}
-                  onClick={() => {
-                    setShowCustomRange(!showCustomRange)
-                    if (!showCustomRange) {
-                      setCustomRange(undefined)
-                    }
-                  }}
-                >
-                  <Calendar className="h-4 w-4" />
-                </Button>
-                {allNodesSelected && (
-                  <div className="flex w-full items-center justify-center sm:w-fit">
+                <div className="flex w-full items-center justify-center gap-2">
+                  <PeriodSelector value={periodOverride} onValueChange={setPeriodOverride} />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label={t('usersTable.selectCustomRange', { defaultValue: 'Select custom range' })}
+                    className={`h-9 w-9 shrink-0 ${showCustomRange ? 'text-primary' : ''}`}
+                    onClick={() => {
+                      setShowCustomRange(!showCustomRange)
+                      if (!showCustomRange) {
+                        setCustomRange(undefined)
+                      }
+                    }}
+                  >
+                    <Calendar className="h-4 w-4" />
+                  </Button>
+                  {allNodesSelected && (
                     <div className="bg-muted/30 inline-flex h-8 w-fit shrink-0 items-center gap-1 rounded-md border p-1">
                       <button
                         type="button"
@@ -692,8 +653,8 @@ const UsageModal = ({ open, onClose, userId }: UsageModalProps) => {
                         <PieChartIcon className="h-3.5 w-3.5" />
                       </button>
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
               {canReadAllUserUsage && (
                 <div className="flex w-full items-center justify-center gap-2">
@@ -759,6 +720,8 @@ const UsageModal = ({ open, onClose, userId }: UsageModalProps) => {
                   <div className="text-sm">{t('usersTable.tryDifferentRange', { defaultValue: 'Try a different time range.' })}</div>
                 </div>
               ) : (
+                <>
+                {chartView === 'bar' && <DenseChartAreaHint pointCount={processedChartData.length} />}
                 <ChartContainer config={allNodesSelected && chartView === 'pie' ? pieChartConfig : chartConfig} dir={'ltr'} className="h-[200px] w-full sm:h-[320px]">
                   {allNodesSelected && chartView === 'pie' ? (
                     <RechartsPieChart>
@@ -770,7 +733,7 @@ const UsageModal = ({ open, onClose, userId }: UsageModalProps) => {
                       </Pie>
                     </RechartsPieChart>
                   ) : chartViewType === 'area' ? (
-                    <AreaChart data={processedChartData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }} onClick={handleTrafficChartClick}>
+                    <AreaChart {...(useAccessibilityLayer ? { accessibilityLayer: true } : {})} data={processedChartData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }} onClick={handleTrafficChartClick}>
                       <defs>
                         {allNodesSelected ? (
                           nodeList.map((node, idx) => {
@@ -790,7 +753,7 @@ const UsageModal = ({ open, onClose, userId }: UsageModalProps) => {
                         )}
                       </defs>
                       <CartesianGrid direction={'ltr'} vertical={false} />
-                      <XAxis direction={'ltr'} dataKey="time" tickLine={false} tickMargin={10} axisLine={false} minTickGap={5} interval={xAxisInterval} />
+                      <XAxis direction={'ltr'} dataKey="time" tickLine={false} tickMargin={10} axisLine={false} minTickGap={28} interval={xAxisInterval} />
                       <YAxis
                         direction={'ltr'}
                         tickLine={false}
@@ -810,25 +773,37 @@ const UsageModal = ({ open, onClose, userId }: UsageModalProps) => {
                         nodeList.map((node, idx) => (
                           <Area
                             key={node.id}
-                            type="monotone"
+                            type={areaCurveType}
                             dataKey={node.name}
                             stackId="a"
                             fill={`url(#usage-modal-node-gradient-${node.id})`}
                             stroke={chartConfig[node.name]?.color || `hsl(var(--chart-${(idx % 5) + 1}))`}
                             strokeWidth={1.5}
                             dot={false}
-                            activeDot={{ r: 4 }}
+                            activeDot={false}
+                            isAnimationActive={isAnimationActive}
                             cursor="pointer"
                           />
                         ))
                       ) : (
-                        <Area type="monotone" dataKey="usage" fill="url(#usage-modal-single-gradient)" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} activeDot={{ r: 4 }} cursor="pointer" />
+                        <Area
+                          type={areaCurveType}
+                          dataKey="usage"
+                          fill="url(#usage-modal-single-gradient)"
+                          stroke="hsl(var(--primary))"
+                          strokeWidth={2}
+                          dot={false}
+                          activeDot={false}
+                          isAnimationActive={isAnimationActive}
+                          cursor="pointer"
+                        />
                       )}
+                      {brushWindow && <ChartBrush startIndex={brushWindow.startIndex} endIndex={brushWindow.endIndex} />}
                     </AreaChart>
                   ) : (
-                    <BarChart data={processedChartData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }} onClick={handleTrafficChartClick}>
+                    <BarChart {...(useAccessibilityLayer ? { accessibilityLayer: true } : {})} data={processedChartData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }} onClick={handleTrafficChartClick}>
                       <CartesianGrid direction={'ltr'} vertical={false} />
-                      <XAxis direction={'ltr'} dataKey="time" tickLine={false} tickMargin={10} axisLine={false} minTickGap={5} interval={xAxisInterval} />
+                      <XAxis direction={'ltr'} dataKey="time" tickLine={false} tickMargin={10} axisLine={false} minTickGap={28} interval={xAxisInterval} />
                       <YAxis
                         direction={'ltr'}
                         tickLine={false}
@@ -844,25 +819,30 @@ const UsageModal = ({ open, onClose, userId }: UsageModalProps) => {
                       />
                       <ChartTooltip cursor={false} content={props => <CustomBarTooltip {...(props as TooltipProps<number, string>)} chartConfig={chartConfig} dir={dir} period={backendPeriod} />} />
                       {allNodesSelected ? (
-                        // All nodes selected for sudo admins - render stacked bars
                         nodeList.map((node, idx) => (
-                          <Bar key={node.id} dataKey={node.name} stackId="a" fill={chartConfig[node.name]?.color || `hsl(var(--chart-${(idx % 5) + 1}))`} radius={SQUARE_STACK_RADIUS} cursor="pointer">
-                            {processedChartData.map(row => (
-                              <Cell key={`${node.id}-${row._period_start}`} {...getCellRadiusProps(getStackedNodeRadius(row, node.name, nodeList))} />
-                            ))}
+                          <Bar
+                            key={node.id}
+                            dataKey={node.name}
+                            stackId="a"
+                            fill={chartConfig[node.name]?.color || `hsl(var(--chart-${(idx % 5) + 1}))`}
+                            radius={SQUARE_STACK_RADIUS}
+                            cursor="pointer"
+                            isAnimationActive={isAnimationActive}
+                          >
+                            {usePerBarRadius &&
+                              processedChartData.map(row => (
+                                <Cell key={`${node.id}-${row._period_start}`} {...getCellRadiusProps(getStackedNodeRadius(row, node.name, nodeList))} />
+                              ))}
                           </Bar>
                         ))
                       ) : (
-                        // Single node selected OR non-sudo admin aggregated data - render single bar
-                        <Bar dataKey="usage" radius={6} cursor="pointer" minPointSize={2}>
-                          {processedChartData.map((_point, index) => (
-                            <Cell key={`cell-${index}`} fill={'hsl(var(--primary))'} />
-                          ))}
-                        </Bar>
+                        <Bar dataKey="usage" radius={6} cursor="pointer" minPointSize={2} fill="hsl(var(--primary))" isAnimationActive={isAnimationActive} />
                       )}
+                      {brushWindow && <ChartBrush startIndex={brushWindow.startIndex} endIndex={brushWindow.endIndex} />}
                     </BarChart>
                   )}
                 </ChartContainer>
+                </>
               )}
             </div>
           </CardContent>
@@ -897,7 +877,7 @@ const UsageModal = ({ open, onClose, userId }: UsageModalProps) => {
         data={selectedData}
         chartConfig={chartConfig}
         period={backendPeriod}
-        allChartData={processedChartData || []}
+        allChartData={processedChartData}
         currentIndex={currentDataIndex}
         onNavigate={handleModalNavigate}
         hideUplinkDownlink={true}

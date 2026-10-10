@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { CoreEditorFormDialog } from '@/features/core-editor/components/shared/core-editor-form-dialog'
-import { RealityScanResult, scanRealityTarget } from '@/service/reality-scan'
+import { RealityScanResult, scanRealityTarget } from '@/service/api'
 import dayjs from '@/lib/dayjs'
 import { dateUtils } from '@/utils/dateFormatter'
 import { cn } from '@/lib/utils'
@@ -216,7 +216,7 @@ function ScanResultDetail({ result }: { result: RealityScanResult }) {
         ) : null}
       </div>
 
-      {result.server_names.length ? (
+      {result.server_names?.length ? (
         <div className="space-y-2">
           <div className="text-muted-foreground text-xs font-medium">{t('coreEditor.realityScan.serverNames', { defaultValue: 'Certificate server names (valid SNIs)' })}</div>
           <div className="flex flex-wrap gap-1.5">

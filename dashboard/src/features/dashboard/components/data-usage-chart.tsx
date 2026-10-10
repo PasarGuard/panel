@@ -1,3 +1,5 @@
+import DenseChartAreaHint from '@/components/charts/dense-chart-area-hint'
+import PeriodSelector from '@/components/charts/period-selector'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { ChartConfig, ChartContainer, ChartTooltip } from '@/components/ui/chart'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -5,7 +7,16 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useChartViewType } from '@/hooks/use-chart-view-type'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { Period, useGetUsersUsage, UserUsageStat, UserUsageStatsList } from '@/service/api'
-import { formatPeriodLabelForPeriod, formatTooltipDate, getChartQueryRangeFromShortcut, getXAxisIntervalForShortcut } from '@/utils/chart-period-utils'
+import {
+  CHART_PERIOD_OVERRIDE_AUTO,
+  type ChartPeriodOverride,
+  formatPeriodLabelForPeriod,
+  formatTooltipDate,
+  getChartQueryRangeFromShortcut,
+  getChartXAxisInterval,
+  resolvePeriodOverride,
+} from '@/utils/chart-period-utils'
+import { getChartRenderFlags } from '@/utils/chart-performance'
 import { formatBytes } from '@/utils/formatByte'
 import { SearchXIcon, TrendingDown, TrendingUp } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
@@ -34,19 +45,23 @@ const PERIOD_KEYS = [
   { key: '5d', period: 'day' as Period, amount: 5, unit: 'day' },
   { key: '7d', period: 'day' as Period, amount: 7, unit: 'day' },
   { key: '14d', period: 'day' as Period, amount: 14, unit: 'day' },
-  { key: '30d', period: 'day' as Period, amount: 30, unit: 'day' },
   { key: '1m', period: 'day' as Period, amount: 1, unit: 'month' },
   { key: '3m', period: 'day' as Period, amount: 3, unit: 'month' },
   { key: 'all', period: 'day' as Period, allTime: true },
 ]
 
-const transformUsageData = (apiData: { stats: UserUsageStat[] }, period: Period, locale: string = 'en') => {
+const transformUsageData = (
+  apiData: { stats: UserUsageStat[] },
+  period: Period,
+  locale: string = 'en',
+  rangeHint?: { hours?: number; days?: number; months?: number; allTime?: boolean },
+) => {
   if (!apiData?.stats || !Array.isArray(apiData.stats)) {
     return []
   }
 
   return apiData.stats.map((stat: UserUsageStat) => {
-    const displayLabel = formatPeriodLabelForPeriod(stat.period_start, period, locale)
+    const displayLabel = formatPeriodLabelForPeriod(stat.period_start, period, locale, rangeHint)
 
     return {
       date: displayLabel,
@@ -123,16 +138,25 @@ const DataUsageChart = ({ adminUsername }: { adminUsername?: string }) => {
     [t],
   )
   const [periodOption, setPeriodOption] = useState<PeriodOption>(() => PERIOD_OPTIONS.find(opt => opt.value === '7d') ?? PERIOD_OPTIONS[0])
+  const [periodOverride, setPeriodOverride] = useState<ChartPeriodOverride>(CHART_PERIOD_OVERRIDE_AUTO)
 
   // Update periodOption when PERIOD_OPTIONS changes (e.g., language change)
   useEffect(() => {
     setPeriodOption(prev => {
       const currentOption = PERIOD_OPTIONS.find(opt => opt.value === prev.value)
-      return currentOption || prev
+      if (currentOption) return currentOption
+      // Map removed aliases like 30d → 1m
+      if (prev.value === '30d') {
+        return PERIOD_OPTIONS.find(opt => opt.value === '1m') ?? PERIOD_OPTIONS.find(opt => opt.value === '7d') ?? PERIOD_OPTIONS[0]
+      }
+      return PERIOD_OPTIONS.find(opt => opt.value === '7d') ?? PERIOD_OPTIONS[0]
     })
   }, [PERIOD_OPTIONS])
 
-  const queryRange = useMemo(() => getChartQueryRangeFromShortcut(periodOption.value, new Date(), { minuteForOneHour: true }), [periodOption.value])
+  const queryRange = useMemo(
+    () => getChartQueryRangeFromShortcut(periodOption.value, new Date(), { minuteForOneHour: true, periodOverride: resolvePeriodOverride(periodOverride) }),
+    [periodOption.value, periodOverride],
+  )
   const activePeriod = queryRange.period
 
   const usersUsageParams = useMemo(
@@ -161,7 +185,16 @@ const DataUsageChart = ({ adminUsername }: { adminUsername?: string }) => {
     }
   }
 
-  const chartData = useMemo(() => transformUsageData({ stats: statsArr }, activePeriod, i18n.language), [statsArr, activePeriod, i18n.language])
+  const chartData = useMemo(
+    () =>
+      transformUsageData({ stats: statsArr }, activePeriod, i18n.language, {
+        hours: periodOption.hours,
+        days: periodOption.days,
+        months: periodOption.months,
+        allTime: periodOption.allTime,
+      }),
+    [statsArr, activePeriod, i18n.language, periodOption],
+  )
 
   const trend = useMemo(() => {
     if (!chartData || chartData.length < 2) return null
@@ -182,33 +215,47 @@ const DataUsageChart = ({ adminUsername }: { adminUsername?: string }) => {
     return formatBytes(totalBytes, 2)
   }, [chartData])
 
-  const xAxisInterval = useMemo(() => getXAxisIntervalForShortcut(periodOption.value, chartData.length, { minuteForOneHour: true }), [periodOption.value, chartData.length])
+  const xAxisInterval = useMemo(
+    () =>
+      getChartXAxisInterval({
+        dataLength: chartData.length,
+        period: activePeriod,
+        shortcut: periodOption.value,
+        periodOverride: resolvePeriodOverride(periodOverride),
+      }),
+    [activePeriod, chartData.length, periodOption.value, periodOverride],
+  )
+
+  const { isAnimationActive, usePerBarRadius, areaCurveType } = useMemo(() => getChartRenderFlags(chartData.length), [chartData.length])
 
   return (
     <Card className="flex h-full flex-col justify-between overflow-hidden">
-      <CardHeader className="flex flex-row items-start justify-between gap-2">
-        <div>
+      <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0 flex-1">
           <CardTitle>{t('admins.used.traffic', { defaultValue: 'Traffic Usage' })}</CardTitle>
           <CardDescription className="mt-1.5">{t('admins.monitor.traffic', { defaultValue: 'Monitor admin traffic usage over time' })}</CardDescription>
         </div>
-        <Select
-          value={periodOption.value}
-          onValueChange={val => {
-            const found = PERIOD_OPTIONS.find(opt => opt.value === val)
-            if (found) setPeriodOption(found)
-          }}
-        >
-          <SelectTrigger className={`h-8 w-32 text-xs${dir === 'rtl' ? 'text-right' : ''}`} dir={dir}>
-            <SelectValue>{periodOption.label}</SelectValue>
-          </SelectTrigger>
-          <SelectContent dir={dir}>
-            {PERIOD_OPTIONS.map(opt => (
-              <SelectItem key={opt.value} value={opt.value} className={dir === 'rtl' ? 'text-right' : ''}>
-                {opt.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="flex w-full items-center gap-2 sm:w-auto sm:shrink-0">
+          <Select
+            value={periodOption.value}
+            onValueChange={val => {
+              const found = PERIOD_OPTIONS.find(opt => opt.value === val)
+              if (found) setPeriodOption(found)
+            }}
+          >
+            <SelectTrigger className={`h-9 min-w-0 flex-1 px-2 py-0 text-xs sm:w-32 sm:flex-none ${dir === 'rtl' ? 'text-right' : ''}`} dir={dir}>
+              <SelectValue>{periodOption.label}</SelectValue>
+            </SelectTrigger>
+            <SelectContent dir={dir}>
+              {PERIOD_OPTIONS.map(opt => (
+                <SelectItem key={opt.value} value={opt.value} className={dir === 'rtl' ? 'text-right' : ''}>
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <PeriodSelector value={periodOverride} onValueChange={setPeriodOverride} />
+        </div>
       </CardHeader>
       <CardContent className="flex flex-1 flex-col justify-center overflow-hidden p-2 sm:p-6">
         {isLoading ? (
@@ -237,93 +284,96 @@ const DataUsageChart = ({ adminUsername }: { adminUsername?: string }) => {
             {t('admins.monitor.no_traffic', { defaultValue: 'No traffic data available' })}
           </div>
         ) : (
-          <ChartContainer config={chartConfig} dir="ltr" className="h-[240px] w-full overflow-x-auto sm:h-[320px]">
-            {chartViewType === 'area' ? (
-              <AreaChart
-                data={chartData}
-                margin={{ top: 16, right: 4, left: 4, bottom: 8 }}
-                onMouseMove={state => {
-                  const idx = typeof state.activeTooltipIndex === 'number' ? state.activeTooltipIndex : null
-                  if (idx !== activeIndex) {
-                    setActiveIndex(idx)
+          <>
+            <DenseChartAreaHint pointCount={chartData.length} />
+            <ChartContainer config={chartConfig} dir="ltr" className="h-[240px] w-full overflow-x-auto sm:h-[320px]">
+              {chartViewType === 'area' ? (
+                <AreaChart data={chartData} margin={{ top: 16, right: 4, left: 4, bottom: 8 }}>
+                  <defs>
+                    <linearGradient id="trafficAreaGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.35} />
+                      <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0.05} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                  <XAxis
+                    dataKey="date"
+                    tickLine={false}
+                    tickMargin={10}
+                    axisLine={false}
+                    angle={0}
+                    textAnchor="middle"
+                    height={30}
+                    interval={xAxisInterval}
+                    minTickGap={28}
+                    tick={{ fontSize: 10 }}
+                    tickFormatter={(value: string): string => value || ''}
+                  />
+                  <YAxis
+                    dataKey={'traffic'}
+                    tickLine={false}
+                    tickMargin={4}
+                    axisLine={false}
+                    width={40}
+                    domain={[0, 'auto']}
+                    tickFormatter={val => formatBytes(val, 0, true).toString()}
+                    tick={{ fontSize: 10 }}
+                  />
+                  <ChartTooltip cursor={false} content={<CustomBarTooltip period={activePeriod} />} />
+                  <Area
+                    dataKey="traffic"
+                    type={areaCurveType}
+                    stroke="hsl(var(--primary))"
+                    strokeWidth={2}
+                    fill="url(#trafficAreaGradient)"
+                    dot={false}
+                    activeDot={false}
+                    isAnimationActive={isAnimationActive}
+                  />
+                </AreaChart>
+              ) : (
+                <BarChart
+                  data={chartData}
+                  margin={{ top: 16, right: 4, left: 4, bottom: 8 }}
+                  barCategoryGap="10%"
+                  onMouseMove={
+                    usePerBarRadius
+                      ? state => {
+                          const idx = typeof state.activeTooltipIndex === 'number' ? state.activeTooltipIndex : null
+                          if (idx !== activeIndex) {
+                            setActiveIndex(idx)
+                          }
+                        }
+                      : undefined
                   }
-                }}
-                onMouseLeave={() => {
-                  setActiveIndex(null)
-                }}
-              >
-                <defs>
-                  <linearGradient id="trafficAreaGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.35} />
-                    <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0.05} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                <XAxis
-                  dataKey="date"
-                  tickLine={false}
-                  tickMargin={10}
-                  axisLine={false}
-                  angle={0}
-                  textAnchor="middle"
-                  height={30}
-                  interval={xAxisInterval}
-                  minTickGap={5}
-                  tick={{ fontSize: 10 }}
-                  tickFormatter={(value: string): string => value || ''}
-                />
-                <YAxis
-                  dataKey={'traffic'}
-                  tickLine={false}
-                  tickMargin={4}
-                  axisLine={false}
-                  width={40}
-                  domain={[0, 'auto']}
-                  tickFormatter={val => formatBytes(val, 0, true).toString()}
-                  tick={{ fontSize: 10 }}
-                />
-                <ChartTooltip cursor={false} content={<CustomBarTooltip period={activePeriod} />} />
-                <Area dataKey="traffic" type="monotone" stroke="hsl(var(--primary))" strokeWidth={2} fill="url(#trafficAreaGradient)" dot={false} />
-              </AreaChart>
-            ) : (
-              <BarChart
-                data={chartData}
-                margin={{ top: 16, right: 4, left: 4, bottom: 8 }}
-                barCategoryGap="10%"
-                onMouseMove={state => {
-                  const idx = typeof state.activeTooltipIndex === 'number' ? state.activeTooltipIndex : null
-                  if (idx !== activeIndex) {
-                    setActiveIndex(idx)
-                  }
-                }}
-                onMouseLeave={() => {
-                  setActiveIndex(null)
-                }}
-              >
-                <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                <XAxis
-                  dataKey="date"
-                  tickLine={false}
-                  tickMargin={10}
-                  axisLine={false}
-                  angle={0}
-                  textAnchor="middle"
-                  height={30}
-                  interval={xAxisInterval}
-                  minTickGap={5}
-                  tick={{ fontSize: 10 }}
-                  tickFormatter={(value: string): string => value || ''}
-                />
-                <YAxis dataKey={'traffic'} tickLine={false} tickMargin={4} axisLine={false} width={40} tickFormatter={val => formatBytes(val, 0, true).toString()} tick={{ fontSize: 10 }} />
-                <ChartTooltip cursor={false} content={<CustomBarTooltip period={activePeriod} />} />
-                <Bar dataKey="traffic" radius={6} maxBarSize={48}>
-                  {chartData.map((_, index: number) => (
-                    <Cell key={`cell-${index}`} fill={index === activeIndex ? 'hsl(var(--muted-foreground))' : 'hsl(var(--primary))'} />
-                  ))}
-                </Bar>
-              </BarChart>
-            )}
-          </ChartContainer>
+                  onMouseLeave={usePerBarRadius ? () => setActiveIndex(null) : undefined}
+                >
+                  <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                  <XAxis
+                    dataKey="date"
+                    tickLine={false}
+                    tickMargin={10}
+                    axisLine={false}
+                    angle={0}
+                    textAnchor="middle"
+                    height={30}
+                    interval={xAxisInterval}
+                    minTickGap={28}
+                    tick={{ fontSize: 10 }}
+                    tickFormatter={(value: string): string => value || ''}
+                  />
+                  <YAxis dataKey={'traffic'} tickLine={false} tickMargin={4} axisLine={false} width={40} tickFormatter={val => formatBytes(val, 0, true).toString()} tick={{ fontSize: 10 }} />
+                  <ChartTooltip cursor={false} content={<CustomBarTooltip period={activePeriod} />} />
+                  <Bar dataKey="traffic" radius={6} maxBarSize={48} fill="hsl(var(--primary))" isAnimationActive={isAnimationActive}>
+                    {usePerBarRadius &&
+                      chartData.map((_, index: number) => (
+                        <Cell key={`cell-${index}`} fill={index === activeIndex ? 'hsl(var(--muted-foreground))' : 'hsl(var(--primary))'} />
+                      ))}
+                  </Bar>
+                </BarChart>
+              )}
+            </ChartContainer>
+          </>
         )}
       </CardContent>
       <CardFooter className="mt-0 flex-col items-start gap-2 pt-2 text-sm sm:pt-4">

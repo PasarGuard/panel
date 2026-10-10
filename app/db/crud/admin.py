@@ -1,9 +1,9 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import and_, case, delete, func, not_, select, update
 from sqlalchemy.exc import InvalidRequestError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import joinedload, selectinload
 from sqlalchemy.orm.exc import DetachedInstanceError
 
 from app.db.crud.general import (
@@ -13,11 +13,11 @@ from app.db.crud.general import (
     to_utc_for_filter,
 )
 from app.db.models import (
-    APIKey,
     Admin,
     AdminNotificationReminder,
     AdminRole,
     AdminUsageLogs,
+    APIKey,
     NodeUserUsage,
     ReminderType,
     User,
@@ -149,7 +149,7 @@ async def get_admin(
 ) -> Admin:
     stmt = select(Admin).where(Admin.username == username)
     if load_role:
-        stmt = stmt.options(selectinload(Admin.role))
+        stmt = stmt.options(joinedload(Admin.role))
     admin = (await db.execute(stmt)).unique().scalar_one_or_none()
     if admin:
         await _load_admin_non_role_attrs(admin, load_users=load_users, load_usage_logs=load_usage_logs)
@@ -187,10 +187,9 @@ async def update_admin(db: AsyncSession, db_admin: Admin, modified_admin: AdminM
     Returns:
         Admin: The updated admin object.
     """
-    if modified_admin.status is not None:
-        if modified_admin.status != db_admin.status:
-            db_admin.status = modified_admin.status
-            db_admin.last_status_change = datetime.now(timezone.utc)
+    if modified_admin.status is not None and modified_admin.status != db_admin.status:
+        db_admin.status = modified_admin.status
+        db_admin.last_status_change = datetime.now(UTC)
     if modified_admin.data_limit is not None:
         db_admin.data_limit = modified_admin.data_limit if modified_admin.data_limit > 0 else None
         # Recompute limited/active based on new data_limit — never touch disabled
@@ -203,10 +202,10 @@ async def update_admin(db: AsyncSession, db_admin: Admin, modified_admin: AdminM
             new_status = AdminStatus.limited if should_be_limited else AdminStatus.active
             if db_admin.status != new_status:
                 db_admin.status = new_status
-                db_admin.last_status_change = datetime.now(timezone.utc)
+                db_admin.last_status_change = datetime.now(UTC)
     if modified_admin.password is not None:
         db_admin.hashed_password = await hash_password(modified_admin.password)
-        db_admin.password_reset_at = datetime.now(timezone.utc)
+        db_admin.password_reset_at = datetime.now(UTC)
     if modified_admin.role_id is not None:
         db_admin.role_id = modified_admin.role_id
     if modified_admin.permission_overrides is not None:
@@ -259,7 +258,7 @@ async def get_admin_by_id(
 ) -> Admin:
     stmt = select(Admin).where(Admin.id == id)
     if load_role:
-        stmt = stmt.options(selectinload(Admin.role))
+        stmt = stmt.options(joinedload(Admin.role))
     admin = (await db.execute(stmt)).unique().scalar_one_or_none()
     if admin:
         await _load_admin_non_role_attrs(admin, load_users=load_users, load_usage_logs=load_usage_logs)
@@ -380,6 +379,13 @@ async def get_admins(
     if load_role:
         stmt = stmt.options(selectinload(Admin.role))
 
+    # For non-compact path, eagerly load users and usage_logs to avoid N+1 queries
+    if not compact:
+        stmt = stmt.options(
+            selectinload(Admin.users),
+            selectinload(Admin.usage_logs),
+        )
+
     # Apply filters consistently
     if params.ids:
         stmt = stmt.where(Admin.id.in_(params.ids))
@@ -406,9 +412,8 @@ async def get_admins(
         for admin, total_users, reseted_usage in rows:
             admins.append(build_admin_details(admin, total_users=total_users, reseted_usage=reseted_usage))
     else:
-        admins = list((await db.execute(stmt)).scalars().all())
-        for admin in admins:
-            await load_admin_attrs(admin, load_role=load_role)
+        # users, usage_logs, and role already eagerly loaded via selectinload above
+        admins = list((await db.execute(stmt)).unique().scalars().all())
 
     if return_with_count:
         return admins, total, active, disabled, limited
@@ -525,20 +530,54 @@ async def get_usage_percentage_reached_admins(
     return list((await db.execute(stmt)).scalars().all())
 
 
-async def bulk_create_admin_notification_reminders(db: AsyncSession, reminder_data: list[dict]) -> None:
+async def bulk_create_admin_notification_reminders(db: AsyncSession, reminder_data: list[dict]) -> list[dict]:
     """Bulk-insert admin reminder rows after successful sends."""
     if not reminder_data:
-        return
+        return []
 
-    db.add_all([AdminNotificationReminder(**data) for data in reminder_data])
-    await db.commit()
+    # De-duplicate input list to preserve only the first occurrence
+    seen_input = set()
+    unique_reminder_data = []
+    for data in reminder_data:
+        key = (data["admin_id"], data["type"], data["threshold"])
+        if key not in seen_input:
+            seen_input.add(key)
+            unique_reminder_data.append(data)
+
+    admin_ids = {d["admin_id"] for d in unique_reminder_data}
+    types = {d["type"] for d in unique_reminder_data}
+
+    # Lock the Admin rows to serialize reminder checks/creation for these admins
+    await db.execute(select(Admin.id).where(Admin.id.in_(list(admin_ids))).with_for_update())
+
+    # Fetch existing reminders that match these criteria
+    stmt = select(AdminNotificationReminder).where(
+        AdminNotificationReminder.admin_id.in_(list(admin_ids)),
+        AdminNotificationReminder.type.in_(list(types)),
+    )
+    result = await db.execute(stmt)
+    existing = {(r.admin_id, r.type, r.threshold) for r in result.scalars().all()}
+
+    to_insert = []
+    inserted_data = []
+    for data in unique_reminder_data:
+        key = (data["admin_id"], data["type"], data["threshold"])
+        if key not in existing:
+            to_insert.append(AdminNotificationReminder(**data))
+            inserted_data.append(data)
+
+    if to_insert:
+        db.add_all(to_insert)
+        await db.commit()
+
+    return inserted_data
 
 
 async def create_admin_notification_reminder_if_absent(
     db: AsyncSession,
     admin_id: int,
     reminder_type: ReminderType,
-    threshold: int | None = None,
+    threshold: int = 0,
 ) -> bool:
     """Create an admin reminder row and return whether this call claimed it."""
     existing_reminder_id = await db.scalar(
@@ -615,7 +654,7 @@ async def update_admin_status(db: AsyncSession, db_admin: Admin, new_status: Adm
         Admin: The updated admin object.
     """
     db_admin.status = new_status
-    db_admin.last_status_change = datetime.now(timezone.utc)
+    db_admin.last_status_change = datetime.now(UTC)
     await db.commit()
     await db.refresh(db_admin)
     await load_admin_attrs(db_admin)
@@ -644,7 +683,7 @@ async def reset_admin_usage(db: AsyncSession, db_admin: Admin) -> Admin:
     # After reset, used_traffic = 0 so the admin is no longer limited
     if db_admin.status == AdminStatus.limited:
         db_admin.status = AdminStatus.active
-        db_admin.last_status_change = datetime.now(timezone.utc)
+        db_admin.last_status_change = datetime.now(UTC)
 
     await db.commit()
     await db.refresh(db_admin)
@@ -743,7 +782,7 @@ async def get_admin_usages(
 async def update_owner_password(db: AsyncSession, owner: Admin, new_password: str) -> Admin:
     """Reset the owner's password. All DB work stays in the CRUD layer."""
     owner.hashed_password = await hash_password(new_password)
-    owner.password_reset_at = datetime.now(timezone.utc)
+    owner.password_reset_at = datetime.now(UTC)
     await db.commit()
     await db.refresh(owner)
     await load_admin_attrs(owner)

@@ -1,6 +1,7 @@
 import json
 from asyncio import Lock
 from copy import deepcopy
+from typing import ClassVar
 
 import nats
 from aiocache import cached
@@ -15,18 +16,18 @@ from app.db import GetDB
 from app.db.crud.core import get_core_configs
 from app.db.models import CoreConfig, CoreType
 from app.models.core import CoreListQuery
-from app.nats import is_nats_enabled
+from app.nats import is_multi_worker, is_nats_enabled
 from app.nats.client import setup_nats_kv
+from app.nats.kv_cas import is_kv_miss
 from app.nats.message import MessageTopic
 from app.nats.router import router
 from app.utils.logger import get_logger
-from config import runtime_settings
 
 
 class CoreManager:
     STATE_CACHE_KEY = "state"
     KV_BUCKET_NAME = "core_manager_state"
-    CORE_CLASSES = {
+    CORE_CLASSES: ClassVar[dict] = {
         CoreType.xray: XRayConfig,
         CoreType.wg: WireGuardConfig,
     }
@@ -37,7 +38,7 @@ class CoreManager:
         self._inbounds: list[str] = []
         self._inbounds_by_tag = {}
         self._nats_enabled = is_nats_enabled()
-        self._multi_worker = runtime_settings.role.requires_nats
+        self._multi_worker = is_multi_worker()
         self._nc: nats.NATS | None = None
         self._js: JetStreamContext | None = None
         self._kv: KeyValue | None = None
@@ -61,9 +62,8 @@ class CoreManager:
         if not self._kv:
             return
         state = await self._snapshot_state()
-        # State is already serialized by _snapshot_state; just encode
-        state_bytes = json.dumps(state).encode("utf-8")
         try:
+            state_bytes = json.dumps(state).encode("utf-8")
             await self._kv.put(self.STATE_CACHE_KEY, state_bytes)
         except Exception as exc:
             self._logger.warning(f"Failed to persist core state to NATS KV: {exc}")
@@ -80,7 +80,7 @@ class CoreManager:
             # Deserialize state using JSON
             try:
                 cached_state = json.loads(entry.value.decode("utf-8"))
-            except json.JSONDecodeError, UnicodeDecodeError:
+            except (json.JSONDecodeError, UnicodeDecodeError):
                 self._logger.warning("Failed to decode CoreManager state as JSON, ignoring...")
                 return False
 
@@ -102,6 +102,9 @@ class CoreManager:
             await self.get_inbounds_by_tag.cache.clear()
             return True
         except Exception as exc:
+            if is_kv_miss(exc):
+                self._logger.debug("Core manager state cache is empty")
+                return False
             self._logger.error(f"Error loading core state from cache: {exc}")
             return False
 
@@ -205,12 +208,23 @@ class CoreManager:
         core_configs, _ = await get_core_configs(db, CoreListQuery())
         cores: dict[int, AbstractCore] = {}
         for config in core_configs:
-            core_config = self.validate_core(
-                config.config,
-                config.exclude_inbound_tags,
-                config.fallbacks_inbound_tags,
-                config.type,
-            )
+            try:
+                core_config = self.validate_core(
+                    config.config,
+                    config.exclude_inbound_tags,
+                    config.fallbacks_inbound_tags,
+                    config.type,
+                )
+            except Exception as exc:
+                # Broken DB cores must not take down the process (restart loop).
+                self._logger.error(
+                    "Skipping broken core id=%s name=%r type=%s: %s",
+                    config.id,
+                    getattr(config, "name", None),
+                    config.type,
+                    exc,
+                )
+                continue
             cores[config.id] = core_config
 
         async with self._lock:
@@ -233,12 +247,21 @@ class CoreManager:
 
     async def _update_core_local(self, db_core_config: CoreConfig, core_config: AbstractCore | None = None):
         if core_config is None:
-            core_config = self.validate_core(
-                db_core_config.config,
-                db_core_config.exclude_inbound_tags,
-                db_core_config.fallbacks_inbound_tags,
-                db_core_config.type,
-            )
+            try:
+                core_config = self.validate_core(
+                    db_core_config.config,
+                    db_core_config.exclude_inbound_tags,
+                    db_core_config.fallbacks_inbound_tags,
+                    db_core_config.type,
+                )
+            except Exception as exc:
+                self._logger.error(
+                    "Skipping broken core id=%s type=%s: %s",
+                    getattr(db_core_config, "id", None),
+                    getattr(db_core_config, "type", None),
+                    exc,
+                )
+                return
 
         async with self._lock:
             self._cores.update({db_core_config.id: core_config})

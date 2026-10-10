@@ -15,10 +15,10 @@ import { toast } from 'sonner'
 import { CopyButton } from '@/components/common/copy-button'
 import { bytesToFormGigabytes } from '@/utils/formatByte'
 import { normalizeDatePickerValueForEditForm } from '@/utils/userEditDateUtils'
-import SubscriptionModal from '@/features/subscriptions/dialogs/subscription-modal'
+import SubscriptionModal from '@/features/subscriptions/dialogs/subscription-modal.lazy'
 import SetOwnerModal from '@/features/users/dialogs/set-owner-modal'
-import UsageModal from '@/features/users/dialogs/usage-modal'
-import UserModal from '@/features/users/dialogs/user-modal'
+import UsageModal from '@/features/users/dialogs/usage-modal.lazy'
+import UserModal from '@/features/users/dialogs/user-modal.lazy'
 import { UserHwidsModal } from '@/features/users/dialogs/user-hwids-modal'
 import { UserSubscriptionClientsModal } from '@/features/users/dialogs/user-subscription-clients-modal'
 import UserAllIPsModal from '@/features/users/dialogs/user-all-ips-modal'
@@ -326,6 +326,8 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
   const canReadAllUsers = hasScopeAll(currentAdmin, 'users', 'read')
   const canDeleteUsers = hasPermission(currentAdmin, 'users', 'delete')
   const topDropdownActionCount = (canUpdateUsers ? 1 : 0) + (canUpdateAllUsers ? 1 : 0) + (canReadAllUsers ? 1 : 0)
+  // Edit is desktop-only (`hidden md:flex`); don't count it for the mobile top separator.
+  const mobileTopDropdownActionCount = (canUpdateAllUsers ? 1 : 0) + (canReadAllUsers ? 1 : 0)
   const middleDropdownActionCount = (canUpdateUsers ? 2 : 0) + 3 + (canUpdateUsers && user.next_plan ? 1 : 0) + (canReadAllUsers ? 1 : 0)
   const destructiveDropdownActionCount = canDeleteUsers ? 1 : 0
 
@@ -442,10 +444,9 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
   }
 
   const handleCopyUserId = async () => {
-    try {
-      await navigator.clipboard.writeText(String(user.id))
+    if (await copy(String(user.id))) {
       toast.success(t('usersTable.copied', { defaultValue: 'Copied to clipboard' }))
-    } catch (error) {
+    } else {
       toast.error(t('copyFailed', { defaultValue: 'Failed to copy content' }))
     }
   }
@@ -726,7 +727,9 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
                 </DropdownMenuItem>
               )}
 
-              {topDropdownActionCount > 0 && middleDropdownActionCount > 0 && <DropdownMenuSeparator />}
+              {topDropdownActionCount > 0 && middleDropdownActionCount > 0 && (
+                <DropdownMenuSeparator className={mobileTopDropdownActionCount === 0 ? 'hidden md:block' : undefined} />
+              )}
 
               {/* Revoke Sub */}
               {canUpdateUsers && (

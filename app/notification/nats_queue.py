@@ -85,7 +85,7 @@ class NatsNotificationQueue(NotificationQueue):
             try:
                 await self._js.publish(self.SUBJECT, data)
                 return
-            except (asyncio.TimeoutError, nats_errors.TimeoutError) as err:
+            except (TimeoutError, nats_errors.TimeoutError) as err:
                 if attempt == PUBLISH_TIMEOUT_MAX_ATTEMPTS - 1:
                     raise
 
@@ -113,7 +113,7 @@ class NatsNotificationQueue(NotificationQueue):
                 except Exception:
                     await msg.nak()  # Negative ack on parse error
                     return None
-        except asyncio.TimeoutError:
+        except TimeoutError:
             return None
         except Exception:
             return None
@@ -132,6 +132,6 @@ class InMemoryNotificationQueue(NotificationQueue):
         if timeout:
             try:
                 return await asyncio.wait_for(self.q.get(), timeout=timeout)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 return None
         return await self.q.get()

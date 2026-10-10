@@ -9,14 +9,14 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import x25519
 
 
-def get_cert_SANs(cert: bytes):
+def get_cert_SANs(cert: bytes) -> list[str]:
+    """Return SAN values as strings (IP SANs are ipaddress objects)."""
     cert = x509.load_pem_x509_certificate(cert, default_backend())
-    san_list = []
+    san_list: list[str] = []
     for extension in cert.extensions:
         if isinstance(extension.value, x509.SubjectAlternativeName):
-            san = extension.value
-            for name in san:
-                san_list.append(name.value)
+            for name in extension.value:
+                san_list.append(str(name.value))
     return san_list
 
 
@@ -24,6 +24,39 @@ def add_base64_padding(b64_string: str) -> str:
     """Adds missing Base64 padding if necessary."""
     missing_padding = len(b64_string) % 4
     return b64_string + ("=" * (4 - missing_padding)) if missing_padding else b64_string
+
+
+MLDSA65_SEED_LENGTH = 32
+MLDSA65_VERIFY_LENGTH = 1952  # FIPS 204 ML-DSA-65 public key
+
+
+def _decode_urlsafe_b64(value: str) -> bytes:
+    try:
+        return base64.urlsafe_b64decode(add_base64_padding(value.strip()))
+    except (ValueError, binascii.Error) as exc:
+        raise ValueError("Invalid Base64 encoding.") from exc
+
+
+def validate_mldsa65_seed(seed_b64: str) -> str:
+    """Validate REALITY mldsa65Seed (32-byte URL-safe Base64, no padding)."""
+    seed = seed_b64.strip()
+    if not seed:
+        raise ValueError("Invalid mldsa65Seed.")
+    seed_bytes = _decode_urlsafe_b64(seed)
+    if len(seed_bytes) != MLDSA65_SEED_LENGTH:
+        raise ValueError(f"Invalid mldsa65Seed length. Must be {MLDSA65_SEED_LENGTH} bytes after decoding.")
+    return seed
+
+
+def validate_mldsa65_verify(verify_b64: str) -> str:
+    """Validate REALITY mldsa65Verify (1952-byte URL-safe Base64, no padding)."""
+    verify = verify_b64.strip()
+    if not verify:
+        raise ValueError("Invalid mldsa65Verify.")
+    verify_bytes = _decode_urlsafe_b64(verify)
+    if len(verify_bytes) != MLDSA65_VERIFY_LENGTH:
+        raise ValueError(f"Invalid mldsa65Verify length. Must be {MLDSA65_VERIFY_LENGTH} bytes after decoding.")
+    return verify
 
 
 def get_x25519_public_key(private_key_b64: str) -> str:

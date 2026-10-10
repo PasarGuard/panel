@@ -1,6 +1,6 @@
 import asyncio
 import json
-from pathlib import Path
+import logging
 
 from alembic.command import upgrade
 from alembic.config import Config
@@ -79,9 +79,20 @@ def run_migrations_sync():
         alembic_cfg = Config("alembic.ini")
         alembic_cfg.set_main_option("sqlalchemy.url", sync_db_url)
 
-        with create_engine(sync_db_url).begin() as connection:
-            alembic_cfg.attributes["connection"] = connection
-            upgrade(alembic_cfg, "head")
+        # Alembic's fileConfig disables pre-existing application loggers. Keep
+        # migration setup from making later log assertions depend on test order.
+        logger_states = {
+            logger: logger.disabled
+            for logger in logging.root.manager.loggerDict.values()
+            if isinstance(logger, logging.Logger)
+        }
+        try:
+            with create_engine(sync_db_url).begin() as connection:
+                alembic_cfg.attributes["connection"] = connection
+                upgrade(alembic_cfg, "head")
+        finally:
+            for logger, disabled in logger_states.items():
+                logger.disabled = disabled
         print("[migrations] Migrations completed successfully")
         return True  # Migrations ran successfully
     except Exception as e:
@@ -103,16 +114,6 @@ async def create_tables():
 
 
 if TEST_FROM == "local":
-    if IS_SQLITE:
-        try:
-            database_file = Path(DATABASE_URL.partition("///")[2].split("?", 1)[0])
-            for suffix in ("", "-shm", "-wal"):
-                try:
-                    database_file.with_name(f"{database_file.name}{suffix}").unlink()
-                except FileNotFoundError:
-                    pass
-        except Exception:
-            pass
     run_migrations()
 
 

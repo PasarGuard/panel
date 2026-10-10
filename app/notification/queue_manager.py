@@ -1,10 +1,10 @@
 import asyncio
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
 from app.nats import is_nats_enabled
-from app.notification.nats_queue import NatsNotificationQueue, InMemoryNotificationQueue, NotificationQueue
+from app.notification.nats_queue import InMemoryNotificationQueue, NatsNotificationQueue, NotificationQueue
 from config import nats_settings, runtime_settings
 
 
@@ -13,8 +13,8 @@ class TelegramNotification(BaseModel):
 
     type: Literal["telegram"] = Field(default="telegram")
     message: str
-    chat_id: Optional[int] = Field(default=None)
-    topic_id: Optional[int] = Field(default=None)
+    chat_id: int | None = Field(default=None)
+    topic_id: int | None = Field(default=None)
     tries: int = Field(default=0)
 
 
@@ -93,7 +93,7 @@ async def shutdown_queue(queue: NotificationQueue):
         if queue._nc and not queue._nc.is_closed:
             try:
                 await asyncio.wait_for(queue._nc.close(), timeout=3)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 # Don't block shutdown if NATS is slow to close
                 pass
             except Exception:
@@ -116,7 +116,7 @@ def get_webhook_queue() -> NotificationQueue:
     return webhook_queue_instance
 
 
-async def enqueue_telegram(message: str, chat_id: Optional[int] = None, topic_id: Optional[int] = None) -> None:
+async def enqueue_telegram(message: str, chat_id: int | None = None, topic_id: int | None = None) -> None:
     """Add a Telegram notification to the queue"""
     notification = TelegramNotification(message=message, chat_id=chat_id, topic_id=topic_id)
     await get_queue().enqueue(notification.model_dump())

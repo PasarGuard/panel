@@ -2,8 +2,7 @@ from io import BytesIO
 from urllib.parse import urlparse
 
 from aiogram import F, Router
-from aiogram.types import BufferedInputFile
-from aiogram.types import Message
+from aiogram.types import BufferedInputFile, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.settings import ConfigFormat

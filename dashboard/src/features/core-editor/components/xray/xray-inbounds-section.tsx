@@ -17,28 +17,35 @@ import { CoreEditorFormDialog } from '@/features/core-editor/components/shared/c
 import { TcpHeaderObfuscationForm } from '@/features/core-editor/components/shared/tcp-header-obfuscation-form'
 import { VlessAdvancedGenerationModal } from '@/features/core-editor/components/shared/vless-advanced-generation-modal'
 import { isBooleanParityField, isJsonRawMessageField, transportParityFieldLabel, XrayParityFormControl } from '@/features/core-editor/components/shared/xray-parity-form-control'
-import { pruneSockoptObject, XrayStreamSockoptInboundAccordion } from '@/features/core-editor/components/shared/xray-stream-sockopt-editor'
 import { XrayStreamFinalmaskInboundAccordion } from '@/features/core-editor/components/shared/xray-stream-finalmask-editor'
+import { pruneSockoptObject, XrayStreamSockoptInboundAccordion } from '@/features/core-editor/components/shared/xray-stream-sockopt-editor'
 import { InboundFallbacksEditor } from '@/features/core-editor/components/xray/inbound-fallbacks-editor'
+import { RealityScanDialog } from '@/features/core-editor/components/xray/reality-scan-dialog'
 import { useSectionHeaderAddPulseEffect, type SectionHeaderAddPulse } from '@/features/core-editor/hooks/use-section-header-add-pulse'
 import { useXrayPersistModifyGuard } from '@/features/core-editor/hooks/use-xray-persist-modify-guard'
-import { createInboundDialogSchema, realityInboundZodTriggerFieldNames } from '@/features/core-editor/kit/inbound-dialog-schema'
+import {
+  createInboundDialogSchema,
+  INBOUND_FORM_FIELD_SEC_MLDSA65_SEED,
+  INBOUND_FORM_FIELD_SEC_MLDSA65_VERIFY,
+  realityInboundZodTriggerFieldNames,
+} from '@/features/core-editor/kit/inbound-dialog-schema'
 import { getInboundSecuritySelectOptions, getInboundTransportSelectOptions, transportCompatibleWithReality } from '@/features/core-editor/kit/inbound-form-options'
 import { profileDuplicateTagMessage, profileTagHasDuplicateUsage } from '@/features/core-editor/kit/profile-tag-uniqueness'
 import { remapIndexAfterArrayMove } from '@/features/core-editor/kit/remap-index-after-move'
-import { isPlaceholderTunnelRewriteAddress, normalizeTunnelNetworkForKit } from '@/features/core-editor/kit/sanitize-inbound'
-import { inferParityFieldMode, outboundSettingToString, parseOutboundSettingValue, stringifyJsonFormRecord } from '@/features/core-editor/kit/xray-parity-value'
+import { normalizeTunnelNetworkForKit } from '@/features/core-editor/kit/sanitize-inbound'
+import { coerceVerifyPeerCertByNameList, inferParityFieldMode, outboundSettingToString, parseOutboundSettingValue, stringifyJsonFormRecord } from '@/features/core-editor/kit/xray-parity-value'
 import { useCoreEditorStore } from '@/features/core-editor/state/core-editor-store'
-import { RealityScanDialog } from '@/features/core-editor/components/xray/reality-scan-dialog'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { cn } from '@/lib/utils'
 import {
   buildVlessGenerationOptionsFromInboundForm,
   canGenerateShadowsocksPassword,
+  createDefaultVlessOptions,
   generateMldsa65Keys,
   generateRealityKeyPair,
   generateRealityShortId,
   generateShadowsocksPassword,
+  generateVlessEncryption,
   parseVlessEncryptionMethodTokenFromString,
   SHADOWSOCKS_ENCRYPTION_METHODS,
   VLESS_ENCRYPTION_METHODS,
@@ -46,6 +53,7 @@ import {
   vlessInboundEncryptionRawForForm,
   type VlessBuilderOptions,
 } from '@/lib/xray-generation'
+import { mldsa65PairMatches, validateMldsa65Seed, validateMldsa65Verify } from '@/utils/mldsa65'
 import { generateWireGuardKeyPair, getWireGuardPublicKey } from '@/utils/wireguard'
 import { arrayMove } from '@dnd-kit/sortable'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -53,7 +61,7 @@ import type { Fallback, Inbound, InboundPort, Profile, Security, ShadowsocksMeth
 import { createDefaultInbound, createDefaultInboundForProtocol, getInboundFieldVisibility, getInboundFormCapabilities } from '@pasarguard/xray-config-kit'
 import type { ColumnDef } from '@tanstack/react-table'
 import type { TFunction } from 'i18next'
-import { Cable, Dices, KeyRound, Pencil, Plus, RefreshCcw, Shield, Trash2 } from 'lucide-react'
+import { Cable, Copy, Dices, KeyRound, Pencil, Plus, RefreshCcw, Shield, Trash2 } from 'lucide-react'
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useForm, type Resolver } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -89,6 +97,7 @@ const INBOUND_TLS_BOOLEAN_GRID_KEYS = new Set<string>(['allowInsecure', 'enableS
 
 /** Matches outbound DNS-rules / fallback sub-accordion chrome. */
 const INBOUND_SECURITY_SUBACCORDION_ITEM_CLASS = 'rounded-sm border px-4 [&_[data-state=closed]]:no-underline [&_[data-state=open]]:no-underline'
+const INBOUND_SECURITY_ACTION_GRID_ITEM_CLASS = 'flex w-full min-w-0 self-end'
 
 function securityFieldName(jsonKey: string): string {
   return `${SECURITY_FIELD_PREFIX}${jsonKey}`
@@ -111,7 +120,8 @@ const INBOUND_SECURITY_PARITY_PLACEHOLDER: Readonly<Record<string, string>> = {
   mldsa65Seed: 'ML-DSA-65 seed (PQ REALITY)',
   mldsa65Verify: 'ML-DSA-65 verify public key',
   pinnedPeerCertificateChainSha256: 'SHA256 fingerprints of peer cert chain (base64, one per line)',
-  verifyPeerCertInNames: 'Certificate SAN/CN substring to verify',
+  verifyPeerCertByName: 'Certificate SAN/CN names to verify (comma-separated)',
+  verifyPeerCertInNames: 'Certificate SAN/CN names to verify (comma-separated)',
   echServerKeys: 'ECH server keys (PEM or base64 per Xray)',
   echConfigList: 'ECH ECHConfigList (base64)',
 }
@@ -161,6 +171,9 @@ function getXhttpExtraRecord(transport: Record<string, unknown> | null): Record<
   return extra as Record<string, unknown>
 }
 
+// Predefined sessionIDTable aliases recognized by Xray 26.6.22+.
+const SESSION_ID_TABLE_PRESETS = ['ALPHABET', 'Alphabet', 'BASE36', 'Base62', 'HEX', 'alphabet', 'base36', 'hex', 'number']
+
 const XHTTP_EXTRA_META_KEYS = new Set<string>([
   'headers',
   'xpaddingbytes',
@@ -172,6 +185,10 @@ const XHTTP_EXTRA_META_KEYS = new Set<string>([
   'uplinkhttpmethod',
   'sessionplacement',
   'sessionkey',
+  'sessionidplacement',
+  'sessionidkey',
+  'sessionidtable',
+  'sessionidlength',
   'seqplacement',
   'seqkey',
   'uplinkdataplacement',
@@ -190,6 +207,37 @@ const XHTTP_EXTRA_META_KEYS = new Set<string>([
 
 function isXhttpExtraMetaKey(normalizedKey: string): boolean {
   return XHTTP_EXTRA_META_KEYS.has(normalizedKey)
+}
+
+const XHTTP_META_FALLBACK_BY_KEY: Readonly<Record<string, string>> = {
+  headers: 'headers',
+  xpaddingobfsmode: 'xPaddingObfsMode',
+  xpaddingbytes: 'xPaddingBytes',
+  xpaddingkey: 'xPaddingKey',
+  xpaddingheader: 'xPaddingHeader',
+  xpaddingplacement: 'xPaddingPlacement',
+  xpaddingmethod: 'xPaddingMethod',
+  uplinkhttpmethod: 'uplinkHTTPMethod',
+  sessionplacement: 'sessionPlacement',
+  sessionkey: 'sessionKey',
+  sessionidplacement: 'sessionIDPlacement',
+  sessionidkey: 'sessionIDKey',
+  sessionidtable: 'sessionIDTable',
+  sessionidlength: 'sessionIDLength',
+  seqplacement: 'seqPlacement',
+  seqkey: 'seqKey',
+  uplinkdataplacement: 'uplinkDataPlacement',
+  uplinkdatakey: 'uplinkDataKey',
+  uplinkchunksize: 'uplinkChunkSize',
+  scmaxeachpostbytes: 'scMaxEachPostBytes',
+  scminpostsintervalms: 'scMinPostsIntervalMs',
+  scmaxbufferedposts: 'scMaxBufferedPosts',
+  scstreamupserversecs: 'scStreamUpServerSecs',
+  servermaxheaderbytes: 'serverMaxHeaderBytes',
+  nogrpcheader: 'noGRPCHeader',
+  nosseheader: 'noSSEHeader',
+  xmux: 'xmux',
+  downloadsettings: 'downloadSettings',
 }
 
 function resolveTransportMetaKey(transport: Record<string, unknown> | null, normalizedKey: string, fallback: string): string {
@@ -364,48 +412,58 @@ function kitArgsPreservingListenPort(inbound: Inbound): { tag: string; listen?: 
   return args
 }
 
-function hysteriaSalamanderPasswordForForm(inbound: Inbound): string {
-  if (inbound.protocol !== 'hysteria' || inbound.transport.type !== 'hysteria') return ''
-  const udpmasks = hysteriaUdpmasksForForm(inbound)
-  if (!Array.isArray(udpmasks)) return ''
-  const salamander = udpmasks.find(mask => {
-    if (!mask || typeof mask !== 'object' || Array.isArray(mask)) return false
-    return (mask as { type?: unknown }).type === 'salamander'
-  })
-  if (!salamander || typeof salamander !== 'object' || Array.isArray(salamander)) return ''
-  const settings = (salamander as { settings?: unknown }).settings
-  if (!settings || typeof settings !== 'object' || Array.isArray(settings)) return ''
-  const password = (settings as { password?: unknown }).password
-  return typeof password === 'string' ? password : ''
+type HysteriaSalamanderFormSettings = { password: string; packetSize: string }
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }
 
+/** Prefer `streamAdvanced.finalmask.udp` (Xray canonical); fall back to legacy `transport.udpmasks`. */
 function hysteriaUdpmasksForForm(inbound: Inbound): unknown {
   if (inbound.protocol !== 'hysteria' || inbound.transport.type !== 'hysteria') return undefined
+  const finalmaskUdp = (inbound as { streamAdvanced?: { finalmask?: { udp?: unknown } } }).streamAdvanced?.finalmask?.udp
+  if (Array.isArray(finalmaskUdp)) return finalmaskUdp
   const transportUdpmasks = (inbound.transport as unknown as { udpmasks?: unknown }).udpmasks
-  if (Array.isArray(transportUdpmasks)) return transportUdpmasks
-  return (inbound as { streamAdvanced?: { finalmask?: { udp?: unknown } } }).streamAdvanced?.finalmask?.udp
+  return Array.isArray(transportUdpmasks) ? transportUdpmasks : undefined
 }
 
-function hysteriaUdpmasksWithSalamanderPassword(current: unknown, password: string | undefined): Array<{ type: string; settings?: Record<string, unknown> }> | undefined {
-  const existing = Array.isArray(current) ? current.filter((mask): mask is Record<string, unknown> => Boolean(mask) && typeof mask === 'object' && !Array.isArray(mask)) : []
-  const withoutSalamander = existing.filter(mask => mask.type !== 'salamander')
-  const normalized = password?.trim() ?? ''
-  if (normalized === '') return withoutSalamander.length > 0 ? withoutSalamander.map(mask => ({ ...mask }) as { type: string; settings?: Record<string, unknown> }) : undefined
-  return [...withoutSalamander.map(mask => ({ ...mask }) as { type: string; settings?: Record<string, unknown> }), { type: 'salamander', settings: { password: normalized } }]
+function hysteriaSalamanderSettingsForForm(inbound: Inbound): HysteriaSalamanderFormSettings {
+  const empty: HysteriaSalamanderFormSettings = { password: '', packetSize: '' }
+  if (inbound.protocol !== 'hysteria' || inbound.transport.type !== 'hysteria') return empty
+  const udpmasks = hysteriaUdpmasksForForm(inbound)
+  if (!Array.isArray(udpmasks)) return empty
+  const salamander = udpmasks.find(mask => isPlainRecord(mask) && mask.type === 'salamander')
+  if (!isPlainRecord(salamander) || !isPlainRecord(salamander.settings)) return empty
+  const password = salamander.settings.password
+  const packetSize = salamander.settings.packetSize
+  return {
+    password: typeof password === 'string' ? password : '',
+    packetSize: packetSize === undefined || packetSize === null ? '' : String(packetSize),
+  }
 }
 
-function clearHysteriaFinalmaskUdp(inbound: Inbound): Record<string, unknown> | undefined {
+/** Write Salamander into `streamSettings.finalmask.udp` per Xray docs; clear legacy `transport.udpmasks`. */
+function applyHysteriaSalamanderToStreamAdvanced(inbound: Inbound, next: { password?: string; packetSize?: string } | undefined): Record<string, unknown> | undefined {
   const streamAdvanced = (inbound as { streamAdvanced?: unknown }).streamAdvanced
-  if (!streamAdvanced || typeof streamAdvanced !== 'object' || Array.isArray(streamAdvanced)) return undefined
+  const nextStreamAdvanced = isPlainRecord(streamAdvanced) ? { ...streamAdvanced } : {}
+  const finalmask = isPlainRecord(nextStreamAdvanced.finalmask) ? { ...nextStreamAdvanced.finalmask } : {}
+  const existingUdp = hysteriaUdpmasksForForm(inbound)
+  const currentUdp = Array.isArray(existingUdp) ? existingUdp.filter(isPlainRecord) : []
+  const withoutSalamander = currentUdp.filter(mask => mask.type !== 'salamander').map(mask => ({ ...mask }))
 
-  const nextStreamAdvanced = { ...(streamAdvanced as Record<string, unknown>) }
-  const finalmask = nextStreamAdvanced.finalmask
-  if (!finalmask || typeof finalmask !== 'object' || Array.isArray(finalmask)) return nextStreamAdvanced
+  const password = next?.password?.trim() ?? ''
+  const packetSize = next?.packetSize?.trim() ?? ''
+  if (password === '') {
+    if (withoutSalamander.length === 0) delete finalmask.udp
+    else finalmask.udp = withoutSalamander
+  } else {
+    const settings: Record<string, unknown> = { password }
+    if (packetSize !== '') settings.packetSize = packetSize
+    finalmask.udp = [...withoutSalamander, { type: 'salamander', settings }]
+  }
 
-  const nextFinalmask = { ...(finalmask as Record<string, unknown>) }
-  delete nextFinalmask.udp
-  if (Object.keys(nextFinalmask).length === 0) delete nextStreamAdvanced.finalmask
-  else nextStreamAdvanced.finalmask = nextFinalmask
+  if (Object.keys(finalmask).length === 0) delete nextStreamAdvanced.finalmask
+  else nextStreamAdvanced.finalmask = finalmask
 
   return Object.keys(nextStreamAdvanced).length > 0 ? nextStreamAdvanced : undefined
 }
@@ -491,11 +549,14 @@ function stripHysteriaInboundAuth(ib: Inbound): Inbound {
   if (ib.protocol !== 'hysteria' || ib.transport.type !== 'hysteria') return ib
   const nextTransport = { ...ib.transport } as Record<string, unknown>
   delete nextTransport.auth
+  // Hysteria requires TLS — coerce legacy `none` security.
+  const security = ib.security.type === 'none' ? { type: 'tls' as const, serverName: '' } : ib.security
   return {
     ...ib,
     clients: [],
-    transport: nextTransport as Transport,
-  } as Inbound
+    transport: nextTransport as typeof ib.transport,
+    security,
+  }
 }
 
 function applyInboundEditorCreationDefaults(ib: Inbound): Inbound {
@@ -614,14 +675,12 @@ function tunnelLegacySettingsRecord(inbound: Inbound): Record<string, unknown> {
 function tunnelAddressForForm(inbound: Inbound): string {
   const r = inbound as Record<string, unknown>
   if (typeof r.address === 'string') {
-    const t = r.address.trim()
-    return t !== '' && !isPlaceholderTunnelRewriteAddress(t) ? t : ''
+    return r.address.trim()
   }
   const s = tunnelLegacySettingsRecord(inbound)
   const v = s.rewriteAddress ?? s.address
   if (typeof v === 'string') {
-    const t = v.trim()
-    return t !== '' && !isPlaceholderTunnelRewriteAddress(t) ? v : ''
+    return v.trim()
   }
   return v != null ? String(v) : ''
 }
@@ -699,6 +758,26 @@ function readTunnelPortMapRowsFromInbound(inbound: Inbound): { listenPort: strin
 
 function cloneInbound(inbound: Inbound): Inbound {
   return JSON.parse(JSON.stringify(inbound)) as Inbound
+}
+
+function uniqueCopiedInboundTag(profile: Profile, sourceTag: string): string {
+  const base = String(sourceTag ?? '').trim() || 'inbound'
+  const stem = /-copy(?:-\d+)?$/i.test(base) ? base.replace(/-\d+$/i, '') : `${base}-copy`
+  if (!profileTagHasDuplicateUsage(profile, stem)) return stem
+  for (let n = 2; n < 1000; n += 1) {
+    const candidate = `${stem}-${n}`
+    if (!profileTagHasDuplicateUsage(profile, candidate)) return candidate
+  }
+  return `${stem}-${Date.now()}`
+}
+
+function buildDuplicatedInbound(profile: Profile, source: Inbound): Inbound {
+  const cloned = cloneInbound(source) as Record<string, unknown>
+  cloned.tag = uniqueCopiedInboundTag(profile, String(source.tag ?? ''))
+  if (typeof cloned.port === 'number') {
+    cloned.port = randomInboundPort(profile)
+  }
+  return cloned as Inbound
 }
 
 function getRandomInt(max: number): number {
@@ -912,6 +991,12 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
   const [isGeneratingShadowsocksPassword, setIsGeneratingShadowsocksPassword] = useState(false)
   const [shadowsocksPasswordJustGenerated, setShadowsocksPasswordJustGenerated] = useState(false)
   const [vlessDecryptionJustGenerated, setVlessDecryptionJustGenerated] = useState(false)
+  const [sessionIdTableCustomMode, setSessionIdTableCustomMode] = useState(false)
+
+  useEffect(() => {
+    if (detailOpen) setSessionIdTableCustomMode(false)
+  }, [detailOpen])
+
   const [vlessAdvancedOpen, setVlessAdvancedOpen] = useState(false)
   const [vlessAdvancedSeed, setVlessAdvancedSeed] = useState<VlessBuilderOptions | undefined>(undefined)
   const [isTagAutoGenerated, setIsTagAutoGenerated] = useState(true)
@@ -925,12 +1010,13 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
   const wireguardKitAllowedMigrateKeyRef = useRef<string | null>(null)
   const initialDraftRef = useRef<Inbound | null>(null)
   const initialCapturedRef = useRef(false)
+  const beginAddInboundInFlightRef = useRef(false)
 
   const inbound = useMemo(() => {
     if (!profile) return undefined
-    if (dialogMode === 'add' && draftInbound) return draftInbound
+    if (draftInbound) return draftInbound
     return profile.inbounds[selected]
-  }, [profile, dialogMode, draftInbound, selected])
+  }, [profile, draftInbound, selected])
 
   const visibility = useMemo(() => (inbound ? getInboundFieldVisibility(inbound) : null), [inbound])
   const caps = useMemo(() => getInboundFormCapabilities(), [])
@@ -991,6 +1077,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
       wgMtu: '',
       hysteriaObfsEnabled: 'false',
       hysteriaObfsPassword: '',
+      hysteriaObfsPacketSize: '',
     },
     // `onSubmit`: REALITY rules use `superRefine` on the whole form — with `onTouched`, focusing
     // e.g. Security runs the resolver once and surfaces every REALITY field error at once. With
@@ -1057,13 +1144,14 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
     if (!detailOpen) return
     const p = profileRef.current
     if (!p) return
-    const row = dialogMode === 'add' && draftInbound ? draftInbound : p.inbounds[selected]
+    const row = draftInbound ?? p.inbounds[selected]
     if (!row || row.protocol === 'unmanaged') return
 
     const security = getInboundSecurityRecord(row)
     const sniffing = 'sniffing' in row && row.sniffing && typeof row.sniffing === 'object' && !Array.isArray(row.sniffing) ? (row.sniffing as Record<string, unknown>) : null
     const securityType = security?.type
     const securityOrder = typeof securityType === 'string' ? getInboundSecurityFieldOrder(caps, securityType) : []
+    const hysteriaSalamander = hysteriaSalamanderSettingsForForm(row)
 
     const next: InboundDialogFormValues = {
       protocol: row.protocol,
@@ -1090,14 +1178,15 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
           : '',
       hysteriaMasqueradeStatusCode:
         row.protocol === 'hysteria' && row.transport.type === 'hysteria' && typeof row.transport.masquerade?.statusCode === 'number' ? String(row.transport.masquerade.statusCode) : '',
-      hysteriaObfsEnabled: hysteriaSalamanderPasswordForForm(row) ? 'true' : 'false',
-      hysteriaObfsPassword: hysteriaSalamanderPasswordForForm(row),
+      hysteriaObfsEnabled: hysteriaSalamander.password ? 'true' : 'false',
+      hysteriaObfsPassword: hysteriaSalamander.password,
+      hysteriaObfsPacketSize: hysteriaSalamander.packetSize,
       sniffingEnabled: sniffing?.enabled ? 'true' : 'false',
       sniffingDestOverride: JSON.stringify(parseSniffingDestOverride(sniffing?.destOverride)),
       sniffingMetadataOnly: sniffing?.metadataOnly ? 'true' : 'false',
       sniffingRouteOnly: sniffing?.routeOnly ? 'true' : 'false',
       transport: 'transport' in row && row.transport ? row.transport.type : 'tcp',
-      security: 'security' in row && row.security ? row.security.type : 'none',
+      security: row.protocol === 'hysteria' ? 'tls' : 'security' in row && row.security ? row.security.type : 'none',
       tunName: row.protocol === 'tun' && typeof (row as { name?: unknown }).name === 'string' ? String((row as { name?: unknown }).name) : '',
       tunMtu: row.protocol === 'tun' && typeof (row as { mtu?: unknown }).mtu === 'number' ? String((row as { mtu?: number }).mtu) : '',
       wgSecretKey: row.protocol === 'wireguard' && typeof (row as { secretKey?: unknown }).secretKey === 'string' ? String((row as { secretKey?: unknown }).secretKey) : '',
@@ -1170,7 +1259,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
     if (!detailOpen) return
     const p = profileRef.current
     if (!p) return
-    const row = dialogMode === 'add' && draftInbound ? draftInbound : p.inbounds[selected]
+    const row = draftInbound ?? p.inbounds[selected]
     if (row && isTunnelInboundProtocol(row.protocol)) setTunnelBlankPortMapRows([])
   }, [detailOpen, selected, dialogMode, draftInbound])
 
@@ -1193,11 +1282,13 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
       let network = watchedTransport
       if (watchedProtocol === 'shadowsocks') network = watchedShadowsocksNetwork
 
-      if (network) tag += `${tagSeparator}${network}`
+      if (watchedProtocol === 'hysteria' && network === 'hysteria') tag += ''
+      else if (network) tag += `${tagSeparator}${network}`
       if (watchedSecurity && watchedSecurity !== 'none') tag += `${tagSeparator}${watchedSecurity}`
       if (watchedPort) tag += `${tagSeparator}${watchedPort}`
 
       tag = tag.toUpperCase()
+      tag = tag.replace(',', tagSeparator)
 
       form.setValue('tag', tag)
       patchInbound({ tag })
@@ -1236,20 +1327,45 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
       setBlockAddWhileDraftOpen(true)
       return
     }
-    const created = createDefaultInbound({
-      protocol: 'vless',
-      transport: 'tcp',
-      security: 'none',
-      port: randomInboundPort(profile),
-      clientDefaults: 'empty',
-    })
-    initialDraftRef.current = created
-    setDraftInbound(created)
-    setDialogMode('add')
-    setIsTagAutoGenerated(true)
-    setIsPortAutoGenerated(true)
-    setDetailOpen(true)
-    initialCapturedRef.current = false
+    if (beginAddInboundInFlightRef.current) return
+    beginAddInboundInFlightRef.current = true
+
+    void (async () => {
+      try {
+        let created = createDefaultInbound({
+          protocol: 'vless',
+          transport: 'tcp',
+          security: 'none',
+          port: randomInboundPort(profile),
+          clientDefaults: 'empty',
+        })
+        let encryptionGenerated = false
+
+        try {
+          // Default options use native (lightweight) encryption.
+          const result = await generateVlessEncryption(createDefaultVlessOptions())
+          created = {
+            ...created,
+            encryption: result.x25519.encryption,
+            decryption: result.x25519.decryption,
+          }
+          encryptionGenerated = true
+        } catch {
+          // Open the dialog even if generation fails; user can generate manually.
+        }
+
+        initialDraftRef.current = created
+        setDraftInbound(created)
+        setDialogMode('add')
+        setIsTagAutoGenerated(true)
+        setIsPortAutoGenerated(true)
+        setVlessDecryptionJustGenerated(encryptionGenerated)
+        setDetailOpen(true)
+        initialCapturedRef.current = false
+      } finally {
+        beginAddInboundInFlightRef.current = false
+      }
+    })()
   }, [profile, detailOpen, dialogMode, draftInbound])
 
   useSectionHeaderAddPulseEffect(headerAddPulse, headerAddEpoch, 'inbounds', beginAddInbound)
@@ -1393,16 +1509,8 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
   const updateXhttpMeta = useCallback(
     (normalizedKey: string, value: unknown) => {
       if (inboundTransportType !== 'xhttp') return
-      const fallbackByKey: Record<string, string> = {
-        xpaddingobfsmode: 'xPaddingObfsMode',
-        xpaddingbytes: 'xPaddingBytes',
-        xpaddingkey: 'xPaddingKey',
-        xpaddingheader: 'xPaddingHeader',
-        xpaddingplacement: 'xPaddingPlacement',
-        xpaddingmethod: 'xPaddingMethod',
-      }
       const nextExtra = { ...(xhttpExtra ?? {}) }
-      const fallback = fallbackByKey[normalizedKey] ?? normalizedKey
+      const fallback = XHTTP_META_FALLBACK_BY_KEY[normalizedKey] ?? normalizedKey
       const resolved = resolveTransportMetaKey(xhttpExtra, normalizedKey, fallback)
       if (value === undefined || String(value).trim() === '') delete nextExtra[resolved]
       else nextExtra[resolved] = value
@@ -1411,7 +1519,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
       patch.extra = Object.keys(nextExtra).length > 0 ? nextExtra : undefined
 
       // Clean up any legacy root-level xPadding keys that fail strict schema.
-      for (const [legacyNormalized, legacyFallback] of Object.entries(fallbackByKey)) {
+      for (const [legacyNormalized, legacyFallback] of Object.entries(XHTTP_META_FALLBACK_BY_KEY)) {
         const legacyRootKey = resolveTransportMetaKey(inboundTransport, legacyNormalized, legacyFallback)
         patch[legacyRootKey] = undefined
       }
@@ -1424,24 +1532,16 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
   const updateXhttpMetaBatch = useCallback(
     (updates: Record<string, unknown>) => {
       if (inboundTransportType !== 'xhttp') return
-      const fallbackByKey: Record<string, string> = {
-        xpaddingobfsmode: 'xPaddingObfsMode',
-        xpaddingbytes: 'xPaddingBytes',
-        xpaddingkey: 'xPaddingKey',
-        xpaddingheader: 'xPaddingHeader',
-        xpaddingplacement: 'xPaddingPlacement',
-        xpaddingmethod: 'xPaddingMethod',
-      }
       const nextExtra = { ...(xhttpExtra ?? {}) }
       for (const [normalizedKey, value] of Object.entries(updates)) {
-        const fallback = fallbackByKey[normalizedKey] ?? normalizedKey
+        const fallback = XHTTP_META_FALLBACK_BY_KEY[normalizedKey] ?? normalizedKey
         const resolved = resolveTransportMetaKey(xhttpExtra, normalizedKey, fallback)
         if (value === undefined || String(value).trim() === '') delete nextExtra[resolved]
         else nextExtra[resolved] = value
       }
       const patch: Record<string, unknown> = {}
       patch.extra = Object.keys(nextExtra).length > 0 ? nextExtra : undefined
-      for (const [legacyNormalized, legacyFallback] of Object.entries(fallbackByKey)) {
+      for (const [legacyNormalized, legacyFallback] of Object.entries(XHTTP_META_FALLBACK_BY_KEY)) {
         const legacyRootKey = resolveTransportMetaKey(inboundTransport, legacyNormalized, legacyFallback)
         patch[legacyRootKey] = undefined
       }
@@ -1460,36 +1560,10 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
 
   useEffect(() => {
     if (inboundTransportType !== 'xhttp' || !inboundTransport) return
-    const xhttpMetaFallbacks: Record<string, string> = {
-      headers: 'headers',
-      xpaddingobfsmode: 'xPaddingObfsMode',
-      xpaddingbytes: 'xPaddingBytes',
-      xpaddingkey: 'xPaddingKey',
-      xpaddingheader: 'xPaddingHeader',
-      xpaddingplacement: 'xPaddingPlacement',
-      xpaddingmethod: 'xPaddingMethod',
-      uplinkhttpmethod: 'uplinkHTTPMethod',
-      sessionplacement: 'sessionPlacement',
-      sessionkey: 'sessionKey',
-      seqplacement: 'seqPlacement',
-      seqkey: 'seqKey',
-      uplinkdataplacement: 'uplinkDataPlacement',
-      uplinkdatakey: 'uplinkDataKey',
-      uplinkchunksize: 'uplinkChunkSize',
-      scmaxeachpostbytes: 'scMaxEachPostBytes',
-      scminpostsintervalms: 'scMinPostsIntervalMs',
-      scmaxbufferedposts: 'scMaxBufferedPosts',
-      scstreamupserversecs: 'scStreamUpServerSecs',
-      servermaxheaderbytes: 'serverMaxHeaderBytes',
-      nogrpcheader: 'noGRPCHeader',
-      nosseheader: 'noSSEHeader',
-      xmux: 'xmux',
-      downloadsettings: 'downloadSettings',
-    }
     const nextExtra = { ...(xhttpExtra ?? {}) }
     let changed = false
 
-    for (const [normalizedKey, fallbackKey] of Object.entries(xhttpMetaFallbacks)) {
+    for (const [normalizedKey, fallbackKey] of Object.entries(XHTTP_META_FALLBACK_BY_KEY)) {
       const rootKey = resolveTransportMetaKey(inboundTransport, normalizedKey, fallbackKey)
       const hasRootKey = Object.prototype.hasOwnProperty.call(inboundTransport, rootKey)
       if (!hasRootKey || rootKey === 'extra') continue
@@ -1507,7 +1581,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
 
     const patch: Record<string, unknown> = {}
     patch.extra = Object.keys(nextExtra).length > 0 ? nextExtra : undefined
-    for (const [normalizedKey, fallbackKey] of Object.entries(xhttpMetaFallbacks)) {
+    for (const [normalizedKey, fallbackKey] of Object.entries(XHTTP_META_FALLBACK_BY_KEY)) {
       const rootKey = resolveTransportMetaKey(inboundTransport, normalizedKey, fallbackKey)
       if (Object.prototype.hasOwnProperty.call(inboundTransport, rootKey) && rootKey !== 'extra') {
         patch[rootKey] = undefined
@@ -1586,6 +1660,28 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
     finalizeDetailClose()
   }
 
+  const assertMldsa65PairForCommit = async (): Promise<boolean> => {
+    if (form.getValues('security') !== 'reality') return true
+    const seed = String(form.getValues(INBOUND_FORM_FIELD_SEC_MLDSA65_SEED) ?? '').trim()
+    const verify = String(form.getValues(INBOUND_FORM_FIELD_SEC_MLDSA65_VERIFY) ?? '').trim()
+    if (!seed && !verify) return true
+    if (!seed || !verify) return true // Zod covers verify-without-seed / empty half-pairs
+    if (!validateMldsa65Seed(seed).ok || !validateMldsa65Verify(verify).ok) return true
+
+    const matches = await mldsa65PairMatches(seed, verify)
+    if (matches) {
+      form.clearErrors(INBOUND_FORM_FIELD_SEC_MLDSA65_VERIFY)
+      return true
+    }
+    form.setError(INBOUND_FORM_FIELD_SEC_MLDSA65_VERIFY, {
+      type: 'manual',
+      message: t('coreEditor.inbound.validation.mldsa65PairMismatch', {
+        defaultValue: 'ML-DSA-65 verify does not match the seed. Generate a new pair or paste matching values.',
+      }),
+    })
+    return false
+  }
+
   const commitAddInbound = async () => {
     if (!profile) return
     if (!draftInbound || draftInbound.protocol === 'unmanaged') return
@@ -1608,6 +1704,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
     ]
     const ok = await form.trigger(fields, { shouldFocus: true })
     if (!ok) return
+    if (!(await assertMldsa65PairForCommit())) return
     if (!validateWireguardInboundForCommit(draftInbound)) return
     const insertAt = profile.inbounds.length
     updateXrayProfile(p => ({ ...p, inbounds: [...p.inbounds, draftInbound] }))
@@ -1626,6 +1723,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
       const fields = ['protocol', 'tag', 'port', ...(form.getValues('security') === 'reality' ? realityInboundZodTriggerFieldNames() : [])]
       const ok = await form.trigger(fields, { shouldFocus: true })
       if (!ok) return
+      if (!(await assertMldsa65PairForCommit())) return
     } else if (inbound.protocol !== 'unmanaged' && isTunnelInboundProtocol(inbound.protocol)) {
       const ok = await form.trigger(['protocol', 'tag', 'port', 'tunnelRewriteAddress', 'tunnelRewritePort'], { shouldFocus: true })
       if (!ok) return
@@ -1731,7 +1829,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
       nextInbound = vlessNext as Inbound
     }
 
-    replaceEffectiveInbound(nextInbound)
+    updateXrayProfile(p => replaceInbound(p, selected, nextInbound))
     if ('security' in nextInbound && nextInbound.security) form.setValue('security', nextInbound.security.type)
     if ('transport' in nextInbound && nextInbound.transport) form.setValue('transport', nextInbound.transport.type)
     if (nextInbound.protocol === 'vless') {
@@ -1743,9 +1841,19 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
   }
 
   const replaceEffectiveInbound = (next: Inbound) => {
-    if (dialogMode === 'add' && draftInbound !== null) setDraftInbound(next)
+    if (draftInbound !== null) setDraftInbound(next)
     else updateXrayProfile(p => replaceInbound(p, selected, next))
   }
+
+  // Hysteria requires TLS — upgrade legacy `none` when the inbound dialog is open.
+  useEffect(() => {
+    if (!detailOpen || !inbound || inbound.protocol !== 'hysteria') return
+    if (inbound.security.type !== 'none') return
+    const coerced = stripHysteriaInboundAuth(inbound)
+    replaceEffectiveInbound(coerced)
+    form.setValue('security', 'tls', { shouldValidate: false, shouldDirty: false })
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only coerce when dialog opens / security is none
+  }, [detailOpen, inbound])
 
   function patchInboundSockopt(next: Record<string, unknown> | undefined) {
     if (!inbound || inbound.protocol === 'unmanaged' || inbound.protocol === 'tun') return
@@ -1772,10 +1880,24 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
     const baseRec = { ...(inbound as Record<string, unknown>) }
     const prevSa = (baseRec.streamAdvanced as Record<string, unknown> | undefined) ?? {}
     const sa = { ...prevSa }
-    if (next === undefined) delete sa.finalmask
-    else sa.finalmask = next
+    if (next === undefined) {
+      delete sa.finalmask
+      delete sa.quicParams
+    } else {
+      sa.finalmask = next
+      // The kit importer also exposes finalmask.quicParams as a typed sibling.
+      // Keep that copy in sync because the compiler gives it precedence over finalmask.quicParams.
+      if (isPlainRecord(next.quicParams)) sa.quicParams = { ...next.quicParams }
+      else delete sa.quicParams
+    }
     if (Object.keys(sa).length === 0) delete baseRec.streamAdvanced
     else baseRec.streamAdvanced = sa
+    // Prefer canonical finalmask over legacy hysteria transport.udpmasks.
+    if (inbound.protocol === 'hysteria' && inbound.transport.type === 'hysteria') {
+      const nextTransport = { ...(inbound.transport as unknown as Record<string, unknown>) }
+      delete nextTransport.udpmasks
+      baseRec.transport = nextTransport
+    }
     replaceEffectiveInbound(baseRec as Inbound)
   }
 
@@ -1829,7 +1951,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
       base.network = normalizeTunnelNetworkForKit(base.network)
     }
     const merged = base as Inbound
-    if (dialogMode === 'add' && draftInbound !== null) setDraftInbound(merged)
+    if (draftInbound !== null) setDraftInbound(merged)
     else updateXrayProfile(p => replaceInbound(p, selected, merged))
   }
 
@@ -1945,7 +2067,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
   )
 
   const patchHysteriaServerSettings = useCallback(
-    (patch: { udpIdleTimeout?: number | undefined; masquerade?: Record<string, unknown> | undefined; obfsPassword?: string | undefined }) => {
+    (patch: { udpIdleTimeout?: number | undefined; masquerade?: Record<string, unknown> | undefined; salamander?: { password?: string; packetSize?: string } | undefined }) => {
       if (!inbound || inbound.protocol !== 'hysteria' || inbound.transport.type !== 'hysteria') return
       // Xray Hysteria inbound JSON must keep settings.clients empty and omit hysteriaSettings.auth.
       const nextTransport = { ...inbound.transport } as Record<string, unknown>
@@ -1971,13 +2093,12 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
           else nextTransport.masquerade = mergedMasquerade as NonNullable<typeof nextTransport.masquerade>
         }
       }
-      if ('obfsPassword' in patch) {
-        const currentUdpmasks = nextTransport.udpmasks ?? hysteriaUdpmasksForForm(inbound)
-        const udpmasks = hysteriaUdpmasksWithSalamanderPassword(currentUdpmasks, patch.obfsPassword)
-        if (udpmasks === undefined) delete nextTransport.udpmasks
-        else nextTransport.udpmasks = udpmasks
+      // Salamander lives under streamSettings.finalmask.udp (Xray FinalMask). Drop legacy transport.udpmasks.
+      let nextStreamAdvanced = (inbound as { streamAdvanced?: unknown }).streamAdvanced as Record<string, unknown> | undefined
+      if ('salamander' in patch) {
+        delete nextTransport.udpmasks
+        nextStreamAdvanced = applyHysteriaSalamanderToStreamAdvanced(inbound, patch.salamander)
       }
-      const nextStreamAdvanced = 'obfsPassword' in patch ? clearHysteriaFinalmaskUdp(inbound) : (inbound as { streamAdvanced?: unknown }).streamAdvanced
       patchInbound({
         clients: [],
         transport: nextTransport as Transport,
@@ -2163,6 +2284,14 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
     setVlessAdvancedOpen(true)
   }
 
+  const clearInboundVlessEncryption = () => {
+    form.setValue('encryption', 'none')
+    form.setValue('decryption', '')
+    form.setValue('vlessEncryptionMethod', 'none')
+    setVlessDecryptionJustGenerated(false)
+    patchInbound({ encryption: 'none', decryption: '' } as Partial<Inbound>)
+  }
+
   const generateRealityKeys = async () => {
     try {
       setIsGeneratingRealityKeyPair(true)
@@ -2292,7 +2421,12 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
   const patchSecurity = (patch: Record<string, unknown>) => {
     const security = inbound ? getInboundSecurityRecord(inbound) : null
     if (!security) return
-    const merged = { ...security, ...patch } as Security
+    const merged = { ...security, ...patch } as Record<string, unknown>
+    if ('verifyPeerCertByName' in merged) {
+      const names = coerceVerifyPeerCertByNameList(merged.verifyPeerCertByName)
+      if (names === undefined) delete merged.verifyPeerCertByName
+      else merged.verifyPeerCertByName = names
+    }
     patchInbound({ security: merged } as Partial<Inbound>)
   }
 
@@ -2422,9 +2556,10 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
             setBlockAddWhileDraftOpen(true)
             return
           }
-          setDraftInbound(null)
+          const cloned = cloneInbound(profile.inbounds[rowIndex])
+          setDraftInbound(cloned)
           setDialogMode('edit')
-          setEditOriginalInbound(cloneInbound(profile.inbounds[rowIndex]))
+          setEditOriginalInbound(cloneInbound(cloned))
           setSelected(rowIndex)
           setDetailOpen(true)
         }}
@@ -2442,6 +2577,24 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
           updateXrayProfile(p => ({ ...p, inbounds: arrayMove(p.inbounds, from, to) }))
           setSelected(sel => remapIndexAfterArrayMove(sel, from, to))
         }}
+        getRowActions={(_row, index) => [
+          {
+            key: 'duplicate',
+            label: t('duplicate'),
+            icon: <Copy className="size-4 shrink-0" />,
+            onSelect: () => {
+              updateXrayProfile(p => {
+                const source = p.inbounds[index]
+                if (!source) return p
+                const duplicated = buildDuplicatedInbound(p, source)
+                const next = [...p.inbounds]
+                next.splice(index + 1, 0, duplicated)
+                return { ...p, inbounds: next }
+              })
+              setSelected(index + 1)
+            },
+          },
+        ]}
       />
 
       <CoreEditorFormDialog
@@ -2460,7 +2613,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
             : (editOriginalInbound ?? null)
         }
         getCurrentData={() => {
-          const cur = dialogMode === 'add' ? draftInbound : inbound
+          const cur = draftInbound ?? inbound
           const copy = cur ? JSON.parse(JSON.stringify(cur)) : null
           if (dialogMode === 'add' && copy) {
             if (isTagAutoGenerated) delete copy.tag
@@ -2718,13 +2871,25 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                 )}
 
                 {inbound.protocol === 'vless' && (
-                  <div className="sm:col-span-2">
-                    <LoaderButton type="button" onClick={openInboundVlessGenerator} className="h-10 w-full text-sm font-medium transition-all hover:shadow-md sm:h-11" isLoading={false}>
+                  <div className="flex flex-col gap-2 sm:col-span-2 sm:flex-row">
+                    <LoaderButton type="button" onClick={openInboundVlessGenerator} className="h-10 w-full flex-1 text-sm font-medium transition-all hover:shadow-md sm:h-11" isLoading={false}>
                       <span className="flex items-center gap-2 truncate">
                         {vlessDecryptionJustGenerated && <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-green-500 ring-2 ring-green-500/20" />}
                         {t('coreConfigModal.generateVLESSEncryption')}
                       </span>
                     </LoaderButton>
+                    {vlessInboundEncryptionEnabled(watchedVlessEncryption) && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="h-10 w-full shrink-0 text-sm font-medium sm:h-11 sm:w-auto"
+                        onClick={clearInboundVlessEncryption}
+                        title={t('coreConfigModal.clearVLESSEncryption', { defaultValue: 'Remove encryption' })}
+                      >
+                        <Trash2 className="size-4 text-red-500" />
+                        {t('coreConfigModal.clearVLESSEncryption', { defaultValue: 'Remove encryption' })}
+                      </Button>
+                    )}
                   </div>
                 )}
 
@@ -2979,7 +3144,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                       control={form.control}
                       name="hysteriaUdpIdleTimeout"
                       render={({ field, fieldState }) => (
-                        <FormItem>
+                        <FormItem className="sm:col-span-2">
                           <FormLabel className="text-muted-foreground text-xs font-semibold tracking-wide">
                             {t('coreEditor.inbound.hysteria.udpIdleTimeout', { defaultValue: 'UDP Idle Timeout (seconds)' })}
                           </FormLabel>
@@ -3010,8 +3175,15 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                       control={form.control}
                       name="hysteriaObfsEnabled"
                       render={({ field }) => (
-                        <FormItem className="flex min-h-10 flex-row items-center justify-between gap-3 space-y-0 rounded-md border px-3 py-2">
-                          <FormLabel className="cursor-pointer text-sm font-medium">{t('coreEditor.inbound.hysteria.obfs', { defaultValue: 'Salamander obfuscation' })}</FormLabel>
+                        <FormItem className="flex min-h-10 flex-row items-center justify-between gap-3 space-y-0 rounded-md border px-3 py-2 sm:col-span-2">
+                          <div className="min-w-0 space-y-0.5">
+                            <FormLabel className="cursor-pointer text-sm font-medium">{t('coreEditor.inbound.hysteria.obfs', { defaultValue: 'Salamander obfuscation (FinalMask)' })}</FormLabel>
+                            <p className="text-muted-foreground text-[11px]">
+                              {t('coreEditor.inbound.hysteria.obfsHint', {
+                                defaultValue: 'Writes streamSettings.finalmask.udp salamander. Optional packetSize enables Gecko (max 2048).',
+                              })}
+                            </p>
+                          </div>
                           <FormControl>
                             <Switch
                               checked={field.value === 'true'}
@@ -3019,11 +3191,13 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                                 field.onChange(checked ? 'true' : 'false')
                                 if (!checked) {
                                   form.setValue('hysteriaObfsPassword', '')
-                                  patchHysteriaServerSettings({ obfsPassword: undefined })
+                                  form.setValue('hysteriaObfsPacketSize', '')
+                                  patchHysteriaServerSettings({ salamander: undefined })
                                 } else {
                                   const current = form.getValues('hysteriaObfsPassword') || generatePassword()
+                                  const packetSize = form.getValues('hysteriaObfsPacketSize') || ''
                                   form.setValue('hysteriaObfsPassword', current)
-                                  patchHysteriaServerSettings({ obfsPassword: current })
+                                  patchHysteriaServerSettings({ salamander: { password: current, packetSize } })
                                 }
                               }}
                             />
@@ -3032,37 +3206,68 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                       )}
                     />
                     {form.watch('hysteriaObfsEnabled') === 'true' && (
-                      <FormField
-                        control={form.control}
-                        name="hysteriaObfsPassword"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-muted-foreground text-xs font-semibold tracking-wide">
-                              {t('coreEditor.inbound.hysteria.obfsPassword', { defaultValue: 'Obfs password' })}
-                            </FormLabel>
-                            <FormControl>
-                              <PasswordInput
-                                dir="ltr"
-                                autoComplete="new-password"
-                                className="h-10"
-                                value={field.value ?? ''}
-                                onChange={e => {
-                                  const v = e.target.value
-                                  field.onChange(v)
-                                  patchHysteriaServerSettings({ obfsPassword: v })
-                                }}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                      <div className="grid gap-3 sm:col-span-2 sm:grid-cols-2">
+                        <FormField
+                          control={form.control}
+                          name="hysteriaObfsPassword"
+                          render={({ field }) => (
+                            <FormItem className="min-w-0">
+                              <FormLabel className="text-muted-foreground text-xs font-semibold tracking-wide">
+                                {t('coreEditor.inbound.hysteria.obfsPassword', { defaultValue: 'Salamander password' })}
+                              </FormLabel>
+                              <FormControl>
+                                <PasswordInput
+                                  dir="ltr"
+                                  autoComplete="new-password"
+                                  className="h-10"
+                                  value={field.value ?? ''}
+                                  onChange={e => {
+                                    const v = e.target.value
+                                    field.onChange(v)
+                                    patchHysteriaServerSettings({
+                                      salamander: { password: v, packetSize: form.getValues('hysteriaObfsPacketSize') },
+                                    })
+                                  }}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="hysteriaObfsPacketSize"
+                          render={({ field }) => (
+                            <FormItem className="min-w-0">
+                              <FormLabel className="text-muted-foreground text-xs font-semibold tracking-wide">
+                                {t('coreEditor.inbound.hysteria.obfsPacketSize', { defaultValue: 'Packet size (Gecko)' })}
+                              </FormLabel>
+                              <FormControl>
+                                <Input
+                                  dir="ltr"
+                                  className="h-10"
+                                  placeholder="512-1200"
+                                  value={field.value ?? ''}
+                                  onChange={e => {
+                                    const v = e.target.value
+                                    field.onChange(v)
+                                    patchHysteriaServerSettings({
+                                      salamander: { password: form.getValues('hysteriaObfsPassword'), packetSize: v },
+                                    })
+                                  }}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
                     )}
                     <FormField
                       control={form.control}
                       name="hysteriaMasqueradeType"
                       render={({ field }) => (
-                        <FormItem>
+                        <FormItem className="sm:col-span-2">
                           <FormLabel className="text-muted-foreground text-xs font-semibold tracking-wide">
                             {t('coreEditor.inbound.hysteria.masqueradeType', { defaultValue: 'Masquerade Type' })}
                           </FormLabel>
@@ -3124,55 +3329,169 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                       />
                     )}
                     {hysteriaMasqueradeType === 'proxy' && (
-                      <FormField
-                        control={form.control}
-                        name="hysteriaMasqueradeUrl"
-                        render={({ field }) => (
-                          <FormItem className="sm:col-span-2">
-                            <FormLabel className="text-muted-foreground text-xs font-semibold tracking-wide">{t('coreEditor.inbound.hysteria.masqueradeUrl', { defaultValue: 'URL' })}</FormLabel>
-                            <FormControl>
-                              <Input
-                                dir="ltr"
-                                className="h-10"
-                                value={field.value ?? ''}
-                                onChange={e => {
-                                  const v = e.target.value
-                                  field.onChange(v)
-                                  patchHysteriaServerSettings({ masquerade: { type: 'proxy', url: v } })
-                                }}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                      <>
+                        <FormField
+                          control={form.control}
+                          name="hysteriaMasqueradeUrl"
+                          render={({ field }) => (
+                            <FormItem className="sm:col-span-2">
+                              <FormLabel className="text-muted-foreground text-xs font-semibold tracking-wide">{t('coreEditor.inbound.hysteria.masqueradeUrl', { defaultValue: 'URL' })}</FormLabel>
+                              <FormControl>
+                                <Input
+                                  dir="ltr"
+                                  className="h-10"
+                                  value={field.value ?? ''}
+                                  onChange={e => {
+                                    const v = e.target.value
+                                    field.onChange(v)
+                                    patchHysteriaServerSettings({ masquerade: { type: 'proxy', url: v } })
+                                  }}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <div className="grid gap-3 sm:col-span-2 sm:grid-cols-2">
+                          <FormField
+                            control={form.control}
+                            name="hysteriaMasqueradeRewriteHost"
+                            render={({ field }) => (
+                              <FormItem className="flex min-h-10 flex-row items-center justify-between gap-3 space-y-0 rounded-md border px-3 py-2">
+                                <FormLabel className="cursor-pointer text-sm font-medium">{t('coreEditor.inbound.hysteria.masqueradeRewriteHost', { defaultValue: 'Rewrite Host' })}</FormLabel>
+                                <FormControl>
+                                  <Switch
+                                    checked={field.value === 'true'}
+                                    onCheckedChange={checked => {
+                                      field.onChange(checked ? 'true' : 'false')
+                                      patchHysteriaServerSettings({ masquerade: { type: 'proxy', rewriteHost: checked } })
+                                    }}
+                                  />
+                                </FormControl>
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name="hysteriaMasqueradeInsecure"
+                            render={({ field }) => (
+                              <FormItem className="flex min-h-10 flex-row items-center justify-between gap-3 space-y-0 rounded-md border px-3 py-2">
+                                <FormLabel className="cursor-pointer text-sm font-medium">{t('coreEditor.inbound.hysteria.masqueradeInsecure', { defaultValue: 'Insecure' })}</FormLabel>
+                                <FormControl>
+                                  <Switch
+                                    checked={field.value === 'true'}
+                                    onCheckedChange={checked => {
+                                      field.onChange(checked ? 'true' : 'false')
+                                      patchHysteriaServerSettings({ masquerade: { type: 'proxy', insecure: checked } })
+                                    }}
+                                  />
+                                </FormControl>
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                      </>
                     )}
                     {hysteriaMasqueradeType === 'string' && (
-                      <FormField
-                        control={form.control}
-                        name="hysteriaMasqueradeContent"
-                        render={({ field }) => (
-                          <FormItem className="sm:col-span-2">
-                            <FormLabel className="text-muted-foreground text-xs font-semibold tracking-wide">
-                              {t('coreEditor.inbound.hysteria.masqueradeContent', { defaultValue: 'Content' })}
-                            </FormLabel>
-                            <FormControl>
-                              <Textarea
-                                dir="ltr"
-                                rows={4}
-                                className="text-xs"
-                                value={field.value ?? ''}
-                                onChange={e => {
-                                  const v = e.target.value
-                                  field.onChange(v)
-                                  patchHysteriaServerSettings({ masquerade: { type: 'string', content: v } })
-                                }}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                      <>
+                        <FormField
+                          control={form.control}
+                          name="hysteriaMasqueradeContent"
+                          render={({ field }) => (
+                            <FormItem className="sm:col-span-2">
+                              <FormLabel className="text-muted-foreground text-xs font-semibold tracking-wide">
+                                {t('coreEditor.inbound.hysteria.masqueradeContent', { defaultValue: 'Content' })}
+                              </FormLabel>
+                              <FormControl>
+                                <Textarea
+                                  dir="ltr"
+                                  rows={4}
+                                  className="text-xs"
+                                  value={field.value ?? ''}
+                                  onChange={e => {
+                                    const v = e.target.value
+                                    field.onChange(v)
+                                    patchHysteriaServerSettings({ masquerade: { type: 'string', content: v } })
+                                  }}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="hysteriaMasqueradeHeaders"
+                          render={({ field }) => (
+                            <FormItem className="sm:col-span-2">
+                              <FormLabel className="text-muted-foreground text-xs font-semibold tracking-wide">
+                                {t('coreEditor.inbound.hysteria.masqueradeHeaders', { defaultValue: 'Headers (JSON object)' })}
+                              </FormLabel>
+                              <FormControl>
+                                <Textarea
+                                  dir="ltr"
+                                  rows={3}
+                                  className="font-mono text-xs"
+                                  placeholder='{"key": "value"}'
+                                  value={field.value ?? ''}
+                                  onChange={e => {
+                                    const v = e.target.value
+                                    field.onChange(v)
+                                    const trimmed = v.trim()
+                                    if (trimmed === '') {
+                                      patchHysteriaServerSettings({ masquerade: { type: 'string', headers: undefined } })
+                                      return
+                                    }
+                                    try {
+                                      const parsed = JSON.parse(trimmed) as unknown
+                                      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+                                        patchHysteriaServerSettings({ masquerade: { type: 'string', headers: parsed as Record<string, string> } })
+                                      }
+                                    } catch {
+                                      // Keep typing until JSON is valid.
+                                    }
+                                  }}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="hysteriaMasqueradeStatusCode"
+                          render={({ field }) => (
+                            <FormItem className="sm:col-span-2">
+                              <FormLabel className="text-muted-foreground text-xs font-semibold tracking-wide">
+                                {t('coreEditor.inbound.hysteria.masqueradeStatusCode', { defaultValue: 'Status Code' })}
+                              </FormLabel>
+                              <FormControl>
+                                <Input
+                                  dir="ltr"
+                                  className="h-10"
+                                  inputMode="numeric"
+                                  placeholder="200"
+                                  value={field.value ?? ''}
+                                  onChange={e => {
+                                    const v = e.target.value
+                                    field.onChange(v)
+                                    const trimmed = v.trim()
+                                    if (trimmed === '') {
+                                      patchHysteriaServerSettings({ masquerade: { type: 'string', statusCode: undefined } })
+                                      return
+                                    }
+                                    const parsed = Number(trimmed)
+                                    if (Number.isFinite(parsed)) {
+                                      patchHysteriaServerSettings({ masquerade: { type: 'string', statusCode: parsed } })
+                                    }
+                                  }}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </>
                     )}
                   </>
                 )}
@@ -3205,6 +3524,18 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
 
                             {xPaddingObfsEnabled && (
                               <div className="grid gap-3 sm:grid-cols-2">
+                                <FormItem>
+                                  <FormLabel className="text-xs font-medium">{t('hostsDialog.xhttp.xPaddingBytes', { defaultValue: 'X-Padding Bytes' })}</FormLabel>
+                                  <FormControl>
+                                    <Input
+                                      dir="ltr"
+                                      className="h-10 text-xs"
+                                      value={String(getTransportMetaValue(xhttpExtra, 'xpaddingbytes') ?? '')}
+                                      onChange={e => updateXhttpMeta('xpaddingbytes', e.target.value)}
+                                    />
+                                  </FormControl>
+                                </FormItem>
+
                                 <FormItem>
                                   <FormLabel className="text-xs font-medium">{t('hostsDialog.xhttp.xPaddingKey', { defaultValue: 'X-Padding Key' })}</FormLabel>
                                   <FormControl>
@@ -3273,6 +3604,122 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                           </div>
                         )}
 
+                        {inboundTransportType === 'xhttp' &&
+                          (() => {
+                            const sessionPlacementValue = String(getTransportMetaValue(xhttpExtra, 'sessionidplacement') ?? getTransportMetaValue(xhttpExtra, 'sessionplacement') ?? '')
+                            const sessionKeyValue = String(getTransportMetaValue(xhttpExtra, 'sessionidkey') ?? getTransportMetaValue(xhttpExtra, 'sessionkey') ?? '')
+                            const placementKey = 'sessionidplacement'
+                            const placementOtherKey = 'sessionplacement'
+                            const keyKey = 'sessionidkey'
+                            const keyOtherKey = 'sessionkey'
+                            return (
+                              <div className="grid gap-3 sm:col-span-2 sm:grid-cols-2">
+                                <FormItem>
+                                  <FormLabel className="text-xs font-medium">{t('hostsDialog.xhttp.sessionPlacement', { defaultValue: 'Session Placement' })}</FormLabel>
+                                  <Select
+                                    value={sessionPlacementValue === '' ? '__default' : sessionPlacementValue}
+                                    onValueChange={v => {
+                                      const value = v === '__default' ? '' : v
+                                      updateXhttpMetaBatch({ [placementKey]: value, [placementOtherKey]: undefined })
+                                    }}
+                                  >
+                                    <FormControl>
+                                      <SelectTrigger className="h-10">
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                      <SelectItem value="__default">{t('coreEditor.parityUi.selectDefault', { defaultValue: 'Default' })}</SelectItem>
+                                      <SelectItem value="path">path</SelectItem>
+                                      <SelectItem value="header">header</SelectItem>
+                                      <SelectItem value="cookie">cookie</SelectItem>
+                                      <SelectItem value="query">query</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </FormItem>
+
+                                <FormItem>
+                                  <FormLabel className="text-xs font-medium">{t('hostsDialog.xhttp.sessionKey', { defaultValue: 'Session Key' })}</FormLabel>
+                                  <FormControl>
+                                    <Input dir="ltr" className="h-10 text-xs" value={sessionKeyValue} onChange={e => updateXhttpMetaBatch({ [keyKey]: e.target.value, [keyOtherKey]: undefined })} />
+                                  </FormControl>
+                                </FormItem>
+                              </div>
+                            )
+                          })()}
+
+                        {inboundTransportType === 'xhttp' &&
+                          (() => {
+                            const sessionIdTableValue = String(getTransportMetaValue(xhttpExtra, 'sessionidtable') ?? '')
+                            const isPresetTable = SESSION_ID_TABLE_PRESETS.includes(sessionIdTableValue)
+                            const showCustomTable = sessionIdTableCustomMode || (sessionIdTableValue !== '' && !isPresetTable)
+                            const tableSelectValue = showCustomTable ? '__custom' : sessionIdTableValue === '' ? '__default' : sessionIdTableValue
+                            const sessionIdLengthValue = String(getTransportMetaValue(xhttpExtra, 'sessionidlength') ?? '')
+                            return (
+                              <div className="space-y-3 rounded-lg border px-3 py-2 sm:col-span-2">
+                                <div className="grid gap-3 sm:grid-cols-2">
+                                  <FormItem>
+                                    <FormLabel className="text-xs font-medium">{t('hostsDialog.xhttp.sessionIdTable', { defaultValue: 'Session ID Table' })}</FormLabel>
+                                    <Select
+                                      value={tableSelectValue}
+                                      onValueChange={v => {
+                                        if (v === '__default') {
+                                          setSessionIdTableCustomMode(false)
+                                          updateXhttpMeta('sessionidtable', undefined)
+                                        } else if (v === '__custom') {
+                                          setSessionIdTableCustomMode(true)
+                                          updateXhttpMeta('sessionidtable', '')
+                                        } else {
+                                          setSessionIdTableCustomMode(false)
+                                          updateXhttpMeta('sessionidtable', v)
+                                        }
+                                      }}
+                                    >
+                                      <FormControl>
+                                        <SelectTrigger className="h-10">
+                                          <SelectValue />
+                                        </SelectTrigger>
+                                      </FormControl>
+                                      <SelectContent>
+                                        <SelectItem value="__default">{t('coreEditor.parityUi.selectDefault', { defaultValue: 'Default' })}</SelectItem>
+                                        {SESSION_ID_TABLE_PRESETS.map(preset => (
+                                          <SelectItem key={preset} value={preset}>
+                                            {preset}
+                                          </SelectItem>
+                                        ))}
+                                        <SelectItem value="__custom">{t('hostsDialog.xhttp.customValue', { defaultValue: 'Custom' })}</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                    {showCustomTable && (
+                                      <FormControl>
+                                        <Input
+                                          className="mt-2 h-10 text-xs"
+                                          dir="ltr"
+                                          value={sessionIdTableValue}
+                                          onChange={e => updateXhttpMeta('sessionidtable', e.target.value)}
+                                          placeholder={t('hostsDialog.xhttp.sessionIdTableCustomPlaceholder', { defaultValue: 'Enter custom characters (ASCII)' })}
+                                        />
+                                      </FormControl>
+                                    )}
+                                  </FormItem>
+
+                                  <FormItem>
+                                    <FormLabel className="text-xs font-medium">{t('hostsDialog.xhttp.sessionIdLength', { defaultValue: 'Session ID Length' })}</FormLabel>
+                                    <FormControl>
+                                      <Input
+                                        dir="ltr"
+                                        className="h-10 text-xs"
+                                        value={sessionIdLengthValue}
+                                        onChange={e => updateXhttpMeta('sessionidlength', e.target.value)}
+                                        placeholder={t('hostsDialog.xhttp.sessionIdLengthPlaceholder', { defaultValue: 'e.g. 22-22' })}
+                                      />
+                                    </FormControl>
+                                  </FormItem>
+                                </div>
+                              </div>
+                            )
+                          })()}
+
                         {transportSettingsFieldOrder.map((jsonKey: string) => {
                           const def = caps.transportSettingsFieldDefinitions[inboundTransportType]?.[jsonKey]
                           if (!def) return null
@@ -3290,6 +3737,12 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                             normalizedTransportKey === 'xpaddingheader' ||
                             normalizedTransportKey === 'xpaddingplacement' ||
                             normalizedTransportKey === 'xpaddingmethod' ||
+                            normalizedTransportKey === 'sessionplacement' ||
+                            normalizedTransportKey === 'sessionkey' ||
+                            normalizedTransportKey === 'sessionidplacement' ||
+                            normalizedTransportKey === 'sessionidkey' ||
+                            normalizedTransportKey === 'sessionidtable' ||
+                            normalizedTransportKey === 'sessionidlength' ||
                             normalizedTransportKey === 'extra'
                           if (inboundTransportType === 'xhttp' && isXhttpCustomManagedField) return null
                           const isXPaddingAdvancedField =
@@ -3445,7 +3898,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                               next = createDefaultInbound({
                                 protocol: 'hysteria',
                                 ...baseArgs,
-                                security: security === 'reality' ? 'tls' : security,
+                                security: 'tls',
                                 clientDefaults: 'empty',
                               })
                               break
@@ -3822,7 +4275,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                           const wide = inferParityFieldMode(def) !== 'scalar'
                           const isBoolean = isBooleanParityField(def)
                           const isReality = inboundSecurityType === 'reality'
-                          const securityFieldFullWidth = wide || isBoolean || jsonKey === 'xver' || jsonKey === 'serverName' || jsonKey === 'serverNames'
+                          const securityFieldFullWidth = wide || isBoolean || jsonKey === 'xver' || jsonKey === 'serverName' || jsonKey === 'serverNames' || (isReality && jsonKey === 'fingerprint')
 
                           return (
                             <Fragment key={jsonKey}>
@@ -4010,7 +4463,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                                 </div>
                               )}
                               {isReality && jsonKey === 'fingerprint' && (
-                                <div className="sm:col-span-2">
+                                <div className="w-full min-w-0 space-y-2 sm:col-span-2">
                                   <LoaderButton
                                     type="button"
                                     onClick={() => void handleGenerateMldsa65()}
@@ -4020,10 +4473,16 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                                   >
                                     <span className="flex items-center gap-2 truncate">{t('coreConfigModal.generateMldsa65')}</span>
                                   </LoaderButton>
+                                  <p className="text-muted-foreground text-xs leading-relaxed">
+                                    {t('coreConfigModal.mldsa65DestCertHint', {
+                                      defaultValue:
+                                        'Optional. Requires a matching seed+verify pair. The REALITY target should use a large (typically RSA) certificate — ECDSA targets often fail silently with no useful client/server logs.',
+                                    })}
+                                  </p>
                                 </div>
                               )}
                               {isReality && jsonKey === 'target' && (
-                                <div className="sm:col-span-2">
+                                <div className={INBOUND_SECURITY_ACTION_GRID_ITEM_CLASS}>
                                   <LoaderButton
                                     type="button"
                                     variant="outline"
@@ -5345,8 +5804,6 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
           toast.success(t('coreConfigModal.vlessEncryptionGenerated'))
         }}
       />
-
-
 
       <RealityScanDialog open={isRealityScanOpen} onOpenChange={setIsRealityScanOpen} initialTarget={realityScanTarget} />
 

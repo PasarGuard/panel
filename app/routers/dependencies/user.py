@@ -1,7 +1,14 @@
 from fastapi import Query
 
 from app.models.stats import Period
-from app.models.user import ExpiredUsersQuery, UserListQuery, UserSimpleListQuery, UsersUsageQuery, UserUsageQuery
+from app.models.user import (
+    ExpiredUsersQuery,
+    UserListQuery,
+    UserSimpleListQuery,
+    UsersUsageBreakdownQuery,
+    UsersUsageQuery,
+    UserUsageQuery,
+)
 
 from ._common import make_query_dependency, query_param
 
@@ -16,6 +23,7 @@ get_user_list_query = make_query_dependency(
         "owner": Query(None, alias="admin"),
         "admin_ids": Query(None, alias="admin_ids"),
         "group_ids": Query(None, alias="group"),
+        "no_group": Query(False),
         "status": Query(None),
         "sort": query_param(str | None, None),
         "proxy_id": Query(None),
@@ -63,6 +71,19 @@ get_users_usage_query = make_query_dependency(
         "start": Query(None, examples=["2024-01-01T00:00:00+03:30"]),
         "end": Query(None, examples=["2024-01-31T23:59:59+03:30"]),
         "owner": Query(None, alias="admin"),
+    },
+)
+get_users_usage_breakdown_query = make_query_dependency(
+    UsersUsageBreakdownQuery,
+    field_overrides={
+        "period": Query(Period.hour),
+        "node_id": Query(None),
+        "group_by_node": Query(False),
+        "start": Query(None, examples=["2024-01-01T00:00:00+03:30"]),
+        "end": Query(None, examples=["2024-01-31T23:59:59+03:30"]),
+        "owner": Query(None, alias="admin"),
+        "core_id": Query(None),
+        "group_by_admin": Query(False),
     },
 )
 get_expired_users_query = make_query_dependency(

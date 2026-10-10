@@ -196,7 +196,7 @@ export function CodeEditorPanel({
 
   if (!enableFullscreen) {
     return (
-      <div className={cn('bg-background relative flex flex-col overflow-hidden rounded-lg border', className)} dir="ltr">
+      <div className={cn('bg-background relative flex flex-col overflow-hidden rounded-lg border', embeddedContainerClassName, className)} dir="ltr">
         <div className="relative min-h-0 flex-1" style={{ minHeight: 0 }}>
           {renderEditor()}
         </div>

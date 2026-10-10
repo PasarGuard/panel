@@ -1,11 +1,11 @@
 from enum import Enum
 
-from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.filters.callback_data import CallbackData
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from app.models.user import UsernameGenerationStrategy
 from app.telegram.keyboards.admin import AdminPanel, AdminPanelAction
-from app.telegram.keyboards.base import CancelKeyboard, CancelAction
+from app.telegram.keyboards.base import CancelAction, CancelKeyboard
 from app.telegram.utils.texts import Button as Texts
 
 

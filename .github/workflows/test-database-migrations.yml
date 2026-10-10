@@ -153,12 +153,10 @@ jobs:
             - name: Check Migrations
               run: make check-migrations
 
-            - name: Run Tests (multi-worker)
-              run: |
-                  SCHEDULER_JOBSTORE_URL=sqlite:///./node-scheduler.db ROLE=node uv run python node_worker.py &
-                  SCHEDULER_JOBSTORE_URL=sqlite:///./scheduler.db ROLE=scheduler uv run python scheduler_worker.py &
-                  sleep 5
-                  make test
+            - name: Run Tests (multi-worker all-in-one)
+              env:
+                  ROLE: all-in-one
+              run: make test
 
     test-mysql:
         runs-on: ubuntu-latest
@@ -319,9 +317,7 @@ jobs:
             - name: Check Migrations
               run: make check-migrations
 
-            - name: Run Tests (multi-worker)
-              run: |
-                  SCHEDULER_JOBSTORE_URL=mysql+asyncmy://testuser:testpassword@localhost:3307/testdb ROLE=node uv run python node_worker.py &
-                  SCHEDULER_JOBSTORE_URL=mysql+asyncmy://testuser:testpassword@localhost:3307/testdb ROLE=scheduler uv run python scheduler_worker.py &
-                  sleep 5
-                  make test
+            - name: Run Tests (multi-worker all-in-one)
+              env:
+                  ROLE: all-in-one
+              run: make test

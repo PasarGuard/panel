@@ -1,0 +1,850 @@
+"""NATS user synchronization integration tests. Set NATS_SERVER_BINARY or install nats-server."""
+
+import asyncio
+import contextlib
+import json
+import os
+import shutil
+import socket
+import subprocess
+import sys
+from pathlib import Path
+from types import SimpleNamespace
+from uuid import uuid4
+
+import nats
+import pytest
+import pytest_asyncio
+from nats.js.errors import KeyNotFoundError
+from PasarGuardNodeBridge.common.service_pb2 import User
+
+from app.nats.kv_cleanup import compact_deleted_keys
+from app.nats.kv_watch import KvWatcher, watch_kv
+from app.node.nats_memory import NatsUserSyncStore
+
+
+@pytest_asyncio.fixture(loop_scope="function")
+async def jetstream(tmp_path):
+    binary = os.environ.get("NATS_SERVER_BINARY") or shutil.which("nats-server")
+    if not binary:
+        pytest.skip("Set NATS_SERVER_BINARY to run JetStream integration tests")
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        port = sock.getsockname()[1]
+    process = await asyncio.to_thread(
+        subprocess.Popen,
+        [binary, "-js", "-a", "127.0.0.1", "-p", str(port), "-sd", str(tmp_path / "nats")],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+    )
+    nc = None
+    try:
+        async with asyncio.timeout(10):
+            while True:
+                try:
+                    _reader, writer = await asyncio.open_connection("127.0.0.1", port)
+                    writer.close()
+                    await writer.wait_closed()
+                    break
+                except OSError:
+                    if process.poll() is not None:
+                        raise RuntimeError("Test NATS server exited during startup")
+                    await asyncio.sleep(0.02)
+        url = f"nats://127.0.0.1:{port}"
+        nc = await nats.connect(url)
+        js = nc.jetstream()
+        bucket = "sync_" + uuid4().hex
+        kv = await js.create_key_value(bucket=bucket)
+
+        async def restart():
+            nonlocal process
+            process.terminate()
+            await asyncio.to_thread(process.wait, timeout=10)
+            process = await asyncio.to_thread(
+                subprocess.Popen,
+                process.args,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+            )
+            async with asyncio.timeout(10):
+                while not nc.is_connected or nc.stats["reconnects"] == 0:
+                    await asyncio.sleep(0.02)
+
+        yield SimpleNamespace(nc=nc, js=js, kv=kv, bucket=bucket, process=process, url=url, restart=restart)
+    finally:
+        if nc is not None:
+            await nc.close()
+        process.terminate()
+        await asyncio.to_thread(process.wait, timeout=10)
+
+
+async def wait_for_keys(store, prefix, count, timeout=10):
+    async with asyncio.timeout(timeout):
+        while len(await store._key_index.keys(prefix)) != count:
+            await asyncio.sleep(0.005)
+
+
+async def test_connect_broadcasts_do_not_reload_users_in_four_processes(jetstream):
+    subject = "reconnect." + uuid4().hex
+    workers = []
+    try:
+        for index in range(4):
+            worker = await asyncio.create_subprocess_exec(
+                sys.executable,
+                str(Path(__file__).with_name("node_reconnect_process_worker.py")),
+                jetstream.url,
+                subject,
+                f"worker-{index}",
+                "40",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            workers.append(worker)
+        for worker in workers:
+            async with asyncio.timeout(30):
+                assert (await worker.stdout.readline()).strip() == b"READY"
+        for _ in range(40):
+            await jetstream.nc.publish(
+                subject, json.dumps({"action": "connect", "node_id": 91, "origin": "external"}).encode()
+            )
+        await jetstream.nc.flush()
+        for worker in workers:
+            async with asyncio.timeout(30):
+                stdout, stderr = await worker.communicate()
+            assert worker.returncode == 0, stderr.decode()
+            result = json.loads(stdout)
+            assert result == {"handled": 40, "user_reads": 0, "starts": 0}
+    finally:
+        for worker in workers:
+            if worker.returncode is None:
+                worker.kill()
+                await worker.wait()
+
+
+async def test_sync_recovery_preserves_queued_users_and_active_claims(jetstream, monkeypatch):
+    from unittest.mock import AsyncMock
+
+    import certifi
+    from PasarGuardNodeBridge.controller import Controller, Health
+
+    from app.db.models import NodeStatus
+    from app.jobs import node_checker
+
+    store = NatsUserSyncStore(jetstream.kv)
+    node = Controller(
+        server_ca=certifi.contents(),
+        api_key=str(uuid4()),
+        service_url="https://localhost:1",
+        node_id="91",
+        user_sync_store=store,
+    )
+    worker = asyncio.create_task(asyncio.sleep(60))
+    node._sync_worker_task = worker
+    monkeypatch.setattr(node, "get_lifecycle_state", AsyncMock(return_value=None))
+    monkeypatch.setattr(
+        node,
+        "info",
+        AsyncMock(
+            return_value=SimpleNamespace(
+                started=True,
+                node_version="0.5.4",
+                core_version="26.3.27",
+            )
+        ),
+        raising=False,
+    )
+    monkeypatch.setattr(node_checker, "_sync_recovery_deadlines", {})
+    monkeypatch.setattr(
+        node_checker, "verify_node_backend_health", AsyncMock(return_value=(Health.HEALTHY, None, None))
+    )
+    try:
+        await node.connect("0.5.4", "26.3.27")
+        await store.enqueue_users("91", [User(email=f"user-{index}") for index in range(20)])
+        claimed = await store.claim_users("91", "original-worker", 5, 60)
+        for _ in range(5):
+            await node._increment_user_sync_failure()
+        assert node.requires_hard_reset()
+        revision = (await jetstream.js.stream_info(f"KV_{jetstream.bucket}")).state.last_seq
+        await node_checker.process_node_health_check(
+            SimpleNamespace(id=91, name="slow-node", status=NodeStatus.connected), node
+        )
+        assert not node.requires_hard_reset()
+        assert not worker.done()
+        assert (await jetstream.js.stream_info(f"KV_{jetstream.bucket}")).state.last_seq == revision
+        remaining = await store.claim_users("91", "other-worker", 30, 60)
+        assert {item.user.email for item in claimed + remaining} == {f"user-{index}" for index in range(20)}
+        assert len(claimed + remaining) == 20
+        await store.ack_users("91", [item.token for item in claimed + remaining])
+    finally:
+        worker.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await worker
+        await store.close()
+
+
+@pytest.mark.parametrize("transport", ["grpc", "rest"])
+async def test_restored_queue_retries_and_drains_after_attach(jetstream, monkeypatch, transport):
+    from unittest.mock import AsyncMock
+
+    import certifi
+    from PasarGuardNodeBridge import NodeType
+
+    from app.node.bridge import create_node
+    from app.operation import node as node_operation
+    from config import nats_settings
+
+    monkeypatch.setattr(nats_settings, "node_update_users_batch_size", 100)
+    original = NatsUserSyncStore(jetstream.kv)
+    try:
+        await original.enqueue_users("91", [User(email=f"restored-{index}") for index in range(1200)])
+    finally:
+        await original.close()
+    store = NatsUserSyncStore(jetstream.kv)
+    node = create_node(
+        connection=NodeType(transport),
+        server_ca=certifi.contents(),
+        api_key=str(uuid4()),
+        address="localhost",
+        port=1,
+        api_port=1,
+        node_id="91",
+        user_sync_store=store,
+        sync_lease_seconds=60,
+    )
+    info = SimpleNamespace(started=True, node_version="0.5.4", core_version="26.3.27")
+    monkeypatch.setattr(node, "get_lifecycle_state", AsyncMock(return_value=None))
+    monkeypatch.setattr(node, "info", AsyncMock(return_value=info), raising=False)
+    monkeypatch.setattr(node_operation, "needs_shared_bridge_memory", lambda: True)
+    delivered = []
+    attempts = 0
+
+    async def sync_chunked(users, **kwargs):
+        nonlocal attempts
+        assert 1 <= len(users) <= 100
+        assert kwargs["flush_pending"] is False
+        attempts += 1
+        await asyncio.sleep(0.02)
+        if attempts == 1:
+            return users
+        delivered.extend(user.email for user in users)
+        return []
+
+    monkeypatch.setattr(node, "sync_users_chunked", sync_chunked, raising=False)
+    try:
+        assert not node._work_available.is_set()
+        assert node._sync_worker_task is None
+        assert await node_operation.NodeOperation._attach_if_running(node, "restored-node") is info
+        async with asyncio.timeout(45):
+            while len(delivered) != 1200:
+                await asyncio.sleep(0.02)
+            await wait_for_keys(store, "p.91.", 0)
+            await wait_for_keys(store, "c.91.", 0)
+        assert attempts == 13  # twelve bounded batches plus the failed first attempt
+        assert len(set(delivered)) == 1200
+    finally:
+        await node.disconnect()
+        if hasattr(node, "channel"):
+            node.channel.close()
+        await store.close()
+
+
+async def test_health_poll_recovers_claim_that_expires_after_startup(jetstream, monkeypatch):
+    import time
+    from unittest.mock import AsyncMock
+
+    import certifi
+    from PasarGuardNodeBridge import Health
+    from PasarGuardNodeBridge.controller import Controller
+
+    from app.db.models import NodeStatus
+    from app.jobs import node_checker
+    from app.node import nats_memory
+    from app.operation import node as node_operation
+
+    store = NatsUserSyncStore(jetstream.kv)
+    now = [time.time()]
+    monkeypatch.setattr(nats_memory, "time", SimpleNamespace(time=lambda: now[0]))
+    await store.enqueue_users("93", [User(email="orphan")])
+    assert len(await store.claim_users("93", "departed-worker", 1, 60)) == 1
+    node = Controller(
+        server_ca=certifi.contents(),
+        api_key=str(uuid4()),
+        service_url="https://localhost:1",
+        node_id="93",
+        user_sync_store=store,
+        sync_poll_interval=0.01,
+    )
+    node._worker_idle_timeout = 0.02
+    monkeypatch.setattr(node_operation, "needs_shared_bridge_memory", lambda: True)
+    monkeypatch.setattr(node_checker, "needs_shared_bridge_memory", lambda: True)
+    monkeypatch.setattr(node_checker, "_sync_recovery_deadlines", {})
+    monkeypatch.setattr(
+        node_checker, "verify_node_backend_health", AsyncMock(return_value=(Health.HEALTHY, None, None))
+    )
+    sync = AsyncMock(return_value=[])
+    monkeypatch.setattr(node, "_sync_batch_users", sync, raising=False)
+    try:
+        await node.connect("0.5.4", "26.3.27")
+        await node_operation.NodeOperation._resume_shared_sync(node)
+        await asyncio.wait_for(node._sync_worker_task, timeout=5)
+        sync.assert_not_awaited()
+        now[0] += 61
+        await node_checker.process_node_health_check(
+            SimpleNamespace(id=93, name="restored", status=NodeStatus.connected), node
+        )
+        await asyncio.wait_for(node._sync_worker_task, timeout=5)
+        assert [user.email for user in sync.await_args.args[0]] == ["orphan"]
+        await wait_for_keys(store, "c.93.", 0)
+        await wait_for_keys(store, "p.93.", 0)
+    finally:
+        await node.disconnect()
+        await store.close()
+
+
+@pytest.mark.parametrize("snapshot_only", [False, True])
+async def test_snapshot_pauses_delivery_until_reader_requests_next_batch(jetstream, monkeypatch, snapshot_only):
+    monkeypatch.setattr(KvWatcher, "BATCH_SIZE", 8)
+    expected = {}
+    for number in range(100):
+        key = f"p.1.{number}"
+        await jetstream.kv.put(key, b"value")
+        expected[key] = "DEL" if number % 2 else None
+        if number % 2:
+            await jetstream.kv.delete(key)
+    watcher = await watch_kv(jetstream.kv, ">", snapshot_only=snapshot_only)
+    try:
+        first = await anext(watcher)
+        delivered = (await watcher._snapshot.consumer_info()).delivered.consumer_seq
+        await asyncio.sleep(0.1)
+        assert (await watcher._snapshot.consumer_info()).delivered.consumer_seq == delivered == 8
+        assert watcher._snapshot.pending_msgs == 0
+        actual = {first.key: first.operation}
+        async for entry in watcher:
+            if entry is None:
+                break
+            assert entry.key not in actual
+            actual[entry.key] = entry.operation
+        assert actual == expected
+        info = await jetstream.js.stream_info(f"KV_{jetstream.bucket}")
+        assert info.state.consumer_count == (0 if snapshot_only else 1)
+    finally:
+        await watcher.stop()
+    assert (await jetstream.js.stream_info(f"KV_{jetstream.bucket}")).state.consumer_count == 0
+
+
+async def test_snapshot_to_live_handoff_preserves_concurrent_changes(jetstream, monkeypatch):
+    await jetstream.kv.put("p.1.existing", b"old")
+    subscribe = jetstream.js.subscribe
+    revisions = {}
+
+    async def write_before_live_subscription(*args, **kwargs):
+        revisions["p.1.existing"] = await jetstream.kv.put("p.1.existing", b"new")
+        revisions["p.1.added"] = await jetstream.kv.put("p.1.added", b"new")
+        await jetstream.kv.delete("p.1.existing")
+        return await subscribe(*args, **kwargs)
+
+    monkeypatch.setattr(jetstream.js, "subscribe", write_before_live_subscription)
+    watcher = await watch_kv(jetstream.kv, ">")
+    try:
+        assert (await anext(watcher)).key == "p.1.existing"
+        assert await anext(watcher) is None
+        async with asyncio.timeout(5):
+            entries = [await anext(watcher) for _ in range(2)]
+        assert [(entry.key, entry.operation) for entry in entries] == [
+            ("p.1.added", None),
+            ("p.1.existing", "DEL"),
+        ]
+        # A history-one bucket retains the final delete instead of the
+        # intermediate put. Both keys' latest state must reach the index.
+        assert entries[0].revision == revisions["p.1.added"]
+        assert entries[1].revision > revisions["p.1.existing"]
+    finally:
+        await watcher.stop()
+
+
+async def test_interrupted_snapshot_is_rejected_and_consumer_is_removed(jetstream, monkeypatch):
+    monkeypatch.setattr(KvWatcher, "BATCH_SIZE", 1)
+    for number in range(3):
+        await jetstream.kv.put(f"p.1.{number}", b"value")
+    nc = await nats.connect(jetstream.url, reconnect_time_wait=0.05)
+    watcher = await watch_kv(await nc.jetstream().key_value(jetstream.bucket), ">")
+    try:
+        await anext(watcher)
+        nc._transport.close()
+        async with asyncio.timeout(5):
+            while nc.stats["reconnects"] == 0:
+                await asyncio.sleep(0.02)
+        with pytest.raises(RuntimeError, match="connection changed during KV snapshot"):
+            await anext(watcher)
+        assert (await jetstream.js.stream_info(f"KV_{jetstream.bucket}")).state.consumer_count == 0
+    finally:
+        await watcher.stop()
+        await nc.close()
+
+
+async def test_stopping_partial_snapshot_removes_consumer(jetstream):
+    for number in range(3):
+        await jetstream.kv.put(f"p.1.{number}", b"value")
+    watcher = await watch_kv(jetstream.kv, ">")
+    await anext(watcher)
+    await watcher.stop()
+    assert (await jetstream.js.stream_info(f"KV_{jetstream.bucket}")).state.consumer_count == 0
+
+
+async def test_idle_polls_do_not_create_consumers_or_send_requests(jetstream):
+    stores = [NatsUserSyncStore(jetstream.kv) for _ in range(4)]
+    try:
+        # Seed deletion markers for completed claims.
+        for number in range(300):
+            await jetstream.kv.put(f"c.{number % 8}.{number}", b"{}")
+            await jetstream.kv.delete(f"c.{number % 8}.{number}")
+        for store in stores:
+            assert await store.claim_users("0", "warmup", 10, 30) == []
+        before = await jetstream.js.stream_info(f"KV_{jetstream.bucket}")
+        sent = jetstream.nc.stats["out_msgs"]
+        for _ in range(20):
+            results = await asyncio.gather(
+                *(
+                    store.claim_users(str(node), str(worker), 10, 30)
+                    for worker, store in enumerate(stores)
+                    for node in range(8)
+                )
+            )
+            assert all(result == [] for result in results)
+        assert jetstream.nc.stats["out_msgs"] == sent
+        after = await jetstream.js.stream_info(f"KV_{jetstream.bucket}")
+        assert before.state.consumer_count == after.state.consumer_count == 4
+        assert all(store._key_index._keys == {} for store in stores)
+    finally:
+        await asyncio.gather(*(store.close() for store in stores))
+
+
+async def test_repeated_clear_does_not_replay_old_deletion_markers(jetstream):
+    for number in range(1000):
+        await jetstream.kv.delete(f"c.1.{number}")
+    store = NatsUserSyncStore(jetstream.kv)
+    try:
+        assert await store._key_index.keys("c.1.") == []
+        received = jetstream.nc.stats["in_msgs"]
+        for _ in range(20):
+            await store.clear("1")
+        assert jetstream.nc.stats["in_msgs"] - received < 400
+        assert (await jetstream.js.stream_info(f"KV_{jetstream.bucket}")).state.consumer_count == 1
+    finally:
+        await store.close()
+
+
+async def test_clear_catches_unobserved_writes_and_preserves_other_nodes(jetstream, monkeypatch):
+    gate = asyncio.Event()
+    gate.set()
+    real_watch = watch_kv
+
+    class DelayedWatcher:
+        def __init__(self, watcher):
+            self.watcher = watcher
+
+        def __aiter__(self):
+            return self
+
+        async def __anext__(self):
+            entry = await anext(self.watcher)
+            if entry is not None:
+                await gate.wait()
+            return entry
+
+        async def stop(self):
+            await self.watcher.stop()
+
+    async def delayed_watch(*args, **kwargs):
+        return DelayedWatcher(await real_watch(*args, **kwargs))
+
+    monkeypatch.setattr("app.nats.kv_index.watch_kv", delayed_watch)
+    kv = jetstream.kv
+    for key in ("p.1.cached", "c.1.cached"):
+        await kv.put(key, b"{}")
+    store = NatsUserSyncStore(kv)
+    try:
+        assert await store._key_index.keys("p.1.") == ["p.1.cached"]
+        gate.clear()
+        for key in ("p.1.new", "c.1.new", "p.2.keep"):
+            await kv.put(key, b"{}")
+        await kv.delete("p.1.cached")
+        await kv.put("p.1.cached", b"{}")
+        await store.enqueue_users("1", [User(email="local")])
+        await store.clear("1")
+        for key in ("p.1.cached", "c.1.cached", "p.1.new", "c.1.new", store._pending_key("1", "local")):
+            with pytest.raises(KeyNotFoundError):
+                await kv.get(key)
+        assert (await kv.get("p.2.keep")).value == b"{}"
+        assert (await jetstream.js.stream_info(f"KV_{jetstream.bucket}")).state.consumer_count == 1
+    finally:
+        await store.close()
+
+
+async def test_concurrent_workers_claim_each_update_once(jetstream):
+    stores = [NatsUserSyncStore(jetstream.kv) for _ in range(4)]
+    users = [User(email=f"user{i}", inbounds=["in"]) for i in range(80)]
+    try:
+        await stores[0].enqueue_users("1", users)
+        await asyncio.gather(*(wait_for_keys(store, "p.1.", 80) for store in stores))
+        batches = await asyncio.gather(
+            *(store.claim_users("1", str(worker), 80, 30) for worker, store in enumerate(stores))
+        )
+        emails = [item.user.email for batch in batches for item in batch]
+        assert len(emails) == len(set(emails)) == 80
+        await asyncio.gather(
+            *(store.ack_users("1", [item.token for item in batch]) for store, batch in zip(stores, batches))
+        )
+        for store in stores:
+            await wait_for_keys(store, "p.1.", 0)
+            await wait_for_keys(store, "c.1.", 0)
+            assert await store.claim_users("1", "idle", 80, 30) == []
+    finally:
+        await asyncio.gather(*(store.close() for store in stores))
+
+
+async def test_live_enqueue_and_expired_claim_recovery(jetstream):
+    first = NatsUserSyncStore(jetstream.kv)
+    second = NatsUserSyncStore(jetstream.kv)
+    try:
+        assert await second.claim_users("1", "other", 10, 30) == []
+        await first.enqueue_users("1", [User(email="recover", inbounds=["in"])])
+        await wait_for_keys(second, "p.1.", 1)
+        claimed = await first.claim_users("1", "crashed", 10, 0)
+        assert len(claimed) == 1
+        # The claim lives on the same entry; the other worker sees it as expired and takes it over.
+        async with asyncio.timeout(10):
+            while (await second._key_index.entries("p.1.")).get(first._pending_key("1", "recover")) is None:
+                await asyncio.sleep(0.005)
+        recovered = await second.claim_users("1", "replacement", 10, 30)
+        assert [item.user.email for item in recovered] == ["recover"]
+        assert recovered[0].token != claimed[0].token
+        await second.ack_users("1", [item.token for item in recovered])
+        await wait_for_keys(second, "p.1.", 0)
+    finally:
+        await first.close()
+        await second.close()
+
+
+async def test_capture_sees_another_workers_claim_before_its_watch_event_arrives(jetstream, monkeypatch):
+    """Quiescence must not trust a lagging live index: the tail is replayed in order first."""
+    gate = asyncio.Event()
+    gate.set()
+    real_watch = watch_kv
+
+    class DelayedWatcher:
+        def __init__(self, watcher):
+            self.watcher = watcher
+
+        def __aiter__(self):
+            return self
+
+        async def __anext__(self):
+            entry = await anext(self.watcher)
+            if entry is not None:
+                await gate.wait()
+            return entry
+
+        async def stop(self):
+            await self.watcher.stop()
+
+    async def delayed_watch(*args, **kwargs):
+        return DelayedWatcher(await real_watch(*args, **kwargs))
+
+    monkeypatch.setattr("app.nats.kv_index.watch_kv", delayed_watch)
+    waiter = NatsUserSyncStore(jetstream.kv)
+    other = NatsUserSyncStore(jetstream.kv)
+    try:
+        await other.enqueue_users("1", [User(email="u", inbounds=["in"])])
+        await wait_for_keys(waiter, "p.1.", 1)
+        await wait_for_keys(other, "p.1.", 1)  # both live indexes are built while events still flow
+        assert await waiter.capture_queued("1") == (
+            {waiter._pending_key("1", "u"): (await jetstream.kv.get(waiter._pending_key("1", "u"))).revision},
+            0,
+        )
+        gate.clear()  # the waiter's live index stops receiving events
+        claimed = await other.claim_users("1", "other", 10, 30)
+        assert len(claimed) == 1
+        captured, active = await waiter.capture_queued("1")
+        assert (captured, active) == ({}, 1)
+        await other.ack_users("1", [item.token for item in claimed])
+        assert await waiter.capture_queued("1") == ({}, 0)
+    finally:
+        gate.set()
+        await waiter.close()
+        await other.close()
+
+
+async def test_enqueue_is_claimable_even_when_watch_notifications_are_delayed(jetstream, monkeypatch):
+    gate = asyncio.Event()
+    real_watch = watch_kv
+
+    class DelayedWatcher:
+        def __init__(self, watcher):
+            self.watcher = watcher
+
+        def __aiter__(self):
+            return self
+
+        async def __anext__(self):
+            update = await self.watcher.__anext__()
+            if update is not None:
+                await gate.wait()
+            return update
+
+        async def stop(self):
+            await self.watcher.stop()
+
+    async def delayed_watch(*args, **kwargs):
+        return DelayedWatcher(await real_watch(*args, **kwargs))
+
+    monkeypatch.setattr("app.nats.kv_index.watch_kv", delayed_watch)
+    store = NatsUserSyncStore(jetstream.kv)
+    try:
+        assert await store.claim_users("1", "local", 10, 30) == []
+        await store.enqueue_users("1", [User(email="immediate")])
+        claimed = await store.claim_users("1", "local", 10, 0)
+        assert [item.user.email for item in claimed] == ["immediate"]
+        recovered = await store.claim_users("1", "local", 10, 30)
+        assert [item.user.email for item in recovered] == ["immediate"]
+        assert recovered[0].token != claimed[0].token
+        claimed = recovered
+        await store.requeue_users("1", claimed)
+        assert [item.user.email for item in await store.claim_users("1", "local", 10, 30)] == ["immediate"]
+    finally:
+        await store.close()
+
+
+async def test_compaction_keeps_pending_and_concurrently_recreated_values(jetstream):
+    kv = jetstream.kv
+    await kv.put("p.1.live", b"pending")
+    await kv.put("p.1.race", b"old")
+    await kv.delete("p.1.race")
+    await kv.put("c.1.completed", b"old claim")
+    await kv.delete("c.1.completed")
+    assert await compact_deleted_keys(jetstream.js, jetstream.bucket) == 0  # grace period
+    original_purge = jetstream.js.purge_stream
+
+    async def recreate_before_purge(stream, **kwargs):
+        if kwargs["subject"].endswith("p.1.race"):
+            await kv.put("p.1.race", b"new update")
+        return await original_purge(stream, **kwargs)
+
+    jetstream.js.purge_stream = recreate_before_purge
+    assert await compact_deleted_keys(jetstream.js, jetstream.bucket, older_than=0) == 2
+    assert (await kv.get("p.1.live")).value == b"pending"
+    assert (await kv.get("p.1.race")).value == b"new update"
+    with pytest.raises(KeyNotFoundError):
+        await kv.get("c.1.completed")
+    assert (await jetstream.js.stream_info(f"KV_{jetstream.bucket}")).state.messages == 2
+
+
+async def test_compaction_batches_history_without_losing_live_claims_or_new_updates(jetstream):
+    from unittest.mock import AsyncMock
+
+    kv = jetstream.kv
+    for offset in range(0, 2000, 32):
+        await asyncio.gather(*(kv.delete(f"c.1.done{number}") for number in range(offset, min(offset + 32, 2000))))
+    await kv.put("c.1.active", b"in flight")
+    await kv.delete("c.1.later", last=0)
+    await kv.put("p.1.pending", b"pending")
+    await kv.put("c.2.active", b"another node")
+    original_purge = jetstream.js.purge_stream
+
+    async def recreate_before_purge(stream, **kwargs):
+        if kwargs["subject"].endswith("c.1.*"):
+            await kv.put("c.1.done0", b"recreated")
+            await kv.put("c.1.new", b"new claim")
+        return await original_purge(stream, **kwargs)
+
+    purge = AsyncMock(side_effect=recreate_before_purge)
+    jetstream.js.purge_stream = purge
+    assert await compact_deleted_keys(jetstream.js, jetstream.bucket, older_than=0) == 2001
+    assert purge.await_count == 2
+    for key, value in {
+        "c.1.active": b"in flight",
+        "c.1.done0": b"recreated",
+        "c.1.new": b"new claim",
+        "c.2.active": b"another node",
+        "p.1.pending": b"pending",
+    }.items():
+        assert (await kv.get(key)).value == value
+    assert (await jetstream.js.stream_info(f"KV_{jetstream.bucket}")).state.messages == 5
+
+
+async def test_compaction_bounds_fallback_and_finishes_on_the_next_interval(jetstream):
+    from unittest.mock import AsyncMock
+
+    kv = jetstream.kv
+    await kv.put("c.1.active", b"retain oldest claim")
+    for offset in range(0, 1050, 32):
+        await asyncio.gather(*(kv.delete(f"c.1.done{number}") for number in range(offset, min(offset + 32, 1050))))
+    purge = AsyncMock(wraps=jetstream.js.purge_stream)
+    jetstream.js.purge_stream = purge
+    assert await compact_deleted_keys(jetstream.js, jetstream.bucket, older_than=0) == 1024
+    assert purge.await_count == 1024
+    assert await compact_deleted_keys(jetstream.js, jetstream.bucket, older_than=0) == 26
+    assert (await kv.get("c.1.active")).value == b"retain oldest claim"
+    assert (await jetstream.js.stream_info(f"KV_{jetstream.bucket}")).state.messages == 1
+
+
+@pytest.mark.parametrize("fail", [False, True])
+async def test_incomplete_compaction_snapshot_does_not_purge(jetstream, monkeypatch, fail):
+    from datetime import UTC, datetime, timedelta
+    from unittest.mock import AsyncMock
+
+    class InterruptedSnapshot:
+        def __aiter__(self):
+            return self.iterate()
+
+        async def iterate(self):
+            yield SimpleNamespace(
+                key="c.1.deleted", revision=1, operation="DEL", created=datetime.now(UTC) - timedelta(hours=1)
+            )
+            if fail:
+                raise RuntimeError("connection interrupted")
+
+        async def stop(self):
+            pass
+
+    monkeypatch.setattr("app.nats.kv_cleanup.watch_kv", AsyncMock(return_value=InterruptedSnapshot()))
+    purge = AsyncMock(wraps=jetstream.js.purge_stream)
+    jetstream.js.purge_stream = purge
+    with pytest.raises(RuntimeError):
+        await compact_deleted_keys(jetstream.js, jetstream.bucket)
+    purge.assert_not_awaited()
+
+
+async def test_watcher_resumes_after_network_disconnect(jetstream):
+    nc = await nats.connect(jetstream.url, reconnect_time_wait=0.05)
+    store = NatsUserSyncStore(await nc.jetstream().key_value(jetstream.bucket))
+    try:
+        assert await store.claim_users("1", "reader", 10, 30) == []
+        # Drop only this client's TCP transport; the writer remains connected.
+        nc._transport.close()
+        await jetstream.kv.put("p.1.new", b'{"email":"new","user":"CgNuZXc="}')
+        async with asyncio.timeout(10):
+            while nc.stats["reconnects"] == 0:
+                await asyncio.sleep(0.02)
+        await wait_for_keys(store, "p.1.", 1)
+        assert [item.user.email for item in await store.claim_users("1", "reader", 10, 30)] == ["new"]
+    finally:
+        await store.close()
+        with contextlib.suppress(Exception):
+            await nc.close()
+
+
+async def test_four_python_processes_deliver_every_update_once(jetstream):
+    writer = NatsUserSyncStore(jetstream.kv)
+    expected = {f"node{node}-user{user}" for node in range(4) for user in range(250)}
+    for node in range(4):
+        await writer.enqueue_users(str(node), [User(email=f"node{node}-user{user}") for user in range(250)])
+    processes = []
+    try:
+        for worker in range(4):
+            processes.append(
+                await asyncio.create_subprocess_exec(
+                    sys.executable,
+                    str(Path(__file__).with_name("nats_sync_process_worker.py")),
+                    jetstream.url,
+                    jetstream.bucket,
+                    str(worker),
+                    "4",
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                    creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+                )
+            )
+        async with asyncio.timeout(75):
+            results = await asyncio.gather(*(process.communicate() for process in processes))
+        emails = []
+        for process, (stdout, stderr) in zip(processes, results):
+            assert process.returncode == 0, stderr.decode(errors="replace")
+            emails.extend(json.loads(stdout))
+        assert len(emails) == len(expected)
+        assert set(emails) == expected
+        assert await writer.claim_users("0", "verify", 50, 120) == []
+        await compact_deleted_keys(jetstream.js, jetstream.bucket, older_than=0)
+        assert (await jetstream.js.stream_info(f"KV_{jetstream.bucket}")).state.messages == 0
+    finally:
+        for process in processes:
+            if process.returncode is None:
+                process.kill()
+                await process.wait()
+        await writer.close()
+
+
+async def test_server_restart_preserves_pending_work_and_watch_updates(jetstream):
+    store = NatsUserSyncStore(jetstream.kv)
+    try:
+        await store.enqueue_users("1", [User(email="before-restart")])
+        await wait_for_keys(store, "p.1.", 1)
+        await jetstream.restart()
+        # A separate store writes after reconnect so the reader must receive a
+        # watch notification, rather than using its own immediate-write hint.
+        writer = NatsUserSyncStore(jetstream.kv)
+        try:
+            await writer.enqueue_users("1", [User(email="after-restart")])
+        finally:
+            await writer.close()
+        # nats-py checks heartbeat activity every 10 seconds and the first
+        # check clears the initial active flag. Allow two activity checks.
+        await wait_for_keys(store, "p.1.", 2, timeout=30)
+        claimed = await store.claim_users("1", "restarted", 10, 30)
+        assert {item.user.email for item in claimed} == {"before-restart", "after-restart"}
+        await store.ack_users("1", [item.token for item in claimed])
+        await wait_for_keys(store, "c.1.", 0)
+    finally:
+        await store.close()
+
+
+async def test_repeated_sync_compaction_and_idle_keep_resources_bounded(jetstream):
+    store = NatsUserSyncStore(jetstream.kv)
+    stream = f"KV_{jetstream.bucket}"
+    try:
+        for cycle in range(20):
+            users = [User(email=f"cycle{cycle}-user{number}") for number in range(50)]
+            await store.enqueue_users("1", users)
+            claimed = await store.claim_users("1", "worker", 100, 30)
+            assert {item.user.email for item in claimed} == {user.email for user in users}
+            await store.ack_users("1", [item.token for item in claimed])
+            await wait_for_keys(store, "p.1.", 0)
+            await wait_for_keys(store, "c.1.", 0)
+            assert store._key_index._keys == {}
+            assert store._key_index._local_puts == {}
+            await compact_deleted_keys(jetstream.js, jetstream.bucket, older_than=0)
+            assert (await jetstream.js.stream_info(stream)).state.messages == 0
+
+        sent = jetstream.nc.stats["out_msgs"]
+        # Longer than the live watcher's inactive threshold. It must remain
+        # live while unused, and short-lived compaction consumers must expire.
+        await asyncio.sleep(35)
+        assert await store.claim_users("1", "idle", 100, 30) == []
+        assert jetstream.nc.stats["out_msgs"] == sent
+        assert (await jetstream.js.stream_info(stream)).state.consumer_count == 1
+        await store.enqueue_users("1", [User(email="after-idle")])
+        assert [item.user.email for item in await store.claim_users("1", "worker", 100, 30)] == ["after-idle"]
+    finally:
+        await store.close()
+
+
+async def test_live_index_survives_consumer_recreation(jetstream):
+    store = NatsUserSyncStore(jetstream.kv)
+    try:
+        assert await store.claim_users("1", "reader", 10, 30) == []
+        consumers = await jetstream.js.consumers_info(f"KV_{jetstream.bucket}")
+        assert len(consumers) == 1
+        await jetstream.js.delete_consumer(f"KV_{jetstream.bucket}", consumers[0].name)
+        writer = NatsUserSyncStore(jetstream.kv)
+        try:
+            await writer.enqueue_users("1", [User(email="after-consumer-loss")])
+        finally:
+            await writer.close()
+        async with asyncio.timeout(30):
+            while not await store._key_index.keys("p.1."):
+                await asyncio.sleep(0.05)
+        assert [item.user.email for item in await store.claim_users("1", "reader", 10, 30)] == ["after-consumer-loss"]
+    finally:
+        await store.close()

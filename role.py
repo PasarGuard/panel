@@ -2,9 +2,9 @@ from enum import Enum
 
 
 class Role(str, Enum):
-    BACKEND = "backend"
-    NODE = "node"
-    SCHEDULER = "scheduler"
+    BACKEND = "backend"  # deprecated: remove in 7.0.0
+    NODE = "node"  # deprecated: remove in 7.0.0
+    SCHEDULER = "scheduler"  # deprecated: remove in 7.0.0
     ALL_IN_ONE = "all-in-one"
 
     @property
@@ -24,5 +24,10 @@ class Role(str, Enum):
 
     @property
     def requires_nats(self):
-        """All roles except all-in-one need NATS"""
+        """Split roles always need NATS; all-in-one needs it when UVICORN_WORKERS>1."""
         return self != Role.ALL_IN_ONE
+
+    @property
+    def is_deprecated(self) -> bool:
+        """True for roles scheduled for removal in 7.0.0."""
+        return self in (Role.BACKEND, Role.NODE, Role.SCHEDULER)

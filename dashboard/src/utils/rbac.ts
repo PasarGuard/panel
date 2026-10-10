@@ -85,6 +85,7 @@ export const canAccessRoute = (admin: AdminDetails | null | undefined, pathname:
   if (pathname === '/nodes/cores') return canReadResourcePage(admin, 'cores')
   if (pathname === '/nodes/cores/new') return hasPermission(admin, 'cores', 'create')
   if (pathname.startsWith('/nodes/cores/')) return hasPermission(admin, 'cores', 'update')
+  if (pathname.startsWith('/nodes/wireguard')) return canReadResourcePage(admin, 'cores')
   if (pathname.startsWith('/nodes/logs')) return hasPermission(admin, 'nodes', 'logs')
   if (pathname === '/nodes') return canReadResourcePage(admin, 'nodes')
   if (pathname.startsWith('/nodes')) return canReadResourcePage(admin, 'nodes')
@@ -95,7 +96,6 @@ export const canAccessRoute = (admin: AdminDetails | null | undefined, pathname:
   }
   if (pathname.startsWith('/bulk/create') || pathname === '/bulk') return hasPermission(admin, 'users', 'create') && canReadResourcePage(admin, 'templates')
   if (pathname.startsWith('/bulk/groups')) return hasScopeAll(admin, 'users', 'update') && hasPermission(admin, 'groups', 'read')
-  if (pathname.startsWith('/bulk/expire') || pathname.startsWith('/bulk/data') || pathname.startsWith('/bulk/proxy') || pathname.startsWith('/bulk/wireguard'))
-    return hasScopeAll(admin, 'users', 'update')
+  if (pathname.startsWith('/bulk/expire') || pathname.startsWith('/bulk/data') || pathname.startsWith('/bulk/proxy')) return hasScopeAll(admin, 'users', 'update')
   return true
 }

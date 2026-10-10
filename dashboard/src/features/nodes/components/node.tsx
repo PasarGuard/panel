@@ -92,7 +92,7 @@ export default function Node({
       case 'limited':
         return 'bg-orange-500'
       default:
-        return 'bg-gray-400 dark:bg-gray-600'
+        return 'bg-muted-foreground/40'
     }
   }
 

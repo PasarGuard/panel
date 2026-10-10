@@ -1,13 +1,11 @@
 import asyncio
 
-from app import scheduler
+from app import notification, scheduler
 from app.db import GetDB
 from app.db.crud.user import autodelete_expired_users
-from app import notification
 from app.jobs.dependencies import SYSTEM_ADMIN
 from app.utils.logger import get_logger
 from config import job_settings, runtime_settings, user_cleanup_settings
-
 
 logger = get_logger("jobs")
 

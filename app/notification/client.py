@@ -14,6 +14,7 @@ from app.notification.queue_manager import (
     get_queue,
 )
 from app.settings import notification_settings
+from app.utils.http_client import create_outbound_http_session
 from app.utils.logger import get_logger
 
 client: aiohttp.ClientSession | None = None
@@ -29,10 +30,7 @@ async def define_client():
         asyncio.create_task(client.close())
     settings = await notification_settings()
     proxy_url = settings.proxy_url
-    client = aiohttp.ClientSession(
-        timeout=aiohttp.ClientTimeout(total=10),
-        proxy=proxy_url if proxy_url else None,
-    )
+    client = create_outbound_http_session(proxy=proxy_url if proxy_url else None)
 
 
 on_startup(define_client)
@@ -68,7 +66,7 @@ async def _send_discord_webhook_direct(json_data, webhook, max_retries: int) -> 
                 logger.error(f"Discord webhook failed: {response.status} - {response_text}")
                 return False
         except Exception as err:
-            logger.error(f"Discord webhook failed Exception: {str(err)}")
+            logger.error(f"Discord webhook failed Exception: {err!s}")
             return False
 
     logger.error(f"Discord webhook failed after {max_retries} retries")
@@ -129,7 +127,7 @@ async def _send_telegram_message_direct(
                 logger.error(f"Telegram message failed: {response.status} - {response_text}")
                 return False
         except Exception as err:
-            logger.error(f"Telegram message failed: {str(err)}")
+            logger.error(f"Telegram message failed: {err!s}")
             return False
 
     logger.error(f"Telegram message failed after {max_retries} retries")

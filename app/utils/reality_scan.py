@@ -24,12 +24,12 @@ MAX_TIMEOUT = 20.0
 DNS_TIMEOUT = 5.0
 MAX_CONCURRENT_SCANS = 4
 
-_scan_semaphores: "weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, asyncio.Semaphore]" = weakref.WeakKeyDictionary()
+_scan_semaphores: weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, asyncio.Semaphore] = weakref.WeakKeyDictionary()
 
-_scan_executor: "ThreadPoolExecutor | None" = None
+_scan_executor: ThreadPoolExecutor | None = None
 
 
-def _get_scan_semaphore() -> "asyncio.Semaphore":
+def _get_scan_semaphore() -> asyncio.Semaphore:
     loop = asyncio.get_running_loop()
     sem = _scan_semaphores.get(loop)
     if sem is None:
@@ -38,7 +38,7 @@ def _get_scan_semaphore() -> "asyncio.Semaphore":
     return sem
 
 
-def _get_scan_executor() -> "ThreadPoolExecutor":
+def _get_scan_executor() -> ThreadPoolExecutor:
     global _scan_executor
     if _scan_executor is None:
         _scan_executor = ThreadPoolExecutor(max_workers=MAX_CONCURRENT_SCANS + 2, thread_name_prefix="reality-scan")
@@ -152,7 +152,9 @@ def _select_public_ip(host: str, infos: list) -> str:
         saw_blocked = True
 
     if saw_blocked:
-        raise RealityScanError("Target resolves only to private or reserved addresses; only public hosts can be scanned.")
+        raise RealityScanError(
+            "Target resolves only to private or reserved addresses; only public hosts can be scanned."
+        )
     raise RealityScanError(f"Could not resolve host to a usable address: {host}")
 
 
@@ -177,7 +179,7 @@ async def _resolve_public_ip_async(host: str, timeout: float) -> str:
     loop = asyncio.get_running_loop()
     try:
         infos = await asyncio.wait_for(loop.getaddrinfo(host, None, type=socket.SOCK_STREAM), timeout=timeout)
-    except (asyncio.TimeoutError, TimeoutError):
+    except TimeoutError:
         raise RealityScanError(f"DNS lookup for {host} timed out.")
     except socket.gaierror:
         raise RealityScanError(f"Could not resolve host: {host}")
@@ -221,7 +223,9 @@ def _parse_certificate(der: bytes | None) -> dict:
         return out
 
     out["cert_subject"] = _name_common_name(cert.subject) or (cert.subject.rfc4514_string() or None)
-    out["cert_issuer"] = _name_organization(cert.issuer) or _name_common_name(cert.issuer) or (cert.issuer.rfc4514_string() or None)
+    out["cert_issuer"] = (
+        _name_organization(cert.issuer) or _name_common_name(cert.issuer) or (cert.issuer.rfc4514_string() or None)
+    )
 
     try:
         out["not_after"] = cert.not_valid_after_utc.isoformat()
@@ -310,7 +314,9 @@ def _drive_handshake(tls: ssl.SSLSocket, deadline: float) -> None:
                 raise TimeoutError("TLS handshake timed out")
 
 
-def _tls_wrap_with_deadline(ctx: ssl.SSLContext, ip: str, port: int, server_hostname: str | None, timeout: float) -> tuple[ssl.SSLSocket, float]:
+def _tls_wrap_with_deadline(
+    ctx: ssl.SSLContext, ip: str, port: int, server_hostname: str | None, timeout: float
+) -> tuple[ssl.SSLSocket, float]:
     started = time.monotonic()
     deadline = started + timeout
     sock = socket.create_connection((ip, port), timeout=timeout)
@@ -365,7 +371,9 @@ def _tls_probe(ip: str, port: int, sni: str | None, timeout: float) -> dict:
     alpn: str | None = None
     der: bytes | None = None
 
-    def _handshake(ctx: ssl.SSLContext, server_hostname: str | None) -> tuple[str | None, str | None, bytes | None, float]:
+    def _handshake(
+        ctx: ssl.SSLContext, server_hostname: str | None
+    ) -> tuple[str | None, str | None, bytes | None, float]:
         tls, latency = _tls_wrap_with_deadline(ctx, ip, port, server_hostname, timeout)
         with tls:
             return tls.version(), tls.selected_alpn_protocol(), tls.getpeercert(binary_form=True), latency
@@ -381,7 +389,7 @@ def _tls_probe(ip: str, port: int, sni: str | None, timeout: float) -> dict:
                 try:
                     version, alpn, der, latency = _handshake(_make_permissive_ctx(), sni)
                     result["latency_ms"] = round(latency)
-                except (ssl.SSLError, socket.timeout, TimeoutError, OSError, UnicodeError) as exc2:
+                except (ssl.SSLError, TimeoutError, OSError, UnicodeError) as exc2:
                     logger.debug("reality-scan: permissive fallback handshake failed for %s: %s", sni, exc2)
                     return result
         else:
@@ -399,9 +407,9 @@ def _tls_probe(ip: str, port: int, sni: str | None, timeout: float) -> dict:
                     result["latency_ms"] = round(latency)
                 except ssl.SSLCertVerificationError as exc:
                     result["reason"] = f"Certificate did not validate: {getattr(exc, 'verify_message', None) or exc}"
-                except (ssl.SSLError, socket.timeout, TimeoutError, OSError, UnicodeError) as exc:
+                except (ssl.SSLError, TimeoutError, OSError, UnicodeError) as exc:
                     result["reason"] = f"Certificate re-validation failed: {exc}"
-    except (socket.timeout, TimeoutError):
+    except TimeoutError:
         result["reason"] = "Connection timed out."
         return result
     except ssl.SSLError as exc:
@@ -503,7 +511,7 @@ def _recv_exact(sock: socket.socket, count: int, deadline: float) -> bytes | Non
         sock.settimeout(remaining)
         try:
             chunk = sock.recv(count - len(buf))
-        except (socket.timeout, TimeoutError):
+        except TimeoutError:
             return None
         if not chunk:
             return None
@@ -677,7 +685,9 @@ def _scan_sync(host: str, ip: str, port: int, sni: str | None, timeout: float) -
     result["feasible"] = base_ok and result["x25519"] is True
     if base_ok and result["x25519"] is not True and not result["reason"]:
         if result["x25519"] is False:
-            result["reason"] = f"Key exchange is {result['curve'] or 'not X25519'}; REALITY needs X25519 or X25519MLKEM768."
+            result["reason"] = (
+                f"Key exchange is {result['curve'] or 'not X25519'}; REALITY needs X25519 or X25519MLKEM768."
+            )
         else:
             result["reason"] = "Could not confirm an X25519 key exchange."
     return result

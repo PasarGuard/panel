@@ -1,7 +1,6 @@
 from app.models.subscription import SubscriptionInboundData, TCPTransportConfig, TLSConfig
 from app.subscription.clash import ClashMetaConfiguration
 
-
 USER_ID = "11111111-1111-1111-1111-111111111111"
 
 

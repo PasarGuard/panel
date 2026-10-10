@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import cast
 
 from sqlalchemy import bindparam, delete, func, insert, select, update
@@ -38,7 +38,7 @@ async def register_user_hwid(
     device_model: str | None = None,
 ) -> None:
     """Insert a new HWID or update last_used_at if it already exists."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     params = {
         "user_id": user_id,
         "hwid": hwid,

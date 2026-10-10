@@ -1,14 +1,12 @@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { SubscriptionFormActions } from '@/features/subscriptions/components/subscription-form-actions'
-import { SubscriptionCustomVariablesSection } from '@/features/subscriptions/components/subscription-custom-variables-section'
-import { customVariablesSchema, normalizeCustomVariablesForPayload } from '@/features/subscriptions/components/subscription-settings-schema'
 import { Button } from '@/components/ui/button'
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { DEFAULT_SHADOWSOCKS_METHOD } from '@/constants/Proxies'
-import { ShadowsocksMethods, useGetGeneralSettings, useReconnectAllNode } from '@/service/api'
+import { OnHoldTimeoutAction, ShadowsocksMethods, useGetGeneralSettings, useReconnectAllNode } from '@/service/api'
 import { queryClient } from '@/utils/query-client'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Loader2, RefreshCcw } from 'lucide-react'
@@ -22,7 +20,7 @@ import { useSettingsContext } from './_dashboard.settings'
 // general settings validation schema
 const generalSettingsSchema = z.object({
   default_method: z.string().default(''),
-  custom_variables: customVariablesSchema,
+  on_hold_timeout_action: z.nativeEnum(OnHoldTimeoutAction).default(OnHoldTimeoutAction.activate),
 })
 
 type GeneralSettingsFormInput = z.input<typeof generalSettingsSchema>
@@ -39,13 +37,13 @@ export default function General() {
       generalSettings
         ? {
             default_method: generalSettings.default_method || DEFAULT_SHADOWSOCKS_METHOD,
-            custom_variables: generalSettings.custom_variables || [],
+            on_hold_timeout_action: generalSettings.on_hold_timeout_action || OnHoldTimeoutAction.activate,
           }
         : {
             default_method: '',
-            custom_variables: [],
+            on_hold_timeout_action: OnHoldTimeoutAction.activate,
           },
-    [generalSettings?.default_method, generalSettings?.custom_variables],
+    [generalSettings?.default_method, generalSettings?.on_hold_timeout_action],
   )
 
   const form = useForm<GeneralSettingsFormInput>({
@@ -59,7 +57,7 @@ export default function General() {
       const filteredData: any = {
         general: {
           default_method: data.default_method || DEFAULT_SHADOWSOCKS_METHOD,
-          custom_variables: normalizeCustomVariablesForPayload(data.custom_variables),
+          on_hold_timeout_action: data.on_hold_timeout_action || OnHoldTimeoutAction.activate,
         },
       }
 
@@ -73,7 +71,7 @@ export default function General() {
     if (!generalSettings) return
     form.reset({
       default_method: generalSettings.default_method || DEFAULT_SHADOWSOCKS_METHOD,
-      custom_variables: generalSettings.custom_variables || [],
+      on_hold_timeout_action: generalSettings.on_hold_timeout_action || OnHoldTimeoutAction.activate,
     })
     toast.success(t('settings.general.cancelSuccess'))
   }
@@ -194,13 +192,36 @@ export default function General() {
                   </FormItem>
                 )}
               />
+              <FormField
+                control={form.control}
+                name="on_hold_timeout_action"
+                render={({ field }) => (
+                  <FormItem className="space-y-2">
+                    <FormLabel className="flex items-center gap-2 text-xs font-medium sm:text-sm">{t('settings.general.onHoldTimeoutAction.title')}</FormLabel>
+                    <FormControl>
+                      <Select value={field.value} onValueChange={field.onChange}>
+                        <SelectTrigger className="text-xs sm:text-sm">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={OnHoldTimeoutAction.activate} className="text-xs sm:text-sm">
+                            {t('settings.general.onHoldTimeoutAction.activate')}
+                          </SelectItem>
+                          <SelectItem value={OnHoldTimeoutAction.disable} className="text-xs sm:text-sm">
+                            {t('settings.general.onHoldTimeoutAction.disable')}
+                          </SelectItem>
+                          <SelectItem value={OnHoldTimeoutAction.delete} className="text-xs sm:text-sm">
+                            {t('settings.general.onHoldTimeoutAction.delete')}
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </FormControl>
+                    <FormDescription className="text-muted-foreground text-xs sm:text-sm">{t('settings.general.onHoldTimeoutAction.description')}</FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </div>
-          </div>
-
-          <Separator className="my-3" />
-
-          <div className="py-3">
-            <SubscriptionCustomVariablesSection form={form} />
           </div>
 
           <Separator className="my-3" />

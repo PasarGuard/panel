@@ -1,13 +1,13 @@
 import asyncio
-from datetime import datetime as dt, timedelta as td, timezone as tz
+from datetime import UTC, datetime as dt, timedelta as td
 
-from app import scheduler
+from app import notification, scheduler
 from app.db import GetDB
-from app.db.crud.user import get_users_to_reset_data_usage, bulk_reset_user_data_usage
+from app.db.crud.user import bulk_reset_user_data_usage, get_users_to_reset_data_usage
+from app.jobs.dependencies import SYSTEM_ADMIN
+from app.node.sync import sync_users
 from app.operation import OperatorType
 from app.operation.user import UserOperation
-from app import notification
-from app.jobs.dependencies import SYSTEM_ADMIN
 from app.utils.logger import get_logger
 from config import job_settings, runtime_settings, usage_settings
 
@@ -26,8 +26,9 @@ async def reset_data_usage():
             clean_chart_data=usage_settings.reset_user_usage_clean_chart_data,
         )
 
+        await sync_users(updated_users)
         for db_user in updated_users:
-            user = await user_operator.update_user(db_user)
+            user = await user_operator.validate_user(db_user)
             asyncio.create_task(notification.reset_user_data_usage(user, SYSTEM_ADMIN))
 
             if old_statuses.get(user.id) != user.status:
@@ -42,7 +43,7 @@ if runtime_settings.role.runs_scheduler:
         "interval",
         seconds=job_settings.reset_user_data_usage_interval,
         coalesce=True,
-        start_date=dt.now(tz.utc) + td(minutes=1),
+        start_date=dt.now(UTC) + td(minutes=1),
         max_instances=1,
         id="reset_user_data_usage",
         replace_existing=True,

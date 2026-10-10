@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,7 +20,7 @@ async def create_temp_key(db: AsyncSession) -> TempKey:
     key = TempKey(
         key=str(uuid.uuid4()),
         action="pending",  # updated to the actual action when consumed
-        expires_at=datetime.now(timezone.utc) + timedelta(minutes=KEY_TTL_MINUTES),
+        expires_at=datetime.now(UTC) + timedelta(minutes=KEY_TTL_MINUTES),
     )
     db.add(key)
     await db.commit()
@@ -36,13 +36,13 @@ def _normalize_utc(value: datetime | None) -> datetime | None:
     if value is None:
         return None
     if value.tzinfo is None:
-        return value.replace(tzinfo=timezone.utc)
-    return value.astimezone(timezone.utc)
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
 
 
 async def consume_temp_key(db: AsyncSession, key: str, action: str, ip: str) -> None:
     """Atomically validate and mark a temp key as used."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     result = await db.execute(
         update(TempKey)
         .where(
@@ -71,6 +71,6 @@ async def consume_temp_key(db: AsyncSession, key: str, action: str, ip: str) -> 
 async def mark_temp_key_used(db: AsyncSession, key: TempKey, action: str, ip: str) -> None:
     """Backward-compatible helper for code paths that already own a locked TempKey instance."""
     key.action = action
-    key.used_at = datetime.now(timezone.utc)
+    key.used_at = datetime.now(UTC)
     key.used_by_ip = ip
     await db.commit()

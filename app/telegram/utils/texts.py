@@ -1,4 +1,4 @@
-from datetime import datetime as dt, timedelta as td, timezone as tz
+from datetime import UTC, datetime as dt, timedelta as td
 from html import escape
 
 from aiogram.utils.formatting import html_decoration
@@ -126,7 +126,7 @@ class Message:
         data_limit = c(readable_size(user.data_limit)) if user.data_limit else "∞"
         used_traffic = c(readable_size(user.used_traffic))
         expire = user.expire.strftime("%Y-%m-%d %H:%M") if user.expire else "∞"
-        days_left = (user.expire - dt.now(tz.utc)).days if user.expire else "∞"
+        days_left = (user.expire - dt.now(UTC)).days if user.expire else "∞"
         on_hold_timeout = user.on_hold_timeout.strftime("%Y-%m-%d %H:%M") if user.on_hold_timeout else "-"
         on_hold_expire_duration = td(seconds=user.on_hold_expire_duration).days if user.on_hold_expire_duration else "0"
         online_at = bl(user.online_at.strftime("%Y-%m-%d %H:%M:%S")) if user.online_at else "-"
@@ -164,7 +164,7 @@ class Message:
         if user.status == UserStatus.on_hold:
             expiry = int(user.on_hold_expire_duration / 24 / 60 / 60)
         else:
-            expiry = (user.expire - dt.now(tz.utc)).days if user.expire else "∞"
+            expiry = (user.expire - dt.now(UTC)).days if user.expire else "∞"
         return f"{used_traffic} / {data_limit} | {expiry} days\n{user.note or ''}"
 
     @classmethod
@@ -172,7 +172,7 @@ class Message:
         data_limit = c(readable_size(user.data_limit)) if user.data_limit else "∞"
         used_traffic = c(readable_size(user.used_traffic))
         expire = user.expire.strftime("%Y-%m-%d %H:%M") if user.expire else "∞"
-        days_left = (user.expire - dt.now(tz.utc)).days if user.expire else "∞"
+        days_left = (user.expire - dt.now(UTC)).days if user.expire else "∞"
         online_at = bl(user.online_at.strftime("%Y-%m-%d %H:%M:%S")) if user.online_at else "-"
         emojy_status = cls.status_emoji(user.status)
 

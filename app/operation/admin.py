@@ -20,7 +20,7 @@ from app.db.crud.admin import (
     update_admin,
 )
 from app.db.crud.bulk import activate_all_disabled_users, disable_all_active_users
-from app.db.crud.user import get_users, remove_users
+from app.db.crud.user import get_admin_users_for_node_sync, get_users, remove_users
 from app.db.models import Admin, AdminStatus
 from app.models.admin import (
     AdminCreate,
@@ -120,9 +120,13 @@ class AdminOperation(BaseOperation):
         ):
             await self.raise_error(message="You're not allowed to change your own role.", code=403)
 
-        if not current_admin.is_owner and is_self:
-            if modified_admin.status is not None and modified_admin.status == AdminStatus.disabled:
-                await self.raise_error(message="You're not allowed to disable your own account.", code=403)
+        if (
+            not current_admin.is_owner
+            and is_self
+            and modified_admin.status is not None
+            and modified_admin.status == AdminStatus.disabled
+        ):
+            await self.raise_error(message="You're not allowed to disable your own account.", code=403)
 
         if modified_admin.telegram_id:
             existing_admins = await find_admins_by_telegram_id(
@@ -214,7 +218,7 @@ class AdminOperation(BaseOperation):
     async def _disable_all_active_users_for_admin(self, db: AsyncSession, db_admin: Admin, admin: AdminDetails):
         """Disable all active users under a specific admin."""
         await disable_all_active_users(db=db, admin=db_admin)
-        users = await get_users(db, query=UserListQuery(), admin=db_admin, load_admin_role=True)
+        users = await get_admin_users_for_node_sync(db, db_admin.id)
         await sync_users(users)
         logger.info(f'Admin "{db_admin.username}" users has been disabled by admin "{admin.username}"')
 
@@ -236,7 +240,7 @@ class AdminOperation(BaseOperation):
     async def _activate_all_disabled_users_for_admin(self, db: AsyncSession, db_admin: Admin, admin: AdminDetails):
         """Activate all disabled users under a specific admin."""
         await activate_all_disabled_users(db=db, admin=db_admin)
-        users = await get_users(db, query=UserListQuery(), admin=db_admin, load_admin_role=True)
+        users = await get_admin_users_for_node_sync(db, db_admin.id)
         await sync_users(users)
         logger.info(f'Admin "{db_admin.username}" users has been activated by admin "{admin.username}"')
 
@@ -335,8 +339,8 @@ class AdminOperation(BaseOperation):
         db: AsyncSession,
         db_admin: Admin,
         admin: AdminDetails,
-        start: dt = None,
-        end: dt = None,
+        start: dt | None = None,
+        end: dt | None = None,
         period: Period = Period.hour,
         node_id: int | None = None,
         group_by_node: bool = False,

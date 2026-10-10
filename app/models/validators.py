@@ -1,12 +1,25 @@
 import re
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, datetime as dt, timedelta
 from decimal import Decimal
-from typing import Any, Optional
+from typing import Annotated, Any
 from urllib.parse import urlparse
 
+from pydantic import BeforeValidator
+
 from app.db.models import UserStatus, UserStatusCreate
+from app.utils.helpers import fix_datetime_timezone
 
 MAX_ON_HOLD_EXPIRE_DURATION_SECONDS = 2_147_483_647
+
+
+def optional_aware_datetime(value: Any):
+    if not value:
+        return value
+    return fix_datetime_timezone(value)
+
+
+AwareDatetime = Annotated[dt, BeforeValidator(optional_aware_datetime)]
+OptionalAwareDatetime = Annotated[dt | None, BeforeValidator(optional_aware_datetime)]
 
 
 class NumericValidatorMixin:
@@ -26,7 +39,7 @@ class NumericValidatorMixin:
         """
         if v is None:  # Allow None values
             return v
-        elif isinstance(v, float) or isinstance(v, Decimal):  # Allow float or Decimal to int conversion
+        elif isinstance(v, (float, Decimal)):  # Allow float or Decimal to int conversion
             return int(v)
         elif isinstance(v, int):  # Allow integers directly
             return v
@@ -49,7 +62,7 @@ class NumericValidatorMixin:
         """
         if v is None:
             return v
-        elif isinstance(v, int) or isinstance(v, Decimal):
+        elif isinstance(v, (int, Decimal)):
             return float(v)
         elif isinstance(v, float):
             return v
@@ -200,7 +213,7 @@ class UserValidator:
         if value == 0 or value is None:
             return None
         if isinstance(value, int):
-            return datetime.now(timezone.utc) + timedelta(seconds=value)
+            return datetime.now(UTC) + timedelta(seconds=value)
         if isinstance(value, datetime):
             return value
         raise ValueError("on_hold_timeout can be datetime or int (seconds)")
@@ -258,7 +271,7 @@ class DiscordValidator:
 
 class URLValidator:
     @staticmethod
-    def validate_url(value: Optional[str]) -> Optional[str]:
+    def validate_url(value: str | None) -> str | None:
         """
         Validates a general-purpose URL.
         Examples:

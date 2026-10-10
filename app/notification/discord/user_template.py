@@ -1,7 +1,7 @@
+from app.models.settings import NotificationSettings
+from app.models.user_template import UserTemplateResponse
 from app.notification.client import send_discord_webhook
 from app.notification.helpers import get_discord_webhook
-from app.models.user_template import UserTemplateResponse
-from app.models.settings import NotificationSettings
 from app.settings import notification_settings
 from app.utils.helpers import escape_ds_markdown_list
 

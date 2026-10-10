@@ -26,7 +26,6 @@ export const hysteriaSettingsSchema = z.object({
 export const wireguardSettingsSchema = z.object({
   private_key: z.string().nullable().optional(),
   public_key: z.string().nullable().optional(),
-  peer_ips: z.array(z.string()).optional(),
 })
 export const proxyTableInputSchema = z.object({
   vmess: vMessSettingsSchema.optional(),
@@ -121,7 +120,6 @@ export const getDefaultUserForm = async () => {
       wireguard: {
         private_key: undefined,
         public_key: undefined,
-        peer_ips: [],
       },
       hysteria: {
         auth: undefined,

@@ -1,6 +1,6 @@
 import asyncio
 import json
-from typing import Awaitable, Callable
+from collections.abc import Awaitable, Callable
 
 import nats
 from nats.aio.subscription import Subscription

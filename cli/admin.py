@@ -3,6 +3,7 @@ Admin CLI Module — generate-temp-key only
 """
 
 import asyncio
+
 from app.db.base import GetDB
 from app.db.crud.temp_key import create_temp_key
 from cli import console

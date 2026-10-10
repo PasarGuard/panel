@@ -15,7 +15,7 @@ const hwidSettingsSchema = z
   .object({
     enabled: z.boolean().default(false),
     forced: z.boolean().default(false),
-    require_hwid_for_manual_sub: z.boolean().default(true),
+    require_hwid_for_manual_sub: z.boolean().default(false),
     fallback_limit: z.number().min(0).default(0),
     min_limit: z.number().min(0).default(0),
     max_limit: z.number().min(0).default(0),
@@ -35,7 +35,7 @@ type HwidSettingsFormInput = z.input<typeof hwidSettingsSchema>
 const defaultValues: HwidSettingsFormInput = {
   enabled: false,
   forced: false,
-  require_hwid_for_manual_sub: true,
+  require_hwid_for_manual_sub: false,
   fallback_limit: 0,
   min_limit: 0,
   max_limit: 0,
@@ -57,7 +57,7 @@ export default function HwidSettings() {
     return {
       enabled: hwid.enabled ?? false,
       forced: hwid.forced ?? false,
-      require_hwid_for_manual_sub: hwid.require_hwid_for_manual_sub ?? true,
+      require_hwid_for_manual_sub: hwid.require_hwid_for_manual_sub ?? false,
       fallback_limit: toDeviceLimit(hwid.fallback_limit),
       min_limit: toDeviceLimit(hwid.min_limit),
       max_limit: toDeviceLimit(hwid.max_limit),
@@ -75,7 +75,7 @@ export default function HwidSettings() {
         hwid: {
           enabled: data.enabled,
           forced: data.enabled ? data.forced : false,
-          require_hwid_for_manual_sub: data.require_hwid_for_manual_sub,
+          require_hwid_for_manual_sub: data.enabled ? data.require_hwid_for_manual_sub : false,
           fallback_limit: toDeviceLimit(data.fallback_limit),
           min_limit: toDeviceLimit(data.min_limit),
           max_limit: toDeviceLimit(data.max_limit),
@@ -92,7 +92,6 @@ export default function HwidSettings() {
   }
 
   const hwidEnabled = form.watch('enabled')
-  const hwidForced = form.watch('forced')
 
   if (isLoading) {
     return (
@@ -176,11 +175,13 @@ export default function HwidSettings() {
                         {t('settings.hwid.manualSubscription.title', { defaultValue: 'Require HWID for manual subscriptions' })}
                       </FormLabel>
                       <FormDescription className="text-xs leading-relaxed sm:text-sm">
-                        {t('settings.hwid.manualSubscription.description', { defaultValue: 'Apply the forced HWID header policy to manual subscription format requests.' })}
+                        {t('settings.hwid.manualSubscription.description', {
+                          defaultValue: 'Apply HWID policy to manual subscription formats and hide config links on the subscription page.',
+                        })}
                       </FormDescription>
                     </div>
                     <FormControl>
-                      <Switch checked={field.value} onCheckedChange={field.onChange} disabled={!hwidEnabled || !hwidForced} className="shrink-0" />
+                      <Switch checked={field.value} onCheckedChange={field.onChange} disabled={!hwidEnabled} className="shrink-0" />
                     </FormControl>
                   </FormItem>
                 )}

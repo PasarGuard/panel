@@ -34,6 +34,7 @@ export default function AdvanceSearchModal({ isDialogOpen, onOpenChange, form, o
   const noDataLimitOnly = form.watch('no_data_limit')
   const noExpireOnly = form.watch('no_expire')
   const onlineOnly = form.watch('online')
+  const noGroupOnly = form.watch('no_group')
 
   const { data: groupsData } = useGetGroupsSimple({ all: true })
 
@@ -432,7 +433,7 @@ export default function AdvanceSearchModal({ isDialogOpen, onOpenChange, form, o
                       control={form.control}
                       name="group"
                       render={({ field }) => (
-                        <FormItem className="w-full">
+                        <FormItem className={cn('w-full', noGroupOnly && 'pointer-events-none opacity-60')}>
                           <div className="flex items-center justify-between gap-3">
                             <FormLabel>{t('advanceSearch.byGroup')}</FormLabel>
                             {!!field.value?.length && <Badge variant="secondary">{field.value.length}</Badge>}
@@ -457,12 +458,38 @@ export default function AdvanceSearchModal({ isDialogOpen, onOpenChange, form, o
                                   <AccordionTrigger className="rounded-md border px-3 py-3 text-sm hover:no-underline">{t('advanceSearch.selectGroup')}</AccordionTrigger>
                                   <AccordionContent>
                                     <div className="mt-2">
-                                      <GroupsSelector control={form.control} name="group" onGroupsChange={field.onChange} disabled={isApplying} />
+                                      <GroupsSelector control={form.control} name="group" onGroupsChange={field.onChange} disabled={isApplying || noGroupOnly} />
                                     </div>
                                   </AccordionContent>
                                 </AccordionItem>
                               </Accordion>
                             </div>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="no_group"
+                      render={({ field }) => (
+                        <FormItem className="flex w-full items-start justify-between gap-4 space-y-0 rounded-md border p-4">
+                          <div className="space-y-1">
+                            <FormLabel>{t('advanceSearch.noGroup', { defaultValue: 'Only users with no group' })}</FormLabel>
+                            <FormDescription>{t('advanceSearch.noGroupDescription', { defaultValue: 'Shows users that are not assigned to any group.' })}</FormDescription>
+                          </div>
+                          <FormControl>
+                            <Switch
+                              checked={field.value}
+                              disabled={isApplying}
+                              onCheckedChange={checked => {
+                                field.onChange(checked)
+                                if (checked) {
+                                  form.setValue('group', [], { shouldDirty: true })
+                                }
+                              }}
+                            />
                           </FormControl>
                           <FormMessage />
                         </FormItem>

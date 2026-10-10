@@ -208,7 +208,7 @@ export default function ApiKeysPage() {
 
   return (
     <div className="flex w-full flex-col items-start gap-2">
-      <div className="animate-fade-in w-full transform-gpu" style={{ animationDuration: '400ms' }}>
+      <div className="w-full transform-gpu">
         <PageHeader
           title="apiKeys.title"
           description="apiKeys.description"
@@ -224,8 +224,7 @@ export default function ApiKeysPage() {
 
       <div className="w-full p-4">
         <div
-          className="flex flex-col gap-4 animate-slide-up transform-gpu"
-          style={{ animationDuration: '500ms', animationDelay: '100ms', animationFillMode: 'both' }}
+          className="flex flex-col gap-4 transform-gpu"
         >
           <ApiKeyFilters
             search={search}

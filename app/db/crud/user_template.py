@@ -1,5 +1,3 @@
-from typing import List
-
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -144,7 +142,7 @@ async def get_user_template(db: AsyncSession, user_template_id: int) -> UserTemp
     return user_template
 
 
-async def get_user_templates(db: AsyncSession, query: UserTemplateListQuery) -> List[UserTemplate]:
+async def get_user_templates(db: AsyncSession, query: UserTemplateListQuery) -> list[UserTemplate]:
     """
     Retrieves a list of user templates with optional pagination.
 
@@ -157,7 +155,8 @@ async def get_user_templates(db: AsyncSession, query: UserTemplateListQuery) -> 
         List[UserTemplate]: A list of user template objects.
     """
     stmt = select(UserTemplate).order_by(UserTemplate.id.asc())
-    if query.ids:
+    # ids=[] (e.g. none of the requested ids are in the admin's allowlist) must match nothing, not everything.
+    if query.ids is not None:
         stmt = stmt.where(UserTemplate.id.in_(query.ids))
     if query.offset:
         stmt = stmt.offset(query.offset)
@@ -191,7 +190,7 @@ async def get_user_templates_simple(
     """
     stmt = select(UserTemplate.id, UserTemplate.name)
 
-    if query.ids:
+    if query.ids is not None:
         stmt = stmt.where(UserTemplate.id.in_(query.ids))
     if query.search:
         search_value = query.search.strip()

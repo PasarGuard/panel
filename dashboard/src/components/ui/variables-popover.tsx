@@ -47,6 +47,21 @@ export function previewVariableValue(value: string, variables: Record<string, st
   })
 }
 
+function useGeneralCustomVariables(customVariables?: CustomVariableDefinition[], enabled = false) {
+  const queryClient = useQueryClient()
+  const cachedGeneralSettings = queryClient.getQueryData<General>(getGetGeneralSettingsQueryKey())
+  const shouldFetchSettings = customVariables === undefined
+  const { data: generalSettings } = useGetGeneralSettings({
+    query: {
+      enabled: shouldFetchSettings && enabled,
+      retry: false,
+      staleTime: 5 * 60 * 1000,
+    },
+  })
+
+  return (customVariables ?? (((generalSettings ?? cachedGeneralSettings)?.custom_variables ?? []) as CustomVariableDefinition[])).filter(variable => variable.key?.trim())
+}
+
 interface VariablesPopoverProps {
   /** Whether to show protocol and transport variables (default: false) */
   includeProtocolTransport?: boolean
@@ -76,17 +91,7 @@ export function VariablesPopover({
   const { t } = useTranslation()
   const { copy } = useClipboard()
   const [open, setOpen] = useState(false)
-  const queryClient = useQueryClient()
-  const cachedGeneralSettings = queryClient.getQueryData<General>(getGetGeneralSettingsQueryKey())
-  const shouldFetchSettings = customVariables === undefined
-  const { data: generalSettings } = useGetGeneralSettings({
-    query: {
-      enabled: shouldFetchSettings && open,
-      retry: false,
-      staleTime: 5 * 60 * 1000,
-    },
-  })
-  const visibleCustomVariables = (customVariables ?? (((generalSettings ?? cachedGeneralSettings)?.custom_variables ?? []) as CustomVariableDefinition[])).filter(variable => variable.key?.trim())
+  const visibleCustomVariables = useGeneralCustomVariables(customVariables, open)
 
   const handleCopy = async (text: string) => {
     await copy(text)
@@ -241,19 +246,7 @@ export function CustomVariablesPopover({ customVariables, side = 'bottom', align
   const { t } = useTranslation()
   const { copy } = useClipboard()
   const [open, setOpen] = useState(false)
-  const queryClient = useQueryClient()
-  const shouldFetchSettings = customVariables === undefined
-  const cachedGeneralSettings = queryClient.getQueryData<General>(getGetGeneralSettingsQueryKey())
-  const { data: generalSettings } = useGetGeneralSettings({
-    query: {
-      enabled: shouldFetchSettings && open,
-      retry: false,
-      staleTime: 5 * 60 * 1000,
-    },
-  })
-
-  const variables = customVariables ?? (((generalSettings ?? cachedGeneralSettings)?.custom_variables ?? []) as CustomVariableDefinition[])
-  const visibleVariables = variables.filter(variable => variable.key?.trim())
+  const visibleVariables = useGeneralCustomVariables(customVariables, open)
 
   const handleCopy = async (text: string) => {
     await copy(text)
@@ -274,7 +267,6 @@ export function CustomVariablesPopover({ customVariables, side = 'bottom', align
             <div className="max-h-[60vh] space-y-2 overflow-y-auto pr-1">
               {visibleVariables.map(variable => {
                 const token = `{${variable.key}}`
-                const preview = previewVariableValue(variable.value || '')
                 return (
                   <div key={variable.key} className="space-y-1 rounded-md border p-2">
                     <div className="flex min-w-0 items-center gap-1.5">

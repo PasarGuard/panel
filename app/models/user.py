@@ -7,10 +7,17 @@ from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
 from app.db.models import DataLimitResetStrategy, UserStatus
 from app.models.admin import AdminBase, AdminContactInfo
 from app.models.proxy import ProxyTable, ShadowsocksMethods
-from app.models.stats import Period
+from app.models.stats import Period, PeriodStartStat, StatList
 from app.utils.helpers import fix_datetime_timezone
 
-from .validators import MAX_ON_HOLD_EXPIRE_DURATION_SECONDS, ListValidator, NumericValidatorMixin, UserValidator
+from .validators import (
+    MAX_ON_HOLD_EXPIRE_DURATION_SECONDS,
+    AwareDatetime,
+    ListValidator,
+    NumericValidatorMixin,
+    OptionalAwareDatetime,
+    UserValidator,
+)
 
 
 class UserStatusModify(str, Enum):
@@ -84,12 +91,13 @@ class UserCreate(UserWithValidator):
     @field_validator("group_ids", mode="after")
     @classmethod
     def group_ids_validator(cls, v):
-        return ListValidator.nullable_list(v, "group")
+        return ListValidator.not_null_list(v, "group")
 
 
 class UserModify(UserWithValidator):
     status: UserStatus | None = Field(default=None)
     proxy_settings: ProxyTable | None = Field(default=None)
+    group_ids: list[int] | None = Field(default=None)
 
     @field_validator("status", mode="before", check_fields=False)
     def validate_status(cls, status, values):
@@ -113,9 +121,9 @@ class UserNotificationResponse(User):
     status: UserStatus
     used_traffic: int
     lifetime_used_traffic: int = Field(default=0)
-    created_at: dt
-    edit_at: dt | None = Field(default=None)
-    online_at: dt | None = Field(default=None)
+    created_at: AwareDatetime
+    edit_at: OptionalAwareDatetime = Field(default=None)
+    online_at: OptionalAwareDatetime = Field(default=None)
     subscription_url: str = Field(default="")
     admin: AdminContactInfo | None = Field(default=None)
     group_names: list[str] | None = Field(default_factory=list)
@@ -125,13 +133,6 @@ class UserNotificationResponse(User):
     @classmethod
     def cast_to_int(cls, v):
         return NumericValidatorMixin.cast_to_int(v)
-
-    @field_validator("created_at", "edit_at", "online_at", mode="before")
-    @classmethod
-    def validator_date(cls, v):
-        if not v:
-            return v
-        return fix_datetime_timezone(v)
 
 
 class UserResponse(UserNotificationResponse):
@@ -243,6 +244,7 @@ class UserListQuery(BaseModel):
     owner: list[str] | None = Field(default=None, alias="admin")
     admin_ids: list[int] | None = Field(default=None, validation_alias=AliasChoices("admin_ids", "admin_id"))
     group_ids: list[int] | None = Field(default=None, alias="group")
+    no_group: bool = Field(default=False)
     search: str | None = Field(default=None)
     status: UserStatus | list[UserStatus] | None = Field(default=None)
     sort: list[UserSortOption] = Field(default_factory=list)
@@ -252,22 +254,15 @@ class UserListQuery(BaseModel):
     )
     data_limit_min: int | None = Field(default=None, ge=0)
     data_limit_max: int | None = Field(default=None, ge=0)
-    expire_after: dt | None = Field(default=None, examples=["2026-01-01T00:00:00+03:30"])
-    expire_before: dt | None = Field(default=None, examples=["2026-01-31T23:59:59+03:30"])
-    online_after: dt | None = Field(default=None, examples=["2026-01-01T00:00:00+03:30"])
-    online_before: dt | None = Field(default=None, examples=["2026-01-31T23:59:59+03:30"])
+    expire_after: OptionalAwareDatetime = Field(default=None, examples=["2026-01-01T00:00:00+03:30"])
+    expire_before: OptionalAwareDatetime = Field(default=None, examples=["2026-01-31T23:59:59+03:30"])
+    online_after: OptionalAwareDatetime = Field(default=None, examples=["2026-01-01T00:00:00+03:30"])
+    online_before: OptionalAwareDatetime = Field(default=None, examples=["2026-01-31T23:59:59+03:30"])
     online: bool = Field(default=False)
     no_data_limit: bool = Field(default=False)
     no_expire: bool = Field(default=False)
     load_sub: bool = Field(default=False)
     model_config = ConfigDict(populate_by_name=True)
-
-    @field_validator("expire_after", "expire_before", "online_after", "online_before", mode="before")
-    @classmethod
-    def validate_datetimes(cls, value):
-        if not value:
-            return value
-        return fix_datetime_timezone(value)
 
     @field_validator("sort", mode="before")
     @classmethod
@@ -294,15 +289,8 @@ class UserUsageQuery(BaseModel):
     period: Period = Field(default=Period.hour)
     node_id: int | None = Field(default=None)
     group_by_node: bool = Field(default=False)
-    start: dt | None = Field(default=None, examples=["2024-01-01T00:00:00+03:30"])
-    end: dt | None = Field(default=None, examples=["2024-01-31T23:59:59+03:30"])
-
-    @field_validator("start", "end", mode="before")
-    @classmethod
-    def validate_datetimes(cls, value):
-        if not value:
-            return value
-        return fix_datetime_timezone(value)
+    start: OptionalAwareDatetime = Field(default=None, examples=["2024-01-01T00:00:00+03:30"])
+    end: OptionalAwareDatetime = Field(default=None, examples=["2024-01-31T23:59:59+03:30"])
 
 
 class UsersUsageQuery(UserUsageQuery):
@@ -310,34 +298,29 @@ class UsersUsageQuery(UserUsageQuery):
     model_config = ConfigDict(populate_by_name=True)
 
 
+class UsersUsageBreakdownQuery(UsersUsageQuery):
+    core_id: int | None = Field(default=None)
+    group_by_admin: bool = Field(default=False)
+
+
 class ExpiredUsersQuery(BaseModel):
     admin_username: str | None = Field(default=None)
-    target: Literal["expired", "limited"] = Field(default="expired")
-    expired_after: dt | None = Field(default=None, examples=["2024-01-01T00:00:00+03:30"])
-    expired_before: dt | None = Field(default=None, examples=["2024-01-31T23:59:59+03:30"])
-
-    @field_validator("expired_after", "expired_before", mode="before")
-    @classmethod
-    def validate_datetimes(cls, value):
-        if not value:
-            return value
-        return fix_datetime_timezone(value)
+    target: Literal["expired", "limited", "on_hold", "disabled"] = Field(default="expired")
+    expired_after: OptionalAwareDatetime = Field(default=None, examples=["2024-01-01T00:00:00+03:30"])
+    expired_before: OptionalAwareDatetime = Field(default=None, examples=["2024-01-31T23:59:59+03:30"])
+    dry_run: bool = Field(
+        default=False,
+        description="If true, returns users that would be deleted without actually deleting them.",
+    )
 
 
 class UserSubscriptionUpdateSchema(BaseModel):
-    created_at: dt
+    created_at: AwareDatetime
     user_agent: str
     ip: str | None = Field(default=None)
     hwid: str | None = Field(default=None)
 
     model_config = ConfigDict(from_attributes=True)
-
-    @field_validator("created_at", mode="before")
-    @classmethod
-    def validator_date(cls, v):
-        if not v:
-            return v
-        return fix_datetime_timezone(v)
 
 
 class UserSubscriptionUpdateList(BaseModel):
@@ -351,9 +334,20 @@ class UserSubscriptionUpdateChartSegment(BaseModel):
     percentage: float
 
 
-class UserSubscriptionUpdateChart(BaseModel):
+class UserSubscriptionUpdateChartStat(PeriodStartStat):
+    agent: str
+    count: int
+
+    @field_validator("count", mode="before")
+    @classmethod
+    def cast_count_to_int(cls, v):
+        return NumericValidatorMixin.cast_to_int(v)
+
+
+class UserSubscriptionUpdateChart(StatList):
     total: int
     segments: list[UserSubscriptionUpdateChartSegment] = Field(default_factory=list)
+    stats: list[UserSubscriptionUpdateChartStat] = Field(default_factory=list)
 
 
 class UserHWIDResponse(BaseModel):
@@ -424,15 +418,12 @@ class BulkUserFilter(BaseModel):
     admins: set[int] = Field(default_factory=set)
     users: set[int] = Field(default_factory=set)
     status: set[UserStatus] = Field(default_factory=set)
-    expire_after: dt | None = Field(default=None, validation_alias=AliasChoices("expire_after", "expired_after"))
-    expire_before: dt | None = Field(default=None, validation_alias=AliasChoices("expire_before", "expired_before"))
-
-    @field_validator("expire_after", "expire_before", check_fields=False)
-    @classmethod
-    def validator_datetime(cls, value):
-        if not value:
-            return value
-        return fix_datetime_timezone(value)
+    expire_after: OptionalAwareDatetime = Field(
+        default=None, validation_alias=AliasChoices("expire_after", "expired_after")
+    )
+    expire_before: OptionalAwareDatetime = Field(
+        default=None, validation_alias=AliasChoices("expire_before", "expired_before")
+    )
 
 
 class BulkUser(BulkUserFilter):
@@ -443,26 +434,10 @@ class BulkUsersProxy(BulkUserFilter):
     method: ShadowsocksMethods | None = Field(default=None)
 
 
-class BulkWireGuardPeerIPs(BulkUserFilter):
-    """Re-seat WireGuard peer IPs (same scoping as BulkUser: users, admins, group_ids, status)."""
-
-    confirm: bool = False
-    replace_all: bool = False
-
-
 class BulkOperationDryRunResponse(BaseModel):
     """Preview for bulk user/group operations (no DB writes)."""
 
     dry_run: bool = True
-    affected_users: int
-
-
-class WireGuardPeerIPsReallocateResponse(BaseModel):
-    wireguard_inbound_tags: int
-    candidates: int
-    updated: int
-    dry_run: bool
-    sample_usernames: list[str]
     affected_users: int
 
 

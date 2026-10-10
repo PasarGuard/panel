@@ -4,7 +4,6 @@ from asyncio import Lock
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
-from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
 from nats.js.kv import KeyValue
@@ -20,6 +19,7 @@ from config import nats_settings
 from .fsm_storage import NatsFSMStorage
 from .handlers import include_routers
 from .middlewares import setup_middlewares
+from .session import NativeTLSAiohttpSession
 
 logger = get_logger("telegram-bot")
 
@@ -80,7 +80,7 @@ class TelegramBotManager:
         try:
             # Set up KV connection if not already done
             if not self._kv:
-                self._nats_conn, js, self._kv = await setup_nats_kv(nats_settings.telegram_kv_bucket)
+                self._nats_conn, _js, self._kv = await setup_nats_kv(nats_settings.telegram_kv_bucket)
                 if not self._kv:
                     logger.warning("NATS KV unavailable, allowing this worker to set webhook")
                     return True
@@ -179,7 +179,7 @@ class TelegramBotManager:
             return
 
         logger.info("Telegram bot starting")
-        session = AiohttpSession(proxy=settings.proxy_url)
+        session = NativeTLSAiohttpSession(proxy=settings.proxy_url)
         self._bot = Bot(token=settings.token, session=session, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 
         if not self._handlers_registered:

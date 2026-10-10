@@ -4,13 +4,12 @@ import base64
 import json
 from copy import deepcopy
 from pathlib import PosixPath
-from typing import Union
 
 import commentjson
 
 from app.models.core import CoreType
 from app.models.protocol import ProxyProtocol
-from app.utils.crypto import get_cert_SANs, get_x25519_public_key
+from app.utils.crypto import get_cert_SANs, get_x25519_public_key, validate_mldsa65_seed, validate_mldsa65_verify
 
 
 def _protocols_from_inbounds_by_tag(inbounds_by_tag: dict[str, dict]) -> frozenset[ProxyProtocol]:
@@ -24,7 +23,7 @@ def _protocols_from_inbounds_by_tag(inbounds_by_tag: dict[str, dict]) -> frozens
 class XRayConfig(dict):
     def __init__(
         self,
-        config: Union[dict, str, PosixPath] | None = None,
+        config: dict | str | PosixPath | None = None,
         exclude_inbound_tags: set[str] | None = None,
         fallbacks_inbound_tags: set[str] | None = None,
         skip_validation: bool = False,
@@ -150,7 +149,7 @@ class XRayConfig(dict):
     def _is_unix_socket(inbound: dict) -> bool:
         """Return True if the inbound listens on a Unix domain socket instead of a TCP/UDP port."""
         listen = inbound.get("listen", "")
-        return isinstance(listen, str) and (listen.startswith("/") or listen.startswith("@"))
+        return isinstance(listen, str) and (listen.startswith(("/", "@")))
 
     def _handle_port_settings(self, inbound: dict, settings: dict):
         """Handle port settings for an inbound."""
@@ -179,8 +178,10 @@ class XRayConfig(dict):
     def _handle_tls_settings(self, tls_settings: dict, settings: dict, inbound_tag: str):
         """Handle TLS security settings."""
         settings["tls"] = "tls"
+        settings["pinnedPeerCertSha256"] = tls_settings.get("pinnedPeerCertSha256", "")
+        settings["fp"] = tls_settings.get("fingerprint", "chrome")
         if sni := tls_settings.get("serverName"):
-            settings["sni"].append(sni)
+            settings["sni"].append(str(sni))
         for certificate in tls_settings.get("certificates", []):
             serve_on_node = certificate.pop("serveOnNode", False)
             if serve_on_node:
@@ -215,9 +216,9 @@ class XRayConfig(dict):
 
     def _handle_reality_settings(self, tls_settings: dict, settings: dict, inbound_tag: str):
         """Handle Reality security settings."""
-        settings["fp"] = "chrome"
+        settings["fp"] = tls_settings.get("fingerprint", "chrome")
         settings["tls"] = "reality"
-        settings["sni"] = tls_settings.get("serverNames", [])
+        settings["sni"] = [str(sni) for sni in (tls_settings.get("serverNames") or [])]
 
         pvk = tls_settings.get("privateKey")
         if not pvk:
@@ -237,7 +238,27 @@ class XRayConfig(dict):
         except Exception:
             settings["spx"] = ""
 
-        settings["mldsa65Verify"] = tls_settings.get("mldsa65Verify")
+        mldsa65_seed = tls_settings.get("mldsa65Seed")
+        mldsa65_verify = tls_settings.get("mldsa65Verify")
+        seed_set = isinstance(mldsa65_seed, str) and bool(mldsa65_seed.strip())
+        verify_set = isinstance(mldsa65_verify, str) and bool(mldsa65_verify.strip())
+
+        if seed_set or verify_set:
+            # Client pqv without a matching server seed causes silent REALITY auth failure.
+            if verify_set and not seed_set:
+                raise ValueError(
+                    f"mldsa65Verify is set without mldsa65Seed in realitySettings of {inbound_tag}. "
+                    "Set both (matching pair) or clear both."
+                )
+            if seed_set:
+                validate_mldsa65_seed(mldsa65_seed)
+            if verify_set:
+                settings["mldsa65Verify"] = validate_mldsa65_verify(mldsa65_verify)
+            else:
+                # Seed-only is valid (server signs; clients without pqv still connect).
+                settings["mldsa65Verify"] = None
+        else:
+            settings["mldsa65Verify"] = None
 
     def _handle_network_settings(self, net: str, net_settings: dict, settings: dict, inbound_tag: str):
         """Handle network-specific settings."""
@@ -254,7 +275,7 @@ class XRayConfig(dict):
         settings["header_type"] = header.get("type", "none")
 
         if isinstance(path, str) or isinstance(host, str):
-            raise ValueError(
+            raise TypeError(
                 f"Settings of {inbound_tag} for path and host must be list, not str\n"
                 "https://xtls.github.io/config/transports/tcp.html#httpheaderobject"
             )
@@ -273,7 +294,7 @@ class XRayConfig(dict):
         settings["header_type"] = ""
 
         if isinstance(path, list) or isinstance(host, list):
-            raise ValueError(
+            raise TypeError(
                 "Settings for path and host must be str, not list\n"
                 "https://xtls.github.io/config/transports/websocket.html#websocketobject"
             )
@@ -329,8 +350,14 @@ class XRayConfig(dict):
         settings["x_padding_placement"] = get_xhttp_value("xPaddingPlacement")
         settings["x_padding_method"] = get_xhttp_value("xPaddingMethod")
         settings["uplink_http_method"] = get_xhttp_value("uplinkHTTPMethod")
-        settings["session_placement"] = get_xhttp_value("sessionPlacement")
-        settings["session_key"] = get_xhttp_value("sessionKey")
+        session_id_placement = get_xhttp_value("sessionIDPlacement")
+        settings["session_placement"] = (
+            session_id_placement if session_id_placement else get_xhttp_value("sessionPlacement")
+        )
+        session_id_key = get_xhttp_value("sessionIDKey")
+        settings["session_key"] = session_id_key if session_id_key else get_xhttp_value("sessionKey")
+        settings["session_id_table"] = get_xhttp_value("sessionIDTable")
+        settings["session_id_length"] = get_xhttp_value("sessionIDLength")
         settings["seq_placement"] = get_xhttp_value("seqPlacement")
         settings["seq_key"] = get_xhttp_value("seqKey")
         settings["uplink_data_placement"] = get_xhttp_value("uplinkDataPlacement")
@@ -440,7 +467,8 @@ class XRayConfig(dict):
             self._handle_shadowsocks_settings(inbound["settings"], settings)
 
         if stream := inbound.get("streamSettings"):
-            net = stream.get("network", "tcp")
+            method = stream.get("method")
+            net = method if method else stream.get("network", "tcp")
             net_settings = stream.get(f"{net}Settings", {})
             security = stream.get("security")
             tls_settings = stream.get(f"{security}Settings")
@@ -547,7 +575,7 @@ class XRayConfig(dict):
         }
 
     @classmethod
-    def from_json(cls, data: dict) -> "XRayConfig":
+    def from_json(cls, data: dict) -> XRayConfig:
         """Reconstruct the config from a dictionary."""
         fallback_tags = data.get("fallbacks_inbound_tags")
         if fallback_tags is None:

@@ -14,19 +14,20 @@ from app.db.crud.group import (
     remove_groups,
 )
 from app.db.crud.user import get_users
-from app.db.models import Admin, UserStatus
+from app.db.crud.wireguard import sync_users_allocations
+from app.db.models import Admin
 from app.models.group import (
-    BulkGroupsActionResponse,
     BulkGroup,
+    BulkGroupsActionResponse,
     BulkGroupSelection,
     Group,
     GroupCreate,
     GroupListQuery,
     GroupModify,
     GroupResponse,
+    GroupSimple,
     GroupSimpleListQuery,
     GroupsResponse,
-    GroupSimple,
     GroupsSimpleResponse,
     RemoveGroupsResponse,
 )
@@ -34,7 +35,6 @@ from app.models.user import BulkOperationDryRunResponse, UserListQuery
 from app.node.sync import sync_users
 from app.operation import BaseOperation, OperatorType
 from app.operation.permissions import apply_group_access
-from app.utils.wireguard import bulk_reallocate_wireguard_peer_ips
 from app.utils.logger import get_logger
 
 logger = get_logger("group-operation")
@@ -49,6 +49,12 @@ class GroupOperation(BaseOperation):
             await self.raise_error("Group not found", 404)
         db_group = await self.get_validated_group(db, group_id)
         return db_group
+
+    async def _sync_users_allocations(self, db: AsyncSession, users) -> None:
+        try:
+            await sync_users_allocations(db, users)
+        except ValueError as exc:  # WireGuard subnet exhausted
+            await self.raise_error(message=str(exc), code=400, db=db)
 
     async def create_group(self, db: AsyncSession, new_group: GroupCreate, admin: Admin) -> Group:
         await self.check_inbound_tags(new_group.inbound_tags)
@@ -86,10 +92,11 @@ class GroupOperation(BaseOperation):
 
         users = await get_users(
             db,
-            query=UserListQuery(group_ids=[db_group.id], status=[UserStatus.active, UserStatus.on_hold]),
+            query=UserListQuery(group_ids=[db_group.id]),
             load_admin_role=True,
         )
-        await bulk_reallocate_wireguard_peer_ips(db, users, dry_run=False, replace_all=False)
+        await self._sync_users_allocations(db, users)
+        await db.commit()
         await sync_users(users)
 
         group = GroupResponse.model_validate(db_group)
@@ -108,33 +115,38 @@ class GroupOperation(BaseOperation):
         await remove_group(db, db_group)
 
         users = await get_users(db, query=UserListQuery(username=username_list), load_admin_role=True)
+        await self._sync_users_allocations(db, users)
+        await db.commit()
         await sync_users(users)
 
         logger.info(f'Group "{db_group.name}" deleted by admin "{admin.username}"')
 
         asyncio.create_task(notification.remove_group(db_group.id, admin.username))
 
-    async def bulk_add_groups(self, db: AsyncSession, bulk_model: BulkGroup):
-        await self.validate_all_groups(db, bulk_model)
+    async def bulk_add_groups(self, db: AsyncSession, bulk_model: BulkGroup, admin: Admin):
+        await self.validate_all_groups(db, bulk_model, admin)
         if bulk_model.dry_run:
             n = await count_bulk_group_scope(db, bulk_model)
             return BulkOperationDryRunResponse(affected_users=n)
 
         users, users_count = await add_groups_to_users(db, bulk_model)
-        await bulk_reallocate_wireguard_peer_ips(db, users, dry_run=False, replace_all=False)
+        await self._sync_users_allocations(db, users)
+        await db.commit()
         await sync_users(users)
 
         if self.operator_type in (OperatorType.API, OperatorType.WEB):
             return {"detail": f"operation has been successfuly done on {users_count} users"}
         return users_count
 
-    async def bulk_remove_groups(self, db: AsyncSession, bulk_model: BulkGroup):
-        await self.validate_all_groups(db, bulk_model)
+    async def bulk_remove_groups(self, db: AsyncSession, bulk_model: BulkGroup, admin: Admin):
+        await self.validate_all_groups(db, bulk_model, admin)
         if bulk_model.dry_run:
             n = await count_bulk_group_scope(db, bulk_model)
             return BulkOperationDryRunResponse(affected_users=n)
 
         users, users_count = await remove_groups_from_users(db, bulk_model)
+        await self._sync_users_allocations(db, users)
+        await db.commit()
         await sync_users(users)
 
         if self.operator_type in (OperatorType.API, OperatorType.WEB):
@@ -169,6 +181,8 @@ class GroupOperation(BaseOperation):
             users = await get_users(
                 db, query=UserListQuery(username=list(all_affected_usernames)), load_admin_role=True
             )
+            await self._sync_users_allocations(db, users)
+            await db.commit()
             await sync_users(users)
 
         for name, group_id in zip(group_names, group_ids):
@@ -212,12 +226,11 @@ class GroupOperation(BaseOperation):
         if groups_to_update:
             users = await get_users(
                 db,
-                query=UserListQuery(
-                    group_ids=[group.id for group in groups_to_update],
-                    status=[UserStatus.active, UserStatus.on_hold],
-                ),
+                query=UserListQuery(group_ids=[group.id for group in groups_to_update]),
                 load_admin_role=True,
             )
+            await self._sync_users_allocations(db, users)
+            await db.commit()
             await sync_users(users)
 
         for db_group in groups_to_update:

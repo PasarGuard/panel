@@ -131,12 +131,16 @@ export function SubscriptionGeneralSettingsSection({ form }: SubscriptionGeneral
           name="announce_url"
           render={({ field }) => (
             <FormItem className="space-y-2">
-              <FormLabel className="flex items-center gap-2 text-xs font-medium sm:text-sm">
-                <ExternalLink className="h-4 w-4" />
-                {t('settings.subscriptions.general.announceUrl')}
-              </FormLabel>
+              <div className="flex items-center gap-1.5">
+                <FormLabel className="flex items-center gap-2 text-xs font-medium sm:text-sm">
+                  <ExternalLink className="h-4 w-4" />
+                  {t('settings.subscriptions.general.announceUrl')}
+                </FormLabel>
+                <VariablesPopover customVariables={form.watch('custom_variables') || []} />
+                <CustomVariablesPopover customVariables={form.watch('custom_variables') || []} />
+              </div>
               <FormControl>
-                <Input type="url" placeholder={t('settings.subscriptions.general.announceUrlPlaceholder')} {...field} className="font-mono text-xs sm:text-sm" />
+                <Input placeholder={t('settings.subscriptions.general.announceUrlPlaceholder')} {...field} className="font-mono text-xs sm:text-sm" />
               </FormControl>
               <FormDescription className="text-muted-foreground text-xs sm:text-sm">{t('settings.subscriptions.general.announceUrlDescription')}</FormDescription>
               <FormMessage />

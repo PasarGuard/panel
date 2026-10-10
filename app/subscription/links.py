@@ -63,7 +63,7 @@ class StandardLinks(BaseSubscription):
     def render(self):
         if subscription_env_settings.external_config:
             self.links.append(subscription_env_settings.external_config)
-        return "\n".join((self.links))
+        return "\n".join(self.links)
 
     def add(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict):
         """
@@ -114,8 +114,10 @@ class StandardLinks(BaseSubscription):
             "xPaddingPlacement": config.x_padding_placement,
             "xPaddingMethod": config.x_padding_method,
             "uplinkHTTPMethod": config.uplink_http_method,
-            "sessionPlacement": config.session_placement,
-            "sessionKey": config.session_key,
+            "sessionIDPlacement": config.session_placement,
+            "sessionIDKey": config.session_key,
+            "sessionIDTable": config.session_id_table,
+            "sessionIDLength": config.session_id_length,
             "seqPlacement": config.seq_placement,
             "seqKey": config.seq_key,
             "uplinkDataPlacement": config.uplink_data_placement,
@@ -190,17 +192,15 @@ class StandardLinks(BaseSubscription):
         payload["pcs"] = tls_config.pinned_peer_cert_sha256
         payload["pinSHA256"] = tls_config.pinned_peer_cert_sha256  # some clients read this property
         payload["vcn"] = ",".join(tls_config.verify_peer_cert_by_name) if tls_config.verify_peer_cert_by_name else ""
+        payload["cs"] = tls_config.cipher_suites if tls_config.fingerprint == "unsafe" else ""
 
         # Use pre-formatted alpn for links (comma-separated string)
         if tls_config.alpn_links:
             payload["alpn"] = tls_config.alpn_links
 
         # Fragment settings (from inbound, not TLS)
-        if fragment_settings:
-            if xray_fragment := fragment_settings.get("xray"):
-                payload["fragment"] = (
-                    f"{xray_fragment['length']},{xray_fragment['interval']},{xray_fragment['packets']}"
-                )
+        if fragment_settings and (xray_fragment := fragment_settings.get("xray")):
+            payload["fragment"] = f"{xray_fragment['length']},{xray_fragment['interval']},{xray_fragment['packets']}"
 
         if tls_config.ech_config_list:
             payload["ech"] = tls_config.ech_config_list
