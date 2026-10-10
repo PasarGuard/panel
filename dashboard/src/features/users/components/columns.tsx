@@ -20,6 +20,7 @@ export const setupColumns = ({
   dir,
   showCreatedBy,
   showSelectionCheckbox,
+  showHwidCount,
 }: {
   t: (key: string) => string
   handleSort: (column: string, fromDropdown?: boolean) => void
@@ -28,6 +29,7 @@ export const setupColumns = ({
   dir: string
   showCreatedBy: boolean
   showSelectionCheckbox: boolean
+  showHwidCount: boolean
 }): ColumnDef<UserListItem>[] => [
   ...(showSelectionCheckbox
     ? (() => {
@@ -147,12 +149,14 @@ export const setupColumns = ({
                   <span className="text-blue-500">{row.original.admin?.username}</span>
                 </span>
               )}
-              <span className="text-muted-foreground flex items-center gap-1 text-xs tabular-nums md:hidden" title={t('hwids.registeredCount')}>
-                <Fingerprint className="h-3 w-3 shrink-0" aria-hidden="true" />
-                <span>
-                  {t('hwids.count')}: {row.original.hwid_count ?? 0}
+              {showHwidCount && (
+                <span className="text-muted-foreground flex items-center gap-1 text-xs tabular-nums md:hidden" title={t('hwids.registeredCount')}>
+                  <Fingerprint className="h-3 w-3 shrink-0" aria-hidden="true" />
+                  <span>
+                    {t('hwids.count')}: {row.original.hwid_count ?? 0}
+                  </span>
                 </span>
-              </span>
+              )}
             </div>
           </div>
         </div>
@@ -216,21 +220,26 @@ export const setupColumns = ({
       return rowA.original.used_traffic - rowB.original.used_traffic
     },
   },
-  {
-    accessorKey: 'hwid_count',
-    header: () => (
-      <button onClick={() => handleSort('hwid_count')} className="flex w-full items-center gap-1 py-3" title={t('hwids.registeredCount')}>
-        <span className="text-xs">{t('hwids.count')}</span>
-        {filters.sort.replace(/^-/, '') === 'hwid_count' && <ChevronDown size={16} className={cn('shrink-0 transition-transform duration-300', filters.sort === 'hwid_count' && 'rotate-180')} />}
-      </button>
-    ),
-    cell: ({ row }) => (
-      <span className="flex items-center gap-1.5 text-sm tabular-nums" title={t('hwids.registeredCount')}>
-        <Fingerprint className="text-muted-foreground h-3.5 w-3.5" aria-hidden="true" />
-        {row.original.hwid_count ?? 0}
-      </span>
-    ),
-  },
+  // Device counts need hwids.read, like the device list itself
+  ...(showHwidCount
+    ? [
+        {
+          accessorKey: 'hwid_count',
+          header: () => (
+            <button onClick={() => handleSort('hwid_count')} className="flex w-full items-center gap-1 py-3" title={t('hwids.registeredCount')}>
+              <span className="text-xs">{t('hwids.count')}</span>
+              {filters.sort.replace(/^-/, '') === 'hwid_count' && <ChevronDown size={16} className={cn('shrink-0 transition-transform duration-300', filters.sort === 'hwid_count' && 'rotate-180')} />}
+            </button>
+          ),
+          cell: ({ row }: { row: Row<UserListItem> }) => (
+            <span className="flex items-center gap-1.5 text-sm tabular-nums" title={t('hwids.registeredCount')}>
+              <Fingerprint className="text-muted-foreground h-3.5 w-3.5" aria-hidden="true" />
+              {row.original.hwid_count ?? 0}
+            </span>
+          ),
+        },
+      ]
+    : []),
   {
     id: 'details',
     header: () => {

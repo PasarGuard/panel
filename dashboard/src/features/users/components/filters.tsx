@@ -122,6 +122,7 @@ interface FiltersProps {
     no_expire?: boolean
   }
   onFilterChange: (filters: Partial<FiltersProps['filters']>) => void
+  canSortByHwidCount?: boolean
   refetch?: (options?: RefetchOptions) => Promise<unknown>
   autoRefetch?: (options?: RefetchOptions) => Promise<unknown>
   advanceSearchOnOpen: (status: boolean) => void
@@ -152,9 +153,11 @@ const buildSubscriptionInfoUrl = (value: string) => {
   }
 }
 
-export const Filters = ({ filters, onFilterChange, refetch, autoRefetch, advanceSearchOnOpen, onClearAdvanceSearch, handleSort }: FiltersProps) => {
+export const Filters = ({ filters, onFilterChange, refetch, autoRefetch, advanceSearchOnOpen, onClearAdvanceSearch, handleSort, canSortByHwidCount = false }: FiltersProps) => {
   const { t } = useTranslation()
   const dir = useDirDetection()
+  // The backend ignores the device count sort without hwids.read, so do not offer it
+  const visibleSortSections = canSortByHwidCount ? sortSections : sortSections.filter(section => section.key !== 'hwidCount')
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [autoRefreshInterval, setAutoRefreshInterval] = useState<number>(() => getUsersAutoRefreshIntervalSeconds())
   const { refetch: queryRefetch, isFetching } = useGetUsers(filters)
@@ -515,7 +518,7 @@ export const Filters = ({ filters, onFilterChange, refetch, autoRefetch, advance
             <DropdownMenuContent align="end" className="max-h-72 w-52 overflow-y-auto">
               <DropdownMenuLabel className="text-muted-foreground px-2 py-1 text-[10px]">{t('sortOptions', { defaultValue: 'Sort Options' })}</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              {sortSections.map(section => {
+              {visibleSortSections.map(section => {
                 const state = getSortState(section)
                 return (
                   <DropdownMenuItem key={section.key} onClick={() => handleCompactSort(section)} className={cn('flex items-center gap-1.5 px-2 py-1.5 text-[11px]', state !== 'none' && 'bg-accent')}>
