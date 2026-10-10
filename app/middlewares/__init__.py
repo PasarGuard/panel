@@ -9,20 +9,9 @@ from .request_logging import RequestProcessTimeLoggingMiddleware
 
 
 def setup_middleware(app: FastAPI):
-    # Security: reject wildcard origin with credentials enabled
     allowed_origins = cors_settings.allowed_origins
-    if "*" in allowed_origins:
-        import warnings
-
-        warnings.warn(
-            "CORS allow_origins contains '*' with allow_credentials=True is insecure. "
-            "Set ALLOWED_ORIGINS to explicit origins in production.",
-            stacklevel=2,
-        )
-        allow_credentials = False
-    else:
-        allow_credentials = True
-
+    # With a wildcard plus credentials, Starlette echoes every Origin back with Allow-Credentials.
+    allow_credentials = "*" not in allowed_origins
     app.add_middleware(
         CORSMiddleware,
         allow_origins=allowed_origins,
