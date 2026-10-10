@@ -32,6 +32,9 @@ class KvKeyIndex:
         if self._closed:
             raise RuntimeError("NATS key index is closed")
         if not callable(getattr(self._kv, "watch", None)):
+            list_entries = getattr(self._kv, "list_entries", None)
+            if callable(list_entries):
+                return dict(await list_entries(prefix))
             return dict.fromkeys(await kv_list_keys(self._kv, prefix), 0)
         if self._task is None:
             # No await between checking and setting: all node callers share one
@@ -56,8 +59,14 @@ class KvKeyIndex:
 
     async def snapshot(self, prefixes: tuple[str, ...]) -> tuple[set[str], int]:
         """Copy candidate keys and their replay checkpoint without yielding."""
+        entries, revision = await self.snapshot_entries(prefixes)
+        return set(entries), revision
+
+    async def snapshot_entries(self, prefixes: tuple[str, ...]) -> tuple[dict[str, int], int]:
+        """Copy candidate keys with their known revisions and the replay checkpoint, without yielding."""
         await self.entries(prefixes[0])
-        return {key for prefix in prefixes for key in self._keys.get(prefix, {})}, self._last_revision
+        entries = {key: rev for prefix in prefixes for key, rev in self._keys.get(prefix, {}).items()}
+        return entries, self._last_revision
 
     def observe_put(self, key: str, revision: int) -> None:
         """Expose an acknowledged local write before its watch event arrives.

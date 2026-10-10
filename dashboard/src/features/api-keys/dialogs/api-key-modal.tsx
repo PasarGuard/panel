@@ -51,6 +51,7 @@ import {
   useGetAdminsSimple,
 } from '@/service/api'
 import { useAdmin } from '@/hooks/use-admin'
+import { useClipboard } from '@/hooks/use-clipboard'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Key, Copy, Check, KeyRound, Pencil } from 'lucide-react'
@@ -88,6 +89,7 @@ export default function ApiKeyModal({
   const { t } = useTranslation()
   const [createdKey, setCreatedKey] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  const { copy } = useClipboard()
 
   const queryClient = useQueryClient()
   const { admin } = useAdmin()
@@ -216,12 +218,14 @@ export default function ApiKeyModal({
     }
   }
 
-  const copyToClipboard = () => {
-    if (createdKey) {
-      navigator.clipboard.writeText(createdKey)
+  const copyToClipboard = async () => {
+    if (!createdKey) return
+    if (await copy(createdKey)) {
       setCopied(true)
       toast.success(t('apiKeys.apiKeyCopySuccess'))
       setTimeout(() => setCopied(false), 2000)
+    } else {
+      toast.error(t('copyFailed', { defaultValue: 'Failed to copy content' }))
     }
   }
 
