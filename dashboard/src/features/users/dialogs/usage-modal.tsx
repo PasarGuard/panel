@@ -40,6 +40,11 @@ interface UsageModalProps {
   open: boolean
   onClose: () => void
   userId: number
+  initialView?: {
+    period: TrafficShortcutKey
+    customRange?: DateRange
+    nodeId?: number
+  }
 }
 
 type NodePieChartDataPoint = {
@@ -218,7 +223,7 @@ function NodePieTooltip({ active, payload }: TooltipProps<number, string>) {
   )
 }
 
-const UsageModal = ({ open, onClose, userId }: UsageModalProps) => {
+const UsageModal = ({ open, onClose, userId, initialView }: UsageModalProps) => {
   // Memoize now only once per modal open
   const [rangeNow, setRangeNow] = useState(() => Date.now())
   useEffect(() => {
@@ -241,6 +246,18 @@ const UsageModal = ({ open, onClose, userId }: UsageModalProps) => {
   // Get current admin to check permissions
   const { data: currentAdmin } = useGetCurrentAdmin()
   const canReadAllUserUsage = hasScopeAll(currentAdmin, 'users', 'read')
+  // Applied during render, not in an effect, so the first query already uses the caller's view
+  const [prevOpen, setPrevOpen] = useState(false)
+  if (prevOpen !== open) {
+    setPrevOpen(open)
+    if (open && initialView) {
+      setPeriod(initialView.period)
+      setPeriodOverride(CHART_PERIOD_OVERRIDE_AUTO)
+      setCustomRange(initialView.customRange)
+      setShowCustomRange(!!initialView.customRange)
+      setSelectedNodeId(canReadAllUserUsage ? initialView.nodeId : undefined)
+    }
+  }
   const allNodesSelected = selectedNodeId === undefined && canReadAllUserUsage
   const dir = useDirDetection()
   const { resolvedTheme } = useTheme()

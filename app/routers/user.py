@@ -11,6 +11,7 @@ from app.models.stats import (
     UserCountMetric,
     UserCountMetricStatsList,
     UserUsageStatsList,
+    UserUsageTotalsList,
 )
 from app.models.user import (
     BulkUser,
@@ -37,6 +38,7 @@ from app.models.user import (
     UserSubscriptionUpdateList,
     UsersUsageBreakdownQuery,
     UsersUsageQuery,
+    UsersUsageTotalsQuery,
     UserUsageQuery,
 )
 from app.operation import OperatorType
@@ -53,6 +55,7 @@ from .dependencies import (
     get_user_usage_query,
     get_users_usage_breakdown_query,
     get_users_usage_query,
+    get_users_usage_totals_query,
 )
 
 user_operator = UserOperation(operator_type=OperatorType.API)
@@ -585,6 +588,16 @@ async def get_users_usage(
 ):
     """Get all users usage"""
     return await user_operator.get_users_usage(db, admin=admin, query=query)
+
+
+@router.get("s/usage/top", response_model=UserUsageTotalsList, responses={403: responses._403})
+async def get_users_usage_totals(
+    query: Annotated[UsersUsageTotalsQuery, Depends(get_users_usage_totals_query)],
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(require_permission("users", "read")),
+):
+    """Get users ranked by total usage"""
+    return await user_operator.get_users_usage_totals(db, admin=admin, query=query)
 
 
 @router.get("s/counts/{metric}", response_model=UserCountMetricStatsList)

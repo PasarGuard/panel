@@ -5,15 +5,22 @@ Tests verify that the UTC conversion fix correctly filters records by timezone-a
 This includes strict testing with multiple data rows, edge cases for each period, and expected responses.
 """
 
+import asyncio
 from datetime import UTC, datetime, timedelta, timezone
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import select
+from fastapi import status
+from sqlalchemy import delete, select
 
 from app.db.crud.admin import get_admin_usages
 from app.db.crud.node import get_nodes_usage
-from app.db.crud.user import get_all_users_usages, get_user_count_metric_stats, get_user_usages
+from app.db.crud.user import (
+    get_all_users_usages,
+    get_user_count_metric_stats,
+    get_user_usages,
+    get_users_usage_totals,
+)
 from app.db.models import (
     Admin,
     CoreConfig,
@@ -31,7 +38,8 @@ from app.models.stats import (
     UserCountMetricStatsList,
     UserUsageStatsList,
 )
-from tests.api import TestSession
+from tests.api import TestSession, client
+from tests.api.helpers import auth_headers, create_admin, delete_admin, unique_name
 
 
 async def setup_test_data(session, test_suffix=""):
@@ -1170,3 +1178,252 @@ class TestGetUserCountMetricStats:
                     metric=UserCountMetric.limited,
                     group_by_node=True,
                 )
+
+
+class TestGetUsersUsageTotals:
+    """Test get_users_usage_totals ranking, node split and time range."""
+
+    @pytest.mark.asyncio
+    async def test_ranking_totals_and_limit(self):
+        async with TestSession() as session:
+            admin_id, first_user_id, node_id = await setup_test_data(session, "totals")
+            admin_username = (await session.execute(select(Admin.username).where(Admin.id == admin_id))).scalar_one()
+
+            extra_users = [
+                User(
+                    username=f"totals_{uuid4().hex[:8]}",
+                    admin_id=admin_id,
+                    proxy_settings=ProxyTable().dict(no_obj=True),
+                )
+                for _ in range(4)
+            ]
+            session.add_all(extra_users)
+            await session.flush()
+            second_user_id, third_user_id, idle_user_id, deleted_user_id = (user.id for user in extra_users)
+
+            start = datetime(2027, 1, 5, 0, 0, 0, tzinfo=UTC)
+            end = datetime(2027, 1, 6, 0, 0, 0, tzinfo=UTC)
+            rows = [
+                (first_user_id, start + timedelta(hours=1), 100),
+                (first_user_id, start + timedelta(hours=2), 200),
+                (second_user_id, start + timedelta(hours=3), 500),
+                (third_user_id, start + timedelta(hours=4), 500),
+                (idle_user_id, start + timedelta(hours=5), 0),
+                (deleted_user_id, start + timedelta(hours=6), 9_999),
+            ]
+            for user_id, created_at, used_traffic in rows:
+                session.add(
+                    NodeUserUsage(created_at=created_at, user_id=user_id, node_id=node_id, used_traffic=used_traffic)
+                )
+            await session.commit()
+
+            await session.execute(delete(User).where(User.id == deleted_user_id))
+            await session.commit()
+
+            result = await get_users_usage_totals(session, admins=[admin_username], start=start, end=end)
+
+            assert result.total == 3
+            assert result.total_traffic == 1300
+            assert [(user.user_id, user.total_traffic) for user in result.users] == [
+                (second_user_id, 500),
+                (third_user_id, 500),
+                (first_user_id, 300),
+            ]
+            assert result.users[0].status == UserStatus.active
+            assert all(user.nodes is None for user in result.users)
+
+            limited = await get_users_usage_totals(session, admins=[admin_username], start=start, end=end, limit=1)
+
+            assert limited.total == 3
+            assert limited.total_traffic == 1300
+            assert [user.user_id for user in limited.users] == [second_user_id]
+
+    @pytest.mark.asyncio
+    async def test_group_by_node_split(self):
+        async with TestSession() as session:
+            admin_id, first_user_id, first_node_id = await setup_test_data(session, "totals_split")
+            _other_admin_id, _other_user_id, second_node_id = await setup_test_data(session, "totals_split")
+            admin_username = (await session.execute(select(Admin.username).where(Admin.id == admin_id))).scalar_one()
+
+            second_user = User(
+                username=f"totals_split_{uuid4().hex[:8]}",
+                admin_id=admin_id,
+                proxy_settings=ProxyTable().dict(no_obj=True),
+            )
+            session.add(second_user)
+            await session.flush()
+            second_user_id = second_user.id
+
+            start = datetime(2027, 1, 25, 0, 0, 0, tzinfo=UTC)
+            end = datetime(2027, 1, 26, 0, 0, 0, tzinfo=UTC)
+            rows = [
+                (first_user_id, first_node_id, start, 100),
+                (first_user_id, first_node_id, start + timedelta(hours=1), 20),
+                (first_user_id, second_node_id, start, 50),
+                (first_user_id, None, start, 7),
+                (second_user_id, second_node_id, start, 30),
+            ]
+            for user_id, node_id, created_at, used_traffic in rows:
+                session.add(
+                    NodeUserUsage(created_at=created_at, user_id=user_id, node_id=node_id, used_traffic=used_traffic)
+                )
+            await session.commit()
+
+            result = await get_users_usage_totals(
+                session, admins=[admin_username], start=start, end=end, group_by_node=True
+            )
+
+            assert result.total == 2
+            assert result.total_traffic == 207
+            assert [
+                (user.user_id, user.total_traffic, [(node.node_id, node.total_traffic) for node in user.nodes])
+                for user in result.users
+            ] == [
+                (first_user_id, 177, [(0, 7), (first_node_id, 120), (second_node_id, 50)]),
+                (second_user_id, 30, [(second_node_id, 30)]),
+            ]
+
+            node_filtered = await get_users_usage_totals(
+                session, admins=[admin_username], start=start, end=end, node_id=second_node_id, group_by_node=True
+            )
+
+            assert node_filtered.total_traffic == 80
+            assert [
+                (user.user_id, user.total_traffic, [(node.node_id, node.total_traffic) for node in user.nodes])
+                for user in node_filtered.users
+            ] == [
+                (first_user_id, 50, [(second_node_id, 50)]),
+                (second_user_id, 30, [(second_node_id, 30)]),
+            ]
+
+    @pytest.mark.asyncio
+    async def test_range_edges_and_empty_range(self):
+        async with TestSession() as session:
+            admin_id, user_id, node_id = await setup_test_data(session, "totals_range")
+            admin_username = (await session.execute(select(Admin.username).where(Admin.id == admin_id))).scalar_one()
+
+            tehran_tz = timezone(timedelta(hours=3, minutes=30))
+            start = datetime(2027, 1, 10, 0, 0, 0, tzinfo=tehran_tz)
+            end = datetime(2027, 1, 10, 6, 0, 0, tzinfo=tehran_tz)
+            rows = [
+                (start - timedelta(seconds=1), 1),
+                (start, 10),
+                (end - timedelta(seconds=1), 100),
+                (end, 1000),
+            ]
+            for created_at, used_traffic in rows:
+                session.add(
+                    NodeUserUsage(
+                        created_at=created_at.astimezone(UTC),
+                        user_id=user_id,
+                        node_id=node_id,
+                        used_traffic=used_traffic,
+                    )
+                )
+            await session.commit()
+
+            result = await get_users_usage_totals(session, admins=[admin_username], start=start, end=end)
+
+            assert result.total_traffic == 110
+            assert [(user.user_id, user.total_traffic) for user in result.users] == [(user_id, 110)]
+            assert result.start == start
+            assert result.end == end
+
+            empty = await get_users_usage_totals(
+                session,
+                admins=[admin_username],
+                start=end + timedelta(hours=1),
+                end=end + timedelta(hours=2),
+            )
+
+            assert empty.total == 0
+            assert empty.total_traffic == 0
+            assert empty.users == []
+
+
+def test_users_usage_totals_endpoint_scoping(access_token):
+    operator = create_admin(access_token)
+    response = client.post(
+        "/api/admin-role",
+        headers=auth_headers(access_token),
+        json={
+            "name": unique_name("role_totals"),
+            "permissions": {"users": {"read": {"scope": 1}}, "admins": {"read": True}},
+            "limits": {},
+            "features": {},
+            "access": {},
+        },
+    )
+    assert response.status_code == status.HTTP_201_CREATED
+    role = response.json()
+    reader = create_admin(access_token, role_id=role["id"])
+    start = datetime(2027, 1, 15, 0, 0, 0, tzinfo=UTC)
+    end = datetime(2027, 1, 16, 0, 0, 0, tzinfo=UTC)
+    params = {"start": start.isoformat(), "end": end.isoformat()}
+
+    async def _seed() -> tuple[int, str, int]:
+        async with TestSession() as session:
+            foreign_admin_id, foreign_user_id, node_id = await setup_test_data(session, "totals_api")
+            foreign_admin_username = (
+                await session.execute(select(Admin.username).where(Admin.id == foreign_admin_id))
+            ).scalar_one()
+            operator_id = (
+                await session.execute(select(Admin.id).where(Admin.username == operator["username"]))
+            ).scalar_one()
+            own_user = User(
+                username=f"totals_own_{uuid4().hex[:8]}",
+                admin_id=operator_id,
+                proxy_settings=ProxyTable().dict(no_obj=True),
+            )
+            session.add(own_user)
+            await session.flush()
+            session.add_all(
+                [
+                    NodeUserUsage(created_at=start, user_id=own_user.id, node_id=node_id, used_traffic=40),
+                    NodeUserUsage(created_at=start, user_id=foreign_user_id, node_id=node_id, used_traffic=900),
+                ]
+            )
+            await session.commit()
+            return own_user.id, foreign_admin_username, node_id
+
+    def _headers(admin: dict) -> dict[str, str]:
+        login = client.post(
+            "/api/admin/token",
+            data={"username": admin["username"], "password": admin["password"], "grant_type": "password"},
+        )
+        return auth_headers(login.json()["access_token"])
+
+    try:
+        own_user_id, foreign_admin_username, node_id = asyncio.run(_seed())
+        operator_headers = _headers(operator)
+
+        response = client.get(
+            "/api/users/usage/top",
+            headers=operator_headers,
+            params={**params, "node_id": node_id + 1, "group_by_node": True},
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        body = response.json()
+        assert body["total"] == 1
+        assert body["total_traffic"] == 40
+        assert [(user["user_id"], user["total_traffic"], user["nodes"]) for user in body["users"]] == [
+            (own_user_id, 40, None)
+        ]
+
+        foreign_admin = client.get(
+            "/api/users/usage/top", headers=operator_headers, params={**params, "admin": foreign_admin_username}
+        )
+        assert foreign_admin.status_code == status.HTTP_403_FORBIDDEN
+
+        reader_foreign_admin = client.get(
+            "/api/users/usage/top", headers=_headers(reader), params={**params, "admin": foreign_admin_username}
+        )
+        assert reader_foreign_admin.status_code == status.HTTP_403_FORBIDDEN
+
+        invalid_limit = client.get("/api/users/usage/top", headers=operator_headers, params={**params, "limit": 101})
+        assert invalid_limit.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+    finally:
+        delete_admin(access_token, operator["username"])
+        delete_admin(access_token, reader["username"])
+        client.delete(f"/api/admin-role/{role['id']}", headers=auth_headers(access_token))

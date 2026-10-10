@@ -34,8 +34,11 @@ from app.models.stats import (
     UserCountMetric,
     UserCountMetricStat,
     UserCountMetricStatsList,
+    UserNodeUsageTotal,
     UserUsageStat,
     UserUsageStatsList,
+    UserUsageTotal,
+    UserUsageTotalsList,
     validate_user_count_metric_scope,
 )
 from app.models.user import (
@@ -1714,6 +1717,88 @@ async def get_all_users_usages(
         stats[stats_key].append(UserUsageStat(**row_dict))
 
     return UserUsageStatsList(period=period, start=start, end=end, stats=stats)
+
+
+async def get_users_usage_totals(
+    db: AsyncSession,
+    admins: Sequence[str] | None,
+    start: datetime,
+    end: datetime,
+    node_id: int | None = None,
+    group_by_node: bool = False,
+    limit: int = 10,
+) -> UserUsageTotalsList:
+    """Retrieves users ranked by their total traffic within a time range."""
+    admins_filter = admins or None
+
+    conditions = [
+        NodeUserUsage.created_at >= to_utc_for_filter(start),
+        NodeUserUsage.created_at < to_utc_for_filter(end),
+    ]
+    if admins_filter:
+        conditions.append(Admin.username.in_(admins_filter))
+
+    if node_id is not None:
+        conditions.append(NodeUserUsage.node_id == node_id)
+
+    from_clause = NodeUserUsage.__table__.join(User, User.id == NodeUserUsage.user_id)
+    if admins_filter:
+        from_clause = from_clause.join(Admin, Admin.id == User.admin_id)
+
+    user_totals = (
+        select(NodeUserUsage.user_id, func.sum(NodeUserUsage.used_traffic).label("total_traffic"))
+        .select_from(from_clause)
+        .where(and_(*conditions))
+        .group_by(NodeUserUsage.user_id)
+        .having(func.sum(NodeUserUsage.used_traffic) > 0)
+        .subquery()
+    )
+
+    total, total_traffic = (
+        await db.execute(
+            select(func.count(), func.coalesce(func.sum(user_totals.c.total_traffic), 0)).select_from(user_totals)
+        )
+    ).one()
+
+    ranked_page = (
+        select(user_totals).order_by(user_totals.c.total_traffic.desc(), user_totals.c.user_id).limit(limit).subquery()
+    )
+
+    result = await db.execute(
+        select(User.id.label("user_id"), User.username, User.status, ranked_page.c.total_traffic)
+        .join(ranked_page, ranked_page.c.user_id == User.id)
+        .order_by(ranked_page.c.total_traffic.desc(), ranked_page.c.user_id)
+    )
+    page_rows = result.mappings().all()
+
+    nodes_by_user: dict[int, list[UserNodeUsageTotal]] = {}
+    if group_by_node and page_rows:
+        nodes_by_user = {row["user_id"]: [] for row in page_rows}
+
+        node_key = func.coalesce(NodeUserUsage.node_id, 0)
+        node_result = await db.execute(
+            select(
+                NodeUserUsage.user_id,
+                node_key.label("node_id"),
+                func.sum(NodeUserUsage.used_traffic).label("total_traffic"),
+            )
+            .select_from(from_clause)
+            .where(and_(*conditions, NodeUserUsage.user_id.in_(list(nodes_by_user))))
+            .group_by(NodeUserUsage.user_id, NodeUserUsage.node_id)
+            .order_by(node_key)
+        )
+        for row in node_result.mappings():
+            nodes_by_user[row["user_id"]].append(
+                UserNodeUsageTotal(node_id=row["node_id"], total_traffic=row["total_traffic"])
+            )
+
+    return UserUsageTotalsList(
+        start=start,
+        end=end,
+        total_traffic=total_traffic,
+        total=total,
+        users=[UserUsageTotal(**row, nodes=nodes_by_user.get(row["user_id"])) for row in page_rows],
+    )
 
 
 async def get_user_count_metric_stats(

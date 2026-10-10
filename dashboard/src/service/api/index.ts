@@ -2418,6 +2418,11 @@ export interface UserModify {
   status?: UserStatus | null;
 }
 
+export interface UserNodeUsageTotal {
+  node_id: number;
+  total_traffic: number;
+}
+
 export interface UserResponse {
   proxy_settings?: ProxyTable;
   expire?: string | number | null;
@@ -2580,6 +2585,22 @@ export interface UserUsageStatsList {
   start: string;
   end: string;
   stats: UserUsageStatsListStats;
+}
+
+export interface UserUsageTotal {
+  user_id: number;
+  username: string;
+  status: UserStatus;
+  total_traffic: number;
+  nodes?: UserNodeUsageTotal[] | null;
+}
+
+export interface UserUsageTotalsList {
+  start: string;
+  end: string;
+  total_traffic: number;
+  total: number;
+  users: UserUsageTotal[];
 }
 
 export interface UsersResponse {
@@ -2920,6 +2941,19 @@ end?: string | null;
 admin?: string[] | null;
 core_id?: number | null;
 group_by_admin?: boolean;
+};
+
+export type GetUsersUsageTotalsParams = {
+node_id?: number | null;
+group_by_node?: boolean;
+start?: string | null;
+end?: string | null;
+admin?: string[] | null;
+/**
+ * @minimum 1
+ * @maximum 100
+ */
+limit?: number;
 };
 
 export type GetUsersCountMetricParams = {
@@ -22774,6 +22808,152 @@ export function useGetUsersUsage<TData = Awaited<ReturnType<typeof getUsersUsage
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetUsersUsageQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type getUsersUsageTotalsResponse200 = {
+  data: UserUsageTotalsList
+  status: 200
+}
+
+export type getUsersUsageTotalsResponse401 = {
+  data: Unauthorized
+  status: 401
+}
+
+export type getUsersUsageTotalsResponse403 = {
+  data: Forbidden
+  status: 403
+}
+
+export type getUsersUsageTotalsResponse422 = {
+  data: HTTPValidationError
+  status: 422
+}
+
+export type getUsersUsageTotalsResponseSuccess = (getUsersUsageTotalsResponse200) & {
+  headers: Headers;
+};
+export type getUsersUsageTotalsResponseError = (getUsersUsageTotalsResponse401 | getUsersUsageTotalsResponse403 | getUsersUsageTotalsResponse422) & {
+  headers: Headers;
+};
+
+export type getUsersUsageTotalsResponse = (getUsersUsageTotalsResponseSuccess | getUsersUsageTotalsResponseError)
+
+export const getGetUsersUsageTotalsUrl = (params?: GetUsersUsageTotalsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    const explodeParameters = ["admin"];
+
+    if (Array.isArray(value) && explodeParameters.includes(key)) {
+      value.forEach((v) => {
+        normalizedParams.append(key, v === null ? 'null' : String(v));
+      });
+      return;
+    }
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/users/usage/top?${stringifiedParams}` : `/api/users/usage/top`
+}
+
+/**
+ * Get users ranked by total usage
+ * @summary Get Users Usage Totals
+ */
+export const getUsersUsageTotals = async (params?: GetUsersUsageTotalsParams, options?: RequestInit): Promise<getUsersUsageTotalsResponse> => {
+
+  return orvalFetcher<getUsersUsageTotalsResponse>(getGetUsersUsageTotalsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetUsersUsageTotalsQueryKey = (params?: GetUsersUsageTotalsParams,) => {
+    return [
+    `/api/users/usage/top`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetUsersUsageTotalsQueryOptions = <TData = Awaited<ReturnType<typeof getUsersUsageTotals>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(params?: GetUsersUsageTotalsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUsersUsageTotals>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetUsersUsageTotalsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getUsersUsageTotals>>> = ({ signal }) => getUsersUsageTotals(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getUsersUsageTotals>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetUsersUsageTotalsQueryResult = NonNullable<Awaited<ReturnType<typeof getUsersUsageTotals>>>
+export type GetUsersUsageTotalsQueryError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>
+
+
+export function useGetUsersUsageTotals<TData = Awaited<ReturnType<typeof getUsersUsageTotals>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+ params: undefined |  GetUsersUsageTotalsParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUsersUsageTotals>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getUsersUsageTotals>>,
+          TError,
+          Awaited<ReturnType<typeof getUsersUsageTotals>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetUsersUsageTotals<TData = Awaited<ReturnType<typeof getUsersUsageTotals>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+ params?: GetUsersUsageTotalsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUsersUsageTotals>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getUsersUsageTotals>>,
+          TError,
+          Awaited<ReturnType<typeof getUsersUsageTotals>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetUsersUsageTotals<TData = Awaited<ReturnType<typeof getUsersUsageTotals>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+ params?: GetUsersUsageTotalsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUsersUsageTotals>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get Users Usage Totals
+ */
+
+export function useGetUsersUsageTotals<TData = Awaited<ReturnType<typeof getUsersUsageTotals>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+ params?: GetUsersUsageTotalsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUsersUsageTotals>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetUsersUsageTotalsQueryOptions(params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
