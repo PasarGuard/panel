@@ -1,7 +1,7 @@
 """add reverse group membership indexes
 
 Revision ID: a4d8c7e91b32
-Revises: b4c7e8f1a2d3
+Revises: d73f8a2c4e91
 Create Date: 2026-08-14 15:00:00.000000
 
 """
@@ -10,7 +10,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "a4d8c7e91b32"
-down_revision = "b4c7e8f1a2d3"
+down_revision = "d73f8a2c4e91"
 branch_labels = None
 depends_on = None
 
