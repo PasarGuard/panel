@@ -337,12 +337,15 @@ def _accessible_tags_stmt(*, tags: Iterable[str] | None = None, user_ids: Iterab
 
 
 async def get_users_accessible_tags(db: AsyncSession, user_ids: list[int]) -> dict[int, set[str]]:
-    """user_id -> inbound tags reachable through enabled groups. One joined SELECT."""
+    """user_id -> inbound tags reachable through enabled groups. One joined SELECT per 10k ids."""
     if not user_ids:
         return {}
     tags_by_user: dict[int, set[str]] = {}
-    for user_id, tag in (await db.execute(_accessible_tags_stmt(user_ids=user_ids))).all():
-        tags_by_user.setdefault(user_id, set()).add(tag)
+    # asyncpg caps a statement at 32767 bind parameters, so a big group can't go into one IN (...).
+    for start in range(0, len(user_ids), 10_000):
+        stmt = _accessible_tags_stmt(user_ids=user_ids[start : start + 10_000])
+        for user_id, tag in (await db.execute(stmt)).all():
+            tags_by_user.setdefault(user_id, set()).add(tag)
     return tags_by_user
 
 
