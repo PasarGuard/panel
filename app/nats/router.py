@@ -1,15 +1,20 @@
 import asyncio
 import json
-from typing import Awaitable, Callable
+from collections.abc import Awaitable, Callable
 
 import nats
 
 from app.nats.client import create_nats_client
 from app.nats.message import MessageTopic, NatsMessage
 from app.utils.logger import get_logger
-from config import nats_settings, runtime_settings
+from config import nats_settings, runtime_settings, server_settings
 
 logger = get_logger("nats-router")
+
+
+def _router_enabled() -> bool:
+    multi_worker = runtime_settings.role.requires_nats or server_settings.workers > 1
+    return nats_settings.enabled and multi_worker
 
 
 class NatsMessageRouter:
@@ -56,22 +61,22 @@ class NatsMessageRouter:
                 if handler:
                     try:
                         await handler(message.data)
-                    except Exception as exc:
-                        logger.error(f"Handler error for topic {message.topic.value}: {exc}", exc_info=True)
+                    except Exception:
+                        logger.exception(f"Handler error for topic {message.topic.value}")
                 else:
                     logger.warning(f"No handler registered for topic: {message.topic.value}")
 
         except asyncio.CancelledError:
             raise
-        except Exception as exc:
-            logger.error(f"NATS router listener stopped: {exc}", exc_info=True)
+        except Exception:
+            logger.exception("NATS router listener stopped")
         finally:
             self._running = False
             logger.info("NATS message router stopped")
 
     async def start(self):
         """Start the router listener."""
-        if not runtime_settings.role.requires_nats:
+        if not _router_enabled():
             return
 
         if self._running:
@@ -89,7 +94,7 @@ class NatsMessageRouter:
             self._listener_task.cancel()
             try:
                 await asyncio.wait_for(self._listener_task, timeout=2.0)
-            except asyncio.CancelledError, asyncio.TimeoutError:
+            except TimeoutError, asyncio.CancelledError:
                 pass
 
         if self._nc:
@@ -100,7 +105,7 @@ class NatsMessageRouter:
 
     async def publish(self, topic: MessageTopic, data: dict):
         """Publish a message to NATS."""
-        if not runtime_settings.role.requires_nats:
+        if not _router_enabled():
             return
 
         client = await self._get_client()

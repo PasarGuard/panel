@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, status
 
 from app.db import AsyncSession, get_db
 from app.models.admin import AdminDetails
-from app.models.host import BaseHost, BulkHostSelection, BulkHostsActionResponse, CreateHost, RemoveHostsResponse
+from app.models.host import BaseHost, BulkHostsActionResponse, BulkHostSelection, CreateHost, RemoveHostsResponse
 from app.operation import OperatorType
 from app.operation.host import HostOperation
 from app.utils import responses

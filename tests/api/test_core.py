@@ -3,7 +3,18 @@ from fastapi import status
 from app.core.xray import XRayConfig
 from app.utils.crypto import generate_wireguard_keypair
 from tests.api import client
-from tests.api.helpers import create_core, delete_core, get_inbound_details, get_inbounds, unique_name
+from tests.api.helpers import (
+    auth_headers,
+    create_core,
+    create_group,
+    create_user,
+    delete_core,
+    delete_group,
+    delete_user,
+    get_inbound_details,
+    get_inbounds,
+    unique_name,
+)
 from tests.api.sample_data import XRAY_CONFIG as xray_config
 
 
@@ -45,6 +56,68 @@ def test_wireguard_core_create(access_token):
     assert core["fallbacks_inbound_tags"] == []
     delete_core(access_token, core["id"])
 
+
+def test_wireguard_core_create_skips_user_scan_and_allocates_on_group(access_token):
+    """Create only upserts pool rows; peer IPs are allocated when the inbound joins a group."""
+    starter = create_core(access_token, name=unique_name("wg_create_starter"))
+    starter_group = create_group(access_token, name=unique_name("wg_create_starter_group"))
+    user = create_user(
+        access_token,
+        group_ids=[starter_group["id"]],
+        payload={"username": unique_name("wg_create_user")},
+    )
+    before = user["proxy_settings"].get("wireguard") or {}
+
+    private_key, _ = generate_wireguard_keypair()
+    interface_name = unique_name("wg_create_if")
+    wg_core = create_core(
+        access_token,
+        name=unique_name("wireguard_create_fast"),
+        config={
+            "interface_name": interface_name,
+            "private_key": private_key,
+            "listen_port": 51820,
+            "address": ["10.70.0.1/24"],
+        },
+        type="wg",
+        fallbacks=[],
+    )
+    try:
+        usage = client.get("/api/wireguard/subnets", headers=auth_headers(access_token))
+        assert usage.status_code == status.HTTP_200_OK
+        assert any(row["subnet"] == "10.70.0.0/24" for row in usage.json())
+
+        user_after_create = client.get(
+            f"/api/user/{user['username']}",
+            headers=auth_headers(access_token),
+        )
+        assert user_after_create.status_code == status.HTTP_200_OK
+        after_wg = user_after_create.json()["proxy_settings"].get("wireguard") or {}
+        assert after_wg.get("peer_ips") == before.get("peer_ips", [])
+
+        wg_group = create_group(access_token, name=unique_name("wg_create_group"), inbound_tags=[interface_name])
+        try:
+            add = client.post(
+                "/api/groups/bulk/add",
+                headers=auth_headers(access_token),
+                json={"group_ids": [wg_group["id"]], "users": [user["id"]]},
+            )
+            assert add.status_code == status.HTTP_200_OK
+
+            allocated = client.get(
+                f"/api/user/{user['username']}",
+                headers=auth_headers(access_token),
+            )
+            assert allocated.status_code == status.HTTP_200_OK
+            peer_ips = allocated.json()["proxy_settings"]["wireguard"]["peer_ips"]
+            assert peer_ips == ["10.70.0.2/32"]
+        finally:
+            delete_group(access_token, wg_group["id"])
+    finally:
+        delete_user(access_token, user["username"])
+        delete_group(access_token, starter_group["id"])
+        delete_core(access_token, wg_core["id"])
+        delete_core(access_token, starter["id"])
 
 def test_core_update(access_token):
     """Test that the core update route is accessible."""

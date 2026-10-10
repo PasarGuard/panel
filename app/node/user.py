@@ -1,6 +1,6 @@
 from PasarGuardNodeBridge import create_proxy, create_user
 from PasarGuardNodeBridge.common.service_pb2 import User as ProtoUser
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, func, or_, select
 
 from app.db import AsyncSession
 from app.db.models import (
@@ -54,10 +54,20 @@ async def serialize_user(user: User, allowed_protocols: frozenset[ProxyProtocol]
     return _serialize_user_for_node(user.id, user_settings, inbounds, allowed_protocols)
 
 
+async def node_payload_signature(user: User) -> tuple[str, bytes, tuple[str, ...]]:
+    """What a node would receive for this user, in a form that can be compared before and after a change.
+
+    Uses the same serialization as delivery (credentials, inbounds derived from
+    enabled groups, and status), so equal signatures mean no node needs an update.
+    """
+    proto = await serialize_user(user)
+    return proto.email, proto.proxies.SerializeToString(deterministic=True), tuple(sorted(proto.inbounds))
+
+
 def _serialize_user_for_node(
     id: int,
     user_settings: dict,
-    inbounds: list[str] = None,
+    inbounds: list[str] | None = None,
     allowed_protocols: frozenset[ProxyProtocol] | None = None,
 ) -> ProtoUser:
     allowed_protocols = allowed_protocols or _ALL_PROXY_PROTOCOLS
@@ -91,7 +101,11 @@ async def core_users(
     db: AsyncSession,
     inbound_tags: list[str] | set[str] | None = None,
     allowed_protocols: frozenset[ProxyProtocol] | None = None,
+    user_ids: list[int] | set[int] | None = None,
 ):
+    """Serialize the users a core should carry, optionally restricted to ``user_ids`` (one indexed query)."""
+    if user_ids is not None and not user_ids:
+        return []
     dialect = db.bind.dialect.name
     inbound_tags = list(dict.fromkeys(inbound_tags or []))
 
@@ -129,13 +143,17 @@ async def core_users(
         .outerjoin(AdminRole, AdminRole.id == Admin.role_id)
         .where(User.status.in_([UserStatus.active, UserStatus.on_hold]))
         .where(
-            ~(
-                ((Admin.status == AdminStatus.limited) & (AdminRole.disconnect_users_when_limited.is_(True)))
-                | ((Admin.status == AdminStatus.disabled) & (AdminRole.disconnect_users_when_disabled.is_(True)))
+            or_(
+                Admin.id.is_(None),
+                Admin.status.not_in([AdminStatus.limited, AdminStatus.disabled]),
+                and_(Admin.status == AdminStatus.limited, AdminRole.disconnect_users_when_limited.is_not(True)),
+                and_(Admin.status == AdminStatus.disabled, AdminRole.disconnect_users_when_disabled.is_not(True)),
             )
         )
         .group_by(User.id)
     )
+    if user_ids is not None:
+        stmt = stmt.where(User.id.in_(list(user_ids)))
 
     results = (await db.execute(stmt)).all()
     bridge_users: list = []

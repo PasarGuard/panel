@@ -1,20 +1,24 @@
 from __future__ import annotations
 
+import logging
 import os
 from collections import defaultdict
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
 from sqlalchemy import select
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.dialects import postgresql
+from sqlalchemy.exc import OperationalError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool, StaticPool
 
 from app.db import base
-from app.db.models import Admin, Node, NodeUsage, NodeUserUsage, System, User
+from app.db.models import Admin, AdminRole, AdminStatus, Node, NodeUsage, NodeUserUsage, System, User
 from app.jobs import record_usages
 from app.models.proxy import ProxyTable
+from app.operation import admin_sync
 from config import database_settings
 
 
@@ -25,6 +29,232 @@ class DummyNode:
 
     async def get_extra(self) -> dict[str, Any]:
         return {"usage_coefficient": self._usage_coefficient}
+
+
+@pytest.fixture(autouse=True)
+def reset_user_usage_history_buffer():
+    """Keep process-local history buffering isolated between tests."""
+    record_usages._pending_user_usage_history.clear()
+    record_usages._user_usage_history_last_flush = None
+    yield
+    record_usages._pending_user_usage_history.clear()
+    record_usages._user_usage_history_last_flush = None
+
+
+def test_prepare_node_user_usage_params_aggregates_nonzero_deltas():
+    bucket = datetime(2026, 8, 14, 18, 30, tzinfo=UTC)
+
+    params = record_usages._prepare_node_user_usage_params(
+        {
+            7: [
+                {"uid": "11", "value": 5},
+                {"uid": "11", "value": 3},
+                {"uid": "12", "value": 0},
+                {"uid": "13", "value": -2},
+            ]
+        },
+        {7: 2},
+        bucket,
+    )
+
+    assert params == [
+        {"uid": 11, "value": 16, "node_id": 7, "created_at": bucket},
+        {"uid": 13, "value": -4, "node_id": 7, "created_at": bucket},
+    ]
+
+
+@pytest.mark.asyncio
+async def test_postgres_history_writes_the_first_sample_immediately(monkeypatch: pytest.MonkeyPatch):
+    bucket = datetime(2026, 8, 14, 18, 30, tzinfo=UTC)
+    write_params = AsyncMock()
+
+    monkeypatch.setattr(record_usages, "get_dialect", AsyncMock(return_value="postgresql"))
+    monkeypatch.setattr(record_usages, "_get_time_bucket", lambda: bucket)
+    monkeypatch.setattr(record_usages, "_write_node_user_usage_params", write_params)
+    monkeypatch.setattr(record_usages, "_monotonic_now", lambda: 100.0)
+
+    await record_usages.record_user_stats({7: [{"uid": "11", "value": 5}]}, {7: 1})
+
+    write_params.assert_awaited_once_with(
+        "postgresql",
+        [{"uid": 11, "value": 5, "node_id": 7, "created_at": bucket}],
+    )
+    assert not record_usages._pending_user_usage_history
+    assert record_usages._user_usage_history_last_flush == 100.0
+
+
+@pytest.mark.asyncio
+async def test_postgres_history_coalesces_until_flush_interval(monkeypatch: pytest.MonkeyPatch):
+    # Steady state: the first sample was already written, so later samples are coalesced
+    record_usages._user_usage_history_last_flush = 100.0
+    bucket = datetime(2026, 8, 14, 18, 30, tzinfo=UTC)
+    write_params = AsyncMock()
+    monotonic_values = iter([100.0, 110.0, 161.0])
+
+    monkeypatch.setattr(record_usages, "get_dialect", AsyncMock(return_value="postgresql"))
+    monkeypatch.setattr(record_usages, "_get_time_bucket", lambda: bucket)
+    monkeypatch.setattr(record_usages, "_write_node_user_usage_params", write_params)
+    monkeypatch.setattr(record_usages, "_monotonic_now", lambda: next(monotonic_values))
+    monkeypatch.setattr(record_usages.usage_settings, "user_usage_history_flush_interval", 60)
+
+    await record_usages.record_user_stats({7: [{"uid": "11", "value": 5}]}, {7: 1})
+    await record_usages.record_user_stats({7: [{"uid": "11", "value": 7}]}, {7: 1})
+    await record_usages.record_user_stats({7: [{"uid": "11", "value": 9}]}, {7: 1})
+
+    write_params.assert_awaited_once_with(
+        "postgresql",
+        [{"uid": 11, "value": 21, "node_id": 7, "created_at": bucket}],
+    )
+    assert not record_usages._pending_user_usage_history
+
+
+@pytest.mark.asyncio
+async def test_postgres_history_flushes_old_bucket_before_rollover(monkeypatch: pytest.MonkeyPatch):
+    # Steady state: the first sample was already written, so later samples are coalesced
+    record_usages._user_usage_history_last_flush = 100.0
+    old_bucket = datetime(2026, 8, 14, 18, 30, tzinfo=UTC)
+    new_bucket = old_bucket + timedelta(minutes=10)
+    buckets = iter([old_bucket, old_bucket, new_bucket])
+    write_params = AsyncMock()
+
+    monkeypatch.setattr(record_usages, "get_dialect", AsyncMock(return_value="postgresql"))
+    monkeypatch.setattr(record_usages, "_get_time_bucket", lambda: next(buckets))
+    monkeypatch.setattr(record_usages, "_write_node_user_usage_params", write_params)
+    monkeypatch.setattr(record_usages, "_monotonic_now", lambda: 100.0)
+    monkeypatch.setattr(record_usages.usage_settings, "user_usage_history_flush_interval", 60)
+
+    await record_usages.record_user_stats({7: [{"uid": "11", "value": 5}]}, {7: 1})
+    await record_usages.record_user_stats({7: [{"uid": "11", "value": 7}]}, {7: 1})
+    await record_usages.record_user_stats({7: [{"uid": "11", "value": 9}]}, {7: 1})
+
+    write_params.assert_awaited_once_with(
+        "postgresql",
+        [{"uid": 11, "value": 12, "node_id": 7, "created_at": old_bucket}],
+    )
+    assert record_usages._pending_user_usage_history == {(new_bucket, 11, 7): 9}
+
+
+@pytest.mark.asyncio
+async def test_postgres_history_retains_failed_flush_for_retry(monkeypatch: pytest.MonkeyPatch):
+    # Steady state: the first sample was already written, so later samples are coalesced
+    record_usages._user_usage_history_last_flush = 100.0
+    bucket = datetime(2026, 8, 14, 18, 30, tzinfo=UTC)
+    write_params = AsyncMock(side_effect=[RuntimeError("database unavailable"), None])
+    monotonic_values = iter([100.0, 160.0])
+
+    monkeypatch.setattr(record_usages, "get_dialect", AsyncMock(return_value="postgresql"))
+    monkeypatch.setattr(record_usages, "_get_time_bucket", lambda: bucket)
+    monkeypatch.setattr(record_usages, "_write_node_user_usage_params", write_params)
+    monkeypatch.setattr(record_usages, "_monotonic_now", lambda: next(monotonic_values))
+
+    await record_usages.record_user_stats({7: [{"uid": "11", "value": 5}]}, {7: 1})
+
+    with pytest.raises(RuntimeError, match="database unavailable"):
+        await record_usages.record_user_stats({7: [{"uid": "11", "value": 7}]}, {7: 1})
+
+    assert record_usages._pending_user_usage_history == {(bucket, 11, 7): 12}
+
+    flushed_rows = await record_usages.flush_user_usage_history_if_due(161.0)
+
+    assert flushed_rows == 1
+    assert write_params.await_args_list[1].args == (
+        "postgresql",
+        [{"uid": 11, "value": 12, "node_id": 7, "created_at": bucket}],
+    )
+    assert not record_usages._pending_user_usage_history
+
+
+@pytest.mark.asyncio
+async def test_due_history_flushes_without_a_new_usage_sample(monkeypatch: pytest.MonkeyPatch):
+    bucket = datetime(2026, 8, 14, 18, 30, tzinfo=UTC)
+    write_params = AsyncMock()
+    record_usages._pending_user_usage_history[(bucket, 11, 7)] = 5
+    record_usages._user_usage_history_last_flush = 100.0
+
+    monkeypatch.setattr(record_usages, "_write_node_user_usage_params", write_params)
+    monkeypatch.setattr(record_usages.usage_settings, "user_usage_history_flush_interval", 60)
+
+    early_rows = await record_usages.flush_user_usage_history_if_due(159.0)
+    flushed_rows = await record_usages.flush_user_usage_history_if_due(160.0)
+
+    assert early_rows == 0
+    assert flushed_rows == 1
+    write_params.assert_awaited_once_with(
+        "postgresql",
+        [{"uid": 11, "value": 5, "node_id": 7, "created_at": bucket}],
+    )
+    assert not record_usages._pending_user_usage_history
+
+
+@pytest.mark.asyncio
+async def test_postgres_history_omits_cross_cycle_net_zero_values(monkeypatch: pytest.MonkeyPatch):
+    # Steady state: the first sample was already written, so later samples are coalesced
+    record_usages._user_usage_history_last_flush = 100.0
+    bucket = datetime(2026, 8, 14, 18, 30, tzinfo=UTC)
+    write_params = AsyncMock()
+    monotonic_values = iter([100.0, 110.0])
+
+    monkeypatch.setattr(record_usages, "get_dialect", AsyncMock(return_value="postgresql"))
+    monkeypatch.setattr(record_usages, "_get_time_bucket", lambda: bucket)
+    monkeypatch.setattr(record_usages, "_write_node_user_usage_params", write_params)
+    monkeypatch.setattr(record_usages, "_monotonic_now", lambda: next(monotonic_values))
+    monkeypatch.setattr(record_usages.usage_settings, "user_usage_history_flush_interval", 60)
+
+    await record_usages.record_user_stats({7: [{"uid": "11", "value": 5}]}, {7: 1})
+    await record_usages.record_user_stats({7: [{"uid": "11", "value": -5}]}, {7: 1})
+    flushed_rows = await record_usages.flush_user_usage_history_if_due(160.0)
+
+    assert flushed_rows == 0
+    write_params.assert_not_awaited()
+    assert not record_usages._pending_user_usage_history
+
+
+@pytest.mark.asyncio
+async def test_non_postgres_history_keeps_immediate_path(monkeypatch: pytest.MonkeyPatch):
+    immediate_write = AsyncMock()
+    node_params = {7: [{"uid": "11", "value": 5}]}
+    coefficients = {7: 1}
+
+    monkeypatch.setattr(record_usages, "get_dialect", AsyncMock(return_value="sqlite"))
+    monkeypatch.setattr(record_usages, "record_user_stats_batched", immediate_write)
+
+    await record_usages.record_user_stats(node_params, coefficients)
+
+    immediate_write.assert_awaited_once_with(node_params, coefficients)
+
+
+@pytest.mark.asyncio
+async def test_shutdown_flushes_pending_postgres_history(monkeypatch: pytest.MonkeyPatch):
+    bucket = datetime(2026, 8, 14, 18, 30, tzinfo=UTC)
+    write_params = AsyncMock()
+    record_usages._pending_user_usage_history[(bucket, 11, 7)] = 5
+
+    monkeypatch.setattr(record_usages, "_write_node_user_usage_params", write_params)
+    monkeypatch.setattr(record_usages, "_monotonic_now", lambda: 120.0)
+
+    await record_usages._flush_user_usage_history_on_shutdown()
+
+    write_params.assert_awaited_once_with(
+        "postgresql",
+        [{"uid": 11, "value": 5, "node_id": 7, "created_at": bucket}],
+    )
+    assert not record_usages._pending_user_usage_history
+
+
+def test_postgres_user_traffic_update_uses_one_unnest_statement():
+    usage_params = [
+        {"uid": 1, "value": 10},
+        {"uid": 2, "value": 20},
+        {"uid": 1, "value": 30},
+    ]
+
+    stmt, params = record_usages.build_user_traffic_update("postgresql", usage_params)
+    sql = str(stmt.compile(dialect=postgresql.dialect()))
+
+    assert "UPDATE users" in sql
+    assert "FROM unnest" in sql
+    assert "online_at" not in sql
+    assert params == {"uids": [1, 2], "traffic_values": [40, 20]}
 
 
 def _get_test_database_url() -> str:
@@ -64,8 +294,6 @@ async def session_factory(monkeypatch: pytest.MonkeyPatch):
         await conn.run_sync(base.Base.metadata.create_all)
 
     # Seed the 3 default roles so FK constraints on admins.role_id are satisfied
-    from app.db.models import AdminRole
-
     async with async_sessionmaker(bind=engine, expire_on_commit=False)() as seed_session:
         seed_session.add_all(
             [
@@ -92,6 +320,7 @@ async def session_factory(monkeypatch: pytest.MonkeyPatch):
 
     monkeypatch.setattr(record_usages, "engine", engine)
     monkeypatch.setattr(record_usages, "GetDB", TestGetDB)
+    monkeypatch.setattr(admin_sync, "GetDB", TestGetDB)
 
     yield session_factory
 
@@ -100,6 +329,33 @@ async def session_factory(monkeypatch: pytest.MonkeyPatch):
     await engine.dispose()
     if needs_json_default_fix and proxy_column is not None:
         proxy_column.server_default = proxy_default
+
+
+@pytest.mark.asyncio
+async def test_touch_users_online_at_throttles_indexed_timestamp_writes(session_factory):
+    async with session_factory() as session:
+        user = User(username="online-write-throttle")
+        session.add(user)
+        await session.commit()
+        user_id = user.id
+
+    # Whole seconds: MySQL stores DATETIME without fractions and rounds them, which would
+    # move the stored time past the 60 second cutoff the test checks
+    first_seen = datetime.now(UTC).replace(microsecond=0)
+    await record_usages.touch_users_online_at([user_id], first_seen)
+
+    async def get_online_at():
+        async with session_factory() as session:
+            return (await session.execute(select(User.online_at).where(User.id == user_id))).scalar_one()
+
+    initial_online_at = await get_online_at()
+    await record_usages.touch_users_online_at([user_id], first_seen + timedelta(seconds=30))
+    throttled_online_at = await get_online_at()
+    await record_usages.touch_users_online_at([user_id], first_seen + timedelta(seconds=60))
+    refreshed_online_at = await get_online_at()
+
+    assert initial_online_at == throttled_online_at
+    assert refreshed_online_at > throttled_online_at
 
 
 @pytest.mark.asyncio
@@ -150,7 +406,7 @@ async def test_record_user_usages_updates_users_and_admins(monkeypatch: pytest.M
         node_two_id: [{"uid": str(user_one_id), "value": 75}],
     }
 
-    async def fake_get_users_stats(node: DummyNode):
+    async def fake_get_users_stats(node: DummyNode, node_id: int | None = None):
         return stats_map[node.node_id]
 
     monkeypatch.setattr(record_usages, "get_users_stats", fake_get_users_stats)
@@ -191,6 +447,50 @@ async def test_record_user_usages_updates_users_and_admins(monkeypatch: pytest.M
 
         for user_id, (total_usage, _) in user_totals.items():
             assert aggregated_usage[user_id] == total_usage
+
+
+@pytest.mark.asyncio
+async def test_record_user_usages_limits_overused_admin(monkeypatch: pytest.MonkeyPatch, session_factory):
+    async with session_factory() as session:
+        admin = Admin(username="limited-admin", hashed_password="secret", role_id=3, data_limit=100)
+        session.add(admin)
+        await session.flush()
+        admin_id = admin.id
+
+        user = User(username="limited-user", admin_id=admin_id, proxy_settings=ProxyTable().dict(no_obj=True))
+        node = Node(
+            name="node-1",
+            address="10.0.0.1",
+            port=1000,
+            api_port=1001,
+            server_ca="ca1",
+            api_key="key1",
+            core_config_id=None,
+        )
+        session.add_all([user, node])
+        await session.flush()
+        user_id, node_id = user.id, node.id
+        await session.commit()
+
+    monkeypatch.setattr(
+        record_usages.node_manager, "get_healthy_nodes", AsyncMock(return_value=[(node_id, DummyNode(node_id))])
+    )
+
+    async def fake_get_users_stats(_: DummyNode, node_id: int | None = None):
+        return [{"uid": str(user_id), "value": 150}]
+
+    remove_users = AsyncMock()
+    monkeypatch.setattr(record_usages, "get_users_stats", fake_get_users_stats)
+    monkeypatch.setattr(record_usages.usage_settings, "disable_recording_node_usage", True)
+    monkeypatch.setattr("app.operation.admin_sync.sync_remove_users", remove_users)
+
+    await record_usages.record_user_usages()
+
+    async with session_factory() as session:
+        admin_status = await session.execute(select(Admin.status).where(Admin.id == admin_id))
+        assert admin_status.scalar_one() == AdminStatus.limited
+
+    remove_users.assert_awaited_once()
 
 
 @pytest.mark.asyncio
@@ -240,7 +540,7 @@ async def test_record_user_stats_batched_chunks_mysql_batches(monkeypatch: pytes
     async def fake_get_dialect():
         return "mysql"
 
-    async def fake_safe_execute(stmt, params=None, max_retries=2):
+    async def fake_safe_execute(stmt, params=None, max_retries=5):
         executed_param_sizes.append(len(params))
 
     monkeypatch.setattr(record_usages, "get_dialect", fake_get_dialect)
@@ -280,7 +580,7 @@ async def test_record_user_usages_returns_when_no_usage(monkeypatch: pytest.Monk
     nodes = [(node_id, DummyNode(node_id))]
     monkeypatch.setattr(record_usages.node_manager, "get_healthy_nodes", AsyncMock(return_value=nodes))
 
-    async def fake_get_users_stats(_: DummyNode):
+    async def fake_get_users_stats(_: DummyNode, node_id: int | None = None):
         return []
 
     monkeypatch.setattr(record_usages, "get_users_stats", fake_get_users_stats)
@@ -334,7 +634,7 @@ async def test_record_node_usages_updates_totals(monkeypatch: pytest.MonkeyPatch
         node_two_id: [{"up": 1, "down": 1}],
     }
 
-    async def fake_get_outbounds_stats(node: DummyNode):
+    async def fake_get_outbounds_stats(node: DummyNode, node_id: int | None = None):
         return stats_map[node.node_id]
 
     monkeypatch.setattr(record_usages, "get_outbounds_stats", fake_get_outbounds_stats)
@@ -383,7 +683,7 @@ async def test_record_node_usages_returns_when_totals_zero(monkeypatch: pytest.M
     nodes = [(node_id, DummyNode(node_id))]
     monkeypatch.setattr(record_usages.node_manager, "get_healthy_nodes", AsyncMock(return_value=nodes))
 
-    async def fake_get_outbounds_stats(_: DummyNode):
+    async def fake_get_outbounds_stats(_: DummyNode, node_id: int | None = None):
         return [{"up": 0, "down": 0}]
 
     monkeypatch.setattr(record_usages, "get_outbounds_stats", fake_get_outbounds_stats)
@@ -403,3 +703,152 @@ async def test_record_node_usages_returns_when_totals_zero(monkeypatch: pytest.M
 
         node_usage_rows = await session.execute(select(NodeUsage.id))
         assert node_usage_rows.first() is None
+
+
+class _DeadlockOrig(Exception):
+    def __init__(self):
+        super().__init__(1213, "Deadlock found when trying to get lock; try restarting transaction")
+
+
+class _FakeBeginConn:
+    def __init__(self, execute):
+        self._execute = execute
+
+    async def execute(self, stmt, params=None):
+        return await self._execute(stmt, params)
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        return False
+
+
+class _FakeEngine:
+    def __init__(self, execute):
+        self._execute = execute
+
+    def execution_options(self, **_kwargs):
+        return self
+
+    def begin(self):
+        return _FakeBeginConn(self._execute)
+
+
+@pytest.mark.asyncio
+async def test_safe_execute_retries_mysql_deadlock(monkeypatch: pytest.MonkeyPatch):
+    attempts = {"n": 0}
+
+    async def flaky_execute(_stmt, _params=None):
+        attempts["n"] += 1
+        if attempts["n"] < 3:
+            raise OperationalError("stmt", {}, _DeadlockOrig())
+
+    monkeypatch.setattr(record_usages, "engine", _FakeEngine(flaky_execute))
+    monkeypatch.setattr(record_usages, "get_dialect", AsyncMock(return_value="mysql"))
+    monkeypatch.setattr(record_usages.asyncio, "sleep", AsyncMock())
+
+    await record_usages.safe_execute("stmt", [{"uid": 1}])
+
+    assert attempts["n"] == 3
+
+
+@pytest.mark.asyncio
+async def test_safe_execute_raises_after_deadlock_retries(monkeypatch: pytest.MonkeyPatch):
+    async def always_deadlock(_stmt, _params=None):
+        raise OperationalError("stmt", {}, _DeadlockOrig())
+
+    monkeypatch.setattr(record_usages, "engine", _FakeEngine(always_deadlock))
+    monkeypatch.setattr(record_usages, "get_dialect", AsyncMock(return_value="mysql"))
+    monkeypatch.setattr(record_usages.asyncio, "sleep", AsyncMock())
+
+    with pytest.raises(OperationalError):
+        await record_usages.safe_execute("stmt", [{"uid": 1}], max_retries=3)
+
+
+@pytest.fixture(autouse=True)
+def _reset_usage_job_state():
+    record_usages._usage_coefficient_cache.clear()
+    record_usages._user_usage_running = False
+    record_usages._node_usage_running = False
+    yield
+    record_usages._usage_coefficient_cache.clear()
+    record_usages._user_usage_running = False
+    record_usages._node_usage_running = False
+
+
+@pytest.mark.asyncio
+async def test_record_user_usages_skips_when_already_running(monkeypatch: pytest.MonkeyPatch, caplog):
+    impl = AsyncMock()
+    monkeypatch.setattr(record_usages, "_record_user_usages_impl", impl)
+    record_usages._user_usage_running = True
+    caplog.set_level(logging.WARNING)
+    await record_usages.record_user_usages()
+
+    impl.assert_not_awaited()
+    assert "JOB_RECORD_USER_USAGES_INTERVAL" in caplog.text
+    assert "UVICORN_WORKERS" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_record_node_usages_skips_when_already_running(monkeypatch: pytest.MonkeyPatch, caplog):
+    impl = AsyncMock()
+    monkeypatch.setattr(record_usages, "_record_node_usages_impl", impl)
+    record_usages._node_usage_running = True
+    caplog.set_level(logging.WARNING)
+    await record_usages.record_node_usages()
+
+    impl.assert_not_awaited()
+    assert "JOB_RECORD_NODE_USAGES_INTERVAL" in caplog.text
+    assert "UVICORN_WORKERS" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_record_user_usages_does_not_apply_global_timeout(monkeypatch: pytest.MonkeyPatch):
+    impl = AsyncMock()
+    wait_for = AsyncMock(side_effect=AssertionError("wait_for should not run"))
+    monkeypatch.setattr(record_usages, "_record_user_usages_impl", impl)
+    monkeypatch.setattr(record_usages.asyncio, "wait_for", wait_for)
+
+    await record_usages.record_user_usages()
+
+    impl.assert_awaited_once()
+    wait_for.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_record_user_usages_warns_when_slower_than_interval(monkeypatch: pytest.MonkeyPatch, caplog):
+    clock = {"t": 0.0}
+
+    async def impl():
+        clock["t"] = 15.0
+
+    monkeypatch.setattr(record_usages.time, "monotonic", lambda: clock["t"])
+    monkeypatch.setattr(record_usages, "_record_user_usages_impl", impl)
+    monkeypatch.setattr(record_usages.job_settings, "record_user_usages_interval", 10)
+    caplog.set_level(logging.WARNING)
+
+    await record_usages.record_user_usages()
+
+    assert "exceeds the 10s interval" in caplog.text
+    assert "UVICORN_WORKERS" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_usage_coefficient_is_cached_across_collects(monkeypatch: pytest.MonkeyPatch):
+    node = DummyNode(1, usage_coefficient=2)
+    extra_calls = {"n": 0}
+    original_get_extra = node.get_extra
+
+    async def counting_get_extra():
+        extra_calls["n"] += 1
+        return await original_get_extra()
+
+    node.get_extra = counting_get_extra
+    monkeypatch.setattr(record_usages, "get_users_stats", AsyncMock(return_value=[]))
+
+    first = await record_usages._collect_node_user_usage(node, 1)
+    second = await record_usages._collect_node_user_usage(node, 1)
+
+    assert extra_calls["n"] == 1
+    assert first[1] == second[1] == 2.0

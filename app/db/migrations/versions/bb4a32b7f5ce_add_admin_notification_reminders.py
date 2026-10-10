@@ -18,6 +18,9 @@ branch_labels = None
 depends_on = None
 
 
+from app.db.compiles_types import SqliteCompatibleBigInteger
+
+
 def upgrade() -> None:
     bind = op.get_bind()
     dialect = bind.dialect.name
@@ -30,7 +33,7 @@ def upgrade() -> None:
 
     op.create_table(
         "admin_notification_reminders",
-        sa.Column("id", sa.BigInteger(), autoincrement=True, nullable=False),
+        sa.Column("id", SqliteCompatibleBigInteger(), autoincrement=True, nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("admin_id", sa.BigInteger(), nullable=False),
         sa.Column("type", reminder_type, nullable=False),

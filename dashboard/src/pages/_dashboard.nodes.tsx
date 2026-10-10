@@ -3,10 +3,11 @@ import PageTransition from '@/components/layout/page-transition'
 import { useAdmin } from '@/hooks/use-admin'
 import { getDocsUrl } from '@/utils/docs-url'
 import { hasPermission } from '@/utils/rbac'
-import { Cpu, LucideIcon, Share2, Plus, Logs } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { Cpu, LucideIcon, Share2, Plus, Logs, Network } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Outlet, useLocation, useNavigate } from 'react-router'
+import { useCommandCreate } from '@/hooks/use-command-create'
 
 interface Tab {
   id: string
@@ -18,6 +19,7 @@ interface Tab {
 const tabs: Tab[] = [
   { id: 'nodes.title', label: 'nodes.title', icon: Share2, url: '/nodes' },
   { id: 'core', label: 'core', icon: Cpu, url: '/nodes/cores' },
+  { id: 'nodes.wireguard.title', label: 'nodes.wireguard.title', icon: Network, url: '/nodes/wireguard' },
   { id: 'nodes.logs.title', label: 'nodes.logs.title', icon: Logs, url: '/nodes/logs' },
 ]
 
@@ -34,11 +36,25 @@ const Settings = () => {
   const visibleTabs = tabs.filter(tab => {
     if (tab.url === '/nodes') return canReadNodes
     if (tab.url === '/nodes/cores') return canReadCores
+    if (tab.url === '/nodes/wireguard') return canReadCores
     if (tab.url === '/nodes/logs') return canReadNodeLogs
     return false
   })
   const [activeTab, setActiveTab] = useState<string>(tabs[0].id)
   const isCoreEditorPage = /^\/nodes\/cores\/[^/]+$/.test(location.pathname)
+
+  const handleCreateNode = useCallback(() => {
+    if (!canCreateNodes) return
+    window.dispatchEvent(new CustomEvent('openNodeDialog'))
+  }, [canCreateNodes])
+
+  const handleCreateCore = useCallback(() => {
+    if (!canCreateCores) return
+    navigate('/nodes/cores/new')
+  }, [canCreateCores, navigate])
+
+  useCommandCreate('node', handleCreateNode)
+  useCommandCreate('core', handleCreateCore)
 
   useEffect(() => {
     if (location.pathname.startsWith('/nodes/cores')) {
@@ -73,6 +89,15 @@ const Settings = () => {
           : undefined,
       }
     }
+    if (location.pathname === '/nodes/wireguard') {
+      return {
+        title: 'nodes.wireguard.title',
+        description: 'nodes.wireguard.description',
+        buttonIcon: undefined,
+        buttonText: undefined,
+        onButtonClick: undefined,
+      }
+    }
     if (location.pathname === '/nodes/logs') {
       return {
         title: 'nodes.logs.title',
@@ -105,12 +130,12 @@ const Settings = () => {
       )}
       <div className="flex min-h-0 w-full flex-1 flex-col">
         {!isCoreEditorPage && (
-          <div className="flex border-b px-4">
+          <div className="scrollbar-hide flex overflow-x-auto border-b px-4 lg:flex-wrap">
             {visibleTabs.map(tab => (
               <button
                 key={tab.id}
                 onClick={() => navigate(tab.url)}
-                className={`relative px-3 py-2 text-sm font-medium transition-colors ${
+                className={`relative flex-shrink-0 px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors ${
                   activeTab === tab.id ? 'border-primary text-foreground border-b-2' : 'text-muted-foreground hover:text-foreground'
                 }`}
               >

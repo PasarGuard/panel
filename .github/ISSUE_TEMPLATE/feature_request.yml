@@ -1,0 +1,89 @@
+name: Feature request
+description: Suggest an improvement or new behavior for PasarGuard.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please explain the problem first. Good feature requests describe the user need, not only the preferred implementation.
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Before you submit
+      options:
+        - label: I searched existing issues and did not find the same request.
+          required: true
+        - label: This request is about PasarGuard itself, not support for my deployment.
+          required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What are you trying to do, and what is hard or impossible today?
+      placeholder: "I need to ..., but currently ..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: Describe the behavior you want.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: What workarounds or other designs did you consider?
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - API
+        - Frontend
+        - Database
+        - Nodes
+        - Scheduler
+        - Subscriptions
+        - Telegram / notifications
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: impact
+    attributes:
+      label: Impact
+      description: How important is this request for your use case?
+      options:
+        - Nice to have
+        - Important
+        - Blocking my usage
+    validations:
+      required: true
+
+  - type: textarea
+    id: examples
+    attributes:
+      label: Examples or references
+      description: Add mockups, screenshots, API examples, links, or similar behavior from other tools.
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context
+      description: Anything else that helps explain the request.
+    validations:
+      required: false

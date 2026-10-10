@@ -1,13 +1,14 @@
 import { buildDefaultApplications } from '@/features/subscriptions/components/default-applications-catalog'
 import { SubscriptionApplicationSheet } from '@/features/subscriptions/components/subscription-application-sheet'
 import { SubscriptionApplicationsSection } from '@/features/subscriptions/components/subscription-applications-section'
+import { SubscriptionCustomVariablesSection } from '@/features/subscriptions/components/subscription-custom-variables-section'
 import { SubscriptionFormActions } from '@/features/subscriptions/components/subscription-form-actions'
 import { SubscriptionGeneralSettingsSection } from '@/features/subscriptions/components/subscription-general-settings-section'
 import { SubscriptionManualFormatsSection } from '@/features/subscriptions/components/subscription-manual-formats-section'
 import { SubscriptionResponseHeadersSection } from '@/features/subscriptions/components/subscription-response-headers-section'
 import { SubscriptionRulesSection } from '@/features/subscriptions/components/subscription-rules-section'
 import { SubscriptionSettingsSkeleton } from '@/features/subscriptions/components/subscription-settings-skeleton'
-import { subscriptionSchema, type SubscriptionApplicationFormData, type SubscriptionFormData, defaultSubscriptionRules } from '@/features/subscriptions/components/subscription-settings-schema'
+import { subscriptionSchema, type SubscriptionApplicationFormData, type SubscriptionFormData, defaultSubscriptionRules, normalizeCustomVariablesForPayload } from '@/features/subscriptions/components/subscription-settings-schema'
 import { Form } from '@/components/ui/form'
 import { Separator } from '@/components/ui/separator'
 import { type SubRule as ApiSubRule } from '@/service/api'
@@ -37,7 +38,9 @@ export default function SubscriptionSettings() {
       allow_browser_config: true,
       disable_sub_template: false,
       randomize_order: false,
+      custom_variables: [],
       response_headers: {},
+      header_placement: 'header',
       rules: [],
       applications: [],
       manual_sub_request: {
@@ -120,7 +123,9 @@ export default function SubscriptionSettings() {
         allow_browser_config: subscriptionData.allow_browser_config ?? true,
         disable_sub_template: subscriptionData.disable_sub_template ?? false,
         randomize_order: subscriptionData.randomize_order ?? false,
+        custom_variables: subscriptionData.custom_variables || [],
         response_headers: Object.fromEntries(Object.entries(subscriptionData.response_headers || {}).map(([key, value]) => [key, typeof value === 'string' ? value : JSON.stringify(value)])),
+        header_placement: subscriptionData.header_placement ?? 'header',
         rules:
           subscriptionData.rules?.map((rule: ApiSubRule) => ({
             pattern: rule.pattern,
@@ -160,6 +165,8 @@ export default function SubscriptionSettings() {
           .filter(([key, value]) => key && value),
       )
 
+      const processedCustomVariables = normalizeCustomVariablesForPayload(data.custom_variables)
+
       const rawApps = (data.applications || [])
         .map(app => ({
           name: app.name?.trim() || '',
@@ -167,6 +174,7 @@ export default function SubscriptionSettings() {
           import_url: app.import_url?.trim() || undefined,
           description: app.description || {},
           recommended: app.recommended || false,
+          show_when_hwid_enabled: app.show_when_hwid_enabled || false,
           platform: app.platform,
           download_links: (app.download_links || [])
             .map(link => ({
@@ -181,10 +189,11 @@ export default function SubscriptionSettings() {
       const platformHasRecommended: Record<string, boolean> = {}
       const processedApplications = rawApps.map(app => {
         if (app.recommended) {
-          if (platformHasRecommended[app.platform]) {
+          const recommendationKey = `${app.platform}:${app.show_when_hwid_enabled ? 'hwid' : 'standard'}`
+          if (platformHasRecommended[recommendationKey]) {
             return { ...app, recommended: false }
           }
-          platformHasRecommended[app.platform] = true
+          platformHasRecommended[recommendationKey] = true
         }
         return app
       })
@@ -197,6 +206,7 @@ export default function SubscriptionSettings() {
           profile_title: data.profile_title?.trim() || undefined,
           announce: data.announce?.trim() || undefined,
           announce_url: data.announce_url?.trim() || undefined,
+          custom_variables: processedCustomVariables,
           response_headers: processedResponseHeaders,
           rules: processedRules,
           applications: processedApplications,
@@ -273,7 +283,9 @@ export default function SubscriptionSettings() {
         allow_browser_config: subscriptionData.allow_browser_config ?? true,
         disable_sub_template: subscriptionData.disable_sub_template ?? false,
         randomize_order: subscriptionData.randomize_order ?? false,
+        custom_variables: subscriptionData.custom_variables || [],
         response_headers: Object.fromEntries(Object.entries(subscriptionData.response_headers || {}).map(([key, value]) => [key, typeof value === 'string' ? value : JSON.stringify(value)])),
+        header_placement: subscriptionData.header_placement ?? 'header',
         rules:
           subscriptionData.rules?.map((rule: ApiSubRule) => ({
             pattern: rule.pattern,
@@ -352,7 +364,11 @@ export default function SubscriptionSettings() {
 
           <Separator className="my-3" />
 
-          <SubscriptionResponseHeadersSection form={form} />
+          <div className="space-y-6 lg:grid lg:grid-cols-2 lg:items-start lg:gap-8 lg:space-y-0">
+            <SubscriptionCustomVariablesSection form={form} />
+            <Separator className="my-3 lg:hidden" />
+            <SubscriptionResponseHeadersSection form={form} />
+          </div>
 
           <Separator className="my-3" />
 

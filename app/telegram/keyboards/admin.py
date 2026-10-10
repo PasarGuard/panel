@@ -1,10 +1,10 @@
 from enum import Enum
 
-from aiogram.utils.keyboard import InlineKeyboardBuilder, WebAppInfo
 from aiogram.filters.callback_data import CallbackData
+from aiogram.utils.keyboard import InlineKeyboardBuilder, WebAppInfo
 
 from app.models.admin import AdminDetails
-from app.operation.permissions import enforce_permission, is_scope_all, PermissionDenied
+from app.operation.permissions import PermissionDenied, enforce_permission, is_scope_all
 from app.telegram.utils.texts import Button as Texts
 
 
@@ -32,7 +32,7 @@ class AdminPanel(InlineKeyboardBuilder):
     class Callback(CallbackData, prefix="panel"):
         action: AdminPanelAction
 
-    def __init__(self, admin: AdminDetails | None = None, panel_url: str = None, *args, **kwargs):
+    def __init__(self, admin: AdminDetails | None = None, panel_url: str | None = None, *args, **kwargs):
         super().__init__(*args, **kwargs)
         adjust = []
 

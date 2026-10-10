@@ -2,19 +2,25 @@ import base64
 import random
 import secrets
 from collections import defaultdict
-from copy import deepcopy
-from datetime import datetime as dt, timedelta, timezone
+from datetime import UTC, datetime as dt, timedelta
 
 from jdatetime import date as jd
 
 from app.core.hosts import host_manager
+from app.db.crud.wireguard import pick_peer_ip_for_inbound
 from app.db.models import UserStatus
 from app.models.status_emojis import STATUS_EMOJIS
 from app.models.subscription import SubscriptionInboundData
 from app.models.user import UsersResponseWithInbounds
+from app.settings import subscription_settings
 from app.subscription.client_templates import subscription_client_templates, subscription_xray_templates
+from app.subscription.config_cache import (
+    get_or_create_sub_config,
+    get_sub_config,
+    make_sub_config_key,
+    put_sub_config,
+)
 from app.utils.system import readable_size
-from config import wireguard_settings
 
 from . import (
     ClashConfiguration,
@@ -83,27 +89,55 @@ async def generate_subscription(
     as_base64: bool,
     randomize_order: bool = False,
 ) -> str | bytes:
-    client_templates = await subscription_client_templates()
-    xray_template_overrides = await subscription_xray_templates() if config_format == "xray" else None
-    conf = _build_subscription_config(config_format, client_templates)
-    if conf is None:
-        raise ValueError(f'Unsupported format "{config_format}"')
+    cache_key = make_sub_config_key(user, config_format, as_base64, randomize_order)
+    async def render() -> str | bytes:
+        client_templates = await subscription_client_templates()
+        xray_template_overrides = await subscription_xray_templates() if config_format == "xray" else None
+        conf = _build_subscription_config(config_format, client_templates)
+        if conf is None:
+            raise ValueError(f'Unsupported format "{config_format}"')
 
-    format_variables = setup_format_variables(user)
+        sub_settings = await subscription_settings()
+        custom_variables = get_effective_custom_variables(user, sub_settings.custom_variables)
+        format_variables = setup_format_variables(user, sub_settings.custom_variables)
+        config = await process_inbounds_and_tags(
+            user,
+            format_variables,
+            conf,
+            client_templates,
+            xray_template_overrides=xray_template_overrides,
+            randomize_order=randomize_order,
+            custom_variables=custom_variables,
+        )
+        if as_base64 and not isinstance(config, bytes):
+            config = base64.b64encode(config.encode()).decode()
+        return config
 
-    config = await process_inbounds_and_tags(
-        user,
-        format_variables,
-        conf,
-        client_templates,
-        xray_template_overrides=xray_template_overrides,
-        randomize_order=randomize_order,
-    )
+    if config_format != "wireguard":
+        cached = get_sub_config(cache_key)
+        if cached is not None:
+            return cached
+        config = await render()
+        put_sub_config(cache_key, config)
+        return config
 
-    if as_base64 and not isinstance(config, bytes):
-        config = base64.b64encode(config.encode()).decode()
+    return await get_or_create_sub_config(cache_key, render)
 
-    return config
+
+def inject_body_placement(conf: str | bytes, lines: list[str], placement: str, as_base64: bool) -> str | bytes:
+    if isinstance(conf, bytes) or not lines:
+        return conf
+
+    block = "\n".join(lines)
+    if as_base64:
+        try:
+            decoded = base64.b64decode(conf).decode()
+        except (ValueError, UnicodeDecodeError):
+            return conf
+        merged = f"{block}\n{decoded}" if placement == "body_start" else f"{decoded}\n{block}"
+        return base64.b64encode(merged.encode()).decode()
+
+    return f"{block}\n{conf}" if placement == "body_start" else f"{conf}\n{block}"
 
 
 def format_time_left(seconds_left: int) -> str:
@@ -127,11 +161,66 @@ def format_time_left(seconds_left: int) -> str:
     return " ".join(result)
 
 
-def setup_format_variables(user: UsersResponseWithInbounds) -> dict:
+def _custom_variable_parts(custom_variable) -> tuple[str | None, str]:
+    if isinstance(custom_variable, dict):
+        key = custom_variable.get("key")
+        value = custom_variable.get("value", "")
+    else:
+        key = getattr(custom_variable, "key", None)
+        value = getattr(custom_variable, "value", "")
+    return (str(key) if key else None), str(value or "")
+
+
+def get_effective_custom_variables(
+    user: UsersResponseWithInbounds, custom_variables: list | tuple | None = None
+) -> list:
+    variables = list(custom_variables or [])
+    admin_variables = getattr(getattr(user, "admin", None), "custom_variables", None) or []
+    variables.extend(admin_variables)
+    return variables
+
+
+def apply_custom_format_variables(format_variables: dict, custom_variables: list | tuple | None = None) -> dict:
+    if not custom_variables:
+        return format_variables
+
+    custom_keys = {key for key, _ in (_custom_variable_parts(variable) for variable in custom_variables) if key}
+    base_variables = defaultdict(
+        lambda: "<missing>",
+        {key: value for key, value in format_variables.items() if key not in custom_keys},
+    )
+
+    for variable in custom_variables:
+        key, raw_value = _custom_variable_parts(variable)
+        if not key:
+            continue
+        try:
+            format_variables[key] = raw_value.format_map(base_variables)
+        except ValueError, KeyError:
+            format_variables[key] = raw_value
+
+    return format_variables
+
+
+def _format_dynamic_value(value, format_variables: dict):
+    if isinstance(value, str):
+        try:
+            return value.format_map(format_variables)
+        except ValueError, KeyError:
+            return value
+    if isinstance(value, list):
+        return [_format_dynamic_value(item, format_variables) for item in value]
+    if isinstance(value, dict):
+        return {key: _format_dynamic_value(item, format_variables) for key, item in value.items()}
+    return value
+
+
+def setup_format_variables(user: UsersResponseWithInbounds, custom_variables: list | tuple | None = None) -> dict:
+    custom_variables = get_effective_custom_variables(user, custom_variables)
     user_status = user.status
     expire = user.expire
     on_hold_expire_duration = user.on_hold_expire_duration
-    now = dt.now(timezone.utc)
+    now = dt.now(UTC)
 
     admin_username = ""
     if admin_data := user.admin:
@@ -174,8 +263,7 @@ def setup_format_variables(user: UsersResponseWithInbounds) -> dict:
         data_left = user.data_limit - user.used_traffic
         usage_Percentage = round((user.used_traffic / user.data_limit) * 100.0, 2)
 
-        if data_left < 0:
-            data_left = 0
+        data_left = max(data_left, 0)
         data_left = readable_size(data_left)
     else:
         data_limit = "∞"
@@ -203,7 +291,7 @@ def setup_format_variables(user: UsersResponseWithInbounds) -> dict:
         },
     )
 
-    return format_variables
+    return apply_custom_format_variables(format_variables, custom_variables)
 
 
 async def filter_hosts(hosts: list[SubscriptionInboundData], user_status: UserStatus) -> list[SubscriptionInboundData]:
@@ -211,7 +299,11 @@ async def filter_hosts(hosts: list[SubscriptionInboundData], user_status: UserSt
 
 
 async def process_host(
-    inbound: SubscriptionInboundData, format_variables: dict, inbounds: list[str], proxies: dict
+    inbound: SubscriptionInboundData,
+    format_variables: dict,
+    inbounds: list[str],
+    proxies: dict,
+    custom_variables: list | tuple | None = None,
 ) -> None | tuple[SubscriptionInboundData, dict]:
     """
     Process host data for subscription generation.
@@ -233,9 +325,14 @@ async def process_host(
     if user_id is not None:
         settings["_user_id"] = user_id
 
+    # Each WG interface only gets the user's peer IP from its own subnet.
+    if inbound.protocol == "wireguard":
+        settings["peer_ips"] = pick_peer_ip_for_inbound(inbound.wireguard_local_address, settings.get("peer_ips") or [])
+
     # Update format variables
     format_variables.update({"PROTOCOL": inbound.protocol})
     format_variables.update({"TRANSPORT": inbound.network})
+    apply_custom_format_variables(format_variables, custom_variables)
 
     salt = secrets.token_hex(8)
 
@@ -243,12 +340,14 @@ async def process_host(
     if isinstance(inbound.tls_config.sni, list) and inbound.tls_config.sni:
         sni = random.choice(inbound.tls_config.sni)
     sni = sni.replace("*", salt)
+    sni = sni.format_map(format_variables) if sni else ""
 
     req_host = ""
     host_list = inbound.transport_config.host
     if isinstance(host_list, list) and host_list:
         req_host = random.choice(host_list)
     req_host = req_host.replace("*", salt)
+    req_host = req_host.format_map(format_variables) if req_host else ""
 
     address = ""
     if inbound.address:
@@ -270,20 +369,28 @@ async def process_host(
     if inbound.use_sni_as_host and sni:
         req_host = sni
 
-    # Create a copy of the inbound data with selected random values
-    inbound_copy = deepcopy(inbound)
-
-    # Update TLS config with selected values
-    inbound_copy.tls_config.sni = sni
-    inbound_copy.tls_config.reality_short_id = reality_sid
-
-    # Update transport config with selected host
-    inbound_copy.transport_config.host = req_host
-    inbound_copy.transport_config.path = path
-
-    # Update address and port with selected values
-    inbound_copy.address = address
-    inbound_copy.port = port
+    # Copy only the nested models we mutate so cached host objects stay intact.
+    transport_update: dict = {"host": req_host, "path": path}
+    if getattr(inbound.transport_config, "request", None):
+        transport_update["request"] = _format_dynamic_value(
+            inbound.transport_config.request,
+            format_variables,
+        )
+    if getattr(inbound.transport_config, "response", None):
+        transport_update["response"] = _format_dynamic_value(
+            inbound.transport_config.response,
+            format_variables,
+        )
+    inbound_copy = inbound.model_copy(
+        update={
+            "tls_config": inbound.tls_config.model_copy(
+                update={"sni": sni, "reality_short_id": reality_sid},
+            ),
+            "transport_config": inbound.transport_config.model_copy(update=transport_update),
+            "address": address,
+            "port": port,
+        }
+    )
 
     return inbound_copy, settings
 
@@ -294,6 +401,7 @@ async def _prepare_download_settings(
     inbounds: list[str],
     proxies: dict,
     client_templates: dict[str, str],
+    custom_variables: list | tuple | None,
     conf: StandardLinks
     | XrayConfiguration
     | SingBoxConfiguration
@@ -302,7 +410,7 @@ async def _prepare_download_settings(
     | OutlineConfiguration
     | WireGuardConfiguration,
 ) -> SubscriptionInboundData | dict | None:
-    result = await process_host(download_data, format_variables, inbounds, proxies)
+    result = await process_host(download_data, format_variables, inbounds, proxies, custom_variables)
 
     if not result:
         return
@@ -336,6 +444,7 @@ async def process_inbounds_and_tags(
     client_templates: dict[str, str],
     xray_template_overrides: dict[int, str] | None = None,
     randomize_order: bool = False,
+    custom_variables: list | tuple | None = None,
 ) -> str | bytes:
     proxy_settings = user.proxy_settings.dict()
     proxy_settings["_user_id"] = user.id
@@ -354,10 +463,7 @@ async def process_inbounds_and_tags(
         return xray_template_overrides.get(template_id)
 
     for host_data in hosts:
-        if host_data.protocol == "wireguard" and not wireguard_settings.enabled:
-            continue
-
-        result = await process_host(host_data, format_variables, user.inbounds, proxy_settings)
+        result = await process_host(host_data, format_variables, user.inbounds, proxy_settings, custom_variables)
         if not result:
             continue
 
@@ -377,6 +483,7 @@ async def process_inbounds_and_tags(
                     user.inbounds,
                     proxy_settings,
                     client_templates,
+                    custom_variables,
                     conf,
                 )
             else:

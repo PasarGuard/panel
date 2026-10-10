@@ -10,7 +10,7 @@ class ProxyProtocol(IntEnum):
     hysteria = 6
 
     @classmethod
-    def from_value(cls, value: str) -> "ProxyProtocol" | None:
+    def from_value(cls, value: str) -> ProxyProtocol | None:
         try:
             return _PROXY_PROTOCOL_BY_NAME[value]
         except KeyError:

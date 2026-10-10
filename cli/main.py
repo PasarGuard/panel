@@ -2,6 +2,7 @@
 """PasarGuard CLI"""
 
 import typer
+
 from cli import console
 from cli.admin import generate_temp_key
 

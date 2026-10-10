@@ -8,7 +8,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import useDirDetection from '@/hooks/use-dir-detection'
 import { cn } from '@/lib/utils'
 import { useDebouncedSearch } from '@/hooks/use-debounced-search'
-import { RefreshCw, SearchIcon, Filter, X, ArrowUpDown, User, Calendar, ChartPie, ChevronDown, Check, Clock } from 'lucide-react'
+import { RefreshCw, SearchIcon, Filter, X, ArrowUpDown, User, Calendar, ChartPie, ChevronDown, Check, Clock, Fingerprint } from 'lucide-react'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useGetUsers, UserStatus } from '@/service/api'
@@ -17,9 +17,19 @@ import { LoaderCircle } from 'lucide-react'
 import { getUsersAutoRefreshIntervalSeconds, setUsersAutoRefreshIntervalSeconds } from '@/utils/userPreferenceStorage'
 import { $fetch as publicFetch } from 'ofetch'
 import { resolveSubscriptionPanelBaseUrl } from '@/utils/subscription-config'
+import { statusColors } from '@/constants/UserSettings'
 
 // Compact sort configuration: one row per field
 const sortSections = [
+  {
+    key: 'hwidCount',
+    icon: Fingerprint,
+    label: 'hwids.count',
+    asc: 'hwid_count',
+    desc: '-hwid_count',
+    ascHintKey: 'sort.hints.lowToHigh',
+    descHintKey: 'sort.hints.highToLow',
+  },
   {
     key: 'username',
     icon: User,
@@ -76,6 +86,8 @@ const sortSections = [
   },
 ] as const
 
+const statusChipOptions = [UserStatus.active, UserStatus.disabled, UserStatus.limited, UserStatus.expired, UserStatus.on_hold] as const
+
 const autoRefreshOptions = [
   { value: 0, labelKey: 'autoRefresh.off' },
   { value: 5, labelKey: 'autoRefresh.5Seconds' },
@@ -98,6 +110,7 @@ interface FiltersProps {
     ids?: number[] | null
     admin?: string[]
     group?: number[]
+    no_group?: boolean
     data_limit_min?: number | null
     data_limit_max?: number | null
     expire_after?: string | null
@@ -109,6 +122,7 @@ interface FiltersProps {
     no_expire?: boolean
   }
   onFilterChange: (filters: Partial<FiltersProps['filters']>) => void
+  canSortByHwidCount?: boolean
   refetch?: (options?: RefetchOptions) => Promise<unknown>
   autoRefetch?: (options?: RefetchOptions) => Promise<unknown>
   advanceSearchOnOpen: (status: boolean) => void
@@ -139,9 +153,11 @@ const buildSubscriptionInfoUrl = (value: string) => {
   }
 }
 
-export const Filters = ({ filters, onFilterChange, refetch, autoRefetch, advanceSearchOnOpen, onClearAdvanceSearch, handleSort }: FiltersProps) => {
+export const Filters = ({ filters, onFilterChange, refetch, autoRefetch, advanceSearchOnOpen, onClearAdvanceSearch, handleSort, canSortByHwidCount = false }: FiltersProps) => {
   const { t } = useTranslation()
   const dir = useDirDetection()
+  // The backend ignores the device count sort without hwids.read, so do not offer it
+  const visibleSortSections = canSortByHwidCount ? sortSections : sortSections.filter(section => section.key !== 'hwidCount')
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [autoRefreshInterval, setAutoRefreshInterval] = useState<number>(() => getUsersAutoRefreshIntervalSeconds())
   const { refetch: queryRefetch, isFetching } = useGetUsers(filters)
@@ -322,7 +338,16 @@ export const Filters = ({ filters, onFilterChange, refetch, autoRefetch, advance
       (filters.data_limit_min !== undefined && filters.data_limit_min !== null) || (filters.data_limit_max !== undefined && filters.data_limit_max !== null) || Boolean(filters.no_data_limit)
     const hasExpireDate = Boolean(filters.expire_after || filters.expire_before || filters.no_expire)
     const hasOnlineDate = Boolean(filters.online_after || filters.online_before || filters.online)
-    return (ids && ids.length > 0) || (admin && admin.length > 0) || (group && group.length > 0) || (status !== undefined && status !== null) || hasDataLimit || hasExpireDate || hasOnlineDate
+    return (
+      (ids && ids.length > 0) ||
+      (admin && admin.length > 0) ||
+      (group && group.length > 0) ||
+      Boolean(filters.no_group) ||
+      (status !== undefined && status !== null) ||
+      hasDataLimit ||
+      hasExpireDate ||
+      hasOnlineDate
+    )
   }
 
   // Get the count of active advance filters
@@ -340,6 +365,7 @@ export const Filters = ({ filters, onFilterChange, refetch, autoRefetch, advance
     if (ids && ids.length > 0) count++
     if (admin && admin.length > 0) count++
     if (group && group.length > 0) count++
+    if (filters.no_group) count++
     if (status !== undefined && status !== null) count++
     if (hasDataLimit) count++
     if (hasExpireDate) count++
@@ -361,17 +387,101 @@ export const Filters = ({ filters, onFilterChange, refetch, autoRefetch, advance
     handleSort(nextSort, true)
   }
 
+  const handleStatusChip = (status: (typeof statusChipOptions)[number]) => {
+    onFilterChange({
+      status: filters.status === status ? undefined : status,
+      offset: 0,
+    })
+  }
+
+  const activeFilterChips: { key: string; label: string; onRemove: () => void }[] = []
+  if (filters.status) {
+    activeFilterChips.push({
+      key: 'status',
+      label: t(`status.${filters.status}`),
+      onRemove: () => onFilterChange({ status: undefined, offset: 0 }),
+    })
+  }
+  if (filters.admin && filters.admin.length > 0) {
+    activeFilterChips.push({
+      key: 'admin',
+      label: `${t('admins.title', { defaultValue: 'Admins' })}: ${filters.admin.length}`,
+      onRemove: () => onFilterChange({ admin: undefined, offset: 0 }),
+    })
+  }
+  if (filters.group && filters.group.length > 0) {
+    activeFilterChips.push({
+      key: 'group',
+      label: `${t('groups', { defaultValue: 'Groups' })}: ${filters.group.length}`,
+      onRemove: () => onFilterChange({ group: undefined, offset: 0 }),
+    })
+  }
+  if (filters.no_group) {
+    activeFilterChips.push({
+      key: 'no_group',
+      label: t('advanceSearch.noGroup', { defaultValue: 'No group' }),
+      onRemove: () => onFilterChange({ no_group: undefined, offset: 0 }),
+    })
+  }
+  if (filters.ids && filters.ids.length > 0) {
+    activeFilterChips.push({
+      key: 'ids',
+      label: `IDs: ${filters.ids.length}`,
+      onRemove: () => onFilterChange({ ids: undefined, offset: 0 }),
+    })
+  }
+  if (filters.data_limit_min != null || filters.data_limit_max != null || filters.no_data_limit) {
+    activeFilterChips.push({
+      key: 'data_limit',
+      label: t('dataUsage'),
+      onRemove: () => onFilterChange({ data_limit_min: undefined, data_limit_max: undefined, no_data_limit: undefined, offset: 0 }),
+    })
+  }
+  if (filters.expire_after || filters.expire_before || filters.no_expire) {
+    activeFilterChips.push({
+      key: 'expire',
+      label: t('expireDate'),
+      onRemove: () => onFilterChange({ expire_after: undefined, expire_before: undefined, no_expire: undefined, offset: 0 }),
+    })
+  }
+  if (filters.online_after || filters.online_before || filters.online) {
+    activeFilterChips.push({
+      key: 'online',
+      label: t('lastOnline'),
+      onRemove: () => onFilterChange({ online_after: undefined, online_before: undefined, online: undefined, offset: 0 }),
+    })
+  }
+
   return (
-    <div dir={dir} className="flex items-center gap-2 py-4 md:gap-4">
+    <div dir={dir} className="bg-background/80 sticky top-0 z-20 flex flex-col gap-2 py-3 backdrop-blur-md">
+      <div className="flex items-center gap-2 md:gap-3">
       {/* Search Input */}
-      <div className="relative min-w-0 flex-1 md:w-[calc(100%/3-10px)] md:flex-none">
-        <SearchIcon className={cn('absolute', dir === 'rtl' ? 'right-2' : 'left-2', 'text-input-placeholder top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400')} />
-        <Input placeholder={t('search')} value={search} onChange={handleSearchChange} className="pr-10 pl-8" />
+      <div className="relative w-full min-w-0 max-w-xs flex-1 sm:max-w-sm sm:flex-none lg:w-64 lg:max-w-none">
+        <SearchIcon className={cn('absolute', dir === 'rtl' ? 'right-2' : 'left-2', 'text-muted-foreground top-1/2 h-4 w-4 -translate-y-1/2')} />
+        <Input placeholder={t('search')} value={search} onChange={handleSearchChange} className="h-8 pr-10 pl-8" />
         {search && (
-          <button onClick={clearSearch} className={cn('absolute', dir === 'rtl' ? 'left-2' : 'right-2', 'top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600')}>
+          <button onClick={clearSearch} className={cn('absolute', dir === 'rtl' ? 'left-2' : 'right-2', 'text-muted-foreground hover:text-foreground top-1/2 -translate-y-1/2')}>
             <X className="h-4 w-4" />
           </button>
         )}
+      </div>
+      <div className="hidden min-w-0 flex-1 items-center gap-1 overflow-x-auto lg:flex">
+        {statusChipOptions.map(status => {
+          const isActive = filters.status === status
+          return (
+            <button
+              key={status}
+              type="button"
+              onClick={() => handleStatusChip(status)}
+              className={cn(
+                'inline-flex h-8 shrink-0 items-center rounded-full px-2.5 text-xs font-medium transition-colors',
+                isActive ? statusColors[status]?.statusColor : 'text-muted-foreground hover:bg-accent bg-transparent',
+              )}
+            >
+              {t(`status.${status}`)}
+            </button>
+          )
+        })}
       </div>
       <div className="flex h-full flex-shrink-0 items-center gap-1">
         <Button size="icon-md" variant="ghost" className="relative flex h-9 w-9 items-center justify-center rounded-lg border" onClick={handleOpenAdvanceSearch}>
@@ -408,7 +518,7 @@ export const Filters = ({ filters, onFilterChange, refetch, autoRefetch, advance
             <DropdownMenuContent align="end" className="max-h-72 w-52 overflow-y-auto">
               <DropdownMenuLabel className="text-muted-foreground px-2 py-1 text-[10px]">{t('sortOptions', { defaultValue: 'Sort Options' })}</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              {sortSections.map(section => {
+              {visibleSortSections.map(section => {
                 const state = getSortState(section)
                 return (
                   <DropdownMenuItem key={section.key} onClick={() => handleCompactSort(section)} className={cn('flex items-center gap-1.5 px-2 py-1.5 text-[11px]', state !== 'none' && 'bg-accent')}>
@@ -497,6 +607,24 @@ export const Filters = ({ filters, onFilterChange, refetch, autoRefetch, advance
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+      </div>
+      {activeFilterChips.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          {activeFilterChips.map(chip => (
+            <Badge key={chip.key} variant="secondary" className="gap-1 rounded-full pr-1">
+              {chip.label}
+              <button type="button" onClick={chip.onRemove} className="hover:bg-muted rounded-full p-0.5" aria-label={t('clearFilters', { defaultValue: 'Clear' })}>
+                <X className="h-3 w-3" />
+              </button>
+            </Badge>
+          ))}
+          {onClearAdvanceSearch && (
+            <button type="button" onClick={onClearAdvanceSearch} className="text-muted-foreground hover:text-foreground text-xs">
+              {t('clearAllFilters', { defaultValue: 'Clear all' })}
+            </button>
+          )}
+        </div>
+      )}
     </div>
   )
 }

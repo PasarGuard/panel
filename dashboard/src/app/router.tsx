@@ -4,8 +4,10 @@ import { getCurrentAdmin } from '@/service/api'
 import { hasPermission } from '@/utils/rbac'
 import { createHashRouter, Navigate, RouteObject } from 'react-router'
 import { LoadingSpinner } from '@/components/common/loading-spinner'
+import { RouteErrorPage } from '@/components/layout/error-page'
 import { TabbedRouteSuspenseFallback } from '@/components/layout/tabbed-route-suspense-fallback'
 import { lazyWithChunkRecovery } from '@/utils/chunk-recovery'
+import { isAuthenticationError } from '@/utils/error-utils'
 // Replace direct imports with lazy imports for route-level components
 const CoresLayout = lazyWithChunkRecovery(() => import('@/pages/_dashboard.nodes.cores'))
 const CoresIndex = lazyWithChunkRecovery(() => import('@/pages/_dashboard.nodes.cores._index'))
@@ -15,18 +17,19 @@ const DashboardLayout = lazyWithChunkRecovery(() => import('../pages/_dashboard'
 const Dashboard = lazyWithChunkRecovery(() => import('../pages/_dashboard._index'))
 const AdminsPage = lazyWithChunkRecovery(() => import('../pages/_dashboard.admins'))
 const AdminRolesPage = lazyWithChunkRecovery(() => import('../pages/_dashboard.admin-roles'))
+const ApiKeysPage = lazyWithChunkRecovery(() => import('../pages/_dashboard.api-keys'))
 const BulkPage = lazyWithChunkRecovery(() => import('../pages/_dashboard.bulk'))
 const BulkCreatePage = lazyWithChunkRecovery(() => import('../pages/_dashboard.bulk.create'))
 const BulkDataPage = lazyWithChunkRecovery(() => import('../pages/_dashboard.bulk.data'))
 const BulkExpirePage = lazyWithChunkRecovery(() => import('../pages/_dashboard.bulk.expire'))
 const BulkGroupsPage = lazyWithChunkRecovery(() => import('../pages/_dashboard.bulk.groups'))
 const BulkProxyPage = lazyWithChunkRecovery(() => import('../pages/_dashboard.bulk.proxy'))
-const BulkWireguardPage = lazyWithChunkRecovery(() => import('../pages/_dashboard.bulk.wireguard'))
 const Groups = lazyWithChunkRecovery(() => import('../pages/_dashboard.groups'))
 const Hosts = lazyWithChunkRecovery(() => import('../pages/_dashboard.hosts'))
 const Nodes = lazyWithChunkRecovery(() => import('../pages/_dashboard.nodes'))
 const NodesPage = lazyWithChunkRecovery(() => import('../pages/_dashboard.nodes._index'))
 const NodeLogs = lazyWithChunkRecovery(() => import('../pages/_dashboard.nodes.logs'))
+const NodeWireGuard = lazyWithChunkRecovery(() => import('../pages/_dashboard.nodes.wireguard'))
 const Settings = lazyWithChunkRecovery(() => import('../pages/_dashboard.settings'))
 const CleanupSettings = lazyWithChunkRecovery(() => import('../pages/_dashboard.settings.cleanup'))
 const GeneralSettings = lazyWithChunkRecovery(() => import('../pages/_dashboard.settings.general'))
@@ -64,9 +67,25 @@ const fetchAdminLoader = async (): Promise<any> => {
     const response = await getCurrentAdmin()
     return response
   } catch (error) {
-    throw Response.redirect('/login')
+    if (isAuthenticationError(error)) {
+      throw Response.redirect('/login')
+    }
+
+    throw error
   }
 }
+
+// Telegram Mini Apps append launch params after `#` (e.g. "#tgWebAppData=...&tgWebAppVersion=..."),
+// which collides with createHashRouter reading window.location.hash as the route path and
+// produces a "No route matches" 404 before React ever mounts. Reset it to a real route first.
+// @telegram-apps/sdk's retrieveRawInitData() still recovers the original data afterward via the
+// Navigation Timing API, which isn't affected by history.replaceState.
+;(function sanitizeTelegramLaunchHash() {
+  const { hash } = window.location
+  if (hash && !hash.startsWith('#/') && hash.includes('tgWebApp')) {
+    window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#/`)
+  }
+})()
 
 // Wrap all route elements in <Suspense fallback={<LoadingSpinner />}>
 export const router = createHashRouter([
@@ -79,7 +98,7 @@ export const router = createHashRouter([
     ),
     errorElement: (
       <Suspense fallback={<LoadingSpinner />}>
-        <Login />
+        <RouteErrorPage />
       </Suspense>
     ),
     loader: fetchAdminLoader,
@@ -167,6 +186,14 @@ export const router = createHashRouter([
               </Suspense>
             ),
           },
+          {
+            path: '/nodes/wireguard',
+            element: (
+              <Suspense fallback={<LoadingSpinner />}>
+                <NodeWireGuard />
+              </Suspense>
+            ),
+          },
         ],
       },
       {
@@ -220,6 +247,14 @@ export const router = createHashRouter([
         element: (
           <Suspense fallback={<LoadingSpinner />}>
             <AdminRolesPage />
+          </Suspense>
+        ),
+      },
+      {
+        path: '/api-keys',
+        element: (
+          <Suspense fallback={<LoadingSpinner />}>
+            <ApiKeysPage />
           </Suspense>
         ),
       },
@@ -363,14 +398,6 @@ export const router = createHashRouter([
               </Suspense>
             ),
           },
-          {
-            path: '/bulk/wireguard',
-            element: (
-              <Suspense fallback={<LoadingSpinner />}>
-                <BulkWireguardPage />
-              </Suspense>
-            ),
-          },
         ],
       },
       {
@@ -389,6 +416,11 @@ export const router = createHashRouter([
     element: (
       <Suspense fallback={<LoadingSpinner />}>
         <Login />
+      </Suspense>
+    ),
+    errorElement: (
+      <Suspense fallback={<LoadingSpinner />}>
+        <RouteErrorPage />
       </Suspense>
     ),
   },

@@ -1,8 +1,8 @@
-from app.utils.helpers import escape_tg_html
-from app.models.user import UserNotificationResponse
-from app.models.host import BaseHost
-from app.models.user_template import UserTemplateResponse
 from app.models.core import CoreResponse
+from app.models.host import BaseHost
+from app.models.user import UserNotificationResponse
+from app.models.user_template import UserTemplateResponse
+from app.utils.helpers import escape_tg_html
 
 
 def escape_html_user(user: UserNotificationResponse, by: str) -> tuple[str, str, str]:

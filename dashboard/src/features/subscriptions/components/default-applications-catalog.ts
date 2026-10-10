@@ -165,6 +165,7 @@ export function buildDefaultApplications() {
     import_url?: string
     description?: Record<string, string>
     recommended?: boolean
+    show_when_hwid_enabled?: boolean
     platform: SubscriptionPlatform
     download_links: { name: string; url: string; language: 'fa' | 'en' | 'ru' | 'zh' }[]
   }[] = []
@@ -190,6 +191,7 @@ export function buildDefaultApplications() {
           zh: app.zhDescription || app.description || '',
         },
         recommended: finalRecommended,
+        show_when_hwid_enabled: false,
         platform,
         download_links: [
           { name: 'Download', url: app.downloadLink, language: 'en' },

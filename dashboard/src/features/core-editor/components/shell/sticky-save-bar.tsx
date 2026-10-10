@@ -12,6 +12,7 @@ interface StickySaveBarProps {
   saveLabel?: string
   onSave: () => void
   onDiscard: () => void
+  onCancel: () => void
   saving: boolean
   showRestart?: boolean
   restartNodes: boolean
@@ -19,7 +20,7 @@ interface StickySaveBarProps {
   className?: string
 }
 
-export function StickySaveBar({ dirty, canSave = dirty, saveLabel, onSave, onDiscard, saving, showRestart, restartNodes, onRestartChange, className }: StickySaveBarProps) {
+export function StickySaveBar({ dirty, canSave = dirty, saveLabel, onSave, onDiscard, onCancel, saving, showRestart, restartNodes, onRestartChange, className }: StickySaveBarProps) {
   const { t } = useTranslation()
   const statusLabel = dirty ? t('coreEditor.unsaved', { defaultValue: 'Unsaved changes' }) : t('coreEditor.saved', { defaultValue: 'All changes saved' })
 
@@ -40,19 +41,25 @@ export function StickySaveBar({ dirty, canSave = dirty, saveLabel, onSave, onDis
               </Label>
             </div>
           )}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span className="relative inline-flex rounded-md">
-                {dirty ? <span className="ring-background absolute -top-1 -right-1 z-10 h-2.5 w-2.5 rounded-full bg-amber-500 ring-2" aria-hidden /> : null}
-                <Button type="button" variant="outline" size="sm" disabled={!dirty || saving} onClick={onDiscard}>
-                  {t('coreEditor.discard', { defaultValue: 'Discard' })}
-                </Button>
-              </span>
-            </TooltipTrigger>
-            <TooltipContent side="top" className="max-w-xs">
-              {statusLabel}
-            </TooltipContent>
-          </Tooltip>
+          {dirty ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="relative inline-flex rounded-md">
+                  <span className="ring-background absolute -top-1 -right-1 z-10 h-2.5 w-2.5 rounded-full bg-amber-500 ring-2" aria-hidden />
+                  <Button type="button" variant="outline" size="sm" disabled={saving} onClick={onDiscard}>
+                    {t('coreEditor.discard', { defaultValue: 'Discard' })}
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="max-w-xs">
+                {statusLabel}
+              </TooltipContent>
+            </Tooltip>
+          ) : (
+            <Button type="button" variant="outline" size="sm" onClick={onCancel}>
+              {t('cancel', { defaultValue: 'Cancel' })}
+            </Button>
+          )}
           <LoaderButton type="button" size="sm" disabled={!canSave || saving} isLoading={saving} onClick={onSave}>
             {saveLabel ?? t('save', { defaultValue: 'Save' })}
           </LoaderButton>

@@ -1,4 +1,5 @@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { StringArrayPopoverInput } from '@/components/common/string-array-popover-input'
 import { Input } from '@/components/ui/input'
@@ -10,7 +11,7 @@ import { normalizeSettingsFromEditor } from '@/features/core-editor/kit/outbound
 import { useCoreEditorStore } from '@/features/core-editor/state/core-editor-store'
 import type { Outbound } from '@pasarguard/xray-config-kit'
 import type { TFunction } from 'i18next'
-import { Globe2, ListOrdered, Plus, Radio, Scissors, Trash2 } from 'lucide-react'
+import { AlertTriangle, Globe2, ListOrdered, Plus, Radio, Scissors, Trash2 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 
 type PatchOutbound = (next: Outbound) => void
@@ -186,6 +187,10 @@ function OutboundFreedomSettings({ ob, patchOutbound, t }: { ob: Outbound; patch
     commitFreedom(next)
   }
 
+  const hasFragmentPopulated = Boolean(fragPackets.trim() || fragLength.trim() || fragInterval.trim())
+  const hasNoisePopulated = noiseRows.some(row => row.packet.trim() || row.delay.trim())
+  const showFragmentNoiseDeprecatedWarning = hasFragmentPopulated || hasNoisePopulated
+
   return (
     <div className="flex flex-col gap-4">
       <p className="text-muted-foreground text-xs">
@@ -193,6 +198,17 @@ function OutboundFreedomSettings({ ob, patchOutbound, t }: { ob: Outbound; patch
           defaultValue: 'Freedom forwards traffic as-is. Fragment, noises, and final rules are optional; use JSON tab for edge cases.',
         })}
       </p>
+
+      {showFragmentNoiseDeprecatedWarning && (
+        <Alert className="border-amber-500/40 bg-amber-500/10 text-amber-900 dark:text-amber-100">
+          <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+          <AlertDescription className="text-xs sm:text-sm">
+            {t('coreEditor.outbound.freedom.fragmentNoiseDeprecated', {
+              defaultValue: '`noise` and `fragment` are being removed in newer versions — use `finalMask` instead.',
+            })}
+          </AlertDescription>
+        </Alert>
+      )}
 
       <div className="grid w-full gap-4 sm:grid-cols-2">
         <div className="flex w-full min-w-0 flex-col gap-2">
@@ -903,7 +919,13 @@ function OutboundWireGuardSettings({ ob, patchOutbound, t }: { ob: Outbound; pat
   const workers = s.workers !== undefined && s.workers !== null ? String(s.workers) : ''
   const reserved = Array.isArray(s.reserved) ? JSON.stringify(s.reserved) : typeof s.reserved === 'string' ? s.reserved : ''
   const domainStrategy = typeof s.domainStrategy === 'string' && s.domainStrategy.trim() ? s.domainStrategy : '__default__'
-  const dns = typeof s.DNS === 'string' ? s.DNS : ''
+  const dnsServers: string[] = Array.isArray(s.remoteDNS)
+    ? s.remoteDNS.map(v => String(v).trim()).filter(Boolean)
+    : typeof s.remoteDNS === 'string' && s.remoteDNS.trim()
+      ? [s.remoteDNS.trim()]
+      : typeof s.DNS === 'string' && s.DNS.trim()
+        ? [s.DNS.trim()]
+        : []
   const kernelModeValue = typeof s.kernelMode === 'boolean' ? String(s.kernelMode) : '__default__'
 
   const commitWireGuard = (next: Record<string, unknown>) => {
@@ -1083,18 +1105,21 @@ function OutboundWireGuardSettings({ ob, patchOutbound, t }: { ob: Outbound; pat
 
         <div className="flex w-full min-w-0 flex-col gap-2">
           <Label className="text-xs font-medium">{t('coreEditor.outbound.wireguard.dns', { defaultValue: 'DNS' })}</Label>
-          <Input
-            dir="ltr"
-            className="h-10 w-full min-w-0 text-xs"
-            placeholder="1.1.1.1"
-            value={dns}
-            onChange={e => {
-              const v = e.target.value
+          <StringArrayPopoverInput
+            value={dnsServers}
+            onChange={nextDns => {
               const next = { ...readSettings(ob) }
-              if (!v.trim()) delete next.DNS
-              else next.DNS = v
+              delete next.DNS
+              if (nextDns.length > 0) next.remoteDNS = nextDns
+              else delete next.remoteDNS
               commitWireGuard(next)
             }}
+            placeholder="1.1.1.1"
+            addPlaceholder={t('coreEditor.outbound.wireguard.dnsAddPlaceholder', { defaultValue: 'Add DNS server' })}
+            addButtonLabel={t('coreEditor.outbound.wireguard.addItem', { defaultValue: 'Add' })}
+            itemsLabel={t('coreEditor.outbound.wireguard.dnsItems', { defaultValue: 'DNS servers' })}
+            emptyMessage={t('coreEditor.outbound.wireguard.noDns', { defaultValue: 'No DNS server added.' })}
+            className="h-10 w-full max-w-none min-w-0"
           />
         </div>
 

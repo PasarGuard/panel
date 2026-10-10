@@ -13,16 +13,22 @@ import { EmptyState } from './empty-state'
 import { BarChart3, Calendar, Download, Upload } from 'lucide-react'
 import AdminFilterCombobox from '@/components/common/admin-filter-combobox'
 import TimeSelector, { TRAFFIC_TIME_SELECTOR_SHORTCUTS } from './time-selector'
+import DenseChartAreaHint from './dense-chart-area-hint'
+import PeriodSelector from './period-selector'
 import { TimeRangeSelector } from '@/components/common/time-range-selector'
 import {
+  CHART_PERIOD_OVERRIDE_AUTO,
+  type ChartPeriodOverride,
   formatTooltipDate,
   pickStatsArray,
   getChartQueryRangeFromShortcut,
   getChartQueryRangeFromDateRange,
   formatPeriodLabelForPeriod,
-  getXAxisIntervalForShortcut,
+  getChartXAxisInterval,
+  resolvePeriodOverride,
   TrafficShortcutKey,
 } from '@/utils/chart-period-utils'
+import { getChartRenderFlags } from '@/utils/chart-performance'
 
 type DataPoint = {
   time: string
@@ -111,6 +117,7 @@ export function CostumeBarChart({ nodeId }: CostumeBarChartProps) {
   const [selectedAdmin, setSelectedAdmin] = useState<string>('all')
   const [selectedAdminId, setSelectedAdminId] = useState<number | null>(null)
   const [selectedTime, setSelectedTime] = useState<TrafficShortcutKey>('1w')
+  const [periodOverride, setPeriodOverride] = useState<ChartPeriodOverride>(CHART_PERIOD_OVERRIDE_AUTO)
   const [showCustomRange, setShowCustomRange] = useState(false)
   const [customRange, setCustomRange] = useState<DateRange | undefined>(undefined)
   const [windowWidth, setWindowWidth] = useState<number>(() => (typeof window !== 'undefined' ? window.innerWidth : 1024))
@@ -121,12 +128,14 @@ export function CostumeBarChart({ nodeId }: CostumeBarChartProps) {
   const shouldUseNodeUsage = selectedAdmin === 'all'
 
   const activeQueryRange = useMemo(() => {
+    const periodOptions = { minuteForOneHour: true, periodOverride: resolvePeriodOverride(periodOverride) }
+
     if (showCustomRange && customRange?.from && customRange?.to) {
-      return getChartQueryRangeFromDateRange(customRange, selectedTime)
+      return getChartQueryRangeFromDateRange(customRange, selectedTime, periodOptions)
     }
 
-    return getChartQueryRangeFromShortcut(selectedTime, new Date(), { minuteForOneHour: true })
-  }, [showCustomRange, customRange, selectedTime])
+    return getChartQueryRangeFromShortcut(selectedTime, new Date(), periodOptions)
+  }, [showCustomRange, customRange, selectedTime, periodOverride])
 
   const activePeriod = activeQueryRange.period
 
@@ -189,6 +198,14 @@ export function CostumeBarChart({ nodeId }: CostumeBarChartProps) {
 
   const statsArr = useMemo(() => pickStatsArray<NodeUsageStat | UserUsageStat>(usageData?.stats, nodeId !== undefined ? [String(nodeId), '-1'] : ['-1']), [usageData?.stats, nodeId])
 
+  const labelRangeHint = useMemo(
+    () => ({
+      shortcut: showCustomRange ? undefined : selectedTime,
+      customRange: showCustomRange ? customRange : undefined,
+    }),
+    [customRange, selectedTime, showCustomRange],
+  )
+
   const chartData = useMemo<DataPoint[]>(
     () =>
       statsArr.map(point => {
@@ -196,14 +213,14 @@ export function CostumeBarChart({ nodeId }: CostumeBarChartProps) {
         const directionalTraffic = getDirectionalTraffic(point)
 
         return {
-          time: formatPeriodLabelForPeriod(point.period_start, activePeriod, i18n.language),
+          time: formatPeriodLabelForPeriod(point.period_start, activePeriod, i18n.language, labelRangeHint),
           usage: parseFloat((usageBytes / (1024 * 1024 * 1024)).toFixed(2)),
           _uplink: directionalTraffic.uplink,
           _downlink: directionalTraffic.downlink,
           _period_start: point.period_start,
         }
       }),
-    [statsArr, activePeriod, i18n.language],
+    [statsArr, activePeriod, i18n.language, labelRangeHint],
   )
 
   const totalUsage = useMemo(() => {
@@ -212,30 +229,20 @@ export function CostumeBarChart({ nodeId }: CostumeBarChartProps) {
     return String(formatBytes(total, 2))
   }, [statsArr])
 
-  const xAxisInterval = useMemo(() => {
-    if (showCustomRange && customRange?.from && customRange?.to) {
-      if (activePeriod === Period.hour || activePeriod === Period.minute) {
-        return Math.max(1, Math.floor(chartData.length / 8))
-      }
+  const xAxisInterval = useMemo(
+    () =>
+      getChartXAxisInterval({
+        dataLength: chartData.length,
+        period: activePeriod,
+        shortcut: selectedTime,
+        windowWidth,
+        customRange: showCustomRange ? customRange : undefined,
+        periodOverride: resolvePeriodOverride(periodOverride),
+      }),
+    [showCustomRange, customRange, activePeriod, chartData.length, selectedTime, windowWidth, periodOverride],
+  )
 
-      const daysDiff = Math.ceil(Math.abs(customRange.to.getTime() - customRange.from.getTime()) / (1000 * 60 * 60 * 24))
-      if (daysDiff > 30) {
-        return Math.max(1, Math.floor(chartData.length / 5))
-      }
-
-      if (daysDiff > 7) {
-        return Math.max(1, Math.floor(chartData.length / 8))
-      }
-
-      return 0
-    }
-
-    if (windowWidth < 500 && selectedTime === '1w') {
-      return chartData.length <= 4 ? 0 : Math.max(1, Math.floor(chartData.length / 4))
-    }
-
-    return getXAxisIntervalForShortcut(selectedTime, chartData.length, { minuteForOneHour: true })
-  }, [showCustomRange, customRange, activePeriod, chartData.length, selectedTime, windowWidth])
+  const { isAnimationActive, useAccessibilityLayer, areaCurveType } = useMemo(() => getChartRenderFlags(chartData.length), [chartData.length])
 
   useEffect(() => {
     const handleResize = () => {
@@ -268,29 +275,32 @@ export function CostumeBarChart({ nodeId }: CostumeBarChartProps) {
       <CardHeader className="flex flex-col items-stretch space-y-0 border-b p-0 xl:flex-row">
         <div className="flex flex-1 flex-col gap-2 border-b px-4 py-3 xl:px-6 xl:py-4">
           <div className="flex min-w-0 flex-col justify-center gap-1 pt-2">
-            <CardTitle className="mb-0.5 flex items-center gap-2">
+            <CardTitle className="mb-0.5 flex min-w-0 items-center gap-2">
               <BarChart3 className="text-muted-foreground h-4 w-4 shrink-0" />
-              <span>{t('statistics.trafficUsage')}</span>
+              <span className="truncate">{t('statistics.trafficUsage')}</span>
             </CardTitle>
-            <CardDescription>{t('statistics.trafficUsageDescription')}</CardDescription>
+            <CardDescription className="text-pretty">{t('statistics.trafficUsageDescription')}</CardDescription>
           </div>
-          <div className="flex w-full min-w-0 flex-wrap items-center gap-2">
-            <div className="flex w-full min-w-0 items-center gap-2 sm:w-auto sm:flex-none">
+          <div className="flex w-full min-w-0 flex-col gap-2">
+            <div className="flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
               <TimeSelector selectedTime={selectedTime} setSelectedTime={handleTimeSelect} shortcuts={TRAFFIC_TIME_SELECTOR_SHORTCUTS} maxVisible={5} className="w-full sm:w-fit" />
-              <button
-                type="button"
-                aria-label="Custom Range"
-                className={`shrink-0 rounded border p-1 ${showCustomRange ? 'bg-muted' : ''}`}
-                onClick={() => {
-                  const next = !showCustomRange
-                  setShowCustomRange(next)
-                  if (!next) {
-                    setCustomRange(undefined)
-                  }
-                }}
-              >
-                <Calendar className="h-4 w-4" />
-              </button>
+              <div className="flex w-full items-center gap-2 sm:w-auto">
+                <PeriodSelector value={periodOverride} onValueChange={setPeriodOverride} className="min-w-0 flex-1 sm:w-[7rem] sm:flex-none" />
+                <button
+                  type="button"
+                  aria-label="Custom Range"
+                  className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border ${showCustomRange ? 'bg-muted' : ''}`}
+                  onClick={() => {
+                    const next = !showCustomRange
+                    setShowCustomRange(next)
+                    if (!next) {
+                      setCustomRange(undefined)
+                    }
+                  }}
+                >
+                  <Calendar className="h-4 w-4" />
+                </button>
+              </div>
             </div>
             <AdminFilterCombobox
               value={selectedAdmin}
@@ -325,10 +335,11 @@ export function CostumeBarChart({ nodeId }: CostumeBarChartProps) {
           <EmptyState type="error" className="max-h-[300px] min-h-[150px] sm:max-h-[400px] sm:min-h-[200px]" />
         ) : (
           <div className="mx-auto w-full max-w-7xl">
+            <DenseChartAreaHint pointCount={chartData.length} />
             <ChartContainer dir="ltr" config={chartConfig} className="h-[200px] w-full overflow-x-auto sm:h-[320px] lg:h-[400px]">
               {chartData.length > 0 ? (
                 chartViewType === 'area' ? (
-                  <AreaChart accessibilityLayer data={chartData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
+                  <AreaChart {...(useAccessibilityLayer ? { accessibilityLayer: true } : {})} data={chartData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
                     <defs>
                       <linearGradient id="usageGradient" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="0%" stopColor="var(--color-usage)" stopOpacity={0.4} />
@@ -348,7 +359,7 @@ export function CostumeBarChart({ nodeId }: CostumeBarChartProps) {
                         fontSize: 8,
                         fontWeight: 500,
                       }}
-                      minTickGap={5}
+                      minTickGap={28}
                     />
                     <YAxis
                       direction="ltr"
@@ -365,10 +376,19 @@ export function CostumeBarChart({ nodeId }: CostumeBarChartProps) {
                       tickMargin={2}
                     />
                     <ChartTooltip cursor={false} content={props => <CustomBarTooltip {...(props as TooltipProps<number, string>)} period={activePeriod} />} />
-                    <Area dataKey="usage" type="monotone" fill="url(#usageGradient)" stroke="var(--color-usage)" strokeWidth={2} dot={false} />
+                    <Area
+                      dataKey="usage"
+                      type={areaCurveType}
+                      fill="url(#usageGradient)"
+                      stroke="var(--color-usage)"
+                      strokeWidth={2}
+                      dot={false}
+                      activeDot={false}
+                      isAnimationActive={isAnimationActive}
+                    />
                   </AreaChart>
                 ) : (
-                  <BarChart accessibilityLayer data={chartData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
+                  <BarChart {...(useAccessibilityLayer ? { accessibilityLayer: true } : {})} data={chartData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
                     <CartesianGrid direction="ltr" vertical={false} />
                     <XAxis
                       direction="ltr"
@@ -382,7 +402,7 @@ export function CostumeBarChart({ nodeId }: CostumeBarChartProps) {
                         fontSize: 8,
                         fontWeight: 500,
                       }}
-                      minTickGap={5}
+                      minTickGap={28}
                     />
                     <YAxis
                       direction="ltr"
@@ -398,7 +418,7 @@ export function CostumeBarChart({ nodeId }: CostumeBarChartProps) {
                       tickMargin={2}
                     />
                     <ChartTooltip cursor={false} content={props => <CustomBarTooltip {...(props as TooltipProps<number, string>)} period={activePeriod} />} />
-                    <Bar dataKey="usage" fill="var(--color-usage)" radius={6} />
+                    <Bar dataKey="usage" fill="var(--color-usage)" radius={6} isAnimationActive={isAnimationActive} />
                   </BarChart>
                 )
               ) : (

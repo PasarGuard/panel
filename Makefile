@@ -3,19 +3,6 @@
 PYTHON_VERSION=3.14
 VENV_DIR=.venv
 
-# Check if Python 3.14 is installed, if not, install it
-.PHONY: check-python
-check-python:
-	@if ! python${PYTHON_VERSION} --version | grep -q "$(PYTHON_VERSION)"; then \
-		echo "Python $(PYTHON_VERSION) is not installed. Installing..."; \
-		sudo add-apt-repository -y ppa:deadsnakes/ppa && sudo apt update && sudo apt install -y python$(PYTHON_VERSION) python$(PYTHON_VERSION)-venv || { \
-			echo "Failed to install Python $(PYTHON_VERSION). Please install it manually."; \
-			exit 1; \
-		}; \
-	else \
-		echo "Python $(PYTHON_VERSION) is installed."; \
-	fi
-
 .PHONY: install_uv
 install_uv:
 	@if ! uv --help >/dev/null 2>&1; then \
@@ -81,12 +68,12 @@ check-bun: check-nodejs
 # Install frontend dependencies (Node.js packages)
 .PHONY: install-front
 install-front: check-bun
-	@cd dashboard && bun install 
+	@cd dashboard && bun install
 
 # Run database migrations using Alembic
 .PHONY: run-migration
 run-migration:
-	@uv run alembic upgrade head 
+	@uv run alembic upgrade head
 
 .PHONY: check-migrations
 check-migrations:
@@ -118,6 +105,13 @@ run-watch:
 	@echo "Running application with watchfiles..."
 	@uv run watchfiles --filter python "uv run main.py" .
 
+# Generate the API client (orval) WITHOUT running the server:
+# dump the OpenAPI schema offline, then feed the file to orval.
+# Cross-platform: the Python helper sets OPENAPI_INPUT and invokes orval itself.
+.PHONY: gen-api
+gen-api:
+	@uv run python scripts/export_openapi.py --gen-client
+
 # Check code
 .PHONY: check
 check:
@@ -136,10 +130,10 @@ clean:
 
 # Setup environment: check Python, install uv, and sync requirements
 .PHONY: setup
-setup: check-python install_uv requirements
+setup: install_uv requirements
 
 .PHONY: setup-test
-setup-test: check-python install_uv requirements-dev
+setup-test: install_uv requirements-dev
 
 # Format code (front-end)
 .PHONY: fformat

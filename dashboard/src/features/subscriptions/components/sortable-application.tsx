@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { FormField } from '@/components/ui/form'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { GripVertical, Pencil, Star, Trash2 } from 'lucide-react'
+import { GripVertical, Pencil, ShieldCheck, Star, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -92,6 +92,11 @@ export function SortableApplication({ index, onRemove, form, id }: SortableAppli
                     {form.watch(`applications.${index}.recommended`) ? (
                       <span title={t('settings.subscriptions.applications.recommended')} className="inline-flex shrink-0 items-center text-amber-500/90">
                         <Star className="h-3 w-3 fill-amber-500/30 sm:h-3.5 sm:w-3.5" />
+                      </span>
+                    ) : null}
+                    {form.watch(`applications.${index}.show_when_hwid_enabled`) ? (
+                      <span title={t('settings.subscriptions.applications.showWhenHwidEnabled')} className="inline-flex shrink-0 items-center text-blue-500/90">
+                        <ShieldCheck className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                       </span>
                     ) : null}
                   </h4>

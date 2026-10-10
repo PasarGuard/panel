@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import json
+import re
 from copy import deepcopy
 from ipaddress import ip_interface
 from pathlib import PosixPath
-from typing import Union
 
 import commentjson
 
@@ -13,12 +13,13 @@ from app.models.protocol import ProxyProtocol
 from app.utils.crypto import get_wireguard_public_key, validate_wireguard_key
 
 _WIREGUARD_PROTOCOLS = frozenset((ProxyProtocol.wireguard,))
+_WIREGUARD_INTERFACE_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
 
 
 class WireGuardConfig(dict):
     def __init__(
         self,
-        config: Union[dict, str, PosixPath] | None = None,
+        config: dict | str | PosixPath | None = None,
         exclude_inbound_tags: set[str] | None = None,
         fallbacks_inbound_tags: set[str] | None = None,
         skip_validation: bool = False,
@@ -57,10 +58,10 @@ class WireGuardConfig(dict):
         interface_name = str(self.get("interface_name") or "").strip()
         if not interface_name:
             raise ValueError("interface_name is required")
-        if "," in interface_name:
-            raise ValueError("character ',' is not allowed in interface_name")
-        if "<=>" in interface_name:
-            raise ValueError("character '<=>' is not allowed in interface_name")
+        if not _WIREGUARD_INTERFACE_NAME_RE.fullmatch(interface_name):
+            raise ValueError(
+                "interface_name must start with a letter or digit and contain only letters, digits, '_', '.', or '-'"
+            )
         self["interface_name"] = interface_name
 
         private_key = str(self.get("private_key") or "").strip()
@@ -79,9 +80,14 @@ class WireGuardConfig(dict):
         if not isinstance(listen_port, int) or listen_port <= 0 or listen_port > 65535:
             raise ValueError("listen_port must be an integer between 1 and 65535")
 
+        if "mtu" in self:
+            mtu = self["mtu"]
+            if isinstance(mtu, bool) or not isinstance(mtu, int) or not 576 <= mtu <= 9000:
+                raise ValueError("mtu must be an integer between 576 and 9000")
+
         addresses = self.get("address")
         if not isinstance(addresses, list):
-            raise ValueError("address must be a list")
+            raise TypeError("address must be a list")
 
         normalized_addresses: list[str] = []
         for cidr in addresses:
@@ -133,7 +139,7 @@ class WireGuardConfig(dict):
         }
 
     @classmethod
-    def from_json(cls, data: dict) -> "WireGuardConfig":
+    def from_json(cls, data: dict) -> WireGuardConfig:
         instance = cls(config=data.get("config", {}), skip_validation=True)
         if "inbounds" in data:
             instance._inbounds = data["inbounds"]

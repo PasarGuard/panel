@@ -1,11 +1,12 @@
 from html import escape
 
-from app.notification.client import send_telegram_message
-from app.notification.helpers import get_telegram_channel
 from app.models.group import GroupResponse
 from app.models.settings import NotificationSettings
+from app.notification.client import send_telegram_message
+from app.notification.helpers import get_telegram_channel
 from app.settings import notification_settings
 from app.utils.helpers import escape_tg_html
+
 from . import messages
 
 ENTITY = "group"
@@ -14,7 +15,12 @@ ENTITY = "group"
 async def create_group(group: GroupResponse, by: str):
     name, by = escape_tg_html((group.name, by))
     data = messages.CREATE_GROUP.format(
-        name=name, inbound_tags=group.inbound_tags, is_disabled=group.is_disabled, id=group.id, by=by
+        name=name,
+        inbound_tags=group.inbound_tags,
+        is_disabled=group.is_disabled,
+        status="Disabled" if group.is_disabled else "Enabled",
+        id=group.id,
+        by=by,
     )
     settings: NotificationSettings = await notification_settings()
     if settings.notify_telegram:
@@ -25,7 +31,12 @@ async def create_group(group: GroupResponse, by: str):
 async def modify_group(group: GroupResponse, by: str):
     name, by = escape_tg_html((group.name, by))
     data = messages.MODIFY_GROUP.format(
-        name=name, inbound_tags=group.inbound_tags, is_disabled=group.is_disabled, id=group.id, by=by
+        name=name,
+        inbound_tags=group.inbound_tags,
+        is_disabled=group.is_disabled,
+        status="Disabled" if group.is_disabled else "Enabled",
+        id=group.id,
+        by=by,
     )
     settings: NotificationSettings = await notification_settings()
     if settings.notify_telegram:

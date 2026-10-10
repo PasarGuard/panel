@@ -23,6 +23,7 @@ import { bytesToFormGigabytes } from '@/utils/formatByte'
 import { BulkActionItem, BulkActionsBar } from '@/features/users/components/bulk-actions-bar'
 import { BulkActionAlertDialog } from '@/features/users/components/bulk-action-alert-dialog'
 import { useAdmin } from '@/hooks/use-admin'
+import { useCommandCreate } from '@/hooks/use-command-create'
 import { hasPermission } from '@/utils/rbac'
 
 type BulkUserTemplateActionType = 'delete' | 'disable' | 'enable'
@@ -70,6 +71,13 @@ export default function UserTemplates() {
     window.addEventListener('openUserTemplateDialog', handleOpenDialog)
     return () => window.removeEventListener('openUserTemplateDialog', handleOpenDialog)
   }, [canCreateTemplates, form])
+
+  useCommandCreate('template', () => {
+    if (!canCreateTemplates) return
+    setEditingUserTemplate(null)
+    form.reset(userTemplateFormDefaultValues)
+    setIsDialogOpen(true)
+  })
 
   const handleEdit = (userTemplate: UserTemplateResponse) => {
     if (!canUpdateTemplates) return
@@ -360,7 +368,7 @@ export default function UserTemplates() {
               isLoading={isCurrentlyLoading}
               loadingRows={6}
               className="gap-4"
-              gridClassName="transform-gpu animate-slide-up"
+              gridClassName=""
               gridStyle={{ animationDuration: '500ms', animationDelay: '100ms', animationFillMode: 'both' }}
               enableSelection={canUseBulkSelection}
               injectSelectionProps={canUseBulkSelection}

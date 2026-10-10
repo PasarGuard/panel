@@ -9,6 +9,58 @@ from urllib.parse import quote, urlencode
 from app.models.subscription import SubscriptionInboundData
 
 
+def normalize_and_remove_none_values(data: dict) -> dict:
+    """
+    Clean dictionary by removing None, empty strings, and 0 values.
+    Converts Enum values and recursively cleans nested dictionaries and lists.
+
+    Args:
+        data: Input dictionary to clean
+
+    Returns:
+        Cleaned dictionary with empty values removed
+    """
+    if not isinstance(data, dict):
+        return data
+
+    def clean_list(lst: list) -> list:
+        new_list = []
+        for item in lst:
+            if item not in (None, ""):
+                if isinstance(item, dict):
+                    if cleaned_dict := clean_dict(item):
+                        new_list.append(cleaned_dict)
+                elif isinstance(item, list):
+                    new_list.append(clean_list(item))
+                elif isinstance(item, Enum):
+                    new_list.append(item.value)
+                else:
+                    new_list.append(item)
+        return new_list
+
+    def clean_dict(d: dict) -> dict:
+        new_dict = {}
+        for k, v in d.items():
+            if v not in (None, "", 0, []):
+                if isinstance(v, dict):
+                    if cleaned_dict := clean_dict(v):
+                        new_dict[k] = cleaned_dict
+                elif isinstance(v, list):
+                    new_dict[k] = clean_list(v)
+                elif isinstance(v, Enum):
+                    new_dict[k] = v.value
+                else:
+                    new_dict[k] = v
+        return new_dict
+
+    return clean_dict(data)
+
+
+def dumps_compact(obj: Any) -> str:
+    """JSON for clients: no pretty-print whitespace."""
+    return json.dumps(obj, separators=(",", ":"), ensure_ascii=False)
+
+
 class BaseSubscription:
     def __init__(
         self,
@@ -41,33 +93,9 @@ class BaseSubscription:
                 return new
             c += 1
 
-    def _normalize_and_remove_none_values(self, data: dict) -> dict:
-        """
-        Clean dictionary by removing None, empty strings, and 0 values.
-        Converts Enum values and recursively cleans nested dictionaries.
-
-        Args:
-            data: Input dictionary to clean
-
-        Returns:
-            Cleaned dictionary with empty values removed
-        """
-
-        def clean_dict(d: dict) -> dict:
-            new_dict = {}
-            for k, v in d.items():
-                if v not in (None, "", 0):
-                    if isinstance(v, dict):
-                        if cleaned_dict := clean_dict(v):
-                            new_dict[k] = cleaned_dict
-                    else:
-                        if isinstance(v, Enum):
-                            new_dict[k] = v.value
-                        else:
-                            new_dict[k] = v
-            return new_dict
-
-        return clean_dict(data)
+    @staticmethod
+    def _normalize_and_remove_none_values(data: dict) -> dict:
+        return normalize_and_remove_none_values(data)
 
     def snake_to_camel(self, snake_str):
         return re.sub(r"_([a-z])", lambda match: match.group(1).upper(), snake_str)
@@ -178,11 +206,12 @@ class BaseSubscription:
         if finalmask is None:
             finalmask = {}
         obfs_password = ""
-        quic_params: dict = finalmask.get("quicParams", {})
+        # A core config may hold explicit nulls, so read optional sections with "or"
+        quic_params: dict = finalmask.get("quicParams") or {}
         if udp := finalmask.get("udp"):
             for i in udp:
                 if i.get("type") == "salamander":
-                    obfs_password = i.get("settings", {}).get("password")
+                    obfs_password = (i.get("settings") or {}).get("password")
                     break
 
         return obfs_password, quic_params
@@ -216,10 +245,11 @@ class BaseSubscription:
             payload["dns"] = ",".join(inbound.wireguard_dns)
         if inbound.wireguard_pre_shared_key:
             payload["presharedkey"] = inbound.wireguard_pre_shared_key
+        if inbound.finalmask_link:
+            payload["fm"] = inbound.finalmask_link
 
         payload = self._normalize_and_remove_none_values(payload)
         uri_payload = dict(payload)
-        uri_payload.pop("dns", None)
 
         return {
             "remark": validated_remark,

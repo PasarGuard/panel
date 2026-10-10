@@ -6,7 +6,7 @@ export const nodeFormSchema = z.object({
   address: z.string().min(1, 'Address is required'),
   port: z.number().min(1, 'Port is required'),
   api_port: z.number().min(1).optional().nullable(),
-  usage_coefficient: z.number().optional(),
+  usage_coefficient: z.number().min(0, 'Usage ratio cannot be negative').optional(),
   connection_type: z.enum([NodeConnectionType.grpc, NodeConnectionType.rest]),
   server_ca: z.string().min(1, 'Server CA is required'),
   keep_alive: z.number().min(0, 'Keep alive must be 0 or greater'),
@@ -16,7 +16,7 @@ export const nodeFormSchema = z.object({
   data_limit: z.number().min(0).optional().nullable(),
   data_limit_reset_strategy: z.nativeEnum(DataLimitResetStrategy).optional().nullable(),
   reset_time: z.union([z.null(), z.undefined(), z.number().min(-1)]),
-  default_timeout: z.number().min(3, 'Default timeout must be 3 or greater').max(60, 'Default timeout must be 60 or lower').optional(),
+  default_timeout: z.number().min(3, 'Default timeout must be 3 or greater').optional(),
   internal_timeout: z.number().min(3, 'Internal timeout must be 3 or greater').max(60, 'Internal timeout must be 60 or lower').optional(),
   proxy_url: z.string().url('Please enter a valid URL').optional().or(z.literal('')),
 })

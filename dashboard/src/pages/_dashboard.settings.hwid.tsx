@@ -15,6 +15,7 @@ const hwidSettingsSchema = z
   .object({
     enabled: z.boolean().default(false),
     forced: z.boolean().default(false),
+    require_hwid_for_manual_sub: z.boolean().default(false),
     fallback_limit: z.number().min(0).default(0),
     min_limit: z.number().min(0).default(0),
     max_limit: z.number().min(0).default(0),
@@ -34,6 +35,7 @@ type HwidSettingsFormInput = z.input<typeof hwidSettingsSchema>
 const defaultValues: HwidSettingsFormInput = {
   enabled: false,
   forced: false,
+  require_hwid_for_manual_sub: false,
   fallback_limit: 0,
   min_limit: 0,
   max_limit: 0,
@@ -55,6 +57,7 @@ export default function HwidSettings() {
     return {
       enabled: hwid.enabled ?? false,
       forced: hwid.forced ?? false,
+      require_hwid_for_manual_sub: hwid.require_hwid_for_manual_sub ?? false,
       fallback_limit: toDeviceLimit(hwid.fallback_limit),
       min_limit: toDeviceLimit(hwid.min_limit),
       max_limit: toDeviceLimit(hwid.max_limit),
@@ -72,6 +75,7 @@ export default function HwidSettings() {
         hwid: {
           enabled: data.enabled,
           forced: data.enabled ? data.forced : false,
+          require_hwid_for_manual_sub: data.enabled ? data.require_hwid_for_manual_sub : false,
           fallback_limit: toDeviceLimit(data.fallback_limit),
           min_limit: toDeviceLimit(data.min_limit),
           max_limit: toDeviceLimit(data.max_limit),
@@ -124,7 +128,7 @@ export default function HwidSettings() {
               </p>
             </div>
 
-            <div className="grid gap-3 lg:grid-cols-2">
+            <div className="grid gap-3 lg:grid-cols-3">
               <FormField
                 control={form.control}
                 name="enabled"
@@ -152,6 +156,28 @@ export default function HwidSettings() {
                       <FormLabel className="cursor-pointer text-sm font-medium">{t('settings.hwid.forced.title', { defaultValue: 'Require HWID header' })}</FormLabel>
                       <FormDescription className="text-xs leading-relaxed sm:text-sm">
                         {t('settings.hwid.forced.description', { defaultValue: 'Reject subscription requests that do not send X-HWID.' })}
+                      </FormDescription>
+                    </div>
+                    <FormControl>
+                      <Switch checked={field.value} onCheckedChange={field.onChange} disabled={!hwidEnabled} className="shrink-0" />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="require_hwid_for_manual_sub"
+                render={({ field }) => (
+                  <FormItem className="bg-card hover:bg-accent/50 flex flex-row items-center justify-between gap-4 space-y-0 rounded-md border p-3 transition-colors sm:p-4">
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <FormLabel className="cursor-pointer text-sm font-medium">
+                        {t('settings.hwid.manualSubscription.title', { defaultValue: 'Require HWID for manual subscriptions' })}
+                      </FormLabel>
+                      <FormDescription className="text-xs leading-relaxed sm:text-sm">
+                        {t('settings.hwid.manualSubscription.description', {
+                          defaultValue: 'Apply HWID policy to manual subscription formats and hide config links on the subscription page.',
+                        })}
                       </FormDescription>
                     </div>
                     <FormControl>

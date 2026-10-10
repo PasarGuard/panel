@@ -1,0 +1,119 @@
+"""add api keys table
+
+Revision ID: c9b48df42f10
+Revises: f9c69a49f544
+Create Date: 2026-05-25 00:00:00.000000
+
+"""
+
+from alembic import op
+import sqlalchemy as sa
+import app.db.compiles_types
+import json
+
+
+# revision identifiers, used by Alembic.
+revision = "c9b48df42f10"
+down_revision = "f9c69a49f544"
+branch_labels = None
+depends_on = None
+
+
+def upgrade() -> None:
+    # Match the actual type of admins.id (may be INT or BIGINT depending on
+    # whether the bigint migration has run on this database).
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    admins_id_type = inspector.get_columns("admins")[0]["type"]
+    is_bigint = "BIGINT" in str(admins_id_type).upper()
+    col_type = app.db.compiles_types.SqliteCompatibleBigInteger() if is_bigint else sa.Integer()
+
+    op.create_table(
+        "api_keys",
+        sa.Column("id", col_type, autoincrement=True, nullable=False),
+        sa.Column("admin_id", col_type, nullable=False),
+        sa.Column("name", sa.String(length=128), nullable=False),
+        sa.Column("note", sa.String(length=512), nullable=True),
+        sa.Column("key_hash", sa.String(length=128), nullable=False),
+        sa.Column("api_key_trimmed", sa.String(length=16), nullable=False),
+        sa.Column("permissions", sa.JSON(), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("expire_date", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("revoked_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column(
+            "status",
+            sa.Enum("active", "disabled", name="apikeystatus"),
+            nullable=False,
+            server_default="active",
+        ),
+        sa.ForeignKeyConstraint(
+            ["admin_id"], ["admins.id"], name=op.f("fk_api_keys_admin_id_admins"), ondelete="CASCADE"
+        ),
+        sa.PrimaryKeyConstraint("id", name=op.f("pk_api_keys")),
+        sa.UniqueConstraint("key_hash", name=op.f("uq_api_keys_key_hash")),
+        sa.UniqueConstraint("admin_id", "name", name=op.f("uq_api_keys_admin_id")),
+    )
+    with op.batch_alter_table("api_keys", schema=None) as batch_op:
+        batch_op.create_index(batch_op.f("ix_api_keys_admin_id"), ["admin_id"], unique=False)
+        batch_op.create_index(batch_op.f("ix_api_keys_created_at"), ["created_at"], unique=False)
+        batch_op.create_index(batch_op.f("ix_api_keys_expire_date"), ["expire_date"], unique=False)
+
+    # Update admin_roles permissions to include api_keys entry
+    OWNER_ADMIN_API_KEY_PERMS = {
+        "create": True,
+        "read": {"scope": 2},
+        "read_simple": {"scope": 2},
+        "update": {"scope": 2},
+        "delete": {"scope": 2},
+    }
+    OPERATOR_API_KEY_PERMS = {
+        "read": {"scope": 1},
+        "read_simple": {"scope": 1},
+        "update": {"scope": 1},
+        "delete": {"scope": 1},
+    }
+
+
+    def _normalize_permissions(value):
+        if value is None:
+            return {}
+        if isinstance(value, str):
+            try:
+                return json.loads(value)
+            except json.JSONDecodeError:
+                return {}
+        if isinstance(value, dict):
+            return value
+        return {}
+
+    conn = op.get_bind()
+    admin_roles = sa.table(
+        "admin_roles",
+        sa.column("id", sa.Integer),
+        sa.column("name", sa.String),
+        sa.column("permissions", sa.JSON),
+    )
+
+    rows = conn.execute(sa.select(admin_roles.c.id, admin_roles.c.name, admin_roles.c.permissions)).fetchall()
+    for role_id, role_name, role_permissions in rows:
+        permissions = _normalize_permissions(role_permissions)
+        if "api_keys" in permissions:
+            continue
+        if role_name in {"owner", "administrator"}:
+            permissions["api_keys"] = OWNER_ADMIN_API_KEY_PERMS
+        else:
+            permissions["api_keys"] = OPERATOR_API_KEY_PERMS
+        conn.execute(admin_roles.update().where(admin_roles.c.id == role_id).values(permissions=permissions))
+
+
+def downgrade() -> None:
+    with op.batch_alter_table("api_keys", schema=None) as batch_op:
+        batch_op.drop_index(batch_op.f("ix_api_keys_expire_date"))
+        batch_op.drop_index(batch_op.f("ix_api_keys_created_at"))
+        batch_op.drop_index(batch_op.f("ix_api_keys_admin_id"))
+
+    op.drop_table("api_keys")
+
+    conn = op.get_bind()
+    if conn.dialect.name == "postgresql":
+        op.execute("DROP TYPE IF EXISTS apikeystatus")

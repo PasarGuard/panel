@@ -1,6 +1,6 @@
 from aiogram import Dispatcher
 
-from . import admin, base, error_handler, client
+from . import admin, base, client, error_handler
 
 
 def include_routers(dp: Dispatcher) -> None:

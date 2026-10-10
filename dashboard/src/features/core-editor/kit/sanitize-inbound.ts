@@ -1,11 +1,5 @@
 import type { Inbound, Profile } from '@pasarguard/xray-config-kit'
-
-/** Loopback values often come from Xray samples, browser autofill, or legacy defaults — not a meaningful rewrite target in the editor. */
-export function isPlaceholderTunnelRewriteAddress(v: unknown): boolean {
-  if (typeof v !== 'string') return false
-  const t = v.trim().toLowerCase()
-  return t === '127.0.0.1' || t === 'localhost' || t === '::1'
-}
+import { coerceVerifyPeerCertByNameList } from '@/features/core-editor/kit/xray-parity-value'
 
 /** xray-config-kit strict schema allows only these; empty or unknown values break compile. */
 export function normalizeTunnelNetworkForKit(v: unknown): 'tcp' | 'udp' | 'tcp,udp' {
@@ -45,7 +39,6 @@ export function normalizeTunnelInboundForKit(ib: Inbound): Inbound {
   const legacy = draft.settings
   if (!legacy || typeof legacy !== 'object' || Array.isArray(legacy)) {
     delete draft.settings
-    if (isPlaceholderTunnelRewriteAddress(draft.address)) delete draft.address
     draft.network = normalizeTunnelNetworkForKit(draft.network)
     return draft as unknown as Inbound
   }
@@ -56,7 +49,7 @@ export function normalizeTunnelInboundForKit(ib: Inbound): Inbound {
     const a = s.rewriteAddress ?? s.address
     if (typeof a === 'string') {
       const trimmed = a.trim()
-      if (trimmed !== '' && !isPlaceholderTunnelRewriteAddress(trimmed)) draft.address = trimmed
+      if (trimmed !== '') draft.address = trimmed
     }
   }
 
@@ -88,7 +81,6 @@ export function normalizeTunnelInboundForKit(ib: Inbound): Inbound {
   }
 
   delete draft.settings
-  if (isPlaceholderTunnelRewriteAddress(draft.address)) delete draft.address
   draft.network = normalizeTunnelNetworkForKit(draft.network)
   return draft as unknown as Inbound
 }
@@ -131,6 +123,12 @@ function sanitizeSecurityArrays(inbound: Inbound): Inbound {
         sanitized[key] = filtered
       }
     }
+  }
+
+  if ('verifyPeerCertByName' in sanitized) {
+    const names = coerceVerifyPeerCertByNameList(sanitized.verifyPeerCertByName)
+    if (names === undefined) delete sanitized.verifyPeerCertByName
+    else sanitized.verifyPeerCertByName = names
   }
 
   // REALITY: never persist invalid `publicKey` (kit validates when set). Empty / legacy placeholder / bad encoding → omit.

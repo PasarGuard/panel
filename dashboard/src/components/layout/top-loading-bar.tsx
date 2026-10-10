@@ -32,7 +32,7 @@ function TopLoadingBar({ height = 3, color, shadow = false, className = '' }: To
   const completeTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const progressIntervalRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined)
   const lastLocationRef = useRef('')
-  const { resolvedTheme } = useTheme()
+  const { resolvedTheme, customization, colorTheme } = useTheme()
   const location = useLocation()
 
   const [themeKey, setThemeKey] = useState(resolvedTheme)
@@ -153,7 +153,7 @@ function TopLoadingBar({ height = 3, color, shadow = false, className = '' }: To
     }
 
     return resolvedTheme === 'dark' ? '#3b82f6' : '#2563eb'
-  }, [color, resolvedTheme, themeKey, colorThemeKey])
+  }, [color, resolvedTheme, themeKey, colorThemeKey, colorTheme, customization])
 
   useEffect(() => {
     const currentPath = location.pathname + location.search

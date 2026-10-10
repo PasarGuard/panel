@@ -1,7 +1,7 @@
 import asyncio
 import os
 import re
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
 import pytest
@@ -815,7 +815,7 @@ async def test_admin_usage_returns_stats_for_admin(access_token):
         admin_token = login_response.json()["access_token"]
 
         user = create_user(admin_token, payload={"username": unique_name("admin_usage_user")})
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         usages = [
             NodeUserUsage(user_id=user["id"], node_id=None, created_at=now - timedelta(hours=2), used_traffic=123),
             NodeUserUsage(user_id=user["id"], node_id=None, created_at=now - timedelta(hours=1), used_traffic=456),

@@ -2,8 +2,9 @@ import type { SubscriptionFormData } from '@/features/subscriptions/components/s
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
-import { VariablesList } from '@/components/ui/variables-popover'
+import { CustomVariablesPopover, VariablesList } from '@/components/ui/variables-popover'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { Info, Plus, Trash2 } from 'lucide-react'
@@ -61,33 +62,57 @@ export function SubscriptionResponseHeadersSection({ form }: SubscriptionRespons
 
   return (
     <div className="space-y-3">
-      <div className="flex items-start justify-between gap-2">
+      <div className="flex items-start justify-between gap-2 lg:min-h-[5rem]">
         <div className="min-w-0 flex-1 space-y-2">
           <h3 className="text-base font-semibold sm:text-lg">{t('settings.subscriptions.responseHeaders.title')}</h3>
           <p className="text-muted-foreground text-xs sm:text-sm">{t('settings.subscriptions.responseHeaders.description')}</p>
         </div>
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0">
-              <Info className="text-muted-foreground h-4 w-4" />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
-            <div className="space-y-1.5">
-              <h4 className="mb-2 text-[11px] font-medium">{t('hostsDialog.variables.title')}</h4>
-              <div className="max-h-[60vh] space-y-1 overflow-y-auto pr-1">
-                <VariablesList includeProfileTitle={true} includeFormat={true} />
+        <div className="flex shrink-0 items-center gap-2">
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0">
+                <Info className="text-muted-foreground h-4 w-4" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
+              <div className="space-y-1.5">
+                <h4 className="mb-2 text-[11px] font-medium">{t('hostsDialog.variables.title')}</h4>
+                <div className="max-h-[60vh] space-y-1 overflow-y-auto pr-1">
+                  <VariablesList includeProfileTitle={true} includeFormat={true} />
+                </div>
               </div>
-            </div>
-          </PopoverContent>
-        </Popover>
+            </PopoverContent>
+          </Popover>
+          <CustomVariablesPopover customVariables={form.watch('custom_variables') || []} side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5} />
+          <Button type="button" variant="outline" size="sm" onClick={addResponseHeader}>
+            <Plus className="mr-1.5 h-3.5 w-3.5" />
+            {t('settings.subscriptions.responseHeaders.addHeader')}
+          </Button>
+        </div>
       </div>
 
-      <div className="flex justify-end">
-        <Button type="button" variant="outline" size="sm" onClick={addResponseHeader}>
-          <Plus className="mr-1.5 h-3.5 w-3.5" />
-          {t('settings.subscriptions.responseHeaders.addHeader')}
-        </Button>
+      <div className="space-y-2">
+        <h4 className="text-base font-semibold sm:text-lg">{t('settings.subscriptions.responseHeaders.placement.title')}</h4>
+        <p className="text-muted-foreground text-xs sm:text-sm">{t('settings.subscriptions.responseHeaders.placement.description')}</p>
+        <Select
+          value={form.watch('header_placement') ?? 'header'}
+          onValueChange={value => form.setValue('header_placement', value as SubscriptionFormData['header_placement'], { shouldDirty: true })}
+        >
+          <SelectTrigger aria-label={t('settings.subscriptions.responseHeaders.placement.title')} className="text-xs sm:text-sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="header" className="text-xs sm:text-sm">
+              {t('settings.subscriptions.responseHeaders.placement.header')}
+            </SelectItem>
+            <SelectItem value="body_start" className="text-xs sm:text-sm">
+              {t('settings.subscriptions.responseHeaders.placement.bodyStart')}
+            </SelectItem>
+            <SelectItem value="body_end" className="text-xs sm:text-sm">
+              {t('settings.subscriptions.responseHeaders.placement.bodyEnd')}
+            </SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="space-y-3">

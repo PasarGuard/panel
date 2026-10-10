@@ -4,6 +4,8 @@ from time import perf_counter
 from h11 import LocalProtocolError
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from app.utils.performance import request_phases, start_request_phases
+
 
 class RequestProcessTimeLoggingMiddleware:
     def __init__(self, app: ASGIApp, access_logger: logging.Logger):
@@ -16,6 +18,7 @@ class RequestProcessTimeLoggingMiddleware:
             return
 
         start_time = perf_counter()
+        start_request_phases()
         status_code = 500
         connection_closed = False
 
@@ -61,3 +64,6 @@ class RequestProcessTimeLoggingMiddleware:
                 status_code,
                 extra={"process_time": f"{process_time_ms:.2f}ms"},
             )
+            phases = request_phases()
+            if phases:
+                self.access_logger.info("request phases: %s", phases)

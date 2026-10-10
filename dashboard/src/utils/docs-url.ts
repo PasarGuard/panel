@@ -37,6 +37,7 @@ export function getDocsUrl(pagePath: string): string {
     '/templates': 'user_template',
     '/admins': 'admins',
     '/admin-roles': 'admin_roles',
+    '/api-keys': 'api_keys',
     '/bulk': 'bulk',
     '/nodes/cores': 'core',
   }

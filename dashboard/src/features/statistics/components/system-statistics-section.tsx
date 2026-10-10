@@ -125,16 +125,9 @@ export default function SystemStatisticsSection({ currentStats, usersStats }: Sy
       )}
     >
       {/* CPU Usage */}
-      <div className="animate-fade-in h-full w-full" style={{ animationDuration: '600ms', animationDelay: '50ms' }}>
-        <Card dir={dir} className="group relative h-full w-full overflow-hidden rounded-lg border transition-all duration-300 hover:shadow-lg">
-          <div
-            className={cn(
-              'from-primary/10 absolute inset-0 bg-gradient-to-r to-transparent opacity-0 transition-opacity duration-500',
-              'dark:from-primary/5 dark:to-transparent',
-              'group-hover:opacity-100',
-            )}
-          />
-          <CardContent className="relative z-10 flex h-full flex-col justify-between p-4 sm:p-5 lg:p-6">
+      <div className="h-full w-full">
+        <Card dir={dir} className="group relative h-full w-full overflow-hidden transition-colors hover:bg-accent/40">
+          <CardContent className="flex h-full flex-col justify-between p-4 sm:p-5 lg:p-6">
             <div className="mb-2 flex items-start justify-between sm:mb-3">
               <div className="flex items-center gap-2 sm:gap-3">
                 <div className="bg-primary/10 rounded-lg p-1.5 sm:p-2">
@@ -149,7 +142,7 @@ export default function SystemStatisticsSection({ currentStats, usersStats }: Sy
 
             <div className="flex items-end justify-between gap-2">
               <div className="flex min-w-0 flex-1 items-center gap-1 sm:gap-2">
-                <span dir="ltr" className="text-xl leading-tight font-bold transition-all duration-300 sm:text-2xl lg:text-3xl">
+                <span dir="ltr" className="text-xl leading-tight font-bold tabular-nums transition-all duration-300 sm:text-2xl lg:text-3xl">
                   {cpu.usage}%
                 </span>
               </div>
@@ -168,16 +161,9 @@ export default function SystemStatisticsSection({ currentStats, usersStats }: Sy
       </div>
 
       {/* Memory Usage */}
-      <div className="animate-fade-in h-full w-full" style={{ animationDuration: '600ms', animationDelay: '150ms' }}>
-        <Card dir={dir} className="group relative h-full w-full overflow-hidden rounded-lg border transition-all duration-300 hover:shadow-lg">
-          <div
-            className={cn(
-              'from-primary/10 absolute inset-0 bg-gradient-to-r to-transparent opacity-0 transition-opacity duration-500',
-              'dark:from-primary/5 dark:to-transparent',
-              'group-hover:opacity-100',
-            )}
-          />
-          <CardContent className="relative z-10 flex h-full flex-col justify-between p-4 sm:p-5 lg:p-6">
+      <div className="h-full w-full">
+        <Card dir={dir} className="group relative h-full w-full overflow-hidden transition-colors hover:bg-accent/40">
+          <CardContent className="flex h-full flex-col justify-between p-4 sm:p-5 lg:p-6">
             <div className="mb-2 flex items-start justify-between sm:mb-3">
               <div className="flex items-center gap-2 sm:gap-3">
                 <div className="bg-primary/10 rounded-lg p-1.5 sm:p-2">
@@ -191,7 +177,7 @@ export default function SystemStatisticsSection({ currentStats, usersStats }: Sy
             </div>
 
             <div className="flex items-end justify-between gap-2">
-              <span dir="ltr" className="truncate text-lg font-bold transition-all duration-300 sm:text-xl lg:text-2xl">
+              <span dir="ltr" className="truncate text-lg font-bold tabular-nums transition-all duration-300 sm:text-xl lg:text-2xl">
                 <span className="whitespace-nowrap">
                   {formatBytes(memory.used, 1, false, false, 'GB')}/{formatBytes(memory.total, 1, true, false, 'GB')}
                 </span>
@@ -206,16 +192,9 @@ export default function SystemStatisticsSection({ currentStats, usersStats }: Sy
 
       {/* Disk Usage (All Nodes / master view) */}
       {!nodeStatsMode && (
-        <div className="animate-fade-in h-full w-full" style={{ animationDuration: '600ms', animationDelay: '250ms' }}>
-          <Card dir={dir} className="group relative h-full w-full overflow-hidden rounded-lg border transition-all duration-300 hover:shadow-lg">
-            <div
-              className={cn(
-                'from-primary/10 absolute inset-0 bg-gradient-to-r to-transparent opacity-0 transition-opacity duration-500',
-                'dark:from-primary/5 dark:to-transparent',
-                'group-hover:opacity-100',
-              )}
-            />
-            <CardContent className="relative z-10 flex h-full flex-col justify-between p-4 sm:p-5 lg:p-6">
+        <div className="h-full w-full">
+          <Card dir={dir} className="group relative h-full w-full overflow-hidden transition-colors hover:bg-accent/40">
+            <CardContent className="flex h-full flex-col justify-between p-4 sm:p-5 lg:p-6">
               <div className="mb-2 flex items-start justify-between sm:mb-3">
                 <div className="flex items-center gap-2 sm:gap-3">
                   <div className="bg-primary/10 rounded-lg p-1.5 sm:p-2">
@@ -229,7 +208,7 @@ export default function SystemStatisticsSection({ currentStats, usersStats }: Sy
               </div>
 
               <div className="flex items-end justify-between gap-2">
-                <span dir="ltr" className="truncate text-lg font-bold transition-all duration-300 sm:text-xl lg:text-2xl">
+                <span dir="ltr" className="truncate text-lg font-bold tabular-nums transition-all duration-300 sm:text-xl lg:text-2xl">
                   <span className="whitespace-nowrap">
                     {formatBytes(disk.used, 1, false, false, 'GB')}/{formatBytes(disk.total, 1, true, false, 'GB')}
                   </span>
@@ -246,16 +225,9 @@ export default function SystemStatisticsSection({ currentStats, usersStats }: Sy
       {nodeStatsMode ? (
         <>
           {/* Uplink */}
-          <div className="animate-fade-in h-full w-full" style={{ animationDuration: '600ms', animationDelay: '250ms' }}>
-            <Card dir={dir} className="group relative h-full w-full overflow-hidden rounded-lg border transition-all duration-300 hover:shadow-lg">
-              <div
-                className={cn(
-                  'from-primary/10 absolute inset-0 bg-gradient-to-r to-transparent opacity-0 transition-opacity duration-500',
-                  'dark:from-primary/5 dark:to-transparent',
-                  'group-hover:opacity-100',
-                )}
-              />
-              <CardContent className="relative z-10 flex h-full flex-col justify-between p-4 sm:p-5 lg:p-6">
+          <div className="h-full w-full">
+            <Card dir={dir} className="group relative h-full w-full overflow-hidden transition-colors hover:bg-accent/40">
+              <CardContent className="flex h-full flex-col justify-between p-4 sm:p-5 lg:p-6">
                 <div className="mb-2 flex items-start justify-between sm:mb-3">
                   <div className="flex items-center gap-2 sm:gap-3">
                     <div className="bg-primary/10 rounded-lg p-1.5 sm:p-2">
@@ -268,7 +240,7 @@ export default function SystemStatisticsSection({ currentStats, usersStats }: Sy
                 </div>
 
                 <div className="flex items-end justify-between gap-2">
-                  <span dir="ltr" className="truncate text-lg font-bold transition-all duration-300 sm:text-xl lg:text-2xl">
+                  <span dir="ltr" className="truncate text-lg font-bold tabular-nums transition-all duration-300 sm:text-xl lg:text-2xl">
                     <span className="whitespace-nowrap">{outgoingSpeed.mbPerSecText} MB/s</span>
                   </span>
                   <span dir="ltr" className="bg-muted/60 text-muted-foreground rounded-md px-1.5 py-1 text-xs font-medium whitespace-nowrap sm:px-2">
@@ -280,16 +252,9 @@ export default function SystemStatisticsSection({ currentStats, usersStats }: Sy
           </div>
 
           {/* Downlink */}
-          <div className="animate-fade-in h-full w-full" style={{ animationDuration: '600ms', animationDelay: '350ms' }}>
-            <Card dir={dir} className="group relative h-full w-full overflow-hidden rounded-lg border transition-all duration-300 hover:shadow-lg">
-              <div
-                className={cn(
-                  'from-primary/10 absolute inset-0 bg-gradient-to-r to-transparent opacity-0 transition-opacity duration-500',
-                  'dark:from-primary/5 dark:to-transparent',
-                  'group-hover:opacity-100',
-                )}
-              />
-              <CardContent className="relative z-10 flex h-full flex-col justify-between p-4 sm:p-5 lg:p-6">
+          <div className="h-full w-full">
+            <Card dir={dir} className="group relative h-full w-full overflow-hidden transition-colors hover:bg-accent/40">
+              <CardContent className="flex h-full flex-col justify-between p-4 sm:p-5 lg:p-6">
                 <div className="mb-2 flex items-start justify-between sm:mb-3">
                   <div className="flex items-center gap-2 sm:gap-3">
                     <div className="bg-primary/10 rounded-lg p-1.5 sm:p-2">
@@ -302,7 +267,7 @@ export default function SystemStatisticsSection({ currentStats, usersStats }: Sy
                 </div>
 
                 <div className="flex items-end justify-between gap-2">
-                  <span dir="ltr" className="truncate text-lg font-bold transition-all duration-300 sm:text-xl lg:text-2xl">
+                  <span dir="ltr" className="truncate text-lg font-bold tabular-nums transition-all duration-300 sm:text-xl lg:text-2xl">
                     <span className="whitespace-nowrap">{incomingSpeed.mbPerSecText} MB/s</span>
                   </span>
                   <span dir="ltr" className="bg-muted/60 text-muted-foreground rounded-md px-1.5 py-1 text-xs font-medium whitespace-nowrap sm:px-2">
@@ -314,16 +279,9 @@ export default function SystemStatisticsSection({ currentStats, usersStats }: Sy
           </div>
 
           {/* Node Uptime */}
-          <div className="animate-fade-in h-full w-full sm:col-span-2" style={{ animationDuration: '600ms', animationDelay: '450ms' }}>
-            <Card dir={dir} className="group relative h-full w-full overflow-hidden rounded-lg border transition-all duration-300 hover:shadow-lg">
-              <div
-                className={cn(
-                  'from-primary/10 absolute inset-0 bg-gradient-to-r to-transparent opacity-0 transition-opacity duration-500',
-                  'dark:from-primary/5 dark:to-transparent',
-                  'group-hover:opacity-100',
-                )}
-              />
-              <CardContent className="relative z-10 flex h-full flex-col justify-between p-4 sm:p-5 lg:p-6">
+          <div className="h-full w-full sm:col-span-2">
+            <Card dir={dir} className="group relative h-full w-full overflow-hidden transition-colors hover:bg-accent/40">
+              <CardContent className="flex h-full flex-col justify-between p-4 sm:p-5 lg:p-6">
                 <div className="mb-2 flex items-start justify-between sm:mb-3">
                   <div className="flex items-center gap-2 sm:gap-3">
                     <div className="bg-primary/10 rounded-lg p-1.5 sm:p-2">
@@ -336,7 +294,7 @@ export default function SystemStatisticsSection({ currentStats, usersStats }: Sy
                 </div>
 
                 <div className="flex items-end justify-between gap-2">
-                  <span className="truncate text-lg leading-tight font-bold transition-all duration-300 sm:text-xl lg:text-2xl">{uptime}</span>
+                  <span className="truncate text-lg leading-tight font-bold tabular-nums transition-all duration-300 sm:text-xl lg:text-2xl">{uptime}</span>
                 </div>
               </CardContent>
             </Card>
@@ -347,16 +305,9 @@ export default function SystemStatisticsSection({ currentStats, usersStats }: Sy
           {hasTrafficStats && (
             <>
               {/* Total Traffic */}
-              <div className="animate-fade-in h-full w-full" style={{ animationDuration: '600ms', animationDelay: '350ms' }}>
-                <Card dir={dir} className="group relative h-full w-full overflow-hidden rounded-lg border transition-all duration-300 hover:shadow-lg">
-                  <div
-                    className={cn(
-                      'from-primary/10 absolute inset-0 bg-gradient-to-r to-transparent opacity-0 transition-opacity duration-500',
-                      'dark:from-primary/5 dark:to-transparent',
-                      'group-hover:opacity-100',
-                    )}
-                  />
-                  <CardContent className="relative z-10 flex h-full flex-col justify-between p-4 sm:p-5 lg:p-6">
+              <div className="h-full w-full">
+                <Card dir={dir} className="group relative h-full w-full overflow-hidden transition-colors hover:bg-accent/40">
+                  <CardContent className="flex h-full flex-col justify-between p-4 sm:p-5 lg:p-6">
                     <div className="mb-2 flex items-start justify-between sm:mb-3">
                       <div className="flex items-center gap-2 sm:gap-3">
                         <div className="bg-primary/10 rounded-lg p-1.5 sm:p-2">
@@ -370,7 +321,7 @@ export default function SystemStatisticsSection({ currentStats, usersStats }: Sy
 
                     <div className="flex items-end justify-between gap-2">
                       <div className={cn(dir === 'rtl' && 'text-right', 'min-w-0 flex-1')} dir="ltr">
-                        <span className="text-lg leading-tight font-bold sm:text-xl lg:text-2xl">{formatBytes(getTotalTrafficValue() || 0, 1)}</span>
+                        <span className="text-lg leading-tight font-bold tabular-nums sm:text-xl lg:text-2xl">{formatBytes(getTotalTrafficValue() || 0, 1)}</span>
                       </div>
 
                       <div className="flex shrink-0 flex-wrap items-center gap-1.5 text-xs sm:gap-2">
@@ -395,16 +346,9 @@ export default function SystemStatisticsSection({ currentStats, usersStats }: Sy
           )}
 
           {/* Panel Uptime */}
-          <div className="animate-fade-in h-full w-full sm:col-span-2" style={{ animationDuration: '600ms', animationDelay: '450ms' }}>
-            <Card dir={dir} className="group relative h-full w-full overflow-hidden rounded-lg border transition-all duration-300 hover:shadow-lg">
-              <div
-                className={cn(
-                  'from-primary/10 absolute inset-0 bg-gradient-to-r to-transparent opacity-0 transition-opacity duration-500',
-                  'dark:from-primary/5 dark:to-transparent',
-                  'group-hover:opacity-100',
-                )}
-              />
-              <CardContent className="relative z-10 flex h-full flex-col justify-between p-4 sm:p-5 lg:p-6">
+          <div className="h-full w-full sm:col-span-2">
+            <Card dir={dir} className="group relative h-full w-full overflow-hidden transition-colors hover:bg-accent/40">
+              <CardContent className="flex h-full flex-col justify-between p-4 sm:p-5 lg:p-6">
                 <div className="mb-2 flex items-start justify-between sm:mb-3">
                   <div className="flex items-center gap-2 sm:gap-3">
                     <div className="bg-primary/10 rounded-lg p-1.5 sm:p-2">
@@ -417,7 +361,7 @@ export default function SystemStatisticsSection({ currentStats, usersStats }: Sy
                 </div>
 
                 <div className="flex items-end justify-between gap-2">
-                  <span className="truncate text-lg leading-tight font-bold transition-all duration-300 sm:text-xl lg:text-2xl">{uptime}</span>
+                  <span className="truncate text-lg leading-tight font-bold tabular-nums transition-all duration-300 sm:text-xl lg:text-2xl">{uptime}</span>
                 </div>
               </CardContent>
             </Card>

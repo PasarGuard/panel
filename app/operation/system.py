@@ -6,7 +6,7 @@ from app.core.manager import core_manager
 from app.db import AsyncSession
 from app.db.crud.admin import build_admin_details, get_admin
 from app.db.crud.general import get_system_usage
-from app.db.crud.user import count_online_users, get_users_count_by_status
+from app.db.crud.user import get_users_count_metrics
 from app.db.models import UserStatus
 from app.models.admin import AdminDetails
 from app.models.system import InboundSummary, SystemResourceStats, SystemStats, SystemUsersStats
@@ -79,8 +79,7 @@ class SystemOperation(BaseOperation):
         else:
             system = None
 
-        user_counts = await get_users_count_by_status(db, statuses, admin_id)
-        online_users = await count_online_users(db, timedelta(minutes=2), admin_id)
+        user_counts, online_users = await get_users_count_metrics(db, statuses, timedelta(minutes=2), admin_id)
 
         if system is not None:
             uplink = system.uplink

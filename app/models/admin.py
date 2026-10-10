@@ -1,7 +1,6 @@
 import asyncio
 import os
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime as dt
 from enum import Enum
 from typing import Literal
 
@@ -10,11 +9,17 @@ from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validat
 
 from app.db.models import AdminStatus
 from app.models.admin_role import RoleAccess, RoleFeatures, RoleHWIDSettings, RoleLimits, RolePermissions
+from app.models.settings import CustomVariable, validate_custom_variables
 from app.models.stats import Period
-from app.utils.helpers import fix_datetime_timezone
 
 from .notification_enable import UserNotificationEnable
-from .validators import DiscordValidator, ListValidator, NumericValidatorMixin, PasswordValidator
+from .validators import (
+    DiscordValidator,
+    ListValidator,
+    NumericValidatorMixin,
+    OptionalAwareDatetime,
+    PasswordValidator,
+)
 
 AdminStatusModify = Literal[AdminStatus.active, AdminStatus.disabled]
 
@@ -88,9 +93,20 @@ class AdminContactInfo(AdminBase):
     sub_domain: str | None = None
     profile_title: str | None = None
     support_url: str | None = None
+    custom_variables: list[CustomVariable] = Field(default_factory=list)
     notification_enable: UserNotificationEnable | None = None
 
     model_config = ConfigDict(from_attributes=True)
+
+    @field_validator("custom_variables", mode="before")
+    @classmethod
+    def normalize_custom_variables(cls, value):
+        return value or []
+
+    @field_validator("custom_variables")
+    @classmethod
+    def validate_admin_custom_variables(cls, value: list[CustomVariable]) -> list[CustomVariable]:
+        return validate_custom_variables(value)
 
     @field_validator("notification_enable", mode="before")
     @classmethod
@@ -149,6 +165,7 @@ class AdminModify(BaseModel):
     sub_domain: str | None = None
     profile_title: str | None = None
     support_url: str | None = None
+    custom_variables: list[CustomVariable] | None = None
     note: str | None = None
     notification_enable: UserNotificationEnable | None = None
     role_id: int | None = None
@@ -158,6 +175,13 @@ class AdminModify(BaseModel):
     @classmethod
     def validate_discord_webhook(cls, value):
         return DiscordValidator.validate_webhook(value)
+
+    @field_validator("custom_variables")
+    @classmethod
+    def validate_admin_custom_variables(cls, value: list[CustomVariable] | None) -> list[CustomVariable] | None:
+        if value is None:
+            return value
+        return validate_custom_variables(value)
 
     @field_validator("password")
     @classmethod
@@ -187,6 +211,7 @@ class AdminValidationResult(BaseModel):
     id: int | None = None
     username: str
     status: AdminStatus = Field(default=AdminStatus.active)
+    hashed_password: str | None = Field(default=None, exclude=True, repr=False)
 
 
 class AdminsResponse(BaseModel):
@@ -295,15 +320,8 @@ class AdminUsageQuery(BaseModel):
     period: Period = Field(default=Period.hour)
     node_id: int | None = None
     group_by_node: bool = False
-    start: dt | None = Field(default=None, examples=["2024-01-01T00:00:00+03:30"])
-    end: dt | None = Field(default=None, examples=["2024-01-31T23:59:59+03:30"])
-
-    @field_validator("start", "end", mode="before")
-    @classmethod
-    def validate_datetimes(cls, value):
-        if not value:
-            return value
-        return fix_datetime_timezone(value)
+    start: OptionalAwareDatetime = Field(default=None, examples=["2024-01-01T00:00:00+03:30"])
+    end: OptionalAwareDatetime = Field(default=None, examples=["2024-01-31T23:59:59+03:30"])
 
 
 class BulkAdminSelection(BaseModel):

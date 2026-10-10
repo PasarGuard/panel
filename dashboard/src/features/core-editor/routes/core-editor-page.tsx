@@ -5,7 +5,6 @@ import PageHeader from '@/components/layout/page-header'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { CoreCommandMenu } from '@/features/core-editor/components/shared/core-command-menu'
 import { CoreEditorLayout } from '@/features/core-editor/components/shell/core-editor-layout'
 import { CoreSectionTabsPlaceholder } from '@/features/core-editor/components/shell/core-section-sidebar'
 import { ValidationSummary, type ValidationListItem } from '@/features/core-editor/components/shared/validation-summary'
@@ -59,7 +58,6 @@ function CoreEditorLoadingSkeleton({ coreKind }: { coreKind?: LoadingCoreKind })
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-0" aria-busy="true">
-      <CoreCommandMenu />
       <div className="px-4 pt-3 pb-2 md:pt-6 md:pb-0">
         <div className="flex min-w-0 items-start gap-2 sm:items-center sm:gap-3">
           <Skeleton className="h-10 w-10 shrink-0 rounded-md" />
@@ -403,21 +401,19 @@ export default function CoreEditorPage() {
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div className="min-w-0 flex-1 space-y-2">
-          <div className="flex min-w-0 flex-row flex-wrap items-center gap-2 sm:gap-3">
-            <div className="min-w-0 flex-1">
-              <Input
-                value={coreName}
-                onChange={e => {
-                  const nextName = e.target.value
-                  setCoreName(nextName)
-                  if (nextName.trim()) setNameSubmitAttempted(false)
-                }}
-                isError={showNameRequired}
-                className="h-10 font-medium sm:max-w-md"
-                placeholder={showNameRequired ? nameRequiredMessage : t('coreConfigModal.namePlaceholder', { defaultValue: 'Core name' })}
-                aria-invalid={showNameRequired}
-              />
-            </div>
+          <div className="grid max-w-2xl grid-cols-[1fr_auto] items-center gap-2 sm:gap-3">
+            <Input
+              value={coreName}
+              onChange={e => {
+                const nextName = e.target.value
+                setCoreName(nextName)
+                if (nextName.trim()) setNameSubmitAttempted(false)
+              }}
+              isError={showNameRequired}
+              className="h-10 font-medium"
+              placeholder={showNameRequired ? nameRequiredMessage : t('coreConfigModal.namePlaceholder', { defaultValue: 'Core name' })}
+              aria-invalid={showNameRequired}
+            />
             <Select
               value={kind === 'wg' ? 'wg' : 'xray'}
               onValueChange={value => {
@@ -437,7 +433,7 @@ export default function CoreEditorPage() {
                 switchKind(nextKind)
               }}
             >
-              <SelectTrigger className="h-10 w-24 shrink-0 px-2 sm:w-[200px] sm:px-3" aria-label={t('coreConfigModal.backendType', { defaultValue: 'Backend type' })}>
+              <SelectTrigger className="h-10 w-28 shrink-0 px-2 sm:w-[180px] sm:px-3" aria-label={t('coreConfigModal.backendType', { defaultValue: 'Backend type' })}>
                 <SelectValue placeholder={t('coreConfigModal.backendType', { defaultValue: 'Type' })} />
               </SelectTrigger>
               <SelectContent>
@@ -507,6 +503,10 @@ export default function CoreEditorPage() {
       bindings: {
         title: 'coreEditor.section.bindings',
         description: 'coreEditor.sectionDesc.bindings',
+      },
+      api: {
+        title: 'coreEditor.section.api',
+        description: 'coreEditor.sectionDesc.api',
       },
       advanced: {
         title: 'coreEditor.section.advanced',
@@ -579,6 +579,7 @@ export default function CoreEditorPage() {
         saveLabel={isNew ? t('create', { defaultValue: 'Create' }) : undefined}
         onSave={handleSave}
         onDiscard={() => discardDraft()}
+        onCancel={handleBack}
         saving={saving || createMutation.isPending || modifyMutation.isPending}
         showRestart={!isNew}
         restartNodes={restartNodes}

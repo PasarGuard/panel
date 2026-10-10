@@ -1,7 +1,7 @@
 import PageHeader from '@/components/layout/page-header'
 import { useAdmin } from '@/hooks/use-admin'
 import { cn } from '@/lib/utils'
-import { useGetSettings, useModifySettings } from '@/service/api'
+import { getGetGeneralSettingsQueryKey, getGetSettingsQueryKey, useGetSettings, useModifySettings } from '@/service/api'
 import { useQueryClient } from '@tanstack/react-query'
 import { Bell, Database, Fingerprint, ListTodo, LucideIcon, Palette, Send, Settings as SettingsIcon, Webhook } from 'lucide-react'
 import { createContext, useCallback, useContext, useMemo } from 'react'
@@ -74,13 +74,17 @@ export default function Settings() {
     error,
   } = useGetSettings({
     query: {
-      enabled: canReadSettings || canReadGeneral,
+      enabled: canReadSettings,
     },
   })
   const { mutateAsync: modifySettingsAsync, isPending: isSaving } = useModifySettings({
     mutation: {
-      onSuccess: () => {
+      onSuccess: updatedSettings => {
         toast.success(t(`settings.${activeTab}.saveSuccess`))
+        queryClient.setQueryData(getGetSettingsQueryKey(), updatedSettings)
+        if (updatedSettings?.general) {
+          queryClient.setQueryData(getGetGeneralSettingsQueryKey(), updatedSettings.general)
+        }
         // Invalidate settings query to refresh with new data from API response
         queryClient.invalidateQueries({ queryKey: ['/api/settings'] })
         queryClient.invalidateQueries({ queryKey: ['/api/settings/general'] })
@@ -203,9 +207,9 @@ export default function Settings() {
   // Memoize context value to ensure stability during HMR
   const settingsContextValue: SettingsContextType = useMemo(
     () => ({
-      settings: canReadSettings || canReadGeneral ? settings || {} : {},
-      isLoading: canReadSettings || canReadGeneral ? isLoading : false,
-      error: canReadSettings || canReadGeneral ? error : null,
+      settings: canReadSettings ? settings || {} : {},
+      isLoading: canReadSettings ? isLoading : false,
+      error: canReadSettings ? error : null,
       updateSettings: canReadSettings || canReadGeneral ? handleUpdateSettings : async () => {},
       isSaving: canReadSettings || canReadGeneral ? isSaving : false,
     }),

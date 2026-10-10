@@ -1,8 +1,10 @@
 import os
-from datetime import datetime
+from datetime import UTC, datetime
+from uuid import UUID
 
 import yaml
 
+from app.utils.helpers import yml_uuid_representer
 from app.utils.system import readable_size
 
 
@@ -10,7 +12,8 @@ def to_yaml(obj):
     if not obj:
         return ""
 
-    return yaml.dump(obj, allow_unicode=True, indent=2)
+    yaml.add_representer(UUID, yml_uuid_representer)
+    return yaml.dump(obj, allow_unicode=True, indent=2, sort_keys=False)
 
 
 def exclude_keys(obj, *target_keys):
@@ -23,7 +26,7 @@ def only_keys(obj, *target_keys):
 
 def datetimeformat(dt):
     if isinstance(dt, int):
-        dt = datetime.fromtimestamp(dt)
+        dt = datetime.fromtimestamp(dt, tz=UTC)
     formatted_datetime = dt.strftime("%Y-%m-%d %H:%M:%S")
     return formatted_datetime
 

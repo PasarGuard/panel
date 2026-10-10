@@ -212,6 +212,16 @@ CONNECT_NODE = """
 <i>ID</i>: <code>{id}</code>
 """
 
+RECOVERED_NODE = """
+✅ #Recovered_Node
+➖➖➖➖➖➖➖➖➖
+<b>Name:</b> <code>{name}</code>
+<b>Node Version:</b> <code>{node_version}</code>
+<b>Core Version:</b> <code>{core_version}</code>
+➖➖➖➖➖➖➖➖➖
+<i>ID</i>: <code>{id}</code>
+"""
+
 ERROR_NODE = """
 #Error_Node
 ➖➖➖➖➖➖➖➖➖
@@ -359,5 +369,38 @@ REMOVE_ADMIN_ROLE = """
 <b>Name:</b> <code>{name}</code>
 ➖➖➖➖➖➖➖➖➖
 <i>ID</i>: <code>{id}</code>
+<i>By: #{by}</i>
+"""
+
+CREATE_API_KEY = """
+#Create_API_Key
+➖➖➖➖➖➖➖➖➖
+<b>Name:</b> <code>{name}</code>
+<b>Expire Date:</b> <code>{expire_date}</code>
+➖➖➖➖➖➖➖➖➖
+<i>ID</i>: <code>{id}</code>
+<i>Belongs To</i>: <code>{admin_username}</code>
+<i>By: #{by}</i>
+"""
+
+MODIFY_API_KEY = """
+✏️ #Modify_API_Key
+➖➖➖➖➖➖➖➖➖
+<b>Name:</b> <code>{name}</code>
+<b>Expire Date:</b> <code>{expire_date}</code>
+<b>Status:</b> <code>{status}</code>
+➖➖➖➖➖➖➖➖➖
+<i>ID</i>: <code>{id}</code>
+<i>Belongs To</i>: <code>{admin_username}</code>
+<i>By: #{by}</i>
+"""
+
+REMOVE_API_KEY = """
+#Remove_API_Key
+➖➖➖➖➖➖➖➖➖
+<b>Name:</b> <code>{name}</code>
+➖➖➖➖➖➖➖➖➖
+<i>ID</i>: <code>{id}</code>
+<i>Belongs To</i>: <code>{admin_username}</code>
 <i>By: #{by}</i>
 """

@@ -42,12 +42,11 @@ const getMotion = () => {
 
 const isTab = (a: string, b: string) => (a.startsWith('/settings') && b.startsWith('/settings')) || (a.startsWith('/nodes') && b.startsWith('/nodes'))
 
-export default memo(function PageTransition({ children, duration = 300, delay = 0, isContentTransition = false, className }: PageTransitionProps) {
+export default memo(function PageTransition({ children, isContentTransition = false, className }: PageTransitionProps) {
   const location = useLocation()
   const navType = useNavigationType()
   const [displayChildren, setDisplayChildren] = useState(children)
   const [opacity, setOpacity] = useState(1)
-  const [isShaking, setIsShaking] = useState(false)
   const prev = useRef({
     pathname: location.pathname,
     hash: location.hash,
@@ -85,7 +84,6 @@ export default memo(function PageTransition({ children, duration = 300, delay = 
     if (pathnameHashSame && location.search !== prev.current.search) {
       setDisplayChildren(children)
       setOpacity(1)
-      setIsShaking(false)
       prev.current = { pathname: location.pathname, hash: location.hash, search: location.search, key: location.key }
       return
     }
@@ -107,14 +105,8 @@ export default memo(function PageTransition({ children, duration = 300, delay = 
     const ms = isContentTransition && mobile ? 200 : mobile ? 150 : 120
 
     if (same) {
-      setIsShaking(true)
-      timeout.current = window.setTimeout(
-        () => {
-          setIsShaking(false)
-          prev.current = { pathname: location.pathname, hash: location.hash, search: location.search, key: location.key }
-        },
-        Math.min(duration, 200),
-      )
+      setDisplayChildren(children)
+      prev.current = { pathname: location.pathname, hash: location.hash, search: location.search, key: location.key }
       return
     }
 
@@ -133,27 +125,21 @@ export default memo(function PageTransition({ children, duration = 300, delay = 
       setDisplayChildren(children)
       prev.current = { pathname: location.pathname, hash: location.hash, search: location.search, key: location.key }
     }
-  }, [location, navType, children, isContentTransition, duration])
+  }, [location, navType, children, isContentTransition])
 
   useEffect(() => {
-    if (opacity === 1 && !isShaking) setDisplayChildren(children)
-  }, [children, opacity, isShaking])
+    if (opacity === 1) setDisplayChildren(children)
+  }, [children, opacity])
 
   const noMotion = getMotion()
   const ms = isContentTransition && getMobile() ? 200 : getMobile() ? 150 : 120
 
   return (
     <div
-      className={cn('w-full', className, isShaking && !noMotion && 'animate-telegram-shake')}
+      className={cn('w-full', className)}
       style={{
         opacity,
         transform: 'translate3d(0, 0, 0)',
-        ...(isShaking &&
-          !noMotion && {
-            animationDuration: `${Math.min(duration, 200)}ms`,
-            ...(delay > 0 && { animationDelay: `${delay}ms` }),
-            animationFillMode: 'both',
-          }),
         ...(!noMotion && { transition: `opacity ${ms}ms cubic-bezier(0.4, 0, 0.2, 1)` }),
       }}
     >

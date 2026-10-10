@@ -1,7 +1,7 @@
 from aiogram.filters import Filter
 
 from app.models.admin import AdminDetails
-from app.operation.permissions import enforce_permission, is_scope_all, PermissionDenied
+from app.operation.permissions import PermissionDenied, enforce_permission, is_scope_all
 
 
 class IsAdminFilter(Filter):

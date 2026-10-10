@@ -61,6 +61,7 @@ class UsersPermissions(CRUDPermissions):
 
 class AdminsPermissions(CRUDPermissions):
     reset_usage: RoleActionValue | None = None
+    passkeys: RoleActionValue | None = None
 
 
 class NodesPermissions(CRUDPermissions):
@@ -68,6 +69,10 @@ class NodesPermissions(CRUDPermissions):
     update_core: RoleActionValue | None = None
     logs: RoleActionValue | None = None
     stats: RoleActionValue | None = None
+
+
+class APIKeysPermissions(CRUDPermissions):
+    create: bool | None = None
 
 
 class HostsPermissions(_ResourcePermissions):
@@ -99,6 +104,8 @@ class RoleLimits(BaseModel):
     expire_max: int | None = None
     min_hwid_per_user: int | None = None
     max_hwid_per_user: int | None = None
+    on_hold_timeout_min: int | None = None
+    on_hold_timeout_max: int | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -136,6 +143,7 @@ class RolePermissions(BaseModel):
     system: SystemPermissions | None = None
     hwids: HwidsPermissions | None = None
     admin_roles: CRUDPermissions | None = None
+    api_keys: APIKeysPermissions | None = None
 
     model_config = ConfigDict(from_attributes=True)
 

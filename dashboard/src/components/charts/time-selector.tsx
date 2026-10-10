@@ -79,13 +79,13 @@ export default function TimeSelector({ selectedTime, setSelectedTime, shortcuts 
   const isDesktopOverflowSelected = desktopOverflowShortcuts.some(shortcut => shortcut.value === selectedTime)
 
   return (
-    <div dir="ltr" className={cn('border-border/60 bg-muted/20 w-full max-w-fit min-w-0 overflow-hidden rounded-md border p-1', className)}>
-      <div className="flex w-full min-w-0 items-center gap-1 lg:hidden">
+    <div dir="ltr" className={cn('border-border/60 bg-muted/20 flex h-9 w-full min-w-0 max-w-full items-center overflow-hidden rounded-md border p-0.5 sm:max-w-fit', className)}>
+      <div className="flex h-full w-full min-w-0 items-center gap-1 lg:hidden">
         <ToggleGroup
           type="single"
           value={selectedTime}
           onValueChange={value => value && setSelectedTime(value)}
-          className="min-w-0 flex-nowrap gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          className="h-full min-w-0 flex-nowrap gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           aria-label="Traffic range shortcuts"
         >
           {mobileQuickShortcuts.map(shortcut => (
@@ -93,7 +93,7 @@ export default function TimeSelector({ selectedTime, setSelectedTime, shortcuts 
               key={shortcut.value}
               value={shortcut.value}
               variant="default"
-              className="text-muted-foreground data-[state=on]:bg-background data-[state=on]:text-foreground h-7 min-w-[2.25rem] shrink-0 border-0 bg-transparent px-2.5 py-1 text-xs font-medium data-[state=on]:shadow-sm"
+              className="text-muted-foreground data-[state=on]:bg-background data-[state=on]:text-foreground h-8 min-w-[2.25rem] shrink-0 border-0 bg-transparent px-2.5 py-0 text-xs font-medium data-[state=on]:shadow-sm"
             >
               {getShortcutLabel(shortcut)}
             </ToggleGroupItem>
@@ -106,7 +106,7 @@ export default function TimeSelector({ selectedTime, setSelectedTime, shortcuts 
                 variant="ghost"
                 size="sm"
                 className={cn(
-                  'text-muted-foreground hover:bg-background/70 hover:text-foreground h-7 min-w-[3.75rem] border-0 bg-transparent px-2 text-xs font-medium shadow-none',
+                  'text-muted-foreground hover:bg-background/70 hover:text-foreground h-8 min-w-[3.75rem] border-0 bg-transparent px-2 py-0 text-xs font-medium shadow-none',
                   isMobileOverflowSelected && 'bg-background text-foreground shadow-sm',
                 )}
               >
@@ -131,12 +131,12 @@ export default function TimeSelector({ selectedTime, setSelectedTime, shortcuts 
           </DropdownMenu>
         )}
       </div>
-      <div className="hidden w-full min-w-0 items-center gap-1 lg:flex">
+      <div className="hidden h-full w-full min-w-0 items-center gap-1 lg:flex">
         <ToggleGroup
           type="single"
           value={selectedTime}
           onValueChange={value => value && setSelectedTime(value)}
-          className="min-w-0 flex-nowrap gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          className="h-full min-w-0 flex-nowrap gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           aria-label="Traffic range shortcuts"
         >
           {quickShortcuts.map(shortcut => (
@@ -144,7 +144,7 @@ export default function TimeSelector({ selectedTime, setSelectedTime, shortcuts 
               key={shortcut.value}
               value={shortcut.value}
               variant="default"
-              className="text-muted-foreground data-[state=on]:bg-background data-[state=on]:text-foreground h-7 min-w-[2.25rem] shrink-0 border-0 bg-transparent px-2.5 py-1 text-xs font-medium data-[state=on]:shadow-sm"
+              className="text-muted-foreground data-[state=on]:bg-background data-[state=on]:text-foreground h-8 min-w-[2.25rem] shrink-0 border-0 bg-transparent px-2.5 py-0 text-xs font-medium data-[state=on]:shadow-sm"
             >
               {getShortcutLabel(shortcut)}
             </ToggleGroupItem>
@@ -157,7 +157,7 @@ export default function TimeSelector({ selectedTime, setSelectedTime, shortcuts 
                 variant="ghost"
                 size="sm"
                 className={cn(
-                  'text-muted-foreground hover:bg-background/70 hover:text-foreground h-7 min-w-[3.75rem] border-0 bg-transparent px-2 text-xs font-medium shadow-none',
+                  'text-muted-foreground hover:bg-background/70 hover:text-foreground h-8 min-w-[3.75rem] border-0 bg-transparent px-2 py-0 text-xs font-medium shadow-none',
                   isDesktopOverflowSelected && 'bg-background text-foreground shadow-sm',
                 )}
               >

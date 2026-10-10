@@ -1,0 +1,119 @@
+name: Bug report
+description: Report a reproducible problem in PasarGuard.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a problem. Please fill the required fields so we can reproduce and fix it faster.
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Before you submit
+      options:
+        - label: I searched existing issues and did not find the same problem.
+          required: true
+        - label: I am using the latest available PasarGuard version, or I included the exact version below.
+          required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: PasarGuard version
+      description: Paste the exact version, Docker image tag, or commit hash.
+      placeholder: "v1.2.3, latest, or commit hash"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install_type
+    attributes:
+      label: Installation type
+      options:
+        - Docker Compose
+        - Docker
+        - Source / uv
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened?
+      description: Describe the bug clearly. Include what failed and what you were doing.
+      placeholder: "When I ..., the panel ..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: List exact steps. Include API routes, UI pages, commands, or config changes when relevant.
+      placeholder: |
+        1. Go to ...
+        2. Click ...
+        3. Run ...
+        4. See ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What should have happened instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs and error messages
+      description: Paste relevant logs, tracebacks, API responses, or browser console errors. Remove secrets, tokens, passwords, and private keys.
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Fill every line that applies.
+      value: |
+        OS:
+        Database: SQLite / MySQL / PostgreSQL / TimescaleDB
+        Python version:
+        Node.js version:
+        Browser:
+        Reverse proxy / CDN:
+    validations:
+      required: true
+
+  - type: textarea
+    id: config
+    attributes:
+      label: Relevant configuration
+      description: Add related .env, compose, core, node, or proxy settings. Remove secrets.
+      render: yaml
+    validations:
+      required: false
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots or videos
+      description: Drag and drop screenshots or recordings if they help explain the issue.
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context
+      description: Anything else that may help debug the issue.
+    validations:
+      required: false

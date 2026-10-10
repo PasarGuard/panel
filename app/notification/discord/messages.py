@@ -190,6 +190,12 @@ CONNECT_NODE = {
     "footer": {"text": "ID: {id}"},
 }
 
+RECOVERED_NODE = {
+    "title": "✅ Recovered Node",
+    "description": "**Name:** {name}\n" + "**Node Version:** {node_version}\n" + "**Core Version:** {core_version}",
+    "footer": {"text": "ID: {id}"},
+}
+
 ERROR_NODE = {
     "title": "Error Node",
     "description": "**Name:** {name}\n**Error:** {error}",
@@ -290,4 +296,22 @@ REMOVE_ADMIN_ROLE = {
     "title": "Remove Admin Role",
     "description": "**Name:** {name}\n",
     "footer": {"text": "ID: {id}\nBy: {by}"},
+}
+
+CREATE_API_KEY = {
+    "title": "🆕 Create API Key",
+    "description": "**Name:** {name}\n**Expire Date:** {expire_date}",
+    "footer": {"text": "ID: {id}\nBelongs To: {admin_username}\nBy: {by}"},
+}
+
+MODIFY_API_KEY = {
+    "title": "✏️ Modify API Key",
+    "description": "**Name:** {name}\n**Expire Date:** {expire_date}\n**Status:** {status}",
+    "footer": {"text": "ID: {id}\nBelongs To: {admin_username}\nBy: {by}"},
+}
+
+REMOVE_API_KEY = {
+    "title": "🗑️ Remove API Key",
+    "description": "**Name:** {name}\n",
+    "footer": {"text": "ID: {id}\nBelongs To: {admin_username}\nBy: {by}"},
 }

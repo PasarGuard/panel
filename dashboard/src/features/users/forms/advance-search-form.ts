@@ -21,6 +21,7 @@ export const advanceSearchFormSchema = z
     show_selection_checkbox: z.boolean().default(false),
     no_data_limit: z.boolean().default(false),
     no_expire: z.boolean().default(false),
+    no_group: z.boolean().default(false),
     online: z.boolean().default(false),
     admin: z.array(z.string()).optional(),
     group: z.array(z.number()).optional(),

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock
 from uuid import UUID, uuid4
 
@@ -18,6 +18,7 @@ from app.db.models import (
     AdminStatus,
     CoreConfig,
     DataLimitResetStrategy,
+    Group,
     Node,
     NodeConnectionType,
     NodeStat,
@@ -25,28 +26,67 @@ from app.db.models import (
     NodeUsage,
     NodeUsageResetLogs,
     NodeUserUsage,
+    ProxyInbound,
     User,
+    UserStatus,
+    users_groups_association,
 )
-from app.models.core import CoreCreate
 from app.models.admin import AdminDetails, AdminRoleData
+from app.models.core import CoreCreate
 from app.models.node import NodeCreate, NodeModify, NodeResponse, NodeSettings, NodesResponse
+from app.models.proxy import ProxyTable
 from app.models.stats import (
     NodeRealtimeStats,
     NodeStats,
     NodeStatsList,
-    UserCountMetric,
-    UserCountMetricStat,
-    UserCountMetricStatsList,
     NodeUsageStat,
     NodeUsageStatsList,
     Period,
+    UserCountMetric,
+    UserCountMetricStat,
+    UserCountMetricStatsList,
 )
+from app.node import user as node_user_module
+from app.node.sync import _blocked_admin_ids_for_users
 from app.operation import OperatorType
 from app.operation.node import NodeOperation
-from app.node.sync import _blocked_admin_ids_for_users
+from app.routers import node as node_router
 from tests.api import TestSession, client, engine
 from tests.api.helpers import auth_headers, unique_name
 from tests.api.sample_data import XRAY_CONFIG
+
+
+@pytest.mark.asyncio
+async def test_node_logs_closes_auth_db_before_stream(monkeypatch: pytest.MonkeyPatch):
+    events: list[str] = []
+
+    class FakeDBContext:
+        async def __aenter__(self):
+            events.append("db_enter")
+            return object()
+
+        async def __aexit__(self, exc_type, exc_value, traceback):
+            events.append("db_exit")
+
+    async def fake_require_permission_for_request(request, db, token, resource, action):
+        events.append("auth_checked")
+        assert resource == "nodes"
+        assert action == "logs"
+
+    async def fake_node_logs_handler(node_id, request):
+        events.append("stream_started")
+        assert "db_exit" in events
+        return "stream-response"
+
+    monkeypatch.setattr(node_router, "GetDB", FakeDBContext)
+    monkeypatch.setattr(node_router, "require_permission_for_request", fake_require_permission_for_request)
+    monkeypatch.setattr(node_router, "_node_logs_handler", fake_node_logs_handler)
+
+    response = await node_router.node_logs(1, MagicMock(), "token")
+
+    assert response == "stream-response"
+    assert events == ["db_enter", "auth_checked", "db_exit", "stream_started"]
+
 
 VALID_CERTIFICATE = """-----BEGIN CERTIFICATE-----
 MIIBvTCCAWOgAwIBAgIRAIY9Lzn0T3VFedUnT9idYkEwCgYIKoZIzj0EAwIwJjER
@@ -312,6 +352,219 @@ async def test_sync_users_blocked_admin_lookup_falls_back_when_admin_role_is_not
             event.remove(engine.sync_engine, "before_cursor_execute", count_admin_role_queries)
 
 
+@pytest.mark.asyncio
+async def test_core_users_only_excludes_admins_with_blocking_sync_roles(monkeypatch):
+    inbound_tag = unique_name("sync_inbound")
+    group_name = unique_name("sync_group")
+    user_prefix = unique_name("sync_core_user")
+
+    monkeypatch.setattr(
+        node_user_module,
+        "_serialize_user_for_node",
+        lambda id, user_settings, inbounds, allowed_protocols=None: {"id": id, "inbounds": inbounds},
+    )
+
+    async with TestSession() as session:
+        blocking_role = AdminRole(
+            name=unique_name("sync_blocking_role"),
+            is_owner=False,
+            permissions={},
+            limits={},
+            features={},
+            access={},
+            disconnect_users_when_limited=True,
+        )
+        nonblocking_role = AdminRole(
+            name=unique_name("sync_nonblocking_role"),
+            is_owner=False,
+            permissions={},
+            limits={},
+            features={},
+            access={},
+            disconnect_users_when_limited=False,
+        )
+        session.add_all([blocking_role, nonblocking_role])
+        await session.flush()
+
+        active_admin = Admin(
+            username=unique_name("sync_active_admin"),
+            hashed_password="secret",
+            role_id=blocking_role.id,
+            status=AdminStatus.active,
+        )
+        blocking_admin = Admin(
+            username=unique_name("sync_blocking_admin"),
+            hashed_password="secret",
+            role_id=blocking_role.id,
+            status=AdminStatus.limited,
+        )
+        nonblocking_admin = Admin(
+            username=unique_name("sync_nonblocking_admin"),
+            hashed_password="secret",
+            role_id=nonblocking_role.id,
+            status=AdminStatus.limited,
+        )
+        session.add_all([active_admin, blocking_admin, nonblocking_admin])
+        await session.flush()
+
+        inbound = ProxyInbound(tag=inbound_tag)
+        group = Group(name=group_name, inbounds=[inbound])
+        session.add(group)
+        await session.flush()
+
+        active_user = User(
+            username=f"{user_prefix}_active",
+            admin_id=active_admin.id,
+            proxy_settings=ProxyTable().dict(no_obj=True),
+            status=UserStatus.active,
+        )
+        blocked_user = User(
+            username=f"{user_prefix}_blocked",
+            admin_id=blocking_admin.id,
+            proxy_settings=ProxyTable().dict(no_obj=True),
+            status=UserStatus.active,
+        )
+        nonblocked_user = User(
+            username=f"{user_prefix}_nonblocked",
+            admin_id=nonblocking_admin.id,
+            proxy_settings=ProxyTable().dict(no_obj=True),
+            status=UserStatus.active,
+        )
+        session.add_all([active_user, blocked_user, nonblocked_user])
+        await session.flush()
+
+        await session.execute(
+            users_groups_association.insert(),
+            [
+                {"user_id": active_user.id, "groups_id": group.id},
+                {"user_id": blocked_user.id, "groups_id": group.id},
+                {"user_id": nonblocked_user.id, "groups_id": group.id},
+            ],
+        )
+        await session.commit()
+
+        expected_user_ids = {active_user.id, nonblocked_user.id}
+        blocked_user_id = blocked_user.id
+
+    async with TestSession() as session:
+        users = await node_user_module.core_users(session, inbound_tags=[inbound_tag])
+
+    synced_user_ids = {user["id"] for user in users}
+    assert synced_user_ids == expected_user_ids
+    assert blocked_user_id not in synced_user_ids
+    assert all(user["inbounds"] == [inbound_tag] for user in users)
+
+
+async def test_core_users_can_be_restricted_to_ids_with_one_query(monkeypatch):
+    inbound_tag = unique_name("state_inbound")
+    user_prefix = unique_name("state_user")
+    monkeypatch.setattr(
+        node_user_module,
+        "_serialize_user_for_node",
+        lambda id, user_settings, inbounds, allowed_protocols=None: {"id": id, "inbounds": inbounds},
+    )
+    async with TestSession() as session:
+        inbound = ProxyInbound(tag=inbound_tag)
+        group = Group(name=unique_name("state_group"), inbounds=[inbound])
+        session.add(group)
+        await session.flush()
+        active = User(
+            username=f"{user_prefix}_active", proxy_settings=ProxyTable().dict(no_obj=True), status=UserStatus.active
+        )
+        disabled = User(
+            username=f"{user_prefix}_disabled",
+            proxy_settings=ProxyTable().dict(no_obj=True),
+            status=UserStatus.disabled,
+        )
+        other = User(
+            username=f"{user_prefix}_other", proxy_settings=ProxyTable().dict(no_obj=True), status=UserStatus.active
+        )
+        session.add_all([active, disabled, other])
+        await session.flush()
+        await session.execute(
+            users_groups_association.insert(),
+            [{"user_id": u.id, "groups_id": group.id} for u in (active, disabled, other)],
+        )
+        await session.commit()
+        ids = {"active": active.id, "disabled": disabled.id, "other": other.id}
+
+    async with TestSession() as session:
+        users = await node_user_module.core_users(session, user_ids=[ids["active"], ids["disabled"], 10**9])
+        assert {user["id"] for user in users} == {ids["active"]}  # disabled and unknown ids are not carried
+        assert users[0]["inbounds"] == [inbound_tag]
+        assert await node_user_module.core_users(session, user_ids=[]) == []
+        everyone = {user["id"] for user in await node_user_module.core_users(session, inbound_tags=[inbound_tag])}
+        assert {ids["active"], ids["other"]} <= everyone
+
+
+async def test_current_state_reads_at_burst_scale_use_few_indexed_statements(monkeypatch):
+    """12 node deliveries of 100-user batches: real session, real statements counted, coalesced reads."""
+    import time
+
+    from app.node import sync as node_sync
+    from tests.api import GetTestDB
+
+    inbound_tag = unique_name("burst_inbound")
+    user_prefix = unique_name("burst_user")
+    async with TestSession() as session:
+        inbound = ProxyInbound(tag=inbound_tag)
+        group = Group(name=unique_name("burst_group"), inbounds=[inbound])
+        session.add(group)
+        await session.flush()
+        users = [
+            User(username=f"{user_prefix}_{n}", proxy_settings=ProxyTable().dict(no_obj=True), status=UserStatus.active)
+            for n in range(1200)
+        ]
+        session.add_all(users)
+        await session.flush()
+        await session.execute(
+            users_groups_association.insert(), [{"user_id": u.id, "groups_id": group.id} for u in users]
+        )
+        await session.commit()
+        ids = [u.id for u in users]
+
+    statements: list[str] = []
+
+    def before_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+        statements.append(statement)
+
+    event.listen(engine.sync_engine, "before_cursor_execute", before_cursor_execute)
+    monkeypatch.setattr(node_sync, "GetDB", GetTestDB)
+    reader = node_sync.CurrentStateReader(gather_seconds=0.005, max_ids_per_query=400)
+    monkeypatch.setattr(node_sync, "_current_state", reader)
+    try:
+        # Same 100 users delivered to 12 nodes at once (one API burst fanning out).
+        started = time.perf_counter()
+        results = await asyncio.gather(
+            *(node_sync.refresh_node_users(str(node), [str(i) for i in ids[:100]]) for node in range(12))
+        )
+        same_users_seconds = time.perf_counter() - started
+        same_users_statements = len(statements)
+        assert all(len(r) == 100 and all(list(p.inbounds) == [inbound_tag] for p in r) for r in results)
+        # 12 nodes each delivering a different 100-user batch (1200 distinct users).
+        statements.clear()
+        started = time.perf_counter()
+        results = await asyncio.gather(
+            *(
+                node_sync.refresh_node_users(str(node), [str(i) for i in ids[node * 100 : (node + 1) * 100]])
+                for node in range(12)
+            )
+        )
+        distinct_users_seconds = time.perf_counter() - started
+        distinct_users_statements = len(statements)
+        assert all(len(r) == 100 for r in results)
+        # One coalesced query (chunked at 400 ids) per gather window, never a statement per user or per node.
+        assert same_users_statements <= 2, statements
+        assert distinct_users_statements <= 4, statements
+        assert all("IN (" in stmt or " in (" in stmt.lower() for stmt in statements if "users" in stmt.lower())
+        print(
+            f"\ncurrent-state reads: same-100x12 statements={same_users_statements} {same_users_seconds * 1000:.0f} ms; "
+            f"distinct-1200 statements={distinct_users_statements} {distinct_users_seconds * 1000:.0f} ms"
+        )
+    finally:
+        event.remove(engine.sync_engine, "before_cursor_execute", before_cursor_execute)
+
+
 def node_create_payload(**overrides) -> dict:
     payload = {
         "name": "new-node",
@@ -368,7 +621,7 @@ async def cleanup_nodes_simple(core_id: int, node_ids: list[int]) -> None:
 
 
 def usage_stats_payload() -> NodeUsageStatsList:
-    start = datetime(2024, 1, 1, tzinfo=timezone.utc)
+    start = datetime(2024, 1, 1, tzinfo=UTC)
     end = start + timedelta(days=1)
     return NodeUsageStatsList(
         start=start,
@@ -384,7 +637,7 @@ def usage_stats_payload() -> NodeUsageStatsList:
 
 
 def user_count_metric_stats_payload() -> UserCountMetricStatsList:
-    start = datetime(2024, 1, 1, tzinfo=timezone.utc)
+    start = datetime(2024, 1, 1, tzinfo=UTC)
     end = start + timedelta(days=1)
     return UserCountMetricStatsList(
         metric=UserCountMetric.online,
@@ -396,7 +649,7 @@ def user_count_metric_stats_payload() -> UserCountMetricStatsList:
 
 
 def node_stats_payload() -> NodeStatsList:
-    start = datetime(2024, 1, 1, tzinfo=timezone.utc)
+    start = datetime(2024, 1, 1, tzinfo=UTC)
     end = start + timedelta(hours=2)
     return NodeStatsList(
         start=start,
@@ -480,7 +733,7 @@ def test_get_node_settings_returns_defaults(access_token):
 def test_get_usage_passes_filters(access_token, node_operator_mock):
     usage = usage_stats_payload()
     node_operator_mock.get_usage.return_value = usage
-    start = datetime(2024, 2, 1, tzinfo=timezone.utc)
+    start = datetime(2024, 2, 1, tzinfo=UTC)
     end = start + timedelta(days=7)
     response = client.get(
         "/api/node/usage",
@@ -508,7 +761,7 @@ def test_get_usage_passes_filters(access_token, node_operator_mock):
 def test_get_user_count_metric_passes_filters(access_token, node_operator_mock):
     counts = user_count_metric_stats_payload()
     node_operator_mock.get_user_count_metric.return_value = counts
-    start = datetime(2024, 2, 1, tzinfo=timezone.utc)
+    start = datetime(2024, 2, 1, tzinfo=UTC)
     end = start + timedelta(days=7)
     response = client.get(
         "/api/node/user_counts/online",
@@ -673,6 +926,16 @@ def test_sync_node_users(access_token, node_operator_mock):
     assert awaited_kwargs["flush_users"] is True
 
 
+def test_sync_node_users_flushes_by_default(access_token, node_operator_mock):
+    node_operator_mock.sync_node_users.return_value = {"synced": True}
+    response = client.put("/api/node/11/sync", headers=auth_headers(access_token))
+
+    assert response.status_code == status.HTTP_200_OK
+    awaited_kwargs = node_operator_mock.sync_node_users.await_args.kwargs
+    assert awaited_kwargs["node_id"] == 11
+    assert awaited_kwargs["flush_users"] is True
+
+
 def test_remove_node(access_token, node_operator_mock):
     response = client.delete("/api/node/6", headers=auth_headers(access_token))
     assert response.status_code == status.HTTP_204_NO_CONTENT
@@ -760,7 +1023,7 @@ def test_bulk_update_nodes(access_token, node_operator_mock):
 def test_get_node_stats(access_token, node_operator_mock):
     stats = node_stats_payload()
     node_operator_mock.get_node_stats_periodic.return_value = stats
-    start = datetime(2024, 3, 1, tzinfo=timezone.utc)
+    start = datetime(2024, 3, 1, tzinfo=UTC)
     end = start + timedelta(days=1)
     response = client.get(
         "/api/node/8/stats",
@@ -791,9 +1054,11 @@ def test_realtime_node_stats(access_token, node_operator_mock):
 async def test_node_create_and_modify_schedule_background_reconnect(monkeypatch: pytest.MonkeyPatch):
     operator = NodeOperation(operator_type=OperatorType.API)
     scheduled_node_ids: list[int] = []
+    forced_starts: list[bool] = []
 
-    async def record_background_connect(node_id: int) -> None:
+    async def record_background_connect(node_id: int, *, force_start: bool = False) -> None:
         scheduled_node_ids.append(node_id)
+        forced_starts.append(force_start)
 
     monkeypatch.setattr(operator, "_update_node_impl", AsyncMock())
     monkeypatch.setattr(operator, "_connect_single_node_background", record_background_connect)
@@ -823,6 +1088,7 @@ async def test_node_create_and_modify_schedule_background_reconnect(monkeypatch:
             await asyncio.sleep(0)
 
             assert scheduled_node_ids == [created.id, modified.id]
+            assert forced_starts == [False, True]
         finally:
             if node_id is not None:
                 db_node = await session.get(Node, node_id)
@@ -853,11 +1119,14 @@ async def test_get_nodes_simple_basic(access_token):
         assert "total" in data
 
         for node in data["nodes"]:
-            assert set(node.keys()) == {"id", "name", "status"}
+            assert set(node.keys()) == {"id", "name", "status", "core_config_id"}
 
         response_names = [n["name"] for n in data["nodes"]]
         for name in names:
             assert name in response_names
+
+        created_nodes = [n for n in data["nodes"] if n["id"] in node_ids]
+        assert all(n["core_config_id"] == core_id for n in created_nodes)
     finally:
         await cleanup_nodes_simple(core_id, node_ids)
 
@@ -1056,7 +1325,7 @@ async def test_remove_node_deletes_associated_usage_tables():
         await session.commit()
         await session.refresh(user)
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         user_usages = [
             NodeUserUsage(
                 user_id=user.id,

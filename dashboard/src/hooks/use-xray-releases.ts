@@ -25,12 +25,14 @@ const CACHE_DURATION = 10 * 60 * 1000
 
 function compareVersions(current: string, latest: string): number {
   const currentParts = current
-    .replace(/^v/, '')
+    .trim()
+    .replace(/^v/i, '')
     .split(/[\.-]/)
     .filter(p => !isNaN(Number(p)))
     .map(Number)
   const latestParts = latest
-    .replace(/^v/, '')
+    .trim()
+    .replace(/^v/i, '')
     .split(/[\.-]/)
     .filter(p => !isNaN(Number(p)))
     .map(Number)
@@ -84,7 +86,7 @@ async function fetchXrayReleases(): Promise<Release[]> {
     const releases: Release[] = data
       .filter((release: any) => !release.draft)
       .map((release: any) => ({
-        version: release.tag_name?.replace(/^v/, '') || '',
+        version: release.tag_name?.trim().replace(/^v/i, '') || '',
         url: release.html_url || '',
         isPrerelease: !!release.prerelease,
       }))
@@ -116,8 +118,8 @@ export function useXrayReleases(): XrayReleaseResult {
 
   const hasUpdate = (currentVersion: string | null) => {
     if (!currentVersion || !latestVersion) return false
-    const cleanCurrent = currentVersion.replace(/^v/, '')
-    const cleanLatest = latestVersion.replace(/^v/, '')
+    const cleanCurrent = currentVersion.trim().replace(/^v/i, '')
+    const cleanLatest = latestVersion.trim().replace(/^v/i, '')
     return compareVersions(cleanCurrent, cleanLatest) < 0
   }
 

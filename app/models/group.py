@@ -104,6 +104,7 @@ class GroupSimpleListQuery(BaseModel):
 class BulkGroup(BaseModel):
     group_ids: set[int]
     has_group_ids: set[int] = Field(default_factory=set)
+    has_no_group: bool = False
     admins: set[int] = Field(default_factory=set)
     users: set[int] = Field(default_factory=set)
     dry_run: bool = False

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Header, Request
+from fastapi import APIRouter, Depends, Header, Request, Response
 from fastapi.responses import JSONResponse
 
 from app.db import AsyncSession, get_db
@@ -34,6 +34,25 @@ async def user_subscription(
         request_url=str(request.url),
         **headers.model_dump(),
     )
+
+
+@router.head("/{token}/")
+@router.head("/{token}", include_in_schema=False)
+async def user_subscription_headers(
+    request: Request,
+    token: str,
+    db: AsyncSession = Depends(get_db),
+    user_agent: str = Header(default=""),
+):
+    """Provides subscription headers without response body."""
+    response_headers = await subscription_operator.user_subscription_headers(
+        db,
+        token=token,
+        accept_header=request.headers.get("Accept", ""),
+        user_agent=user_agent,
+        request_url=str(request.url),
+    )
+    return Response(headers=response_headers)
 
 
 @router.get("/{token}/info", response_model=SubscriptionUserResponse)

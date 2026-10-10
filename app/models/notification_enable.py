@@ -23,6 +23,7 @@ class AdminNotificationEnable(BaseNotificationEnable):
 
 class NodeNotificationEnable(BaseNotificationEnable):
     connect: bool = Field(default=True)
+    recovered: bool = Field(default=True)
     error: bool = Field(default=True)
     limited: bool = Field(default=True)
     reset_usage: bool = Field(default=True)
@@ -48,5 +49,6 @@ class NotificationEnable(BaseModel):
     node: NodeNotificationEnable = Field(default_factory=NodeNotificationEnable)
     user: UserNotificationEnable = Field(default_factory=UserNotificationEnable)
     user_template: BaseNotificationEnable = Field(default_factory=BaseNotificationEnable)
+    api_key: BaseNotificationEnable = Field(default_factory=BaseNotificationEnable)
     days_left: bool = Field(default=True)
     percentage_reached: bool = Field(default=True)

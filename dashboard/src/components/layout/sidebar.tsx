@@ -33,6 +33,7 @@ import {
   Fingerprint,
   GithubIcon,
   Group,
+  Key,
   Layers,
   LayoutDashboardIcon,
   LayoutTemplate,
@@ -67,6 +68,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const canReadHosts = canReadResourcePage(admin, 'hosts')
   const canReadGroups = canReadResourcePage(admin, 'groups')
   const canReadAdmins = canReadResourcePage(admin, 'admins')
+  const canReadApiKeys = canReadResourcePage(admin, 'api_keys')
   const canReadNodes = canReadResourcePage(admin, 'nodes')
   const canReadCores = canReadResourcePage(admin, 'cores')
   const canReadTemplates = canReadResourcePage(admin, 'templates')
@@ -91,6 +93,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             url: '/nodes/cores',
             icon: Cpu,
             matchPrefix: true,
+          },
+          {
+            title: 'nodes.wireguard.title',
+            url: '/nodes/wireguard',
+            icon: Network,
           },
         ]
       : []),
@@ -249,6 +256,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             },
           ]
         : []),
+      ...(canReadApiKeys
+        ? [{
+            title: 'apiKeys.title',
+            url: '/api-keys',
+            icon: Key,
+          }]
+        : []),
       ...(nodeNavItems.length > 0
         ? [
             {
@@ -306,11 +320,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                         title: 'bulk.proxySettings',
                         url: '/bulk/proxy',
                         icon: Lock,
-                      },
-                      {
-                        title: 'bulk.wireguardPeerIps',
-                        url: '/bulk/wireguard',
-                        icon: Network,
                       },
                     ]
                   : []),
@@ -406,7 +415,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   return (
     <>
-      <div className="sticky top-0 z-30 lg:hidden">
+      <div className="sticky top-0 z-30 shrink-0 lg:hidden">
         <div className="bg-sidebar h-[env(safe-area-inset-top)]" />
         <div className="border-sidebar-border bg-sidebar/80 supports-[backdrop-filter]:bg-sidebar/65 flex items-center justify-between border-b px-4 py-3 backdrop-blur-md">
           <Link to="/" className="flex items-center gap-2">

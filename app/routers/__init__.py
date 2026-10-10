@@ -3,19 +3,21 @@ from fastapi import APIRouter
 from . import (
     admin,
     admin_role,
-    core,
+    api_key,
     client_template,
+    core,
     group,
     home,
     host,
+    hwid,
     node,
+    passkey,
     settings,
     setup,
     subscription,
     system,
     user,
     user_template,
-    hwid,
 )
 
 api_router = APIRouter()
@@ -23,6 +25,7 @@ api_router = APIRouter()
 routers = [
     home.router,
     admin.router,
+    api_key.router,
     admin_role.router,
     setup.router,
     system.router,
@@ -36,6 +39,7 @@ routers = [
     subscription.router,
     user_template.router,
     hwid.router,
+    passkey.router,
 ]
 
 for router in routers:

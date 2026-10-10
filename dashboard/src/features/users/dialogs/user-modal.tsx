@@ -2,7 +2,7 @@ import { DatePicker, type DatePickerAlign, type DatePickerSide } from '@/compone
 import { DecimalInput } from '@/components/common/decimal-input'
 import GroupsSelector from '@/components/common/groups-selector'
 import { TimeUnitSelect, TIME_UNIT_SECONDS, type TimeUnit } from '@/components/common/time-unit-select'
-import UsageModal from '@/features/users/dialogs/usage-modal'
+import UsageModal from '@/features/users/dialogs/usage-modal.lazy'
 import UserAllIPsModal from '@/features/users/dialogs/user-all-ips-modal'
 import { UserHwidsModal } from '@/features/users/dialogs/user-hwids-modal'
 import { UserSubscriptionClientsModal } from '@/features/users/dialogs/user-subscription-clients-modal'
@@ -12,7 +12,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { LoaderButton } from '@/components/ui/loader-button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -1231,7 +1231,6 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
       wireguard: {
         private_key: keyPair.privateKey,
         public_key: keyPair.publicKey,
-        peer_ips: form.getValues('proxy_settings.wireguard.peer_ips') ?? [],
       },
     }
     form.setValue('proxy_settings', newSettings as any, { shouldDirty: true, shouldValidate: true })
@@ -1258,10 +1257,6 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
     [form, handleFieldChange],
   )
 
-  const parseWireGuardPeerIps = React.useCallback((value: string) => {
-    return value.split('\n')
-  }, [])
-
   const hasMeaningfulProxyValue = React.useCallback((value: unknown): boolean => {
     if (Array.isArray(value)) {
       return value.some(item => hasMeaningfulProxyValue(item))
@@ -1285,18 +1280,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
           const cleanedProtocolSettings = Object.entries(settings as Record<string, unknown>).reduce(
             (protocolAcc, [key, value]) => {
               if (Array.isArray(value)) {
-                const cleanedList = value
-                  .flatMap(item => {
-                    if (typeof item !== 'string') {
-                      return [item]
-                    }
-                    if (protocol === 'wireguard' && key === 'peer_ips') {
-                      return item.split(',')
-                    }
-                    return [item]
-                  })
-                  .map(item => (typeof item === 'string' ? item.trim() : item))
-                  .filter(item => hasMeaningfulProxyValue(item))
+                const cleanedList = value.map(item => (typeof item === 'string' ? item.trim() : item)).filter(item => hasMeaningfulProxyValue(item))
 
                 if (cleanedList.length > 0) {
                   protocolAcc[key] = cleanedList
@@ -1766,6 +1750,11 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
                                   }}
                                 />
                               </FormControl>
+                              <FormDescription className="text-xs">
+                                {t('userDialog.hwidLimitHint', {
+                                  defaultValue: 'Empty = use default policy. 0 = unlimited and exempt from HWID, even when the HWID header is forced.',
+                                })}
+                              </FormDescription>
                               <FormMessage />
                             </FormItem>
                           )}
@@ -2126,34 +2115,6 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
                                     disabled
                                   />
                                 </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                          <FormField
-                            control={form.control}
-                            name="proxy_settings.wireguard.peer_ips"
-                            render={({ field }) => (
-                              <FormItem className="mb-2">
-                                <FormLabel>{t('userDialog.proxySettings.wireguardPeerIps', { defaultValue: 'WireGuard Peer IPs' })}</FormLabel>
-                                <FormControl>
-                                  <Textarea
-                                    dir="ltr"
-                                    value={Array.isArray(field.value) ? field.value.join('\n') : ''}
-                                    placeholder={t('userDialog.proxySettings.peerIpsPlaceholder', { defaultValue: 'One CIDR per line, e.g. 10.0.0.10/32' })}
-                                    onChange={e => {
-                                      const peerIps = parseWireGuardPeerIps(e.target.value)
-                                      field.onChange(peerIps)
-                                      form.trigger('proxy_settings.wireguard.peer_ips')
-                                      handleFieldChange('proxy_settings.wireguard.peer_ips', peerIps)
-                                    }}
-                                  />
-                                </FormControl>
-                                <p className="text-muted-foreground text-xs">
-                                  {t('userDialog.proxySettings.peerIpsHint', {
-                                    defaultValue: 'Leave empty to auto-assign from the global WireGuard peer pool. For manual entries, enter one CIDR per line, and keep each value within that pool.',
-                                  })}
-                                </p>
                                 <FormMessage />
                               </FormItem>
                             )}

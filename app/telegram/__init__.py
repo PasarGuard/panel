@@ -4,12 +4,9 @@ from asyncio import Lock
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
-from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.enums import ParseMode
-from aiogram.exceptions import TelegramBadRequest, TelegramNetworkError, TelegramRetryAfter, TelegramUnauthorizedError
 from aiogram.fsm.storage.memory import MemoryStorage
 from nats.js.kv import KeyValue
-from python_socks._errors import ProxyConnectionError
 
 from app import on_shutdown, on_startup
 from app.models.settings import RunMethod, Telegram
@@ -22,6 +19,7 @@ from config import nats_settings
 from .fsm_storage import NatsFSMStorage
 from .handlers import include_routers
 from .middlewares import setup_middlewares
+from .session import NativeTLSAiohttpSession
 
 logger = get_logger("telegram-bot")
 
@@ -82,7 +80,7 @@ class TelegramBotManager:
         try:
             # Set up KV connection if not already done
             if not self._kv:
-                self._nats_conn, js, self._kv = await setup_nats_kv(nats_settings.telegram_kv_bucket)
+                self._nats_conn, _js, self._kv = await setup_nats_kv(nats_settings.telegram_kv_bucket)
                 if not self._kv:
                     logger.warning("NATS KV unavailable, allowing this worker to set webhook")
                     return True
@@ -154,6 +152,24 @@ class TelegramBotManager:
                 self._nats_conn = None
                 self._kv = None
 
+    async def _start_long_polling(self):
+        retry_period = 30
+        logger.info("Starting long polling")
+        while True:
+            try:
+                await self._dp.start_polling(self._bot, handle_signals=False)
+                logger.info("Long polling stopped")
+                return
+
+            except asyncio.CancelledError:
+                logger.info("Long polling task canceled")
+                return
+
+            except Exception as err:
+                logger.warning(f"Long polling failed: {err}. Retrying in {retry_period} seconds")
+
+            await asyncio.sleep(retry_period)
+
     async def _start_locked(self, settings: Telegram, is_initiator: bool = False):
         if settings.method == RunMethod.LONGPOLLING and is_nats_enabled():
             logger.warning(
@@ -163,7 +179,7 @@ class TelegramBotManager:
             return
 
         logger.info("Telegram bot starting")
-        session = AiohttpSession(proxy=settings.proxy_url)
+        session = NativeTLSAiohttpSession(proxy=settings.proxy_url)
         self._bot = Bot(token=settings.token, session=session, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 
         if not self._handlers_registered:
@@ -176,10 +192,10 @@ class TelegramBotManager:
             except RuntimeError:
                 pass
 
-        try:
-            if settings.method == RunMethod.LONGPOLLING:
-                self._polling_task = asyncio.create_task(self._dp.start_polling(self._bot, handle_signals=False))
-            else:
+        if settings.method == RunMethod.LONGPOLLING:
+            self._polling_task = asyncio.create_task(self._start_long_polling())
+        else:
+            try:
                 # register webhook (only the initiator worker calls set_webhook to avoid rate limits)
                 webhook_address = f"{settings.webhook_url}/api/tghook"
                 logger.info(webhook_address)
@@ -193,17 +209,8 @@ class TelegramBotManager:
                     logger.info("Telegram bot started successfully.")
                 else:
                     logger.info("Telegram bot dispatcher ready (webhook set by initiator worker).")
-        except (
-            TelegramNetworkError,
-            TelegramRetryAfter,
-            ProxyConnectionError,
-            TelegramBadRequest,
-            TelegramUnauthorizedError,
-        ) as err:
-            if hasattr(err, "message"):
-                logger.error(err.message)
-            else:
-                logger.error(err)
+            except Exception as err:
+                logger.error(f"Register webhook - {err}")
 
     async def _shutdown_locked(self):
         if self._shutdown_in_progress:
@@ -212,25 +219,24 @@ class TelegramBotManager:
         try:
             if isinstance(self._bot, Bot):
                 logger.info("Shutting down telegram bot")
-                try:
-                    if self._polling_task is not None and not self._polling_task.done():
-                        logger.info("stopping long polling")
+                if self._polling_task is not None:
+                    logger.info("Stopping long polling")
+                    try:
                         # Force stop the dispatcher first
                         await self._dp.stop_polling()
-                        # Cancel the polling task
-                        self._polling_task.cancel()
-                    else:
+                    except RuntimeError:
+                        # If polling was not started
+                        pass
+
+                    # Cancel the polling task
+                    self._polling_task.cancel()
+
+                else:
+                    logger.info("Deleting webhook")
+                    try:
                         await self._bot.delete_webhook(drop_pending_updates=True)
-                except (
-                    TelegramNetworkError,
-                    TelegramRetryAfter,
-                    ProxyConnectionError,
-                    TelegramUnauthorizedError,
-                ) as err:
-                    if hasattr(err, "message"):
-                        logger.error(err.message)
-                    else:
-                        logger.error(err)
+                    except Exception as err:
+                        logger.error(f"Delete webhook - {err}")
 
                 if self._bot.session:
                     await self._bot.session.close()
