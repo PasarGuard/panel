@@ -156,7 +156,8 @@ class UsersResponseWithInbounds(SubscriptionUserResponse):
 
 
 class UserListItem(UserResponse):
-    hwid_count: int = Field(default=0, ge=0)
+    # None when the device count was not loaded, for example without hwids.read
+    hwid_count: int | None = Field(default=None, ge=0)
 
 
 class UsersResponse(BaseModel):
