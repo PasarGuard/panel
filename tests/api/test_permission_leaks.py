@@ -477,6 +477,8 @@ def test_user_list_shows_device_counts_only_with_hwids_read(access_token, scoped
             assert listed == [(second["username"], None), (first["username"], None)]
     finally:
         for user in (first, second):
+            # SQLite keeps a deleted user's devices and can hand its id to a later test's user
+            set_user_hwids(user["id"], 0)
             client.delete(f"/api/user/by-id/{user['id']}", headers=auth_headers(access_token))
 
 
