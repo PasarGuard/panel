@@ -1,5 +1,6 @@
 from collections.abc import Iterator, Sequence
 from datetime import UTC, datetime as dt
+from typing import Literal
 
 from sqlalchemy import and_, case, cast, delete, func, insert, or_, select, text, true, update
 from sqlalchemy.dialects.postgresql import JSONB
@@ -21,6 +22,52 @@ from app.models.user import BulkUser, BulkUserFilter, BulkUsersProxy
 
 from .general import get_datetime_add_expression
 from .user import _build_user_select_stmt, _explicit_ids
+
+
+class BulkUserUpdateConflict(ValueError):
+    """A checked target changed before the conditional bulk update completed."""
+
+
+def _bulk_user_target_filter(
+    bulk_model: BulkUser, field: Literal["expire", "data_limit"], target_ids: Sequence[int] | None = None
+):
+    """Select exactly the finite values that the requested bulk adjustment can change."""
+    selection = _create_final_filter(bulk_model) if target_ids is None else _explicit_ids(User.id, target_ids)
+    if field == "expire":
+        return and_(selection, User.expire.isnot(None))
+    conditions = [selection, User.data_limit.isnot(None), User.data_limit != 0]
+    if bulk_model.amount < 0:
+        conditions.append(User.data_limit > -bulk_model.amount)
+    return and_(*conditions)
+
+
+async def get_bulk_user_limit_targets(
+    db: AsyncSession, bulk_model: BulkUser, field: Literal["expire", "data_limit"], *, lock: bool = True
+):
+    """Read only IDs and values for limit validation, locking targets before a write."""
+    column = User.expire if field == "expire" else User.data_limit
+    stmt = select(User.id, column).where(_bulk_user_target_filter(bulk_model, field))
+    if lock:
+        stmt = stmt.with_for_update(of=User)
+    result = await db.execute(stmt)
+    return result.all()
+
+
+def _bulk_final_value_bounds(value, minimum, maximum):
+    """Constrain final values again in the write to protect against concurrent changes."""
+    conditions = []
+    if minimum is not None:
+        conditions.append(value >= minimum)
+    if maximum is not None:
+        conditions.append(value <= maximum)
+    return and_(*conditions) if conditions else true()
+
+
+async def _check_bulk_update_count(db: AsyncSession, result, target_ids: Sequence[int] | None) -> None:
+    """Roll back the whole batch if any validated target no longer meets the write guards."""
+    if target_ids is not None and result.rowcount != len(target_ids):
+        await db.rollback()
+        raise BulkUserUpdateConflict("Selected users changed during the bulk update; retry the request")
 
 
 def _bulk_user_reload_stmt(*, load_group_inbounds: bool = False) -> Select:
@@ -262,18 +309,16 @@ async def remove_groups_from_users(
 
 
 async def count_bulk_expire_targets(db: AsyncSession, bulk_model: BulkUser) -> int:
-    final_filter = _create_final_filter(bulk_model)
+    """Count finite expirations eligible for the requested adjustment."""
     return (
-        await db.execute(select(func.count(User.id)).where(and_(final_filter, User.expire.isnot(None))))
+        await db.execute(select(func.count(User.id)).where(_bulk_user_target_filter(bulk_model, "expire")))
     ).scalar_one_or_none() or 0
 
 
 async def count_bulk_datalimit_targets(db: AsyncSession, bulk_model: BulkUser) -> int:
-    final_filter = _create_final_filter(bulk_model)
+    """Count finite quotas eligible for the requested adjustment, including subtraction guards."""
     return (
-        await db.execute(
-            select(func.count(User.id)).where(and_(final_filter, User.data_limit.isnot(None), User.data_limit != 0))
-        )
+        await db.execute(select(func.count(User.id)).where(_bulk_user_target_filter(bulk_model, "data_limit")))
     ).scalar_one_or_none() or 0
 
 
@@ -317,15 +362,20 @@ def _create_final_filter(bulk_model: BulkUserFilter):
         return True
 
 
-async def update_users_expire(db: AsyncSession, bulk_model: BulkUser) -> tuple[list[User], int] | tuple[list, int]:
+async def update_users_expire(
+    db: AsyncSession,
+    bulk_model: BulkUser,
+    *,
+    target_ids: Sequence[int] | None = None,
+    minimum: dt | None = None,
+    maximum: dt | None = None,
+) -> tuple[list[User], int] | tuple[list, int]:
     """
     Bulk update user expiration dates and return list of User objects where status changed.
     """
-    final_filter = _create_final_filter(bulk_model)
+    final_filter = _bulk_user_target_filter(bulk_model, "expire", target_ids)
 
-    count_effctive_users = (
-        await db.execute(select(func.count(User.id)).where(and_(final_filter, User.expire.isnot(None))))
-    ).scalar_one_or_none() or 0
+    count_effctive_users = (await db.execute(select(func.count(User.id)).where(final_filter))).scalar_one_or_none() or 0
     # Get database-specific datetime addition expression
     new_expire = get_datetime_add_expression(db, User.expire, bulk_model.amount)
     current_time = dt.now(UTC)
@@ -337,9 +387,7 @@ async def update_users_expire(db: AsyncSession, bulk_model: BulkUser) -> tuple[l
     )
 
     # Get IDs of users whose status will change
-    result = await db.execute(
-        select(User.id).where(and_(final_filter, User.expire.isnot(None), status_change_conditions))
-    )
+    result = await db.execute(select(User.id).where(and_(final_filter, status_change_conditions)))
     status_changed_user_ids = [row[0] for row in result.fetchall()]
 
     # Perform the update
@@ -348,11 +396,12 @@ async def update_users_expire(db: AsyncSession, bulk_model: BulkUser) -> tuple[l
         (and_(new_expire > current_time, User.status == UserStatus.expired), UserStatus.active),
     ]
 
-    await db.execute(
+    result = await db.execute(
         update(User)
-        .where(and_(final_filter, User.expire.isnot(None)))
+        .where(final_filter, _bulk_final_value_bounds(new_expire, minimum, maximum))
         .values(expire=new_expire, status=case(*status_cases, else_=User.status))
     )
+    await _check_bulk_update_count(db, result, target_ids)
     await db.commit()
 
     # Return the users whose status changed
@@ -362,19 +411,20 @@ async def update_users_expire(db: AsyncSession, bulk_model: BulkUser) -> tuple[l
     return [], count_effctive_users
 
 
-async def update_users_datalimit(db: AsyncSession, bulk_model: BulkUser) -> tuple[list[User], int] | tuple[list, int]:
+async def update_users_datalimit(
+    db: AsyncSession,
+    bulk_model: BulkUser,
+    *,
+    target_ids: Sequence[int] | None = None,
+    minimum: int | None = None,
+    maximum: int | None = None,
+) -> tuple[list[User], int] | tuple[list, int]:
     """
     Bulk update user data limits and return list of User objects where status changed.
     """
-    final_filter = _create_final_filter(bulk_model)
+    final_filter = _bulk_user_target_filter(bulk_model, "data_limit", target_ids)
 
-    extra_condition = [User.data_limit.isnot(None), User.data_limit != 0]
-    if bulk_model.amount < 0:
-        extra_condition.append(User.data_limit > bulk_model.amount * -1)
-
-    count_effctive_users = (
-        await db.execute(select(func.count(User.id)).where(and_(final_filter, *extra_condition)))
-    ).scalar_one_or_none() or 0
+    count_effctive_users = (await db.execute(select(func.count(User.id)).where(final_filter))).scalar_one_or_none() or 0
 
     # First, get the users that will have status changes BEFORE updating
     status_change_conditions = or_(
@@ -383,11 +433,7 @@ async def update_users_datalimit(db: AsyncSession, bulk_model: BulkUser) -> tupl
     )
 
     # Get IDs of users whose status will change
-    result = await db.execute(
-        select(User.id).where(
-            and_(final_filter, User.data_limit.isnot(None), User.data_limit != 0, status_change_conditions)
-        )
-    )
+    result = await db.execute(select(User.id).where(and_(final_filter, status_change_conditions)))
     status_changed_user_ids = [row[0] for row in result.fetchall()]
 
     # Perform the update
@@ -402,12 +448,12 @@ async def update_users_datalimit(db: AsyncSession, bulk_model: BulkUser) -> tupl
         ),
     ]
 
-    await db.execute(
+    result = await db.execute(
         update(User)
-        .where(and_(final_filter, *extra_condition))
+        .where(final_filter, _bulk_final_value_bounds(User.data_limit + bulk_model.amount, minimum, maximum))
         .values(data_limit=User.data_limit + bulk_model.amount, status=case(*status_cases, else_=User.status))
     )
-
+    await _check_bulk_update_count(db, result, target_ids)
     await db.commit()
 
     # Return the users whose status changed
