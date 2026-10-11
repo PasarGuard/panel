@@ -148,6 +148,8 @@ def _rp_config(request: Request) -> tuple[str, str]:
             raise HTTPException(status_code=500, detail="PASSKEY_ORIGIN must be a valid origin")
 
         configured_rp_id = configured_rp_id or configured_host
+
+    if configured_rp_id:
         matches_current_host = browser_host == configured_rp_id or browser_host.endswith(f".{configured_rp_id}")
         if matches_current_host:
             # The RP ID may be shared by subdomains, but verification must use
@@ -173,22 +175,20 @@ async def _save_challenge(db: AsyncSession, challenge: bytes, kind: str, admin_i
     await db.commit()
 
 
-async def _consume_challenge(db: AsyncSession, challenge: bytes, kind: str, admin_id: int | None):
-    record = (
-        await db.execute(
-            select(PasskeyChallenge).where(
-                PasskeyChallenge.challenge == challenge,
-                PasskeyChallenge.kind == kind,
-                PasskeyChallenge.admin_id == admin_id,
-                PasskeyChallenge.expires_at >= datetime.now(UTC),
-            )
+async def _consume_challenge(db: AsyncSession, challenge: bytes, kind: str, admin_id: int | None) -> None:
+    # A conditional delete lets only one concurrent request consume the challenge.
+    result = await db.execute(
+        delete(PasskeyChallenge).where(
+            PasskeyChallenge.challenge == challenge,
+            PasskeyChallenge.kind == kind,
+            PasskeyChallenge.admin_id == admin_id,
+            PasskeyChallenge.expires_at >= datetime.now(UTC),
         )
-    ).scalar_one_or_none()
-    if record is None:
+    )
+    if result.rowcount != 1:
+        await db.rollback()
         raise HTTPException(status_code=400, detail="Passkey challenge is invalid or expired")
-    await db.delete(record)
     await db.commit()
-    return record
 
 
 @router.post("/login/options")
