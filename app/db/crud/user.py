@@ -1270,16 +1270,17 @@ async def modify_user(
     if modify.hwid_limit is not None:
         db_user.hwid_limit = modify.hwid_limit
 
-    if modify.next_plan is not None:
-        db_user.next_plan = NextPlan(
-            user_id=db_user.id,
-            user_template_id=modify.next_plan.user_template_id,
-            data_limit=modify.next_plan.data_limit,
-            expire=modify.next_plan.expire,
-            add_remaining_traffic=modify.next_plan.add_remaining_traffic,
-        )
-    elif db_user.next_plan is not None:
-        await db.delete(db_user.next_plan)
+    if "next_plan" in modify.model_fields_set:
+        if modify.next_plan is not None:
+            db_user.next_plan = NextPlan(
+                user_id=db_user.id,
+                user_template_id=modify.next_plan.user_template_id,
+                data_limit=modify.next_plan.data_limit,
+                expire=modify.next_plan.expire,
+                add_remaining_traffic=modify.next_plan.add_remaining_traffic,
+            )
+        elif db_user.next_plan is not None:
+            await db.delete(db_user.next_plan)
 
     db_user.edit_at = datetime.now(UTC)
 
