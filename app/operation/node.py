@@ -25,6 +25,7 @@ from app.db.crud.node import (
     modify_node,
     remove_node,
     remove_nodes,
+    reorder_nodes,
     reset_node_usage,
     update_node_status,
 )
@@ -80,12 +81,18 @@ type CoreUsers = list | Callable[[], Awaitable[list]]
 logger = get_logger("node-operation")
 
 
+# Maintenance RPCs (split roles) wait for the node worker, which waits for node-serviced's pg-node command
+# (5 minute deadline; the bridge itself allows 330 s). The default node RPC timeout (30 s) is far too short.
+_MAINTENANCE_RPC_TIMEOUT = 340.0
+
+
 class NodeOperation(BaseOperation):
     # Local Start RPCs in progress on this process. Health checks must not fire a
     # second Start just because pg-node still returns "core is not started yet".
     _in_flight_connects: ClassVar[set[int]] = set()
 
     def __init__(self, operator_type: OperatorType):
+        """Select local or remote node-operation handlers for this process role."""
         super().__init__(operator_type)
         if runtime_settings.role.runs_node:
             sync = needs_shared_bridge_memory()
@@ -96,6 +103,7 @@ class NodeOperation(BaseOperation):
             self._disconnect_single_impl = (
                 self._disconnect_single_node_sync if sync else self._disconnect_single_node_local
             )
+
             self._sync_node_users_impl = self._sync_node_users_local
             self._get_node_stats_impl = self._get_node_system_stats_local
             self._get_nodes_stats_impl = self._get_nodes_system_stats_local
@@ -127,6 +135,12 @@ class NodeOperation(BaseOperation):
             self._get_logs_impl = self._get_logs_remote
             self._restart_all_impl = self._restart_all_nodes_remote
 
+    async def reorder_nodes(self, db: AsyncSession, ordered_ids: list[int], admin: AdminDetails) -> None:
+        """Persist a node order requested by an administrator."""
+        if not await reorder_nodes(db, ordered_ids):
+            await self.raise_error(message="Node not found", code=404, db=db)
+        logger.info('Nodes reordered by admin "%s"', admin.username)
+
     async def get_db_nodes(
         self,
         db: AsyncSession,
@@ -149,7 +163,7 @@ class NodeOperation(BaseOperation):
         """Get lightweight node list with only id and name"""
         rows, total = await get_nodes_simple(db=db, query=query)
 
-        nodes = [NodeSimple(id=row[0], name=row[1], status=row[2]) for row in rows]
+        nodes = [NodeSimple(id=row[0], name=row[1], status=row[2], core_config_id=row[3]) for row in rows]
 
         return NodesSimpleResponse(nodes=nodes, total=total)
 
@@ -1167,7 +1181,9 @@ class NodeOperation(BaseOperation):
 
     async def _update_node_api_remote(self, node_id: int) -> dict:
         try:
-            return await node_nats_client.request("update_node_api", {"node_id": node_id})
+            return await node_nats_client.request(
+                "update_node_api", {"node_id": node_id}, timeout=_MAINTENANCE_RPC_TIMEOUT
+            )
         except RuntimeError as exc:
             await self.handle_rpc_error(exc)
 
@@ -1185,6 +1201,7 @@ class NodeOperation(BaseOperation):
         return await node_nats_client.request(
             "update_core",
             {"node_id": node_id, "core_update": node_core_update.model_dump(mode="json")},
+            timeout=_MAINTENANCE_RPC_TIMEOUT,
         )
 
     async def _update_geofiles_local(self, node_id: int, node_geofiles_update: NodeGeoFilesUpdate) -> dict:
@@ -1201,6 +1218,7 @@ class NodeOperation(BaseOperation):
         return await node_nats_client.request(
             "update_geofiles",
             {"node_id": node_id, "geofiles_update": node_geofiles_update.model_dump(mode="json")},
+            timeout=_MAINTENANCE_RPC_TIMEOUT,
         )
 
     async def bulk_remove_nodes(

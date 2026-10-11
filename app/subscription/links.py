@@ -324,7 +324,7 @@ class StandardLinks(BaseSubscription):
         if obfs_password:
             payload["obfs"] = "salamander"
             payload["obfs-password"] = obfs_password
-        payload["mports"] = quic_params.get("udpHop", {}).get("ports", "")
+        payload["mports"] = (quic_params.get("udpHop") or {}).get("ports", "")
 
         self._apply_finalmask(payload, "hysteria", inbound)
         if inbound.tls_config.tls in ("tls", "reality"):

@@ -12,6 +12,7 @@ const xraySections: { id: XrayCoreSection; labelKey: string; defaultLabel: strin
   { id: 'balancers', labelKey: 'coreEditor.section.balancers', defaultLabel: 'Balancers' },
   { id: 'dns', labelKey: 'coreEditor.section.dns', defaultLabel: 'DNS' },
   { id: 'bindings', labelKey: 'coreEditor.section.bindings', defaultLabel: 'Bindings' },
+  { id: 'api', labelKey: 'coreEditor.section.api', defaultLabel: 'API' },
   { id: 'advanced', labelKey: 'coreEditor.section.advanced', defaultLabel: 'Advanced (JSON)' },
 ]
 

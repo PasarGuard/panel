@@ -289,7 +289,7 @@ class SubscriptionInboundData(BaseModel):
     # Fragment and noise settings
     fragment_settings: dict[str, Any] | None = Field(None)
     noise_settings: dict[str, Any] | None = Field(None)
-    finalmask: FinalMask | dict[str, Any] | None = Field(None)
+    finalmask: dict[str, Any] | None = Field(None)
     finalmask_link: str | None = Field(None)
 
     # Priority and status
@@ -298,6 +298,15 @@ class SubscriptionInboundData(BaseModel):
     subscription_templates: dict[str, Any] | None = Field(default=None)
 
     model_config = {"validate_assignment": True}
+
+    @field_validator("finalmask", mode="before")
+    @classmethod
+    def dump_finalmask_with_xray_names(cls, value):
+        # Builders read Xray field names from a plain dict. A FinalMask | dict union
+        # turned some dicts (quicParams without a udp mask) back into a FinalMask.
+        if isinstance(value, FinalMask):
+            return value.model_dump(by_alias=True, exclude_none=True, mode="json")
+        return value
 
 
 class SubscriptionUsageQuery(BaseModel):

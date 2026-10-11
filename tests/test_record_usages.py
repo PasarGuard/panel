@@ -3,11 +3,13 @@ from __future__ import annotations
 import logging
 import os
 from collections import defaultdict
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
 from sqlalchemy import select
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.exc import OperationalError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool, StaticPool
@@ -27,6 +29,232 @@ class DummyNode:
 
     async def get_extra(self) -> dict[str, Any]:
         return {"usage_coefficient": self._usage_coefficient}
+
+
+@pytest.fixture(autouse=True)
+def reset_user_usage_history_buffer():
+    """Keep process-local history buffering isolated between tests."""
+    record_usages._pending_user_usage_history.clear()
+    record_usages._user_usage_history_last_flush = None
+    yield
+    record_usages._pending_user_usage_history.clear()
+    record_usages._user_usage_history_last_flush = None
+
+
+def test_prepare_node_user_usage_params_aggregates_nonzero_deltas():
+    bucket = datetime(2026, 8, 14, 18, 30, tzinfo=UTC)
+
+    params = record_usages._prepare_node_user_usage_params(
+        {
+            7: [
+                {"uid": "11", "value": 5},
+                {"uid": "11", "value": 3},
+                {"uid": "12", "value": 0},
+                {"uid": "13", "value": -2},
+            ]
+        },
+        {7: 2},
+        bucket,
+    )
+
+    assert params == [
+        {"uid": 11, "value": 16, "node_id": 7, "created_at": bucket},
+        {"uid": 13, "value": -4, "node_id": 7, "created_at": bucket},
+    ]
+
+
+@pytest.mark.asyncio
+async def test_postgres_history_writes_the_first_sample_immediately(monkeypatch: pytest.MonkeyPatch):
+    bucket = datetime(2026, 8, 14, 18, 30, tzinfo=UTC)
+    write_params = AsyncMock()
+
+    monkeypatch.setattr(record_usages, "get_dialect", AsyncMock(return_value="postgresql"))
+    monkeypatch.setattr(record_usages, "_get_time_bucket", lambda: bucket)
+    monkeypatch.setattr(record_usages, "_write_node_user_usage_params", write_params)
+    monkeypatch.setattr(record_usages, "_monotonic_now", lambda: 100.0)
+
+    await record_usages.record_user_stats({7: [{"uid": "11", "value": 5}]}, {7: 1})
+
+    write_params.assert_awaited_once_with(
+        "postgresql",
+        [{"uid": 11, "value": 5, "node_id": 7, "created_at": bucket}],
+    )
+    assert not record_usages._pending_user_usage_history
+    assert record_usages._user_usage_history_last_flush == 100.0
+
+
+@pytest.mark.asyncio
+async def test_postgres_history_coalesces_until_flush_interval(monkeypatch: pytest.MonkeyPatch):
+    # Steady state: the first sample was already written, so later samples are coalesced
+    record_usages._user_usage_history_last_flush = 100.0
+    bucket = datetime(2026, 8, 14, 18, 30, tzinfo=UTC)
+    write_params = AsyncMock()
+    monotonic_values = iter([100.0, 110.0, 161.0])
+
+    monkeypatch.setattr(record_usages, "get_dialect", AsyncMock(return_value="postgresql"))
+    monkeypatch.setattr(record_usages, "_get_time_bucket", lambda: bucket)
+    monkeypatch.setattr(record_usages, "_write_node_user_usage_params", write_params)
+    monkeypatch.setattr(record_usages, "_monotonic_now", lambda: next(monotonic_values))
+    monkeypatch.setattr(record_usages.usage_settings, "user_usage_history_flush_interval", 60)
+
+    await record_usages.record_user_stats({7: [{"uid": "11", "value": 5}]}, {7: 1})
+    await record_usages.record_user_stats({7: [{"uid": "11", "value": 7}]}, {7: 1})
+    await record_usages.record_user_stats({7: [{"uid": "11", "value": 9}]}, {7: 1})
+
+    write_params.assert_awaited_once_with(
+        "postgresql",
+        [{"uid": 11, "value": 21, "node_id": 7, "created_at": bucket}],
+    )
+    assert not record_usages._pending_user_usage_history
+
+
+@pytest.mark.asyncio
+async def test_postgres_history_flushes_old_bucket_before_rollover(monkeypatch: pytest.MonkeyPatch):
+    # Steady state: the first sample was already written, so later samples are coalesced
+    record_usages._user_usage_history_last_flush = 100.0
+    old_bucket = datetime(2026, 8, 14, 18, 30, tzinfo=UTC)
+    new_bucket = old_bucket + timedelta(minutes=10)
+    buckets = iter([old_bucket, old_bucket, new_bucket])
+    write_params = AsyncMock()
+
+    monkeypatch.setattr(record_usages, "get_dialect", AsyncMock(return_value="postgresql"))
+    monkeypatch.setattr(record_usages, "_get_time_bucket", lambda: next(buckets))
+    monkeypatch.setattr(record_usages, "_write_node_user_usage_params", write_params)
+    monkeypatch.setattr(record_usages, "_monotonic_now", lambda: 100.0)
+    monkeypatch.setattr(record_usages.usage_settings, "user_usage_history_flush_interval", 60)
+
+    await record_usages.record_user_stats({7: [{"uid": "11", "value": 5}]}, {7: 1})
+    await record_usages.record_user_stats({7: [{"uid": "11", "value": 7}]}, {7: 1})
+    await record_usages.record_user_stats({7: [{"uid": "11", "value": 9}]}, {7: 1})
+
+    write_params.assert_awaited_once_with(
+        "postgresql",
+        [{"uid": 11, "value": 12, "node_id": 7, "created_at": old_bucket}],
+    )
+    assert record_usages._pending_user_usage_history == {(new_bucket, 11, 7): 9}
+
+
+@pytest.mark.asyncio
+async def test_postgres_history_retains_failed_flush_for_retry(monkeypatch: pytest.MonkeyPatch):
+    # Steady state: the first sample was already written, so later samples are coalesced
+    record_usages._user_usage_history_last_flush = 100.0
+    bucket = datetime(2026, 8, 14, 18, 30, tzinfo=UTC)
+    write_params = AsyncMock(side_effect=[RuntimeError("database unavailable"), None])
+    monotonic_values = iter([100.0, 160.0])
+
+    monkeypatch.setattr(record_usages, "get_dialect", AsyncMock(return_value="postgresql"))
+    monkeypatch.setattr(record_usages, "_get_time_bucket", lambda: bucket)
+    monkeypatch.setattr(record_usages, "_write_node_user_usage_params", write_params)
+    monkeypatch.setattr(record_usages, "_monotonic_now", lambda: next(monotonic_values))
+
+    await record_usages.record_user_stats({7: [{"uid": "11", "value": 5}]}, {7: 1})
+
+    with pytest.raises(RuntimeError, match="database unavailable"):
+        await record_usages.record_user_stats({7: [{"uid": "11", "value": 7}]}, {7: 1})
+
+    assert record_usages._pending_user_usage_history == {(bucket, 11, 7): 12}
+
+    flushed_rows = await record_usages.flush_user_usage_history_if_due(161.0)
+
+    assert flushed_rows == 1
+    assert write_params.await_args_list[1].args == (
+        "postgresql",
+        [{"uid": 11, "value": 12, "node_id": 7, "created_at": bucket}],
+    )
+    assert not record_usages._pending_user_usage_history
+
+
+@pytest.mark.asyncio
+async def test_due_history_flushes_without_a_new_usage_sample(monkeypatch: pytest.MonkeyPatch):
+    bucket = datetime(2026, 8, 14, 18, 30, tzinfo=UTC)
+    write_params = AsyncMock()
+    record_usages._pending_user_usage_history[(bucket, 11, 7)] = 5
+    record_usages._user_usage_history_last_flush = 100.0
+
+    monkeypatch.setattr(record_usages, "_write_node_user_usage_params", write_params)
+    monkeypatch.setattr(record_usages.usage_settings, "user_usage_history_flush_interval", 60)
+
+    early_rows = await record_usages.flush_user_usage_history_if_due(159.0)
+    flushed_rows = await record_usages.flush_user_usage_history_if_due(160.0)
+
+    assert early_rows == 0
+    assert flushed_rows == 1
+    write_params.assert_awaited_once_with(
+        "postgresql",
+        [{"uid": 11, "value": 5, "node_id": 7, "created_at": bucket}],
+    )
+    assert not record_usages._pending_user_usage_history
+
+
+@pytest.mark.asyncio
+async def test_postgres_history_omits_cross_cycle_net_zero_values(monkeypatch: pytest.MonkeyPatch):
+    # Steady state: the first sample was already written, so later samples are coalesced
+    record_usages._user_usage_history_last_flush = 100.0
+    bucket = datetime(2026, 8, 14, 18, 30, tzinfo=UTC)
+    write_params = AsyncMock()
+    monotonic_values = iter([100.0, 110.0])
+
+    monkeypatch.setattr(record_usages, "get_dialect", AsyncMock(return_value="postgresql"))
+    monkeypatch.setattr(record_usages, "_get_time_bucket", lambda: bucket)
+    monkeypatch.setattr(record_usages, "_write_node_user_usage_params", write_params)
+    monkeypatch.setattr(record_usages, "_monotonic_now", lambda: next(monotonic_values))
+    monkeypatch.setattr(record_usages.usage_settings, "user_usage_history_flush_interval", 60)
+
+    await record_usages.record_user_stats({7: [{"uid": "11", "value": 5}]}, {7: 1})
+    await record_usages.record_user_stats({7: [{"uid": "11", "value": -5}]}, {7: 1})
+    flushed_rows = await record_usages.flush_user_usage_history_if_due(160.0)
+
+    assert flushed_rows == 0
+    write_params.assert_not_awaited()
+    assert not record_usages._pending_user_usage_history
+
+
+@pytest.mark.asyncio
+async def test_non_postgres_history_keeps_immediate_path(monkeypatch: pytest.MonkeyPatch):
+    immediate_write = AsyncMock()
+    node_params = {7: [{"uid": "11", "value": 5}]}
+    coefficients = {7: 1}
+
+    monkeypatch.setattr(record_usages, "get_dialect", AsyncMock(return_value="sqlite"))
+    monkeypatch.setattr(record_usages, "record_user_stats_batched", immediate_write)
+
+    await record_usages.record_user_stats(node_params, coefficients)
+
+    immediate_write.assert_awaited_once_with(node_params, coefficients)
+
+
+@pytest.mark.asyncio
+async def test_shutdown_flushes_pending_postgres_history(monkeypatch: pytest.MonkeyPatch):
+    bucket = datetime(2026, 8, 14, 18, 30, tzinfo=UTC)
+    write_params = AsyncMock()
+    record_usages._pending_user_usage_history[(bucket, 11, 7)] = 5
+
+    monkeypatch.setattr(record_usages, "_write_node_user_usage_params", write_params)
+    monkeypatch.setattr(record_usages, "_monotonic_now", lambda: 120.0)
+
+    await record_usages._flush_user_usage_history_on_shutdown()
+
+    write_params.assert_awaited_once_with(
+        "postgresql",
+        [{"uid": 11, "value": 5, "node_id": 7, "created_at": bucket}],
+    )
+    assert not record_usages._pending_user_usage_history
+
+
+def test_postgres_user_traffic_update_uses_one_unnest_statement():
+    usage_params = [
+        {"uid": 1, "value": 10},
+        {"uid": 2, "value": 20},
+        {"uid": 1, "value": 30},
+    ]
+
+    stmt, params = record_usages.build_user_traffic_update("postgresql", usage_params)
+    sql = str(stmt.compile(dialect=postgresql.dialect()))
+
+    assert "UPDATE users" in sql
+    assert "FROM unnest" in sql
+    assert "online_at" not in sql
+    assert params == {"uids": [1, 2], "traffic_values": [40, 20]}
 
 
 def _get_test_database_url() -> str:
@@ -101,6 +329,33 @@ async def session_factory(monkeypatch: pytest.MonkeyPatch):
     await engine.dispose()
     if needs_json_default_fix and proxy_column is not None:
         proxy_column.server_default = proxy_default
+
+
+@pytest.mark.asyncio
+async def test_touch_users_online_at_throttles_indexed_timestamp_writes(session_factory):
+    async with session_factory() as session:
+        user = User(username="online-write-throttle")
+        session.add(user)
+        await session.commit()
+        user_id = user.id
+
+    # Whole seconds: MySQL stores DATETIME without fractions and rounds them, which would
+    # move the stored time past the 60 second cutoff the test checks
+    first_seen = datetime.now(UTC).replace(microsecond=0)
+    await record_usages.touch_users_online_at([user_id], first_seen)
+
+    async def get_online_at():
+        async with session_factory() as session:
+            return (await session.execute(select(User.online_at).where(User.id == user_id))).scalar_one()
+
+    initial_online_at = await get_online_at()
+    await record_usages.touch_users_online_at([user_id], first_seen + timedelta(seconds=30))
+    throttled_online_at = await get_online_at()
+    await record_usages.touch_users_online_at([user_id], first_seen + timedelta(seconds=60))
+    refreshed_online_at = await get_online_at()
+
+    assert initial_online_at == throttled_online_at
+    assert refreshed_online_at > throttled_online_at
 
 
 @pytest.mark.asyncio

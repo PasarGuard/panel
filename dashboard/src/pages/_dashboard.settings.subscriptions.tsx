@@ -47,6 +47,7 @@ export default function SubscriptionSettings() {
       randomize_order: false,
       custom_variables: [],
       response_headers: {},
+      header_placement: 'header',
       rules: [],
       applications: [],
       manual_sub_request: {
@@ -131,6 +132,7 @@ export default function SubscriptionSettings() {
         randomize_order: subscriptionData.randomize_order ?? false,
         custom_variables: subscriptionData.custom_variables || [],
         response_headers: Object.fromEntries(Object.entries(subscriptionData.response_headers || {}).map(([key, value]) => [key, typeof value === 'string' ? value : JSON.stringify(value)])),
+        header_placement: subscriptionData.header_placement ?? 'header',
         rules:
           subscriptionData.rules?.map((rule: ApiSubRule) => ({
             pattern: rule.pattern,
@@ -290,6 +292,7 @@ export default function SubscriptionSettings() {
         randomize_order: subscriptionData.randomize_order ?? false,
         custom_variables: subscriptionData.custom_variables || [],
         response_headers: Object.fromEntries(Object.entries(subscriptionData.response_headers || {}).map(([key, value]) => [key, typeof value === 'string' ? value : JSON.stringify(value)])),
+        header_placement: subscriptionData.header_placement ?? 'header',
         rules:
           subscriptionData.rules?.map((rule: ApiSubRule) => ({
             pattern: rule.pattern,

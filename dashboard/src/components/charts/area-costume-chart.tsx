@@ -10,7 +10,7 @@ import { EmptyState } from './empty-state'
 import { Button } from '@/components/ui/button'
 import { Activity, Clock, History, Cpu, MemoryStick } from 'lucide-react'
 import { formatOffsetDateTime } from '@/utils/dateTimeParsing'
-import { useTheme } from 'next-themes'
+import { useTheme } from '@/app/providers/theme-provider'
 import {
   buildPeriodOptions,
   CHART_PERIOD_OVERRIDE_AUTO,
