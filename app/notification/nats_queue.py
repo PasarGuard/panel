@@ -24,6 +24,13 @@ QUEUE_MAX_MESSAGES = 10_000
 QUEUE_MAX_BYTES = 64 * 1024 * 1024
 ACK_WAIT = 60
 RETRY_METADATA_RESERVE = 128
+# JetStream "store failed" error. With DiscardPolicy.NEW a stream at its limits
+# rejects a publish with this code and "maximum messages/bytes exceeded".
+JS_STREAM_STORE_FAILED = 10077
+
+
+def is_stream_full_error(error: APIError) -> bool:
+    return error.err_code == JS_STREAM_STORE_FAILED and "maximum" in (error.description or "")
 
 
 class NotificationDelivery:
@@ -61,6 +68,7 @@ class NotificationDelivery:
 
 class NotificationQueue:
     async def enqueue(self, item: dict):
+        """Add an item. Raises asyncio.QueueFull when the bounded queue has no room."""
         raise NotImplementedError
 
     async def dequeue(self, timeout: float | None = None) -> NotificationDelivery | None:
@@ -330,7 +338,12 @@ class NatsNotificationQueue(NotificationQueue):
                 await asyncio.sleep(PUBLISH_TIMEOUT_BASE_DELAY * (2**attempt))
 
     async def enqueue(self, item: dict):
-        await self._publish(json.dumps(item).encode(), uuid4().hex)
+        try:
+            await self._publish(json.dumps(item).encode(), uuid4().hex)
+        except APIError as error:
+            if is_stream_full_error(error):
+                raise asyncio.QueueFull from error
+            raise
 
     async def dequeue(self, timeout: float | None = None) -> NotificationDelivery | None:
         if not self._consumer:

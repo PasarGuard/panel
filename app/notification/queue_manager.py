@@ -5,7 +5,10 @@ from pydantic import BaseModel, Field
 
 from app.nats import is_nats_enabled
 from app.notification.nats_queue import InMemoryNotificationQueue, NatsNotificationQueue, NotificationQueue
+from app.utils.logger import get_logger
 from config import nats_settings, runtime_settings
+
+logger = get_logger("Notification")
 
 
 class TelegramNotification(BaseModel):
@@ -119,20 +122,29 @@ def get_webhook_queue() -> NotificationQueue:
     return webhook_queue_instance
 
 
+async def _enqueue(
+    queue: NotificationQueue, notification: TelegramNotification | DiscordNotification | WebhookNotification
+) -> None:
+    try:
+        await queue.enqueue(notification.model_dump())
+    except asyncio.QueueFull:
+        # Bounded queues reject new work instead of evicting queued work. Callers
+        # such as scheduled jobs must keep running, so drop and log instead.
+        logger.warning("Notification queue is full, dropping a %s notification", notification.type)
+
+
 async def enqueue_telegram(message: str, chat_id: int | None = None, topic_id: int | None = None) -> None:
-    """Add a Telegram notification to the queue"""
-    notification = TelegramNotification(message=message, chat_id=chat_id, topic_id=topic_id)
-    await get_queue().enqueue(notification.model_dump())
+    """Add a Telegram notification to the queue, dropping it if the queue is full"""
+    await _enqueue(get_queue(), TelegramNotification(message=message, chat_id=chat_id, topic_id=topic_id))
 
 
 async def enqueue_discord(json_data: dict, webhook: str) -> None:
-    """Add a Discord notification to the queue"""
-    notification = DiscordNotification(json_data=json_data, webhook=webhook)
-    await get_queue().enqueue(notification.model_dump())
+    """Add a Discord notification to the queue, dropping it if the queue is full"""
+    await _enqueue(get_queue(), DiscordNotification(json_data=json_data, webhook=webhook))
 
 
 async def enqueue_webhook(payload: dict, send_at: float | None = None, tries: int = 0) -> None:
-    """Add a webhook notification to the queue"""
+    """Add a webhook notification to the queue, dropping it if the queue is full"""
     import time
 
     notification = WebhookNotification(
@@ -140,4 +152,4 @@ async def enqueue_webhook(payload: dict, send_at: float | None = None, tries: in
         send_at=send_at if send_at is not None else time.time(),
         tries=tries,
     )
-    await get_webhook_queue().enqueue(notification.model_dump())
+    await _enqueue(get_webhook_queue(), notification)
