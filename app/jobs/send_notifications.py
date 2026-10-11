@@ -103,7 +103,7 @@ async def send_notifications():
                 batch = []
                 exhausted = False
                 for _ in range(BATCH_SIZE):
-                    delivery = await queue.dequeue(timeout=0.05)
+                    delivery = await queue.dequeue(timeout=1)
                     if delivery is None:
                         exhausted = True
                         break
