@@ -5,8 +5,9 @@ const path = require('node:path')
 const http = require('node:http')
 const assert = require('node:assert/strict')
 const { chromium } = require('playwright')
-assert.ok(process.argv[2], 'Usage: node scripts/check-form-submissions.cjs <production-build-directory>')
-const build = path.resolve(process.argv[2])
+// Defaults to Vite's dashboard/build; override with `npm run test:form-submissions -- <directory>`.
+const build = process.argv[2] ? path.resolve(process.argv[2]) : path.resolve(__dirname, '../build')
+assert.ok(fs.existsSync(path.join(build, 'index.html')), `Production build not found in ${build}. Run npm run build first, or pass a build directory.`)
 const admin = {
   id: 1,
   username: 'test-admin',
@@ -20,6 +21,7 @@ const admin = {
   users_data_limit: 0,
   created_at: '2026-01-01T00:00:00Z',
 }
+const otherAdmin = { ...admin, id: 2, username: 'other-admin', role: { id: 3, name: 'operator', is_owner: false, permissions: {} } }
 const user = {
   id: 1,
   username: 'perf-test-user',
@@ -105,6 +107,8 @@ const server = http.createServer((req, res) => {
         else if (p === '/api/hosts') body = [host, { ...structuredClone(host), id: 2, remark: 'Second test host', priority: 1 }]
         else if (p === '/api/inbounds/details') body = [{ tag: 'test-inbound', protocol: 'vless', network: 'xhttp' }]
         else if (p === '/api/admin') body = admin
+        else if (p === '/api/admins') body = { admins: [admin, otherAdmin], total: 2 }
+        else if (p === '/api/roles/simple') body = { roles: [], total: 0 }
         else if (p === '/api/users') body = { users: [user], total: 1 }
         else if (p === '/api/user/by-id/1') body = user
         else if (p === '/api/groups/simple') body = { groups: [], total: 0 }
@@ -226,6 +230,46 @@ const server = http.createServer((req, res) => {
       assert.deepEqual(item.noise_settings, host.noise_settings)
     }
     console.log('PASS host reorder preserves API transport/noise values')
+
+    // Hold both responses so changing admins races with the previous request.
+    const pendingPasskeys = new Map()
+    await page.route('**/api/admin/passkey/admins/*', route => {
+      if (route.request().method() === 'GET') {
+        pendingPasskeys.set(new URL(route.request().url()).pathname, route)
+        return
+      }
+      return route.fallback()
+    })
+    await page.goto(base + '/#/admins')
+    const firstPasskeysPath = '/api/admin/passkey/admins/1'
+    const secondPasskeysPath = '/api/admin/passkey/admins/2'
+    await Promise.all([
+      page.waitForRequest(r => new URL(r.url()).pathname === firstPasskeysPath),
+      page.getByRole('row').filter({ hasText: admin.username }).click(),
+    ])
+    const cancelled = page.waitForEvent('requestfailed', { predicate: r => new URL(r.url()).pathname === firstPasskeysPath })
+    await dialog.press('Escape')
+    await dialog.waitFor({ state: 'hidden' })
+    await Promise.all([
+      page.waitForRequest(r => new URL(r.url()).pathname === secondPasskeysPath),
+      page.getByRole('row').filter({ hasText: otherAdmin.username }).click(),
+    ])
+    await cancelled
+    const passkeySection = dialog.getByRole('button', { name: /^Passkeys/ })
+    await passkeySection.click()
+    assert.equal(await passkeySection.innerText(), 'Passkeys\n—', 'the cancelled request must not clear the selected admin loading state')
+    await pendingPasskeys.get(firstPasskeysPath).fulfill({ json: [{ id: 11, name: 'First admin device' }] })
+    await pendingPasskeys.get(secondPasskeysPath).fulfill({ json: [{ id: 22, name: 'Second admin device' }] })
+    await dialog.getByText('Second admin device', { exact: true }).waitFor()
+    assert.equal(await dialog.getByText('First admin device', { exact: true }).count(), 0, 'stale passkeys must not appear for another admin')
+    const [removed] = await Promise.all([
+      page.waitForRequest(r => r.method() === 'DELETE' && r.url().includes('/api/admin/passkey/admins/')),
+      dialog.getByRole('button', { name: 'Remove', exact: true }).click(),
+    ])
+    assert.equal(new URL(removed.url()).pathname, secondPasskeysPath + '/22', 'removal must use the selected admin and its own passkey')
+    await dialog.getByText('Second admin device', { exact: true }).waitFor({ state: 'hidden' })
+    assert.equal(await passkeySection.innerText(), 'Passkeys\n0')
+    console.log('PASS passkey request cancellation, selected admin loading/list and removal')
     assert.deepEqual(errors, [])
   } finally {
     await browser.close()

@@ -135,12 +135,24 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
   }, [isDialogOpen])
 
   useEffect(() => {
-    if (!isDialogOpen || !canManagePasskeys || passkeyAdminId == null) return
+    setPasskeys([])
+    if (!isDialogOpen || !canManagePasskeys || passkeyAdminId == null) {
+      setPasskeysLoading(false)
+      return
+    }
+    const controller = new AbortController()
     setPasskeysLoading(true)
-    getAdminPasskeysForAdmin(passkeyAdminId)
-      .then(setPasskeys)
-      .catch(() => setPasskeys([]))
-      .finally(() => setPasskeysLoading(false))
+    getAdminPasskeysForAdmin(passkeyAdminId, { signal: controller.signal })
+      .then(result => {
+        if (!controller.signal.aborted) setPasskeys(result)
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setPasskeys([])
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setPasskeysLoading(false)
+      })
+    return () => controller.abort()
   }, [isDialogOpen, canManagePasskeys, passkeyAdminId])
 
   // Accordion: only one section open at a time
