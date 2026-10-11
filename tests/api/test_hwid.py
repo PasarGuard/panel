@@ -352,6 +352,24 @@ async def test_blank_hwid_header_counts_as_absent(access_token):
 
 
 @pytest.mark.asyncio
+async def test_hwid_with_control_characters_is_rejected(access_token):
+    user = create_user(access_token)
+
+    try:
+        await _reset_user_hwids(user["id"])
+        # Raw header bytes: Starlette decodes them as latin-1, so 0x85 and 0x9f arrive as C1 controls.
+        for hwid in (b"device\x01one", b"device\x7fone", b"device\x85one", b"device\x9fone"):
+            response = client.get(user["subscription_url"], headers={"X-HWID": hwid})
+            assert response.status_code == status.HTTP_400_BAD_REQUEST, hwid
+
+        response = client.get(f"/api/user/{user['id']}/hwids", headers=auth_headers(access_token))
+        assert response.json()["count"] == 0
+    finally:
+        await _reset_user_hwids(user["id"])
+        delete_user(access_token, user["username"])
+
+
+@pytest.mark.asyncio
 async def test_long_device_info_headers_are_clipped(access_token):
     user = create_user(access_token)
     headers = {
