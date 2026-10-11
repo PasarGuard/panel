@@ -2835,7 +2835,7 @@
         "secretKey": "Secret Key",
         "generateSecretKey": "Generate secret key",
         "address": "Server Address",
-        "addressHint": "Example: 10.0.0.1/128",
+        "addressHint": "Example: 10.0.0.1/24",
         "addressAddPlaceholder": "Add address",
         "addItem": "Add",
         "addressItems": "Addresses",
