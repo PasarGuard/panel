@@ -40,7 +40,6 @@ from app.db.crud.user import (
     get_users_count_by_admin,
     get_users_simple,
     get_users_sub_update_list,
-    get_users_subscription_agent_counts,
     get_users_subscription_agent_stats,
     load_user_attrs,
     lock_admin_quota_row,
@@ -98,7 +97,7 @@ from app.models.user import (
     UsersUsageQuery,
     UserUsageQuery,
 )
-from app.node.sync import remove_user as sync_remove_user, sync_user, sync_users
+from app.node.sync import remove_user as sync_remove_user, remove_users as sync_remove_users, sync_user, sync_users
 from app.node.user import node_payload_signature
 from app.operation import BaseOperation, OperatorType
 from app.operation.permissions import (
@@ -1023,7 +1022,7 @@ class UserOperation(BaseOperation):
         return BulkUsersActionResponse(users=usernames, count=len(usernames))
 
     async def _load_users_by_ids(self, db: AsyncSession, user_ids: list[int]) -> list[User]:
-        return await get_users_by_ids(db, user_ids, load_admin_role=True)
+        return await get_users_by_ids(db, user_ids, load_admin_role=True, load_group_inbounds=True)
 
     async def _load_users_by_usernames(self, db: AsyncSession, usernames: list[str]) -> list[User]:
         return await get_users_by_usernames(db, usernames, load_admin_role=True)
@@ -1604,10 +1603,11 @@ class UserOperation(BaseOperation):
         """
         Get users who match the cleanup target within the specified date range.
 
-        - **target**: `expired` | `limited` | `on_hold` | `disabled`
+        - **target**: `expired` | `limited` | `on_hold` | `disabled` | `inactive`
         - **expired_after** / **expired_before** UTC datetime (optional)
         - For `expired`: filters by expiration date.
         - For `limited` / `on_hold` / `disabled`: filters by last_status_change.
+        - For `inactive`: filters by last activity (online_at, or created_at if never online).
         - If both dates are omitted, returns all users matching target.
         """
 
@@ -1632,10 +1632,11 @@ class UserOperation(BaseOperation):
         """
         Delete users who match the cleanup target within the specified date range.
 
-        - **target**: `expired` | `limited` | `on_hold` | `disabled`
+        - **target**: `expired` | `limited` | `on_hold` | `disabled` | `inactive`
         - **expired_after** / **expired_before** UTC datetime (optional)
         - For `expired`: filters by expiration date.
         - For `limited` / `on_hold` / `disabled`: filters by last_status_change.
+        - For `inactive`: filters by last activity (online_at, or created_at if never online).
         - **dry_run**: if true, returns the list of users that would be deleted without deleting them.
         """
 
@@ -1645,7 +1646,7 @@ class UserOperation(BaseOperation):
             admin_id = (await self.get_validated_admin(db, query.admin_username)).id
         else:
             admin_id = None
-        username_list = await remove_expired_users(
+        username_list, node_users = await remove_expired_users(
             db,
             expired_after,
             expired_before,
@@ -1654,6 +1655,8 @@ class UserOperation(BaseOperation):
             dry_run=query.dry_run,
         )
         if not query.dry_run:
+            # Active and on_hold users are still on the nodes (the inactive target includes them).
+            await sync_remove_users(node_users)
             await self.remove_users_logger(users=username_list, by=admin.username)
 
         return RemoveUsersResponse(users=username_list, count=len(username_list))
@@ -2056,14 +2059,6 @@ class UserOperation(BaseOperation):
             else:
                 resolved_admin_id = get_scope_admin_id(admin, "users", "read")
 
-        agent_counts = await get_users_subscription_agent_counts(
-            db,
-            user_id=resolved_user_id,
-            admin_id=resolved_admin_id,
-            start=start,
-            end=end,
-            period=period,
-        )
         agent_stats = await get_users_subscription_agent_stats(
             db,
             start=start,
@@ -2072,8 +2067,15 @@ class UserOperation(BaseOperation):
             user_id=resolved_user_id,
             admin_id=resolved_admin_id,
         )
+        # The period rows already contain every update in the requested range,
+        # so derive pie totals from them instead of scanning the same history a
+        # second time solely for totals.
+        agent_totals: Counter[str] = Counter()
+        for row in agent_stats:
+            agent_totals[row.get("agent") or ""] += int(row.get("count") or 0)
+
         return self._build_user_agent_chart(
-            agent_counts,
+            list(agent_totals.items()),
             start=start,
             end=end,
             agent_stats=agent_stats,

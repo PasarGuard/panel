@@ -3678,4 +3678,6 @@ def test_get_users_returns_and_sorts_by_hwid_count(access_token):
             assert [user["hwid_count"] for user in body["users"]] == expected
     finally:
         for user in users:
+            # SQLite keeps a deleted user's devices and can hand its id to a later test's user
+            set_user_hwids(user["id"], 0)
             delete_user(access_token, user["username"])
