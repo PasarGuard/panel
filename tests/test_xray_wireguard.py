@@ -90,6 +90,23 @@ def test_xray_wireguard_rejects_invalid_listen_port(port):
         XRayConfig(config)
 
 
+@pytest.mark.parametrize("mtu", [False, True, 0, 575, 9001, 1420.0, "1420", [], {}])
+def test_xray_wireguard_rejects_invalid_mtu(mtu):
+    secret, _ = generate_wireguard_keypair()
+    config = xray_config(secret)
+    config["inbounds"][0]["settings"]["mtu"] = mtu
+    with pytest.raises(ValueError, match="xray-wg WireGuard mtu must be an integer between 576 and 9000"):
+        XRayConfig(config)
+
+
+@pytest.mark.parametrize("mtu,expected", [(None, 1420), (576, 576), (9000, 9000)])
+def test_xray_wireguard_accepts_default_and_valid_mtu(mtu, expected):
+    secret, _ = generate_wireguard_keypair()
+    config = xray_config(secret)
+    config["inbounds"][0]["settings"]["mtu"] = mtu
+    assert XRayConfig(config).inbounds_by_tag["xray-wg"]["mtu"] == expected
+
+
 def test_excluded_xray_wireguard_and_outbound_are_not_managed():
     config = xray_config("externally-managed")
     config["outbounds"].append({"tag": "wg-out", "protocol": "wireguard", "settings": {"secretKey": "external"}})

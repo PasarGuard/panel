@@ -482,6 +482,12 @@ class XRayConfig(dict):
         if isinstance(port, bool) or not isinstance(port, int) or not 1 <= port <= 65535:
             raise ValueError(f"{tag} WireGuard inbound needs a single port between 1 and 65535")
 
+        mtu = config.get("mtu")
+        if mtu is None:
+            mtu = 1420
+        elif type(mtu) is not int or not 576 <= mtu <= 9000:
+            raise ValueError(f"{tag} WireGuard mtu must be an integer between 576 and 9000")
+
         reserved = config.get("reserved")
         if isinstance(reserved, str):
             try:
@@ -504,7 +510,7 @@ class XRayConfig(dict):
             "private_key": secret,
             "public_key": get_wireguard_public_key(secret),
             "pre_shared_key": "",
-            "mtu": config.get("mtu") or 1420,
+            "mtu": mtu,
             "reserved": ",".join(map(str, reserved)) if reserved else None,
             "finalmask": deepcopy(stream.get("finalmask") or stream.get("finalMask")),
         }
