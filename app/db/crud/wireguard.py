@@ -61,7 +61,9 @@ def wg_core_interfaces(core: CoreConfig) -> list[dict]:
     return [
         {"interface_name": inbound.get("tag"), "address": (inbound.get("settings") or {}).get("address", [])}
         for inbound in config.get("inbounds", [])
-        if inbound.get("protocol") == "wireguard" and inbound.get("tag") not in excluded
+        if inbound.get("protocol") == "wireguard"
+        and inbound.get("tag") not in excluded
+        and "address" in (inbound.get("settings") or {})
     ]
 
 

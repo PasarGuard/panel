@@ -524,6 +524,10 @@ class XRayConfig(dict):
             return
 
         if inbound["protocol"] == "wireguard":
+            # Only inbounds that declare client subnets in settings.address are managed. A plain
+            # Xray WireGuard inbound with static peers has no address and is left alone, as before.
+            if "address" not in (inbound.get("settings") or {}):
+                return
             settings = self._read_wireguard_inbound(inbound)
             self._inbounds.append(inbound["tag"])
             self._inbounds_by_tag[inbound["tag"]] = settings

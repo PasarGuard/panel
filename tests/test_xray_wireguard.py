@@ -121,6 +121,31 @@ def test_excluded_xray_wireguard_and_outbound_are_not_managed():
     assert wg_core_tags([core]) == set()
 
 
+def test_xray_wireguard_without_address_is_left_unmanaged():
+    secret, public = generate_wireguard_keypair()
+    config = xray_config(secret)
+    static = config["inbounds"][0]
+    del static["settings"]["address"]
+    static["port"] = "51820-51830"
+    static["settings"]["peers"] = [{"publicKey": public, "allowedIPs": ["10.9.0.2/32"]}]
+    config["inbounds"].insert(
+        0,
+        {
+            "tag": "vless-tcp",
+            "protocol": "vless",
+            "port": 443,
+            "settings": {"clients": [], "decryption": "none"},
+            "streamSettings": {"network": "tcp"},
+        },
+    )
+    parsed = XRayConfig(config)
+    assert parsed.inbounds == ["vless-tcp"]
+    assert parsed.protocols == {ProxyProtocol.vless}
+    core = SimpleNamespace(type=CoreType.xray, config=config, exclude_inbound_tags=[], fallbacks_inbound_tags=[])
+    assert wg_namespaces([core]) == {}
+    assert wg_core_tags([core]) == set()
+
+
 @pytest.mark.parametrize("secret", ["", "invalid", "00" * 31, "gg" * 32])
 def test_xray_wireguard_rejects_invalid_keys(secret):
     with pytest.raises(ValueError, match="secretKey"):
