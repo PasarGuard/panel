@@ -135,6 +135,7 @@ async def delete_expired_reminders() -> None:
         now_naive = now_utc.replace(tzinfo=None)
 
         result = await db.execute(delete(NotificationReminder).where(NotificationReminder.expires_at < now_naive))
+        await db.commit()
         logger.info(f"Cleaned up {result.rowcount} expired reminders")
 
 
