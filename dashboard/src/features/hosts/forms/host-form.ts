@@ -1,19 +1,6 @@
 import * as z from 'zod'
 import type { CreateHost, FinalMask, XrayNoiseSettings } from '@/service/api'
 
-export function parseNoisePacketInput(value: string, type: string | undefined): string | number[] {
-  if (type === 'array') {
-    try {
-      const parsed: unknown = JSON.parse(value)
-      const packet = z.array(z.number().int()).safeParse(parsed)
-      if (packet.success) return packet.data
-    } catch {
-      // Keep incomplete input editable; the API also accepts string packets.
-    }
-  }
-  return value
-}
-
 interface Brutal {
   enable?: boolean
   up_mbps: number
@@ -431,7 +418,7 @@ export const HostFormSchema = z.object({
           z.object({
             type: z
               .string()
-              .regex(/^(?:rand|array|str|base64|hex)$/)
+              .regex(/^(?:rand|str|base64|hex)$/)
               .optional(),
             packet: z.union([z.string(), z.array(z.number().int())]).nullish(),
             delay: z

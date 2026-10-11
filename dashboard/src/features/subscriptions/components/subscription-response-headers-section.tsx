@@ -1,4 +1,4 @@
-import { withCustomVariableDefaults, type SubscriptionSettingsForm } from './subscription-settings-schema'
+import { withCustomVariableDefaults, type SubscriptionFormInput, type SubscriptionSettingsForm } from './subscription-settings-schema'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -96,7 +96,7 @@ export function SubscriptionResponseHeadersSection({ form }: SubscriptionRespons
         <p className="text-muted-foreground text-xs sm:text-sm">{t('settings.subscriptions.responseHeaders.placement.description')}</p>
         <Select
           value={form.watch('header_placement') ?? 'header'}
-          onValueChange={value => form.setValue('header_placement', value as SubscriptionFormData['header_placement'], { shouldDirty: true })}
+          onValueChange={value => form.setValue('header_placement', value as SubscriptionFormInput['header_placement'], { shouldDirty: true })}
         >
           <SelectTrigger aria-label={t('settings.subscriptions.responseHeaders.placement.title')} className="text-xs sm:text-sm">
             <SelectValue />

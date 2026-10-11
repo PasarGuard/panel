@@ -2007,6 +2007,11 @@ export interface PasskeyAuthenticationRequest {
   credential: PasskeyAuthenticationRequestCredential;
 }
 
+export interface PasskeyInfo {
+  id: number;
+  name: string;
+}
+
 export interface PasskeyOptionsRequest {
   username?: string | null;
 }
@@ -20776,9 +20781,9 @@ export const getListPasskeysUrl = () => {
 /**
  * @summary List Passkeys
  */
-export const listPasskeys = async ( options?: RequestInit): Promise<unknown> => {
+export const listPasskeys = async ( options?: RequestInit): Promise<PasskeyInfo[]> => {
 
-  return orvalFetcher<unknown>(getListPasskeysUrl(),
+  return orvalFetcher<PasskeyInfo[]>(getListPasskeysUrl(),
   {
     ...options,
     method: 'GET'
@@ -20877,9 +20882,9 @@ export const getListAdminPasskeysUrl = (adminId: number,) => {
 /**
  * @summary List Admin Passkeys
  */
-export const listAdminPasskeys = async (adminId: number, options?: RequestInit): Promise<unknown> => {
+export const listAdminPasskeys = async (adminId: number, options?: RequestInit): Promise<PasskeyInfo[]> => {
 
-  return orvalFetcher<unknown>(getListAdminPasskeysUrl(adminId),
+  return orvalFetcher<PasskeyInfo[]>(getListAdminPasskeysUrl(adminId),
   {
     ...options,
     method: 'GET'

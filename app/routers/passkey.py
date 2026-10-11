@@ -40,12 +40,17 @@ class PasskeyRegistrationRequest(BaseModel):
     name: str = Field(default="This device", max_length=128)
 
 
+class PasskeyInfo(BaseModel):
+    id: int
+    name: str
+
+
 class PasskeyAuthenticationRequest(BaseModel):
     username: str | None = Field(default=None, max_length=128)
     credential: dict
 
 
-@router.get("")
+@router.get("", response_model=list[PasskeyInfo])
 async def list_passkeys(admin: AdminDetails = Depends(get_current), db: AsyncSession = Depends(get_db)):
     rows = (
         await db.execute(select(AdminPasskey).where(AdminPasskey.admin_id == admin.id).order_by(AdminPasskey.id))
@@ -68,7 +73,7 @@ async def _authorize_target_admin(target_id: int, current_admin: AdminDetails, d
     return target
 
 
-@router.get("/admins/{admin_id}")
+@router.get("/admins/{admin_id}", response_model=list[PasskeyInfo])
 async def list_admin_passkeys(
     admin_id: int,
     current_admin: AdminDetails = Depends(get_current),
