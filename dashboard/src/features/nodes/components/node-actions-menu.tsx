@@ -11,6 +11,7 @@ import useDirDetection from '@/hooks/use-dir-detection'
 import UserOnlineStatsDialog from '@/features/users/dialogs/user-online-stats-modal'
 import UpdateCoreDialog from '@/features/nodes/dialogs/update-core-modal'
 import UpdateGeofilesDialog from '@/features/nodes/dialogs/update-geofiles-modal'
+import { translateHtml } from '@/utils/html-translation'
 
 interface NodeActionsMenuProps {
   node: NodeResponse
@@ -168,7 +169,7 @@ const DeleteAlertDialog = ({ node, isOpen, onClose, onConfirm }: { node: NodeRes
         <AlertDialogHeader>
           <AlertDialogTitle>{t('nodes.deleteNode')}</AlertDialogTitle>
           <AlertDialogDescription>
-            <span dir={dir} dangerouslySetInnerHTML={{ __html: t('deleteNode.prompt', { name: node.name }) }} />
+            <span dir={dir} dangerouslySetInnerHTML={{ __html: translateHtml(t, 'deleteNode.prompt', { name: node.name }) }} />
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
@@ -192,7 +193,10 @@ const ResetUsageAlertDialog = ({ node, isOpen, onClose, onConfirm, isLoading }: 
         <AlertDialogHeader>
           <AlertDialogTitle>{t('nodeModal.resetUsageTitle', { defaultValue: 'Reset Node Usage' })}</AlertDialogTitle>
           <AlertDialogDescription>
-            <span dir={dir} dangerouslySetInnerHTML={{ __html: t('nodeModal.resetUsagePrompt', { name: node.name, defaultValue: `Are you sure you want to reset usage for node «${node.name}»?` }) }} />
+            <span
+              dir={dir}
+              dangerouslySetInnerHTML={{ __html: translateHtml(t, 'nodeModal.resetUsagePrompt', { name: node.name, defaultValue: 'Are you sure you want to reset usage for node «{{name}}»?' }) }}
+            />
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

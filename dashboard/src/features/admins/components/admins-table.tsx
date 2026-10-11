@@ -29,6 +29,7 @@ import { BulkActionItem, BulkActionsBar } from '@/features/users/components/bulk
 import { BulkActionAlertDialog } from '@/features/users/components/bulk-action-alert-dialog'
 import { Power, PowerOff, RefreshCw, Trash2, UserCheck, UserMinus, UserX } from 'lucide-react'
 import { hasPermission, hasScopeAll } from '@/utils/rbac'
+import { translateHtml } from '@/utils/html-translation'
 
 interface AdminFilters {
   sort?: string
@@ -70,7 +71,7 @@ const DeleteAlertDialog = ({ admin, isOpen, onClose, onConfirm }: { admin: Admin
         <AlertDialogHeader>
           <AlertDialogTitle>{t('admins.deleteAdmin')}</AlertDialogTitle>
           <AlertDialogDescription>
-            <span dir={dir} dangerouslySetInnerHTML={{ __html: t('deleteAdmin.prompt', { name: admin.username }) }} />
+            <span dir={dir} dangerouslySetInnerHTML={{ __html: translateHtml(t, 'deleteAdmin.prompt', { name: admin.username }) }} />
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
@@ -98,7 +99,7 @@ const ToggleAdminStatusModal = ({ admin, isOpen, onClose, onConfirm }: { admin: 
             <span
               dir={dir}
               dangerouslySetInnerHTML={{
-                __html: t(isDisabled ? 'admin.enablePrompt' : 'admin.disablePrompt', {
+                __html: translateHtml(t, isDisabled ? 'admin.enablePrompt' : 'admin.disablePrompt', {
                   name: admin.username,
                   defaultValue: isDisabled ? 'Are you sure you want to enable admin <b>{{name}}</b>?' : 'Are you sure you want to disable admin <b>{{name}}</b>?',
                 }),
@@ -125,7 +126,7 @@ const ResetUsersUsageConfirmationDialog = ({ adminUsername, isOpen, onClose, onC
         <AlertDialogHeader>
           <AlertDialogTitle>{t('admins.resetUsersUsage')}</AlertDialogTitle>
           <AlertDialogDescription className="flex items-center gap-2">
-            <span dir={dir} dangerouslySetInnerHTML={{ __html: t('resetUsersUsage.prompt', { name: adminUsername }) }} />
+            <span dir={dir} dangerouslySetInnerHTML={{ __html: translateHtml(t, 'resetUsersUsage.prompt', { name: adminUsername }) }} />
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
@@ -147,7 +148,7 @@ const RemoveAllUsersConfirmationDialog = ({ adminUsername, isOpen, onClose, onCo
         <AlertDialogHeader>
           <AlertDialogTitle>{t('admins.removeAllUsers')}</AlertDialogTitle>
           <AlertDialogDescription className="flex items-center gap-2">
-            <span dir={dir} dangerouslySetInnerHTML={{ __html: t('removeAllUsers.prompt', { name: adminUsername }) }} />
+            <span dir={dir} dangerouslySetInnerHTML={{ __html: translateHtml(t, 'removeAllUsers.prompt', { name: adminUsername }) }} />
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
@@ -186,7 +187,7 @@ const BulkUsersStatusConfirmationDialog = ({
         <AlertDialogHeader>
           <AlertDialogTitle>{t(titleKey)}</AlertDialogTitle>
           <AlertDialogDescription className="flex items-center gap-2">
-            <span dir={dir} dangerouslySetInnerHTML={{ __html: t(promptKey, { name: adminUsername }) }} />
+            <span dir={dir} dangerouslySetInnerHTML={{ __html: translateHtml(t, promptKey, { name: adminUsername }) }} />
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

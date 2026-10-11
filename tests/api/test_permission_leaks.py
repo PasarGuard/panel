@@ -26,6 +26,7 @@ from tests.api.helpers import (
     delete_admin,
     delete_core,
     delete_group,
+    set_user_hwids,
     strong_password,
     unique_name,
 )
@@ -444,6 +445,41 @@ def test_hwid_endpoints_only_reach_users_the_admin_can_see(scoped_actor, method,
 
     assert response.status_code == status.HTTP_404_NOT_FOUND
     assert response.json()["detail"] == "User not found"
+
+
+@pytest.mark.parametrize(
+    ("permissions", "sees_counts"),
+    [
+        pytest.param({"users": {"read": SCOPE_ALL}}, False, id="without-hwids-read"),
+        pytest.param({"users": {"read": SCOPE_ALL}, "hwids": {"read": True}}, True, id="with-hwids-read"),
+    ],
+)
+def test_user_list_shows_device_counts_only_with_hwids_read(access_token, scoped_actor, permissions, sees_counts):
+    context = scoped_actor(permissions)
+    tag = unique_name("hwid_scope")
+    # Device count order and username order disagree, so the listing shows which sort applied
+    first, second = [create_user(access_token, username=f"{tag}_{name}") for name in ("a", "b")]
+    try:
+        set_user_hwids(first["id"], 2)
+        set_user_hwids(second["id"], 0)
+
+        response = client.get(
+            "/api/users",
+            headers=auth_headers(context["token"]),
+            params={"search": tag, "sort": "-hwid_count,-username"},
+        )
+
+        assert response.status_code == status.HTTP_200_OK, response.text
+        listed = [(user["username"], user["hwid_count"]) for user in response.json()["users"]]
+        if sees_counts:
+            assert listed == [(first["username"], 2), (second["username"], 0)]
+        else:
+            assert listed == [(second["username"], None), (first["username"], None)]
+    finally:
+        for user in (first, second):
+            # SQLite keeps a deleted user's devices and can hand its id to a later test's user
+            set_user_hwids(user["id"], 0)
+            client.delete(f"/api/user/by-id/{user['id']}", headers=auth_headers(access_token))
 
 
 # --- Group / template access lists ---

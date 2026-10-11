@@ -185,3 +185,96 @@ async def test_hysteria2_link_passes_udphop_through_fm():
     assert query["obfs-password"] == ["obfs-secret"]
     # Hop ports for non-Xray clients stay under the admin's control in quicParams.udpHop
     assert "mports" not in query
+
+
+# Port hopping without a udp mask: the shape a plain FinalMask | dict union turned back into a model
+QUIC_ONLY_HOP = {"quicParams": {"udpHop": {"ports": "20000-20010", "interval": "30"}}}
+
+
+def _build_hysteria2(inbound: SubscriptionInboundData) -> tuple[dict[str, list[str]], dict, dict]:
+    """Share link query, Clash Meta proxy and sing-box outbound of one host."""
+    meta = ClashMetaConfiguration()
+    meta.add("hy2", "edge.example.com", inbound, {"auth": "auth-password"})
+    singbox = SingBoxConfiguration()
+    singbox.add("hy2", "edge.example.com", inbound, {"auth": "auth-password"})
+    return _link_query(inbound), meta.data["proxies"][0], singbox.config["outbounds"][-1]
+
+
+def _assert_builders_read_quic_only_hop(inbound: SubscriptionInboundData):
+    """udpHop reaches every builder, and no obfs appears without a salamander layer."""
+    query, node, outbound = _build_hysteria2(inbound)
+    assert query["mports"] == ["20000-20010"]
+    assert "obfs" not in query
+    assert node["ports"] == "20000-20010"
+    assert node["hop-interval"] == "30s"
+    assert not node.get("obfs")
+    assert outbound["server_ports"] == ["20000-20010"]
+    assert outbound["hop_interval"] == "30s"
+    assert "obfs" not in outbound
+
+
+@pytest.mark.usefixtures("hysteria_inbound")
+async def test_prepared_finalmask_stays_a_dict_with_xray_field_names():
+    inbound = await _prepare(final_mask_settings=QUIC_ONLY_HOP)
+    assert type(inbound.finalmask) is dict
+    assert inbound.finalmask == QUIC_ONLY_HOP
+
+    inbound.finalmask = FinalMask.model_validate(QUIC_ONLY_HOP)
+    assert type(inbound.finalmask) is dict
+    assert inbound.finalmask == QUIC_ONLY_HOP
+
+
+@pytest.mark.usefixtures("hysteria_inbound")
+async def test_hysteria2_builders_read_host_quic_params_without_udp_mask():
+    _assert_builders_read_quic_only_hop(await _prepare(final_mask_settings=QUIC_ONLY_HOP))
+
+
+@pytest.mark.usefixtures("hysteria_inbound")
+async def test_hysteria2_builders_read_host_quic_params_without_udp_mask_after_nats_cache_round_trip():
+    _assert_builders_read_quic_only_hop(_nats_round_trip(await _prepare(final_mask_settings=QUIC_ONLY_HOP)))
+
+
+async def test_hysteria2_builders_read_inbound_quic_params_without_udp_mask(hysteria_inbound):
+    hysteria_inbound["finalmask"] = QUIC_ONLY_HOP
+
+    _assert_builders_read_quic_only_hop(await _prepare())
+
+
+@pytest.mark.parametrize(
+    ("finalmask", "brutal_up", "obfs"),
+    [
+        pytest.param({"quicParams": {"brutalUp": "50 mbps"}}, "50 mbps", None, id="brutal-only"),
+        pytest.param(
+            {"udp": [SALAMANDER], "quicParams": {"brutalUp": "50 mbps"}}, "50 mbps", "salamander", id="no-udphop"
+        ),
+        pytest.param({"quicParams": {}}, None, None, id="empty-quic-params"),
+    ],
+)
+@pytest.mark.usefixtures("hysteria_inbound")
+async def test_hysteria2_builders_accept_host_finalmask_without_udphop(finalmask, brutal_up, obfs):
+    query, node, outbound = _build_hysteria2(await _prepare(final_mask_settings=finalmask))
+
+    assert query.get("obfs") == ([obfs] if obfs else None)
+    assert "mports" not in query
+    assert not node.get("ports")
+    assert node.get("up") == brutal_up
+    assert "server_ports" not in outbound
+
+
+@pytest.mark.parametrize(
+    "finalmask",
+    [
+        pytest.param({"quicParams": {"udpHop": None}}, id="null-udphop"),
+        pytest.param({"udp": [{"type": "salamander", "settings": None}], "quicParams": None}, id="null-sections"),
+    ],
+)
+async def test_hysteria2_builders_accept_nulls_in_inbound_finalmask(hysteria_inbound, finalmask):
+    # Core configs are free-form JSON, so optional sections may be written as null
+    hysteria_inbound["finalmask"] = finalmask
+
+    query, node, outbound = _build_hysteria2(await _prepare())
+
+    assert "mports" not in query
+    assert "obfs" not in query
+    assert not node.get("ports")
+    assert "server_ports" not in outbound
