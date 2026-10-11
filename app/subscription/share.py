@@ -20,6 +20,7 @@ from app.subscription.config_cache import (
     make_sub_config_key,
     put_sub_config,
 )
+from app.utils.helpers import has_markup_unsafe_chars
 from app.utils.system import readable_size
 
 from . import (
@@ -473,6 +474,10 @@ async def process_inbounds_and_tags(
         # Format remark and address with user variables
         remark = inbound_copy.remark.format_map(format_variables)
         formatted_address = inbound_copy.address.format_map(format_variables)
+        if has_markup_unsafe_chars(formatted_address):
+            # Never valid, and links print the address unencoded; covers hosts saved before
+            # address validation existed and values that came in through a format variable.
+            continue
 
         download_settings = getattr(inbound_copy.transport_config, "download_settings", None)
         if download_settings:

@@ -167,3 +167,13 @@ def escape_ds_markdown(text: str) -> str:
 def escape_ds_markdown_list(list: tuple[str]) -> tuple[str]:
     """Escapes markdown special characters for Discord."""
     return tuple(escape_ds_markdown(text) for text in list)
+
+
+# None of these belongs in a host address or URL prefix, and subscription pages print those values
+# inside HTML attributes and scripts, where any of them could break out of the markup.
+_MARKUP_UNSAFE_CHARS = frozenset("<>\"'`\\")
+
+
+def has_markup_unsafe_chars(value: str) -> bool:
+    """Returns True if value contains a quote, angle bracket, backtick, backslash, whitespace or control character."""
+    return any(char in _MARKUP_UNSAFE_CHARS or char.isspace() or not char.isprintable() for char in value)
