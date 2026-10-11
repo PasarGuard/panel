@@ -329,8 +329,7 @@ class NodeOperation(BaseOperation):
             if held is not None:
                 held.check()
             batch_wireguard_users = (
-                backend_type == service.BackendType.WIREGUARD
-                and len(users) >= WIREGUARD_BATCHED_START_THRESHOLD
+                backend_type == service.BackendType.WIREGUARD and len(users) >= WIREGUARD_BATCHED_START_THRESHOLD
             )
             start_kwargs = {
                 "config": core.to_str(),
