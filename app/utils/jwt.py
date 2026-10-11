@@ -188,7 +188,11 @@ async def get_subscription_payload(token: str) -> dict | None:
             :10
         ]
         u_token_hex_resign = sha256((u_token + secret).encode("utf-8")).hexdigest()[:10]
-        if u_signature in (u_token_resign, u_token_hex_resign):
+        # Constant-time compare against both encodings; bytes, since str input must be ASCII.
+        signature = u_signature.encode("utf-8")
+        if hmac.compare_digest(signature, u_token_resign.encode("utf-8")) | hmac.compare_digest(
+            signature, u_token_hex_resign.encode("utf-8")
+        ):
             return _parse_subscription_data(u_token_dec_str)
         return
     except jwt.exceptions.PyJWTError:
