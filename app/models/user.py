@@ -141,6 +141,8 @@ class UserResponse(UserNotificationResponse):
 
 
 class SubscriptionUserResponse(UserResponse):
+    # A shareable subscription token must not expose connection credentials in metadata.
+    proxy_settings: ProxyTable = Field(default_factory=ProxyTable, exclude=True)
     admin: AdminContactInfo | None = Field(default=None, exclude=True)
     note: str | None = Field(None, exclude=True)
     auto_delete_in_days: int | None = Field(None, exclude=True)
