@@ -65,7 +65,7 @@ from app.models.stats import (
 )
 from app.nats import needs_shared_bridge_memory
 from app.nats.node_rpc import node_nats_client
-from app.node import core_users, node_manager
+from app.node import UserSyncPreemptedError, core_users, node_manager
 from app.node.manager_sync import publish_node_sync
 from app.node.nats_memory import clear_bridge_memory_for_node
 from app.operation import BaseOperation, OperatorType
@@ -1142,6 +1142,13 @@ class NodeOperation(BaseOperation):
             users = users_by_core.get(core_id, [])
             if await node_manager.sync_full(node_id, users, flush_pending=flush_users) is None:
                 await self.raise_error(message="Node is not connected", code=409)
+        except UserSyncPreemptedError:
+            # An edit of the node's connection or its removal won; this is not a node fault,
+            # so the node status is left alone and the admin can simply retry.
+            await self.raise_error(
+                message="User sync was interrupted by a change to the node's connection or its removal, retry",
+                code=409,
+            )
         except NodeAPIError as e:
             await update_node_status(db=db, db_node=db_node, status=NodeStatus.error, message=e.detail)
             await self.raise_error(message=e.detail, code=e.code)
