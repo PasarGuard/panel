@@ -399,6 +399,11 @@ class NodeOperation(BaseOperation):
                 except asyncio.CancelledError:
                     await NodeOperation._cleanup_cancelled_batched_start(db_node.id, pg_node)
                     raise
+                except UserSyncPreemptedError as exc:
+                    # A connection change or removal of the node won. That operation decides
+                    # whether the old backend is stopped and reconnects the node itself, so this
+                    # start neither stops it nor reports an error (-4 makes connect_node skip).
+                    raise NodeAPIError(-4, str(exc)) from exc
                 except Exception as exc:
                     try:
                         await node_manager.stop_node_if_current(db_node.id, pg_node)

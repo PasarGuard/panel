@@ -1,5 +1,6 @@
 import asyncio
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Coroutine
+from typing import Any
 
 from aiorwlock import RWLock
 from PasarGuardNodeBridge import Health, NodeType, PasarGuardNode
@@ -294,10 +295,44 @@ class NodeManager:
         if failed_count:
             raise RuntimeError(f"failed to sync {failed_count}/{len(users)} users to node {node_id}")
 
+    async def _run_preemptible_sync(
+        self, node_id: int, sync: Coroutine[Any, Any, PasarGuardNode | None]
+    ) -> PasarGuardNode | None:
+        """Run a user sync in its own tracked task so lifecycle operations can preempt it.
+
+        A connection change or removal of the node cancels only that task, never the
+        caller (for example the admin's HTTP request); the caller gets
+        ``UserSyncPreemptedError`` instead. Cancelling the caller still cancels the sync.
+        """
+        task = asyncio.create_task(sync)
+        self._track_user_sync(node_id, task)
+        try:
+            return await task
+        except asyncio.CancelledError:
+            current = asyncio.current_task()
+            if task.cancelled() and (current is None or not current.cancelling()):
+                raise UserSyncPreemptedError(
+                    f"user sync to node {node_id} was cancelled by a connection change or removal of the node"
+                ) from None
+            raise
+        finally:
+            self._untrack_user_sync(node_id, task)
+
     async def sync_users_batched(
         self, node_id: int, node: PasarGuardNode, users: list[ProtoUser], *, batch_size: int | None = None
     ) -> PasarGuardNode | None:
-        """Apply a large initial user set through bounded delta batches."""
+        """Apply a large initial user set through bounded delta batches.
+
+        Holds the per-node lock for all batches, so a metadata-only edit waits for the
+        whole set; a connection change or removal preempts it like ``sync_full``.
+        """
+        return await self._run_preemptible_sync(
+            node_id, self._sync_users_batched(node_id, node, users, batch_size=batch_size)
+        )
+
+    async def _sync_users_batched(
+        self, node_id: int, node: PasarGuardNode, users: list[ProtoUser], *, batch_size: int | None
+    ) -> PasarGuardNode | None:
         lock = self._user_sync_locks.setdefault(node_id, asyncio.Lock())
         async with lock:
             if await self.get_node(node_id) is not node:
@@ -344,19 +379,7 @@ class NodeManager:
         the caller gets ``UserSyncPreemptedError`` instead. Cancelling the caller still
         cancels the sync.
         """
-        task = asyncio.create_task(self._sync_full(node_id, users, flush_pending=flush_pending))
-        self._track_user_sync(node_id, task)
-        try:
-            return await task
-        except asyncio.CancelledError:
-            current = asyncio.current_task()
-            if task.cancelled() and (current is None or not current.cancelling()):
-                raise UserSyncPreemptedError(
-                    f"user sync to node {node_id} was cancelled by a connection change or removal of the node"
-                ) from None
-            raise
-        finally:
-            self._untrack_user_sync(node_id, task)
+        return await self._run_preemptible_sync(node_id, self._sync_full(node_id, users, flush_pending=flush_pending))
 
     async def _sync_full(
         self,
