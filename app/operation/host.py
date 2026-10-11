@@ -159,6 +159,8 @@ class HostOperation(BaseOperation):
     ) -> RemoveHostsResponse:
         """Remove multiple hosts by ID"""
         ids_list = list(bulk_hosts.ids)
+        if not ids_list:
+            await self.raise_error(message="Host selection cannot be empty", code=400)
         db_hosts = await get_hosts(db, HostListQuery(ids=ids_list, limit=len(ids_list)))
 
         found_ids = {h.id for h in db_hosts}
@@ -193,7 +195,10 @@ class HostOperation(BaseOperation):
         *,
         is_disabled: bool,
     ) -> BulkHostsActionResponse:
+        """Change the enabled state of an explicitly selected, nonempty set of hosts."""
         ids_list = list(bulk_hosts.ids)
+        if not ids_list:
+            await self.raise_error(message="Host selection cannot be empty", code=400)
         db_hosts = await get_hosts(db, HostListQuery(ids=ids_list, limit=len(ids_list)))
 
         found_ids = {h.id for h in db_hosts}
