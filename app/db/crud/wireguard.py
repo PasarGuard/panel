@@ -46,6 +46,25 @@ def core_config_dict(core: CoreConfig) -> dict:
     return cfg
 
 
+def wg_core_interfaces(core: CoreConfig) -> list[dict]:
+    """Allocation interfaces for kernel WG or managed Xray WG inbounds.
+
+    Xray outbounds and excluded inbounds never participate in user allocation.
+    Only this view uses interface_name; the Xray config sent to nodes is unchanged.
+    """
+    config = core_config_dict(core)
+    if core.type == CoreType.wg:
+        return [config]
+    if core.type not in (None, CoreType.xray):
+        return []
+    excluded = set(core.exclude_inbound_tags or []) | set(core.fallbacks_inbound_tags or [])
+    return [
+        {"interface_name": inbound.get("tag"), "address": (inbound.get("settings") or {}).get("address", [])}
+        for inbound in config.get("inbounds", [])
+        if inbound.get("protocol") == "wireguard" and inbound.get("tag") not in excluded
+    ]
+
+
 def wg_core_subnets(config: dict) -> list[IpNetwork]:
     """Unique client subnets of a WG core (IPv4 and/or IPv6), from interface addresses."""
     seen: dict[str, IpNetwork] = {}
@@ -89,9 +108,9 @@ class WgNamespace:
 def wg_namespaces(cores: Iterable[CoreConfig]) -> dict[str, WgNamespace]:
     by_key: dict[str, list[tuple[dict, IpNetwork]]] = {}
     for core in cores:
-        cfg = core_config_dict(core)
-        for subnet in wg_core_subnets(cfg):
-            by_key.setdefault(str(subnet), []).append((cfg, subnet))
+        for cfg in wg_core_interfaces(core):
+            for subnet in wg_core_subnets(cfg):
+                by_key.setdefault(str(subnet), []).append((cfg, subnet))
 
     namespaces: dict[str, WgNamespace] = {}
     for key, entries in by_key.items():
@@ -159,9 +178,10 @@ def wg_core_tags(cores: Iterable[CoreConfig]) -> set[str]:
     """Interface names (= inbound tags) of all WG cores, subnet or not."""
     tags: set[str] = set()
     for core in cores:
-        tag = str(core_config_dict(core).get("interface_name") or "").strip()
-        if tag:
-            tags.add(tag)
+        for cfg in wg_core_interfaces(core):
+            tag = str(cfg.get("interface_name") or "").strip()
+            if tag:
+                tags.add(tag)
     return tags
 
 
@@ -308,8 +328,9 @@ def _peer_sort_key(entry: str) -> tuple[int, int]:
 
 
 async def get_wg_cores(db: AsyncSession) -> list[CoreConfig]:
-    result = await db.execute(select(CoreConfig).where(CoreConfig.type == CoreType.wg))
-    return list(result.scalars().all())
+    """Cores with managed WireGuard interfaces, across both backend types."""
+    result = await db.execute(select(CoreConfig))
+    return [core for core in result.scalars().all() if wg_core_interfaces(core)]
 
 
 def _accessible_tags_stmt(*, tags: Iterable[str] | None = None, user_ids: Iterable[int] | None = None):

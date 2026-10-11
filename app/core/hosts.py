@@ -119,7 +119,7 @@ async def _prepare_subscription_inbound_data(
         if wg_over.keepalive_seconds is not None:
             keepalive = wg_over.keepalive_seconds if wg_over.keepalive_seconds > 0 else None
 
-        reserved = wg_over.reserved.strip() if wg_over.reserved else None
+        reserved = wg_over.reserved.strip() if wg_over.reserved else inbound_config.get("reserved")
 
         dns = list(wg_over.dns) if wg_over.dns else None
 
@@ -138,7 +138,7 @@ async def _prepare_subscription_inbound_data(
             wireguard_local_address=inbound_config.get("address", []) or [],
             wireguard_allowed_ips=allowed_ips,
             wireguard_keepalive=keepalive,
-            wireguard_mtu=wg_over.mtu,
+            wireguard_mtu=wg_over.mtu if wg_over.mtu is not None else inbound_config.get("mtu"),
             wireguard_reserved=reserved,
             wireguard_dns=dns,
             fragment_settings=host.fragment_settings.model_dump() if host.fragment_settings else None,
