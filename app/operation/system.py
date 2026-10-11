@@ -1,6 +1,8 @@
 import asyncio
 from datetime import timedelta
 
+from fastapi import HTTPException
+
 from app import __version__
 from app.core.manager import core_manager
 from app.db import AsyncSession
@@ -59,8 +61,9 @@ class SystemOperation(BaseOperation):
                     can_read_admins = False
             if admin.is_owner or can_read_admins:
                 db_admin = await get_admin(db, admin_username, load_users=False, load_usage_logs=False)
-                if db_admin is not None:
-                    admin_param = build_admin_details(db_admin)
+                if db_admin is None:
+                    raise HTTPException(status_code=404, detail="Admin not found")
+                admin_param = build_admin_details(db_admin)
             else:
                 admin_param = admin
         elif not admin.is_owner:
