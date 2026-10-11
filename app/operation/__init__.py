@@ -165,9 +165,7 @@ class BaseOperation:
                 "load_lifetime_used_traffic": load_lifetime_used_traffic,
             }
             if sub.get("user_id") and wireguard_fast:
-                db_user = await get_wireguard_subscription_user(
-                    db, sub["user_id"], load_admin_role=load_admin_role
-                )
+                db_user = await get_wireguard_subscription_user(db, sub["user_id"], load_admin_role=load_admin_role)
             elif sub.get("user_id"):
                 db_user = await get_user_by_id(db, sub["user_id"], **load_kwargs)
             elif sub.get("username"):
@@ -266,7 +264,7 @@ class BaseOperation:
         db: AsyncSession,
         group_id: int,
         *,
-        load_users: bool = True,
+        load_users: bool = False,
         load_inbounds: bool = True,
     ) -> Group:
         db_group = await get_group_by_id(

@@ -23,6 +23,7 @@ import {
   useGetUsersUsage,
 } from '@/service/api'
 import { formatBytes, formatGigabytes } from '@/utils/formatByte'
+import { getChartSeriesColor } from '@/utils/chart-colors'
 import { Skeleton } from '@/components/ui/skeleton'
 import ChartBrush from './chart-brush'
 import DenseChartAreaHint from './dense-chart-area-hint'
@@ -302,16 +303,6 @@ export function AllNodesStackedBarChart() {
     [coresResponse, nodeList],
   )
 
-  const generateDistinctColor = useCallback((index: number, isDark: boolean): string => {
-    const distinctHues = [0, 30, 60, 120, 180, 210, 240, 270, 300, 330, 15, 45, 75, 150, 200, 225, 255, 285, 315, 345]
-    const saturationVariations = [65, 75, 85, 70, 80, 60, 90, 55, 95, 50]
-    const lightnessVariations = isDark ? [45, 55, 35, 50, 40, 60, 30, 65, 25, 70] : [40, 50, 30, 45, 35, 55, 25, 60, 20, 65]
-    const hue = distinctHues[index % distinctHues.length]
-    const saturation = saturationVariations[index % saturationVariations.length]
-    const lightness = lightnessVariations[index % lightnessVariations.length]
-    return `hsl(${hue}, ${saturation}%, ${lightness}%)`
-  }, [])
-
   const activeQueryRange = useMemo(() => {
     const periodOptions = { minuteForOneHour: true, periodOverride: resolvePeriodOverride(periodOverride) }
 
@@ -472,20 +463,10 @@ export function AllNodesStackedBarChart() {
         return
       }
 
-      if (index === 0) {
-        config[series.name] = { label: series.name, color: 'hsl(var(--primary))' }
-        return
-      }
-
-      if (index < 5) {
-        config[series.name] = { label: series.name, color: `hsl(var(--chart-${index + 1}))` }
-        return
-      }
-
-      config[series.name] = { label: series.name, color: generateDistinctColor(index, isDark) }
+      config[series.name] = { label: series.name, color: getChartSeriesColor(index, isDark) }
     })
     return config
-  }, [generateDistinctColor, seriesList, resolvedTheme])
+  }, [seriesList, resolvedTheme])
 
   const labelRangeHint = useMemo(
     () => ({

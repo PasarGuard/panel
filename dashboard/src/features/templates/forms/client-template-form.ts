@@ -81,7 +81,7 @@ rules:
         {
           tag: 'socks',
           port: 10808,
-          listen: '0.0.0.0',
+          listen: '127.0.0.1',
           protocol: 'socks',
           sniffing: { enabled: true, destOverride: ['http', 'tls'], routeOnly: false },
           settings: { auth: 'noauth', udp: true, allowTransparent: false },
@@ -89,7 +89,7 @@ rules:
         {
           tag: 'http',
           port: 10809,
-          listen: '0.0.0.0',
+          listen: '127.0.0.1',
           protocol: 'http',
           sniffing: { enabled: true, destOverride: ['http', 'tls'], routeOnly: false },
           settings: { auth: 'noauth', udp: true, allowTransparent: false },

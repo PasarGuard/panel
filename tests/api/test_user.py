@@ -3,7 +3,7 @@ import io
 import json
 import time
 import zipfile
-from base64 import b64encode
+from base64 import b64decode, b64encode
 from copy import deepcopy
 from datetime import UTC, datetime, timedelta, timezone
 from hashlib import sha256
@@ -17,11 +17,12 @@ from sqlalchemy import delete, event, func, select, update
 from app.db.crud.hwid import register_user_hwid
 from app.db.crud.user import get_user as get_db_user, get_users as get_db_users, update_users_status
 from app.db.models import NodeUserUsage, User, UserStatus, UserUsageResetLogs
-from app.models.settings import ConfigFormat, SubRule, Subscription
+from app.models.settings import ConfigFormat, HeaderPlacement, SubRule, Subscription
 from app.models.stats import Period, UserCountMetric, UserCountMetricStat, UserCountMetricStatsList
 from app.models.user import UserListQuery
 from app.models.validators import MAX_ON_HOLD_EXPIRE_DURATION_SECONDS
 from app.operation.subscription import SubscriptionOperation
+from app.subscription.share import inject_body_placement
 from app.utils import jwt as jwt_utils
 from app.utils.crypto import generate_wireguard_keypair, get_wireguard_public_key
 from app.utils.jwt import create_admin_token, create_subscription_token, get_secret_key, get_subscription_payload
@@ -42,6 +43,7 @@ from tests.api.helpers import (
     delete_group,
     delete_user,
     delete_user_template,
+    set_user_hwids,
     unique_name,
 )
 from tests.api.sample_data import XRAY_CONFIG
@@ -1280,6 +1282,64 @@ def test_user_subscription_applies_rule_response_headers(access_token):
         cleanup_groups(access_token, core, groups)
 
 
+def test_user_subscription_body_start_placement_moves_headers_into_body(access_token, mock_settings):
+    """When header_placement is body_start, subscription metadata moves into #comment lines."""
+    settings_response = client.get("/api/settings", headers=auth_headers(access_token))
+    assert settings_response.status_code == status.HTTP_200_OK
+    original_subscription = settings_response.json()["subscription"]
+
+    updated_subscription = {
+        **original_subscription,
+        "header_placement": "body_start",
+    }
+
+    update_response = client.put(
+        "/api/settings",
+        headers=auth_headers(access_token),
+        json={"subscription": updated_subscription},
+    )
+    assert update_response.status_code == status.HTTP_200_OK
+    assert update_response.json()["subscription"]["header_placement"] == "body_start"
+
+    # tests/api mocks app.settings.get_settings to a static snapshot (see conftest.mock_settings),
+    # so runtime subscription generation doesn't observe the PUT above; mirror it in the snapshot.
+    original_header_placement = mock_settings["subscription"].get("header_placement", "header")
+    mock_settings["subscription"]["header_placement"] = "body_start"
+
+    core, groups = setup_groups(access_token, 1)
+    hosts = create_hosts_for_inbounds(access_token)
+    user = create_user(
+        access_token,
+        group_ids=[groups[0]["id"]],
+        payload={"username": unique_name("test_user_body_start_placement")},
+    )
+
+    try:
+        response = client.get(user["subscription_url"], headers={"User-Agent": "GenericClient"})
+        assert response.status_code == status.HTTP_200_OK
+        assert "profile-update-interval" not in response.headers
+
+        decoded = b64decode(response.text).decode()
+        lines = [line for line in decoded.splitlines() if line]
+        assert lines
+        assert any(line.startswith("#profile-update-interval:") for line in lines)
+        config_line_index = next(i for i, line in enumerate(lines) if not line.startswith("#"))
+        comment_indexes = [i for i, line in enumerate(lines) if line.startswith("#")]
+        assert all(i < config_line_index for i in comment_indexes)
+    finally:
+        mock_settings["subscription"]["header_placement"] = original_header_placement
+        restore_response = client.put(
+            "/api/settings",
+            headers=auth_headers(access_token),
+            json={"subscription": original_subscription},
+        )
+        assert restore_response.status_code == status.HTTP_200_OK
+        delete_user(access_token, user["username"])
+        for host in hosts:
+            client.delete(f"/api/host/{host['id']}", headers=auth_headers(access_token))
+        cleanup_groups(access_token, core, groups)
+
+
 def test_wireguard_subscription_outputs_are_consistent(access_token):
     interface_private_key, _ = generate_wireguard_keypair()
     interface_public_key = get_wireguard_public_key(interface_private_key)
@@ -1872,6 +1932,84 @@ def test_detect_client_rule_matches_user_agent():
     assert matched_rule.response_headers["x-subheader"] == "Hello {USERNAME}"
 
 
+def test_split_headers_for_placement_keeps_headers_unchanged_by_default():
+    headers = {"profile-update-interval": "1", "content-disposition": 'attachment; filename="x"'}
+
+    result_headers, body_lines = SubscriptionOperation._split_headers_for_placement(
+        headers, HeaderPlacement.header, ConfigFormat.links
+    )
+
+    assert result_headers == headers
+    assert body_lines == []
+
+
+def test_split_headers_for_placement_moves_headers_to_body_for_safe_format():
+    headers = {
+        "profile-update-interval": "1",
+        "content-disposition": 'attachment; filename="x"',
+        "cache-control": "no-store",
+    }
+
+    result_headers, body_lines = SubscriptionOperation._split_headers_for_placement(
+        headers, HeaderPlacement.body_start, ConfigFormat.links
+    )
+
+    assert result_headers == {
+        "content-disposition": 'attachment; filename="x"',
+        "cache-control": "no-store",
+    }
+    assert body_lines == ["#profile-update-interval: 1"]
+
+
+def test_split_headers_for_placement_falls_back_to_header_for_json_formats():
+    headers = {"profile-update-interval": "1"}
+
+    result_headers, body_lines = SubscriptionOperation._split_headers_for_placement(
+        headers, HeaderPlacement.body_start, ConfigFormat.xray
+    )
+
+    assert result_headers == headers
+    assert body_lines == []
+
+
+def test_inject_body_placement_prepends_lines_for_plain_text():
+    result = inject_body_placement("vless://example", ["#profile-update-interval: 1"], "body_start", False)
+
+    assert result == "#profile-update-interval: 1\nvless://example"
+
+
+def test_inject_body_placement_appends_lines_for_plain_text():
+    result = inject_body_placement("vless://example", ["#profile-update-interval: 1"], "body_end", False)
+
+    assert result == "vless://example\n#profile-update-interval: 1"
+
+
+def test_inject_body_placement_prepends_lines_for_base64():
+    encoded = b64encode(b"vless://example").decode()
+
+    result = inject_body_placement(encoded, ["#profile-update-interval: 1"], "body_start", True)
+
+    decoded = b64decode(result).decode()
+    assert decoded == "#profile-update-interval: 1\nvless://example"
+
+
+def test_inject_body_placement_appends_lines_for_base64():
+    encoded = b64encode(b"vless://example").decode()
+
+    result = inject_body_placement(encoded, ["#profile-update-interval: 1"], "body_end", True)
+
+    decoded = b64decode(result).decode()
+    assert decoded == "vless://example\n#profile-update-interval: 1"
+
+
+def test_inject_body_placement_leaves_bytes_untouched():
+    original = b"raw-binary-config"
+
+    result = inject_body_placement(original, ["#profile-update-interval: 1"], "body_start", False)
+
+    assert result is original
+
+
 def test_user_get(access_token):
     """Test that the user get by id route is accessible."""
     core, groups = setup_groups(access_token, 1)
@@ -2046,6 +2184,77 @@ def test_reset_by_next_user_usage(access_token):
         assert response.status_code == status.HTTP_200_OK
     finally:
         delete_user(access_token, user["username"])
+        cleanup_groups(access_token, core, groups)
+
+
+def _activate_next_plan_template(access_token: str, username: str, template_id: int) -> dict:
+    """Give the user a template next plan and activate it now."""
+    update = client.put(
+        f"/api/user/{username}",
+        headers=auth_headers(access_token),
+        json={"next_plan": {"user_template_id": template_id}},
+    )
+    assert update.status_code == status.HTTP_200_OK, update.text
+    response = client.post(f"/api/user/{username}/active_next", headers=auth_headers(access_token))
+    assert response.status_code == status.HTTP_200_OK, response.text
+    return response.json()
+
+
+def test_next_plan_with_on_hold_template_keeps_user_on_hold(access_token):
+    """An on-hold template renewal stays on hold, with the template's timeout turned into a deadline."""
+    core, groups = setup_groups(access_token, 1)
+    template = create_user_template(
+        access_token,
+        group_ids=[groups[0]["id"]],
+        expire_duration=86400 * 30,
+        status_value="on_hold",
+        on_hold_timeout=86400 * 7,
+    )
+    user = create_user(
+        access_token,
+        group_ids=[groups[0]["id"]],
+        payload={"username": unique_name("test_next_plan_on_hold")},
+    )
+    try:
+        before = datetime.now(UTC)
+        body = _activate_next_plan_template(access_token, user["username"], template["id"])
+
+        assert body["status"] == "on_hold"
+        assert not body["expire"]
+        assert body["on_hold_expire_duration"] == 86400 * 30
+        on_hold_timeout = datetime.fromisoformat(body["on_hold_timeout"])
+        if on_hold_timeout.tzinfo is None:
+            on_hold_timeout = on_hold_timeout.replace(tzinfo=UTC)
+        assert timedelta(days=7, minutes=-2) < on_hold_timeout - before < timedelta(days=7, minutes=2)
+    finally:
+        delete_user(access_token, user["username"])
+        delete_user_template(access_token, template["id"])
+        cleanup_groups(access_token, core, groups)
+
+
+def test_next_plan_with_active_template_clears_on_hold_fields(access_token):
+    """Moving an on-hold user to an immediate plan drops the old hold, so it cannot start later."""
+    core, groups = setup_groups(access_token, 1)
+    template = create_user_template(access_token, group_ids=[groups[0]["id"]], expire_duration=86400 * 30)
+    user = create_user(
+        access_token,
+        group_ids=[groups[0]["id"]],
+        payload={
+            "username": unique_name("test_next_plan_active"),
+            "status": "on_hold",
+            "on_hold_expire_duration": 3600,
+        },
+    )
+    try:
+        body = _activate_next_plan_template(access_token, user["username"], template["id"])
+
+        assert body["status"] == "active"
+        assert body["expire"]
+        assert not body["on_hold_expire_duration"]
+        assert not body["on_hold_timeout"]
+    finally:
+        delete_user(access_token, user["username"])
+        delete_user_template(access_token, template["id"])
         cleanup_groups(access_token, core, groups)
 
 
@@ -3449,3 +3658,26 @@ def test_get_users_sub_update_chart_operator_can_view_own(access_token):
         assert response.status_code == status.HTTP_200_OK
     finally:
         delete_admin(access_token, operator["username"])
+
+
+def test_get_users_returns_and_sorts_by_hwid_count(access_token):
+    tag = unique_name("hwid_count")
+    users = [create_user(access_token, username=f"{tag}_{name}") for name in ("a", "b", "c")]
+    try:
+        for user, devices in zip(users, (2, 0, 1)):
+            set_user_hwids(user["id"], devices)
+
+        for sort, expected in (("hwid_count", [0, 1, 2]), ("-hwid_count", [2, 1, 0])):
+            response = client.get(
+                "/api/users", headers=auth_headers(access_token), params={"search": tag, "sort": sort}
+            )
+            assert response.status_code == status.HTTP_200_OK, response.text
+            body = response.json()
+            # The count expression must not change the total
+            assert body["total"] == 3
+            assert [user["hwid_count"] for user in body["users"]] == expected
+    finally:
+        for user in users:
+            # SQLite keeps a deleted user's devices and can hand its id to a later test's user
+            set_user_hwids(user["id"], 0)
+            delete_user(access_token, user["username"])

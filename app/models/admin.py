@@ -211,6 +211,7 @@ class AdminValidationResult(BaseModel):
     id: int | None = None
     username: str
     status: AdminStatus = Field(default=AdminStatus.active)
+    hashed_password: str | None = Field(default=None, exclude=True, repr=False)
 
 
 class AdminsResponse(BaseModel):

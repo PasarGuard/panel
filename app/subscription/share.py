@@ -124,6 +124,22 @@ async def generate_subscription(
     return await get_or_create_sub_config(cache_key, render)
 
 
+def inject_body_placement(conf: str | bytes, lines: list[str], placement: str, as_base64: bool) -> str | bytes:
+    if isinstance(conf, bytes) or not lines:
+        return conf
+
+    block = "\n".join(lines)
+    if as_base64:
+        try:
+            decoded = base64.b64decode(conf).decode()
+        except (ValueError, UnicodeDecodeError):
+            return conf
+        merged = f"{block}\n{decoded}" if placement == "body_start" else f"{decoded}\n{block}"
+        return base64.b64encode(merged.encode()).decode()
+
+    return f"{block}\n{conf}" if placement == "body_start" else f"{conf}\n{block}"
+
+
 def format_time_left(seconds_left: int) -> str:
     if not seconds_left or seconds_left <= 0:
         return "∞"
