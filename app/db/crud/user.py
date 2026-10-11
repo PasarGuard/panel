@@ -502,6 +502,8 @@ async def get_users(
     if load_lifetime_used_traffic:
         options.append(with_expression(User._reseted_usage_query, _user_reset_traffic_subquery()))
     stmt = select(User).options(*options)
+    if load_lifetime_used_traffic:
+        stmt = stmt.execution_options(populate_existing=True)
     if load_hwid_count:
         stmt = stmt.options(with_expression(User.hwid_count, _user_hwid_count_subquery()))
 
@@ -974,6 +976,7 @@ async def get_users_by_ids(
     load_lifetime_used_traffic: bool = False,
     populate_existing: bool = False,
 ) -> list[User]:
+    """Load users in request order with optional history, aggregates and refreshed state."""
     if not user_ids:
         return []
 

@@ -994,6 +994,7 @@ class UserOperation(BaseOperation):
         load_admin_role: bool = False,
         scope_action: str = "read",
     ) -> list[User]:
+        """Validate the entire selection against scope, using aggregates when history is omitted."""
         if not user_ids:
             return []
 
@@ -1024,10 +1025,12 @@ class UserOperation(BaseOperation):
 
     @staticmethod
     def _build_bulk_action_response(users: list[User | UserNotificationResponse]) -> BulkUsersActionResponse:
+        """Summarize the users returned by a completed bulk action."""
         usernames = [user.username for user in users]
         return BulkUsersActionResponse(users=usernames, count=len(usernames))
 
     async def _load_users_by_ids(self, db: AsyncSession, user_ids: list[int]) -> list[User]:
+        """Refresh bulk results and node-sync relationships without materializing reset history."""
         return await get_users_by_ids(
             db,
             user_ids,
@@ -1039,6 +1042,7 @@ class UserOperation(BaseOperation):
         )
 
     async def _load_users_by_usernames(self, db: AsyncSession, usernames: list[str]) -> list[User]:
+        """Load bulk results by username with their administrators' roles."""
         return await get_users_by_usernames(db, usernames, load_admin_role=True)
 
     async def bulk_remove_users(
