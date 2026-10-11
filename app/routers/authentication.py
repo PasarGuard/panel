@@ -21,7 +21,7 @@ from app.db.models import Admin, AdminUsageLogs, User
 from app.models.admin import AdminDetails, AdminRoleData, AdminStatus, AdminValidationResult, verify_password
 from app.models.admin_role import RoleAccess, RoleFeatures, RoleLimits, RolePermissions
 from app.models.settings import Telegram
-from app.operation.permissions import PermissionDenied, enforce_permission, is_scope_all
+from app.operation.permissions import PermissionDenied, enforce_permission, intersect_permissions, is_scope_all
 from app.settings import telegram_settings
 from app.utils.jwt import get_admin_payload, get_admin_token_binding, get_secret_key
 from config import auth_settings, runtime_settings
@@ -91,6 +91,7 @@ async def get_admin_from_api_key(db: AsyncSession, raw_key: str, *, with_metrics
 async def _get_admin_from_api_key_internal(
     db: AsyncSession, raw_key: str, *, with_metrics: bool = False
 ) -> AdminDetails | None:
+    """Authenticate a usable key and cap custom grants by the admin's current role."""
     if not raw_key:
         return
 
@@ -123,10 +124,13 @@ async def _get_admin_from_api_key_internal(
         admin = build_admin_details(db_admin)
 
     if not db_key.inherit_permissions:
-        # Build a minimal AdminRoleData from the stored permissions snapshot.
-        # An empty snapshot means "no permissions", never "fall back to the admin's role".
+        permissions = RolePermissions.model_validate(db_key.permissions)
+        if not admin.is_owner:
+            permissions = intersect_permissions(
+                permissions, admin.role.permissions if admin.role else RolePermissions()
+            )
         role_data = dict(admin.role.model_dump() if admin.role else {})
-        role_data["permissions"] = RolePermissions.model_validate(db_key.permissions).model_dump()
+        role_data["permissions"] = permissions.model_dump()
         role_data["is_owner"] = False  # API keys are never owner-level
         admin.role = AdminRoleData.model_validate(role_data)
     return admin
