@@ -105,7 +105,7 @@ async def modify_user_template(
         db_user_template.on_hold_timeout = modified_user_template.on_hold_timeout
     if modified_user_template.is_disabled is not None:
         db_user_template.is_disabled = modified_user_template.is_disabled
-    if modified_user_template.data_limit_reset_strategy is not None:
+    if "data_limit_reset_strategy" in modified_user_template.model_fields_set:
         db_user_template.data_limit_reset_strategy = modified_user_template.data_limit_reset_strategy
 
     await db.commit()
