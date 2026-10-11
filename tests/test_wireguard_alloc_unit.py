@@ -16,11 +16,12 @@ from app.db.crud.wireguard import (
     wg_core_subnets,
     wg_namespaces,
 )
+from app.models.core import CoreType
 from app.utils.crypto import generate_wireguard_keypair, get_wireguard_public_key
 
 
 def core(interface_name, addresses):
-    return SimpleNamespace(config={"interface_name": interface_name, "address": addresses})
+    return SimpleNamespace(type=CoreType.wg, config={"interface_name": interface_name, "address": addresses})
 
 
 def pool_row(next_offset=1, free_offsets=None):
