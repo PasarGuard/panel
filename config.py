@@ -179,6 +179,8 @@ class LoggingSettings(EnvSettings):
 class AuthSettings(EnvSettings):
     sudo_username: str = Field(default="", validation_alias="SUDO_USERNAME")
     sudo_password: str = Field(default="", validation_alias="SUDO_PASSWORD")
+    passkey_rp_id: str = Field(default="", validation_alias="PASSKEY_RP_ID")
+    passkey_origin: str = Field(default="", validation_alias="PASSKEY_ORIGIN")
     sudoers: dict[str, str] = Field(default_factory=dict)
 
     @model_validator(mode="after")
@@ -191,6 +193,11 @@ class AuthSettings(EnvSettings):
 class UsageSettings(EnvSettings):
     disable_recording_node_usage: bool = Field(default=False, validation_alias="DISABLE_RECORDING_NODE_USAGE")
     enable_recording_nodes_stats: bool = Field(default=False, validation_alias="ENABLE_RECORDING_NODES_STATS")
+    user_usage_history_flush_interval: int = Field(
+        default=60,
+        ge=1,
+        validation_alias="USER_USAGE_HISTORY_FLUSH_INTERVAL",
+    )
     reset_user_usage_clean_chart_data: bool = Field(
         default=False,
         validation_alias="RESET_USER_USAGE_CLEAN_CHART_DATA",
@@ -199,6 +206,8 @@ class UsageSettings(EnvSettings):
 
 class JobSettings(EnvSettings):
     core_health_check_interval: int = Field(default=10, validation_alias="JOB_CORE_HEALTH_CHECK_INTERVAL")
+    node_health_fail_threshold: int = Field(default=3, ge=1, validation_alias="NODE_HEALTH_FAIL_THRESHOLD")
+    node_health_recover_threshold: int = Field(default=2, ge=1, validation_alias="NODE_HEALTH_RECOVER_THRESHOLD")
     record_node_usages_interval: int = Field(default=30, validation_alias="JOB_RECORD_NODE_USAGES_INTERVAL")
     record_user_usages_interval: int = Field(default=10, validation_alias="JOB_RECORD_USER_USAGES_INTERVAL")
     review_users_interval: int = Field(default=30, validation_alias="JOB_REVIEW_USERS_INTERVAL")

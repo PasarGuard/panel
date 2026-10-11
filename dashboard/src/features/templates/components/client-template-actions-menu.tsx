@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { createClientTemplate, useRemoveClientTemplate, ClientTemplateResponse } from '@/service/api'
 import { queryClient } from '@/utils/query-client'
+import { translateHtml } from '@/utils/html-translation'
 
 interface ClientTemplateActionsMenuProps {
   template: ClientTemplateResponse
@@ -32,7 +33,7 @@ const DeleteAlertDialog = ({ template, isOpen, onClose, onConfirm }: { template:
             <span
               dir={dir}
               dangerouslySetInnerHTML={{
-                __html: t('clientTemplates.deletePrompt', {
+                __html: translateHtml(t, 'clientTemplates.deletePrompt', {
                   name: template.name,
                   defaultValue: `Are you sure you want to delete <b>{{name}}</b>? This action cannot be undone.`,
                 }),

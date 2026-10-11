@@ -18,6 +18,7 @@ from .user import (
     get_user_list_query,
     get_user_simple_list_query,
     get_user_usage_query,
+    get_users_usage_breakdown_query,
     get_users_usage_query,
 )
 from .user_template import get_user_template_list_query, get_user_template_simple_list_query
@@ -59,5 +60,6 @@ __all__ = [
     "get_user_template_list_query",
     "get_user_template_simple_list_query",
     "get_user_usage_query",
+    "get_users_usage_breakdown_query",
     "get_users_usage_query",
 ]

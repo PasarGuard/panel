@@ -25,6 +25,7 @@ from app.db.crud.node import (
     modify_node,
     remove_node,
     remove_nodes,
+    reorder_nodes,
     reset_node_usage,
     update_node_status,
 )
@@ -65,7 +66,7 @@ from app.models.stats import (
 )
 from app.nats import needs_shared_bridge_memory
 from app.nats.node_rpc import node_nats_client
-from app.node import core_users, node_manager
+from app.node import UserSyncPreemptedError, core_users, node_manager
 from app.node.manager_sync import publish_node_sync
 from app.node.nats_memory import clear_bridge_memory_for_node
 from app.operation import BaseOperation, OperatorType
@@ -83,12 +84,18 @@ type CoreUsers = list | Callable[[], Awaitable[list]]
 logger = get_logger("node-operation")
 
 
+# Maintenance RPCs (split roles) wait for the node worker, which waits for node-serviced's pg-node command
+# (5 minute deadline; the bridge itself allows 330 s). The default node RPC timeout (30 s) is far too short.
+_MAINTENANCE_RPC_TIMEOUT = 340.0
+
+
 class NodeOperation(BaseOperation):
     # Local Start RPCs in progress on this process. Health checks must not fire a
     # second Start just because pg-node still returns "core is not started yet".
     _in_flight_connects: ClassVar[set[int]] = set()
 
     def __init__(self, operator_type: OperatorType):
+        """Select local or remote node-operation handlers for this process role."""
         super().__init__(operator_type)
         if runtime_settings.role.runs_node:
             sync = needs_shared_bridge_memory()
@@ -99,6 +106,7 @@ class NodeOperation(BaseOperation):
             self._disconnect_single_impl = (
                 self._disconnect_single_node_sync if sync else self._disconnect_single_node_local
             )
+
             self._sync_node_users_impl = self._sync_node_users_local
             self._get_node_stats_impl = self._get_node_system_stats_local
             self._get_nodes_stats_impl = self._get_nodes_system_stats_local
@@ -130,6 +138,12 @@ class NodeOperation(BaseOperation):
             self._get_logs_impl = self._get_logs_remote
             self._restart_all_impl = self._restart_all_nodes_remote
 
+    async def reorder_nodes(self, db: AsyncSession, ordered_ids: list[int], admin: AdminDetails) -> None:
+        """Persist a node order requested by an administrator."""
+        if not await reorder_nodes(db, ordered_ids):
+            await self.raise_error(message="Node not found", code=404, db=db)
+        logger.info('Nodes reordered by admin "%s"', admin.username)
+
     async def get_db_nodes(
         self,
         db: AsyncSession,
@@ -152,7 +166,7 @@ class NodeOperation(BaseOperation):
         """Get lightweight node list with only id and name"""
         rows, total = await get_nodes_simple(db=db, query=query)
 
-        nodes = [NodeSimple(id=row[0], name=row[1], status=row[2]) for row in rows]
+        nodes = [NodeSimple(id=row[0], name=row[1], status=row[2], core_config_id=row[3]) for row in rows]
 
         return NodesSimpleResponse(nodes=nodes, total=total)
 
@@ -165,7 +179,8 @@ class NodeOperation(BaseOperation):
         xray_version: str = "",
         node_version: str = "",
         send_notification: bool = True,
-    ):
+        expected_status: NodeStatus | None = None,
+    ) -> bool:
         """
         Update single node status with optional notification.
 
@@ -177,33 +192,44 @@ class NodeOperation(BaseOperation):
             xray_version (str): Xray version.
             node_version (str): Node version.
             send_notification (bool): Whether to send notification.
+            expected_status: Ignore observations made before a concurrent status change.
         """
         db_node = await get_node_by_id(db, node_id, load_usage_logs=False)
         if not db_node:
-            return
+            return False
+        if expected_status is not None and db_node.status != expected_status:
+            return False
 
         if db_node.status in (NodeStatus.disabled, NodeStatus.limited) and status not in (
             NodeStatus.disabled,
             NodeStatus.limited,
         ):
-            return
+            return False
 
         old_status = db_node.status
 
+        if expected_status is not None and old_status == status and db_node.message == message:
+            return True
+
         if status == NodeStatus.error:
+            if expected_status is not None:
+                xray_version, node_version = db_node.xray_version, db_node.node_version
             logger.error(f"Failed to connect node {db_node.name} with id {db_node.id}, Error: {message}")
 
-        await update_node_status(
+        updated = await update_node_status(
             db=db,
             db_node=db_node,
             status=status,
             message=message,
             xray_version=xray_version,
             node_version=node_version,
+            expected_status=expected_status,
         )
 
+        if updated is None or db_node.status != status:
+            return False
         if not send_notification:
-            return
+            return True
 
         if status == NodeStatus.connected and old_status != NodeStatus.connected:
             node_notif = NodeNotification(
@@ -223,6 +249,8 @@ class NodeOperation(BaseOperation):
                 message=truncated_message,
             )
             asyncio.create_task(notification.error_node(node_notif))
+
+        return True
 
     @staticmethod
     async def _get_core_users_map(
@@ -634,7 +662,9 @@ class NodeOperation(BaseOperation):
         """
         await self._connect_bulk_impl(db, nodes, force_start=force_start)
 
-    async def connect_single_node(self, db: AsyncSession, node_id: int, *, force_start: bool = False) -> None:
+    async def connect_single_node(
+        self, db: AsyncSession, node_id: int, *, force_start: bool = False, health_check: bool = False
+    ) -> None:
         """
         Connect a single node and update its status (optimized for single-node operations).
 
@@ -645,7 +675,10 @@ class NodeOperation(BaseOperation):
             db (AsyncSession): Database session.
             node_id (int): ID of the node to connect.
             force_start: Push a new Start RPC (admin restart / core apply).
+            health_check: Defer automatic recovery status until probes confirm it.
         """
+        if health_check:
+            return await self.recover_node(db, node_id)
         return await self._connect_single_impl(db, node_id, force_start=force_start)
 
     async def disconnect_single_node(self, node_id: int) -> None:
@@ -895,7 +928,17 @@ class NodeOperation(BaseOperation):
             {"node_ids": [node.id for node in nodes], "force_start": force_start},
         )
 
-    async def _connect_single_node_local(self, db: AsyncSession, node_id: int, *, force_start: bool = False) -> bool:
+    async def recover_node(self, db: AsyncSession, node_id: int) -> None:
+        """Repair a node, leaving status/notifications to consecutive health probes."""
+        if (
+            await self._connect_single_node_local(db, node_id, defer_health_status=True)
+            and needs_shared_bridge_memory()
+        ):
+            await publish_node_sync("connect", node_id)
+
+    async def _connect_single_node_local(
+        self, db: AsyncSession, node_id: int, *, force_start: bool = False, defer_health_status: bool = False
+    ) -> bool:
         db_node = await get_node_by_id(db, node_id, load_usage_logs=False)
         if db_node is None or db_node.status in (NodeStatus.disabled, NodeStatus.limited):
             return False
@@ -910,6 +953,9 @@ class NodeOperation(BaseOperation):
         try:
             await node_manager.update_node(db_node)
         except NodeAPIError as e:
+            if defer_health_status:
+                logger.warning("Node recovery failed for %s: %s", node_id, e.detail)
+                return False
             # Update status to error using simple CRUD
             await update_node_status(
                 db=db,
@@ -932,6 +978,10 @@ class NodeOperation(BaseOperation):
 
         if not result:
             return False
+        if defer_health_status:
+            # A successful Start/attach is not yet a sustained health recovery.
+            # A failed repair must not bypass the health failure threshold either.
+            return result["status"] == NodeStatus.connected
 
         # Update status using simple CRUD (NOT bulk!)
         await update_node_status(
@@ -1195,6 +1245,13 @@ class NodeOperation(BaseOperation):
             users = users_by_core.get(core_id, [])
             if await node_manager.sync_full(node_id, users, flush_pending=flush_users) is None:
                 await self.raise_error(message="Node is not connected", code=409)
+        except UserSyncPreemptedError:
+            # An edit of the node's connection or its removal won; this is not a node fault,
+            # so the node status is left alone and the admin can simply retry.
+            await self.raise_error(
+                message="User sync was interrupted by a change to the node's connection or its removal, retry",
+                code=409,
+            )
         except NodeAPIError as e:
             await update_node_status(db=db, db_node=db_node, status=NodeStatus.error, message=e.detail)
             await self.raise_error(message=e.detail, code=e.code)
@@ -1220,7 +1277,9 @@ class NodeOperation(BaseOperation):
 
     async def _update_node_api_remote(self, node_id: int) -> dict:
         try:
-            return await node_nats_client.request("update_node_api", {"node_id": node_id})
+            return await node_nats_client.request(
+                "update_node_api", {"node_id": node_id}, timeout=_MAINTENANCE_RPC_TIMEOUT
+            )
         except RuntimeError as exc:
             await self.handle_rpc_error(exc)
 
@@ -1238,6 +1297,7 @@ class NodeOperation(BaseOperation):
         return await node_nats_client.request(
             "update_core",
             {"node_id": node_id, "core_update": node_core_update.model_dump(mode="json")},
+            timeout=_MAINTENANCE_RPC_TIMEOUT,
         )
 
     async def _update_geofiles_local(self, node_id: int, node_geofiles_update: NodeGeoFilesUpdate) -> dict:
@@ -1254,6 +1314,7 @@ class NodeOperation(BaseOperation):
         return await node_nats_client.request(
             "update_geofiles",
             {"node_id": node_id, "geofiles_update": node_geofiles_update.model_dump(mode="json")},
+            timeout=_MAINTENANCE_RPC_TIMEOUT,
         )
 
     async def bulk_remove_nodes(
