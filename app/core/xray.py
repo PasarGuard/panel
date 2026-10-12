@@ -61,6 +61,7 @@ class XRayConfig(dict):
         self._inbounds = []
         self._inbounds_by_tag = {}
         self._fallbacks_inbound = []
+        self._processed_tls_sans: dict[int, list[str]] = {}
         self._protocols: frozenset[ProxyProtocol] = frozenset()
 
         # Registery pattern for network handlers, making it easy to add support for new network types in the future
@@ -191,6 +192,13 @@ class XRayConfig(dict):
         settings["fp"] = tls_settings.get("fingerprint", "chrome")
         if sni := tls_settings.get("serverName"):
             settings["sni"].append(str(sni))
+        # The same real tlsSettings object can arrive from several passes (the parent and its fallback children).
+        # Do not read the files again: reuse the SANs collected on the first pass.
+        cache_key = id(tls_settings)
+        if cache_key in self._processed_tls_sans:
+            settings["sni"].extend(self._processed_tls_sans[cache_key])
+            return tls_settings
+        processed_sans: list[str] = []
         for certificate in tls_settings.get("certificates", []):
             serve_on_node = certificate.pop("serveOnNode", False)
             if serve_on_node:
@@ -199,7 +207,9 @@ class XRayConfig(dict):
             if certificate.get("certificateFile", None):
                 with open(certificate["certificateFile"], "rb") as file:
                     cert = file.read()
-                    settings["sni"].extend(get_cert_SANs(cert))
+                    cert_sans = get_cert_SANs(cert)
+                    settings["sni"].extend(cert_sans)
+                    processed_sans.extend(cert_sans)
 
                 if certificate.get("keyFile", None):
                     with open(certificate["keyFile"], "rb") as file:
@@ -219,8 +229,11 @@ class XRayConfig(dict):
                     cert = "\n".join(cert)
                 if isinstance(cert, str):
                     cert = cert.encode()
-                settings["sni"].extend(get_cert_SANs(cert))
+                cert_sans = get_cert_SANs(cert)
+                settings["sni"].extend(cert_sans)
+                processed_sans.extend(cert_sans)
 
+        self._processed_tls_sans[cache_key] = processed_sans
         return tls_settings
 
     def _handle_reality_settings(self, tls_settings: dict, settings: dict, inbound_tag: str):
