@@ -83,6 +83,6 @@ dev = [
     "pytest-asyncio>=1.4.0",
     "pytest-watch>=4.2.0",
     "ruff>=0.16.10",
-    "sqlalchemy-utils>=0.41.2",
+    "sqlalchemy-utils>=0.43.0",
     "watchfiles>=1.3.0",
 ]
