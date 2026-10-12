@@ -458,7 +458,7 @@ class XRayConfig(dict):
             # addresses. An empty list also provides no pool for client allocation.
             return None
         if not isinstance(addresses, list):
-            raise ValueError(f"{tag} managed WireGuard inbound needs address CIDRs for client allocation")
+            raise ValueError(f"{tag} managed WireGuard inbound needs address CIDRs for client allocation")  # noqa: TRY004
         allocatable_addresses = []
         for address in addresses:
             try:
@@ -466,7 +466,7 @@ class XRayConfig(dict):
             except (ValueError, TypeError) as exc:
                 raise ValueError(f"{tag} WireGuard address must contain valid IP addresses or CIDRs") from exc
             if not isinstance(address, str):
-                raise ValueError(f"{tag} WireGuard address must contain valid IP addresses or CIDRs")
+                raise ValueError(f"{tag} WireGuard address must contain valid IP addresses or CIDRs")  # noqa: TRY004
             # Xray accepts either a bare IP or a CIDR here. PasarGuard can only
             # manage peers when an address supplies a subnet with room to allocate
             # client IPs; valid host addresses and /32-/128 routes remain unmanaged.

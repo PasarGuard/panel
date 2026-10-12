@@ -2258,7 +2258,6 @@ export interface SettingsSchema {
 }
 
 export interface SubscriptionUserResponse {
-  proxy_settings?: ProxyTable;
   expire?: string | number | null;
   /** data_limit can be 0 or greater */
   data_limit?: number | null;
