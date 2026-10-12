@@ -153,8 +153,12 @@ class XHTTPTransportConfig(BaseTransportConfig):
         return value
 
 
-class XDriveTransportConfig(BaseModel):
-    """XDrive transport settings represented as explicit Xray fields."""
+class XDriveTransportConfig(BaseTransportConfig):
+    """XDrive transport settings represented as explicit Xray fields.
+
+    The inherited path and host stay empty: XDrive has neither, but the shared
+    subscription code reads them for every transport.
+    """
 
     remote_folder: str | None = Field(None, serialization_alias="remoteFolder")
     service: str | None = Field(None)
