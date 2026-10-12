@@ -181,7 +181,7 @@ class XrayConfiguration(BaseSubscription):
     @staticmethod
     def _transport_xdrive(config: XDriveTransportConfig, path: str) -> dict:
         """Build XDrive transport settings using Xray's camelCase JSON keys."""
-        return config.model_dump(by_alias=True, exclude_none=True)
+        return config.model_dump(by_alias=True, exclude_none=True, exclude={"path", "host"})
 
     def _xhttp_download_config(self, download_settings: SubscriptionInboundData | dict) -> dict:
         if isinstance(download_settings, dict):
