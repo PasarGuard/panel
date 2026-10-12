@@ -24,6 +24,7 @@ from app.models.admin_role import (
     AdminRolesSimpleResponse,
 )
 from app.operation import BaseOperation
+from app.operation.admin_sync import sync_role_users_for_block_transition
 from app.utils.logger import get_logger
 
 logger = get_logger("admin-role-operation")
@@ -74,6 +75,8 @@ class AdminRoleOperation(BaseOperation):
         if role is None:
             await self.raise_error(message="Role not found", code=404)
 
+        was_limited_blocked = role.disconnect_users_when_limited
+        was_disabled_blocked = role.disconnect_users_when_disabled
         try:
             role = await modify_role(db, role, data)
             await db.commit()
@@ -82,6 +85,12 @@ class AdminRoleOperation(BaseOperation):
         except IntegrityError:
             await self.raise_error(message="Role with this name already exists", code=409, db=db)
 
+        await sync_role_users_for_block_transition(
+            db,
+            role,
+            was_limited_blocked=was_limited_blocked,
+            was_disabled_blocked=was_disabled_blocked,
+        )
         logger.info(f'Role "{role.name}" modified by admin "{admin.username}"')
         response = AdminRoleResponse.model_validate(role)
         asyncio.create_task(notification.modify_admin_role(response, admin.username))

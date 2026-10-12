@@ -1,7 +1,7 @@
 from app.db import AsyncSession, GetDB
 from app.db.crud.admin import get_active_to_limited_admins, update_admin_status
-from app.db.crud.user import get_admin_users_for_node_sync
-from app.db.models import Admin, AdminStatus, UserStatus
+from app.db.crud.user import get_admin_users_for_node_sync, get_role_users_for_node_sync
+from app.db.models import Admin, AdminRole, AdminStatus, UserStatus
 from app.node.sync import remove_users as sync_remove_users, sync_users
 
 
@@ -41,6 +41,32 @@ async def sync_admin_users_for_block_transition(
         await sync_users(users)
 
     return len(users)
+
+
+async def sync_role_users_for_block_transition(
+    db: AsyncSession,
+    role: AdminRole,
+    *,
+    was_limited_blocked: bool,
+    was_disabled_blocked: bool,
+) -> int:
+    """Dispatch changed role policies only to users whose admin's block state changed."""
+    blocked_statuses: list[AdminStatus] = []
+    unblocked_statuses: list[AdminStatus] = []
+    for status, was_blocked, is_blocked in (
+        (AdminStatus.limited, was_limited_blocked, role.disconnect_users_when_limited),
+        (AdminStatus.disabled, was_disabled_blocked, role.disconnect_users_when_disabled),
+    ):
+        if was_blocked != is_blocked:
+            (blocked_statuses if is_blocked else unblocked_statuses).append(status)
+
+    synced_count = 0
+    for statuses, sync in ((blocked_statuses, sync_remove_users), (unblocked_statuses, sync_users)):
+        if statuses:
+            users = await get_role_users_for_node_sync(db, role.id, statuses)
+            await sync(users)
+            synced_count += len(users)
+    return synced_count
 
 
 async def limit_exceeded_admins(db: AsyncSession, logger=None) -> int:

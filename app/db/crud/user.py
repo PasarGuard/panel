@@ -14,6 +14,7 @@ from sqlalchemy.sql.functions import coalesce
 from app.db.compiles_types import DateDiff
 from app.db.models import (
     Admin,
+    AdminStatus,
     DataLimitResetStrategy,
     Group,
     NextPlan,
@@ -382,9 +383,32 @@ async def get_admin_users_for_node_sync(
     statuses: Sequence[UserStatus] | None = None,
 ) -> list[User]:
     """Load an admin's users for node dispatch, without response-only fields or history."""
+    return await _get_users_for_node_sync(db, User.admin_id == admin_id, statuses=statuses)
+
+
+async def get_role_users_for_node_sync(
+    db: AsyncSession,
+    role_id: int,
+    admin_statuses: Sequence[AdminStatus],
+) -> list[User]:
+    """Load connectable users of affected admins in a role, without per-admin queries."""
+    admin_ids = select(Admin.id).where(Admin.role_id == role_id, Admin.status.in_(admin_statuses))
+    return await _get_users_for_node_sync(
+        db,
+        User.admin_id.in_(admin_ids),
+        statuses=[UserStatus.active, UserStatus.on_hold],
+    )
+
+
+async def _get_users_for_node_sync(
+    db: AsyncSession,
+    admin_filter: ColumnElement[bool],
+    *,
+    statuses: Sequence[UserStatus] | None = None,
+) -> list[User]:
     stmt = (
         select(User)
-        .where(User.admin_id == admin_id)
+        .where(admin_filter)
         .options(
             load_only(User.id, User.admin_id, User.status, User.proxy_settings),
             joinedload(User.admin).joinedload(Admin.role),
