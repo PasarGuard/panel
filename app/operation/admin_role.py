@@ -13,6 +13,7 @@ from app.db.crud.admin_role import (
     get_roles_simple,
     modify_role,
 )
+from app.db.models import AdminStatus
 from app.models.admin import AdminDetails
 from app.models.admin_role import (
     AdminRoleCreate,
@@ -77,6 +78,16 @@ class AdminRoleOperation(BaseOperation):
 
         was_limited_blocked = role.disconnect_users_when_limited
         was_disabled_blocked = role.disconnect_users_when_disabled
+        # Explicit policy fields also reconcile an unchanged value, allowing a
+        # retry to recover a lookup/serialization failure after the previous commit.
+        reconcile_statuses = [
+            status
+            for status, value in (
+                (AdminStatus.limited, data.disconnect_users_when_limited),
+                (AdminStatus.disabled, data.disconnect_users_when_disabled),
+            )
+            if value is not None
+        ]
         try:
             role = await modify_role(db, role, data)
             await db.commit()
@@ -90,6 +101,7 @@ class AdminRoleOperation(BaseOperation):
             role,
             was_limited_blocked=was_limited_blocked,
             was_disabled_blocked=was_disabled_blocked,
+            reconcile_statuses=reconcile_statuses,
         )
         logger.info(f'Role "{role.name}" modified by admin "{admin.username}"')
         response = AdminRoleResponse.model_validate(role)

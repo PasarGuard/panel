@@ -423,7 +423,8 @@ class NodeManager:
                     await node.release_queued_work(captured)
             return node
 
-    async def _update_users(self, users: list[ProtoUser]):
+    async def _update_users(self, users: list[ProtoUser], *, raise_errors: bool = False):
+        """Dispatch a batch to managed nodes, optionally surfacing enqueue failures."""
         nodes = await self._snapshot_node_items()
         if not nodes:
             return
@@ -435,11 +436,19 @@ class NodeManager:
             if isinstance(result, asyncio.CancelledError):
                 # A connection change or removal of the node preempted this delivery.
                 self.logger.debug("User sync to node %s was cancelled by a node lifecycle change", node_id)
+                if raise_errors:
+                    raise UserSyncPreemptedError("User sync was interrupted by a node lifecycle change")
             elif isinstance(result, Exception):
                 self.logger.error("Failed to sync users to node %s: %s", node_id, result)
+                if raise_errors:
+                    raise result
 
-    async def update_users(self, users: list[ProtoUser]) -> None:
-        asyncio.create_task(self._update_users(users))
+    async def update_users(self, users: list[ProtoUser], *, await_dispatch: bool = False) -> None:
+        """Queue a batch, optionally waiting so a producer cannot outrun node dispatch."""
+        if await_dispatch:
+            await self._update_users(users, raise_errors=True)
+        else:
+            asyncio.create_task(self._update_users(users))
 
     async def update_user(self, user: ProtoUser) -> None:
         nodes = await self._snapshot_nodes()

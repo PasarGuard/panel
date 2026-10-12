@@ -1,3 +1,5 @@
+from collections.abc import Sequence
+
 from app.db import AsyncSession, GetDB
 from app.db.crud.admin import get_active_to_limited_admins, update_admin_status
 from app.db.crud.user import get_admin_users_for_node_sync, get_role_users_for_node_sync
@@ -6,6 +8,7 @@ from app.node.sync import remove_users as sync_remove_users, sync_users
 
 
 async def admin_users_sync_blocked(admin: Admin) -> bool:
+    """Return whether the admin's current status and role policy block node access."""
     role = admin.__dict__.get("role")
     if role is None:
         try:
@@ -25,6 +28,7 @@ async def sync_admin_users_for_block_transition(
     admin: Admin,
     was_blocked: bool,
 ) -> int:
+    """Dispatch user removals or restorations when an admin's block state changes."""
     is_blocked = await admin_users_sync_blocked(admin)
     if was_blocked == is_blocked:
         return 0
@@ -49,23 +53,27 @@ async def sync_role_users_for_block_transition(
     *,
     was_limited_blocked: bool,
     was_disabled_blocked: bool,
+    reconcile_statuses: Sequence[AdminStatus] = (),
 ) -> int:
-    """Dispatch changed role policies only to users whose admin's block state changed."""
+    """Apply changed or explicitly retried role policies in bounded user batches."""
     blocked_statuses: list[AdminStatus] = []
     unblocked_statuses: list[AdminStatus] = []
     for status, was_blocked, is_blocked in (
         (AdminStatus.limited, was_limited_blocked, role.disconnect_users_when_limited),
         (AdminStatus.disabled, was_disabled_blocked, role.disconnect_users_when_disabled),
     ):
-        if was_blocked != is_blocked:
+        if was_blocked != is_blocked or status in reconcile_statuses:
             (blocked_statuses if is_blocked else unblocked_statuses).append(status)
 
     synced_count = 0
     for statuses, sync in ((blocked_statuses, sync_remove_users), (unblocked_statuses, sync_users)):
         if statuses:
-            users = await get_role_users_for_node_sync(db, role.id, statuses)
-            await sync(users)
-            synced_count += len(users)
+            after_user_id = 0
+            while users := await get_role_users_for_node_sync(db, role.id, statuses, after_user_id=after_user_id):
+                after_user_id = users[-1].id
+                await sync(users, await_dispatch=True)
+                synced_count += len(users)
+                del users
     return synced_count
 
 

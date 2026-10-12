@@ -390,13 +390,18 @@ async def get_role_users_for_node_sync(
     db: AsyncSession,
     role_id: int,
     admin_statuses: Sequence[AdminStatus],
+    *,
+    after_user_id: int = 0,
+    limit: int = 500,
 ) -> list[User]:
-    """Load connectable users of affected admins in a role, without per-admin queries."""
+    """Load one ID-ordered batch of connectable users of affected admins in a role."""
     admin_ids = select(Admin.id).where(Admin.role_id == role_id, Admin.status.in_(admin_statuses))
     return await _get_users_for_node_sync(
         db,
         User.admin_id.in_(admin_ids),
         statuses=[UserStatus.active, UserStatus.on_hold],
+        after_user_id=after_user_id,
+        limit=limit,
     )
 
 
@@ -405,7 +410,10 @@ async def _get_users_for_node_sync(
     admin_filter: ColumnElement[bool],
     *,
     statuses: Sequence[UserStatus] | None = None,
+    after_user_id: int = 0,
+    limit: int | None = None,
 ) -> list[User]:
+    """Load node-dispatch state, optionally restricted to a bounded ID-ordered page."""
     stmt = (
         select(User)
         .where(admin_filter)
@@ -417,6 +425,8 @@ async def _get_users_for_node_sync(
     )
     if statuses is not None:
         stmt = stmt.where(User.status.in_(statuses))
+    if limit is not None:
+        stmt = stmt.where(User.id > after_user_id).order_by(User.id).limit(limit)
     return list((await db.scalars(stmt)).all())
 
 
