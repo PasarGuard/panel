@@ -191,8 +191,8 @@ class XRayConfig(dict):
         settings["fp"] = tls_settings.get("fingerprint", "chrome")
         if sni := tls_settings.get("serverName"):
             settings["sni"].append(str(sni))
-        # Один и тот же реальный tlsSettings может прийти из нескольких проходов (родитель и fallback-дети).
-        # Повторно файлы не читаем: берём SAN из первого прохода.
+        # The same real tlsSettings object can arrive from several passes (the parent and its fallback children).
+        # Do not read the files again: reuse the SANs collected on the first pass.
         cache_key = id(tls_settings)
         if cache_key in self._processed_tls_sans:
             settings["sni"].extend(self._processed_tls_sans[cache_key])
