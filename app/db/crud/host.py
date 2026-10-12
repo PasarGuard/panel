@@ -121,7 +121,7 @@ async def get_hosts(db: AsyncSession, query: HostListQuery | None = None) -> lis
     query = query or HostListQuery()
     stmt = select(ProxyHost).order_by(ProxyHost.priority.asc())
 
-    if query.ids:
+    if query.ids is not None:
         stmt = stmt.where(ProxyHost.id.in_(query.ids))
     if query.offset:
         stmt = stmt.offset(query.offset)
@@ -182,6 +182,24 @@ async def modify_host(db: AsyncSession, db_host: ProxyHost, modified_host: Creat
     await db.commit()
     await db.refresh(db_host)
     return db_host
+
+
+async def modify_hosts(db: AsyncSession, modified_hosts: list[CreateHost], db_hosts: list[ProxyHost]) -> None:
+    """Apply a validated host batch without committing individual rows."""
+    hosts_by_id = {host.id: host for host in db_hosts}
+    inbounds = await upsert_inbounds(db, [host.inbound_tag for host in modified_hosts if host.inbound_tag])
+    with db.no_autoflush:
+        for host in modified_hosts:
+            host_data = host.model_dump(exclude={"id", "inbound_tag"})
+            db_host = hosts_by_id.get(host.id)
+            if db_host is None:
+                db_host = ProxyHost(**host_data)
+                db.add(db_host)
+            else:
+                for key, value in host_data.items():
+                    setattr(db_host, key, value)
+            db_host.inbound = inbounds.get(host.inbound_tag)
+    await db.commit()
 
 
 async def remove_host(db: AsyncSession, db_host: ProxyHost) -> ProxyHost:
