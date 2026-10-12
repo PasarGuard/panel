@@ -74,6 +74,7 @@ class XRayConfig(dict):
             "httpupgrade": self._handle_httpupgrade_settings,
             "splithttp": self._handle_xhttp_settings,
             "xhttp": self._handle_xhttp_settings,
+            "xdrive": self._handle_xdrive_settings,
             "kcp": self._handle_kcp_settings,
             "http": self._handle_http_settings,
             "h2": self._handle_http_settings,
@@ -401,6 +402,21 @@ class XRayConfig(dict):
             settings["host"] = host
         elif host and isinstance(host, list):
             settings["host"] = host[0]
+
+    def _handle_xdrive_settings(self, net_settings: dict, settings: dict, inbound_tag: str = ""):
+        """Normalize XDrive settings for the subscription model."""
+        settings["xdrive_remote_folder"] = net_settings.get("remoteFolder")
+        settings["xdrive_service"] = net_settings.get("service")
+        settings["xdrive_secrets"] = net_settings.get("secrets")
+        settings["xdrive_segment_bytes"] = net_settings.get("segmentBytes")
+        settings["xdrive_flush_interval_ms"] = net_settings.get("flushIntervalMs")
+        settings["xdrive_poll_interval_ms"] = net_settings.get("pollIntervalMs")
+        settings["xdrive_max_poll_interval_ms"] = net_settings.get("maxPollIntervalMs")
+        settings["xdrive_session_ttl_seconds"] = net_settings.get("sessionTtlSeconds")
+        settings["xdrive_concurrency"] = net_settings.get("concurrency")
+        settings["xdrive_eager_window_ms"] = net_settings.get("eagerWindowMs")
+        settings["xdrive_hole_timeout_ms"] = net_settings.get("holeTimeoutMs")
+        settings["xdrive_template"] = net_settings.get("template")
 
     @staticmethod
     def _hysteria_finalmask_from_stream(stream: dict, net_settings: dict) -> dict | None:

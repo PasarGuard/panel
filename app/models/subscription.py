@@ -153,6 +153,23 @@ class XHTTPTransportConfig(BaseTransportConfig):
         return value
 
 
+class XDriveTransportConfig(BaseModel):
+    """XDrive transport settings represented as explicit Xray fields."""
+
+    remote_folder: str | None = Field(None, serialization_alias="remoteFolder")
+    service: str | None = Field(None)
+    secrets: list[str] | None = Field(None)
+    segment_bytes: int | None = Field(None, serialization_alias="segmentBytes")
+    flush_interval_ms: int | None = Field(None, serialization_alias="flushIntervalMs")
+    poll_interval_ms: int | None = Field(None, serialization_alias="pollIntervalMs")
+    max_poll_interval_ms: int | None = Field(None, serialization_alias="maxPollIntervalMs")
+    session_ttl_seconds: int | None = Field(None, serialization_alias="sessionTtlSeconds")
+    concurrency: int | None = Field(None)
+    eager_window_ms: int | None = Field(None, serialization_alias="eagerWindowMs")
+    hole_timeout_ms: int | None = Field(None, serialization_alias="holeTimeoutMs")
+    template: dict[str, Any] | None = Field(None)
+
+
 class KCPTransportConfig(BaseTransportConfig):
     """KCP transport - only kcp-specific fields"""
 
@@ -254,6 +271,7 @@ class SubscriptionInboundData(BaseModel):
         GRPCTransportConfig
         | WebSocketTransportConfig
         | XHTTPTransportConfig
+        | XDriveTransportConfig
         | KCPTransportConfig
         | QUICTransportConfig
         | TCPTransportConfig
