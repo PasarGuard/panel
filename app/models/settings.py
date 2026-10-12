@@ -330,6 +330,11 @@ class Subscription(BaseModel):
     randomize_order: bool = Field(default=False)
     custom_variables: list[CustomVariable] = Field(default_factory=list)
 
+    @field_validator("url_prefix")
+    @classmethod
+    def validate_url_prefix(cls, v: str) -> str:
+        return v.strip("/")
+
     @field_validator("custom_variables")
     @classmethod
     def validate_custom_variables(cls, value: list[CustomVariable]) -> list[CustomVariable]:

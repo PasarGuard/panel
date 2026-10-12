@@ -206,11 +206,12 @@ class BaseSubscription:
         if finalmask is None:
             finalmask = {}
         obfs_password = ""
-        quic_params: dict = finalmask.get("quicParams", {})
+        # A core config may hold explicit nulls, so read optional sections with "or"
+        quic_params: dict = finalmask.get("quicParams") or {}
         if udp := finalmask.get("udp"):
             for i in udp:
                 if i.get("type") == "salamander":
-                    obfs_password = i.get("settings", {}).get("password")
+                    obfs_password = (i.get("settings") or {}).get("password")
                     break
 
         return obfs_password, quic_params

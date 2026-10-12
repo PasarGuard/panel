@@ -16,7 +16,7 @@ import { CustomVariablesPopover, VariablesList, VariablesPopover } from '@/compo
 import useDirDetection from '@/hooks/use-dir-detection'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
-import { ClientTemplateType, UserStatus, getHosts, useGetClientTemplatesSimple } from '@/service/api'
+import { ClientTemplateType, UserStatus, getGetHostsQueryKey, getHosts, useGetClientTemplatesSimple } from '@/service/api'
 import { queryClient } from '@/utils/query-client'
 import { useQuery } from '@tanstack/react-query'
 import { AlertTriangle, Cable, ChevronsLeftRightEllipsis, Copy, Pencil, GlobeLock, Info, Loader2, Lock, Network, Plus, Route, Trash2, X, ListTodo } from 'lucide-react'
@@ -221,7 +221,13 @@ const NoiseItem = memo<NoiseItemProps>(({ index, form, onRemove, onDuplicate, t 
           render={({ field }) => (
             <FormItem>
               <FormControl>
-                <Input placeholder={t('hostsDialog.noise.packetPlaceholder')} {...field} value={field.value || ''} className="h-8" />
+                <Input
+                  placeholder={t('hostsDialog.noise.packetPlaceholder')}
+                  {...field}
+                  // Xray noise packets are strings; show a list packet stored through the API as JSON.
+                  value={Array.isArray(field.value) ? JSON.stringify(field.value) : (field.value ?? '')}
+                  className="h-8"
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -233,7 +239,7 @@ const NoiseItem = memo<NoiseItemProps>(({ index, form, onRemove, onDuplicate, t 
           render={({ field }) => (
             <FormItem>
               <FormControl>
-                <Input placeholder={t('hostsDialog.noise.delayPlaceholder')} {...field} value={field.value || ''} className="h-8" />
+                <Input placeholder={t('hostsDialog.noise.delayPlaceholder')} {...field} value={field.value ?? ''} className="h-8" />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -699,7 +705,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
 
   // Update the hosts query to refetch only when needed (not on dialog open)
   const { data: hosts = [], isLoading: isLoadingHosts } = useQuery({
-    queryKey: ['getHostsQueryKey'],
+    queryKey: getGetHostsQueryKey(),
     queryFn: () => getHosts(),
     enabled: isDialogOpen && isTransportOpen,
     select: (data: any[]) => data.filter((host: any) => host.id != null),
@@ -878,9 +884,6 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
         throw new Error(`Operation failed with status: ${response.status}`)
       }
       handleModalOpenChange(false)
-      queryClient.invalidateQueries({
-        queryKey: ['getHostsQueryKey'],
-      })
     } catch (error) {
       console.error(error)
     } finally {
@@ -2195,12 +2198,12 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                       <FormLabel>{t('hostsDialog.xhttp.uplinkChunkSize')}</FormLabel>
                                       <FormControl>
                                         <Input
-                                          type="number"
+                                          type="text"
                                           {...field}
                                           value={field.value ?? ''}
                                           onChange={e => {
                                             const value = e.target.value
-                                            field.onChange(value === '' ? null : parseInt(value, 10))
+                                            field.onChange(value === '' ? undefined : value)
                                           }}
                                         />
                                       </FormControl>
@@ -2430,7 +2433,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                           // Refresh hosts list when dropdown is opened
                                           if (open) {
                                             queryClient.invalidateQueries({
-                                              queryKey: ['getHostsQueryKey'],
+                                              queryKey: getGetHostsQueryKey(),
                                             })
                                           }
                                         }}

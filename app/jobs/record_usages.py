@@ -7,14 +7,14 @@ from operator import attrgetter
 
 from PasarGuardNodeBridge import NodeAPIError, PasarGuardNode
 from PasarGuardNodeBridge.common.service_pb2 import StatType
-from sqlalchemy import BigInteger, DateTime, and_, bindparam, func, insert, select, union_all, update
+from sqlalchemy import BigInteger, DateTime, and_, bindparam, func, insert, or_, select, union_all, update
 from sqlalchemy.dialects.mysql import insert as mysql_insert
 from sqlalchemy.dialects.postgresql import ARRAY, insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.exc import DatabaseError, OperationalError
 from sqlalchemy.sql.expression import Insert
 
-from app import scheduler
+from app import on_shutdown, scheduler
 from app.db import GetDB
 from app.db.base import engine
 from app.db.models import Admin, Node, NodeUsage, NodeUserUsage, System, User
@@ -39,6 +39,10 @@ USER_TRAFFIC_UPDATE_BATCH_SIZE_BY_DIALECT = {
     "sqlite": 400,
 }
 USER_ADMIN_LOOKUP_BATCH_SIZE = 1_000
+_pending_user_usage_history: defaultdict[tuple[dt, int, int], int] = defaultdict(int)
+_user_usage_history_lock = asyncio.Lock()
+_user_usage_history_last_flush: float | None = None
+ONLINE_AT_WRITE_INTERVAL = td(minutes=1)
 DEADLOCK_MAX_RETRIES = 5
 
 # Prevent overlapping usage jobs from stacking writes (and deadlocks) when
@@ -46,6 +50,11 @@ DEADLOCK_MAX_RETRIES = 5
 _user_usage_running = False
 _node_usage_running = False
 _usage_coefficient_cache: dict[int, tuple[float, float]] = {}
+
+
+def _monotonic_now() -> float:
+    """Return the process clock used to schedule history flushes."""
+    return time.monotonic()
 
 
 def _chunked(items: list, size: int):
@@ -177,6 +186,110 @@ def build_node_user_usage_upsert(dialect: str, upsert_params: list[dict]):
         set_={"used_traffic": NodeUserUsage.used_traffic + stmt.excluded.used_traffic},
     )
     return [(stmt, stmt_params)]
+
+
+def build_user_traffic_update(dialect: str, usage_params: list[dict]):
+    """Build a set-based user traffic update when the database supports arrays."""
+    if dialect == "postgresql":
+        aggregated_usage = defaultdict(int)
+        for param in usage_params:
+            aggregated_usage[param["uid"]] += param["value"]
+
+        aggregated_usage = dict(sorted(aggregated_usage.items()))
+
+        source = (
+            func.unnest(
+                bindparam("uids", type_=ARRAY(BigInteger())),
+                bindparam("traffic_values", type_=ARRAY(BigInteger())),
+            )
+            .table_valued("uid", "value")
+            .render_derived(name="usage_source")
+        )
+        stmt = (
+            update(User)
+            .where(User.id == source.c.uid)
+            .values(used_traffic=User.used_traffic + source.c.value)
+            .execution_options(synchronize_session=False)
+        )
+        return (
+            stmt,
+            {
+                "uids": list(aggregated_usage),
+                "traffic_values": list(aggregated_usage.values()),
+            },
+        )
+
+    stmt = (
+        update(User)
+        .where(User.id == bindparam("uid"))
+        .values(used_traffic=User.used_traffic + bindparam("value"))
+        .execution_options(synchronize_session=False)
+    )
+    return stmt, usage_params
+
+
+def build_online_at_updates(dialect: str, user_ids: list[int], now: dt):
+    """Build throttled online timestamp updates without per-user statements."""
+    if not user_ids:
+        return []
+
+    cutoff = now - ONLINE_AT_WRITE_INTERVAL
+    stale_online_at = or_(User.online_at.is_(None), User.online_at <= cutoff)
+
+    if dialect == "postgresql":
+        source = (
+            func.unnest(bindparam("online_user_ids", type_=ARRAY(BigInteger())))
+            .table_valued("uid")
+            .render_derived(name="online_users")
+        )
+        stmt = (
+            update(User)
+            .where(User.id == source.c.uid, stale_online_at)
+            .values(online_at=now)
+            .execution_options(synchronize_session=False)
+        )
+        return [(stmt, {"online_user_ids": user_ids})]
+
+    batch_size = NODE_USER_USAGE_BATCH_SIZE_BY_DIALECT.get(dialect, len(user_ids))
+    return [
+        (
+            update(User)
+            .where(User.id.in_(batch), stale_online_at)
+            .values(online_at=now)
+            .execution_options(synchronize_session=False),
+            None,
+        )
+        for batch in _chunked(user_ids, batch_size)
+    ]
+
+
+async def update_users_traffic(usage_params: list[dict]) -> None:
+    if not usage_params:
+        return
+
+    dialect = await get_dialect()
+    ordered_params = sorted(usage_params, key=lambda item: int(item["uid"]))
+    stmt, params = build_user_traffic_update(dialect, ordered_params)
+    async with JOB_SEM:
+        if dialect == "postgresql":
+            await safe_execute(stmt, params)
+            return
+
+        batch_size = USER_TRAFFIC_UPDATE_BATCH_SIZE_BY_DIALECT.get(dialect, len(ordered_params))
+        for batch in _chunked(params, batch_size):
+            await safe_execute(stmt, batch)
+
+
+async def touch_users_online_at(user_ids: list[int], now: dt | None = None) -> None:
+    if not user_ids:
+        return
+
+    now = now or dt.now(UTC)
+    dialect = await get_dialect()
+    user_ids = sorted(set(user_ids))
+    async with JOB_SEM:
+        for stmt, params in build_online_at_updates(dialect, user_ids, now):
+            await safe_execute(stmt, params)
 
 
 def build_node_usage_upsert(dialect: str, upsert_param: dict):
@@ -360,38 +473,36 @@ def _get_time_bucket(now: dt | None = None) -> dt:
     return now.replace(minute=(now.minute // 10) * 10, second=0, microsecond=0)
 
 
-async def record_user_stats_batched(all_node_params: dict, usage_coefficients: dict):
-    """
-    Record user statistics for ALL nodes in a single batched UPSERT operation.
-    This eliminates per-node write amplification and reduces lock contention.
-
-    Args:
-        all_node_params: Dict mapping node_id -> list of user stat params
-        usage_coefficients: Dict mapping node_id -> usage coefficient
-    """
-    if not all_node_params:
-        return
-
-    # Aggregate all params across all nodes into single list
-    created_at = _get_time_bucket()
-    dialect = await get_dialect()
-
-    # Prepare parameters for all nodes in one batch
-    upsert_params = []
+def _prepare_node_user_usage_params(
+    all_node_params: dict,
+    usage_coefficients: dict,
+    created_at: dt,
+) -> list[dict]:
+    """Normalize and aggregate nonzero node-user history deltas."""
+    aggregated_params: defaultdict[tuple[int, int], int] = defaultdict(int)
     for node_id, params in all_node_params.items():
         if not params:
             continue
         coeff = usage_coefficients.get(node_id, 1.0)
         for p in params:
-            upsert_params.append(
-                {
-                    "uid": int(p["uid"]),
-                    "value": int(p["value"] * coeff),
-                    "node_id": node_id,
-                    "created_at": created_at,
-                }
-            )
+            value = int(p["value"] * coeff)
+            if value:
+                aggregated_params[(int(p["uid"]), node_id)] += value
 
+    return [
+        {
+            "uid": uid,
+            "value": value,
+            "node_id": node_id,
+            "created_at": created_at,
+        }
+        for (uid, node_id), value in aggregated_params.items()
+        if value
+    ]
+
+
+async def _write_node_user_usage_params(dialect: str, upsert_params: list[dict]) -> None:
+    """Write prepared history deltas using the existing dialect-specific UPSERTs."""
     if not upsert_params:
         return
 
@@ -414,6 +525,117 @@ async def record_user_stats_batched(all_node_params: dict, usage_coefficients: d
             queries = build_node_user_usage_upsert(dialect, batch)
             for stmt, stmt_params in queries:
                 await safe_execute(stmt, stmt_params)
+
+
+async def record_user_stats_batched(all_node_params: dict, usage_coefficients: dict):
+    """Record node-user history immediately using batched dialect-specific UPSERTs."""
+    if not all_node_params:
+        return
+
+    created_at = _get_time_bucket()
+    dialect = await get_dialect()
+    upsert_params = _prepare_node_user_usage_params(all_node_params, usage_coefficients, created_at)
+    await _write_node_user_usage_params(dialect, upsert_params)
+
+
+async def _flush_pending_user_usage_history_locked(now_monotonic: float | None = None) -> int:
+    """Flush PostgreSQL history while the caller holds the history buffer lock."""
+    global _user_usage_history_last_flush
+
+    if not _pending_user_usage_history:
+        return 0
+
+    upsert_params = [
+        {
+            "uid": uid,
+            "value": value,
+            "node_id": node_id,
+            "created_at": created_at,
+        }
+        for (created_at, uid, node_id), value in _pending_user_usage_history.items()
+        if value
+    ]
+    if upsert_params:
+        await _write_node_user_usage_params("postgresql", upsert_params)
+    _pending_user_usage_history.clear()
+    _user_usage_history_last_flush = now_monotonic if now_monotonic is not None else _monotonic_now()
+    return len(upsert_params)
+
+
+async def flush_user_usage_history_if_due(now_monotonic: float | None = None) -> int:
+    """Flush buffered PostgreSQL history once its configured deadline passes."""
+    global _user_usage_history_last_flush
+
+    if not _pending_user_usage_history:
+        return 0
+
+    now_monotonic = now_monotonic if now_monotonic is not None else _monotonic_now()
+    async with _user_usage_history_lock:
+        if _user_usage_history_last_flush is None:
+            _user_usage_history_last_flush = now_monotonic
+            return 0
+        flush_due = now_monotonic - _user_usage_history_last_flush >= usage_settings.user_usage_history_flush_interval
+        if not flush_due:
+            return 0
+        return await _flush_pending_user_usage_history_locked(now_monotonic)
+
+
+async def record_user_stats(all_node_params: dict, usage_coefficients: dict) -> None:
+    """Coalesce PostgreSQL history writes while preserving immediate fallback paths."""
+    if not all_node_params:
+        return
+
+    dialect = await get_dialect()
+    if dialect != "postgresql":
+        await record_user_stats_batched(all_node_params, usage_coefficients)
+        return
+
+    created_at = _get_time_bucket()
+    upsert_params = _prepare_node_user_usage_params(all_node_params, usage_coefficients, created_at)
+    if not upsert_params:
+        return
+
+    now_monotonic = _monotonic_now()
+    async with _user_usage_history_lock:
+        bucket_changed = any(key[0] != created_at for key in _pending_user_usage_history)
+        if bucket_changed:
+            try:
+                flushed_rows = await _flush_pending_user_usage_history_locked(now_monotonic)
+                logger.debug("Flushed %s node user usage history rows before bucket rollover", flushed_rows)
+            except Exception:
+                for param in upsert_params:
+                    key = (param["created_at"], param["uid"], param["node_id"])
+                    _pending_user_usage_history[key] += param["value"]
+                raise
+
+        for param in upsert_params:
+            key = (param["created_at"], param["uid"], param["node_id"])
+            _pending_user_usage_history[key] += param["value"]
+
+        if _user_usage_history_last_flush is None:
+            # Preserve the established contract that the first sample is
+            # immediately queryable. Later samples are coalesced until the
+            # configured interval or bucket rollover.
+            flushed_rows = await _flush_pending_user_usage_history_locked(now_monotonic)
+            logger.debug("Flushed %s initial node user usage history rows", flushed_rows)
+            return
+        flush_due = now_monotonic - _user_usage_history_last_flush >= usage_settings.user_usage_history_flush_interval
+        if flush_due:
+            flushed_rows = await _flush_pending_user_usage_history_locked(now_monotonic)
+            logger.debug("Flushed %s coalesced node user usage history rows", flushed_rows)
+
+
+@on_shutdown
+async def _flush_user_usage_history_on_shutdown() -> None:
+    """Best-effort flush of PostgreSQL analytical history during graceful shutdown."""
+    async with _user_usage_history_lock:
+        if not _pending_user_usage_history:
+            return
+        try:
+            flushed_rows = await _flush_pending_user_usage_history_locked()
+            logger.info("Flushed %s pending node user usage history rows on shutdown", flushed_rows)
+        except Exception:
+            logger.exception("Failed to flush pending node user usage history during shutdown")
 
 
 async def record_node_stats_batched(all_node_params: dict):
@@ -641,6 +863,13 @@ async def _record_user_usages_impl():
     Separated to allow timeout wrapper.
     """
     job_start_time = time.time()
+    try:
+        flushed_rows = await flush_user_usage_history_if_due()
+        if flushed_rows:
+            logger.debug("Flushed %s due node user usage history rows", flushed_rows)
+    except Exception:
+        logger.exception("Failed to flush due node user usage history; pending rows will be retried")
+
     nodes: tuple[int, PasarGuardNode] = await node_manager.get_healthy_nodes()
 
     if not nodes:
@@ -684,18 +913,13 @@ async def _record_user_usages_impl():
 
         # Update User table with concurrency control
         if valid_users_usage:
-            valid_users_usage.sort(key=lambda item: int(item["uid"]))
-            user_stmt = (
-                update(User)
-                .where(User.id == bindparam("uid"))
-                .values(used_traffic=User.used_traffic + bindparam("value"), online_at=dt.now(UTC))
-                .execution_options(synchronize_session=False)
-            )
-            dialect = await get_dialect()
-            batch_size = USER_TRAFFIC_UPDATE_BATCH_SIZE_BY_DIALECT.get(dialect, len(valid_users_usage))
-            async with JOB_SEM:
-                for batch in _chunked(valid_users_usage, batch_size):
-                    await safe_execute(user_stmt, batch)
+            await update_users_traffic(valid_users_usage)
+            try:
+                await touch_users_online_at([int(usage["uid"]) for usage in valid_users_usage])
+            except Exception:
+                # Traffic totals are authoritative. A delayed online timestamp is
+                # preferable to aborting the rest of the usage accounting cycle.
+                logger.exception("Failed to update throttled user online timestamps")
             logger.debug(f"Updated {len(valid_users_usage)} users")
 
         # Update Admin table with concurrency control
@@ -726,9 +950,9 @@ async def _record_user_usages_impl():
                 filtered_node_params[node_id] = filtered_params
 
         if filtered_node_params:
-            await record_user_stats_batched(filtered_node_params, usage_coefficient)
+            await record_user_stats(filtered_node_params, usage_coefficient)
             total_records = sum(len(params) for params in filtered_node_params.values())
-            logger.debug(f"Recorded {total_records} node user usage records across {len(filtered_node_params)} nodes")
+            logger.debug(f"Processed {total_records} node user usage deltas across {len(filtered_node_params)} nodes")
 
         job_duration = time.time() - job_start_time
         logger.debug(

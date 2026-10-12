@@ -144,6 +144,19 @@ The frontend uses generated API clients via Orval. If you change backend routes 
 make gen-api
 ```
 
+### 🧪 Dashboard Form Checks
+
+From `dashboard/`, install dependencies, build the dashboard, and run the mocked browser checks:
+
+```bash
+bun install --frozen-lockfile
+npx playwright install chromium
+npm run build
+npm run test:form-submissions
+```
+
+The checks use `dashboard/build` by default. To test another production build, run `npm run test:form-submissions -- <build-directory>` (relative to your working directory). Set `PLAYWRIGHT_CHANNEL=msedge` or `chrome` to use an installed browser instead of Playwright's Chromium. API calls are mocked, so no backend or account is required.
+
 ### 🎯 Code Formatting
 
 Format frontend code using Prettier:

@@ -5,6 +5,7 @@ Broken down into small, focused models - each transport/protocol gets only what 
 
 from __future__ import annotations
 
+import unicodedata
 from typing import Any
 
 from pydantic import AliasChoices, BaseModel, Field, computed_field, field_validator
@@ -308,7 +309,7 @@ class SubscriptionInboundData(BaseModel):
     # Fragment and noise settings
     fragment_settings: dict[str, Any] | None = Field(None)
     noise_settings: dict[str, Any] | None = Field(None)
-    finalmask: FinalMask | dict[str, Any] | None = Field(None)
+    finalmask: dict[str, Any] | None = Field(None)
     finalmask_link: str | None = Field(None)
 
     # Priority and status
@@ -317,6 +318,15 @@ class SubscriptionInboundData(BaseModel):
     subscription_templates: dict[str, Any] | None = Field(default=None)
 
     model_config = {"validate_assignment": True}
+
+    @field_validator("finalmask", mode="before")
+    @classmethod
+    def dump_finalmask_with_xray_names(cls, value):
+        # Builders read Xray field names from a plain dict. A FinalMask | dict union
+        # turned some dicts (quicParams without a udp mask) back into a FinalMask.
+        if isinstance(value, FinalMask):
+            return value.model_dump(by_alias=True, exclude_none=True, mode="json")
+        return value
 
 
 class SubscriptionUsageQuery(BaseModel):
@@ -332,3 +342,14 @@ class SubscriptionHeaders(BaseModel):
     x_device_model: str | None = Field(default=None, alias="X-Device-Model")
 
     model_config = {"populate_by_name": True}
+
+    @field_validator("x_hwid")
+    @classmethod
+    def validate_hwid(cls, value: str | None) -> str | None:
+        # Some clients send the header blank when device ID is off: treat that as no header.
+        if value is None or not value.strip():
+            return None
+        # "Cc" covers C0, DEL and C1: header bytes arrive decoded as latin-1, so 0x80-0x9f are C1 controls.
+        if len(value) > 256 or any(unicodedata.category(char) == "Cc" for char in value):
+            raise ValueError("X-HWID must be an ID of at most 256 characters without control characters")
+        return value

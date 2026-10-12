@@ -550,7 +550,7 @@
 
             {% if announce %}
             <div class="announcement">
-                <span>{{ announce | replace('\n', '<br>') }}</span>
+                <span>{{ announce | replace('\n', '<br>' | safe) }}</span>
                 {% if announce_url %}
                 <a href="{{ announce_url }}" target="_blank">More info</a>
                 {% endif %}
@@ -602,7 +602,8 @@
                     <input type="text" class="link-input" value="{{ link }}" readonly />
                     <button
                         class="copy-button"
-                        onclick="copyLink('{{ link }}', this)"
+                        data-link="{{ link }}"
+                        onclick="copyLink(this.dataset.link, this)"
                     >
                         Copy
                     </button>
@@ -650,7 +651,7 @@
                     </ul>
                     {% endif %}
                     {% if app.import_url %}
-                    <button onclick="importConfig('{{ app.import_url }}')">Import Config</button>
+                    <button data-url="{{ app.import_url }}" onclick="importConfig(this.dataset.url)">Import Config</button>
                     {% endif %}
                 </div>
                 {% endfor %}

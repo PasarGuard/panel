@@ -141,6 +141,8 @@ class UserResponse(UserNotificationResponse):
 
 
 class SubscriptionUserResponse(UserResponse):
+    # A shareable subscription token must not expose connection credentials in metadata.
+    proxy_settings: ProxyTable = Field(default_factory=ProxyTable, exclude=True)
     admin: AdminContactInfo | None = Field(default=None, exclude=True)
     note: str | None = Field(None, exclude=True)
     auto_delete_in_days: int | None = Field(None, exclude=True)
@@ -155,8 +157,13 @@ class UsersResponseWithInbounds(SubscriptionUserResponse):
     model_config = ConfigDict(from_attributes=True)
 
 
+class UserListItem(UserResponse):
+    # None when the device count was not loaded, for example without hwids.read
+    hwid_count: int | None = Field(default=None, ge=0)
+
+
 class UsersResponse(BaseModel):
-    users: list[UserResponse]
+    users: list[UserListItem]
     total: int
 
 
@@ -176,6 +183,7 @@ class UsersSimpleResponse(BaseModel):
 
 
 class UserSortField(str, Enum):
+    hwid_count = "hwid_count"
     username = "username"
     used_traffic = "used_traffic"
     data_limit = "data_limit"
@@ -196,6 +204,8 @@ class SortDirection(str, Enum):
 
 
 class UserSortOption(str, Enum):
+    hwid_count = "hwid_count"
+    desc_hwid_count = "-hwid_count"
     username = "username"
     used_traffic = "used_traffic"
     data_limit = "data_limit"
@@ -305,13 +315,19 @@ class UsersUsageBreakdownQuery(UsersUsageQuery):
 
 class ExpiredUsersQuery(BaseModel):
     admin_username: str | None = Field(default=None)
-    target: Literal["expired", "limited", "on_hold", "disabled"] = Field(default="expired")
+    target: Literal["expired", "limited", "on_hold", "disabled", "inactive"] = Field(default="expired")
     expired_after: OptionalAwareDatetime = Field(default=None, examples=["2024-01-01T00:00:00+03:30"])
     expired_before: OptionalAwareDatetime = Field(default=None, examples=["2024-01-31T23:59:59+03:30"])
     dry_run: bool = Field(
         default=False,
         description="If true, returns users that would be deleted without actually deleting them.",
     )
+
+    @model_validator(mode="after")
+    def validate_inactive_cutoff(self):
+        if self.target == "inactive" and self.expired_before is None:
+            raise ValueError("expired_before is required when target is inactive")
+        return self
 
 
 class UserSubscriptionUpdateSchema(BaseModel):

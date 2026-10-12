@@ -30,7 +30,7 @@ import { toast } from 'sonner'
 import { hasScopeAll, isOwner, roleLabel } from '@/utils/rbac'
 
 const PAGE_SIZE = 20
-type CleanupDeleteTarget = 'expired' | 'limited' | 'on_hold' | 'disabled'
+type CleanupDeleteTarget = 'expired' | 'limited' | 'on_hold' | 'disabled' | 'inactive'
 
 export default function CleanupSettings() {
   const { t, i18n } = useTranslation()
@@ -110,7 +110,7 @@ export default function CleanupSettings() {
   const deleteExpiredUsersMutation = useDeleteExpiredUsers()
   const resetUsersDataUsageMutation = useResetUsersDataUsage()
   const clearUsageDataMutation = useClearUsageData()
-  
+
   // Track which operation is running
   const [isPreviewRunning, setIsPreviewRunning] = useState(false)
 
@@ -123,7 +123,7 @@ export default function CleanupSettings() {
     const target = deleteTarget
     const params: any = { target, dry_run: isDryRun }
 
-    if (statusChangedAfter) params.expired_after = startOfDay(statusChangedAfter).toISOString()
+    if (statusChangedAfter && target !== 'inactive') params.expired_after = startOfDay(statusChangedAfter).toISOString()
     if (statusChangedBefore) params.expired_before = endOfDay(statusChangedBefore).toISOString()
     if (selectedAdmin) params.admin_username = selectedAdmin.username
 
@@ -132,12 +132,14 @@ export default function CleanupSettings() {
       limited: 'settings.cleanup.expiredUsers.deleteLimitedSuccess',
       on_hold: 'settings.cleanup.expiredUsers.deleteOnHoldSuccess',
       disabled: 'settings.cleanup.expiredUsers.deleteDisabledSuccess',
+      inactive: 'settings.cleanup.expiredUsers.deleteInactiveSuccess',
     }
     const failKeyMap: Record<CleanupDeleteTarget, string> = {
       expired: 'settings.cleanup.expiredUsers.deleteFailed',
       limited: 'settings.cleanup.expiredUsers.deleteLimitedFailed',
       on_hold: 'settings.cleanup.expiredUsers.deleteOnHoldFailed',
       disabled: 'settings.cleanup.expiredUsers.deleteDisabledFailed',
+      inactive: 'settings.cleanup.expiredUsers.deleteInactiveFailed',
     }
 
     // Set preview state if this is a dry run
@@ -184,7 +186,7 @@ export default function CleanupSettings() {
           }
 
           toast.error(t(failureMessageKey), { description: errorMessage })
-          
+
           // Reset preview state on error
           if (isDryRun) {
             setIsPreviewRunning(false)
@@ -405,33 +407,44 @@ export default function CleanupSettings() {
                 <SelectItem value="disabled" className="text-xs sm:text-sm">
                   {t('settings.cleanup.expiredUsers.targets.disabled')}
                 </SelectItem>
+                <SelectItem value="inactive" className="text-xs sm:text-sm">
+                  {t('settings.cleanup.expiredUsers.targets.inactive')}
+                </SelectItem>
               </SelectContent>
             </Select>
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <DatePicker
-                mode="single"
-                date={statusChangedAfter}
-                onDateChange={setStatusChangedAfter}
-                label={deleteTarget === 'expired' ? t('settings.cleanup.expiredUsers.expiredAfterPlaceholder') : t('settings.cleanup.expiredUsers.statusChangedAfter')}
-                placeholder={t('settings.cleanup.expiredUsers.expiredAfterPlaceholder')}
-                minDate={new Date('1900-01-01')}
-                maxDate={new Date()}
-                formatDate={formatDate}
-                side={'bottom'}
-                align={'center'}
-                className="[&_button]:text-xs sm:[&_button]:text-sm [&_label]:text-xs sm:[&_label]:text-sm"
-              />
-            </div>
+            {deleteTarget !== 'inactive' && (
+              <div className="space-y-2">
+                <DatePicker
+                  mode="single"
+                  date={statusChangedAfter}
+                  onDateChange={setStatusChangedAfter}
+                  label={deleteTarget === 'expired' ? t('settings.cleanup.expiredUsers.expiredAfterPlaceholder') : t('settings.cleanup.expiredUsers.statusChangedAfter')}
+                  placeholder={t('settings.cleanup.expiredUsers.expiredAfterPlaceholder')}
+                  minDate={new Date('1900-01-01')}
+                  maxDate={new Date()}
+                  formatDate={formatDate}
+                  side={'bottom'}
+                  align={'center'}
+                  className="[&_button]:text-xs sm:[&_button]:text-sm [&_label]:text-xs sm:[&_label]:text-sm"
+                />
+              </div>
+            )}
 
             <div className="space-y-2">
               <DatePicker
                 mode="single"
                 date={statusChangedBefore}
                 onDateChange={setStatusChangedBefore}
-                label={deleteTarget === 'expired' ? t('settings.cleanup.expiredUsers.expiredBeforePlaceholder') : t('settings.cleanup.expiredUsers.statusChangedBefore')}
+                label={
+                  deleteTarget === 'expired'
+                    ? t('settings.cleanup.expiredUsers.expiredBeforePlaceholder')
+                    : deleteTarget === 'inactive'
+                      ? t('settings.cleanup.expiredUsers.lastActivityBefore')
+                      : t('settings.cleanup.expiredUsers.statusChangedBefore')
+                }
                 placeholder={t('settings.cleanup.expiredUsers.expiredBeforePlaceholder')}
                 minDate={new Date('1900-01-01')}
                 maxDate={new Date()}
@@ -444,29 +457,31 @@ export default function CleanupSettings() {
           </div>
 
           <div className="text-muted-foreground text-xs sm:text-sm">
-            {deleteTarget === 'expired' ? t('settings.cleanup.expiredUsers.selectDateRange') : t('settings.cleanup.expiredUsers.selectStatusChangedDateRange')}
+            {deleteTarget === 'expired'
+              ? t('settings.cleanup.expiredUsers.selectDateRange')
+              : deleteTarget === 'inactive'
+                ? t('settings.cleanup.expiredUsers.selectInactiveDate')
+                : t('settings.cleanup.expiredUsers.selectStatusChangedDateRange')}
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {/* Preview Button */}
-            <Button 
-              variant="outline" 
-              disabled={deleteExpiredUsersMutation.isPending || isPreviewRunning} 
+            <Button
+              variant="outline"
+              disabled={deleteExpiredUsersMutation.isPending || isPreviewRunning || (deleteTarget === 'inactive' && !statusChangedBefore)}
               onClick={handlePreviewExpired}
               className="w-full"
             >
               <Eye className="mr-2 h-4 w-4" />
-              {isPreviewRunning
-                ? t('settings.cleanup.expiredUsers.previewing')
-                : t('settings.cleanup.expiredUsers.dryRun')}
+              {isPreviewRunning ? t('settings.cleanup.expiredUsers.previewing') : t('settings.cleanup.expiredUsers.dryRun')}
             </Button>
 
             {/* Delete Button with confirmation */}
             <AlertDialog>
               <AlertDialogTrigger asChild>
-                <Button variant="destructive" disabled={deleteExpiredUsersMutation.isPending || isPreviewRunning} className="w-full">
+                <Button variant="destructive" disabled={deleteExpiredUsersMutation.isPending || isPreviewRunning || (deleteTarget === 'inactive' && !statusChangedBefore)} className="w-full">
                   <Trash2 className="mr-2 h-4 w-4" />
-                  {(deleteExpiredUsersMutation.isPending && !isPreviewRunning)
+                  {deleteExpiredUsersMutation.isPending && !isPreviewRunning
                     ? t('settings.cleanup.expiredUsers.deleting')
                     : (() => {
                         const buttonKeyMap: Record<CleanupDeleteTarget, string> = {
@@ -474,6 +489,7 @@ export default function CleanupSettings() {
                           limited: 'settings.cleanup.expiredUsers.deleteLimited',
                           on_hold: 'settings.cleanup.expiredUsers.deleteOnHold',
                           disabled: 'settings.cleanup.expiredUsers.deleteDisabled',
+                          inactive: 'settings.cleanup.expiredUsers.deleteInactive',
                         }
                         return t(buttonKeyMap[deleteTarget])
                       })()}
@@ -489,6 +505,7 @@ export default function CleanupSettings() {
                         limited: 'settings.cleanup.expiredUsers.confirmDeleteLimited',
                         on_hold: 'settings.cleanup.expiredUsers.confirmDeleteOnHold',
                         disabled: 'settings.cleanup.expiredUsers.confirmDeleteDisabled',
+                        inactive: 'settings.cleanup.expiredUsers.confirmDeleteInactive',
                       }
                       return t(confirmKeyMap[deleteTarget])
                     })()}
@@ -500,6 +517,7 @@ export default function CleanupSettings() {
                         limited: 'settings.cleanup.expiredUsers.confirmDeleteLimitedMessage',
                         on_hold: 'settings.cleanup.expiredUsers.confirmDeleteOnHoldMessage',
                         disabled: 'settings.cleanup.expiredUsers.confirmDeleteDisabledMessage',
+                        inactive: 'settings.cleanup.expiredUsers.confirmDeleteInactiveMessage',
                       }
                       return t(messageKeyMap[deleteTarget])
                     })()}
@@ -507,13 +525,18 @@ export default function CleanupSettings() {
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                   <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleDeleteConfirmed} disabled={deleteExpiredUsersMutation.isPending || isPreviewRunning} className="bg-destructive text-destructive-foreground hover:bg-destructive/90 m-0!">
+                  <AlertDialogAction
+                    onClick={handleDeleteConfirmed}
+                    disabled={deleteExpiredUsersMutation.isPending || isPreviewRunning}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90 m-0!"
+                  >
                     {(() => {
                       const buttonKeyMap: Record<CleanupDeleteTarget, string> = {
                         expired: 'settings.cleanup.expiredUsers.deleteExpired',
                         limited: 'settings.cleanup.expiredUsers.deleteLimited',
                         on_hold: 'settings.cleanup.expiredUsers.deleteOnHold',
                         disabled: 'settings.cleanup.expiredUsers.deleteDisabled',
+                        inactive: 'settings.cleanup.expiredUsers.deleteInactive',
                       }
                       return t(buttonKeyMap[deleteTarget])
                     })()}

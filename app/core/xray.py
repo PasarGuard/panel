@@ -3,13 +3,21 @@ from __future__ import annotations
 import base64
 import json
 from copy import deepcopy
+from ipaddress import ip_interface
 from pathlib import PosixPath
 
 import commentjson
 
 from app.models.core import CoreType
 from app.models.protocol import ProxyProtocol
-from app.utils.crypto import get_cert_SANs, get_x25519_public_key, validate_mldsa65_seed, validate_mldsa65_verify
+from app.utils.crypto import (
+    get_cert_SANs,
+    get_wireguard_public_key,
+    get_x25519_public_key,
+    validate_mldsa65_seed,
+    validate_mldsa65_verify,
+    validate_wireguard_key,
+)
 
 
 def _protocols_from_inbounds_by_tag(inbounds_by_tag: dict[str, dict]) -> frozenset[ProxyProtocol]:
@@ -451,12 +459,90 @@ class XRayConfig(dict):
             self._read_inbound(inbound)
         self._protocols = _protocols_from_inbounds_by_tag(self._inbounds_by_tag)
 
+    def _read_wireguard_inbound(self, inbound: dict) -> dict:
+        """Expose Xray's peer-based inbound using the shared subscription metadata."""
+        tag = inbound["tag"]
+        config = inbound.get("settings") or {}
+        secret = config.get("secretKey", "")
+        if not isinstance(secret, str):
+            raise TypeError(f"{tag} WireGuard secretKey must be a string")
+        # Xray accepts hexadecimal and standard/URL-safe base64 keys. Keep the
+        # original config intact; subscriptions use standard padded base64.
+        try:
+            if len(secret) == 64:
+                secret = base64.b64encode(bytes.fromhex(secret)).decode("ascii")
+            secret = validate_wireguard_key(secret.replace("-", "+").replace("_", "/"), "secretKey")
+        except ValueError as exc:
+            raise ValueError(f"{tag} WireGuard has an invalid secretKey") from exc
+
+        addresses = config.get("address")
+        if not isinstance(addresses, list) or not addresses:
+            raise ValueError(f"{tag} managed WireGuard inbound needs address CIDRs for client allocation")
+        normalized = []
+        for address in addresses:
+            try:
+                iface = ip_interface(address)
+            except (ValueError, TypeError) as exc:
+                raise ValueError(f"{tag} WireGuard address must contain valid CIDRs") from exc
+            if not isinstance(address, str) or "/" not in address or iface.network.num_addresses < 4:
+                raise ValueError(f"{tag} WireGuard address needs a subnet with space for clients")
+            normalized.append(str(iface))
+
+        port = inbound.get("port")
+        if isinstance(port, str) and port.isascii() and port.isdecimal():
+            port = int(port)
+        if isinstance(port, bool) or not isinstance(port, int) or not 1 <= port <= 65535:
+            raise ValueError(f"{tag} WireGuard inbound needs a single port between 1 and 65535")
+
+        mtu = config.get("mtu")
+        if mtu is None:
+            mtu = 1420
+        elif type(mtu) is not int or not 576 <= mtu <= 9000:
+            raise ValueError(f"{tag} WireGuard mtu must be an integer between 576 and 9000")
+
+        reserved = config.get("reserved")
+        if isinstance(reserved, str):
+            try:
+                reserved = list(base64.b64decode(reserved, validate=True))
+            except ValueError as exc:
+                raise ValueError(f"{tag} WireGuard reserved must be empty or three bytes") from exc
+        if reserved is not None and (
+            not isinstance(reserved, list)
+            or len(reserved) not in (0, 3)
+            or any(type(value) is not int or not 0 <= value <= 255 for value in reserved)
+        ):
+            raise ValueError(f"{tag} WireGuard reserved must be empty or three bytes")
+        stream = inbound.get("streamSettings") or {}
+        return {
+            **self._create_base_settings(inbound),
+            "network": "udp",
+            "port": port,
+            "listen_port": port,
+            "address": normalized,
+            "private_key": secret,
+            "public_key": get_wireguard_public_key(secret),
+            "pre_shared_key": "",
+            "mtu": mtu,
+            "reserved": ",".join(map(str, reserved)) if reserved else None,
+            "finalmask": deepcopy(stream.get("finalmask") or stream.get("finalMask")),
+        }
+
     def _read_inbound(self, inbound: dict):
         """Read an inbound and its settings."""
-        if inbound["protocol"] not in ("vmess", "vless", "trojan", "shadowsocks", "hysteria", "masque"):
+        if inbound["protocol"] not in ("vmess", "vless", "trojan", "shadowsocks", "hysteria", "masque", "wireguard"):
             return
 
         if inbound["tag"] in self.exclude_inbound_tags:
+            return
+
+        if inbound["protocol"] == "wireguard":
+            # Only inbounds that declare client subnets in settings.address are managed. A plain
+            # Xray WireGuard inbound with static peers has no address and is left alone, as before.
+            if "address" not in (inbound.get("settings") or {}):
+                return
+            settings = self._read_wireguard_inbound(inbound)
+            self._inbounds.append(inbound["tag"])
+            self._inbounds_by_tag[inbound["tag"]] = settings
             return
 
         if not inbound.get("settings"):
