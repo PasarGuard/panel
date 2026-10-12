@@ -391,6 +391,11 @@ class XRayConfig(dict):
         settings["path"] = net_settings.get("path", "")
         host = net_settings.get("host", "")
         settings["host"] = [host] if isinstance(host, str) and host else host
+        headers = net_settings.get("headers")
+        if isinstance(headers, dict):
+            settings["http_headers"] = {
+                key: value for key, value in headers.items() if isinstance(key, str) and isinstance(value, str)
+            }
 
     def _handle_default_network_settings(self, net_settings: dict, settings: dict, inbound_tag: str = ""):
         """Handle default network settings."""

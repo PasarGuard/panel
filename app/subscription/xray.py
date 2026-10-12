@@ -6,6 +6,8 @@ from pydantic import BaseModel
 from app.models.subscription import (
     GRPCTransportConfig,
     KCPTransportConfig,
+    MasqueProtocolData,
+    MasqueTransportConfig,
     QUICTransportConfig,
     SubscriptionInboundData,
     TCPTransportConfig,
@@ -279,7 +281,7 @@ class XrayConfiguration(BaseSubscription):
 
         return self._normalize_and_remove_none_values(http_settings)
 
-    def _transport_masque(self, config: TCPTransportConfig, path: str) -> dict:
+    def _transport_masque(self, config: MasqueTransportConfig, path: str) -> dict:
         """Build the MASQUE transport settings block."""
         host = config.host if isinstance(config.host, str) else (config.host[0] if config.host else "")
         return self._normalize_and_remove_none_values(
@@ -517,14 +519,22 @@ class XrayConfiguration(BaseSubscription):
         if not isinstance(masque_settings, dict):
             masque_settings = settings
 
+        masque_data = MasqueProtocolData.model_validate(
+            {
+                "user": masque_settings.get("user", ""),
+                "password": masque_settings.get("pass", masque_settings.get("password", "")),
+                "remote_dns": masque_settings.get("remote_dns", masque_settings.get("remoteDNS")) or [],
+            }
+        )
+
         return self._build_outbound(
             protocol_type="masque",
             address=address,
             inbound=inbound,
             user_settings={
-                "user": masque_settings.get("user", ""),
-                "pass": masque_settings.get("pass", masque_settings.get("password", "")),
-                "remoteDNS": masque_settings.get("remoteDNS"),
+                "user": masque_data.user,
+                "pass": masque_data.password,
+                "remoteDNS": masque_data.remote_dns,
             },
         )
 

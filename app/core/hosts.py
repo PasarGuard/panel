@@ -17,6 +17,7 @@ from app.models.host import BaseHost, FinalMask, TransportSettings, WireGuardHos
 from app.models.subscription import (
     GRPCTransportConfig,
     KCPTransportConfig,
+    MasqueTransportConfig,
     QUICTransportConfig,
     SubscriptionInboundData,
     TCPTransportConfig,
@@ -405,6 +406,12 @@ async def _prepare_subscription_inbound_data(
             response=tcps.response.model_dump(by_alias=True, exclude_none=True) if tcps and tcps.response else None,
             http_headers=host.http_headers,
             random_user_agent=host.random_user_agent,
+        )
+    elif network == "masque":
+        transport_config = MasqueTransportConfig(
+            path=path,
+            host=host_list,
+            http_headers=host.http_headers if host.http_headers is not None else inbound_config.get("http_headers"),
         )
     else:
         # Unknown network type, default to TCP
