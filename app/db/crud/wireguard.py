@@ -10,6 +10,7 @@ from sqlalchemy.dialects.mysql import insert as mysql_insert
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.xray import xray_wireguard_allocatable_addresses
 from app.db.models import (
     CoreConfig,
     CoreType,
@@ -58,13 +59,30 @@ def wg_core_interfaces(core: CoreConfig) -> list[dict]:
     if core.type not in (None, CoreType.xray):
         return []
     excluded = set(core.exclude_inbound_tags or []) | set(core.fallbacks_inbound_tags or [])
-    return [
-        {"interface_name": inbound.get("tag"), "address": (inbound.get("settings") or {}).get("address", [])}
-        for inbound in config.get("inbounds", [])
-        if inbound.get("protocol") == "wireguard"
-        and inbound.get("tag") not in excluded
-        and "address" in (inbound.get("settings") or {})
-    ]
+    interfaces = []
+    for inbound in config.get("inbounds", []):
+        if inbound.get("protocol") != "wireguard" or inbound.get("tag") in excluded:
+            continue
+        settings = inbound.get("settings") or {}
+        if not isinstance(settings, dict):
+            continue
+        # Same rule as the core parser: only client subnets make an inbound managed.
+        try:
+            addresses = xray_wireguard_allocatable_addresses(inbound.get("tag"), settings.get("address"))
+        except ValueError:
+            # The core parser rejects this inbound, so it is never served.
+            continue
+        if addresses:
+            interfaces.append(
+                {
+                    "interface_name": inbound.get("tag"),
+                    "address": addresses,
+                    # Xray binds every entry, host addresses included, as a server
+                    # address of the inbound; none of them may go to a client.
+                    "server_addresses": [str(ip_interface(address)) for address in settings["address"]],
+                }
+            )
+    return interfaces
 
 
 def wg_core_subnets(config: dict) -> list[IpNetwork]:
@@ -124,7 +142,8 @@ def wg_namespaces(cores: Iterable[CoreConfig]) -> dict[str, WgNamespace]:
             tag = str(cfg.get("interface_name") or "").strip()
             if tag:
                 tags.add(tag)
-            for cidr in cfg.get("address") or []:
+            # Kernel WireGuard configs have no server_addresses and reserve their interface addresses.
+            for cidr in cfg.get("server_addresses") or cfg.get("address") or []:
                 try:
                     iface = ip_interface(str(cidr).strip())
                 except ValueError:

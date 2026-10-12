@@ -28,6 +28,35 @@ def _protocols_from_inbounds_by_tag(inbounds_by_tag: dict[str, dict]) -> frozens
     )
 
 
+def xray_wireguard_allocatable_addresses(tag: str, addresses) -> list[str]:
+    """Client subnets of an Xray WireGuard inbound's settings.address.
+
+    An empty result means the inbound is not managed by PasarGuard. Raises
+    ValueError for an address value Xray would reject. The core parser and the
+    WireGuard allocation pools share this rule so they agree on managed inbounds.
+    """
+    if addresses is None or addresses == []:
+        # Xray treats a missing/null address as its built-in default interface
+        # addresses. An empty list also provides no pool for client allocation.
+        return []
+    if not isinstance(addresses, list):
+        raise ValueError(f"{tag} managed WireGuard inbound needs address CIDRs for client allocation")  # noqa: TRY004
+    allocatable_addresses = []
+    for address in addresses:
+        try:
+            iface = ip_interface(address)
+        except (ValueError, TypeError) as exc:
+            raise ValueError(f"{tag} WireGuard address must contain valid IP addresses or CIDRs") from exc
+        if not isinstance(address, str):
+            raise ValueError(f"{tag} WireGuard address must contain valid IP addresses or CIDRs")  # noqa: TRY004
+        # Xray accepts either a bare IP or a CIDR here. PasarGuard can only
+        # manage peers when an address supplies a subnet with room to allocate
+        # client IPs; valid host addresses and /32-/128 routes remain unmanaged.
+        if "/" in address and iface.network.num_addresses >= 4:
+            allocatable_addresses.append(str(iface))
+    return allocatable_addresses
+
+
 class XRayConfig(dict):
     def __init__(
         self,
@@ -481,27 +510,7 @@ class XRayConfig(dict):
         tag = inbound["tag"]
         config = inbound.get("settings") or {}
 
-        addresses = config.get("address")
-        if addresses is None or addresses == []:
-            # Xray treats a missing/null address as its built-in default interface
-            # addresses. An empty list also provides no pool for client allocation.
-            return None
-        if not isinstance(addresses, list):
-            raise ValueError(f"{tag} managed WireGuard inbound needs address CIDRs for client allocation")  # noqa: TRY004
-        allocatable_addresses = []
-        for address in addresses:
-            try:
-                iface = ip_interface(address)
-            except (ValueError, TypeError) as exc:
-                raise ValueError(f"{tag} WireGuard address must contain valid IP addresses or CIDRs") from exc
-            if not isinstance(address, str):
-                raise ValueError(f"{tag} WireGuard address must contain valid IP addresses or CIDRs")  # noqa: TRY004
-            # Xray accepts either a bare IP or a CIDR here. PasarGuard can only
-            # manage peers when an address supplies a subnet with room to allocate
-            # client IPs; valid host addresses and /32-/128 routes remain unmanaged.
-            if "/" in address and iface.network.num_addresses >= 4:
-                allocatable_addresses.append(str(iface))
-
+        allocatable_addresses = xray_wireguard_allocatable_addresses(tag, config.get("address"))
         if not allocatable_addresses:
             return None
 
