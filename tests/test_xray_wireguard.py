@@ -74,10 +74,48 @@ def test_xray_wireguard_metadata_and_node_credentials(encoding):
     assert list(user.proxies.wireguard.peer_ips) == ["10.90.0.2/32", "fd90::2/128"]
 
 
-@pytest.mark.parametrize("address", [[], ["10.90.0.1"], ["10.90.0.1/32"], ["invalid"]])
-def test_managed_xray_wireguard_requires_allocatable_subnets(address):
+@pytest.mark.parametrize("address", [[], ["10.90.0.1"], ["10.90.0.1/32"], ["10.90.0.1/31"], ["fd90::1/128"]])
+def test_xray_wireguard_without_allocatable_subnet_is_left_unmanaged(address):
     secret, _ = generate_wireguard_keypair()
-    with pytest.raises(ValueError, match="WireGuard"):
+    parsed = XRayConfig(xray_config(secret, address=address))
+    assert not parsed.inbounds
+    assert not parsed.protocols
+
+
+def test_xray_wireguard_with_null_address_is_left_unmanaged():
+    secret, _ = generate_wireguard_keypair()
+    config = xray_config(secret)
+    config["inbounds"][0]["settings"]["address"] = None
+    parsed = XRayConfig(config)
+    assert not parsed.inbounds
+    assert not parsed.protocols
+
+
+@pytest.mark.parametrize(
+    ("address", "allocatable"),
+    [
+        (["10.90.0.1/32", "10.90.0.1/24"], ["10.90.0.1/24"]),
+        (["10.90.0.1/31", "10.90.0.1/30"], ["10.90.0.1/30"]),
+    ],
+)
+def test_xray_wireguard_allocates_only_from_subnets(address, allocatable):
+    secret, _ = generate_wireguard_keypair()
+    parsed = XRayConfig(xray_config(secret, address=address))
+    assert parsed.inbounds == ["xray-wg"]
+    assert parsed.inbounds_by_tag["xray-wg"]["address"] == allocatable
+
+
+@pytest.mark.parametrize(
+    ("address", "message"),
+    [
+        (["invalid"], "valid IP addresses or CIDRs"),
+        (["10.90.0.1/24", 42], "valid IP addresses or CIDRs"),
+        ("10.90.0.1/24", "needs address CIDRs"),
+    ],
+)
+def test_managed_xray_wireguard_rejects_invalid_addresses(address, message):
+    secret, _ = generate_wireguard_keypair()
+    with pytest.raises(ValueError, match=message):
         XRayConfig(xray_config(secret, address=address))
 
 
