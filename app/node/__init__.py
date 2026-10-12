@@ -438,8 +438,16 @@ class NodeManager:
             elif isinstance(result, Exception):
                 self.logger.error("Failed to sync users to node %s: %s", node_id, result)
 
-    async def update_users(self, users: list[ProtoUser]) -> None:
-        asyncio.create_task(self._update_users(users))
+    async def update_users(self, users: list[ProtoUser], *, await_dispatch: bool = False) -> None:
+        """Queue a batch, optionally waiting so a producer cannot outrun node dispatch.
+
+        Per-node failures are logged, never raised: a node that misses a batch gets a
+        full snapshot when it reconnects.
+        """
+        if await_dispatch:
+            await self._update_users(users)
+        else:
+            asyncio.create_task(self._update_users(users))
 
     async def update_user(self, user: ProtoUser) -> None:
         nodes = await self._snapshot_nodes()
