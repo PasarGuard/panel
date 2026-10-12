@@ -25,7 +25,7 @@ from app.models.admin_role import (
     AdminRolesSimpleResponse,
 )
 from app.operation import BaseOperation
-from app.operation.admin_sync import sync_role_users_for_block_transition
+from app.operation.admin_sync import schedule_role_users_block_sync
 from app.utils.logger import get_logger
 
 logger = get_logger("admin-role-operation")
@@ -76,18 +76,10 @@ class AdminRoleOperation(BaseOperation):
         if role is None:
             await self.raise_error(message="Role not found", code=404)
 
-        was_limited_blocked = role.disconnect_users_when_limited
-        was_disabled_blocked = role.disconnect_users_when_disabled
-        # Explicit policy fields also reconcile an unchanged value, allowing a
-        # retry to recover a lookup/serialization failure after the previous commit.
-        reconcile_statuses = [
-            status
-            for status, value in (
-                (AdminStatus.limited, data.disconnect_users_when_limited),
-                (AdminStatus.disabled, data.disconnect_users_when_disabled),
-            )
-            if value is not None
-        ]
+        was_blocked = {
+            AdminStatus.limited: role.disconnect_users_when_limited,
+            AdminStatus.disabled: role.disconnect_users_when_disabled,
+        }
         try:
             role = await modify_role(db, role, data)
             await db.commit()
@@ -96,13 +88,19 @@ class AdminRoleOperation(BaseOperation):
         except IntegrityError:
             await self.raise_error(message="Role with this name already exists", code=409, db=db)
 
-        await sync_role_users_for_block_transition(
-            db,
-            role,
-            was_limited_blocked=was_limited_blocked,
-            was_disabled_blocked=was_disabled_blocked,
-            reconcile_statuses=reconcile_statuses,
-        )
+        # The dashboard sends both policy fields on every save, so only a real
+        # change dispatches users. Node delivery runs after the response: an
+        # unreachable node must not fail or stall a committed role edit.
+        changed_statuses = [
+            status
+            for status, is_blocked in (
+                (AdminStatus.limited, role.disconnect_users_when_limited),
+                (AdminStatus.disabled, role.disconnect_users_when_disabled),
+            )
+            if is_blocked != was_blocked[status]
+        ]
+        if changed_statuses:
+            schedule_role_users_block_sync(role.id, changed_statuses)
         logger.info(f'Role "{role.name}" modified by admin "{admin.username}"')
         response = AdminRoleResponse.model_validate(role)
         asyncio.create_task(notification.modify_admin_role(response, admin.username))
