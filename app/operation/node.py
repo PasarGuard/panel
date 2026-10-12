@@ -313,6 +313,13 @@ class NodeOperation(BaseOperation):
             if info is None or not info.started or not info.node_version or not info.core_version:
                 return None
 
+            # The running flag can outlive a missing WireGuard interface. Confirm
+            # a broken backend has recovered before marking the attachment healthy.
+            if await pg_node.get_health() is Health.BROKEN or (
+                state is not None and state.observed is LifecycleStatus.BROKEN
+            ):
+                await pg_node.get_backend_stats()
+
             await pg_node.connect(info.node_version, info.core_version)
             # Shared pending work survives a panel restart. Attaching must
             # wake the lazy bridge worker even without a fresh user update.
