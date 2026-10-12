@@ -5350,7 +5350,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                           patchInbound({ address: nextAddresses.length > 0 ? nextAddresses : undefined } as Partial<Inbound>)
                         }}
                         placeholder={t('coreEditor.inbound.wireguard.addressHint', {
-                          defaultValue: 'Example: 10.0.0.1/32',
+                          defaultValue: 'Example: 10.0.0.1/24',
                         })}
                         addPlaceholder={t('coreEditor.inbound.wireguard.addressAddPlaceholder', {
                           defaultValue: 'Add address',

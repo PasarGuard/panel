@@ -2719,7 +2719,7 @@
         "secretKey": "Секретный ключ",
         "generateSecretKey": "Сгенерировать секретный ключ",
         "address": "Адрес сервера",
-        "addressHint": "Пример: 10.0.0.1/128",
+        "addressHint": "Пример: 10.0.0.1/24",
         "addressAddPlaceholder": "Добавить адрес",
         "addItem": "Добавить",
         "addressItems": "Адреса",

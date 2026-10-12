@@ -2743,7 +2743,7 @@
         "secretKey": "کلید محرمانه",
         "generateSecretKey": "تولید کلید محرمانه",
         "address": "آدرس سرور",
-        "addressHint": "مثال: 10.0.0.1/128",
+        "addressHint": "مثال: 10.0.0.1/24",
         "addressAddPlaceholder": "افزودن آدرس",
         "addItem": "افزودن",
         "addressItems": "آدرس‌ها",
