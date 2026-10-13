@@ -179,7 +179,7 @@ async def _prepare_subscription_inbound_data(
     sing_box_ech = ech.sing_box if ech else None
     ech_query_strategy = (xray_ech.query_strategy if xray_ech else None) or inbound_config.get("echForceQuery")
     alpn_list = [alpn.value for alpn in host.alpn] if host.alpn else inbound_config.get("alpn", [])
-    fp = host.fingerprint.value if host.fingerprint.value != "none" else inbound_config.get("fp")
+    fp = host.fingerprint.value or inbound_config.get("fp")
     fp = fp or ("chrome" if tls_value == "reality" else "")
 
     ais = host.allowinsecure if host.allowinsecure is not None else inbound_config.get("allowinsecure", False)
@@ -472,7 +472,8 @@ async def _prepare_subscription_inbound_data(
 
 
 class HostManager:
-    STATE_CACHE_KEY = "state"
+    # Rebuild snapshots created before inbound TLS defaults were preserved.
+    STATE_CACHE_KEY = "state_v2"
     KV_BUCKET_NAME = "host_manager_state"
 
     def __init__(self):

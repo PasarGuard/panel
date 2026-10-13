@@ -219,6 +219,7 @@ class XRayConfig(dict):
         settings["tls"] = "tls"
         settings["pinnedPeerCertSha256"] = tls_settings.get("pinnedPeerCertSha256", "")
         settings["fp"] = tls_settings.get("fingerprint", "chrome")
+        settings["alpn"] = list(tls_settings.get("alpn") or [])
         if sni := tls_settings.get("serverName"):
             settings["sni"].append(str(sni))
         # The same real tlsSettings object can arrive from several passes (the parent and its fallback children).
