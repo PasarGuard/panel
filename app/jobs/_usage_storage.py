@@ -2,15 +2,15 @@
 
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
-from sqlalchemy import bindparam, select, update
+from sqlalchemy import bindparam, delete, select, update
 from sqlalchemy.dialects.mysql import insert as mysql_insert
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
-from app.db.models import Admin, Node, System, UsageReceipt, User
+from app.db.models import Admin, Node, System, UsageReceipt, UsageStream, User
 from app.jobs._usage_queries import (
     build_node_usage_upsert,
     build_node_user_usage_upsert,
@@ -28,19 +28,21 @@ def chunks(items, size=400):
 class Receipt:
     kind: str
     node_id: int
-    previous_id: str
+    collection_epoch: str
     receipt_id: str
     payload: dict
 
     @classmethod
-    def create(cls, kind, node_id, previous_id, stats, history, coefficient=1.0, *, receipt_id=None, collected_at=None):
+    def create(
+        cls, kind, node_id, collection_epoch, stats, history, coefficient=1.0, *, receipt_id=None, collected_at=None
+    ):
         # Node-generated IDs survive transport retries and leadership changes.
         if receipt_id is not None:
             receipt_id = str(UUID(receipt_id))
         return cls(
             kind,
             node_id,
-            previous_id,
+            collection_epoch,
             receipt_id or str(uuid4()),
             {
                 "version": 1,
@@ -52,11 +54,32 @@ class Receipt:
         )
 
 
+class StaleUsageCollection(Exception):
+    """Cleanup fenced this collection; recollect the node's durable pending receipt."""
+
+
 class UsageStore:
     def __init__(self, transaction, dialect):
         self.transaction = transaction
         self.dialect = dialect
         self.table = UsageReceipt.__table__
+        self.streams = UsageStream.__table__
+
+    def _insert_once(self, table, **values):
+        factory = {"mysql": mysql_insert, "postgresql": pg_insert, "sqlite": sqlite_insert}[self.dialect]
+        stmt = factory(table).values(**values)
+        if self.dialect == "mysql":
+            return stmt.on_duplicate_key_update(node_id=table.c.node_id)
+        return stmt.on_conflict_do_nothing(index_elements=[column.name for column in table.primary_key])
+
+    def _stream_key(self, kind, node_id):
+        return (self.streams.c.kind == kind) & (self.streams.c.node_id == node_id)
+
+    async def _lock_stream(self, conn, kind, node_id):
+        key = self._stream_key(kind, node_id)
+        # UPDATE also serializes SQLite callers; FOR UPDATE alone does not.
+        await conn.execute(update(self.streams).where(key).values(collection_epoch=self.streams.c.collection_epoch))
+        return (await conn.execute(select(self.streams.c.collection_epoch).where(key))).scalar_one_or_none()
 
     def key(self, kind, node_id):
         return (self.table.c.kind == kind) & (self.table.c.node_id == node_id)
@@ -73,11 +96,20 @@ class UsageStore:
         return await self.transaction(read)
 
     async def prepare(self, kind, node_id):
-        """Check storage before polling; every receipt now owns an independent row."""
+        """Capture a durable fence BEFORE a node RPC can return an old receipt."""
 
         async def prepare(conn):
-            await conn.execute(select(self.table.c.receipt_id).where(self.key(kind, node_id)).limit(1))
-            return ""
+            epoch = (
+                await conn.execute(select(self.streams.c.collection_epoch).where(self._stream_key(kind, node_id)))
+            ).scalar_one_or_none()
+            if epoch is None:
+                await conn.execute(
+                    self._insert_once(self.streams, node_id=node_id, kind=kind, collection_epoch=str(uuid4()))
+                )
+                epoch = (
+                    await conn.execute(select(self.streams.c.collection_epoch).where(self._stream_key(kind, node_id)))
+                ).scalar_one()
+            return epoch
 
         return await self.transaction(prepare)
 
@@ -85,21 +117,81 @@ class UsageStore:
         """Insert once without overwriting a pending payload or applied tombstone."""
 
         async def stage(conn):
-            factory = {"mysql": mysql_insert, "postgresql": pg_insert, "sqlite": sqlite_insert}[self.dialect]
-            stmt = factory(self.table).values(
+            epoch = await self._lock_stream(conn, receipt.kind, receipt.node_id)
+            if epoch is None or epoch != receipt.collection_epoch:
+                raise StaleUsageCollection(f"Collection fenced for {receipt.kind}/{receipt.node_id}")
+            stmt = self._insert_once(
+                self.table,
                 node_id=receipt.node_id,
                 kind=receipt.kind,
                 receipt_id=receipt.receipt_id,
                 payload=receipt.payload,
                 processed=False,
             )
-            if self.dialect == "mysql":
-                stmt = stmt.on_duplicate_key_update(receipt_id=self.table.c.receipt_id)
-            else:
-                stmt = stmt.on_conflict_do_nothing(index_elements=["node_id", "kind", "receipt_id"])
             await conn.execute(stmt)
 
         await self.transaction(stage)
+
+    async def acknowledge(self, receipt):
+        """Record proof only AFTER a successful durable node ACK response."""
+
+        async def acknowledge(conn):
+            await conn.execute(
+                update(self.table)
+                .where(
+                    self.key(receipt.kind, receipt.node_id),
+                    self.table.c.receipt_id == receipt.receipt_id,
+                    self.table.c.acknowledged_at.is_(None),
+                )
+                .values(acknowledged_at=datetime.now(UTC))
+            )
+
+        await self.transaction(acknowledge)
+
+    async def cleanup(self, retention_days, batch_size, *, now=None):
+        """Delete a bounded ACKed/applied batch and fence old collectors atomically.
+
+        The node can replay an unACKed receipt forever. A confirmed ACK removes
+        that replay source; rotating the stream fence rejects arbitrarily late
+        in-flight replies and unstaged samples even after their IDs are deleted.
+        Pending, unACKed and pre-migration receipts remain recoverable.
+        """
+        if retention_days < 1 or not 1 <= batch_size <= 10000:
+            raise ValueError("Receipt cleanup requires positive retention and a bounded batch")
+        cutoff = (now or datetime.now(UTC)) - timedelta(days=retention_days)
+        eligible = (
+            self.table.c.processed.is_(True)
+            & (self.table.c.applied_at < cutoff)
+            & (self.table.c.acknowledged_at < cutoff)
+        )
+
+        async def cleanup(conn):
+            candidates = (
+                await conn.execute(
+                    select(self.table.c.node_id, self.table.c.kind, self.table.c.receipt_id)
+                    .where(eligible)
+                    .order_by(self.table.c.acknowledged_at)
+                    .limit(batch_size)
+                )
+            ).all()
+            streams = defaultdict(list)
+            for node_id, kind, receipt_id in candidates:
+                streams[(node_id, kind)].append(receipt_id)
+            deleted = 0
+            for (node_id, kind), ids in sorted(streams.items()):
+                if await self._lock_stream(conn, kind, node_id) is None:
+                    continue
+                await conn.execute(
+                    update(self.streams).where(self._stream_key(kind, node_id)).values(collection_epoch=str(uuid4()))
+                )
+                for batch in chunks(ids):
+                    result = await conn.execute(
+                        delete(self.table).where(self.key(kind, node_id), eligible, self.table.c.receipt_id.in_(batch))
+                    )
+                    deleted += result.rowcount
+            return deleted
+
+        return await self.transaction(cleanup)
 
     async def apply(self, kind, node_id):
         # Bound recovery work per tick; independent receipts never block staging
@@ -145,9 +237,11 @@ class UsageStore:
                 await self._outbounds(conn, history_node_id, payload, bucket)
             else:
                 raise ValueError("Unknown usage stream")
-            # Keep the receipt ID as a tombstone, releasing only the large payload.
+            # Retain the ID until confirmed ACK, retention and fence rotation.
             # This commit includes ALL accounting and history writes.
-            await conn.execute(update(self.table).where(key).values(payload=None, processed=True))
+            await conn.execute(
+                update(self.table).where(key).values(payload=None, processed=True, applied_at=datetime.now(UTC))
+            )
             return True
 
         return await self.transaction(apply)

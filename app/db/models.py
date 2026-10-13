@@ -1066,13 +1066,27 @@ class TempKey(Base):
 
 
 class UsageReceipt(Base):
-    """Independent receipts; applied IDs remain as permanent deduplication keys."""
+    """Independent receipts retained until accounting and durable node ACK complete."""
 
     __tablename__ = "usage_receipt_ledger"
-    __table_args__ = (Index("ix_usage_ledger_pending", "kind", "processed", "node_id"),)
+    __table_args__ = (
+        Index("ix_usage_ledger_pending", "kind", "processed", "node_id"),
+        Index("ix_usage_ledger_retention", "processed", "acknowledged_at", "applied_at"),
+    )
     # No node FK: removing a node must not discard unaccounted user traffic.
     node_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     kind: Mapped[str] = mapped_column(String(16), primary_key=True)
     receipt_id: Mapped[str] = mapped_column(String(36), primary_key=True)
     processed: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="0")
     payload: Mapped[dict | None] = mapped_column(JSON(none_as_null=True), nullable=True)
+    applied_at: Mapped[dt | None] = mapped_column(DateTime(timezone=True), nullable=True, default=None)
+    acknowledged_at: Mapped[dt | None] = mapped_column(DateTime(timezone=True), nullable=True, default=None)
+
+
+class UsageStream(Base):
+    """Persistent collection fence; one row per node/stream, independent of receipts."""
+
+    __tablename__ = "usage_streams"
+    node_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    kind: Mapped[str] = mapped_column(String(16), primary_key=True)
+    collection_epoch: Mapped[str] = mapped_column(String(36), nullable=False)

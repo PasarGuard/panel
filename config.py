@@ -191,6 +191,10 @@ class AuthSettings(EnvSettings):
 
 
 class UsageSettings(EnvSettings):
+    usage_receipt_retention_days: int = Field(default=30, ge=1, validation_alias="USAGE_RECEIPT_RETENTION_DAYS")
+    usage_receipt_cleanup_batch_size: int = Field(
+        default=1000, ge=1, le=10000, validation_alias="USAGE_RECEIPT_CLEANUP_BATCH_SIZE"
+    )
     disable_recording_node_usage: bool = Field(default=False, validation_alias="DISABLE_RECORDING_NODE_USAGE")
     enable_recording_nodes_stats: bool = Field(default=False, validation_alias="ENABLE_RECORDING_NODES_STATS")
     user_usage_history_flush_interval: int = Field(
@@ -205,6 +209,9 @@ class UsageSettings(EnvSettings):
 
 
 class JobSettings(EnvSettings):
+    cleanup_usage_receipts_interval: int = Field(
+        default=60, ge=1, validation_alias="JOB_CLEANUP_USAGE_RECEIPTS_INTERVAL"
+    )
     core_health_check_interval: int = Field(default=10, validation_alias="JOB_CORE_HEALTH_CHECK_INTERVAL")
     record_node_usages_interval: int = Field(default=30, validation_alias="JOB_RECORD_NODE_USAGES_INTERVAL")
     record_user_usages_interval: int = Field(default=10, validation_alias="JOB_RECORD_USER_USAGES_INTERVAL")

@@ -19,7 +19,7 @@ from app.jobs._usage_queries import (
     build_online_at_updates,
     build_user_traffic_update,  # noqa: F401 - preserve the public statement builder
 )
-from app.jobs._usage_storage import Receipt, UsageStore
+from app.jobs._usage_storage import Receipt, StaleUsageCollection, UsageStore
 from app.node import node_manager
 from app.operation.admin_sync import enforce_admin_limits_now
 from app.utils.logger import get_logger
@@ -527,6 +527,7 @@ _unstaged: dict[tuple[str, int], Receipt] = {}
 _stopping = False
 _enforcement_task: asyncio.Task | None = None
 _enforcement_dirty = False
+_cleanup_task: asyncio.Task | None = None
 
 
 def _request_enforcement():
@@ -549,11 +550,19 @@ async def _enforce_limits():
 
 
 async def _stage_unstaged(store: UsageStore, key: tuple[str, int]):
-    """Keep the exact receipt until its independent ledger insertion commits."""
+    """Keep the receipt until commit; recollect if cleanup fenced this attempt."""
     receipt = _unstaged[key]
-    await store.stage(receipt)
+    staged = True
+    try:
+        await store.stage(receipt)
+    except StaleUsageCollection:
+        # An ACKed old response is already accounted. An unACKed receipt is
+        # still on the node and will be recollected with the current fence.
+        logger.info("Recollecting fenced usage receipt %s for %s/%s", receipt.receipt_id, *key)
+        staged = False
     if _unstaged.get(key) is receipt:
         del _unstaged[key]
+    return staged
 
 
 async def _process_stream(kind: str, node_id: int, node, *, recovering: bool = False):
@@ -569,7 +578,7 @@ async def _process_stream(kind: str, node_id: int, node, *, recovering: bool = F
         if node is None or _stopping:
             return
         async with RECOVERY_API_SEM if recovering else API_SEM:
-            await store.prepare(kind, node_id)
+            collection_epoch = await store.prepare(kind, node_id)
             if _stopping:
                 return
             coefficient = 1.0
@@ -584,7 +593,7 @@ async def _process_stream(kind: str, node_id: int, node, *, recovering: bool = F
             receipt = Receipt.create(
                 kind,
                 node_id,
-                "",
+                collection_epoch,
                 stats,
                 not usage_settings.disable_recording_node_usage,
                 coefficient,
@@ -592,7 +601,10 @@ async def _process_stream(kind: str, node_id: int, node, *, recovering: bool = F
                 collected_at=getattr(stats, "collected_at", None),
             )
             _unstaged[key] = receipt
-            await _stage_unstaged(store, key)
+            # A newly fenced reply must never be ACKed: it may still be the
+            # node's only copy of unaccounted traffic. Retry on the next tick.
+            if not await _stage_unstaged(store, key):
+                return
             accounting_attempted = True
             await store.apply(kind, node_id)
             # Even if accounting has a larger backlog, staging committed first.
@@ -600,6 +612,7 @@ async def _process_stream(kind: str, node_id: int, node, *, recovering: bool = F
             # ignores both pending duplicates and already-applied receipts.
             if remote_id:
                 await node.acknowledge_usage(stat_type=stat_type, receipt_id=receipt.receipt_id, timeout=10)
+                await store.acknowledge(receipt)
     except Exception:
         logger.exception("Usage stream %s/%s failed; pending samples will be retried before new reads", kind, node_id)
     finally:
@@ -726,6 +739,22 @@ async def _schedule_outbounds():
     await _dispatch("outbounds", wait=False)
 
 
+async def _cleanup_usage_receipts():
+    try:
+        store = UsageStore(_transaction, await get_dialect())
+        await store.cleanup(
+            usage_settings.usage_receipt_retention_days, usage_settings.usage_receipt_cleanup_batch_size
+        )
+    except Exception:
+        logger.exception("Usage receipt cleanup failed; next scheduled run will retry")
+
+
+async def _schedule_receipt_cleanup():
+    global _cleanup_task
+    if not _stopping and (_cleanup_task is None or _cleanup_task.done()):
+        _cleanup_task = asyncio.create_task(_cleanup_usage_receipts(), name="usage-receipt-cleanup")
+
+
 def resume_usage_recording():
     global _stopping
     _stopping = False
@@ -734,6 +763,8 @@ def resume_usage_recording():
 async def drain_usage_recording():
     global _stopping
     _stopping = True
+    if _cleanup_task is not None:
+        await asyncio.shield(_cleanup_task)
     if _tasks:
         await asyncio.shield(asyncio.gather(*list(_tasks.values()), return_exceptions=True))
     if _enforcement_task is not None:
@@ -747,6 +778,15 @@ async def drain_usage_recording():
 
 
 if runtime_settings.role.runs_node:
+    scheduler.add_job(
+        _schedule_receipt_cleanup,
+        "interval",
+        seconds=job_settings.cleanup_usage_receipts_interval,
+        coalesce=True,
+        max_instances=1,
+        id="cleanup_usage_receipts",
+        replace_existing=True,
+    )
     for kind, job, interval, delay in (
         ("user", _schedule_users, job_settings.record_user_usages_interval, 30),
         ("node", _schedule_outbounds, job_settings.record_node_usages_interval, 15),
