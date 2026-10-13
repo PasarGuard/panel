@@ -185,8 +185,12 @@ if runtime_settings.role.runs_node:
     async def _dispatch_user_update(proto_user):
         await node_manager.update_user(proto_user)
 
-    async def _dispatch_users_update(proto_users):
-        await node_manager.update_users(proto_users)
+    async def _dispatch_users_update(proto_users, *, await_dispatch: bool = True):
+        """Dispatch a batch locally, optionally waiting for node queue acceptance."""
+        if await_dispatch:
+            await node_manager.update_users(proto_users, await_dispatch=True)
+        else:
+            await node_manager.update_users(proto_users)
 
 else:
 
@@ -194,7 +198,8 @@ else:
         user_dict = serialize_proto_message(proto_user)
         await node_nats_client.publish("update_user", {"user": user_dict})
 
-    async def _dispatch_users_update(proto_users):
+    async def _dispatch_users_update(proto_users, *, await_dispatch: bool = True):
+        """Publish bounded batches to the node worker before returning."""
         users_dicts = serialize_proto_messages(proto_users)
         for users_chunk in _chunk_serialized_users_for_nats(users_dicts):
             await node_nats_client.publish("update_users", {"users": users_chunk})
@@ -327,15 +332,18 @@ async def remove_user_awaited(user: UserNotificationResponse) -> None:
     await _dispatch_user_update(proto_user)
 
 
-async def remove_users(users: list[User]) -> None:
-    """Batch-remove users from nodes (serialized without inbounds so nodes drop them)."""
+async def remove_users(users: list[User], *, await_dispatch: bool = False) -> None:
+    """Batch-remove users, optionally awaiting dispatch before loading the next batch."""
     if not users:
         return
     locks = await _acquire_user_sync_locks([user.id for user in users])
     try:
         proto_users = [_serialize_user_for_node(user.id, user.proxy_settings) for user in users]
-        asyncio.create_task(_dispatch_users_after_unlock(proto_users, locks))
-        locks = []
+        if await_dispatch:
+            await _dispatch_users_update(proto_users)
+        else:
+            asyncio.create_task(_dispatch_users_after_unlock(proto_users, locks))
+            locks = []
     finally:
         _release_user_sync_locks(locks)
 
@@ -346,6 +354,7 @@ async def sync_users(
     inbound_tags_by_user: dict[int, set[str]] | None = None,
     refresh_inbound_tags: bool = False,
     wait_for_dispatch: bool = False,
+    await_dispatch: bool = False,
 ) -> None:
     """Sync users to nodes in order, excluding blocked administrators."""
     locks = await _acquire_user_sync_locks([user.id for user in users])
@@ -359,7 +368,7 @@ async def sync_users(
         else:
             proto_users = await serialize_users_for_node(filtered, inbound_tags_by_user=inbound_tags_by_user)
 
-        if wait_for_dispatch:
+        if wait_for_dispatch or await_dispatch:
             await _dispatch_users_update(proto_users)
             _release_user_sync_locks(locks)
             locks = []

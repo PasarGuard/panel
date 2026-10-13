@@ -6,6 +6,7 @@ from typing import Any
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.db.models import ProxyHostALPN, ProxyHostFingerprint, ProxyHostSecurity, UserStatus
+from app.utils.helpers import has_markup_unsafe_chars
 
 from .validators import ListValidator, StringArrayValidator
 
@@ -804,7 +805,10 @@ class CreateHost(BaseHost):
 
     @field_validator("address", mode="after")
     def validate_address(cls, v):
-        return StringArrayValidator.len_check(v, 256)
+        v = StringArrayValidator.len_check(v, 256)
+        if v and any(has_markup_unsafe_chars(address) for address in v):
+            raise ValueError("Address cannot contain quotes, angle brackets, backticks, backslashes or whitespace")
+        return v
 
     @field_validator("sni", "host", mode="after")
     def validate_sets(cls, v: set):
@@ -814,11 +818,12 @@ class CreateHost(BaseHost):
 class BulkHostSelection(BaseModel):
     """Model for bulk host selection by IDs"""
 
-    ids: set[int] = Field(default_factory=set)
+    ids: set[int]
 
     @field_validator("ids", mode="after")
     @classmethod
     def ids_validator(cls, v):
+        """Reject an empty selection after deduplicating host IDs."""
         return ListValidator.not_null_list(list(v), "host")
 
 

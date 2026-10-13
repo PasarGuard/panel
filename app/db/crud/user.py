@@ -14,6 +14,7 @@ from sqlalchemy.sql.functions import coalesce
 from app.db.compiles_types import DateDiff
 from app.db.models import (
     Admin,
+    AdminStatus,
     DataLimitResetStrategy,
     Group,
     NextPlan,
@@ -382,9 +383,40 @@ async def get_admin_users_for_node_sync(
     statuses: Sequence[UserStatus] | None = None,
 ) -> list[User]:
     """Load an admin's users for node dispatch, without response-only fields or history."""
+    return await _get_users_for_node_sync(db, User.admin_id == admin_id, statuses=statuses)
+
+
+async def get_role_users_for_node_sync(
+    db: AsyncSession,
+    role_id: int,
+    admin_statuses: Sequence[AdminStatus],
+    *,
+    after_user_id: int = 0,
+    limit: int = 500,
+) -> list[User]:
+    """Load one ID-ordered batch of connectable users of affected admins in a role."""
+    admin_ids = select(Admin.id).where(Admin.role_id == role_id, Admin.status.in_(admin_statuses))
+    return await _get_users_for_node_sync(
+        db,
+        User.admin_id.in_(admin_ids),
+        statuses=[UserStatus.active, UserStatus.on_hold],
+        after_user_id=after_user_id,
+        limit=limit,
+    )
+
+
+async def _get_users_for_node_sync(
+    db: AsyncSession,
+    admin_filter: ColumnElement[bool],
+    *,
+    statuses: Sequence[UserStatus] | None = None,
+    after_user_id: int = 0,
+    limit: int | None = None,
+) -> list[User]:
+    """Load node-dispatch state, optionally restricted to a bounded ID-ordered page."""
     stmt = (
         select(User)
-        .where(User.admin_id == admin_id)
+        .where(admin_filter)
         .options(
             load_only(User.id, User.admin_id, User.status, User.proxy_settings),
             joinedload(User.admin).joinedload(Admin.role),
@@ -393,6 +425,8 @@ async def get_admin_users_for_node_sync(
     )
     if statuses is not None:
         stmt = stmt.where(User.status.in_(statuses))
+    if limit is not None:
+        stmt = stmt.where(User.id > after_user_id).order_by(User.id).limit(limit)
     return list((await db.scalars(stmt)).all())
 
 
@@ -502,6 +536,8 @@ async def get_users(
     if load_lifetime_used_traffic:
         options.append(with_expression(User._reseted_usage_query, _user_reset_traffic_subquery()))
     stmt = select(User).options(*options)
+    if load_lifetime_used_traffic:
+        stmt = stmt.execution_options(populate_existing=True)
     if load_hwid_count:
         stmt = stmt.options(with_expression(User.hwid_count, _user_hwid_count_subquery()))
 
@@ -985,11 +1021,20 @@ async def get_users_by_ids(
     *,
     load_admin_role: bool = False,
     load_group_inbounds: bool = False,
+    load_usage_logs: bool = True,
+    load_lifetime_used_traffic: bool = False,
+    populate_existing: bool = False,
 ) -> list[User]:
+    """Load users in request order with optional history, aggregates and refreshed state."""
     if not user_ids:
         return []
 
-    stmt = _build_user_select_stmt(load_admin_role=load_admin_role, load_group_inbounds=load_group_inbounds)
+    stmt = _build_user_select_stmt(
+        load_admin_role=load_admin_role,
+        load_group_inbounds=load_group_inbounds,
+        load_usage_logs=load_usage_logs,
+        load_lifetime_used_traffic=load_lifetime_used_traffic,
+    ).execution_options(populate_existing=populate_existing)
     result = await db.execute(stmt.where(_explicit_ids(User.id, user_ids)))
     users_by_id = {user.id: user for user in result.unique().scalars().all()}
     return [users_by_id[user_id] for user_id in user_ids if user_id in users_by_id]
@@ -1285,16 +1330,17 @@ async def modify_user(
     if modify.hwid_limit is not None:
         db_user.hwid_limit = modify.hwid_limit
 
-    if modify.next_plan is not None:
-        db_user.next_plan = NextPlan(
-            user_id=db_user.id,
-            user_template_id=modify.next_plan.user_template_id,
-            data_limit=modify.next_plan.data_limit,
-            expire=modify.next_plan.expire,
-            add_remaining_traffic=modify.next_plan.add_remaining_traffic,
-        )
-    elif db_user.next_plan is not None:
-        await db.delete(db_user.next_plan)
+    if "next_plan" in modify.model_fields_set:
+        if modify.next_plan is not None:
+            db_user.next_plan = NextPlan(
+                user_id=db_user.id,
+                user_template_id=modify.next_plan.user_template_id,
+                data_limit=modify.next_plan.data_limit,
+                expire=modify.next_plan.expire,
+                add_remaining_traffic=modify.next_plan.add_remaining_traffic,
+            )
+        elif db_user.next_plan is not None:
+            await db.delete(db_user.next_plan)
 
     db_user.edit_at = datetime.now(UTC)
 

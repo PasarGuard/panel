@@ -221,7 +221,13 @@ const NoiseItem = memo<NoiseItemProps>(({ index, form, onRemove, onDuplicate, t 
           render={({ field }) => (
             <FormItem>
               <FormControl>
-                <Input placeholder={t('hostsDialog.noise.packetPlaceholder')} {...field} value={field.value || ''} className="h-8" />
+                <Input
+                  placeholder={t('hostsDialog.noise.packetPlaceholder')}
+                  {...field}
+                  // Xray noise packets are strings; show a list packet stored through the API as JSON.
+                  value={Array.isArray(field.value) ? JSON.stringify(field.value) : (field.value ?? '')}
+                  className="h-8"
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -233,7 +239,7 @@ const NoiseItem = memo<NoiseItemProps>(({ index, form, onRemove, onDuplicate, t 
           render={({ field }) => (
             <FormItem>
               <FormControl>
-                <Input placeholder={t('hostsDialog.noise.delayPlaceholder')} {...field} value={field.value || ''} className="h-8" />
+                <Input placeholder={t('hostsDialog.noise.delayPlaceholder')} {...field} value={field.value ?? ''} className="h-8" />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -2192,12 +2198,12 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                       <FormLabel>{t('hostsDialog.xhttp.uplinkChunkSize')}</FormLabel>
                                       <FormControl>
                                         <Input
-                                          type="number"
+                                          type="text"
                                           {...field}
                                           value={field.value ?? ''}
                                           onChange={e => {
                                             const value = e.target.value
-                                            field.onChange(value === '' ? null : parseInt(value, 10))
+                                            field.onChange(value === '' ? undefined : value)
                                           }}
                                         />
                                       </FormControl>

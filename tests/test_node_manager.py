@@ -137,7 +137,7 @@ async def test_node_manager_update_users_waits_for_dispatch(monkeypatch: pytest.
         await release.wait()
 
     monkeypatch.setattr(manager, "_update_users", fake_update_users)
-    update_task = asyncio.create_task(manager.update_users([object()]))
+    update_task = asyncio.create_task(manager.update_users([object()], await_dispatch=True))
 
     await started.wait()
     assert not update_task.done()

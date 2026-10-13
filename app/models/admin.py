@@ -1,5 +1,6 @@
 import asyncio
 import os
+import re
 from concurrent.futures import ThreadPoolExecutor
 from enum import Enum
 from typing import Literal
@@ -11,6 +12,7 @@ from app.db.models import AdminStatus
 from app.models.admin_role import RoleAccess, RoleFeatures, RoleHWIDSettings, RoleLimits, RolePermissions
 from app.models.settings import CustomVariable, validate_custom_variables
 from app.models.stats import Period
+from app.utils.helpers import has_markup_unsafe_chars
 
 from .notification_enable import UserNotificationEnable
 from .validators import (
@@ -187,6 +189,14 @@ class AdminModify(BaseModel):
     @classmethod
     def validate_password(cls, value: str | None):
         return PasswordValidator.validate_password(value)
+
+    @field_validator("sub_domain")
+    @classmethod
+    def validate_sub_domain(cls, value: str | None):
+        # The prefix becomes part of subscription URLs that pages and clients open.
+        if value and (has_markup_unsafe_chars(value) or re.match(r"(javascript|data|vbscript):", value, re.IGNORECASE)):
+            raise ValueError("Subscription domain must be a plain URL prefix, such as https://sub.example.com")
+        return value
 
 
 class AdminCreate(AdminModify):

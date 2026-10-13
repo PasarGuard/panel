@@ -9,6 +9,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { AlertTriangle } from 'lucide-react'
 import { useAdmin } from '@/hooks/use-admin'
 import { hasPermission } from '@/utils/rbac'
+import { translateHtml } from '@/utils/html-translation'
 
 export default function CoresIndexPage() {
   const { admin } = useAdmin()
@@ -159,7 +160,7 @@ export default function CoresIndexPage() {
               {t('settings.cores.delete')}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              <span dangerouslySetInnerHTML={{ __html: t('core.deleteConfirm', { name: coreToDelete }) }} />
+              <span dangerouslySetInnerHTML={{ __html: translateHtml(t, 'core.deleteConfirm', { name: coreToDelete }) }} />
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

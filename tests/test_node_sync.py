@@ -40,7 +40,10 @@ def test_node_update_users_nats_chunks_respect_payload_limit(monkeypatch: pytest
 
 
 @pytest.mark.asyncio
-async def test_sync_users_serializes_overlapping_updates_in_dispatch_order(monkeypatch: pytest.MonkeyPatch):
+@pytest.mark.parametrize("wait_keyword", ["wait_for_dispatch", "await_dispatch"])
+async def test_sync_users_serializes_overlapping_updates_in_dispatch_order(
+    monkeypatch: pytest.MonkeyPatch, wait_keyword
+):
     """A newer user snapshot cannot overtake an older snapshot for the same user."""
     user = _FakeUser(7)
     serialized_revisions = 0
@@ -65,15 +68,38 @@ async def test_sync_users_serializes_overlapping_updates_in_dispatch_order(monke
     monkeypatch.setattr(node_sync_module, "_blocked_admin_ids_for_users", fake_blocked_admins)
     monkeypatch.setattr(node_sync_module, "serialize_users_for_node", fake_serialize)
     monkeypatch.setattr(node_sync_module, "_dispatch_users_update", fake_dispatch)
-    first = asyncio.create_task(node_sync_module.sync_users([user], wait_for_dispatch=True))
+    first = asyncio.create_task(node_sync_module.sync_users([user], **{wait_keyword: True}))
     await first_dispatch_started.wait()
-    second = asyncio.create_task(node_sync_module.sync_users([user], wait_for_dispatch=True))
+    second = asyncio.create_task(node_sync_module.sync_users([user], **{wait_keyword: True}))
     await asyncio.sleep(0)
     assert not second.done()
 
     release_first_dispatch.set()
     await asyncio.gather(first, second)
     assert dispatched_revisions == [1, 2]
+
+
+@pytest.mark.asyncio
+async def test_background_sync_keeps_user_lock_until_node_dispatch_finishes(monkeypatch: pytest.MonkeyPatch):
+    """The manager's queueing default must not release an ordering lock early."""
+    user = _FakeUser(7)
+    started, finish = asyncio.Event(), asyncio.Event()
+    monkeypatch.setattr(node_sync_module, "_blocked_admin_ids_for_users", AsyncMock(return_value=set()))
+    monkeypatch.setattr(node_sync_module, "serialize_users_for_node", AsyncMock(return_value=[object()]))
+
+    async def dispatch(users, *, await_dispatch=False):
+        assert await_dispatch is True
+        started.set()
+        await finish.wait()
+
+    monkeypatch.setattr(node_sync_module.node_manager, "update_users", dispatch)
+    await node_sync_module.sync_users([user])
+    await started.wait()
+    lock = node_sync_module._user_sync_locks[user.id]
+    assert lock.locked()
+    finish.set()
+    await asyncio.wait_for(lock.acquire(), timeout=1)
+    lock.release()
 
 
 @pytest.mark.asyncio

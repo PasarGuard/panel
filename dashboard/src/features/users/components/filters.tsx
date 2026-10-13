@@ -107,7 +107,7 @@ interface FiltersProps {
     sort: string
     status?: UserStatus | null
     load_sub: boolean
-    ids?: number[] | null
+    ids?: number[]
     admin?: string[]
     group?: number[]
     no_group?: boolean

@@ -346,7 +346,8 @@ async def process_expiry(event: Message, state: FSMContext):
 async def modify_expiry_done(
     event: CallbackQuery, db: AsyncSession, admin: AdminDetails, callback_data: BulkActionPanel.Callback
 ):
-    result = await user_operations.bulk_modify_expire(db, BulkUser(amount=int(callback_data.amount) * 86400))
+    """Apply a confirmed expiry adjustment with the authenticated admin's limits."""
+    result = await user_operations.bulk_modify_expire(db, BulkUser(amount=int(callback_data.amount) * 86400), admin)
     await event.answer(Texts.users_expiry_changed(result, int(callback_data.amount)))
     await event.message.edit_text(Texts.choose_action, reply_markup=BulkActionPanel().as_markup())
 
@@ -397,6 +398,9 @@ async def process_data_limit(event: Message, state: FSMContext):
 async def modify_data_limit_done(
     event: CallbackQuery, db: AsyncSession, admin: AdminDetails, callback_data: BulkActionPanel.Callback
 ):
-    result = await user_operations.bulk_modify_datalimit(db, BulkUser(amount=int(callback_data.amount) * (1024**3)))
+    """Apply a confirmed quota adjustment with the authenticated admin's limits."""
+    result = await user_operations.bulk_modify_datalimit(
+        db, BulkUser(amount=int(callback_data.amount) * (1024**3)), admin
+    )
     await event.answer(Texts.users_data_limit_changed(result, int(callback_data.amount)))
     await event.message.edit_text(Texts.choose_action, reply_markup=BulkActionPanel().as_markup())

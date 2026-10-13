@@ -12,7 +12,8 @@ if template_settings.custom_templates_directory:
     # User's templates have priority over default templates
     template_directories.insert(0, template_settings.custom_templates_directory)
 
-env = Environment(loader=FileSystemLoader(template_directories))
+# Everything rendered here is served as an HTML page, custom templates included.
+env = Environment(loader=FileSystemLoader(template_directories), autoescape=True)
 env.filters.update(CUSTOM_FILTERS)
 env.globals["now"] = lambda: dt.now(UTC)
 

@@ -20,6 +20,7 @@ from app.subscription.config_cache import (
     make_sub_config_key,
     put_sub_config,
 )
+from app.utils.helpers import has_markup_unsafe_chars
 from app.utils.system import readable_size
 
 from . import (
@@ -34,6 +35,9 @@ from . import (
 
 SERVER_IP = "127.0.0.1"
 SERVER_IPV6 = "[::1]"
+
+# Transports only the Xray JSON format can express.
+XRAY_ONLY_NETWORKS = frozenset({"xdrive"})
 
 
 def _build_subscription_config(
@@ -463,6 +467,9 @@ async def process_inbounds_and_tags(
         return xray_template_overrides.get(template_id)
 
     for host_data in hosts:
+        if host_data.network in XRAY_ONLY_NETWORKS and not isinstance(conf, XrayConfiguration):
+            # Links, sing-box, Clash and Outline cannot carry these transports.
+            continue
         result = await process_host(host_data, format_variables, user.inbounds, proxy_settings, custom_variables)
         if not result:
             continue
@@ -473,6 +480,10 @@ async def process_inbounds_and_tags(
         # Format remark and address with user variables
         remark = inbound_copy.remark.format_map(format_variables)
         formatted_address = inbound_copy.address.format_map(format_variables)
+        if has_markup_unsafe_chars(formatted_address):
+            # Never valid, and links print the address unencoded; covers hosts saved before
+            # address validation existed and values that came in through a format variable.
+            continue
 
         download_settings = getattr(inbound_copy.transport_config, "download_settings", None)
         if download_settings:
