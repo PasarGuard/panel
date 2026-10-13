@@ -22,6 +22,7 @@ import { useChartViewType } from '@/hooks/use-chart-view-type'
 import { useTheme } from '@/app/providers/theme-provider'
 import NodeStatsModal from '@/features/nodes/dialogs/node-stats-modal'
 import { hasScopeAll } from '@/utils/rbac'
+import { getChartSeriesColor } from '@/utils/chart-colors'
 import {
   CHART_PERIOD_OVERRIDE_AUTO,
   type ChartPeriodOverride,
@@ -270,67 +271,18 @@ const UsageModal = ({ open, onClose, userId }: UsageModalProps) => {
   // Build color palette for nodes
   const nodeList: NodeSimple[] = useMemo(() => nodesResponse?.nodes || [], [nodesResponse])
 
-  // Function to generate distinct colors based on theme
-  const generateDistinctColor = useCallback((index: number, _totalNodes: number, isDark: boolean): string => {
-    // Define a more distinct color palette with better contrast
-    const distinctHues = [
-      0, // Red
-      30, // Orange
-      60, // Yellow
-      120, // Green
-      180, // Cyan
-      210, // Blue
-      240, // Indigo
-      270, // Purple
-      300, // Magenta
-      330, // Pink
-      15, // Red-orange
-      45, // Yellow-orange
-      75, // Yellow-green
-      150, // Green-cyan
-      200, // Cyan-blue
-      225, // Blue-indigo
-      255, // Indigo-purple
-      285, // Purple-magenta
-      315, // Magenta-pink
-      345, // Pink-red
-    ]
-
-    const hue = distinctHues[index % distinctHues.length]
-
-    // Create more distinct saturation and lightness values
-    const saturationVariations = [65, 75, 85, 70, 80, 60, 90, 55, 95, 50]
-    const lightnessVariations = isDark ? [45, 55, 35, 50, 40, 60, 30, 65, 25, 70] : [40, 50, 30, 45, 35, 55, 25, 60, 20, 65]
-
-    const saturation = saturationVariations[index % saturationVariations.length]
-    const lightness = lightnessVariations[index % lightnessVariations.length]
-
-    return `hsl(${hue}, ${saturation}%, ${lightness}%)`
-  }, [])
-
   // Build chart config dynamically based on nodes
   const chartConfig = useMemo(() => {
     const config: ChartConfig = {}
     const isDark = resolvedTheme === 'dark'
     nodeList.forEach((node, idx) => {
-      let color
-      if (idx === 0) {
-        // First node uses primary color like CostumeBarChart
-        color = 'hsl(var(--primary))'
-      } else if (idx < 5) {
-        // Use palette colors for nodes 2-5: --chart-2, --chart-3, ...
-        color = `hsl(var(--chart-${idx + 1}))`
-      } else {
-        // Generate distinct colors for nodes beyond palette
-        color = generateDistinctColor(idx, nodeList.length, isDark)
-      }
       config[node.name] = {
         label: node.name,
-        color: color,
+        color: getChartSeriesColor(idx, isDark),
       }
     })
     return config
-  }, [nodeList, resolvedTheme, generateDistinctColor])
+  }, [nodeList, resolvedTheme])
 
   const queryRange = useMemo(() => {
     const periodOptions = { minuteForOneHour: true, periodOverride: resolvePeriodOverride(periodOverride) }

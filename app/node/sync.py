@@ -26,19 +26,23 @@ def _chunk_serialized_users_for_nats(users: list[dict]) -> list[list[dict]]:
     max_batch_size = max(1, nats_settings.node_update_users_batch_size)
     chunks: list[list[dict]] = []
     current: list[dict] = []
+    envelope_bytes = len(encode_node_command("update_users", {"users": []}))
+    current_bytes = envelope_bytes
 
     for user in users:
-        candidate = [*current, user]
-        if current and (
-            len(candidate) > max_batch_size
-            or len(encode_node_command("update_users", {"users": candidate})) > max_payload_bytes
-        ):
+        # Reuse the wire encoder so JSON escaping and the command envelope are counted exactly.
+        single_user_bytes = len(encode_node_command("update_users", {"users": [user]}))
+        user_bytes = single_user_bytes - envelope_bytes
+        candidate_bytes = current_bytes + user_bytes + (1 if current else 0)  # JSON array comma
+        if current and (len(current) >= max_batch_size or candidate_bytes > max_payload_bytes):
             chunks.append(current)
-            current = [user]
-        else:
-            current = candidate
+            current = []
+            candidate_bytes = single_user_bytes
 
-        if len(current) == 1 and len(encode_node_command("update_users", {"users": current})) > max_payload_bytes:
+        current.append(user)
+        current_bytes = candidate_bytes
+
+        if single_user_bytes > max_payload_bytes:
             logger.warning(
                 "Single serialized user update exceeds configured NATS node command payload limit: user=%s",
                 user.get("email") or user.get("id") or "unknown",
@@ -133,8 +137,12 @@ if runtime_settings.role.runs_node:
     async def _dispatch_user_update(proto_user):
         await node_manager.update_user(proto_user)
 
-    async def _dispatch_users_update(proto_users):
-        await node_manager.update_users(proto_users)
+    async def _dispatch_users_update(proto_users, *, await_dispatch: bool = False):
+        """Dispatch a batch locally, optionally waiting for node queue acceptance."""
+        if await_dispatch:
+            await node_manager.update_users(proto_users, await_dispatch=True)
+        else:
+            await node_manager.update_users(proto_users)
 
 else:
 
@@ -142,7 +150,8 @@ else:
         user_dict = serialize_proto_message(proto_user)
         await node_nats_client.publish("update_user", {"user": user_dict})
 
-    async def _dispatch_users_update(proto_users):
+    async def _dispatch_users_update(proto_users, *, await_dispatch: bool = False):
+        """Publish bounded batches to the node worker before returning."""
         users_dicts = serialize_proto_messages(proto_users)
         for users_chunk in _chunk_serialized_users_for_nats(users_dicts):
             await node_nats_client.publish("update_users", {"users": users_chunk})
@@ -264,17 +273,23 @@ async def remove_user_awaited(user: UserNotificationResponse) -> None:
     await _dispatch_user_update(proto_user)
 
 
-async def remove_users(users: list[User]) -> None:
-    """Batch-remove users from nodes (serialized without inbounds so nodes drop them)."""
+async def remove_users(users: list[User], *, await_dispatch: bool = False) -> None:
+    """Batch-remove users, optionally awaiting dispatch before loading the next batch."""
     if not users:
         return
     proto_users = [_serialize_user_for_node(u.id, u.proxy_settings) for u in users]
-    asyncio.create_task(_dispatch_users_update(proto_users))
+    if await_dispatch:
+        await _dispatch_users_update(proto_users, await_dispatch=True)
+    else:
+        asyncio.create_task(_dispatch_users_update(proto_users))
 
 
-async def sync_users(users: list[User]) -> None:
-    """Sync users to nodes, excluding users whose admin has users_sync_blocked."""
+async def sync_users(users: list[User], *, await_dispatch: bool = False) -> None:
+    """Sync eligible users, optionally awaiting dispatch before loading the next batch."""
     blocked_admin_ids = await _blocked_admin_ids_for_users(users)
     filtered = [user for user in users if user.admin_id not in blocked_admin_ids]
     proto_users = await serialize_users_for_node(filtered)
-    asyncio.create_task(_dispatch_users_update(proto_users))
+    if await_dispatch:
+        await _dispatch_users_update(proto_users, await_dispatch=True)
+    else:
+        asyncio.create_task(_dispatch_users_update(proto_users))

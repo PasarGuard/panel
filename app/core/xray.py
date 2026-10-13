@@ -3,13 +3,21 @@ from __future__ import annotations
 import base64
 import json
 from copy import deepcopy
+from ipaddress import ip_interface
 from pathlib import PosixPath
 
 import commentjson
 
 from app.models.core import CoreType
 from app.models.protocol import ProxyProtocol
-from app.utils.crypto import get_cert_SANs, get_x25519_public_key, validate_mldsa65_seed, validate_mldsa65_verify
+from app.utils.crypto import (
+    get_cert_SANs,
+    get_wireguard_public_key,
+    get_x25519_public_key,
+    validate_mldsa65_seed,
+    validate_mldsa65_verify,
+    validate_wireguard_key,
+)
 
 
 def _protocols_from_inbounds_by_tag(inbounds_by_tag: dict[str, dict]) -> frozenset[ProxyProtocol]:
@@ -18,6 +26,35 @@ def _protocols_from_inbounds_by_tag(inbounds_by_tag: dict[str, dict]) -> frozens
         for inbound in inbounds_by_tag.values()
         if (protocol := ProxyProtocol.from_value(inbound["protocol"])) is not None
     )
+
+
+def xray_wireguard_allocatable_addresses(tag: str, addresses) -> list[str]:
+    """Client subnets of an Xray WireGuard inbound's settings.address.
+
+    An empty result means the inbound is not managed by PasarGuard. Raises
+    ValueError for an address value Xray would reject. The core parser and the
+    WireGuard allocation pools share this rule so they agree on managed inbounds.
+    """
+    if addresses is None or addresses == []:
+        # Xray treats a missing/null address as its built-in default interface
+        # addresses. An empty list also provides no pool for client allocation.
+        return []
+    if not isinstance(addresses, list):
+        raise ValueError(f"{tag} managed WireGuard inbound needs address CIDRs for client allocation")  # noqa: TRY004
+    allocatable_addresses = []
+    for address in addresses:
+        try:
+            iface = ip_interface(address)
+        except (ValueError, TypeError) as exc:
+            raise ValueError(f"{tag} WireGuard address must contain valid IP addresses or CIDRs") from exc
+        if not isinstance(address, str):
+            raise ValueError(f"{tag} WireGuard address must contain valid IP addresses or CIDRs")  # noqa: TRY004
+        # Xray accepts either a bare IP or a CIDR here. PasarGuard can only
+        # manage peers when an address supplies a subnet with room to allocate
+        # client IPs; valid host addresses and /32-/128 routes remain unmanaged.
+        if "/" in address and iface.network.num_addresses >= 4:
+            allocatable_addresses.append(str(iface))
+    return allocatable_addresses
 
 
 class XRayConfig(dict):
@@ -53,6 +90,7 @@ class XRayConfig(dict):
         self._inbounds = []
         self._inbounds_by_tag = {}
         self._fallbacks_inbound = []
+        self._processed_tls_sans: dict[int, list[str]] = {}
         self._protocols: frozenset[ProxyProtocol] = frozenset()
 
         # Registery pattern for network handlers, making it easy to add support for new network types in the future
@@ -66,6 +104,7 @@ class XRayConfig(dict):
             "httpupgrade": self._handle_httpupgrade_settings,
             "splithttp": self._handle_xhttp_settings,
             "xhttp": self._handle_xhttp_settings,
+            "xdrive": self._handle_xdrive_settings,
             "kcp": self._handle_kcp_settings,
             "http": self._handle_http_settings,
             "h2": self._handle_http_settings,
@@ -182,6 +221,13 @@ class XRayConfig(dict):
         settings["fp"] = tls_settings.get("fingerprint", "chrome")
         if sni := tls_settings.get("serverName"):
             settings["sni"].append(str(sni))
+        # The same real tlsSettings object can arrive from several passes (the parent and its fallback children).
+        # Do not read the files again: reuse the SANs collected on the first pass.
+        cache_key = id(tls_settings)
+        if cache_key in self._processed_tls_sans:
+            settings["sni"].extend(self._processed_tls_sans[cache_key])
+            return tls_settings
+        processed_sans: list[str] = []
         for certificate in tls_settings.get("certificates", []):
             serve_on_node = certificate.pop("serveOnNode", False)
             if serve_on_node:
@@ -190,7 +236,9 @@ class XRayConfig(dict):
             if certificate.get("certificateFile", None):
                 with open(certificate["certificateFile"], "rb") as file:
                     cert = file.read()
-                    settings["sni"].extend(get_cert_SANs(cert))
+                    cert_sans = get_cert_SANs(cert)
+                    settings["sni"].extend(cert_sans)
+                    processed_sans.extend(cert_sans)
 
                 if certificate.get("keyFile", None):
                     with open(certificate["keyFile"], "rb") as file:
@@ -210,8 +258,11 @@ class XRayConfig(dict):
                     cert = "\n".join(cert)
                 if isinstance(cert, str):
                     cert = cert.encode()
-                settings["sni"].extend(get_cert_SANs(cert))
+                cert_sans = get_cert_SANs(cert)
+                settings["sni"].extend(cert_sans)
+                processed_sans.extend(cert_sans)
 
+        self._processed_tls_sans[cache_key] = processed_sans
         return tls_settings
 
     def _handle_reality_settings(self, tls_settings: dict, settings: dict, inbound_tag: str):
@@ -394,6 +445,21 @@ class XRayConfig(dict):
         elif host and isinstance(host, list):
             settings["host"] = host[0]
 
+    def _handle_xdrive_settings(self, net_settings: dict, settings: dict, inbound_tag: str = ""):
+        """Normalize XDrive settings for the subscription model."""
+        settings["xdrive_remote_folder"] = net_settings.get("remoteFolder")
+        settings["xdrive_service"] = net_settings.get("service")
+        settings["xdrive_secrets"] = net_settings.get("secrets")
+        settings["xdrive_segment_bytes"] = net_settings.get("segmentBytes")
+        settings["xdrive_flush_interval_ms"] = net_settings.get("flushIntervalMs")
+        settings["xdrive_poll_interval_ms"] = net_settings.get("pollIntervalMs")
+        settings["xdrive_max_poll_interval_ms"] = net_settings.get("maxPollIntervalMs")
+        settings["xdrive_session_ttl_seconds"] = net_settings.get("sessionTtlSeconds")
+        settings["xdrive_concurrency"] = net_settings.get("concurrency")
+        settings["xdrive_eager_window_ms"] = net_settings.get("eagerWindowMs")
+        settings["xdrive_hole_timeout_ms"] = net_settings.get("holeTimeoutMs")
+        settings["xdrive_template"] = net_settings.get("template")
+
     @staticmethod
     def _hysteria_finalmask_from_stream(stream: dict, net_settings: dict) -> dict | None:
         """Normalize Hysteria Salamander masks into finalmask for client generation."""
@@ -439,12 +505,84 @@ class XRayConfig(dict):
             self._read_inbound(inbound)
         self._protocols = _protocols_from_inbounds_by_tag(self._inbounds_by_tag)
 
+    def _read_wireguard_inbound(self, inbound: dict) -> dict | None:
+        """Expose Xray's peer-based inbound using the shared subscription metadata."""
+        tag = inbound["tag"]
+        config = inbound.get("settings") or {}
+
+        allocatable_addresses = xray_wireguard_allocatable_addresses(tag, config.get("address"))
+        if not allocatable_addresses:
+            return None
+
+        secret = config.get("secretKey", "")
+        if not isinstance(secret, str):
+            raise TypeError(f"{tag} WireGuard secretKey must be a string")
+        # Xray accepts hexadecimal and standard/URL-safe base64 keys. Keep the
+        # original config intact; subscriptions use standard padded base64.
+        try:
+            if len(secret) == 64:
+                secret = base64.b64encode(bytes.fromhex(secret)).decode("ascii")
+            secret = validate_wireguard_key(secret.replace("-", "+").replace("_", "/"), "secretKey")
+        except ValueError as exc:
+            raise ValueError(f"{tag} WireGuard has an invalid secretKey") from exc
+
+        port = inbound.get("port")
+        if isinstance(port, str) and port.isascii() and port.isdecimal():
+            port = int(port)
+        if isinstance(port, bool) or not isinstance(port, int) or not 1 <= port <= 65535:
+            raise ValueError(f"{tag} WireGuard inbound needs a single port between 1 and 65535")
+
+        mtu = config.get("mtu")
+        if mtu is None:
+            mtu = 1420
+        elif type(mtu) is not int or not 576 <= mtu <= 9000:
+            raise ValueError(f"{tag} WireGuard mtu must be an integer between 576 and 9000")
+
+        reserved = config.get("reserved")
+        if isinstance(reserved, str):
+            try:
+                reserved = list(base64.b64decode(reserved, validate=True))
+            except ValueError as exc:
+                raise ValueError(f"{tag} WireGuard reserved must be empty or three bytes") from exc
+        if reserved is not None and (
+            not isinstance(reserved, list)
+            or len(reserved) not in (0, 3)
+            or any(type(value) is not int or not 0 <= value <= 255 for value in reserved)
+        ):
+            raise ValueError(f"{tag} WireGuard reserved must be empty or three bytes")
+        stream = inbound.get("streamSettings") or {}
+        return {
+            **self._create_base_settings(inbound),
+            "network": "udp",
+            "port": port,
+            "listen_port": port,
+            "address": allocatable_addresses,
+            "private_key": secret,
+            "public_key": get_wireguard_public_key(secret),
+            "pre_shared_key": "",
+            "mtu": mtu,
+            "reserved": ",".join(map(str, reserved)) if reserved else None,
+            "finalmask": deepcopy(stream.get("finalmask") or stream.get("finalMask")),
+        }
+
     def _read_inbound(self, inbound: dict):
         """Read an inbound and its settings."""
-        if inbound["protocol"] not in ("vmess", "vless", "trojan", "shadowsocks", "hysteria"):
+        if inbound["protocol"] not in ("vmess", "vless", "trojan", "shadowsocks", "hysteria", "wireguard"):
             return
 
         if inbound["tag"] in self.exclude_inbound_tags:
+            return
+
+        if inbound["protocol"] == "wireguard":
+            # Only inbounds that declare client subnets in settings.address are managed.
+            # Xray also accepts bare interface IPs, which do not provide an allocation pool.
+            if "address" not in (inbound.get("settings") or {}):
+                return
+            settings = self._read_wireguard_inbound(inbound)
+            if settings is None:
+                return
+            self._inbounds.append(inbound["tag"])
+            self._inbounds_by_tag[inbound["tag"]] = settings
             return
 
         if not inbound.get("settings"):

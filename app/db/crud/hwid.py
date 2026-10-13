@@ -7,7 +7,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.schema import Table
 
-from app.db.models import UserHWID
+from app.db.models import User, UserHWID
 
 
 async def get_user_hwids(db: AsyncSession, user_id: int) -> list[UserHWID]:
@@ -36,8 +36,33 @@ async def register_user_hwid(
     device_os: str | None = None,
     os_version: str | None = None,
     device_model: str | None = None,
-) -> None:
-    """Insert a new HWID or update last_used_at if it already exists."""
+    *,
+    limit: int | None = None,
+) -> bool:
+    """Commit an HWID insert/refresh, or return False if a new device exceeds the limit."""
+    dialect = db.bind.dialect.name
+    if limit is not None and limit > 0:
+        # Subscription validation may have established a read snapshot already.
+        # Start fresh so MySQL's REPEATABLE READ sees registrations committed
+        # before this request acquires the parent lock.
+        await db.commit()
+        if dialect == "sqlite":
+            # Acquire SQLite's write lock before reading the HWID set. A no-op
+            # write serializes even separate workers without upgrading a snapshot.
+            user_table = cast(Table, User.__table__)
+            await db.execute(
+                update(user_table).where(user_table.c.id == user_id).values(hwid_limit=user_table.c.hwid_limit)
+            )
+        else:
+            # Lock the parent: locking HWID rows alone cannot protect an empty set.
+            await db.execute(select(User.id).where(User.id == user_id).with_for_update())
+
+        existing_stmt = select(UserHWID.id).where(UserHWID.user_id == user_id, UserHWID.hwid == hwid)
+        existing_id = (await db.execute(existing_stmt)).scalar_one_or_none()
+        if existing_id is None and await get_user_hwid_count(db, user_id) >= limit:
+            await db.commit()  # Release the lock on rejected registrations too.
+            return False
+
     now = datetime.now(UTC)
     params = {
         "user_id": user_id,
@@ -48,7 +73,6 @@ async def register_user_hwid(
         "created_at": now,
         "last_used_at": now,
     }
-    dialect = db.bind.dialect.name
     table = cast(Table, UserHWID.__table__)
 
     if dialect == "postgresql":
@@ -106,6 +130,7 @@ async def register_user_hwid(
         await db.execute(update_stmt, [update_params])
 
     await db.commit()
+    return True
 
 
 async def delete_user_hwid(db: AsyncSession, user_id: int, hwid: str) -> bool:

@@ -3,6 +3,7 @@ from random import choice
 
 from pydantic import BaseModel
 
+from app.models.host import FinalMask, dump_final_mask_for_xray
 from app.models.subscription import (
     GRPCTransportConfig,
     KCPTransportConfig,
@@ -11,6 +12,7 @@ from app.models.subscription import (
     TCPTransportConfig,
     TLSConfig,
     WebSocketTransportConfig,
+    XDriveTransportConfig,
     XHTTPTransportConfig,
 )
 
@@ -38,6 +40,7 @@ class XrayConfiguration(BaseSubscription):
             "httpupgrade": self._transport_httpupgrade,
             "splithttp": self._transport_xhttp,
             "xhttp": self._transport_xhttp,
+            "xdrive": self._transport_xdrive,
             "quic": self._transport_quic,
             "grpc": self._transport_grpc,
             "gun": self._transport_grpc,
@@ -174,6 +177,11 @@ class XrayConfiguration(BaseSubscription):
 
         xhttp_settings["extra"] = extra
         return self._normalize_and_remove_none_values(xhttp_settings)
+
+    @staticmethod
+    def _transport_xdrive(config: XDriveTransportConfig, path: str) -> dict:
+        """Build XDrive transport settings using Xray's camelCase JSON keys."""
+        return config.model_dump(by_alias=True, exclude_none=True, exclude={"path", "host"})
 
     def _xhttp_download_config(self, download_settings: SubscriptionInboundData | dict) -> dict:
         if isinstance(download_settings, dict):
@@ -671,7 +679,13 @@ class XrayConfiguration(BaseSubscription):
 
         if finalmask is not None:
             if isinstance(finalmask, BaseModel):
-                stream_settings["finalmask"] = finalmask.model_dump(exclude_none=True, by_alias=True, mode="json")
+                finalmask = finalmask.model_dump(exclude_none=True, by_alias=True, mode="json")
+            try:
+                finalmask = FinalMask.model_validate(finalmask)
+            except (TypeError, ValueError):
+                pass
+            if isinstance(finalmask, (FinalMask, dict)):
+                stream_settings["finalmask"] = dump_final_mask_for_xray(finalmask)
             else:
                 stream_settings["finalmask"] = finalmask
 

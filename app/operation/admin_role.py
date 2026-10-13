@@ -13,6 +13,7 @@ from app.db.crud.admin_role import (
     get_roles_simple,
     modify_role,
 )
+from app.db.models import AdminStatus
 from app.models.admin import AdminDetails
 from app.models.admin_role import (
     AdminRoleCreate,
@@ -24,6 +25,7 @@ from app.models.admin_role import (
     AdminRolesSimpleResponse,
 )
 from app.operation import BaseOperation
+from app.operation.admin_sync import schedule_role_users_block_sync
 from app.utils.logger import get_logger
 
 logger = get_logger("admin-role-operation")
@@ -74,6 +76,10 @@ class AdminRoleOperation(BaseOperation):
         if role is None:
             await self.raise_error(message="Role not found", code=404)
 
+        was_blocked = {
+            AdminStatus.limited: role.disconnect_users_when_limited,
+            AdminStatus.disabled: role.disconnect_users_when_disabled,
+        }
         try:
             role = await modify_role(db, role, data)
             await db.commit()
@@ -82,6 +88,19 @@ class AdminRoleOperation(BaseOperation):
         except IntegrityError:
             await self.raise_error(message="Role with this name already exists", code=409, db=db)
 
+        # The dashboard sends both policy fields on every save, so only a real
+        # change dispatches users. Node delivery runs after the response: an
+        # unreachable node must not fail or stall a committed role edit.
+        changed_statuses = [
+            status
+            for status, is_blocked in (
+                (AdminStatus.limited, role.disconnect_users_when_limited),
+                (AdminStatus.disabled, role.disconnect_users_when_disabled),
+            )
+            if is_blocked != was_blocked[status]
+        ]
+        if changed_statuses:
+            schedule_role_users_block_sync(role.id, changed_statuses)
         logger.info(f'Role "{role.name}" modified by admin "{admin.username}"')
         response = AdminRoleResponse.model_validate(role)
         asyncio.create_task(notification.modify_admin_role(response, admin.username))

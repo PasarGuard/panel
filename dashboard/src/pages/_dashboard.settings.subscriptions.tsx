@@ -13,6 +13,7 @@ import {
   subscriptionSchema,
   type SubscriptionApplicationFormData,
   type SubscriptionFormData,
+  type SubscriptionFormInput,
   normalizeCustomVariablesForPayload,
 } from '@/features/subscriptions/components/subscription-settings-schema'
 import { Form } from '@/components/ui/form'
@@ -34,7 +35,7 @@ export default function SubscriptionSettings() {
   const [isResettingRules, setIsResettingRules] = useState(false)
   const [rulesResetRequestGuard] = useState(createLatestRequestGuard)
 
-  const form = useForm<SubscriptionFormData>({
+  const form = useForm<SubscriptionFormInput, unknown, SubscriptionFormData>({
     resolver: zodResolver(subscriptionSchema),
     defaultValues: {
       url_prefix: '',
@@ -48,6 +49,7 @@ export default function SubscriptionSettings() {
       randomize_order: false,
       custom_variables: [],
       response_headers: {},
+      header_placement: 'header',
       rules: [],
       applications: [],
       manual_sub_request: {
@@ -133,6 +135,7 @@ export default function SubscriptionSettings() {
         randomize_order: subscriptionData.randomize_order ?? false,
         custom_variables: subscriptionData.custom_variables || [],
         response_headers: Object.fromEntries(Object.entries(subscriptionData.response_headers || {}).map(([key, value]) => [key, typeof value === 'string' ? value : JSON.stringify(value)])),
+        header_placement: subscriptionData.header_placement ?? 'header',
         rules:
           subscriptionData.rules?.map((rule: ApiSubRule) => ({
             pattern: rule.pattern,
@@ -226,7 +229,7 @@ export default function SubscriptionSettings() {
     }
   }
 
-  const onInvalid = (errors: FieldErrors<SubscriptionFormData>) => {
+  const onInvalid = (errors: FieldErrors<SubscriptionFormInput>) => {
     const appsErrors = errors?.applications
     if (Array.isArray(appsErrors)) {
       for (let i = 0; i < appsErrors.length; i++) {
@@ -295,6 +298,7 @@ export default function SubscriptionSettings() {
         randomize_order: subscriptionData.randomize_order ?? false,
         custom_variables: subscriptionData.custom_variables || [],
         response_headers: Object.fromEntries(Object.entries(subscriptionData.response_headers || {}).map(([key, value]) => [key, typeof value === 'string' ? value : JSON.stringify(value)])),
+        header_placement: subscriptionData.header_placement ?? 'header',
         rules:
           subscriptionData.rules?.map((rule: ApiSubRule) => ({
             pattern: rule.pattern,

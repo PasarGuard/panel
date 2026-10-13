@@ -13,7 +13,13 @@ from app.core.manager import core_manager
 from app.db import GetDB
 from app.db.crud.host import get_host_by_id, get_hosts, upsert_inbounds
 from app.db.models import ProxyHostSecurity
-from app.models.host import BaseHost, FinalMask, TransportSettings, WireGuardHostOverrides
+from app.models.host import (
+    BaseHost,
+    FinalMask,
+    TransportSettings,
+    WireGuardHostOverrides,
+    dump_final_mask_for_xray,
+)
 from app.models.subscription import (
     GRPCTransportConfig,
     KCPTransportConfig,
@@ -22,6 +28,7 @@ from app.models.subscription import (
     TCPTransportConfig,
     TLSConfig,
     WebSocketTransportConfig,
+    XDriveTransportConfig,
     XHTTPTransportConfig,
 )
 from app.nats import is_multi_worker, is_nats_enabled
@@ -53,15 +60,15 @@ def _normalize_finalmask_link(final_mask_settings: FinalMask | dict | str | None
     if not final_mask_settings:
         return None
     fms = None
-    if isinstance(final_mask_settings, FinalMask):
-        fms = final_mask_settings.model_dump(by_alias=True, exclude_none=True)
-    elif isinstance(final_mask_settings, dict):
-        fms = deepcopy(final_mask_settings)
+    if isinstance(final_mask_settings, (FinalMask, dict)):
+        fms = dump_final_mask_for_xray(final_mask_settings)
     elif isinstance(final_mask_settings, str):
         try:
             fms = json.loads(final_mask_settings)
         except Exception:
             return final_mask_settings
+        if isinstance(fms, dict):
+            fms = dump_final_mask_for_xray(fms)
 
     if isinstance(fms, dict):
         fms = normalize_and_remove_none_values(fms)
@@ -92,6 +99,9 @@ async def _prepare_subscription_inbound_data(
     path = host.path or inbound_config.get("path", "")
 
     final_mask_settings = host.final_mask_settings if host.final_mask_settings else inbound_config.get("finalmask")
+    if isinstance(final_mask_settings, FinalMask):
+        # Dump with aliases once, so builders and the NATS KV copy see Xray field names
+        final_mask_settings = final_mask_settings.model_dump(by_alias=True, exclude_none=True, mode="json")
     finalmask_link = _normalize_finalmask_link(final_mask_settings)
 
     if protocol == "wireguard":
@@ -110,7 +120,7 @@ async def _prepare_subscription_inbound_data(
         if wg_over.keepalive_seconds is not None:
             keepalive = wg_over.keepalive_seconds if wg_over.keepalive_seconds > 0 else None
 
-        reserved = wg_over.reserved.strip() if wg_over.reserved else None
+        reserved = wg_over.reserved.strip() if wg_over.reserved else inbound_config.get("reserved")
 
         dns = list(wg_over.dns) if wg_over.dns else None
 
@@ -129,7 +139,7 @@ async def _prepare_subscription_inbound_data(
             wireguard_local_address=inbound_config.get("address", []) or [],
             wireguard_allowed_ips=allowed_ips,
             wireguard_keepalive=keepalive,
-            wireguard_mtu=wg_over.mtu,
+            wireguard_mtu=wg_over.mtu if wg_over.mtu is not None else inbound_config.get("mtu"),
             wireguard_reserved=reserved,
             wireguard_dns=dns,
             fragment_settings=host.fragment_settings.model_dump() if host.fragment_settings else None,
@@ -377,6 +387,21 @@ async def _prepare_subscription_inbound_data(
             path=path,
             host=host_list,
             header_type=qs.header if qs else inbound_header_type,
+        )
+    elif network == "xdrive":
+        transport_config = XDriveTransportConfig(
+            remote_folder=inbound_config.get("xdrive_remote_folder"),
+            service=inbound_config.get("xdrive_service"),
+            secrets=inbound_config.get("xdrive_secrets"),
+            segment_bytes=inbound_config.get("xdrive_segment_bytes"),
+            flush_interval_ms=inbound_config.get("xdrive_flush_interval_ms"),
+            poll_interval_ms=inbound_config.get("xdrive_poll_interval_ms"),
+            max_poll_interval_ms=inbound_config.get("xdrive_max_poll_interval_ms"),
+            session_ttl_seconds=inbound_config.get("xdrive_session_ttl_seconds"),
+            concurrency=inbound_config.get("xdrive_concurrency"),
+            eager_window_ms=inbound_config.get("xdrive_eager_window_ms"),
+            hole_timeout_ms=inbound_config.get("xdrive_hole_timeout_ms"),
+            template=inbound_config.get("xdrive_template"),
         )
     elif network in ("ws", "websocket", "httpupgrade"):
         ws = ts.websocket_settings if ts else None

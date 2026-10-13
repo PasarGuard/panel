@@ -1,10 +1,15 @@
+import asyncio
+
 import pytest
 from fastapi import status
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlalchemy.pool import NullPool
 
-from app.db.crud.hwid import register_user_hwid, reset_user_hwids
+from app.db.crud.hwid import get_user_hwid_count, register_user_hwid, reset_user_hwids
 from app.db.models import User as DBUser, UserHWID
-from tests.api import TestSession, client
+from app.models.settings import HWIDSettings
+from tests.api import DATABASE_URL, IS_SQLITE, TestSession, client
 from tests.api.helpers import (
     auth_headers,
     create_admin,
@@ -324,3 +329,143 @@ def test_hwid_override_mode_with_custom_limits(access_token):
             delete_user(access_token, user["username"])
         delete_admin(access_token, admin["username"])
         client.delete(f"/api/admin-role/{role['id']}", headers=auth_headers(access_token))
+
+
+@pytest.mark.asyncio
+async def test_blank_hwid_header_counts_as_absent(access_token):
+    user = create_user(access_token)
+
+    try:
+        await _reset_user_hwids(user["id"])
+        for blank in ("", "   "):
+            response = client.get(user["subscription_url"], headers={"X-HWID": blank})
+            assert response.status_code == status.HTTP_200_OK
+
+        response = client.get(user["subscription_url"], headers={"X-HWID": "x" * 257})
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+        response = client.get(f"/api/user/{user['id']}/hwids", headers=auth_headers(access_token))
+        assert response.json()["count"] == 0
+    finally:
+        await _reset_user_hwids(user["id"])
+        delete_user(access_token, user["username"])
+
+
+@pytest.mark.asyncio
+async def test_hwid_with_control_characters_is_rejected(access_token):
+    user = create_user(access_token)
+
+    try:
+        await _reset_user_hwids(user["id"])
+        # Raw header bytes: Starlette decodes them as latin-1, so 0x85 and 0x9f arrive as C1 controls.
+        for hwid in (b"device\x01one", b"device\x7fone", b"device\x85one", b"device\x9fone"):
+            response = client.get(user["subscription_url"], headers={"X-HWID": hwid})
+            assert response.status_code == status.HTTP_400_BAD_REQUEST, hwid
+
+        response = client.get(f"/api/user/{user['id']}/hwids", headers=auth_headers(access_token))
+        assert response.json()["count"] == 0
+    finally:
+        await _reset_user_hwids(user["id"])
+        delete_user(access_token, user["username"])
+
+
+@pytest.mark.asyncio
+async def test_long_device_info_headers_are_clipped(access_token):
+    user = create_user(access_token)
+    headers = {
+        "X-HWID": "long-info-device",
+        "X-Device-OS": "o" * 300,
+        "X-Ver-OS": "v" * 300,
+        "X-Device-Model": "m" * 300,
+    }
+
+    try:
+        await _reset_user_hwids(user["id"])
+        response = client.get(user["subscription_url"], headers=headers)
+        assert response.status_code == status.HTTP_200_OK
+
+        response = client.get(f"/api/user/{user['id']}/hwids", headers=auth_headers(access_token))
+        assert response.json()["count"] == 1
+        item = response.json()["hwids"][0]
+        assert item["device_os"] == "o" * 256
+        assert item["os_version"] == "v" * 128
+        assert item["device_model"] == "m" * 256
+    finally:
+        await _reset_user_hwids(user["id"])
+        delete_user(access_token, user["username"])
+
+
+@pytest.mark.asyncio
+async def test_concurrent_registrations_respect_device_limit(access_token):
+    if ":memory:" in DATABASE_URL:
+        pytest.skip("needs a database that separate connections share")
+
+    user = create_user(access_token)
+    # Independent connections, so the parent-row lock is really contended.
+    racing_engine = create_async_engine(
+        DATABASE_URL, poolclass=NullPool, connect_args={"timeout": 30} if IS_SQLITE else {}
+    )
+    racing_session = async_sessionmaker(racing_engine, expire_on_commit=False)
+
+    async def register(hwid: str) -> bool:
+        async with racing_session() as session:
+            return await register_user_hwid(session, user["id"], hwid, limit=1)
+
+    try:
+        await _set_user_hwid_limit(user["id"], 1)
+
+        results = await asyncio.gather(*(register(f"race-device-{index}") for index in range(4)))
+
+        assert sorted(results) == [False, False, False, True]
+        async with TestSession() as session:
+            assert await get_user_hwid_count(session, user["id"]) == 1
+    finally:
+        await racing_engine.dispose()
+        await _reset_user_hwids(user["id"])
+        delete_user(access_token, user["username"])
+
+
+def test_subscription_info_and_raw_omit_proxy_credentials(access_token):
+    user = create_user(access_token)
+
+    try:
+        response = client.get(f"{user['subscription_url']}/info")
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["username"] == user["username"]
+        assert "proxy_settings" not in response.json()
+
+        response = client.get(f"{user['subscription_url']}/raw")
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["body"]["user"]["username"] == user["username"]
+        assert "proxy_settings" not in response.json()["body"]["user"]
+    finally:
+        delete_user(access_token, user["username"])
+
+
+@pytest.mark.parametrize("require_hwid_for_manual_sub", [False, True])
+def test_raw_subscription_respects_manual_sub_hwid_gate(access_token, monkeypatch, require_hwid_for_manual_sub):
+    from app.operation import subscription as subscription_module
+
+    async def gated_hwid_settings() -> HWIDSettings:
+        return HWIDSettings(
+            enabled=True,
+            require_hwid_for_manual_sub=require_hwid_for_manual_sub,
+            fallback_limit=3,
+            min_limit=1,
+            max_limit=0,
+        )
+
+    async def fake_fetch_config(self, user, client_type):
+        return "vless://gate-check", "text/plain"
+
+    monkeypatch.setattr(subscription_module, "hwid_settings", gated_hwid_settings)
+    monkeypatch.setattr(subscription_module.SubscriptionOperation, "fetch_config", fake_fetch_config)
+    user = create_user(access_token)
+
+    try:
+        response = client.get(f"{user['subscription_url']}/raw")
+        assert response.status_code == status.HTTP_200_OK
+        expected = [] if require_hwid_for_manual_sub else ["vless://gate-check"]
+        assert response.json()["body"]["links"] == expected
+    finally:
+        delete_user(access_token, user["username"])
