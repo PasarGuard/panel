@@ -72,7 +72,7 @@ async def claim_notification_slot(event_name: str, args: tuple[Any, ...], kwargs
     except Exception as exc:
         logger.debug("Notification dedup store unavailable for %s: %s", event_name, exc)
     async with _local_lock:
-        _local_claims[key] = now + DEDUP_WINDOW_SECONDS
+        _local_claims[key] = time.time() + DEDUP_WINDOW_SECONDS
     return True
 
 
@@ -109,6 +109,9 @@ async def _claim_shared(key: str, now: float) -> bool:
     if kv is None:
         return True
     doc, revision = await kv_get_json(kv, key)
+    # Connecting or reading can consume the entire dedup window during an
+    # outage. Start the claim window only once the store is reachable.
+    now = time.time()
     if doc is not None and float(doc.get("expires_at", 0)) > now:
         return False
     payload = json.dumps({"expires_at": now + DEDUP_WINDOW_SECONDS}).encode()
