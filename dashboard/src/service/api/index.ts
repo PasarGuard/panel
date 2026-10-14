@@ -1226,6 +1226,22 @@ export interface BulkCoreSelection {
   ids?: number[];
 }
 
+export type BulkExpireEditOperation = typeof BulkExpireEditOperation[keyof typeof BulkExpireEditOperation];
+
+
+export const BulkExpireEditOperation = {
+  set: 'set',
+  add: 'add',
+  subtract: 'subtract',
+  clear: 'clear',
+} as const;
+
+export interface BulkExpireEdit {
+  operation: BulkExpireEditOperation;
+  value?: string | null;
+  seconds?: number | null;
+}
+
 export interface BulkGroup {
   group_ids: number[];
   has_group_ids?: number[];
@@ -1250,11 +1266,27 @@ export interface BulkGroupsActionResponse {
   count: number;
 }
 
+export type BulkGroupsEditOperation = typeof BulkGroupsEditOperation[keyof typeof BulkGroupsEditOperation];
+
+
+export const BulkGroupsEditOperation = {
+  set: 'set',
+  add: 'add',
+  remove: 'remove',
+  clear: 'clear',
+} as const;
+
+export interface BulkGroupsEdit {
+  operation: BulkGroupsEditOperation;
+  ids?: number[];
+  remove_ids?: number[];
+}
+
 /**
  * Model for bulk host selection by IDs
  */
 export interface BulkHostSelection {
-  ids?: number[];
+  ids: number[];
 }
 
 /**
@@ -1263,6 +1295,13 @@ export interface BulkHostSelection {
 export interface BulkHostsActionResponse {
   hosts: string[];
   count: number;
+}
+
+export interface BulkNextPlan {
+  user_template_id?: number | null;
+  data_limit?: number | null;
+  expire?: number | null;
+  add_remaining_traffic?: boolean;
 }
 
 /**
@@ -1280,6 +1319,21 @@ export interface BulkNodesActionResponse {
   count: number;
 }
 
+export type BulkNumericEditOperation = typeof BulkNumericEditOperation[keyof typeof BulkNumericEditOperation];
+
+
+export const BulkNumericEditOperation = {
+  set: 'set',
+  add: 'add',
+  subtract: 'subtract',
+  clear: 'clear',
+} as const;
+
+export interface BulkNumericEdit {
+  operation: BulkNumericEditOperation;
+  value?: number | null;
+}
+
 export interface BulkUser {
   dry_run?: boolean;
   group_ids?: number[];
@@ -1289,6 +1343,112 @@ export interface BulkUser {
   expire_after?: string | null;
   expire_before?: string | null;
   amount: number;
+}
+
+export interface JsonValue {}
+
+export interface BulkUserEditChange {
+  before: JsonValue;
+  after: JsonValue;
+}
+
+export interface BulkUserEditError {
+  id: number;
+  username: string;
+  detail: string;
+}
+
+export type UserSortOption = typeof UserSortOption[keyof typeof UserSortOption];
+
+
+export const UserSortOption = {
+  hwid_count: 'hwid_count',
+  '-hwid_count': '-hwid_count',
+  username: 'username',
+  used_traffic: 'used_traffic',
+  data_limit: 'data_limit',
+  expire: 'expire',
+  created_at: 'created_at',
+  edit_at: 'edit_at',
+  online_at: 'online_at',
+  '-username': '-username',
+  '-used_traffic': '-used_traffic',
+  '-data_limit': '-data_limit',
+  '-expire': '-expire',
+  '-created_at': '-created_at',
+  '-edit_at': '-edit_at',
+  '-online_at': '-online_at',
+} as const;
+
+export type DataLimitResetStrategy = typeof DataLimitResetStrategy[keyof typeof DataLimitResetStrategy];
+
+
+export const DataLimitResetStrategy = {
+  no_reset: 'no_reset',
+  day: 'day',
+  week: 'week',
+  month: 'month',
+  year: 'year',
+} as const;
+
+export interface BulkUserEditFilter {
+  offset?: number | null;
+  limit?: number | null;
+  ids?: number[] | null;
+  username?: string[] | null;
+  usernames?: string[] | null;
+  admin?: string[] | null;
+  admin_ids?: number[] | null;
+  group?: number[] | null;
+  no_group?: boolean;
+  search?: string | null;
+  status?: UserStatus | UserStatus[] | null;
+  sort?: UserSortOption[];
+  proxy_id?: string | null;
+  data_limit_reset_strategy?: DataLimitResetStrategy | DataLimitResetStrategy[] | null;
+  data_limit_min?: number | null;
+  data_limit_max?: number | null;
+  expire_after?: string | null;
+  expire_before?: string | null;
+  online_after?: string | null;
+  online_before?: string | null;
+  online?: boolean;
+  no_data_limit?: boolean;
+  no_expire?: boolean;
+  load_sub?: boolean;
+}
+
+export type BulkUserEditSampleChanges = {[key: string]: BulkUserEditChange};
+
+export interface BulkUserEditSample {
+  id: number;
+  username: string;
+  changes: BulkUserEditSampleChanges;
+}
+
+export interface BulkUserSelection {
+  ids?: number[] | null;
+  filters?: BulkUserEditFilter | null;
+}
+
+export type UserStatusModify = typeof UserStatusModify[keyof typeof UserStatusModify];
+
+
+export const UserStatusModify = {
+  active: 'active',
+  disabled: 'disabled',
+  on_hold: 'on_hold',
+} as const;
+
+export interface BulkUserSettings {
+  data_limit_reset_strategy?: DataLimitResetStrategy | null;
+  hwid_limit?: number | null;
+  status?: UserStatusModify | null;
+  note?: string | null;
+  on_hold_expire_duration?: number | null;
+  on_hold_timeout?: string | null;
+  auto_delete_in_days?: number | null;
+  next_plan?: BulkNextPlan | null;
 }
 
 /**
@@ -1325,6 +1485,40 @@ export interface BulkUsersCreateResponse {
   created?: number;
 }
 
+export type ShadowsocksMethods = typeof ShadowsocksMethods[keyof typeof ShadowsocksMethods];
+
+
+export const ShadowsocksMethods = {
+  'aes-128-gcm': 'aes-128-gcm',
+  'aes-256-gcm': 'aes-256-gcm',
+  'chacha20-ietf-poly1305': 'chacha20-ietf-poly1305',
+  'xchacha20-poly1305': 'xchacha20-poly1305',
+} as const;
+
+export interface BulkUsersEdit {
+  selection: BulkUserSelection;
+  data_limit?: BulkNumericEdit | null;
+  expire?: BulkExpireEdit | null;
+  groups?: BulkGroupsEdit | null;
+  settings?: BulkUserSettings;
+  owner?: string | null;
+  shadowsocks_method?: ShadowsocksMethods | null;
+  preview_revision?: string | null;
+}
+
+export interface BulkUsersEditResult {
+  affected_users: number;
+  changed_users: number;
+  unchanged_users: number;
+  relative_skipped_users: number;
+  error_count: number;
+  errors: BulkUserEditError[];
+  samples: BulkUserEditSample[];
+  revision: string;
+  applied?: boolean;
+  sync_pending?: boolean;
+}
+
 export type UsernameGenerationStrategy = typeof UsernameGenerationStrategy[keyof typeof UsernameGenerationStrategy];
 
 
@@ -1346,16 +1540,6 @@ export interface BulkUsersFromTemplate {
   /** Starting suffix for sequence strategy (defaults to 1; base username digits are ignored) */
   start_number?: number | null;
 }
-
-export type ShadowsocksMethods = typeof ShadowsocksMethods[keyof typeof ShadowsocksMethods];
-
-
-export const ShadowsocksMethods = {
-  'aes-128-gcm': 'aes-128-gcm',
-  'aes-256-gcm': 'aes-256-gcm',
-  'chacha20-ietf-poly1305': 'chacha20-ietf-poly1305',
-  'xchacha20-poly1305': 'xchacha20-poly1305',
-} as const;
 
 export interface BulkUsersProxy {
   dry_run?: boolean;
@@ -1555,17 +1739,6 @@ export interface CreateUserFromTemplate {
   note?: string | null;
   username: string;
 }
-
-export type DataLimitResetStrategy = typeof DataLimitResetStrategy[keyof typeof DataLimitResetStrategy];
-
-
-export const DataLimitResetStrategy = {
-  no_reset: 'no_reset',
-  day: 'day',
-  week: 'week',
-  month: 'month',
-  year: 'year',
-} as const;
 
 export interface ExtraSettings {
   method?: ShadowsocksMethods | null;
@@ -14340,6 +14513,148 @@ export const useBulkUpdateNodes = <TError = ErrorType<HTTPException | Unauthoriz
         TContext
       > => {
       return useMutation(getBulkUpdateNodesMutationOptions(options), queryClient);
+    }
+
+export const getPreviewBulkEditUsersUrl = () => {
+
+
+
+
+  return `/api/users/bulk/edit/preview`
+}
+
+/**
+ * @summary Preview bulk user edits
+ */
+export const previewBulkEditUsers = async (bulkUsersEdit: BulkUsersEdit, options?: RequestInit): Promise<BulkUsersEditResult> => {
+
+  return orvalFetcher<BulkUsersEditResult>(getPreviewBulkEditUsersUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(bulkUsersEdit)
+  }
+);}
+
+
+
+
+
+export const getPreviewBulkEditUsersMutationOptions = <TError = ErrorType<Unauthorized | HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof previewBulkEditUsers>>, TError,{data: BodyType<BulkUsersEdit>}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
+): UseMutationOptions<Awaited<ReturnType<typeof previewBulkEditUsers>>, TError,{data: BodyType<BulkUsersEdit>}, TContext> => {
+
+const mutationKey = ['previewBulkEditUsers'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof previewBulkEditUsers>>, {data: BodyType<BulkUsersEdit>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  previewBulkEditUsers(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PreviewBulkEditUsersMutationResult = NonNullable<Awaited<ReturnType<typeof previewBulkEditUsers>>>
+    export type PreviewBulkEditUsersMutationBody = BodyType<BulkUsersEdit>
+    export type PreviewBulkEditUsersMutationError = ErrorType<Unauthorized | HTTPValidationError>
+
+    /**
+ * @summary Preview bulk user edits
+ */
+export const usePreviewBulkEditUsers = <TError = ErrorType<Unauthorized | HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof previewBulkEditUsers>>, TError,{data: BodyType<BulkUsersEdit>}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof previewBulkEditUsers>>,
+        TError,
+        {data: BodyType<BulkUsersEdit>},
+        TContext
+      > => {
+      return useMutation(getPreviewBulkEditUsersMutationOptions(options), queryClient);
+    }
+
+export const getBulkEditUsersUrl = () => {
+
+
+
+
+  return `/api/users/bulk/edit`
+}
+
+/**
+ * @summary Apply a previewed bulk user edit
+ */
+export const bulkEditUsers = async (bulkUsersEdit: BulkUsersEdit, options?: RequestInit): Promise<BulkUsersEditResult> => {
+
+  return orvalFetcher<BulkUsersEditResult>(getBulkEditUsersUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(bulkUsersEdit)
+  }
+);}
+
+
+
+
+
+export const getBulkEditUsersMutationOptions = <TError = ErrorType<Unauthorized | HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof bulkEditUsers>>, TError,{data: BodyType<BulkUsersEdit>}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
+): UseMutationOptions<Awaited<ReturnType<typeof bulkEditUsers>>, TError,{data: BodyType<BulkUsersEdit>}, TContext> => {
+
+const mutationKey = ['bulkEditUsers'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof bulkEditUsers>>, {data: BodyType<BulkUsersEdit>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  bulkEditUsers(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type BulkEditUsersMutationResult = NonNullable<Awaited<ReturnType<typeof bulkEditUsers>>>
+    export type BulkEditUsersMutationBody = BodyType<BulkUsersEdit>
+    export type BulkEditUsersMutationError = ErrorType<Unauthorized | HTTPValidationError>
+
+    /**
+ * @summary Apply a previewed bulk user edit
+ */
+export const useBulkEditUsers = <TError = ErrorType<Unauthorized | HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof bulkEditUsers>>, TError,{data: BodyType<BulkUsersEdit>}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof bulkEditUsers>>,
+        TError,
+        {data: BodyType<BulkUsersEdit>},
+        TContext
+      > => {
+      return useMutation(getBulkEditUsersMutationOptions(options), queryClient);
     }
 
 export const getCreateUserUrl = () => {

@@ -491,56 +491,7 @@ def _build_user_count_stmt(stmt: Select) -> Select:
     return stmt.with_only_columns(func.count(User.id)).order_by(None)
 
 
-async def get_users(
-    db: AsyncSession,
-    query: UserListQuery,
-    admin: Admin | None = None,
-    return_with_count: bool = False,
-    load_admin_role: bool = False,
-    load_usage_logs: bool = True,
-    load_lifetime_used_traffic: bool = False,
-    load_group_inbounds: bool = False,
-    load_hwid_count: bool = False,
-) -> list[User] | tuple[list[User], int]:
-    """
-    Retrieves users based on various filters.
-
-    Args:
-        db: Database session.
-        query: Structured user list query filters.
-        admin: Admin filter.
-        return_with_count: Whether to return total count.
-        load_usage_logs: Whether to materialize reset-history rows.
-        load_lifetime_used_traffic: Whether to calculate lifetime usage with an aggregate.
-        load_group_inbounds: Whether to eager-load each user's groups' inbounds (avoids a query per user when
-            serializing users for nodes).
-
-    Returns:
-        List of users or tuple with (users, count) if return_with_count is True.
-    """
-    admin_loader = selectinload(User.admin)
-    if load_admin_role:
-        admin_loader = admin_loader.selectinload(Admin.role)
-
-    groups_loader = selectinload(User.groups)
-    if load_group_inbounds:
-        groups_loader = groups_loader.selectinload(Group.inbounds)
-
-    options = [
-        admin_loader,
-        selectinload(User.next_plan),
-        groups_loader,
-    ]
-    if load_usage_logs:
-        options.append(selectinload(User.usage_logs))
-    if load_lifetime_used_traffic:
-        options.append(with_expression(User._reseted_usage_query, _user_reset_traffic_subquery()))
-    stmt = select(User).options(*options)
-    if load_lifetime_used_traffic:
-        stmt = stmt.execution_options(populate_existing=True)
-    if load_hwid_count:
-        stmt = stmt.options(with_expression(User.hwid_count, _user_hwid_count_subquery()))
-
+def filter_users_stmt(db: AsyncSession, stmt: Select, query: UserListQuery, admin: Admin | None = None) -> Select:
     filters = []
     if query.ids:
         filters.append(_explicit_ids(User.id, query.ids))
@@ -603,6 +554,61 @@ async def get_users(
 
     if filters:
         stmt = stmt.where(and_(*filters))
+
+    return stmt
+
+
+async def get_users(
+    db: AsyncSession,
+    query: UserListQuery,
+    admin: Admin | None = None,
+    return_with_count: bool = False,
+    load_admin_role: bool = False,
+    load_usage_logs: bool = True,
+    load_lifetime_used_traffic: bool = False,
+    load_group_inbounds: bool = False,
+    load_hwid_count: bool = False,
+) -> list[User] | tuple[list[User], int]:
+    """
+    Retrieves users based on various filters.
+
+    Args:
+        db: Database session.
+        query: Structured user list query filters.
+        admin: Admin filter.
+        return_with_count: Whether to return total count.
+        load_usage_logs: Whether to materialize reset-history rows.
+        load_lifetime_used_traffic: Whether to calculate lifetime usage with an aggregate.
+        load_group_inbounds: Whether to eager-load each user's groups' inbounds (avoids a query per user when
+            serializing users for nodes).
+
+    Returns:
+        List of users or tuple with (users, count) if return_with_count is True.
+    """
+    admin_loader = selectinload(User.admin)
+    if load_admin_role:
+        admin_loader = admin_loader.selectinload(Admin.role)
+
+    groups_loader = selectinload(User.groups)
+    if load_group_inbounds:
+        groups_loader = groups_loader.selectinload(Group.inbounds)
+
+    options = [
+        admin_loader,
+        selectinload(User.next_plan),
+        groups_loader,
+    ]
+    if load_usage_logs:
+        options.append(selectinload(User.usage_logs))
+    if load_lifetime_used_traffic:
+        options.append(with_expression(User._reseted_usage_query, _user_reset_traffic_subquery()))
+    stmt = select(User).options(*options)
+    if load_lifetime_used_traffic:
+        stmt = stmt.execution_options(populate_existing=True)
+    if load_hwid_count:
+        stmt = stmt.options(with_expression(User.hwid_count, _user_hwid_count_subquery()))
+
+    stmt = filter_users_stmt(db, stmt, query, admin)
 
     if query.sort:
         stmt = stmt.order_by(*_build_user_sort_clauses(query.sort))

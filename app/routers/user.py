@@ -39,10 +39,12 @@ from app.models.user import (
     UsersUsageQuery,
     UserUsageQuery,
 )
+from app.models.user_bulk import BulkUsersEdit, BulkUsersEditResult
 from app.operation import OperatorType
 from app.operation.node import NodeOperation
 from app.operation.subscription import SubscriptionOperation
 from app.operation.user import UserOperation
+from app.operation.user_bulk import BulkUserEditOperation
 from app.utils import responses
 
 from .authentication import require_permission, require_scope_all
@@ -56,9 +58,28 @@ from .dependencies import (
 )
 
 user_operator = UserOperation(operator_type=OperatorType.API)
+bulk_edit_operator = BulkUserEditOperation(operator_type=OperatorType.API)
 node_operator = NodeOperation(operator_type=OperatorType.API)
 subscription_operator = SubscriptionOperation(operator_type=OperatorType.API)
 router = APIRouter(tags=["User"], prefix="/api/user", responses={401: responses._401})
+
+
+@router.post("s/bulk/edit/preview", response_model=BulkUsersEditResult, summary="Preview bulk user edits")
+async def preview_bulk_edit_users(
+    body: BulkUsersEdit,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(require_permission("users", "update")),
+):
+    return await bulk_edit_operator.edit(db, body, admin)
+
+
+@router.post("s/bulk/edit", response_model=BulkUsersEditResult, summary="Apply a previewed bulk user edit")
+async def bulk_edit_users(
+    body: BulkUsersEdit,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(require_permission("users", "update")),
+):
+    return await bulk_edit_operator.edit(db, body, admin, apply=True)
 
 
 @router.post(

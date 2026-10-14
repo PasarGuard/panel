@@ -713,6 +713,7 @@ class UserOperation(BaseOperation):
         admin: AdminDetails,
         *,
         skip_role_limits: bool = False,
+        prepare_proxy_settings: bool = True,
     ):
         modified_fields = modified_user.model_fields_set
         hwid_limit_was_changed = "hwid_limit" in modified_fields
@@ -815,6 +816,9 @@ class UserOperation(BaseOperation):
 
         if modified_user.next_plan is not None and modified_user.next_plan.user_template_id is not None:
             await self._get_validated_template_with_access(db, modified_user.next_plan.user_template_id, admin)
+
+        if not prepare_proxy_settings:
+            return validated_groups
 
         effective_groups = validated_groups if validated_groups is not None else db_user.groups
         current_proxy_settings = ProxyTable.model_validate(db_user.proxy_settings)
