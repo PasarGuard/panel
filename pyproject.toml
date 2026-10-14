@@ -31,7 +31,7 @@ dependencies = [
     "packaging>=26.3",
     "sqlalchemy[asyncio]>=2.1.4",
     "aiosqlite>=0.21.0",
-    "asyncpg>=0.31.0",
+    "asyncpg>=0.32.0",
     "asyncmy>=0.2.15; sys_platform != 'win32'",
     "aiocache>=0.12.3",
     "aiogram>=3.31.0",
