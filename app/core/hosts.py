@@ -631,6 +631,7 @@ class HostManager:
         await self._add_hosts_impl(db, hosts)
 
     async def _add_prepared_hosts_local(self, prepared_hosts: list[tuple[int, SubscriptionInboundData | dict]]):
+        """Store prepared hosts locally and invalidate subscription caches."""
         async with self._lock:
             for host_id, host_data in prepared_hosts:
                 self._hosts.pop(host_id, None)
@@ -644,6 +645,7 @@ class HostManager:
     async def _prepare_hosts(
         self, db: AsyncSession, hosts: list[BaseHost]
     ) -> tuple[list[tuple[int, SubscriptionInboundData]], list[int]]:
+        """Prepare valid hosts and collect skipped IDs without aborting the batch."""
         inbounds_list = await core_manager.get_inbounds()
         await upsert_inbounds(db, inbounds_list)
         await db.commit()
@@ -670,6 +672,7 @@ class HostManager:
         return prepared_hosts, hosts_to_remove
 
     async def _add_hosts_local(self, db: AsyncSession, hosts: list[BaseHost]):
+        """Apply host updates locally and invalidate caches after removing skipped hosts."""
         prepared_hosts, hosts_to_remove = await self._prepare_hosts(db, hosts)
 
         await self._add_prepared_hosts_local(prepared_hosts)
@@ -677,10 +680,12 @@ class HostManager:
         async with self._lock:
             for host_id in hosts_to_remove:
                 self._hosts.pop(host_id, None)
+            await self._reset_cache()
 
         await self._persist_state()
 
     async def _add_hosts_nats(self, db: AsyncSession, hosts: list[BaseHost]):
+        """Publish host additions and removals to workers and update local state."""
         prepared_hosts, hosts_to_remove = await self._prepare_hosts(db, hosts)
 
         # Publish messages - all workers will process via listener
