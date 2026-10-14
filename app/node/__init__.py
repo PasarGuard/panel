@@ -26,6 +26,7 @@ class UserSyncPreemptedError(RuntimeError):
 class NodeManager:
     def __init__(self):
         self._nodes: dict[int, PasarGuardNode] = {}
+        self.initialized = asyncio.Event()
         self._node_signatures: dict[int, tuple] = {}
         self._user_sync_locks: dict[int, asyncio.Lock] = {}
         self._user_sync_tasks: dict[int, set[asyncio.Task]] = {}
@@ -423,7 +424,7 @@ class NodeManager:
                     await node.release_queued_work(captured)
             return node
 
-    async def _update_users(self, users: list[ProtoUser]):
+    async def _update_users(self, users: list[ProtoUser], *, raise_errors: bool = False):
         nodes = await self._snapshot_node_items()
         if not nodes:
             return
@@ -431,21 +432,28 @@ class NodeManager:
         results = await asyncio.gather(
             *(self._sync_users_to_node(node_id, None, users) for node_id, _node in nodes), return_exceptions=True
         )
+        failure = None
         for (node_id, _node), result in zip(nodes, results, strict=True):
             if isinstance(result, asyncio.CancelledError):
                 # A connection change or removal of the node preempted this delivery.
                 self.logger.debug("User sync to node %s was cancelled by a node lifecycle change", node_id)
+                failure = UserSyncPreemptedError(f"user sync to node {node_id} was preempted")
             elif isinstance(result, Exception):
                 self.logger.error("Failed to sync users to node %s: %s", node_id, result)
+                failure = result
+        if raise_errors and failure is not None:
+            raise failure
 
-    async def update_users(self, users: list[ProtoUser], *, await_dispatch: bool = False) -> None:
+    async def update_users(
+        self, users: list[ProtoUser], *, await_dispatch: bool = False, raise_errors: bool = False
+    ) -> None:
         """Queue a batch, optionally waiting so a producer cannot outrun node dispatch.
 
-        Per-node failures are logged, never raised: a node that misses a batch gets a
-        full snapshot when it reconnects.
+        Durable command consumers request raised errors so the message is acknowledged
+        only after every node accepted the batch.
         """
-        if await_dispatch:
-            await self._update_users(users)
+        if await_dispatch or raise_errors:
+            await self._update_users(users, raise_errors=raise_errors)
         else:
             asyncio.create_task(self._update_users(users))
 
@@ -456,6 +464,8 @@ class NodeManager:
 
         results = await asyncio.gather(*(node.update_user(user) for node in nodes), return_exceptions=True)
         for result in results:
+            if isinstance(result, asyncio.CancelledError):
+                raise UserSyncPreemptedError("user update was preempted by a node lifecycle change")
             if isinstance(result, Exception):
                 raise result
 

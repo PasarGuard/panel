@@ -190,6 +190,9 @@ async def process_node_health_check(db_node: Node, node: PasarGuardNode):
 
         # Skip nodes that are already healthy and connected
         if health == Health.HEALTHY and db_node.status == NodeStatus.connected:
+            if not getattr(node, "_panel_users_reconciled", True):
+                await _repair_node(db_node.id)
+                return
             requires_recovery = node.requires_hard_reset()
             if requires_recovery or needs_shared_bridge_memory():
                 # A slow user-sync RPC does not mean the backend is dead. Repair
@@ -222,6 +225,8 @@ async def process_node_health_check(db_node: Node, node: PasarGuardNode):
         ):
             attached = await NodeOperation._attach_if_running(node, db_node.name)
             if attached is not None:
+                if not getattr(node, "_panel_users_reconciled", True):
+                    await _repair_node(db_node.id)
                 return
 
             _, coordinator, _ = get_bridge_memory()
@@ -371,6 +376,7 @@ async def initialize_nodes():
     if not runtime_settings.role.runs_node:
         return
 
+    node_manager.initialized.clear()
     await ensure_bridge_memory()
 
     startup_log = logger.debug if server_settings.workers > 1 else logger.info
@@ -385,6 +391,7 @@ async def initialize_nodes():
             await node_operator.connect_nodes_bulk(db, db_nodes)
             startup_log("All nodes' cores have been started.")
 
+    node_manager.initialized.set()
     set_on_leadership_lost(_reset_health_streaks)
 
     if needs_job_leader():

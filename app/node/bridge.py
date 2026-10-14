@@ -26,6 +26,8 @@ from PasarGuardNodeBridge.grpclib import Node as GrpcNode
 from PasarGuardNodeBridge.rest import Node as RestNode
 from PasarGuardNodeBridge.storage import ClaimedUser
 
+from app.nats import needs_shared_bridge_memory
+
 _queued_sync: ContextVar[bool] = ContextVar("queued_node_user_sync", default=False)
 
 # Lease for one full snapshot (queue drain + database read + node RPC). It is
@@ -79,6 +81,9 @@ class FenceHold:
 class _QueuedBatchSync:
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        # Shared queues survive process restarts. Local queues need a fresh
+        # snapshot before an attachment is considered recovered.
+        self._panel_users_reconciled = needs_shared_bridge_memory()
         # Full snapshots in progress on this process for this node object, and
         # a process-local generation for stores without a shared fence.
         self._local_full_syncs = 0

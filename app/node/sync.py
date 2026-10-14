@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import async_object_session
 from app.db import GetDB
 from app.db.models import Admin, AdminRole, AdminStatus, User
 from app.models.user import UserNotificationResponse
+from app.nats import needs_shared_bridge_memory
 from app.nats.node_rpc import encode_node_command, node_nats_client
 from app.nats.proto_utils import serialize_proto_message, serialize_proto_messages
 from app.node import node_manager
@@ -132,7 +133,7 @@ async def _blocked_admin_ids_for_users(users: list[User]) -> set[int]:
     return set((await session.execute(stmt)).scalars().all())
 
 
-if runtime_settings.role.runs_node:
+if runtime_settings.role.runs_node and not needs_shared_bridge_memory():
 
     async def _dispatch_user_update(proto_user):
         await node_manager.update_user(proto_user)

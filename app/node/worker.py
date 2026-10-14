@@ -3,6 +3,7 @@ import contextlib
 import json
 import uuid
 
+import nats.errors
 from nats.aio.subscription import Subscription
 from PasarGuardNodeBridge import NodeAPIError
 from PasarGuardNodeBridge.common.service_pb2 import User as ProtoUser
@@ -13,6 +14,7 @@ from app.db import GetDB
 from app.db.crud.node import get_node_by_id, get_nodes
 from app.db.models import NodeStatus
 from app.models.node import NodeCoreUpdate, NodeGeoFilesUpdate, NodeListQuery
+from app.nats.node_commands import COMMAND_ACK_WAIT, COMMAND_CONCURRENCY, USER_COMMANDS, subscribe_user_commands
 from app.nats.proto_utils import deserialize_proto_message, deserialize_proto_messages
 from app.nats.rpc_service import BaseRpcService
 from app.node import node_manager
@@ -32,6 +34,7 @@ class NodeWorkerService(BaseRpcService):
             role_check=lambda: runtime_settings.role.runs_node,
         )
         self._command_sub: Subscription | None = None
+        self._user_command_task: asyncio.Task | None = None
         self._log_tasks: dict[str, asyncio.Task] = {}
         self._stop_events: dict[str, asyncio.Event] = {}
         self._node_operator = NodeOperation(operator_type=OperatorType.SYSTEM)
@@ -69,11 +72,18 @@ class NodeWorkerService(BaseRpcService):
             return
 
         self._command_sub = await self._nc.subscribe(nats_settings.node_command_subject, cb=self._handle_command)
+        self._user_command_task = asyncio.create_task(self._consume_user_commands(), name="node-user-commands")
         logger.info("Node worker service started")
 
     async def stop(self):
         if not runtime_settings.role.runs_node:
             return
+
+        if self._user_command_task is not None:
+            self._user_command_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._user_command_task
+            self._user_command_task = None
 
         for stop_event in list(self._stop_events.values()):
             stop_event.set()
@@ -104,6 +114,72 @@ class NodeWorkerService(BaseRpcService):
             return
 
         asyncio.create_task(self._run_command(action, data))
+
+    async def _consume_user_commands(self):
+        # Startup loads every configured node before commands can be acknowledged.
+        await node_manager.initialized.wait()
+        subscription = None
+        delay = 0.5
+        try:
+            while True:
+                try:
+                    if subscription is None:
+                        subscription = await subscribe_user_commands(self._nc.jetstream())
+                    try:
+                        messages = await subscription.fetch(COMMAND_CONCURRENCY, timeout=1)
+                    except nats.errors.TimeoutError:
+                        continue
+                    results = await asyncio.gather(
+                        *(self._run_user_command(msg) for msg in messages), return_exceptions=True
+                    )
+                    for result in results:
+                        if isinstance(result, Exception):
+                            raise result
+                    delay = 0.5
+                except Exception as exc:
+                    logger.warning("Node user command consumer interrupted; retrying in %.1fs: %s", delay, exc)
+                    if subscription is not None:
+                        with contextlib.suppress(Exception):
+                            await subscription.unsubscribe()
+                        subscription = None
+                    await asyncio.sleep(delay)
+                    delay = min(delay * 2, 30)
+        finally:
+            if subscription is not None:
+                with contextlib.suppress(Exception):
+                    await subscription.unsubscribe()
+
+    async def _command_heartbeat(self, msg):
+        while True:
+            await asyncio.sleep(COMMAND_ACK_WAIT / 3)
+            await msg.in_progress()
+
+    async def _run_user_command(self, msg):
+        try:
+            payload = json.loads(msg.data.decode())
+            action = payload["action"]
+            data = payload["payload"]
+            if action not in USER_COMMANDS or not isinstance(data, dict):
+                raise ValueError("invalid user command")
+        except ValueError, KeyError, TypeError:
+            logger.warning("Invalid durable node user command")
+            await msg.term()
+            return
+
+        heartbeat = asyncio.create_task(self._command_heartbeat(msg))
+        try:
+            async with self._command_semaphore:
+                await self._dispatch_command(action, data)
+            await msg.ack_sync()
+        except Exception as exc:
+            attempts = msg.metadata.num_delivered
+            delay = min(30, 2 ** min(attempts - 1, 5))
+            logger.warning("Node user command %s failed; retrying in %ss: %s", action, delay, exc)
+            await msg.nak(delay=delay)
+        finally:
+            heartbeat.cancel()
+            with contextlib.suppress(asyncio.CancelledError, Exception):
+                await heartbeat
 
     async def _run_command(self, action: str | None, data: dict):
         async with self._command_semaphore:
@@ -147,7 +223,7 @@ class NodeWorkerService(BaseRpcService):
         if not users_dicts:
             return
         proto_users = deserialize_proto_messages(users_dicts, ProtoUser)
-        await node_manager.update_users(proto_users)
+        await node_manager.update_users(proto_users, await_dispatch=True, raise_errors=True)
 
     async def _update_node(self, data: dict):
         node_id = data.get("node_id")
@@ -171,9 +247,7 @@ class NodeWorkerService(BaseRpcService):
         # Refresh from KV before connecting to avoid stale core cache races.
         await core_manager._reload_from_cache()
         async with GetDB() as db:
-            await self._node_operator.connect_single_node(
-                db, node_id, force_start=bool(data.get("force_start"))
-            )
+            await self._node_operator.connect_single_node(db, node_id, force_start=bool(data.get("force_start")))
 
     async def _connect_nodes_bulk(self, data: dict):
         node_ids = data.get("node_ids")
@@ -192,9 +266,7 @@ class NodeWorkerService(BaseRpcService):
                     ),
                     load_usage_logs=False,
                 )
-            await self._node_operator.connect_nodes_bulk(
-                db, nodes, force_start=bool(data.get("force_start"))
-            )
+            await self._node_operator.connect_nodes_bulk(db, nodes, force_start=bool(data.get("force_start")))
 
     async def _disconnect_node(self, data: dict):
         node_id = data.get("node_id")

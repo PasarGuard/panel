@@ -298,6 +298,24 @@ class NodeOperation(BaseOperation):
             await pg_node._ensure_sync_worker_running()
 
     @staticmethod
+    async def _reconcile_attached_users(pg_node: PasarGuardNode, db_node: Node, users: CoreUsers) -> bool:
+        if getattr(pg_node, "_panel_users_reconciled", True):
+            return True
+        # A restarted worker may have lost its process-local queue, or accepted a
+        # command before its nodes were loaded. Restore the current database state
+        # once per attachment, serialized/fenced against concurrent deltas.
+        try:
+            current = await node_manager.sync_full(db_node.id, users, flush_pending=True)
+        except NodeAPIError:
+            raise
+        except Exception as exc:
+            raise NodeAPIError(500, f"Failed to reconcile users on attached node: {exc}") from exc
+        if current is not pg_node:
+            return False
+        pg_node._panel_users_reconciled = True
+        return True
+
+    @staticmethod
     async def _attach_if_running(pg_node: PasarGuardNode, node_name: str):
         """Attach to an already-started remote core without calling Start RPC."""
         try:
@@ -346,6 +364,8 @@ class NodeOperation(BaseOperation):
             ):
                 attached = await NodeOperation._attach_if_running(pg_node, db_node.name)
                 if attached is not None:
+                    if not await NodeOperation._reconcile_attached_users(pg_node, db_node, users):
+                        return None
                     return attached
                 if state.observed is LifecycleStatus.STARTING:
                     # Another worker is already starting this node right now - don't race
@@ -353,8 +373,7 @@ class NodeOperation(BaseOperation):
                     # Skip; the next retry cycle will check again once it's done.
                     return
 
-        # Healthy attachments and in-flight starts do not need a user snapshot.
-        # Resolve it only when the remote backend really needs to be started,
+        # Resolve the initial snapshot when the remote backend needs to be started,
         # inside the node's full-sync fence: Start replaces the core's user set
         # with this snapshot, so deltas must not land between the read and it.
         fence = getattr(pg_node, "full_sync_fence", None)
@@ -417,6 +436,7 @@ class NodeOperation(BaseOperation):
                     except Exception:
                         pass
                     raise NodeAPIError(500, f"Failed to sync users after starting WireGuard: {exc}") from exc
+            pg_node._panel_users_reconciled = True
             return info
 
     @staticmethod
@@ -442,7 +462,7 @@ class NodeOperation(BaseOperation):
         Args:
             db_node (Node): Node object from database.
             core: Pre-fetched core config for this node.
-            users: Core users or a deferred snapshot loader, used only for Start.
+            users: Core users or a deferred snapshot loader, used for Start or initial attachment.
             force_start: If True, push a new Start RPC even when the core is already running.
 
         Returns:
@@ -458,7 +478,7 @@ class NodeOperation(BaseOperation):
         old_status = db_node.status
         if not force_start:
             try:
-                if await pg_node.get_health() == Health.HEALTHY:
+                if await pg_node.get_health() == Health.HEALTHY and getattr(pg_node, "_panel_users_reconciled", True):
                     if old_status == NodeStatus.connected:
                         return None
                     node_version, core_version = await pg_node.get_versions()
@@ -501,6 +521,12 @@ class NodeOperation(BaseOperation):
                 # Another worker holds the lifecycle lease; try attach once more.
                 attached = await NodeOperation._attach_if_running(pg_node, db_node.name)
                 if attached is not None:
+                    try:
+                        if not await NodeOperation._reconcile_attached_users(pg_node, db_node, users):
+                            return None
+                    except NodeAPIError as sync_error:
+                        logger.warning('User reconciliation on "%s" will be retried: %s', db_node.name, sync_error)
+                        return None
                     return {
                         "node_id": db_node.id,
                         "status": NodeStatus.connected,
@@ -527,6 +553,12 @@ class NodeOperation(BaseOperation):
                 # being torn down by the next health-check reconnect.
                 attached = await NodeOperation._attach_if_running(pg_node, db_node.name)
                 if attached is not None:
+                    try:
+                        if not await NodeOperation._reconcile_attached_users(pg_node, db_node, users):
+                            return None
+                    except NodeAPIError as sync_error:
+                        logger.warning('User reconciliation on "%s" will be retried: %s', db_node.name, sync_error)
+                        return None
                     logger.debug(f'Attached to "{db_node.name}" after its Start request timed out')
                     return {
                         "node_id": db_node.id,
