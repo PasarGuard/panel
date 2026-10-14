@@ -1,7 +1,7 @@
 """add MASQUE auth and DNS settings to proxy settings
 
 Revision ID: c8d2e4f6a1b3
-Revises: b4c7e8f1a2d3
+Revises: a8c2d491e705
 Create Date: 2026-10-12 00:00:00.000000
 
 """
