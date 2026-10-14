@@ -19,7 +19,15 @@ async def get_settings(db: AsyncSession) -> Settings:
 
 
 async def modify_settings(db: AsyncSession, db_setting: Settings, modify: SettingsSchema) -> Settings:
-    settings_data = modify.model_dump(exclude_none=True)
+    """Apply explicitly supplied settings while preserving meaningful nested nulls."""
+    # Ignore omitted top-level sections, but preserve explicit ``None`` values
+    # inside a section. Some settings use ``None`` as a meaningful value (for
+    # example, disabling an automatic retention policy).
+    settings_data = {
+        key: value
+        for key, value in modify.model_dump(include=modify.model_fields_set).items()
+        if value is not None
+    }
 
     for key, value in settings_data.items():
         setattr(db_setting, key, value)
