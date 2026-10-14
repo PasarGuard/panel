@@ -3935,6 +3935,7 @@
     "invalidNumber": "Enter a valid non-negative number; relative changes require a positive value.",
     "invalidDate": "Choose a valid date and time.",
     "selectOwner": "Choose the new owner.",
-    "selectPlan": "Choose a next plan."
+    "selectPlan": "Choose a next plan.",
+    "selectGroups": "Select at least one group, or choose Clear to remove all groups."
   }
 }

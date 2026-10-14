@@ -14524,6 +14524,7 @@ export const getPreviewBulkEditUsersUrl = () => {
 }
 
 /**
+ * Return a read-only preview of bulk changes within the administrator's scope.
  * @summary Preview bulk user edits
  */
 export const previewBulkEditUsers = async (bulkUsersEdit: BulkUsersEdit, options?: RequestInit): Promise<BulkUsersEditResult> => {
@@ -14595,6 +14596,7 @@ export const getBulkEditUsersUrl = () => {
 }
 
 /**
+ * Apply a validated preview only when its selection and account state still match.
  * @summary Apply a previewed bulk user edit
  */
 export const bulkEditUsers = async (bulkUsersEdit: BulkUsersEdit, options?: RequestInit): Promise<BulkUsersEditResult> => {

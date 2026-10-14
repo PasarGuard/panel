@@ -492,6 +492,7 @@ def _build_user_count_stmt(stmt: Select) -> Select:
 
 
 def filter_users_stmt(db: AsyncSession, stmt: Select, query: UserListQuery, admin: Admin | None = None) -> Select:
+    """Apply shared user-list predicates without pagination or relationship loading."""
     filters = []
     if query.ids:
         filters.append(_explicit_ids(User.id, query.ids))

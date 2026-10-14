@@ -22,6 +22,7 @@ class BulkUserSelection(BulkEditModel):
 
     @model_validator(mode="after")
     def validate_selection(self):
+        """Require one selection mode and reject paginated or presentation-only filters."""
         if (self.ids is None) == (self.filters is None):
             raise ValueError("Provide either user IDs or filters")
         if self.ids is not None:
@@ -41,6 +42,7 @@ class BulkNumericEdit(BulkEditModel):
 
     @model_validator(mode="after")
     def validate_value(self):
+        """Require a numeric operand unless the operation explicitly clears the limit."""
         if self.operation == "clear":
             if self.value is not None:
                 raise ValueError("Clear does not accept a value")
@@ -56,6 +58,7 @@ class BulkExpireEdit(BulkEditModel):
 
     @model_validator(mode="after")
     def validate_value(self):
+        """Require a date for Set, seconds for relative edits, and no operand for Clear."""
         if self.operation == "set":
             if self.value is None or self.seconds is not None:
                 raise ValueError("Set expiration requires a date only")
@@ -74,11 +77,12 @@ class BulkGroupsEdit(BulkEditModel):
 
     @model_validator(mode="after")
     def validate_groups(self):
+        """Require selected groups for edits and reserve empty membership for Clear."""
         if any(value <= 0 for value in self.ids + self.remove_ids):
             raise ValueError("Group IDs must be positive")
         if self.operation == "clear" and (self.ids or self.remove_ids):
             raise ValueError("Clear does not accept groups")
-        if self.operation in {"add", "remove"} and not (self.ids or self.remove_ids):
+        if self.operation in {"set", "add", "remove"} and not self.ids:
             raise ValueError("Select at least one group")
         if self.remove_ids and self.operation != "add":
             raise ValueError("Additional removals are only supported with add")
@@ -106,6 +110,7 @@ class BulkUserSettings(BulkEditModel):
 
     @model_validator(mode="after")
     def validate_nulls(self):
+        """Reject null values for settings that require an explicit enum choice."""
         for field in {"status", "data_limit_reset_strategy"} & self.model_fields_set:
             if getattr(self, field) is None:
                 raise ValueError(f"{field} cannot be null")
@@ -124,6 +129,7 @@ class BulkUsersEdit(BulkEditModel):
 
     @model_validator(mode="after")
     def validate_changes(self):
+        """Reject requests without an explicitly selected change."""
         if not any(
             (
                 self.data_limit,

@@ -70,6 +70,7 @@ async def preview_bulk_edit_users(
     db: AsyncSession = Depends(get_db),
     admin: AdminDetails = Depends(require_permission("users", "update")),
 ):
+    """Return a read-only preview of bulk changes within the administrator's scope."""
     return await bulk_edit_operator.edit(db, body, admin)
 
 
@@ -79,6 +80,7 @@ async def bulk_edit_users(
     db: AsyncSession = Depends(get_db),
     admin: AdminDetails = Depends(require_permission("users", "update")),
 ):
+    """Apply a validated preview only when its selection and account state still match."""
     return await bulk_edit_operator.edit(db, body, admin, apply=True)
 
 

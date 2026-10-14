@@ -18,6 +18,7 @@ interface Props {
   children?: ReactNode
 }
 
+/** Present one optional edit, revealing its value controls only when selected. */
 export function BulkEditField({ label, icon: Icon, operation, operations = ['set'], clearLabel, description, onChange, children }: Props) {
   const { t } = useTranslation()
   const id = useId()

@@ -40,6 +40,7 @@ _STATE_FIELDS = (
 
 
 def _state(user: User) -> dict:
+    """Snapshot editable account state without exposing proxy credentials."""
     values = {field: getattr(user, field) for field in _STATE_FIELDS}
     for field, value in values.items():
         if isinstance(value, datetime):
@@ -59,6 +60,7 @@ def _state(user: User) -> dict:
 
 
 def _build_patch(user: User, body: BulkUsersEdit) -> tuple[UserModify, dict, bool]:
+    """Build a validated partial update and its preview, preserving omitted fields."""
     before = _state(user)
     values = body.settings.model_dump(exclude_unset=True)
     skipped = False
@@ -84,7 +86,12 @@ def _build_patch(user: User, body: BulkUsersEdit) -> tuple[UserModify, dict, boo
             if effective_status == UserStatus.on_hold:
                 raise ValueError("Set an active or disabled status to change an on-hold user's expiration date")
             values["expire"] = edit.value if edit.operation == "set" else 0
-        elif user.status == UserStatus.on_hold:
+        elif (user.status == UserStatus.on_hold) != (effective_status == UserStatus.on_hold):
+            raise ValueError(
+                "Relative expiration cannot accompany a change into or out of on-hold status. "
+                "Set an expiration date or on-hold duration instead."
+            )
+        elif effective_status == UserStatus.on_hold:
             duration = values.get("on_hold_expire_duration", user.on_hold_expire_duration)
             if not duration:
                 raise ValueError("On-hold user has no expiration duration")
@@ -165,6 +172,7 @@ def _build_patch(user: User, body: BulkUsersEdit) -> tuple[UserModify, dict, boo
 
 class _BulkValidationOperation(UserOperation):
     async def raise_error(self, message: str, code: int, db: AsyncSession | None = None):
+        """Report validation failures without expiring users or releasing row locks."""
         # Validation makes no writes. Rolling back here would expire other loaded
         # users and release the locks needed to validate the entire selection.
         raise HTTPException(status_code=code, detail=str(message))
@@ -172,6 +180,7 @@ class _BulkValidationOperation(UserOperation):
 
 class BulkUserEditOperation(UserOperation):
     async def edit(self, db: AsyncSession, body: BulkUsersEdit, admin: AdminDetails, *, apply: bool = False):
+        """Preview scoped edits or atomically commit an unchanged, validated preview."""
         try:
             enforce_permission(admin, "users", "update")
             if body.owner:
@@ -198,6 +207,13 @@ class BulkUserEditOperation(UserOperation):
         scope_id = get_scope_admin_id(admin, "users", "update")
         if scope_id is not None:
             stmt = stmt.where(User.admin_id == scope_id)
+        if selection.filters is not None and query.ids:
+            requested = filter_users_stmt(db, select(User.id), UserListQuery(ids=query.ids))
+            if scope_id is not None:
+                requested = requested.where(User.admin_id == scope_id)
+            accessible_ids = set((await db.scalars(requested)).all())
+            if accessible_ids != set(query.ids):
+                await self.raise_error("One or more filtered user IDs were not found or are outside your access", 404)
         ids = list((await db.scalars(stmt.order_by(User.id))).all())
         if selection.ids is not None and set(ids) != set(selection.ids):
             await self.raise_error("One or more selected users were not found or are outside your access", 404)

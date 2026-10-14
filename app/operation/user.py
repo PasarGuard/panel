@@ -715,6 +715,7 @@ class UserOperation(BaseOperation):
         skip_role_limits: bool = False,
         prepare_proxy_settings: bool = True,
     ):
+        """Validate changed user settings and optionally prepare affected proxy settings."""
         modified_fields = modified_user.model_fields_set
         hwid_limit_was_changed = "hwid_limit" in modified_fields
         effective_hwid_conf = None

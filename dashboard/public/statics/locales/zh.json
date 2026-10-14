@@ -3942,6 +3942,7 @@
     "invalidNumber": "输入有效的非负数；相对操作需要正数。",
     "invalidDate": "选择有效的日期和时间。",
     "selectOwner": "选择新的所有者。",
-    "selectPlan": "选择下一个套餐。"
+    "selectPlan": "选择下一个套餐。",
+    "selectGroups": "请至少选择一个分组；如需移除所有分组，请选择清除。"
   }
 }

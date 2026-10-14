@@ -29,6 +29,7 @@ export interface BulkEditFieldValue {
 }
 export type BulkEditDraft = Record<BulkEditFieldName, BulkEditFieldValue>
 
+/** Initialize every field as unchanged so opening the editor cannot overwrite settings. */
 export function createBulkEditDraft(): BulkEditDraft {
   return bulkEditFields.reduce((draft, field) => {
     draft[field] = {
@@ -44,6 +45,7 @@ export function createBulkEditDraft(): BulkEditDraft {
   }, {} as BulkEditDraft)
 }
 
+/** Validate selected operations and serialize only the fields the administrator chose. */
 export function buildBulkEditRequest(draft: BulkEditDraft, selection: BulkUserSelection): BulkUsersEdit {
   const body: BulkUsersEdit = { selection, settings: {} }
   const settings = body.settings as BulkUserSettings
@@ -85,6 +87,7 @@ export function buildBulkEditRequest(draft: BulkEditDraft, selection: BulkUserSe
               : { operation: op as 'add' | 'subtract', seconds: Math.round(number(field.value, true) * 86400) }
         break
       case 'groups':
+        if ((op === 'set' || op === 'add' || op === 'remove') && field.ids.length === 0) throw new Error('bulkEdit.selectGroups')
         body.groups = { operation: op as 'set' | 'add' | 'remove' | 'clear', ids: op === 'clear' ? [] : field.ids, ...(op === 'add' ? { remove_ids: field.removeIds } : {}) }
         break
       case 'owner':

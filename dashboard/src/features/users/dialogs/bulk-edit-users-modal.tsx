@@ -73,6 +73,7 @@ interface Props {
   onSuccess: () => void
 }
 
+/** Guide scoped bulk editing through field selection, preview and explicit confirmation. */
 export default function BulkEditUsersModal({ initialScope, userIds, pageIds, filters, total, onClose, onSuccess }: Props) {
   const { t, i18n } = useTranslation()
   const dir = useDirDetection()
