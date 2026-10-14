@@ -6,7 +6,7 @@ from app.models import settings
 from app.subscription.config_cache import clear_sub_config_cache
 
 
-@cached()
+@cached(ttl=5)
 async def telegram_settings() -> settings.Telegram:
     async with GetDB() as db:
         db_settings = await get_settings(db)
@@ -15,7 +15,7 @@ async def telegram_settings() -> settings.Telegram:
     return validated_settings
 
 
-@cached()
+@cached(ttl=5)
 async def webhook_settings() -> settings.Webhook:
     async with GetDB() as db:
         db_settings = await get_settings(db)
@@ -24,7 +24,7 @@ async def webhook_settings() -> settings.Webhook:
     return validated_settings
 
 
-@cached()
+@cached(ttl=5)
 async def notification_settings() -> settings.NotificationSettings:
     async with GetDB() as db:
         db_settings = await get_settings(db)
@@ -33,7 +33,7 @@ async def notification_settings() -> settings.NotificationSettings:
     return validated_settings
 
 
-@cached()
+@cached(ttl=5)
 async def notification_enable() -> settings.NotificationEnable:
     async with GetDB() as db:
         db_settings = await get_settings(db)
@@ -42,7 +42,7 @@ async def notification_enable() -> settings.NotificationEnable:
     return validated_settings
 
 
-@cached()
+@cached(ttl=5)
 async def subscription_settings() -> settings.Subscription:
     async with GetDB() as db:
         db_settings = await get_settings(db)
@@ -51,7 +51,7 @@ async def subscription_settings() -> settings.Subscription:
     return validated_settings
 
 
-@cached()
+@cached(ttl=5)
 async def hwid_settings() -> settings.HWIDSettings:
     async with GetDB() as db:
         db_settings = await get_settings(db)
@@ -60,7 +60,7 @@ async def hwid_settings() -> settings.HWIDSettings:
     return validated_settings
 
 
-@cached()
+@cached(ttl=5)
 async def general_settings() -> settings.General:
     async with GetDB() as db:
         db_settings = await get_settings(db)
@@ -83,6 +83,9 @@ async def refresh_caches() -> None:
 async def handle_settings_message(_: dict):
     """Handle settings update message from NATS router."""
     await refresh_caches()
+    from app.notification.client import define_client
+
+    await define_client()
     try:
         from app.telegram import telegram_bot_manager
     except Exception:

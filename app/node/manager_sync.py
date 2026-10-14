@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import asyncio
+
 from app.db import GetDB
-from app.db.crud.node import get_node_by_id
+from app.db.crud.node import get_node_by_id, get_nodes
 from app.db.models import NodeStatus
+from app.models.node import NodeListQuery
 from app.nats.message import MessageTopic
 from app.nats.router import router
 from app.node import node_manager
@@ -77,3 +80,39 @@ async def handle_node_message(data: dict) -> None:
 
 def register_node_sync_handler() -> None:
     router.register_handler(MessageTopic.NODE, handle_node_message)
+    router.register_reconciler(MessageTopic.NODE, reconcile_nodes)
+
+
+async def reconcile_nodes(_: dict | None = None) -> None:
+    """Repair missed invalidations without reconnecting unchanged local attachments."""
+    from app.operation.node import NodeOperation
+
+    async with GetDB() as db:
+        rows, _ = await get_nodes(db, NodeListQuery(), load_usage_logs=False)
+    desired = {row.id: row for row in rows if row.status not in (NodeStatus.disabled, NodeStatus.limited)}
+    current = dict(await node_manager.get_nodes())
+    for node_id in current.keys() - desired.keys():
+        await node_manager.remove_node(node_id, remote_stop=False)
+    semaphore = asyncio.Semaphore(5)
+
+    async def refresh(row):
+        async with semaphore:
+            before = await node_manager.get_node(row.id)
+            after = await node_manager.update_node(row)
+            if after is before:
+                return
+            # Re-read after waiting for a connection lock; deleted/disabled nodes
+            # must not be started from an older reconciliation snapshot.
+            async with GetDB() as db:
+                latest = await get_node_by_id(db, row.id, load_usage_logs=False)
+                if latest is None or latest.status in (NodeStatus.disabled, NodeStatus.limited):
+                    await node_manager.remove_node(row.id, remote_stop=False)
+                    return
+                core_id = latest.core_config_id or 1
+                cores, users = await NodeOperation._get_core_users_map(db, {core_id}, lazy=True)
+                await NodeOperation.connect_node(latest, cores.get(core_id), users.get(core_id, []))
+
+    results = await asyncio.gather(*(refresh(row) for row in desired.values()), return_exceptions=True)
+    failures = [result for result in results if isinstance(result, Exception)]
+    if failures:
+        raise RuntimeError(f"Could not reconcile {len(failures)} local node attachments") from failures[0]

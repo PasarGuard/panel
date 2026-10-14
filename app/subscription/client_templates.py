@@ -6,13 +6,13 @@ from app.models.client_template import ClientTemplateType
 from app.subscription.config_cache import clear_sub_config_cache
 
 
-@cached()
+@cached(ttl=5)
 async def subscription_client_templates() -> dict[str, str]:
     async with GetDB() as db:
         return await get_client_template_values(db)
 
 
-@cached()
+@cached(ttl=5)
 async def subscription_xray_templates() -> dict[int, str]:
     async with GetDB() as db:
         return await get_client_template_contents_by_type(db, ClientTemplateType.xray_subscription)

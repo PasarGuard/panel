@@ -335,7 +335,7 @@ class UserOperation(BaseOperation):
             return
 
         await lock_admin_quota_row(db, admin.id)
-        current_count = await get_users_count_by_admin(db, admin.id)
+        current_count = await get_users_count_by_admin(db, admin.id, current=True)
         if current_count + users_to_create_count > limits.max_users:
             await self.raise_error(message=f"Bulk create would exceed user limit ({limits.max_users})", code=400, db=db)
 
@@ -503,7 +503,8 @@ class UserOperation(BaseOperation):
         limits = get_effective_limits(admin)
 
         if check_max_users and limits.max_users is not None:
-            current_count = await get_users_count_by_admin(db, admin.id)
+            await lock_admin_quota_row(db, admin.id)
+            current_count = await get_users_count_by_admin(db, admin.id, current=True)
             if current_count >= limits.max_users:
                 await self.raise_error(message=f"User limit reached ({limits.max_users})", code=400, db=db)
 

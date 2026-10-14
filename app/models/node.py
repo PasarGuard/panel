@@ -321,6 +321,12 @@ class NodeNotification(BaseModel):
     xray_version: str | None = None
     node_version: str | None = None
     message: str | None = None
+    event_id: str | None = Field(default=None, exclude=True)
+
+    @staticmethod
+    def revision(node) -> str:
+        """The previous database transition identifies duplicate observations across workers."""
+        return f"{node.id}:{getattr(node, 'status', '')}:{getattr(node, 'last_status_change', None)}"
 
     model_config = ConfigDict(from_attributes=True)
 

@@ -958,7 +958,7 @@ async def get_user_usages(
     return UserUsageStatsList(period=period, start=start, end=end, stats=stats)
 
 
-async def get_users_count_by_admin(db: AsyncSession, admin_id: int | None) -> int:
+async def get_users_count_by_admin(db: AsyncSession, admin_id: int | None, *, current: bool = False) -> int:
     """
     Gets the total count of users belonging to a specific admin.
 
@@ -972,6 +972,10 @@ async def get_users_count_by_admin(db: AsyncSession, admin_id: int | None) -> in
     stmt = select(func.count(User.id))
     if admin_id is not None:
         stmt = stmt.where(User.admin_id == admin_id)
+    if current and db.bind.dialect.name == "mysql":
+        # Authentication may already have opened a REPEATABLE READ snapshot.
+        # A locking count observes commits made before the quota lock was won.
+        stmt = stmt.with_for_update(read=True)
     return (await db.execute(stmt)).scalar_one() or 0
 
 

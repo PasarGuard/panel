@@ -198,11 +198,14 @@ def _register_nats_handlers(
 ):
     if enable_router:
         on_startup(router.start)
-        on_shutdown(router.stop)
+        on_shutdown(router.quiesce, priority=-95)
+        on_shutdown(router.stop, priority=100)
     if enable_settings:
         router.register_handler(MessageTopic.SETTING, handle_settings_message)
+        router.register_reconciler(MessageTopic.SETTING, handle_settings_message)
     if enable_client_templates:
         router.register_handler(MessageTopic.CLIENT_TEMPLATE, handle_client_template_message)
+        router.register_reconciler(MessageTopic.CLIENT_TEMPLATE, handle_client_template_message)
     if ignore_host_messages:
         router.register_handler(MessageTopic.HOST, _ignore_worker_sync_message)
     if enable_node_sync:
@@ -236,7 +239,7 @@ def _register_scheduler_hooks():
         start_job_leader,
         stop_job_leader,
     )
-    from app.scheduler import scheduler
+    from app.scheduler import drain_jobs, scheduler
 
     started_notifications = {"value": False}
     reclaim_task: dict[str, asyncio.Task | None] = {"task": None}
@@ -259,9 +262,12 @@ def _register_scheduler_hooks():
             await asyncio.sleep(HEARTBEAT_INTERVAL)
             if is_job_leader():
                 return
-            if await start_job_leader():
-                await _resume_jobs_on_leadership_gained()
-                return
+            try:
+                if await start_job_leader():
+                    await _resume_jobs_on_leadership_gained()
+                    return
+            except Exception:
+                logger.warning("Scheduler leadership recovery failed; retrying", exc_info=True)
 
     def _ensure_reclaim_task():
         task = reclaim_task["task"]
@@ -279,13 +285,12 @@ def _register_scheduler_hooks():
             await task
 
     async def _pause_jobs_on_leadership_lost():
+        await drain_jobs()
         if started_notifications["value"]:
             from app.notification.client import stop_notification_dispatcher
 
             await stop_notification_dispatcher()
             started_notifications["value"] = False
-        if scheduler.running:
-            scheduler.pause()
         _ensure_reclaim_task()
 
     set_on_leadership_lost(_pause_jobs_on_leadership_lost)
@@ -317,11 +322,15 @@ def _register_scheduler_hooks():
 
     async def _stop_scheduler_and_leader():
         await _cancel_reclaim_task()
+        await drain_jobs()
+        if started_notifications["value"]:
+            await stop_notification_dispatcher()
+            started_notifications["value"] = False
         if scheduler.running:
             scheduler.shutdown()
         await stop_job_leader()
 
-    on_shutdown(_stop_scheduler_and_leader)
+    on_shutdown(_stop_scheduler_and_leader, priority=-100)
 
 
 def _register_jobs():

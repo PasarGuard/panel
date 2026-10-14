@@ -8,6 +8,8 @@ Uvicorn worker has its own cache (same model as the sub-update buffer).
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import json
 import time
 from collections import OrderedDict
 from collections.abc import Awaitable, Callable
@@ -22,6 +24,10 @@ _inflight: dict[tuple, asyncio.Task[str | bytes]] = {}
 _inflight_lock = asyncio.Lock()
 
 
+class SubConfigKey(tuple):
+    """A generated subscription key carrying the generation captured before rendering."""
+
+
 def make_sub_config_key(
     user: Any,
     config_format: str,
@@ -34,22 +40,32 @@ def make_sub_config_key(
     status_key = status.value if hasattr(status, "value") else status
     inbounds = getattr(user, "inbounds", None) or ()
     proxy_settings = getattr(user, "proxy_settings", None)
-    if config_format == "wireguard" and proxy_settings is not None and hasattr(proxy_settings, "model_dump_json"):
-        proxy_key = proxy_settings.model_dump_json()
+    if proxy_settings is not None and hasattr(proxy_settings, "model_dump"):
+        proxy_settings = proxy_settings.model_dump(mode="json")
+    elif proxy_settings is not None and hasattr(proxy_settings, "model_dump_json"):
+        proxy_settings = proxy_settings.model_dump_json()
+    proxy_key = hashlib.sha256(json.dumps(proxy_settings, sort_keys=True, default=str).encode()).hexdigest()
+    # The rendered payload also includes admin/profile metadata and format variables.
+    if hasattr(user, "model_dump"):
+        user_state = user.model_dump(mode="json", exclude_computed_fields=True)
     else:
-        proxy_key = ""
-    return (
-        _generation if config_format == "wireguard" else 0,
-        getattr(user, "id", None),
-        config_format,
-        bool(as_base64),
-        bool(randomize_order),
-        status_key,
-        getattr(user, "data_limit", None),
-        getattr(user, "used_traffic", None) if config_format == "wireguard" else None,
-        expire_key,
-        tuple(inbounds),
-        proxy_key,
+        user_state = vars(user) if hasattr(user, "__dict__") else str(user)
+    user_key = hashlib.sha256(json.dumps(user_state, sort_keys=True, default=str).encode()).hexdigest()
+    return SubConfigKey(
+        (
+            _generation,
+            getattr(user, "id", None),
+            config_format,
+            bool(as_base64),
+            bool(randomize_order),
+            status_key,
+            getattr(user, "data_limit", None),
+            getattr(user, "used_traffic", None) if config_format == "wireguard" else None,
+            expire_key,
+            tuple(inbounds),
+            proxy_key,
+            user_key,
+        )
     )
 
 
@@ -66,6 +82,9 @@ def get_sub_config(key: tuple) -> str | bytes | None:
 
 
 def put_sub_config(key: tuple, value: str | bytes) -> None:
+    # An invalidation can arrive while the old generation is still rendering.
+    if isinstance(key, SubConfigKey) and key[0] != _generation:
+        return
     _cache[key] = (time.monotonic() + SUB_CONFIG_CACHE_TTL_S, value)
     _cache.move_to_end(key)
     while len(_cache) > SUB_CONFIG_CACHE_MAX:
@@ -83,6 +102,16 @@ async def get_or_create_sub_config(key: tuple, factory: Callable[[], Awaitable[s
         if task is None:
             task = asyncio.create_task(factory(), name="subscription-config-render")
             _inflight[key] = task
+
+            def cleanup(completed):
+                # A cancelled HTTP waiter does not cancel the shared render.
+                # Its dictionary entry still has to be reclaimed at completion.
+                if _inflight.get(key) is completed:
+                    _inflight.pop(key, None)
+                if not completed.cancelled() and completed.exception() is None:
+                    put_sub_config(key, completed.result())
+
+            task.add_done_callback(cleanup)
 
     try:
         value = await asyncio.shield(task)
