@@ -65,6 +65,7 @@ from app.models.stats import (
     validate_user_count_metric_scope,
 )
 from app.nats import needs_shared_bridge_memory
+from app.nats.node_recovery import complete_node_reconciliation, node_reconciliation_revision
 from app.nats.node_rpc import node_nats_client
 from app.node import UserSyncPreemptedError, core_users, node_manager
 from app.node.manager_sync import publish_node_sync
@@ -293,14 +294,17 @@ class NodeOperation(BaseOperation):
 
     @staticmethod
     async def _resume_shared_sync(pg_node: PasarGuardNode):
+        """Wake delivery of persisted work on an attached shared-queue node."""
         if needs_shared_bridge_memory():
             pg_node._work_available.set()
             await pg_node._ensure_sync_worker_running()
 
     @staticmethod
     async def _reconcile_attached_users(pg_node: PasarGuardNode, db_node: Node, users: CoreUsers) -> bool:
+        """Apply a fenced current snapshot and retire only the recovery request it covers."""
         if getattr(pg_node, "_panel_users_reconciled", True):
             return True
+        revision = await node_reconciliation_revision(db_node.id)
         # A restarted worker may have lost its process-local queue, or accepted a
         # command before its nodes were loaded. Restore the current database state
         # once per attachment, serialized/fenced against concurrent deltas.
@@ -312,6 +316,7 @@ class NodeOperation(BaseOperation):
             raise NodeAPIError(500, f"Failed to reconcile users on attached node: {exc}") from exc
         if current is not pg_node:
             return False
+        await complete_node_reconciliation(db_node.id, revision)
         pg_node._panel_users_reconciled = True
         return True
 
@@ -356,6 +361,7 @@ class NodeOperation(BaseOperation):
     async def _start_or_attach_node(
         pg_node: PasarGuardNode, db_node: Node, core, users: CoreUsers, backend_type, *, force_start: bool = False
     ):
+        """Attach and reconcile an existing core or start it under the full-sync fence."""
         if not force_start:
             state = await pg_node.get_lifecycle_state()
             if state is not None and (

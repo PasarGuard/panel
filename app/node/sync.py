@@ -136,6 +136,7 @@ async def _blocked_admin_ids_for_users(users: list[User]) -> set[int]:
 if runtime_settings.role.runs_node and not needs_shared_bridge_memory():
 
     async def _dispatch_user_update(proto_user):
+        """Enqueue a single update directly on the process-local node manager."""
         await node_manager.update_user(proto_user)
 
     async def _dispatch_users_update(proto_users, *, await_dispatch: bool = False):
@@ -148,6 +149,7 @@ if runtime_settings.role.runs_node and not needs_shared_bridge_memory():
 else:
 
     async def _dispatch_user_update(proto_user):
+        """Persist a single update for a node worker before returning."""
         user_dict = serialize_proto_message(proto_user)
         await node_nats_client.publish("update_user", {"user": user_dict})
 

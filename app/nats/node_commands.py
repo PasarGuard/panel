@@ -10,19 +10,23 @@ from config import nats_settings
 USER_COMMANDS = frozenset({"update_user", "update_users"})
 COMMAND_ACK_WAIT = 120.0
 COMMAND_CONCURRENCY = 10
+COMMAND_MAX_ATTEMPTS = 5
 
 
 def user_command_subject() -> str:
+    """Return the dedicated subject for durable single and bulk user updates."""
     # Separate from legacy Core NATS commands to avoid processing each update twice.
     return f"{nats_settings.node_command_subject}.users"
 
 
 def user_command_stream() -> str:
+    """Derive a stable stream name without collisions between command subjects."""
     digest = hashlib.sha256(user_command_subject().encode()).hexdigest()[:16].upper()
     return f"PG_NODE_USERS_{digest}"
 
 
 async def ensure_user_command_stream(js) -> str:
+    """Create or validate the file-backed work queue, including concurrent startup."""
     name = user_command_stream()
     subject = user_command_subject()
     try:
@@ -46,6 +50,7 @@ async def ensure_user_command_stream(js) -> str:
 
 
 async def subscribe_user_commands(js):
+    """Bind the shared pull consumer; the worker bounds dispatch and persists recovery."""
     stream = await ensure_user_command_stream(js)
     return await js.pull_subscribe(
         user_command_subject(),
@@ -55,5 +60,7 @@ async def subscribe_user_commands(js):
             ack_policy=AckPolicy.EXPLICIT,
             ack_wait=COMMAND_ACK_WAIT,
             max_ack_pending=COMMAND_CONCURRENCY,
+            # Keep redelivery available until the worker has durably handed
+            # exhausted commands to per-node reconciliation.
         ),
     )

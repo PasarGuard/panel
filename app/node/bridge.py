@@ -80,6 +80,7 @@ class FenceHold:
 
 class _QueuedBatchSync:
     def __init__(self, *args, **kwargs):
+        """Initialize snapshot recovery and delivery fences around the bridge transport."""
         super().__init__(*args, **kwargs)
         # Shared queues survive process restarts. Local queues need a fresh
         # snapshot before an attachment is considered recovered.

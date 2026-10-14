@@ -4,6 +4,7 @@ import json
 import uuid
 
 import nats.errors
+from google.protobuf.json_format import ParseError
 from nats.aio.subscription import Subscription
 from PasarGuardNodeBridge import NodeAPIError
 from PasarGuardNodeBridge.common.service_pb2 import User as ProtoUser
@@ -14,10 +15,17 @@ from app.db import GetDB
 from app.db.crud.node import get_node_by_id, get_nodes
 from app.db.models import NodeStatus
 from app.models.node import NodeCoreUpdate, NodeGeoFilesUpdate, NodeListQuery
-from app.nats.node_commands import COMMAND_ACK_WAIT, COMMAND_CONCURRENCY, USER_COMMANDS, subscribe_user_commands
+from app.nats.node_commands import (
+    COMMAND_ACK_WAIT,
+    COMMAND_CONCURRENCY,
+    COMMAND_MAX_ATTEMPTS,
+    USER_COMMANDS,
+    subscribe_user_commands,
+)
+from app.nats.node_recovery import request_node_reconciliation
 from app.nats.proto_utils import deserialize_proto_message, deserialize_proto_messages
 from app.nats.rpc_service import BaseRpcService
-from app.node import node_manager
+from app.node import NodeUserDispatchError, node_manager
 from app.operation import OperatorType
 from app.operation.node import NodeOperation
 from app.utils.logger import get_logger
@@ -28,6 +36,7 @@ logger = get_logger("node-worker")
 
 class NodeWorkerService(BaseRpcService):
     def __init__(self):
+        """Register node operations and initialize bounded command-processing state."""
         super().__init__(
             subject=nats_settings.node_rpc_subject,
             logger=logger,
@@ -43,9 +52,11 @@ class NodeWorkerService(BaseRpcService):
         self._register_handlers()
 
     def register_command_handler(self, action: str, handler):
+        """Register the coroutine that handles a node command action."""
         self._command_handlers[action] = handler
 
     def _register_handlers(self):
+        """Expose supported node commands and request/reply operations."""
         self.register_command_handler("update_user", self._update_user)
         self.register_command_handler("update_users", self._update_users)
         self.register_command_handler("update_node", self._update_node)
@@ -67,6 +78,7 @@ class NodeWorkerService(BaseRpcService):
         self.register_rpc_handler("start_logs", self._start_logs)
 
     async def start(self):
+        """Start legacy commands and durable user delivery on node-serving roles."""
         await super().start()
         if not self._nc:
             return
@@ -76,6 +88,7 @@ class NodeWorkerService(BaseRpcService):
         logger.info("Node worker service started")
 
     async def stop(self):
+        """Cancel consumers and log streams while leaving unacknowledged work durable."""
         if not runtime_settings.role.runs_node:
             return
 
@@ -105,6 +118,7 @@ class NodeWorkerService(BaseRpcService):
         logger.info("Node worker service stopped")
 
     async def _handle_command(self, msg):
+        """Schedule a legacy Core NATS command after decoding its envelope."""
         try:
             payload = json.loads(msg.data.decode())
             action = payload.get("action")
@@ -116,6 +130,7 @@ class NodeWorkerService(BaseRpcService):
         asyncio.create_task(self._run_command(action, data))
 
     async def _consume_user_commands(self):
+        """Consume bounded batches after startup and rebuild subscriptions after errors."""
         # Startup loads every configured node before commands can be acknowledged.
         await node_manager.initialized.wait()
         subscription = None
@@ -150,29 +165,60 @@ class NodeWorkerService(BaseRpcService):
                     await subscription.unsubscribe()
 
     async def _command_heartbeat(self, msg):
+        """Keep an in-flight command leased during slow queue acceptance."""
         while True:
             await asyncio.sleep(COMMAND_ACK_WAIT / 3)
             await msg.in_progress()
 
+    def _validate_user_payload(self, action: str, data: dict) -> None:
+        """Reject malformed protobuf users before any node can accept a partial batch."""
+        users = [data["user"]] if action == "update_user" else data["users"]
+        if not isinstance(users, list) or not users:
+            raise ValueError("empty or invalid users")
+        for user in users:
+            if not isinstance(user, dict) or not deserialize_proto_message(user, ProtoUser).email:
+                raise ValueError("invalid user")
+
+    async def _defer_user_command(self, msg, node_ids: list[int] | None = None):
+        """Free a spent command only after its failed nodes are durably marked for recovery."""
+        if node_ids is None:
+            node_ids = [node_id for node_id, _node in await node_manager._snapshot_node_items()]
+        try:
+            await request_node_reconciliation(self._nc.jetstream(), node_ids)
+            await msg.ack_sync()
+            logger.error("Exhausted node user command handed to reconciliation for nodes %s", node_ids)
+        except Exception as exc:
+            logger.warning("Node reconciliation handoff not acknowledged; retaining command: %s", exc)
+            await msg.nak(delay=30)
+
     async def _run_user_command(self, msg):
+        """Terminate invalid payloads and bound dispatch retries with a durable recovery handoff."""
         try:
             payload = json.loads(msg.data.decode())
             action = payload["action"]
             data = payload["payload"]
             if action not in USER_COMMANDS or not isinstance(data, dict):
                 raise ValueError("invalid user command")
-        except ValueError, KeyError, TypeError:
+            self._validate_user_payload(action, data)
+        except ValueError, KeyError, TypeError, ParseError:
             logger.warning("Invalid durable node user command")
             await msg.term()
             return
 
+        attempts = msg.metadata.num_delivered
         heartbeat = asyncio.create_task(self._command_heartbeat(msg))
         try:
+            if attempts > COMMAND_MAX_ATTEMPTS:
+                await self._defer_user_command(msg)
+                return
             async with self._command_semaphore:
                 await self._dispatch_command(action, data)
             await msg.ack_sync()
         except Exception as exc:
-            attempts = msg.metadata.num_delivered
+            if attempts >= COMMAND_MAX_ATTEMPTS:
+                node_ids = exc.failed_node_ids if isinstance(exc, NodeUserDispatchError) else None
+                await self._defer_user_command(msg, node_ids)
+                return
             delay = min(30, 2 ** min(attempts - 1, 5))
             logger.warning("Node user command %s failed; retrying in %ss: %s", action, delay, exc)
             await msg.nak(delay=delay)
@@ -182,6 +228,7 @@ class NodeWorkerService(BaseRpcService):
                 await heartbeat
 
     async def _run_command(self, action: str | None, data: dict):
+        """Execute a legacy command within the concurrency budget and log failures."""
         async with self._command_semaphore:
             try:
                 await self._dispatch_command(action, data)
@@ -212,13 +259,15 @@ class NodeWorkerService(BaseRpcService):
             await handler(data)
 
     async def _update_user(self, data: dict):
+        """Deserialize a single user and await acceptance with failed-node reporting."""
         user_dict = data.get("user")
         if not user_dict:
             return
         proto_user = deserialize_proto_message(user_dict, ProtoUser)
-        await node_manager.update_user(proto_user)
+        await node_manager.update_user(proto_user, raise_errors=True)
 
     async def _update_users(self, data: dict):
+        """Await bulk acceptance so failures cannot be acknowledged prematurely."""
         users_dicts = data.get("users") or []
         if not users_dicts:
             return
@@ -241,6 +290,7 @@ class NodeWorkerService(BaseRpcService):
         await node_manager.remove_node(node_id)
 
     async def _connect_node(self, data: dict):
+        """Refresh core state and connect one node, optionally forcing its backend to restart."""
         node_id = data.get("node_id")
         if not node_id:
             return
@@ -250,6 +300,7 @@ class NodeWorkerService(BaseRpcService):
             await self._node_operator.connect_single_node(db, node_id, force_start=bool(data.get("force_start")))
 
     async def _connect_nodes_bulk(self, data: dict):
+        """Refresh core state and connect the selected enabled nodes."""
         node_ids = data.get("node_ids")
         core_id = data.get("core_id")
         # Refresh from KV before bulk reconnect to avoid stale core cache races.

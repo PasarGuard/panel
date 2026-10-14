@@ -14,16 +14,19 @@ logger = get_logger("node-nats")
 
 
 def encode_node_command(action: str, payload: dict) -> bytes:
+    """Encode the exact JSON envelope used for payload sizing and delivery."""
     message = {"action": action, "payload": payload}
     return json.dumps(message, separators=(",", ":")).encode()
 
 
 class NodeNatsClient(NatsRpcClient):
     def __init__(self):
+        """Initialize RPC access and track which connection has a verified user stream."""
         super().__init__(nats_settings.node_rpc_subject, nats_settings.node_rpc_timeout, error_message="Node RPC error")
         self._user_stream_connection = None
 
     async def _publish_user_command(self, message: bytes):
+        """Retry transient publish errors using a stable deduplication ID."""
         message_id = uuid4().hex
         delay = 0.5
         while True:
@@ -49,6 +52,7 @@ class NodeNatsClient(NatsRpcClient):
                 delay = min(delay * 2, 30)
 
     async def publish(self, action: str, payload: dict):
+        """Durably publish user updates and forward other commands to their legacy subject."""
         if action in USER_COMMANDS:
             await self._publish_user_command(encode_node_command(action, payload))
             return
