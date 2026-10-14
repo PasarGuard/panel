@@ -26,7 +26,7 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '@/components/ui/command'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Settings, Group, User, Shield, CheckCircle, AlertTriangle, Plus, Minus, X, HardDrive, Calendar, CheckCircle2, ChevronLeft, ChevronRight, Eye, Loader2 } from 'lucide-react'
+import { Settings, Group, User, Shield, CheckCircle, AlertTriangle, Plus, Minus, X, HardDrive, Calendar, Clock, CheckCircle2, ChevronLeft, ChevronRight, Eye, Loader2 } from 'lucide-react'
 import { BulkExpiredDateFilters } from '@/features/bulk/components/bulk-expired-date-filters'
 import { DecimalInput } from '@/components/common/decimal-input'
 import { SelectorPanel } from '@/features/bulk/components/selector-panel'
@@ -42,6 +42,17 @@ const PAGE_SIZE = 50
 
 type BulkOperationType = 'proxy' | 'data' | 'expire' | 'groups'
 type ExpiryUnit = TimeUnit
+
+const EXPIRE_HINT_TEXT: Record<'expire' | 'now', Record<'add' | 'subtract', { key: string; defaultValue: string }>> = {
+  expire: {
+    add: { key: 'bulk.addExpiry', defaultValue: 'Add to Expiry' },
+    subtract: { key: 'bulk.subtractExpiry', defaultValue: 'Subtract from Expiry' },
+  },
+  now: {
+    add: { key: 'bulk.afterNow', defaultValue: 'After now' },
+    subtract: { key: 'bulk.beforeNow', defaultValue: 'Before now' },
+  },
+}
 
 interface BulkFlowProps {
   operationType: BulkOperationType
@@ -65,6 +76,7 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
   const [expireUnit, setExpireUnit] = useState<ExpiryUnit>('days')
   const [expireAmount, setExpireAmount] = useState<number | undefined>(undefined)
   const [expireOperation, setExpireOperation] = useState<'add' | 'subtract'>('add')
+  const [expireAnchor, setExpireAnchor] = useState<'expire' | 'now'>('expire')
 
   const [groupsOperation, setGroupsOperation] = useState<'add' | 'remove'>('add')
 
@@ -246,6 +258,7 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
             ...statusPayload,
             ...expireDatePayload,
             amount: expireOperation === 'subtract' ? -expireSeconds! : expireSeconds,
+            anchor: expireAnchor,
             dry_run: false,
           }
         case 'groups':
@@ -301,6 +314,7 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
           setDataLimit(undefined)
           setExpireSeconds(undefined)
           setExpireAmount(undefined)
+          setExpireAnchor('expire')
           setSelectedGroups([])
           setSelectedUsers([])
           setSelectedAdmins([])
@@ -354,6 +368,7 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
             ...statusPayload,
             ...expireDatePayload,
             amount: expireOperation === 'subtract' ? -expireSeconds! : expireSeconds,
+            anchor: expireAnchor,
             dry_run: true,
           }
         case 'groups':
@@ -595,7 +610,40 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
                       </div>
                     </div>
                     <p className="text-muted-foreground text-xs">
-                      {expireOperation === 'add' ? t('bulk.addExpiry', { defaultValue: 'Add to Expiry' }) : t('bulk.subtractExpiry', { defaultValue: 'Subtract from Expiry' })}
+                      {t(EXPIRE_HINT_TEXT[expireAnchor][expireOperation].key, { defaultValue: EXPIRE_HINT_TEXT[expireAnchor][expireOperation].defaultValue })}
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-1.5 text-sm font-medium">
+                      <Clock className="text-muted-foreground h-3.5 w-3.5" />
+                      {t('bulk.anchorLabel', { defaultValue: 'Relative To' })}
+                    </Label>
+                    <ToggleGroup
+                      type="single"
+                      value={expireAnchor}
+                      onValueChange={value => value && setExpireAnchor(value as 'expire' | 'now')}
+                      className="h-9 w-full rounded-md border p-0.5 sm:w-auto"
+                      defaultValue="expire"
+                    >
+                      <ToggleGroupItem
+                        value="expire"
+                        aria-label="Current expiry"
+                        size="sm"
+                        className="data-[state=on]:bg-primary data-[state=on]:text-primary-foreground h-8 flex-1 px-3 sm:flex-initial"
+                      >
+                        <span className="text-xs sm:text-sm">{t('bulk.anchorExpire', { defaultValue: "User's current expiry" })}</span>
+                      </ToggleGroupItem>
+                      <ToggleGroupItem value="now" aria-label="Now" size="sm" className="data-[state=on]:bg-primary data-[state=on]:text-primary-foreground h-8 flex-1 px-3 sm:flex-initial">
+                        <span className="text-xs sm:text-sm">{t('bulk.anchorNow', { defaultValue: 'Now' })}</span>
+                      </ToggleGroupItem>
+                    </ToggleGroup>
+                    <p className="text-muted-foreground text-xs">
+                      {expireAnchor === 'expire'
+                        ? t('bulk.anchorExpireHint', { defaultValue: "Adds the amount to each user's current expire date." })
+                        : t('bulk.anchorNowHint', {
+                            defaultValue: 'Sets expiry relative to now for every matched user, ignoring their current expire date. Useful for reactivating already-expired users.',
+                          })}
                     </p>
                   </div>
                 </div>
@@ -951,6 +999,15 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
                       <span dir="ltr">
                         {expireOperation === 'add' ? '+' : '-'}
                         {formatTime(expireSeconds)}
+                      </span>
+                    </div>
+                  )}
+
+                  {operationType === 'expire' && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">{t('bulk.anchorLabel', { defaultValue: 'Relative To' })}:</span>
+                      <span className="text-sm">
+                        {expireAnchor === 'expire' ? t('bulk.anchorExpire', { defaultValue: "User's current expiry" }) : t('bulk.anchorNow', { defaultValue: 'Now' })}
                       </span>
                     </div>
                   )}

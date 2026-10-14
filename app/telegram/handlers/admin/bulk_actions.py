@@ -7,7 +7,13 @@ from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.admin import AdminDetails
-from app.models.user import BulkUser, BulkUsersFromTemplate, ExpiredUsersQuery, UsernameGenerationStrategy
+from app.models.user import (
+    BulkUser,
+    BulkUserExpire,
+    BulkUsersFromTemplate,
+    ExpiredUsersQuery,
+    UsernameGenerationStrategy,
+)
 from app.models.user_template import UserTemplateListQuery
 from app.models.validators import UserValidator
 from app.operation import OperatorType
@@ -347,7 +353,9 @@ async def modify_expiry_done(
     event: CallbackQuery, db: AsyncSession, admin: AdminDetails, callback_data: BulkActionPanel.Callback
 ):
     """Apply a confirmed expiry adjustment with the authenticated admin's limits."""
-    result = await user_operations.bulk_modify_expire(db, BulkUser(amount=int(callback_data.amount) * 86400), admin)
+    result = await user_operations.bulk_modify_expire(
+        db, BulkUserExpire(amount=int(callback_data.amount) * 86400), admin
+    )
     await event.answer(Texts.users_expiry_changed(result, int(callback_data.amount)))
     await event.message.edit_text(Texts.choose_action, reply_markup=BulkActionPanel().as_markup())
 

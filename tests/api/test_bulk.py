@@ -352,6 +352,265 @@ def test_bulk_expire_with_range(access_token):
         delete_core(access_token, core["id"])
 
 
+def test_bulk_expire_anchor_now(access_token):
+    """anchor='now' sets expire relative to the current time, ignoring the user's existing expire date."""
+    core = create_core(access_token)
+    group = create_group(access_token, name=unique_name("bulk_anchor_now_group"))
+
+    now = dt.now(UTC).replace(microsecond=0)
+    expired_8_days_ago = now - td(days=8)
+
+    user = create_user(access_token, group_ids=[group["id"]], payload={"username": unique_name("anchor_now")})
+    client.put(
+        f"/api/user/{user['username']}",
+        headers={"Authorization": f"Bearer {access_token}"},
+        json={"expire": expired_8_days_ago.isoformat()},
+    )
+
+    try:
+        response = client.post(
+            "/api/users/bulk/expire",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={"amount": 5 * 24 * 3600, "anchor": "now", "users": [user["id"]]},
+        )
+        assert response.status_code == status.HTTP_200_OK
+
+        resp = client.get(f"/api/user/{user['username']}", headers={"Authorization": f"Bearer {access_token}"})
+        data = resp.json()
+        new_expire = dt.fromisoformat(data["expire"])
+        expected_expire = now + td(days=5)
+        # New expire should be ~now + amount, not old_expire + amount
+        assert abs((new_expire - expected_expire).total_seconds()) < 5
+        assert data["status"] == "active"
+    finally:
+        delete_user(access_token, user["username"])
+        delete_group(access_token, group["id"])
+        delete_core(access_token, core["id"])
+
+
+def test_bulk_expire_anchor_now_initializes_unlimited_users(access_token):
+    """An absolute anchor gives unlimited users an expire date instead of skipping them.
+
+    anchor="now" is documented as applying to every matched user "regardless of their current
+    expire date", so a user with expire=None is a legitimate target: there is nothing to extend,
+    but now + amount is still well defined. Covers the id, group and admin filters, and confirms
+    an untargeted user with an existing expire is left alone.
+    """
+    core, groups = setup_groups(access_token, 2)
+    admin = create_admin(access_token)
+    id_user = create_user(access_token, group_ids=[groups[1]["id"]], payload={"username": unique_name("expire_id")})
+    group_user = create_user(
+        access_token, group_ids=[groups[0]["id"]], payload={"username": unique_name("expire_group")}
+    )
+    admin_user = create_user(
+        access_token, group_ids=[groups[1]["id"]], payload={"username": unique_name("expire_admin")}
+    )
+    normal_user = create_user(
+        access_token, group_ids=[groups[1]["id"]], payload={"username": unique_name("expire_normal")}
+    )
+    users = [id_user, group_user, admin_user, normal_user]
+    normal_expire = dt(2030, 1, 1, tzinfo=UTC)
+
+    try:
+        set_owner = client.put(
+            f"/api/user/{admin_user['username']}/set_owner",
+            headers={"Authorization": f"Bearer {access_token}"},
+            params={"admin_username": admin["username"]},
+        )
+        assert set_owner.status_code == status.HTTP_200_OK
+        set_expire = client.put(
+            f"/api/user/{normal_user['username']}",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={"expire": normal_expire.isoformat()},
+        )
+        assert set_expire.status_code == status.HTTP_200_OK
+
+        # The unlimited user in groups[0] must be counted as a target, not filtered out.
+        dry_run = client.post(
+            "/api/users/bulk/expire",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={"amount": 3600, "anchor": "now", "group_ids": [groups[0]["id"]], "dry_run": True},
+        )
+        assert dry_run.status_code == status.HTTP_200_OK
+        assert dry_run.json()["affected_users"] == 1
+
+        before_id = dt.now(UTC)
+        by_id = client.post(
+            "/api/users/bulk/expire",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={"amount": 3600, "anchor": "now", "users": [id_user["id"]]},
+        )
+        after_id = dt.now(UTC)
+        assert by_id.status_code == status.HTTP_200_OK
+
+        before_group = dt.now(UTC)
+        by_group = client.post(
+            "/api/users/bulk/expire",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={"amount": 3600, "anchor": "now", "group_ids": [groups[0]["id"]]},
+        )
+        after_group = dt.now(UTC)
+        assert by_group.status_code == status.HTTP_200_OK
+
+        # A negative amount lands in the past, so the newly dated user must flip to expired.
+        before_admin = dt.now(UTC)
+        by_admin = client.post(
+            "/api/users/bulk/expire",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={"amount": -3600, "anchor": "now", "admins": [admin["id"]]},
+        )
+        after_admin = dt.now(UTC)
+        assert by_admin.status_code == status.HTTP_200_OK
+
+        def get_user(user):
+            response = client.get(f"/api/user/{user['username']}", headers={"Authorization": f"Bearer {access_token}"})
+            assert response.status_code == status.HTTP_200_OK
+            return response.json()
+
+        id_expire = dt.fromisoformat(get_user(id_user)["expire"])
+        group_expire = dt.fromisoformat(get_user(group_user)["expire"])
+        admin_result = get_user(admin_user)
+        admin_expire = dt.fromisoformat(admin_result["expire"])
+        normal_result = get_user(normal_user)
+
+        assert before_id + td(seconds=3599) <= id_expire <= after_id + td(seconds=3601)
+        assert before_group + td(seconds=3599) <= group_expire <= after_group + td(seconds=3601)
+        assert before_admin - td(seconds=3601) <= admin_expire <= after_admin - td(seconds=3599)
+        assert admin_result["status"] == "expired"
+        assert dt.fromisoformat(normal_result["expire"]) == normal_expire
+    finally:
+        cleanup(access_token, core, groups, users)
+        delete_admin(access_token, admin["username"])
+
+
+def test_bulk_expire_anchor_expire_skips_unlimited_users(access_token):
+    """anchor="expire" extends each user's own expire date, so a user without one has no base
+    to extend and must still be skipped -- the default anchor keeps its original semantics."""
+    core, groups = setup_groups(access_token, 1)
+    unlimited = create_user(access_token, group_ids=[groups[0]["id"]], payload={"username": unique_name("expire_skip")})
+
+    try:
+        dry_run = client.post(
+            "/api/users/bulk/expire",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={"amount": 3600, "group_ids": [groups[0]["id"]], "dry_run": True},
+        )
+        assert dry_run.status_code == status.HTTP_200_OK
+        assert dry_run.json()["affected_users"] == 0
+
+        applied = client.post(
+            "/api/users/bulk/expire",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={"amount": 3600, "group_ids": [groups[0]["id"]]},
+        )
+        assert applied.status_code == status.HTTP_200_OK
+
+        response = client.get(f"/api/user/{unlimited['username']}", headers={"Authorization": f"Bearer {access_token}"})
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["expire"] is None
+    finally:
+        cleanup(access_token, core, groups, [unlimited])
+
+
+def test_bulk_expire_absolute_anchor_skips_on_hold_users(access_token):
+    """On-hold users also have expire=None, but must not be given one by an absolute anchor.
+
+    Their expiry comes from on_hold_expire_duration -- start_user_expire() overwrites expire when
+    they first come online -- so a value written here would be reported as applied and then
+    silently discarded.
+    """
+    core, groups = setup_groups(access_token, 1)
+    on_hold = create_user(
+        access_token,
+        group_ids=[groups[0]["id"]],
+        payload={"username": unique_name("expire_on_hold"), "status": "on_hold", "on_hold_expire_duration": 86400},
+    )
+
+    try:
+        dry_run = client.post(
+            "/api/users/bulk/expire",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={"amount": 3600, "anchor": "now", "group_ids": [groups[0]["id"]], "dry_run": True},
+        )
+        assert dry_run.status_code == status.HTTP_200_OK
+        assert dry_run.json()["affected_users"] == 0
+
+        applied = client.post(
+            "/api/users/bulk/expire",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={"amount": 3600, "anchor": "now", "group_ids": [groups[0]["id"]]},
+        )
+        assert applied.status_code == status.HTTP_200_OK
+
+        response = client.get(f"/api/user/{on_hold['username']}", headers={"Authorization": f"Bearer {access_token}"})
+        assert response.status_code == status.HTTP_200_OK
+        result = response.json()
+        assert result["expire"] is None
+        assert result["status"] == "on_hold"
+        assert result["on_hold_expire_duration"] == 86400
+    finally:
+        cleanup(access_token, core, groups, [on_hold])
+
+
+def test_bulk_expire_anchor_unix_timestamp(access_token):
+    """anchor=<unix timestamp> sets expire relative to that instant, not the current server time.
+
+    This makes the operation idempotent against downtime: replaying the same call with the same
+    anchor + amount always produces the same expire date, regardless of when it actually runs.
+    """
+    core = create_core(access_token)
+    group = create_group(access_token, name=unique_name("bulk_anchor_ts_group"))
+
+    now = dt.now(UTC).replace(microsecond=0)
+    anchor_time = now - td(days=30)
+    expired_8_days_ago = now - td(days=8)
+
+    user = create_user(access_token, group_ids=[group["id"]], payload={"username": unique_name("anchor_ts")})
+    client.put(
+        f"/api/user/{user['username']}",
+        headers={"Authorization": f"Bearer {access_token}"},
+        json={"expire": expired_8_days_ago.isoformat()},
+    )
+
+    try:
+        response = client.post(
+            "/api/users/bulk/expire",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={"amount": 5 * 24 * 3600, "anchor": int(anchor_time.timestamp()), "users": [user["id"]]},
+        )
+        assert response.status_code == status.HTTP_200_OK
+
+        resp = client.get(f"/api/user/{user['username']}", headers={"Authorization": f"Bearer {access_token}"})
+        data = resp.json()
+        new_expire = dt.fromisoformat(data["expire"])
+        expected_expire = anchor_time + td(days=5)
+        # New expire should be ~anchor_time + amount, not now + amount and not old_expire + amount
+        assert abs((new_expire - expected_expire).total_seconds()) < 5
+    finally:
+        delete_user(access_token, user["username"])
+        delete_group(access_token, group["id"])
+        delete_core(access_token, core["id"])
+
+
+def test_bulk_expire_anchor_negative_timestamp_rejected(access_token):
+    response = client.post(
+        "/api/users/bulk/expire",
+        headers={"Authorization": f"Bearer {access_token}"},
+        json={"amount": 3600, "anchor": -1},
+    )
+    assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+
+def test_bulk_expire_anchor_out_of_range_timestamp_rejected(access_token):
+    """A timestamp beyond what datetime can represent must be a clean 422, not an unhandled 500."""
+    response = client.post(
+        "/api/users/bulk/expire",
+        headers={"Authorization": f"Bearer {access_token}"},
+        json={"amount": 3600, "anchor": 253402300800},
+    )
+    assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+
 def test_bulk_data_limit_with_expire_range_without_expired_status(access_token):
     core = create_core(access_token)
     group = create_group(access_token, name=unique_name("bulk_data_range_group"))

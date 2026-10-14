@@ -446,6 +446,28 @@ class BulkUser(BulkUserFilter):
     amount: int
 
 
+class BulkUserExpire(BulkUser):
+    anchor: Literal["expire", "now"] | dt = Field(
+        default="expire",
+        description="'expire': add amount to each user's current expire date (default). "
+        "'now': set expire to now + amount for every matched user, regardless of their current expire date. "
+        "<unix timestamp or ISO datetime>: set expire to that instant + amount for every matched user, "
+        "regardless of when the request actually executes — useful for staying in sync with an external "
+        "clock (e.g. a billing system).",
+    )
+
+    @field_validator("anchor", mode="before")
+    @classmethod
+    def validate_anchor(cls, v: dt | int | str | bool) -> dt | int | str | bool:
+        if isinstance(v, str) and v in ("expire", "now"):
+            return v
+        if isinstance(v, bool):
+            return v
+        if isinstance(v, int) and v < 0:
+            raise ValueError("anchor timestamp must be a non-negative unix timestamp")
+        return fix_datetime_timezone(v)
+
+
 class BulkUsersProxy(BulkUserFilter):
     method: ShadowsocksMethods | None = Field(default=None)
 
