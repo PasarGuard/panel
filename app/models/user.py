@@ -465,7 +465,10 @@ class BulkUserExpire(BulkUser):
             return v
         if isinstance(v, int) and v < 0:
             raise ValueError("anchor timestamp must be a non-negative unix timestamp")
-        return fix_datetime_timezone(v)
+        try:
+            return fix_datetime_timezone(v)
+        except (OverflowError, OSError, ValueError) as exc:
+            raise ValueError("anchor must be 'expire', 'now', an in-range unix timestamp or an ISO datetime") from exc
 
 
 class BulkUsersProxy(BulkUserFilter):

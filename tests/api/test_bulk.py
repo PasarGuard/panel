@@ -1,6 +1,7 @@
 import asyncio
 from datetime import UTC, datetime as dt, timedelta as td
 
+import pytest
 from fastapi import status
 from sqlalchemy import select
 
@@ -601,14 +602,30 @@ def test_bulk_expire_anchor_negative_timestamp_rejected(access_token):
     assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
 
-def test_bulk_expire_anchor_out_of_range_timestamp_rejected(access_token):
+@pytest.mark.parametrize("anchor", [253402300800, 10**12, 10**20])
+def test_bulk_expire_anchor_out_of_range_timestamp_rejected(access_token, anchor):
     """A timestamp beyond what datetime can represent must be a clean 422, not an unhandled 500."""
     response = client.post(
         "/api/users/bulk/expire",
         headers={"Authorization": f"Bearer {access_token}"},
-        json={"amount": 3600, "anchor": 253402300800},
+        json={"amount": 3600, "anchor": anchor},
     )
     assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+
+@pytest.mark.parametrize("dry_run", [False, True])
+@pytest.mark.parametrize(
+    ("anchor", "amount"),
+    [("9999-12-31T23:59:59+00:00", 1), ("0001-01-01T00:00:00+00:00", -1)],
+)
+def test_bulk_expire_anchor_result_out_of_range_rejected(access_token, anchor, amount, dry_run):
+    """An anchor whose result leaves the datetime range must be a clean 400, including dry-run."""
+    response = client.post(
+        "/api/users/bulk/expire",
+        headers={"Authorization": f"Bearer {access_token}"},
+        json={"amount": amount, "anchor": anchor, "dry_run": dry_run},
+    )
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
 
 
 def test_bulk_data_limit_with_expire_range_without_expired_status(access_token):

@@ -54,6 +54,23 @@ const EXPIRE_HINT_TEXT: Record<'expire' | 'now', Record<'add' | 'subtract', { ke
   },
 }
 
+const ANCHOR_HINT_TEXT: Record<'expire' | 'now', Record<'add' | 'subtract', { key: string; defaultValue: string }>> = {
+  expire: {
+    add: { key: 'bulk.anchorExpireAddHint', defaultValue: "Adds the amount to each user's current expire date." },
+    subtract: { key: 'bulk.anchorExpireSubtractHint', defaultValue: "Subtracts the amount from each user's current expire date." },
+  },
+  now: {
+    add: {
+      key: 'bulk.anchorNowAddHint',
+      defaultValue: 'Sets expiry to the amount after now for every matched user, ignoring their current expire date. Useful for reactivating already-expired users.',
+    },
+    subtract: {
+      key: 'bulk.anchorNowSubtractHint',
+      defaultValue: 'Sets expiry to the amount before now for every matched user, ignoring their current expire date.',
+    },
+  },
+}
+
 interface BulkFlowProps {
   operationType: BulkOperationType
 }
@@ -639,11 +656,7 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
                       </ToggleGroupItem>
                     </ToggleGroup>
                     <p className="text-muted-foreground text-xs">
-                      {expireAnchor === 'expire'
-                        ? t('bulk.anchorExpireHint', { defaultValue: "Adds the amount to each user's current expire date." })
-                        : t('bulk.anchorNowHint', {
-                            defaultValue: 'Sets expiry relative to now for every matched user, ignoring their current expire date. Useful for reactivating already-expired users.',
-                          })}
+                      {t(ANCHOR_HINT_TEXT[expireAnchor][expireOperation].key, { defaultValue: ANCHOR_HINT_TEXT[expireAnchor][expireOperation].defaultValue })}
                     </p>
                   </div>
                 </div>

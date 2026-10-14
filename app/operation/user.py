@@ -2023,8 +2023,18 @@ class UserOperation(BaseOperation):
             maximum = now + td(seconds=maximum) if maximum is not None else None
         return {"target_ids": [user_id for user_id, _ in targets], "minimum": minimum, "maximum": maximum}
 
+    async def _validate_expire_anchor_range(self, db: AsyncSession, bulk_model: BulkUserExpire) -> None:
+        anchor_base = expire_anchor_base(bulk_model, datetime.now(UTC))
+        if anchor_base is None:
+            return
+        try:
+            anchor_base + td(seconds=bulk_model.amount)
+        except OverflowError:
+            await self.raise_error(message="anchor plus amount is outside the supported date range", code=400, db=db)
+
     async def bulk_modify_expire(self, db: AsyncSession, bulk_model: BulkUserExpire, admin: AdminDetails):
         """Adjust finite expirations atomically within the actor's role and override limits."""
+        await self._validate_expire_anchor_range(db, bulk_model)
         constraints = await self._prepare_bulk_limit_update(db, bulk_model, admin, "expire")
         if bulk_model.dry_run:
             n = len(constraints["target_ids"]) if constraints else await count_bulk_expire_targets(db, bulk_model)
