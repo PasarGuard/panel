@@ -7,6 +7,7 @@ import nats
 from aiocache import cached
 from nats.js.client import JetStreamContext
 from nats.js.kv import KeyValue
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app import on_shutdown, on_startup
 from app.core.abstract_core import AbstractCore
@@ -237,11 +238,14 @@ class CoreManager:
         await self.update_inbounds()
         await self._persist_state()
 
-    async def refresh_from_database(self, _: dict | None = None) -> None:
+    async def refresh_from_database(self, _: dict | None = None, *, db: AsyncSession | None = None) -> None:
         """Rebuild one atomic inbound index from committed configs after a missed invalidation."""
         async with self._refresh_lock:
-            async with GetDB() as db:
-                configs, _ = await get_core_configs(db, CoreListQuery())
+            # Use the caller's database/engine when one is supplied, but a new
+            # transaction and identity map so concurrent commits remain visible.
+            factory = async_sessionmaker(db.bind, expire_on_commit=False) if db is not None else GetDB
+            async with factory() as session:
+                configs, _ = await get_core_configs(session, CoreListQuery())
             cores = {}
             for config in configs:
                 try:
@@ -272,10 +276,12 @@ class CoreManager:
             await self.get_inbounds.cache.clear()
             await self.get_inbounds_by_tag.cache.clear()
 
-    async def _update_core_local(self, db_core_config: CoreConfig, core_config: AbstractCore | None = None):
+    async def _update_core_local(
+        self, db_core_config: CoreConfig, core_config: AbstractCore | None = None, *, db: AsyncSession | None = None
+    ):
         if self._nats_enabled and self._multi_worker:
             # Delayed payloads are hints: a newer commit always wins.
-            await self.refresh_from_database()
+            await self.refresh_from_database(db=db)
             await self._persist_state()
             return
         if core_config is None:
@@ -301,21 +307,25 @@ class CoreManager:
         await self.update_inbounds()
         await self._persist_state()
 
-    async def _update_core_nats(self, db_core_config: CoreConfig, core_config: AbstractCore | None = None):
+    async def _update_core_nats(
+        self, db_core_config: CoreConfig, core_config: AbstractCore | None = None, *, db: AsyncSession | None = None
+    ):
         # Persist local state (and KV snapshot) before broadcasting.
         # This lets node workers refresh from KV and avoids reconnect races.
-        await self._update_core_local(db_core_config, core_config)
+        await self._update_core_local(db_core_config, core_config, db=db)
         try:
             await self._publish_invalidation({"action": "update", "core": self._core_payload_from_db(db_core_config)})
         except Exception as exc:
             self._logger.warning(f"Failed to publish core update via NATS: {exc}")
 
-    async def update_core(self, db_core_config: CoreConfig, core_config: AbstractCore | None = None):
-        await self._update_core_impl(db_core_config, core_config)
+    async def update_core(
+        self, db_core_config: CoreConfig, core_config: AbstractCore | None = None, *, db: AsyncSession | None = None
+    ):
+        await self._update_core_impl(db_core_config, core_config, db=db)
 
-    async def _remove_core_local(self, core_id: int):
+    async def _remove_core_local(self, core_id: int, *, db: AsyncSession | None = None):
         if self._nats_enabled and self._multi_worker:
-            await self.refresh_from_database()
+            await self.refresh_from_database(db=db)
             await self._persist_state()
             return
         async with self._lock:
@@ -328,17 +338,17 @@ class CoreManager:
         await self.update_inbounds()
         await self._persist_state()
 
-    async def _remove_core_nats(self, core_id: int):
+    async def _remove_core_nats(self, core_id: int, *, db: AsyncSession | None = None):
         # Persist local removal (and KV snapshot) before broadcasting.
-        await self._remove_core_local(core_id)
+        await self._remove_core_local(core_id, db=db)
 
         try:
             await self._publish_invalidation({"action": "remove", "core_id": core_id})
         except Exception as exc:
             self._logger.warning(f"Failed to publish core remove via NATS: {exc}")
 
-    async def remove_core(self, core_id: int):
-        await self._remove_core_impl(core_id)
+    async def remove_core(self, core_id: int, *, db: AsyncSession | None = None):
+        await self._remove_core_impl(core_id, db=db)
 
     async def get_core(self, core_id: int) -> AbstractCore | None:
         async with self._lock:

@@ -132,7 +132,7 @@ class CoreOperation(BaseOperation):
         except Exception as e:
             await self.raise_error(message=e, code=400, db=db)
 
-        await core_manager.update_core(db_core, validated_core)
+        await core_manager.update_core(db_core, validated_core, db=db)
         logger.info(f'Core config "{db_core.id}" created by admin "{admin.username}"')
 
         core = CoreResponse.model_validate(db_core)
@@ -176,7 +176,7 @@ class CoreOperation(BaseOperation):
         except Exception as e:
             await self.raise_error(message=e, code=400, db=db)
 
-        await core_manager.update_core(db_core, validated_core)
+        await core_manager.update_core(db_core, validated_core, db=db)
 
         logger.info(f'Core config "{db_core.name}" modified by admin "{admin.username}"')
 
@@ -197,7 +197,7 @@ class CoreOperation(BaseOperation):
         was_wg = bool(wg_core_interfaces(db_core))
 
         await remove_core_config(db, db_core)
-        await core_manager.remove_core(db_core.id)
+        await core_manager.remove_core(db_core.id, db=db)
 
         asyncio.create_task(notification.remove_core(db_core.id, admin.username))
 
@@ -232,7 +232,7 @@ class CoreOperation(BaseOperation):
 
         # Remove from core manager and notify
         for core_id, core_name in zip(core_ids, core_names):
-            await core_manager.remove_core(core_id)
+            await core_manager.remove_core(core_id, db=db)
             asyncio.create_task(notification.remove_core(core_id, admin.username))
             logger.info(f'core config "{core_name}" deleted by admin "{admin.username}"')
 

@@ -196,6 +196,7 @@ class NatsNotificationQueue(NotificationQueue):
         self._retention = RetentionPolicy.WORK_QUEUE
         self._init_lock = asyncio.Lock()
         self._creates_consumer = True
+        self._initialized = False
 
     async def initialize(self, create_consumer: bool = True):
         async with self._init_lock:
@@ -203,9 +204,10 @@ class NatsNotificationQueue(NotificationQueue):
                 return
             self._creates_consumer = create_consumer
             await self._initialize(create_consumer)
+            self._initialized = True
 
     async def _ensure_connection(self):
-        if is_nats_enabled() and self._nc is not None and self._nc.is_closed is True:
+        if self._initialized and (self._nc is None or self._nc.is_closed is True):
             await self.initialize(self._creates_consumer)
 
     async def _initialize(self, create_consumer: bool):

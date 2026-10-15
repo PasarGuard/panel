@@ -176,10 +176,11 @@ async def try_become_leader(lease_seconds: float = DEFAULT_LEASE_SECONDS) -> boo
     return False
 
 
-async def _heartbeat_loop(lease_seconds: float = DEFAULT_LEASE_SECONDS) -> None:
+async def _heartbeat_loop(
+    lease_seconds: float = DEFAULT_LEASE_SECONDS, *, initial_deadline: float | None = None
+) -> None:
     global _lease_deadline
-    if not needs_job_leader():
-        _lease_deadline = time.monotonic() + lease_seconds
+    _lease_deadline = initial_deadline if initial_deadline is not None else time.monotonic() + lease_seconds
     consecutive_failures = 0
     while _is_leader and _token is not None:
         # On renewal failure, retry promptly — do not wait another full HEARTBEAT_INTERVAL.
@@ -233,7 +234,7 @@ async def start_job_leader() -> bool:
     won = await try_become_leader()
     if won and needs_job_leader():
         if _heartbeat_task is None or _heartbeat_task.done():
-            _heartbeat_task = asyncio.create_task(_heartbeat_loop())
+            _heartbeat_task = asyncio.create_task(_heartbeat_loop(initial_deadline=_lease_deadline))
         logger.info(
             "Acquired scheduler leadership (role=%s key=%s worker_id=%s)",
             runtime_settings.role.value,

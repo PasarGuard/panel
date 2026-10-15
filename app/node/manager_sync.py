@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import asyncio
 
+from PasarGuardNodeBridge import Health
+
 from app.db import GetDB
 from app.db.crud.node import get_node_by_id, get_nodes
 from app.db.models import NodeStatus
@@ -100,6 +102,11 @@ async def reconcile_nodes(_: dict | None = None) -> None:
             before = await node_manager.get_node(row.id)
             after = await node_manager.update_node(row)
             if after is before:
+                if await after.get_health() is Health.NOT_CONNECTED:
+                    # A failed first attach must remain retryable even when
+                    # neither the database row nor connection signature changes.
+                    # Followers only attach to an existing backend; they never Start.
+                    await NodeOperation._attach_if_running(after, row.name)
                 return
             # Re-read after waiting for a connection lock; deleted/disabled nodes
             # must not be started from an older reconciliation snapshot.

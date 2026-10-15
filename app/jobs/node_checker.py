@@ -432,10 +432,6 @@ async def initialize_nodes():
     if feature_settings.stop_nodes_on_shutdown and server_settings.workers <= 1:
         on_shutdown(shutdown_nodes, priority=-85)
 
-    on_shutdown(_stop_node_loops, priority=-90)
-    on_shutdown(node_manager.close, priority=-80)
-    on_shutdown(shutdown_bridge_memory)
-
 
 async def _stop_node_loops():
     for task in _node_loop_tasks:
@@ -464,3 +460,10 @@ async def shutdown_nodes():
     await asyncio.gather(*stop_tasks, return_exceptions=True)
 
     logger.info("All nodes' cores have been stopped.")
+
+
+# Register cleanup before startup so a partially initialized worker also releases
+# its local transports and bridge store when a later startup step fails.
+on_shutdown(_stop_node_loops, priority=-90)
+on_shutdown(node_manager.close, priority=-80)
+on_shutdown(shutdown_bridge_memory)
