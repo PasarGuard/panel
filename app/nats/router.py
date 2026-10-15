@@ -214,11 +214,29 @@ class NatsMessageRouter:
         """Persist the invalidation before broadcasting; surface an unavailable broker."""
         if not _router_enabled():
             return
-        revision = uuid4().hex
+        if not self._running:
+            # Scripts, startup hooks and shutdown flushes can publish without a
+            # listener lifetime. Never retain their connection across event loops.
+            client = await create_nats_client()
+            if client is None:
+                raise RuntimeError("NATS synchronization is unavailable")
+            try:
+                kv = await get_or_create_kv_bucket(
+                    client.jetstream(), f"{nats_settings.scheduler_leader_kv_bucket}_sync"
+                )
+                await self._publish_message(client, kv, topic, data)
+            finally:
+                await client.close()
+            return
         kv = await self._get_kv()
         client = await self._get_client()
         if kv is None or client is None:
             raise RuntimeError("NATS synchronization is unavailable")
+        await self._publish_message(client, kv, topic, data)
+
+    @staticmethod
+    async def _publish_message(client, kv, topic: MessageTopic, data: dict):
+        revision = uuid4().hex
         await kv.put(topic.value, revision.encode())
         message = NatsMessage(topic=topic, data={**data, "_revision": revision})
         await client.publish(nats_settings.worker_sync_subject, message.model_dump_json().encode())
