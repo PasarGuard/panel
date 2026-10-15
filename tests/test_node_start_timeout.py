@@ -162,6 +162,7 @@ def _patch_health_check_db(monkeypatch: pytest.MonkeyPatch):
 @pytest.mark.asyncio
 async def test_health_check_reapplies_config_when_keep_alive_stopped_core(monkeypatch: pytest.MonkeyPatch):
     """pg-node keep-alive stops Xray but leaves HTTP up. Panel must POST /start again."""
+    monkeypatch.setattr(node_checker, "_owns_health_checks", lambda: True)
     node = MagicMock()
     node.requires_hard_reset.return_value = False
     node.get_lifecycle_state = AsyncMock(return_value=None)
