@@ -229,10 +229,10 @@ class CoreOperation(BaseOperation):
 
         # Batch delete using CRUD function
         await remove_cores(db, core_ids)
+        await core_manager.remove_cores(core_ids, db=db)
 
         # Remove from core manager and notify
         for core_id, core_name in zip(core_ids, core_names):
-            await core_manager.remove_core(core_id, db=db)
             asyncio.create_task(notification.remove_core(core_id, admin.username))
             logger.info(f'core config "{core_name}" deleted by admin "{admin.username}"')
 

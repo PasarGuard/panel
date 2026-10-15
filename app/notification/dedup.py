@@ -23,6 +23,7 @@ logger = get_logger("Notification")
 DEDUP_WINDOW_SECONDS = 15.0
 _SHARED_EVENTS = {"connect_node", "recovered_node", "error_node", "limited_node"}
 _local_claims: dict[str, float] = {}
+_pending_claims: set[str] = set()
 _local_lock = asyncio.Lock()
 _kv = None
 _nc = None
@@ -42,7 +43,14 @@ def notification_fingerprint(event_name: str, args: tuple[Any, ...], kwargs: dic
             return vars(value)
         return str(value)
 
-    raw = json.dumps([event_name, args, kwargs], sort_keys=True, default=serialize).encode()
+    node = args[0] if args else kwargs.get("node")
+    event_id = getattr(node, "event_id", None)
+    identity = (
+        [event_name, node.id, event_id]
+        if event_name in _SHARED_EVENTS and event_id is not None
+        else [event_name, args, kwargs]
+    )
+    raw = json.dumps(identity, sort_keys=True, default=serialize).encode()
     return "nd." + hashlib.sha256(raw).hexdigest()
 
 
@@ -56,24 +64,26 @@ async def claim_notification_slot(event_name: str, args: tuple[Any, ...], kwargs
     async with _local_lock:
         _prune_local(now)
         expires_at = _local_claims.get(key, 0)
-        if expires_at > now:
+        if key in _pending_claims or expires_at > now:
             logger.debug("Skipping duplicate notification %s (%s)", event_name, key)
             return False
+        _pending_claims.add(key)
 
-    if not is_nats_enabled():
-        async with _local_lock:
-            _local_claims[key] = now + DEDUP_WINDOW_SECONDS
-        return True
-
+    claimed = False
     try:
-        if not await _claim_shared(key, now):
+        try:
+            claimed = not is_nats_enabled() or await _claim_shared(key, now)
+        except Exception as exc:
+            logger.debug("Notification dedup store unavailable for %s: %s", event_name, exc)
+            claimed = True
+        if not claimed:
             logger.debug("Skipping duplicate notification %s claimed by another worker (%s)", event_name, key)
-            return False
-    except Exception as exc:
-        logger.debug("Notification dedup store unavailable for %s: %s", event_name, exc)
-    async with _local_lock:
-        _local_claims[key] = time.time() + DEDUP_WINDOW_SECONDS
-    return True
+        return claimed
+    finally:
+        async with _local_lock:
+            _pending_claims.discard(key)
+            if claimed:
+                _local_claims[key] = time.time() + DEDUP_WINDOW_SECONDS
 
 
 def _prune_local(now: float) -> None:
@@ -132,6 +142,7 @@ async def close_notification_dedup() -> None:
         await _nc.close()
     _nc = _kv = None
     _local_claims.clear()
+    _pending_claims.clear()
 
 
 async def cleanup_legacy_notification_claims(js) -> int:

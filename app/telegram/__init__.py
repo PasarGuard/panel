@@ -43,6 +43,7 @@ class TelegramBotManager:
         self._nats_conn = None
         self._retry_task: asyncio.Task | None = None
         self._webhook_verified_until = 0.0
+        self._last_webhook_token: str | None = None
 
     @staticmethod
     def _create_dispatcher() -> Dispatcher:
@@ -114,6 +115,7 @@ class TelegramBotManager:
                         allowed_updates=["message", "callback_query", "inline_query"],
                         drop_pending_updates=False,
                     )
+            self._last_webhook_token = settings.token
             if kv is not None:
                 await kv_put_json(kv, "webhook_state_v2", {"fingerprint": fingerprint})
             self._webhook_verified_until = time.monotonic() + 60
@@ -122,7 +124,9 @@ class TelegramBotManager:
         """Delete only a bot no longer selected by the committed panel settings."""
         if self._polling_task is not None:
             return
-        old_token = self._settings_key[1] if self._settings_key is not None else settings.token
+        old_token = self._last_webhook_token or (
+            self._settings_key[1] if self._settings_key is not None else settings.token
+        )
         if not old_token:
             return
         if settings.enable and settings.method == RunMethod.WEBHOOK and settings.token == old_token:
@@ -135,14 +139,16 @@ class TelegramBotManager:
             fingerprint = hashlib.sha256(f"disabled:{old_token}".encode()).hexdigest()
             receipt, _ = await kv_get_json(kv, "webhook_state_v2") if kv is not None else (None, 0)
             if receipt is not None and receipt.get("fingerprint") == fingerprint:
+                self._last_webhook_token = None
                 return
             bot = self._bot
-            temporary = bot is None
+            temporary = bot is None or bot.token != old_token
             if temporary:
                 bot = Bot(token=old_token, session=NativeTLSAiohttpSession(proxy=settings.proxy_url))
             try:
                 async with asyncio.timeout(10):
                     await bot.delete_webhook(drop_pending_updates=False)
+                self._last_webhook_token = None
                 if kv is not None:
                     await kv_put_json(kv, "webhook_state_v2", {"fingerprint": fingerprint})
             finally:

@@ -324,6 +324,8 @@ def _register_scheduler_hooks():
         await _cancel_reclaim_task()
         await drain_jobs()
         if started_notifications["value"]:
+            from app.notification.client import stop_notification_dispatcher
+
             await stop_notification_dispatcher()
             started_notifications["value"] = False
         if scheduler.running:

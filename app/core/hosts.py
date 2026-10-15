@@ -723,6 +723,15 @@ class HostManager:
     async def remove_host(self, id: int, *, db: AsyncSession | None = None):
         await self._remove_host_impl(id, db=db)
 
+    async def remove_hosts(self, ids: list[int], *, db: AsyncSession | None = None):
+        if not (self._nats_enabled and self._multi_worker):
+            for host_id in ids:
+                await self.remove_host(host_id, db=db)
+            return
+        await self.refresh_from_database(db=db)
+        for host_id in ids:
+            await self._publish({"action": "remove", "host_id": host_id})
+
     async def _remove_host_local(self, id: int, *, db: AsyncSession | None = None):
         async with self._lock:
             self._hosts.pop(id, None)

@@ -17,10 +17,11 @@ async def kv_lease(kv, key: str, *, lease_seconds: float = 30.0, acquire_timeout
     started = loop.time()
     async with asyncio.timeout(acquire_timeout):
         while True:
+            attempt = loop.time()
             now = time.time()
             doc, revision = await kv_get_json(kv, key)
             if doc is None or float(doc.get("expires_at", 0)) <= now:
-                started = loop.time()
+                started = attempt
                 if await kv_cas_json(kv, key, {"token": token, "expires_at": now + lease_seconds}, revision):
                     break
             await asyncio.sleep(0.05)
@@ -42,6 +43,8 @@ async def kv_lease(kv, key: str, *, lease_seconds: float = 30.0, acquire_timeout
 
     renewal = None
     try:
+        if loop.time() >= started + lease_seconds:
+            raise TimeoutError("Shared operation lease expired during acquisition")
         async with asyncio.timeout_at(started + lease_seconds) as deadline:
             renewal = asyncio.create_task(renew(deadline))
             yield

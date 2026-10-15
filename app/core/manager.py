@@ -341,7 +341,9 @@ class CoreManager:
     async def _remove_core_nats(self, core_id: int, *, db: AsyncSession | None = None):
         # Persist local removal (and KV snapshot) before broadcasting.
         await self._remove_core_local(core_id, db=db)
+        await self._publish_core_removal(core_id)
 
+    async def _publish_core_removal(self, core_id: int):
         try:
             await self._publish_invalidation({"action": "remove", "core_id": core_id})
         except Exception as exc:
@@ -349,6 +351,16 @@ class CoreManager:
 
     async def remove_core(self, core_id: int, *, db: AsyncSession | None = None):
         await self._remove_core_impl(core_id, db=db)
+
+    async def remove_cores(self, core_ids: list[int], *, db: AsyncSession | None = None):
+        if not (self._nats_enabled and self._multi_worker):
+            for core_id in core_ids:
+                await self.remove_core(core_id, db=db)
+            return
+        await self.refresh_from_database(db=db)
+        await self._persist_state()
+        for core_id in core_ids:
+            await self._publish_core_removal(core_id)
 
     async def get_core(self, core_id: int) -> AbstractCore | None:
         async with self._lock:
