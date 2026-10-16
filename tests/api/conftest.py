@@ -5,6 +5,7 @@ import pytest
 from aiorwlock import RWLock
 
 from app.db.models import Settings
+from app.node import node_manager, sync as node_sync
 
 from . import GetTestDB, TestSession, client
 
@@ -18,6 +19,26 @@ def dummy_cached(*args, **kwargs):
 
 
 aiocache.cached = dummy_cached
+
+
+@pytest.fixture(autouse=True)
+def local_node_user_dispatch(monkeypatch: pytest.MonkeyPatch):
+    """Keep API tests on their process-local node doubles.
+
+    TestClient runs each request on a new event loop without starting the node
+    worker. A shared NATS publisher would retain a connection from a closed
+    loop and retry forever waiting for JetStream replies. Transport delivery is
+    covered by the separate NATS integration and process tests.
+    """
+
+    async def dispatch_user(user):
+        await node_manager.update_user(user)
+
+    async def dispatch_users(users, *, await_dispatch=False):
+        await node_manager.update_users(users, await_dispatch=await_dispatch)
+
+    monkeypatch.setattr(node_sync, "_dispatch_user_update", dispatch_user)
+    monkeypatch.setattr(node_sync, "_dispatch_users_update", dispatch_users)
 
 
 @pytest.fixture(autouse=True)

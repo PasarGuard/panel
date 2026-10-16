@@ -23,9 +23,20 @@ class UserSyncPreemptedError(RuntimeError):
     """A connection change or removal of the node cancelled an in-flight user sync."""
 
 
+class NodeUserDispatchError(RuntimeError):
+    """Identify exactly the nodes that did not accept a durable user command."""
+
+    def __init__(self, failures: dict[int, Exception]):
+        """Retain failed node IDs and their causes for targeted recovery."""
+        self.failed_node_ids = list(failures)
+        super().__init__(f"user dispatch failed on nodes {self.failed_node_ids}")
+
+
 class NodeManager:
     def __init__(self):
+        """Initialize managed attachments, synchronization locks and startup readiness."""
         self._nodes: dict[int, PasarGuardNode] = {}
+        self.initialized = asyncio.Event()
         self._node_signatures: dict[int, tuple] = {}
         self._user_sync_locks: dict[int, asyncio.Lock] = {}
         self._user_sync_tasks: dict[int, set[asyncio.Task]] = {}
@@ -423,7 +434,8 @@ class NodeManager:
                     await node.release_queued_work(captured)
             return node
 
-    async def _update_users(self, users: list[ProtoUser]):
+    async def _update_users(self, users: list[ProtoUser], *, raise_errors: bool = False):
+        """Dispatch one batch and report all failed nodes to durable consumers."""
         nodes = await self._snapshot_node_items()
         if not nodes:
             return
@@ -431,36 +443,51 @@ class NodeManager:
         results = await asyncio.gather(
             *(self._sync_users_to_node(node_id, None, users) for node_id, _node in nodes), return_exceptions=True
         )
+        failures = {}
         for (node_id, _node), result in zip(nodes, results, strict=True):
             if isinstance(result, asyncio.CancelledError):
                 # A connection change or removal of the node preempted this delivery.
                 self.logger.debug("User sync to node %s was cancelled by a node lifecycle change", node_id)
+                failures[node_id] = UserSyncPreemptedError(f"user sync to node {node_id} was preempted")
             elif isinstance(result, Exception):
                 self.logger.error("Failed to sync users to node %s: %s", node_id, result)
+                failures[node_id] = result
+        if raise_errors and failures:
+            raise NodeUserDispatchError(failures) from next(iter(failures.values()))
 
-    async def update_users(self, users: list[ProtoUser], *, await_dispatch: bool = False) -> None:
+    async def update_users(
+        self, users: list[ProtoUser], *, await_dispatch: bool = False, raise_errors: bool = False
+    ) -> None:
         """Queue a batch, optionally waiting so a producer cannot outrun node dispatch.
 
-        Per-node failures are logged, never raised: a node that misses a batch gets a
-        full snapshot when it reconnects.
+        Durable command consumers request raised errors so the message is acknowledged
+        only after every node accepted the batch.
         """
-        if await_dispatch:
-            await self._update_users(users)
+        if await_dispatch or raise_errors:
+            await self._update_users(users, raise_errors=raise_errors)
         else:
             asyncio.create_task(self._update_users(users))
 
-    async def update_user(self, user: ProtoUser) -> None:
-        nodes = await self._snapshot_nodes()
+    async def update_user(self, user: ProtoUser, *, raise_errors: bool = False) -> None:
+        """Enqueue one user, optionally collecting node IDs for durable recovery."""
+        nodes = await self._snapshot_node_items()
         if not nodes:
             return
 
-        results = await asyncio.gather(*(node.update_user(user) for node in nodes), return_exceptions=True)
-        for result in results:
-            if isinstance(result, Exception):
-                raise result
+        results = await asyncio.gather(*(node.update_user(user) for _node_id, node in nodes), return_exceptions=True)
+        failures = {}
+        for (node_id, _node), result in zip(nodes, results, strict=True):
+            if isinstance(result, asyncio.CancelledError):
+                failures[node_id] = UserSyncPreemptedError("user update was preempted by a node lifecycle change")
+            elif isinstance(result, Exception):
+                failures[node_id] = result
+        if failures:
+            if raise_errors:
+                raise NodeUserDispatchError(failures) from next(iter(failures.values()))
+            raise next(iter(failures.values()))
 
 
 node_manager: NodeManager = NodeManager()
 
 
-__all__ = ["UserSyncPreemptedError", "core_users", "node_manager"]
+__all__ = ["NodeUserDispatchError", "UserSyncPreemptedError", "core_users", "node_manager"]
