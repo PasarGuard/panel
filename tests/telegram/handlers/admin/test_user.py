@@ -423,4 +423,3 @@ async def test_get_subscription_qr_not_found(monkeypatch, admin, fake_message, f
     await user_h.get_subscription_qr(event, db=object(), admin=admin, callback_data=callback_data)
 
     event.answer.assert_awaited_once_with(user_h.Texts.user_not_found, show_alert=True)
-

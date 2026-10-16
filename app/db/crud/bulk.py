@@ -226,7 +226,7 @@ def _create_group_filter(bulk_model: BulkGroup):
 
 async def add_groups_to_users(db: AsyncSession, bulk_model: BulkGroup) -> tuple[list, int] | tuple[list[User], int]:
     """
-    Bulk add groups to users and return list of affected User objects.
+    Bulk add groups to users; the caller commits after allocation reconciliation.
     """
     final_filter = _create_group_filter(bulk_model)
     count_effctive_users = await count_bulk_group_scope(db, bulk_model)
@@ -267,7 +267,6 @@ async def add_groups_to_users(db: AsyncSession, bulk_model: BulkGroup) -> tuple[
         await db.execute(
             insert(users_groups_association).from_select(["user_id", "groups_id"], missing_pairs),
         )
-    await db.commit()
 
     # Return users that actually had groups added
     return await _reload_group_users(db, affected_user_ids), count_effctive_users
@@ -277,7 +276,7 @@ async def remove_groups_from_users(
     db: AsyncSession, bulk_model: BulkGroup
 ) -> tuple[list, int] | tuple[list[User], int]:
     """
-    Bulk remove groups from users and return list of affected User objects.
+    Bulk remove groups from users; the caller commits after allocation reconciliation.
     """
     final_filter = _create_group_filter(bulk_model)
     count_effctive_users = await count_bulk_group_scope(db, bulk_model)
@@ -304,7 +303,6 @@ async def remove_groups_from_users(
                 users_groups_association.c.groups_id.in_(bulk_model.group_ids),
             )
         )
-    await db.commit()
     return await _reload_group_users(db, affected_user_ids), count_effctive_users
 
 
