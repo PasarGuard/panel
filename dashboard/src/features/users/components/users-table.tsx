@@ -32,20 +32,23 @@ import { bytesToFormGigabytes, gbToBytes } from '@/utils/formatByte'
 import { normalizeDatePickerValueForEditForm } from '@/utils/userEditDateUtils'
 import { useQueryClient, useMutation } from '@tanstack/react-query'
 import { endOfDay, startOfDay } from 'date-fns'
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Layers, Link2Off, Power, PowerOff, RefreshCcw, Trash2, UserCog, Users } from 'lucide-react'
+import { Layers, Link2Off, Power, PowerOff, RefreshCcw, Trash2, UserCog, Users, Settings2 } from 'lucide-react'
 import UserModal from '../dialogs/user-modal.lazy'
 import { PaginationControls } from './filters'
 import AdvanceSearchModal from '@/features/users/dialogs/advance-search-modal'
 import type { AdvanceSearchFormValue } from '@/features/users/forms/advance-search-form'
 import { BulkActionItem, BulkActionsBar } from '@/features/users/components/bulk-actions-bar'
 import { BulkActionAlertDialog } from '@/features/users/components/bulk-action-alert-dialog'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { removeUsersFromUsersCache } from '@/utils/usersCache'
 import { hasPermission, hasScopeAll } from '@/utils/rbac'
+
+const BulkEditUsersModal = lazy(() => import('../dialogs/bulk-edit-users-modal'))
 
 // Helper function to get URL search params from hash
 const getSearchParams = (): URLSearchParams => {
@@ -215,6 +218,8 @@ const UsersTable = memo(() => {
   const [selectedUserIds, setSelectedUserIds] = useState<number[]>([])
   const [resetSelectionKey, setResetSelectionKey] = useState(0)
   const [bulkAction, setBulkAction] = useState<'delete' | 'reset' | 'revoke' | 'disable' | 'enable' | 'apply_template' | null>(null)
+  const [initialBulkEditScope, setInitialBulkEditScope] = useState<'selected' | 'matching'>('matching')
+  const [isBulkEditOpen, setIsBulkEditOpen] = useState(false)
   const [isBulkSetOwnerModalOpen, setIsBulkSetOwnerModalOpen] = useState(false)
   const [isBulkApplyTemplateModalOpen, setIsBulkApplyTemplateModalOpen] = useState(false)
   const [isAdvanceSearchOpen, setIsAdvanceSearchOpen] = useState(false)
@@ -875,6 +880,16 @@ const UsersTable = memo(() => {
         ...(canUpdateUsers
           ? [
               {
+                key: 'edit',
+                label: t('bulkEdit.title'),
+                icon: Settings2,
+                onClick: () => {
+                  setInitialBulkEditScope('selected')
+                  setIsBulkEditOpen(true)
+                },
+                direct: true,
+              } as BulkActionItem,
+              {
                 key: 'reset',
                 label: t('userDialog.resetUsage'),
                 icon: RefreshCcw,
@@ -1194,6 +1209,37 @@ const UsersTable = memo(() => {
         onClearAdvanceSearch={handleClearAdvanceSearch}
         canSortByHwidCount={canReadHwids}
       />
+      {canUpdateUsers && totalUsers > 0 && (
+        <div className="mb-4 flex justify-end">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setInitialBulkEditScope('matching')
+              setIsBulkEditOpen(true)
+            }}
+          >
+            <Settings2 className="me-2 h-4 w-4" />
+            {t('bulkEdit.editMatching')}
+          </Button>
+        </div>
+      )}
+      {isBulkEditOpen && (
+        <Suspense fallback={null}>
+          <BulkEditUsersModal
+            initialScope={initialBulkEditScope}
+            userIds={[...selectedUserIds]}
+            pageIds={usersList.map(user => user.id)}
+            total={totalUsers}
+            filters={Object.fromEntries(Object.entries(filters).filter(([key]) => !['offset', 'limit', 'sort', 'load_sub', 'is_protocol', 'is_id'].includes(key)))}
+            onClose={() => setIsBulkEditOpen(false)}
+            onSuccess={() => {
+              invalidateUsers()
+              clearSelection()
+            }}
+          />
+        </Suspense>
+      )}
       {canBulkMutateUsers && <BulkActionsBar selectedCount={selectedCount} onClear={clearSelection} actions={bulkActions} />}
       {isEmpty && (
         <Card className="mb-12">
