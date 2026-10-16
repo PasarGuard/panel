@@ -33,6 +33,9 @@ class CoreManager:
     def __init__(self):
         self._cores: dict[int, AbstractCore] = {}
         self._lock = Lock()
+        self._generation = 0
+        self._full_refresh_generation = 0
+        self._core_generations: dict[int, int] = {}
         self._inbounds: list[str] = []
         self._inbounds_by_tag = {}
         self._nats_enabled = is_nats_enabled()
@@ -127,49 +130,86 @@ class CoreManager:
     async def _refresh_from_db(
         self, db: AsyncSession, core_ids: list[int] | set[int] | None = None
     ) -> dict[int, AbstractCore]:
+        """Read outside the cache lock and merge only cores not superseded by newer writes.
+
+        Each refresh reserves its generation before reading. Local edits/deletes
+        and later refreshes fence older results per core, including absent cores.
+        A full refresh also fences IDs absent from both the old and new caches.
+        Failed reads or index construction leave the committed state intact.
+        """
+        core_ids = set(core_ids) if core_ids is not None else None
         if core_ids is not None and not core_ids:
             return {}
-        # Refresh cores and their inbound index together with other cache mutations.
-        # A failed DB read leaves the cache intact.
         async with self._lock:
-            core_configs, _ = await get_core_configs(
-                db, CoreListQuery(ids=list(core_ids) if core_ids is not None else None)
-            )
-            cores: dict[int, AbstractCore] = {}
-            for config in core_configs:
-                try:
-                    cores[config.id] = self.validate_core(
-                        config.config,
-                        config.exclude_inbound_tags,
-                        config.fallbacks_inbound_tags,
-                        config.type,
-                    )
-                except Exception as exc:
-                    self._logger.error(
-                        "Skipping broken core id=%s name=%r type=%s: %s",
-                        config.id,
-                        getattr(config, "name", None),
-                        config.type,
-                        exc,
-                    )
+            generation = self._next_generation_locked()
+
+        core_configs, _ = await get_core_configs(
+            db, CoreListQuery(ids=list(core_ids) if core_ids is not None else None)
+        )
+        cores: dict[int, AbstractCore] = {}
+        for config in core_configs:
+            try:
+                cores[config.id] = self.validate_core(
+                    config.config,
+                    config.exclude_inbound_tags,
+                    config.fallbacks_inbound_tags,
+                    config.type,
+                )
+            except Exception as exc:
+                self._logger.error(
+                    "Skipping broken core id=%s name=%r type=%s: %s",
+                    config.id,
+                    getattr(config, "name", None),
+                    config.type,
+                    exc,
+                )
+
+        async with self._lock:
+            if generation < self._full_refresh_generation:
+                return self._copy_cores_locked(core_ids)
+            candidate = dict(self._cores)
+            refreshed_ids = set(candidate) | cores.keys() if core_ids is None else core_ids
+            generations = dict(self._core_generations)
+            for core_id in refreshed_ids:
+                if generations.get(core_id, 0) > generation:
+                    continue
+                if core_id in cores:
+                    candidate[core_id] = cores[core_id]
+                else:
+                    candidate.pop(core_id, None)
+                generations[core_id] = generation
+
+            self._replace_cores_locked(candidate)
             if core_ids is None:
-                self._cores = cores
+                self._full_refresh_generation = generation
+                # The full-refresh fence subsumes older per-core tombstones.
+                self._core_generations = {key: value for key, value in generations.items() if value > generation}
             else:
-                for core_id in core_ids:
-                    self._cores.pop(core_id, None)
-                self._cores.update(cores)
-            self._update_inbounds_locked()
-            return {core_id: deepcopy(core) for core_id, core in cores.items()}
+                self._core_generations = generations
+            return self._copy_cores_locked(core_ids)
+
+    def _next_generation_locked(self) -> int:
+        """Reserve an ordering token while holding the cache lock."""
+        self._generation += 1
+        return self._generation
+
+    def _copy_cores_locked(self, core_ids: set[int] | None) -> dict[int, AbstractCore]:
+        """Return an isolated snapshot of the accepted cache state."""
+        return {
+            core_id: deepcopy(core) for core_id, core in self._cores.items() if core_ids is None or core_id in core_ids
+        }
 
     async def update_inbounds(self):
         async with self._lock:
-            self._update_inbounds_locked()
+            self._replace_cores_locked(dict(self._cores))
 
-    def _update_inbounds_locked(self):
+    def _replace_cores_locked(self, cores: dict[int, AbstractCore]):
+        """Build the entire index before publishing any part of a cache update."""
         new_inbounds = {}
-        for core in self._cores.values():
+        for core in cores.values():
             new_inbounds.update(core.inbounds_by_tag)
 
+        self._cores = cores
         self._inbounds_by_tag = new_inbounds
         self._inbounds = list(self._inbounds_by_tag.keys())
 
@@ -192,8 +232,9 @@ class CoreManager:
                 return
 
         async with self._lock:
-            self._cores.update({db_core_config.id: core_config})
-            self._update_inbounds_locked()
+            candidate = self._cores | {db_core_config.id: core_config}
+            self._replace_cores_locked(candidate)
+            self._core_generations[db_core_config.id] = self._next_generation_locked()
 
         await self._persist_state()
 
@@ -210,12 +251,11 @@ class CoreManager:
 
     async def _remove_core_local(self, core_id: int):
         async with self._lock:
-            core = self._cores.get(core_id, None)
-            if core:
-                del self._cores[core_id]
-            else:
-                return
-            self._update_inbounds_locked()
+            candidate = dict(self._cores)
+            candidate.pop(core_id, None)
+            self._replace_cores_locked(candidate)
+            # Even an absent core needs a tombstone to fence an in-flight read.
+            self._core_generations[core_id] = self._next_generation_locked()
 
         await self._persist_state()
 
@@ -241,9 +281,7 @@ class CoreManager:
         if db is not None:
             return await self._refresh_from_db(db, core_ids)
         async with self._lock:
-            if core_ids is None:
-                return {core_id: deepcopy(core) for core_id, core in self._cores.items()}
-            return {core_id: deepcopy(core) for core_id, core in self._cores.items() if core_id in core_ids}
+            return self._copy_cores_locked(set(core_ids) if core_ids is not None else None)
 
     async def get_inbounds(self) -> list[str]:
         async with self._lock:
