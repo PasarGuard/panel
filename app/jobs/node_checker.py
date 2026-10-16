@@ -301,7 +301,13 @@ async def process_node_health_check(db_node: Node, node: PasarGuardNode):
                 await node.update_observed_lifecycle(LifecycleStatus.HEALTHY, expected_epoch=shared_state.epoch)
             logger.info("Node '%s' has recovered", db_node.name)
             await notification.recovered_node(
-                NodeNotification(id=db_node.id, name=db_node.name, xray_version=core_version, node_version=node_version)
+                NodeNotification(
+                    id=db_node.id,
+                    name=db_node.name,
+                    xray_version=core_version,
+                    node_version=node_version,
+                    event_id=NodeNotification.revision(db_node),
+                )
             )
 
 
@@ -314,6 +320,7 @@ async def check_node_limits():
         limited_nodes = await get_limited_nodes(db)
 
         for db_node in limited_nodes:
+            event_id = NodeNotification.revision(db_node)
             # Disconnect the node first (stop it from running)
             await node_operator.disconnect_single_node(db_node.id)
 
@@ -324,7 +331,11 @@ async def check_node_limits():
 
             # Send notification
             node_notif = NodeNotification(
-                id=db_node.id, name=db_node.name, xray_version=db_node.xray_version, node_version=db_node.node_version
+                id=db_node.id,
+                name=db_node.name,
+                xray_version=db_node.xray_version,
+                node_version=db_node.node_version,
+                event_id=event_id,
             )
             await notification.limited_node(node_notif, db_node.data_limit, db_node.used_traffic)
 
@@ -419,10 +430,7 @@ async def initialize_nodes():
 
     # Multi-uvicorn workers must not Stop remote cores / clear shared sync queues on exit.
     if feature_settings.stop_nodes_on_shutdown and server_settings.workers <= 1:
-        on_shutdown(shutdown_nodes)
-
-    on_shutdown(_stop_node_loops)
-    on_shutdown(shutdown_bridge_memory)
+        on_shutdown(shutdown_nodes, priority=-85)
 
 
 async def _stop_node_loops():
@@ -452,3 +460,10 @@ async def shutdown_nodes():
     await asyncio.gather(*stop_tasks, return_exceptions=True)
 
     logger.info("All nodes' cores have been stopped.")
+
+
+# Register cleanup before startup so a partially initialized worker also releases
+# its local transports and bridge store when a later startup step fails.
+on_shutdown(_stop_node_loops, priority=-90)
+on_shutdown(node_manager.close, priority=-80)
+on_shutdown(shutdown_bridge_memory)

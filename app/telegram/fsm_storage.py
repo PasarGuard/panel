@@ -22,7 +22,7 @@ from aiogram.fsm.storage.base import (
 from aiogram.fsm.storage.memory import MemoryStorage
 from nats.js.kv import KeyValue
 
-from app.nats import is_nats_enabled
+from app.nats import is_multi_worker, is_nats_enabled
 from app.nats.client import setup_nats_kv
 from app.utils.logger import get_logger
 
@@ -74,6 +74,7 @@ class NatsFSMStorage(BaseStorage):
         self._next_connect_try_at = 0.0
 
         self._nats_enabled = is_nats_enabled()
+        self._shared_required = self._nats_enabled and is_multi_worker()
 
     def create_isolation(
         self,
@@ -104,6 +105,9 @@ class NatsFSMStorage(BaseStorage):
         if not self._nats_enabled:
             return None
 
+        if self._nc is not None and self._nc.is_closed:
+            self._kv = self._nc = None
+            self._next_connect_try_at = 0.0
         if self._kv:
             return self._kv
 
@@ -133,18 +137,23 @@ class NatsFSMStorage(BaseStorage):
             logger.warning("NATS KV unavailable for Telegram FSM, using in-memory fallback")
             return None
 
-    async def _safe_get(self, kv_key: str) -> KeyValue.Entry | None:
+    async def _safe_get(self, kv_key: str) -> tuple[bool, KeyValue.Entry | None]:
+        """Distinguish an authoritative miss from an unavailable shared store."""
         kv = await self.ensure_kv()
         if not kv:
-            return None
+            if self._shared_required:
+                raise RuntimeError("Shared Telegram state is unavailable")
+            return False, None
 
         try:
-            return await kv.get(kv_key)
+            return True, await kv.get(kv_key)
         except nats_js_errors.KeyNotFoundError, nats_js_errors.KeyDeletedError:
-            return None
+            return True, None
         except Exception as exc:
             logger.warning(f"Failed to read Telegram FSM record from NATS KV: {exc}")
-            return None
+            if self._shared_required:
+                raise RuntimeError("Shared Telegram state is unavailable") from exc
+            return False, None
 
     async def set_state(self, key: StorageKey, state: StateType = None) -> None:
         normalized_state = self._normalize_state(state)
@@ -152,23 +161,30 @@ class NatsFSMStorage(BaseStorage):
 
         kv = await self.ensure_kv()
         if not kv:
+            if self._shared_required:
+                raise RuntimeError("Shared Telegram state is unavailable")
             return
 
         kv_key = self.build_kv_key(key, "state")
         if normalized_state is None:
             try:
                 await kv.delete(kv_key)
-            except Exception:
+            except nats_js_errors.KeyNotFoundError, nats_js_errors.KeyDeletedError:
                 pass
+            except Exception:
+                if self._shared_required:
+                    raise
             return
 
         try:
             await kv.put(kv_key, normalized_state.encode("utf-8"))
         except Exception as exc:
             logger.warning(f"Failed to write Telegram FSM state to NATS KV: {exc}")
+            if self._shared_required:
+                raise
 
     async def get_state(self, key: StorageKey) -> str | None:
-        entry = await self._safe_get(self.build_kv_key(key, "state"))
+        available, entry = await self._safe_get(self.build_kv_key(key, "state"))
         if entry and entry.value is not None:
             try:
                 value = entry.value.decode("utf-8")
@@ -177,7 +193,9 @@ class NatsFSMStorage(BaseStorage):
             else:
                 await self._memory.set_state(key, value)
                 return value
-
+        if available:
+            await self._memory.set_state(key, None)
+            return None
         return await self._memory.get_state(key)
 
     async def set_data(self, key: StorageKey, data: Mapping[str, Any]) -> None:
@@ -190,14 +208,19 @@ class NatsFSMStorage(BaseStorage):
 
         kv = await self.ensure_kv()
         if not kv:
+            if self._shared_required:
+                raise RuntimeError("Shared Telegram state is unavailable")
             return
 
         kv_key = self.build_kv_key(key, "data")
         if not normalized_data:
             try:
                 await kv.delete(kv_key)
-            except Exception:
+            except nats_js_errors.KeyNotFoundError, nats_js_errors.KeyDeletedError:
                 pass
+            except Exception:
+                if self._shared_required:
+                    raise
             return
 
         try:
@@ -208,15 +231,19 @@ class NatsFSMStorage(BaseStorage):
                 encoded = payload.encode("utf-8")
         except TypeError:
             logger.warning("Telegram FSM data is not JSON-serializable; skipped NATS KV sync")
+            if self._shared_required:
+                raise
             return
 
         try:
             await kv.put(kv_key, encoded)
         except Exception as exc:
             logger.warning(f"Failed to write Telegram FSM data to NATS KV: {exc}")
+            if self._shared_required:
+                raise
 
     async def get_data(self, key: StorageKey) -> dict[str, Any]:
-        entry = await self._safe_get(self.build_kv_key(key, "data"))
+        available, entry = await self._safe_get(self.build_kv_key(key, "data"))
         if entry and entry.value is not None:
             try:
                 raw_value = entry.value.decode("utf-8")
@@ -230,6 +257,9 @@ class NatsFSMStorage(BaseStorage):
 
                 logger.warning("Invalid Telegram FSM data payload in NATS KV, expected dict")
 
+        if available:
+            await self._memory.set_data(key, {})
+            return {}
         return await self._memory.get_data(key)
 
     async def close(self) -> None:
@@ -356,16 +386,65 @@ class NatsEventIsolation(BaseEventIsolation):
         kv = await self.storage.ensure_kv()
 
         if not kv:
+            if self.storage._shared_required:
+                raise RuntimeError("Shared Telegram event isolation is unavailable")
             local_lock = self._local_locks[lock_key]
             async with local_lock:
                 yield
             return
 
-        token = await self._acquire_distributed_lock(kv, lock_key)
+        loop = asyncio.get_running_loop()
+        started = loop.time()
+        async with asyncio.timeout(min(self.lock_ttl, 10.0)):
+            token = await self._acquire_distributed_lock(kv, lock_key)
+        renewal = None
         try:
-            yield
+            async with asyncio.timeout_at(started + self.lock_ttl) as deadline:
+                renewal = asyncio.create_task(self._renew_lock(kv, lock_key, token, deadline))
+                yield
+        except TimeoutError as exc:
+            raise RuntimeError("Telegram event isolation lease expired") from exc
         finally:
+            if renewal is not None:
+                renewal.cancel()
+                try:
+                    await renewal
+                except asyncio.CancelledError:
+                    pass
             await self._release_distributed_lock(kv, lock_key, token)
+
+    async def _renew_lock(self, kv, lock_key: str, token: str, deadline: asyncio.Timeout) -> None:
+        """Extend the owner's deadline only after a revision-guarded renewal succeeds."""
+        loop = asyncio.get_running_loop()
+        while True:
+            await asyncio.sleep(max(self.lock_ttl / 3, 0.01))
+            started = loop.time()
+            try:
+                async with asyncio.timeout_at(deadline.when()):
+                    entry = await kv.get(lock_key)
+                    info = self._parse_lock_payload(entry.value)
+                    if info is None or info[0] != token:
+                        deadline.reschedule(loop.time())
+                        return
+                    await kv.update(
+                        lock_key, self._build_lock_payload(token, time.time() + self.lock_ttl), last=entry.revision
+                    )
+                deadline.reschedule(started + self.lock_ttl)
+            except asyncio.CancelledError:
+                raise
+            except (
+                nats_js_errors.KeyWrongLastSequenceError,
+                nats_js_errors.KeyNotFoundError,
+                nats_js_errors.KeyDeletedError,
+            ):
+                deadline.reschedule(loop.time())
+                return
+            except Exception:
+                # The timeout on the owner remains authoritative even if a read
+                # stalls or a renewal acknowledgement is lost.
+                logger.warning("Telegram event isolation renewal failed", exc_info=True)
+                if loop.time() >= deadline.when():
+                    return
 
     async def close(self) -> None:
         self._local_locks.clear()

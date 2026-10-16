@@ -34,6 +34,8 @@ _kv: KeyValue | None = None
 _token: str | None = None
 _heartbeat_task: asyncio.Task | None = None
 _is_leader = False
+_kv_init_lock = asyncio.Lock()
+_lease_deadline = 0.0
 _on_leadership_lost: list[Callable[[], Awaitable[None] | None]] = []
 
 
@@ -69,15 +71,20 @@ def set_on_leadership_lost(callback: Callable[[], Awaitable[None] | None] | None
 
 async def _ensure_kv() -> KeyValue | None:
     global _nc, _kv
+    if _nc is not None and _nc.is_closed:
+        _nc = _kv = None
     if _kv is not None:
         return _kv
     if not is_nats_enabled():
         return None
-    _nc = await create_nats_client()
-    if _nc is None:
-        return None
-    js = await get_jetstream_context(_nc)
-    _kv = await get_or_create_kv_bucket(js, nats_settings.scheduler_leader_kv_bucket)
+    async with _kv_init_lock:
+        if _kv is None:
+            if _nc is None or _nc.is_closed:
+                _nc = await create_nats_client()
+            if _nc is None:
+                return None
+            js = await get_jetstream_context(_nc)
+            _kv = await get_or_create_kv_bucket(js, nats_settings.scheduler_leader_kv_bucket)
     return _kv
 
 
@@ -107,13 +114,19 @@ async def _concede_leadership(reason: str) -> None:
 
 async def try_become_leader(lease_seconds: float = DEFAULT_LEASE_SECONDS) -> bool:
     """Attempt to acquire the scheduler leader lease. Returns True if this process is leader."""
-    global _token, _is_leader
+    global _token, _is_leader, _lease_deadline
 
     if not needs_job_leader():
         _is_leader = True
         return True
 
-    kv = await _ensure_kv()
+    try:
+        async with asyncio.timeout(5):
+            kv = await _ensure_kv()
+    except Exception:
+        logger.warning("Scheduler leader store unavailable", exc_info=True)
+        _is_leader = False
+        return False
     if kv is None:
         logger.warning("Scheduler leader KV unavailable; refusing leadership under multi-worker")
         _is_leader = False
@@ -121,11 +134,16 @@ async def try_become_leader(lease_seconds: float = DEFAULT_LEASE_SECONDS) -> boo
 
     token = uuid4().hex
     now = time.time()
+    started = time.monotonic()
     payload = _lease_payload(token, now + lease_seconds)
 
     try:
         if await kv_cas_json(kv, leader_key(), payload, 0):
+            if time.monotonic() >= started + lease_seconds:
+                _is_leader = False
+                return False
             _token = token
+            _lease_deadline = started + lease_seconds
             _is_leader = True
             return True
     except Exception as exc:
@@ -141,8 +159,14 @@ async def try_become_leader(lease_seconds: float = DEFAULT_LEASE_SECONDS) -> boo
 
     if doc is None or float(doc.get("expires_at", 0)) <= now:
         try:
+            started = time.monotonic()
+            payload = _lease_payload(token, time.time() + lease_seconds)
             if await kv_cas_json(kv, leader_key(), payload, rev):
+                if time.monotonic() >= started + lease_seconds:
+                    _is_leader = False
+                    return False
                 _token = token
+                _lease_deadline = started + lease_seconds
                 _is_leader = True
                 return True
         except Exception as exc:
@@ -152,12 +176,20 @@ async def try_become_leader(lease_seconds: float = DEFAULT_LEASE_SECONDS) -> boo
     return False
 
 
-async def _heartbeat_loop(lease_seconds: float = DEFAULT_LEASE_SECONDS) -> None:
+async def _heartbeat_loop(
+    lease_seconds: float = DEFAULT_LEASE_SECONDS, *, initial_deadline: float | None = None
+) -> None:
+    global _lease_deadline
+    _lease_deadline = initial_deadline if initial_deadline is not None else time.monotonic() + lease_seconds
     consecutive_failures = 0
     while _is_leader and _token is not None:
         # On renewal failure, retry promptly — do not wait another full HEARTBEAT_INTERVAL.
         delay = HEARTBEAT_INTERVAL if consecutive_failures == 0 else HEARTBEAT_RETRY_DELAY
-        await asyncio.sleep(delay)
+        remaining = _lease_deadline - time.monotonic()
+        if remaining <= 0:
+            await _concede_leadership("lease deadline expired")
+            return
+        await asyncio.sleep(min(delay, remaining))
         kv = _kv
         token = _token
         if kv is None or token is None:
@@ -165,15 +197,23 @@ async def _heartbeat_loop(lease_seconds: float = DEFAULT_LEASE_SECONDS) -> None:
             return
 
         try:
-            doc, rev = await kv_get_json(kv, leader_key())
+            started = time.monotonic()
+            async with asyncio.timeout_at(_lease_deadline):
+                doc, rev = await kv_get_json(kv, leader_key())
+                renewed = False
+                if doc is not None and doc.get("token") == token:
+                    renewed = await kv_cas_json(
+                        kv, leader_key(), _lease_payload(token, time.time() + lease_seconds), rev
+                    )
             if doc is None:
                 await _concede_leadership("lease key unavailable")
                 return
             if doc.get("token") != token:
                 await _concede_leadership("lease token invalid or replaced")
                 return
-            if not await kv_cas_json(kv, leader_key(), _lease_payload(token, time.time() + lease_seconds), rev):
+            if not renewed:
                 raise RuntimeError("failed to renew scheduler leader lease")
+            _lease_deadline = started + lease_seconds
             consecutive_failures = 0
         except Exception as exc:
             consecutive_failures += 1
@@ -183,7 +223,7 @@ async def _heartbeat_loop(lease_seconds: float = DEFAULT_LEASE_SECONDS) -> None:
                 HEARTBEAT_MAX_RETRIES,
                 exc,
             )
-            if consecutive_failures >= HEARTBEAT_MAX_RETRIES:
+            if consecutive_failures >= HEARTBEAT_MAX_RETRIES or time.monotonic() >= _lease_deadline:
                 await _concede_leadership("renewal exhausted")
                 return
 
@@ -194,7 +234,7 @@ async def start_job_leader() -> bool:
     won = await try_become_leader()
     if won and needs_job_leader():
         if _heartbeat_task is None or _heartbeat_task.done():
-            _heartbeat_task = asyncio.create_task(_heartbeat_loop())
+            _heartbeat_task = asyncio.create_task(_heartbeat_loop(initial_deadline=_lease_deadline))
         logger.info(
             "Acquired scheduler leadership (role=%s key=%s worker_id=%s)",
             runtime_settings.role.value,
@@ -213,8 +253,9 @@ async def start_job_leader() -> bool:
 
 
 async def stop_job_leader() -> None:
-    global _heartbeat_task, _token, _is_leader, _nc, _kv
+    global _heartbeat_task, _token, _is_leader, _nc, _kv, _lease_deadline
     _is_leader = False
+    _lease_deadline = 0.0
     if _heartbeat_task is not None:
         _heartbeat_task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
@@ -238,4 +279,4 @@ async def stop_job_leader() -> None:
 
 
 def is_job_leader() -> bool:
-    return _is_leader
+    return _is_leader and (not needs_job_leader() or time.monotonic() < _lease_deadline)

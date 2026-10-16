@@ -108,6 +108,7 @@ async def shutdown_queue(queue: NotificationQueue):
         queue._consumer = None
         queue._js = None
         queue._nc = None
+        queue._initialized = False
 
 
 async def shutdown_webhook_queue():

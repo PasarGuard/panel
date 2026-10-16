@@ -190,6 +190,7 @@ async def test_failed_sync_recovers_local_attachment_with_cooldown(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_failed_sync_does_not_mask_dead_backend(monkeypatch):
+    monkeypatch.setattr(node_checker, "_owns_health_checks", lambda: True)
     db_node, node, _ = setup_node(monkeypatch, health=Health.BROKEN)
     node.requires_hard_reset = MagicMock(return_value=True)
     monkeypatch.setattr(node_checker, "GetDB", FakeDB)
