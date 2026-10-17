@@ -764,8 +764,8 @@ function UdpLayersForm({ form, allowClientOnlyMasks }: { form: UseFormReturn<any
 
               {type === 'header-custom' && (
                 <div className="bg-background space-y-4 rounded-md border p-3">
-                  <XrayNoiseSettingsList form={form} name={`udp.${index}.settings.client`} label={t('hostsDialog.finalmask.clientSettings')} />
-                  <XrayNoiseSettingsList form={form} name={`udp.${index}.settings.server`} label={t('hostsDialog.finalmask.serverSettings')} />
+                  <XrayNoiseSettingsList form={form} name={`udp.${index}.settings.client`} label={t('hostsDialog.finalmask.clientSettings')} headerCustom />
+                  <XrayNoiseSettingsList form={form} name={`udp.${index}.settings.server`} label={t('hostsDialog.finalmask.serverSettings')} headerCustom />
                 </div>
               )}
             </div>
@@ -1432,9 +1432,10 @@ interface XrayNoiseSettingsListProps {
   name: string
   label: string
   allowExp?: boolean
+  headerCustom?: boolean
 }
 
-function XrayNoiseSettingsList({ form, name, label, allowExp }: XrayNoiseSettingsListProps) {
+function XrayNoiseSettingsList({ form, name, label, allowExp, headerCustom }: XrayNoiseSettingsListProps) {
   const { t } = useTranslation()
   const { fields, append, remove, insert } = useFieldArray({
     control: form.control,
@@ -1452,7 +1453,7 @@ function XrayNoiseSettingsList({ form, name, label, allowExp }: XrayNoiseSetting
     <div className="bg-muted/10 space-y-3 rounded-md border p-3">
       <div className="flex items-center justify-between">
         <span className="text-muted-foreground text-xs font-semibold">{label}</span>
-        <Button type="button" variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => append({ type: 'array', packet: [], delay: '', rand: '', randRange: '0-255' })}>
+        <Button type="button" variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => append(headerCustom ? { type: 'array', packet: [], randRange: '0-255' } : { type: 'array', packet: [], delay: '', rand: '', randRange: '0-255' })}>
           <Plus className="mr-1 h-3.5 w-3.5" />
           {t('hostsDialog.noise.addNoise', { defaultValue: 'Add' })}
         </Button>
@@ -1555,17 +1556,19 @@ function XrayNoiseSettingsList({ form, name, label, allowExp }: XrayNoiseSetting
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name={`${name}.${index}.delay`}
-                render={({ field: inputField }) => (
-                  <FormItem>
-                    <FormControl>
-                      <Input placeholder={t('hostsDialog.noise.delayPlaceholder')} {...inputField} value={inputField.value || ''} className="h-8 text-xs" />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
+              {!headerCustom && (
+                <FormField
+                  control={form.control}
+                  name={`${name}.${index}.delay`}
+                  render={({ field: inputField }) => (
+                    <FormItem>
+                      <FormControl>
+                        <Input placeholder={t('hostsDialog.noise.delayPlaceholder')} {...inputField} value={inputField.value || ''} className="h-8 text-xs" />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+              )}
               {!isExpType && (
                 <>
                   <FormField
@@ -1574,7 +1577,19 @@ function XrayNoiseSettingsList({ form, name, label, allowExp }: XrayNoiseSetting
                     render={({ field: inputField }) => (
                       <FormItem>
                         <FormControl>
-                          <Input placeholder={t('hostsDialog.finalmask.noiseRandPlaceholder')} {...inputField} value={inputField.value || ''} className="h-8 text-xs" />
+                          {headerCustom ? (
+                            <Input
+                              type="number"
+                              min={0}
+                              placeholder={t('hostsDialog.finalmask.headerRandPlaceholder')}
+                              {...inputField}
+                              value={inputField.value ?? ''}
+                              onChange={e => inputField.onChange(e.target.value === '' ? undefined : e.target.valueAsNumber)}
+                              className="h-8 text-xs"
+                            />
+                          ) : (
+                            <Input placeholder={t('hostsDialog.finalmask.noiseRandPlaceholder')} {...inputField} value={inputField.value || ''} className="h-8 text-xs" />
+                          )}
                         </FormControl>
                       </FormItem>
                     )}
