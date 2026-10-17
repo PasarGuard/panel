@@ -1583,6 +1583,7 @@
       "keepAlivePeriodPlaceholder": "e.g. 0",
       "disablePmtuDiscovery": "Disable PMTU Discovery",
       "noiseRandPlaceholder": "e.g. 1-8192",
+      "headerRandPlaceholder": "e.g. 32",
       "noiseRandRangePlaceholder": "e.g. 0-255",
       "noiseExpPlaceholder": "e.g. <b 0d0a><t><r 24-48>"
     },

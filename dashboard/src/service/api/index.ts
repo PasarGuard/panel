@@ -930,22 +930,27 @@ export const FinalMaskTcpType = {
   xmc: 'xmc',
 } as const;
 
-/**
- * Packet camouflage item used by FinalMask. Unlike Freedom noise, this has no apply_to.
- */
-export interface FinalMaskNoiseItem {
+export interface FinalMaskTcpHeaderCustomItem {
   type?: string | null;
   packet?: string | number[] | null;
-  delay?: string | number | null;
-  rand?: number | string | null;
+  delay?: number | string | null;
+  rand?: number | null;
+  randRange?: string | null;
+  [key: string]: unknown;
+ }
+
+export interface FinalMaskUdpHeaderCustomItem {
+  type?: string | null;
+  packet?: string | number[] | null;
+  rand?: number | null;
   randRange?: string | null;
   [key: string]: unknown;
  }
 
 export interface FinalMaskTcpHeaderCustomSettings {
-  clients?: FinalMaskNoiseItem[][] | null;
-  servers?: FinalMaskNoiseItem[][] | null;
-  errors?: FinalMaskNoiseItem[][] | null;
+  clients?: FinalMaskTcpHeaderCustomItem[][] | null;
+  servers?: FinalMaskTcpHeaderCustomItem[][] | null;
+  errors?: FinalMaskTcpHeaderCustomItem[][] | null;
   [key: string]: unknown;
  }
 
@@ -1015,8 +1020,8 @@ export const FinalMaskUdpType = {
 } as const;
 
 export interface FinalMaskUdpHeaderCustomSettings {
-  client?: FinalMaskNoiseItem[] | null;
-  server?: FinalMaskNoiseItem[] | null;
+  client?: FinalMaskUdpHeaderCustomItem[] | null;
+  server?: FinalMaskUdpHeaderCustomItem[] | null;
   [key: string]: unknown;
  }
 
