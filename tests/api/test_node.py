@@ -707,6 +707,7 @@ def node_operator_mock(monkeypatch: pytest.MonkeyPatch):
         "get_node_stats_periodic",
         "get_node_system_stats",
         "get_user_count_metric",
+        "get_users_ip_ranking",
     ]
     for name in async_methods:
         setattr(operator, name, AsyncMock(name=name))
@@ -1386,3 +1387,22 @@ async def test_remove_node_deletes_associated_usage_tables():
         assert await count_rows(NodeStat) == 0
         remaining_nodes = await session.scalar(select(func.count()).select_from(Node).where(Node.id == node_id))
         assert remaining_nodes == 0
+
+
+@pytest.mark.parametrize(
+    "query",
+    ["offset=-1", "limit=0", "limit=-5"],
+)
+def test_ip_ranking_rejects_invalid_paging(access_token, node_operator_mock, query: str):
+    response = client.get(f"/api/node/online_stats/ranked_by_ip_count?{query}", headers=auth_headers(access_token))
+    assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+    node_operator_mock.get_users_ip_ranking.assert_not_called()
+
+
+def test_ip_ranking_accepts_zero_offset_and_minimal_limit(access_token, node_operator_mock):
+    node_operator_mock.get_users_ip_ranking.return_value = {"users": [], "updated_at": datetime.now(UTC).isoformat()}
+    response = client.get(
+        "/api/node/online_stats/ranked_by_ip_count?offset=0&limit=1", headers=auth_headers(access_token)
+    )
+    assert response.status_code == status.HTTP_200_OK
+    assert node_operator_mock.get_users_ip_ranking.await_args.kwargs["query"].limit == 1
