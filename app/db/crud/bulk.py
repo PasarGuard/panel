@@ -1,5 +1,5 @@
 from collections.abc import Iterator, Sequence
-from datetime import UTC, datetime as dt
+from datetime import UTC, datetime as dt, timedelta
 from typing import Literal
 
 from sqlalchemy import and_, case, cast, delete, func, insert, or_, select, text, true, update
@@ -18,7 +18,7 @@ from app.db.models import (
     users_groups_association,
 )
 from app.models.group import BulkGroup
-from app.models.user import BulkUser, BulkUserFilter, BulkUsersProxy
+from app.models.user import BulkUser, BulkUserExpire, BulkUserFilter, BulkUsersProxy
 
 from .general import get_datetime_add_expression
 from .user import _build_user_select_stmt, _explicit_ids
@@ -28,12 +28,21 @@ class BulkUserUpdateConflict(ValueError):
     """A checked target changed before the conditional bulk update completed."""
 
 
+def expire_anchor_base(bulk_model: BulkUser, current_time: dt) -> dt | None:
+    """Absolute instant that replaces each user's expire date, or None when the expire date itself is the base."""
+    if not isinstance(bulk_model, BulkUserExpire) or bulk_model.anchor == "expire":
+        return None
+    return current_time if bulk_model.anchor == "now" else bulk_model.anchor
+
+
 def _bulk_user_target_filter(
     bulk_model: BulkUser, field: Literal["expire", "data_limit"], target_ids: Sequence[int] | None = None
 ):
     """Select exactly the finite values that the requested bulk adjustment can change."""
     selection = _create_final_filter(bulk_model) if target_ids is None else _explicit_ids(User.id, target_ids)
     if field == "expire":
+        if isinstance(bulk_model, BulkUserExpire) and bulk_model.anchor != "expire":
+            return and_(selection, User.status != UserStatus.on_hold)
         return and_(selection, User.expire.isnot(None))
     conditions = [selection, User.data_limit.isnot(None), User.data_limit != 0]
     if bulk_model.amount < 0:
@@ -364,7 +373,7 @@ def _create_final_filter(bulk_model: BulkUserFilter):
 
 async def update_users_expire(
     db: AsyncSession,
-    bulk_model: BulkUser,
+    bulk_model: BulkUserExpire,
     *,
     target_ids: Sequence[int] | None = None,
     minimum: dt | None = None,
@@ -376,9 +385,12 @@ async def update_users_expire(
     final_filter = _bulk_user_target_filter(bulk_model, "expire", target_ids)
 
     count_effctive_users = (await db.execute(select(func.count(User.id)).where(final_filter))).scalar_one_or_none() or 0
-    # Get database-specific datetime addition expression
-    new_expire = get_datetime_add_expression(db, User.expire, bulk_model.amount)
     current_time = dt.now(UTC)
+    anchor_base = expire_anchor_base(bulk_model, current_time)
+    if anchor_base is None:
+        new_expire = get_datetime_add_expression(db, User.expire, bulk_model.amount)
+    else:
+        new_expire = anchor_base + timedelta(seconds=bulk_model.amount)
 
     # First, get the users that will have status changes BEFORE updating
     status_change_conditions = or_(

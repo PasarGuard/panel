@@ -14,6 +14,7 @@ from app.models.stats import (
 )
 from app.models.user import (
     BulkUser,
+    BulkUserExpire,
     BulkUsersActionResponse,
     BulkUsersApplyTemplate,
     BulkUsersCreateResponse,
@@ -799,7 +800,7 @@ async def modify_user_with_template_by_id(
 
 @router.post("s/bulk/expire", summary="Bulk sum/sub to expire of users", response_description="Success confirmation")
 async def bulk_modify_users_expire(
-    bulk_model: BulkUser,
+    bulk_model: BulkUserExpire,
     db: AsyncSession = Depends(get_db),
     admin: AdminDetails = Depends(require_scope_all("users", "update")),
 ):
@@ -807,6 +808,8 @@ async def bulk_modify_users_expire(
     Bulk expire users based on the provided criteria.
 
     - **amount**: amount to adjust the user's quota (in seconds, positive to increase, negative to decrease) required
+    - **anchor**: "expire" (default) adds amount to each user's current expire date; "now" sets expire to
+      now + amount for every matched user, regardless of their current expire date
     - **user_ids**: Optional list of user IDs to modify
     - **admins**: Optional list of admin IDs — their users will be targeted
     - **status**: Optional status to filter users (e.g., "expired", "active"), Empty means no filtering
