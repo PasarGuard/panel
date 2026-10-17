@@ -2,6 +2,8 @@ from enum import Enum
 
 from pydantic import BaseModel, Field, field_validator
 
+from app.db.models import UserStatus
+
 from .validators import AwareDatetime, NumericValidatorMixin
 
 
@@ -32,6 +34,39 @@ class UserUsageStat(PeriodStartStat):
 
 class UserUsageStatsList(StatList):
     stats: dict[int, list[UserUsageStat]]
+
+
+class UserNodeUsageTotal(BaseModel):
+    node_id: int
+    total_traffic: int
+
+    @field_validator("total_traffic", mode="before")
+    def cast_to_int(cls, v):
+        return NumericValidatorMixin.cast_to_int(v)
+
+
+class UserUsageTotal(BaseModel):
+    user_id: int
+    username: str
+    status: UserStatus
+    total_traffic: int
+    nodes: list[UserNodeUsageTotal] | None = None
+
+    @field_validator("total_traffic", mode="before")
+    def cast_to_int(cls, v):
+        return NumericValidatorMixin.cast_to_int(v)
+
+
+class UserUsageTotalsList(BaseModel):
+    start: AwareDatetime
+    end: AwareDatetime
+    total_traffic: int
+    total: int
+    users: list[UserUsageTotal]
+
+    @field_validator("total_traffic", mode="before")
+    def cast_to_int(cls, v):
+        return NumericValidatorMixin.cast_to_int(v)
 
 
 class UserCountMetric(str, Enum):
