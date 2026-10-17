@@ -6,6 +6,7 @@ from app.models.node import (
     NodeSimpleListQuery,
     NodeStatsPeriodQuery,
     NodeUsageQuery,
+    UserIPRankingQuery,
 )
 from app.models.stats import Period
 
@@ -56,5 +57,15 @@ get_node_simple_list_query = make_query_dependency(
         "search": Query(None),
         "sort": query_param(str | None, None),
         "all": Query(False),
+    },
+)
+get_user_ip_ranking_query = make_query_dependency(
+    UserIPRankingQuery,
+    field_overrides={
+        "offset": Query(None, ge=0),
+        "limit": Query(None, ge=1),
+        "admin_ids": Query(None, alias="admin_ids"),
+        "group_ids": Query(None, alias="group"),
+        "status": Query(None),
     },
 )

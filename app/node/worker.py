@@ -2,6 +2,7 @@ import asyncio
 import contextlib
 import json
 import uuid
+from datetime import UTC, datetime
 
 from nats.aio.subscription import Subscription
 from PasarGuardNodeBridge import NodeAPIError
@@ -12,7 +13,7 @@ from app.core.manager import core_manager
 from app.db import GetDB
 from app.db.crud.node import get_node_by_id, get_nodes
 from app.db.models import NodeStatus
-from app.models.node import NodeCoreUpdate, NodeGeoFilesUpdate, NodeListQuery
+from app.models.node import NodeCoreUpdate, NodeGeoFilesUpdate, NodeListQuery, UserOnlineIPsSnapshot
 from app.nats.proto_utils import deserialize_proto_message, deserialize_proto_messages
 from app.nats.rpc_service import BaseRpcService
 from app.node import node_manager
@@ -58,6 +59,7 @@ class NodeWorkerService(BaseRpcService):
         self.register_rpc_handler("get_user_online_stats", self._get_user_online_stats_by_node)
         self.register_rpc_handler("get_user_ip_list", self._get_user_ip_list_by_node)
         self.register_rpc_handler("get_user_ip_list_all", self._get_user_ip_list_all_nodes)
+        self.register_rpc_handler("get_users_ip_ranking", self._get_users_ip_ranking)
         self.register_rpc_handler("update_node_api", self._update_node_api)
         self.register_rpc_handler("update_core", self._update_core)
         self.register_rpc_handler("update_geofiles", self._update_geofiles)
@@ -259,6 +261,12 @@ class NodeWorkerService(BaseRpcService):
         async with GetDB() as db:
             user_ips = await self._node_operator.get_user_ip_list_all_nodes(db, user_id)
         return user_ips.model_dump()
+
+    async def _get_users_ip_ranking(self, data: dict) -> dict:
+        users, skipped_node_count = await self._node_operator.get_users_online_ips(data.get("node_ids"))
+        return UserOnlineIPsSnapshot(
+            users=users, computed_at=datetime.now(UTC), skipped_node_count=skipped_node_count
+        ).model_dump(mode="json")
 
     async def _update_node_api(self, data: dict) -> dict:
         node_id = data.get("node_id")
