@@ -109,6 +109,7 @@ class XRayConfig(dict):
             "http": self._handle_http_settings,
             "h2": self._handle_http_settings,
             "h3": self._handle_http_settings,
+            "masque": self._handle_masque_settings,
         }
         self._collect_fallback_inbounds(fallbacks_inbound_tags)
 
@@ -436,6 +437,17 @@ class XRayConfig(dict):
         settings["host"] = net_settings.get("host") or net_settings.get("Host", "")
         settings["path"] = net_settings.get("path", "")
 
+    def _handle_masque_settings(self, net_settings: dict, settings: dict, inbound_tag: str = ""):
+        """Handle MASQUE transport settings used by the inbound metadata parser."""
+        settings["path"] = net_settings.get("path", "")
+        host = net_settings.get("host", "")
+        settings["host"] = [host] if isinstance(host, str) and host else host
+        headers = net_settings.get("headers")
+        if isinstance(headers, dict):
+            settings["http_headers"] = {
+                key: value for key, value in headers.items() if isinstance(key, str) and isinstance(value, str)
+            }
+
     def _handle_default_network_settings(self, net_settings: dict, settings: dict, inbound_tag: str = ""):
         """Handle default network settings."""
         settings["path"] = net_settings.get("path", "")
@@ -567,7 +579,7 @@ class XRayConfig(dict):
 
     def _read_inbound(self, inbound: dict):
         """Read an inbound and its settings."""
-        if inbound["protocol"] not in ("vmess", "vless", "trojan", "shadowsocks", "hysteria", "wireguard"):
+        if inbound["protocol"] not in ("vmess", "vless", "trojan", "shadowsocks", "hysteria", "masque", "wireguard"):
             return
 
         if inbound["tag"] in self.exclude_inbound_tags:
@@ -587,7 +599,8 @@ class XRayConfig(dict):
 
         if not inbound.get("settings"):
             inbound["settings"] = {}
-        if not inbound["settings"].get("clients"):
+        # MASQUE uses settings.users (email/pass) rather than settings.clients.
+        if inbound["protocol"] != "masque" and not inbound["settings"].get("clients"):
             inbound["settings"]["clients"] = []
 
         settings = self._create_base_settings(inbound)
@@ -608,6 +621,11 @@ class XRayConfig(dict):
             method = stream.get("method")
             net = method if method else stream.get("network", "tcp")
             net_settings = stream.get(f"{net}Settings", {})
+            # MASQUE uses its own settings object while `method` selects its
+            # HTTP/2 or HTTP/3 mode.
+            if isinstance(stream.get("masqueSettings"), dict):
+                net = "masque"
+                net_settings = stream["masqueSettings"]
             security = stream.get("security")
             tls_settings = stream.get(f"{security}Settings")
 

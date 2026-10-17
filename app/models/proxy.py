@@ -1,6 +1,6 @@
 import json
 from enum import StrEnum
-from ipaddress import ip_network
+from ipaddress import ip_address, ip_network
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -36,6 +36,24 @@ class ShadowsocksSettings(BaseModel):
 
 class HysteriaSettings(BaseModel):
     auth: str = Field(default_factory=random_password, min_length=1)
+
+
+class MasqueSettings(BaseModel):
+    password: str = Field(default_factory=random_password, min_length=1)
+    remote_dns: list[str] = Field(default_factory=list)
+
+    @field_validator("remote_dns", mode="before")
+    @classmethod
+    def validate_remote_dns(cls, value):
+        if value in (None, ""):
+            return []
+        values = [value] if isinstance(value, str) else value
+        normalized: list[str] = []
+        for item in values:
+            address = str(ip_address(item.strip()))
+            if address not in normalized:
+                normalized.append(address)
+        return normalized
 
 
 class WireGuardPeerIPs(BaseModel):
@@ -105,6 +123,7 @@ class ProxyTable(BaseModel):
     shadowsocks: ShadowsocksSettings = Field(default_factory=ShadowsocksSettings)
     wireguard: WireGuardSettings = Field(default_factory=WireGuardSettings)
     hysteria: HysteriaSettings = Field(default_factory=HysteriaSettings)
+    masque: MasqueSettings = Field(default_factory=MasqueSettings)
 
     def dict(self, *, no_obj=True, **kwargs):
         if no_obj:
