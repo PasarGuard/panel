@@ -1135,6 +1135,10 @@
     "path": "مسیر",
     "selectAlpn": "انتخاب ALPN",
     "networkSettings": "تنظیمات شبکه",
+    "masque": {
+      "remoteDns": "سرورهای DNS راه دور MASQUE",
+      "remoteDnsHint": "برای استفاده از سرورهای DNS ورودی، خالی بگذارید"
+    },
     "transportSettings": "تنظیمات انتقال",
     "transportType": "نوع انتقال",
     "selectTransport": "انتخاب نوع انتقال",

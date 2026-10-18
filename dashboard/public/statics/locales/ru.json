@@ -1532,6 +1532,10 @@
     "path": "Путь",
     "selectAlpn": "Выберите ALPN",
     "networkSettings": "Сетевые настройки",
+    "masque": {
+      "remoteDns": "Удалённые DNS-серверы MASQUE",
+      "remoteDnsHint": "Оставьте пустым, чтобы использовать DNS-серверы входящего подключения"
+    },
     "transportSettings": "Настройки транспорта",
     "transportType": "Тип транспорта",
     "selectTransport": "Выберите тип транспорта",

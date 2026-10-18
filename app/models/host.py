@@ -677,12 +677,17 @@ class MuxSettings(BaseModel):
     xray: XrayMuxSettings | None = Field(default=None)
 
 
+class MasqueHostSettings(BaseModel):
+    remote_dns: list[str] | None = Field(default=None)
+
+
 class TransportSettings(BaseModel):
     xhttp_settings: XHttpSettings | None = Field(default=None)
     grpc_settings: GRPCSettings | None = Field(default=None)
     kcp_settings: KCPSettings | None = Field(default=None)
     tcp_settings: TcpSettings | None = Field(default=None)
     websocket_settings: WebSocketSettings | None = Field(default=None)
+    masque_settings: MasqueHostSettings | None = Field(default=None)
 
 
 class FormatVariables(dict):

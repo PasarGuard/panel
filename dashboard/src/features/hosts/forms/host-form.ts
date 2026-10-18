@@ -102,6 +102,9 @@ export interface HostFormValues {
     xray?: number | null
   }
   transport_settings?: {
+    masque_settings?: {
+      remote_dns?: string[]
+    }
     xhttp_settings?: {
       mode?: 'auto' | 'packet-up' | 'stream-up' | 'stream-one'
       no_grpc_header?: boolean
@@ -359,6 +362,12 @@ const transportSettingsSchema = z
     websocket_settings: z
       .object({
         heartbeatPeriod: z.number().nullish().optional(),
+      })
+      .nullish()
+      .optional(),
+    masque_settings: z
+      .object({
+        remote_dns: z.array(z.string()).optional(),
       })
       .nullish()
       .optional(),

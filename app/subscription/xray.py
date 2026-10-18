@@ -515,7 +515,7 @@ class XrayConfiguration(BaseSubscription):
         )
 
     def _build_masque(self, address: str, inbound: SubscriptionInboundData, settings: dict) -> dict:
-        """Build MASQUE outbound. Credentials and DNS are optional per-user settings."""
+        """Build MASQUE outbound with user credentials and host/inbound DNS."""
         masque_settings = settings.get("masque")
         if not isinstance(masque_settings, dict):
             masque_settings = settings
@@ -524,7 +524,7 @@ class XrayConfiguration(BaseSubscription):
             {
                 "user": masque_settings.get("user", ""),
                 "password": masque_settings.get("pass", masque_settings.get("password", "")),
-                "remote_dns": masque_settings.get("remote_dns", masque_settings.get("remoteDNS")) or [],
+                "remote_dns": inbound.masque_remote_dns,
             }
         )
 

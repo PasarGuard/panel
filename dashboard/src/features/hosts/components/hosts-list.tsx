@@ -256,6 +256,9 @@ export default function HostsList({
         : undefined,
       transport_settings: host.transport_settings
         ? {
+            masque_settings: host.transport_settings.masque_settings
+              ? { remote_dns: host.transport_settings.masque_settings.remote_dns ?? [] }
+              : undefined,
             xhttp_settings: host.transport_settings.xhttp_settings
               ? {
                   mode: host.transport_settings.xhttp_settings.mode ?? undefined,
@@ -627,6 +630,9 @@ export default function HostsList({
           : undefined,
         transport_settings: host.transport_settings
           ? {
+              masque_settings: host.transport_settings.masque_settings
+                ? { remote_dns: host.transport_settings.masque_settings.remote_dns ?? [] }
+                : undefined,
               xhttp_settings: host.transport_settings.xhttp_settings
                 ? {
                     mode: host.transport_settings.xhttp_settings.mode ?? undefined,

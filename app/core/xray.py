@@ -565,6 +565,9 @@ class XRayConfig(dict):
         if inbound["protocol"] == "shadowsocks":
             self._handle_shadowsocks_settings(inbound["settings"], settings)
 
+        if inbound["protocol"] == "masque":
+            settings["remote_dns"] = inbound["settings"].get("remoteDNS") or inbound["settings"].get("remote_dns")
+
         if stream := inbound.get("streamSettings"):
             method = stream.get("method")
             net = method if method else stream.get("network", "tcp")
@@ -574,6 +577,8 @@ class XRayConfig(dict):
             if isinstance(stream.get("masqueSettings"), dict):
                 net = "masque"
                 net_settings = stream["masqueSettings"]
+                if inbound["protocol"] == "masque" and not settings.get("remote_dns"):
+                    settings["remote_dns"] = net_settings.get("remoteDNS") or net_settings.get("remote_dns")
             security = stream.get("security")
             tls_settings = stream.get(f"{security}Settings")
 

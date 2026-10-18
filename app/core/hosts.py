@@ -97,6 +97,10 @@ async def _prepare_subscription_inbound_data(
 
     network = inbound_config.get("network", "tcp")
     path = host.path or inbound_config.get("path", "")
+    masque_remote_dns = []
+    if protocol == "masque":
+        host_dns = ts.masque_settings.remote_dns if ts and ts.masque_settings else None
+        masque_remote_dns = [dns.strip() for dns in _string_list(host_dns or inbound_config.get("remote_dns")) if dns.strip()]
 
     final_mask_settings = host.final_mask_settings if host.final_mask_settings else inbound_config.get("finalmask")
     if isinstance(final_mask_settings, FinalMask):
@@ -436,6 +440,7 @@ async def _prepare_subscription_inbound_data(
         remark=host.remark,
         inbound_tag=host.inbound_tag,
         protocol=protocol,
+        masque_remote_dns=masque_remote_dns,
         address=address_list,
         port=port_list,  # Store the LIST for random selection!
         network=network,

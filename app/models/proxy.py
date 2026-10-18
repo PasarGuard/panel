@@ -40,21 +40,6 @@ class HysteriaSettings(BaseModel):
 
 class MasqueSettings(BaseModel):
     password: str = Field(default_factory=random_password, min_length=1)
-    remote_dns: list[str] = Field(default_factory=list)
-
-    @field_validator("remote_dns", mode="before")
-    @classmethod
-    def validate_remote_dns(cls, value):
-        if value in (None, ""):
-            return []
-        values = [value] if isinstance(value, str) else value
-        normalized: list[str] = []
-        for item in values:
-            address = str(ip_address(item.strip()))
-            if address not in normalized:
-                normalized.append(address)
-        return normalized
-
 
 class WireGuardPeerIPs(BaseModel):
     peer_ips: list[str] = Field(default_factory=list)
