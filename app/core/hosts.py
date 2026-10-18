@@ -23,6 +23,7 @@ from app.models.host import (
 from app.models.subscription import (
     GRPCTransportConfig,
     KCPTransportConfig,
+    MasqueTransportConfig,
     QUICTransportConfig,
     SubscriptionInboundData,
     TCPTransportConfig,
@@ -82,10 +83,18 @@ async def _prepare_subscription_inbound_data(
     host: BaseHost,
     down_settings: SubscriptionInboundData | None = None,
 ) -> SubscriptionInboundData:
-    """
-    Prepare host data - creates small config instances ONCE.
-    Merges inbound config with host config.
-    Random selection happens in share.py on every request!
+    """Merge host overrides with inbound defaults for subscription generation.
+
+    Return reusable TLS and transport settings, retaining address and port
+    candidates for selection on each request. ``down_settings`` supplies a
+    prepared download host for an xHTTP host with xHTTP settings. For MASQUE,
+    absent or empty host DNS settings fall back to inbound DNS; entries are
+    stripped and blank entries removed. Explicit host HTTP headers, including
+    an empty mapping, override inbound headers for MASQUE and xHTTP.
+
+    Raises:
+        TypeError: The host's inbound tag does not resolve in the core manager.
+        ValueError: A port cannot be parsed or merged settings fail model validation.
     """
     # Get inbound configuration
     inbound_config = await core_manager.get_inbound_by_tag(host.inbound_tag)
@@ -97,6 +106,10 @@ async def _prepare_subscription_inbound_data(
 
     network = inbound_config.get("network", "tcp")
     path = host.path or inbound_config.get("path", "")
+    masque_remote_dns = []
+    if protocol == "masque":
+        host_dns = ts.masque_settings.remote_dns if ts and ts.masque_settings else None
+        masque_remote_dns = [dns.strip() for dns in _string_list(host_dns or inbound_config.get("remote_dns")) if dns.strip()]
 
     final_mask_settings = host.final_mask_settings if host.final_mask_settings else inbound_config.get("finalmask")
     if isinstance(final_mask_settings, FinalMask):
@@ -431,6 +444,12 @@ async def _prepare_subscription_inbound_data(
             http_headers=host.http_headers,
             random_user_agent=host.random_user_agent,
         )
+    elif network == "masque":
+        transport_config = MasqueTransportConfig(
+            path=path,
+            host=host_list,
+            http_headers=host.http_headers if host.http_headers is not None else inbound_config.get("http_headers"),
+        )
     else:
         # Unknown network type, default to TCP
         transport_config = TCPTransportConfig(
@@ -445,6 +464,7 @@ async def _prepare_subscription_inbound_data(
         remark=host.remark,
         inbound_tag=host.inbound_tag,
         protocol=protocol,
+        masque_remote_dns=masque_remote_dns,
         address=address_list,
         port=port_list,  # Store the LIST for random selection!
         network=network,

@@ -1323,6 +1323,10 @@
     "path": "Path",
     "selectAlpn": "Select ALPN",
     "networkSettings": "Network Settings",
+    "masque": {
+      "remoteDns": "MASQUE remote DNS servers",
+      "remoteDnsHint": "Leave empty to use the inbound DNS servers"
+    },
     "transportSettings": "Transport Settings",
     "transportType": "Transport Type",
     "selectTransport": "Select transport type",

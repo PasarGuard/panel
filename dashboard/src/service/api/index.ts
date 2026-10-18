@@ -761,6 +761,11 @@ export interface TransportSettings {
   kcp_settings?: KCPSettings | null;
   tcp_settings?: TcpSettings | null;
   websocket_settings?: WebSocketSettings | null;
+  masque_settings?: MasqueHostSettings | null;
+}
+
+export interface MasqueHostSettings {
+  remote_dns?: string[] | null;
 }
 
 export type MultiplexProtocol = typeof MultiplexProtocol[keyof typeof MultiplexProtocol];
