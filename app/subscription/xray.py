@@ -28,6 +28,13 @@ class XrayConfiguration(BaseSubscription):
         user_agent_template_content: str | None = None,
         grpc_user_agent_template_content: str | None = None,
     ):
+        """Initialize an empty subscription builder from optional JSON templates.
+
+        The Xray template is the base for each added configuration. The user
+        agent templates provide lists for transports that select user agents.
+        Missing or empty template content uses empty defaults. Malformed JSON
+        in any template propagates as ``json.JSONDecodeError``.
+        """
         super().__init__(
             user_agent_template_content=user_agent_template_content,
             grpc_user_agent_template_content=grpc_user_agent_template_content,
@@ -283,7 +290,11 @@ class XrayConfiguration(BaseSubscription):
         return self._normalize_and_remove_none_values(http_settings)
 
     def _transport_masque(self, config: MasqueTransportConfig, path: str) -> dict:
-        """Build the MASQUE transport settings block."""
+        """Build MASQUE transport settings using the supplied path.
+
+        Use the first host when multiple hosts are supplied, and omit an empty
+        host, path, or header mapping from the returned settings.
+        """
         host = config.host if isinstance(config.host, str) else (config.host[0] if config.host else "")
         return self._normalize_and_remove_none_values(
             {
@@ -515,7 +526,14 @@ class XrayConfiguration(BaseSubscription):
         )
 
     def _build_masque(self, address: str, inbound: SubscriptionInboundData, settings: dict) -> dict:
-        """Build MASQUE outbound with user credentials and host/inbound DNS."""
+        """Build MASQUE outbound with user credentials and host/inbound DNS.
+
+        Read credentials from a ``masque`` mapping in ``settings`` when present,
+        otherwise from ``settings`` itself; ``pass`` takes precedence over
+        ``password``. Return ``(main_outbound, extra_outbounds)``. Invalid
+        credentials or DNS values raise ``pydantic.ValidationError``; port
+        conversion errors from outbound construction also propagate.
+        """
         masque_settings = settings.get("masque")
         if not isinstance(masque_settings, dict):
             masque_settings = settings
@@ -594,7 +612,17 @@ class XrayConfiguration(BaseSubscription):
         inbound: SubscriptionInboundData,
         user_settings: dict,
     ) -> dict:
-        """Generic outbound builder"""
+        """Return a proxy outbound and a list of optional fragment/noise dialers.
+
+        Apply the inbound's transport, TLS, final mask, and enabled Xray mux
+        settings. MASQUE always uses the MASQUE transport, places credentials
+        in ``masqueSettings`` and DNS in outbound settings, and omits mux.
+
+        Raises:
+            ValueError: A selected port from a comma-separated string is not an integer.
+            IndexError: A gRPC multi-mode path beginning with ``/`` lacks the
+                ``|`` stream separator.
+        """
         network = "masque" if protocol_type == "masque" else inbound.network
         path = inbound.transport_config.path
         vnext_protocols = ("vmess", "vless")

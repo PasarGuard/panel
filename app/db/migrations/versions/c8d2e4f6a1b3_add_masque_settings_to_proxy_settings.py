@@ -18,6 +18,11 @@ depends_on = None
 
 
 def _masque_password(users_table, dialect: str):
+    """Return a SQL expression extracting the stored MASQUE password.
+
+    Support PostgreSQL, MySQL, and SQLite; raise ``RuntimeError`` for other
+    dialects. This builds an expression without executing a query.
+    """
     settings = users_table.c.proxy_settings
     if dialect == "postgresql":
         from sqlalchemy.dialects.postgresql import JSONB
@@ -31,6 +36,14 @@ def _masque_password(users_table, dialect: str):
 
 
 def upgrade() -> None:
+    """Fill missing or empty MASQUE passwords for users with positive IDs.
+
+    Generate a separate URL-safe password from 24 random bytes for each user,
+    processing up to 1,000 users per batch. Keep existing nonempty passwords
+    and other settings in mappings; replace non-mapping settings with mappings.
+    Unsupported dialects raise ``RuntimeError``. JSON decoding and database
+    errors propagate.
+    """
     bind = op.get_bind()
     dialect = bind.dialect.name
     users_table = sa.table(
@@ -76,6 +89,11 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    """Remove stored MASQUE passwords, including those predating this migration.
+
+    Preserve other settings and leave the containing MASQUE object in place.
+    Unsupported dialects raise ``RuntimeError``; database errors propagate.
+    """
     bind = op.get_bind()
     dialect = bind.dialect.name
     users_table = sa.table(

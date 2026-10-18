@@ -395,7 +395,11 @@ class XRayConfig(dict):
         settings["path"] = net_settings.get("path", "")
 
     def _handle_masque_settings(self, net_settings: dict, settings: dict, inbound_tag: str = ""):
-        """Handle MASQUE transport settings used by the inbound metadata parser."""
+        """Copy MASQUE path, host, and headers into the supplied metadata.
+
+        Wrap a nonempty host string in a list. Copy headers only when they are
+        a dictionary, retaining only entries whose keys and values are strings.
+        """
         settings["path"] = net_settings.get("path", "")
         host = net_settings.get("host", "")
         settings["host"] = [host] if isinstance(host, str) and host else host
@@ -528,7 +532,21 @@ class XRayConfig(dict):
         }
 
     def _read_inbound(self, inbound: dict):
-        """Read an inbound and its settings."""
+        """Register supported inbound metadata and normalize the inbound in place.
+
+        Ignore excluded tags, unsupported protocols, and unmanaged WireGuard
+        inbounds. MASQUE preserves its users without adding a clients list;
+        its nonempty DNS settings take precedence over DNS in ``masqueSettings``.
+        A ``masqueSettings`` mapping selects the MASQUE transport regardless
+        of the stream's method or network. Fallback inbounds are also registered.
+
+        Raises:
+            KeyError: The inbound has no protocol or tag.
+            ValueError: Required settings are missing or protocol, key, or
+                certificate validation fails.
+            TypeError: Transport or WireGuard settings have invalid types.
+            OSError: A TLS certificate or key file cannot be read.
+        """
         if inbound["protocol"] not in ("vmess", "vless", "trojan", "shadowsocks", "hysteria", "masque", "wireguard"):
             return
 
