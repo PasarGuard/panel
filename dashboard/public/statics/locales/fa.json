@@ -1799,6 +1799,7 @@
   "userDialog.proxySettings.method": "روش رمزنگاری",
   "userDialog.proxySettings.hysteria": "Hysteria",
   "userDialog.proxySettings.hysteriaAuth": "احراز هویت Hysteria",
+  "userDialog.proxySettings.masque": "MASQUE",
   "userDialog.proxySettings.wireguardPrivateKey": "کلید خصوصی وایرگارد",
   "userDialog.proxySettings.wireguardPublicKey": "کلید عمومی وایرگارد",
   "userDialog.proxySettings.generateWireGuardKeyPair": "جفت‌کلید وایرگارد",

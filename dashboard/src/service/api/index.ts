@@ -2053,6 +2053,11 @@ export interface WireGuardSettings {
   peer_ips?: string[];
 }
 
+export interface MasqueSettings {
+  /** @minLength 1 */
+  password?: string;
+}
+
 export interface ProxyTable {
   vmess?: VMessSettings;
   vless?: VlessSettings;
@@ -2060,6 +2065,7 @@ export interface ProxyTable {
   shadowsocks?: ShadowsocksSettings;
   wireguard?: WireGuardSettings;
   hysteria?: HysteriaSettings;
+  masque?: MasqueSettings;
 }
 
 export interface RealityScanRequest {

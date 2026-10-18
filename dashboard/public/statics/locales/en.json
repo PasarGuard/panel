@@ -1986,6 +1986,7 @@
     "proxySettings.method": "Method",
     "proxySettings.hysteria": "Hysteria",
     "proxySettings.hysteriaAuth": "Hysteria Auth",
+    "proxySettings.masque": "MASQUE",
     "proxySettings.wireguardPrivateKey": "WireGuard Private key",
     "proxySettings.wireguardPublicKey": "WireGuard Public key",
     "proxySettings.generateWireGuardKeyPair": "WireGuard keypair",

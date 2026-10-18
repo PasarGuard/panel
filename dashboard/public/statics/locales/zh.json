@@ -1948,6 +1948,7 @@
   "userDialog.proxySettings.method": "加密方式",
   "userDialog.proxySettings.hysteria": "Hysteria",
   "userDialog.proxySettings.hysteriaAuth": "Hysteria 认证",
+  "userDialog.proxySettings.masque": "MASQUE",
   "userDialog.proxySettings.wireguardPrivateKey": "WireGuard 私钥",
   "userDialog.proxySettings.wireguardPublicKey": "WireGuard 公钥",
   "userDialog.proxySettings.generateWireGuardKeyPair": "WireGuard 密钥对",

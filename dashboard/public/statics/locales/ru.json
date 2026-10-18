@@ -3298,6 +3298,7 @@
     "proxySettings.method": "Метод",
     "proxySettings.hysteria": "Hysteria",
     "proxySettings.hysteriaAuth": "Аутентификация Hysteria",
+    "proxySettings.masque": "MASQUE",
     "proxySettings.wireguardPrivateKey": "Приватный ключ WireGuard",
     "proxySettings.wireguardPublicKey": "Публичный ключ WireGuard",
     "proxySettings.generateWireGuardKeyPair": "Пара ключей WireGuard",
