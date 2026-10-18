@@ -537,8 +537,9 @@ class XRayConfig(dict):
         Ignore excluded tags, unsupported protocols, and unmanaged WireGuard
         inbounds. MASQUE preserves its users without adding a clients list;
         its nonempty DNS settings take precedence over DNS in ``masqueSettings``.
-        A ``masqueSettings`` mapping selects the MASQUE transport regardless
-        of the stream's method or network. Fallback inbounds are also registered.
+        For MASQUE inbounds, a ``masqueSettings`` mapping selects the MASQUE
+        transport regardless of the stream's method or network. Fallback
+        inbounds are also registered.
 
         Raises:
             KeyError: The inbound has no protocol or tag.
@@ -592,10 +593,10 @@ class XRayConfig(dict):
             net_settings = stream.get(f"{net}Settings", {})
             # MASQUE uses its own settings object while `method` selects its
             # HTTP/2 or HTTP/3 mode.
-            if isinstance(stream.get("masqueSettings"), dict):
+            if inbound["protocol"] == "masque" and isinstance(stream.get("masqueSettings"), dict):
                 net = "masque"
                 net_settings = stream["masqueSettings"]
-                if inbound["protocol"] == "masque" and not settings.get("remote_dns"):
+                if not settings.get("remote_dns"):
                     settings["remote_dns"] = net_settings.get("remoteDNS") or net_settings.get("remote_dns")
             security = stream.get("security")
             tls_settings = stream.get(f"{security}Settings")
