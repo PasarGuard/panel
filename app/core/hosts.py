@@ -29,6 +29,7 @@ from app.models.subscription import (
     TCPTransportConfig,
     TLSConfig,
     WebSocketTransportConfig,
+    XDriveTransportConfig,
     XHTTPTransportConfig,
 )
 from app.nats import is_multi_worker, is_nats_enabled
@@ -191,7 +192,7 @@ async def _prepare_subscription_inbound_data(
     sing_box_ech = ech.sing_box if ech else None
     ech_query_strategy = (xray_ech.query_strategy if xray_ech else None) or inbound_config.get("echForceQuery")
     alpn_list = [alpn.value for alpn in host.alpn] if host.alpn else inbound_config.get("alpn", [])
-    fp = host.fingerprint.value if host.fingerprint.value != "none" else inbound_config.get("fp")
+    fp = host.fingerprint.value if host.fingerprint.value not in ("none", "") else inbound_config.get("fp")
     fp = fp or ("chrome" if tls_value == "reality" else "")
 
     ais = host.allowinsecure if host.allowinsecure is not None else inbound_config.get("allowinsecure", False)
@@ -399,6 +400,21 @@ async def _prepare_subscription_inbound_data(
             path=path,
             host=host_list,
             header_type=qs.header if qs else inbound_header_type,
+        )
+    elif network == "xdrive":
+        transport_config = XDriveTransportConfig(
+            remote_folder=inbound_config.get("xdrive_remote_folder"),
+            service=inbound_config.get("xdrive_service"),
+            secrets=inbound_config.get("xdrive_secrets"),
+            segment_bytes=inbound_config.get("xdrive_segment_bytes"),
+            flush_interval_ms=inbound_config.get("xdrive_flush_interval_ms"),
+            poll_interval_ms=inbound_config.get("xdrive_poll_interval_ms"),
+            max_poll_interval_ms=inbound_config.get("xdrive_max_poll_interval_ms"),
+            session_ttl_seconds=inbound_config.get("xdrive_session_ttl_seconds"),
+            concurrency=inbound_config.get("xdrive_concurrency"),
+            eager_window_ms=inbound_config.get("xdrive_eager_window_ms"),
+            hole_timeout_ms=inbound_config.get("xdrive_hole_timeout_ms"),
+            template=inbound_config.get("xdrive_template"),
         )
     elif network in ("ws", "websocket", "httpupgrade"):
         ws = ts.websocket_settings if ts else None

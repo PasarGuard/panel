@@ -823,11 +823,12 @@ class CreateHost(BaseHost):
 class BulkHostSelection(BaseModel):
     """Model for bulk host selection by IDs"""
 
-    ids: set[int] = Field(default_factory=set)
+    ids: set[int]
 
     @field_validator("ids", mode="after")
     @classmethod
     def ids_validator(cls, v):
+        """Reject an empty selection after deduplicating host IDs."""
         return ListValidator.not_null_list(list(v), "host")
 
 

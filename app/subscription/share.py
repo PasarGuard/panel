@@ -36,6 +36,9 @@ from . import (
 SERVER_IP = "127.0.0.1"
 SERVER_IPV6 = "[::1]"
 
+# Transports only the Xray JSON format can express.
+XRAY_ONLY_NETWORKS = frozenset({"xdrive"})
+
 
 def _build_subscription_config(
     config_format: str,
@@ -464,6 +467,9 @@ async def process_inbounds_and_tags(
         return xray_template_overrides.get(template_id)
 
     for host_data in hosts:
+        if host_data.network in XRAY_ONLY_NETWORKS and not isinstance(conf, XrayConfiguration):
+            # Links, sing-box, Clash and Outline cannot carry these transports.
+            continue
         result = await process_host(host_data, format_variables, user.inbounds, proxy_settings, custom_variables)
         if not result:
             continue

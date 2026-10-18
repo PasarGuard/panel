@@ -6,7 +6,7 @@ import pytest
 
 from app.core.wireguard import WireGuardConfig
 from app.core.xray import XRayConfig
-from app.db.crud.wireguard import wg_core_tags, wg_namespaces
+from app.db.crud.wireguard import wg_core_interfaces, wg_core_tags, wg_namespaces
 from app.models.core import CoreType
 from app.models.protocol import ProxyProtocol
 from app.node.user import _serialize_user_for_node
@@ -74,10 +74,48 @@ def test_xray_wireguard_metadata_and_node_credentials(encoding):
     assert list(user.proxies.wireguard.peer_ips) == ["10.90.0.2/32", "fd90::2/128"]
 
 
-@pytest.mark.parametrize("address", [[], ["10.90.0.1"], ["10.90.0.1/32"], ["invalid"]])
-def test_managed_xray_wireguard_requires_allocatable_subnets(address):
+@pytest.mark.parametrize("address", [[], ["10.90.0.1"], ["10.90.0.1/32"], ["10.90.0.1/31"], ["fd90::1/128"]])
+def test_xray_wireguard_without_allocatable_subnet_is_left_unmanaged(address):
     secret, _ = generate_wireguard_keypair()
-    with pytest.raises(ValueError, match="WireGuard"):
+    parsed = XRayConfig(xray_config(secret, address=address))
+    assert not parsed.inbounds
+    assert not parsed.protocols
+
+
+def test_xray_wireguard_with_null_address_is_left_unmanaged():
+    secret, _ = generate_wireguard_keypair()
+    config = xray_config(secret)
+    config["inbounds"][0]["settings"]["address"] = None
+    parsed = XRayConfig(config)
+    assert not parsed.inbounds
+    assert not parsed.protocols
+
+
+@pytest.mark.parametrize(
+    ("address", "allocatable"),
+    [
+        (["10.90.0.1/32", "10.90.0.1/24"], ["10.90.0.1/24"]),
+        (["10.90.0.1/31", "10.90.0.1/30"], ["10.90.0.1/30"]),
+    ],
+)
+def test_xray_wireguard_allocates_only_from_subnets(address, allocatable):
+    secret, _ = generate_wireguard_keypair()
+    parsed = XRayConfig(xray_config(secret, address=address))
+    assert parsed.inbounds == ["xray-wg"]
+    assert parsed.inbounds_by_tag["xray-wg"]["address"] == allocatable
+
+
+@pytest.mark.parametrize(
+    ("address", "message"),
+    [
+        (["invalid"], "valid IP addresses or CIDRs"),
+        (["10.90.0.1/24", 42], "valid IP addresses or CIDRs"),
+        ("10.90.0.1/24", "needs address CIDRs"),
+    ],
+)
+def test_managed_xray_wireguard_rejects_invalid_addresses(address, message):
+    secret, _ = generate_wireguard_keypair()
+    with pytest.raises(ValueError, match=message):
         XRayConfig(xray_config(secret, address=address))
 
 
@@ -144,6 +182,62 @@ def test_xray_wireguard_without_address_is_left_unmanaged():
     core = SimpleNamespace(type=CoreType.xray, config=config, exclude_inbound_tags=[], fallbacks_inbound_tags=[])
     assert wg_namespaces([core]) == {}
     assert wg_core_tags([core]) == set()
+
+
+@pytest.mark.parametrize(
+    "address",
+    [[], None, ["10.90.0.1"], ["10.90.0.1/32"], ["10.90.0.1/31"], ["invalid"], "10.90.0.1/24"],
+)
+def test_wireguard_pools_skip_xray_inbounds_the_parser_does_not_manage(address):
+    secret, _ = generate_wireguard_keypair()
+    config = xray_config(secret)
+    config["inbounds"][0]["settings"]["address"] = address
+    core = SimpleNamespace(type=CoreType.xray, config=config, exclude_inbound_tags=[], fallbacks_inbound_tags=[])
+    assert wg_core_interfaces(core) == []
+    assert wg_namespaces([core]) == {}
+    assert wg_core_tags([core]) == set()
+
+
+def test_wireguard_pools_skip_xray_inbounds_with_malformed_settings():
+    config = xray_config("unused")
+    config["inbounds"][0]["settings"] = ["10.90.0.1/24"]
+    core = SimpleNamespace(type=CoreType.xray, config=config, exclude_inbound_tags=[], fallbacks_inbound_tags=[])
+    assert wg_core_interfaces(core) == []
+
+
+def test_wireguard_pools_use_the_parser_subnets():
+    secret, _ = generate_wireguard_keypair()
+    config = xray_config(secret, address=["10.90.0.1/32", "10.90.0.1/24", "fd90::1/64"])
+    core = SimpleNamespace(type=CoreType.xray, config=config, exclude_inbound_tags=[], fallbacks_inbound_tags=[])
+    interfaces = wg_core_interfaces(core)
+    assert [interface["interface_name"] for interface in interfaces] == ["xray-wg"]
+    assert interfaces[0]["address"] == ["10.90.0.1/24", "fd90::1/64"]
+    assert interfaces[0]["address"] == XRayConfig(config).inbounds_by_tag["xray-wg"]["address"]
+    assert set(wg_namespaces([core])) == {"10.90.0.0/24", "fd90::/64"}
+    assert wg_core_tags([core]) == {"xray-wg"}
+
+
+@pytest.mark.parametrize(
+    ("address", "reserved"),
+    [
+        (["10.90.0.1", "10.90.0.0/24"], {0, 1, 255}),
+        (["10.90.0.5/32", "10.90.0.1/24"], {0, 1, 5, 255}),
+        (["10.90.0.1/24", "10.90.0.9"], {0, 1, 9, 255}),
+    ],
+)
+def test_wireguard_pools_reserve_every_xray_server_address(address, reserved):
+    # Xray binds each entry as a server address, so none may be handed to a client,
+    # while only the subnet becomes an allocation pool.
+    secret, _ = generate_wireguard_keypair()
+    core = SimpleNamespace(
+        type=CoreType.xray,
+        config=xray_config(secret, address=address),
+        exclude_inbound_tags=[],
+        fallbacks_inbound_tags=[],
+    )
+    namespaces = wg_namespaces([core])
+    assert set(namespaces) == {"10.90.0.0/24"}
+    assert set(namespaces["10.90.0.0/24"].reserved) == reserved
 
 
 @pytest.mark.parametrize("secret", ["", "invalid", "00" * 31, "gg" * 32])

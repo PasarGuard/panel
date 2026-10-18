@@ -2790,7 +2790,7 @@
         "secretKey": "密钥",
         "generateSecretKey": "生成密钥",
         "address": "服务器地址",
-        "addressHint": "示例：10.0.0.1/128",
+        "addressHint": "示例：10.0.0.1/24",
         "addressAddPlaceholder": "添加地址",
         "addItem": "添加",
         "addressItems": "地址",
