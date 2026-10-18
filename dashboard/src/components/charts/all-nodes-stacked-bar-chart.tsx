@@ -23,7 +23,8 @@ import {
   useGetUsersUsage,
 } from '@/service/api'
 import { formatBytes, formatGigabytes } from '@/utils/formatByte'
-import { getChartSeriesColor } from '@/utils/chart-colors'
+import { getDistinctChartColors, getNodeChartColors } from '@/utils/chart-colors'
+import { getCurrentNodeStats } from '@/utils/node-chart-stats'
 import { Skeleton } from '@/components/ui/skeleton'
 import ChartBrush from './chart-brush'
 import DenseChartAreaHint from './dense-chart-area-hint'
@@ -296,7 +297,7 @@ export function AllNodesStackedBarChart() {
   const scopeCoreId = usageScope.startsWith('core:') ? Number(usageScope.slice(5)) : null
   const scopeNodeId = usageScope.startsWith('node:') ? Number(usageScope.slice(5)) : null
 
-  const nodeList: NodeSimple[] = useMemo(() => nodesResponse?.nodes || [], [nodesResponse])
+  const nodeList: NodeSimple[] = useMemo(() => [...(nodesResponse?.nodes || [])].sort((a, b) => a.id - b.id), [nodesResponse])
   // Only cores that still have nodes can own usage rows
   const coreList: CoreSimple[] = useMemo(
     () => (coresResponse?.cores || []).filter((core: CoreSimple) => nodeList.some(node => node.core_config_id === core.id)),
@@ -387,7 +388,10 @@ export function AllNodesStackedBarChart() {
   const usageData = isAdminBreakdown ? adminBreakdownData : nodeScopedUsageData
   const isLoading = isAdminBreakdown ? isLoadingAdminBreakdown : isLoadingNodeScopedUsage
   const error = isAdminBreakdown ? adminBreakdownError : nodeScopedUsageError
-  const statsBySource = useMemo(() => toStatsRecord<UsageStat>(usageData?.stats), [usageData?.stats])
+  const statsBySource = useMemo(() => {
+    const stats = toStatsRecord<UsageStat>(usageData?.stats)
+    return isAdminBreakdown ? stats : getCurrentNodeStats(stats, nodeList)
+  }, [usageData?.stats, isAdminBreakdown, nodeList])
 
   const rankedAdminIds = useMemo(() => {
     if (!isAdminBreakdown) return [] as number[]
@@ -455,18 +459,20 @@ export function AllNodesStackedBarChart() {
   }, [breakdown, adminsResponse, topAdminIds, rankedAdminIds, statsBySource, coreList, nodeList, scopeCoreId, t])
 
   const chartConfig = useMemo(() => {
-    const config: ChartConfig = {}
+    const config: Record<string, { label: string; color: string }> = {}
     const isDark = resolvedTheme === 'dark'
+    const nodeColors = getNodeChartColors(nodeList, isDark)
+    const colors = getDistinctChartColors(seriesList.length, isDark)
     seriesList.forEach((series, index) => {
       if (series.id === OTHER_ADMINS_SERIES_ID) {
         config[series.name] = { label: series.name, color: 'hsl(var(--muted-foreground))' }
         return
       }
 
-      config[series.name] = { label: series.name, color: getChartSeriesColor(index, isDark) }
+      config[series.name] = { label: series.name, color: breakdown === 'node' ? nodeColors.get(series.id)! : colors[index] }
     })
     return config
-  }, [seriesList, resolvedTheme])
+  }, [seriesList, resolvedTheme, nodeList, breakdown])
 
   const labelRangeHint = useMemo(
     () => ({
@@ -578,14 +584,14 @@ export function AllNodesStackedBarChart() {
     if (chartData.length === 0 || seriesList.length === 0) return []
 
     const nodesWithUsage = seriesList
-      .map((node, index) => {
+      .map(node => {
         const usageInGb = chartData.reduce((sum, row) => sum + Number(row[node.name] || 0), 0)
         const bytes = usageInGb * 1024 * 1024 * 1024
         return {
           name: node.name,
           usage: usageInGb,
           bytes,
-          fill: chartConfig[node.name]?.color || `hsl(var(--chart-${(index % 5) + 1}))`,
+          fill: chartConfig[node.name].color,
         }
       })
       .filter(node => node.bytes > 0)
@@ -880,8 +886,8 @@ export function AllNodesStackedBarChart() {
                   chartViewType === 'area' ? (
                     <AreaChart {...(useAccessibilityLayer ? { accessibilityLayer: true } : {})} data={chartData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }} onClick={handleChartPointClick}>
                       <defs>
-                        {seriesList.map((node, index) => {
-                          const color = chartConfig[node.name]?.color || `hsl(var(--chart-${(index % 5) + 1}))`
+                        {seriesList.map(node => {
+                          const color = chartConfig[node.name].color
                           return (
                             <linearGradient key={node.id} id={`node-area-gradient-${breakdown}-${node.id}`} x1="0" y1="0" x2="0" y2="1">
                               <stop offset="0%" stopColor={color} stopOpacity={0.45} />
@@ -907,14 +913,14 @@ export function AllNodesStackedBarChart() {
                         tickMargin={2}
                       />
                       <ChartTooltip cursor={false} content={props => <CustomTooltip {...(props as TooltipProps<number, string>)} chartConfig={chartConfig} dir={dir} period={activePeriod} />} />
-                      {seriesList.map((node, index) => (
+                      {seriesList.map(node => (
                         <Area
                           key={node.id}
                           type={areaCurveType}
                           dataKey={node.name}
                           stackId="a"
                           fill={`url(#node-area-gradient-${breakdown}-${node.id})`}
-                          stroke={chartConfig[node.name]?.color || `hsl(var(--chart-${(index % 5) + 1}))`}
+                          stroke={chartConfig[node.name].color}
                           strokeWidth={1.5}
                           dot={false}
                           activeDot={false}
@@ -944,12 +950,12 @@ export function AllNodesStackedBarChart() {
                         tickMargin={2}
                       />
                       <ChartTooltip cursor={false} content={props => <CustomTooltip {...(props as TooltipProps<number, string>)} chartConfig={chartConfig} dir={dir} period={activePeriod} />} />
-                      {seriesList.map((node, index) => (
+                      {seriesList.map(node => (
                         <Bar
                           key={node.id}
                           dataKey={node.name}
                           stackId="a"
-                          fill={chartConfig[node.name]?.color || `hsl(var(--chart-${(index % 5) + 1}))`}
+                          fill={chartConfig[node.name].color}
                           radius={SQUARE_STACK_RADIUS}
                           cursor="pointer"
                           isAnimationActive={isAnimationActive}

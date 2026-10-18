@@ -5,7 +5,7 @@ import { DateRange } from 'react-day-picker'
 import { AlertTriangle, BarChart3, Calendar, PieChart as PieChartIcon, TrendingUp, Users } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useTheme } from '@/app/providers/theme-provider'
-import { getChartSeriesColor } from '@/utils/chart-colors'
+import { getDistinctChartColors } from '@/utils/chart-colors'
 
 import AdminFilterCombobox from '@/components/common/admin-filter-combobox'
 import { TimeRangeSelector } from '@/components/common/time-range-selector'
@@ -273,10 +273,11 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
   })
 
   const segments = useMemo<SegmentWithColor[]>(() => {
-    if (!data?.segments?.length) return []
+    const segmentList = data?.segments
+    if (!segmentList?.length) return []
 
-    const isDark = resolvedTheme === 'dark'
-    return data.segments.map((segment, index) => {
+    const colors = getDistinctChartColors(segmentList.length, resolvedTheme === 'dark')
+    return segmentList.map((segment, index) => {
       const safePercentage = typeof segment.percentage === 'number' && !Number.isNaN(segment.percentage) ? segment.percentage : 0
       const safeCount = typeof segment.count === 'number' && !Number.isNaN(segment.count) ? segment.count : 0
       const key = buildSegmentKey(segment.name, index)
@@ -286,7 +287,7 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
         key,
         percentage: safePercentage,
         count: safeCount,
-        color: getChartSeriesColor(index, isDark),
+        color: colors[index],
       }
     })
   }, [data?.segments, resolvedTheme])
@@ -303,8 +304,7 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
     // Fall back to agents present in the time-series when segments are missing.
     if (!data?.stats?.length) return []
 
-    const isDark = resolvedTheme === 'dark'
-    const seen = new Map<string, AgentSeries>()
+    const seen = new Map<string, Omit<AgentSeries, 'color'>>()
     data.stats.forEach(stat => {
       const name = stat.agent || 'Unknown'
       const key = buildSegmentKey(name, seen.size)
@@ -312,11 +312,11 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
         seen.set(key, {
           key,
           label: name,
-          color: getChartSeriesColor(seen.size, isDark),
         })
       }
     })
-    return Array.from(seen.values())
+    const colors = getDistinctChartColors(seen.size, resolvedTheme === 'dark')
+    return Array.from(seen.values(), (item, index) => ({ ...item, color: colors[index] }))
   }, [data?.stats, resolvedTheme, segments])
 
   const seriesByKey = useMemo(

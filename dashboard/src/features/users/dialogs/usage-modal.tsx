@@ -22,7 +22,8 @@ import { useChartViewType } from '@/hooks/use-chart-view-type'
 import { useTheme } from '@/app/providers/theme-provider'
 import NodeStatsModal from '@/features/nodes/dialogs/node-stats-modal'
 import { hasScopeAll } from '@/utils/rbac'
-import { getChartSeriesColor } from '@/utils/chart-colors'
+import { getNodeChartColors } from '@/utils/chart-colors'
+import { getCurrentNodeStats } from '@/utils/node-chart-stats'
 import {
   CHART_PERIOD_OVERRIDE_AUTO,
   type ChartPeriodOverride,
@@ -268,20 +269,11 @@ const UsageModal = ({ open, onClose, userId }: UsageModalProps) => {
     },
   )
 
-  // Build color palette for nodes
-  const nodeList: NodeSimple[] = useMemo(() => nodesResponse?.nodes || [], [nodesResponse])
+  const nodeList: NodeSimple[] = useMemo(() => [...(nodesResponse?.nodes || [])].sort((a, b) => a.id - b.id), [nodesResponse])
 
-  // Build chart config dynamically based on nodes
   const chartConfig = useMemo(() => {
-    const config: ChartConfig = {}
-    const isDark = resolvedTheme === 'dark'
-    nodeList.forEach((node, idx) => {
-      config[node.name] = {
-        label: node.name,
-        color: getChartSeriesColor(idx, isDark),
-      }
-    })
-    return config
+    const colors = getNodeChartColors(nodeList, resolvedTheme === 'dark')
+    return Object.fromEntries(nodeList.map(node => [node.name, { label: node.name, color: colors.get(node.id)! }])) satisfies ChartConfig
   }, [nodeList, resolvedTheme])
 
   const queryRange = useMemo(() => {
@@ -335,7 +327,7 @@ const UsageModal = ({ open, onClose, userId }: UsageModalProps) => {
       let statsByNode: UserUsageStatsListStats = {}
       if (isStatsRecord(statsPayload)) {
         // This is the expected format when no node_id is provided
-        statsByNode = statsPayload
+        statsByNode = getCurrentNodeStats(statsPayload, nodeList)
       } else if (isLegacyStatsArray(statsPayload)) {
         // fallback: old format - not expected for all nodes
         console.warn('Unexpected array format for all nodes usage')
@@ -517,12 +509,12 @@ const UsageModal = ({ open, onClose, userId }: UsageModalProps) => {
     if (!allNodesSelected || processedChartData.length === 0 || nodeList.length === 0) return []
 
     const nodesWithUsage = nodeList
-      .map((node, index) => {
+      .map(node => {
         const usage = processedChartData.reduce((sum, row) => sum + Number(row[node.name] || 0), 0)
         return {
           name: node.name,
           usage,
-          fill: chartConfig[node.name]?.color || `hsl(var(--chart-${(index % 5) + 1}))`,
+          fill: chartConfig[node.name].color,
         }
       })
       .filter(node => node.usage > 0)
@@ -736,8 +728,8 @@ const UsageModal = ({ open, onClose, userId }: UsageModalProps) => {
                     <AreaChart {...(useAccessibilityLayer ? { accessibilityLayer: true } : {})} data={processedChartData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }} onClick={handleTrafficChartClick}>
                       <defs>
                         {allNodesSelected ? (
-                          nodeList.map((node, idx) => {
-                            const color = chartConfig[node.name]?.color || `hsl(var(--chart-${(idx % 5) + 1}))`
+                          nodeList.map(node => {
+                            const color = chartConfig[node.name].color
                             return (
                               <linearGradient key={node.id} id={`usage-modal-node-gradient-${node.id}`} x1="0" y1="0" x2="0" y2="1">
                                 <stop offset="0%" stopColor={color} stopOpacity={0.45} />
@@ -770,14 +762,14 @@ const UsageModal = ({ open, onClose, userId }: UsageModalProps) => {
                       />
                       <ChartTooltip cursor={false} content={props => <CustomBarTooltip {...(props as TooltipProps<number, string>)} chartConfig={chartConfig} dir={dir} period={backendPeriod} />} />
                       {allNodesSelected ? (
-                        nodeList.map((node, idx) => (
+                        nodeList.map(node => (
                           <Area
                             key={node.id}
                             type={areaCurveType}
                             dataKey={node.name}
                             stackId="a"
                             fill={`url(#usage-modal-node-gradient-${node.id})`}
-                            stroke={chartConfig[node.name]?.color || `hsl(var(--chart-${(idx % 5) + 1}))`}
+                            stroke={chartConfig[node.name].color}
                             strokeWidth={1.5}
                             dot={false}
                             activeDot={false}
@@ -819,12 +811,12 @@ const UsageModal = ({ open, onClose, userId }: UsageModalProps) => {
                       />
                       <ChartTooltip cursor={false} content={props => <CustomBarTooltip {...(props as TooltipProps<number, string>)} chartConfig={chartConfig} dir={dir} period={backendPeriod} />} />
                       {allNodesSelected ? (
-                        nodeList.map((node, idx) => (
+                        nodeList.map(node => (
                           <Bar
                             key={node.id}
                             dataKey={node.name}
                             stackId="a"
-                            fill={chartConfig[node.name]?.color || `hsl(var(--chart-${(idx % 5) + 1}))`}
+                            fill={chartConfig[node.name].color}
                             radius={SQUARE_STACK_RADIUS}
                             cursor="pointer"
                             isAnimationActive={isAnimationActive}

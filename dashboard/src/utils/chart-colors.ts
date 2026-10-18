@@ -1,87 +1,100 @@
-// Categorical series must stay distinct independently of the UI accent color.
-// Paired shades keep the same hue in light and dark mode.
-const SERIES_COLORS = [
-  { light: '#2563eb', dark: '#60a5fa' }, // Blue
-  { light: '#c2410c', dark: '#fb923c' }, // Orange
-  { light: '#059669', dark: '#34d399' }, // Emerald
-  { light: '#7c3aed', dark: '#a78bfa' }, // Violet
-  { light: '#db2777', dark: '#f472b6' }, // Pink
-  { light: '#a16207', dark: '#facc15' }, // Yellow
-  { light: '#0891b2', dark: '#22d3ee' }, // Cyan
-  { light: '#4d7c0f', dark: '#a3e635' }, // Lime
-  { light: '#dc2626', dark: '#f87171' }, // Red
-  { light: '#4f46e5', dark: '#818cf8' }, // Indigo
-] as const
+type Color = {
+  css: string
+  lab: [number, number, number]
+  luminance: number
+  distance: number
+}
 
-type Rgb = [number, number, number]
-type Lab = [number, number, number]
+type Palette = {
+  colors: Color[]
+  candidates: Color[]
+  generation: number
+}
 
-function toOklab([red, green, blue]: Rgb): Lab {
-  const linear = [red, green, blue].map(channel => {
-    const value = channel / 255
+const palettes = new Map<boolean, Palette>()
+
+const createColor = (hue: number, saturation: number, lightness: number): Color => {
+  const s = saturation / 100
+  const l = lightness / 100
+  const a = s * Math.min(l, 1 - l)
+  const channel = (offset: number) => {
+    const k = (offset + hue / 30) % 12
+    const value = l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1))
     return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4
-  })
-  const l = Math.cbrt(0.4122214708 * linear[0] + 0.5363325363 * linear[1] + 0.0514459929 * linear[2])
-  const m = Math.cbrt(0.2119034982 * linear[0] + 0.6806995451 * linear[1] + 0.1073969566 * linear[2])
-  const s = Math.cbrt(0.0883024619 * linear[0] + 0.2817188376 * linear[1] + 0.6299787005 * linear[2])
-  return [0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s, 1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s, 0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s]
+  }
+  const r = channel(0)
+  const g = channel(8)
+  const b = channel(4)
+  const long = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b)
+  const medium = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b)
+  const short = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b)
+
+  return {
+    css: `hsl(${hue}, ${saturation}%, ${lightness}%)`,
+    lab: [
+      0.2104542553 * long + 0.793617785 * medium - 0.0040720468 * short,
+      1.9779984951 * long - 2.428592205 * medium + 0.4505937099 * short,
+      0.0259040371 * long + 0.7827717662 * medium - 0.808675766 * short,
+    ],
+    luminance: 0.2126 * r + 0.7152 * g + 0.0722 * b,
+    distance: Infinity,
+  }
 }
 
-function hexToLab(hex: string): Lab {
-  return toOklab([1, 3, 5].map(start => parseInt(hex.slice(start, start + 2), 16)) as Rgb)
-}
+const distanceSquared = (a: Color, b: Color) => a.lab.reduce((sum, value, index) => sum + (value - b.lab[index]) ** 2, 0)
 
-function hslToLab(hue: number, saturation: number, lightness: number): Lab {
-  const chroma = (1 - Math.abs(2 * lightness - 1)) * saturation
-  const second = chroma * (1 - Math.abs(((hue / 60) % 2) - 1))
-  const offset = lightness - chroma / 2
-  const channels: Rgb =
-    hue < 60 ? [chroma, second, 0] : hue < 120 ? [second, chroma, 0] : hue < 180 ? [0, chroma, second] : hue < 240 ? [0, second, chroma] : hue < 300 ? [second, 0, chroma] : [chroma, 0, second]
-  return toOklab(channels.map(channel => (channel + offset) * 255) as Rgb)
-}
-
-function distanceSquared(a: Lab, b: Lab): number {
-  return (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2
-}
-
-const colors: { light: string; dark: string; lightLab: Lab; darkLab: Lab }[] = SERIES_COLORS.map(({ light, dark }) => ({ light, dark, lightLab: hexToLab(light), darkLab: hexToLab(dark) }))
-
-const candidates = Array.from({ length: 72 }, (_, index) => (index * 137.508) % 360).flatMap(hue =>
-  [
-    [65, 40, 70, 65],
-    [80, 32, 75, 58],
-    [55, 50, 65, 73],
-    [85, 45, 85, 68],
-  ].map(([lightSaturation, lightLightness, darkSaturation, darkLightness]) => ({
-    light: `hsl(${hue.toFixed(2)}, ${lightSaturation}%, ${lightLightness}%)`,
-    dark: `hsl(${hue.toFixed(2)}, ${darkSaturation}%, ${darkLightness}%)`,
-    lightLab: hslToLab(hue, lightSaturation / 100, lightLightness / 100),
-    darkLab: hslToLab(hue, darkSaturation / 100, darkLightness / 100),
-  })),
-)
-const maxColors = colors.length + candidates.length
-
-export function getChartSeriesColor(index: number, isDark: boolean): string {
-  const colorIndex = index % maxColors
-  while (colors.length <= colorIndex) {
-    let bestIndex = 0
-    let bestDistance = -1
-
-    candidates.forEach((candidate, candidateIndex) => {
-      // Maximize the shortest perceptual distance in both themes, including the fixed palette.
-      let nearest = Infinity
-      for (const color of colors) {
-        nearest = Math.min(nearest, distanceSquared(candidate.lightLab, color.lightLab), distanceSquared(candidate.darkLab, color.darkLab))
+const createCandidates = (isDark: boolean, hueOffset: number): Color[] => {
+  const candidates: Color[] = []
+  // Keep categorical colors visible against both the chart card and the page.
+  const backgroundLuminance = isDark ? 0.025 : 0.91
+  for (let hue = hueOffset; hue < 360; hue += 2) {
+    for (const saturation of [60, 80, 100]) {
+      for (const lightness of isDark ? [45, 55, 65, 75] : [30, 40, 50, 60]) {
+        const color = createColor(hue, saturation, lightness)
+        const contrast = (Math.max(color.luminance, backgroundLuminance) + 0.05) / (Math.min(color.luminance, backgroundLuminance) + 0.05)
+        if (contrast >= 3) candidates.push(color)
       }
-      if (nearest > bestDistance) {
-        bestDistance = nearest
-        bestIndex = candidateIndex
-      }
-    })
+    }
+  }
+  return candidates
+}
 
-    colors.push(candidates.splice(bestIndex, 1)[0])
+/** Select each new color by its minimum perceptual distance from all previous colors. */
+export const getDistinctChartColors = (count: number, isDark = false): string[] => {
+  if (count <= 0) return []
+
+  let palette = palettes.get(isDark)
+  if (!palette) {
+    const first = createColor(214, 80, isDark ? 65 : 40)
+    palette = { colors: [first], candidates: createCandidates(isDark, 0).filter(color => color.css !== first.css), generation: 0 }
+    palettes.set(isDark, palette)
   }
 
-  const color = colors[colorIndex]
-  return isDark ? color.dark : color.light
+  while (palette.colors.length < count) {
+    if (palette.candidates.length === 0) {
+      // Refine the hue grid instead of cycling through an exhausted palette.
+      palette.generation += 1
+      palette.candidates = createCandidates(isDark, 2 ** -palette.generation)
+      for (const candidate of palette.candidates) {
+        candidate.distance = Math.min(...palette.colors.map(color => distanceSquared(candidate, color)))
+      }
+    }
+
+    const previous = palette.colors[palette.colors.length - 1]
+    let bestIndex = 0
+    palette.candidates.forEach((candidate, index) => {
+      candidate.distance = Math.min(candidate.distance, distanceSquared(candidate, previous))
+      if (candidate.distance > palette.candidates[bestIndex].distance) bestIndex = index
+    })
+    palette.colors.push(palette.candidates.splice(bestIndex, 1)[0])
+  }
+
+  return palette.colors.slice(0, count).map(color => color.css)
+}
+
+/** IDs identify nodes; only their position in the current list consumes a color. */
+export const getNodeChartColors = (nodes: readonly { id: number }[], isDark = false): Map<number, string> => {
+  const ids = [...new Set(nodes.map(node => node.id))].sort((a, b) => a - b)
+  const colors = getDistinctChartColors(ids.length, isDark)
+  return new Map(ids.map((id, index) => [id, colors[index]]))
 }

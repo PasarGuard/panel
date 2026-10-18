@@ -117,7 +117,7 @@ const NodeStatsModal = ({
 
   // Get nodes with usage > 0
   const activeNodes = Object.keys(data)
-    .filter(key => !key.startsWith('_') && key !== 'time' && key !== '_period_start' && (data[key] || 0) > 0)
+    .filter(key => !key.startsWith('_') && key !== 'time' && key !== '_period_start' && (!chartConfig || chartConfig[key]) && (data[key] || 0) > 0)
     .map(nodeName => ({
       name: nodeName,
       usage: data[nodeName] || 0,

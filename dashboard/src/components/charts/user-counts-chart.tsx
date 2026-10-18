@@ -29,6 +29,9 @@ import {
   TrafficShortcutKey,
 } from '@/utils/chart-period-utils'
 import { getChartBrushWindow, getChartRenderFlags } from '@/utils/chart-performance'
+import { getDistinctChartColors, getNodeChartColors } from '@/utils/chart-colors'
+import { getCurrentNodeStats } from '@/utils/node-chart-stats'
+import { useTheme } from '@/app/providers/theme-provider'
 
 import ChartBrush from './chart-brush'
 import DenseChartAreaHint from './dense-chart-area-hint'
@@ -70,14 +73,6 @@ const BAR_RADIUS = 4
 const SQUARE_RADIUS: BarRadius = [0, 0, 0, 0]
 
 const getCellRadiusProps = (radius: BarRadius) => ({ radius }) as unknown as CellRadiusProps
-
-const getDistinctColor = (index: number) => {
-  const hues = [156, 212, 32, 280, 6, 188, 248, 318, 96, 44, 228, 12, 176, 268, 336, 128]
-  const hue = hues[index % hues.length]
-  const saturation = index % 3 === 0 ? 70 : index % 3 === 1 ? 62 : 78
-  const lightness = index % 2 === 0 ? 42 : 52
-  return `hsl(${hue}, ${saturation}%, ${lightness}%)`
-}
 
 const getStackedBarRadius = (row: CountDataPoint, seriesKey: string, stackSeries: CountSeries[]): BarRadius => {
   const visibleSeries = stackSeries.filter(item => Number(row[item.key] || 0) > 0)
@@ -183,6 +178,7 @@ export function UserCountsChart({ nodeId, isSudo, nodesData = [] }: UserCountsCh
   const { t, i18n } = useTranslation()
   const dir = useDirDetection()
   const chartViewType = useChartViewType()
+  const { resolvedTheme } = useTheme()
 
   const [selectedMetric, setSelectedMetric] = useState<UserCountMetric>(UserCountMetric.online)
   const [chartView, setChartView] = useState<'bar' | 'pie'>('bar')
@@ -296,7 +292,10 @@ export function UserCountsChart({ nodeId, isSudo, nodesData = [] }: UserCountsCh
     [nodesData, t],
   )
 
-  const metricStatsByGroup = useMemo(() => toStatsRecord<UserCountMetricStat>(metricCountsData?.stats), [metricCountsData?.stats])
+  const metricStatsByGroup = useMemo(() => {
+    const stats = toStatsRecord<UserCountMetricStat>(metricCountsData?.stats)
+    return effectiveGroupByNode ? getCurrentNodeStats(stats, nodesData, true) : stats
+  }, [metricCountsData?.stats, effectiveGroupByNode, nodesData])
 
   const groupKeys = useMemo(() => {
     const keys = Object.keys(metricStatsByGroup)
@@ -311,16 +310,19 @@ export function UserCountsChart({ nodeId, isSudo, nodesData = [] }: UserCountsCh
 
   const series = useMemo<CountSeries[]>(() => {
     if (effectiveGroupByNode) {
-      return groupKeys.map((groupKey, index) => ({
+      const isDark = resolvedTheme === 'dark'
+      const colors = getNodeChartColors(nodesData, isDark)
+      const unassignedColor = getDistinctChartColors(colors.size + 1, isDark)[colors.size]
+      return groupKeys.map(groupKey => ({
         key: `node_${groupKey}`,
         label: getGroupLabel(groupKey),
-        color: getDistinctColor(index),
+        color: colors.get(Number(groupKey)) || unassignedColor,
         stackId: 'nodes',
       }))
     }
 
     return [{ key: 'count', label: metricLabels[effectiveMetric], color: metricColors[effectiveMetric] }]
-  }, [effectiveGroupByNode, effectiveMetric, getGroupLabel, groupKeys, metricColors, metricLabels])
+  }, [effectiveGroupByNode, effectiveMetric, getGroupLabel, groupKeys, metricColors, metricLabels, nodesData, resolvedTheme])
 
   const seriesByKey = useMemo(
     () =>
