@@ -1643,7 +1643,7 @@ export function XrayStreamFinalmaskInboundAccordion({ accordionItemClassName, va
               }}
             />
           </div>
-          {enabled && <XrayStreamFinalmaskFields value={value} onChange={onChange} t={t} allowClientOnlyMasks={false} />}
+          {enabled && <XrayStreamFinalmaskFields value={value} onChange={onChange} t={t} />}
         </AccordionContent>
       </AccordionItem>
     </Accordion>
