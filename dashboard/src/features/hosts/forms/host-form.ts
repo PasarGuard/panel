@@ -93,7 +93,7 @@ export interface HostFormValues {
   mux_settings?: MuxSettings
   wireguard_overrides?: {
     allowed_ips?: string[]
-    mtu?: number
+    mtu?: number | null
     reserved?: string
     keepalive_seconds?: number
     dns?: string[]
@@ -144,7 +144,7 @@ export interface HostFormValues {
       initial_windows_size?: number
     }
     kcp_settings?: {
-      mtu?: number
+      mtu?: number | null
       tti?: number
       uplink_capacity?: number
       downlink_capacity?: number
@@ -496,7 +496,7 @@ export const HostFormSchema = z.object({
   wireguard_overrides: z
     .object({
       allowed_ips: z.array(z.string()).optional(),
-      mtu: z.number().min(576).max(9000).optional(),
+      mtu: z.number().min(576).max(9000).nullish(),
       reserved: z.string().max(64).optional(),
       keepalive_seconds: z.number().min(0).max(86400).optional(),
       dns: z.array(z.string()).optional(),

@@ -1215,14 +1215,14 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                 <FormControl>
                                   <Input
                                     type="number"
-                                    placeholder="1280"
+                                    placeholder={t('default')}
                                     min={576}
                                     max={9000}
                                     {...field}
                                     value={field.value ?? ''}
                                     onChange={e => {
                                       const v = e.target.value
-                                      field.onChange(v === '' ? undefined : Number.parseInt(v, 10))
+                                      field.onChange(v === '' ? null : Number.parseInt(v, 10))
                                     }}
                                   />
                                 </FormControl>
@@ -2575,7 +2575,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                   <FormItem>
                                     <FormLabel>{t('hostsDialog.kcp.mtu')}</FormLabel>
                                     <FormControl>
-                                      <Input type="number" {...field} onChange={e => field.onChange(e.target.value ? Number(e.target.value) : 0)} value={field.value} />
+                                      <Input type="number" {...field} onChange={e => field.onChange(e.target.value === '' ? null : Number(e.target.value))} value={field.value ?? ''} />
                                     </FormControl>
                                     <FormMessage />
                                   </FormItem>
