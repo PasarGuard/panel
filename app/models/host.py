@@ -3,7 +3,16 @@ from enum import Enum
 from ipaddress import ip_address, ip_network
 from typing import Any
 
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    AliasChoices,
+    BaseModel,
+    ConfigDict,
+    Field,
+    ValidationError,
+    field_serializer,
+    field_validator,
+    model_validator,
+)
 
 from app.db.models import ProxyHostALPN, ProxyHostFingerprint, ProxyHostSecurity, UserStatus
 from app.utils.helpers import has_markup_unsafe_chars
@@ -185,15 +194,56 @@ class FinalMaskNoiseMaskItem(FinalMaskNoiseItem):
         return self
 
 
+def _numeric_string_to_int(value: Any) -> Any:
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return None
+        if text.isdecimal():
+            return int(text)
+    return value
+
+
+class FinalMaskHeaderCustomItemBase(FinalMaskBaseModel):
+    type: str | None = Field(default=None, pattern=r"^$|^(?:array|str|base64|hex)$")
+    packet: str | list[int] | None = Field(default=None)
+    rand: int | None = Field(default=None, ge=0, le=2_147_483_647)
+    rand_range: str | None = Field(default=None, alias="randRange", pattern=r"^\d{1,16}(-\d{1,16})?$")
+
+    @field_validator("rand", mode="before")
+    @classmethod
+    def normalize_rand(cls, value):
+        return _numeric_string_to_int(value)
+
+
+class FinalMaskUdpHeaderCustomItem(FinalMaskHeaderCustomItemBase):
+    @model_validator(mode="before")
+    @classmethod
+    def drop_delay(cls, value):
+        """Xray's UDP header-custom item has no delay field."""
+        if isinstance(value, dict) and "delay" in value:
+            return {key: item for key, item in value.items() if key != "delay"}
+        return value
+
+
+class FinalMaskTcpHeaderCustomItem(FinalMaskHeaderCustomItemBase):
+    delay: int | str | None = Field(default=None)
+
+    @field_validator("delay", mode="before")
+    @classmethod
+    def normalize_delay(cls, value):
+        return _numeric_string_to_int(value)
+
+
 class FinalMaskTcpHeaderCustomSettings(FinalMaskBaseModel):
-    clients: list[list[FinalMaskNoiseItem]] | None = Field(default=None)
-    servers: list[list[FinalMaskNoiseItem]] | None = Field(default=None)
-    errors: list[list[FinalMaskNoiseItem]] | None = Field(default=None)
+    clients: list[list[FinalMaskTcpHeaderCustomItem]] | None = Field(default=None)
+    servers: list[list[FinalMaskTcpHeaderCustomItem]] | None = Field(default=None)
+    errors: list[list[FinalMaskTcpHeaderCustomItem]] | None = Field(default=None)
 
 
 class FinalMaskUdpHeaderCustomSettings(FinalMaskBaseModel):
-    client: list[FinalMaskNoiseItem] | None = Field(default=None)
-    server: list[FinalMaskNoiseItem] | None = Field(default=None)
+    client: list[FinalMaskUdpHeaderCustomItem] | None = Field(default=None)
+    server: list[FinalMaskUdpHeaderCustomItem] | None = Field(default=None)
 
 
 class FinalMaskPasswordSettings(FinalMaskBaseModel):
@@ -524,10 +574,12 @@ class FinalMask(FinalMaskBaseModel):
 
 def dump_final_mask_for_xray(final_mask: FinalMask | dict[str, Any]) -> dict[str, Any]:
     """Serialize FinalMask with fragment keys understood by stable and newer Xray cores."""
-    if isinstance(final_mask, FinalMask):
-        result = final_mask.model_dump(exclude_none=True, by_alias=True, mode="json")
-    else:
+    try:
+        validated = final_mask if isinstance(final_mask, FinalMask) else FinalMask.model_validate(final_mask)
+    except ValidationError:
         result = deepcopy(final_mask)
+    else:
+        result = validated.model_dump(exclude_none=True, by_alias=True, mode="json")
 
     tcp_layers = result.get("tcp")
     if not isinstance(tcp_layers, list):
@@ -831,6 +883,12 @@ class BaseHost(BaseModel):
         if value is not None and value.xray is None:
             return None
         return value
+
+    @field_serializer("final_mask_settings")
+    def serialize_final_mask_settings(self, value: FinalMask | None) -> dict[str, Any] | None:
+        if value is None:
+            return None
+        return value.model_dump(by_alias=True, exclude_none=True, mode="json")
 
 
 class CreateHost(BaseHost):
