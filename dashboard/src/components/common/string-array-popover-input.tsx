@@ -4,10 +4,10 @@ import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
 import { Check, Link2, Pencil, Plus, Trash2, X } from 'lucide-react'
-import { useState } from 'react'
+import { useState, type ButtonHTMLAttributes } from 'react'
 import { toast } from 'sonner'
 
-interface StringArrayPopoverInputProps {
+interface StringArrayPopoverInputProps extends Pick<ButtonHTMLAttributes<HTMLButtonElement>, 'id' | 'aria-describedby' | 'aria-invalid'> {
   value: string[]
   onChange: (next: string[]) => void
   placeholder: string
@@ -45,6 +45,9 @@ export function StringArrayPopoverInput({
   saveEditTitle = 'Save',
   cancelEditTitle = 'Cancel',
   className,
+  id,
+  'aria-describedby': ariaDescribedBy,
+  'aria-invalid': ariaInvalid,
 }: StringArrayPopoverInputProps) {
   const [inputValue, setInputValue] = useState('')
   const [isPopoverOpen, setIsPopoverOpen] = useState(false)
@@ -116,6 +119,9 @@ export function StringArrayPopoverInput({
     >
       <PopoverTrigger asChild>
         <Button
+          id={id}
+          aria-describedby={ariaDescribedBy}
+          aria-invalid={ariaInvalid}
           dir="ltr"
           variant="outline"
           role="combobox"

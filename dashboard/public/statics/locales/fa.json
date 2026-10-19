@@ -1413,6 +1413,7 @@
       "keepAlivePeriodPlaceholder": "مثلاً 0",
       "disablePmtuDiscovery": "غیرفعال‌سازی کشف PMTU",
       "noiseRandPlaceholder": "مثلاً 1-8192",
+      "noiseRandRange": "بازه تصادفی",
       "noiseRandRangePlaceholder": "مثلاً 0-255",
       "noiseExpPlaceholder": "مثلاً <b 0d0a><t><r 24-48>"
     },

@@ -1553,6 +1553,7 @@
       "keepAlivePeriodPlaceholder": "例如 0",
       "disablePmtuDiscovery": "禁用 PMTU 发现",
       "noiseRandPlaceholder": "例如 1-8192",
+      "noiseRandRange": "随机范围",
       "noiseRandRangePlaceholder": "例如 0-255",
       "noiseExpPlaceholder": "例如 <b 0d0a><t><r 24-48>"
     },

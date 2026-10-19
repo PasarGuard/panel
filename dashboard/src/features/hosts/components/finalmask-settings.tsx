@@ -664,7 +664,7 @@ function UdpLayersForm({ form }: { form: UseFormReturn<any> }) {
                     control={form.control}
                     name={`final_mask_settings.udp.${index}.settings.reset`}
                     render={({ field: inputField }) => (
-                      <FormItem className="w-56">
+                      <FormItem className="w-full sm:w-56">
                         <FormLabel className="text-xs">{t('hostsDialog.finalmask.reset')}</FormLabel>
                         <FormControl>
                           <Input
@@ -672,7 +672,7 @@ function UdpLayersForm({ form }: { form: UseFormReturn<any> }) {
                             {...inputField}
                             value={inputField.value ?? ''}
                             onChange={e => inputField.onChange(e.target.value === '' ? undefined : e.target.value)}
-                            className="h-8 text-xs"
+                            className="h-10 text-sm"
                           />
                         </FormControl>
                       </FormItem>
@@ -1390,13 +1390,31 @@ function XrayNoiseSettingsList({ form, name, label, allowExp }: XrayNoiseSetting
           const packetPlaceholderKey = isExpType ? 'hostsDialog.finalmask.noiseExpPlaceholder' : 'hostsDialog.noise.packet'
           return (
           <div key={field.id} className="bg-background space-y-2 rounded-md border p-2">
-            <div className="flex items-center gap-2">
-              <span className="text-muted-foreground w-5 shrink-0 text-center text-xs">{index + 1}</span>
-              <FormField
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-muted-foreground text-xs">{index + 1}</span>
+              <div className="flex items-center gap-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="hover:bg-muted h-9 w-9 transition-colors"
+                  onClick={() => handleDuplicate(index)}
+                  title={t('hostsDialog.noise.duplicateNoise')}
+                  aria-label={t('hostsDialog.noise.duplicateNoise')}
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                </Button>
+                <Button type="button" variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10 h-9 w-9" onClick={() => remove(index)} aria-label={t('hostsDialog.noise.removeNoise')}>
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </div>
+            <FormField
                 control={form.control}
                 name={`${name}.${index}.type`}
                 render={({ field: inputField }) => (
-                  <FormItem className="w-[100px] shrink-0">
+                  <FormItem className="min-w-0">
+                    <FormLabel className="text-xs">{t('hostsDialog.noise.type')}</FormLabel>
                     <Select
                       onValueChange={val => {
                         inputField.onChange(val)
@@ -1418,7 +1436,7 @@ function XrayNoiseSettingsList({ form, name, label, allowExp }: XrayNoiseSetting
                       value={inputField.value || 'array'}
                     >
                       <FormControl>
-                        <SelectTrigger className="h-8 text-xs">
+                        <SelectTrigger className="h-10 text-sm">
                           <SelectValue placeholder={t('hostsDialog.noise.type')} />
                         </SelectTrigger>
                       </FormControl>
@@ -1433,29 +1451,13 @@ function XrayNoiseSettingsList({ form, name, label, allowExp }: XrayNoiseSetting
                   </FormItem>
                 )}
               />
-              <div className="ml-auto flex items-center gap-1">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="hover:bg-muted h-7 w-7 transition-colors"
-                  onClick={() => handleDuplicate(index)}
-                  title={t('hostsDialog.noise.duplicateNoise')}
-                >
-                  <Copy className="h-3.5 w-3.5" />
-                </Button>
-                <Button type="button" variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10 h-7 w-7" onClick={() => remove(index)}>
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-4 gap-2 pl-7">
+            <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
               <FormField
                 control={form.control}
                 name={`${name}.${index}.packet`}
                 render={({ field: inputField }) => (
-                  <FormItem className={isExpType ? 'col-span-3' : undefined}>
+                  <FormItem className="min-w-0 sm:col-span-2">
+                    <FormLabel className="text-xs">{t('hostsDialog.noise.packet')}</FormLabel>
                     <FormControl>
                       {isArrayType ? (
                         <StringArrayPopoverInput
@@ -1472,9 +1474,10 @@ function XrayNoiseSettingsList({ form, name, label, allowExp }: XrayNoiseSetting
                           removeItemTitle={t('arrayInput.removeItem')}
                           saveEditTitle={t('arrayInput.saveEdit')}
                           cancelEditTitle={t('arrayInput.cancelEdit')}
+                          className="min-h-10"
                         />
                       ) : (
-                        <Input placeholder={t(packetPlaceholderKey)} {...inputField} value={typeof inputField.value === 'string' ? inputField.value : ''} className="h-8 text-xs" />
+                        <Input placeholder={t(packetPlaceholderKey)} {...inputField} value={typeof inputField.value === 'string' ? inputField.value : ''} className="h-10 text-sm" />
                       )}
                     </FormControl>
                   </FormItem>
@@ -1484,9 +1487,10 @@ function XrayNoiseSettingsList({ form, name, label, allowExp }: XrayNoiseSetting
                 control={form.control}
                 name={`${name}.${index}.delay`}
                 render={({ field: inputField }) => (
-                  <FormItem>
+                  <FormItem className="min-w-0">
+                    <FormLabel className="text-xs">{t('hostsDialog.noise.delay')}</FormLabel>
                     <FormControl>
-                      <Input placeholder={t('hostsDialog.noise.delayPlaceholder')} {...inputField} value={inputField.value || ''} className="h-8 text-xs" />
+                      <Input placeholder={t('hostsDialog.noise.delayPlaceholder')} {...inputField} value={inputField.value || ''} className="h-10 text-sm" />
                     </FormControl>
                   </FormItem>
                 )}
@@ -1497,9 +1501,10 @@ function XrayNoiseSettingsList({ form, name, label, allowExp }: XrayNoiseSetting
                     control={form.control}
                     name={`${name}.${index}.rand`}
                     render={({ field: inputField }) => (
-                      <FormItem>
+                      <FormItem className="min-w-0">
+                        <FormLabel className="text-xs">{t('hostsDialog.noise.rand')}</FormLabel>
                         <FormControl>
-                          <Input placeholder={t('hostsDialog.finalmask.noiseRandPlaceholder')} {...inputField} value={inputField.value || ''} className="h-8 text-xs" />
+                          <Input placeholder={t('hostsDialog.finalmask.noiseRandPlaceholder')} {...inputField} value={inputField.value || ''} className="h-10 text-sm" />
                         </FormControl>
                       </FormItem>
                     )}
@@ -1508,9 +1513,10 @@ function XrayNoiseSettingsList({ form, name, label, allowExp }: XrayNoiseSetting
                     control={form.control}
                     name={`${name}.${index}.randRange`}
                     render={({ field: inputField }) => (
-                      <FormItem>
+                      <FormItem className="min-w-0">
+                        <FormLabel className="text-xs">{t('hostsDialog.finalmask.noiseRandRange')}</FormLabel>
                         <FormControl>
-                          <Input placeholder={t('hostsDialog.finalmask.noiseRandRangePlaceholder')} {...inputField} value={inputField.value || ''} className="h-8 text-xs" />
+                          <Input placeholder={t('hostsDialog.finalmask.noiseRandRangePlaceholder')} {...inputField} value={inputField.value || ''} className="h-10 text-sm" />
                         </FormControl>
                       </FormItem>
                     )}
@@ -1518,7 +1524,7 @@ function XrayNoiseSettingsList({ form, name, label, allowExp }: XrayNoiseSetting
                 </>
               )}
             </div>
-            {isExpType && <p className="text-muted-foreground pl-7 text-[11px] leading-relaxed">{t('hostsDialog.finalmask.noiseExpVersionHint')}</p>}
+            {isExpType && <p className="text-muted-foreground text-xs leading-relaxed">{t('hostsDialog.finalmask.noiseExpVersionHint')}</p>}
           </div>
           )
         })}
