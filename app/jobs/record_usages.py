@@ -514,7 +514,11 @@ async def _node_usage_coefficient(node: PasarGuardNode, node_id: int) -> float:
         return cached[0]
     try:
         extra = await node.get_extra()
-        coeff = float(extra.get("usage_coefficient", 1) or 1) if extra else 1.0
+        if extra:
+            # the obj is not None, but its key could be
+            coeff = float(extra.get("usage_coefficient", 1.0))
+        else:
+            coeff = 1.0
     except Exception as exc:
         logger.warning("Failed to get extra data for node %s: %s", node_id, exc)
         coeff = cached[0] if cached is not None else 1.0
