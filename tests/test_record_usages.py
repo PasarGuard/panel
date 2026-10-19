@@ -390,20 +390,31 @@ async def test_record_user_usages_updates_users_and_admins(monkeypatch: pytest.M
             api_key="key2",
             core_config_id=None,
         )
-        session.add_all([node_one, node_two])
+        node_zero = Node(
+            name="node-zero",
+            address="10.0.0.3",
+            port=1003,
+            api_port=1004,
+            server_ca="ca3",
+            api_key="key3",
+            core_config_id=None,
+        )
+        session.add_all([node_one, node_two, node_zero])
         await session.flush()
-        node_one_id, node_two_id = node_one.id, node_two.id
+        node_one_id, node_two_id, node_zero_id = node_one.id, node_two.id, node_zero.id
         await session.commit()
 
     nodes = [
         (node_one_id, DummyNode(node_one_id, usage_coefficient=2)),
         (node_two_id, DummyNode(node_two_id, usage_coefficient=1)),
+        (node_zero_id, DummyNode(node_zero_id, usage_coefficient=0)),
     ]
     monkeypatch.setattr(record_usages.node_manager, "get_healthy_nodes", AsyncMock(return_value=nodes))
 
     stats_map = {
         node_one_id: [{"uid": str(user_one_id), "value": 100}, {"uid": str(user_two_id), "value": 50}],
         node_two_id: [{"uid": str(user_one_id), "value": 75}],
+        node_zero_id: [{"uid": str(user_one_id), "value": 500}],
     }
 
     async def fake_get_users_stats(node: DummyNode, node_id: int | None = None):
@@ -421,13 +432,14 @@ async def test_record_user_usages_updates_users_and_admins(monkeypatch: pytest.M
         user_rows = users_result.all()
         user_totals = {row.id: (row.used_traffic, row.online_at) for row in user_rows}
 
-        assert user_totals[user_one_id][0] > user_totals[user_two_id][0]
+        assert user_totals[user_one_id][0] == 275
+        assert user_totals[user_two_id][0] == 100
         assert all(total > 0 for total, _ in user_totals.values())
         assert all(online_at is not None for _, online_at in user_totals.values())
 
         admin_total = await session.execute(select(Admin.used_traffic).where(Admin.id == admin_id))
         admin_used = admin_total.scalar_one()
-        assert admin_used == sum(total for total, _ in user_totals.values())
+        assert admin_used == 375
 
         node_usage_rows = await session.execute(
             select(NodeUserUsage.node_id, NodeUserUsage.user_id, NodeUserUsage.used_traffic)
