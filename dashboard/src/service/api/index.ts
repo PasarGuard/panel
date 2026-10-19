@@ -1036,10 +1036,31 @@ export interface FinalMaskDomainSettings {
   [key: string]: unknown;
  }
 
+export interface FinalMaskXdnsDomain {
+  names?: string[];
+  lenLimit?: number | null;
+  labelLimit?: number | null;
+  types?: number[] | null;
+  edns0?: number | null;
+  [key: string]: unknown;
+ }
+
+export type FinalMaskXdnsResolverTlsConfig = { [key: string]: unknown } | null;
+
+export type FinalMaskXdnsResolverQuicConfig = { [key: string]: unknown } | null;
+
+export interface FinalMaskXdnsResolver {
+  addrs?: string[];
+  worker?: number | null;
+  tlsConfig?: FinalMaskXdnsResolverTlsConfig;
+  quicConfig?: FinalMaskXdnsResolverQuicConfig;
+  [key: string]: unknown;
+ }
+
 export interface FinalMaskXdnsSettings {
-  domains?: string[] | null;
-  resolvers?: string[] | null;
-  domain?: string | null;
+  domains?: FinalMaskXdnsDomain[] | null;
+  resolvers?: FinalMaskXdnsResolver[] | null;
+  extraPoll?: number | null;
   [key: string]: unknown;
  }
 

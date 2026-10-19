@@ -8,7 +8,7 @@ import { FormField, FormItem, FormLabel, FormControl } from '@/components/ui/for
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Plus, Trash2, Copy, SlidersHorizontal } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { CodeEditorPanel } from '@/components/common/code-editor-panel'
 import { StringArrayPopoverInput } from '@/components/common/string-array-popover-input'
 import useDirDetection from '@/hooks/use-dir-detection'
@@ -574,55 +574,17 @@ function UdpLayersForm({ form, allowClientOnlyMasks }: { form: UseFormReturn<any
               )}
 
               {type === 'xdns' && (
-                <div className="bg-background grid grid-cols-2 gap-3 rounded-md border p-3">
+                <div className="bg-background space-y-3 rounded-md border p-3">
+                  <XdnsObjectArrayField form={form} name={`udp.${index}.settings.domains`} label={t('hostsDialog.finalmask.serverDomains')} hint={t('hostsDialog.finalmask.xdnsDomainsHint')} />
+                  <XdnsObjectArrayField form={form} name={`udp.${index}.settings.resolvers`} label={t('hostsDialog.finalmask.clientResolvers')} hint={t('hostsDialog.finalmask.xdnsResolversHint')} />
                   <FormField
                     control={form.control}
-                    name={`udp.${index}.settings.domains`}
-                    render={({ field: inputField }) => (
-                      <FormItem>
-                        <FormLabel className="text-xs">{t('hostsDialog.finalmask.serverDomains')}</FormLabel>
+                    name={`udp.${index}.settings.extraPoll`}
+                    render={({ field }) => (
+                      <FormItem className="w-full sm:w-40">
+                        <FormLabel className="text-xs">{t('hostsDialog.finalmask.xdnsExtraPoll')}</FormLabel>
                         <FormControl>
-                          <StringArrayPopoverInput
-                            value={Array.isArray(inputField.value) ? inputField.value : []}
-                            onChange={(next: string[]) => inputField.onChange(next)}
-                            placeholder={t('hostsDialog.finalmask.serverDomainsPlaceholder')}
-                            addPlaceholder={t('arrayInput.addPlaceholder')}
-                            addButtonLabel={t('arrayInput.addButton')}
-                            itemsLabel={t('arrayInput.items')}
-                            emptyMessage={t('arrayInput.noItems')}
-                            duplicateErrorMessage={t('arrayInput.duplicateError')}
-                            clickToEditTitle={t('arrayInput.clickToEdit')}
-                            editItemTitle={t('arrayInput.editItem')}
-                            removeItemTitle={t('arrayInput.removeItem')}
-                            saveEditTitle={t('arrayInput.saveEdit')}
-                            cancelEditTitle={t('arrayInput.cancelEdit')}
-                          />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name={`udp.${index}.settings.resolvers`}
-                    render={({ field: inputField }) => (
-                      <FormItem>
-                        <FormLabel className="text-xs">{t('hostsDialog.finalmask.clientResolvers')}</FormLabel>
-                        <FormControl>
-                          <StringArrayPopoverInput
-                            value={Array.isArray(inputField.value) ? inputField.value : []}
-                            onChange={(next: string[]) => inputField.onChange(next)}
-                            placeholder={t('hostsDialog.finalmask.clientResolversPlaceholder')}
-                            addPlaceholder={t('arrayInput.addPlaceholder')}
-                            addButtonLabel={t('arrayInput.addButton')}
-                            itemsLabel={t('arrayInput.items')}
-                            emptyMessage={t('arrayInput.noItems')}
-                            duplicateErrorMessage={t('arrayInput.duplicateError')}
-                            clickToEditTitle={t('arrayInput.clickToEdit')}
-                            editItemTitle={t('arrayInput.editItem')}
-                            removeItemTitle={t('arrayInput.removeItem')}
-                            saveEditTitle={t('arrayInput.saveEdit')}
-                            cancelEditTitle={t('arrayInput.cancelEdit')}
-                          />
+                          <Input type="number" min={0} max={3} step={1} className="h-8 text-xs" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))} />
                         </FormControl>
                       </FormItem>
                     )}
@@ -1347,6 +1309,56 @@ function JsonArrayField({ form, name, label }: JsonArrayFieldProps) {
 
 function JsonObjectField({ form, name, label }: JsonArrayFieldProps) {
   return <FormField control={form.control} name={name} render={({ field }) => <JsonObjectEditor label={label} value={field.value} onChange={field.onChange} />} />
+}
+
+function XdnsObjectArrayField({ form, name, label, hint }: JsonArrayFieldProps & { hint: string }) {
+  const { t } = useTranslation()
+  return <FormField control={form.control} name={name} render={({ field }) => <XdnsObjectArrayEditor label={label} hint={hint} value={field.value} onChange={field.onChange} invalidMessage={t('hostsDialog.finalmask.xdnsInvalidArray')} />} />
+}
+
+function XdnsObjectArrayEditor({ label, hint, value, onChange, invalidMessage }: { label: string; hint: string; value: unknown; onChange: (value: Record<string, unknown>[]) => void; invalidMessage: string }) {
+  const serializedValue = JSON.stringify(Array.isArray(value) ? value : [], null, 2)
+  const [editorText, setEditorText] = useState(serializedValue)
+  const [error, setError] = useState(false)
+  const lastEditedValue = useRef(serializedValue)
+
+  useEffect(() => {
+    if (serializedValue !== lastEditedValue.current) {
+      lastEditedValue.current = serializedValue
+      setEditorText(serializedValue)
+      setError(false)
+    }
+  }, [serializedValue])
+
+  return (
+    <FormItem>
+      <FormLabel className="text-xs">{label}</FormLabel>
+      <p className="text-muted-foreground text-[11px]">{hint}</p>
+      <FormControl>
+        <CodeEditorPanel
+          language="json"
+          value={editorText}
+          onChange={next => {
+            setEditorText(next)
+            try {
+              const parsed: unknown = JSON.parse(next)
+              if (Array.isArray(parsed) && parsed.every(item => item !== null && typeof item === 'object' && !Array.isArray(item))) {
+                setError(false)
+                lastEditedValue.current = JSON.stringify(parsed, null, 2)
+                onChange(parsed as Record<string, unknown>[])
+                return
+              }
+            } catch {
+              // Keep the draft visible until it is valid JSON.
+            }
+            setError(true)
+          }}
+          embeddedContainerClassName="h-32"
+        />
+      </FormControl>
+      {error && <p className="text-destructive text-[11px]">{invalidMessage}</p>}
+    </FormItem>
+  )
 }
 
 function JsonObjectEditor({ label, value, onChange }: { label: string; value: unknown; onChange: (value: Record<string, unknown> | undefined) => void }) {
