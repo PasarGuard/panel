@@ -1,6 +1,6 @@
 from copy import deepcopy
 from enum import Enum
-from ipaddress import ip_network
+from ipaddress import ip_address, ip_network
 from typing import Any
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -269,8 +269,21 @@ class FinalMaskXdnsSettings(FinalMaskBaseModel):
 class FinalMaskXicmpSettings(FinalMaskBaseModel):
     dgram: bool | None = Field(default=None)
     ips: list[str] | None = Field(default=None)
-    listen_ip: str | None = Field(default=None, alias="listenIp")
-    id: int | None = Field(default=None)
+
+    @model_validator(mode="before")
+    @classmethod
+    def remove_obsolete_fields(cls, value):
+        if not isinstance(value, dict):
+            return value
+        return {key: item for key, item in value.items() if key not in ("listenIp", "listen_ip", "id")}
+
+    @field_validator("ips")
+    @classmethod
+    def validate_ips(cls, value):
+        if value is not None:
+            for ip in value:
+                ip_address(ip)
+        return value
 
 
 class FinalMaskSalamanderSettings(FinalMaskPasswordSettings):

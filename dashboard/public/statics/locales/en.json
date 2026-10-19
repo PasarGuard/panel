@@ -1531,6 +1531,7 @@
       "packetSize": "Packet Size (Gecko, max 2048)",
       "packetSizePlaceholder": "e.g. 512-1200",
       "dgramMode": "DGRAM Mode (client-only, Linux/macOS/iOS)",
+      "xicmpIpsHint": "Optional IP literals: client target addresses or server allowed source addresses. Supports multiple IPv4 and IPv6 addresses.",
       "ips": "IPs",
       "ipsPlaceholder": "Add IP (e.g. 1.1.1.1)",
       "reset": "Reset (seconds / range)",

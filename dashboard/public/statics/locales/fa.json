@@ -1357,6 +1357,7 @@
       "packetSize": "اندازه بسته (Gecko، حداکثر ۲۰۴۸)",
       "packetSizePlaceholder": "مثلاً 512-1200",
       "dgramMode": "حالت DGRAM (فقط کلاینت، Linux/macOS/iOS)",
+      "xicmpIpsHint": "آدرس‌های IP اختیاری: مقصدهای کلاینت یا مبدأهای مجاز سرور. چند آدرس IPv4 و IPv6 پشتیبانی می‌شود.",
       "ips": "آدرس‌های IP",
       "ipsPlaceholder": "افزودن IP (مثلاً 1.1.1.1)",
       "reset": "بازنشانی (ثانیه / بازه)",

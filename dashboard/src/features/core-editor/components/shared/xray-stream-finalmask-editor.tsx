@@ -659,6 +659,7 @@ function UdpLayersForm({ form, allowClientOnlyMasks }: { form: UseFormReturn<any
 
               {type === 'xicmp' && (
                 <div className="bg-background space-y-3 rounded-md border p-3">
+                  <p className="text-muted-foreground text-[11px]">{t('hostsDialog.finalmask.xicmpIpsHint')}</p>
                   <FormField
                     control={form.control}
                     name={`udp.${index}.settings.dgram`}

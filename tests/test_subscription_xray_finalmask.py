@@ -91,6 +91,33 @@ def test_xray_finalmask_header_dns_keeps_domain():
     assert settings == {"domain": "example.com"}
 
 
+def test_xray_finalmask_xicmp_uses_new_config_and_discards_old_fields():
+    finalmask = FinalMask.model_validate(
+        {
+            "udp": [
+                {
+                    "type": "xicmp",
+                    "settings": {
+                        "dgram": True,
+                        "ips": ["192.0.2.1", "2001:db8::1"],
+                        "listenIp": "0.0.0.0",
+                        "id": 1234,
+                    },
+                }
+            ]
+        }
+    )
+
+    settings = XrayConfiguration._stream_setting_config(finalmask=finalmask)["finalmask"]["udp"][0]["settings"]
+    assert settings == {"dgram": True, "ips": ["192.0.2.1", "2001:db8::1"]}
+
+
+@pytest.mark.parametrize("ip", ["example.com", "192.0.2.999", "192.0.2.0/24"])
+def test_xray_finalmask_xicmp_rejects_non_ip_addresses(ip):
+    with pytest.raises(ValidationError, match="ips"):
+        FinalMask.model_validate({"udp": [{"type": "xicmp", "settings": {"ips": [ip]}}]})
+
+
 def _noise_exp_mask(**item):
     return {"udp": [{"type": "noise", "settings": {"noise": [{"type": "exp", **item}]}}]}
 

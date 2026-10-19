@@ -1497,6 +1497,7 @@
       "packetSize": "数据包大小（Gecko，上限 2048）",
       "packetSizePlaceholder": "例如 512-1200",
       "dgramMode": "DGRAM 模式（仅客户端，Linux/macOS/iOS）",
+      "xicmpIpsHint": "可选 IP 地址：客户端目标地址或服务端允许的来源地址。支持多个 IPv4 和 IPv6 地址。",
       "ips": "IP 地址",
       "ipsPlaceholder": "添加 IP（例如 1.1.1.1）",
       "reset": "重置（秒 / 范围）",
