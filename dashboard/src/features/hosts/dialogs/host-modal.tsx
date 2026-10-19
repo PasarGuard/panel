@@ -700,7 +700,6 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
   const inbounds = useMemo(() => inboundDetails?.map(inbound => inbound.tag) || [], [inboundDetails])
   const selectedInbound = useMemo(() => inboundDetails?.find(inbound => inbound.tag === selectedInboundTag), [inboundDetails, selectedInboundTag])
   const isWireGuardInbound = selectedInbound?.protocol === 'wireguard'
-  const isMasqueInbound = selectedInbound?.protocol === 'masque'
   const isInboundModeResolved = !isDialogOpen || !selectedInboundTag || !!selectedInbound || !isLoadingInbounds
   const shouldRenderWireGuardLayout = resolvedHostMode === 'wireguard'
 
@@ -1341,21 +1340,6 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                           />
                         </div>
 
-                        {isMasqueInbound && (
-                          <FormField
-                            control={form.control}
-                            name="transport_settings.masque_settings.remote_dns"
-                            render={({ field }) => (
-                              <ArrayInput
-                                field={{ ...field, value: field.value ?? [] }}
-                                placeholder="1.1.1.1"
-                                label={t('hostsDialog.masque.remoteDns', { defaultValue: 'MASQUE remote DNS servers' })}
-                                infoContent={<p className="text-muted-foreground text-[11px]">{t('hostsDialog.masque.remoteDnsHint', { defaultValue: 'Leave empty to use the inbound DNS servers' })}</p>}
-                              />
-                            )}
-                          />
-                        )}
-
                         <FormField
                           control={form.control}
                           name="random_user_agent"
@@ -1953,8 +1937,26 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                 <span className="hidden sm:inline">WebSocket</span>
                                 <span className="text-[11.5px] sm:hidden">WS</span>
                               </TabsTrigger>
+                              <TabsTrigger className="flex-1 px-1 text-xs sm:flex-none sm:px-2 sm:text-sm" value="masque">
+                                MASQUE
+                              </TabsTrigger>
                             </TabsList>
                           </div>
+
+                          <TabsContent dir={dir} value="masque" className="space-y-4 p-2">
+                            <FormField
+                              control={form.control}
+                              name="transport_settings.masque_settings.remote_dns"
+                              render={({ field }) => (
+                                <ArrayInput
+                                  field={{ ...field, value: field.value ?? [] }}
+                                  placeholder="1.1.1.1"
+                                  label={t('hostsDialog.masque.remoteDns', { defaultValue: 'MASQUE remote DNS servers' })}
+                                  infoContent={<p className="text-muted-foreground text-[11px]">{t('hostsDialog.masque.remoteDnsHint', { defaultValue: 'Leave empty to use the inbound DNS servers' })}</p>}
+                                />
+                              )}
+                            />
+                          </TabsContent>
 
                           {/* XHTTP Settings */}
                           <TabsContent dir={dir} value="xhttp" className="space-y-4 p-2">

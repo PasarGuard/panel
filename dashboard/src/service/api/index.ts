@@ -755,6 +755,10 @@ export interface WebSocketSettings {
   heartbeatPeriod?: number | null;
 }
 
+export interface MasqueHostSettings {
+  remote_dns?: string[] | null;
+}
+
 export interface TransportSettings {
   xhttp_settings?: XHttpSettings | null;
   grpc_settings?: GRPCSettings | null;
@@ -762,10 +766,6 @@ export interface TransportSettings {
   tcp_settings?: TcpSettings | null;
   websocket_settings?: WebSocketSettings | null;
   masque_settings?: MasqueHostSettings | null;
-}
-
-export interface MasqueHostSettings {
-  remote_dns?: string[] | null;
 }
 
 export type MultiplexProtocol = typeof MultiplexProtocol[keyof typeof MultiplexProtocol];
@@ -1259,7 +1259,7 @@ export interface BulkGroupsActionResponse {
  * Model for bulk host selection by IDs
  */
 export interface BulkHostSelection {
-  ids?: number[];
+  ids: number[];
 }
 
 /**
@@ -1711,6 +1711,11 @@ export interface InboundSummary {
   network?: string | null;
 }
 
+export interface MasqueSettings {
+  /** @minLength 1 */
+  password?: string;
+}
+
 export interface ModifyUserByTemplate {
   user_template_id: number;
   note?: string | null;
@@ -2051,11 +2056,6 @@ export interface WireGuardSettings {
   private_key?: string | null;
   public_key?: string | null;
   peer_ips?: string[];
-}
-
-export interface MasqueSettings {
-  /** @minLength 1 */
-  password?: string;
 }
 
 export interface ProxyTable {
