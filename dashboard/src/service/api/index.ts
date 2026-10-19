@@ -757,6 +757,7 @@ export interface WebSocketSettings {
 
 export interface MasqueHostSettings {
   remote_dns?: string[] | null;
+  xmux?: XMuxSettings | null;
 }
 
 export interface TransportSettings {

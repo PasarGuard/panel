@@ -1960,6 +1960,82 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                 />
                               )}
                             />
+                            <div className="space-y-3">
+                              <h4 className="text-sm font-medium">{t('hostsDialog.xhttp.xmux')}</h4>
+                              <p className="text-muted-foreground text-xs">{t('hostsDialog.masque.xmuxHint')}</p>
+                              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                <FormField
+                                  control={form.control}
+                                  name="transport_settings.masque_settings.xmux.max_connections"
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel>{t('hostsDialog.xhttp.maxConnections')}</FormLabel>
+                                      <FormControl>
+                                        <Input {...field} value={field.value ?? ''} placeholder="1 or 1-3" />
+                                      </FormControl>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+                                <FormField
+                                  control={form.control}
+                                  name="transport_settings.masque_settings.xmux.max_concurrency"
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel>{t('hostsDialog.xhttp.maxConcurrency')}</FormLabel>
+                                      <FormControl>
+                                        <Input {...field} value={field.value ?? ''} placeholder="8 or 8-16" />
+                                      </FormControl>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+                                <FormField
+                                  control={form.control}
+                                  name="transport_settings.masque_settings.xmux.c_max_reuse_times"
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel>{t('hostsDialog.xhttp.cMaxReuseTimes')}</FormLabel>
+                                      <FormControl>
+                                        <Input {...field} value={field.value ?? ''} placeholder="1 or 1-3" />
+                                      </FormControl>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+                                <FormField
+                                  control={form.control}
+                                  name="transport_settings.masque_settings.xmux.h_max_reusable_secs"
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel>{t('hostsDialog.xhttp.hMaxReusableSecs')}</FormLabel>
+                                      <FormControl>
+                                        <Input {...field} value={field.value ?? ''} placeholder="1800-3000" />
+                                      </FormControl>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+                                <FormField
+                                  control={form.control}
+                                  name="transport_settings.masque_settings.xmux.h_keep_alive_period"
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel>{t('hostsDialog.xhttp.hKeepAlivePeriod')}</FormLabel>
+                                      <FormControl>
+                                        <Input
+                                          type="number"
+                                          {...field}
+                                          value={field.value ?? ''}
+                                          onChange={event => field.onChange(event.target.value === '' ? null : Number(event.target.value))}
+                                        />
+                                      </FormControl>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+                              </div>
+                            </div>
                           </TabsContent>
 
                           {/* XHTTP Settings */}

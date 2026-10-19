@@ -83,6 +83,7 @@ class BaseTransportConfig(BaseModel):
 class MasqueTransportConfig(BaseTransportConfig):
     """MASQUE transport settings used by Xray subscriptions."""
 
+    xmux: dict[str, Any] | None = Field(None)
     http_headers: dict[str, str] | None = Field(
         None,
         validation_alias=AliasChoices("headers", "http_headers"),

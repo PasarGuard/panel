@@ -1294,7 +1294,8 @@
     "networkSettings": "网络设置",
     "masque": {
       "remoteDns": "MASQUE 远程 DNS 服务器",
-      "remoteDnsHint": "留空则使用入站 DNS 服务器"
+      "remoteDnsHint": "留空则使用入站 DNS 服务器",
+      "xmuxHint": "客户端需要 Xray 26.10.17 或更新版本。全部留空时使用 Xray 默认值：一个隧道，可复用 1800–3000 秒。设置任一字段后，这些默认值将被替换。最大连接数和最大并发数不能同时设置。"
     },
     "transportSettings": "传输设置",
     "transportType": "传输类型",

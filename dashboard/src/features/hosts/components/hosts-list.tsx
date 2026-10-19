@@ -1,6 +1,6 @@
 import { Card, CardContent } from '@/components/ui/card'
 import { type HostAdvanceSearchFormValues, hostAdvanceSearchFormSchema } from '@/features/hosts/forms/host-advance-search-form'
-import { HostFormSchema, hostFormDefaultValues, mapHostFragmentSettingsForForm, type HostFormValues } from '@/features/hosts/forms/host-form'
+import { HostFormSchema, hostFormDefaultValues, mapHostFragmentSettingsForForm, mapMasqueXmuxForForm, type HostFormValues } from '@/features/hosts/forms/host-form'
 import HostAdvanceSearchModal from '@/features/hosts/dialogs/host-advance-search-modal'
 import { type HostListFilters, HostFilters } from '@/features/hosts/components/host-filters'
 import { ListGenerator } from '@/components/common/list-generator'
@@ -261,7 +261,10 @@ export default function HostsList({
       transport_settings: host.transport_settings
         ? {
             masque_settings: host.transport_settings.masque_settings
-              ? { remote_dns: host.transport_settings.masque_settings.remote_dns ?? [] }
+              ? {
+                  remote_dns: host.transport_settings.masque_settings.remote_dns ?? [],
+                  xmux: mapMasqueXmuxForForm(host.transport_settings.masque_settings.xmux),
+                }
               : undefined,
             xhttp_settings: host.transport_settings.xhttp_settings
               ? {
@@ -640,7 +643,10 @@ export default function HostsList({
         transport_settings: host.transport_settings
           ? {
               masque_settings: host.transport_settings.masque_settings
-                ? { remote_dns: host.transport_settings.masque_settings.remote_dns ?? [] }
+                ? {
+                    remote_dns: host.transport_settings.masque_settings.remote_dns ?? [],
+                    xmux: host.transport_settings.masque_settings.xmux ?? undefined,
+                  }
                 : undefined,
               xhttp_settings: host.transport_settings.xhttp_settings
                 ? {

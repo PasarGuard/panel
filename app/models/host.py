@@ -679,6 +679,7 @@ class MuxSettings(BaseModel):
 
 class MasqueHostSettings(BaseModel):
     remote_dns: list[str] | None = Field(default=None)
+    xmux: XMuxSettings | None = Field(default=None)
 
 
 class TransportSettings(BaseModel):

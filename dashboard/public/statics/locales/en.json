@@ -1325,7 +1325,8 @@
     "networkSettings": "Network Settings",
     "masque": {
       "remoteDns": "MASQUE remote DNS servers",
-      "remoteDnsHint": "Leave empty to use the inbound DNS servers"
+      "remoteDnsHint": "Leave empty to use the inbound DNS servers",
+      "xmuxHint": "Requires Xray 26.10.17 or newer on the client. Leave all fields blank for Xray defaults: one tunnel, reusable for 1800-3000 seconds. Setting any field replaces those defaults. Max Connections and Max Concurrency cannot both be set."
     },
     "transportSettings": "Transport Settings",
     "transportType": "Transport Type",

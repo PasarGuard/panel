@@ -445,10 +445,12 @@ async def _prepare_subscription_inbound_data(
             random_user_agent=host.random_user_agent,
         )
     elif network == "masque":
+        ms = ts.masque_settings if ts else None
         transport_config = MasqueTransportConfig(
             path=path,
             host=host_list,
             http_headers=host.http_headers if host.http_headers is not None else inbound_config.get("http_headers"),
+            xmux=ms.xmux.model_dump(by_alias=True, exclude_none=True) if ms and ms.xmux else None,
         )
     else:
         # Unknown network type, default to TCP
