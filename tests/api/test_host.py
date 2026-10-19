@@ -322,8 +322,16 @@ def test_host_finalmask_new_types(access_token):
             {
                 "type": "xdns",
                 "settings": {
-                    "domains": ["dns1.com", "dns2.com"],
-                    "resolvers": ["+udp://1.1.1.1:53"],
+                    "domains": [{"names": ["dns1.com", "dns2.com"], "lenLimit": 128}],
+                    "resolvers": [
+                        {
+                            "addrs": ["https://dns.example/dns-query"],
+                            "worker": 8,
+                            "tlsConfig": {"serverName": "front.example"},
+                            "quicConfig": {"congestion": "bbr"},
+                        }
+                    ],
+                    "extraPoll": 2,
                 },
             },
             {
@@ -395,6 +403,7 @@ def test_host_finalmask_new_types(access_token):
         assert len(fm.get("udp", [])) == 6
         assert fm["udp"][0]["type"] == "realm"
         assert fm["udp"][1]["type"] == "mkcp-legacy"
+        assert fm["udp"][2]["settings"] == finalmask_payload["udp"][2]["settings"]
         assert fm["udp"][5]["settings"].get("reset") == "30-60"
         noise = (fm["udp"][5]["settings"].get("noise") or [{}])[0]
         assert noise.get("type") == "array"
@@ -639,7 +648,7 @@ def test_host_finalmask_header_custom_numeric_rand(access_token):
         assert client_item["randRange"] == "32"
         server_item = settings["server"][0]
         assert server_item["randRange"] == "0-255"
-        assert server_item["rand"] is None
+        assert "rand" not in server_item
         assert "delay" not in server_item
         assert "rand_range" not in get_res.text
 

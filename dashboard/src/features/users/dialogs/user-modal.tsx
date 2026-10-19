@@ -1228,6 +1228,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
       trojan: { password: generatePassword() },
       shadowsocks: { password: generatePassword() },
       hysteria: { auth: uuidv4() },
+      masque: { password: generatePassword() },
       wireguard: {
         private_key: keyPair.privateKey,
         public_key: keyPair.publicKey,
@@ -1322,7 +1323,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
     [hasMeaningfulProxyValue],
   )
 
-  // Regenerate all proxy credentials (VMess, VLESS, Trojan, Shadowsocks, Hysteria, WireGuard)
+  // Regenerate all proxy credentials (VMess, VLESS, Trojan, Shadowsocks, Hysteria, MASQUE, WireGuard)
   const GenerateProxySettingsButton = () => (
     <Button size="icon" type="button" variant="outline" onClick={generateAllProxySettings} className="flex items-center gap-1.5 border-0 text-xs">
       <RefreshCcw className="h-3 w-3" />
@@ -2065,6 +2066,49 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
                                 </FormItem>
                               )
                             }}
+                          />
+                          {/* MASQUE */}
+                          <FormField
+                            control={form.control}
+                            name="proxy_settings.masque.password"
+                            render={({ field }) => (
+                              <FormItem className="mb-2">
+                                <FormLabel>
+                                  {t('userDialog.proxySettings.masque')} {t('userDialog.proxySettings.password')}
+                                </FormLabel>
+                                <FormControl>
+                                  <div dir="ltr" className={`flex items-center gap-2 ${dir === 'rtl' ? 'flex-row-reverse' : 'flex-row'}`}>
+                                    <Input
+                                      {...field}
+                                      value={field.value ?? ''}
+                                      placeholder={t('userDialog.proxySettings.password')}
+                                      onChange={e => {
+                                        field.onChange(e)
+                                        form.trigger('proxy_settings.masque.password')
+                                        handleFieldChange('proxy_settings.masque.password', e.target.value)
+                                      }}
+                                    />
+                                    <Button
+                                      size="icon"
+                                      type="button"
+                                      variant="ghost"
+                                      onClick={e => {
+                                        e.preventDefault()
+                                        e.stopPropagation()
+                                        const newVal = generatePassword()
+                                        field.onChange(newVal)
+                                        form.trigger('proxy_settings.masque.password')
+                                        handleFieldChange('proxy_settings.masque.password', newVal)
+                                      }}
+                                      title="Generate password"
+                                    >
+                                      <RefreshCcw className="h-3 w-3" />
+                                    </Button>
+                                  </div>
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
                           />
                           <FormField
                             control={form.control}

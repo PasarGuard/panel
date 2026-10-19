@@ -70,6 +70,12 @@ def _serialize_user_for_node(
     inbounds: list[str] | None = None,
     allowed_protocols: frozenset[ProxyProtocol] | None = None,
 ) -> ProtoUser:
+    """Build a node user with the numeric ID as its email and supplied inbounds.
+
+    Include credentials only for ``allowed_protocols``; both ``None`` and an
+    empty set select all protocols. MASQUE uses the stored ``password`` as its
+    node credential. Bridge serialization errors propagate to the caller.
+    """
     allowed_protocols = allowed_protocols or _ALL_PROXY_PROTOCOLS
 
     proxy_kwargs = {}
@@ -89,6 +95,8 @@ def _serialize_user_for_node(
         proxy_kwargs["wireguard_peer_ips"] = wireguard_settings.get("peer_ips") or []
     if ProxyProtocol.hysteria in allowed_protocols:
         proxy_kwargs["hysteria_auth"] = user_settings.get("hysteria", {}).get("auth")
+    if ProxyProtocol.masque in allowed_protocols:
+        proxy_kwargs["masque_pass"] = user_settings.get("masque", {}).get("password")
 
     return create_user(
         str(id),

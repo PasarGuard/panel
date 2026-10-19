@@ -53,6 +53,71 @@ def test_xray_finalmask_keeps_udphop_with_xray_field_names():
     assert stream_settings["finalmask"]["udp"] == [udphop]
 
 
+def test_xray_finalmask_xdns_doh_resolvers_keep_xray_fields():
+    settings = {
+        "domains": [{"names": ["t.example.com"], "types": [1, 28]}],
+        "resolvers": [
+            {"addrs": ["https://dns.example/dns-query"], "worker": 8},
+            {
+                "addrs": ["https://dns3.example/dns-query"],
+                "tlsConfig": {"alpn": ["h3"], "serverName": "front.example"},
+                "quicConfig": {"congestion": "bbr"},
+            },
+        ],
+        "extraPoll": 2,
+    }
+    finalmask = FinalMask.model_validate({"udp": [{"type": "xdns", "settings": settings}]})
+    actual = XrayConfiguration._stream_setting_config(finalmask=finalmask)["finalmask"]["udp"][0]["settings"]
+
+    assert actual == {
+        **settings,
+        "resolvers": [{**settings["resolvers"][0], "tlsConfig": {}}, settings["resolvers"][1]],
+    }
+
+
+def test_xray_finalmask_xdns_legacy_lists_are_upgraded():
+    finalmask = FinalMask.model_validate(
+        {"udp": [{"type": "xdns", "settings": {"domains": ["t.example.com"], "resolvers": ["udp://1.1.1.1"]}}]}
+    )
+
+    settings = finalmask.model_dump(by_alias=True, exclude_none=True, mode="json")["udp"][0]["settings"]
+    assert settings == {"domains": [{"names": ["t.example.com"]}], "resolvers": [{"addrs": ["udp://1.1.1.1"]}]}
+
+
+def test_xray_finalmask_header_dns_keeps_domain():
+    finalmask = FinalMask.model_validate({"udp": [{"type": "header-dns", "settings": {"domain": "example.com"}}]})
+
+    settings = finalmask.model_dump(by_alias=True, exclude_none=True, mode="json")["udp"][0]["settings"]
+    assert settings == {"domain": "example.com"}
+
+
+def test_xray_finalmask_xicmp_uses_new_config_and_discards_old_fields():
+    finalmask = FinalMask.model_validate(
+        {
+            "udp": [
+                {
+                    "type": "xicmp",
+                    "settings": {
+                        "dgram": True,
+                        "ips": ["192.0.2.1", "2001:db8::1"],
+                        "listenIp": "0.0.0.0",
+                        "id": 1234,
+                    },
+                }
+            ]
+        }
+    )
+
+    settings = XrayConfiguration._stream_setting_config(finalmask=finalmask)["finalmask"]["udp"][0]["settings"]
+    assert settings == {"dgram": True, "ips": ["192.0.2.1", "2001:db8::1"]}
+
+
+@pytest.mark.parametrize("ip", ["example.com", "192.0.2.999", "192.0.2.0/24"])
+def test_xray_finalmask_xicmp_rejects_non_ip_addresses(ip):
+    with pytest.raises(ValidationError, match="ips"):
+        FinalMask.model_validate({"udp": [{"type": "xicmp", "settings": {"ips": [ip]}}]})
+
+
 def _noise_exp_mask(**item):
     return {"udp": [{"type": "noise", "settings": {"noise": [{"type": "exp", **item}]}}]}
 
