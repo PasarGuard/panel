@@ -72,11 +72,25 @@ def create_core(
         "name": name or unique_name("core"),
         "type": type,
         "exclude_inbound_tags": list(exclude or []),
-        "fallbacks_inbound_tags": list(fallbacks or ([] if type in {"wg", "mtproto"} else ["fallback-A", "fallback-B"])),
+        "fallbacks_inbound_tags": list(
+            fallbacks or ([] if type in {"wg", "mtproto"} else ["fallback-A", "fallback-B"])
+        ),
     }
     response = client.post("/api/core", headers=auth_headers(access_token), json=payload)
     assert response.status_code == status.HTTP_201_CREATED
     return response.json()
+
+
+def create_mtproto_core(
+    access_token: str, *, tag: str | None = None, config: dict | None = None, name: str | None = None
+) -> dict:
+    config = config or {
+        "inbound_tag": tag or unique_name("mtp"),
+        "general": {"modes": {"classic": False, "secure": False, "tls": True}},
+        "server": {"port": 443},
+        "censorship": {"tls_domain": "www.example.org"},
+    }
+    return create_core(access_token, name=name, config=config, type="mtproto", fallbacks=[])
 
 
 def delete_core(access_token: str, core_id: int) -> None:
