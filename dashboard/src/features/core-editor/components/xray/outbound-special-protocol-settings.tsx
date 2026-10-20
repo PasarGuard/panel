@@ -8,6 +8,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
 import { normalizeSettingsFromEditor } from '@/features/core-editor/kit/outbound-editor-json'
+import {
+  applyWireguardKernelTunChoice,
+  invalidWireguardRemoteDns,
+  WIREGUARD_OUTBOUND_LEGACY_FIELDS,
+  wireguardKernelTunChoice,
+  type WireguardKernelTunChoice,
+} from '@/features/core-editor/kit/wireguard-outbound-settings'
+import { formatWireguardReserved, parseWireguardReservedInput, wireguardReservedBytes, wireguardReservedInputMatches } from '@/features/core-editor/kit/wireguard-xray-fields'
 import { useCoreEditorStore } from '@/features/core-editor/state/core-editor-store'
 import type { Outbound } from '@pasarguard/xray-config-kit'
 import type { TFunction } from 'i18next'
@@ -917,7 +925,6 @@ function OutboundWireGuardSettings({ ob, patchOutbound, t }: { ob: Outbound; pat
   const addresses = Array.isArray(s.address) ? s.address.map(v => String(v).trim()).filter(Boolean) : []
   const mtu = s.mtu !== undefined && s.mtu !== null ? String(s.mtu) : ''
   const workers = s.workers !== undefined && s.workers !== null ? String(s.workers) : ''
-  const reserved = Array.isArray(s.reserved) ? JSON.stringify(s.reserved) : typeof s.reserved === 'string' ? s.reserved : ''
   const domainStrategy = typeof s.domainStrategy === 'string' && s.domainStrategy.trim() ? s.domainStrategy : '__default__'
   const dnsServers: string[] = Array.isArray(s.remoteDNS)
     ? s.remoteDNS.map(v => String(v).trim()).filter(Boolean)
@@ -926,7 +933,17 @@ function OutboundWireGuardSettings({ ob, patchOutbound, t }: { ob: Outbound; pat
       : typeof s.DNS === 'string' && s.DNS.trim()
         ? [s.DNS.trim()]
         : []
-  const kernelModeValue = typeof s.kernelMode === 'boolean' ? String(s.kernelMode) : '__default__'
+  const invalidDns = invalidWireguardRemoteDns(s.remoteDNS)
+  const kernelTunChoice = wireguardKernelTunChoice(s)
+  const [reservedText, setReservedText] = useState(() => formatWireguardReserved(s.reserved))
+
+  useEffect(() => {
+    const current = readSettings(ob).reserved
+    setReservedText(prev => (wireguardReservedInputMatches(prev, current) ? prev : formatWireguardReserved(current)))
+  }, [ob])
+
+  // A stored value Xray cannot read (for example the string "1,2,3") blocks Modify even when its text parses.
+  const reservedInvalid = !parseWireguardReservedInput(reservedText).ok || wireguardReservedBytes(s.reserved) === null
 
   const commitWireGuard = (next: Record<string, unknown>) => {
     commitSettings(ob, next, patchOutbound)
@@ -937,20 +954,6 @@ function OutboundWireGuardSettings({ ob, patchOutbound, t }: { ob: Outbound; pat
     if (trimmed === '') return undefined
     const n = Number(trimmed)
     return Number.isFinite(n) ? Math.trunc(n) : undefined
-  }
-
-  const parseReserved = (value: string): string | number[] | undefined => {
-    const trimmed = value.trim()
-    if (trimmed === '') return undefined
-    if (trimmed.startsWith('[')) {
-      try {
-        const parsed: unknown = JSON.parse(trimmed)
-        if (Array.isArray(parsed) && parsed.every(item => Number.isInteger(item))) return parsed as number[]
-      } catch {
-        /* keep raw string below */
-      }
-    }
-    return value
   }
 
   const peers: WireGuardPeerRow[] = Array.isArray(s.peers)
@@ -998,9 +1001,9 @@ function OutboundWireGuardSettings({ ob, patchOutbound, t }: { ob: Outbound; pat
             className="h-10 w-full min-w-0 text-xs"
             value={secretKey}
             onChange={e => {
-              const v = e.target.value
+              const v = e.target.value.trim()
               const next = { ...readSettings(ob) }
-              if (!v.trim()) delete next.secretKey
+              if (!v) delete next.secretKey
               else next.secretKey = v
               commitWireGuard(next)
             }}
@@ -1060,6 +1063,12 @@ function OutboundWireGuardSettings({ ob, patchOutbound, t }: { ob: Outbound; pat
               commitWireGuard(next)
             }}
           />
+          <p className="text-muted-foreground text-xs leading-relaxed">
+            {t('coreEditor.outbound.wireguard.legacyFieldHint', {
+              ...WIREGUARD_OUTBOUND_LEGACY_FIELDS.workers,
+              defaultValue: 'Only Xray {{lastRelease}} and older read this; {{removedIn}} removed it.',
+            })}
+          </p>
         </div>
 
         <div className="flex w-full min-w-0 flex-col gap-2">
@@ -1067,16 +1076,32 @@ function OutboundWireGuardSettings({ ob, patchOutbound, t }: { ob: Outbound; pat
           <Input
             dir="ltr"
             className="h-10 w-full min-w-0 text-xs"
-            placeholder="[0,0,0]"
-            value={reserved}
+            placeholder="0, 0, 0"
+            value={reservedText}
             onChange={e => {
+              const text = e.target.value
+              setReservedText(text)
+              const parsed = parseWireguardReservedInput(text)
+              if (!parsed.ok) return
               const next = { ...readSettings(ob) }
-              const parsed = parseReserved(e.target.value)
-              if (parsed === undefined) delete next.reserved
-              else next.reserved = parsed
+              if (parsed.value === undefined) delete next.reserved
+              else next.reserved = parsed.value
               commitWireGuard(next)
             }}
           />
+          {reservedInvalid ? (
+            <p className="text-destructive text-xs">
+              {t('coreEditor.outbound.wireguard.reservedInvalid', {
+                defaultValue: 'Reserved must be three numbers from 0 to 255, for example 1, 2, 3.',
+              })}
+            </p>
+          ) : (
+            <p className="text-muted-foreground text-xs leading-relaxed">
+              {t('coreEditor.outbound.wireguard.reservedHint', {
+                defaultValue: 'Three bytes from 0 to 255, for example 1, 2, 3 or [1,2,3].',
+              })}
+            </p>
+          )}
         </div>
 
         <div className="flex w-full min-w-0 flex-col gap-2">
@@ -1101,6 +1126,12 @@ function OutboundWireGuardSettings({ ob, patchOutbound, t }: { ob: Outbound; pat
               <SelectItem value="ForceIPv6">ForceIPv6</SelectItem>
             </SelectContent>
           </Select>
+          <p className="text-muted-foreground text-xs leading-relaxed">
+            {t('coreEditor.outbound.wireguard.legacyFieldHint', {
+              ...WIREGUARD_OUTBOUND_LEGACY_FIELDS.domainStrategy,
+              defaultValue: 'Only Xray {{lastRelease}} and older read this; {{removedIn}} removed it.',
+            })}
+          </p>
         </div>
 
         <div className="flex w-full min-w-0 flex-col gap-2">
@@ -1121,29 +1152,38 @@ function OutboundWireGuardSettings({ ob, patchOutbound, t }: { ob: Outbound; pat
             emptyMessage={t('coreEditor.outbound.wireguard.noDns', { defaultValue: 'No DNS server added.' })}
             className="h-10 w-full max-w-none min-w-0"
           />
+          <p className="text-muted-foreground text-xs leading-relaxed">{t('coreEditor.outbound.wireguard.dnsHint', { defaultValue: 'IP addresses only. Read by Xray v26.9.8 and newer.' })}</p>
+          {invalidDns.length > 0 && (
+            <p className="text-destructive text-xs">
+              {Array.isArray(s.remoteDNS)
+                ? t('coreEditor.outbound.wireguard.dnsInvalid', {
+                    values: invalidDns.join(', '),
+                    defaultValue: 'DNS servers must be IP addresses: {{values}}',
+                  })
+                : t('coreEditor.outbound.wireguard.dnsNotList', {
+                    defaultValue: 'DNS servers must be a list of IP addresses. Edit the list to save it as one.',
+                  })}
+            </p>
+          )}
         </div>
 
         <div className="flex w-full min-w-0 flex-col gap-2">
           <Label className="text-xs font-medium">{t('coreEditor.outbound.wireguard.kernelMode', { defaultValue: 'Kernel mode' })}</Label>
-          <Select
-            dir="ltr"
-            value={kernelModeValue}
-            onValueChange={v => {
-              const next = { ...readSettings(ob) }
-              if (v === '__default__') delete next.kernelMode
-              else next.kernelMode = v === 'true'
-              commitWireGuard(next)
-            }}
-          >
+          <Select dir="ltr" value={kernelTunChoice} onValueChange={v => commitWireGuard(applyWireguardKernelTunChoice(readSettings(ob), v as WireguardKernelTunChoice))}>
             <SelectTrigger className="h-10 w-full min-w-0" dir="ltr">
               <SelectValue />
             </SelectTrigger>
             <SelectContent dir="ltr">
               <SelectItem value="__default__">{t('coreEditor.outbound.wireguard.kernelModeDefault', { defaultValue: 'Default' })}</SelectItem>
-              <SelectItem value="true">{t('enabled', { defaultValue: 'Enabled' })}</SelectItem>
-              <SelectItem value="false">{t('disabled', { defaultValue: 'Disabled' })}</SelectItem>
+              <SelectItem value="kernel">{t('coreEditor.outbound.wireguard.kernelModeKernel', { defaultValue: 'Kernel TUN' })}</SelectItem>
+              <SelectItem value="userspace">{t('coreEditor.outbound.wireguard.kernelModeUserspace', { defaultValue: 'Userspace (gVisor)' })}</SelectItem>
             </SelectContent>
           </Select>
+          <p className="text-muted-foreground text-xs leading-relaxed">
+            {t('coreEditor.outbound.wireguard.kernelModeHint', {
+              defaultValue: 'Saved as noKernelTun. Kernel TUN needs Linux and CAP_NET_ADMIN; otherwise Xray uses userspace.',
+            })}
+          </p>
         </div>
       </div>
 
