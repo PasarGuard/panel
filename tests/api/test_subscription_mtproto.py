@@ -1,10 +1,12 @@
 """Telegram proxy links appear on the subscription page and the dashboard, never in client formats."""
 
 import base64
+from uuid import uuid4
 
 import pytest
 from fastapi import status
 
+from app.subscription.config_cache import clear_sub_config_cache
 from tests.api import client
 from tests.api.helpers import (
     auth_headers,
@@ -57,10 +59,13 @@ def _raw_links(user: dict) -> list[str]:
     return response.json()["body"]["links"]
 
 
+def _expected_link(secret: str) -> str:
+    return f"tg://proxy?server=mtp.example.net&port=8443&secret=ee{secret}{TLS_DOMAIN.encode().hex()}"
+
+
 def test_page_raw_and_admin_links_show_telegram_link(access_token, mtproto_setup):
     user, _ = mtproto_setup
-    secret = user["proxy_settings"]["mtproto"]["secret"]
-    expected = f"tg://proxy?server=mtp.example.net&port=8443&secret=ee{secret}{TLS_DOMAIN.encode().hex()}"
+    expected = _expected_link(user["proxy_settings"]["mtproto"]["secret"])
 
     assert expected in _raw_links(user)
 
@@ -91,10 +96,26 @@ def test_user_without_secret_gets_no_telegram_link(access_token, mtproto_setup):
     user = create_user(access_token, group_ids=[group["id"]])
     try:
         strip_mtproto_settings(user["id"])
+        # The sub-config cache key ignores proxy settings: clear it so each fetch is a real render.
+        clear_sub_config_cache()
         first = _raw_links(user)
+        clear_sub_config_cache()
         second = _raw_links(user)
-        assert not any("tg://" in link for link in first)
-        assert not any("tg://" in link for link in second)
+        # A read path that invented a secret would give a different random link on each render.
         assert first == second
+        for link in first:
+            assert "tg://" not in link
+            assert "t.me/proxy" not in link
+
+        # Positive control: once a secret is assigned, the same user gets its Telegram link.
+        secret = uuid4().hex
+        response = client.put(
+            f"/api/user/by-id/{user['id']}",
+            headers=auth_headers(access_token),
+            json={"proxy_settings": {"mtproto": {"secret": secret}}},
+        )
+        assert response.status_code == status.HTTP_200_OK, response.text
+        clear_sub_config_cache()
+        assert _expected_link(secret) in _raw_links(user)
     finally:
         delete_user(access_token, user["username"])
