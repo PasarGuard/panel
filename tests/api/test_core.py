@@ -379,6 +379,61 @@ def test_mtproto_core_modify_without_type_keeps_type(access_token):
         delete_core(access_token, core_a["id"])
 
 
+def test_wireguard_core_modify_without_type_keeps_type(access_token):
+    # The cores list's enable toggle sends no type; a WireGuard config must not be validated as Xray.
+    private_key, _ = generate_wireguard_keypair()
+    core = create_core(
+        access_token,
+        name=unique_name("wg_no_type"),
+        config={
+            "interface_name": unique_name("wg"),
+            "private_key": private_key,
+            "listen_port": 51820,
+            "address": ["10.72.0.1/24"],
+        },
+        type="wg",
+        fallbacks=[],
+    )
+    try:
+        payload = {"name": core["name"], "config": core["config"], "exclude_inbound_tags": []}
+        response = client.put(
+            f"/api/core/{core['id']}",
+            headers=auth_headers(access_token),
+            json=payload,
+            params={"restart_nodes": False},
+        )
+        assert response.status_code == status.HTTP_200_OK, response.text
+        assert response.json()["type"] == "wg"
+
+        response = client.get(f"/api/core/{core['id']}", headers=auth_headers(access_token))
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["type"] == "wg"
+    finally:
+        delete_core(access_token, core["id"])
+
+
+def test_mtproto_core_modify_rejects_tag_of_another_mtproto_core(access_token):
+    tag_a = unique_name("mtp")
+    core_a = create_mtproto_core(access_token, tag=tag_a)
+    core_b = create_mtproto_core(access_token, tag=unique_name("mtp"))
+    try:
+        response = client.put(
+            f"/api/core/{core_b['id']}",
+            headers=auth_headers(access_token),
+            json=_mtproto_payload(tag_a, name=core_b["name"]),
+            params={"restart_nodes": False},
+        )
+        assert response.status_code == status.HTTP_400_BAD_REQUEST, response.text
+        assert f'inbound tag "{tag_a}" is already used by core "{core_a["name"]}"' in response.json()["detail"]
+
+        response = client.get(f"/api/core/{core_b['id']}", headers=auth_headers(access_token))
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["config"]["inbound_tag"] == core_b["config"]["inbound_tag"]
+    finally:
+        delete_core(access_token, core_b["id"])
+        delete_core(access_token, core_a["id"])
+
+
 def test_mtproto_core_rejects_missing_tls_domain(access_token):
     payload = _mtproto_payload(unique_name("mtp"))
     del payload["config"]["censorship"]
