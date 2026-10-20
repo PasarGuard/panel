@@ -40,6 +40,37 @@ def test_subscription_page_escapes_links():
     assert 'onclick="copyLink(this.dataset.link, this)"' in html
 
 
+TELEGRAM_LINK = "tg://proxy?server=mtp.example.net&port=8443&secret=dd00112233445566778899aabbccddeeff"
+
+
+def test_subscription_page_offers_open_in_telegram_only_for_telegram_proxy_links():
+    html = _render_subscription_page(
+        links=[
+            TELEGRAM_LINK,
+            "vless://id@host:443#tg://proxy?server=x",
+            "tg://resolve?domain=telegram",
+            "https://t.me/proxy?server=mtp.example.net&port=8443&secret=dd00",
+        ]
+    )
+
+    assert html.count('class="open-button"') == 1
+    escaped = TELEGRAM_LINK.replace("&", "&amp;")
+    assert f'<a class="open-button" href="{escaped}">Open in Telegram</a>' in html
+    assert f'value="{escaped}"' in html
+
+
+def test_subscription_page_escapes_telegram_link_in_input_and_anchor():
+    # Host addresses are validated, but a row saved before that check or a variable could still carry markup.
+    link = 'tg://proxy?server=a"><script>alert(1)</script>&port=443&secret=dd00112233445566778899aabbccddeeff'
+    html = _render_subscription_page(links=[link])
+
+    assert "<script>alert(1)" not in html
+    assert '"><script>' not in html
+    escaped = "tg://proxy?server=a&#34;&gt;&lt;script&gt;alert(1)&lt;/script&gt;&amp;port=443&amp;secret=dd0011"
+    assert f'<input type="text" class="link-input" value="{escaped}' in html
+    assert f'<a class="open-button" href="{escaped}' in html
+
+
 def test_subscription_page_escapes_announce_but_keeps_line_breaks():
     html = _render_subscription_page(announce="first line\n<script>alert(1)</script>")
 

@@ -72,6 +72,9 @@ def test_page_raw_and_admin_links_show_telegram_link(access_token, mtproto_setup
     page = client.get(user["subscription_url"], headers=BROWSER_HEADERS)
     assert page.status_code == status.HTTP_200_OK
     assert "tg://proxy?server=mtp.example.net" in page.text
+    # A tap opens the link in Telegram; the page's other links get no such anchor.
+    assert f'<a class="open-button" href="{expected.replace("&", "&amp;")}">Open in Telegram</a>' in page.text
+    assert page.text.count('class="open-button"') == 1
 
     admin_links = client.get(f"/api/user/{user['id']}/subscription/links", headers=auth_headers(access_token))
     assert admin_links.status_code == status.HTTP_200_OK, admin_links.text
