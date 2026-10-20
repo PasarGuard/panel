@@ -67,13 +67,14 @@ export function invalidWireguardRemoteDns(value: unknown): string[] {
   return value.filter(item => typeof item !== 'string' || !isIpAddress(item)).map(shownDnsValue)
 }
 
-export type WireguardOutboundIssue = { field: 'remoteDNS'; values: string[] } | { field: 'reserved' }
+/** `notList` marks a `remoteDNS` that is set but is not a list (Xray reads it as `[]string`). */
+export type WireguardOutboundIssue = { field: 'remoteDNS'; values: string[]; notList: boolean } | { field: 'reserved' }
 
 /** Settings values that would make Xray fail to load or start the WireGuard outbound. */
 export function wireguardOutboundSettingsIssues(settings: Record<string, unknown>): WireguardOutboundIssue[] {
   const issues: WireguardOutboundIssue[] = []
   const dns = invalidWireguardRemoteDns(settings.remoteDNS)
-  if (dns.length > 0) issues.push({ field: 'remoteDNS', values: dns })
+  if (dns.length > 0) issues.push({ field: 'remoteDNS', values: dns, notList: !Array.isArray(settings.remoteDNS) })
   if (wireguardReservedBytes(settings.reserved) === null) issues.push({ field: 'reserved' })
   return issues
 }
@@ -81,13 +82,13 @@ export function wireguardOutboundSettingsIssues(settings: Record<string, unknown
 type Translate = (key: string, options?: Record<string, unknown>) => string
 
 /** The message for one WireGuard outbound issue, shared by the form's inline errors and the Modify validation. */
-export function wireguardOutboundIssueMessage(t: Translate, issue: WireguardOutboundIssue, settings: Record<string, unknown>): string {
+export function wireguardOutboundIssueMessage(t: Translate, issue: WireguardOutboundIssue): string {
   if (issue.field === 'reserved') {
     return t('coreEditor.outbound.wireguard.reservedInvalid', {
       defaultValue: 'Reserved must be three numbers from 0 to 255, for example 1, 2, 3.',
     })
   }
-  if (!Array.isArray(settings.remoteDNS)) {
+  if (issue.notList) {
     return t('coreEditor.outbound.wireguard.dnsNotList', {
       defaultValue: 'DNS servers must be a list of IP addresses. Edit the list to save it as one.',
     })

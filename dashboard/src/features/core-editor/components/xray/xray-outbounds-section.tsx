@@ -476,7 +476,7 @@ function collectOutboundRequiredIssues(ob: Outbound, t: (key: string, opts?: Rec
       })
     }
     for (const issue of wireguardOutboundSettingsIssues(s)) {
-      issues.push({ field: issue.field, message: wireguardOutboundIssueMessage(t, issue, s) })
+      issues.push({ field: issue.field, message: wireguardOutboundIssueMessage(t, issue) })
     }
   }
 

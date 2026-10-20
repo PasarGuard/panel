@@ -1087,7 +1087,7 @@ function OutboundWireGuardSettings({ ob, patchOutbound, t }: { ob: Outbound; pat
             }}
           />
           {reservedInvalid ? (
-            <p className="text-destructive text-xs">{wireguardOutboundIssueMessage(t, { field: 'reserved' }, s)}</p>
+            <p className="text-destructive text-xs">{wireguardOutboundIssueMessage(t, { field: 'reserved' })}</p>
           ) : (
             <p className="text-muted-foreground text-xs leading-relaxed">
               {t('coreEditor.outbound.wireguard.reservedHint', {
@@ -1146,7 +1146,7 @@ function OutboundWireGuardSettings({ ob, patchOutbound, t }: { ob: Outbound; pat
             className="h-10 w-full max-w-none min-w-0"
           />
           <p className="text-muted-foreground text-xs leading-relaxed">{t('coreEditor.outbound.wireguard.dnsHint', { defaultValue: 'IP addresses only. Read by Xray v26.9.8 and newer.' })}</p>
-          {dnsIssue && <p className="text-destructive text-xs">{wireguardOutboundIssueMessage(t, dnsIssue, s)}</p>}
+          {dnsIssue && <p className="text-destructive text-xs">{wireguardOutboundIssueMessage(t, dnsIssue)}</p>}
         </div>
 
         <div className="flex w-full min-w-0 flex-col gap-2">

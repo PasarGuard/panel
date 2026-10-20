@@ -50,11 +50,11 @@ test('remoteDNS must be IP literals', () => {
 })
 
 test('outbound settings issues flag DNS hostnames, a non-list remoteDNS and bad reserved', () => {
-  assert.deepEqual(wireguardOutboundSettingsIssues({ remoteDNS: ['dns.google'], reserved: [1, 2] }), [{ field: 'remoteDNS', values: ['"dns.google"'] }, { field: 'reserved' }])
+  assert.deepEqual(wireguardOutboundSettingsIssues({ remoteDNS: ['dns.google'], reserved: [1, 2] }), [{ field: 'remoteDNS', values: ['"dns.google"'], notList: false }, { field: 'reserved' }])
   assert.deepEqual(wireguardOutboundSettingsIssues({ remoteDNS: ['1.1.1.1'], reserved: 'AQID' }), [])
   assert.deepEqual(wireguardOutboundSettingsIssues({ reserved: '1,2,3' }), [{ field: 'reserved' }])
-  assert.deepEqual(wireguardOutboundSettingsIssues({ remoteDNS: '8.8.8.8' }), [{ field: 'remoteDNS', values: ['"8.8.8.8"'] }])
-  assert.deepEqual(wireguardOutboundSettingsIssues({ remoteDNS: [' 1.1.1.1', ''] }), [{ field: 'remoteDNS', values: ['" 1.1.1.1"', '""'] }])
+  assert.deepEqual(wireguardOutboundSettingsIssues({ remoteDNS: '8.8.8.8' }), [{ field: 'remoteDNS', values: ['"8.8.8.8"'], notList: true }])
+  assert.deepEqual(wireguardOutboundSettingsIssues({ remoteDNS: [' 1.1.1.1', ''] }), [{ field: 'remoteDNS', values: ['" 1.1.1.1"', '""'], notList: false }])
 })
 
 test('reserved input writes the byte list, removes the key when empty and keeps unparsable text so Modify stays blocked', () => {
@@ -76,7 +76,7 @@ test('a typed 4-character base64 reserved text is stored raw and read as three b
 })
 
 test('issue messages quote each bad DNS entry and cover a non-list remoteDNS and bad reserved', () => {
-  const messages = (settings: Record<string, unknown>) => wireguardOutboundSettingsIssues(settings).map(issue => wireguardOutboundIssueMessage(t, issue, settings))
+  const messages = (settings: Record<string, unknown>) => wireguardOutboundSettingsIssues(settings).map(issue => wireguardOutboundIssueMessage(t, issue))
   assert.deepEqual(messages({ remoteDNS: [' 1.1.1.1', '', 'dns.google', '8.8.8.8'], reserved: '1,2' }), [
     'DNS servers must be IP addresses: " 1.1.1.1", "", "dns.google"',
     'Reserved must be three numbers from 0 to 255, for example 1, 2, 3.',

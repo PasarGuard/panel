@@ -1,36 +1,56 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
+import ts from 'typescript'
 
 const LOCALES = ['en', 'fa', 'ru', 'zh'] as const
 type Locale = (typeof LOCALES)[number]
 
-const KEYS = [
-  'coreEditor.inbound.wireguard.publicKeyHint',
-  'coreEditor.inbound.wireguard.publicKeyUnavailable',
-  'coreEditor.inbound.wireguard.addressPoolHint',
-  'coreEditor.inbound.wireguard.addressNoPool',
-  'coreEditor.inbound.wireguard.addressInvalid',
-  'coreEditor.inbound.wireguard.mtuHint',
-  'coreEditor.inbound.wireguard.reserved',
-  'coreEditor.inbound.wireguard.reservedHint',
-  'coreEditor.inbound.wireguard.validation.secretKeyInvalid',
-  'coreEditor.inbound.wireguard.validation.portSingle',
-  'coreEditor.inbound.wireguard.validation.mtuRange',
-  'coreEditor.inbound.wireguard.validation.reservedFormat',
-  'coreEditor.outbound.wireguard.kernelModeKernel',
-  'coreEditor.outbound.wireguard.kernelModeUserspace',
-  'coreEditor.outbound.wireguard.kernelModeHint',
-  'coreEditor.outbound.wireguard.legacyFieldHint',
-  'coreEditor.outbound.wireguard.dnsHint',
-  'coreEditor.outbound.wireguard.dnsAddPlaceholder',
-  'coreEditor.outbound.wireguard.dnsItems',
-  'coreEditor.outbound.wireguard.noDns',
-  'coreEditor.outbound.wireguard.dnsInvalid',
-  'coreEditor.outbound.wireguard.dnsNotList',
-  'coreEditor.outbound.wireguard.reservedHint',
-  'coreEditor.outbound.wireguard.reservedInvalid',
-]
+const SRC_DIR = new URL('../../../', import.meta.url)
+const WIREGUARD_KEY = /^coreEditor\.(inbound|outbound)\.wireguard\./
+const DASHES = /[\u2013\u2014]/
+
+type Usage = { file: string; key: string; defaultValue: string | undefined }
+
+const defaultValueOf = (options: ts.Expression | undefined): string | undefined => {
+  if (!options || !ts.isObjectLiteralExpression(options)) return undefined
+  for (const property of options.properties) {
+    if (ts.isPropertyAssignment(property) && ts.isIdentifier(property.name) && property.name.text === 'defaultValue' && ts.isStringLiteralLike(property.initializer)) {
+      return property.initializer.text
+    }
+  }
+  return undefined
+}
+
+/**
+ * Every `t('coreEditor.inbound.wireguard...')` / `t('coreEditor.outbound.wireguard...')` call in the dashboard
+ * source, with its English `defaultValue`. Key literals used any other way are returned as `stray`, so a key
+ * this scan cannot follow fails the test instead of going unchecked.
+ */
+function scanWireguardKeys(): { usages: Usage[]; stray: string[] } {
+  const usages: Usage[] = []
+  const stray: string[] = []
+  for (const file of readdirSync(SRC_DIR, { recursive: true, encoding: 'utf8' })) {
+    if (!/\.tsx?$/.test(file) || /\.test\.tsx?$/.test(file)) continue
+    const source = readFileSync(new URL(file, SRC_DIR), 'utf8')
+    if (!/coreEditor\.(inbound|outbound)\.wireguard\./.test(source)) continue
+    const tree = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, file.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS)
+    const visit = (node: ts.Node) => {
+      if ((ts.isStringLiteralLike(node) || ts.isTemplateHead(node)) && WIREGUARD_KEY.test(node.text)) {
+        const call = node.parent
+        const isKey = ts.isStringLiteralLike(node) && ts.isCallExpression(call) && ts.isIdentifier(call.expression) && call.expression.text === 't' && call.arguments[0] === node
+        if (isKey) usages.push({ file, key: node.text, defaultValue: defaultValueOf(call.arguments[1]) })
+        else stray.push(`${file}: ${node.text}`)
+      }
+      ts.forEachChild(node, visit)
+    }
+    visit(tree)
+  }
+  return { usages, stray }
+}
+
+const { usages: USAGES, stray: STRAY } = scanWireguardKeys()
+const KEYS = [...new Set(USAGES.map(usage => usage.key))].sort()
 
 const readLocale = (locale: Locale): unknown => JSON.parse(readFileSync(new URL('../../../../public/statics/locales/' + locale + '.json', import.meta.url), 'utf8'))
 const messages = Object.fromEntries(LOCALES.map(locale => [locale, readLocale(locale)])) as Record<Locale, unknown>
@@ -44,14 +64,25 @@ const text = (locale: Locale, key: string): string => {
   return value as string
 }
 
-test('new WireGuard strings exist in every locale', () => {
+test('the source scan finds the WireGuard t() keys and their English defaults', () => {
+  assert.ok(KEYS.includes('coreEditor.inbound.wireguard.validation.secretKeyInvalid'))
+  assert.ok(KEYS.includes('coreEditor.outbound.wireguard.dnsNotList'))
+  assert.deepEqual(STRAY, [])
+  for (const usage of USAGES) assert.equal(typeof usage.defaultValue, 'string', `${usage.key} in ${usage.file} has no string defaultValue`)
+})
+
+test('WireGuard strings exist in every locale', () => {
   for (const locale of LOCALES) {
     for (const key of KEYS) {
       const value = text(locale, key)
       assert.notEqual(value.trim(), '', `${key} is empty in ${locale}`)
-      assert.doesNotMatch(value, /[–—]/, `${key} in ${locale} contains an en or em dash`)
+      assert.doesNotMatch(value, DASHES, `${key} in ${locale} contains an en or em dash`)
     }
   }
+})
+
+test('English strings match the source defaults', () => {
+  for (const usage of USAGES) assert.equal(text('en', usage.key), usage.defaultValue, `${usage.key} in ${usage.file}`)
 })
 
 test('sentences are translated', () => {
