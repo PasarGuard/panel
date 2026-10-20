@@ -2869,9 +2869,21 @@
         "allowedIPsAddPlaceholder": "Add CIDR",
         "allowedIPsItems": "Allowed IPs",
         "noAllowedIPs": "No CIDR added.",
+        "publicKeyHint": "Derived from the secret key. The panel puts it in client configs.",
+        "publicKeyUnavailable": "Enter a valid secret key to see the public key.",
+        "addressPoolHint": "Clients get IPs from subnets with room for 4 or more addresses (IPv4 /30 or wider, IPv6 /126 or wider). Bare IPs and /31, /32, /127, /128 stay in the Xray config but give no client pool.",
+        "addressNoPool": "No client subnet: the panel will not manage this inbound, so users get no WireGuard config from it.",
+        "addressInvalid": "Not an IP address or CIDR: {{values}}",
+        "mtuHint": "576 to 9000. Leave empty for 1420.",
+        "reserved": "Reserved",
+        "reservedHint": "Optional. Three bytes from 0 to 255 that clients put in every packet, for example 1, 2, 3 or [1,2,3].",
         "validation": {
           "peerRequired": "At least one peer is required.",
-          "peerPublicKeyRequired": "Each peer must have a public key."
+          "peerPublicKeyRequired": "Each peer must have a public key.",
+          "secretKeyInvalid": "Secret key must be a 32-byte WireGuard key (base64 or 64 hex characters).",
+          "portSingle": "WireGuard needs one port from 1 to 65535.",
+          "mtuRange": "MTU must be a whole number from 576 to 9000.",
+          "reservedFormat": "Reserved must be three numbers from 0 to 255, for example 1, 2, 3."
         }
       },
       "hysteria": {
@@ -3084,7 +3096,19 @@
         "allowedIPs": "Allowed IPs",
         "allowedIPsAddPlaceholder": "Add CIDR",
         "allowedIPsItems": "Allowed IPs",
-        "noAllowedIPs": "No CIDR added."
+        "noAllowedIPs": "No CIDR added.",
+        "kernelModeKernel": "Kernel TUN",
+        "kernelModeUserspace": "Userspace (gVisor)",
+        "kernelModeHint": "Saved as noKernelTun. Kernel TUN needs Linux and CAP_NET_ADMIN; otherwise Xray uses userspace.",
+        "legacyFieldHint": "Only Xray {{lastRelease}} and older read this; {{removedIn}} removed it.",
+        "dnsHint": "IP addresses only. Read by Xray v26.9.8 and newer.",
+        "dnsAddPlaceholder": "Add DNS server",
+        "dnsItems": "DNS servers",
+        "noDns": "No DNS server added.",
+        "dnsInvalid": "DNS servers must be IP addresses: {{values}}",
+        "dnsNotList": "DNS servers must be a list of IP addresses. Edit the list to save it as one.",
+        "reservedHint": "Three bytes from 0 to 255, for example 1, 2, 3 or [1,2,3].",
+        "reservedInvalid": "Reserved must be three numbers from 0 to 255, for example 1, 2, 3."
       },
       "dns": {
         "blurb": "DNS outbound handles plaintext DNS from routing. Optional rewrites (transport, address, port) and ordered rules (action, qtype, domain). Use the JSON tab for edge cases.",

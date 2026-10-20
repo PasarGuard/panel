@@ -2820,9 +2820,21 @@
         "allowedIPsAddPlaceholder": "添加 CIDR",
         "allowedIPsItems": "允许的 IP",
         "noAllowedIPs": "未添加 CIDR。",
+        "publicKeyHint": "由密钥推导得出，面板会将其写入客户端配置。",
+        "publicKeyUnavailable": "输入有效的密钥后即可看到公钥。",
+        "addressPoolHint": "客户端从至少容纳 4 个地址的子网获取 IP（IPv4 为 /30 或更大，IPv6 为 /126 或更大）。单个 IP 以及 /31、/32、/127、/128 会保留在 Xray 配置中，但不提供客户端地址池。",
+        "addressNoPool": "没有客户端子网：面板不会管理此入站，用户也不会从中获得 WireGuard 配置。",
+        "addressInvalid": "不是 IP 地址或 CIDR：{{values}}",
+        "mtuHint": "576 到 9000。留空则使用 1420。",
+        "reserved": "保留值",
+        "reservedHint": "可选。客户端写入每个数据包的三个字节（0 到 255），例如 1, 2, 3 或 [1,2,3]。",
         "validation": {
           "peerRequired": "至少需要一个对端。",
-          "peerPublicKeyRequired": "每个对端都必须有公钥。"
+          "peerPublicKeyRequired": "每个对端都必须有公钥。",
+          "secretKeyInvalid": "密钥必须是 32 字节的 WireGuard 密钥（base64 或 64 个十六进制字符）。",
+          "portSingle": "WireGuard 需要一个 1 到 65535 之间的端口。",
+          "mtuRange": "MTU 必须是 576 到 9000 之间的整数。",
+          "reservedFormat": "保留值必须是三个 0 到 255 之间的数字，例如 1, 2, 3。"
         }
       },
       "hysteria": {
@@ -3005,7 +3017,19 @@
         "allowedIPs": "允许的 IP",
         "allowedIPsAddPlaceholder": "添加 CIDR",
         "allowedIPsItems": "允许的 IP",
-        "noAllowedIPs": "未添加 CIDR。"
+        "noAllowedIPs": "未添加 CIDR。",
+        "kernelModeKernel": "内核 TUN",
+        "kernelModeUserspace": "用户态 (gVisor)",
+        "kernelModeHint": "保存为 noKernelTun。内核 TUN 需要 Linux 和 CAP_NET_ADMIN，否则 Xray 使用用户态。",
+        "legacyFieldHint": "仅 Xray {{lastRelease}} 及更早版本读取此项；{{removedIn}} 已将其移除。",
+        "dnsHint": "仅限 IP 地址。Xray v26.9.8 及更新版本读取此项。",
+        "dnsAddPlaceholder": "添加 DNS 服务器",
+        "dnsItems": "DNS 服务器",
+        "noDns": "未添加 DNS 服务器。",
+        "dnsInvalid": "DNS 服务器必须是 IP 地址：{{values}}",
+        "dnsNotList": "DNS 服务器必须是 IP 地址列表。编辑列表即可将其保存为列表。",
+        "reservedHint": "三个 0 到 255 之间的字节，例如 1, 2, 3 或 [1,2,3]。",
+        "reservedInvalid": "保留值必须是三个 0 到 255 之间的数字，例如 1, 2, 3。"
       },
       "dns": {
         "blurb": "DNS 出站处理来自路由的明文 DNS。可配置重写与有序规则；少见写法请用 JSON 标签页。",
