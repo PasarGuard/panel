@@ -2977,7 +2977,7 @@
         "noAllowedIPs": "هیچ CIDRی اضافه نشده است.",
         "kernelModeKernel": "TUN کرنل",
         "kernelModeUserspace": "فضای کاربر (gVisor)",
-        "kernelModeHint": "به صورت noKernelTun ذخیره می‌شود. TUN کرنل به لینوکس و CAP_NET_ADMIN نیاز دارد؛ در غیر این صورت Xray از فضای کاربر استفاده می‌کند.",
+        "kernelModeHint": "به صورت noKernelTun ذخیره می‌شود. TUN کرنل به لینوکس و CAP_NET_ADMIN نیاز دارد؛ در غیر این صورت Xray از فضای کاربر استفاده می‌کند. حالت پیش‌فرض مانند TUN کرنل رفتار می‌کند: Xray در صورت پشتیبانی از TUN کرنل استفاده می‌کند، در غیر این صورت از فضای کاربر.",
         "legacyFieldHint": "فقط Xray {{lastRelease}} و نسخه‌های قدیمی‌تر این را می‌خوانند؛ در {{removedIn}} حذف شد.",
         "dnsHint": "فقط آدرس IP. Xray نسخه v26.9.8 و جدیدتر آن را می‌خواند.",
         "dnsAddPlaceholder": "افزودن سرور DNS",

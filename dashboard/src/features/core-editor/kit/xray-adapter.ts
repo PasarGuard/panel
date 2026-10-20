@@ -462,7 +462,8 @@ function keepWireguardInboundStreamOptions(config: Record<string, unknown>): Rec
  * source keys it does not know (`kernelMode`, `remoteDNS`, `DNS`) and merges the untagged `peers` by index, so keys,
  * peer fields and peers deleted in the WireGuard outbound editor would come back on save. A WireGuard outbound that
  * matches the model at its index (same protocol and tag) therefore takes the model settings as they are; for an
- * unedited import they equal the source settings.
+ * unedited import they equal the source settings. Raw `/settings` patches on a matched WireGuard row are therefore
+ * superseded by the editor model (the panel never creates such patches).
  */
 function applyWireguardOutboundSettingsFromProfile(profile: Profile, config: Record<string, unknown>): Record<string, unknown> {
   if (!Array.isArray(config.outbounds)) return config

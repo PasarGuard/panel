@@ -2952,7 +2952,7 @@
         "noAllowedIPs": "CIDR не добавлен.",
         "kernelModeKernel": "TUN ядра",
         "kernelModeUserspace": "Пользовательский режим (gVisor)",
-        "kernelModeHint": "Сохраняется как noKernelTun. Для TUN ядра нужны Linux и CAP_NET_ADMIN; иначе Xray работает в пользовательском режиме.",
+        "kernelModeHint": "Сохраняется как noKernelTun. Для TUN ядра нужны Linux и CAP_NET_ADMIN; иначе Xray работает в пользовательском режиме. Значение по умолчанию ведет себя как TUN ядра: Xray использует TUN ядра, если он поддерживается, иначе пользовательский режим.",
         "legacyFieldHint": "Это поле читают только Xray {{lastRelease}} и более ранние версии; в {{removedIn}} оно удалено.",
         "dnsHint": "Только IP-адреса. Поддерживается Xray v26.9.8 и новее.",
         "dnsAddPlaceholder": "Добавить DNS-сервер",

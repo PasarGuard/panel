@@ -3020,7 +3020,7 @@
         "noAllowedIPs": "未添加 CIDR。",
         "kernelModeKernel": "内核 TUN",
         "kernelModeUserspace": "用户态 (gVisor)",
-        "kernelModeHint": "保存为 noKernelTun。内核 TUN 需要 Linux 和 CAP_NET_ADMIN，否则 Xray 使用用户态。",
+        "kernelModeHint": "保存为 noKernelTun。内核 TUN 需要 Linux 和 CAP_NET_ADMIN，否则 Xray 使用用户态。默认行为与内核 TUN 相同：Xray 在支持时使用内核 TUN，否则使用用户态。",
         "legacyFieldHint": "仅 Xray {{lastRelease}} 及更早版本读取此项；{{removedIn}} 已将其移除。",
         "dnsHint": "仅限 IP 地址。Xray v26.9.8 及更新版本读取此项。",
         "dnsAddPlaceholder": "添加 DNS 服务器",

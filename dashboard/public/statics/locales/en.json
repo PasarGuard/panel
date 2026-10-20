@@ -3099,7 +3099,7 @@
         "noAllowedIPs": "No CIDR added.",
         "kernelModeKernel": "Kernel TUN",
         "kernelModeUserspace": "Userspace (gVisor)",
-        "kernelModeHint": "Saved as noKernelTun. Kernel TUN needs Linux and CAP_NET_ADMIN; otherwise Xray uses userspace.",
+        "kernelModeHint": "Saved as noKernelTun. Kernel TUN needs Linux and CAP_NET_ADMIN; otherwise Xray uses userspace. Default behaves like Kernel TUN: Xray uses kernel TUN when supported, otherwise userspace.",
         "legacyFieldHint": "Only Xray {{lastRelease}} and older read this; {{removedIn}} removed it.",
         "dnsHint": "IP addresses only. Read by Xray v26.9.8 and newer.",
         "dnsAddPlaceholder": "Add DNS server",

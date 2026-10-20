@@ -309,7 +309,9 @@ export function normalizeSettingsFromEditor(protocol: string, settings: Record<s
   if (protocol === 'dns') {
     return pruneDnsOutboundSettings({ ...settings })
   }
-  if (protocol === 'wireguard') return migrateWireguardOutboundLegacySettings({ ...settings })
+  if (protocol === 'wireguard') {
+    return migrateWireguardOutboundLegacySettings({ ...settings })
+  }
   return { ...settings }
 }
 

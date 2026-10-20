@@ -1163,7 +1163,7 @@ function OutboundWireGuardSettings({ ob, patchOutbound, t }: { ob: Outbound; pat
           </Select>
           <p className="text-muted-foreground text-xs leading-relaxed">
             {t('coreEditor.outbound.wireguard.kernelModeHint', {
-              defaultValue: 'Saved as noKernelTun. Kernel TUN needs Linux and CAP_NET_ADMIN; otherwise Xray uses userspace.',
+              defaultValue: 'Saved as noKernelTun. Kernel TUN needs Linux and CAP_NET_ADMIN; otherwise Xray uses userspace. Default behaves like Kernel TUN: Xray uses kernel TUN when supported, otherwise userspace.',
             })}
           </p>
         </div>

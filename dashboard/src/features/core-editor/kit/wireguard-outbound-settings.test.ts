@@ -20,6 +20,7 @@ test('legacy kernelMode becomes noKernelTun', () => {
   assert.deepEqual(migrateWireguardOutboundLegacySettings({ kernelMode: false, mtu: 1280 }), { mtu: 1280, noKernelTun: true })
   assert.deepEqual(migrateWireguardOutboundLegacySettings({ kernelMode: true }), { noKernelTun: false })
   assert.deepEqual(migrateWireguardOutboundLegacySettings({ kernelMode: false, noKernelTun: false }), { noKernelTun: false })
+  assert.deepEqual(migrateWireguardOutboundLegacySettings({ kernelMode: true, noKernelTun: 'false' }), { noKernelTun: false })
   assert.deepEqual(migrateWireguardOutboundLegacySettings({ kernelMode: 'yes' }), {})
   const plain = { mtu: 1 }
   assert.equal(migrateWireguardOutboundLegacySettings(plain), plain)
