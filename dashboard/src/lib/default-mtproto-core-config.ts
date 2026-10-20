@@ -1,22 +1,21 @@
+import { TLS_DOMAIN_PLACEHOLDER } from '@/features/core-editor/kit/mtproto-config'
+
 export const DEFAULT_MTPROTO_CORE_CONFIG: Record<string, unknown> = {
   inbound_tag: 'mtproto',
   general: {
     use_middle_proxy: true,
-    prefer_ipv6: false,
-    fast_update: false,
     modes: {
-      classic: true,
-      secure: true,
+      classic: false,
+      secure: false,
       tls: true,
     },
   },
   server: {
     port: 443,
-    proxy_protocol: false,
     listeners: [{ ip: '0.0.0.0' }],
   },
   censorship: {
-    tls_domain: 'cloudflare.com',
+    tls_domain: TLS_DOMAIN_PLACEHOLDER,
   },
 }
 

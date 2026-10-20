@@ -2525,7 +2525,8 @@
     "shadowsocksPasswordGenerationFailed": "Failed to generate password",
     "discardChangesTitle": "Discard changes?",
     "discardChangesDescription": "Your unsaved kernel configuration changes will be lost if you close this editor.",
-    "scanRealityTarget": "Scan target"
+    "scanRealityTarget": "Scan target",
+    "mtprotoHint": "MTProto (telemt) core. Set censorship.tls_domain to a real domain before saving: changing it later breaks every ee link already shared. Give each MTProto core its own inbound_tag."
   },
   "coreEditor": {
     "nameRequired": "Name is required",
@@ -2577,7 +2578,8 @@
       "dns": "DNS",
       "bindings": "Bindings",
       "advanced": "Advanced",
-      "interface": "Interface"
+      "interface": "Interface",
+      "mtproto": "MTProto proxy"
     },
     "sectionDesc": {
       "wgInterface": "WireGuard interface and keys",
@@ -2588,7 +2590,28 @@
       "routing": "Traffic rules and routing",
       "balancers": "Outbound load balancing setup",
       "dns": "DNS resolver and server config",
-      "bindings": "Inbound tag fallbacks and exclusions"
+      "bindings": "Inbound tag fallbacks and exclusions",
+      "mtproto": "telemt settings for this core. The node manages users, the control API and metrics."
+    },
+    "mtproto": {
+      "inboundTag": "Inbound tag",
+      "inboundTagHint": "Unique across all cores. Hosts and groups refer to it.",
+      "port": "Port",
+      "tlsDomain": "TLS domain",
+      "tlsDomainHint": "The site fake TLS imitates. Changing it later breaks every ee link already shared.",
+      "modes": "Modes",
+      "modeTls": "Fake TLS (ee, recommended)",
+      "modeSecure": "Secure (dd)",
+      "modeClassic": "Classic",
+      "config": "Config (JSON)",
+      "invalidJson": "The config is not valid JSON.",
+      "issue": {
+        "inboundTag": "The inbound tag must not be empty or contain , or <=>.",
+        "port": "The port must be a whole number from 1 to 65535.",
+        "modes": "Enable at least one mode.",
+        "tlsDomain": "Fake TLS needs a TLS domain: a bare domain name, not the template placeholder.",
+        "listenerPort": "Every listener port must equal the server port."
+      }
     },
     "api": {
       "title": "API Services",

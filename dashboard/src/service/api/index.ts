@@ -1750,6 +1750,21 @@ export interface ModifyUserByTemplate {
   note?: string | null;
 }
 
+export interface MtprotoSettings {
+  secret?: string | null;
+  user_ad_tag?: string;
+  /**
+     * @minimum 0
+     * @maximum 4294967295
+     */
+  max_tcp_conns?: number;
+  /**
+     * @minimum 0
+     * @maximum 4294967295
+     */
+  max_unique_ips?: number;
+}
+
 export interface NextPlanModel {
   user_template_id?: number | null;
   data_limit?: number | null;
@@ -2095,6 +2110,7 @@ export interface ProxyTable {
   wireguard?: WireGuardSettings;
   hysteria?: HysteriaSettings;
   masque?: MasqueSettings;
+  mtproto?: MtprotoSettings;
 }
 
 export interface RealityScanRequest {
