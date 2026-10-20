@@ -14,6 +14,7 @@ from tests.api.helpers import (
     delete_group,
     delete_user,
     delete_user_template,
+    store_mtproto_secret,
     strip_mtproto_settings,
     unique_name,
 )
@@ -78,6 +79,26 @@ def test_create_user_rejects_duplicate_secret(access_token):
         response = client.post("/api/user", headers=auth_headers(access_token), json=second_body)
         assert response.status_code == status.HTTP_400_BAD_REQUEST, response.text
         assert "already assigned" in response.json()["detail"]
+    finally:
+        delete_user(access_token, first["username"])
+        if client.get(f"/api/user/{second_body['username']}", headers=auth_headers(access_token)).status_code == 200:
+            delete_user(access_token, second_body["username"])
+
+
+def test_secret_uniqueness_ignores_case_of_stored_secret(access_token):
+    secret = uuid4().hex
+    first = create_user(access_token)
+    # Every write path lowercases; a hand-edited or legacy row can still hold uppercase hex.
+    store_mtproto_secret(first["id"], secret.upper())
+    second_body = _user_body(mtproto={"secret": secret})
+    try:
+        response = client.post("/api/user", headers=auth_headers(access_token), json=second_body)
+        assert response.status_code == status.HTTP_400_BAD_REQUEST, response.text
+        assert "already assigned" in response.json()["detail"]
+
+        # The owner of that secret can still save it.
+        modified = _modify_user(access_token, first["id"], {"proxy_settings": {"mtproto": {"secret": secret}}})
+        assert _secret(modified) == secret
     finally:
         delete_user(access_token, first["username"])
         if client.get(f"/api/user/{second_body['username']}", headers=auth_headers(access_token)).status_code == 200:

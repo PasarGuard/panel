@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import User
@@ -13,7 +13,9 @@ async def mtproto_secret_in_use(
     *,
     exclude_user_id: int | None = None,
 ) -> bool:
-    stmt = select(User.id).where(User.proxy_settings["mtproto"]["secret"].as_string() == secret).limit(1)
+    # Write paths store lowercase hex, but a legacy or hand-edited row can hold uppercase.
+    stored = func.lower(User.proxy_settings["mtproto"]["secret"].as_string())
+    stmt = select(User.id).where(stored == secret.lower()).limit(1)
     if exclude_user_id is not None:
         stmt = stmt.where(User.id != exclude_user_id)
     return (await db.execute(stmt)).first() is not None

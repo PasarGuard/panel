@@ -299,6 +299,20 @@ def strip_mtproto_settings(user_id: int) -> None:
     asyncio.run(_strip())
 
 
+def store_mtproto_secret(user_id: int, secret: str) -> None:
+    """Store a raw `mtproto.secret` for a user directly in the database, bypassing the write paths."""
+
+    async def _store() -> None:
+        async with TestSession() as session:
+            db_user = await session.get(User, user_id)
+            assert db_user is not None
+            mtproto = dict(db_user.proxy_settings.get("mtproto") or {})
+            db_user.proxy_settings = {**db_user.proxy_settings, "mtproto": {**mtproto, "secret": secret}}
+            await session.commit()
+
+    asyncio.run(_store())
+
+
 def delete_user_template(access_token: str, template_id: int) -> None:
     response = client.delete(f"/api/user_template/{template_id}", headers=auth_headers(access_token))
     assert response.status_code == status.HTTP_204_NO_CONTENT
