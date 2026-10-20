@@ -92,6 +92,14 @@ logger = get_logger("node-operation")
 _MAINTENANCE_RPC_TIMEOUT = 340.0
 
 
+def _backend_type_for_core(core_type: CoreType) -> int:
+    if core_type == CoreType.wg:
+        return service.BackendType.WIREGUARD
+    if core_type == CoreType.mtproto:
+        return service.BackendType.MTPROTO
+    return service.BackendType.XRAY
+
+
 class NodeOperation(BaseOperation):
     # Local Start RPCs in progress on this process. Health checks must not fire a
     # second Start just because pg-node still returns "core is not started yet".
@@ -487,7 +495,7 @@ class NodeOperation(BaseOperation):
             except Exception:
                 pass
 
-        type = service.BackendType.WIREGUARD if core.type == CoreType.wg else service.BackendType.XRAY
+        type = _backend_type_for_core(core.type)
         NodeOperation._in_flight_connects.add(db_node.id)
 
         try:

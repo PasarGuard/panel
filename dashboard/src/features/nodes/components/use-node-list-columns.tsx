@@ -83,7 +83,7 @@ export const useNodeListColumns = ({
           const coreVersion = node.core_version ?? node.xray_version
           const resolvedCoreType = coresData?.cores?.find(c => c.id === node.core_config_id)?.type ?? null
           const isWireGuardCore = resolvedCoreType === 'wg'
-          const isXrayBackend = resolvedCoreType !== 'wg'
+          const isXrayBackend = resolvedCoreType === 'xray' || resolvedCoreType == null
           const coreUpdateVersion = node.xray_version ?? coreVersion
           const hasCoreUpdate = !!(isXrayBackend && coreUpdateVersion && latestXrayVersion && hasXrayUpdate(coreUpdateVersion))
           const hasNodeVersionUpdate = !isWireGuardCore && !!latestNodeVersion && !!node.node_version && hasNodeUpdate(node.node_version)

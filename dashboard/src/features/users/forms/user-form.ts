@@ -30,6 +30,15 @@ export const wireguardSettingsSchema = z.object({
   private_key: z.string().nullable().optional(),
   public_key: z.string().nullable().optional(),
 })
+export const mtprotoSettingsSchema = z.object({
+  secret: z
+    .string()
+    .regex(/^[0-9a-fA-F]{32}$/, 'Must be 32 hex characters')
+    .optional(),
+  user_ad_tag: z.string().optional(),
+  max_tcp_conns: z.number().min(0).optional(),
+  max_unique_ips: z.number().min(0).optional(),
+})
 export const proxyTableInputSchema = z.object({
   vmess: vMessSettingsSchema.optional(),
   vless: vlessSettingsSchema.optional(),
@@ -38,6 +47,7 @@ export const proxyTableInputSchema = z.object({
   wireguard: wireguardSettingsSchema.optional(),
   hysteria: hysteriaSettingsSchema.optional(),
   masque: masqueSettingsSchema.optional(),
+  mtproto: mtprotoSettingsSchema.optional(),
 })
 
 export const userStatusCreateEnum = z.enum(['active', 'on_hold'])
@@ -130,6 +140,9 @@ export const getDefaultUserForm = async () => {
       },
       masque: {
         password: undefined,
+      },
+      mtproto: {
+        secret: undefined,
       },
     },
   } satisfies UseFormValues

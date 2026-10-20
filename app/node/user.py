@@ -97,6 +97,12 @@ def _serialize_user_for_node(
         proxy_kwargs["hysteria_auth"] = user_settings.get("hysteria", {}).get("auth")
     if ProxyProtocol.masque in allowed_protocols:
         proxy_kwargs["masque_pass"] = user_settings.get("masque", {}).get("password")
+    if ProxyProtocol.mtproto in allowed_protocols:
+        mtproto_settings = user_settings.get("mtproto", {})
+        proxy_kwargs["mtproto_secret"] = mtproto_settings.get("secret")
+        proxy_kwargs["mtproto_user_ad_tag"] = mtproto_settings.get("user_ad_tag") or None
+        proxy_kwargs["mtproto_max_tcp_conns"] = mtproto_settings.get("max_tcp_conns") or 0
+        proxy_kwargs["mtproto_max_unique_ips"] = mtproto_settings.get("max_unique_ips") or 0
 
     return create_user(
         str(id),

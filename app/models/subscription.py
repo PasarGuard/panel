@@ -326,6 +326,10 @@ class SubscriptionInboundData(BaseModel):
     # MASQUE DNS comes from the host or its inbound, not the user.
     masque_remote_dns: list[str] = Field(default_factory=list)
 
+    # MTProto / telemt
+    mtproto_modes: dict[str, bool] = Field(default_factory=dict)
+    mtproto_tls_domain: str = Field("")
+
     # Flow (from inbound, user can override)
     inbound_flow: str = Field("")
 

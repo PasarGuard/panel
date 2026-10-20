@@ -1220,6 +1220,12 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
     return arr.join('')
   }
 
+  function generateMtprotoSecret(): string {
+    const bytes = new Uint8Array(16)
+    window.crypto.getRandomValues(bytes)
+    return Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('')
+  }
+
   const generateAllProxySettings = React.useCallback(() => {
     const newSettings = {
       vmess: { id: uuidv4() },
@@ -1228,12 +1234,21 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
       shadowsocks: { password: generatePassword() },
       hysteria: { auth: uuidv4() },
       masque: { password: generatePassword() },
+      mtproto: { secret: generateMtprotoSecret() },
       // Keep backend-managed peer keys when regenerating the other credentials.
       wireguard: form.getValues('proxy_settings.wireguard'),
     }
     form.setValue('proxy_settings', newSettings as any, { shouldDirty: true, shouldValidate: true })
     handleFieldChange('proxy_settings', newSettings)
     toast.success(t('userDialog.proxySettings.allGenerated', { defaultValue: 'All proxy credentials regenerated' }))
+  }, [form, handleFieldChange, t])
+
+  const generateMtprotoProxySettings = React.useCallback(() => {
+    const secret = generateMtprotoSecret()
+    form.setValue('proxy_settings.mtproto.secret', secret, { shouldDirty: true, shouldValidate: true })
+    form.trigger('proxy_settings.mtproto.secret')
+    handleFieldChange('proxy_settings.mtproto.secret', secret)
+    toast.success(t('userDialog.proxySettings.mtprotoGenerated', { defaultValue: 'MTProto secret generated' }))
   }, [form, handleFieldChange, t])
 
   const hasMeaningfulProxyValue = React.useCallback((value: unknown): boolean => {
@@ -2079,6 +2094,40 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
                                         handleFieldChange('proxy_settings.masque.password', newVal)
                                       }}
                                       title="Generate password"
+                                    >
+                                      <RefreshCcw className="h-3 w-3" />
+                                    </Button>
+                                  </div>
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          {/* MTProto */}
+                          <FormField
+                            control={form.control}
+                            name="proxy_settings.mtproto.secret"
+                            render={({ field }) => (
+                              <FormItem className="mb-2">
+                                <FormLabel>{t('userDialog.proxySettings.mtprotoSecret', { defaultValue: 'MTProto secret' })}</FormLabel>
+                                <FormControl>
+                                  <div dir="ltr" className={`flex items-center gap-2 ${dir === 'rtl' ? 'flex-row-reverse' : 'flex-row'}`}>
+                                    <Input
+                                      {...field}
+                                      value={field.value ?? ''}
+                                      placeholder={t('userDialog.proxySettings.mtprotoSecret', { defaultValue: '32 hex characters' })}
+                                      onChange={e => {
+                                        field.onChange(e)
+                                        form.trigger('proxy_settings.mtproto.secret')
+                                        handleFieldChange('proxy_settings.mtproto.secret', e.target.value)
+                                      }}
+                                    />
+                                    <Button
+                                      size="icon"
+                                      type="button"
+                                      variant="ghost"
+                                      onClick={generateMtprotoProxySettings}
+                                      title={t('userDialog.proxySettings.generateMtprotoSecret', { defaultValue: 'Generate MTProto secret' })}
                                     >
                                       <RefreshCcw className="h-3 w-3" />
                                     </Button>

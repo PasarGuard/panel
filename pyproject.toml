@@ -87,3 +87,7 @@ dev = [
     "sqlalchemy-utils>=0.43.0",
     "watchfiles>=1.3.0",
 ]
+
+[tool.uv.sources]
+# Temporary: node_bridge_py PR #26 (MTProto) merged with main 0.9.4, until 0.10.0 is on PyPI.
+pasarguard-node-bridge = { git = "https://github.com/T3ST3ST3R0N/node_bridge_py", rev = "35d9b0a555332430cbc85ba2cc4cc54b2a90bdcb" }
