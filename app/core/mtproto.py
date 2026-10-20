@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import re
 from copy import deepcopy
-from pathlib import PosixPath
 
 import commentjson
 
@@ -67,7 +66,7 @@ def _port_value(field: str, value) -> int:
 class MtprotoConfig(dict):
     def __init__(
         self,
-        config: dict | str | PosixPath | None = None,
+        config: dict | str | None = None,
         exclude_inbound_tags: set[str] | None = None,
         fallbacks_inbound_tags: set[str] | None = None,
         skip_validation: bool = False,
