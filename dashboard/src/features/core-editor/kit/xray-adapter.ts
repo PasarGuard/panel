@@ -458,10 +458,13 @@ function keepWireguardInboundStreamOptions(config: Record<string, unknown>): Rec
 }
 
 /**
- * The kit's source merge (`mergeJsonPreservingSource`) restores source `settings` keys it does not know
- * (`kernelMode`, `remoteDNS`, `DNS`), so a key deleted in the WireGuard outbound editor would come back on save.
+ * The kit clones outbound `settings` from the model, but its source merge (`mergeJsonPreservingSource`) then restores
+ * source keys it does not know (`kernelMode`, `remoteDNS`, `DNS`) and merges the untagged `peers` by index, so keys,
+ * peer fields and peers deleted in the WireGuard outbound editor would come back on save. A WireGuard outbound that
+ * matches the model at its index (same protocol and tag) therefore takes the model settings as they are; for an
+ * unedited import they equal the source settings.
  */
-function dropWireguardOutboundSettingsMissingFromProfile(profile: Profile, config: Record<string, unknown>): Record<string, unknown> {
+function applyWireguardOutboundSettingsFromProfile(profile: Profile, config: Record<string, unknown>): Record<string, unknown> {
   if (!Array.isArray(config.outbounds)) return config
 
   let changed = false
@@ -469,16 +472,8 @@ function dropWireguardOutboundSettingsMissingFromProfile(profile: Profile, confi
     if (!isRecord(compiledOutbound) || compiledOutbound.protocol !== 'wireguard' || !isRecord(compiledOutbound.settings)) return compiledOutbound
     const profileOutbound = profile.outbounds?.[index]
     if (profileOutbound?.protocol !== 'wireguard' || profileOutbound.tag !== compiledOutbound.tag) return compiledOutbound
-    const modelSettings = asRecord((profileOutbound as { settings?: unknown }).settings) ?? {}
-    const settings = { ...compiledOutbound.settings }
-    let outboundChanged = false
-    for (const key of Object.keys(settings)) {
-      if (modelSettings[key] !== undefined) continue
-      delete settings[key]
-      outboundChanged = true
-    }
-    if (!outboundChanged) return compiledOutbound
     changed = true
+    const settings = JSON.parse(JSON.stringify(asRecord(profileOutbound.settings) ?? {})) as Record<string, unknown>
     return { ...compiledOutbound, settings }
   })
 
@@ -525,7 +520,7 @@ export function profileToPersistedConfig(profile: Profile): Record<string, unkno
   )
 
   const withTopLevel = applyFinalmaskFragmentCompatibilityToCompiledConfig(applyUnmodeledTopLevelSectionsToCompiledConfig(prepared, result))
-  return keepWireguardInboundStreamOptions(dropWireguardOutboundSettingsMissingFromProfile(prepared, withTopLevel))
+  return keepWireguardInboundStreamOptions(applyWireguardOutboundSettingsFromProfile(prepared, withTopLevel))
 }
 
 export function validateProfileForSave(profile: Profile) {

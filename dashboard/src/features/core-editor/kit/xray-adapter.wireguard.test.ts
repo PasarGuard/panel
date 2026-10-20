@@ -101,3 +101,68 @@ test('keys removed from a WireGuard outbound in the editor stay removed', () => 
   const next: Profile = { ...profile, outbounds: profile.outbounds?.map(o => (o.tag === 'WARP' ? ({ ...o, settings } as typeof o) : o)) }
   assert.deepEqual(byTag(profileToPersistedConfig(next).outbounds, 'WARP').settings, settings)
 })
+
+const PEER2 = { publicKey: 'HIgo9xNzJMWLKASShiTqIybxZ0U3wGLiUeJ1PKf8ykw=', endpoint: '203.0.113.7:51820', allowedIPs: ['10.0.0.0/8'] }
+const editOutboundSettings = (profile: Profile, tag: string, settings: Record<string, unknown>): Profile => ({
+  ...profile,
+  outbounds: profile.outbounds?.map(o => (o.tag === tag ? ({ ...o, settings } as typeof o) : o)),
+})
+
+test('a compiled WireGuard outbound whose tag differs from the model at that index is left alone', () => {
+  const { profile } = importRawToProfile(structuredClone(probe))
+  // A raw patch renames the compiled outbound and adds a settings key the model settings lack.
+  const raw = [
+    { op: 'replace', path: '/tag', value: 'WARP-RAW' },
+    { op: 'add', path: '/settings/extra', value: 7 },
+  ]
+  const next: Profile = { ...profile, outbounds: profile.outbounds?.map(o => (o.tag === 'WARP' ? ({ ...o, raw } as typeof o) : o)) }
+  const warp = byTag(profileToPersistedConfig(next).outbounds, 'WARP-RAW')
+  assert.equal((warp.settings as Record<string, unknown>).extra, 7)
+})
+
+test('WireGuard inbound stream keys match sockopt and finalmask case-insensitively', () => {
+  const raw = withInbound(minimal, {
+    tag: 'WGC',
+    port: 51823,
+    protocol: 'wireguard',
+    settings: { secretKey: SK, address: ['10.11.0.1/24'] },
+    streamSettings: { network: 'tcp', security: 'none', sockOpt: { mark: 7 }, finalMask: NOISE },
+  })
+  const { profile } = importRawToProfile(raw)
+  const expected = { sockOpt: { mark: 7 }, finalMask: NOISE }
+  assert.deepEqual(byTag(profileToPersistedConfig(profile).inbounds, 'WGC').streamSettings, expected)
+  assert.deepEqual(byTag(profileToPersistedConfig(editInbound(profile, 'WGC', { mtu: 1400 })).inbounds, 'WGC').streamSettings, expected)
+})
+
+test('a WireGuard inbound with tcp extras keeps the unchanged import verbatim', () => {
+  // VLESS without `security`: a compiled (non-verbatim) save would add security "none" to it.
+  const vless = { tag: 'VLESS PLAIN', listen: '0.0.0.0', port: 2054, protocol: 'vless', settings: { clients: [], decryption: 'none' }, streamSettings: { network: 'tcp' } }
+  const wg = {
+    tag: 'WGT',
+    port: 51824,
+    protocol: 'wireguard',
+    settings: { secretKey: SK, address: ['10.12.0.1/24'] },
+    streamSettings: { network: 'tcp', security: 'none', tcpSettings: { acceptProxyProtocol: false, header: { type: 'none' } } },
+  }
+  const raw = { inbounds: [vless, wg], outbounds: [DIRECT] }
+  const { profile } = importRawToProfile(structuredClone(raw))
+  const ib = profile.inbounds.find(i => i.tag === 'WGT') as unknown as Record<string, unknown>
+  assert.deepEqual(ib.transport, { type: 'tcp', acceptProxyProtocol: false, header: { type: 'none' } })
+  const { streamSettings: _dropped, ...wgWithoutStream } = wg
+  assert.deepEqual(profileToPersistedConfig(profile), { ...raw, inbounds: [vless, wgWithoutStream] })
+  assert.equal('streamSettings' in byTag(profileToPersistedConfig(editInbound(profile, 'WGT', { mtu: 1400 })).inbounds, 'WGT'), false)
+})
+
+test('a peer keepAlive removed in the WireGuard outbound editor stays removed', () => {
+  const warp = { protocol: 'wireguard', tag: 'WARP', settings: { secretKey: SK, address: ['172.16.0.2/32'], peers: [{ ...PEER, keepAlive: 25 }] } }
+  const { profile } = importRawToProfile({ inbounds: [VLESS], outbounds: [DIRECT, warp] })
+  const settings = { secretKey: SK, address: ['172.16.0.2/32'], peers: [PEER] }
+  assert.deepEqual(byTag(profileToPersistedConfig(editOutboundSettings(profile, 'WARP', settings)).outbounds, 'WARP').settings, settings)
+})
+
+test('deleting the first of two WireGuard outbound peers does not leak its fields into the other', () => {
+  const warp = { protocol: 'wireguard', tag: 'WARP', settings: { secretKey: SK, address: ['172.16.0.2/32'], peers: [{ ...PEER, keepAlive: 25, preSharedKey: SK }, PEER2] } }
+  const { profile } = importRawToProfile({ inbounds: [VLESS], outbounds: [DIRECT, warp] })
+  const settings = { secretKey: SK, address: ['172.16.0.2/32'], peers: [PEER2] }
+  assert.deepEqual(byTag(profileToPersistedConfig(editOutboundSettings(profile, 'WARP', settings)).outbounds, 'WARP').settings, settings)
+})

@@ -160,11 +160,8 @@ function sanitizeSecurityArrays(inbound: Inbound): Inbound {
   return { ...inbound, security: sanitized } as Inbound
 }
 
-/** True for a record of the given `type` whose other own values are all undefined (the kit importer's plain tcp / none). */
-function isPlainStreamPart(value: unknown, type: string): boolean {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
-  const record = value as Record<string, unknown>
-  return record.type === type && Object.entries(record).every(([key, v]) => key === 'type' || v === undefined)
+function isStreamPartOfType(value: unknown, type: string): boolean {
+  return typeof value === 'object' && value !== null && !Array.isArray(value) && (value as Record<string, unknown>).type === type
 }
 
 function sanitizeWireguardInbound(inbound: Inbound): Inbound {
@@ -175,10 +172,11 @@ function sanitizeWireguardInbound(inbound: Inbound): Inbound {
     delete draft.address
   }
   // The kit compiles `streamSettings` (and with it sockopt and finalmask) only when both transport and security
-  // exist, and old editors could leave ws/tls behind on WireGuard inbounds, so pin both to plain tcp / none.
-  // Already plain objects are kept as they are, so the import fingerprint and verbatim source passthrough hold.
-  if (!isPlainStreamPart(draft.transport, 'tcp')) draft.transport = { type: 'tcp' }
-  if (!isPlainStreamPart(draft.security, 'none')) draft.security = { type: 'none' }
+  // exist, and old editors could leave ws/tls behind on WireGuard inbounds, so pin them to tcp / none. A tcp or none
+  // record is kept as it is, extras such as a tcp header included (the adapter strips tcpSettings from WireGuard
+  // output), so an unedited import keeps its fingerprint and the verbatim source passthrough.
+  if (!isStreamPartOfType(draft.transport, 'tcp')) draft.transport = { type: 'tcp' }
+  if (!isStreamPartOfType(draft.security, 'none')) draft.security = { type: 'none' }
   return draft as unknown as Inbound
 }
 
