@@ -8,12 +8,14 @@ import {
   deriveWireguardPublicKey,
   formatWireguardReserved,
   isIpAddress,
+  normalizeWireguardInboundForCommit,
   parseIpOrCidr,
   parseWireguardInboundPort,
   parseWireguardKey,
   parseWireguardMtuInput,
   parseWireguardReservedInput,
   wireguardInboundAddresses,
+  wireguardInboundFormTexts,
   wireguardReservedBytes,
   wireguardReservedInputMatches,
 } from '@/features/core-editor/kit/wireguard-xray-fields'
@@ -126,4 +128,46 @@ test('applyWireguardInboundFormValues writes parsed MTU and reserved', () => {
 test('applyWireguardInboundFormValues writes the MTU and keeps the stored reserved when only the reserved text is bad', () => {
   const ib = { kind: 'inbound', protocol: 'wireguard', tag: 'WG', secretKey: SK, peers: [], mtu: 1420, reserved: '1,2,3' } as unknown as Inbound
   assert.deepEqual(applyWireguardInboundFormValues(ib, { mtu: '1400', reserved: 'x' }), { ...ib, mtu: 1400, reserved: '1,2,3' })
+})
+test('wireguardInboundFormTexts keeps typed text that does not parse or parses to the stored value', () => {
+  const wg = (fields: Record<string, unknown>) => ({ kind: 'inbound', protocol: 'wireguard', tag: 'WG', ...fields }) as unknown as Inbound
+  // "9999" fails the range, so the 999 patched at the third keystroke must not replace it.
+  assert.deepEqual(wireguardInboundFormTexts(wg({ mtu: 999 }), { mtu: '9999', reserved: '' }), { mtu: '9999', reserved: '' })
+  assert.deepEqual(wireguardInboundFormTexts(wg({ mtu: 600, reserved: [1, 2, 3] }), { mtu: '0600', reserved: '1,2,3' }), { mtu: '0600', reserved: '1,2,3' })
+  assert.deepEqual(wireguardInboundFormTexts(wg({ reserved: 'AQID' }), { mtu: '', reserved: '[1,2,3]' }), { mtu: '', reserved: '[1,2,3]' })
+  assert.deepEqual(wireguardInboundFormTexts(wg({ mtu: 1420, reserved: [1, 2, 30] }), { mtu: '14', reserved: '1, 2' }), { mtu: '14', reserved: '1, 2' })
+  assert.deepEqual(wireguardInboundFormTexts(wg({ reserved: [1, 2, 30] }), { mtu: '', reserved: '1, 2, 300' }), { mtu: '', reserved: '1, 2, 300' })
+})
+test('wireguardInboundFormTexts shows the stored value when the typed text parses to another value or nothing is typed yet', () => {
+  const wg = (fields: Record<string, unknown>) => ({ kind: 'inbound', protocol: 'wireguard', tag: 'WG', ...fields }) as unknown as Inbound
+  assert.deepEqual(wireguardInboundFormTexts(wg({ mtu: 1500, reserved: [4, 5, 6] }), { mtu: '1400', reserved: '1, 2, 3' }), { mtu: '1500', reserved: '4, 5, 6' })
+  assert.deepEqual(wireguardInboundFormTexts(wg({ mtu: 1420, reserved: 'AQID' }), { mtu: '', reserved: '' }), { mtu: '1420', reserved: '1, 2, 3' })
+  assert.deepEqual(wireguardInboundFormTexts(wg({ mtu: 1420, reserved: 'AQID' })), { mtu: '1420', reserved: '1, 2, 3' })
+  assert.deepEqual(wireguardInboundFormTexts(wg({ mtu: 100, reserved: [1, 2] })), { mtu: '100', reserved: '[1,2]' })
+  const vless = { kind: 'inbound', protocol: 'vless', tag: 'V', mtu: 1400 } as unknown as Inbound
+  assert.deepEqual(wireguardInboundFormTexts(vless, { mtu: '9999', reserved: '1, 2' }), { mtu: '', reserved: '' })
+})
+test('normalizeWireguardInboundForCommit trims the secret key, port and address entries and writes MTU and reserved', () => {
+  const ib = {
+    kind: 'inbound',
+    protocol: 'wireguard',
+    tag: 'WG',
+    port: ' 51820 ',
+    secretKey: `  ${SK}\n`,
+    address: [' 10.8.0.1/24 ', '', '  ', 'fd00::1/64'],
+    peers: [],
+    reserved: 'AQID',
+  } as unknown as Inbound
+  assert.deepEqual(normalizeWireguardInboundForCommit(ib, { mtu: '1400', reserved: '1, 2, 3' }), {
+    ...ib,
+    port: 51820,
+    secretKey: SK,
+    address: ['10.8.0.1/24', 'fd00::1/64'],
+    mtu: 1400,
+    reserved: [1, 2, 3],
+  })
+  const untouched = { kind: 'inbound', protocol: 'wireguard', tag: 'WG', port: '1000-2000', secretKey: SK, address: [], peers: [] } as unknown as Inbound
+  assert.deepEqual(normalizeWireguardInboundForCommit(untouched, { mtu: '', reserved: '' }), untouched)
+  const vless = { kind: 'inbound', protocol: 'vless', tag: 'V', port: ' 443 ' } as unknown as Inbound
+  assert.equal(normalizeWireguardInboundForCommit(vless, { mtu: '1400', reserved: '' }), vless)
 })

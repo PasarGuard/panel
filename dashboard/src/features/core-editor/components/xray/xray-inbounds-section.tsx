@@ -36,11 +36,11 @@ import { profileDuplicateTagMessage, profileTagHasDuplicateUsage } from '@/featu
 import { remapIndexAfterArrayMove } from '@/features/core-editor/kit/remap-index-after-move'
 import { normalizeTunnelNetworkForKit } from '@/features/core-editor/kit/sanitize-inbound'
 import {
-  applyWireguardInboundFormValues,
   classifyWireguardAddresses,
-  formatWireguardReserved,
+  normalizeWireguardInboundForCommit,
   parseWireguardInboundPort,
   wireguardInboundAddresses,
+  wireguardInboundFormTexts,
 } from '@/features/core-editor/kit/wireguard-xray-fields'
 import { coerceVerifyPeerCertByNameList, inferParityFieldMode, outboundSettingToString, parseOutboundSettingValue, stringifyJsonFormRecord } from '@/features/core-editor/kit/xray-parity-value'
 import { useCoreEditorStore } from '@/features/core-editor/state/core-editor-store'
@@ -1106,21 +1106,34 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
         return
       }
       form.setValue('wgSecretKey', typeof (nextIb as { secretKey?: unknown }).secretKey === 'string' ? String((nextIb as { secretKey?: unknown }).secretKey) : '', syncOpts)
-      form.setValue('wgMtu', typeof (nextIb as { mtu?: unknown }).mtu === 'number' ? String((nextIb as { mtu?: number }).mtu) : '', syncOpts)
-      form.setValue('wgReserved', formatWireguardReserved((nextIb as { reserved?: unknown }).reserved), syncOpts)
+      const wgTexts = wireguardInboundFormTexts(nextIb, { mtu: form.getValues('wgMtu') ?? '', reserved: form.getValues('wgReserved') ?? '' })
+      form.setValue('wgMtu', wgTexts.mtu, syncOpts)
+      form.setValue('wgReserved', wgTexts.reserved, syncOpts)
     },
     [form],
   )
 
   const profileRef = useRef(profile)
   profileRef.current = profile
+  /** `dialogMode:selected` of the open dialog, so the reset below can tell a patch of the same row from a newly opened one. */
+  const formRowKeyRef = useRef<string | null>(null)
 
   useEffect(() => {
-    if (!detailOpen) return
+    if (!detailOpen) {
+      formRowKeyRef.current = null
+      return
+    }
     const p = profileRef.current
     if (!p) return
     const row = draftInbound ?? p.inbounds[selected]
     if (!row || row.protocol === 'unmanaged') return
+
+    const rowKey = `${dialogMode}:${selected}`
+    const sameRow = formRowKeyRef.current === rowKey
+    formRowKeyRef.current = rowKey
+    // Same open row: typed MTU / reserved texts that do not parse or that match the stored value stay as typed.
+    const wgTexts = wireguardInboundFormTexts(row, sameRow ? { mtu: form.getValues('wgMtu') ?? '', reserved: form.getValues('wgReserved') ?? '' } : undefined)
+    const wgErrorFields = sameRow ? WIREGUARD_INBOUND_FORM_FIELDS.filter(name => form.getFieldState(name).error) : []
 
     const security = getInboundSecurityRecord(row)
     const sniffing = 'sniffing' in row && row.sniffing && typeof row.sniffing === 'object' && !Array.isArray(row.sniffing) ? (row.sniffing as Record<string, unknown>) : null
@@ -1165,8 +1178,8 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
       tunName: row.protocol === 'tun' && typeof (row as { name?: unknown }).name === 'string' ? String((row as { name?: unknown }).name) : '',
       tunMtu: row.protocol === 'tun' && typeof (row as { mtu?: unknown }).mtu === 'number' ? String((row as { mtu?: number }).mtu) : '',
       wgSecretKey: row.protocol === 'wireguard' && typeof (row as { secretKey?: unknown }).secretKey === 'string' ? String((row as { secretKey?: unknown }).secretKey) : '',
-      wgMtu: row.protocol === 'wireguard' && typeof (row as { mtu?: unknown }).mtu === 'number' ? String((row as { mtu?: number }).mtu) : '',
-      wgReserved: row.protocol === 'wireguard' ? formatWireguardReserved((row as { reserved?: unknown }).reserved) : '',
+      wgMtu: wgTexts.mtu,
+      wgReserved: wgTexts.reserved,
       ...(isTunnelInboundProtocol(row.protocol)
         ? {
             tunnelRewriteAddress: tunnelAddressForForm(row),
@@ -1228,6 +1241,8 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
     }
 
     form.reset(next, { keepErrors: false, keepTouched: false, keepDirty: false })
+    // The reset clears errors; re-check the WireGuard fields that showed one, so a kept bad text keeps its message.
+    if (wgErrorFields.length > 0) void form.trigger(wgErrorFields)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `form.reset` is stable; listing `form` re-runs sync every render.
   }, [caps, detailOpen, selected, dialogMode, draftInbound])
 
@@ -1665,8 +1680,8 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
     if (!(await assertMldsa65PairForCommit())) return
     if (!validateWireguardInboundForCommit(draftInbound)) return
     const insertAt = profile.inbounds.length
-    // MTU and reserved are also written on change; writing them again here covers untouched stored values such as `AQID` or "1,2,3".
-    const committedInbound = applyWireguardInboundFormValues(draftInbound, { mtu: form.getValues('wgMtu') ?? '', reserved: form.getValues('wgReserved') ?? '' })
+    // Also written on change; repeating it here normalizes untouched stored values (reserved `AQID` or "1,2,3", a padded secret key, port or address).
+    const committedInbound = normalizeWireguardInboundForCommit(draftInbound, { mtu: form.getValues('wgMtu') ?? '', reserved: form.getValues('wgReserved') ?? '' })
     updateXrayProfile(p => ({ ...p, inbounds: [...p.inbounds, committedInbound] }))
     setSelected(insertAt)
     finalizeDetailClose()
@@ -1696,8 +1711,8 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
     }
     if (!validateWireguardInboundForCommit(inbound)) return
     let nextInbound: Inbound = inbound
-    // MTU and reserved are also written on change; writing them again here covers untouched stored values such as `AQID` or "1,2,3".
-    nextInbound = applyWireguardInboundFormValues(nextInbound, { mtu: form.getValues('wgMtu') ?? '', reserved: form.getValues('wgReserved') ?? '' })
+    // Also written on change; repeating it here normalizes untouched stored values (reserved `AQID` or "1,2,3", a padded secret key, port or address).
+    nextInbound = normalizeWireguardInboundForCommit(nextInbound, { mtu: form.getValues('wgMtu') ?? '', reserved: form.getValues('wgReserved') ?? '' })
 
     if ('security' in nextInbound && nextInbound.security && form.getValues('security') === 'none') {
       // When switching from TLS/Reality to none, force-drop advanced security keys.

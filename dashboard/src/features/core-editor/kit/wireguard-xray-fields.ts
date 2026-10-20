@@ -217,3 +217,37 @@ export function applyWireguardInboundFormValues(inbound: Inbound, values: { mtu:
   }
   return next as unknown as Inbound
 }
+
+/**
+ * Commit step for a WireGuard inbound: `applyWireguardInboundFormValues`, plus the trimmed secret key, the port number
+ * when the port parses, and address entries trimmed with blank ones dropped. Other inbounds are returned as they are.
+ */
+export function normalizeWireguardInboundForCommit(inbound: Inbound, values: { mtu: string; reserved: string }): Inbound {
+  if (inbound.protocol !== 'wireguard') return inbound
+  const next: Record<string, unknown> = { ...applyWireguardInboundFormValues(inbound, values) }
+  if (typeof next.secretKey === 'string') next.secretKey = next.secretKey.trim()
+  const port = parseWireguardInboundPort(next.port)
+  if (port !== null) next.port = port
+  if (Array.isArray(next.address)) next.address = wireguardInboundAddresses(next.address)
+  return next as unknown as Inbound
+}
+
+/**
+ * MTU and reserved form texts for an inbound ('' for other protocols). Without `current` they show the stored values.
+ * With `current` (the same dialog stays open), a typed text is kept when it does not parse, so its error stays and
+ * commit stays blocked, or when it parses to the stored value, so typing is not reformatted; a text that parses to
+ * another value gives way to the stored one.
+ */
+export function wireguardInboundFormTexts(inbound: Inbound, current?: { mtu: string; reserved: string }): { mtu: string; reserved: string } {
+  if (inbound.protocol !== 'wireguard') return { mtu: '', reserved: '' }
+  const { mtu, reserved } = inbound as { mtu?: unknown; reserved?: unknown }
+  const storedMtu = typeof mtu === 'number' ? mtu : undefined
+  const stored = { mtu: storedMtu === undefined ? '' : String(storedMtu), reserved: formatWireguardReserved(reserved) }
+  if (!current) return stored
+  const typedMtu = parseWireguardMtuInput(current.mtu)
+  const typedReservedParses = parseWireguardReservedInput(current.reserved).ok
+  return {
+    mtu: !typedMtu.ok || typedMtu.value === storedMtu ? current.mtu : stored.mtu,
+    reserved: !typedReservedParses || wireguardReservedInputMatches(current.reserved, reserved) ? current.reserved : stored.reserved,
+  }
+}
