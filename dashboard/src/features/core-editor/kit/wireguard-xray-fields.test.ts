@@ -78,7 +78,6 @@ test('parseWireguardInboundPort only accepts one port from 1 to 65535', () => {
   assert.equal(parseWireguardInboundPort('65535'), 65535)
   for (const v of ['51820-51830', '51820,51821', 0, '0', 65536, 'env:WG_PORT', '', undefined, 51820.5, '0x10', '5e4']) assert.equal(parseWireguardInboundPort(v), null, String(v))
 })
-// Backend allocatable rule (xray_wireguard_allocatable_addresses) plus Xray netip parsing (leading-zero prefixes are invalid).
 test('classifyWireguardAddresses follows the backend allocatable rule plus Xray netip parsing (leading-zero prefixes)', () => {
   assert.deepEqual(
     classifyWireguardAddresses([
@@ -123,4 +122,8 @@ test('applyWireguardInboundFormValues writes parsed MTU and reserved', () => {
   assert.equal(applyWireguardInboundFormValues(ib, { mtu: '1', reserved: 'x' }), ib)
   const vless = { kind: 'inbound', protocol: 'vless', tag: 'V' } as unknown as Inbound
   assert.equal(applyWireguardInboundFormValues(vless, { mtu: '1400', reserved: '' }), vless)
+})
+test('applyWireguardInboundFormValues writes the MTU and keeps the stored reserved when only the reserved text is bad', () => {
+  const ib = { kind: 'inbound', protocol: 'wireguard', tag: 'WG', secretKey: SK, peers: [], mtu: 1420, reserved: '1,2,3' } as unknown as Inbound
+  assert.deepEqual(applyWireguardInboundFormValues(ib, { mtu: '1400', reserved: 'x' }), { ...ib, mtu: 1400, reserved: '1,2,3' })
 })
