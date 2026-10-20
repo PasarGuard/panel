@@ -38,15 +38,18 @@ export function migrateWireguardOutboundLegacySettings(settings: Record<string, 
   return next
 }
 
+const shownDnsValue = (item: unknown): string => (typeof item === 'string' ? item : JSON.stringify(item))
+
 /**
- * Returns the `remoteDNS` entries Xray cannot load: list entries are trimmed, empty ones ignored, and each
- * must be an IP literal (Xray parses them with `netip.MustParseAddr`). Xray reads the field as `[]string`,
- * so any other value that is set (for example a single string) is returned whole.
+ * Returns the `remoteDNS` values Xray cannot load. Xray reads the field as `[]string` and passes each raw
+ * entry to `netip.MustParseAddr`, which panics, so every list entry that is not a string IP literal is
+ * returned as is (no trimming; empty strings count), and any other value that is set (for example a single
+ * string) is returned whole. Strings are shown verbatim, other values as JSON.
  */
 export function invalidWireguardRemoteDns(value: unknown): string[] {
   if (value === undefined || value === null) return []
-  if (!Array.isArray(value)) return [typeof value === 'string' ? value.trim() : JSON.stringify(value)]
-  return value.map(item => String(item).trim()).filter(item => item !== '' && !isIpAddress(item))
+  if (!Array.isArray(value)) return [shownDnsValue(value)]
+  return value.filter(item => typeof item !== 'string' || !isIpAddress(item)).map(shownDnsValue)
 }
 
 export type WireguardOutboundIssue = { field: 'remoteDNS'; values: string[] } | { field: 'reserved' }

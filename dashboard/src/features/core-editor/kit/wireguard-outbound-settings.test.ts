@@ -34,9 +34,11 @@ test('kernel TUN choice reads and writes noKernelTun only', () => {
 })
 
 test('remoteDNS must be IP literals', () => {
-  assert.deepEqual(invalidWireguardRemoteDns(['1.1.1.1', '2606:4700:4700::1111', 'dns.google', '1.1.1.1:53', '[2606:4700::1111]', '']), ['dns.google', '1.1.1.1:53', '[2606:4700::1111]'])
+  assert.deepEqual(invalidWireguardRemoteDns(['1.1.1.1', '2606:4700:4700::1111', 'dns.google', '1.1.1.1:53', '[2606:4700::1111]', '']), ['dns.google', '1.1.1.1:53', '[2606:4700::1111]', ''])
+  // Xray passes each raw entry to netip.MustParseAddr, so padded entries panic the core too.
+  assert.deepEqual(invalidWireguardRemoteDns([' 1.1.1.1', '8.8.8.8', 53, {}]), [' 1.1.1.1', '53', '{}'])
   // Xray reads remoteDNS as []string, so a value that is not a list fails to load even when it is an IP.
-  assert.deepEqual(invalidWireguardRemoteDns(' 8.8.8.8 '), ['8.8.8.8'])
+  assert.deepEqual(invalidWireguardRemoteDns(' 8.8.8.8 '), [' 8.8.8.8 '])
   assert.deepEqual(invalidWireguardRemoteDns('dns.google'), ['dns.google'])
   assert.deepEqual(invalidWireguardRemoteDns(53), ['53'])
   assert.deepEqual(invalidWireguardRemoteDns(undefined), [])
@@ -48,6 +50,7 @@ test('outbound settings issues flag DNS hostnames, a non-list remoteDNS and bad 
   assert.deepEqual(wireguardOutboundSettingsIssues({ remoteDNS: ['1.1.1.1'], reserved: 'AQID' }), [])
   assert.deepEqual(wireguardOutboundSettingsIssues({ reserved: '1,2,3' }), [{ field: 'reserved' }])
   assert.deepEqual(wireguardOutboundSettingsIssues({ remoteDNS: '8.8.8.8' }), [{ field: 'remoteDNS', values: ['8.8.8.8'] }])
+  assert.deepEqual(wireguardOutboundSettingsIssues({ remoteDNS: [' 1.1.1.1', ''] }), [{ field: 'remoteDNS', values: [' 1.1.1.1', ''] }])
 })
 
 test('dedicated WireGuard outbound UI covers every kit settings key', () => {
