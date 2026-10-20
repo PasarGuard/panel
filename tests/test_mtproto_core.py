@@ -153,7 +153,23 @@ def test_tls_off_needs_no_domain():
         ("a b.org", None),
         ("your-domain.example", None),
         (5, None),
+        # telemt hex-encodes its IDNA-normalized host, so anything but an ASCII host name gives a dead "ee" link.
+        ("www.exämple.org", None),
+        ("a@b.org", None),
+        ("a.org?", None),
+        ("a.org#x", None),
+        ("a%20b.org", None),
+        ("your-domain.example.", None),
+        ("a.org..", None),
+        ("-a.org", None),
+        ("a_b.org", None),
+        ("a" * 64 + ".org", None),
+        (("a" * 63 + ".") * 3 + "a" * 62, None),
         (" www.example.org ", "www.example.org"),
+        ("www.example.org.", "www.example.org."),
+        ("xn--exmple-cua.org", "xn--exmple-cua.org"),
+        ("localhost", "localhost"),
+        (("a" * 63 + ".") * 3 + "a" * 61, ("a" * 63 + ".") * 3 + "a" * 61),
     ],
 )
 def test_tls_domain_rules(domain, stored):

@@ -23,6 +23,8 @@ const DEFAULT_INBOUND_TAG = 'mtproto'
 const DEFAULT_PORT = 443
 const MAX_INBOUND_TAG_LENGTH = 256
 const MODE_KEYS = ['classic', 'secure', 'tls'] as const
+// The panel's rule (app/core/mtproto.py): an ASCII host name, since telemt hex-encodes its IDNA-normalized host into the "ee" secret.
+const TLS_HOST_NAME = /^(?=.{1,253}$)[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*$/
 
 function asObject(value: unknown): Record<string, unknown> | undefined {
   return value !== null && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : undefined
@@ -106,7 +108,9 @@ export function mtprotoConfigIssues(config: Record<string, unknown>): MtprotoCon
   } else {
     const trimmed = typeof domain === 'string' ? domain.trim() : ''
     const malformed = !trimmed || /[\s/\\]/.test(trimmed)
-    const notForTls = modes.tls && (trimmed.includes(':') || trimmed.toLowerCase().endsWith('.example'))
+    // One trailing dot is allowed, as telemt keeps it.
+    const host = trimmed.endsWith('.') ? trimmed.slice(0, -1) : trimmed
+    const notForTls = modes.tls && (trimmed.includes(':') || !TLS_HOST_NAME.test(host) || host.toLowerCase().endsWith('.example'))
     if (malformed || notForTls) issues.push('tlsDomain')
   }
 

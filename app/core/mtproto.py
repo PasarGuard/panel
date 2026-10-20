@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from copy import deepcopy
 from pathlib import PosixPath
 
@@ -48,6 +49,11 @@ TELEMT_DEFAULT_PORT = 443
 TELEMT_DEFAULT_MODES = {"classic": False, "secure": False, "tls": True}
 # The domain the default core template ships with; it must be replaced before the core saves.
 TLS_DOMAIN_PLACEHOLDER = "your-domain.example"
+# An ASCII host name of letter, digit and hyphen labels (an internationalized name in its xn-- form).
+# telemt hex-encodes its IDNA-normalized host into the "ee" secret, so any other character gives a dead link.
+_TLS_HOST_NAME = re.compile(
+    r"(?=.{1,253}$)[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*"
+)
 
 
 def _port_value(field: str, value) -> int:
@@ -206,7 +212,14 @@ class MtprotoConfig(dict):
         if tls:
             if ":" in domain:
                 raise ValueError("censorship.tls_domain must be a bare domain name, without a port or ':'")
-            if domain.lower().endswith(".example"):
+            # telemt keeps one trailing dot ("a.org."), so it is allowed and stored as written.
+            host = domain.removesuffix(".")
+            if not _TLS_HOST_NAME.fullmatch(host):
+                raise ValueError(
+                    f'censorship.tls_domain "{domain}" must be an ASCII host name: letters, digits, "-" and "." '
+                    "(write an internationalized name in its xn-- form)"
+                )
+            if host.lower().endswith(".example"):
                 raise ValueError(
                     f'censorship.tls_domain "{domain}" is a placeholder (.example is a reserved TLD); '
                     "replace it with the real domain that TLS-mode clients present"
