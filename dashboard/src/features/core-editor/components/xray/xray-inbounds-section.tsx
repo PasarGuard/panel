@@ -61,7 +61,7 @@ import type { Fallback, Inbound, InboundPort, Profile, Security, ShadowsocksMeth
 import { createDefaultInbound, createDefaultInboundForProtocol, getInboundFieldVisibility, getInboundFormCapabilities } from '@pasarguard/xray-config-kit'
 import type { ColumnDef } from '@tanstack/react-table'
 import type { TFunction } from 'i18next'
-import { Cable, Copy, Dices, KeyRound, Pencil, Plus, RefreshCcw, Shield, Trash2 } from 'lucide-react'
+import { Cable, Copy, Dices, KeyRound, Pencil, Plus, Shield, Trash2 } from 'lucide-react'
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useForm, type Resolver } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -524,7 +524,7 @@ function applyTunEditorCreationDefaults(ib: Inbound): Inbound {
   } as Inbound
 }
 
-/** WireGuard editor defaults: do not prefill key/peer fields. */
+/** Only configure the interface here; the backend manages inbound peers. */
 function applyWireguardEditorCreationDefaults(ib: Inbound): Inbound {
   if (ib.protocol !== 'wireguard') return ib
   return {
@@ -5286,6 +5286,8 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                         className="h-10 w-full max-w-none min-w-0"
                       />
                     </div>
+                  </div>
+                )}
 
                 {isHttpInboundProtocol(inbound.protocol) && (
                   <>
