@@ -14,10 +14,13 @@ const issuesOf = (values: Record<string, string>) => {
   return r.success ? [] : r.error.issues
 }
 const issuePaths = (values: Record<string, string>) => issuesOf(values).map(i => i.path.join('.'))
-const portMessages = (values: Record<string, string>) =>
+const messagesAt = (path: string, values: Record<string, string>) =>
   issuesOf(values)
-    .filter(i => i.path.join('.') === 'port')
+    .filter(i => i.path.join('.') === path)
     .map(i => i.message)
+const MTU_RANGE = 'MTU must be a whole number from 576 to 9000.'
+const RESERVED_FORMAT = 'Reserved must be three numbers from 0 to 255, for example 1, 2, 3.'
+const SECRET_KEY_INVALID = 'Secret key must be a 32-byte WireGuard key (base64 or 64 hex characters).'
 
 test('a valid WireGuard inbound form passes', () => {
   assert.deepEqual(issuePaths(base), [])
@@ -25,19 +28,22 @@ test('a valid WireGuard inbound form passes', () => {
 })
 test('WireGuard needs one port', () => {
   for (const port of ['', '51820-51830', '51820,51821', '0', '65536', 'env:WG_PORT']) {
-    assert.deepEqual(portMessages({ ...base, port }), ['WireGuard needs one port from 1 to 65535.'], port)
+    assert.deepEqual(messagesAt('port', { ...base, port }), ['WireGuard needs one port from 1 to 65535.'], port)
   }
 })
 test('WireGuard MTU range', () => {
-  for (const wgMtu of ['575', '9001', '1420.5', 'abc']) assert.ok(issuePaths({ ...base, wgMtu }).includes('wgMtu'), wgMtu)
+  for (const wgMtu of ['575', '9001', '1420.5', 'abc']) assert.deepEqual(messagesAt('wgMtu', { ...base, wgMtu }), [MTU_RANGE], wgMtu)
   for (const wgMtu of ['576', '9000']) assert.deepEqual(issuePaths({ ...base, wgMtu }), [])
 })
 test('WireGuard reserved format', () => {
-  for (const wgReserved of ['1,2', '1,2,3,4', '256,0,0', 'a,b,c']) assert.ok(issuePaths({ ...base, wgReserved }).includes('wgReserved'), wgReserved)
+  for (const wgReserved of ['1,2', '1,2,3,4', '256,0,0', 'a,b,c']) assert.deepEqual(messagesAt('wgReserved', { ...base, wgReserved }), [RESERVED_FORMAT], wgReserved)
 })
 test('WireGuard secret key format', () => {
-  for (const wgSecretKey of ['', 'abc', 'A'.repeat(42) + '==']) assert.ok(issuePaths({ ...base, wgSecretKey }).includes('wgSecretKey'), wgSecretKey)
+  assert.deepEqual(messagesAt('wgSecretKey', { ...base, wgSecretKey: '' }), ['Secret Key is required'])
+  for (const wgSecretKey of ['abc', 'A'.repeat(42) + '==']) assert.deepEqual(messagesAt('wgSecretKey', { ...base, wgSecretKey }), [SECRET_KEY_INVALID], wgSecretKey)
 })
 test('other protocols keep port lists', () => {
   assert.deepEqual(issuePaths({ protocol: 'vless', tag: 'V', port: '443,1000-2000' }), [])
+  assert.deepEqual(issuePaths({ protocol: 'vless', tag: 'V', port: '' }), [])
+  assert.deepEqual(messagesAt('port', { protocol: 'vless', tag: 'V', port: '0' }), ['Port must be a port number or list like 443, 1000-2000,444.'])
 })

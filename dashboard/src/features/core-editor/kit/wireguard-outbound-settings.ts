@@ -52,13 +52,14 @@ export function applyWireguardOutboundReservedInput(settings: Record<string, unk
   return next
 }
 
-const shownDnsValue = (item: unknown): string => (typeof item === 'string' ? item : JSON.stringify(item))
+const shownDnsValue = (item: unknown): string => JSON.stringify(item)
 
 /**
  * Returns the `remoteDNS` values Xray cannot load. Xray reads the field as `[]string` and passes each raw
  * entry to `netip.MustParseAddr`, which panics, so every list entry that is not a string IP literal is
- * returned as is (no trimming; empty strings count), and any other value that is set (for example a single
- * string) is returned whole. Strings are shown verbatim, other values as JSON.
+ * returned (no trimming; empty strings count), and any other value that is set (for example a single
+ * string) is returned whole. Every value is shown as JSON, so strings are quoted and a padded or empty
+ * entry stays visible in the error message.
  */
 export function invalidWireguardRemoteDns(value: unknown): string[] {
   if (value === undefined || value === null) return []
@@ -75,4 +76,24 @@ export function wireguardOutboundSettingsIssues(settings: Record<string, unknown
   if (dns.length > 0) issues.push({ field: 'remoteDNS', values: dns })
   if (wireguardReservedBytes(settings.reserved) === null) issues.push({ field: 'reserved' })
   return issues
+}
+
+type Translate = (key: string, options?: Record<string, unknown>) => string
+
+/** The message for one WireGuard outbound issue, shared by the form's inline errors and the Modify validation. */
+export function wireguardOutboundIssueMessage(t: Translate, issue: WireguardOutboundIssue, settings: Record<string, unknown>): string {
+  if (issue.field === 'reserved') {
+    return t('coreEditor.outbound.wireguard.reservedInvalid', {
+      defaultValue: 'Reserved must be three numbers from 0 to 255, for example 1, 2, 3.',
+    })
+  }
+  if (!Array.isArray(settings.remoteDNS)) {
+    return t('coreEditor.outbound.wireguard.dnsNotList', {
+      defaultValue: 'DNS servers must be a list of IP addresses. Edit the list to save it as one.',
+    })
+  }
+  return t('coreEditor.outbound.wireguard.dnsInvalid', {
+    values: issue.values.join(', '),
+    defaultValue: 'DNS servers must be IP addresses: {{values}}',
+  })
 }

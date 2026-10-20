@@ -11,10 +11,11 @@ import { normalizeSettingsFromEditor } from '@/features/core-editor/kit/outbound
 import {
   applyWireguardKernelTunChoice,
   applyWireguardOutboundReservedInput,
-  invalidWireguardRemoteDns,
   WIREGUARD_OUTBOUND_LEGACY_FIELDS,
   wireguardKernelTunChoice,
   type WireguardKernelTunChoice,
+  wireguardOutboundIssueMessage,
+  wireguardOutboundSettingsIssues,
 } from '@/features/core-editor/kit/wireguard-outbound-settings'
 import { formatWireguardReserved, parseWireguardReservedInput, wireguardReservedBytes, wireguardReservedInputMatches } from '@/features/core-editor/kit/wireguard-xray-fields'
 import { useCoreEditorStore } from '@/features/core-editor/state/core-editor-store'
@@ -934,7 +935,7 @@ function OutboundWireGuardSettings({ ob, patchOutbound, t }: { ob: Outbound; pat
       : typeof s.DNS === 'string' && s.DNS.trim()
         ? [s.DNS.trim()]
         : []
-  const invalidDns = invalidWireguardRemoteDns(s.remoteDNS)
+  const dnsIssue = wireguardOutboundSettingsIssues(s).find(issue => issue.field === 'remoteDNS')
   const kernelTunChoice = wireguardKernelTunChoice(s)
   const [reservedText, setReservedText] = useState(() => formatWireguardReserved(s.reserved))
 
@@ -1086,11 +1087,7 @@ function OutboundWireGuardSettings({ ob, patchOutbound, t }: { ob: Outbound; pat
             }}
           />
           {reservedInvalid ? (
-            <p className="text-destructive text-xs">
-              {t('coreEditor.outbound.wireguard.reservedInvalid', {
-                defaultValue: 'Reserved must be three numbers from 0 to 255, for example 1, 2, 3.',
-              })}
-            </p>
+            <p className="text-destructive text-xs">{wireguardOutboundIssueMessage(t, { field: 'reserved' }, s)}</p>
           ) : (
             <p className="text-muted-foreground text-xs leading-relaxed">
               {t('coreEditor.outbound.wireguard.reservedHint', {
@@ -1149,18 +1146,7 @@ function OutboundWireGuardSettings({ ob, patchOutbound, t }: { ob: Outbound; pat
             className="h-10 w-full max-w-none min-w-0"
           />
           <p className="text-muted-foreground text-xs leading-relaxed">{t('coreEditor.outbound.wireguard.dnsHint', { defaultValue: 'IP addresses only. Read by Xray v26.9.8 and newer.' })}</p>
-          {invalidDns.length > 0 && (
-            <p className="text-destructive text-xs">
-              {Array.isArray(s.remoteDNS)
-                ? t('coreEditor.outbound.wireguard.dnsInvalid', {
-                    values: invalidDns.join(', '),
-                    defaultValue: 'DNS servers must be IP addresses: {{values}}',
-                  })
-                : t('coreEditor.outbound.wireguard.dnsNotList', {
-                    defaultValue: 'DNS servers must be a list of IP addresses. Edit the list to save it as one.',
-                  })}
-            </p>
-          )}
+          {dnsIssue && <p className="text-destructive text-xs">{wireguardOutboundIssueMessage(t, dnsIssue, s)}</p>}
         </div>
 
         <div className="flex w-full min-w-0 flex-col gap-2">

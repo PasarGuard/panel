@@ -30,7 +30,7 @@ import {
 } from '@/features/core-editor/kit/outbound-stream-dynamic'
 import { profileDuplicateTagMessage, profileTagHasDuplicateUsage } from '@/features/core-editor/kit/profile-tag-uniqueness'
 import { remapIndexAfterArrayMove } from '@/features/core-editor/kit/remap-index-after-move'
-import { WIREGUARD_OUTBOUND_FORM_KEYS, wireguardOutboundSettingsIssues } from '@/features/core-editor/kit/wireguard-outbound-settings'
+import { WIREGUARD_OUTBOUND_FORM_KEYS, wireguardOutboundIssueMessage, wireguardOutboundSettingsIssues } from '@/features/core-editor/kit/wireguard-outbound-settings'
 import {
   flattenOutboundSettings,
   mergeEditorBodyIntoOutbound,
@@ -476,26 +476,7 @@ function collectOutboundRequiredIssues(ob: Outbound, t: (key: string, opts?: Rec
       })
     }
     for (const issue of wireguardOutboundSettingsIssues(s)) {
-      if (issue.field === 'remoteDNS') {
-        issues.push({
-          field: 'remoteDNS',
-          message: Array.isArray(s.remoteDNS)
-            ? t('coreEditor.outbound.wireguard.dnsInvalid', {
-                values: issue.values.join(', '),
-                defaultValue: 'DNS servers must be IP addresses: {{values}}',
-              })
-            : t('coreEditor.outbound.wireguard.dnsNotList', {
-                defaultValue: 'DNS servers must be a list of IP addresses. Edit the list to save it as one.',
-              }),
-        })
-      } else {
-        issues.push({
-          field: 'reserved',
-          message: t('coreEditor.outbound.wireguard.reservedInvalid', {
-            defaultValue: 'Reserved must be three numbers from 0 to 255, for example 1, 2, 3.',
-          }),
-        })
-      }
+      issues.push({ field: issue.field, message: wireguardOutboundIssueMessage(t, issue, s) })
     }
   }
 
