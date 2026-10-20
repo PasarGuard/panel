@@ -1,5 +1,6 @@
 import type { Outbound } from '@pasarguard/xray-config-kit'
 import { deepPruneEmptyJsonObjects, stringifyVerifyPeerCertByName } from '@/features/core-editor/kit/xray-parity-value'
+import { migrateWireguardOutboundLegacySettings } from '@/features/core-editor/kit/wireguard-outbound-settings'
 
 /** Deep-prune empty objects; use for `streamSettings`, `mux`, `proxySettings`, etc. (avoid `{}` in JSON / profile). Preserves sockopt even if empty. */
 export function normalizeOutboundStreamSettings(value: unknown): unknown {
@@ -308,6 +309,7 @@ export function normalizeSettingsFromEditor(protocol: string, settings: Record<s
   if (protocol === 'dns') {
     return pruneDnsOutboundSettings({ ...settings })
   }
+  if (protocol === 'wireguard') return migrateWireguardOutboundLegacySettings({ ...settings })
   return { ...settings }
 }
 
