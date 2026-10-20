@@ -32,7 +32,7 @@ from app.db.models import (
     inbounds_groups_association,
     users_groups_association,
 )
-from app.models.proxy import ProxyTable
+from app.models.proxy import MtprotoSettings, ProxyTable
 from app.models.stats import (
     Period,
     UserCountMetric,
@@ -1473,6 +1473,12 @@ def build_revoked_proxy_settings(db_user: User) -> dict:
         "method", "chacha20-ietf-poly1305"
     )
     proxy_settings.wireguard.peer_ips = db_user.proxy_settings.get("wireguard", {}).get("peer_ips", []) or []
+    # Revoke rotates only the MTProto secret (left None here, assigned on the write path); keep the policy fields.
+    mtproto = db_user.proxy_settings.get("mtproto")
+    if isinstance(mtproto, dict):
+        proxy_settings.mtproto = MtprotoSettings.model_validate(
+            {key: mtproto[key] for key in ("user_ad_tag", "max_tcp_conns", "max_unique_ips") if key in mtproto}
+        )
     return proxy_settings.dict()
 
 

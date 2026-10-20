@@ -14,6 +14,11 @@ _MTPROTO_SECRET_RE = re.compile(r"^[0-9a-fA-F]{32}$")
 
 
 def generate_mtproto_secret() -> str:
+    """Return a new random MTProto user secret: 32 lowercase hex characters.
+
+    This is the single server-side source of new secrets. The backfill migration
+    d5e1f3a7b9c2 inlines the same ``secrets.token_hex(16)``; change both together.
+    """
     return secrets.token_hex(16)
 
 
@@ -77,34 +82,37 @@ class WireGuardPeerIPs(BaseModel):
 
 
 class MtprotoSettings(BaseModel):
-    secret: str = Field(default_factory=generate_mtproto_secret)
+    # None means "no secret yet": the read path never invents one; write paths assign it.
+    secret: str | None = Field(default=None, min_length=32, max_length=32, pattern=r"^[0-9a-f]{32}$")
     user_ad_tag: str = ""
-    max_tcp_conns: int = 0
-    max_unique_ips: int = 0
+    max_tcp_conns: int = Field(default=0, ge=0, le=4294967295, strict=True)
+    max_unique_ips: int = Field(default=0, ge=0, le=4294967295, strict=True)
 
     @field_validator("secret", mode="before")
     @classmethod
     def validate_secret(cls, value):
-        if not isinstance(value, str) or not _MTPROTO_SECRET_RE.fullmatch(value.strip()):
+        if value is None:
+            return None
+        if not isinstance(value, str):
+            raise ValueError("mtproto secret must be a string")  # noqa: TRY004
+        value = value.strip()
+        if not value:
+            return None
+        if not _MTPROTO_SECRET_RE.fullmatch(value):
             raise ValueError("mtproto secret must be 32 hex characters")
-        return value.strip().lower()
+        return value.lower()
 
     @field_validator("user_ad_tag", mode="before")
     @classmethod
     def validate_user_ad_tag(cls, value):
-        if value in (None,):
+        if value is None:
             return ""
-        return str(value)
-
-    @field_validator("max_tcp_conns", "max_unique_ips", mode="before")
-    @classmethod
-    def validate_limits(cls, value):
-        if value in (None, ""):
-            return 0
-        limit = int(value)
-        if limit < 0:
-            raise ValueError("must be greater than or equal to 0")
-        return limit
+        if not isinstance(value, str):
+            raise ValueError("mtproto user_ad_tag must be a string")  # noqa: TRY004
+        value = value.strip()
+        if value and not _MTPROTO_SECRET_RE.fullmatch(value):
+            raise ValueError("mtproto user_ad_tag must be empty or 32 hex characters")
+        return value.lower()
 
 
 class WireGuardSettings(BaseModel):

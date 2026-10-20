@@ -283,20 +283,46 @@ def test_telemt_default_modes_constant():
     assert TELEMT_DEFAULT_MODES == {"classic": False, "secure": False, "tls": True}
 
 
-def test_mtproto_secret_generation_and_validation():
-    secret = generate_mtproto_secret()
-    assert len(secret) == 32
-    settings = MtprotoSettings(secret=secret.upper())
-    assert settings.secret == secret.lower()
-    with pytest.raises(ValidationError):
-        MtprotoSettings(secret="not-hex")
+_SECRET = "00112233445566778899aabbccddeeff"
 
 
-def test_proxy_table_includes_mtproto_secret():
-    table = ProxyTable()
-    dumped = table.dict()
-    assert len(dumped["mtproto"]["secret"]) == 32
-    assert dumped["mtproto"]["max_tcp_conns"] == 0
+def test_secret_is_never_generated_on_read():
+    assert ProxyTable().mtproto.secret is None
+    assert ProxyTable.model_validate({}).mtproto.secret is None
+
+
+def test_secret_normalized():
+    assert MtprotoSettings(secret=" " + _SECRET.upper() + " ").secret == _SECRET
+    assert MtprotoSettings(secret="").secret is None
+    for value in ("not-hex", "ab" * 15, 123):
+        with pytest.raises(ValidationError):
+            MtprotoSettings(secret=value)
+
+
+def test_ad_tag_rules():
+    assert MtprotoSettings(user_ad_tag="").user_ad_tag == ""
+    assert MtprotoSettings(user_ad_tag=None).user_ad_tag == ""
+    assert MtprotoSettings(user_ad_tag="AB" * 16).user_ad_tag == "ab" * 16
+    for value in ("not-hex", "ab" * 15, 5):
+        with pytest.raises(ValidationError):
+            MtprotoSettings(user_ad_tag=value)
+
+
+@pytest.mark.parametrize("field", ["max_tcp_conns", "max_unique_ips"])
+def test_limits_are_strict_uint32(field):
+    assert getattr(MtprotoSettings(**{field: 0}), field) == 0
+    assert getattr(MtprotoSettings(**{field: 4294967295}), field) == 4294967295
+    for value in (-1, 4294967296, True, "7", 7.0):
+        with pytest.raises(ValidationError):
+            MtprotoSettings(**{field: value})
+
+
+def test_generate_mtproto_secret_is_random_hex():
+    first = generate_mtproto_secret()
+    second = generate_mtproto_secret()
+    assert re.fullmatch(r"[0-9a-f]{32}", first)
+    assert re.fullmatch(r"[0-9a-f]{32}", second)
+    assert first != second
 
 
 def test_backend_type_for_core_maps_mtproto():

@@ -9,6 +9,7 @@ from uuid import uuid4
 from fastapi import status
 
 from app.db.crud.hwid import register_user_hwid, reset_user_hwids
+from app.db.models import User
 from config import nats_settings, runtime_settings
 from tests.api import TestSession, client
 from tests.api.sample_data import XRAY_CONFIG
@@ -283,6 +284,19 @@ def set_user_hwids(user_id: int, count: int) -> None:
             await session.commit()
 
     asyncio.run(_register())
+
+
+def strip_mtproto_settings(user_id: int) -> None:
+    """Remove the stored `mtproto` settings of a user, written directly to the database."""
+
+    async def _strip() -> None:
+        async with TestSession() as session:
+            db_user = await session.get(User, user_id)
+            assert db_user is not None
+            db_user.proxy_settings = {key: value for key, value in db_user.proxy_settings.items() if key != "mtproto"}
+            await session.commit()
+
+    asyncio.run(_strip())
 
 
 def delete_user_template(access_token: str, template_id: int) -> None:
