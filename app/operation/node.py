@@ -293,8 +293,9 @@ class NodeOperation(BaseOperation):
 
     @staticmethod
     async def _get_core_users_map(
-        db: AsyncSession, core_ids: set[int], *, lazy: bool = False
+        db: AsyncSession, core_ids: set[int], *, lazy: bool = False, lock: asyncio.Lock | None = None
     ) -> tuple[dict[int, object | None], dict[int, CoreUsers]]:
+        """Resolve each core and its users; deferred reads hold ``lock``, which callers share for other ``db`` work."""
         if not core_ids:
             return {}, {}
 
@@ -303,7 +304,7 @@ class NodeOperation(BaseOperation):
         cores_by_id: dict[int, object | None] = {}
         users_by_core: dict[int, CoreUsers] = {}
         loaded_users: dict[int, list] = {}
-        load_lock = asyncio.Lock()
+        load_lock = lock or asyncio.Lock()
 
         def user_loader(core_id, core):
             async def load():
@@ -968,7 +969,9 @@ class NodeOperation(BaseOperation):
             return
 
         core_ids = {node.core_config_id or 1 for node in nodes}
-        cores_by_id, users_by_core = await self._get_core_users_map(db, core_ids, lazy=True)
+        # The node groups below write statuses while the other group may still read users on this session.
+        db_lock = asyncio.Lock()
+        cores_by_id, users_by_core = await self._get_core_users_map(db, core_ids, lazy=True, lock=db_lock)
         sem = asyncio.Semaphore(CONNECT_CONCURRENCY)
 
         async def connect_single(node: Node) -> dict | None:
@@ -997,45 +1000,59 @@ class NodeOperation(BaseOperation):
                     stop_first=stop_first,
                 )
 
-        results = await asyncio.gather(*[connect_single(node) for node in nodes])
-
-        # Filter out None results
-        valid_results = [r for r in results if r is not None]
-
         nodes_dict = {node.id: node for node in nodes}
 
-        notifications_to_send = []
-        for result in valid_results:
-            node = nodes_dict.get(result["node_id"])
-            if not node:
-                continue
+        async def connect_group(group: list[Node]) -> None:
+            results = await asyncio.gather(*[connect_single(node) for node in group])
 
-            # Create lightweight notification object
-            node_notif = NodeNotification(
-                id=result["node_id"],
-                name=node.name,
-                xray_version=result.get("xray_version"),
-                node_version=result.get("node_version"),
-                message=result.get("message"),
-            )
+            # Filter out None results
+            valid_results = [r for r in results if r is not None]
 
-            notifications_to_send.append(
-                {
-                    "node": node_notif,
-                    "status": result["status"],
-                    "old_status": result["old_status"],
-                }
-            )
+            notifications_to_send = []
+            for result in valid_results:
+                node = nodes_dict.get(result["node_id"])
+                if not node:
+                    continue
 
-        # Bulk update all statuses in ONE query
-        await bulk_update_node_status(db, valid_results)
+                # Create lightweight notification object
+                node_notif = NodeNotification(
+                    id=result["node_id"],
+                    name=node.name,
+                    xray_version=result.get("xray_version"),
+                    node_version=result.get("node_version"),
+                    message=result.get("message"),
+                )
 
-        # Send notifications using pre-built objects
-        for notif in notifications_to_send:
-            if notif["status"] == NodeStatus.connected and notif["old_status"] != NodeStatus.connected:
-                asyncio.create_task(notification.connect_node(notif["node"]))
-            elif notif["status"] == NodeStatus.error and notif["old_status"] != NodeStatus.error:
-                asyncio.create_task(notification.error_node(notif["node"]))
+                notifications_to_send.append(
+                    {
+                        "node": node_notif,
+                        "status": result["status"],
+                        "old_status": result["old_status"],
+                    }
+                )
+
+            # Bulk update the group's statuses in ONE query
+            async with db_lock:
+                await bulk_update_node_status(db, valid_results)
+
+            # Send notifications using pre-built objects
+            for notif in notifications_to_send:
+                if notif["status"] == NodeStatus.connected and notif["old_status"] != NodeStatus.connected:
+                    asyncio.create_task(notification.connect_node(notif["node"]))
+                elif notif["status"] == NodeStatus.error and notif["old_status"] != NodeStatus.error:
+                    asyncio.create_task(notification.error_node(notif["node"]))
+
+        # An MTProto Start can take up to MTPROTO_START_TIMEOUT, so MTProto nodes get their own
+        # status write instead of holding back the status and notifications of every other node.
+        def is_mtproto(node: Node) -> bool:
+            core = cores_by_id.get(node.core_config_id or 1)
+            return getattr(core, "type", None) == CoreType.mtproto
+
+        groups = [
+            [node for node in nodes if not is_mtproto(node)],
+            [node for node in nodes if is_mtproto(node)],
+        ]
+        await asyncio.gather(*[connect_group(group) for group in groups if group])
 
     async def _connect_nodes_bulk_sync(
         self, db: AsyncSession, nodes: list[Node], *, force_start: bool = False, stop_first: bool = True

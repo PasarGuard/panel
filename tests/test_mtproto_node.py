@@ -1,3 +1,4 @@
+import asyncio
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -268,12 +269,116 @@ async def test_bulk_connect_continues_after_old_mtproto_node(monkeypatch: pytest
 
     await NodeOperation.__new__(NodeOperation)._connect_nodes_bulk_local(object(), nodes)
 
-    bulk_update.assert_awaited_once()
-    results = {result["node_id"]: result for result in bulk_update.await_args.args[1]}
-    assert len(results) == 2
+    # Xray and WireGuard nodes share one status write; MTProto nodes get their own, written when their Starts end.
+    assert [[result["node_id"] for result in call.args[1]] for call in bulk_update.await_args_list] == [[1], [2]]
+    results = {result["node_id"]: result for call in bulk_update.await_args_list for result in call.args[1]}
     assert results[1]["status"] == NodeStatus.connected
     assert results[2]["status"] == NodeStatus.error
     assert results[2]["message"] == node_operation_module.MTPROTO_UNSUPPORTED_NODE_MESSAGE
+
+
+@pytest.mark.asyncio
+async def test_bulk_connect_writes_other_nodes_before_slow_mtproto_start(monkeypatch: pytest.MonkeyPatch):
+    xray_core = SimpleNamespace(type=CoreType.xray)
+    mtproto_core = SimpleNamespace(type=CoreType.mtproto)
+    nodes = [
+        SimpleNamespace(id=61, name="xray-node", status=NodeStatus.connecting, core_config_id=1),
+        SimpleNamespace(id=62, name="mtproto-node", status=NodeStatus.connecting, core_config_id=2),
+    ]
+    bridge_nodes = {node.id: _not_connected_bridge_node() for node in nodes}
+    mtproto_started = asyncio.Event()
+    release_mtproto = asyncio.Event()
+
+    async def start_or_attach(pg_node, db_node, core, users, backend_type, *, force_start=False):
+        if core is mtproto_core:
+            mtproto_started.set()
+            await release_mtproto.wait()
+        return INFO
+
+    writes: list[dict[int, NodeStatus]] = []
+    xray_written = asyncio.Event()
+
+    async def bulk_update(db, results):
+        writes.append({result["node_id"]: result["status"] for result in results})
+        if any(result["node_id"] == 61 for result in results):
+            xray_written.set()
+
+    monkeypatch.setattr(node_operation_module.node_manager, "update_node", AsyncMock())
+    monkeypatch.setattr(
+        node_operation_module.node_manager, "get_node", AsyncMock(side_effect=lambda node_id: bridge_nodes[node_id])
+    )
+    monkeypatch.setattr(
+        NodeOperation,
+        "_get_core_users_map",
+        AsyncMock(return_value=({1: xray_core, 2: mtproto_core}, {1: [], 2: []})),
+    )
+    monkeypatch.setattr(NodeOperation, "_start_or_attach_node", AsyncMock(side_effect=start_or_attach))
+    monkeypatch.setattr(node_operation_module, "bulk_update_node_status", AsyncMock(side_effect=bulk_update))
+    connect_notification = AsyncMock()
+    monkeypatch.setattr(node_operation_module.notification, "connect_node", connect_notification)
+    monkeypatch.setattr(node_operation_module.notification, "error_node", AsyncMock())
+
+    bulk = asyncio.create_task(NodeOperation.__new__(NodeOperation)._connect_nodes_bulk_local(object(), nodes))
+    try:
+        await asyncio.wait_for(xray_written.wait(), timeout=2)
+        assert mtproto_started.is_set()
+        assert not bulk.done()
+        assert writes == [{61: NodeStatus.connected}]
+        assert [call.args[0].id for call in connect_notification.call_args_list] == [61]
+        assert 62 in NodeOperation._in_flight_connects
+    finally:
+        release_mtproto.set()
+        await asyncio.wait_for(bulk, timeout=2)
+
+    assert writes == [{61: NodeStatus.connected}, {62: NodeStatus.connected}]
+    assert [call.args[0].id for call in connect_notification.call_args_list] == [61, 62]
+    assert 62 not in NodeOperation._in_flight_connects
+
+
+@pytest.mark.asyncio
+async def test_bulk_connect_status_write_waits_for_user_load_on_shared_session(monkeypatch: pytest.MonkeyPatch):
+    cores = {
+        1: SimpleNamespace(type=CoreType.xray, inbounds=["vless"], protocols=frozenset()),
+        2: SimpleNamespace(type=CoreType.mtproto, inbounds=["mtproto"], protocols=MTPROTO_ONLY),
+    }
+    nodes = [
+        SimpleNamespace(id=63, name="xray-node", status=NodeStatus.connecting, core_config_id=1),
+        SimpleNamespace(id=64, name="mtproto-node", status=NodeStatus.connecting, core_config_id=2),
+    ]
+    bridge_nodes = {node.id: _not_connected_bridge_node() for node in nodes}
+    loading = False
+
+    async def read_users(*, db, inbound_tags, allowed_protocols):
+        nonlocal loading
+        loading = True
+        await asyncio.sleep(0.05)
+        loading = False
+        return []
+
+    async def start_or_attach(pg_node, db_node, core, users, backend_type, *, force_start=False):
+        if core.type == CoreType.mtproto:
+            await users()
+        return INFO
+
+    async def bulk_update(db, results):
+        # Both groups share the bulk's session, which allows one operation at a time.
+        assert not loading
+
+    monkeypatch.setattr(node_operation_module.core_manager, "get_cores", AsyncMock(return_value=cores))
+    monkeypatch.setattr(node_operation_module, "core_users", AsyncMock(side_effect=read_users))
+    monkeypatch.setattr(node_operation_module.node_manager, "update_node", AsyncMock())
+    monkeypatch.setattr(
+        node_operation_module.node_manager, "get_node", AsyncMock(side_effect=lambda node_id: bridge_nodes[node_id])
+    )
+    monkeypatch.setattr(NodeOperation, "_start_or_attach_node", AsyncMock(side_effect=start_or_attach))
+    bulk_update_mock = AsyncMock(side_effect=bulk_update)
+    monkeypatch.setattr(node_operation_module, "bulk_update_node_status", bulk_update_mock)
+    monkeypatch.setattr(node_operation_module.notification, "connect_node", AsyncMock())
+    monkeypatch.setattr(node_operation_module.notification, "error_node", AsyncMock())
+
+    await NodeOperation.__new__(NodeOperation)._connect_nodes_bulk_local(object(), nodes)
+
+    assert bulk_update_mock.await_count == 2
 
 
 @pytest.mark.asyncio
