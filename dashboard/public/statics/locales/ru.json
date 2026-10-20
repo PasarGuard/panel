@@ -3469,6 +3469,7 @@
     "proxySettings.wireguardGenerated": "Пара ключей WireGuard сгенерирована",
     "proxySettings.mtprotoSecret": "Секрет MTProto",
     "proxySettings.mtprotoSecretPlaceholder": "32 шестнадцатеричных символа или пусто, чтобы оставить текущий",
+    "proxySettings.mtprotoSecretPlaceholderNew": "32 шестнадцатеричных символа или пусто, чтобы сгенерировать новый",
     "proxySettings.generateMtprotoSecret": "Сгенерировать секрет MTProto",
     "proxySettings.mtprotoGenerated": "Секрет MTProto сгенерирован",
     "proxySettings.mtprotoSecretInvalid": "Нужно ровно 32 шестнадцатеричных символа",

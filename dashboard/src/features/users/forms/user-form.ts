@@ -32,9 +32,11 @@ export const wireguardSettingsSchema = z.object({
 })
 // The dashboard edits only the secret; an empty one keeps the stored secret (a new user gets a generated one).
 // user_ad_tag, max_tcp_conns and max_unique_ips have no inputs and round-trip unchanged.
+// The secret is checked trimmed, as the submit and the backend trim it.
 export const mtprotoSettingsSchema = z.object({
   secret: z
     .string()
+    .trim()
     .regex(/^(?:[0-9a-fA-F]{32})?$/, 'userDialog.proxySettings.mtprotoSecretInvalid')
     .nullable()
     .optional(),

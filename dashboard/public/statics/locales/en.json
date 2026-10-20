@@ -2026,6 +2026,7 @@
     "proxySettings.wireguardGenerated": "WireGuard keypair generated",
     "proxySettings.mtprotoSecret": "MTProto secret",
     "proxySettings.mtprotoSecretPlaceholder": "32 hex characters, or empty to keep the current one",
+    "proxySettings.mtprotoSecretPlaceholderNew": "32 hex characters, or empty to generate one",
     "proxySettings.generateMtprotoSecret": "Generate MTProto secret",
     "proxySettings.mtprotoGenerated": "MTProto secret generated",
     "proxySettings.mtprotoSecretInvalid": "Must be 32 hex characters",

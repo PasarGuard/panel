@@ -1988,6 +1988,7 @@
   "userDialog.proxySettings.wireguardGenerated": "WireGuard 密钥对已生成",
   "userDialog.proxySettings.mtprotoSecret": "MTProto 密钥",
   "userDialog.proxySettings.mtprotoSecretPlaceholder": "32 个十六进制字符，留空则保留当前密钥",
+  "userDialog.proxySettings.mtprotoSecretPlaceholderNew": "32 个十六进制字符，留空则自动生成",
   "userDialog.proxySettings.generateMtprotoSecret": "生成 MTProto 密钥",
   "userDialog.proxySettings.mtprotoGenerated": "MTProto 密钥已生成",
   "userDialog.proxySettings.mtprotoSecretInvalid": "必须是 32 个十六进制字符",

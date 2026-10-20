@@ -1839,6 +1839,7 @@
   "userDialog.proxySettings.wireguardGenerated": "جفت‌کلید وایرگارد تولید شد",
   "userDialog.proxySettings.mtprotoSecret": "کلید مخفی MTProto",
   "userDialog.proxySettings.mtprotoSecretPlaceholder": "۳۲ کاراکتر هگزادسیمال، یا خالی برای حفظ کلید فعلی",
+  "userDialog.proxySettings.mtprotoSecretPlaceholderNew": "۳۲ کاراکتر هگزادسیمال، یا خالی برای تولید یک کلید جدید",
   "userDialog.proxySettings.generateMtprotoSecret": "تولید کلید مخفی MTProto",
   "userDialog.proxySettings.mtprotoGenerated": "کلید مخفی MTProto تولید شد",
   "userDialog.proxySettings.mtprotoSecretInvalid": "باید ۳۲ کاراکتر هگزادسیمال باشد",

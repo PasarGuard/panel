@@ -2123,7 +2123,11 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
                                       <Input
                                         {...field}
                                         value={field.value ?? ''}
-                                        placeholder={t('userDialog.proxySettings.mtprotoSecretPlaceholder', { defaultValue: '32 hex characters, or empty to keep the current one' })}
+                                        placeholder={
+                                          editingUser
+                                            ? t('userDialog.proxySettings.mtprotoSecretPlaceholder', { defaultValue: '32 hex characters, or empty to keep the current one' })
+                                            : t('userDialog.proxySettings.mtprotoSecretPlaceholderNew', { defaultValue: '32 hex characters, or empty to generate one' })
+                                        }
                                         onChange={e => {
                                           field.onChange(e)
                                           form.trigger('proxy_settings.mtproto.secret')
