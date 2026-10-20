@@ -230,10 +230,6 @@ async def _prepare_subscription_inbound_data(
             mux_settings=None,
             mtproto_modes=dict(inbound_config.get("modes") or {}),
             mtproto_tls_domain=str(inbound_config.get("tls_domain") or ""),
-            fragment_settings=host.fragment_settings.model_dump() if host.fragment_settings else None,
-            noise_settings=host.noise_settings.model_dump() if host.noise_settings else None,
-            finalmask=final_mask_settings,
-            finalmask_link=finalmask_link,
             priority=host.priority,
             status=list(host.status) if host.status else None,
             subscription_templates=host.subscription_templates.model_dump(exclude_none=True)

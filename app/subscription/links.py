@@ -1,5 +1,6 @@
 import base64
 import json
+import re
 import urllib.parse as urlparse
 from random import choice
 from urllib.parse import quote
@@ -18,8 +19,22 @@ from config import subscription_env_settings
 
 from . import BaseSubscription
 
+_MTPROTO_SECRET_RE = re.compile(r"[0-9a-f]{32}")
+
+
+def _telegram_link_host(address: str) -> str:
+    """Host for a Telegram proxy link: an IPv6 literal goes in without brackets, as telemt writes it."""
+    host = address.strip()
+    if host.startswith("[") and host.endswith("]"):
+        host = host[1:-1]
+    return quote(host, safe=":")
+
 
 def _mtproto_client_secret(hex_secret: str, inbound: SubscriptionInboundData) -> str:
+    """Client secret for the best mode the inbound serves (fake TLS, then secure, then classic).
+
+    Return "" when no mode the link can use is on; tls without a domain cannot be used.
+    """
     secret = hex_secret.strip().lower()
     modes = inbound.mtproto_modes or {}
     domain = (inbound.mtproto_tls_domain or "").strip()
@@ -27,7 +42,9 @@ def _mtproto_client_secret(hex_secret: str, inbound: SubscriptionInboundData) ->
         return "ee" + secret + domain.encode("utf-8").hex()
     if modes.get("secure"):
         return "dd" + secret
-    return secret
+    if modes.get("classic"):
+        return secret
+    return ""
 
 
 class StandardLinks(BaseSubscription):
@@ -35,6 +52,7 @@ class StandardLinks(BaseSubscription):
         self,
         user_agent_template_content: str | None = None,
         grpc_user_agent_template_content: str | None = None,
+        include_telegram_proxy_links: bool = False,
     ):
         super().__init__(
             user_agent_template_content=user_agent_template_content,
@@ -66,8 +84,10 @@ class StandardLinks(BaseSubscription):
             "shadowsocks": self._build_shadowsocks,
             "hysteria": self._build_hysteria,
             "wireguard": self._build_wireguard,
-            "mtproto": self._build_mtproto,
         }
+        if include_telegram_proxy_links:
+            # Telegram proxy links go only to the subscription page and the dashboard, never to client apps.
+            self.protocol_handlers["mtproto"] = self._build_mtproto
 
     def add_link(self, link):
         self.links.append(link)
@@ -355,16 +375,15 @@ class StandardLinks(BaseSubscription):
         return components["uri"]
 
     def _build_mtproto(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict) -> str:
-        secret = str(settings.get("secret") or "").strip()
-        if not secret:
+        """Build a Telegram proxy link in telemt's form; "" without a valid secret or a usable mode."""
+        secret = str(settings.get("secret") or "").strip().lower()
+        if not _MTPROTO_SECRET_RE.fullmatch(secret):
+            return ""
+        client_secret = _mtproto_client_secret(secret, inbound)
+        if not client_secret:
             return ""
         port = inbound.port if isinstance(inbound.port, int) else inbound.port[0]
-        client_secret = _mtproto_client_secret(secret, inbound)
-        query = urlparse.urlencode(
-            {"server": address, "port": port, "secret": client_secret},
-            quote_via=urlparse.quote,
-        )
-        return f"https://t.me/proxy?{query}"
+        return f"tg://proxy?server={_telegram_link_host(address)}&port={port}&secret={client_secret}"
 
     # ========== Helper Methods ==========
 

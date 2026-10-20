@@ -455,11 +455,11 @@ def test_raw_subscription_respects_manual_sub_hwid_gate(access_token, monkeypatc
             max_limit=0,
         )
 
-    async def fake_fetch_config(self, user, client_type):
-        return "vless://gate-check", "text/plain"
+    async def fake_fetch_page_links(self, user):
+        return ["vless://gate-check"]
 
     monkeypatch.setattr(subscription_module, "hwid_settings", gated_hwid_settings)
-    monkeypatch.setattr(subscription_module.SubscriptionOperation, "fetch_config", fake_fetch_config)
+    monkeypatch.setattr(subscription_module.SubscriptionOperation, "fetch_page_links", fake_fetch_page_links)
     user = create_user(access_token)
 
     try:

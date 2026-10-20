@@ -39,6 +39,10 @@ SERVER_IPV6 = "[::1]"
 # Transports only the Xray JSON format can express.
 XRAY_ONLY_NETWORKS = frozenset({"xdrive"})
 
+# Internal format for the subscription page and the dashboard: share links plus Telegram proxy links.
+# Not a ConfigFormat, so no client and no subscription rule can request it.
+TELEGRAM_PAGE_LINKS_FORMAT = "links_telegram"
+
 
 def _build_subscription_config(
     config_format: str,
@@ -60,6 +64,8 @@ def _build_subscription_config(
 
     if config_format == "links":
         return StandardLinks(**common_kwargs)
+    if config_format == TELEGRAM_PAGE_LINKS_FORMAT:
+        return StandardLinks(include_telegram_proxy_links=True, **common_kwargs)
     if config_format == "clash":
         return ClashConfiguration(
             clash_template_content=client_templates["CLASH_SUBSCRIPTION_TEMPLATE"],
