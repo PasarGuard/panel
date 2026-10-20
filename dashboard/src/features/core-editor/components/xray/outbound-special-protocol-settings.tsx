@@ -10,6 +10,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { normalizeSettingsFromEditor } from '@/features/core-editor/kit/outbound-editor-json'
 import {
   applyWireguardKernelTunChoice,
+  applyWireguardOutboundReservedInput,
   invalidWireguardRemoteDns,
   WIREGUARD_OUTBOUND_LEGACY_FIELDS,
   wireguardKernelTunChoice,
@@ -1081,12 +1082,7 @@ function OutboundWireGuardSettings({ ob, patchOutbound, t }: { ob: Outbound; pat
             onChange={e => {
               const text = e.target.value
               setReservedText(text)
-              const parsed = parseWireguardReservedInput(text)
-              if (!parsed.ok) return
-              const next = { ...readSettings(ob) }
-              if (parsed.value === undefined) delete next.reserved
-              else next.reserved = parsed.value
-              commitWireGuard(next)
+              commitWireGuard(applyWireguardOutboundReservedInput(readSettings(ob), text))
             }}
           />
           {reservedInvalid ? (

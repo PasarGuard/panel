@@ -5,6 +5,7 @@ import { getOutboundFormCapabilities } from '@pasarguard/xray-config-kit'
 import { normalizeSettingsFromEditor } from '@/features/core-editor/kit/outbound-editor-json'
 import {
   applyWireguardKernelTunChoice,
+  applyWireguardOutboundReservedInput,
   invalidWireguardRemoteDns,
   migrateWireguardOutboundLegacySettings,
   WIREGUARD_OUTBOUND_FORM_KEYS,
@@ -51,6 +52,18 @@ test('outbound settings issues flag DNS hostnames, a non-list remoteDNS and bad 
   assert.deepEqual(wireguardOutboundSettingsIssues({ reserved: '1,2,3' }), [{ field: 'reserved' }])
   assert.deepEqual(wireguardOutboundSettingsIssues({ remoteDNS: '8.8.8.8' }), [{ field: 'remoteDNS', values: ['8.8.8.8'] }])
   assert.deepEqual(wireguardOutboundSettingsIssues({ remoteDNS: [' 1.1.1.1', ''] }), [{ field: 'remoteDNS', values: [' 1.1.1.1', ''] }])
+})
+
+test('reserved input writes the byte list, removes the key when empty and keeps unparsable text so Modify stays blocked', () => {
+  const base = { mtu: 1280, reserved: [9, 9, 9] }
+  assert.deepEqual(applyWireguardOutboundReservedInput(base, '1,2,3'), { mtu: 1280, reserved: [1, 2, 3] })
+  assert.deepEqual(applyWireguardOutboundReservedInput(base, '[1, 2, 3]'), { mtu: 1280, reserved: [1, 2, 3] })
+  assert.deepEqual(applyWireguardOutboundReservedInput(base, ''), { mtu: 1280 })
+  assert.deepEqual(applyWireguardOutboundReservedInput(base, '  '), { mtu: 1280 })
+  assert.deepEqual(applyWireguardOutboundReservedInput(base, '1,2'), { mtu: 1280, reserved: '1,2' })
+  assert.deepEqual(applyWireguardOutboundReservedInput(base, '1, 2, 300'), { mtu: 1280, reserved: '1, 2, 300' })
+  assert.deepEqual(base, { mtu: 1280, reserved: [9, 9, 9] })
+  assert.deepEqual(wireguardOutboundSettingsIssues(applyWireguardOutboundReservedInput(base, '1,2')), [{ field: 'reserved' }])
 })
 
 test('dedicated WireGuard outbound UI covers every kit settings key', () => {

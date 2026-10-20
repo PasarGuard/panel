@@ -1,4 +1,4 @@
-import { isIpAddress, wireguardReservedBytes } from '@/features/core-editor/kit/wireguard-xray-fields'
+import { isIpAddress, parseWireguardReservedInput, wireguardReservedBytes } from '@/features/core-editor/kit/wireguard-xray-fields'
 
 /** Outbound settings that newer Xray no longer reads: the last release that reads each one, and the first that does not. */
 export const WIREGUARD_OUTBOUND_LEGACY_FIELDS = {
@@ -35,6 +35,20 @@ export function migrateWireguardOutboundLegacySettings(settings: Record<string, 
   if (!('kernelMode' in settings)) return settings
   const { kernelMode, ...next } = settings
   if (typeof next.noKernelTun !== 'boolean' && typeof kernelMode === 'boolean') next.noKernelTun = !kernelMode
+  return next
+}
+
+/**
+ * Applies the typed Reserved text: a valid list is written as bytes and empty text removes the key. Text that
+ * does not parse is written as is, so `wireguardOutboundSettingsIssues` blocks Modify instead of the previous
+ * value being saved, and the text survives edits to other fields.
+ */
+export function applyWireguardOutboundReservedInput(settings: Record<string, unknown>, text: string): Record<string, unknown> {
+  const next = { ...settings }
+  const parsed = parseWireguardReservedInput(text)
+  if (!parsed.ok) next.reserved = text
+  else if (parsed.value === undefined) delete next.reserved
+  else next.reserved = parsed.value
   return next
 }
 
