@@ -31,7 +31,7 @@ import {
   realityInboundZodTriggerFieldNames,
   WIREGUARD_INBOUND_FORM_FIELDS,
 } from '@/features/core-editor/kit/inbound-dialog-schema'
-import { getInboundSecuritySelectOptions, getInboundTransportSelectOptions, transportCompatibleWithReality } from '@/features/core-editor/kit/inbound-form-options'
+import { getInboundSecuritySelectOptions, getInboundTransportSelectOptions, inboundTransportHasDedicatedForm, transportCompatibleWithReality } from '@/features/core-editor/kit/inbound-form-options'
 import { profileDuplicateTagMessage, profileTagHasDuplicateUsage } from '@/features/core-editor/kit/profile-tag-uniqueness'
 import { remapIndexAfterArrayMove } from '@/features/core-editor/kit/remap-index-after-move'
 import { normalizeTunnelNetworkForKit } from '@/features/core-editor/kit/sanitize-inbound'
@@ -621,7 +621,7 @@ function generateMixedAccountCredentials(): { user: string; pass: string } {
   }
 }
 
-const INBOUND_PROTOCOL_PREFERRED_ORDER: readonly string[] = ['vless', 'vmess', 'trojan', 'shadowsocks', 'hysteria', 'mixed', 'tunnel', 'socks', 'http', 'tun']
+const INBOUND_PROTOCOL_PREFERRED_ORDER: readonly string[] = ['vless', 'vmess', 'trojan', 'shadowsocks', 'hysteria', 'masque', 'mixed', 'tunnel', 'socks', 'http', 'tun']
 
 function sortInboundProtocolsForUi(protocols: readonly string[]): string[] {
   const preferredSet = new Set(INBOUND_PROTOCOL_PREFERRED_ORDER)
@@ -1018,7 +1018,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
 
   const securitySelectOptions = useMemo(() => {
     if (!inbound || inbound.protocol === 'unmanaged') return []
-    return getInboundSecuritySelectOptions(caps, inbound.protocol)
+    return getInboundSecuritySelectOptions(caps, inbound.protocol, 'security' in inbound ? inbound.security?.type : undefined)
   }, [caps, inbound])
 
   const inboundDialogSchema = useMemo(() => createInboundDialogSchema(caps, t), [caps, t])
@@ -1267,8 +1267,8 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
       let network = watchedTransport
       if (watchedProtocol === 'shadowsocks') network = watchedShadowsocksNetwork
 
-      if (watchedProtocol === 'hysteria' && network === 'hysteria') tag += ''
-      else if (network) tag += `${tagSeparator}${network}`
+      // Fixed-transport protocols (hysteria, masque) do not repeat the transport name.
+      if (network && network !== watchedProtocol) tag += `${tagSeparator}${network}`
       if (watchedSecurity && watchedSecurity !== 'none') tag += `${tagSeparator}${watchedSecurity}`
       if (watchedPort) tag += `${tagSeparator}${watchedPort}`
 
@@ -1430,10 +1430,13 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
   }, [inboundTransportType, caps])
   const showTransportTypeSelect = useMemo(() => inbound && inbound.protocol !== 'hysteria' && transportSelectOptions.length > 0, [inbound, transportSelectOptions])
   const showTransportSettings = useMemo(
-    () => Boolean(inbound?.protocol !== 'hysteria' && visibility?.stream && inboundTransportType && transportSettingsFieldOrder.length > 0),
+    () => Boolean(inbound?.protocol !== 'hysteria' && visibility?.stream && inboundTransportType && transportSettingsFieldOrder.length > 0 && !inboundTransportHasDedicatedForm(inboundTransportType)),
     [inbound, visibility, inboundTransportType, transportSettingsFieldOrder],
   )
-  const showTransportSection = useMemo(() => Boolean(showTransportTypeSelect || showTransportSettings || inbound?.protocol === 'hysteria'), [showTransportTypeSelect, showTransportSettings, inbound])
+  const showTransportSection = useMemo(
+    () => Boolean(showTransportTypeSelect || showTransportSettings || inboundTransportHasDedicatedForm(inboundTransportType)),
+    [showTransportTypeSelect, showTransportSettings, inboundTransportType],
+  )
 
   const showFallbacksEditor = useMemo(() => {
     if (!inbound) return false
