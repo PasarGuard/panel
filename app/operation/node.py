@@ -92,18 +92,46 @@ logger = get_logger("node-operation")
 _MAINTENANCE_RPC_TIMEOUT = 340.0
 
 
-def _backend_type_for_core(core_type: CoreType) -> int:
-    if core_type == CoreType.wg:
-        return service.BackendType.WIREGUARD
-    if core_type == CoreType.mtproto:
-        return service.BackendType.MTPROTO
-    return service.BackendType.XRAY
+# The node gives telemt up to 90 s to start and keeps starting after the panel's call times out.
+MTPROTO_START_TIMEOUT = 100
+MTPROTO_UNSUPPORTED_NODE_MESSAGE = (
+    'This node does not support MTProto cores (it answered "invalid backend type"). '
+    "Update the node to the next node release or newer."
+)
+MTPROTO_SYNC_PENDING_MESSAGE = "The node is still applying the users and finishes on its own. Check again in a minute."
+_MTPROTO_RETRY_LATER_MARKERS = ("the users are still being applied", "context deadline exceeded")
+
+_BACKEND_TYPES: dict[CoreType, int] = {
+    CoreType.xray: service.BackendType.XRAY,
+    CoreType.wg: service.BackendType.WIREGUARD,
+    CoreType.mtproto: service.BackendType.MTPROTO,
+}
+
+
+def backend_type_for_core(core_type: CoreType | None) -> int | None:
+    """The node backend that runs ``core_type``: ``None`` means Xray, and ``None`` is returned for unknown types."""
+    return _BACKEND_TYPES.get(core_type or CoreType.xray)
+
+
+def is_mtproto_retry_later_error(error: NodeAPIError) -> bool:
+    """Whether an MTProto node error means "still applying, check later" rather than a node failure.
+
+    A client-side timeout is code -1: "Request timed out" over gRPC, "Timeout error: ..." over REST.
+    """
+    detail = error.detail or ""
+    if error.code == -1 and (detail == "Request timed out" or detail.startswith("Timeout error")):
+        return True
+    detail = detail.lower()
+    return error.code == 504 or any(marker in detail for marker in _MTPROTO_RETRY_LATER_MARKERS)
 
 
 class NodeOperation(BaseOperation):
     # Local Start RPCs in progress on this process. Health checks must not fire a
     # second Start just because pg-node still returns "core is not started yet".
     _in_flight_connects: ClassVar[set[int]] = set()
+    # Node id to consecutive MTProto Start timeouts. The first one is retried on the
+    # next check instead of failing the node, since the node keeps starting telemt.
+    _mtproto_start_timeouts: ClassVar[dict[int, int]] = {}
 
     def __init__(self, operator_type: OperatorType):
         """Select local or remote node-operation handlers for this process role."""
@@ -395,6 +423,8 @@ class NodeOperation(BaseOperation):
             }
             if core.type == CoreType.xray:
                 start_kwargs["exclude_inbounds"] = core.exclude_inbound_tags
+            elif core.type == CoreType.mtproto:
+                start_kwargs["timeout"] = max(getattr(db_node, "default_timeout", 0) or 0, MTPROTO_START_TIMEOUT)
 
             if force_start and stop_first:
                 try:
@@ -478,6 +508,10 @@ class NodeOperation(BaseOperation):
             return None
 
         old_status = db_node.status
+        # A first MTProto Start timeout is seen only by the next attempt, so every other outcome
+        # drops it. An admin restart or core apply (force_start) starts a fresh sequence.
+        mtproto_start_timeouts = 0 if force_start else NodeOperation._mtproto_start_timeouts.get(db_node.id, 0)
+        NodeOperation._mtproto_start_timeouts.pop(db_node.id, None)
         if not force_start:
             try:
                 if await pg_node.get_health() == Health.HEALTHY:
@@ -495,7 +529,19 @@ class NodeOperation(BaseOperation):
             except Exception:
                 pass
 
-        type = _backend_type_for_core(core.type)
+        type = backend_type_for_core(core.type)
+        if type is None:
+            message = f'core type "{getattr(core.type, "value", core.type)}" is not supported by nodes'
+            logger.error(f"Failed to connect node {db_node.name} with id {db_node.id}, Error: {message}")
+            return {
+                "node_id": db_node.id,
+                "status": NodeStatus.error,
+                "message": message,
+                "xray_version": "",
+                "node_version": "",
+                "old_status": old_status,
+            }
+        is_mtproto = core.type == CoreType.mtproto
         NodeOperation._in_flight_connects.add(db_node.id)
 
         try:
@@ -558,8 +604,18 @@ class NodeOperation(BaseOperation):
                         "node_version": attached.node_version,
                         "old_status": old_status,
                     }
+                if is_mtproto and mtproto_start_timeouts == 0:
+                    # The node holds its lock while telemt starts, so the probe above times out too.
+                    NodeOperation._mtproto_start_timeouts[db_node.id] = 1
+                    logger.warning(
+                        f'"{db_node.name}" MTProto node is still starting after the Start timeout; '
+                        "retrying on the next check"
+                    )
+                    return None
 
             detail = e.detail[:1020] + "..." if len(e.detail) > 1024 else e.detail
+            if is_mtproto and "invalid backend type" in e.detail.lower():
+                detail = MTPROTO_UNSUPPORTED_NODE_MESSAGE
 
             logger.error(f"Failed to connect node {db_node.name} with id {db_node.id}, Error: {detail}")
 
@@ -1304,8 +1360,8 @@ class NodeOperation(BaseOperation):
         if pg_node is None:
             await self.raise_error(message="Node is not connected", code=409)
 
+        core_id = db_node.core_config_id or 1
         try:
-            core_id = db_node.core_config_id or 1
             # Defer the snapshot read: sync_full takes it inside the node's
             # fence, after any queued deltas were drained, so nothing created
             # between the read and the flush can be lost.
@@ -1325,6 +1381,11 @@ class NodeOperation(BaseOperation):
             # still in flight past their lease (503); nothing reached the node.
             await self.raise_error(message=e.detail, code=e.code)
         except NodeAPIError as e:
+            core = await core_manager.get_core(core_id)
+            if core is not None and core.type == CoreType.mtproto and is_mtproto_retry_later_error(e):
+                # The node keeps applying the users after this call returns: not a node failure.
+                logger.info(f'"{db_node.name}" MTProto node is still applying the users: {e.detail}')
+                await self.raise_error(message=MTPROTO_SYNC_PENDING_MESSAGE, code=409)
             await update_node_status(db=db, db_node=db_node, status=NodeStatus.error, message=e.detail)
             await self.raise_error(message=e.detail, code=e.code)
 

@@ -9,7 +9,7 @@ from app.db.models import CoreType
 from app.models.protocol import ProxyProtocol
 from app.models.proxy import MtprotoSettings, ProxyTable, generate_mtproto_secret
 from app.node.user import _serialize_user_for_node
-from app.operation.node import _backend_type_for_core
+from app.operation.node import backend_type_for_core
 
 
 def _valid_config(**overrides) -> dict:
@@ -326,9 +326,9 @@ def test_generate_mtproto_secret_is_random_hex():
 
 
 def test_backend_type_for_core_maps_mtproto():
-    assert _backend_type_for_core(CoreType.mtproto) == service.BackendType.MTPROTO == 2
-    assert _backend_type_for_core(CoreType.wg) == service.BackendType.WIREGUARD
-    assert _backend_type_for_core(CoreType.xray) == service.BackendType.XRAY
+    assert backend_type_for_core(CoreType.mtproto) == service.BackendType.MTPROTO == 2
+    assert backend_type_for_core(CoreType.wg) == service.BackendType.WIREGUARD
+    assert backend_type_for_core(CoreType.xray) == service.BackendType.XRAY
 
 
 def test_serializer_sends_mtproto_only_for_the_mtproto_protocol():
