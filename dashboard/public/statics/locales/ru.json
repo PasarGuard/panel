@@ -1322,6 +1322,7 @@
   "subscriptionModal.fetchError": "Не удалось получить конфигурации",
   "subscriptionModal.noConfigs": "Конфигурации не найдены",
   "subscriptionModal.unknownConfig": "Неизвестная конфигурация",
+  "subscriptionModal.telegramProxy": "Прокси Telegram",
   "subscriptionModal.qrFormat": "Формат QR-кода",
   "subscriptionModal.qrFormatConfig": "Конфиг",
   "configActions.copyConfig": "Копировать конфиг",
@@ -1997,6 +1998,9 @@
       "reserved": "Reserved (например 0,0,0)",
       "dns": "DNS серверы",
       "dnsHint": "Оставьте пустым для использования системного DNS"
+    },
+    "mtproto": {
+      "hint": "Хостам MTProto нужны только адрес и порт. Страница подписки и панель показывают для них ссылку на прокси Telegram; клиентские приложения её никогда не получают."
     }
   },
   "enable": "Включить",
@@ -3463,6 +3467,11 @@
     "proxySettings.wireguardPublicKey": "Публичный ключ WireGuard",
     "proxySettings.generateWireGuardKeyPair": "Пара ключей WireGuard",
     "proxySettings.wireguardGenerated": "Пара ключей WireGuard сгенерирована",
+    "proxySettings.mtprotoSecret": "Секрет MTProto",
+    "proxySettings.mtprotoSecretPlaceholder": "32 шестнадцатеричных символа или пусто, чтобы оставить текущий",
+    "proxySettings.generateMtprotoSecret": "Сгенерировать секрет MTProto",
+    "proxySettings.mtprotoGenerated": "Секрет MTProto сгенерирован",
+    "proxySettings.mtprotoSecretInvalid": "Нужно ровно 32 шестнадцатеричных символа",
     "proxySettings.desc": "Настройте параметры протокола для этого пользователя.",
     "selectNode": "Выберите узел",
     "allNodes": "Все узлы",

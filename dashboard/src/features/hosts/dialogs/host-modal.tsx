@@ -951,99 +951,101 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                 )}
               />
 
-              <FormField
-                control={form.control}
-                name="subscription_templates.xray"
-                render={({ field }) => {
-                  const rawXray = field.value as number | string | undefined | null
-                  const parsedXrayTemplateId =
-                    rawXray == null
-                      ? null
-                      : (() => {
-                          const n = typeof rawXray === 'number' ? rawXray : Number(rawXray)
-                          return Number.isFinite(n) && n > 0 ? n : null
-                        })()
+              {!shouldRenderMtprotoLayout && (
+                <FormField
+                  control={form.control}
+                  name="subscription_templates.xray"
+                  render={({ field }) => {
+                    const rawXray = field.value as number | string | undefined | null
+                    const parsedXrayTemplateId =
+                      rawXray == null
+                        ? null
+                        : (() => {
+                            const n = typeof rawXray === 'number' ? rawXray : Number(rawXray)
+                            return Number.isFinite(n) && n > 0 ? n : null
+                          })()
 
-                  const hasSelectedTemplate = parsedXrayTemplateId != null && xrayTemplates.some(template => Number(template.id) === parsedXrayTemplateId)
+                    const hasSelectedTemplate = parsedXrayTemplateId != null && xrayTemplates.some(template => Number(template.id) === parsedXrayTemplateId)
 
-                  return (
-                    <FormItem>
-                      <div className="flex items-center gap-2">
-                        <FormLabel>{t('hostsDialog.xrayTemplate')}</FormLabel>
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <Button type="button" variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent">
-                              <Info className="text-muted-foreground h-4 w-4" />
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
-                            <p className="text-muted-foreground text-[11px]">{t('hostsDialog.xrayTemplateInfo')}</p>
-                          </PopoverContent>
-                        </Popover>
-                      </div>
-                      <Select
-                        dir={dir}
-                        value={parsedXrayTemplateId != null ? String(parsedXrayTemplateId) : XRAY_TEMPLATE_INBOUND_DEFAULT_VALUE}
-                        onValueChange={value => {
-                          if (value === XRAY_TEMPLATE_INBOUND_DEFAULT_VALUE) {
-                            form.setValue('subscription_templates.xray', null, {
-                              shouldDirty: true,
-                              shouldTouch: true,
-                              shouldValidate: true,
-                            })
-                            return
-                          }
-                          const n = Number.parseInt(value, 10)
-                          if (!Number.isFinite(n)) {
-                            return
-                          }
-                          form.setValue(
-                            'subscription_templates',
-                            { xray: n },
-                            {
-                              shouldDirty: true,
-                              shouldTouch: true,
-                              shouldValidate: true,
-                            },
-                          )
-                        }}
-                        disabled={isXrayTemplateSelectDisabled}
-                      >
-                        <FormControl>
-                          <SelectTrigger className="py-5" disabled={isXrayTemplateSelectDisabled}>
-                            <SelectValue placeholder={xrayTemplatePlaceholder} />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent dir={dir}>
-                          <SelectItem className="cursor-pointer px-4" value={XRAY_TEMPLATE_INBOUND_DEFAULT_VALUE}>
-                            {t('hostsDialog.inboundDefault')}
-                          </SelectItem>
-                          {!hasSelectedTemplate && parsedXrayTemplateId != null ? (
-                            <SelectItem className="px-4" value={String(parsedXrayTemplateId)}>
-                              {t('hostsDialog.unknownXrayTemplate', { id: parsedXrayTemplateId })}
+                    return (
+                      <FormItem>
+                        <div className="flex items-center gap-2">
+                          <FormLabel>{t('hostsDialog.xrayTemplate')}</FormLabel>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button type="button" variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent">
+                                <Info className="text-muted-foreground h-4 w-4" />
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
+                              <p className="text-muted-foreground text-[11px]">{t('hostsDialog.xrayTemplateInfo')}</p>
+                            </PopoverContent>
+                          </Popover>
+                        </div>
+                        <Select
+                          dir={dir}
+                          value={parsedXrayTemplateId != null ? String(parsedXrayTemplateId) : XRAY_TEMPLATE_INBOUND_DEFAULT_VALUE}
+                          onValueChange={value => {
+                            if (value === XRAY_TEMPLATE_INBOUND_DEFAULT_VALUE) {
+                              form.setValue('subscription_templates.xray', null, {
+                                shouldDirty: true,
+                                shouldTouch: true,
+                                shouldValidate: true,
+                              })
+                              return
+                            }
+                            const n = Number.parseInt(value, 10)
+                            if (!Number.isFinite(n)) {
+                              return
+                            }
+                            form.setValue(
+                              'subscription_templates',
+                              { xray: n },
+                              {
+                                shouldDirty: true,
+                                shouldTouch: true,
+                                shouldValidate: true,
+                              },
+                            )
+                          }}
+                          disabled={isXrayTemplateSelectDisabled}
+                        >
+                          <FormControl>
+                            <SelectTrigger className="py-5" disabled={isXrayTemplateSelectDisabled}>
+                              <SelectValue placeholder={xrayTemplatePlaceholder} />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent dir={dir}>
+                            <SelectItem className="cursor-pointer px-4" value={XRAY_TEMPLATE_INBOUND_DEFAULT_VALUE}>
+                              {t('hostsDialog.inboundDefault')}
                             </SelectItem>
-                          ) : null}
-                          {isLoadingXrayTemplates ? (
-                            <SelectItem className="px-4" value="__loading_xray_templates__" disabled>
-                              <span className="flex items-center gap-2">
-                                <Loader2 className="h-3 w-3 animate-spin" />
-                                {t('loading', { defaultValue: 'Loading...' })}
-                              </span>
-                            </SelectItem>
-                          ) : (
-                            xrayTemplates.map(template => (
-                              <SelectItem className="cursor-pointer px-4" key={template.id} value={String(template.id)}>
-                                {template.name}
+                            {!hasSelectedTemplate && parsedXrayTemplateId != null ? (
+                              <SelectItem className="px-4" value={String(parsedXrayTemplateId)}>
+                                {t('hostsDialog.unknownXrayTemplate', { id: parsedXrayTemplateId })}
                               </SelectItem>
-                            ))
-                          )}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )
-                }}
-              />
+                            ) : null}
+                            {isLoadingXrayTemplates ? (
+                              <SelectItem className="px-4" value="__loading_xray_templates__" disabled>
+                                <span className="flex items-center gap-2">
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                  {t('loading', { defaultValue: 'Loading...' })}
+                                </span>
+                              </SelectItem>
+                            ) : (
+                              xrayTemplates.map(template => (
+                                <SelectItem className="cursor-pointer px-4" key={template.id} value={String(template.id)}>
+                                  {template.name}
+                                </SelectItem>
+                              ))
+                            )}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )
+                  }}
+                />
+              )}
 
               <FormField
                 control={form.control}
@@ -1198,7 +1200,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
               ) : shouldRenderMtprotoLayout ? (
                 <div className="text-muted-foreground mb-6 rounded-sm border px-4 py-3 text-sm">
                   {t('hostsDialog.mtproto.hint', {
-                    defaultValue: 'MTProto hosts only need address and port. Subscriptions emit a Telegram t.me/proxy link.',
+                    defaultValue: 'MTProto hosts only need an address and a port. The subscription page and the dashboard show a Telegram proxy link for them; client apps never receive it.',
                   })}
                 </div>
               ) : shouldRenderWireGuardLayout ? (

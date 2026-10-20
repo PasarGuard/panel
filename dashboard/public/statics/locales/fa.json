@@ -1619,6 +1619,9 @@
       "reserved": "Reserved (مثلاً 0,0,0)",
       "dns": "سرور DNS",
       "dnsHint": "خالی بگذارید تا از DNS سیستم استفاده شود"
+    },
+    "mtproto": {
+      "hint": "هاست‌های MTProto فقط به یک آدرس و یک پورت نیاز دارند. صفحه اشتراک و داشبورد برای آن‌ها لینک پروکسی تلگرام نشان می‌دهند؛ برنامه‌های کلاینت هرگز آن را دریافت نمی‌کنند."
     }
   },
   "inbound": "ورودی",
@@ -1683,6 +1686,7 @@
   "subscriptionModal.fetchError": "دریافت کانفیگ‌ها ناموفق بود",
   "subscriptionModal.noConfigs": "کانفیگی یافت نشد",
   "subscriptionModal.unknownConfig": "کانفیگ ناشناخته",
+  "subscriptionModal.telegramProxy": "پروکسی تلگرام",
   "subscriptionModal.qrFormat": "فرمت کد QR",
   "subscriptionModal.qrFormatConfig": "کانفیگ",
   "configActions.copyConfig": "کپی کانفیگ",
@@ -1833,6 +1837,11 @@
   "userDialog.proxySettings.wireguardPublicKey": "کلید عمومی وایرگارد",
   "userDialog.proxySettings.generateWireGuardKeyPair": "جفت‌کلید وایرگارد",
   "userDialog.proxySettings.wireguardGenerated": "جفت‌کلید وایرگارد تولید شد",
+  "userDialog.proxySettings.mtprotoSecret": "کلید مخفی MTProto",
+  "userDialog.proxySettings.mtprotoSecretPlaceholder": "۳۲ کاراکتر هگزادسیمال، یا خالی برای حفظ کلید فعلی",
+  "userDialog.proxySettings.generateMtprotoSecret": "تولید کلید مخفی MTProto",
+  "userDialog.proxySettings.mtprotoGenerated": "کلید مخفی MTProto تولید شد",
+  "userDialog.proxySettings.mtprotoSecretInvalid": "باید ۳۲ کاراکتر هگزادسیمال باشد",
   "userDialog.proxySettings.desc": "تنظیمات اختصاصی پروتکل برای این کاربر را پیکربندی کنید.",
   "userDialog.expireDate": "تاریخ انقضا",
   "username": "نام کاربری",

@@ -30,14 +30,17 @@ export const wireguardSettingsSchema = z.object({
   private_key: z.string().nullable().optional(),
   public_key: z.string().nullable().optional(),
 })
+// The dashboard edits only the secret; an empty one keeps the stored secret (a new user gets a generated one).
+// user_ad_tag, max_tcp_conns and max_unique_ips have no inputs and round-trip unchanged.
 export const mtprotoSettingsSchema = z.object({
   secret: z
     .string()
-    .regex(/^[0-9a-fA-F]{32}$/, 'Must be 32 hex characters')
+    .regex(/^(?:[0-9a-fA-F]{32})?$/, 'userDialog.proxySettings.mtprotoSecretInvalid')
+    .nullable()
     .optional(),
   user_ad_tag: z.string().optional(),
-  max_tcp_conns: z.number().min(0).optional(),
-  max_unique_ips: z.number().min(0).optional(),
+  max_tcp_conns: z.number().optional(),
+  max_unique_ips: z.number().optional(),
 })
 export const proxyTableInputSchema = z.object({
   vmess: vMessSettingsSchema.optional(),

@@ -21,6 +21,7 @@ import {
   prepareSubscriptionContentForCopy,
   resolveSubscriptionQrUrl,
 } from '@/utils/subscription-config'
+import { parseTelegramProxyLink } from '@/utils/telegram-proxy-link'
 
 interface SubscriptionModalProps {
   open?: boolean
@@ -80,7 +81,9 @@ const SubscriptionModal: FC<SubscriptionModalProps> = memo(({ open, subscribeUrl
       setConfigs(
         configLines.map(config => ({
           config,
-          name: extractNameFromConfigUrl(config) || t('subscriptionModal.unknownConfig', { defaultValue: 'Unknown Config' }),
+          name:
+            extractNameFromConfigUrl(config) ||
+            (parseTelegramProxyLink(config) ? t('subscriptionModal.telegramProxy', { defaultValue: 'Telegram proxy' }) : t('subscriptionModal.unknownConfig', { defaultValue: 'Unknown Config' })),
           address: extractAddressFromConfigUrl(config),
         })),
       )

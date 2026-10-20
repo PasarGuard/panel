@@ -6,7 +6,7 @@ import UsageModal from '@/features/users/dialogs/usage-modal.lazy'
 import UserAllIPsModal from '@/features/users/dialogs/user-all-ips-modal'
 import { UserHwidsModal } from '@/features/users/dialogs/user-hwids-modal'
 import { UserSubscriptionClientsModal } from '@/features/users/dialogs/user-subscription-clients-modal'
-import { type UseEditFormValues, type UseFormValues, userCreateObjectSchema, userCreateSchema, userEditObjectSchema, userEditSchema } from '@/features/users/forms/user-form'
+import { type UseEditFormValues, type UseFormValues, mtprotoSettingsSchema, userCreateObjectSchema, userCreateSchema, userEditObjectSchema, userEditSchema } from '@/features/users/forms/user-form'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
@@ -1058,6 +1058,11 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
 
         // Clean proxy settings to ensure proper enum values
         const cleanedProxySettings = cleanProxySettings(values.proxy_settings)
+        const mtprotoSettings = values.proxy_settings?.mtproto
+        if (cleanedProxySettings && mtprotoSettings) {
+          // Send the hidden MTProto fields as loaded. An empty secret is null: the backend keeps the stored one (or generates one for a new user).
+          cleanedProxySettings.mtproto = { ...mtprotoSettings, secret: mtprotoSettings.secret?.trim() || null }
+        }
         const hasProxySettings = !!cleanedProxySettings
 
         const normalizedDataLimitGb = Number(preparedValues.data_limit ?? 0)
@@ -1234,7 +1239,8 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
       shadowsocks: { password: generatePassword() },
       hysteria: { auth: uuidv4() },
       masque: { password: generatePassword() },
-      mtproto: { secret: generateMtprotoSecret() },
+      // keep the hidden MTProto fields (user_ad_tag, max_tcp_conns, max_unique_ips); only the secret rotates
+      mtproto: { ...form.getValues('proxy_settings.mtproto'), secret: generateMtprotoSecret() },
       // Keep backend-managed peer keys when regenerating the other credentials.
       wireguard: form.getValues('proxy_settings.wireguard'),
     }
@@ -2107,35 +2113,38 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
                           <FormField
                             control={form.control}
                             name="proxy_settings.mtproto.secret"
-                            render={({ field }) => (
-                              <FormItem className="mb-2">
-                                <FormLabel>{t('userDialog.proxySettings.mtprotoSecret', { defaultValue: 'MTProto secret' })}</FormLabel>
-                                <FormControl>
-                                  <div dir="ltr" className={`flex items-center gap-2 ${dir === 'rtl' ? 'flex-row-reverse' : 'flex-row'}`}>
-                                    <Input
-                                      {...field}
-                                      value={field.value ?? ''}
-                                      placeholder={t('userDialog.proxySettings.mtprotoSecret', { defaultValue: '32 hex characters' })}
-                                      onChange={e => {
-                                        field.onChange(e)
-                                        form.trigger('proxy_settings.mtproto.secret')
-                                        handleFieldChange('proxy_settings.mtproto.secret', e.target.value)
-                                      }}
-                                    />
-                                    <Button
-                                      size="icon"
-                                      type="button"
-                                      variant="ghost"
-                                      onClick={generateMtprotoProxySettings}
-                                      title={t('userDialog.proxySettings.generateMtprotoSecret', { defaultValue: 'Generate MTProto secret' })}
-                                    >
-                                      <RefreshCcw className="h-3 w-3" />
-                                    </Button>
-                                  </div>
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
+                            render={({ field }) => {
+                              const secretIssue = mtprotoSettingsSchema.shape.secret.safeParse(field.value).error?.issues[0]?.message
+                              return (
+                                <FormItem className="mb-2">
+                                  <FormLabel>{t('userDialog.proxySettings.mtprotoSecret', { defaultValue: 'MTProto secret' })}</FormLabel>
+                                  <FormControl>
+                                    <div dir="ltr" className={`flex items-center gap-2 ${dir === 'rtl' ? 'flex-row-reverse' : 'flex-row'}`}>
+                                      <Input
+                                        {...field}
+                                        value={field.value ?? ''}
+                                        placeholder={t('userDialog.proxySettings.mtprotoSecretPlaceholder', { defaultValue: '32 hex characters, or empty to keep the current one' })}
+                                        onChange={e => {
+                                          field.onChange(e)
+                                          form.trigger('proxy_settings.mtproto.secret')
+                                          handleFieldChange('proxy_settings.mtproto.secret', e.target.value)
+                                        }}
+                                      />
+                                      <Button
+                                        size="icon"
+                                        type="button"
+                                        variant="ghost"
+                                        onClick={generateMtprotoProxySettings}
+                                        title={t('userDialog.proxySettings.generateMtprotoSecret', { defaultValue: 'Generate MTProto secret' })}
+                                      >
+                                        <RefreshCcw className="h-3 w-3" />
+                                      </Button>
+                                    </div>
+                                  </FormControl>
+                                  <FormMessage>{secretIssue && t(secretIssue, { defaultValue: 'Must be 32 hex characters' })}</FormMessage>
+                                </FormItem>
+                              )
+                            }}
                           />
                         </AccordionContent>
                       </AccordionItem>

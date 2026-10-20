@@ -1,4 +1,5 @@
 import { $fetch } from '@/service/http'
+import { parseTelegramProxyLink } from '@/utils/telegram-proxy-link'
 
 export type SubscriptionContentFormat = 'links' | 'links_base64' | 'xray' | 'wireguard' | 'sing_box' | 'clash' | 'clash_meta' | 'outline'
 
@@ -205,6 +206,12 @@ export const extractNameFromConfigUrl = (url: string): string | null => {
 
 export const extractAddressFromConfigUrl = (url: string): string | null => {
   const trimmedUrl = url.trim()
+
+  // A Telegram proxy link names its server in the query (tg://proxy?server=...), not in the URL host
+  const telegramProxy = parseTelegramProxyLink(trimmedUrl)
+  if (telegramProxy) {
+    return telegramProxy.server
+  }
 
   if (trimmedUrl.startsWith('vmess://')) {
     try {

@@ -1771,6 +1771,9 @@
       "reserved": "Reserved（例如 0,0,0）",
       "dns": "DNS 服务器",
       "dnsHint": "留空使用系统 DNS"
+    },
+    "mtproto": {
+      "hint": "MTProto 主机只需要地址和端口。订阅页面和仪表盘会为其显示 Telegram 代理链接；客户端应用永远不会收到该链接。"
     }
   },
   "inbound": "入站",
@@ -1832,6 +1835,7 @@
   "subscriptionModal.fetchError": "获取配置失败",
   "subscriptionModal.noConfigs": "未找到配置",
   "subscriptionModal.unknownConfig": "未知配置",
+  "subscriptionModal.telegramProxy": "Telegram 代理",
   "subscriptionModal.qrFormat": "二维码格式",
   "subscriptionModal.qrFormatConfig": "配置",
   "configActions.copyConfig": "复制配置",
@@ -1982,6 +1986,11 @@
   "userDialog.proxySettings.wireguardPublicKey": "WireGuard 公钥",
   "userDialog.proxySettings.generateWireGuardKeyPair": "WireGuard 密钥对",
   "userDialog.proxySettings.wireguardGenerated": "WireGuard 密钥对已生成",
+  "userDialog.proxySettings.mtprotoSecret": "MTProto 密钥",
+  "userDialog.proxySettings.mtprotoSecretPlaceholder": "32 个十六进制字符，留空则保留当前密钥",
+  "userDialog.proxySettings.generateMtprotoSecret": "生成 MTProto 密钥",
+  "userDialog.proxySettings.mtprotoGenerated": "MTProto 密钥已生成",
+  "userDialog.proxySettings.mtprotoSecretInvalid": "必须是 32 个十六进制字符",
   "userDialog.proxySettings.desc": "为此用户配置协议专属设置。",
   "userDialog.expireDate": "过期日期",
   "userDialog.selectedGroups": "已选择 {{count}} 个分组",
