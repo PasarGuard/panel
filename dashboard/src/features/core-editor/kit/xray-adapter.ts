@@ -432,6 +432,59 @@ function applyHysteriaTransportUdpmasksToCompiledConfig(profile: Profile, config
   return changed ? { ...config, inbounds } : config
 }
 
+const WIREGUARD_INBOUND_STREAM_KEYS = new Set(['sockopt', 'finalmask'])
+
+/**
+ * Xray WireGuard inbounds read only sockopt and finalmask from `streamSettings`; the kit also compiles network,
+ * security and their settings (and verbatim source may carry stale ws/tls), so keep just those two keys.
+ */
+function keepWireguardInboundStreamOptions(config: Record<string, unknown>): Record<string, unknown> {
+  if (!Array.isArray(config.inbounds)) return config
+
+  let changed = false
+  const inbounds = config.inbounds.map(compiledInbound => {
+    if (!isRecord(compiledInbound) || compiledInbound.protocol !== 'wireguard' || !isRecord(compiledInbound.streamSettings)) return compiledInbound
+    const streamSettings = compiledInbound.streamSettings
+    const kept = Object.fromEntries(Object.entries(streamSettings).filter(([key]) => WIREGUARD_INBOUND_STREAM_KEYS.has(key.toLowerCase())))
+    if (Object.keys(kept).length === Object.keys(streamSettings).length) return compiledInbound
+    changed = true
+    const next = { ...compiledInbound }
+    if (Object.keys(kept).length > 0) next.streamSettings = kept
+    else delete next.streamSettings
+    return next
+  })
+
+  return changed ? { ...config, inbounds } : config
+}
+
+/**
+ * The kit's source merge (`mergeJsonPreservingSource`) restores source `settings` keys it does not know
+ * (`kernelMode`, `remoteDNS`, `DNS`), so a key deleted in the WireGuard outbound editor would come back on save.
+ */
+function dropWireguardOutboundSettingsMissingFromProfile(profile: Profile, config: Record<string, unknown>): Record<string, unknown> {
+  if (!Array.isArray(config.outbounds)) return config
+
+  let changed = false
+  const outbounds = config.outbounds.map((compiledOutbound, index) => {
+    if (!isRecord(compiledOutbound) || compiledOutbound.protocol !== 'wireguard' || !isRecord(compiledOutbound.settings)) return compiledOutbound
+    const profileOutbound = profile.outbounds?.[index]
+    if (profileOutbound?.protocol !== 'wireguard' || profileOutbound.tag !== compiledOutbound.tag) return compiledOutbound
+    const modelSettings = asRecord((profileOutbound as { settings?: unknown }).settings) ?? {}
+    const settings = { ...compiledOutbound.settings }
+    let outboundChanged = false
+    for (const key of Object.keys(settings)) {
+      if (modelSettings[key] !== undefined) continue
+      delete settings[key]
+      outboundChanged = true
+    }
+    if (!outboundChanged) return compiledOutbound
+    changed = true
+    return { ...compiledOutbound, settings }
+  })
+
+  return changed ? { ...config, outbounds } : config
+}
+
 /**
  * Issues from {@link buildXrayConfig} in strict mode when the profile does not compile (schema / semantic / unsafe patches, …).
  */
@@ -471,7 +524,8 @@ export function profileToPersistedConfig(profile: Profile): Record<string, unkno
     ),
   )
 
-  return applyFinalmaskFragmentCompatibilityToCompiledConfig(applyUnmodeledTopLevelSectionsToCompiledConfig(prepared, result))
+  const withTopLevel = applyFinalmaskFragmentCompatibilityToCompiledConfig(applyUnmodeledTopLevelSectionsToCompiledConfig(prepared, result))
+  return keepWireguardInboundStreamOptions(dropWireguardOutboundSettingsMissingFromProfile(prepared, withTopLevel))
 }
 
 export function validateProfileForSave(profile: Profile) {
