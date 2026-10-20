@@ -949,7 +949,7 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
                                 embeddedContainerClassName="h-[calc(50vh-1rem)] sm:h-[calc(55vh-1rem)] md:h-[600px]"
                               />
                             </FormControl>
-                            {((validation.error && !validation.isValid) || fieldState.error) && <FormMessage>{validation.error}</FormMessage>}
+                            {((validation.error && !validation.isValid) || fieldState.error) && <FormMessage>{fieldState.error?.message ?? validation.error}</FormMessage>}
                           </FormItem>
                         )}
                       />
