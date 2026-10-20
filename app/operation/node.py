@@ -337,6 +337,12 @@ class NodeOperation(BaseOperation):
             await pg_node._ensure_sync_worker_running()
 
     @staticmethod
+    def _drop_mtproto_start_timeouts(node_id: object) -> None:
+        """Forget a node's MTProto Start timeouts; bridge nodes carry the panel id as a string."""
+        with contextlib.suppress(TypeError, ValueError):
+            NodeOperation._mtproto_start_timeouts.pop(int(node_id), None)
+
+    @staticmethod
     async def _attach_if_running(pg_node: PasarGuardNode, node_name: str):
         """Attach to an already-started remote core without calling Start RPC."""
         try:
@@ -365,6 +371,8 @@ class NodeOperation(BaseOperation):
             await NodeOperation._resume_shared_sync(pg_node)
             if state is not None:
                 await pg_node.update_observed_lifecycle(LifecycleStatus.HEALTHY, expected_epoch=state.epoch)
+            # The health checker attaches a late-started core directly, so connect_node never sees it.
+            NodeOperation._drop_mtproto_start_timeouts(getattr(pg_node, "node_id", None))
             logger.debug(
                 f'Attached to already-running "{node_name}" node v{info.node_version}, core v{info.core_version}'
             )
@@ -944,6 +952,7 @@ class NodeOperation(BaseOperation):
     async def _remove_node_local(self, node_id: int) -> None:
         await node_manager.remove_node(node_id)
         await clear_bridge_memory_for_node(node_id)
+        NodeOperation._drop_mtproto_start_timeouts(node_id)
 
     async def _remove_node_sync(self, node_id: int) -> None:
         await self._remove_node_local(node_id)
@@ -1139,6 +1148,7 @@ class NodeOperation(BaseOperation):
 
     async def _disconnect_single_node_local(self, node_id: int) -> None:
         await node_manager.remove_node(node_id)
+        NodeOperation._drop_mtproto_start_timeouts(node_id)
 
     async def _disconnect_single_node_sync(self, node_id: int) -> None:
         await self._disconnect_single_node_local(node_id)

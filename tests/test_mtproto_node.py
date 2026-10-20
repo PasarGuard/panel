@@ -158,6 +158,57 @@ async def test_forced_mtproto_start_timeout_gets_its_own_retry(monkeypatch: pyte
         NodeOperation._mtproto_start_timeouts.clear()
 
 
+def _attachable_bridge_node(**extra):
+    return SimpleNamespace(
+        get_lifecycle_state=AsyncMock(return_value=None),
+        info=AsyncMock(return_value=SimpleNamespace(started=True, **vars(INFO))),
+        get_health=AsyncMock(return_value=Health.HEALTHY),
+        connect=AsyncMock(),
+        **extra,
+    )
+
+
+@pytest.mark.asyncio
+async def test_attach_clears_mtproto_start_timeout_count(monkeypatch: pytest.MonkeyPatch):
+    attach_if_running = NodeOperation._attach_if_running
+    _patch_connect(monkeypatch, AsyncMock(side_effect=NodeAPIError(-1, "Request timed out")))
+    db_node = SimpleNamespace(id=45, name="mtproto-node", status=NodeStatus.connected)
+    core = SimpleNamespace(type=CoreType.mtproto)
+
+    try:
+        assert await NodeOperation.connect_node(db_node, core, []) is None
+        assert NodeOperation._mtproto_start_timeouts[45] == 1
+
+        # The health checker attaches to the late-started core directly, not through connect_node.
+        assert await attach_if_running(_attachable_bridge_node(node_id="45"), db_node.name) is not None
+        assert 45 not in NodeOperation._mtproto_start_timeouts
+
+        # So the next slow Start of this node gets its retry again instead of an error.
+        assert await NodeOperation.connect_node(db_node, core, []) is None
+
+        # A bridge node without a numeric id still attaches.
+        assert await attach_if_running(_attachable_bridge_node(node_id="https://node:62050"), "n") is not None
+        assert await attach_if_running(_attachable_bridge_node(), "n") is not None
+        assert NodeOperation._mtproto_start_timeouts[45] == 1
+    finally:
+        NodeOperation._mtproto_start_timeouts.clear()
+
+
+@pytest.mark.asyncio
+async def test_node_removal_and_disconnect_clear_mtproto_start_timeout_count(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(node_operation_module.node_manager, "remove_node", AsyncMock())
+    monkeypatch.setattr(node_operation_module, "clear_bridge_memory_for_node", AsyncMock())
+    operation = NodeOperation.__new__(NodeOperation)
+
+    try:
+        NodeOperation._mtproto_start_timeouts.update({46: 1, 47: 1})
+        await operation._remove_node_local(46)
+        await operation._disconnect_single_node_local(47)
+        assert NodeOperation._mtproto_start_timeouts == {}
+    finally:
+        NodeOperation._mtproto_start_timeouts.clear()
+
+
 @pytest.mark.asyncio
 async def test_xray_start_timeout_still_reports_error(monkeypatch: pytest.MonkeyPatch):
     _patch_connect(monkeypatch, AsyncMock(side_effect=NodeAPIError(-1, "Request timed out")))
