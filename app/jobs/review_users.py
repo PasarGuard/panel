@@ -21,7 +21,11 @@ from app.db.models import ReminderType, User, UserStatus
 from app.jobs.dependencies import SYSTEM_ADMIN
 from app.models.settings import OnHoldTimeoutAction, Webhook
 from app.models.user import UserNotificationResponse
-from app.node.sync import remove_user_awaited as sync_remove_user_awaited, sync_users
+from app.node.sync import (
+    remove_user as sync_remove_user,
+    remove_user_awaited as sync_remove_user_awaited,
+    sync_users,
+)
 from app.operation import OperatorType
 from app.operation.user import UserOperation
 from app.settings import general_settings, webhook_settings
@@ -105,6 +109,11 @@ async def remove_on_hold_users(db: AsyncSession, db_users: list[User]):
 
     # Node updates confirmed – now commit the database deletions atomically.
     await remove_users(db, db_users)
+
+    # A delivery re-reads the database, so one that ran before the commit sent
+    # these users as still on hold. Queue the removals again now that they are gone.
+    for user in users:
+        await sync_remove_user(user)
 
     # Notifications and logging run after successful removal, same as before.
     for user in users:

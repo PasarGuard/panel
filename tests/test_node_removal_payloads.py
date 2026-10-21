@@ -6,6 +6,8 @@ removal without them leaves the peer in place.
 """
 
 from datetime import UTC, datetime
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
@@ -27,6 +29,7 @@ from app.db.models import (
     inbounds_groups_association,
     users_groups_association,
 )
+from app.jobs import review_users
 from app.node import sync as node_sync
 from app.node.user import serialize_user
 from tests.test_node_bridge import FakeNodeState, attach_fake_transport, close_node, make_node, wait_until
@@ -218,3 +221,40 @@ async def test_disabled_user_removal_on_the_wire_keeps_credentials(maker, monkey
     delivered = await _deliver(monkeypatch, queued)
     assert list(delivered.inbounds) == []
     assert wireguard(delivered) == (PUBLIC_KEY, PEER_IPS)
+
+
+async def test_on_hold_timeout_delete_is_removed_even_if_delivered_before_its_commit(maker, monkeypatch):
+    user_id = await seed_wireguard_user(maker)
+    async with maker() as db:
+        await db.execute(update(User).where(User.id == user_id).values(status=UserStatus.on_hold))
+        await db.commit()
+        settings = dict((await db.execute(select(User.proxy_settings).where(User.id == user_id))).scalar_one())
+
+    node, seen = _capturing_node(monkeypatch)
+
+    async def dispatch_users(users, *, await_dispatch=False):
+        await node.update_users(users)
+
+    monkeypatch.setattr(node_sync, "_dispatch_user_update", node.update_user)
+    monkeypatch.setattr(node_sync, "_dispatch_users_update", dispatch_users)
+    notification = SimpleNamespace(id=user_id, username="wguser", proxy_settings=SimpleNamespace(dict=lambda: settings))
+    monkeypatch.setattr(review_users.user_operator, "validate_user", AsyncMock(return_value=notification))
+    monkeypatch.setattr(review_users.notification, "remove_user", AsyncMock())
+    delete_users = review_users.remove_users
+
+    async def slow_delete(db, db_users):
+        # The node delivers the queued removal while the row is still on hold.
+        await wait_until(lambda: seen)
+        await delete_users(db, db_users)
+
+    monkeypatch.setattr(review_users, "remove_users", slow_delete)
+    try:
+        await node.connect("0.5.4", "26.10.10")
+        async with maker() as db:
+            db_user = (await db.execute(select(User).where(User.id == user_id))).scalar_one()
+            await review_users.remove_on_hold_users(db, [db_user])
+        assert list(seen[0].inbounds) == ["wg0"]  # read before the deletion committed
+        await wait_until(lambda: not seen[-1].inbounds, timeout=3)
+        assert wireguard(seen[-1]) == (PUBLIC_KEY, PEER_IPS)
+    finally:
+        await close_node(node)
