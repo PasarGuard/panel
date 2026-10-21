@@ -678,7 +678,8 @@ class HostManager:
         if host.is_disabled or (host.inbound_tag not in inbounds_list):
             return None
 
-        # Handle downstream for xhttp. Without a usable download host, clients use this host both ways.
+        # Handle downstream for xhttp. Without a usable (existing, enabled, served) download host,
+        # clients use this host both ways.
         downstream_data = None
         if (
             host.transport_settings
@@ -691,7 +692,7 @@ class HostManager:
                     f'Download host "{ds_host}" of host "{host.id}" is missing or its inbound is gone, '
                     "serving the host without it"
                 )
-            else:
+            elif not downstream.is_disabled:
                 try:
                     downstream_base = BaseHost.model_validate(downstream)
                     downstream_data = await _prepare_subscription_inbound_data(downstream_base)

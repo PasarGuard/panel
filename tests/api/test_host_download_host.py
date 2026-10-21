@@ -112,6 +112,7 @@ def download_pair(access_token):
     try:
         yield pair
     finally:
+        # The parent goes first: a download host cannot be deleted while a host still uses it
         for host_id in (parent_host["id"], download_host["id"]):
             client.delete(f"/api/host/{host_id}", headers=headers)
         delete_user(access_token, user["username"])
@@ -153,3 +154,66 @@ def test_full_refresh_skips_a_host_that_cannot_be_prepared(download_pair, monkey
 
     assert pair.parent["id"] not in host_manager._hosts
     assert pair.download["id"] in host_manager._hosts
+
+
+def test_delete_download_host_in_use_is_refused(download_pair):
+    pair = download_pair
+    response = client.delete(f"/api/host/{pair.download['id']}", headers=pair.headers)
+    assert response.status_code == status.HTTP_409_CONFLICT, response.text
+    assert pair.parent["remark"] in response.json()["detail"]
+
+    response = client.post("/api/hosts/bulk/delete", headers=pair.headers, json={"ids": [pair.download["id"]]})
+    assert response.status_code == status.HTTP_409_CONFLICT, response.text
+    assert pair.parent["remark"] in response.json()["detail"]
+
+    # Nothing changed: the host still exists and the parent still uses it
+    response = client.get(f"/api/host/{pair.download['id']}", headers=pair.headers)
+    assert response.status_code == status.HTTP_200_OK
+    assert _download_addresses(pair.user["subscription_url"]) == ["download.example.com"]
+
+
+def test_delete_download_host_together_with_its_parent(download_pair):
+    pair = download_pair
+    response = client.post(
+        "/api/hosts/bulk/delete",
+        headers=pair.headers,
+        json={"ids": [pair.download["id"], pair.parent["id"]]},
+    )
+    assert response.status_code == status.HTTP_200_OK, response.text
+    assert response.json()["count"] == 2
+
+
+def test_delete_download_host_after_parent_stops_using_it(download_pair):
+    pair = download_pair
+    parent = {key: value for key, value in pair.parent.items() if key != "id"}
+    parent["transport_settings"]["xhttp_settings"]["download_settings"] = None
+    response = client.put(f"/api/host/{pair.parent['id']}", headers=pair.headers, json=parent)
+    assert response.status_code == status.HTTP_200_OK, response.text
+
+    response = client.delete(f"/api/host/{pair.download['id']}", headers=pair.headers)
+    assert response.status_code == status.HTTP_204_NO_CONTENT, response.text
+    assert _download_addresses(pair.user["subscription_url"]) == []
+
+
+def test_bulk_disable_download_host_drops_it_from_parent(download_pair):
+    pair = download_pair
+    response = client.post("/api/hosts/bulk/disable", headers=pair.headers, json={"ids": [pair.download["id"]]})
+    assert response.status_code == status.HTTP_200_OK, response.text
+    assert _download_addresses(pair.user["subscription_url"]) == []
+
+    response = client.post("/api/hosts/bulk/enable", headers=pair.headers, json={"ids": [pair.download["id"]]})
+    assert response.status_code == status.HTTP_200_OK, response.text
+    assert _download_addresses(pair.user["subscription_url"]) == ["download.example.com"]
+
+
+def test_disable_download_host_by_edit_drops_it_from_parent(download_pair):
+    pair = download_pair
+    download = {key: value for key, value in pair.download.items() if key != "id"}
+    download["is_disabled"] = True
+    response = client.put(f"/api/host/{pair.download['id']}", headers=pair.headers, json=download)
+    assert response.status_code == status.HTTP_200_OK, response.text
+    assert _download_addresses(pair.user["subscription_url"]) == []
+
+    # A full rebuild must not bring the disabled download host back
+    asyncio.run(_full_host_refresh())
+    assert _download_addresses(pair.user["subscription_url"]) == []
