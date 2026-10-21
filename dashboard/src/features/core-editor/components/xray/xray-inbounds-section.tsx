@@ -20,8 +20,12 @@ import { isBooleanParityField, isJsonRawMessageField, transportParityFieldLabel,
 import { XrayStreamFinalmaskInboundAccordion } from '@/features/core-editor/components/shared/xray-stream-finalmask-editor'
 import { pruneSockoptObject, XrayStreamSockoptInboundAccordion } from '@/features/core-editor/components/shared/xray-stream-sockopt-editor'
 import { InboundFallbacksEditor } from '@/features/core-editor/components/xray/inbound-fallbacks-editor'
+import { MasqueSettingsFields } from '@/features/core-editor/components/xray/masque-settings-fields'
 import { RealityScanDialog } from '@/features/core-editor/components/xray/reality-scan-dialog'
+import { FieldMessages } from '@/features/core-editor/components/xray/stream-form-inputs'
+import { guardStreamFormsCommit } from '@/features/core-editor/components/xray/stream-form-validity'
 import { WireguardInboundFields } from '@/features/core-editor/components/xray/wireguard-inbound-fields'
+import { XdriveSettingsFields } from '@/features/core-editor/components/xray/xdrive-settings-fields'
 import { useSectionHeaderAddPulseEffect, type SectionHeaderAddPulse } from '@/features/core-editor/hooks/use-section-header-add-pulse'
 import { useXrayPersistModifyGuard } from '@/features/core-editor/hooks/use-xray-persist-modify-guard'
 import {
@@ -31,10 +35,18 @@ import {
   realityInboundZodTriggerFieldNames,
   WIREGUARD_INBOUND_FORM_FIELDS,
 } from '@/features/core-editor/kit/inbound-dialog-schema'
-import { getInboundSecuritySelectOptions, getInboundTransportSelectOptions, transportCompatibleWithReality } from '@/features/core-editor/kit/inbound-form-options'
+import {
+  getInboundSecuritySelectOptions,
+  getInboundTransportSelectOptions,
+  inboundTransportHasDedicatedForm,
+  kitBuildsInboundTransport,
+  transportCompatibleWithReality,
+} from '@/features/core-editor/kit/inbound-form-options'
+import { masqueInboundTlsSecurity } from '@/features/core-editor/kit/masque-fields'
 import { profileDuplicateTagMessage, profileTagHasDuplicateUsage } from '@/features/core-editor/kit/profile-tag-uniqueness'
 import { remapIndexAfterArrayMove } from '@/features/core-editor/kit/remap-index-after-move'
 import { normalizeTunnelNetworkForKit } from '@/features/core-editor/kit/sanitize-inbound'
+import { streamFieldIssuesForInbound, type StreamFieldIssue } from '@/features/core-editor/kit/stream-form-fields'
 import {
   classifyWireguardAddresses,
   normalizeWireguardInboundForCommit,
@@ -42,6 +54,7 @@ import {
   wireguardInboundAddresses,
   wireguardInboundFormTexts,
 } from '@/features/core-editor/kit/wireguard-xray-fields'
+import { vlessFlowSelectValues, vlessVisionFlowHintShown, withXdriveInboundFlowIssue } from '@/features/core-editor/kit/xdrive-fields'
 import { coerceVerifyPeerCertByNameList, inferParityFieldMode, outboundSettingToString, parseOutboundSettingValue, stringifyJsonFormRecord } from '@/features/core-editor/kit/xray-parity-value'
 import { useCoreEditorStore } from '@/features/core-editor/state/core-editor-store'
 import useDirDetection from '@/hooks/use-dir-detection'
@@ -621,7 +634,7 @@ function generateMixedAccountCredentials(): { user: string; pass: string } {
   }
 }
 
-const INBOUND_PROTOCOL_PREFERRED_ORDER: readonly string[] = ['vless', 'vmess', 'trojan', 'shadowsocks', 'hysteria', 'mixed', 'tunnel', 'socks', 'http', 'tun']
+const INBOUND_PROTOCOL_PREFERRED_ORDER: readonly string[] = ['vless', 'vmess', 'trojan', 'shadowsocks', 'hysteria', 'masque', 'mixed', 'tunnel', 'socks', 'http', 'tun']
 
 function sortInboundProtocolsForUi(protocols: readonly string[]): string[] {
   const preferredSet = new Set(INBOUND_PROTOCOL_PREFERRED_ORDER)
@@ -960,6 +973,8 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
   const [echUsageOption, setEchUsageOption] = useState<'default' | 'required' | 'preferred'>('default')
   const [draftInbound, setDraftInbound] = useState<Inbound | null>(null)
   const [editOriginalInbound, setEditOriginalInbound] = useState<Inbound | null>(null)
+  /** Inputs of the MASQUE / XDrive boxes holding text that does not parse; kept outside the form so its resets never clear it. */
+  const [invalidStreamInputs, setInvalidStreamInputs] = useState<readonly string[]>([])
 
   const [blockAddWhileDraftOpen, setBlockAddWhileDraftOpen] = useState(false)
   const [isGeneratingShadowsocksPassword, setIsGeneratingShadowsocksPassword] = useState(false)
@@ -1018,7 +1033,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
 
   const securitySelectOptions = useMemo(() => {
     if (!inbound || inbound.protocol === 'unmanaged') return []
-    return getInboundSecuritySelectOptions(caps, inbound.protocol)
+    return getInboundSecuritySelectOptions(caps, inbound.protocol, 'security' in inbound ? inbound.security?.type : undefined)
   }, [caps, inbound])
 
   const inboundDialogSchema = useMemo(() => createInboundDialogSchema(caps, t), [caps, t])
@@ -1267,8 +1282,8 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
       let network = watchedTransport
       if (watchedProtocol === 'shadowsocks') network = watchedShadowsocksNetwork
 
-      if (watchedProtocol === 'hysteria' && network === 'hysteria') tag += ''
-      else if (network) tag += `${tagSeparator}${network}`
+      // Fixed-transport protocols (hysteria, masque) do not repeat the transport name.
+      if (network && network !== watchedProtocol) tag += `${tagSeparator}${network}`
       if (watchedSecurity && watchedSecurity !== 'none') tag += `${tagSeparator}${watchedSecurity}`
       if (watchedPort) tag += `${tagSeparator}${watchedPort}`
 
@@ -1406,6 +1421,17 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
   )
   const inboundTransport = useMemo(() => (inbound ? getInboundTransportRecord(inbound) : null), [inbound])
   const inboundTransportType = useMemo(() => (typeof inboundTransport?.type === 'string' ? inboundTransport.type : undefined), [inboundTransport])
+  /** Kit issues the MASQUE and XDrive forms own (`[]` for other inbounds), plus the panel's check of an inherited XDrive flow. */
+  const inboundStreamFormIssues = useCallback(
+    (ib: Inbound): StreamFieldIssue[] =>
+      withXdriveInboundFlowIssue(
+        streamFieldIssuesForInbound(ib),
+        ib,
+        t('coreEditor.xdrive.flowNotSupported', { defaultValue: 'XDrive does not support VLESS flow, and the users of this inbound inherit it. Set Flow to Default.' }),
+      ),
+    [t],
+  )
+  const streamFieldIssues = useMemo(() => (inbound ? inboundStreamFormIssues(inbound) : []), [inbound, inboundStreamFormIssues])
   const xhttpExtra = useMemo(() => getXhttpExtraRecord(inboundTransport), [inboundTransport])
   const xPaddingBytesKey = useMemo(() => resolveTransportMetaKey(xhttpExtra, 'xpaddingbytes', 'xPaddingBytes'), [xhttpExtra])
   const xPaddingObfsEnabled = useMemo(() => {
@@ -1430,10 +1456,13 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
   }, [inboundTransportType, caps])
   const showTransportTypeSelect = useMemo(() => inbound && inbound.protocol !== 'hysteria' && transportSelectOptions.length > 0, [inbound, transportSelectOptions])
   const showTransportSettings = useMemo(
-    () => Boolean(inbound?.protocol !== 'hysteria' && visibility?.stream && inboundTransportType && transportSettingsFieldOrder.length > 0),
+    () => Boolean(inbound?.protocol !== 'hysteria' && visibility?.stream && inboundTransportType && transportSettingsFieldOrder.length > 0 && !inboundTransportHasDedicatedForm(inboundTransportType)),
     [inbound, visibility, inboundTransportType, transportSettingsFieldOrder],
   )
-  const showTransportSection = useMemo(() => Boolean(showTransportTypeSelect || showTransportSettings || inbound?.protocol === 'hysteria'), [showTransportTypeSelect, showTransportSettings, inbound])
+  const showTransportSection = useMemo(
+    () => Boolean(showTransportTypeSelect || showTransportSettings || inboundTransportHasDedicatedForm(inboundTransportType)),
+    [showTransportTypeSelect, showTransportSettings, inboundTransportType],
+  )
 
   const showFallbacksEditor = useMemo(() => {
     if (!inbound) return false
@@ -1580,6 +1609,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
     setDialogMode('edit')
     setDraftInbound(null)
     setEditOriginalInbound(null)
+    setInvalidStreamInputs([])
     initialCapturedRef.current = false
   }
 
@@ -1623,6 +1653,12 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
       return true
     },
     [form, t],
+  )
+
+  /** Blocks Add/Modify while a MASQUE / XDrive input holds text that does not parse, or the kit reports an error those forms own. */
+  const assertStreamFormsCommittable = useCallback(
+    (next: Inbound): boolean => guardStreamFormsCommit(t, invalidStreamInputs.length > 0, () => inboundStreamFormIssues(next)),
+    [invalidStreamInputs, inboundStreamFormIssues, t],
   )
 
   const handleDetailOpenChange = (open: boolean) => {
@@ -1682,6 +1718,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
     const insertAt = profile.inbounds.length
     // Also written on change; repeating it here normalizes untouched stored values (reserved `AQID` or "1,2,3", a padded secret key, port or address).
     const committedInbound = normalizeWireguardInboundForCommit(draftInbound, { mtu: form.getValues('wgMtu') ?? '', reserved: form.getValues('wgReserved') ?? '' })
+    if (!assertStreamFormsCommittable(committedInbound)) return
     updateXrayProfile(p => ({ ...p, inbounds: [...p.inbounds, committedInbound] }))
     setSelected(insertAt)
     finalizeDetailClose()
@@ -1806,6 +1843,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
       nextInbound = vlessNext as Inbound
     }
 
+    if (!assertStreamFormsCommittable(nextInbound)) return
     updateXrayProfile(p => replaceInbound(p, selected, nextInbound))
     if ('security' in nextInbound && nextInbound.security) form.setValue('security', nextInbound.security.type)
     if ('transport' in nextInbound && nextInbound.transport) form.setValue('transport', nextInbound.transport.type)
@@ -2763,6 +2801,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                         </div>
                       </FormControl>
                       <FormMessage />
+                      <FieldMessages issues={streamFieldIssues} field="port" />
                     </FormItem>
                   )}
                 />
@@ -2819,6 +2858,12 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                           />
                         </FormControl>
                         <FormMessage />
+                        <FieldMessages issues={streamFieldIssues} field="decryption" />
+                        {streamFieldIssues.some(issue => issue.field === 'decryption') && (
+                          <p className="text-muted-foreground text-xs">
+                            {t('coreEditor.xdrive.decryptionHint', { defaultValue: 'Use the VLESS Encryption button below to generate a matching encryption and decryption pair.' })}
+                          </p>
+                        )}
                       </FormItem>
                     )}
                   />
@@ -3087,8 +3132,36 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                           </SelectContent>
                         </Select>
                         <FormMessage />
+                        <FieldMessages issues={streamFieldIssues} field="transport" />
                       </FormItem>
                     )}
+                  />
+                )}
+
+                {inbound.protocol === 'masque' && inbound.transport.type === 'masque' && (
+                  <MasqueSettingsFields
+                    key={`${dialogMode}:${selected}:masque`}
+                    side="server"
+                    settings={{ address: inbound.address, mtu: inbound.mtu, remoteDNS: inbound.remoteDNS }}
+                    onSettingsChange={next => patchInbound({ address: Array.isArray(next.address) ? next.address : [], mtu: next.mtu, remoteDNS: next.remoteDNS } as Partial<Inbound>)}
+                    transport={inbound.transport}
+                    onTransportChange={next => patchInbound({ transport: { ...next, type: 'masque' } } as Partial<Inbound>)}
+                    alpn={inbound.security.type === 'tls' ? (inbound.security as { alpn?: unknown }).alpn : undefined}
+                    onAlpnChange={inbound.security.type === 'tls' ? alpn => patchSecurity({ alpn }) : null}
+                    issues={streamFieldIssues}
+                    onInvalidInputsChange={setInvalidStreamInputs}
+                    t={t}
+                  />
+                )}
+                {inbound.transport?.type === 'xdrive' && (
+                  <XdriveSettingsFields
+                    key={`${dialogMode}:${selected}:${inbound.protocol}:xdrive`}
+                    value={inbound.transport}
+                    onChange={next => patchInbound({ transport: { ...next, type: 'xdrive' } } as Partial<Inbound>)}
+                    issues={streamFieldIssues}
+                    onInvalidInputsChange={setInvalidStreamInputs}
+                    t={t}
+                    shownElsewhere={['port', ...(inbound.protocol === 'vless' ? ['decryption', 'flow'] : []), ...(showTransportTypeSelect ? ['transport'] : [])]}
                   />
                 )}
 
@@ -3846,6 +3919,12 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                           field.onChange(v)
                           const baseArgs = kitArgsPreservingListenPort(inbound)
                           const security = v as 'none' | 'tls' | 'reality'
+                          let tr: Transport['type'] = inbound.transport?.type ?? 'tcp'
+                          if ((inbound.protocol === 'vless' || inbound.protocol === 'trojan') && security === 'reality' && !transportCompatibleWithReality(tr)) tr = 'tcp'
+                          // The kit throws for an imported masque or xdrive stream on a protocol that cannot carry it: build
+                          // the default transport and put the stored one back below, so its kit error shows under the select.
+                          const keepStoredTransport = !kitBuildsInboundTransport(inbound.protocol, tr)
+                          const rebuildTransport = keepStoredTransport ? undefined : tr
                           let next: Inbound
                           switch (inbound.protocol) {
                             case 'hysteria':
@@ -3860,47 +3939,46 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                               next = createDefaultInbound({
                                 protocol: 'vmess',
                                 ...baseArgs,
-                                transport: inbound.transport?.type ?? 'tcp',
+                                transport: rebuildTransport,
                                 security: security === 'reality' ? 'tls' : security,
                                 clientDefaults: 'empty',
                               })
                               break
-                            case 'vless': {
-                              let tr = inbound.transport?.type ?? 'tcp'
-                              if (security === 'reality' && !transportCompatibleWithReality(tr)) tr = 'tcp'
+                            case 'vless':
                               next = createDefaultInbound({
                                 protocol: 'vless',
                                 ...baseArgs,
-                                transport: tr,
+                                transport: rebuildTransport,
                                 security,
                                 clientDefaults: 'empty',
                               })
                               break
-                            }
-                            case 'trojan': {
-                              let tr = inbound.transport?.type ?? 'tcp'
-                              if (security === 'reality' && !transportCompatibleWithReality(tr)) tr = 'tcp'
+                            case 'trojan':
                               next = createDefaultInbound({
                                 protocol: 'trojan',
                                 ...baseArgs,
-                                transport: tr,
+                                transport: rebuildTransport,
                                 security,
                                 clientDefaults: 'empty',
                               })
                               break
-                            }
                             case 'shadowsocks':
                               next = createDefaultInbound({
                                 protocol: 'shadowsocks',
                                 ...baseArgs,
-                                transport: inbound.transport?.type ?? 'tcp',
+                                transport: rebuildTransport,
                                 security: security === 'reality' ? 'tls' : security,
                                 clientDefaults: 'empty',
                               })
                               break
+                            case 'masque':
+                              // Only an imported MASQUE inbound without TLS gets here (MASQUE offers TLS only).
+                              next = { ...inbound, security: masqueInboundTlsSecurity(inbound.security) } as Inbound
+                              break
                             default:
                               return
                           }
+                          if (keepStoredTransport) next = { ...next, transport: inbound.transport } as Inbound
                           if (inbound.protocol === 'vless' && next.protocol === 'vless') {
                             next = mergeVlessInboundStreamFields(inbound, next)
                           }
@@ -3967,12 +4045,14 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                     name="vlessFlow"
                     render={({ field }) => {
                       const flow = field.value ?? ''
+                      // No flow on xdrive; a stored one stays visible next to its error until Default is picked.
+                      const flowOptions = vlessFlowSelectValues(transportForVlessInboundFlow, flow, vlessInboundFlowsOk ? VLESS_INBOUND_FLOW_VALUES : [])
                       return (
                         <FormItem className="sm:col-span-2">
                           <FormLabel className="text-muted-foreground text-xs font-semibold tracking-wide">{t('coreEditor.field.flow', { defaultValue: 'Flow' })}</FormLabel>
                           <Select
                             dir="ltr"
-                            value={vlessInboundFlowsOk && (VLESS_INBOUND_FLOW_VALUES as readonly string[]).includes(flow) ? flow : '__none'}
+                            value={flowOptions.includes(flow) ? flow : '__none'}
                             onValueChange={v => {
                               const next = v === '__none' ? '' : v
                               field.onChange(next)
@@ -3987,16 +4067,14 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                             </FormControl>
                             <SelectContent>
                               <SelectItem value="__none">{t('coreEditor.inbound.vlessFlowDefault', { defaultValue: 'Default (standard TLS proxy)' })}</SelectItem>
-                              {vlessInboundFlowsOk
-                                ? VLESS_INBOUND_FLOW_VALUES.map(f => (
-                                    <SelectItem key={f} value={f}>
-                                      {f}
-                                    </SelectItem>
-                                  ))
-                                : null}
+                              {flowOptions.map(f => (
+                                <SelectItem key={f} value={f}>
+                                  {f}
+                                </SelectItem>
+                              ))}
                             </SelectContent>
                           </Select>
-                          {!vlessInboundFlowsOk ? (
+                          {vlessVisionFlowHintShown(transportForVlessInboundFlow, vlessInboundFlowsOk) ? (
                             <p className="text-muted-foreground text-xs">
                               {t('coreEditor.inbound.vlessFlowVisionRequiresTls', {
                                 defaultValue: 'XTLS Vision requires TCP with TLS/REALITY, xHTTP with TLS, or VLESS Encryption.',
@@ -4004,6 +4082,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                             </p>
                           ) : null}
                           <FormMessage />
+                          <FieldMessages issues={streamFieldIssues} field="flow" />
                         </FormItem>
                       )
                     }}
@@ -4217,6 +4296,8 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                         )}
 
                         {displaySecurityFieldOrderMain.map(jsonKey => {
+                          // The MASQUE box's HTTP version select owns the ALPN.
+                          if (inbound.protocol === 'masque' && jsonKey === 'alpn') return null
                           if (inbound.protocol === 'hysteria' && inboundSecurityType === 'tls' && (jsonKey === 'minVersion' || jsonKey === 'maxVersion')) {
                             return null
                           }
