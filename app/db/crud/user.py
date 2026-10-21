@@ -1787,7 +1787,9 @@ async def get_all_users_usages(
         node_id = -1
 
     dialect = db.bind.dialect.name
-    from_clause = NodeUserUsage.__table__.join(User, User.id == NodeUserUsage.user_id)
+    from_clause = NodeUserUsage.__table__
+    if _usage_history_needs_users_join(dialect, admins_filter, group_by_admin):
+        from_clause = from_clause.join(User, User.id == NodeUserUsage.user_id)
     if admins_filter:
         from_clause = from_clause.join(Admin, Admin.id == User.admin_id)
 
@@ -1841,6 +1843,12 @@ async def get_all_users_usages(
         stats[stats_key].append(UserUsageStat(**row_dict))
 
     return UserUsageStatsList(period=period, start=start, end=end, stats=stats)
+
+
+def _usage_history_needs_users_join(dialect: str, admins_filter: Sequence[str] | None, group_by_admin: bool) -> bool:
+    # PostgreSQL, MySQL and MariaDB delete a user's history rows through ON DELETE CASCADE, so joining every row to
+    # users only matters for admin scoping. SQLite does not enforce foreign keys and keeps orphan rows to filter out.
+    return bool(admins_filter) or group_by_admin or dialect == "sqlite"
 
 
 async def get_user_count_metric_stats(
