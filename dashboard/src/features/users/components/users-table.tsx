@@ -16,7 +16,6 @@ import {
   useGetUsers,
   UserResponse,
   UserStatus,
-  UsersResponse,
 } from '@/service/api'
 
 import { useAdmin } from '@/hooks/use-admin'
@@ -955,23 +954,8 @@ const UsersTable = memo(() => {
       clearSelectedUserTimeoutRef.current = null
     }
 
-    const cachedData = queryClient.getQueriesData<UsersResponse>({
-      queryKey: ['/api/users'],
-      exact: false,
-    })
-
-    let latestUser = user
-    for (const [, data] of cachedData) {
-      if (data?.users) {
-        const foundUser = data.users.find(u => u.id === user.id)
-        if (foundUser) {
-          latestUser = foundUser
-          break
-        }
-      }
-    }
-
-    setSelectedUser(latestUser)
+    // Edit the copy the clicked row shows: it comes from the query on screen, while other cached pages or searches can hold older copies.
+    setSelectedUser(user)
     setEditModalOpen(true)
   }
 
