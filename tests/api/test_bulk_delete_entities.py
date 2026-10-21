@@ -700,7 +700,45 @@ def test_bulk_delete_user_templates_removes_group_links_and_next_plan_refs(acces
         assert response.status_code == status.HTTP_200_OK
         assert response.json()["count"] == 1
         assert get_template_group_link_count(template["id"]) == 0
-        assert get_next_plan_state(user["id"]) == {"exists": True, "user_template_id": None}
+        # Same as the single delete: a next plan that renews from a deleted template is removed.
+        assert get_next_plan_state(user["id"]) is None
+    finally:
+        delete_user(access_token, user["username"])
+        delete_group_if_present(access_token, group["id"])
+        delete_core_if_present(access_token, core["id"])
+
+
+def test_bulk_delete_user_templates_does_not_turn_template_next_plan_unlimited(access_token):
+    core = create_core(access_token, name=unique_name("bulk_template_plan_core"))
+    group = create_group(access_token, name=unique_name("bulk_template_plan_group"))
+    template = create_user_template(
+        access_token,
+        name=unique_name("bulk_template_plan"),
+        group_ids=[group["id"]],
+        data_limit=5 * 1024**3,
+        expire_duration=30 * 86400,
+    )
+    # A template next plan keeps its limits in the template, not in the plan row.
+    user = create_user(
+        access_token,
+        group_ids=[group["id"]],
+        payload={"username": unique_name("bulk_template_plan_user"), "next_plan": {"user_template_id": template["id"]}},
+    )
+    try:
+        response = client.post(
+            "/api/user_templates/bulk/delete",
+            headers=auth_headers(access_token),
+            json={"ids": [template["id"]]},
+        )
+        assert response.status_code == status.HTTP_200_OK
+
+        response = client.get(f"/api/user/by-id/{user['id']}", headers=auth_headers(access_token))
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["next_plan"] is None
+
+        # Before the fix the plan survived without a template and renewed to unlimited traffic, no expiry.
+        response = client.post(f"/api/user/by-id/{user['id']}/active_next", headers=auth_headers(access_token))
+        assert response.status_code == status.HTTP_404_NOT_FOUND, response.json()
     finally:
         delete_user(access_token, user["username"])
         delete_group_if_present(access_token, group["id"])
