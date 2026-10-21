@@ -13,8 +13,7 @@ import { importRawToProfile, profileToPersistedConfig, validateProfileForPersist
 // Characterization tests: the adapter has no MASQUE or XDrive code; the kit models plus its source merge do the work.
 
 // WARP test keys (P-256), accepted by `xray run -test`.
-const PK =
-  'MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgzf80S8b2vAe0lzg4YtwU3do/BD5CUepL4DyHi3lQmG6hRANCAARlzud/JhCw2zA2UcfIOIXR3s7GxRhengEyoleDALR2v5oNgR02inyEqaD3EXuTdi6guo3hkjcWPkGCdqD53A7P'
+const PK = 'MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgzf80S8b2vAe0lzg4YtwU3do/BD5CUepL4DyHi3lQmG6hRANCAARlzud/JhCw2zA2UcfIOIXR3s7GxRhengEyoleDALR2v5oNgR02inyEqaD3EXuTdi6guo3hkjcWPkGCdqD53A7P'
 const PUB = 'MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEhSLswmwFGmTfktgncKzzcZdtIxbSuvrTXVphpb9vySWPrykRZzKhBLH2zgiOU4ARXW4tmLtZtZq/Ezr8onNQBw=='
 // A VLESS Encryption pair from `xray vlessenc` (X25519). Xray v26.10.17 runs xdrive only on VLESS with encryption.
 const VLESS_DECRYPTION = 'mlkem768x25519plus.native.600s.KGoJgsdMC5rWUr1fnyXxteBAgbbWIQ_YKVnFWpxXBWk'
@@ -124,11 +123,10 @@ test('both Google Drive spellings round trip unchanged and stay through edits', 
     const ib = inboundModel(profile, 1)
     const ob = outboundModel(profile, 2)
     const obStream = record(ob.streamSettings)
-    const edited = editOut(
-      editIn(profile, 1, { ...ib, transport: setRecordKey(record(ib.transport), 'remoteFolder', 'xd-2') }),
-      2,
-      { ...ob, streamSettings: { ...obStream, xdriveSettings: setRecordKey(record(obStream.xdriveSettings), 'remoteFolder', 'xd-out-2') } },
-    )
+    const edited = editOut(editIn(profile, 1, { ...ib, transport: setRecordKey(record(ib.transport), 'remoteFolder', 'xd-2') }), 2, {
+      ...ob,
+      streamSettings: { ...obStream, xdriveSettings: setRecordKey(record(obStream.xdriveSettings), 'remoteFolder', 'xd-out-2') },
+    })
     const inStream = record(compiledInbounds(edited)[1].streamSettings)
     const outStream = record(compiledOutbounds(edited)[2].streamSettings)
     assert.deepEqual(inStream.xdriveSettings, { ...XDRIVE_IN.streamSettings.xdriveSettings, service: inService, remoteFolder: 'xd-2' })
@@ -139,11 +137,7 @@ test('both Google Drive spellings round trip unchanged and stay through edits', 
 test('edited MASQUE inbound compiles what the form wrote', () => {
   const profile = imported()
   const ib = inboundModel(profile, 0)
-  const next = setRecordKey(
-    { ...ib, mtu: 1350, security: { ...record(ib.security), alpn: ['h2'] }, transport: { type: 'masque', path: '/m2', host: 'example.com' } },
-    'remoteDNS',
-    undefined,
-  )
+  const next = setRecordKey({ ...ib, mtu: 1350, security: { ...record(ib.security), alpn: ['h2'] }, transport: { type: 'masque', path: '/m2', host: 'example.com' } }, 'remoteDNS', undefined)
   assert.deepEqual(compiledInbounds(editIn(profile, 0, next))[0], {
     tag: 'MASQUE',
     port: 443,

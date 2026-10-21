@@ -140,10 +140,11 @@ test('outboundStreamSettingsForProtocolSwitch', () => {
   )
   assert.deepEqual(outboundStreamSettingsForProtocolSwitch({ network: 'tcp', security: 'reality', realitySettings: { serverName: 'a' } }, 'masque'), { network: 'masque', security: 'tls' })
   assert.deepEqual(outboundStreamSettingsForProtocolSwitch(undefined, 'masque'), { network: 'masque', security: 'tls' })
-  assert.deepEqual(
-    outboundStreamSettingsForProtocolSwitch({ network: 'masque', security: 'tls', tlsSettings: { serverName: 'a.com' }, masqueSettings: { path: '/p' }, sockopt }, 'vless'),
-    { security: 'tls', tlsSettings: { serverName: 'a.com' }, sockopt },
-  )
+  assert.deepEqual(outboundStreamSettingsForProtocolSwitch({ network: 'masque', security: 'tls', tlsSettings: { serverName: 'a.com' }, masqueSettings: { path: '/p' }, sockopt }, 'vless'), {
+    security: 'tls',
+    tlsSettings: { serverName: 'a.com' },
+    sockopt,
+  })
   assert.equal(outboundStreamSettingsForProtocolSwitch({ network: 'masque' }, 'vless'), undefined)
   const plain = { network: 'ws', security: 'none' }
   assert.equal(outboundStreamSettingsForProtocolSwitch(plain, 'vless'), plain)
