@@ -1,6 +1,8 @@
 import { validateInboundDraft, validateOutboundDraft } from '@pasarguard/xray-config-kit'
 import type { Inbound, Issue, Outbound } from '@pasarguard/xray-config-kit'
 
+import { outboundStreamTransportName } from '@/features/core-editor/kit/outbound-stream-dynamic'
+
 /** Result of parsing the text of a form input: `ok: false` keeps the text in the input and writes nothing. */
 export type ParsedInput<T> = { ok: true; value: T } | { ok: false }
 
@@ -179,13 +181,12 @@ export function streamFieldIssuesForInbound(inbound: Inbound): StreamFieldIssue[
 
 /**
  * `outboundStreamFieldIssues` of the kit draft check, for outbounds the MASQUE or XDrive forms own (the transport is
- * `streamSettings.method`, else `streamSettings.network`); `[]` for every other outbound, so an issue no form field
- * can fix never blocks Add/Modify.
+ * `outboundStreamTransportName`); `[]` for every other outbound, so an issue no form field can fix never blocks
+ * Add/Modify.
  */
 export function streamFieldIssuesForOutbound(outbound: Outbound): StreamFieldIssue[] {
   if (outbound.protocol === 'unmanaged') return []
   const stream = 'streamSettings' in outbound ? (outbound.streamSettings as Record<string, unknown> | undefined) : undefined
-  const transportName = typeof stream?.method === 'string' ? normalizedName(stream.method) : normalizedName(stream?.network)
-  if (!hasStreamForms(outbound.protocol, transportName)) return []
+  if (!hasStreamForms(outbound.protocol, outboundStreamTransportName(stream))) return []
   return outboundStreamFieldIssues(validateOutboundDraft(outbound))
 }
