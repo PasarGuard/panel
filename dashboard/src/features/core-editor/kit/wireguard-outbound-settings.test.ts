@@ -50,6 +50,20 @@ test('remoteDNS must be IP literals', () => {
   assert.deepEqual(invalidWireguardRemoteDns(null), [])
 })
 
+test('the local DNS sentinel is preserved for legacy and unknown targets only as a single entry', () => {
+  for (const version of [undefined, 'v26.9.9', '26.9.9', 'custom']) {
+    assert.deepEqual(invalidWireguardRemoteDns(['local'], version), [])
+    assert.deepEqual(wireguardOutboundSettingsIssues({ remoteDNS: ['local'], mtu: 1400 }, version), [])
+  }
+  for (const version of ['v26.9.30', '26.10.1', '27.1.1']) {
+    assert.deepEqual(invalidWireguardRemoteDns(['local'], version), ['"local"'])
+    assert.deepEqual(wireguardOutboundSettingsIssues({ remoteDNS: ['local'] }, version), [{ field: 'remoteDNS', values: ['"local"'], notList: false }])
+  }
+  assert.deepEqual(invalidWireguardRemoteDns(['local', '1.1.1.1'], 'v26.9.9'), ['"local"'])
+  assert.deepEqual(invalidWireguardRemoteDns([' local '], 'v26.9.9'), ['" local "'])
+  assert.deepEqual(invalidWireguardRemoteDns('local', 'v26.9.9'), ['"local"'])
+})
+
 test('outbound settings issues flag DNS hostnames, a non-list remoteDNS and bad reserved', () => {
   assert.deepEqual(wireguardOutboundSettingsIssues({ remoteDNS: ['dns.google'], reserved: [1, 2] }), [{ field: 'remoteDNS', values: ['"dns.google"'], notList: false }, { field: 'reserved' }])
   assert.deepEqual(wireguardOutboundSettingsIssues({ remoteDNS: ['1.1.1.1'], reserved: 'AQID' }), [])

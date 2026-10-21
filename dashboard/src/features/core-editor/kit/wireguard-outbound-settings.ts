@@ -55,15 +55,18 @@ export function applyWireguardOutboundReservedInput(settings: Record<string, unk
 const shownDnsValue = (item: unknown): string => JSON.stringify(item)
 
 /**
- * Returns the `remoteDNS` values Xray cannot load. Xray reads the field as `[]string` and passes each raw
- * entry to `netip.MustParseAddr`, which panics, so every list entry that is not a string IP literal is
- * returned (no trimming; empty strings count), and any other value that is set (for example a single
- * string) is returned whole. Every value is shown as JSON, so strings are quoted and a padded or empty
- * entry stays visible in the error message.
+ * Xray v26.9.9 accepts exactly `["local"]`; v26.9.30 removed that special case. With no known target
+ * version, preserve it so unrelated edits to legacy profiles remain possible. Other entries must be IP
+ * literals: Xray passes them untrimmed to `netip.MustParseAddr`. Show invalid values as JSON so padded
+ * and empty strings remain visible. A non-list value fails Xray's `[]string` decoding.
  */
-export function invalidWireguardRemoteDns(value: unknown): string[] {
+export function invalidWireguardRemoteDns(value: unknown, xrayVersion?: string): string[] {
   if (value === undefined || value === null) return []
   if (!Array.isArray(value)) return [shownDnsValue(value)]
+  const version = /^v?(\d+)\.(\d+)\.(\d+)$/.exec(xrayVersion ?? '')
+  const [major, minor, patch] = version ? version.slice(1).map(Number) : []
+  const localRemoved = version !== null && (major > 26 || (major === 26 && (minor > 9 || (minor === 9 && patch >= 30))))
+  if (value.length === 1 && value[0] === 'local' && !localRemoved) return []
   return value.filter(item => typeof item !== 'string' || !isIpAddress(item)).map(shownDnsValue)
 }
 
@@ -71,9 +74,9 @@ export function invalidWireguardRemoteDns(value: unknown): string[] {
 export type WireguardOutboundIssue = { field: 'remoteDNS'; values: string[]; notList: boolean } | { field: 'reserved' }
 
 /** Settings values that would make Xray fail to load or start the WireGuard outbound. */
-export function wireguardOutboundSettingsIssues(settings: Record<string, unknown>): WireguardOutboundIssue[] {
+export function wireguardOutboundSettingsIssues(settings: Record<string, unknown>, xrayVersion?: string): WireguardOutboundIssue[] {
   const issues: WireguardOutboundIssue[] = []
-  const dns = invalidWireguardRemoteDns(settings.remoteDNS)
+  const dns = invalidWireguardRemoteDns(settings.remoteDNS, xrayVersion)
   if (dns.length > 0) issues.push({ field: 'remoteDNS', values: dns, notList: !Array.isArray(settings.remoteDNS) })
   if (wireguardReservedBytes(settings.reserved) === null) issues.push({ field: 'reserved' })
   return issues

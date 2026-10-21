@@ -462,18 +462,32 @@ function keepWireguardInboundStreamOptions(config: Record<string, unknown>): Rec
  * source keys it does not know (`kernelMode`, `remoteDNS`, `DNS`) and merges the untagged `peers` by index, so keys,
  * peer fields and peers deleted in the WireGuard outbound editor would come back on save. A WireGuard outbound that
  * matches the model at its index (same protocol and tag) therefore takes the model settings as they are; for an
- * unedited import they equal the source settings. Raw `/settings` patches on a matched WireGuard row are therefore
- * superseded by the editor model (the panel never creates such patches).
+ * unedited import they equal the source settings. For raw settings patches, compile without the source merge so
+ * patches retain precedence and removed settings/peers cannot be restored from the source.
  */
 function applyWireguardOutboundSettingsFromProfile(profile: Profile, config: Record<string, unknown>): Record<string, unknown> {
   if (!Array.isArray(config.outbounds)) return config
 
   let changed = false
+  let patchedConfig: Record<string, unknown> | undefined
   const outbounds = config.outbounds.map((compiledOutbound, index) => {
     if (!isRecord(compiledOutbound) || compiledOutbound.protocol !== 'wireguard' || !isRecord(compiledOutbound.settings)) return compiledOutbound
     const profileOutbound = profile.outbounds?.[index]
     if (profileOutbound?.protocol !== 'wireguard' || profileOutbound.tag !== compiledOutbound.tag) return compiledOutbound
     changed = true
+    const settingsPath = `/outbounds/${index}/settings`
+    const hasSettingsPatch = profileOutbound.raw?.some(p => p.path === '/settings' || p.path.startsWith('/settings/'))
+      || profile.raw?.patches?.some(p => p.path === '/outbounds' || p.path === `/outbounds/${index}` || p.path === settingsPath || p.path.startsWith(`${settingsPath}/`))
+    if (hasSettingsPatch) {
+      patchedConfig ??= buildXrayConfig({ ...profile, raw: { ...profile.raw, source: undefined, sourceProfileFingerprint: undefined } }, { mode: 'permissive' }).config as Record<string, unknown>
+      const patchedOutbound = Array.isArray(patchedConfig.outbounds) ? asRecord(patchedConfig.outbounds[index]) : null
+      if (patchedOutbound) {
+        const next = { ...compiledOutbound }
+        if ('settings' in patchedOutbound) next.settings = JSON.parse(JSON.stringify(patchedOutbound.settings))
+        else delete next.settings
+        return next
+      }
+    }
     const settings = JSON.parse(JSON.stringify(asRecord(profileOutbound.settings) ?? {})) as Record<string, unknown>
     return { ...compiledOutbound, settings }
   })

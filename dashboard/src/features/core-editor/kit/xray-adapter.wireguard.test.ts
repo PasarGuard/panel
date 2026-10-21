@@ -2,8 +2,10 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
 import { createDefaultInboundForProtocol } from '@pasarguard/xray-config-kit'
-import type { Inbound, Profile } from '@pasarguard/xray-config-kit'
+import type { Inbound, Profile, RawPatch } from '@pasarguard/xray-config-kit'
 import { importRawToProfile, profileToPersistedConfig, validateProfileForPersist } from '@/features/core-editor/kit/xray-adapter'
+import { normalizeSettingsFromEditor } from '@/features/core-editor/kit/outbound-editor-json'
+import { wireguardOutboundSettingsIssues } from '@/features/core-editor/kit/wireguard-outbound-settings'
 
 const SK = 'yAnz5TF+lXXJte14tji3zlMNq+hd2rYUIgJBgB3fBmk='
 const PEER = { publicKey: 'bmXOC+F1FxEMF9dyiK2H5/1SUtzH0JuVo51h2wPfgyo=', endpoint: 'engage.cloudflareclient.com:2408', allowedIPs: ['0.0.0.0/0'] }
@@ -106,6 +108,39 @@ const PEER2 = { publicKey: 'HIgo9xNzJMWLKASShiTqIybxZ0U3wGLiUeJ1PKf8ykw=', endpo
 const editOutboundSettings = (profile: Profile, tag: string, settings: Record<string, unknown>): Profile => ({
   ...profile,
   outbounds: profile.outbounds?.map(o => (o.tag === tag ? ({ ...o, settings } as typeof o) : o)),
+})
+
+test('unrelated outbound edits preserve a legacy local DNS profile and allow Modify', () => {
+  const legacySettings = { secretKey: SK, address: ['172.16.0.2/32'], mtu: 1280, remoteDNS: ['local'], peers: [PEER] }
+  const { profile } = importRawToProfile({ inbounds: [VLESS], outbounds: [DIRECT, { ...WARP, settings: legacySettings }] })
+  const settings = normalizeSettingsFromEditor('wireguard', { ...legacySettings, mtu: 1400 })
+  assert.deepEqual(wireguardOutboundSettingsIssues(settings), [])
+  const next = editOutboundSettings(profile, 'WARP', settings)
+  assert.deepEqual(byTag(profileToPersistedConfig(next).outbounds, 'WARP').settings, settings)
+  assert.equal(validateProfileForPersist(next).ok, true)
+})
+
+test('matching WireGuard outbounds retain raw settings patches without restoring deleted settings or peers', () => {
+  const cases: { raw: RawPatch[]; settings: Record<string, unknown> | undefined }[] = [
+    { raw: [{ op: 'replace', path: '/settings', value: { mtu: 1400, peers: [PEER2] } }], settings: { mtu: 1400, peers: [PEER2] } },
+    { raw: [{ op: 'replace', path: '/settings/mtu', value: 1400 }, { op: 'add', path: '/settings/noKernelTun', value: true }], settings: { ...WARP.settings, mtu: 1400, noKernelTun: true } },
+    { raw: [{ op: 'remove', path: '/settings/remoteDNS' }, { op: 'remove', path: '/settings/peers/0' }], settings: { ...WARP.settings, remoteDNS: undefined, peers: [] } },
+    { raw: [{ op: 'remove', path: '/settings' }], settings: undefined },
+  ]
+  for (const { raw, settings } of cases) {
+    const { profile } = importRawToProfile(structuredClone(probe))
+    const next: Profile = { ...profile, outbounds: profile.outbounds?.map(o => (o.tag === 'WARP' ? ({ ...o, raw } as typeof o) : o)) }
+    const before = structuredClone(next)
+    const warp = byTag(profileToPersistedConfig(next).outbounds, 'WARP')
+    assert.deepEqual(warp.settings, settings === undefined ? undefined : JSON.parse(JSON.stringify(settings)), JSON.stringify(raw))
+    assert.deepEqual(next, before)
+  }
+})
+
+test('profile raw settings patches retain precedence on a matching WireGuard outbound', () => {
+  const { profile } = importRawToProfile(structuredClone(probe))
+  const next: Profile = { ...profile, raw: { ...profile.raw, patches: [{ op: 'replace', path: '/outbounds/1/settings', value: { mtu: 1400 } }] } }
+  assert.deepEqual(byTag(profileToPersistedConfig(next).outbounds, 'WARP').settings, { mtu: 1400 })
 })
 
 test('a compiled WireGuard outbound whose tag differs from the model at that index is left alone', () => {
