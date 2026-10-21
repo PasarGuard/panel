@@ -1,0 +1,106 @@
+import { createDefaultInboundForProtocol, XDRIVE_SERVICES } from '@pasarguard/xray-config-kit'
+import type { XDriveService } from '@pasarguard/xray-config-kit'
+
+import type { ParsedInput } from '@/features/core-editor/kit/stream-form-fields'
+
+/** The XDrive tuning numbers, in the kit's `XDRIVE_DEFAULTS` order. */
+export const XDRIVE_TUNING_FIELDS = ['segmentBytes', 'flushIntervalMs', 'pollIntervalMs', 'maxPollIntervalMs', 'sessionTtlSeconds', 'concurrency', 'eagerWindowMs', 'holeTimeoutMs'] as const
+
+export type XdriveTuningField = (typeof XDRIVE_TUNING_FIELDS)[number]
+
+/** Xray reads the XDrive numbers as uint32. */
+export const XDRIVE_UINT32_MAX = 4294967295
+
+/**
+ * The two spellings of the Google Drive service: Xray v26.10.17 renamed "Google Drive" to "google-drive" and still
+ * reads the old name, which is the only one older releases know. Typed against the kit's service list.
+ */
+const GOOGLE_DRIVE_SERVICES: ReadonlySet<unknown> = new Set<XDriveService>(['Google Drive', 'google-drive'])
+
+/** The spelling new configs get, like the kit default: XDrive peers on Xray 26.9.30 to 26.10.10 know only this one. */
+const NEW_GOOGLE_DRIVE_SERVICE: XDriveService = 'Google Drive'
+
+/** An XDrive number: empty means "not set" (Xray's default); otherwise a whole number 0 to 4294967295. */
+export function parseXdriveNumberInput(raw: string): ParsedInput<number | undefined> {
+  const text = raw.trim()
+  if (text === '') return { ok: true, value: undefined }
+  if (!/^\d+$/.test(text)) return { ok: false }
+  const value = Number(text)
+  return value <= XDRIVE_UINT32_MAX ? { ok: true, value } : { ok: false }
+}
+
+/** True for either spelling of the Google Drive service. */
+export function isXdriveGoogleDriveService(service: unknown): boolean {
+  return GOOGLE_DRIVE_SERVICES.has(service)
+}
+
+/**
+ * Service choices for the select: one Google Drive item in the stored spelling (else the spelling new configs get),
+ * and a stored service the kit does not know first, so the select stays controlled.
+ */
+export function xdriveServiceSelectOptions(storedService: unknown): string[] {
+  const googleDrive = isXdriveGoogleDriveService(storedService) ? (storedService as string) : NEW_GOOGLE_DRIVE_SERVICE
+  const options: string[] = []
+  for (const service of XDRIVE_SERVICES) {
+    const option = isXdriveGoogleDriveService(service) ? googleDrive : service
+    if (!options.includes(option)) options.push(option)
+  }
+  if (typeof storedService === 'string' && storedService !== '' && !(XDRIVE_SERVICES as readonly string[]).includes(storedService)) return [storedService, ...options]
+  return options
+}
+
+/** The three Google Drive secrets (ClientID, ClientSecret, RefreshToken): non-strings read as `''`, padded to three. */
+export function xdriveGoogleDriveSecrets(settings: Record<string, unknown>): [string, string, string] {
+  const list = Array.isArray(settings.secrets) ? settings.secrets : []
+  const entry = (index: number): string => {
+    const value: unknown = list[index]
+    return typeof value === 'string' ? value : ''
+  }
+  return [entry(0), entry(1), entry(2)]
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every(item => typeof item === 'string')
+}
+
+/**
+ * A copy of the XDrive settings for `service`, keeping `remoteFolder` and every other key, and dropping what the
+ * service does not read: `local` drops `secrets` and `template`; Google Drive drops `template` and keeps exactly three
+ * secrets; `template` keeps a `secrets` list only when it holds strings. Both Google Drive spellings are one service,
+ * so a stored spelling stays.
+ */
+export function applyXdriveService(settings: Record<string, unknown>, service: XDriveService): Record<string, unknown> {
+  const next = { ...settings }
+  if (isXdriveGoogleDriveService(service)) {
+    next.service = isXdriveGoogleDriveService(settings.service) ? settings.service : service
+    delete next.template
+    next.secrets = xdriveGoogleDriveSecrets(settings)
+    return next
+  }
+  next.service = service
+  if (service === 'local') {
+    delete next.secrets
+    delete next.template
+  } else if (!isStringArray(next.secrets)) {
+    delete next.secrets
+  }
+  return next
+}
+
+/**
+ * A copy with Google Drive secret `index` set to the trimmed `value`, and the list cut or padded to three entries.
+ * `undefined` (an empty input read by `parseTrimmedTextInput`) writes `''`.
+ */
+export function setXdriveGoogleDriveSecret(settings: Record<string, unknown>, index: 0 | 1 | 2, value: string | undefined): Record<string, unknown> {
+  const secrets = xdriveGoogleDriveSecrets(settings)
+  secrets[index] = (value ?? '').trim()
+  return { ...settings, secrets }
+}
+
+/** The kit's default XDrive transport without its `type` key (outbound `xdriveSettings`), a fresh object each call. */
+export function defaultXdriveSettings(): Record<string, unknown> {
+  const inbound = createDefaultInboundForProtocol({ protocol: 'vless', transport: 'xdrive', clientDefaults: 'empty' })
+  const settings: Record<string, unknown> = 'transport' in inbound ? { ...(inbound.transport as Record<string, unknown>) } : {}
+  delete settings.type
+  return settings
+}
