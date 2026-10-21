@@ -672,14 +672,13 @@ class HostManager:
         await self.get_hosts.cache.clear()
         clear_sub_config_cache()
 
-    @staticmethod
     async def _prepare_host_entry(
-        db: AsyncSession, host: BaseHost, inbounds_list: list[str]
+        self, db: AsyncSession, host: BaseHost, inbounds_list: list[str]
     ) -> tuple[int, SubscriptionInboundData] | None:
         if host.is_disabled or (host.inbound_tag not in inbounds_list):
             return None
 
-        # Handle downstream for xhttp
+        # Handle downstream for xhttp. Without a usable download host, clients use this host both ways.
         downstream_data = None
         if (
             host.transport_settings
@@ -687,10 +686,26 @@ class HostManager:
             and (ds_host := host.transport_settings.xhttp_settings.download_settings)
         ):
             downstream = await get_host_by_id(db, ds_host)
-            if downstream:
-                downstream_base = BaseHost.model_validate(downstream)
-                downstream_data: SubscriptionInboundData = await _prepare_subscription_inbound_data(downstream_base)
-        subscription_data = await _prepare_subscription_inbound_data(host, downstream_data)
+            if downstream is None or downstream.inbound_tag not in inbounds_list:
+                self._logger.warning(
+                    f'Download host "{ds_host}" of host "{host.id}" is missing or its inbound is gone, '
+                    "serving the host without it"
+                )
+            else:
+                try:
+                    downstream_base = BaseHost.model_validate(downstream)
+                    downstream_data = await _prepare_subscription_inbound_data(downstream_base)
+                except Exception as exc:
+                    self._logger.warning(
+                        f'Download host "{ds_host}" of host "{host.id}" is invalid, serving the host without it: {exc!r}'
+                    )
+
+        try:
+            subscription_data = await _prepare_subscription_inbound_data(host, downstream_data)
+        except Exception as exc:
+            # One broken host must not abort a full refresh or the startup rebuild
+            self._logger.error(f'Skipping host "{host.id}", its subscription settings cannot be prepared: {exc!r}')
+            return None
 
         # Return subscription data directly
         return host.id, subscription_data
