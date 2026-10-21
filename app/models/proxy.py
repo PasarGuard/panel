@@ -86,7 +86,13 @@ class WireGuardSettings(BaseModel):
         if value in (None, ""):
             return None
         if isinstance(value, str):
-            return value.strip()
+            value = value.strip()
+            # Canonical base64, so the panel and the node compare one key the same way. Stored rows load through
+            # this model too, so a value that is not a key is kept here; input models reject it (check_input_keys).
+            try:
+                return validate_wireguard_key(value, "public_key")
+            except ValueError:
+                return value
         return value
 
     @field_validator("peer_ips", mode="before")
@@ -99,6 +105,14 @@ class WireGuardSettings(BaseModel):
         if self.private_key and not self.public_key:
             self.public_key = get_wireguard_public_key(self.private_key)
         return self
+
+    def check_input_keys(self) -> None:
+        """Strict checks for keys sent by a client. A public key alone (no private key) stays allowed."""
+        if not self.public_key:
+            return
+        validate_wireguard_key(self.public_key, "wireguard public_key")
+        if self.private_key and self.public_key != get_wireguard_public_key(self.private_key):
+            raise ValueError("wireguard public_key does not match private_key")
 
 
 class ProxyTable(BaseModel):

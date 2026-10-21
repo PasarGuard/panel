@@ -74,6 +74,14 @@ class UserWithValidator(User):
             return value
         return fix_datetime_timezone(value)
 
+    @field_validator("proxy_settings")
+    @classmethod
+    def validate_wireguard_keys(cls, value: ProxyTable | None):
+        # Strict on input only: responses load stored rows through ProxyTable, which may hold keys saved before this.
+        if value is not None:
+            value.wireguard.check_input_keys()
+        return value
+
     @field_validator("next_plan")
     @classmethod
     def validate_next_plan(cls, value: NextPlanModel | None):
