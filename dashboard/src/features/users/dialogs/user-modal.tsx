@@ -44,7 +44,6 @@ import { normalizeDatePickerValueForSubmit, serializeDatePickerValue, toDatePick
 import { parseDateInput } from '@/utils/dateTimeParsing'
 import { bytesToFormGigabytes, formatBytes, gbToBytes } from '@/utils/formatByte'
 import { invalidateUserMetricsQueries, upsertUserInUsersCache } from '@/utils/usersCache'
-import { generateWireGuardKeyPair, getWireGuardPublicKey } from '@/utils/wireguard'
 import { hasPermission, hasScopeAll } from '@/utils/rbac'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -1221,7 +1220,6 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
   }
 
   const generateAllProxySettings = React.useCallback(() => {
-    const keyPair = generateWireGuardKeyPair()
     const newSettings = {
       vmess: { id: uuidv4() },
       vless: { id: uuidv4() },
@@ -1229,34 +1227,13 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
       shadowsocks: { password: generatePassword() },
       hysteria: { auth: uuidv4() },
       masque: { password: generatePassword() },
-      wireguard: {
-        private_key: keyPair.privateKey,
-        public_key: keyPair.publicKey,
-      },
+      // Keep backend-managed peer keys when regenerating the other credentials.
+      wireguard: form.getValues('proxy_settings.wireguard'),
     }
     form.setValue('proxy_settings', newSettings as any, { shouldDirty: true, shouldValidate: true })
     handleFieldChange('proxy_settings', newSettings)
     toast.success(t('userDialog.proxySettings.allGenerated', { defaultValue: 'All proxy credentials regenerated' }))
   }, [form, handleFieldChange, t])
-
-  const generateWireGuardProxySettings = React.useCallback(() => {
-    const keyPair = generateWireGuardKeyPair()
-    form.setValue('proxy_settings.wireguard.private_key', keyPair.privateKey, { shouldDirty: true, shouldValidate: true })
-    form.setValue('proxy_settings.wireguard.public_key', keyPair.publicKey, { shouldDirty: true, shouldValidate: true })
-    form.trigger(['proxy_settings.wireguard.private_key', 'proxy_settings.wireguard.public_key'])
-    handleFieldChange('proxy_settings.wireguard.private_key', keyPair.privateKey)
-    handleFieldChange('proxy_settings.wireguard.public_key', keyPair.publicKey)
-    toast.success(t('userDialog.proxySettings.wireguardGenerated', { defaultValue: 'WireGuard keypair generated' }))
-  }, [form, handleFieldChange, t])
-
-  const syncWireGuardPublicKey = React.useCallback(
-    (privateKey: string) => {
-      const publicKey = getWireGuardPublicKey(privateKey)
-      form.setValue('proxy_settings.wireguard.public_key', publicKey, { shouldDirty: true, shouldValidate: true })
-      handleFieldChange('proxy_settings.wireguard.public_key', publicKey)
-    },
-    [form, handleFieldChange],
-  )
 
   const hasMeaningfulProxyValue = React.useCallback((value: unknown): boolean => {
     if (Array.isArray(value)) {
@@ -1323,7 +1300,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
     [hasMeaningfulProxyValue],
   )
 
-  // Regenerate all proxy credentials (VMess, VLESS, Trojan, Shadowsocks, Hysteria, MASQUE, WireGuard)
+  // Regenerate editable proxy credentials; WireGuard peers are managed by the backend.
   const GenerateProxySettingsButton = () => (
     <Button size="icon" type="button" variant="outline" onClick={generateAllProxySettings} className="flex items-center gap-1.5 border-0 text-xs">
       <RefreshCcw className="h-3 w-3" />
@@ -2105,59 +2082,6 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
                                       <RefreshCcw className="h-3 w-3" />
                                     </Button>
                                   </div>
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                          <FormField
-                            control={form.control}
-                            name="proxy_settings.wireguard.private_key"
-                            render={({ field }) => (
-                              <FormItem className="mb-2">
-                                <FormLabel>{t('userDialog.proxySettings.wireguardPrivateKey', { defaultValue: 'WireGuard Private key' })}</FormLabel>
-                                <FormControl>
-                                  <div dir="ltr" className={`flex items-center gap-2 ${dir === 'rtl' ? 'flex-row-reverse' : 'flex-row'}`}>
-                                    <Input
-                                      {...field}
-                                      value={field.value ?? ''}
-                                      placeholder={t('userDialog.proxySettings.wireguardPrivateKey', { defaultValue: 'WireGuard Private key' })}
-                                      onChange={e => {
-                                        field.onChange(e)
-                                        syncWireGuardPublicKey(e.target.value)
-                                        form.trigger('proxy_settings.wireguard.private_key')
-                                        handleFieldChange('proxy_settings.wireguard.private_key', e.target.value)
-                                      }}
-                                    />
-                                    <Button
-                                      size="icon"
-                                      type="button"
-                                      variant="ghost"
-                                      onClick={generateWireGuardProxySettings}
-                                      title={t('userDialog.proxySettings.generateWireGuardKeyPair', { defaultValue: 'Generate WireGuard keypair' })}
-                                    >
-                                      <RefreshCcw className="h-3 w-3" />
-                                    </Button>
-                                  </div>
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                          <FormField
-                            control={form.control}
-                            name="proxy_settings.wireguard.public_key"
-                            render={({ field }) => (
-                              <FormItem className="mb-2">
-                                <FormLabel>{t('userDialog.proxySettings.wireguardPublicKey', { defaultValue: 'WireGuard Public key' })}</FormLabel>
-                                <FormControl>
-                                  <Input
-                                    dir="ltr"
-                                    {...field}
-                                    value={field.value ?? ''}
-                                    placeholder={t('userDialog.proxySettings.wireguardPublicKey', { defaultValue: 'WireGuard Public key' })}
-                                    disabled
-                                  />
                                 </FormControl>
                                 <FormMessage />
                               </FormItem>
