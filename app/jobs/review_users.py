@@ -117,15 +117,25 @@ async def on_hold_to_active_users_job():
         if on_hold_users := await get_on_hold_to_active_users(db):
             settings = await general_settings()
 
-            match settings.on_hold_timeout_action:
-                case OnHoldTimeoutAction.disable:
-                    updated_users = await update_users_status(db, on_hold_users, UserStatus.disabled)
-                    await apply_status_changes(db, updated_users, UserStatus.disabled)
-                case OnHoldTimeoutAction.delete:
-                    await remove_on_hold_users(db, on_hold_users)
-                case _:
-                    updated_users = await start_users_expire(db, on_hold_users)
-                    await apply_status_changes(db, updated_users, UserStatus.active)
+            # The selector returns users that came online and users whose on-hold timeout passed with no
+            # traffic (online_at unset). The timeout action is only for the latter: a user who started
+            # using the service is always activated.
+            timed_out_users: list[User] = []
+            if settings.on_hold_timeout_action != OnHoldTimeoutAction.activate:
+                timed_out_users = [user for user in on_hold_users if user.online_at is None]
+                on_hold_users = [user for user in on_hold_users if user.online_at is not None]
+
+            if on_hold_users:
+                updated_users = await start_users_expire(db, on_hold_users)
+                await apply_status_changes(db, updated_users, UserStatus.active)
+
+            if timed_out_users:
+                match settings.on_hold_timeout_action:
+                    case OnHoldTimeoutAction.disable:
+                        updated_users = await update_users_status(db, timed_out_users, UserStatus.disabled)
+                        await apply_status_changes(db, updated_users, UserStatus.disabled)
+                    case OnHoldTimeoutAction.delete:
+                        await remove_on_hold_users(db, timed_out_users)
 
 
 async def usage_percent_notification_job():

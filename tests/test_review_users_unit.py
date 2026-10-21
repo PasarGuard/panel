@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime as dt, timedelta as td
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from sqlalchemy import event, inspect as sa_inspect
+from sqlalchemy import event, inspect as sa_inspect, select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
 
@@ -21,7 +22,7 @@ from app.db.crud.user import (
 )
 from app.db.models import Admin, AdminRole, Group, User, UserStatus, UserUsageResetLogs, users_groups_association
 from app.jobs import review_users
-from app.models.settings import HWIDSettings
+from app.models.settings import HWIDSettings, OnHoldTimeoutAction
 from app.models.user import UserNotificationResponse
 from app.operation import OperatorType
 from app.operation.subscription import SubscriptionOperation
@@ -408,3 +409,72 @@ async def test_existing_hwid_registers_when_stale():
         await op.validate_and_register_hwid(AsyncMock(), 1, None, None, "device-1", "iOS", "16", "iPhone")
 
     register.assert_awaited_once()
+
+
+async def _seed_on_hold_pair(db_session) -> tuple[int, int]:
+    """One on-hold user that connected (timeout still days away) and one whose timeout passed unused."""
+    now = dt.now(UTC)
+    connected = User(
+        username="hold-connected",
+        status=UserStatus.on_hold,
+        on_hold_expire_duration=30 * 86400,
+        on_hold_timeout=now + td(days=7),
+    )
+    timed_out = User(
+        username="hold-timed-out",
+        status=UserStatus.on_hold,
+        on_hold_expire_duration=30 * 86400,
+        on_hold_timeout=now - td(minutes=1),
+    )
+    db_session.add_all([connected, timed_out])
+    await db_session.flush()
+    connected.edit_at = now - td(minutes=10)
+    connected.online_at = now - td(minutes=1)
+    await db_session.commit()
+    return connected.id, timed_out.id
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("action", [OnHoldTimeoutAction.disable, OnHoldTimeoutAction.delete])
+async def test_on_hold_timeout_action_only_hits_users_whose_timeout_expired(db_session, action):
+    connected_id, timed_out_id = await _seed_on_hold_pair(db_session)
+
+    @asynccontextmanager
+    async def _get_db():
+        yield db_session
+
+    async def _validate(db_user, include_subscription_url=True):
+        return SimpleNamespace(id=db_user.id, username=db_user.username)
+
+    with (
+        patch.object(review_users, "GetDB", _get_db),
+        patch.object(
+            review_users,
+            "general_settings",
+            AsyncMock(return_value=SimpleNamespace(on_hold_timeout_action=action)),
+        ),
+        patch.object(review_users, "sync_users", AsyncMock()),
+        patch.object(review_users, "sync_remove_user_awaited", AsyncMock()) as sync_remove,
+        # The post-commit removal re-queue (if present) would serialize the stub users below.
+        patch.object(review_users, "sync_remove_user", AsyncMock(), create=True),
+        patch.object(review_users.user_operator, "validate_user", side_effect=_validate),
+        patch("app.jobs.review_users.notification.user_status_change", AsyncMock()),
+        patch("app.jobs.review_users.notification.remove_user", AsyncMock()),
+    ):
+        await review_users.on_hold_to_active_users_job()
+
+    db_session.expire_all()
+    rows = {user.id: user for user in (await db_session.execute(select(User))).scalars()}
+
+    # A user who started using the service is activated, whatever the timeout action is.
+    assert connected_id in rows
+    assert rows[connected_id].status == UserStatus.active
+    assert rows[connected_id].expire is not None
+    assert rows[connected_id].on_hold_timeout is None
+
+    if action == OnHoldTimeoutAction.delete:
+        assert timed_out_id not in rows
+        assert [call.args[0].id for call in sync_remove.await_args_list] == [timed_out_id]
+    else:
+        assert rows[timed_out_id].status == UserStatus.disabled
+        sync_remove.assert_not_called()
