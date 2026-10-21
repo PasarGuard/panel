@@ -116,6 +116,27 @@ test('inboundStreamFieldIssues maps MASQUE pool, MTU, DNS, path and header issue
   )
 })
 
+test('inboundStreamFieldIssues keeps schema errors on the MASQUE inbound mtu, address and remoteDNS', () => {
+  // A schema failure hides the kit's semantic checks, so these errors are the only ones the dialog gets.
+  const base = { ...createDefaultInboundForProtocol({ protocol: 'masque', clientDefaults: 'empty' }), tag: 'MQ', port: 443 }
+  for (const [patch, field] of [
+    [{ mtu: '1400x' }, 'mtu'],
+    [{ address: '10.14.0.1/16' }, 'address'],
+    [{ address: [5] }, 'address'],
+    [{ remoteDNS: [1] }, 'remoteDNS'],
+  ] as const) {
+    const issues = streamFieldIssuesForInbound({ ...base, ...patch } as unknown as Inbound)
+    assert.deepEqual(
+      issues.map(i => [i.field, i.severity, i.code]),
+      [[field, 'error', 'XCK_SCHEMA_INVALID_PROFILE']],
+      JSON.stringify(patch),
+    )
+    assert.equal(blockingStreamFieldIssues(issues).length, 1, JSON.stringify(patch))
+  }
+  // Other top-level schema errors stay with the generic form.
+  assert.deepEqual(inboundStreamFieldIssues(validateInboundDraft({ ...base, tag: 5 } as unknown as Inbound)), [])
+})
+
 test('inboundStreamFieldIssues maps XDrive issues and drops the missing-clients warning', () => {
   const xd = XDRIVE_IN
   assert.deepEqual(

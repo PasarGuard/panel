@@ -64,7 +64,7 @@ export function syncTypedText<T>(text: string, stored: T, parse: (raw: string) =
   return format(stored)
 }
 
-/** The string entries of a list, trimmed, without blanks; anything but an array gives `[]`. */
+/** The entries of a list as trimmed strings (non-strings are stringified), without blanks; anything but an array gives `[]`. */
 export function cleanStringList(value: unknown): string[] {
   if (!Array.isArray(value)) return []
   return value.map(item => String(item).trim()).filter(item => item !== '')
@@ -84,6 +84,8 @@ export type StreamFieldIssue = { field: string; code: string; severity: 'error' 
 const STREAM_ISSUE_CODE_PREFIXES = ['XCK_SEMANTIC_MASQUE_', 'XCK_SEMANTIC_XDRIVE_']
 const SCHEMA_ISSUE_CODE = 'XCK_SCHEMA_INVALID_PROFILE'
 const TRANSPORT_NAME_KEYS = new Set(['type', 'network', 'method'])
+/** MASQUE inbound settings the kit keeps at the top level of the inbound model. */
+const MASQUE_INBOUND_TOP_LEVEL_FIELDS = new Set(['mtu', 'address', 'remoteDNS'])
 
 /** JSON pointer segments, decoded (`~1` is `/`, `~0` is `~`). */
 function pointerSegments(path: string): string[] {
@@ -114,13 +116,19 @@ function isStreamIssue(issue: Issue, schemaPathPrefix: string): boolean {
   return issue.code === SCHEMA_ISSUE_CODE && issue.path.startsWith(schemaPathPrefix)
 }
 
+/** A schema issue on the MASQUE inbound's top-level `mtu`, `address` or `remoteDNS` (it hides the kit's semantic checks). */
+function isMasqueInboundSchemaIssue(issue: Issue): boolean {
+  return issue.code === SCHEMA_ISSUE_CODE && MASQUE_INBOUND_TOP_LEVEL_FIELDS.has(pointerSegments(issue.path)[0] ?? '')
+}
+
 /**
  * Kit issues of an inbound draft (`validateInboundDraft`) for the MASQUE and XDrive forms: MASQUE/XDrive semantic
- * issues and schema issues under `/transport/`, each placed on its field. Other issues are dropped.
+ * issues, schema issues under `/transport/` and schema issues on the top-level `mtu`, `address` and `remoteDNS`,
+ * each placed on its field. Other issues are dropped.
  */
 export function inboundStreamFieldIssues(issues: readonly Issue[]): StreamFieldIssue[] {
   return issues
-    .filter(issue => isStreamIssue(issue, '/transport/'))
+    .filter(issue => isStreamIssue(issue, '/transport/') || isMasqueInboundSchemaIssue(issue))
     .map(issue => {
       const segments = pointerSegments(issue.path)
       return toStreamFieldIssue(issue, fieldFromSegments(segments[0] === 'transport' ? segments.slice(1) : segments))

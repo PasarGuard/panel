@@ -30,6 +30,8 @@ test('masqueHttpMode mirrors Xray serverVersions and usesHTTP2', () => {
     [['h3', 'h2'], 'both'],
     [['http/1.1'], 'h3'],
     ['h3,h2', 'both'],
+    // Xray splits an ALPN string on "," without trimming: " h2" is not h2.
+    ['h3, h2', 'h3'],
   ] as const)
     assert.equal(masqueHttpMode(alpn, 'server'), mode, JSON.stringify(alpn))
   for (const [alpn, mode] of [
@@ -37,6 +39,8 @@ test('masqueHttpMode mirrors Xray serverVersions and usesHTTP2', () => {
     [['h2'], 'h2'],
     [['h3', 'h2'], 'h3'],
     [['h2', 'http/1.1'], 'h2'],
+    ['h2,h3', 'h3'],
+    ['h2, h3', 'h2'],
   ] as const)
     assert.equal(masqueHttpMode(alpn, 'client'), mode, JSON.stringify(alpn))
   assert.deepEqual(masqueAlpnForMode('both'), ['h3', 'h2'])

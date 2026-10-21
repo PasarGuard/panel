@@ -1,9 +1,9 @@
 import type { Inbound, InboundFormCapabilities, Transport } from '@pasarguard/xray-config-kit'
 
 /**
- * Transport types the kit models. Mainly decides which stored transport stays selectable when the kit's
- * per-protocol list (`transportsByProtocol`) leaves it out; `canonicalizeInboundTransportType` also accepts only
- * these names. The kit builds `masque` only for the masque protocol and `xdrive` only for VLESS. The parity
+ * Stream transport types the kit models (hysteria is fixed by its protocol). Mainly decides which stored transport
+ * stays selectable when the kit's per-protocol list (`transportsByProtocol`) leaves it out;
+ * `canonicalizeInboundTransportType` also accepts only these names. The kit builds `masque` only for the masque protocol and `xdrive` only for VLESS. The parity
  * manifest names `websocket`, `mkcp`, `raw` and `splithttp` are aliases, normalized below.
  */
 const KIT_MATERIAL_STREAM_TYPES = new Set<Transport['type']>(['tcp', 'grpc', 'xhttp', 'ws', 'httpupgrade', 'kcp', 'xdrive', 'masque'])

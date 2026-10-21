@@ -48,9 +48,10 @@ export function parseMasqueMtuInput(raw: string): ParsedInput<number | undefined
 
 export type MasqueHttpMode = 'both' | 'h3' | 'h2'
 
+/** ALPN entries as Xray reads them: its StringList splits a string on "," without trimming, so "h3, h2" is h3 only. */
 function alpnList(alpn: unknown): string[] {
   if (Array.isArray(alpn)) return alpn.map(item => String(item))
-  if (typeof alpn === 'string') return alpn.split(',').map(item => item.trim())
+  if (typeof alpn === 'string') return alpn.split(',')
   return []
 }
 
