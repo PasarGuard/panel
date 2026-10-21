@@ -1066,6 +1066,26 @@ async def test_record_node_usages_returns_when_totals_zero(monkeypatch: pytest.M
         assert node_usage_rows.first() is None
 
 
+@pytest.mark.asyncio
+async def test_record_node_stats_batched_logs_write_errors(monkeypatch: pytest.MonkeyPatch, caplog):
+    written_nodes = []
+
+    async def fake_safe_execute(stmt, params=None, max_retries=5):
+        if params[0]["node_id"] == 2:
+            raise OperationalError("INSERT INTO node_usages", {}, Exception("database is locked"))
+        written_nodes.append(params[0]["node_id"])
+
+    monkeypatch.setattr(record_usages, "get_dialect", AsyncMock(return_value="postgresql"))
+    monkeypatch.setattr(record_usages, "safe_execute", fake_safe_execute)
+    caplog.set_level(logging.ERROR)
+
+    await record_usages.record_node_stats_batched({1: [{"up": 10, "down": 4}], 2: [{"up": 1, "down": 1}]})
+
+    assert written_nodes == [1]
+    assert "Failed to record node usage history for node 2" in caplog.text
+    assert "database is locked" in caplog.text
+
+
 class _DeadlockOrig(Exception):
     def __init__(self):
         super().__init__(1213, "Deadlock found when trying to get lock; try restarting transaction")

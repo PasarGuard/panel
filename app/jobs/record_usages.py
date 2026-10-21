@@ -725,7 +725,10 @@ async def record_node_stats_batched(all_node_params: dict):
     # Execute all node stats with limited concurrency
     tasks = [_record_single_node(node_id, params) for node_id, params in all_node_params.items()]
     if tasks:
-        await asyncio.gather(*tasks, return_exceptions=True)
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        for node_id, result in zip(all_node_params, results):
+            if isinstance(result, Exception):
+                logger.error("Failed to record node usage history for node %s: %s", node_id, result)
 
 
 def _process_users_stats_response(stats_response):
