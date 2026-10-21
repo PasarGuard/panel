@@ -6,8 +6,9 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from sqlalchemy import event, func, select
+from sqlalchemy import DateTime, event, func, literal, select
 
+from app.db.compiles_types import DateDiff
 from app.db.crud.user import (
     bulk_reset_user_data_usage,
     get_user_by_id,
@@ -296,3 +297,22 @@ async def test_bulk_reset_statement_count_does_not_grow_with_users(session_facto
     few = await statements_for(3, "few")
     many = await statements_for(40, "many")
     assert many == few, f"{few} statements for 3 users, {many} for 40"
+
+
+@pytest.mark.asyncio
+async def test_reset_cycle_length_is_elapsed_time_on_every_database(session_factory):  # noqa: F811
+    def at(*args):
+        return literal(datetime(*args), DateTime())
+
+    async with session_factory() as db:
+        across_midnight, within_one_date = (
+            await db.execute(
+                select(
+                    DateDiff(at(2026, 10, 22, 0, 0, 5), at(2026, 10, 21, 23, 59, 55)),
+                    DateDiff(at(2026, 10, 22, 23, 59, 0), at(2026, 10, 22, 0, 1, 0)),
+                )
+            )
+        ).one()
+    # A daily cycle is due after 1 day: 10 seconds across midnight are not a day, 23h58m on one date almost are
+    assert float(across_midnight) < 0.001
+    assert 0.99 < float(within_one_date) < 1
