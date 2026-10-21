@@ -116,3 +116,13 @@ export function withXdriveInboundFlowIssue(issues: readonly StreamFieldIssue[], 
   if (typeof flow !== 'string' || flow.trim() === '' || issues.some(issue => issue.field === 'flow')) return [...issues]
   return [...issues, { field: 'flow', code: 'XCK_SEMANTIC_XDRIVE_VLESS_FLOW', severity: 'error', message }]
 }
+
+/**
+ * Flow values the VLESS inbound Flow select offers besides Default. On the xdrive transport none (Xray v26.10.17
+ * refuses flow there), except a stored non-blank flow, which stays selectable so the select shows it next to its
+ * error until Default is picked. On any other transport, `allowed` (what the transport and security permit).
+ */
+export function vlessInboundFlowSelectValues(transport: string, storedFlow: string, allowed: readonly string[]): string[] {
+  if (transport.trim().toLowerCase() !== 'xdrive') return [...allowed]
+  return storedFlow.trim() === '' ? [] : [storedFlow]
+}

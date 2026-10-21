@@ -50,7 +50,8 @@ test('dedicated transport forms', () => {
   for (const type of ['tcp', 'ws', undefined]) assert.equal(inboundTransportHasDedicatedForm(type), false, String(type))
 })
 
-test('kitBuildsInboundTransport says which stored transports the kit can rebuild per protocol', () => {
+test('kitBuildsInboundTransport says which stored transports the kit can rebuild for vmess, vless, trojan and shadowsocks', () => {
+  // The security handler rebuilds only these protocols; hysteria and masque keep their fixed transport.
   for (const protocol of ['vmess', 'vless', 'trojan', 'shadowsocks'] as const) {
     for (const transport of [...BASE, 'xdrive', 'masque'] as const) {
       let built = true
@@ -65,6 +66,4 @@ test('kitBuildsInboundTransport says which stored transports the kit can rebuild
   assert.equal(kitBuildsInboundTransport('vless', 'xdrive'), true)
   assert.equal(kitBuildsInboundTransport('vmess', 'xdrive'), false)
   assert.equal(kitBuildsInboundTransport('vless', 'masque'), false)
-  assert.equal(kitBuildsInboundTransport('masque', 'masque'), true)
-  assert.equal(kitBuildsInboundTransport('hysteria', 'hysteria'), true)
 })

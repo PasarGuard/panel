@@ -84,9 +84,11 @@ export function inboundTransportHasDedicatedForm(type: string | undefined): bool
 }
 
 /**
- * False for a stored transport the kit's `createDefaultInbound` refuses for the protocol (it throws): masque outside the
- * masque protocol and xdrive outside VLESS, as imported configs can hold. Rebuilding such an inbound passes no
- * transport (the protocol's default) and keeps the stored one, whose kit error the form shows.
+ * For the vmess, vless, trojan and shadowsocks security handler, which rebuilds the inbound with `createDefaultInbound`:
+ * false for a stored transport the kit refuses for the protocol (it throws), that is masque on any of them and xdrive
+ * outside VLESS, as imported configs can hold. Rebuilding such an inbound passes no transport (the protocol's default)
+ * and keeps the stored one, whose kit error the form shows. Other protocols (hysteria, masque) keep their fixed
+ * transport and never rebuild it, so their answer is not used.
  */
 export function kitBuildsInboundTransport(protocol: Inbound['protocol'], transport: string): boolean {
   if (transport === 'masque') return protocol === 'masque'
