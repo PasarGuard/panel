@@ -9,6 +9,7 @@ import {
   getOutboundStreamSecuritySelectValues,
   outboundMuxForProtocolSwitch,
   outboundStreamNetworkCompatibleWithReality,
+  outboundStreamSectionNetwork,
   outboundStreamSettingsForProtocolSwitch,
   outboundStreamTransportName,
   outboundWithStreamNetwork,
@@ -161,9 +162,18 @@ test('outboundStreamSettingsForProtocolSwitch edge cases', () => {
   assert.deepEqual(outboundStreamSettingsForProtocolSwitch({ network: 'ws', masqueSettings: { path: '/p' }, wsSettings: { path: '/w' } }, 'trojan'), { wsSettings: { path: '/w' } })
 })
 
-test('MASQUE outbounds never carry mux', () => {
+test('switching to MASQUE drops mux (Xray v26.10.10 and older refuse it there)', () => {
   const mux = { enabled: true, concurrency: 8 }
   assert.equal(outboundMuxForProtocolSwitch(mux, 'masque'), undefined)
   assert.equal(outboundMuxForProtocolSwitch(mux, 'vless'), mux)
   assert.equal(outboundMuxForProtocolSwitch(undefined, 'vmess'), undefined)
+})
+
+test('a stored raw network uses the TCP settings blocks; other names stay as stored', () => {
+  assert.equal(outboundStreamSectionNetwork('raw'), 'tcp')
+  assert.equal(outboundStreamSectionNetwork('tcp'), 'tcp')
+  for (const network of ['websocket', 'mkcp', 'splithttp', 'xdrive', 'masque', 'ws']) assert.equal(outboundStreamSectionNetwork(network), network)
+  // raw is offered under REALITY like tcp, and stays selectable as stored.
+  assert.equal(outboundStreamNetworkCompatibleWithReality('raw'), true)
+  assert.deepEqual(getOutboundStreamNetworkSelectValues('reality', 'raw', 'vless'), ['raw', 'tcp', 'grpc', 'xhttp', 'splithttp'])
 })

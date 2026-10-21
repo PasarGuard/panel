@@ -76,6 +76,14 @@ export function getOutboundStreamNetworkSelectValues(streamSecurity: string, cur
   return base.includes(cur) ? base : [cur, ...base]
 }
 
+/**
+ * The network whose settings blocks the outbound editor shows for a network select value: Xray's `raw` is its current
+ * name for `tcp`, so a stored `raw` keeps the TCP blocks. Every other name is used as stored.
+ */
+export function outboundStreamSectionNetwork(network: string): string {
+  return network === 'raw' ? 'tcp' : network
+}
+
 /** Security choices for an outbound stream: TLS only for MASQUE; a stored value outside the list stays first. */
 export function getOutboundStreamSecuritySelectValues(protocol: string, currentSecurity: OutboundStreamSecurity): OutboundStreamSecurity[] {
   const base: OutboundStreamSecurity[] = protocol === 'masque' ? ['tls'] : ['none', 'tls', 'reality']
@@ -154,7 +162,11 @@ export function outboundStreamSettingsForProtocolSwitch(stream: Record<string, u
   return Object.keys(next).length > 0 ? next : undefined
 }
 
-/** The mux an outbound keeps when switching to `nextProtocol`: none for MASQUE (Xray rejects mux there), else `mux`. */
+/**
+ * The mux an outbound keeps when switching to `nextProtocol`: none for MASQUE, else `mux`. Dropping it is a safe
+ * default, since Xray v26.10.10 and older refuse mux on MASQUE outbounds; v26.10.17 accepts it, so a MASQUE outbound
+ * that already has mux keeps it and gets the kit's warning.
+ */
 export function outboundMuxForProtocolSwitch(mux: unknown, nextProtocol: string): unknown {
   return nextProtocol === 'masque' ? undefined : mux
 }

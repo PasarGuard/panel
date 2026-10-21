@@ -11,6 +11,8 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { isBooleanParityField, XrayParityFormControl } from '@/features/core-editor/components/shared/xray-parity-form-control'
 import { OutboundSpecialProtocolSettings } from '@/features/core-editor/components/xray/outbound-special-protocol-settings'
+import { FieldMessages } from '@/features/core-editor/components/xray/stream-form-inputs'
+import { XdriveSettingsFields } from '@/features/core-editor/components/xray/xdrive-settings-fields'
 import { TcpHeaderObfuscationForm } from '@/features/core-editor/components/shared/tcp-header-obfuscation-form'
 import { CoreEditorDataTable } from '@/features/core-editor/components/shared/core-editor-data-table'
 import { CoreEditorFormDialog } from '@/features/core-editor/components/shared/core-editor-form-dialog'
@@ -22,14 +24,22 @@ import { inferParityFieldMode, outboundScalarParityFieldPrefersFullGridWidth, ou
 import { useCoreEditorStore } from '@/features/core-editor/state/core-editor-store'
 import { useSectionHeaderAddPulseEffect, type SectionHeaderAddPulse } from '@/features/core-editor/hooks/use-section-header-add-pulse'
 import { useXrayPersistModifyGuard } from '@/features/core-editor/hooks/use-xray-persist-modify-guard'
+import { MASQUE_OUTBOUND_FORM_KEYS } from '@/features/core-editor/kit/masque-fields'
 import {
   getOutboundStreamNetworkSelectValues,
+  getOutboundStreamSecuritySelectValues,
+  outboundMuxForProtocolSwitch,
   outboundStreamNetworkCompatibleWithReality,
+  outboundStreamSectionNetwork,
+  outboundStreamSettingsForProtocolSwitch,
+  outboundStreamTransportName,
   outboundVlessVisionFlowAllowed,
+  outboundWithStreamNetwork,
   vlessVisionFlowIncompatibleWithStreamSecurity,
 } from '@/features/core-editor/kit/outbound-stream-dynamic'
 import { profileDuplicateTagMessage, profileTagHasDuplicateUsage } from '@/features/core-editor/kit/profile-tag-uniqueness'
 import { remapIndexAfterArrayMove } from '@/features/core-editor/kit/remap-index-after-move'
+import { blockingStreamFieldIssues, isPlainObject, streamFieldIssuesForOutbound } from '@/features/core-editor/kit/stream-form-fields'
 import { WIREGUARD_OUTBOUND_FORM_KEYS, wireguardOutboundIssueMessage, wireguardOutboundSettingsIssues } from '@/features/core-editor/kit/wireguard-outbound-settings'
 import {
   flattenOutboundSettings,
@@ -41,7 +51,7 @@ import {
   stripSparseOutboundEnvelope,
 } from '@/features/core-editor/kit/outbound-editor-json'
 import { createDefaultOutbound, generateXrayOutboundFromUri, getOutboundFieldVisibility, getOutboundFormCapabilities } from '@pasarguard/xray-config-kit'
-import type { JsonObject, JsonValue, Outbound, Profile } from '@pasarguard/xray-config-kit'
+import type { JsonObject, JsonValue, Outbound, Profile, StreamSettings } from '@pasarguard/xray-config-kit'
 import type { XrayGeneratedFormField } from '@pasarguard/xray-config-kit'
 import type { ColumnDef } from '@tanstack/react-table'
 import { arrayMove } from '@dnd-kit/sortable'
@@ -56,7 +66,7 @@ import { toast } from 'sonner'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const proxyProtocols = ['vless', 'vmess', 'trojan', 'shadowsocks', 'socks', 'http', 'wireguard', 'hysteria', 'loopback'] as const
+const proxyProtocols = ['vless', 'vmess', 'trojan', 'shadowsocks', 'socks', 'http', 'wireguard', 'hysteria', 'masque', 'loopback'] as const
 
 const K_TAG = 'tag'
 const K_SEND = 'sendThrough'
@@ -84,6 +94,7 @@ const OUTBOUND_HIDDEN_SETTINGS_KEYS: Partial<Record<string, ReadonlySet<string>>
   loopback: new Set(['inboundTag']),
   dns: new Set(['network', 'address', 'port', 'userLevel', 'rules']),
   wireguard: new Set<string>(WIREGUARD_OUTBOUND_FORM_KEYS),
+  masque: new Set<string>(MASQUE_OUTBOUND_FORM_KEYS),
 }
 
 function outboundHiddenSettingsKeys(protocol: string): ReadonlySet<string> | undefined {
@@ -391,7 +402,8 @@ function collectOutboundRequiredIssues(ob: Outbound, t: (key: string, opts?: Rec
   }
 
   const p = ob.protocol
-  if (PROXY_ENDPOINT_PROTOCOLS.has(p)) {
+  // MASQUE settings are { address, port, remoteDNS }, so only the address and port checks below apply to it.
+  if (PROXY_ENDPOINT_PROTOCOLS.has(p) || p === 'masque') {
     const s = flattenOutboundSettings(ob)
 
     if (p === 'vless' && hasVlessReverseSettings(s)) {
@@ -562,6 +574,13 @@ export function XrayOutboundsSection({ headerAddPulse, headerAddEpoch }: XrayOut
   const [latencyTestScope, setLatencyTestScope] = useState<LatencyTestScope | null>(null)
   /** Bumps when outbound settings shape changes without row identity changing (edit: protocol switch, URI import). */
   const [settingsFormSeed, setSettingsFormSeed] = useState(0)
+  /** Inputs of the MASQUE / XDrive boxes holding text that does not parse, per box; kept outside the form so its resets never clear it. */
+  const [invalidStreamInputs, setInvalidStreamInputs] = useState<Record<string, readonly string[]>>({})
+  const reportInvalidStreamInputs = useCallback(
+    (source: 'masque' | 'xdrive', fields: readonly string[]) => setInvalidStreamInputs(prev => ((prev[source] ?? []).join('|') === fields.join('|') ? prev : { ...prev, [source]: fields })),
+    [],
+  )
+  const hasInvalidStreamInputs = Object.values(invalidStreamInputs).some(list => list.length > 0)
 
   const outbounds = profile?.outbounds ?? []
   const hasOutbounds = outbounds.length > 0
@@ -691,6 +710,7 @@ export function XrayOutboundsSection({ headerAddPulse, headerAddEpoch }: XrayOut
     setDialogMode('edit')
     setDraftOutbound(null)
     setEditOriginalOutbound(null)
+    setInvalidStreamInputs({})
     initialCapturedRef.current = false
   }
 
@@ -767,6 +787,28 @@ export function XrayOutboundsSection({ headerAddPulse, headerAddEpoch }: XrayOut
     }
   }
 
+  /**
+   * Blocks Add/Modify while a MASQUE / XDrive input holds text that does not parse (the JSON tab unmounts the boxes,
+   * which then report nothing), or the kit reports an error those forms own. Same toasts as the inbound dialog.
+   */
+  const assertStreamFormsCommittable = (next: Outbound): boolean => {
+    if (hasInvalidStreamInputs) {
+      toast.error(t('coreEditor.streamForms.invalidInputs', { defaultValue: 'Some fields have values that cannot be saved. Fix the ones marked in red.' }))
+      return false
+    }
+    const blockers = blockingStreamFieldIssues(streamFieldIssuesForOutbound(next))
+    if (blockers.length > 0) {
+      toast.error(t('coreEditor.streamForms.blockingTitle', { defaultValue: 'Fix these MASQUE or XDrive settings first' }), {
+        description: blockers
+          .slice(0, 6)
+          .map(issue => issue.message)
+          .join('\n'),
+      })
+      return false
+    }
+    return true
+  }
+
   // ─── Commit add ────────────────────────────────────────────────────────────
 
   const commitAddOutbound = () => {
@@ -795,6 +837,7 @@ export function XrayOutboundsSection({ headerAddPulse, headerAddEpoch }: XrayOut
       applyOutboundValidationIssuesToForm(issues, form, t, { forceToast: outboundDialogTab === 'json' })
       return
     }
+    if (!assertStreamFormsCommittable(row)) return
     if (isTagDuplicate(tagTrim)) {
       const message = profileDuplicateTagMessage(t, tagTrim)
       if (outboundDialogTab === 'json') toast.error(message)
@@ -839,6 +882,7 @@ export function XrayOutboundsSection({ headerAddPulse, headerAddEpoch }: XrayOut
       applyOutboundValidationIssuesToForm(issues, form, t, { forceToast: outboundDialogTab === 'json' })
       return
     }
+    if (!assertStreamFormsCommittable(toValidate)) return
     if (isTagDuplicate(tagTrim)) {
       const message = profileDuplicateTagMessage(t, tagTrim)
       if (outboundDialogTab === 'json') toast.error(message)
@@ -1072,15 +1116,20 @@ export function XrayOutboundsSection({ headerAddPulse, headerAddEpoch }: XrayOut
                                 field.onChange(v)
                                 const protocol = v === 'direct' ? 'freedom' : v === 'block' ? 'blackhole' : (v as 'dns' | (typeof proxyProtocols)[number])
                                 const isSimpleEnvelope = protocol === 'freedom' || protocol === 'blackhole' || protocol === 'dns'
+                                const storedStream = 'streamSettings' in ob ? (ob.streamSettings as Record<string, unknown> | undefined) : undefined
+                                const storedMux = 'mux' in ob ? ob.mux : undefined
                                 const created = stripSparseOutboundEnvelope(
                                   createDefaultOutbound({
                                     protocol: protocol as 'freedom' | 'blackhole' | 'dns' | (typeof proxyProtocols)[number],
                                     tag: ob.tag,
                                     sendThrough: 'sendThrough' in ob ? ob.sendThrough : undefined,
-                                    streamSettings: isSimpleEnvelope ? simpleOutboundStreamSettingsForProtocolSwitch(ob) : 'streamSettings' in ob ? ob.streamSettings : undefined,
+                                    // To MASQUE: network masque and TLS only; from MASQUE: without the masque transport.
+                                    streamSettings: isSimpleEnvelope
+                                      ? simpleOutboundStreamSettingsForProtocolSwitch(ob)
+                                      : (outboundStreamSettingsForProtocolSwitch(storedStream, protocol) as StreamSettings | undefined),
                                     ...(!isSimpleEnvelope
                                       ? {
-                                          mux: 'mux' in ob ? ob.mux : undefined,
+                                          mux: outboundMuxForProtocolSwitch(storedMux, protocol) as typeof storedMux,
                                           proxySettings: 'proxySettings' in ob ? ob.proxySettings : undefined,
                                         }
                                       : {}),
@@ -1139,7 +1188,14 @@ export function XrayOutboundsSection({ headerAddPulse, headerAddEpoch }: XrayOut
                       )}
                     </div>
 
-                    <OutboundSpecialProtocolSettings ob={ob} patchOutbound={patchOutbound} t={t} />
+                    {/* Keyed per outbound: the MASQUE box keeps its authentication choice in local state. */}
+                    <OutboundSpecialProtocolSettings
+                      key={`${dialogMode}:${selected}`}
+                      ob={ob}
+                      patchOutbound={patchOutbound}
+                      t={t}
+                      onInvalidInputsChange={fields => reportInvalidStreamInputs('masque', fields)}
+                    />
 
                     {/* ── Server / endpoint (replaces raw `vnext` / `servers` JSON) ── */}
                     {PROXY_ENDPOINT_PROTOCOLS.has(ob.protocol) && <OutboundProxyEndpointSection ob={ob} patchOutbound={patchOutbound} t={t} />}
@@ -1160,6 +1216,7 @@ export function XrayOutboundsSection({ headerAddPulse, headerAddEpoch }: XrayOut
                             patchOutbound={patchOutbound}
                             t={t}
                             dialerProxyTagOptions={outbounds.map(o => o.tag).filter((tag): tag is string => typeof tag === 'string' && tag !== ob.tag)}
+                            onInvalidInputsChange={fields => reportInvalidStreamInputs('xdrive', fields)}
                           />
                         )}
                         {showStandaloneOutboundSockoptAccordion && (
@@ -1236,6 +1293,12 @@ function outboundStreamNetworkSelectLabel(net: string): string {
       return 'XHTTP'
     case 'splithttp':
       return 'SplitHTTP'
+    case 'xdrive':
+      return 'XDrive'
+    case 'masque':
+      return 'MASQUE'
+    case 'raw':
+      return 'RAW (TCP)'
     default:
       return net
   }
@@ -1545,6 +1608,8 @@ interface OutboundStreamSettingsAccordionProps {
   patchOutbound: (next: Outbound) => void
   t: (key: string, opts?: Record<string, unknown>) => string
   dialerProxyTagOptions: readonly string[]
+  /** Inputs of the XDrive box holding text that does not parse (`[]` once it unmounts). */
+  onInvalidInputsChange: (fields: readonly string[]) => void
 }
 
 /** Same ALPN editor as inbound stream/TLS (`XrayParityFormControl` treats `alpn` specially). */
@@ -1554,22 +1619,28 @@ const OUTBOUND_TLS_ALPN_PARITY_FIELD = {
   type: '[]string',
 } as XrayGeneratedFormField
 
-function OutboundStreamSettingsAccordion({ ob, obStreamSettings, form, patchOutbound, t, dialerProxyTagOptions }: OutboundStreamSettingsAccordionProps) {
+function OutboundStreamSettingsAccordion({ ob, obStreamSettings, form, patchOutbound, t, dialerProxyTagOptions, onInvalidInputsChange }: OutboundStreamSettingsAccordionProps) {
   const streamSecurity = normalizeOutboundStreamSecurity(obStreamSettings?.security)
   const sockoptValue =
     obStreamSettings && typeof obStreamSettings.sockopt === 'object' && obStreamSettings.sockopt !== null && !Array.isArray(obStreamSettings.sockopt)
       ? (obStreamSettings.sockopt as Record<string, unknown>)
       : undefined
-  const rawNetwork = typeof obStreamSettings?.network === 'string' ? obStreamSettings.network.trim().toLowerCase() : ''
+  const rawNetwork = outboundStreamTransportName(obStreamSettings)
 
-  const streamNetworkSelectValues = useMemo(() => getOutboundStreamNetworkSelectValues(streamSecurity, rawNetwork || 'tcp'), [streamSecurity, rawNetwork])
+  const streamNetworkSelectValues = useMemo(() => getOutboundStreamNetworkSelectValues(streamSecurity, rawNetwork || 'tcp', ob.protocol), [streamSecurity, rawNetwork, ob.protocol])
 
   const streamNetwork = useMemo(() => {
     if (rawNetwork && streamNetworkSelectValues.includes(rawNetwork)) return rawNetwork
     return streamNetworkSelectValues.includes('tcp') ? 'tcp' : (streamNetworkSelectValues[0] ?? 'tcp')
   }, [rawNetwork, streamNetworkSelectValues])
+  /** The network whose settings blocks show: a stored `raw` (Xray's name for tcp) keeps the TCP block. */
+  const streamSectionNetwork = outboundStreamSectionNetwork(streamNetwork)
 
   const realityTransportOk = outboundStreamNetworkCompatibleWithReality(streamNetwork)
+  /** Kit issues the MASQUE and XDrive forms own (`[]` for other outbounds). */
+  const streamIssues = useMemo(() => streamFieldIssuesForOutbound(ob), [ob])
+  const storedXdriveSettings = obStreamSettings?.xdriveSettings
+  const xdriveSettings = isPlainObject(storedXdriveSettings) ? storedXdriveSettings : {}
 
   /** Imported / hand-edited JSON can pair REALITY with ws/h2/etc.; kit rejects — coerce to TLS like inbound editor. */
   useEffect(() => {
@@ -1653,15 +1724,15 @@ function OutboundStreamSettingsAccordion({ ob, obStreamSettings, form, patchOutb
               dir="ltr"
               value={streamNetwork}
               onValueChange={v => {
+                // Writes the key in use (`method` or `network`), seeds `xdriveSettings` and an enabled mux when entering
+                // xdrive, and drops the settings block of the network left behind.
+                const next = outboundWithStreamNetwork(ob as Record<string, unknown>, v)
                 if (streamSecurity === 'reality' && !outboundStreamNetworkCompatibleWithReality(v)) {
-                  patchStreamSettings({
-                    network: v,
-                    security: 'tls',
-                    realitySettings: undefined,
-                  })
-                  return
+                  const nextStream: Record<string, unknown> = { ...(next.streamSettings as Record<string, unknown>), security: 'tls' }
+                  delete nextStream.realitySettings
+                  next.streamSettings = nextStream
                 }
-                patchStreamSettings({ network: v })
+                patchOutbound(stripEmptyStreamSettingsFromRecord(next) as Outbound)
               }}
             >
               <SelectTrigger className="h-10 w-full min-w-0" dir="ltr">
@@ -1675,6 +1746,7 @@ function OutboundStreamSettingsAccordion({ ob, obStreamSettings, form, patchOutb
                 ))}
               </SelectContent>
             </Select>
+            <FieldMessages issues={streamIssues} field="transport" />
           </FieldRow>
 
           {/* Security layer */}
@@ -1721,19 +1793,36 @@ function OutboundStreamSettingsAccordion({ ob, obStreamSettings, form, patchOutb
                 <SelectValue />
               </SelectTrigger>
               <SelectContent dir="ltr">
-                <SelectItem value="none">None</SelectItem>
-                <SelectItem value="tls">TLS</SelectItem>
-                {realityTransportOk ? (
-                  <SelectItem value="reality">Reality</SelectItem>
-                ) : (
-                  <SelectItem value="reality" disabled>
-                    {t('coreEditor.outbound.realityUnavailableTransport', {
-                      defaultValue: 'Reality (not available for this transport)',
-                    })}
-                  </SelectItem>
-                )}
+                {getOutboundStreamSecuritySelectValues(ob.protocol, streamSecurity).map(security => {
+                  if (security === 'none') {
+                    return (
+                      <SelectItem key={security} value="none">
+                        None
+                      </SelectItem>
+                    )
+                  }
+                  if (security === 'tls') {
+                    return (
+                      <SelectItem key={security} value="tls">
+                        TLS
+                      </SelectItem>
+                    )
+                  }
+                  return realityTransportOk ? (
+                    <SelectItem key={security} value="reality">
+                      Reality
+                    </SelectItem>
+                  ) : (
+                    <SelectItem key={security} value="reality" disabled>
+                      {t('coreEditor.outbound.realityUnavailableTransport', {
+                        defaultValue: 'Reality (not available for this transport)',
+                      })}
+                    </SelectItem>
+                  )
+                })}
               </SelectContent>
             </Select>
+            <FieldMessages issues={streamIssues} field="security" />
           </FieldRow>
 
           {/* ── TLS ─────────────────────────────────────────────────── */}
@@ -1776,23 +1865,26 @@ function OutboundStreamSettingsAccordion({ ob, obStreamSettings, form, patchOutb
                 </Select>
               </FieldRow>
 
-              <FieldRow label={t('coreEditor.field.alpn', { defaultValue: 'ALPN Protocols' })} wide>
-                <XrayParityFormControl
-                  field={OUTBOUND_TLS_ALPN_PARITY_FIELD}
-                  value={outboundSettingToString(tlsSettings?.alpn, OUTBOUND_TLS_ALPN_PARITY_FIELD)}
-                  className="w-full"
-                  onChange={raw => {
-                    try {
-                      const parsed = parseOutboundSettingValue(OUTBOUND_TLS_ALPN_PARITY_FIELD, raw)
-                      patchTls({
-                        alpn: Array.isArray(parsed) && parsed.length > 0 ? (parsed as string[]) : undefined,
-                      })
-                    } catch {
-                      /* wait for valid selection */
-                    }
-                  }}
-                />
-              </FieldRow>
+              {/* The MASQUE box's HTTP version select owns the ALPN. */}
+              {ob.protocol !== 'masque' && (
+                <FieldRow label={t('coreEditor.field.alpn', { defaultValue: 'ALPN Protocols' })} wide>
+                  <XrayParityFormControl
+                    field={OUTBOUND_TLS_ALPN_PARITY_FIELD}
+                    value={outboundSettingToString(tlsSettings?.alpn, OUTBOUND_TLS_ALPN_PARITY_FIELD)}
+                    className="w-full"
+                    onChange={raw => {
+                      try {
+                        const parsed = parseOutboundSettingValue(OUTBOUND_TLS_ALPN_PARITY_FIELD, raw)
+                        patchTls({
+                          alpn: Array.isArray(parsed) && parsed.length > 0 ? (parsed as string[]) : undefined,
+                        })
+                      } catch {
+                        /* wait for valid selection */
+                      }
+                    }}
+                  />
+                </FieldRow>
+              )}
 
               <div className="flex items-center justify-between rounded-lg border px-3 py-2.5 sm:col-span-2">
                 <div>
@@ -2040,7 +2132,7 @@ function OutboundStreamSettingsAccordion({ ob, obStreamSettings, form, patchOutb
           )}
 
           {/* ── TCP HTTP obfuscation ──────────────────────────────────── */}
-          {streamNetwork === 'tcp' && (
+          {streamSectionNetwork === 'tcp' && (
             <>
               <Separator className="sm:col-span-2" />
               <div className="flex flex-col gap-3 sm:col-span-2">
@@ -2085,6 +2177,21 @@ function OutboundStreamSettingsAccordion({ ob, obStreamSettings, form, patchOutb
                   />
                 )}
               </div>
+            </>
+          )}
+
+          {/* ── XDrive ───────────────────────────────────────────────── */}
+          {streamNetwork === 'xdrive' && (
+            <>
+              <Separator className="sm:col-span-2" />
+              <XdriveSettingsFields
+                value={xdriveSettings}
+                onChange={next => patchStreamSettings({ xdriveSettings: next })}
+                issues={streamIssues}
+                onInvalidInputsChange={onInvalidInputsChange}
+                t={t}
+                shownElsewhere={['transport', 'security']}
+              />
             </>
           )}
 

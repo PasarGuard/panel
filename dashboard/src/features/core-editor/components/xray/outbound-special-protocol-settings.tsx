@@ -7,7 +7,9 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
-import { normalizeSettingsFromEditor } from '@/features/core-editor/kit/outbound-editor-json'
+import { MasqueSettingsFields } from '@/features/core-editor/components/xray/masque-settings-fields'
+import { normalizeSettingsFromEditor, stripEmptyStreamSettingsFromRecord } from '@/features/core-editor/kit/outbound-editor-json'
+import { isPlainObject, streamFieldIssuesForOutbound } from '@/features/core-editor/kit/stream-form-fields'
 import {
   applyWireguardKernelTunChoice,
   applyWireguardOutboundReservedInput,
@@ -25,6 +27,9 @@ import { AlertTriangle, Globe2, ListOrdered, Plus, Radio, Scissors, Trash2 } fro
 import { useEffect, useMemo, useState } from 'react'
 
 type PatchOutbound = (next: Outbound) => void
+type ReportInvalidInputs = (fields: readonly string[]) => void
+
+const noop = () => {}
 
 /** Same item chrome as `OutboundStreamSettingsAccordion` / mux in `xray-outbounds-section`. */
 const OUTBOUND_SUBACCORDION_ITEM_CLASS = 'rounded-sm border px-4 [&_[data-state=closed]]:no-underline [&_[data-state=open]]:no-underline'
@@ -1397,7 +1402,47 @@ function OutboundBlackholeSettings({ ob, patchOutbound, t }: { ob: Outbound; pat
   )
 }
 
-export function OutboundSpecialProtocolSettings({ ob, patchOutbound, t }: { ob: Outbound; patchOutbound: PatchOutbound; t: TFunction }) {
+/**
+ * MASQUE client settings: the server (`settings`), the masque transport (`streamSettings.masqueSettings`) and the HTTP
+ * version (`streamSettings.tlsSettings.alpn`). The stream accordion keeps the network, security and other TLS fields.
+ */
+function OutboundMasqueSettings({ ob, patchOutbound, t, onInvalidInputsChange }: { ob: Outbound; patchOutbound: PatchOutbound; t: TFunction; onInvalidInputsChange: ReportInvalidInputs }) {
+  const settings = readSettings(ob)
+  const rawStream = (ob as { streamSettings?: unknown }).streamSettings
+  const stream = isPlainObject(rawStream) ? rawStream : {}
+  const masque = isPlainObject(stream.masqueSettings) ? stream.masqueSettings : {}
+  const tls = isPlainObject(stream.tlsSettings) ? stream.tlsSettings : {}
+  const issues = useMemo(() => streamFieldIssuesForOutbound(ob), [ob])
+  const patchStream = (next: Record<string, unknown>) => patchOutbound(stripEmptyStreamSettingsFromRecord({ ...(ob as Record<string, unknown>), streamSettings: next }) as Outbound)
+
+  return (
+    <MasqueSettingsFields
+      side="client"
+      settings={settings}
+      onSettingsChange={next => commitSettings(ob, next, patchOutbound)}
+      transport={masque}
+      onTransportChange={next => patchStream({ ...stream, masqueSettings: next })}
+      alpn={tls.alpn}
+      onAlpnChange={alpn => patchStream({ ...stream, tlsSettings: { ...tls, alpn } })}
+      issues={issues}
+      onInvalidInputsChange={onInvalidInputsChange}
+      t={t}
+    />
+  )
+}
+
+export function OutboundSpecialProtocolSettings({
+  ob,
+  patchOutbound,
+  t,
+  onInvalidInputsChange,
+}: {
+  ob: Outbound
+  patchOutbound: PatchOutbound
+  t: TFunction
+  /** Inputs of the MASQUE box holding text that does not parse (`[]` once it unmounts). */
+  onInvalidInputsChange?: ReportInvalidInputs
+}) {
   if (ob.protocol === 'freedom') {
     return (
       <>
@@ -1435,6 +1480,14 @@ export function OutboundSpecialProtocolSettings({ ob, patchOutbound, t }: { ob: 
       <>
         <Separator className="my-1" />
         <OutboundWireGuardSettings ob={ob} patchOutbound={patchOutbound} t={t} />
+      </>
+    )
+  }
+  if (ob.protocol === 'masque') {
+    return (
+      <>
+        <Separator className="my-1" />
+        <OutboundMasqueSettings ob={ob} patchOutbound={patchOutbound} t={t} onInvalidInputsChange={onInvalidInputsChange ?? noop} />
       </>
     )
   }
