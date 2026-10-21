@@ -70,6 +70,31 @@ test('MASQUE server variant', () => {
   for (const bad of ['Authentication', 'WARP private key', 'Server port', 'XMUX (JSON object)', 'Remove client-only settings']) assert.ok(!html.includes(bad), bad)
 })
 
+test('MASQUE server variant: the HTTP version select is disabled with a hint while security is not TLS', () => {
+  const render = (onAlpnChange: ((alpn: string[]) => void) | null) =>
+    renderToStaticMarkup(
+      <MasqueSettingsFields
+        side="server"
+        settings={{ address: ['10.14.0.1/16'] }}
+        onSettingsChange={noop}
+        transport={{ type: 'masque' }}
+        onTransportChange={noop}
+        alpn={undefined}
+        onAlpnChange={onAlpnChange}
+        issues={[]}
+        onInvalidInputsChange={noop}
+        t={t}
+      />,
+    )
+  const hint = 'Set Security to TLS to choose the HTTP version.'
+  const locked = render(null)
+  assert.ok(locked.includes(hint))
+  assert.ok(locked.includes('data-disabled=""'), 'the select trigger is disabled')
+  const open = render(noop)
+  assert.ok(!open.includes(hint))
+  assert.ok(!open.includes('data-disabled=""'))
+})
+
 test('MASQUE server variant: client-only keys show their issues with a remove action', () => {
   const html = renderToStaticMarkup(
     <MasqueSettingsFields

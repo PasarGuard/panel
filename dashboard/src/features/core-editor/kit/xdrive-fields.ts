@@ -124,6 +124,18 @@ export function withXdriveInboundFlowIssue(issues: readonly StreamFieldIssue[], 
  * security permit).
  */
 export function vlessFlowSelectValues(transport: string, storedFlow: string, allowed: readonly string[]): string[] {
-  if (transport.trim().toLowerCase() !== 'xdrive') return [...allowed]
+  if (!isXdriveTransport(transport)) return [...allowed]
   return storedFlow.trim() === '' ? [] : [storedFlow]
+}
+
+/**
+ * Whether a VLESS Flow select shows its hint that Vision needs another transport or security: only when Vision is not
+ * `allowed` and the transport is not xdrive, which offers no flow at all (a stored flow gets its own error there).
+ */
+export function vlessVisionFlowHintShown(transport: string, allowed: boolean): boolean {
+  return !allowed && !isXdriveTransport(transport)
+}
+
+function isXdriveTransport(transport: string): boolean {
+  return transport.trim().toLowerCase() === 'xdrive'
 }

@@ -2798,6 +2798,7 @@
       "httpH2": "HTTP/2 over TCP (h2)",
       "httpServerHint": "Saved as the TLS ALPN. h3 listens on UDP, h2 on TCP, and both listens on both.",
       "httpClientHint": "Saved as the TLS ALPN. The server must accept the same version.",
+      "httpNeedsTls": "Set Security to TLS to choose the HTTP version.",
       "pathHint": "Starts with /. Only the {target} and {ipproto} variables are allowed.",
       "host": "Host",
       "hostHint": "Optional host name or host:port, without scheme or path.",

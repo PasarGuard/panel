@@ -42,7 +42,7 @@ import {
   kitBuildsInboundTransport,
   transportCompatibleWithReality,
 } from '@/features/core-editor/kit/inbound-form-options'
-import { masqueAlpnForMode } from '@/features/core-editor/kit/masque-fields'
+import { masqueInboundTlsSecurity } from '@/features/core-editor/kit/masque-fields'
 import { profileDuplicateTagMessage, profileTagHasDuplicateUsage } from '@/features/core-editor/kit/profile-tag-uniqueness'
 import { remapIndexAfterArrayMove } from '@/features/core-editor/kit/remap-index-after-move'
 import { normalizeTunnelNetworkForKit } from '@/features/core-editor/kit/sanitize-inbound'
@@ -54,7 +54,7 @@ import {
   wireguardInboundAddresses,
   wireguardInboundFormTexts,
 } from '@/features/core-editor/kit/wireguard-xray-fields'
-import { vlessFlowSelectValues, withXdriveInboundFlowIssue } from '@/features/core-editor/kit/xdrive-fields'
+import { vlessFlowSelectValues, vlessVisionFlowHintShown, withXdriveInboundFlowIssue } from '@/features/core-editor/kit/xdrive-fields'
 import { coerceVerifyPeerCertByNameList, inferParityFieldMode, outboundSettingToString, parseOutboundSettingValue, stringifyJsonFormRecord } from '@/features/core-editor/kit/xray-parity-value'
 import { useCoreEditorStore } from '@/features/core-editor/state/core-editor-store'
 import useDirDetection from '@/hooks/use-dir-detection'
@@ -3147,9 +3147,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                     transport={inbound.transport}
                     onTransportChange={next => patchInbound({ transport: { ...next, type: 'masque' } } as Partial<Inbound>)}
                     alpn={inbound.security.type === 'tls' ? (inbound.security as { alpn?: unknown }).alpn : undefined}
-                    onAlpnChange={alpn => {
-                      if (inbound.security.type === 'tls') patchSecurity({ alpn })
-                    }}
+                    onAlpnChange={inbound.security.type === 'tls' ? alpn => patchSecurity({ alpn }) : null}
                     issues={streamFieldIssues}
                     onInvalidInputsChange={setInvalidStreamInputs}
                     t={t}
@@ -3975,10 +3973,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                               break
                             case 'masque':
                               // Only an imported MASQUE inbound without TLS gets here (MASQUE offers TLS only).
-                              next = {
-                                ...inbound,
-                                security: inbound.security.type === 'tls' ? inbound.security : { type: 'tls', serverName: '', alpn: masqueAlpnForMode('both') },
-                              } as Inbound
+                              next = { ...inbound, security: masqueInboundTlsSecurity(inbound.security) } as Inbound
                               break
                             default:
                               return
@@ -4079,7 +4074,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                               ))}
                             </SelectContent>
                           </Select>
-                          {!vlessInboundFlowsOk ? (
+                          {vlessVisionFlowHintShown(transportForVlessInboundFlow, vlessInboundFlowsOk) ? (
                             <p className="text-muted-foreground text-xs">
                               {t('coreEditor.inbound.vlessFlowVisionRequiresTls', {
                                 defaultValue: 'XTLS Vision requires TCP with TLS/REALITY, xHTTP with TLS, or VLESS Encryption.',

@@ -11,6 +11,7 @@ import {
   parseXdriveNumberInput,
   setXdriveGoogleDriveSecret,
   vlessFlowSelectValues,
+  vlessVisionFlowHintShown,
   withXdriveInboundFlowIssue,
   XDRIVE_TUNING_FIELDS,
   XDRIVE_UINT32_MAX,
@@ -141,4 +142,12 @@ test('a VLESS Flow select (inbound or outbound) offers no flow on xdrive, but a 
   assert.deepEqual(vlessFlowSelectValues('xdrive', 'xtls-rprx-vision-udp443', outboundVision), ['xtls-rprx-vision-udp443'])
   assert.deepEqual(vlessFlowSelectValues('xdrive', '', outboundVision), [])
   assert.deepEqual(vlessFlowSelectValues('', '', outboundVision), outboundVision)
+})
+
+test('the Vision hint under a VLESS Flow select stays hidden on xdrive, which offers no flow', () => {
+  assert.equal(vlessVisionFlowHintShown('tcp', false), true)
+  assert.equal(vlessVisionFlowHintShown('', false), true)
+  assert.equal(vlessVisionFlowHintShown('tcp', true), false)
+  assert.equal(vlessVisionFlowHintShown('xdrive', false), false)
+  assert.equal(vlessVisionFlowHintShown(' XDrive ', false), false)
 })

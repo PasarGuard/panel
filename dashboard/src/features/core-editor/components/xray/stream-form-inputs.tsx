@@ -193,17 +193,18 @@ export interface SelectFieldProps {
   value: string
   options: readonly { value: string; label: string }[]
   onValueChange: (value: string) => void
+  disabled?: boolean
   children?: ReactNode
 }
 
-export function SelectField({ label, hint, value, options, onValueChange, children }: SelectFieldProps) {
+export function SelectField({ label, hint, value, options, onValueChange, disabled, children }: SelectFieldProps) {
   const id = useId()
   return (
     <div className="grid w-full min-w-0 content-start gap-1.5">
       <Label htmlFor={id} className="text-sm">
         {label}
       </Label>
-      <Select dir="ltr" value={value} onValueChange={onValueChange}>
+      <Select dir="ltr" value={value} onValueChange={onValueChange} disabled={disabled}>
         <SelectTrigger id={id} className="h-10 w-full min-w-0" dir="ltr">
           <SelectValue />
         </SelectTrigger>

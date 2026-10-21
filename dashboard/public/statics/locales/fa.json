@@ -2707,6 +2707,7 @@
       "httpH2": "HTTP/2 روی TCP (h2)",
       "httpServerHint": "به‌عنوان ALPN در TLS ذخیره می‌شود. h3 روی UDP، h2 روی TCP و حالت دوگانه روی هر دو گوش می‌دهد.",
       "httpClientHint": "به‌عنوان ALPN در TLS ذخیره می‌شود. سرور باید همین نسخه را بپذیرد.",
+      "httpNeedsTls": "برای انتخاب نسخه HTTP، امنیت را روی TLS بگذارید.",
       "pathHint": "با / شروع می‌شود. فقط متغیرهای {target} و {ipproto} مجاز هستند.",
       "host": "میزبان",
       "hostHint": "نام میزبان یا host:port اختیاری، بدون scheme یا مسیر.",

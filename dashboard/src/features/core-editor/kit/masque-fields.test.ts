@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
 import { createDefaultInboundForProtocol, getInboundFormCapabilities, getOutboundFormCapabilities } from '@pasarguard/xray-config-kit'
-import type { Inbound } from '@pasarguard/xray-config-kit'
+import type { Inbound, Security } from '@pasarguard/xray-config-kit'
 import {
   applyMasqueClientAuthMode,
   hasMasqueClientOnlySettings,
@@ -13,6 +13,7 @@ import {
   masqueClientAuthMode,
   masqueClientShowsBasicAuthFields,
   masqueHttpMode,
+  masqueInboundTlsSecurity,
   masqueShownFields,
   parseMasqueMtuInput,
   removeMasqueClientOnlySettings,
@@ -53,6 +54,20 @@ test('masqueHttpMode mirrors Xray serverVersions and usesHTTP2', () => {
   assert.deepEqual(masqueAlpnForMode('both'), ['h3', 'h2'])
   assert.deepEqual(masqueAlpnForMode('h3'), ['h3'])
   assert.deepEqual(masqueAlpnForMode('h2'), ['h2'])
+})
+
+test('a MASQUE inbound turning to TLS keeps the HTTP version its select showed', () => {
+  // Without TLS the select reads no ALPN; the new TLS settings write that version, not a different default.
+  const shown = masqueHttpMode(undefined, 'server')
+  const securities: Security[] = [{ type: 'none' }, { type: 'reality', serverNames: ['a.example'], privateKey: 'k', shortIds: [''], target: 'a.example:443' }]
+  for (const security of securities) {
+    const next = masqueInboundTlsSecurity(security)
+    assert.deepEqual(next, { type: 'tls', serverName: '', alpn: ['h3'] }, security.type)
+    assert.equal(masqueHttpMode(next.alpn, 'server'), shown, security.type)
+  }
+  // A TLS security stays as it is, with its own HTTP version.
+  const stored = { type: 'tls' as const, serverName: 'mq.example', alpn: ['h2' as const] }
+  assert.equal(masqueInboundTlsSecurity(stored), stored)
 })
 
 test('client auth modes replace each other', () => {

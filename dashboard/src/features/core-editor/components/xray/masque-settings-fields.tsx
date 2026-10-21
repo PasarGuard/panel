@@ -47,7 +47,8 @@ export interface MasqueSettingsFieldsProps {
   transport: Record<string, unknown>
   onTransportChange: (next: Record<string, unknown>) => void
   alpn: unknown
-  onAlpnChange: (alpn: string[]) => void
+  /** `null` while the inbound's security is not TLS: there is no ALPN to write, so the HTTP version select is disabled. */
+  onAlpnChange: ((alpn: string[]) => void) | null
   issues: readonly StreamFieldIssue[]
   onInvalidInputsChange: (fields: readonly string[]) => void
   t: StreamFormT
@@ -184,13 +185,16 @@ export function MasqueSettingsFields({ side, settings, onSettingsChange, transpo
       <SelectField
         label={t('coreEditor.masque.httpVersion', { defaultValue: 'HTTP version' })}
         hint={
-          isServer
-            ? t('coreEditor.masque.httpServerHint', { defaultValue: 'Saved as the TLS ALPN. h3 listens on UDP, h2 on TCP, and both listens on both.' })
-            : t('coreEditor.masque.httpClientHint', { defaultValue: 'Saved as the TLS ALPN. The server must accept the same version.' })
+          onAlpnChange === null
+            ? t('coreEditor.masque.httpNeedsTls', { defaultValue: 'Set Security to TLS to choose the HTTP version.' })
+            : isServer
+              ? t('coreEditor.masque.httpServerHint', { defaultValue: 'Saved as the TLS ALPN. h3 listens on UDP, h2 on TCP, and both listens on both.' })
+              : t('coreEditor.masque.httpClientHint', { defaultValue: 'Saved as the TLS ALPN. The server must accept the same version.' })
         }
         value={masqueHttpMode(alpn, side)}
         options={httpOptions}
-        onValueChange={mode => onAlpnChange(masqueAlpnForMode(mode as MasqueHttpMode))}
+        onValueChange={mode => onAlpnChange?.(masqueAlpnForMode(mode as MasqueHttpMode))}
+        disabled={onAlpnChange === null}
       />
 
       {!isServer && (

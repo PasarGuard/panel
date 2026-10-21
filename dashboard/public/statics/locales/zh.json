@@ -2750,6 +2750,7 @@
       "httpH2": "基于 TCP 的 HTTP/2（h2）",
       "httpServerHint": "保存为 TLS ALPN。h3 监听 UDP，h2 监听 TCP，两者都选时同时监听两者。",
       "httpClientHint": "保存为 TLS ALPN。服务器必须接受相同的版本。",
+      "httpNeedsTls": "将安全设置为 TLS 后才能选择 HTTP 版本。",
       "pathHint": "以 / 开头。只允许使用 {target} 和 {ipproto} 变量。",
       "host": "主机",
       "hostHint": "可选的主机名或 host:port，不含协议和路径。",

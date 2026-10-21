@@ -1,4 +1,5 @@
 import { MASQUE_LIMITS } from '@pasarguard/xray-config-kit'
+import type { Alpn, Security, TlsSecurity } from '@pasarguard/xray-config-kit'
 
 import { isPlainObject } from '@/features/core-editor/kit/stream-form-fields'
 import type { ParsedInput } from '@/features/core-editor/kit/stream-form-fields'
@@ -91,9 +92,18 @@ export function masqueHttpMode(alpn: unknown, side: 'server' | 'client'): Masque
   return h2 ? 'h2' : 'h3'
 }
 
-export function masqueAlpnForMode(mode: MasqueHttpMode): string[] {
+export function masqueAlpnForMode(mode: MasqueHttpMode): Alpn[] {
   if (mode === 'both') return ['h3', 'h2']
   return mode === 'h2' ? ['h2'] : ['h3']
+}
+
+/**
+ * Security for a MASQUE inbound (MASQUE offers TLS only): a TLS one as it is, else new TLS settings whose `alpn` keeps
+ * the HTTP version the select showed without TLS (`masqueHttpMode` of no ALPN), so turning TLS on does not change it.
+ */
+export function masqueInboundTlsSecurity(security: Security): TlsSecurity {
+  if (security.type === 'tls') return security
+  return { type: 'tls', serverName: '', alpn: masqueAlpnForMode(masqueHttpMode(undefined, 'server')) }
 }
 
 export type MasqueClientAuthMode = 'none' | 'basic' | 'warp'

@@ -49,7 +49,7 @@ import {
   type StreamFieldIssue,
 } from '@/features/core-editor/kit/stream-form-fields'
 import { WIREGUARD_OUTBOUND_FORM_KEYS, wireguardOutboundIssueMessage, wireguardOutboundSettingsIssues } from '@/features/core-editor/kit/wireguard-outbound-settings'
-import { vlessFlowSelectValues } from '@/features/core-editor/kit/xdrive-fields'
+import { vlessFlowSelectValues, vlessVisionFlowHintShown } from '@/features/core-editor/kit/xdrive-fields'
 import {
   flattenOutboundSettings,
   mergeEditorBodyIntoOutbound,
@@ -1355,7 +1355,8 @@ function OutboundProxyEndpointSection({ ob, patchOutbound, t }: OutboundProxyEnd
   const encryption = String(flat.encryption ?? 'none')
   const flow = typeof flat.flow === 'string' ? flat.flow : ''
   // No flow on xdrive; a stored one stays visible next to the kit error until Default is picked.
-  const flowOptions = vlessFlowSelectValues(outboundStreamTransportName(streamRec), flow, vlessVisionFlowsOk ? VLESS_FLOW_OPTIONS : [])
+  const streamTransport = outboundStreamTransportName(streamRec)
+  const flowOptions = vlessFlowSelectValues(streamTransport, flow, vlessVisionFlowsOk ? VLESS_FLOW_OPTIONS : [])
   const alterIdStr = flat.alterId != null && flat.alterId !== '' ? String(flat.alterId) : '0'
   const security = typeof flat.security === 'string' && flat.security ? flat.security : 'auto'
 
@@ -1447,7 +1448,7 @@ function OutboundProxyEndpointSection({ ob, patchOutbound, t }: OutboundProxyEnd
                   ))}
                 </SelectContent>
               </Select>
-              {!vlessVisionFlowsOk ? (
+              {vlessVisionFlowHintShown(streamTransport, vlessVisionFlowsOk) ? (
                 <p className="text-muted-foreground text-xs">
                   {t('coreEditor.outbound.flowVisionRequiresTls', {
                     defaultValue: 'Vision flows require stream security TLS or REALITY (not “none”).',
@@ -1752,7 +1753,7 @@ function OutboundStreamSettingsAccordion({ ob, obStreamSettings, form, patchOutb
               value={streamNetwork}
               onValueChange={v => {
                 // Writes the key in use (`method` or `network`), seeds `xdriveSettings` and an enabled mux when entering
-                // xdrive, and drops the settings block of the network left behind.
+                // xdrive, and drops a stale `xdriveSettings` or `masqueSettings` block.
                 const next = outboundWithStreamNetwork(ob as Record<string, unknown>, v)
                 if (streamSecurity === 'reality' && !outboundStreamNetworkCompatibleWithReality(v)) {
                   const nextStream: Record<string, unknown> = { ...(next.streamSettings as Record<string, unknown>), security: 'tls' }
@@ -2346,7 +2347,7 @@ function OutboundAdvancedAccordion({ ob, patchOutbound, t }: OutboundAdvancedAcc
 
   const muxBlock =
     'mux' in ob ? (
-      <AccordionItem value="mux" className="rounded-sm border px-4 [&_[data-state=closed]]:no-underline [&_[data-state=open]]:no-underline">
+      <AccordionItem key="mux" value="mux" className="rounded-sm border px-4 [&_[data-state=closed]]:no-underline [&_[data-state=open]]:no-underline">
         <AccordionTrigger>
           <div className="flex flex-wrap items-center gap-2">
             <RefreshCw className="text-muted-foreground h-4 w-4 shrink-0" aria-hidden />
@@ -2430,7 +2431,7 @@ function OutboundAdvancedAccordion({ ob, patchOutbound, t }: OutboundAdvancedAcc
 
   const proxyBlock =
     'proxySettings' in ob ? (
-      <AccordionItem value="proxy" className="rounded-sm border px-4 [&_[data-state=closed]]:no-underline [&_[data-state=open]]:no-underline">
+      <AccordionItem key="proxy" value="proxy" className="rounded-sm border px-4 [&_[data-state=closed]]:no-underline [&_[data-state=open]]:no-underline">
         <AccordionTrigger>
           <div className="flex flex-wrap items-center gap-2">
             <Shield className="text-muted-foreground h-4 w-4 shrink-0" aria-hidden />
