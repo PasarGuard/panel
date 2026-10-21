@@ -57,6 +57,50 @@ def _string_list(value) -> list[str]:
         return [str(value)]
 
 
+# Finalmask layer types that only the server applies. Xray v26.10.21 added "filter" for tcp and udp
+# masks (allowed and blocked source IPs): older clients reject the whole config, and the lists are the admin's.
+_SERVER_ONLY_FINALMASK_TYPES = frozenset({"filter"})
+
+
+def _is_server_only_finalmask_layer(layer) -> bool:
+    if not isinstance(layer, dict):
+        return False
+    layer_type = layer.get("type")
+    return isinstance(layer_type, str) and layer_type.strip().lower() in _SERVER_ONLY_FINALMASK_TYPES
+
+
+def _client_finalmask(finalmask):
+    """Return an inbound finalmask without its server-only layers, for client configs.
+
+    Drop server-only ``tcp`` and ``udp`` layers, and a list that ends up empty. Everything else
+    is kept in order. When nothing usable is left, return None (no finalmask). A finalmask
+    without server-only layers is returned unchanged. The input is never mutated.
+    """
+    if not isinstance(finalmask, dict):
+        return finalmask
+
+    result = None
+    for key in ("tcp", "udp"):
+        layers = finalmask.get(key)
+        if not isinstance(layers, list):
+            continue
+        kept = [layer for layer in layers if not _is_server_only_finalmask_layer(layer)]
+        if len(kept) == len(layers):
+            continue
+        if result is None:
+            result = dict(finalmask)
+        if kept:
+            result[key] = kept
+        else:
+            del result[key]
+
+    if result is None:
+        return finalmask
+    if not any(value not in (None, "", [], {}) for value in result.values()):
+        return None
+    return result
+
+
 def _normalize_finalmask_link(final_mask_settings: FinalMask | dict | str | None) -> str | None:
     if not final_mask_settings:
         return None
@@ -111,7 +155,10 @@ async def _prepare_subscription_inbound_data(
         host_dns = ts.masque_settings.remote_dns if ts and ts.masque_settings else None
         masque_remote_dns = [dns.strip() for dns in _string_list(host_dns or inbound_config.get("remote_dns")) if dns.strip()]
 
-    final_mask_settings = host.final_mask_settings if host.final_mask_settings else inbound_config.get("finalmask")
+    # The host FinalMask model only accepts client mask types; the inbound finalmask is the server's config
+    final_mask_settings = (
+        host.final_mask_settings if host.final_mask_settings else _client_finalmask(inbound_config.get("finalmask"))
+    )
     if isinstance(final_mask_settings, FinalMask):
         # Dump with aliases once, so builders and the NATS KV copy see Xray field names
         final_mask_settings = final_mask_settings.model_dump(by_alias=True, exclude_none=True, mode="json")
@@ -494,7 +541,10 @@ async def _prepare_subscription_inbound_data(
 
 
 class HostManager:
-    STATE_CACHE_KEY = "state"
+    # setup() trusts a stored snapshot of prepared hosts over the DB. Bump the key when a release changes
+    # what unchanged hosts prepare to, so NATS installs rebuild instead of serving the old data.
+    # v3: the inbound finalmask no longer carries server-only "filter" layers ("state_v2" is taken by PR #1020).
+    STATE_CACHE_KEY = "state_v3"
     KV_BUCKET_NAME = "host_manager_state"
 
     def __init__(self):
