@@ -11,7 +11,7 @@ from sqlalchemy import BigInteger, DateTime, and_, bindparam, func, insert, or_,
 from sqlalchemy.dialects.mysql import insert as mysql_insert
 from sqlalchemy.dialects.postgresql import ARRAY, insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
-from sqlalchemy.exc import DatabaseError, OperationalError
+from sqlalchemy.exc import DatabaseError, DataError, IntegrityError, OperationalError
 from sqlalchemy.sql.expression import Insert
 
 from app import on_shutdown, scheduler
@@ -42,6 +42,8 @@ USER_ADMIN_LOOKUP_BATCH_SIZE = 1_000
 _pending_user_usage_history: defaultdict[tuple[dt, int, int], int] = defaultdict(int)
 _user_usage_history_lock = asyncio.Lock()
 _user_usage_history_last_flush: float | None = None
+# Failed flushes keep at most this many older 10-minute buckets (one hour) next to the current one
+USER_USAGE_HISTORY_MAX_PENDING_BUCKETS = 6
 ONLINE_AT_WRITE_INTERVAL = td(minutes=1)
 DEADLOCK_MAX_RETRIES = 5
 
@@ -106,7 +108,7 @@ def build_node_user_usage_upsert(dialect: str, upsert_params: list[dict]):
                 source.c.node_id,
                 func.sum(source.c.value).label("used_traffic"),
             )
-            .select_from(source.join(User, User.id == source.c.uid))
+            .select_from(source.join(User, User.id == source.c.uid).join(Node, Node.id == source.c.node_id))
             .group_by(source.c.created_at, source.c.uid, source.c.node_id)
         )
 
@@ -158,7 +160,7 @@ def build_node_user_usage_upsert(dialect: str, upsert_params: list[dict]):
             source.c.node_id,
             func.sum(source.c.value).label("used_traffic"),
         )
-        .select_from(source.join(User, User.id == source.c.uid))
+        .select_from(source.join(User, User.id == source.c.uid).join(Node, Node.id == source.c.node_id))
         .group_by(source.c.created_at, source.c.uid, source.c.node_id)
     )
 
@@ -523,8 +525,17 @@ async def _write_node_user_usage_params(dialect: str, upsert_params: list[dict])
     async with JOB_SEM:
         for batch in batches:
             queries = build_node_user_usage_upsert(dialect, batch)
-            for stmt, stmt_params in queries:
-                await safe_execute(stmt, stmt_params)
+            try:
+                for stmt, stmt_params in queries:
+                    await safe_execute(stmt, stmt_params)
+            except (DataError, IntegrityError) as err:
+                # The same rows would be rejected again on every retry and block all later history writes
+                logger.error(
+                    "Dropped %s node user usage history rows (%s bytes) rejected by the database: %s",
+                    len(batch),
+                    sum(param["value"] for param in batch),
+                    getattr(err, "orig", err),
+                )
 
 
 async def record_user_stats_batched(all_node_params: dict, usage_coefficients: dict):
@@ -536,6 +547,22 @@ async def record_user_stats_batched(all_node_params: dict, usage_coefficients: d
     dialect = await get_dialect()
     upsert_params = _prepare_node_user_usage_params(all_node_params, usage_coefficients, created_at)
     await _write_node_user_usage_params(dialect, upsert_params)
+
+
+def _drop_stale_pending_user_usage_history() -> None:
+    """Keep failed flushes from piling up history without limit."""
+    buckets = sorted({created_at for created_at, _, _ in _pending_user_usage_history})
+    if len(buckets) <= USER_USAGE_HISTORY_MAX_PENDING_BUCKETS:
+        return
+    cutoff = buckets[-USER_USAGE_HISTORY_MAX_PENDING_BUCKETS]
+    stale_keys = [key for key in _pending_user_usage_history if key[0] < cutoff]
+    for key in stale_keys:
+        del _pending_user_usage_history[key]
+    logger.error(
+        "Dropped %s buffered node user usage history rows older than %s after repeated flush failures",
+        len(stale_keys),
+        cutoff.isoformat(),
+    )
 
 
 async def _flush_pending_user_usage_history_locked(now_monotonic: float | None = None) -> int:
@@ -556,7 +583,11 @@ async def _flush_pending_user_usage_history_locked(now_monotonic: float | None =
         if value
     ]
     if upsert_params:
-        await _write_node_user_usage_params("postgresql", upsert_params)
+        try:
+            await _write_node_user_usage_params("postgresql", upsert_params)
+        except Exception:
+            _drop_stale_pending_user_usage_history()
+            raise
     _pending_user_usage_history.clear()
     _user_usage_history_last_flush = now_monotonic if now_monotonic is not None else _monotonic_now()
     return len(upsert_params)

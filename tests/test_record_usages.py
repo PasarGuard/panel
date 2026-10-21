@@ -8,13 +8,14 @@ from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.dialects import postgresql
-from sqlalchemy.exc import OperationalError, SQLAlchemyError
+from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
 from app.db import base
+from app.db.crud.node import remove_node
 from app.db.models import Admin, AdminRole, AdminStatus, Node, NodeUsage, NodeUserUsage, System, User
 from app.jobs import record_usages
 from app.models.proxy import ProxyTable
@@ -162,6 +163,94 @@ async def test_postgres_history_retains_failed_flush_for_retry(monkeypatch: pyte
         [{"uid": 11, "value": 12, "node_id": 7, "created_at": bucket}],
     )
     assert not record_usages._pending_user_usage_history
+
+
+def _foreign_key_error() -> IntegrityError:
+    return IntegrityError("INSERT INTO node_user_usages", {}, Exception("violates foreign key constraint"))
+
+
+@pytest.mark.asyncio
+async def test_history_write_drops_a_batch_the_database_rejects(monkeypatch: pytest.MonkeyPatch, caplog):
+    bucket = datetime(2026, 8, 14, 18, 30, tzinfo=UTC)
+    executed = []
+
+    async def fake_safe_execute(stmt, params=None, max_retries=5):
+        executed.append(params)
+        if len(executed) == 1:
+            raise _foreign_key_error()
+
+    monkeypatch.setattr(record_usages, "safe_execute", fake_safe_execute)
+    caplog.set_level(logging.ERROR)
+    rows = [{"uid": index + 1, "value": 1, "node_id": 7, "created_at": bucket} for index in range(2_000)]
+
+    await record_usages._write_node_user_usage_params("mysql", rows)
+
+    # The rejected batch is dropped with a log line and the next batch is still written
+    assert len(executed) == 2
+    assert "Dropped 1000 node user usage history rows" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_postgres_history_drops_rows_the_database_rejects(monkeypatch: pytest.MonkeyPatch, caplog):
+    # Steady state: the first sample was already written, so later samples are coalesced
+    record_usages._user_usage_history_last_flush = 100.0
+    bucket = datetime(2026, 8, 14, 18, 30, tzinfo=UTC)
+    executed = []
+    monotonic_values = iter([100.0, 161.0, 222.0])
+
+    async def fake_safe_execute(stmt, params=None, max_retries=5):
+        executed.append(params)
+        if len(executed) == 1:
+            raise _foreign_key_error()
+
+    monkeypatch.setattr(record_usages, "get_dialect", AsyncMock(return_value="postgresql"))
+    monkeypatch.setattr(record_usages, "_get_time_bucket", lambda: bucket)
+    monkeypatch.setattr(record_usages, "safe_execute", fake_safe_execute)
+    monkeypatch.setattr(record_usages, "_monotonic_now", lambda: next(monotonic_values))
+    monkeypatch.setattr(record_usages.usage_settings, "user_usage_history_flush_interval", 60)
+    caplog.set_level(logging.ERROR)
+
+    await record_usages.record_user_stats({7: [{"uid": "11", "value": 5}]}, {7: 1})
+    # This flush is rejected: retrying the same rows could never succeed, so they are dropped
+    await record_usages.record_user_stats({7: [{"uid": "11", "value": 7}]}, {7: 1})
+    assert not record_usages._pending_user_usage_history
+    assert "Dropped 1 node user usage history rows" in caplog.text
+
+    await record_usages.record_user_stats({7: [{"uid": "11", "value": 9}]}, {7: 1})
+
+    assert len(executed) == 2
+    assert executed[1]["traffic_values"] == [9]
+    assert not record_usages._pending_user_usage_history
+
+
+@pytest.mark.asyncio
+async def test_postgres_history_caps_buffered_buckets_after_failed_flushes(monkeypatch: pytest.MonkeyPatch, caplog):
+    # Steady state: the first sample was already written, so later samples are coalesced
+    record_usages._user_usage_history_last_flush = 100.0
+    first_bucket = datetime(2026, 8, 14, 18, 30, tzinfo=UTC)
+    buckets = [first_bucket + timedelta(minutes=10 * index) for index in range(9)]
+    bucket_values = iter(buckets)
+
+    async def failing_safe_execute(stmt, params=None, max_retries=5):
+        raise OperationalError("INSERT INTO node_user_usages", {}, Exception("connection lost"))
+
+    monkeypatch.setattr(record_usages, "get_dialect", AsyncMock(return_value="postgresql"))
+    monkeypatch.setattr(record_usages, "_get_time_bucket", lambda: next(bucket_values))
+    monkeypatch.setattr(record_usages, "safe_execute", failing_safe_execute)
+    monkeypatch.setattr(record_usages, "_monotonic_now", lambda: 100.0)
+    monkeypatch.setattr(record_usages.usage_settings, "user_usage_history_flush_interval", 60)
+    caplog.set_level(logging.ERROR)
+
+    await record_usages.record_user_stats({7: [{"uid": "11", "value": 5}]}, {7: 1})
+    for _ in buckets[1:]:
+        # Every bucket rollover tries to flush the older buckets and fails
+        with pytest.raises(OperationalError):
+            await record_usages.record_user_stats({7: [{"uid": "11", "value": 5}]}, {7: 1})
+
+    # Failed flushes keep at most an hour (6 buckets) of older history next to the current bucket
+    pending_buckets = sorted({key[0] for key in record_usages._pending_user_usage_history})
+    assert pending_buckets == buckets[2:]
+    assert "Dropped 1 buffered node user usage history rows" in caplog.text
 
 
 @pytest.mark.asyncio
@@ -542,6 +631,116 @@ async def test_record_user_stats_batched_skips_missing_users(session_factory):
         records = rows.all()
 
     assert records == [(user_id, 100)]
+
+
+@pytest.mark.asyncio
+async def test_node_user_usage_history_skips_deleted_nodes(session_factory):
+    async with session_factory() as session:
+        user = User(username="user", proxy_settings=ProxyTable().dict(no_obj=True))
+        deleted_node = Node(
+            name="node-deleted",
+            address="10.0.0.1",
+            port=1000,
+            api_port=1001,
+            server_ca="ca1",
+            api_key="key1",
+            core_config_id=None,
+        )
+        kept_node = Node(
+            name="node-kept",
+            address="10.0.0.2",
+            port=1002,
+            api_port=1003,
+            server_ca="ca2",
+            api_key="key2",
+            core_config_id=None,
+        )
+        session.add_all([user, deleted_node, kept_node])
+        await session.flush()
+        user_id, deleted_node_id, kept_node_id = user.id, deleted_node.id, kept_node.id
+        await session.commit()
+
+    # An admin deletes a node after its stats were read and before they are written
+    async with session_factory() as session:
+        await remove_node(session, await session.get(Node, deleted_node_id))
+
+    bucket = record_usages._get_time_bucket()
+    await record_usages._write_node_user_usage_params(
+        await record_usages.get_dialect(),
+        [
+            {"uid": user_id, "value": 100, "node_id": deleted_node_id, "created_at": bucket},
+            {"uid": user_id, "value": 50, "node_id": kept_node_id, "created_at": bucket},
+        ],
+    )
+
+    async with session_factory() as session:
+        rows = await session.execute(select(NodeUserUsage.node_id, NodeUserUsage.used_traffic))
+        assert rows.all() == [(kept_node_id, 50)]
+
+
+@pytest.mark.skipif(
+    os.getenv("TEST_FROM", "local").lower() == "local" or not database_settings.url.startswith("postgresql"),
+    reason="only PostgreSQL buffers node user usage history",
+)
+@pytest.mark.asyncio
+async def test_postgres_history_keeps_flushing_after_a_node_is_deleted(
+    monkeypatch: pytest.MonkeyPatch, session_factory
+):
+    async with session_factory() as session:
+        user = User(username="user", proxy_settings=ProxyTable().dict(no_obj=True))
+        node_a = Node(
+            name="node-a",
+            address="10.0.0.1",
+            port=1000,
+            api_port=1001,
+            server_ca="ca1",
+            api_key="key1",
+            core_config_id=None,
+        )
+        node_b = Node(
+            name="node-b",
+            address="10.0.0.2",
+            port=1002,
+            api_port=1003,
+            server_ca="ca2",
+            api_key="key2",
+            core_config_id=None,
+        )
+        session.add_all([user, node_a, node_b])
+        await session.flush()
+        user_id, node_a_id, node_b_id = user.id, node_a.id, node_b.id
+        await session.commit()
+
+    clock = {"t": 1000.0}
+    monkeypatch.setattr(record_usages, "_monotonic_now", lambda: clock["t"])
+    monkeypatch.setattr(record_usages.usage_settings, "user_usage_history_flush_interval", 60)
+    coefficients = {node_a_id: 1.0, node_b_id: 1.0}
+
+    # The first sample is written at once, the next one is buffered
+    await record_usages.record_user_stats(
+        {node_a_id: [{"uid": user_id, "value": 100}], node_b_id: [{"uid": user_id, "value": 100}]}, coefficients
+    )
+    clock["t"] += 5
+    await record_usages.record_user_stats(
+        {node_a_id: [{"uid": user_id, "value": 50}], node_b_id: [{"uid": user_id, "value": 50}]}, coefficients
+    )
+
+    # Node A is deleted while its sample is still buffered
+    async with session_factory() as session:
+        await remove_node(session, await session.get(Node, node_a_id))
+
+    clock["t"] += 61
+    await record_usages.flush_user_usage_history_if_due()
+    for _ in range(5):
+        clock["t"] += 61
+        await record_usages.record_user_stats({node_b_id: [{"uid": user_id, "value": 10}]}, coefficients)
+
+    async with session_factory() as session:
+        totals = await session.execute(
+            select(NodeUserUsage.node_id, func.sum(NodeUserUsage.used_traffic)).group_by(NodeUserUsage.node_id)
+        )
+        assert dict(totals.all()) == {node_b_id: 200}
+    assert not record_usages._pending_user_usage_history
 
 
 @pytest.mark.asyncio
