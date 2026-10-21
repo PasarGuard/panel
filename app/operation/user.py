@@ -1928,15 +1928,16 @@ class UserOperation(BaseOperation):
 
         modified_user_ids: list[int] = []
         try:
-            for db_user, modified_user_model, validated_groups, _, _ in prepared_updates:
-                if user_template.reset_usages:
-                    await reset_user_data_usage(
-                        db,
-                        db_user,
-                        clean_chart_data=usage_settings.reset_user_usage_clean_chart_data,
-                        commit=False,
-                    )
+            if user_template.reset_usages:
+                # One set-based reset for all users; it reloads them, so each one below is edited from fresh state
+                await bulk_reset_user_data_usage(
+                    db,
+                    [db_user for db_user, *_ in prepared_updates],
+                    clean_chart_data=usage_settings.reset_user_usage_clean_chart_data,
+                    commit=False,
+                )
 
+            for db_user, modified_user_model, validated_groups, _, _ in prepared_updates:
                 self._apply_explicit_null_hwid_limit(db_user, modified_user_model)
                 await crud_modify_user(
                     db,

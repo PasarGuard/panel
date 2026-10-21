@@ -2971,6 +2971,59 @@ def test_bulk_apply_template_to_users(access_token):
         cleanup_groups(access_token, core, groups)
 
 
+def test_bulk_apply_template_resets_usage_of_every_user(access_token):
+    core, groups = setup_groups(access_token, 1)
+    template = create_user_template(access_token, group_ids=[groups[0]["id"]], reset_usages=True)
+    users = [create_user(access_token, username=unique_name(f"bulk_apply_reset_u{index}")) for index in range(2)]
+    user_ids = [user["id"] for user in users]
+
+    async def _seed_usage():
+        async with TestSession() as session:
+            await session.execute(
+                update(User)
+                .where(User.id.in_(user_ids))
+                .values(used_traffic=2 * 1024 * 1024, status=UserStatus.limited)
+            )
+            await session.commit()
+
+    async def _last_log_id():
+        async with TestSession() as session:
+            return (await session.execute(select(func.coalesce(func.max(UserUsageResetLogs.id), 0)))).scalar_one()
+
+    async def _reset_logs(after_id: int):
+        # SQLite reuses user ids and keeps reset logs of deleted users, so only look at logs this request wrote
+        async with TestSession() as session:
+            rows = await session.execute(
+                select(UserUsageResetLogs.user_id, UserUsageResetLogs.used_traffic_at_reset).where(
+                    UserUsageResetLogs.user_id.in_(user_ids), UserUsageResetLogs.id > after_id
+                )
+            )
+            return sorted(rows.all())
+
+    try:
+        asyncio.run(_seed_usage())
+        last_log_id = asyncio.run(_last_log_id())
+        response = client.post(
+            "/api/users/bulk/apply_template",
+            headers=auth_headers(access_token),
+            json={"ids": user_ids, "user_template_id": template["id"]},
+        )
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["count"] == 2
+
+        assert asyncio.run(_reset_logs(last_log_id)) == [(user_id, 2 * 1024 * 1024) for user_id in sorted(user_ids)]
+        for user in users:
+            user_response = client.get(f"/api/user/by-id/{user['id']}", headers=auth_headers(access_token))
+            assert user_response.status_code == status.HTTP_200_OK
+            body = user_response.json()
+            assert (body["used_traffic"], body["status"]) == (0, "active")
+    finally:
+        for user in users:
+            delete_user(access_token, user["username"])
+        delete_user_template(access_token, template["id"])
+        cleanup_groups(access_token, core, groups)
+
+
 # Tests for /api/users/simple endpoint
 
 
