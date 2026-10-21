@@ -213,7 +213,10 @@ class UserValidator:
         if value == 0 or value is None:
             return None
         if isinstance(value, int):
-            return datetime.now(UTC) + timedelta(seconds=value)
+            try:
+                return datetime.now(UTC) + timedelta(seconds=value)
+            except OverflowError:
+                raise ValueError("on_hold_timeout is out of range")
         if isinstance(value, datetime):
             return value
         raise ValueError("on_hold_timeout can be datetime or int (seconds)")

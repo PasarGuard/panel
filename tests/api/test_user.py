@@ -79,6 +79,54 @@ def test_create_user_rejects_too_large_on_hold_expire_duration(access_token):
         cleanup_groups(access_token, core, groups)
 
 
+def test_user_endpoints_reject_out_of_range_durations_and_timestamps(access_token):
+    core, groups = setup_groups(access_token, 1)
+    user = create_user(access_token, group_ids=[groups[0]["id"]], payload={"username": unique_name("out_of_range")})
+    try:
+        too_far = MAX_ON_HOLD_EXPIRE_DURATION_SECONDS + 1
+        cases = [
+            ("put", f"/api/user/by-id/{user['id']}", {"expire": 10**20}),
+            ("put", f"/api/user/by-id/{user['id']}", {"on_hold_timeout": 10**12}),
+            ("put", f"/api/user/by-id/{user['id']}", {"next_plan": {"data_limit": 1, "expire": 10**13}}),
+            ("put", f"/api/user/by-id/{user['id']}", {"next_plan": {"data_limit": 1, "expire": too_far}}),
+            ("put", f"/api/user/by-id/{user['id']}", {"next_plan": {"data_limit": 1, "expire": -1}}),
+            (
+                "post",
+                "/api/user",
+                {
+                    "username": unique_name("out_of_range_hold"),
+                    "group_ids": [groups[0]["id"]],
+                    "status": "on_hold",
+                    "on_hold_expire_duration": 3600,
+                    "on_hold_timeout": 10**12,
+                },
+            ),
+            (
+                "post",
+                "/api/user",
+                {
+                    "username": unique_name("out_of_range_plan"),
+                    "group_ids": [groups[0]["id"]],
+                    "next_plan": {"data_limit": 1, "expire": 10**13},
+                },
+            ),
+        ]
+        for method, url, body in cases:
+            response = getattr(client, method)(url, headers=auth_headers(access_token), json=body)
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY, (body, response.status_code)
+
+        response = client.put(
+            f"/api/user/by-id/{user['id']}",
+            headers=auth_headers(access_token),
+            json={"next_plan": {"data_limit": 1, "expire": MAX_ON_HOLD_EXPIRE_DURATION_SECONDS}},
+        )
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["next_plan"]["expire"] == MAX_ON_HOLD_EXPIRE_DURATION_SECONDS
+    finally:
+        delete_user(access_token, user["username"])
+        cleanup_groups(access_token, core, groups)
+
+
 def set_user_online_at(username: str, online_at: datetime) -> None:
     async def _set_online_at():
         async with TestSession() as session:

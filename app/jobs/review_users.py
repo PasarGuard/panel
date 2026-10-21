@@ -12,6 +12,7 @@ from app.db.crud.user import (
     get_days_left_reached_users,
     get_on_hold_to_active_users,
     get_usage_percentage_reached_users,
+    reload_review_users,
     remove_users,
     reset_user_by_next,
     start_users_expire,
@@ -67,15 +68,26 @@ async def apply_status_changes(db: AsyncSession, users: list[User], status: User
     if not next_plan_users:
         return
 
+    # Read ids up front: a rollback below expires every loaded user, primary keys included.
+    user_ids = [db_user.id for db_user in next_plan_users]
+    reset_ids: list[int] = []
     reset_users: list[User] = []
-    for db_user in next_plan_users:
-        reset_users.append(
-            await reset_user_by_next(
-                db,
-                db_user,
-                clean_chart_data=usage_settings.reset_user_usage_clean_chart_data,
+    for index, db_user in enumerate(next_plan_users):
+        username = db_user.username
+        try:
+            reset_users.append(
+                await reset_user_by_next(
+                    db,
+                    db_user,
+                    clean_chart_data=usage_settings.reset_user_usage_clean_chart_data,
+                )
             )
-        )
+            reset_ids.append(user_ids[index])
+        except Exception:
+            # One bad next plan must not stall every user after it: skip it, the next run retries it.
+            logger.exception(f'Failed to activate next plan of user "{username}", skipped')
+            await db.rollback()
+            await reload_review_users(db, reset_ids + user_ids[index + 1 :])
     await sync_users(reset_users)
     for db_user in reset_users:
         await _notify_next_plan(db_user)

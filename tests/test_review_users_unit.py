@@ -20,7 +20,16 @@ from app.db.crud.user import (
     start_users_expire,
     update_users_status,
 )
-from app.db.models import Admin, AdminRole, Group, User, UserStatus, UserUsageResetLogs, users_groups_association
+from app.db.models import (
+    Admin,
+    AdminRole,
+    Group,
+    NextPlan,
+    User,
+    UserStatus,
+    UserUsageResetLogs,
+    users_groups_association,
+)
 from app.jobs import review_users
 from app.models.settings import HWIDSettings, OnHoldTimeoutAction
 from app.models.user import UserNotificationResponse
@@ -478,3 +487,43 @@ async def test_on_hold_timeout_action_only_hits_users_whose_timeout_expired(db_s
     else:
         assert rows[timed_out_id].status == UserStatus.disabled
         sync_remove.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_bad_next_plan_does_not_stall_other_next_plan_users(db_session):
+    # Rows stored before next_plan expire was bounded (SQLite keeps any int) make reset_user_by_next overflow.
+    ids = {}
+    for name, expire in (("plan-before", 86400), ("plan-bad", 10**13), ("plan-after", 86400)):
+        user_id, *_ = await _seed_review_user(
+            db_session, username=name, status=UserStatus.active, used_traffic=200, data_limit=100
+        )
+        db_session.add(NextPlan(user_id=user_id, user_template_id=None, data_limit=1000, expire=expire))
+        ids[name] = user_id
+    await db_session.commit()
+
+    @asynccontextmanager
+    async def _get_db():
+        yield db_session
+
+    async def _validate(db_user, include_subscription_url=True):
+        # Touches the loaded relations, so a user left expired by a rollback fails here.
+        return UserNotificationResponse.model_validate(db_user)
+
+    with (
+        patch.object(review_users, "GetDB", _get_db),
+        patch.object(review_users, "sync_users", AsyncMock()) as sync,
+        patch.object(review_users.user_operator, "validate_user", side_effect=_validate),
+        patch("app.jobs.review_users.notification.user_data_reset_by_next", AsyncMock()),
+        patch("app.jobs.review_users.notification.user_status_change", AsyncMock()),
+    ):
+        await review_users.limit_users_job()
+
+    assert sorted(user.id for user in sync.await_args.args[0]) == [ids["plan-before"], ids["plan-after"]]
+    db_session.expire_all()
+    rows = {user.username: user for user in (await db_session.execute(select(User))).scalars()}
+    assert rows["plan-before"].data_limit == 1000
+    assert rows["plan-after"].data_limit == 1000
+    # The bad row is skipped untouched (and retried on the next run), not half-applied.
+    assert rows["plan-bad"].data_limit == 100
+    assert rows["plan-bad"].used_traffic == 200
+    assert rows["plan-bad"].status == UserStatus.active

@@ -35,7 +35,10 @@ def fix_datetime_timezone(value: dt | int | str):
         return value  # Already has timezone info
     elif isinstance(value, int):
         # Timestamp will be assume it's UTC
-        return dt.fromtimestamp(value, tz=UTC)
+        try:
+            return dt.fromtimestamp(value, tz=UTC)
+        except OverflowError, OSError, ValueError:
+            raise ValueError("timestamp is out of range")
     elif isinstance(value, str):
         # SQLite strftime returns naive ISO strings; treat them as UTC.
         parsed = dt.fromisoformat(value)

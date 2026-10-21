@@ -43,6 +43,25 @@ def test_user_template_rejects_too_large_expire_duration(access_token):
         cleanup_groups(access_token, core, groups)
 
 
+def test_user_template_rejects_too_large_on_hold_timeout(access_token):
+    core, groups = setup_groups(access_token, 1)
+    try:
+        response = client.post(
+            "/api/user_template",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={
+                "name": unique_name("template_too_large_timeout"),
+                "group_ids": [groups[0]["id"]],
+                "status": "on_hold",
+                "expire_duration": 3600,
+                "on_hold_timeout": 10**13,
+            },
+        )
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    finally:
+        cleanup_groups(access_token, core, groups)
+
+
 def test_user_template_create(access_token):
     """Test that the user template create route is accessible."""
     core, groups = setup_groups(access_token, 1)

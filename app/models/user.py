@@ -74,6 +74,15 @@ class UserWithValidator(User):
             return value
         return fix_datetime_timezone(value)
 
+    @field_validator("next_plan")
+    @classmethod
+    def validate_next_plan(cls, value: NextPlanModel | None):
+        # Bound on input only: responses reuse NextPlanModel and must still load rows stored before this check.
+        expire = value.expire if value is not None else None
+        if expire is not None and not 0 <= expire <= MAX_ON_HOLD_EXPIRE_DURATION_SECONDS:
+            raise ValueError(f"next_plan expire must be between 0 and {MAX_ON_HOLD_EXPIRE_DURATION_SECONDS} seconds")
+        return value
+
 
 class UserCreate(UserWithValidator):
     username: str
