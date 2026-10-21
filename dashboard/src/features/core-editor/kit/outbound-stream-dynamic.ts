@@ -147,8 +147,9 @@ function tlsSettingsWithoutAlpn(tls: Record<string, unknown>): Record<string, un
  * Stream settings for an outbound switching to `nextProtocol`. To MASQUE: `{ network: 'masque', security: 'tls' }`,
  * plus the old TLS settings without `alpn` (only from a TLS stream, and only when something is left), `sockopt` and
  * `finalmask`. From a MASQUE stream (or one with `masqueSettings`) to another protocol: a copy without `network`,
- * `method` and `masqueSettings`, or `undefined` when nothing is left. A MASQUE stream also loses its TLS `alpn` (the
- * MASQUE HTTP version), and its TLS settings when nothing else is left in them. Anything else is returned as it is.
+ * `method` and `masqueSettings`, or `undefined` when nothing is left. Switching XDrive to a non-VLESS protocol also
+ * drops its transport name and `xdriveSettings`. A MASQUE stream also loses its TLS `alpn` (the MASQUE HTTP version),
+ * and its TLS settings when nothing else is left in them. Anything else is returned as it is.
  */
 export function outboundStreamSettingsForProtocolSwitch(stream: Record<string, unknown> | undefined, nextProtocol: string): Record<string, unknown> | undefined {
   if (nextProtocol === 'masque') {
@@ -163,11 +164,13 @@ export function outboundStreamSettingsForProtocolSwitch(stream: Record<string, u
   }
   if (!stream) return stream
   const fromMasque = outboundStreamTransportName(stream) === 'masque'
-  if (!fromMasque && !('masqueSettings' in stream)) return stream
+  const fromXdrive = nextProtocol !== 'vless' && (outboundStreamTransportName(stream) === 'xdrive' || 'xdriveSettings' in stream)
+  if (!fromMasque && !('masqueSettings' in stream) && !fromXdrive) return stream
   const next = { ...stream }
   delete next.network
   delete next.method
   delete next.masqueSettings
+  delete next.xdriveSettings
   if (fromMasque && isRecord(next.tlsSettings)) {
     const tls = tlsSettingsWithoutAlpn(next.tlsSettings)
     if (tls) next.tlsSettings = tls

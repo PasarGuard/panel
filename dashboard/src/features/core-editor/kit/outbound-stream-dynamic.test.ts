@@ -150,6 +150,19 @@ test('outboundStreamSettingsForProtocolSwitch', () => {
   assert.equal(outboundStreamSettingsForProtocolSwitch(plain, 'vless'), plain)
 })
 
+test('switching XDrive to a non-VLESS protocol drops its transport state', () => {
+  const xdrive = { method: 'XDrive', network: 'tcp', security: 'tls', xdriveSettings: { service: 'local' }, sockopt: { mark: 1 } }
+  assert.deepEqual(outboundStreamSettingsForProtocolSwitch(xdrive, 'trojan'), { security: 'tls', sockopt: { mark: 1 } })
+  assert.deepEqual(xdrive.xdriveSettings, { service: 'local' })
+  assert.equal(outboundStreamSettingsForProtocolSwitch({ network: 'xdrive' }, 'vmess'), undefined)
+  assert.deepEqual(outboundStreamSettingsForProtocolSwitch({ network: 'ws', xdriveSettings: { service: 'local' }, wsSettings: { path: '/w' } }, 'trojan'), {
+    wsSettings: { path: '/w' },
+  })
+  assert.equal(outboundStreamSettingsForProtocolSwitch(xdrive, 'vless'), xdrive)
+  const plain = { network: 'ws', security: 'none' }
+  assert.equal(outboundStreamSettingsForProtocolSwitch(plain, 'trojan'), plain)
+})
+
 test('outboundStreamSettingsForProtocolSwitch edge cases', () => {
   // Key order: network, security, tlsSettings, sockopt, finalmask.
   const toMasque = outboundStreamSettingsForProtocolSwitch({ finalmask: { tcp: [] }, sockopt: { mark: 1 }, tlsSettings: { serverName: 'a.com' }, security: 'tls', method: 'ws' }, 'masque')
@@ -161,6 +174,7 @@ test('outboundStreamSettingsForProtocolSwitch edge cases', () => {
   // A method-keyed MASQUE stream, and a stale masqueSettings on another network, are both cleaned.
   assert.deepEqual(outboundStreamSettingsForProtocolSwitch({ method: 'MASQUE', network: 'tcp', security: 'tls' }, 'vmess'), { security: 'tls' })
   assert.deepEqual(outboundStreamSettingsForProtocolSwitch({ network: 'ws', masqueSettings: { path: '/p' }, wsSettings: { path: '/w' } }, 'trojan'), { wsSettings: { path: '/w' } })
+  assert.deepEqual(outboundStreamSettingsForProtocolSwitch({ network: 'masque', masqueSettings: {}, xdriveSettings: {}, security: 'tls' }, 'vless'), { security: 'tls' })
 })
 
 test('switching away from MASQUE drops the HTTP version ALPN, like switching to it', () => {
