@@ -33,6 +33,7 @@ import { SelectorPanel } from '@/features/bulk/components/selector-panel'
 import { TimeUnitSelect, TIME_UNIT_SECONDS, type TimeUnit } from '@/components/common/time-unit-select'
 import { formatDateByLocale } from '@/utils/datePickerUtils'
 import { formatBytes, gbToBytes } from '@/utils/formatByte'
+import { toWholeSeconds } from '@/utils/timeUnitSeconds'
 import { useDebouncedSearch } from '@/hooks/use-debounced-search'
 import { cn } from '@/lib/utils'
 import useDirDetection from '@/hooks/use-dir-detection'
@@ -94,7 +95,7 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
       setExpireSeconds(undefined)
       return
     }
-    setExpireSeconds(num * TIME_UNIT_SECONDS[expireUnit])
+    setExpireSeconds(toWholeSeconds(num, TIME_UNIT_SECONDS[expireUnit]))
   }, [expireAmount, expireUnit])
 
   const { data: groupsData, isLoading: groupsLoading } = useGetGroupsSimple({ limit: PAGE_SIZE, offset: 0, all: true })

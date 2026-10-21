@@ -24,6 +24,7 @@ import {
 } from '@/service/api'
 import { formatBytes, gbToBytes } from '@/utils/formatByte'
 import { queryClient } from '@/utils/query-client.ts'
+import { toWholeSeconds } from '@/utils/timeUnitSeconds'
 import React, { useEffect, useState } from 'react'
 import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -370,7 +371,7 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
                               emptyValue={0}
                               zeroValue={0}
                               toDisplayValue={value => value / unitSeconds}
-                              toValue={displayValue => displayValue * unitSeconds}
+                              toValue={displayValue => toWholeSeconds(displayValue, unitSeconds)}
                               onValueChange={value => {
                                 field.onChange(value ?? 0)
                                 void form.trigger('expire_duration')
@@ -442,7 +443,7 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
                     const convertToSeconds = (inputValue: string, type: TimeUnit) => {
                       const numValue = parseFloat(inputValue)
                       if (isNaN(numValue) || numValue < 0) return undefined
-                      return numValue * TIME_UNIT_SECONDS[type]
+                      return toWholeSeconds(numValue, TIME_UNIT_SECONDS[type])
                     }
 
                     if (status !== UserStatusCreate.on_hold) {

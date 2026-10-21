@@ -45,6 +45,7 @@ import { parseDateInput } from '@/utils/dateTimeParsing'
 import { bytesToFormGigabytes, formatBytes, gbToBytes } from '@/utils/formatByte'
 import { invalidateUserMetricsQueries, upsertUserInUsersCache } from '@/utils/usersCache'
 import { hasPermission, hasScopeAll } from '@/utils/rbac'
+import { toWholeSeconds } from '@/utils/timeUnitSeconds'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   CalendarClock,
@@ -1659,7 +1660,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
                                               emptyValue={0}
                                               zeroValue={0}
                                               toDisplayValue={value => value / unitSeconds}
-                                              toValue={displayValue => displayValue * unitSeconds}
+                                              toValue={displayValue => toWholeSeconds(displayValue, unitSeconds)}
                                               onValueChange={value => {
                                                 const nextValue = value ?? 0
                                                 field.onChange(nextValue)
