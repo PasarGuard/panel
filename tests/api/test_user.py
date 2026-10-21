@@ -48,6 +48,7 @@ from tests.api.helpers import (
     delete_group,
     delete_user,
     delete_user_template,
+    get_inbounds,
     set_user_hwids,
     unique_name,
 )
@@ -3612,6 +3613,79 @@ def test_wireguard_subnet_exhaustion_returns_400(access_token):
             delete_user(access_token, user1["username"])
         delete_group(access_token, group["id"])
         delete_core(access_token, core["id"])
+
+
+@pytest.mark.parametrize("users_count", [3, 1], ids=["exhausted", "fits"])
+@pytest.mark.parametrize("action", ["modify", "bulk_add", "bulk_enable"])
+def test_group_edit_that_exhausts_wireguard_subnet_changes_nothing(access_token, monkeypatch, action, users_count):
+    """A group edit that runs out of WireGuard addresses is rolled back; a fitting one is saved and synced."""
+    xray_core = create_core(access_token)
+    interface_name = unique_name("wg_tiny")
+    wg_core = _create_wg_core(access_token, interface_name, ["10.46.0.1/30"])  # one usable peer address
+    xray_tag = next(tag for tag in get_inbounds(access_token) if tag != interface_name)
+    plain = create_group(access_token, name=unique_name("plain"), inbound_tags=[xray_tag])
+    wg_group = create_group(access_token, name=unique_name("wg"), inbound_tags=[interface_name])
+    if action == "bulk_enable":
+        response = client.post(
+            "/api/groups/bulk/disable", headers=auth_headers(access_token), json={"ids": [wg_group["id"]]}
+        )
+        assert response.status_code == status.HTTP_200_OK
+    member_group_ids = [plain["id"], wg_group["id"]] if action == "bulk_enable" else [plain["id"]]
+    users = [
+        create_user(access_token, group_ids=member_group_ids, payload={"username": unique_name("gu")})
+        for _ in range(users_count)
+    ]
+    sync_mock = AsyncMock()
+    monkeypatch.setattr("app.operation.group.sync_users", sync_mock)
+    try:
+        if action == "modify":
+            response = client.put(
+                f"/api/group/{plain['id']}",
+                headers=auth_headers(access_token),
+                json={"name": plain["name"], "inbound_tags": [xray_tag, interface_name]},
+            )
+        elif action == "bulk_add":
+            response = client.post(
+                "/api/groups/bulk/add",
+                headers=auth_headers(access_token),
+                json={"group_ids": [wg_group["id"]], "users": [user["id"] for user in users]},
+            )
+        else:
+            response = client.post(
+                "/api/groups/bulk/enable", headers=auth_headers(access_token), json={"ids": [wg_group["id"]]}
+            )
+
+        stored_plain = client.get(f"/api/group/{plain['id']}", headers=auth_headers(access_token)).json()
+        stored_wg = client.get(f"/api/group/{wg_group['id']}", headers=auth_headers(access_token)).json()
+        stored_users = [
+            client.get(f"/api/user/{user['username']}", headers=auth_headers(access_token)).json() for user in users
+        ]
+        if users_count > 1:
+            assert response.status_code == status.HTTP_400_BAD_REQUEST
+            assert "no free addresses" in response.json()["detail"]
+            assert stored_plain["inbound_tags"] == [xray_tag]
+            assert stored_wg["is_disabled"] is (action == "bulk_enable")
+            assert all(sorted(user["group_ids"]) == sorted(member_group_ids) for user in stored_users)
+            assert all(user["proxy_settings"]["wireguard"]["peer_ips"] == [] for user in stored_users)
+            sync_mock.assert_not_awaited()
+        else:
+            assert response.status_code == status.HTTP_200_OK
+            if action == "modify":
+                assert sorted(stored_plain["inbound_tags"]) == sorted([xray_tag, interface_name])
+            elif action == "bulk_add":
+                assert wg_group["id"] in stored_users[0]["group_ids"]
+            else:
+                assert stored_wg["is_disabled"] is False
+            assert stored_users[0]["proxy_settings"]["wireguard"]["peer_ips"] == ["10.46.0.2/32"]
+            sync_mock.assert_awaited_once()
+            assert [user.id for user in sync_mock.await_args.args[0]] == [users[0]["id"]]
+    finally:
+        for user in users:
+            delete_user(access_token, user["username"])
+        delete_group(access_token, wg_group["id"])
+        delete_group(access_token, plain["id"])
+        delete_core(access_token, wg_core["id"])
+        delete_core(access_token, xray_core["id"])
 
 
 # ---------------------------------------------------------------------------

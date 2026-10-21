@@ -267,7 +267,8 @@ async def add_groups_to_users(db: AsyncSession, bulk_model: BulkGroup) -> tuple[
         await db.execute(
             insert(users_groups_association).from_select(["user_id", "groups_id"], missing_pairs),
         )
-    await db.commit()
+    # No commit: the caller reconciles WireGuard addresses first and commits both together.
+    await db.flush()
 
     # Return users that actually had groups added
     return await _reload_group_users(db, affected_user_ids), count_effctive_users
@@ -304,7 +305,8 @@ async def remove_groups_from_users(
                 users_groups_association.c.groups_id.in_(bulk_model.group_ids),
             )
         )
-    await db.commit()
+    # No commit: the caller reconciles WireGuard addresses first and commits both together.
+    await db.flush()
     return await _reload_group_users(db, affected_user_ids), count_effctive_users
 
 

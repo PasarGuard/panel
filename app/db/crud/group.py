@@ -241,7 +241,8 @@ async def modify_group(db: AsyncSession, db_group: Group, modified_group: GroupM
     if modified_group.is_disabled is not None:
         db_group.is_disabled = modified_group.is_disabled
 
-    await db.commit()
+    # No commit: the caller allocates WireGuard addresses for the members first and commits both together.
+    await db.flush()
     await db.refresh(db_group)
     await load_group_attrs(db, db_group)
     return db_group
