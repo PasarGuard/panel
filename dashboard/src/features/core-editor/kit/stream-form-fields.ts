@@ -165,6 +165,20 @@ export function blockingStreamFieldIssues(issues: readonly StreamFieldIssue[]): 
   return issues.filter(issue => issue.severity === 'error' && issue.field !== 'clients')
 }
 
+/** Issue fields the outbound "Stream & Security" accordion shows under its network and security selects. */
+const OUTBOUND_STREAM_SELECT_FIELDS = new Set(['transport', 'security'])
+
+/**
+ * The blocking issues (`blockingStreamFieldIssues`) the outbound "Stream & Security" accordion shows, so the form can
+ * open it: on the xdrive network all of them (the XDrive box sits inside the accordion), otherwise only the messages
+ * under its network and security selects (the MASQUE box, outside the accordion, shows the rest).
+ */
+export function outboundStreamAccordionBlockingIssues(issues: readonly StreamFieldIssue[], protocol: string, network: string): StreamFieldIssue[] {
+  const blocking = blockingStreamFieldIssues(issues)
+  if (protocol !== 'masque' && normalizedName(network) === 'xdrive') return blocking
+  return blocking.filter(issue => OUTBOUND_STREAM_SELECT_FIELDS.has(issue.field))
+}
+
 /** The MASQUE and XDrive forms own a proxy's kit issues for the masque protocol and for a masque or xdrive transport on any protocol. */
 function hasStreamForms(protocol: string, transportName: string): boolean {
   return protocol === 'masque' || transportName === 'masque' || transportName === 'xdrive'

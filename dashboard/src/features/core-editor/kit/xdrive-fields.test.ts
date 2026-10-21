@@ -10,7 +10,7 @@ import {
   isXdriveGoogleDriveService,
   parseXdriveNumberInput,
   setXdriveGoogleDriveSecret,
-  vlessInboundFlowSelectValues,
+  vlessFlowSelectValues,
   withXdriveInboundFlowIssue,
   XDRIVE_TUNING_FIELDS,
   XDRIVE_UINT32_MAX,
@@ -126,14 +126,19 @@ test('withXdriveInboundFlowIssue adds nothing when the kit reports the flow or t
   }
 })
 
-test('the VLESS inbound Flow select offers no flow on xdrive, but a stored flow stays visible', () => {
+test('a VLESS Flow select (inbound or outbound) offers no flow on xdrive, but a stored flow stays visible', () => {
   const vision = ['xtls-rprx-vision']
-  assert.deepEqual(vlessInboundFlowSelectValues('xdrive', '', vision), [])
-  assert.deepEqual(vlessInboundFlowSelectValues('xdrive', '  ', vision), [])
-  assert.deepEqual(vlessInboundFlowSelectValues('xdrive', 'xtls-rprx-vision', vision), ['xtls-rprx-vision'])
-  assert.deepEqual(vlessInboundFlowSelectValues('XDrive', 'xtls-rprx-vision', []), ['xtls-rprx-vision'])
+  assert.deepEqual(vlessFlowSelectValues('xdrive', '', vision), [])
+  assert.deepEqual(vlessFlowSelectValues('xdrive', '  ', vision), [])
+  assert.deepEqual(vlessFlowSelectValues('xdrive', 'xtls-rprx-vision', vision), ['xtls-rprx-vision'])
+  assert.deepEqual(vlessFlowSelectValues('XDrive', 'xtls-rprx-vision', []), ['xtls-rprx-vision'])
   // Other transports offer what the transport and security allow.
-  assert.deepEqual(vlessInboundFlowSelectValues('tcp', '', vision), vision)
-  assert.deepEqual(vlessInboundFlowSelectValues('tcp', 'xtls-rprx-vision', []), [])
-  assert.deepEqual(vlessInboundFlowSelectValues('xhttp', '', vision), vision)
+  assert.deepEqual(vlessFlowSelectValues('tcp', '', vision), vision)
+  assert.deepEqual(vlessFlowSelectValues('tcp', 'xtls-rprx-vision', []), [])
+  assert.deepEqual(vlessFlowSelectValues('xhttp', '', vision), vision)
+  // Outbound: both Vision flows; on xdrive only the stored one (the kit error says to remove it).
+  const outboundVision = ['xtls-rprx-vision', 'xtls-rprx-vision-udp443']
+  assert.deepEqual(vlessFlowSelectValues('xdrive', 'xtls-rprx-vision-udp443', outboundVision), ['xtls-rprx-vision-udp443'])
+  assert.deepEqual(vlessFlowSelectValues('xdrive', '', outboundVision), [])
+  assert.deepEqual(vlessFlowSelectValues('', '', outboundVision), outboundVision)
 })

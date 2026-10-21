@@ -53,7 +53,7 @@ import {
   wireguardInboundAddresses,
   wireguardInboundFormTexts,
 } from '@/features/core-editor/kit/wireguard-xray-fields'
-import { vlessInboundFlowSelectValues, withXdriveInboundFlowIssue } from '@/features/core-editor/kit/xdrive-fields'
+import { vlessFlowSelectValues, withXdriveInboundFlowIssue } from '@/features/core-editor/kit/xdrive-fields'
 import { coerceVerifyPeerCertByNameList, inferParityFieldMode, outboundSettingToString, parseOutboundSettingValue, stringifyJsonFormRecord } from '@/features/core-editor/kit/xray-parity-value'
 import { useCoreEditorStore } from '@/features/core-editor/state/core-editor-store'
 import useDirDetection from '@/hooks/use-dir-detection'
@@ -4066,7 +4066,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                     render={({ field }) => {
                       const flow = field.value ?? ''
                       // No flow on xdrive; a stored one stays visible next to its error until Default is picked.
-                      const flowOptions = vlessInboundFlowSelectValues(transportForVlessInboundFlow, flow, vlessInboundFlowsOk ? VLESS_INBOUND_FLOW_VALUES : [])
+                      const flowOptions = vlessFlowSelectValues(transportForVlessInboundFlow, flow, vlessInboundFlowsOk ? VLESS_INBOUND_FLOW_VALUES : [])
                       return (
                         <FormItem className="sm:col-span-2">
                           <FormLabel className="text-muted-foreground text-xs font-semibold tracking-wide">{t('coreEditor.field.flow', { defaultValue: 'Flow' })}</FormLabel>

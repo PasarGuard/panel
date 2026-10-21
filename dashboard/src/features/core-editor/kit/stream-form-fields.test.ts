@@ -11,6 +11,7 @@ import {
   formatTextInput,
   inboundStreamFieldIssues,
   isPlainObject,
+  outboundStreamAccordionBlockingIssues,
   outboundStreamFieldIssues,
   parseJsonObjectInput,
   parsePortInput,
@@ -20,6 +21,7 @@ import {
   streamFieldIssuesForOutbound,
   syncTypedText,
 } from '@/features/core-editor/kit/stream-form-fields'
+import type { StreamFieldIssue } from '@/features/core-editor/kit/stream-form-fields'
 
 // A VLESS Encryption pair from `xray vlessenc` (X25519). Xray v26.10.17 runs xdrive only on VLESS with encryption.
 const VLESS_DECRYPTION = 'mlkem768x25519plus.native.600s.KGoJgsdMC5rWUr1fnyXxteBAgbbWIQ_YKVnFWpxXBWk'
@@ -348,5 +350,32 @@ test('stream issue mapping decodes JSON pointers and keeps the input order', () 
       issue('XCK_SEMANTIC_MASQUE_D', '/streamSettings/xdriveSettings/warp'),
     ]).map(i => i.field),
     ['transport', 'warp'],
+  )
+})
+
+test('outboundStreamAccordionBlockingIssues: the blocking issues the Stream & Security accordion shows', () => {
+  const issue = (field: string, severity: StreamFieldIssue['severity'] = 'error'): StreamFieldIssue => ({ field, severity, code: 'XCK_SEMANTIC_MASQUE_TEST', message: field })
+  const issues = [issue('security'), issue('transport'), issue('user'), issue('remoteFolder'), issue('mux', 'warning'), issue('encryption')]
+  // MASQUE: the box outside the accordion shows everything but the security and transport selects' messages.
+  assert.deepEqual(
+    outboundStreamAccordionBlockingIssues(issues, 'masque', 'masque').map(i => i.field),
+    ['security', 'transport'],
+  )
+  // XDrive: the XDrive box sits inside the accordion, so every blocking issue is there (warnings never open it).
+  assert.deepEqual(
+    outboundStreamAccordionBlockingIssues(issues, 'vless', 'XDrive').map(i => i.field),
+    ['security', 'transport', 'user', 'remoteFolder', 'encryption'],
+  )
+  // Any other outbound: only the select messages (for example a stored masque network on VLESS).
+  assert.deepEqual(
+    outboundStreamAccordionBlockingIssues(issues, 'vless', 'masque').map(i => i.field),
+    ['security', 'transport'],
+  )
+  assert.deepEqual(outboundStreamAccordionBlockingIssues([issue('security', 'warning')], 'masque', 'masque'), [])
+  // Wired to the kit: an imported MASQUE outbound without TLS.
+  const masqueNoTls = { protocol: 'masque', tag: 'm', settings: { address: 'a.com', port: 443 }, streamSettings: { network: 'masque', security: 'none' } } as unknown as Outbound
+  assert.deepEqual(
+    outboundStreamAccordionBlockingIssues(streamFieldIssuesForOutbound(masqueNoTls), 'masque', 'masque').map(i => i.code),
+    ['XCK_SEMANTIC_MASQUE_TLS_REQUIRED'],
   )
 })

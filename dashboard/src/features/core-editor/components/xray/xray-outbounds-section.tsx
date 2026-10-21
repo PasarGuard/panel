@@ -39,8 +39,9 @@ import {
 } from '@/features/core-editor/kit/outbound-stream-dynamic'
 import { profileDuplicateTagMessage, profileTagHasDuplicateUsage } from '@/features/core-editor/kit/profile-tag-uniqueness'
 import { remapIndexAfterArrayMove } from '@/features/core-editor/kit/remap-index-after-move'
-import { blockingStreamFieldIssues, isPlainObject, streamFieldIssuesForOutbound } from '@/features/core-editor/kit/stream-form-fields'
+import { blockingStreamFieldIssues, isPlainObject, outboundStreamAccordionBlockingIssues, streamFieldIssuesForOutbound, type StreamFieldIssue } from '@/features/core-editor/kit/stream-form-fields'
 import { WIREGUARD_OUTBOUND_FORM_KEYS, wireguardOutboundIssueMessage, wireguardOutboundSettingsIssues } from '@/features/core-editor/kit/wireguard-outbound-settings'
+import { vlessFlowSelectValues } from '@/features/core-editor/kit/xdrive-fields'
 import {
   flattenOutboundSettings,
   mergeEditorBodyIntoOutbound,
@@ -642,6 +643,15 @@ export function XrayOutboundsSection({ headerAddPulse, headerAddEpoch }: XrayOut
   }, [ob, outboundCaps])
 
   const obStreamSettings = useMemo(() => (ob ? getOutboundStreamSettingsRecord(ob) : null), [ob])
+  /** Kit issues the MASQUE and XDrive forms own (`[]` for other outbounds). */
+  const outboundStreamIssues = useMemo(() => (ob ? streamFieldIssuesForOutbound(ob) : []), [ob])
+  /** Which blocking issues the "Stream & Security" accordion holds; a change opens it (see `OutboundStackedAccordion`). */
+  const streamAccordionBlockingKey = useMemo(() => {
+    if (!ob || !showOutboundStreamSettingsAccordion) return ''
+    return outboundStreamAccordionBlockingIssues(outboundStreamIssues, ob.protocol, outboundStreamTransportName(obStreamSettings))
+      .map(issue => `${issue.field}:${issue.code}`)
+      .join('|')
+  }, [ob, showOutboundStreamSettingsAccordion, outboundStreamIssues, obStreamSettings])
 
   // ─── Form reset on open / row change ───────────────────────────────────────
 
@@ -1207,7 +1217,7 @@ export function XrayOutboundsSection({ headerAddPulse, headerAddEpoch }: XrayOut
 
                     {/* ── Stream + mux + chain proxy: stacked accordions (stream hidden for freedom/blackhole/dns — dedicated UIs) ── */}
                     {showOutboundStackedAccordions && (
-                      <Accordion type="multiple" className="!mt-0 mb-4 flex w-full flex-col gap-y-3">
+                      <OutboundStackedAccordion streamBlockingKey={streamAccordionBlockingKey}>
                         {showOutboundStreamSettingsAccordion && (
                           <OutboundStreamSettingsAccordion
                             ob={ob}
@@ -1216,6 +1226,7 @@ export function XrayOutboundsSection({ headerAddPulse, headerAddEpoch }: XrayOut
                             patchOutbound={patchOutbound}
                             t={t}
                             dialerProxyTagOptions={outbounds.map(o => o.tag).filter((tag): tag is string => typeof tag === 'string' && tag !== ob.tag)}
+                            streamIssues={outboundStreamIssues}
                             onInvalidInputsChange={fields => reportInvalidStreamInputs('xdrive', fields)}
                           />
                         )}
@@ -1229,7 +1240,7 @@ export function XrayOutboundsSection({ headerAddPulse, headerAddEpoch }: XrayOut
                         )}
                         {showOutboundFinalmaskAccordion && <OutboundFinalmaskAccordion ob={ob} patchOutbound={patchOutbound} t={t} />}
                         <OutboundAdvancedAccordion ob={ob} patchOutbound={patchOutbound} t={t} />
-                      </Accordion>
+                      </OutboundStackedAccordion>
                     )}
                   </form>
                 </Form>
@@ -1350,6 +1361,8 @@ function OutboundProxyEndpointSection({ ob, patchOutbound, t }: OutboundProxyEnd
   const method = String(flat.method ?? 'aes-256-gcm')
   const encryption = String(flat.encryption ?? 'none')
   const flow = typeof flat.flow === 'string' ? flat.flow : ''
+  // No flow on xdrive; a stored one stays visible next to the kit error until Default is picked.
+  const flowOptions = vlessFlowSelectValues(outboundStreamTransportName(streamRec), flow, vlessVisionFlowsOk ? VLESS_FLOW_OPTIONS : [])
   const alterIdStr = flat.alterId != null && flat.alterId !== '' ? String(flat.alterId) : '0'
   const security = typeof flat.security === 'string' && flat.security ? flat.security : 'auto'
 
@@ -1434,13 +1447,11 @@ function OutboundProxyEndpointSection({ ob, patchOutbound, t }: OutboundProxyEnd
                 </SelectTrigger>
                 <SelectContent dir="ltr">
                   <SelectItem value="__none">{t('coreEditor.outbound.flowDefault', { defaultValue: 'Default (none)' })}</SelectItem>
-                  {vlessVisionFlowsOk
-                    ? VLESS_FLOW_OPTIONS.map(f => (
-                        <SelectItem key={f} value={f}>
-                          {f}
-                        </SelectItem>
-                      ))
-                    : null}
+                  {flowOptions.map(f => (
+                    <SelectItem key={f} value={f}>
+                      {f}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
               {!vlessVisionFlowsOk ? (
@@ -1599,6 +1610,26 @@ function ProtocolSettingsGrid({ ob, settingsOrder, outboundCaps, form, patchOutb
   )
 }
 
+// ─── Stacked accordions ───────────────────────────────────────────────────────
+
+/**
+ * The dialog's stacked accordions (stream, sockopt, finalmask, mux, chain proxy), all closed at first. "Stream &
+ * Security" opens whenever the blocking kit issues it holds change to a non-empty set (`streamBlockingKey`), so such an
+ * error is never left in a collapsed section; the user can still collapse it.
+ */
+function OutboundStackedAccordion({ streamBlockingKey, children }: { streamBlockingKey: string; children: ReactNode }) {
+  const [openItems, setOpenItems] = useState<string[]>([])
+  useEffect(() => {
+    if (streamBlockingKey === '') return
+    setOpenItems(prev => (prev.includes('stream') ? prev : [...prev, 'stream']))
+  }, [streamBlockingKey])
+  return (
+    <Accordion type="multiple" value={openItems} onValueChange={setOpenItems} className="!mt-0 mb-4 flex w-full flex-col gap-y-3">
+      {children}
+    </Accordion>
+  )
+}
+
 // ─── Stream Settings Accordion ────────────────────────────────────────────────
 
 interface OutboundStreamSettingsAccordionProps {
@@ -1608,6 +1639,8 @@ interface OutboundStreamSettingsAccordionProps {
   patchOutbound: (next: Outbound) => void
   t: (key: string, opts?: Record<string, unknown>) => string
   dialerProxyTagOptions: readonly string[]
+  /** Kit issues the MASQUE and XDrive forms own (`streamFieldIssuesForOutbound`, `[]` for other outbounds). */
+  streamIssues: readonly StreamFieldIssue[]
   /** Inputs of the XDrive box holding text that does not parse (`[]` once it unmounts). */
   onInvalidInputsChange: (fields: readonly string[]) => void
 }
@@ -1619,7 +1652,7 @@ const OUTBOUND_TLS_ALPN_PARITY_FIELD = {
   type: '[]string',
 } as XrayGeneratedFormField
 
-function OutboundStreamSettingsAccordion({ ob, obStreamSettings, form, patchOutbound, t, dialerProxyTagOptions, onInvalidInputsChange }: OutboundStreamSettingsAccordionProps) {
+function OutboundStreamSettingsAccordion({ ob, obStreamSettings, form, patchOutbound, t, dialerProxyTagOptions, streamIssues, onInvalidInputsChange }: OutboundStreamSettingsAccordionProps) {
   const streamSecurity = normalizeOutboundStreamSecurity(obStreamSettings?.security)
   const sockoptValue =
     obStreamSettings && typeof obStreamSettings.sockopt === 'object' && obStreamSettings.sockopt !== null && !Array.isArray(obStreamSettings.sockopt)
@@ -1637,8 +1670,6 @@ function OutboundStreamSettingsAccordion({ ob, obStreamSettings, form, patchOutb
   const streamSectionNetwork = outboundStreamSectionNetwork(streamNetwork)
 
   const realityTransportOk = outboundStreamNetworkCompatibleWithReality(streamNetwork)
-  /** Kit issues the MASQUE and XDrive forms own (`[]` for other outbounds). */
-  const streamIssues = useMemo(() => streamFieldIssuesForOutbound(ob), [ob])
   const storedXdriveSettings = obStreamSettings?.xdriveSettings
   const xdriveSettings = isPlainObject(storedXdriveSettings) ? storedXdriveSettings : {}
 
