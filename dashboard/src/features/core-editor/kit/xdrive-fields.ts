@@ -1,7 +1,7 @@
 import { createDefaultInboundForProtocol, XDRIVE_SERVICES } from '@pasarguard/xray-config-kit'
-import type { XDriveService } from '@pasarguard/xray-config-kit'
+import type { Inbound, XDriveService } from '@pasarguard/xray-config-kit'
 
-import type { ParsedInput } from '@/features/core-editor/kit/stream-form-fields'
+import type { ParsedInput, StreamFieldIssue } from '@/features/core-editor/kit/stream-form-fields'
 
 /** The XDrive tuning numbers, in the kit's `XDRIVE_DEFAULTS` order. */
 export const XDRIVE_TUNING_FIELDS = ['segmentBytes', 'flushIntervalMs', 'pollIntervalMs', 'maxPollIntervalMs', 'sessionTtlSeconds', 'concurrency', 'eagerWindowMs', 'holeTimeoutMs'] as const
@@ -103,4 +103,16 @@ export function defaultXdriveSettings(): Record<string, unknown> {
   const settings: Record<string, unknown> = 'transport' in inbound ? { ...(inbound.transport as Record<string, unknown>) } : {}
   delete settings.type
   return settings
+}
+
+/**
+ * `issues` plus the panel's own XDrive flow check on a VLESS inbound: panel users take the inbound-level `flow` and
+ * Xray refuses flow on xdrive, so a non-blank inbound flow blocks even without clients (the kit flags it only through a
+ * client that inherits it). Adds nothing when an issue already sits on `flow`.
+ */
+export function withXdriveInboundFlowIssue(issues: readonly StreamFieldIssue[], inbound: Inbound, message: string): StreamFieldIssue[] {
+  if (inbound.protocol !== 'vless' || inbound.transport.type !== 'xdrive') return [...issues]
+  const flow: unknown = inbound.flow
+  if (typeof flow !== 'string' || flow.trim() === '' || issues.some(issue => issue.field === 'flow')) return [...issues]
+  return [...issues, { field: 'flow', code: 'XCK_SEMANTIC_XDRIVE_VLESS_FLOW', severity: 'error', message }]
 }

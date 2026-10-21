@@ -82,3 +82,14 @@ export function getInboundSecuritySelectOptions(caps: InboundFormCapabilities, p
 export function inboundTransportHasDedicatedForm(type: string | undefined): boolean {
   return type !== undefined && DEDICATED_FORM_TRANSPORTS.has(type)
 }
+
+/**
+ * False for a stored transport the kit's `createDefaultInbound` refuses for the protocol (it throws): masque outside the
+ * masque protocol and xdrive outside VLESS, as imported configs can hold. Rebuilding such an inbound passes no
+ * transport (the protocol's default) and keeps the stored one, whose kit error the form shows.
+ */
+export function kitBuildsInboundTransport(protocol: Inbound['protocol'], transport: string): boolean {
+  if (transport === 'masque') return protocol === 'masque'
+  if (transport === 'xdrive') return protocol === 'vless'
+  return true
+}

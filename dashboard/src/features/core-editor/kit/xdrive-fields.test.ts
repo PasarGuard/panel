@@ -1,13 +1,16 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
-import { XDRIVE_DEFAULTS } from '@pasarguard/xray-config-kit'
+import { createDefaultInboundForProtocol, XDRIVE_DEFAULTS } from '@pasarguard/xray-config-kit'
+import type { Inbound } from '@pasarguard/xray-config-kit'
+import { blockingStreamFieldIssues, streamFieldIssuesForInbound } from '@/features/core-editor/kit/stream-form-fields'
 import {
   applyXdriveService,
   defaultXdriveSettings,
   isXdriveGoogleDriveService,
   parseXdriveNumberInput,
   setXdriveGoogleDriveSecret,
+  withXdriveInboundFlowIssue,
   XDRIVE_TUNING_FIELDS,
   XDRIVE_UINT32_MAX,
   xdriveGoogleDriveSecrets,
@@ -78,4 +81,46 @@ test('defaultXdriveSettings matches the kit default transport', () => {
   ;(first.secrets as string[])[0] = 'changed'
   first.remoteFolder = 'changed'
   assert.deepEqual(defaultXdriveSettings(), { service: 'Google Drive', remoteFolder: '', secrets: ['', '', ''] })
+})
+
+// The server half of a VLESS Encryption pair from `xray vlessenc` (X25519): Xray v26.10.17 runs xdrive only on VLESS with decryption.
+const VLESS_DECRYPTION = 'mlkem768x25519plus.native.600s.KGoJgsdMC5rWUr1fnyXxteBAgbbWIQ_YKVnFWpxXBWk'
+const XDRIVE_IN = {
+  ...createDefaultInboundForProtocol({ protocol: 'vless', transport: 'xdrive', clientDefaults: 'empty' }),
+  tag: 'XD',
+  port: 8443,
+  decryption: VLESS_DECRYPTION,
+  transport: { type: 'xdrive', service: 'local', remoteFolder: '/x' },
+} as unknown as Inbound
+const FLOW_MESSAGE = 'XDrive does not support VLESS flow.'
+
+test('withXdriveInboundFlowIssue blocks an inbound-level flow on a VLESS XDrive inbound without clients', () => {
+  assert.deepEqual(streamFieldIssuesForInbound(XDRIVE_IN), [])
+  const withFlow = { ...XDRIVE_IN, flow: 'xtls-rprx-vision' } as unknown as Inbound
+  const kitIssues = streamFieldIssuesForInbound(withFlow)
+  // The kit flags the inbound flow only through a client that inherits it, and this inbound has no clients.
+  assert.deepEqual(kitIssues, [])
+  const issues = withXdriveInboundFlowIssue(kitIssues, withFlow, FLOW_MESSAGE)
+  assert.deepEqual(blockingStreamFieldIssues(issues), [{ field: 'flow', code: 'XCK_SEMANTIC_XDRIVE_VLESS_FLOW', severity: 'error', message: FLOW_MESSAGE }])
+  assert.deepEqual(kitIssues, [])
+})
+
+test('withXdriveInboundFlowIssue adds nothing when the kit reports the flow or the rule does not apply', () => {
+  // A client without its own flow inherits the inbound flow, so the kit itself reports it on `flow`.
+  const inherited = { ...XDRIVE_IN, flow: 'xtls-rprx-vision', clients: [{ protocol: 'vless', id: '11111111-1111-4111-8111-111111111111', email: 'a' }] } as unknown as Inbound
+  const kitIssues = streamFieldIssuesForInbound(inherited)
+  assert.equal(kitIssues.filter(issue => issue.field === 'flow').length, 1)
+  assert.deepEqual(withXdriveInboundFlowIssue(kitIssues, inherited, FLOW_MESSAGE), kitIssues)
+
+  const unchanged: Array<[string, Inbound]> = [
+    ['no flow', XDRIVE_IN],
+    ['empty flow', { ...XDRIVE_IN, flow: '' } as unknown as Inbound],
+    ['blank flow', { ...XDRIVE_IN, flow: '  ' } as unknown as Inbound],
+    ['tcp', { ...createDefaultInboundForProtocol({ protocol: 'vless', transport: 'tcp', security: 'tls', clientDefaults: 'empty' }), flow: 'xtls-rprx-vision' } as unknown as Inbound],
+    ['vmess', { ...createDefaultInboundForProtocol({ protocol: 'vmess', clientDefaults: 'empty' }), transport: { type: 'xdrive', service: 'local', remoteFolder: '/x' } } as unknown as Inbound],
+  ]
+  for (const [label, inbound] of unchanged) {
+    const issues = streamFieldIssuesForInbound(inbound)
+    assert.deepEqual(withXdriveInboundFlowIssue(issues, inbound, FLOW_MESSAGE), issues, label)
+  }
 })

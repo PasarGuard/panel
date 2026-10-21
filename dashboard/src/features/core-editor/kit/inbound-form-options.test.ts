@@ -1,8 +1,8 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
-import { getInboundFormCapabilities } from '@pasarguard/xray-config-kit'
-import { getInboundSecuritySelectOptions, getInboundTransportSelectOptions, inboundTransportHasDedicatedForm } from '@/features/core-editor/kit/inbound-form-options'
+import { createDefaultInbound, getInboundFormCapabilities } from '@pasarguard/xray-config-kit'
+import { getInboundSecuritySelectOptions, getInboundTransportSelectOptions, inboundTransportHasDedicatedForm, kitBuildsInboundTransport } from '@/features/core-editor/kit/inbound-form-options'
 
 const caps = getInboundFormCapabilities()
 const BASE = ['tcp', 'grpc', 'xhttp', 'ws', 'httpupgrade', 'kcp']
@@ -48,4 +48,23 @@ test('security choices come from the kit and keep the stored value', () => {
 test('dedicated transport forms', () => {
   for (const type of ['xdrive', 'masque', 'hysteria']) assert.equal(inboundTransportHasDedicatedForm(type), true, type)
   for (const type of ['tcp', 'ws', undefined]) assert.equal(inboundTransportHasDedicatedForm(type), false, String(type))
+})
+
+test('kitBuildsInboundTransport says which stored transports the kit can rebuild per protocol', () => {
+  for (const protocol of ['vmess', 'vless', 'trojan', 'shadowsocks'] as const) {
+    for (const transport of [...BASE, 'xdrive', 'masque'] as const) {
+      let built = true
+      try {
+        createDefaultInbound({ protocol, transport, clientDefaults: 'empty' } as Parameters<typeof createDefaultInbound>[0])
+      } catch {
+        built = false
+      }
+      assert.equal(kitBuildsInboundTransport(protocol, transport), built, `${protocol} ${transport}`)
+    }
+  }
+  assert.equal(kitBuildsInboundTransport('vless', 'xdrive'), true)
+  assert.equal(kitBuildsInboundTransport('vmess', 'xdrive'), false)
+  assert.equal(kitBuildsInboundTransport('vless', 'masque'), false)
+  assert.equal(kitBuildsInboundTransport('masque', 'masque'), true)
+  assert.equal(kitBuildsInboundTransport('hysteria', 'hysteria'), true)
 })
