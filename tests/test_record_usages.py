@@ -12,7 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.exc import OperationalError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
-from sqlalchemy.pool import NullPool, StaticPool
+from sqlalchemy.pool import NullPool
 
 from app.db import base
 from app.db.models import Admin, AdminRole, AdminStatus, Node, NodeUsage, NodeUserUsage, System, User
@@ -257,26 +257,25 @@ def test_postgres_user_traffic_update_uses_one_unnest_statement():
     assert params == {"uids": [1, 2], "traffic_values": [40, 20]}
 
 
-def _get_test_database_url() -> str:
+def _get_test_database_url(tmp_path) -> str:
     test_from = os.getenv("TEST_FROM", "local").lower()
     if test_from == "local":
-        return "sqlite+aiosqlite:///:memory:"
+        # A file database, not :memory: with one shared StaticPool connection: the usage
+        # jobs write from concurrent tasks, and on a shared connection one task's
+        # ROLLBACK or COMMIT ends the other tasks' transactions
+        return f"sqlite+aiosqlite:///{tmp_path / 'record_usages.db'}"
     return database_settings.url
 
 
 @pytest.fixture
-async def session_factory(monkeypatch: pytest.MonkeyPatch):
-    database_url = _get_test_database_url()
+async def session_factory(monkeypatch: pytest.MonkeyPatch, tmp_path):
+    database_url = _get_test_database_url(tmp_path)
     is_sqlite = database_url.startswith("sqlite")
 
-    engine_kwargs = {}
+    engine_kwargs = {"poolclass": NullPool}
     connect_args = {}
     if is_sqlite:
         connect_args["check_same_thread"] = False
-        # Keep the in-memory database alive across connections
-        engine_kwargs["poolclass"] = StaticPool
-    else:
-        engine_kwargs["poolclass"] = NullPool
 
     # MySQL/MariaDB do not allow defaults on JSON columns; strip them temporarily
     proxy_default = None
