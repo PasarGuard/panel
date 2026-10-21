@@ -55,17 +55,18 @@ export function applyWireguardOutboundReservedInput(settings: Record<string, unk
 const shownDnsValue = (item: unknown): string => JSON.stringify(item)
 
 /**
- * Xray v26.9.9 accepts exactly `["local"]`; v26.9.30 removed that special case. With no known target
- * version, preserve it so unrelated edits to legacy profiles remain possible. Other entries must be IP
- * literals: Xray passes them untrimmed to `netip.MustParseAddr`. Show invalid values as JSON so padded
- * and empty strings remain visible. A non-list value fails Xray's `[]string` decoding.
+ * Xray v26.9.9 accepts exactly `["local"]`; v26.9.30 removed that special case and panics on it at startup.
+ * Only a known target version before v26.9.30 keeps it (releases before v26.9.8 do not read `remoteDNS`); an
+ * unknown one counts as the newest Xray, since the editor cannot tell which release a node runs. Other entries
+ * must be IP literals: Xray passes them untrimmed to `netip.MustParseAddr`. Show invalid values as JSON so
+ * padded and empty strings remain visible. A non-list value fails Xray's `[]string` decoding.
  */
 export function invalidWireguardRemoteDns(value: unknown, xrayVersion?: string): string[] {
   if (value === undefined || value === null) return []
   if (!Array.isArray(value)) return [shownDnsValue(value)]
   const version = /^v?(\d+)\.(\d+)\.(\d+)$/.exec(xrayVersion ?? '')
   const [major, minor, patch] = version ? version.slice(1).map(Number) : []
-  const localRemoved = version !== null && (major > 26 || (major === 26 && (minor > 9 || (minor === 9 && patch >= 30))))
+  const localRemoved = version === null || major > 26 || (major === 26 && (minor > 9 || (minor === 9 && patch >= 30)))
   if (value.length === 1 && value[0] === 'local' && !localRemoved) return []
   return value.filter(item => typeof item !== 'string' || !isIpAddress(item)).map(shownDnsValue)
 }
