@@ -54,6 +54,18 @@ def get_refresh_handler() -> RefreshHandler | None:
     return _refresh_handler
 
 
+def _keep_removal_credentials(fresh: User, queued: User) -> User:
+    """Give a removal without credentials (its user is gone) the queued payload's credentials.
+
+    Nodes may need them to find what to remove: node v0.5.4's WireGuard
+    backend ignores a removal without a public key and peer IPs. Only the
+    credentials are kept; the removal still carries no inbounds.
+    """
+    if fresh.inbounds or fresh.HasField("proxies") or not queued.HasField("proxies"):
+        return fresh
+    return User(email=fresh.email, proxies=queued.proxies)
+
+
 class FenceHold:
     """Ownership of a node's full-sync fence for the duration of one snapshot."""
 
@@ -129,7 +141,7 @@ class _QueuedBatchSync:
         if handler is None:
             return users
         fresh = {user.email: user for user in await handler(self.node_id, [user.email for user in users])}
-        return [fresh.get(user.email, user) for user in users]
+        return [_keep_removal_credentials(fresh[user.email], user) if user.email in fresh else user for user in users]
 
     async def sync_users_chunked(self, users, chunk_size=100, flush_pending=False, timeout=None):
         if not _queued_sync.get() or not users:
