@@ -2039,11 +2039,12 @@ async def bulk_set_owner(db: AsyncSession, users: list[User], admin: Admin) -> l
 
     for user in users:
         old_admin = user.admin
+        # Only traffic that moves from another admin counts, like set_owner.
         if old_admin and old_admin.id != admin.id:
             if old_admin.id not in admin_traffic_changes:
                 admin_traffic_changes[old_admin.id] = 0
             admin_traffic_changes[old_admin.id] -= user.used_traffic
-        total_traffic_to_add += user.used_traffic
+            total_traffic_to_add += user.used_traffic
         user.admin = admin
 
     # Update old admins' traffic
