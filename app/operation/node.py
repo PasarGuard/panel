@@ -585,9 +585,10 @@ class NodeOperation(BaseOperation):
             await self.get_validated_core_config(db, modified_node.core_config_id)
 
         updates = modified_node.model_dump(exclude_none=True)
-        force_start = any(
-            field in updates and updates[field] != getattr(db_node, field) for field in NODE_RESTART_FIELDS
-        )
+        current = {field: getattr(db_node, field) for field in NODE_RESTART_FIELDS}
+        # A node without a core runs the default core; sending it is not a core change.
+        current["core_config_id"] = current["core_config_id"] or 1
+        force_start = any(field in updates and updates[field] != current[field] for field in NODE_RESTART_FIELDS)
 
         try:
             db_node = await modify_node(db, db_node, modified_node)
