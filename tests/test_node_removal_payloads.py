@@ -30,7 +30,7 @@ from app.db.models import (
     users_groups_association,
 )
 from app.jobs import review_users
-from app.node import sync as node_sync
+from app.node import bridge as bridge_module, sync as node_sync
 from app.node.user import serialize_user
 from tests.test_node_bridge import FakeNodeState, attach_fake_transport, close_node, make_node, wait_until
 
@@ -57,8 +57,9 @@ async def maker(monkeypatch):
         await conn.run_sync(Base.metadata.create_all)
     factory = async_sessionmaker(engine, expire_on_commit=False)
     monkeypatch.setattr(node_sync, "GetDB", lambda: _Session(factory))
-    # A reader bound to this test's loop.
+    # A reader bound to this test's loop, and the panel's refresh handler (other tests reset it).
     monkeypatch.setattr(node_sync, "_current_state", node_sync.CurrentStateReader())
+    monkeypatch.setattr(bridge_module, "_refresh_handler", node_sync.refresh_node_users)
     yield factory
     await engine.dispose()
 
