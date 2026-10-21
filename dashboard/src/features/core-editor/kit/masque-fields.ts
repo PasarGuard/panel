@@ -1,5 +1,6 @@
 import { MASQUE_LIMITS } from '@pasarguard/xray-config-kit'
 
+import { isPlainObject } from '@/features/core-editor/kit/stream-form-fields'
 import type { ParsedInput } from '@/features/core-editor/kit/stream-form-fields'
 
 /** Settings keys the dedicated MASQUE outbound form owns; the generic settings grid hides them. */
@@ -7,8 +8,9 @@ export const MASQUE_OUTBOUND_FORM_KEYS = ['address', 'port', 'remoteDNS'] as con
 
 /**
  * Keys of a masque transport (inbound `transport`, outbound `streamSettings.masqueSettings`) the dedicated MASQUE form
- * owns. The client form edits all of them; the server form edits host, path and headers, and the kit reports the
- * client-only rest (user, pass, warp, xmux) as warnings.
+ * owns. The client form edits all of them. The server form edits host, path and headers; for the client-only rest
+ * (user, pass, warp, xmux) it shows the kit's issues (warnings, and errors where Xray checks the value on a server
+ * too) next to a "Remove client-only settings" action.
  */
 export const MASQUE_TRANSPORT_FORM_KEYS = ['host', 'path', 'user', 'pass', 'headers', 'warp', 'xmux'] as const
 
@@ -25,19 +27,21 @@ const MASQUE_CLIENT_BASIC_FIELDS: readonly string[] = ['user', 'pass']
 const MASQUE_CLIENT_WARP_FIELDS: readonly string[] = ['warp', 'warp.privateKey', 'warp.publicKey', 'warp.address']
 
 /**
- * Issue fields shown next to their inputs (or by the surrounding form); the MASQUE box lists every other field at its
- * bottom. The client box has user and pass inputs only in Basic mode and WARP inputs only in WARP mode, so issues on
- * the other mode's keys (an imported config with both) land at the bottom.
+ * Whether the client box shows the user and password inputs: in Basic mode, and in WARP mode while a user or pass is
+ * stored (Xray refuses them together with warp, so the inputs let the admin clear them).
  */
-export function masqueShownFields(side: 'server' | 'client', authMode: MasqueClientAuthMode = 'none'): readonly string[] {
-  if (side === 'server') return MASQUE_SERVER_SHOWN_FIELDS
-  if (authMode === 'basic') return [...MASQUE_CLIENT_ALWAYS_SHOWN_FIELDS, ...MASQUE_CLIENT_BASIC_FIELDS]
-  if (authMode === 'warp') return [...MASQUE_CLIENT_ALWAYS_SHOWN_FIELDS, ...MASQUE_CLIENT_WARP_FIELDS]
-  return MASQUE_CLIENT_ALWAYS_SHOWN_FIELDS
+export function masqueClientShowsBasicAuthFields(transport: Record<string, unknown>, authMode: MasqueClientAuthMode): boolean {
+  return authMode === 'basic' || (authMode === 'warp' && (isNonEmptyString(transport.user) || isNonEmptyString(transport.pass)))
 }
 
-function isJsonObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
+/**
+ * Issue fields shown next to their inputs (or by the surrounding form); the MASQUE box lists every other field at its
+ * bottom. The client box has WARP inputs only in WARP mode and user and pass inputs only where
+ * `masqueClientShowsBasicAuthFields` says so, so issues on keys without an input land at the bottom.
+ */
+export function masqueShownFields(side: 'server' | 'client', authMode: MasqueClientAuthMode = 'none', transport: Record<string, unknown> = {}): readonly string[] {
+  if (side === 'server') return MASQUE_SERVER_SHOWN_FIELDS
+  return [...MASQUE_CLIENT_ALWAYS_SHOWN_FIELDS, ...(masqueClientShowsBasicAuthFields(transport, authMode) ? MASQUE_CLIENT_BASIC_FIELDS : []), ...(authMode === 'warp' ? MASQUE_CLIENT_WARP_FIELDS : [])]
 }
 
 /** True when a client-only key is set the way the kit flags it on a server: not empty, and `xmux` not `{}`. */
@@ -45,7 +49,7 @@ export function hasMasqueClientOnlySettings(transport: Record<string, unknown>):
   return MASQUE_CLIENT_ONLY_KEYS.some(key => {
     const value = transport[key]
     if (value === undefined || value === null || value === '') return false
-    return !(key === 'xmux' && isJsonObject(value) && Object.keys(value).length === 0)
+    return !(key === 'xmux' && isPlainObject(value) && Object.keys(value).length === 0)
   })
 }
 

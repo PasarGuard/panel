@@ -11,6 +11,7 @@ import {
   MASQUE_TRANSPORT_FORM_KEYS,
   masqueAlpnForMode,
   masqueClientAuthMode,
+  masqueClientShowsBasicAuthFields,
   masqueHttpMode,
   masqueShownFields,
   parseMasqueMtuInput,
@@ -94,6 +95,25 @@ test('masqueShownFields: the client box shows user and pass only with Basic auth
   const anyMode = new Set((['none', 'basic', 'warp'] as const).flatMap(mode => masqueShownFields('client', mode)))
   for (const key of MASQUE_TRANSPORT_FORM_KEYS) assert.ok(anyMode.has(key), key)
   for (const key of ['mux', 'clients', 'mtu']) assert.ok(!anyMode.has(key), key)
+})
+
+test('masqueShownFields: WARP with a stored user or pass also shows the user and password inputs', () => {
+  // Xray refuses user/pass next to warp (the kit's WARP_AUTH_CONFLICT), so the inputs stay until both are cleared.
+  const warp = { privateKey: 'k', publicKey: 'p', address: [] }
+  const sorted = (keys: readonly string[]) => [...keys].sort()
+  const warpOnly = sorted(masqueShownFields('client', 'warp', { warp }))
+  assert.ok(!warpOnly.includes('user') && !warpOnly.includes('pass'))
+  for (const stale of [{ user: 'a:b' }, { pass: 'secret' }, { user: 'alice', pass: 'secret' }]) {
+    const transport = { warp, ...stale }
+    assert.equal(masqueClientAuthMode(transport), 'warp')
+    assert.equal(masqueClientShowsBasicAuthFields(transport, 'warp'), true, JSON.stringify(stale))
+    assert.deepEqual(sorted(masqueShownFields('client', 'warp', transport)), sorted([...warpOnly, 'user', 'pass']), JSON.stringify(stale))
+  }
+  assert.equal(masqueClientShowsBasicAuthFields({ warp, user: '', pass: '' }, 'warp'), false)
+  assert.equal(masqueClientShowsBasicAuthFields({}, 'basic'), true)
+  assert.equal(masqueClientShowsBasicAuthFields({ user: 'alice' }, 'none'), false)
+  // The server box never has user or password inputs; it lists those issues by its remove action.
+  assert.deepEqual(masqueShownFields('server', 'warp', { warp, user: 'u' }), masqueShownFields('server'))
 })
 
 test('masqueShownFields: the server box shows the client-only fields next to their remove action', () => {

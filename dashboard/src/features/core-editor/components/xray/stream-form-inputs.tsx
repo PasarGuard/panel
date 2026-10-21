@@ -4,10 +4,11 @@ import { Label } from '@/components/ui/label'
 import { PasswordInput } from '@/components/ui/password-input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import { ignoreValidity } from '@/features/core-editor/components/xray/stream-form-validity'
 import { cleanStringList, formatTextInput, parseTrimmedTextInput, syncTypedText } from '@/features/core-editor/kit/stream-form-fields'
 import type { ParsedInput, StreamFieldIssue } from '@/features/core-editor/kit/stream-form-fields'
 import { cn } from '@/lib/utils'
-import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 
 /** The i18next `t` the shared stream forms take as a prop (every call passes a literal key and an English `defaultValue`). */
 export type StreamFormT = (key: string, options?: Record<string, unknown>) => string
@@ -39,35 +40,6 @@ export function FieldMessages({ issues, field }: { issues: readonly StreamFieldI
 /** The kit issues of every field outside `shownFields` (the fields that show their own messages). */
 export function OtherFieldMessages({ issues, shownFields }: { issues: readonly StreamFieldIssue[]; shownFields: readonly string[] }) {
   return <IssueLines issues={issues.filter(issue => !shownFields.includes(issue.field))} />
-}
-
-/**
- * Collects which inputs hold text that does not parse. The returned `report(field, invalid)` is stable; the sorted
- * names of the invalid fields go to the latest `onInvalidInputsChange` whenever that set changes, and `[]` on unmount.
- */
-export function useInvalidFieldsReporter(onInvalidInputsChange: (fields: readonly string[]) => void): (field: string, invalid: boolean) => void {
-  const callback = useRef(onInvalidInputsChange)
-  callback.current = onInvalidInputsChange
-  const [invalidByField, setInvalidByField] = useState<Record<string, boolean>>({})
-  const report = useCallback((field: string, invalid: boolean) => {
-    setInvalidByField(prev => (Boolean(prev[field]) === invalid ? prev : { ...prev, [field]: invalid }))
-  }, [])
-  const invalidFields = Object.keys(invalidByField)
-    .filter(field => invalidByField[field])
-    .sort()
-  const invalidKey = JSON.stringify(invalidFields)
-  // Starts as "nothing invalid", which the parent already assumes, so mounting reports nothing.
-  const reportedKey = useRef('[]')
-  useEffect(() => {
-    if (reportedKey.current === invalidKey) return
-    reportedKey.current = invalidKey
-    callback.current(JSON.parse(invalidKey) as string[])
-  }, [invalidKey])
-  useEffect(() => {
-    const latest = callback
-    return () => latest.current([])
-  }, [])
-  return report
 }
 
 const hintClass = 'text-muted-foreground text-xs leading-relaxed'
@@ -146,8 +118,6 @@ export function ParsedTextField<T>({ label, hint, placeholder, multiline, passwo
     </div>
   )
 }
-
-const ignoreValidity = () => {}
 
 export interface TrimmedTextFieldProps {
   label: string

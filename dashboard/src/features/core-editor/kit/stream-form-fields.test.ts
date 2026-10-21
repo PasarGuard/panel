@@ -7,8 +7,10 @@ import {
   blockingStreamFieldIssues,
   cleanStringList,
   formatJsonObjectInput,
+  formatNumberInput,
   formatTextInput,
   inboundStreamFieldIssues,
+  isPlainObject,
   outboundStreamFieldIssues,
   parseJsonObjectInput,
   parsePortInput,
@@ -59,6 +61,16 @@ test('syncTypedText keeps typed text that does not parse or matches the stored v
   const headers = (raw: string) => parseJsonObjectInput(raw, { stringValues: true })
   assert.equal(syncTypedText('{"X-A": "b"}', { 'X-A': 'b' }, headers, formatJsonObjectInput), '{"X-A": "b"}')
   assert.equal(syncTypedText('{"X-A": "b"}', undefined, headers, formatJsonObjectInput), '')
+  assert.equal(formatNumberInput(443), '443')
+  assert.equal(formatNumberInput(0), '0')
+  assert.equal(formatNumberInput(undefined), '')
+  assert.equal(syncTypedText('0443', 443, parsePortInput, formatNumberInput), '0443')
+})
+
+test('isPlainObject accepts JSON objects only', () => {
+  assert.equal(isPlainObject({}), true)
+  assert.equal(isPlainObject({ a: 1 }), true)
+  for (const value of [null, undefined, [], [1], 'x', 1, true]) assert.equal(isPlainObject(value), false, JSON.stringify(value))
 })
 
 test('parseTrimmedTextInput writes the trimmed value and keeps the typed spaces', () => {

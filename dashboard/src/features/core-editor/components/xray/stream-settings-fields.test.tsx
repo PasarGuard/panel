@@ -132,3 +132,52 @@ test('MASQUE client variant: Basic auth, xmux, and issues of hidden fields at th
   assert.ok(html.indexOf('User message for test') < html.indexOf('Password'), 'the user issue sits under its field')
   assert.ok(html.indexOf('Warp message for test') > html.indexOf('XMUX (JSON object)'), 'the warp issue is listed at the bottom in Basic mode')
 })
+
+const occurrences = (html: string, text: string) => html.split(text).length - 1
+
+test('MASQUE client variant: WARP with a stored user or pass shows them so the conflict can be cleared', () => {
+  const warp = { privateKey: 'k', publicKey: 'p', address: ['172.16.0.2/32'] }
+  const render = (transport: Record<string, unknown>) =>
+    renderToStaticMarkup(
+      <MasqueSettingsFields
+        side="client"
+        settings={{ address: '162.159.198.1', port: 443 }}
+        onSettingsChange={noop}
+        transport={transport}
+        onTransportChange={noop}
+        alpn={undefined}
+        onAlpnChange={noop}
+        issues={[issue('warp', 'Conflict message for test'), issue('user', 'User message for test')]}
+        onInvalidInputsChange={noop}
+        t={t}
+      />,
+    )
+  const stale = render({ warp, user: 'a:b', pass: 'secret' })
+  for (const want of ['WARP private key', 'value="a:b"', 'Password', 'value="secret"', 'Conflict message for test']) assert.ok(stale.includes(want), want)
+  assert.equal(occurrences(stale, 'User message for test'), 1, 'the user issue is shown once')
+  assert.ok(stale.indexOf('User message for test') < stale.indexOf('Password'), 'the user issue sits under its field')
+  const clean = render({ warp })
+  for (const bad of ['Password', 'value="a:b"']) assert.ok(!clean.includes(bad), bad)
+  // Without a user input the user issue is listed once, at the bottom.
+  assert.equal(occurrences(clean, 'User message for test'), 1)
+  assert.ok(clean.indexOf('User message for test') > clean.indexOf('XMUX (JSON object)'))
+})
+
+test('XDrive: fields shown elsewhere are not repeated', () => {
+  const render = (shownElsewhere?: readonly string[]) =>
+    renderToStaticMarkup(
+      <XdriveSettingsFields
+        value={{ service: 'local', remoteFolder: '/srv/xd' }}
+        onChange={noop}
+        issues={[issue('transport', 'Protocol message for test'), issue('security', 'Security message for test'), issue('mux', 'Mux message for test')]}
+        onInvalidInputsChange={noop}
+        t={t}
+        shownElsewhere={shownElsewhere}
+      />,
+    )
+  const inbound = render()
+  for (const want of ['Protocol message for test', 'Security message for test', 'Mux message for test']) assert.equal(occurrences(inbound, want), 1, want)
+  const outbound = render(['transport', 'security'])
+  for (const bad of ['Protocol message for test', 'Security message for test']) assert.ok(!outbound.includes(bad), bad)
+  assert.equal(occurrences(outbound, 'Mux message for test'), 1)
+})

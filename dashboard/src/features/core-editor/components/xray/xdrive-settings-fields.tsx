@@ -6,10 +6,10 @@ import {
   StreamFormHint,
   StringListField,
   TrimmedTextField,
-  useInvalidFieldsReporter,
   type StreamFormT,
 } from '@/features/core-editor/components/xray/stream-form-inputs'
-import { cleanStringList, formatJsonObjectInput, parseJsonObjectInput, setRecordKey } from '@/features/core-editor/kit/stream-form-fields'
+import { useInvalidFieldsReporter } from '@/features/core-editor/components/xray/stream-form-validity'
+import { cleanStringList, formatJsonObjectInput, formatNumberInput, isPlainObject, parseJsonObjectInput, setRecordKey } from '@/features/core-editor/kit/stream-form-fields'
 import type { StreamFieldIssue } from '@/features/core-editor/kit/stream-form-fields'
 import {
   applyXdriveService,
@@ -30,14 +30,8 @@ export interface XdriveSettingsFieldsProps {
   issues: readonly StreamFieldIssue[]
   onInvalidInputsChange: (fields: readonly string[]) => void
   t: StreamFormT
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function formatNumber(value: number | undefined): string {
-  return value === undefined ? '' : String(value)
+  /** Issue fields the surrounding form shows under its own inputs (for example `transport` and `security` under the outbound stream selects); the box does not repeat them. */
+  shownElsewhere?: readonly string[]
 }
 
 function tuningLabel(field: XdriveTuningField, t: StreamFormT): string {
@@ -68,13 +62,13 @@ function tuningHint(field: XdriveTuningField, t: StreamFormT): string | undefine
 }
 
 /** XDrive transport settings shared by the inbound and outbound forms (XDrive runs on VLESS only). */
-export function XdriveSettingsFields({ value, onChange, issues, onInvalidInputsChange, t }: XdriveSettingsFieldsProps) {
+export function XdriveSettingsFields({ value, onChange, issues, onInvalidInputsChange, t, shownElsewhere = [] }: XdriveSettingsFieldsProps) {
   const report = useInvalidFieldsReporter(onInvalidInputsChange)
   const service = typeof value.service === 'string' ? value.service : ''
   const isGoogleDrive = isXdriveGoogleDriveService(service)
   const isTemplate = service === 'template'
   const secrets = xdriveGoogleDriveSecrets(value)
-  const shownFields = ['service', 'remoteFolder', ...(isGoogleDrive || isTemplate ? ['secrets'] : []), ...(isTemplate ? ['template'] : []), ...XDRIVE_TUNING_FIELDS]
+  const shownFields = ['service', 'remoteFolder', ...(isGoogleDrive || isTemplate ? ['secrets'] : []), ...(isTemplate ? ['template'] : []), ...XDRIVE_TUNING_FIELDS, ...shownElsewhere]
 
   const serviceLabel = (option: string): string => {
     if (option === 'local') return t('coreEditor.xdrive.serviceLocal', { defaultValue: 'Local folder (local)' })
@@ -152,7 +146,7 @@ export function XdriveSettingsFields({ value, onChange, issues, onInvalidInputsC
             label={t('coreEditor.xdrive.template', { defaultValue: 'Template (JSON object)' })}
             hint={t('coreEditor.xdrive.templateHint', { defaultValue: 'Describes the storage API requests.' })}
             multiline
-            stored={isRecord(value.template) ? value.template : undefined}
+            stored={isPlainObject(value.template) ? value.template : undefined}
             parse={parseJsonObjectInput}
             format={formatJsonObjectInput}
             invalidMessage={t('coreEditor.xdrive.templateInvalid', { defaultValue: 'The template must be a JSON object.' })}
@@ -177,7 +171,7 @@ export function XdriveSettingsFields({ value, onChange, issues, onInvalidInputsC
             placeholder={String(XDRIVE_DEFAULTS[field])}
             stored={typeof value[field] === 'number' ? (value[field] as number) : undefined}
             parse={parseXdriveNumberInput}
-            format={formatNumber}
+            format={formatNumberInput}
             invalidMessage={t('coreEditor.xdrive.numberInvalid', { defaultValue: 'Enter a whole number from 0 to 4294967295.' })}
             onValue={next => setKey(field, next)}
             onValidityChange={invalid => report(field, invalid)}

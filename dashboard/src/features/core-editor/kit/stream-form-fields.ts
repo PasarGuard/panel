@@ -15,7 +15,8 @@ export function parsePortInput(raw: string): ParsedInput<number | undefined> {
   return port >= 1 && port <= 65535 ? { ok: true, value: port } : { ok: false }
 }
 
-function isPlainObject(value: unknown): value is Record<string, unknown> {
+/** A JSON object: not null and not an array. */
+export function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
@@ -49,6 +50,11 @@ export function parseTrimmedTextInput(raw: string): ParsedInput<string | undefin
 
 export function formatTextInput(value: unknown): string {
   return typeof value === 'string' ? value : ''
+}
+
+/** The text of a parsed number input (`parsePortInput`, `parseMasqueMtuInput`, `parseXdriveNumberInput`); "not set" is empty. */
+export function formatNumberInput(value: number | undefined): string {
+  return value === undefined ? '' : String(value)
 }
 
 function sameStoredValue(a: unknown, b: unknown): boolean {

@@ -7,15 +7,16 @@ import {
   StreamFormHint,
   StringListField,
   TrimmedTextField,
-  useInvalidFieldsReporter,
   type StreamFormT,
 } from '@/features/core-editor/components/xray/stream-form-inputs'
+import { ignoreValidity, useInvalidFieldsReporter } from '@/features/core-editor/components/xray/stream-form-validity'
 import {
   applyMasqueClientAuthMode,
   hasMasqueClientOnlySettings,
   MASQUE_CLIENT_ONLY_FIELDS,
   masqueAlpnForMode,
   masqueClientAuthMode,
+  masqueClientShowsBasicAuthFields,
   masqueHttpMode,
   masqueShownFields,
   parseMasqueMtuInput,
@@ -23,7 +24,16 @@ import {
   type MasqueClientAuthMode,
   type MasqueHttpMode,
 } from '@/features/core-editor/kit/masque-fields'
-import { cleanStringList, formatJsonObjectInput, formatTextInput, parseJsonObjectInput, parsePortInput, setRecordKey } from '@/features/core-editor/kit/stream-form-fields'
+import {
+  cleanStringList,
+  formatJsonObjectInput,
+  formatNumberInput,
+  formatTextInput,
+  isPlainObject,
+  parseJsonObjectInput,
+  parsePortInput,
+  setRecordKey,
+} from '@/features/core-editor/kit/stream-form-fields'
 import type { ParsedInput, StreamFieldIssue } from '@/features/core-editor/kit/stream-form-fields'
 import { MASQUE_DEFAULTS } from '@pasarguard/xray-config-kit'
 import { useState } from 'react'
@@ -43,20 +53,12 @@ export interface MasqueSettingsFieldsProps {
   t: StreamFormT
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
 function storedNumber(value: unknown): number | undefined {
   return typeof value === 'number' ? value : undefined
 }
 
-function formatNumber(value: number | undefined): string {
-  return value === undefined ? '' : String(value)
-}
-
 function storedObject(value: unknown): Record<string, unknown> | undefined {
-  return isRecord(value) ? value : undefined
+  return isPlainObject(value) ? value : undefined
 }
 
 /** An empty JSON object means "not set", so typing `{}` keeps its text while nothing is written. */
@@ -69,8 +71,6 @@ const parseHeadersInput = (raw: string) => withEmptyObjectUnset(parseJsonObjectI
 // xmux values are numbers or "min-max" strings, so any JSON object parses (no text-only check as for headers).
 const parseXmuxInput = (raw: string) => withEmptyObjectUnset(parseJsonObjectInput(raw))
 
-const ignoreValidity = () => {}
-
 /** `pass` is written exactly as typed; empty means "not set". */
 function parsePasswordInput(raw: string): ParsedInput<string | undefined> {
   return { ok: true, value: raw === '' ? undefined : raw }
@@ -80,11 +80,14 @@ function parsePasswordInput(raw: string): ParsedInput<string | undefined> {
 export function MasqueSettingsFields({ side, settings, onSettingsChange, transport, onTransportChange, alpn, onAlpnChange, issues, onInvalidInputsChange, t }: MasqueSettingsFieldsProps) {
   const report = useInvalidFieldsReporter(onInvalidInputsChange)
   const isServer = side === 'server'
-  // "User and password" with both still empty is stored like "None", so the choice is kept here until a mode is stored.
-  const [basicChosen, setBasicChosen] = useState(false)
   const storedAuthMode = isServer ? 'none' : masqueClientAuthMode(transport)
+  // "User and password" with both empty is stored like "None", so Basic stays chosen here once it is picked or stored:
+  // clearing the user does not take the inputs away. Picking None or WARP resets it.
+  const [basicChosen, setBasicChosen] = useState(storedAuthMode === 'basic')
+  if (storedAuthMode === 'basic' && !basicChosen) setBasicChosen(true)
   const authMode: MasqueClientAuthMode = storedAuthMode === 'none' && basicChosen ? 'basic' : storedAuthMode
-  const warp = isRecord(transport.warp) ? transport.warp : {}
+  const showBasicAuthFields = !isServer && masqueClientShowsBasicAuthFields(transport, authMode)
+  const warp = isPlainObject(transport.warp) ? transport.warp : {}
   const showClientOnly = isServer && (hasMasqueClientOnlySettings(transport) || issues.some(issue => (MASQUE_CLIENT_ONLY_FIELDS as readonly string[]).includes(issue.field)))
 
   const setSettingsKey = (key: string, value: unknown) => onSettingsChange(setRecordKey(settings, key, value))
@@ -128,7 +131,7 @@ export function MasqueSettingsFields({ side, settings, onSettingsChange, transpo
               placeholder={String(MASQUE_DEFAULTS.mtu)}
               stored={storedNumber(settings.mtu)}
               parse={parseMasqueMtuInput}
-              format={formatNumber}
+              format={formatNumberInput}
               invalidMessage={t('coreEditor.masque.mtuInvalid', { defaultValue: 'MTU must be 0 or a whole number from 1280 to 65535.' })}
               onValue={value => setSettingsKey('mtu', value)}
               onValidityChange={invalid => report('mtu', invalid)}
@@ -157,7 +160,7 @@ export function MasqueSettingsFields({ side, settings, onSettingsChange, transpo
               label={t('coreEditor.masque.serverPort', { defaultValue: 'Server port' })}
               stored={storedNumber(settings.port)}
               parse={parsePortInput}
-              format={formatNumber}
+              format={formatNumberInput}
               invalidMessage={t('coreEditor.masque.portInvalid', { defaultValue: 'Enter one port from 1 to 65535.' })}
               onValue={value => setSettingsKey('port', value)}
               onValidityChange={invalid => report('port', invalid)}
@@ -203,7 +206,7 @@ export function MasqueSettingsFields({ side, settings, onSettingsChange, transpo
         />
       )}
 
-      {authMode === 'basic' && (
+      {showBasicAuthFields && (
         <div className="grid gap-3 sm:grid-cols-2">
           <TrimmedTextField
             label={t('coreEditor.masque.user', { defaultValue: 'User' })}
@@ -334,7 +337,7 @@ export function MasqueSettingsFields({ side, settings, onSettingsChange, transpo
         </div>
       )}
 
-      <OtherFieldMessages issues={issues} shownFields={masqueShownFields(side, authMode)} />
+      <OtherFieldMessages issues={issues} shownFields={masqueShownFields(side, authMode, transport)} />
     </div>
   )
 }
