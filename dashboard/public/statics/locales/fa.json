@@ -2710,7 +2710,7 @@
       "httpNeedsTls": "برای انتخاب نسخه HTTP، امنیت را روی TLS بگذارید.",
       "pathHint": "با / شروع می‌شود. فقط متغیرهای {target} و {ipproto} مجاز هستند.",
       "host": "میزبان",
-      "hostHint": "نام میزبان یا host:port اختیاری، بدون scheme یا مسیر.",
+      "hostHint": "نام میزبان یا host:port اختیاری، بدون پیشوند پروتکل (scheme) یا مسیر.",
       "headers": "سرآیندها (شیء JSON)",
       "headersHint": "Host و Capsule-Protocol مجاز نیستند، و Authorization هم همراه با نام کاربری یا رمز عبور مجاز نیست.",
       "headersInvalid": "سرآیندها باید یک شیء JSON با مقادیر متنی باشند.",
@@ -2740,7 +2740,7 @@
       "folderLocal": "مسیر پوشه",
       "folderLocalHint": "پوشه‌ای که هر دو طرف به آن دسترسی دارند، بیشتر برای آزمایش.",
       "folderGoogleDrive": "شناسه پوشه",
-      "folderGoogleDriveHint": "شناسه پوشه‌ای در Drive که هر دو طرف آن را به اشتراک دارند.",
+      "folderGoogleDriveHint": "شناسه پوشه‌ای در Drive که هر دو طرف آن را به اشتراک گذاشته‌اند.",
       "folderTemplate": "پوشه",
       "folderTemplateHint": "اختیاری. قالب آن را با {folder} می‌خواند.",
       "clientId": "شناسه کلاینت",
@@ -2764,7 +2764,7 @@
       "holeTimeoutMs": "مهلت قطعه گم‌شده (میلی‌ثانیه)",
       "numberInvalid": "عددی صحیح از 0 تا 4294967295 وارد کنید.",
       "capHint": "Xray این مقدار را حداکثر {{max}} در نظر می‌گیرد.",
-      "flowNotSupported": "XDrive از Flow در VLESS پشتیبانی نمی‌کند، و کاربران این ورودی آن را به ارث می‌برند. جریان (Flow) را روی پیش‌فرض بگذارید.",
+      "flowNotSupported": "XDrive از Flow در VLESS پشتیبانی نمی‌کند، و کاربران این ورودی آن را به ارث می‌برند. Flow را روی پیش‌فرض بگذارید.",
       "decryptionHint": "با دکمهٔ «رمزنگاری VLESS» در پایین یک جفت رمزنگاری و رمزگشایی هم‌خوان بسازید."
     },
     "streamForms": {

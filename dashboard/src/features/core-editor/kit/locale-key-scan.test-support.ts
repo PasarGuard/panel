@@ -1,3 +1,4 @@
+// Test support for the *-locales.test.ts suites only: it imports node:test and typescript, so app code must not import it.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readdirSync, readFileSync } from 'node:fs'

@@ -1,7 +1,7 @@
 import { validateInboundDraft, validateOutboundDraft } from '@pasarguard/xray-config-kit'
 import type { Inbound, Issue, Outbound } from '@pasarguard/xray-config-kit'
 
-import { outboundStreamTransportName } from '@/features/core-editor/kit/outbound-stream-dynamic'
+import { normalizedName, outboundStreamTransportName } from '@/features/core-editor/kit/outbound-stream-dynamic'
 
 /** Result of parsing the text of a form input: `ok: false` keeps the text in the input and writes nothing. */
 export type ParsedInput<T> = { ok: true; value: T } | { ok: false }
@@ -194,10 +194,6 @@ export function streamIssueSetGained(previous: string, next: string): boolean {
 /** The MASQUE and XDrive forms own a proxy's kit issues for the masque protocol and for a masque or xdrive transport on any protocol. */
 function hasStreamForms(protocol: string, transportName: string): boolean {
   return protocol === 'masque' || transportName === 'masque' || transportName === 'xdrive'
-}
-
-function normalizedName(value: unknown): string {
-  return typeof value === 'string' ? value.trim().toLowerCase() : ''
 }
 
 /**

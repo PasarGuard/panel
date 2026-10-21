@@ -16,7 +16,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function normalizedName(value: unknown): string {
+/** A string trimmed and lowercased (stream network, transport and security names); `''` for anything else. */
+export function normalizedName(value: unknown): string {
   return typeof value === 'string' ? value.trim().toLowerCase() : ''
 }
 

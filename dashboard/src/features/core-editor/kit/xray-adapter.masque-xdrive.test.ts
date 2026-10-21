@@ -196,7 +196,7 @@ test('a removed MASQUE xmux key stays removed', () => {
   const stream = record(ob.streamSettings)
   const masqueSettings = setRecordKey(record(stream.masqueSettings), 'xmux', undefined)
   const compiled = compiledOutbounds(editOut(profile, 1, { ...ob, streamSettings: { ...stream, masqueSettings } }))[1]
-  assert.deepEqual(compiled, setRecordKey(WARP_OUT, 'streamSettings', { ...WARP_OUT.streamSettings, masqueSettings: { warp: WARP_OUT.streamSettings.masqueSettings.warp } }))
+  assert.deepEqual(compiled, { ...WARP_OUT, streamSettings: { ...WARP_OUT.streamSettings, masqueSettings: { warp: WARP_OUT.streamSettings.masqueSettings.warp } } })
 })
 
 test('a MASQUE outbound keeps its mux through an edit', () => {
