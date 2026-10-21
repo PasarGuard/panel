@@ -12,29 +12,48 @@ export const MASQUE_OUTBOUND_FORM_KEYS = ['address', 'port', 'remoteDNS'] as con
  */
 export const MASQUE_TRANSPORT_FORM_KEYS = ['host', 'path', 'user', 'pass', 'headers', 'warp', 'xmux'] as const
 
-const MASQUE_SERVER_SHOWN_FIELDS: readonly string[] = ['address', 'mtu', 'remoteDNS', 'path', 'host', 'headers']
-// The outbound stream accordion shows `security` and `transport` messages under its own selects.
-const MASQUE_CLIENT_SHOWN_FIELDS: readonly string[] = [
-  'address',
-  'port',
-  'remoteDNS',
-  'user',
-  'pass',
-  'warp',
-  'warp.privateKey',
-  'warp.publicKey',
-  'warp.address',
-  'path',
-  'host',
-  'headers',
-  'xmux',
-  'security',
-  'transport',
-]
+/** Transport keys only MASQUE clients use. A server ignores them, but Xray still checks them there. */
+const MASQUE_CLIENT_ONLY_KEYS = ['user', 'pass', 'warp', 'xmux'] as const
 
-/** Issue fields shown next to their inputs (or by the surrounding form); the MASQUE box lists every other field at its bottom. */
-export function masqueShownFields(side: 'server' | 'client'): readonly string[] {
-  return side === 'server' ? MASQUE_SERVER_SHOWN_FIELDS : MASQUE_CLIENT_SHOWN_FIELDS
+/** Issue fields of the client-only keys, which the server box shows next to its "Remove client-only settings" action. */
+export const MASQUE_CLIENT_ONLY_FIELDS = ['user', 'pass', 'warp', 'warp.privateKey', 'warp.publicKey', 'warp.address', 'xmux'] as const
+
+const MASQUE_SERVER_SHOWN_FIELDS: readonly string[] = ['address', 'mtu', 'remoteDNS', 'path', 'host', 'headers', ...MASQUE_CLIENT_ONLY_FIELDS]
+// The outbound stream accordion shows `security` and `transport` messages under its own selects.
+const MASQUE_CLIENT_ALWAYS_SHOWN_FIELDS: readonly string[] = ['address', 'port', 'remoteDNS', 'path', 'host', 'headers', 'xmux', 'security', 'transport']
+const MASQUE_CLIENT_BASIC_FIELDS: readonly string[] = ['user', 'pass']
+const MASQUE_CLIENT_WARP_FIELDS: readonly string[] = ['warp', 'warp.privateKey', 'warp.publicKey', 'warp.address']
+
+/**
+ * Issue fields shown next to their inputs (or by the surrounding form); the MASQUE box lists every other field at its
+ * bottom. The client box has user and pass inputs only in Basic mode and WARP inputs only in WARP mode, so issues on
+ * the other mode's keys (an imported config with both) land at the bottom.
+ */
+export function masqueShownFields(side: 'server' | 'client', authMode: MasqueClientAuthMode = 'none'): readonly string[] {
+  if (side === 'server') return MASQUE_SERVER_SHOWN_FIELDS
+  if (authMode === 'basic') return [...MASQUE_CLIENT_ALWAYS_SHOWN_FIELDS, ...MASQUE_CLIENT_BASIC_FIELDS]
+  if (authMode === 'warp') return [...MASQUE_CLIENT_ALWAYS_SHOWN_FIELDS, ...MASQUE_CLIENT_WARP_FIELDS]
+  return MASQUE_CLIENT_ALWAYS_SHOWN_FIELDS
+}
+
+function isJsonObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/** True when a client-only key is set the way the kit flags it on a server: not empty, and `xmux` not `{}`. */
+export function hasMasqueClientOnlySettings(transport: Record<string, unknown>): boolean {
+  return MASQUE_CLIENT_ONLY_KEYS.some(key => {
+    const value = transport[key]
+    if (value === undefined || value === null || value === '') return false
+    return !(key === 'xmux' && isJsonObject(value) && Object.keys(value).length === 0)
+  })
+}
+
+/** A copy of a server's masque transport without the client-only keys. */
+export function removeMasqueClientOnlySettings(transport: Record<string, unknown>): Record<string, unknown> {
+  const next = { ...transport }
+  for (const key of MASQUE_CLIENT_ONLY_KEYS) delete next[key]
+  return next
 }
 
 /** MASQUE `mtu`: 0 (Xray's default) or a whole number in the kit's MTU range; empty means "not set". */

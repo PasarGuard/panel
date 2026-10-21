@@ -1,9 +1,12 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
-import { getInboundFormCapabilities, getOutboundFormCapabilities } from '@pasarguard/xray-config-kit'
+import { createDefaultInboundForProtocol, getInboundFormCapabilities, getOutboundFormCapabilities } from '@pasarguard/xray-config-kit'
+import type { Inbound } from '@pasarguard/xray-config-kit'
 import {
   applyMasqueClientAuthMode,
+  hasMasqueClientOnlySettings,
+  MASQUE_CLIENT_ONLY_FIELDS,
   MASQUE_OUTBOUND_FORM_KEYS,
   MASQUE_TRANSPORT_FORM_KEYS,
   masqueAlpnForMode,
@@ -11,7 +14,10 @@ import {
   masqueHttpMode,
   masqueShownFields,
   parseMasqueMtuInput,
+  removeMasqueClientOnlySettings,
 } from '@/features/core-editor/kit/masque-fields'
+import { blockingStreamFieldIssues, streamFieldIssuesForInbound } from '@/features/core-editor/kit/stream-form-fields'
+import type { StreamFieldIssue } from '@/features/core-editor/kit/stream-form-fields'
 
 test('parseMasqueMtuInput accepts 0 or 1280 to 65535', () => {
   assert.deepEqual(parseMasqueMtuInput(''), { ok: true, value: undefined })
@@ -77,10 +83,52 @@ test('dedicated MASQUE transport UI covers every kit masque transport key, xmux 
   assert.deepEqual(applyMasqueClientAuthMode({ warp: { address: [] }, xmux }, 'none'), { xmux })
 })
 
-test('masqueShownFields: the client box leaves security and transport to the stream accordion', () => {
-  const client = masqueShownFields('client')
-  for (const key of [...MASQUE_OUTBOUND_FORM_KEYS, ...MASQUE_TRANSPORT_FORM_KEYS, 'warp.privateKey', 'warp.publicKey', 'warp.address', 'security', 'transport']) assert.ok(client.includes(key), key)
-  for (const key of ['mux', 'clients']) assert.ok(!client.includes(key), key)
-  const server = masqueShownFields('server')
-  assert.deepEqual([...server].sort(), ['address', 'headers', 'host', 'mtu', 'path', 'remoteDNS'])
+test('masqueShownFields: the client box shows user and pass only with Basic auth and warp only with WARP', () => {
+  // The outbound stream accordion shows `security` and `transport` under its own selects.
+  const always = [...MASQUE_OUTBOUND_FORM_KEYS, 'path', 'host', 'headers', 'xmux', 'security', 'transport']
+  const sorted = (keys: readonly string[]) => [...keys].sort()
+  assert.deepEqual(sorted(masqueShownFields('client', 'none')), sorted(always))
+  assert.deepEqual(sorted(masqueShownFields('client', 'basic')), sorted([...always, 'user', 'pass']))
+  assert.deepEqual(sorted(masqueShownFields('client', 'warp')), sorted([...always, 'warp', 'warp.privateKey', 'warp.publicKey', 'warp.address']))
+  // Every transport key the form owns is shown in some mode.
+  const anyMode = new Set((['none', 'basic', 'warp'] as const).flatMap(mode => masqueShownFields('client', mode)))
+  for (const key of MASQUE_TRANSPORT_FORM_KEYS) assert.ok(anyMode.has(key), key)
+  for (const key of ['mux', 'clients', 'mtu']) assert.ok(!anyMode.has(key), key)
+})
+
+test('masqueShownFields: the server box shows the client-only fields next to their remove action', () => {
+  assert.deepEqual([...MASQUE_CLIENT_ONLY_FIELDS].sort(), ['pass', 'user', 'warp', 'warp.address', 'warp.privateKey', 'warp.publicKey', 'xmux'])
+  assert.deepEqual([...masqueShownFields('server')].sort(), ['address', 'headers', 'host', 'mtu', 'path', 'remoteDNS', ...MASQUE_CLIENT_ONLY_FIELDS].sort())
+  for (const mode of ['none', 'basic', 'warp'] as const) assert.deepEqual(masqueShownFields('server', mode), masqueShownFields('server'))
+})
+
+test('client-only settings on a MASQUE server: detected like the kit does and removable', () => {
+  assert.equal(hasMasqueClientOnlySettings({ type: 'masque', path: '/p', host: 'h', headers: { 'X-A': 'b' } }), false)
+  assert.equal(hasMasqueClientOnlySettings({ user: '', pass: null, xmux: {} }), false)
+  for (const transport of [{ user: 'u' }, { pass: 'p' }, { warp: {} }, { xmux: { maxConcurrency: '16-32' } }]) assert.equal(hasMasqueClientOnlySettings(transport), true, JSON.stringify(transport))
+
+  const transport = {
+    type: 'masque',
+    path: '/p',
+    host: 'example.com',
+    user: 'a:b',
+    pass: 'p',
+    warp: { privateKey: 'x', publicKey: 'y', address: [] },
+    xmux: { maxConnections: 1, maxConcurrency: 2 },
+  }
+  const inbound = { ...createDefaultInboundForProtocol({ protocol: 'masque', clientDefaults: 'empty' }), tag: 'MQ', port: 443, transport } as unknown as Inbound
+  const clientOnly = (issues: readonly StreamFieldIssue[]) => issues.filter(issue => (MASQUE_CLIENT_ONLY_FIELDS as readonly string[]).includes(issue.field))
+  const before = streamFieldIssuesForInbound(inbound)
+  // Xray checks these on the server too, so some of them block; every one lands on a field the server box shows.
+  assert.deepEqual([...new Set(clientOnly(before).map(issue => issue.field))].sort(), [...MASQUE_CLIENT_ONLY_FIELDS].sort())
+  assert.ok(blockingStreamFieldIssues(before).length > 0)
+  for (const issue of before) assert.ok(masqueShownFields('server').includes(issue.field), issue.field)
+
+  const cleaned = removeMasqueClientOnlySettings(transport)
+  assert.deepEqual(cleaned, { type: 'masque', path: '/p', host: 'example.com' })
+  assert.equal(transport.user, 'a:b', 'input not mutated')
+  assert.equal(hasMasqueClientOnlySettings(cleaned), false)
+  const after = streamFieldIssuesForInbound({ ...inbound, transport: cleaned } as unknown as Inbound)
+  assert.deepEqual(clientOnly(after), [])
+  assert.deepEqual(blockingStreamFieldIssues(after), [])
 })
