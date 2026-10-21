@@ -22,7 +22,7 @@ import {
   useModifyUserTemplate,
   UserStatusCreate,
 } from '@/service/api'
-import { formatBytes, gbToBytes } from '@/utils/formatByte'
+import { formatBytes, formGigabytesToBytes } from '@/utils/formatByte'
 import { queryClient } from '@/utils/query-client.ts'
 import { toWholeSeconds } from '@/utils/timeUnitSeconds'
 import React, { useEffect, useState } from 'react'
@@ -38,6 +38,7 @@ interface UserTemplatesModalprops {
   form: UseFormReturn<UserTemplatesFromValueInput>
   editingUserTemplate: boolean
   editingUserTemplateId?: number
+  editingUserTemplateDataLimit?: number | null
 }
 
 type StatusSelectItemProps = {
@@ -115,7 +116,7 @@ const StatusSelectItem = ({ value, children, onSelect }: StatusSelectItemProps) 
   )
 }
 
-export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, editingUserTemplate, editingUserTemplateId }: UserTemplatesModalprops) {
+export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, editingUserTemplate, editingUserTemplateId, editingUserTemplateDataLimit }: UserTemplatesModalprops) {
   const dir = useDirDetection()
   const { admin } = useAdmin()
   const { t } = useTranslation()
@@ -188,7 +189,7 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
       // Build payload according to UserTemplateCreate interface
       const submitData = {
         name: values.name,
-        data_limit: hasDataLimit ? gbToBytes(normalizedDataLimitGb as any) : 0,
+        data_limit: hasDataLimit ? formGigabytesToBytes(normalizedDataLimitGb, editingUserTemplate ? editingUserTemplateDataLimit : undefined) : 0,
         hwid_limit: normalizedHwidLimit == null ? null : Number.isFinite(normalizedHwidLimit) ? Math.floor(normalizedHwidLimit) : null,
         expire_duration: values.expire_duration,
         username_prefix: values.username_prefix || '',
