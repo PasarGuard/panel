@@ -160,6 +160,10 @@ function sanitizeSecurityArrays(inbound: Inbound): Inbound {
   return { ...inbound, security: sanitized } as Inbound
 }
 
+function isStreamPartOfType(value: unknown, type: string): boolean {
+  return typeof value === 'object' && value !== null && !Array.isArray(value) && (value as Record<string, unknown>).type === type
+}
+
 function sanitizeWireguardInbound(inbound: Inbound): Inbound {
   if (inbound.protocol !== 'wireguard') return inbound
   // The kit requires an array, but user peers are supplied by the backend.
@@ -167,6 +171,12 @@ function sanitizeWireguardInbound(inbound: Inbound): Inbound {
   if (Array.isArray(draft.address) && draft.address.length === 0) {
     delete draft.address
   }
+  // The kit compiles `streamSettings` (and with it sockopt and finalmask) only when both transport and security
+  // exist, and old editors could leave ws/tls behind on WireGuard inbounds, so pin them to tcp / none. A tcp or none
+  // record is kept as it is, extras such as a tcp header included (the adapter strips tcpSettings from WireGuard
+  // output), so an unedited import keeps its fingerprint and the verbatim source passthrough.
+  if (!isStreamPartOfType(draft.transport, 'tcp')) draft.transport = { type: 'tcp' }
+  if (!isStreamPartOfType(draft.security, 'none')) draft.security = { type: 'none' }
   return draft as unknown as Inbound
 }
 

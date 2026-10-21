@@ -21,6 +21,7 @@ import { XrayStreamFinalmaskInboundAccordion } from '@/features/core-editor/comp
 import { pruneSockoptObject, XrayStreamSockoptInboundAccordion } from '@/features/core-editor/components/shared/xray-stream-sockopt-editor'
 import { InboundFallbacksEditor } from '@/features/core-editor/components/xray/inbound-fallbacks-editor'
 import { RealityScanDialog } from '@/features/core-editor/components/xray/reality-scan-dialog'
+import { WireguardInboundFields } from '@/features/core-editor/components/xray/wireguard-inbound-fields'
 import { useSectionHeaderAddPulseEffect, type SectionHeaderAddPulse } from '@/features/core-editor/hooks/use-section-header-add-pulse'
 import { useXrayPersistModifyGuard } from '@/features/core-editor/hooks/use-xray-persist-modify-guard'
 import {
@@ -28,11 +29,19 @@ import {
   INBOUND_FORM_FIELD_SEC_MLDSA65_SEED,
   INBOUND_FORM_FIELD_SEC_MLDSA65_VERIFY,
   realityInboundZodTriggerFieldNames,
+  WIREGUARD_INBOUND_FORM_FIELDS,
 } from '@/features/core-editor/kit/inbound-dialog-schema'
 import { getInboundSecuritySelectOptions, getInboundTransportSelectOptions, transportCompatibleWithReality } from '@/features/core-editor/kit/inbound-form-options'
 import { profileDuplicateTagMessage, profileTagHasDuplicateUsage } from '@/features/core-editor/kit/profile-tag-uniqueness'
 import { remapIndexAfterArrayMove } from '@/features/core-editor/kit/remap-index-after-move'
 import { normalizeTunnelNetworkForKit } from '@/features/core-editor/kit/sanitize-inbound'
+import {
+  classifyWireguardAddresses,
+  normalizeWireguardInboundForCommit,
+  parseWireguardInboundPort,
+  wireguardInboundAddresses,
+  wireguardInboundFormTexts,
+} from '@/features/core-editor/kit/wireguard-xray-fields'
 import { coerceVerifyPeerCertByNameList, inferParityFieldMode, outboundSettingToString, parseOutboundSettingValue, stringifyJsonFormRecord } from '@/features/core-editor/kit/xray-parity-value'
 import { useCoreEditorStore } from '@/features/core-editor/state/core-editor-store'
 import useDirDetection from '@/hooks/use-dir-detection'
@@ -533,6 +542,7 @@ function applyWireguardEditorCreationDefaults(ib: Inbound): Inbound {
     publicKey: undefined,
     address: undefined,
     peers: [],
+    noKernelTun: undefined,
   } as Inbound
 }
 
@@ -593,13 +603,6 @@ function userPassAccountsForUi(inbound: Inbound): Array<{ user: string; pass: st
       user: typeof item.user === 'string' ? item.user : '',
       pass: typeof item.pass === 'string' ? item.pass : '',
     }))
-}
-
-function wireguardAddressesForUi(inbound: Inbound): string[] {
-  if (!isWireguardInboundProtocol(inbound.protocol)) return []
-  const raw = (inbound as { address?: unknown }).address
-  if (!Array.isArray(raw)) return []
-  return raw.map(item => String(item).trim()).filter(Boolean)
 }
 
 function generateMixedAccountUsername(length: number = 10): string {
@@ -1044,6 +1047,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
       tunMtu: '',
       wgSecretKey: '',
       wgMtu: '',
+      wgReserved: '',
       hysteriaObfsEnabled: 'false',
       hysteriaObfsPassword: '',
       hysteriaObfsPacketSize: '',
@@ -1098,23 +1102,38 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
       if (nextIb.protocol !== 'wireguard') {
         form.setValue('wgSecretKey', '', syncOpts)
         form.setValue('wgMtu', '', syncOpts)
+        form.setValue('wgReserved', '', syncOpts)
         return
       }
       form.setValue('wgSecretKey', typeof (nextIb as { secretKey?: unknown }).secretKey === 'string' ? String((nextIb as { secretKey?: unknown }).secretKey) : '', syncOpts)
-      form.setValue('wgMtu', typeof (nextIb as { mtu?: unknown }).mtu === 'number' ? String((nextIb as { mtu?: number }).mtu) : '', syncOpts)
+      const wgTexts = wireguardInboundFormTexts(nextIb, { mtu: form.getValues('wgMtu') ?? '', reserved: form.getValues('wgReserved') ?? '' })
+      form.setValue('wgMtu', wgTexts.mtu, syncOpts)
+      form.setValue('wgReserved', wgTexts.reserved, syncOpts)
     },
     [form],
   )
 
   const profileRef = useRef(profile)
   profileRef.current = profile
+  /** `dialogMode:selected` of the open dialog, so the reset below can tell a patch of the same row from a newly opened one. */
+  const formRowKeyRef = useRef<string | null>(null)
 
   useEffect(() => {
-    if (!detailOpen) return
+    if (!detailOpen) {
+      formRowKeyRef.current = null
+      return
+    }
     const p = profileRef.current
     if (!p) return
     const row = draftInbound ?? p.inbounds[selected]
     if (!row || row.protocol === 'unmanaged') return
+
+    const rowKey = `${dialogMode}:${selected}`
+    const sameRow = formRowKeyRef.current === rowKey
+    formRowKeyRef.current = rowKey
+    // Same open row: typed MTU / reserved texts that do not parse or that match the stored value stay as typed.
+    const wgTexts = wireguardInboundFormTexts(row, sameRow ? { mtu: form.getValues('wgMtu') ?? '', reserved: form.getValues('wgReserved') ?? '' } : undefined)
+    const wgErrorFields = sameRow ? WIREGUARD_INBOUND_FORM_FIELDS.filter(name => form.getFieldState(name).error) : []
 
     const security = getInboundSecurityRecord(row)
     const sniffing = 'sniffing' in row && row.sniffing && typeof row.sniffing === 'object' && !Array.isArray(row.sniffing) ? (row.sniffing as Record<string, unknown>) : null
@@ -1159,7 +1178,8 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
       tunName: row.protocol === 'tun' && typeof (row as { name?: unknown }).name === 'string' ? String((row as { name?: unknown }).name) : '',
       tunMtu: row.protocol === 'tun' && typeof (row as { mtu?: unknown }).mtu === 'number' ? String((row as { mtu?: number }).mtu) : '',
       wgSecretKey: row.protocol === 'wireguard' && typeof (row as { secretKey?: unknown }).secretKey === 'string' ? String((row as { secretKey?: unknown }).secretKey) : '',
-      wgMtu: row.protocol === 'wireguard' && typeof (row as { mtu?: unknown }).mtu === 'number' ? String((row as { mtu?: number }).mtu) : '',
+      wgMtu: wgTexts.mtu,
+      wgReserved: wgTexts.reserved,
       ...(isTunnelInboundProtocol(row.protocol)
         ? {
             tunnelRewriteAddress: tunnelAddressForForm(row),
@@ -1221,6 +1241,8 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
     }
 
     form.reset(next, { keepErrors: false, keepTouched: false, keepDirty: false })
+    // The reset clears errors; re-check the WireGuard fields that showed one, so a kept bad text keeps its message.
+    if (wgErrorFields.length > 0) void form.trigger(wgErrorFields)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `form.reset` is stable; listing `form` re-runs sync every render.
   }, [caps, detailOpen, selected, dialogMode, draftInbound])
 
@@ -1593,6 +1615,11 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
         })
         return false
       }
+      const { invalid } = classifyWireguardAddresses(wireguardInboundAddresses((wgInbound as { address?: unknown }).address))
+      if (invalid.length > 0) {
+        toast.error(t('coreEditor.inbound.wireguard.addressInvalid', { values: invalid.join(', '), defaultValue: 'Not an IP address or CIDR: {{values}}' }))
+        return false
+      }
       return true
     },
     [form, t],
@@ -1641,7 +1668,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
       draftInbound.protocol === 'tun'
         ? (['protocol', 'tag', 'tunName', 'tunMtu'] as const)
         : draftInbound.protocol === 'wireguard'
-          ? (['protocol', 'tag', 'port', 'wgSecretKey'] as const)
+          ? (['protocol', 'tag', 'port', ...WIREGUARD_INBOUND_FORM_FIELDS] as const)
           : (['protocol', 'tag', 'port'] as const)
     const fields = [
       ...triggerFields,
@@ -1653,7 +1680,9 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
     if (!(await assertMldsa65PairForCommit())) return
     if (!validateWireguardInboundForCommit(draftInbound)) return
     const insertAt = profile.inbounds.length
-    updateXrayProfile(p => ({ ...p, inbounds: [...p.inbounds, draftInbound] }))
+    // Also written on change; repeating it here normalizes untouched stored values (reserved `AQID` or "1,2,3", a padded secret key, port or address).
+    const committedInbound = normalizeWireguardInboundForCommit(draftInbound, { mtu: form.getValues('wgMtu') ?? '', reserved: form.getValues('wgReserved') ?? '' })
+    updateXrayProfile(p => ({ ...p, inbounds: [...p.inbounds, committedInbound] }))
     setSelected(insertAt)
     finalizeDetailClose()
   }
@@ -1665,7 +1694,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
       setDuplicateTagError(tagValue)
       return
     }
-    if (inbound.protocol !== 'unmanaged' && 'transport' in inbound && 'security' in inbound) {
+    if (inbound.protocol !== 'unmanaged' && 'transport' in inbound && 'security' in inbound && inbound.protocol !== 'wireguard') {
       const fields = ['protocol', 'tag', 'port', ...(form.getValues('security') === 'reality' ? realityInboundZodTriggerFieldNames() : [])]
       const ok = await form.trigger(fields, { shouldFocus: true })
       if (!ok) return
@@ -1677,11 +1706,13 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
       const ok = await form.trigger(['protocol', 'tag', 'tunName', 'tunMtu'], { shouldFocus: true })
       if (!ok) return
     } else if (inbound.protocol === 'wireguard') {
-      const ok = await form.trigger(['protocol', 'tag', 'port', 'wgSecretKey'], { shouldFocus: true })
+      const ok = await form.trigger(['protocol', 'tag', 'port', ...WIREGUARD_INBOUND_FORM_FIELDS], { shouldFocus: true })
       if (!ok) return
     }
     if (!validateWireguardInboundForCommit(inbound)) return
     let nextInbound: Inbound = inbound
+    // Also written on change; repeating it here normalizes untouched stored values (reserved `AQID` or "1,2,3", a padded secret key, port or address).
+    nextInbound = normalizeWireguardInboundForCommit(nextInbound, { mtu: form.getValues('wgMtu') ?? '', reserved: form.getValues('wgReserved') ?? '' })
 
     if ('security' in nextInbound && nextInbound.security && form.getValues('security') === 'none') {
       // When switching from TLS/Reality to none, force-drop advanced security keys.
@@ -2574,7 +2605,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
           <p className="text-muted-foreground text-sm">{t('coreEditor.inbound.unmanagedHint', { defaultValue: 'This inbound is managed as raw JSON in Advanced.' })}</p>
         )}
 
-        {inbound && inbound.protocol !== 'unmanaged' && 'transport' in inbound && 'security' in inbound && (
+        {inbound && inbound.protocol !== 'unmanaged' && inbound.protocol !== 'wireguard' && 'transport' in inbound && 'security' in inbound && (
           <Form {...form}>
             <form className="flex flex-col gap-4 pb-6" onSubmit={e => e.preventDefault()}>
               <div className="grid gap-4 sm:grid-cols-2">
@@ -4891,7 +4922,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
           </Form>
         )}
 
-        {inbound && inbound.protocol !== 'unmanaged' && !('transport' in inbound) && !isTunnelInboundProtocol(inbound.protocol) && (
+        {inbound && inbound.protocol !== 'unmanaged' && (!('transport' in inbound) || inbound.protocol === 'wireguard') && !isTunnelInboundProtocol(inbound.protocol) && (
           <Form {...form}>
             <form className="space-y-4" onSubmit={e => e.preventDefault()}>
               <div className="grid gap-3 sm:grid-cols-2">
@@ -5017,11 +5048,12 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                               className="h-10 pr-10"
                               dir="ltr"
                               isError={!!fieldState.error}
-                              placeholder="443 or 1000-2000,444"
+                              placeholder={inbound.protocol === 'wireguard' ? '51820' : '443 or 1000-2000,444'}
                               onChange={e => {
                                 const v = e.target.value
                                 field.onChange(v)
                                 if (v.trim() === '') patchInbound({ port: undefined } as Partial<Inbound>)
+                                else if (inbound.protocol === 'wireguard') patchInbound({ port: parseWireguardInboundPort(v) ?? v } as Partial<Inbound>)
                                 else {
                                   const n = Number(v)
                                   patchInbound({ port: Number.isFinite(n) ? n : v } as Partial<Inbound>)
@@ -5187,107 +5219,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                   </div>
                 )}
 
-                {inbound.protocol === 'wireguard' && (
-                  <div className="grid w-full min-w-0 gap-3 rounded-md border p-3 sm:col-span-2">
-                    <FormField
-                      control={form.control}
-                      name="wgSecretKey"
-                      render={({ field, fieldState }) => (
-                        <FormItem className="w-full min-w-0">
-                          <FormLabel className="text-sm">{t('coreEditor.inbound.wireguard.secretKey', { defaultValue: 'Secret Key' })}</FormLabel>
-                          <FormControl className="w-full">
-                            <PasswordInput
-                              {...field}
-                              dir="ltr"
-                              className="h-10 w-full text-xs"
-                              autoComplete="new-password"
-                              isError={!!fieldState.error}
-                              onChange={e => {
-                                const v = e.target.value
-                                field.onChange(v)
-                                patchInbound({ secretKey: v.trim() === '' ? undefined : v } as Partial<Inbound>)
-                              }}
-                            />
-                          </FormControl>
-                          <div className="mt-2">
-                            <LoaderButton
-                              type="button"
-                              onClick={() => {
-                                const keyPair = generateWireGuardKeyPair()
-                                form.setValue('wgSecretKey', keyPair.privateKey)
-                                patchInbound({ secretKey: keyPair.privateKey } as Partial<Inbound>)
-                                toast.success(
-                                  t('coreConfigModal.wireguardKeyPairGenerated', {
-                                    defaultValue: 'WireGuard keypair generated',
-                                  }),
-                                )
-                              }}
-                              className="h-10 w-full text-sm font-medium transition-all hover:shadow-md sm:h-11"
-                              isLoading={false}
-                            >
-                              <span className="flex items-center gap-2 truncate">{t('coreEditor.inbound.wireguard.generateSecretKey', { defaultValue: 'Generate secret key' })}</span>
-                            </LoaderButton>
-                          </div>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="wgMtu"
-                      render={({ field, fieldState }) => (
-                        <FormItem className="w-full min-w-0">
-                          <FormLabel className="text-sm">{t('coreEditor.inbound.wireguard.mtu', { defaultValue: 'MTU' })}</FormLabel>
-                          <FormControl className="w-full">
-                            <Input
-                              {...field}
-                              dir="ltr"
-                              inputMode="numeric"
-                              className="h-10 w-full min-w-0"
-                              isError={!!fieldState.error}
-                              onChange={e => {
-                                const raw = e.target.value
-                                field.onChange(raw)
-                                const v = raw.trim()
-                                if (v === '') {
-                                  patchInbound({ mtu: undefined } as Partial<Inbound>)
-                                  return
-                                }
-                                const n = Number(v)
-                                patchInbound({ mtu: Number.isFinite(n) ? Math.trunc(n) : undefined } as Partial<Inbound>)
-                              }}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <div className="w-full min-w-0 space-y-1.5">
-                      <FormLabel className="text-sm">{t('coreEditor.inbound.wireguard.address', { defaultValue: 'Server Address' })}</FormLabel>
-                      <StringArrayPopoverInput
-                        value={wireguardAddressesForUi(inbound)}
-                        onChange={nextAddresses => {
-                          if (!isWireguardInboundProtocol(inbound.protocol)) return
-                          patchInbound({ address: nextAddresses.length > 0 ? nextAddresses : undefined } as Partial<Inbound>)
-                        }}
-                        placeholder={t('coreEditor.inbound.wireguard.addressHint', {
-                          defaultValue: 'Example: 10.0.0.1/24',
-                        })}
-                        addPlaceholder={t('coreEditor.inbound.wireguard.addressAddPlaceholder', {
-                          defaultValue: 'Add address',
-                        })}
-                        addButtonLabel={t('coreEditor.inbound.wireguard.addItem', { defaultValue: 'Add' })}
-                        itemsLabel={t('coreEditor.inbound.wireguard.addressItems', { defaultValue: 'Addresses' })}
-                        emptyMessage={t('coreEditor.inbound.wireguard.noAddresses', {
-                          defaultValue: 'No address added.',
-                        })}
-                        className="h-10 w-full max-w-none min-w-0"
-                      />
-                    </div>
-                  </div>
-                )}
+                {inbound.protocol === 'wireguard' && <WireguardInboundFields inbound={inbound} form={form} patchInbound={patchInbound} t={t} />}
 
                 {isHttpInboundProtocol(inbound.protocol) && (
                   <>

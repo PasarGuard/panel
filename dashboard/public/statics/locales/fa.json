@@ -2777,9 +2777,21 @@
         "allowedIPsAddPlaceholder": "افزودن CIDR",
         "allowedIPsItems": "IPهای مجاز",
         "noAllowedIPs": "هیچ CIDRی اضافه نشده است.",
+        "publicKeyHint": "از کلید محرمانه ساخته می‌شود. پنل آن را در پیکربندی کاربران قرار می‌دهد.",
+        "publicKeyUnavailable": "برای دیدن کلید عمومی، یک کلید محرمانه معتبر وارد کنید.",
+        "addressPoolHint": "کاربران از زیرشبکه‌هایی IP می‌گیرند که دست‌کم 4 آدرس جا دارند (IPv4 با /30 یا بزرگ‌تر، IPv6 با /126 یا بزرگ‌تر). IPهای تکی و /31، /32، /127، /128 در پیکربندی Xray می‌مانند اما مخزن آدرسی برای کاربران نمی‌سازند.",
+        "addressNoPool": "زیرشبکه‌ای برای کاربران نیست: پنل این ورودی را مدیریت نمی‌کند و کاربران از آن پیکربندی WireGuard نمی‌گیرند.",
+        "addressInvalid": "آدرس IP یا CIDR معتبر نیست: {{values}}",
+        "mtuHint": "از 576 تا 9000. برای 1420 خالی بگذارید.",
+        "reserved": "Reserved",
+        "reservedHint": "اختیاری. سه بایت از 0 تا 255 که کاربران در هر بسته قرار می‌دهند، مثلاً 1, 2, 3 یا [1,2,3].",
         "validation": {
           "peerRequired": "حداقل یک همتا الزامی است.",
-          "peerPublicKeyRequired": "هر همتا باید کلید عمومی داشته باشد."
+          "peerPublicKeyRequired": "هر همتا باید کلید عمومی داشته باشد.",
+          "secretKeyInvalid": "کلید محرمانه باید یک کلید 32 بایتی WireGuard باشد (base64 یا 64 نویسه هگز).",
+          "portSingle": "WireGuard به یک پورت از 1 تا 65535 نیاز دارد.",
+          "mtuRange": "MTU باید عددی صحیح از 576 تا 9000 باشد.",
+          "reservedFormat": "Reserved باید سه عدد از 0 تا 255 باشد، مثلاً 1, 2, 3."
         }
       },
       "hysteria": {
@@ -2962,7 +2974,19 @@
         "allowedIPs": "IPهای مجاز",
         "allowedIPsAddPlaceholder": "افزودن CIDR",
         "allowedIPsItems": "IPهای مجاز",
-        "noAllowedIPs": "هیچ CIDRی اضافه نشده است."
+        "noAllowedIPs": "هیچ CIDRی اضافه نشده است.",
+        "kernelModeKernel": "TUN کرنل",
+        "kernelModeUserspace": "فضای کاربر (gVisor)",
+        "kernelModeHint": "به صورت noKernelTun ذخیره می‌شود. TUN کرنل به لینوکس و CAP_NET_ADMIN نیاز دارد؛ در غیر این صورت Xray از فضای کاربر استفاده می‌کند. حالت پیش‌فرض مانند TUN کرنل رفتار می‌کند: Xray در صورت پشتیبانی از TUN کرنل استفاده می‌کند، در غیر این صورت از فضای کاربر.",
+        "legacyFieldHint": "فقط Xray {{lastRelease}} و نسخه‌های قدیمی‌تر این را می‌خوانند؛ در {{removedIn}} حذف شد.",
+        "dnsHint": "فقط آدرس IP. Xray نسخه v26.9.8 و جدیدتر آن را می‌خواند.",
+        "dnsAddPlaceholder": "افزودن سرور DNS",
+        "dnsItems": "سرورهای DNS",
+        "noDns": "هیچ سرور DNSی اضافه نشده است.",
+        "dnsInvalid": "سرورهای DNS باید آدرس IP باشند: {{values}}",
+        "dnsNotList": "سرورهای DNS باید فهرستی از آدرس‌های IP باشند. فهرست را ویرایش کنید تا به صورت فهرست ذخیره شود.",
+        "reservedHint": "سه بایت از 0 تا 255، مثلاً 1, 2, 3 یا [1,2,3].",
+        "reservedInvalid": "Reserved باید سه عدد از 0 تا 255 باشد، مثلاً 1, 2, 3."
       },
       "dns": {
         "blurb": "خروجی DNS پرسش‌های متنی DNS از مسیریابی را مدیریت می‌کند. بازنویسی و قوانین اختیاری‌اند؛ موارد نادر را در تب JSON ویرایش کنید.",

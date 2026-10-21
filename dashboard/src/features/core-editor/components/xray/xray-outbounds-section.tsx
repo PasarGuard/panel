@@ -30,6 +30,7 @@ import {
 } from '@/features/core-editor/kit/outbound-stream-dynamic'
 import { profileDuplicateTagMessage, profileTagHasDuplicateUsage } from '@/features/core-editor/kit/profile-tag-uniqueness'
 import { remapIndexAfterArrayMove } from '@/features/core-editor/kit/remap-index-after-move'
+import { WIREGUARD_OUTBOUND_FORM_KEYS, wireguardOutboundIssueMessage, wireguardOutboundSettingsIssues } from '@/features/core-editor/kit/wireguard-outbound-settings'
 import {
   flattenOutboundSettings,
   mergeEditorBodyIntoOutbound,
@@ -82,7 +83,7 @@ const OUTBOUND_HIDDEN_SETTINGS_KEYS: Partial<Record<string, ReadonlySet<string>>
   hysteria: new Set(['version']),
   loopback: new Set(['inboundTag']),
   dns: new Set(['network', 'address', 'port', 'userLevel', 'rules']),
-  wireguard: new Set(['secretKey', 'address', 'peers', 'mtu', 'workers', 'reserved', 'domainStrategy', 'DNS', 'kernelMode']),
+  wireguard: new Set<string>(WIREGUARD_OUTBOUND_FORM_KEYS),
 }
 
 function outboundHiddenSettingsKeys(protocol: string): ReadonlySet<string> | undefined {
@@ -473,6 +474,9 @@ function collectOutboundRequiredIssues(ob: Outbound, t: (key: string, opts?: Rec
           defaultValue: 'WireGuard secret key is required.',
         }),
       })
+    }
+    for (const issue of wireguardOutboundSettingsIssues(s)) {
+      issues.push({ field: issue.field, message: wireguardOutboundIssueMessage(t, issue) })
     }
   }
 
