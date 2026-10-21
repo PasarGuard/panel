@@ -1,6 +1,7 @@
 from copy import deepcopy
 from enum import Enum
 from ipaddress import ip_address, ip_network
+from string import Formatter
 from typing import Any
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator, model_serializer, model_validator
@@ -747,6 +748,23 @@ class FormatVariables(dict):
         return key.join("{}")
 
 
+def validate_format_variables(value: str) -> str:
+    """Reject a value that the subscription cannot render with ``str.format_map``.
+
+    Unbalanced braces and positional fields (``{}``, ``{0}``) always fail; attribute and index
+    fields (``{USERNAME.x}``, ``{USERNAME[9]}``) fail or not depending on the user, so only plain
+    variable names (with an optional format spec) are allowed. ``{{`` and ``}}`` stay literal braces.
+    """
+    try:
+        fields = [field for _, field, _, _ in Formatter().parse(value) if field is not None]
+        value.format_map(FormatVariables())
+    except ValueError, AttributeError, IndexError, TypeError:
+        raise ValueError(f'Invalid formatting variables in "{value}"')
+    if any("." in field or "[" in field for field in fields):
+        raise ValueError(f'Invalid formatting variables in "{value}"')
+    return value
+
+
 class WireGuardHostOverrides(BaseModel):
     """Optional per-host values merged into WireGuard subscription output."""
 
@@ -842,12 +860,7 @@ class CreateHost(BaseHost):
     def validate_remark(cls, v):
         if not v:
             raise ValueError("Remark cannot be empty")
-        try:
-            v.format_map(FormatVariables())
-        except ValueError:
-            raise ValueError("Invalid formatting variables")
-
-        return v
+        return validate_format_variables(v)
 
     @field_validator("alpn", mode="after")
     def remove_duplicates(cls, v):
@@ -865,11 +878,20 @@ class CreateHost(BaseHost):
         v = StringArrayValidator.len_check(v, 256)
         if v and any(has_markup_unsafe_chars(address) for address in v):
             raise ValueError("Address cannot contain quotes, angle brackets, backticks, backslashes or whitespace")
+        for address in v or ():
+            validate_format_variables(address)
         return v
 
     @field_validator("sni", "host", mode="after")
     def validate_sets(cls, v: set):
-        return StringArrayValidator.len_check(v, 1000)
+        v = StringArrayValidator.len_check(v, 1000)
+        for item in v or ():
+            validate_format_variables(item)
+        return v
+
+    @field_validator("path", mode="after")
+    def validate_path(cls, v):
+        return validate_format_variables(v) if v else v
 
 
 class BulkHostSelection(BaseModel):
