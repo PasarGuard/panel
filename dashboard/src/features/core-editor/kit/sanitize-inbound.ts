@@ -160,9 +160,10 @@ function sanitizeSecurityArrays(inbound: Inbound): Inbound {
   return { ...inbound, security: sanitized } as Inbound
 }
 
-function sanitizeWireguardEmptyAddress(inbound: Inbound): Inbound {
+function sanitizeWireguardInbound(inbound: Inbound): Inbound {
   if (inbound.protocol !== 'wireguard') return inbound
-  const draft = { ...inbound } as Record<string, unknown>
+  // The kit requires an array, but user peers are supplied by the backend.
+  const draft = { ...inbound, peers: [] } as Record<string, unknown>
   if (Array.isArray(draft.address) && draft.address.length === 0) {
     delete draft.address
   }
@@ -173,6 +174,6 @@ function sanitizeWireguardEmptyAddress(inbound: Inbound): Inbound {
 export function sanitizeProfileInbounds(profile: Profile): Profile {
   return {
     ...profile,
-    inbounds: profile.inbounds.map(ib => sanitizeWireguardEmptyAddress(sanitizeSecurityArrays(normalizeTunnelInboundForKit(ib)))),
+    inbounds: profile.inbounds.map(ib => sanitizeWireguardInbound(sanitizeSecurityArrays(normalizeTunnelInboundForKit(ib)))),
   }
 }
