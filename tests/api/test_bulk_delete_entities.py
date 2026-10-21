@@ -9,6 +9,8 @@ from sqlalchemy import func, select, update
 from app.db.crud.node import create_node as db_create_node, remove_node as db_remove_node
 from app.db.models import (
     Admin,
+    AdminNotificationReminder,
+    AdminPasskey,
     AdminUsageLogs,
     APIKey,
     NextPlan,
@@ -17,6 +19,8 @@ from app.db.models import (
     NodeUsage,
     NodeUsageResetLogs,
     NodeUserUsage,
+    PasskeyChallenge,
+    ReminderType,
     User,
     inbounds_groups_association,
     template_group_association,
@@ -86,6 +90,56 @@ def seed_api_key(admin_id: int) -> int:
             return db_key.id
 
     return asyncio.run(_seed())
+
+
+def seed_admin_auth_rows(admin_id: int) -> bytes:
+    """Give an admin a passkey, a pending passkey challenge and a usage reminder; return the credential id."""
+    credential_id = f"cred-{uuid4().hex}".encode()
+
+    async def _seed():
+        async with TestSession() as session:
+            session.add(AdminPasskey(admin_id=admin_id, credential_id=credential_id, public_key=b"public-key"))
+            session.add(
+                PasskeyChallenge(
+                    challenge=uuid4().bytes,
+                    kind="login",
+                    expires_at=datetime.now(UTC) + timedelta(minutes=5),
+                    admin_id=admin_id,
+                )
+            )
+            session.add(AdminNotificationReminder(admin_id=admin_id, type=ReminderType.data_usage, threshold=80))
+            await session.commit()
+
+    asyncio.run(_seed())
+    return credential_id
+
+
+def count_admin_auth_rows(admin_id: int) -> dict[str, int]:
+    async def _count():
+        async with TestSession() as session:
+            counts = {}
+            for name, model in (
+                ("passkeys", AdminPasskey),
+                ("challenges", PasskeyChallenge),
+                ("reminders", AdminNotificationReminder),
+            ):
+                counts[name] = (
+                    await session.execute(select(func.count()).select_from(model).where(model.admin_id == admin_id))
+                ).scalar_one()
+            return counts
+
+    return asyncio.run(_count())
+
+
+def get_passkey_admin_id(credential_id: bytes) -> int | None:
+    async def _get():
+        async with TestSession() as session:
+            result = await session.execute(
+                select(AdminPasskey.admin_id).where(AdminPasskey.credential_id == credential_id)
+            )
+            return result.scalar_one_or_none()
+
+    return asyncio.run(_get())
 
 
 def get_user_admin_id(username: str) -> int | None:
@@ -367,6 +421,46 @@ def test_bulk_delete_admins_clears_owned_users_usage_logs_and_api_keys(access_to
         assert count_api_keys(admin["id"]) == 0
     finally:
         delete_user(access_token, user["username"])
+        delete_admin_if_present(access_token, admin["username"])
+
+
+def test_bulk_delete_admins_removes_passkeys_challenges_and_reminders(access_token):
+    admin = create_admin(access_token)
+    credential_id = seed_admin_auth_rows(admin["id"])
+    replacement = None
+    try:
+        response = client.post(
+            "/api/admins/bulk/delete",
+            headers=auth_headers(access_token),
+            json={"ids": [admin["id"]]},
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        assert count_admin_auth_rows(admin["id"]) == {"passkeys": 0, "challenges": 0, "reminders": 0}
+        assert get_passkey_admin_id(credential_id) is None
+
+        # SQLite can hand the freed id to the next admin; it must not inherit the deleted admin's passkey.
+        replacement = create_admin(access_token)
+        assert count_admin_auth_rows(replacement["id"]) == {"passkeys": 0, "challenges": 0, "reminders": 0}
+        listed = client.get(f"/api/admin/passkey/admins/{replacement['id']}", headers=auth_headers(access_token))
+        assert listed.status_code == status.HTTP_200_OK
+        assert listed.json() == []
+    finally:
+        delete_admin_if_present(access_token, admin["username"])
+        if replacement is not None:
+            delete_admin_if_present(access_token, replacement["username"])
+
+
+def test_delete_admin_removes_passkeys_challenges_and_reminders(access_token):
+    admin = create_admin(access_token)
+    credential_id = seed_admin_auth_rows(admin["id"])
+    try:
+        response = client.delete(f"/api/admin/by-id/{admin['id']}", headers=auth_headers(access_token))
+
+        assert response.status_code == status.HTTP_204_NO_CONTENT
+        assert count_admin_auth_rows(admin["id"]) == {"passkeys": 0, "challenges": 0, "reminders": 0}
+        assert get_passkey_admin_id(credential_id) is None
+    finally:
         delete_admin_if_present(access_token, admin["username"])
 
 
