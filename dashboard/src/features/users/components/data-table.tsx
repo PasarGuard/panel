@@ -4,6 +4,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import useDirDetection from '@/hooks/use-dir-detection'
 import { cn } from '@/lib/utils'
 import { UserResponse } from '@/service/api'
+import { getSelectedRowIds, keepVisibleRowSelection } from '@/utils/rowSelection'
 import { ChevronDown, Rss } from 'lucide-react'
 import ActionButtons from './action-buttons'
 import { OnlineStatus } from './online-status'
@@ -186,11 +187,7 @@ export const DataTable = memo(
       (updater: RowSelectionState | ((old: RowSelectionState) => RowSelectionState)) => {
         setRowSelection(prev => {
           const next = typeof updater === 'function' ? updater(prev) : updater
-          onSelectionChange?.(
-            Object.entries(next)
-              .filter(([, selected]) => selected)
-              .map(([rowId]) => Number(rowId)),
-          )
+          onSelectionChange?.(getSelectedRowIds(next))
           return next
         })
       },
@@ -219,6 +216,17 @@ export const DataTable = memo(
       setRowSelection({})
       onSelectionChange?.([])
     }, [resetSelectionKey])
+
+    // Bulk actions must only target rows on screen: drop selected rows that a page, search or filter change, or a refresh, took away.
+    useEffect(() => {
+      const next = keepVisibleRowSelection(
+        rowSelection,
+        data.map(row => String(row.id)),
+      )
+      if (next === rowSelection) return
+      setRowSelection(next)
+      onSelectionChange?.(getSelectedRowIds(next))
+    }, [data, onSelectionChange, rowSelection])
 
     const handleRowToggle = useCallback((rowId: number) => {
       setExpandedRow(prev => (prev === rowId ? null : rowId))
