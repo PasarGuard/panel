@@ -110,7 +110,7 @@ run-watch:
 # Cross-platform: the Python helper sets OPENAPI_INPUT and invokes orval itself.
 .PHONY: gen-api
 gen-api:
-	@uv run python scripts/export_openapi.py --gen-client
+	@uv run python export_openapi.py --gen-client
 
 # Check code
 .PHONY: check
