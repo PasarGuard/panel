@@ -976,11 +976,21 @@ async def get_users_count_by_admin(db: AsyncSession, admin_id: int | None) -> in
 
 
 async def lock_admin_quota_row(db: AsyncSession, admin_id: int) -> None:
-    """Lock an admin row before quota-sensitive user creation."""
-    if db.bind.dialect.name == "sqlite":
+    """Lock an admin row before quota-sensitive user creation.
+
+    Call it before the transaction writes anything: the user count that follows must see the users
+    committed by the previous holder of the lock.
+    """
+    dialect = db.bind.dialect.name
+    if dialect == "sqlite":
         await db.execute(update(Admin).where(Admin.id == admin_id).values(id=Admin.id))
         return
 
+    if dialect in ("mysql", "mariadb") and db.in_transaction():
+        # REPEATABLE READ keeps the snapshot of the transaction's first read (authentication,
+        # validation), so a count after the lock would miss users committed while waiting for it.
+        # Nothing is written yet, so end that read-only transaction and let the count take a new one.
+        await db.commit()
     await db.execute(select(Admin.id).where(Admin.id == admin_id).with_for_update())
 
 

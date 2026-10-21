@@ -11,9 +11,14 @@ from math import ceil
 from unittest.mock import AsyncMock, MagicMock
 from urllib.parse import parse_qs, unquote, urlsplit
 
+import httpx
+import pytest
 from fastapi import status
 from sqlalchemy import delete, event, func, select, update
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlalchemy.pool import NullPool
 
+from app.db import base
 from app.db.crud.hwid import register_user_hwid
 from app.db.crud.user import get_user as get_db_user, get_users as get_db_users, update_users_status
 from app.db.models import NodeUserUsage, User, UserStatus, UserUsageResetLogs
@@ -27,7 +32,7 @@ from app.utils import jwt as jwt_utils
 from app.utils.crypto import generate_wireguard_keypair, get_wireguard_public_key
 from app.utils.jwt import create_admin_token, create_subscription_token, get_secret_key, get_subscription_payload
 from config import usage_settings
-from tests.api import TestSession, client, engine
+from tests.api import DATABASE_URL, IS_SQLITE, TestSession, app, client, engine
 from tests.api.helpers import (
     auth_headers,
     create_admin,
@@ -2398,6 +2403,79 @@ def test_role_requiring_template_cannot_manually_create_user(access_token):
         delete_admin(access_token, admin["username"])
         _delete_role(access_token, role["id"])
         delete_user_template(access_token, template["id"])
+        cleanup_groups(access_token, core, groups)
+
+
+@pytest.mark.parametrize("mode", ["manual", "from_template", "bulk_from_template"])
+def test_parallel_creates_respect_role_max_users(access_token, mode):
+    if ":memory:" in DATABASE_URL:
+        pytest.skip("needs a database that separate connections share")
+
+    core, groups = setup_groups(access_token, 1)
+    template = create_user_template(access_token, group_ids=[groups[0]["id"]]) if mode != "manual" else None
+    response = client.post(
+        "/api/admin-role",
+        headers=auth_headers(access_token),
+        json={
+            "name": unique_name("max_users_race"),
+            "permissions": {"users": {"create": True, "read": True}},
+            "limits": {"max_users": 1},
+        },
+    )
+    assert response.status_code == status.HTTP_201_CREATED
+    role = response.json()
+    admin = create_admin(access_token, role_id=role["id"])
+    admin_token = _login(admin["username"], admin["password"])
+    if mode == "manual":
+        url, limit_error = "/api/user", "User limit reached (1)"
+        payloads = [
+            {"username": unique_name("race"), "proxy_settings": {}, "group_ids": [groups[0]["id"]], "status": "active"}
+            for _ in range(8)
+        ]
+    elif mode == "from_template":
+        url, limit_error = "/api/user/from_template", "User limit reached (1)"
+        payloads = [{"username": unique_name("race"), "user_template_id": template["id"]} for _ in range(8)]
+    else:
+        url, limit_error = "/api/users/bulk/from_template", "Bulk create would exceed user limit (1)"
+        payloads = [{"count": 1, "strategy": "random", "user_template_id": template["id"]} for _ in range(8)]
+
+    # Independent connections, so the requests really race on the quota check.
+    racing_engine = create_async_engine(
+        DATABASE_URL, poolclass=NullPool, connect_args={"timeout": 30} if IS_SQLITE else {}
+    )
+    racing_session = async_sessionmaker(racing_engine, autoflush=False, expire_on_commit=False)
+
+    async def racing_db():
+        async with racing_session() as db:
+            yield db
+
+    async def burst():
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as racing_client:
+            return await asyncio.gather(
+                *(racing_client.post(url, headers=auth_headers(admin_token), json=payload) for payload in payloads)
+            )
+
+    previous_get_db = app.dependency_overrides[base.get_db]
+    app.dependency_overrides[base.get_db] = racing_db
+    try:
+        responses = asyncio.run(burst())
+    finally:
+        app.dependency_overrides[base.get_db] = previous_get_db
+        asyncio.run(racing_engine.dispose())
+
+    try:
+        codes = sorted(r.status_code for r in responses)
+        assert codes == [status.HTTP_201_CREATED] + [status.HTTP_400_BAD_REQUEST] * 7
+        assert all(r.json()["detail"] == limit_error for r in responses if r.status_code == 400)
+        listed = client.get("/api/users", params={"admin": [admin["username"]]}, headers=auth_headers(access_token))
+        assert listed.json()["total"] == 1
+    finally:
+        client.delete(f"/api/admin/by-id/{admin['id']}/users", headers=auth_headers(access_token))
+        delete_admin(access_token, admin["username"])
+        _delete_role(access_token, role["id"])
+        if template is not None:
+            delete_user_template(access_token, template["id"])
         cleanup_groups(access_token, core, groups)
 
 
