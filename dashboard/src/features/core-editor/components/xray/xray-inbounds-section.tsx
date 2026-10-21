@@ -23,6 +23,7 @@ import { InboundFallbacksEditor } from '@/features/core-editor/components/xray/i
 import { MasqueSettingsFields } from '@/features/core-editor/components/xray/masque-settings-fields'
 import { RealityScanDialog } from '@/features/core-editor/components/xray/reality-scan-dialog'
 import { FieldMessages } from '@/features/core-editor/components/xray/stream-form-inputs'
+import { guardStreamFormsCommit } from '@/features/core-editor/components/xray/stream-form-validity'
 import { WireguardInboundFields } from '@/features/core-editor/components/xray/wireguard-inbound-fields'
 import { XdriveSettingsFields } from '@/features/core-editor/components/xray/xdrive-settings-fields'
 import { useSectionHeaderAddPulseEffect, type SectionHeaderAddPulse } from '@/features/core-editor/hooks/use-section-header-add-pulse'
@@ -45,7 +46,7 @@ import { masqueAlpnForMode } from '@/features/core-editor/kit/masque-fields'
 import { profileDuplicateTagMessage, profileTagHasDuplicateUsage } from '@/features/core-editor/kit/profile-tag-uniqueness'
 import { remapIndexAfterArrayMove } from '@/features/core-editor/kit/remap-index-after-move'
 import { normalizeTunnelNetworkForKit } from '@/features/core-editor/kit/sanitize-inbound'
-import { blockingStreamFieldIssues, streamFieldIssuesForInbound, type StreamFieldIssue } from '@/features/core-editor/kit/stream-form-fields'
+import { streamFieldIssuesForInbound, type StreamFieldIssue } from '@/features/core-editor/kit/stream-form-fields'
 import {
   classifyWireguardAddresses,
   normalizeWireguardInboundForCommit,
@@ -1656,23 +1657,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
 
   /** Blocks Add/Modify while a MASQUE / XDrive input holds text that does not parse, or the kit reports an error those forms own. */
   const assertStreamFormsCommittable = useCallback(
-    (next: Inbound): boolean => {
-      if (invalidStreamInputs.length > 0) {
-        toast.error(t('coreEditor.streamForms.invalidInputs', { defaultValue: 'Some fields have values that cannot be saved. Fix the ones marked in red.' }))
-        return false
-      }
-      const blockers = blockingStreamFieldIssues(inboundStreamFormIssues(next))
-      if (blockers.length > 0) {
-        toast.error(t('coreEditor.streamForms.blockingTitle', { defaultValue: 'Fix these MASQUE or XDrive settings first' }), {
-          description: blockers
-            .slice(0, 6)
-            .map(issue => issue.message)
-            .join('\n'),
-        })
-        return false
-      }
-      return true
-    },
+    (next: Inbound): boolean => guardStreamFormsCommit(t, invalidStreamInputs.length > 0, () => inboundStreamFormIssues(next)),
     [invalidStreamInputs, inboundStreamFormIssues, t],
   )
 

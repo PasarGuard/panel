@@ -162,6 +162,25 @@ test('outboundStreamSettingsForProtocolSwitch edge cases', () => {
   assert.deepEqual(outboundStreamSettingsForProtocolSwitch({ network: 'ws', masqueSettings: { path: '/p' }, wsSettings: { path: '/w' } }, 'trojan'), { wsSettings: { path: '/w' } })
 })
 
+test('switching away from MASQUE drops the HTTP version ALPN, like switching to it', () => {
+  const sockopt = { mark: 255 }
+  // The ALPN of a MASQUE stream is its HTTP version; another protocol would offer it as its own TLS ALPN.
+  assert.deepEqual(
+    outboundStreamSettingsForProtocolSwitch({ network: 'masque', security: 'tls', tlsSettings: { serverName: 'a.com', alpn: ['h3'] }, masqueSettings: { path: '/p' }, sockopt }, 'vless'),
+    { security: 'tls', tlsSettings: { serverName: 'a.com' }, sockopt },
+  )
+  // TLS settings left empty are dropped, as on the way in.
+  assert.deepEqual(outboundStreamSettingsForProtocolSwitch({ network: 'masque', security: 'tls', tlsSettings: { alpn: ['h3', 'h2'] } }, 'trojan'), { security: 'tls' })
+  assert.equal(outboundStreamSettingsForProtocolSwitch({ method: 'masque', tlsSettings: { alpn: ['h2'] } }, 'vmess'), undefined)
+  // A stale masqueSettings on another network leaves that network's ALPN alone.
+  assert.deepEqual(outboundStreamSettingsForProtocolSwitch({ network: 'ws', security: 'tls', tlsSettings: { alpn: ['http/1.1'] }, masqueSettings: { path: '/p' } }, 'vless'), {
+    security: 'tls',
+    tlsSettings: { alpn: ['http/1.1'] },
+  })
+  // A TLS block that is not a record is left for the Advanced tab.
+  assert.deepEqual(outboundStreamSettingsForProtocolSwitch({ network: 'masque', security: 'tls', tlsSettings: 'broken' }, 'vless'), { security: 'tls', tlsSettings: 'broken' })
+})
+
 test('switching to MASQUE drops mux (Xray v26.10.10 and older refuse it there)', () => {
   const mux = { enabled: true, concurrency: 8 }
   assert.equal(outboundMuxForProtocolSwitch(mux, 'masque'), undefined)
@@ -173,7 +192,7 @@ test('a stored raw network uses the TCP settings blocks; other names stay as sto
   assert.equal(outboundStreamSectionNetwork('raw'), 'tcp')
   assert.equal(outboundStreamSectionNetwork('tcp'), 'tcp')
   for (const network of ['websocket', 'mkcp', 'splithttp', 'xdrive', 'masque', 'ws']) assert.equal(outboundStreamSectionNetwork(network), network)
-  // raw is offered under REALITY like tcp, and stays selectable as stored.
+  // raw counts as REALITY compatible like tcp. It is not one of the offered names, so a stored raw stays first as stored.
   assert.equal(outboundStreamNetworkCompatibleWithReality('raw'), true)
   assert.deepEqual(getOutboundStreamNetworkSelectValues('reality', 'raw', 'vless'), ['raw', 'tcp', 'grpc', 'xhttp', 'splithttp'])
 })

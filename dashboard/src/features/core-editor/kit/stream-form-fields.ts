@@ -179,6 +179,18 @@ export function outboundStreamAccordionBlockingIssues(issues: readonly StreamFie
   return blocking.filter(issue => OUTBOUND_STREAM_SELECT_FIELDS.has(issue.field))
 }
 
+/** A stable key for the set of `field` and `code` pairs in `issues` (order, repeats and messages ignored); `''` for none. */
+export function streamIssueSetKey(issues: readonly StreamFieldIssue[]): string {
+  return [...new Set(issues.map(issue => `${issue.field} ${issue.code}`))].sort().join('\n')
+}
+
+/** Whether the issue set `next` holds an issue `previous` does not (both from `streamIssueSetKey`). */
+export function streamIssueSetGained(previous: string, next: string): boolean {
+  if (next === '') return false
+  const before = new Set(previous === '' ? [] : previous.split('\n'))
+  return next.split('\n').some(member => !before.has(member))
+}
+
 /** The MASQUE and XDrive forms own a proxy's kit issues for the masque protocol and for a masque or xdrive transport on any protocol. */
 function hasStreamForms(protocol: string, transportName: string): boolean {
   return protocol === 'masque' || transportName === 'masque' || transportName === 'xdrive'

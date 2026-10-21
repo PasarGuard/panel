@@ -12,6 +12,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { isBooleanParityField, XrayParityFormControl } from '@/features/core-editor/components/shared/xray-parity-form-control'
 import { OutboundSpecialProtocolSettings } from '@/features/core-editor/components/xray/outbound-special-protocol-settings'
 import { FieldMessages } from '@/features/core-editor/components/xray/stream-form-inputs'
+import { guardStreamFormsCommit } from '@/features/core-editor/components/xray/stream-form-validity'
 import { XdriveSettingsFields } from '@/features/core-editor/components/xray/xdrive-settings-fields'
 import { TcpHeaderObfuscationForm } from '@/features/core-editor/components/shared/tcp-header-obfuscation-form'
 import { CoreEditorDataTable } from '@/features/core-editor/components/shared/core-editor-data-table'
@@ -39,7 +40,14 @@ import {
 } from '@/features/core-editor/kit/outbound-stream-dynamic'
 import { profileDuplicateTagMessage, profileTagHasDuplicateUsage } from '@/features/core-editor/kit/profile-tag-uniqueness'
 import { remapIndexAfterArrayMove } from '@/features/core-editor/kit/remap-index-after-move'
-import { blockingStreamFieldIssues, isPlainObject, outboundStreamAccordionBlockingIssues, streamFieldIssuesForOutbound, type StreamFieldIssue } from '@/features/core-editor/kit/stream-form-fields'
+import {
+  isPlainObject,
+  outboundStreamAccordionBlockingIssues,
+  streamFieldIssuesForOutbound,
+  streamIssueSetGained,
+  streamIssueSetKey,
+  type StreamFieldIssue,
+} from '@/features/core-editor/kit/stream-form-fields'
 import { WIREGUARD_OUTBOUND_FORM_KEYS, wireguardOutboundIssueMessage, wireguardOutboundSettingsIssues } from '@/features/core-editor/kit/wireguard-outbound-settings'
 import { vlessFlowSelectValues } from '@/features/core-editor/kit/xdrive-fields'
 import {
@@ -643,14 +651,12 @@ export function XrayOutboundsSection({ headerAddPulse, headerAddEpoch }: XrayOut
   }, [ob, outboundCaps])
 
   const obStreamSettings = useMemo(() => (ob ? getOutboundStreamSettingsRecord(ob) : null), [ob])
-  /** Kit issues the MASQUE and XDrive forms own (`[]` for other outbounds). */
+  /** Kit issues the MASQUE and XDrive forms own (`[]` for other outbounds); the MASQUE box and the stream accordion share them. */
   const outboundStreamIssues = useMemo(() => (ob ? streamFieldIssuesForOutbound(ob) : []), [ob])
-  /** Which blocking issues the "Stream & Security" accordion holds; a change opens it (see `OutboundStackedAccordion`). */
+  /** Which blocking issues the "Stream & Security" accordion holds; a new one opens it (see `OutboundStackedAccordion`). */
   const streamAccordionBlockingKey = useMemo(() => {
     if (!ob || !showOutboundStreamSettingsAccordion) return ''
-    return outboundStreamAccordionBlockingIssues(outboundStreamIssues, ob.protocol, outboundStreamTransportName(obStreamSettings))
-      .map(issue => `${issue.field}:${issue.code}`)
-      .join('|')
+    return streamIssueSetKey(outboundStreamAccordionBlockingIssues(outboundStreamIssues, ob.protocol, outboundStreamTransportName(obStreamSettings)))
   }, [ob, showOutboundStreamSettingsAccordion, outboundStreamIssues, obStreamSettings])
 
   // ─── Form reset on open / row change ───────────────────────────────────────
@@ -799,25 +805,10 @@ export function XrayOutboundsSection({ headerAddPulse, headerAddEpoch }: XrayOut
 
   /**
    * Blocks Add/Modify while a MASQUE / XDrive input holds text that does not parse (the JSON tab unmounts the boxes,
-   * which then report nothing), or the kit reports an error those forms own. Same toasts as the inbound dialog.
+   * which then report nothing), or the kit reports an error those forms own. The guard and its toasts are shared with the
+   * inbound dialog (`guardStreamFormsCommit`).
    */
-  const assertStreamFormsCommittable = (next: Outbound): boolean => {
-    if (hasInvalidStreamInputs) {
-      toast.error(t('coreEditor.streamForms.invalidInputs', { defaultValue: 'Some fields have values that cannot be saved. Fix the ones marked in red.' }))
-      return false
-    }
-    const blockers = blockingStreamFieldIssues(streamFieldIssuesForOutbound(next))
-    if (blockers.length > 0) {
-      toast.error(t('coreEditor.streamForms.blockingTitle', { defaultValue: 'Fix these MASQUE or XDrive settings first' }), {
-        description: blockers
-          .slice(0, 6)
-          .map(issue => issue.message)
-          .join('\n'),
-      })
-      return false
-    }
-    return true
-  }
+  const assertStreamFormsCommittable = (next: Outbound): boolean => guardStreamFormsCommit(t, hasInvalidStreamInputs, () => streamFieldIssuesForOutbound(next))
 
   // ─── Commit add ────────────────────────────────────────────────────────────
 
@@ -1126,14 +1117,15 @@ export function XrayOutboundsSection({ headerAddPulse, headerAddEpoch }: XrayOut
                                 field.onChange(v)
                                 const protocol = v === 'direct' ? 'freedom' : v === 'block' ? 'blackhole' : (v as 'dns' | (typeof proxyProtocols)[number])
                                 const isSimpleEnvelope = protocol === 'freedom' || protocol === 'blackhole' || protocol === 'dns'
-                                const storedStream = 'streamSettings' in ob ? (ob.streamSettings as Record<string, unknown> | undefined) : undefined
+                                // A streamSettings that is not a record (pasted on the JSON tab) is treated as none.
+                                const storedStream = getOutboundStreamSettingsRecord(ob) ?? undefined
                                 const storedMux = 'mux' in ob ? ob.mux : undefined
                                 const created = stripSparseOutboundEnvelope(
                                   createDefaultOutbound({
                                     protocol: protocol as 'freedom' | 'blackhole' | 'dns' | (typeof proxyProtocols)[number],
                                     tag: ob.tag,
                                     sendThrough: 'sendThrough' in ob ? ob.sendThrough : undefined,
-                                    // To MASQUE: network masque and TLS only; from MASQUE: without the masque transport.
+                                    // To MASQUE: network masque and TLS only; from MASQUE: without the masque transport and its HTTP version ALPN.
                                     streamSettings: isSimpleEnvelope
                                       ? simpleOutboundStreamSettingsForProtocolSwitch(ob)
                                       : (outboundStreamSettingsForProtocolSwitch(storedStream, protocol) as StreamSettings | undefined),
@@ -1204,6 +1196,7 @@ export function XrayOutboundsSection({ headerAddPulse, headerAddEpoch }: XrayOut
                       ob={ob}
                       patchOutbound={patchOutbound}
                       t={t}
+                      streamIssues={outboundStreamIssues}
                       onInvalidInputsChange={fields => reportInvalidStreamInputs('masque', fields)}
                     />
 
@@ -1613,15 +1606,18 @@ function ProtocolSettingsGrid({ ob, settingsOrder, outboundCaps, form, patchOutb
 // ─── Stacked accordions ───────────────────────────────────────────────────────
 
 /**
- * The dialog's stacked accordions (stream, sockopt, finalmask, mux, chain proxy), all closed at first. "Stream &
- * Security" opens whenever the blocking kit issues it holds change to a non-empty set (`streamBlockingKey`), so such an
- * error is never left in a collapsed section; the user can still collapse it.
+ * The dialog's stacked accordions (stream, sockopt, finalmask, mux, chain proxy). "Stream & Security" starts open when
+ * it holds a blocking kit issue (`streamBlockingKey`, a `streamIssueSetKey`), the others closed. Later it opens again
+ * only when that set gains an issue, so such an error is never left in a collapsed section, while a section the user
+ * collapsed stays collapsed as issues get fixed.
  */
 function OutboundStackedAccordion({ streamBlockingKey, children }: { streamBlockingKey: string; children: ReactNode }) {
-  const [openItems, setOpenItems] = useState<string[]>([])
+  const [openItems, setOpenItems] = useState<string[]>(() => (streamIssueSetGained('', streamBlockingKey) ? ['stream'] : []))
+  const previousBlockingKey = useRef(streamBlockingKey)
   useEffect(() => {
-    if (streamBlockingKey === '') return
-    setOpenItems(prev => (prev.includes('stream') ? prev : [...prev, 'stream']))
+    const gained = streamIssueSetGained(previousBlockingKey.current, streamBlockingKey)
+    previousBlockingKey.current = streamBlockingKey
+    if (gained) setOpenItems(prev => (prev.includes('stream') ? prev : [...prev, 'stream']))
   }, [streamBlockingKey])
   return (
     <Accordion type="multiple" value={openItems} onValueChange={setOpenItems} className="!mt-0 mb-4 flex w-full flex-col gap-y-3">

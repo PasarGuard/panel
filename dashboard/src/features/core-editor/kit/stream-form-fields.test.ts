@@ -19,6 +19,8 @@ import {
   setRecordKey,
   streamFieldIssuesForInbound,
   streamFieldIssuesForOutbound,
+  streamIssueSetGained,
+  streamIssueSetKey,
   syncTypedText,
 } from '@/features/core-editor/kit/stream-form-fields'
 import type { StreamFieldIssue } from '@/features/core-editor/kit/stream-form-fields'
@@ -378,4 +380,28 @@ test('outboundStreamAccordionBlockingIssues: the blocking issues the Stream & Se
     outboundStreamAccordionBlockingIssues(streamFieldIssuesForOutbound(masqueNoTls), 'masque', 'masque').map(i => i.code),
     ['XCK_SEMANTIC_MASQUE_TLS_REQUIRED'],
   )
+})
+
+test('streamIssueSetGained: the Stream & Security accordion opens only when its blocking set gains an issue', () => {
+  const issue = (field: string, code: string): StreamFieldIssue => ({ field, code, severity: 'error', message: `${field} ${code}` })
+  const tls = issue('security', 'XCK_SEMANTIC_MASQUE_TLS_REQUIRED')
+  const folder = issue('remoteFolder', 'XCK_SEMANTIC_XDRIVE_REMOTE_FOLDER_REQUIRED')
+  const secrets = issue('secrets', 'XCK_SEMANTIC_XDRIVE_SECRETS_REQUIRED')
+  assert.equal(streamIssueSetKey([]), '')
+  // Order and repeats do not change the key; messages are not part of it.
+  assert.equal(streamIssueSetKey([folder, tls, folder]), streamIssueSetKey([tls, { ...folder, message: 'other text' }]))
+  const one = streamIssueSetKey([tls])
+  const two = streamIssueSetKey([tls, folder])
+  // Mounting with blocking issues opens it (the seed compares against no issues).
+  assert.equal(streamIssueSetGained('', one), true)
+  assert.equal(streamIssueSetGained('', ''), false)
+  assert.equal(streamIssueSetGained(one, two), true)
+  // Fixing one of two issues, or all of them, leaves a collapsed section collapsed.
+  assert.equal(streamIssueSetGained(two, one), false)
+  assert.equal(streamIssueSetGained(two, ''), false)
+  assert.equal(streamIssueSetGained(two, two), false)
+  // Swapping one issue for another is a gain.
+  assert.equal(streamIssueSetGained(two, streamIssueSetKey([tls, secrets])), true)
+  // The same field with another code is another issue.
+  assert.equal(streamIssueSetGained(one, streamIssueSetKey([issue('security', 'XCK_SEMANTIC_MASQUE_OTHER')])), true)
 })

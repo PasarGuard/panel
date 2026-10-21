@@ -5,6 +5,7 @@ import type { Outbound } from '@pasarguard/xray-config-kit'
 import type { TFunction } from 'i18next'
 
 import { OutboundSpecialProtocolSettings } from '@/features/core-editor/components/xray/outbound-special-protocol-settings'
+import { streamFieldIssuesForOutbound } from '@/features/core-editor/kit/stream-form-fields'
 
 // Radix `SelectValue` renders no text on the server, so these tests assert labels, input values and messages only.
 const t = ((key: string, options?: Record<string, unknown>) => (typeof options?.defaultValue === 'string' ? options.defaultValue : key)) as unknown as TFunction
@@ -14,7 +15,9 @@ function masqueOutbound(streamSettings: Record<string, unknown>, extra: Record<s
   return { protocol: 'masque', tag: 'warp-out', settings: { address: 'engage.cloudflareclient.com', port: 443 }, streamSettings, ...extra } as unknown as Outbound
 }
 
-const render = (ob: Outbound) => renderToStaticMarkup(<OutboundSpecialProtocolSettings ob={ob} patchOutbound={noop} t={t} onInvalidInputsChange={noop} />)
+// The dialog computes the issues once and passes them down.
+const render = (ob: Outbound) =>
+  renderToStaticMarkup(<OutboundSpecialProtocolSettings ob={ob} patchOutbound={noop} t={t} streamIssues={streamFieldIssuesForOutbound(ob)} onInvalidInputsChange={noop} />)
 
 const count = (html: string, text: string) => html.split(text).length - 1
 
@@ -35,6 +38,13 @@ test('MASQUE outbound: security and transport issues are left to the stream sele
   assert.ok(!html.includes('MASQUE requires TLS'))
   // Xray v26.10.17 accepts mux on MASQUE outbounds; the kit only warns for older releases.
   assert.equal(count(html, 'v26.10.10 and older'), 1)
+})
+
+test('MASQUE outbound: the box shows the issues the dialog passes and runs no kit check of its own', () => {
+  const ob = masqueOutbound({ network: 'masque', security: 'tls', masqueSettings: { user: 'a:b' } })
+  const html = renderToStaticMarkup(<OutboundSpecialProtocolSettings ob={ob} patchOutbound={noop} t={t} streamIssues={[]} onInvalidInputsChange={noop} />)
+  assert.ok(html.includes('value="a:b"'))
+  assert.equal(count(html, 'MASQUE user cannot contain'), 0)
 })
 
 test('outbounds of other protocols get no MASQUE box', () => {

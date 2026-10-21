@@ -9,7 +9,7 @@ import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
 import { MasqueSettingsFields } from '@/features/core-editor/components/xray/masque-settings-fields'
 import { normalizeSettingsFromEditor, stripEmptyStreamSettingsFromRecord } from '@/features/core-editor/kit/outbound-editor-json'
-import { isPlainObject, streamFieldIssuesForOutbound } from '@/features/core-editor/kit/stream-form-fields'
+import { isPlainObject, type StreamFieldIssue } from '@/features/core-editor/kit/stream-form-fields'
 import {
   applyWireguardKernelTunChoice,
   applyWireguardOutboundReservedInput,
@@ -1405,14 +1405,26 @@ function OutboundBlackholeSettings({ ob, patchOutbound, t }: { ob: Outbound; pat
 /**
  * MASQUE client settings: the server (`settings`), the masque transport (`streamSettings.masqueSettings`) and the HTTP
  * version (`streamSettings.tlsSettings.alpn`). The stream accordion keeps the network, security and other TLS fields.
+ * `issues` are the dialog's `streamFieldIssuesForOutbound(ob)`, so the kit check runs once per draft.
  */
-function OutboundMasqueSettings({ ob, patchOutbound, t, onInvalidInputsChange }: { ob: Outbound; patchOutbound: PatchOutbound; t: TFunction; onInvalidInputsChange: ReportInvalidInputs }) {
+function OutboundMasqueSettings({
+  ob,
+  patchOutbound,
+  t,
+  issues,
+  onInvalidInputsChange,
+}: {
+  ob: Outbound
+  patchOutbound: PatchOutbound
+  t: TFunction
+  issues: readonly StreamFieldIssue[]
+  onInvalidInputsChange: ReportInvalidInputs
+}) {
   const settings = readSettings(ob)
   const rawStream = (ob as { streamSettings?: unknown }).streamSettings
   const stream = isPlainObject(rawStream) ? rawStream : {}
   const masque = isPlainObject(stream.masqueSettings) ? stream.masqueSettings : {}
   const tls = isPlainObject(stream.tlsSettings) ? stream.tlsSettings : {}
-  const issues = useMemo(() => streamFieldIssuesForOutbound(ob), [ob])
   const patchStream = (next: Record<string, unknown>) => patchOutbound(stripEmptyStreamSettingsFromRecord({ ...(ob as Record<string, unknown>), streamSettings: next }) as Outbound)
 
   return (
@@ -1435,11 +1447,14 @@ export function OutboundSpecialProtocolSettings({
   ob,
   patchOutbound,
   t,
+  streamIssues,
   onInvalidInputsChange,
 }: {
   ob: Outbound
   patchOutbound: PatchOutbound
   t: TFunction
+  /** Kit issues the MASQUE box shows: `streamFieldIssuesForOutbound(ob)`, computed once by the dialog. */
+  streamIssues: readonly StreamFieldIssue[]
   /** Inputs of the MASQUE box holding text that does not parse (`[]` once it unmounts). */
   onInvalidInputsChange?: ReportInvalidInputs
 }) {
@@ -1487,7 +1502,7 @@ export function OutboundSpecialProtocolSettings({
     return (
       <>
         <Separator className="my-1" />
-        <OutboundMasqueSettings ob={ob} patchOutbound={patchOutbound} t={t} onInvalidInputsChange={onInvalidInputsChange ?? noop} />
+        <OutboundMasqueSettings ob={ob} patchOutbound={patchOutbound} t={t} issues={streamIssues} onInvalidInputsChange={onInvalidInputsChange ?? noop} />
       </>
     )
   }

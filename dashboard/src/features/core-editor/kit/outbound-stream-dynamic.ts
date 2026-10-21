@@ -135,30 +135,43 @@ export function outboundWithStreamNetwork(outbound: Record<string, unknown>, net
   return next
 }
 
+/** A copy of TLS settings without `alpn`, or `undefined` when nothing else is left. */
+function tlsSettingsWithoutAlpn(tls: Record<string, unknown>): Record<string, unknown> | undefined {
+  const next = { ...tls }
+  delete next.alpn
+  return Object.keys(next).length > 0 ? next : undefined
+}
+
 /**
  * Stream settings for an outbound switching to `nextProtocol`. To MASQUE: `{ network: 'masque', security: 'tls' }`,
  * plus the old TLS settings without `alpn` (only from a TLS stream, and only when something is left), `sockopt` and
  * `finalmask`. From a MASQUE stream (or one with `masqueSettings`) to another protocol: a copy without `network`,
- * `method` and `masqueSettings`, or `undefined` when nothing is left. Anything else is returned as it is.
+ * `method` and `masqueSettings`, or `undefined` when nothing is left. A MASQUE stream also loses its TLS `alpn` (the
+ * MASQUE HTTP version), and its TLS settings when nothing else is left in them. Anything else is returned as it is.
  */
 export function outboundStreamSettingsForProtocolSwitch(stream: Record<string, unknown> | undefined, nextProtocol: string): Record<string, unknown> | undefined {
   if (nextProtocol === 'masque') {
     const next: Record<string, unknown> = { network: 'masque', security: 'tls' }
     if (normalizedName(stream?.security) === 'tls' && isRecord(stream?.tlsSettings)) {
-      const tls = { ...stream.tlsSettings }
-      delete tls.alpn
-      if (Object.keys(tls).length > 0) next.tlsSettings = tls
+      const tls = tlsSettingsWithoutAlpn(stream.tlsSettings)
+      if (tls) next.tlsSettings = tls
     }
     if (isRecord(stream?.sockopt)) next.sockopt = stream.sockopt
     if (isRecord(stream?.finalmask)) next.finalmask = stream.finalmask
     return next
   }
   if (!stream) return stream
-  if (outboundStreamTransportName(stream) !== 'masque' && !('masqueSettings' in stream)) return stream
+  const fromMasque = outboundStreamTransportName(stream) === 'masque'
+  if (!fromMasque && !('masqueSettings' in stream)) return stream
   const next = { ...stream }
   delete next.network
   delete next.method
   delete next.masqueSettings
+  if (fromMasque && isRecord(next.tlsSettings)) {
+    const tls = tlsSettingsWithoutAlpn(next.tlsSettings)
+    if (tls) next.tlsSettings = tls
+    else delete next.tlsSettings
+  }
   return Object.keys(next).length > 0 ? next : undefined
 }
 
