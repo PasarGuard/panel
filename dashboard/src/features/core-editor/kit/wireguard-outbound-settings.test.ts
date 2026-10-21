@@ -50,12 +50,13 @@ test('remoteDNS must be IP literals', () => {
   assert.deepEqual(invalidWireguardRemoteDns(null), [])
 })
 
-test('the local DNS sentinel is preserved for legacy and unknown targets only as a single entry', () => {
-  for (const version of [undefined, 'v26.9.9', '26.9.9', 'custom']) {
+test('the local DNS sentinel passes only as a single entry for a known target before v26.9.30', () => {
+  for (const version of ['v26.9.29', 'v26.9.9', '26.9.9', 'v26.9.8', '26.3.27']) {
     assert.deepEqual(invalidWireguardRemoteDns(['local'], version), [])
     assert.deepEqual(wireguardOutboundSettingsIssues({ remoteDNS: ['local'], mtu: 1400 }, version), [])
   }
-  for (const version of ['v26.9.30', '26.10.1', '27.1.1']) {
+  // Xray v26.9.30 and newer panic at startup on "local"; an unknown target counts as the newest Xray.
+  for (const version of [undefined, '', 'custom', 'V26.9.9', 'v26.9.9-rc1', ' v26.9.9', 'v26.9.30', '26.10.1', '27.1.1']) {
     assert.deepEqual(invalidWireguardRemoteDns(['local'], version), ['"local"'])
     assert.deepEqual(wireguardOutboundSettingsIssues({ remoteDNS: ['local'] }, version), [{ field: 'remoteDNS', values: ['"local"'], notList: false }])
   }

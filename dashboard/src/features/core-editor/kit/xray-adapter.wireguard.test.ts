@@ -110,11 +110,11 @@ const editOutboundSettings = (profile: Profile, tag: string, settings: Record<st
   outbounds: profile.outbounds?.map(o => (o.tag === tag ? ({ ...o, settings } as typeof o) : o)),
 })
 
-test('unrelated outbound edits preserve a legacy local DNS profile and allow Modify', () => {
+test('a legacy local DNS profile survives unrelated edits, and the outbound check flags it', () => {
   const legacySettings = { secretKey: SK, address: ['172.16.0.2/32'], mtu: 1280, remoteDNS: ['local'], peers: [PEER] }
   const { profile } = importRawToProfile({ inbounds: [VLESS], outbounds: [DIRECT, { ...WARP, settings: legacySettings }] })
   const settings = normalizeSettingsFromEditor('wireguard', { ...legacySettings, mtu: 1400 })
-  assert.deepEqual(wireguardOutboundSettingsIssues(settings), [])
+  assert.deepEqual(wireguardOutboundSettingsIssues(settings), [{ field: 'remoteDNS', values: ['"local"'], notList: false }])
   const next = editOutboundSettings(profile, 'WARP', settings)
   assert.deepEqual(byTag(profileToPersistedConfig(next).outbounds, 'WARP').settings, settings)
   assert.equal(validateProfileForPersist(next).ok, true)
