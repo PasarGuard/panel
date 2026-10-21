@@ -11,6 +11,7 @@ from pydantic import (
     ValidationError,
     field_serializer,
     field_validator,
+    model_serializer,
     model_validator,
 )
 
@@ -282,6 +283,10 @@ class FinalMaskXdnsDomain(FinalMaskBaseModel):
     label_limit: int | None = Field(default=None, alias="labelLimit")
     types: list[int] | None = Field(default=None)
     edns0: int | None = Field(default=None)
+
+    @model_serializer(mode="wrap")
+    def omit_unset_options(self, handler):
+        return {key: value for key, value in handler(self).items() if value is not None}
 
 
 class FinalMaskXdnsResolver(FinalMaskBaseModel):
