@@ -20,7 +20,7 @@ from app.subscription.config_cache import (
     make_sub_config_key,
     put_sub_config,
 )
-from app.utils.helpers import has_markup_unsafe_chars
+from app.utils.helpers import has_markup_unsafe_chars, has_oversized_format_spec
 from app.utils.system import readable_size
 
 from . import (
@@ -208,6 +208,9 @@ def apply_custom_format_variables(format_variables: dict, custom_variables: list
 
 def _format_dynamic_value(value, format_variables: dict):
     if isinstance(value, str):
+        if has_oversized_format_spec(value):
+            # Formatting would build the padded result first; a value saved before the size check stays raw text
+            return value
         try:
             return value.format_map(format_variables)
         except ValueError, KeyError, AttributeError, IndexError, TypeError:

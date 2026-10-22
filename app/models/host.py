@@ -7,7 +7,7 @@ from typing import Any
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator, model_serializer, model_validator
 
 from app.db.models import ProxyHostALPN, ProxyHostFingerprint, ProxyHostSecurity, UserStatus
-from app.utils.helpers import has_markup_unsafe_chars
+from app.utils.helpers import MAX_FORMAT_SPEC_NUMBER, has_markup_unsafe_chars, has_oversized_format_spec
 
 from .validators import ListValidator, StringArrayValidator
 
@@ -754,7 +754,13 @@ def validate_format_variables(value: str) -> str:
     Unbalanced braces and positional fields (``{}``, ``{0}``) always fail; attribute and index
     fields (``{USERNAME.x}``, ``{USERNAME[9]}``) fail or not depending on the user, so only plain
     variable names (with an optional format spec) are allowed. ``{{`` and ``}}`` stay literal braces.
+    Widths and precisions above ``MAX_FORMAT_SPEC_NUMBER`` are rejected before anything is formatted.
     """
+    if has_oversized_format_spec(value):
+        raise ValueError(
+            f'Invalid formatting variables in "{value}": width and precision must be numbers up to '
+            f"{MAX_FORMAT_SPEC_NUMBER}"
+        )
     try:
         fields = [field for _, field, _, _ in Formatter().parse(value) if field is not None]
         value.format_map(FormatVariables())

@@ -35,6 +35,15 @@ UNRENDERABLE_VALUES = [
     ("remark", "{USERNAME.upper}"),
 ]
 
+# str.format_map builds the padded result first, so a width like 1000000000 would allocate a gigabyte on every render
+OVERSIZED_FORMAT_VALUES = [
+    ("path", "/ws/{USERNAME:>100000}"),
+    ("sni", ["{USERNAME:.100000}.example.com"]),
+    ("host", ["{USERNAME:0300}.example.com"]),
+    ("address", ["{SERVER_IP:^257}"]),
+    ("remark", "{USERNAME:^100000}"),
+]
+
 
 def _host_payload(**overrides) -> dict:
     return {
@@ -45,7 +54,7 @@ def _host_payload(**overrides) -> dict:
     } | overrides
 
 
-@pytest.mark.parametrize("field,value", UNRENDERABLE_VALUES)
+@pytest.mark.parametrize("field,value", UNRENDERABLE_VALUES + OVERSIZED_FORMAT_VALUES)
 def test_host_with_unrenderable_format_field_is_rejected(access_token, field, value):
     headers = auth_headers(access_token)
     core = create_core(access_token)
@@ -97,7 +106,7 @@ def test_host_with_format_variables_is_accepted(access_token):
     headers = auth_headers(access_token)
     core = create_core(access_token)
     payload = _host_payload(
-        remark="{USERNAME} {{literal}} {CUSTOM_VAR}",
+        remark="{USERNAME:>256} {{literal}} {CUSTOM_VAR}",
         address=["{SERVER_IP}"],
         sni=["{USERNAME}.example.com"],
         host=["cdn.example.com"],
@@ -165,3 +174,14 @@ def test_format_dynamic_value_keeps_values_the_variables_cannot_fill():
     assert _format_dynamic_value(request, variables) == {
         "headers": {"Host": ["bob.example.com", "{USERNAME.x}", "{USERNAME[9]}", "/ws{", "{0}"]}
     }
+
+
+def test_format_dynamic_value_does_not_pad_oversized_widths():
+    """A stored oversized width (saved before the check) is kept as raw text instead of being padded on every render."""
+    variables = defaultdict(lambda: "<missing>", {"USERNAME": "bob", "PAD": "100000"})
+    oversized = ["{USERNAME:>100000}", "{USERNAME:.100000}", "{USERNAME:>{PAD}}"]
+
+    assert _format_dynamic_value(oversized, variables) == oversized
+    assert _format_dynamic_value("{USERNAME:>5}|{USERNAME:.2}|{USERNAME:0>256}", variables) == (
+        f"  bob|bo|{'0' * 253}bob"
+    )
