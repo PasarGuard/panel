@@ -1,7 +1,7 @@
 """
-The usage chart query picks a cheaper shape per dialect (no users join without an admin scope). These tests run
-every shape on the same generated history and expect identical results, on whichever database the suite runs
-against.
+The usage chart and user count queries pick a cheaper shape per dialect (no users join without an admin scope,
+DISTINCT (bucket, user) pairs on PostgreSQL). These tests run every shape on the same generated history and
+expect identical results, on whichever database the suite runs against.
 """
 
 import asyncio
@@ -14,7 +14,7 @@ from sqlalchemy import delete, event
 from app.db.crud import user as user_crud
 from app.db.models import Admin, Node, NodeUserUsage, User, UserStatus
 from app.models.proxy import ProxyTable
-from app.models.stats import Period
+from app.models.stats import Period, UserCountMetric
 from tests.api import IS_SQLITE, TestSession, engine
 
 # A window of its own, far from the rows other tests write
@@ -156,12 +156,50 @@ async def test_all_users_usages_same_with_and_without_users_join(usage_history, 
     assert seen_buckets > 0
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize("tz", TIMEZONES, ids=["utc", "plus0330", "minus05"])
+@pytest.mark.parametrize("period", [Period.hour, Period.day, Period.month])
+async def test_user_count_buckets_same_for_both_query_shapes(usage_history, monkeypatch, tz, period):
+    admins = usage_history["admins"]
+    node_one = usage_history["nodes"][0]
+    scopes = [
+        (UserCountMetric.online, {}),
+        (UserCountMetric.online, {"group_by_node": True}),
+        (UserCountMetric.online, {"node_id": node_one}),
+        (UserCountMetric.online, {"admins": [admins[0]], "group_by_node": True}),
+        (UserCountMetric.expired, {}),
+        (UserCountMetric.expired, {"admins": admins}),
+        (UserCountMetric.limited, {}),
+        (UserCountMetric.limited, {"admins": [admins[1]]}),
+    ]
+    seen_counts = 0
+    for start, end in _ranges(tz):
+        for metric, scope in scopes:
+            results = []
+            for use_pairs in (False, True):
+                with monkeypatch.context() as patch:
+                    patch.setattr(
+                        user_crud,
+                        "_user_count_buckets_from_distinct_pairs",
+                        lambda dialect, use_pairs=use_pairs: use_pairs,
+                    )
+                    async with TestSession() as session:
+                        results.append(
+                            await user_crud.get_user_count_metric_stats(
+                                session, scope.get("admins"), start, end, period, metric, **_without_admins(scope)
+                            )
+                        )
+            assert results[0].model_dump() == results[1].model_dump(), (metric, scope, start, end)
+            seen_counts += sum(stat.count for stats in results[0].stats.values() for stat in stats)
+    assert seen_counts > 0
+
+
 def _without_admins(scope: dict) -> dict:
     return {key: value for key, value in scope.items() if key != "admins"}
 
 
 @pytest.mark.asyncio
-async def test_usage_chart_query_shape_per_dialect(usage_history):
+async def test_usage_chart_and_count_query_shapes_per_dialect(usage_history):
     statements: list[str] = []
 
     def _capture(conn, cursor, statement, parameters, context, executemany):
@@ -173,8 +211,12 @@ async def test_usage_chart_query_shape_per_dialect(usage_history):
         async with TestSession() as session:
             await user_crud.get_all_users_usages(session, None, start, end, Period.day)
             usage_sql = statements[-1]
+            await user_crud.get_user_count_metric_stats(session, None, start, end, Period.day, UserCountMetric.online)
+            bucket_sql = statements[-1]
+            dialect = session.bind.dialect.name
     finally:
         event.remove(engine.sync_engine, "before_cursor_execute", _capture)
 
     # Orphan history rows only exist on SQLite, which does not enforce ON DELETE CASCADE
     assert ("join users" in usage_sql) == IS_SQLITE
+    assert ("select distinct" in bucket_sql) == (dialect == "postgresql")

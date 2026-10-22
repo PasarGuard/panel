@@ -1868,7 +1868,9 @@ async def get_user_count_metric_stats(
     count_expr = _build_user_count_metric_expression(metric).label("count")
     total_stmt = select(count_expr).select_from(query_parts["from_clause"]).where(and_(*query_parts["conditions"]))
 
-    if group_by_node:
+    if _user_count_buckets_from_distinct_pairs(query_parts["dialect"]):
+        stmt = _build_user_count_buckets_from_distinct_pairs(query_parts, metric, group_by_node)
+    elif group_by_node:
         stmt = (
             select(
                 query_parts["trunc_expr"].label("period_start"),
@@ -1959,13 +1961,53 @@ def _build_user_count_query_parts(
 
 
 def _build_user_count_metric_expression(metric: UserCountMetric):
+    return func.count(func.distinct(_user_count_metric_user_id(metric)))
+
+
+def _user_count_metric_user_id(metric: UserCountMetric):
+    """The user id a history row counts for in this metric, NULL when the row does not count."""
     if metric == UserCountMetric.online:
-        return func.count(func.distinct(NodeUserUsage.user_id))
+        return NodeUserUsage.user_id
     if metric == UserCountMetric.expired:
-        return func.count(func.distinct(case((User.status == UserStatus.expired, NodeUserUsage.user_id), else_=None)))
+        return case((User.status == UserStatus.expired, NodeUserUsage.user_id), else_=None)
     if metric == UserCountMetric.limited:
-        return func.count(func.distinct(case((User.status == UserStatus.limited, NodeUserUsage.user_id), else_=None)))
+        return case((User.status == UserStatus.limited, NodeUserUsage.user_id), else_=None)
     raise ValueError(f"Unsupported user count metric: {metric}")
+
+
+def _user_count_buckets_from_distinct_pairs(dialect: str) -> bool:
+    # PostgreSQL cannot hash count(DISTINCT ...), so a per-bucket count sorts every history row in range.
+    # MySQL and MariaDB are faster with plain count(DISTINCT ...).
+    return dialect == "postgresql"
+
+
+def _build_user_count_buckets_from_distinct_pairs(query_parts: dict, metric: UserCountMetric, group_by_node: bool):
+    """Per-bucket distinct user counts as a count over DISTINCT (bucket, [node,] user) rows.
+
+    Same result as count(DISTINCT ...) per bucket: a NULL user id (a row the metric does not count) is kept as
+    one pair, so its bucket still appears, and count() skips it.
+    """
+    pair_columns = [query_parts["trunc_expr"].label("period_start")]
+    if group_by_node:
+        pair_columns.append(NodeUserUsage.node_id.label("node_id"))
+    pairs = (
+        select(*pair_columns, _user_count_metric_user_id(metric).label("user_id"))
+        .select_from(query_parts["from_clause"])
+        .where(and_(*query_parts["conditions"]))
+        .distinct()
+        .subquery()
+    )
+
+    group_columns = [pairs.c.period_start]
+    output_columns = [pairs.c.period_start]
+    if group_by_node:
+        group_columns.append(pairs.c.node_id)
+        output_columns.append(func.coalesce(pairs.c.node_id, 0).label("node_id"))
+    return (
+        select(*output_columns, func.count(pairs.c.user_id).label("count"))
+        .group_by(*group_columns)
+        .order_by(*group_columns)
+    )
 
 
 async def update_users_status(db: AsyncSession, users: list[User], status: UserStatus) -> list[User]:
