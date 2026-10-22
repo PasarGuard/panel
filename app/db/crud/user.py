@@ -1270,14 +1270,10 @@ async def modify_user(
         await sync_user_allocations(db, db_user, accessible_tags=await tags_from_groups(db_user.groups))
 
     if modify.status is not None:
-        previous_status = db_user.status
         if modify.status == UserStatus.active and db_user.status == UserStatus.disabled:
             db_user.status = _resolve_enabled_user_status(db_user)
         else:
             db_user.status = modify.status
-        if db_user.status == UserStatus.on_hold and previous_status != UserStatus.on_hold:
-            # Back on hold: only traffic from now on may start the user's period.
-            db_user.online_at = None
 
     if modify.status is UserStatus.on_hold:
         db_user.expire = None

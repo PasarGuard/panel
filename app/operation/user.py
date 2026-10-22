@@ -889,11 +889,12 @@ class UserOperation(BaseOperation):
         new_status = UserStatus.disabled if toggle.disabled else _resolve_enabled_user_status(db_user)
 
         if db_user.status != new_status:
+            changed_at = dt.now(UTC)
             if new_status == UserStatus.on_hold:
-                # Back on hold: only traffic from now on may start the user's period.
-                db_user.online_at = None
+                # Back on hold: like an edit, it makes earlier traffic not count as coming online.
+                db_user.edit_at = changed_at
             db_user.status = new_status
-            db_user.last_status_change = dt.now(UTC)
+            db_user.last_status_change = changed_at
             await db.commit()
             await load_user_attrs(db_user, load_admin_role=True)
 
@@ -1247,8 +1248,8 @@ class UserOperation(BaseOperation):
                     continue
                 original_statuses[db_user.id] = db_user.status
                 if new_status == UserStatus.on_hold:
-                    # Back on hold: only traffic from now on may start the user's period.
-                    db_user.online_at = None
+                    # Back on hold: like an edit, it makes earlier traffic not count as coming online.
+                    db_user.edit_at = changed_at
                 db_user.status = new_status
                 db_user.last_status_change = changed_at
                 changed_user_ids.append(db_user.id)

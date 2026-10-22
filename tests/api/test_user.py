@@ -2133,7 +2133,7 @@ def _put_user_back_on_hold(access_token: str, user: dict, how: str) -> dict:
     return response.json()
 
 
-def test_user_put_back_on_hold_forgets_earlier_traffic(access_token):
+def test_user_put_back_on_hold_ignores_earlier_traffic(access_token):
     core, groups = setup_groups(access_token, 1)
     try:
         for how in ("toggle", "bulk_enable", "modify"):
@@ -2148,7 +2148,8 @@ def test_user_put_back_on_hold_forgets_earlier_traffic(access_token):
             )
             try:
                 # It connected while on hold and was disabled before the review activated it.
-                set_user_online_at(user["username"], datetime.now(UTC))
+                seen_at = datetime.now(UTC)
+                set_user_online_at(user["username"], seen_at)
                 response = client.put(
                     f"/api/user/{user['username']}/disabled",
                     headers=auth_headers(access_token),
@@ -2158,8 +2159,10 @@ def test_user_put_back_on_hold_forgets_earlier_traffic(access_token):
 
                 data = _put_user_back_on_hold(access_token, user, how)
                 assert data["status"] == "on_hold", how
-                # Only traffic after it is back on hold may start its period or stop the on-hold timeout.
-                assert data["online_at"] is None, how
+                # The last-online time is kept, but going back on hold counts as an edit, so only traffic
+                # after it may start the user's period or stop the on-hold timeout.
+                assert datetime.fromisoformat(data["online_at"]) == seen_at, how
+                assert data["edit_at"] is not None and datetime.fromisoformat(data["edit_at"]) > seen_at, how
             finally:
                 delete_user(access_token, user["username"])
     finally:

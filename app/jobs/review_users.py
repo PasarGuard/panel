@@ -130,12 +130,12 @@ async def on_hold_to_active_users_job():
             settings = await general_settings()
 
             # The selector returns users that came online and users whose on-hold timeout passed with no
-            # traffic (online_at unset). The timeout action is only for the latter: a user who started
+            # traffic since their last edit. The timeout action is only for the latter: a user who started
             # using the service is always activated.
             timed_out_users: list[User] = []
             if settings.on_hold_timeout_action != OnHoldTimeoutAction.activate:
-                timed_out_users = [user for user in on_hold_users if user.online_at is None]
-                on_hold_users = [user for user in on_hold_users if user.online_at is not None]
+                timed_out_users = [user for user in on_hold_users if not user.came_online]
+                on_hold_users = [user for user in on_hold_users if user.came_online]
 
             if on_hold_users:
                 updated_users = await start_users_expire(db, on_hold_users)

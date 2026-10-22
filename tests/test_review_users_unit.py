@@ -508,7 +508,8 @@ async def test_user_put_back_on_hold_by_activate_all_gets_the_timeout_action(db_
     db_session.add(user)
     await db_session.flush()
     user.created_at = now - td(days=3)
-    user.online_at = now - td(days=2)
+    seen_at = now - td(days=2)
+    user.online_at = seen_at
     await db_session.commit()
     user_id = user.id
 
@@ -539,7 +540,8 @@ async def test_user_put_back_on_hold_by_activate_all_gets_the_timeout_action(db_
     # Traffic from before it was put back on hold does not start its period.
     assert stored.status == UserStatus.disabled
     assert stored.expire is None
-    assert stored.online_at is None
+    # The last-online time is kept (the inactive-user cleanup reads it).
+    assert stored.online_at.replace(tzinfo=UTC) == seen_at
 
 
 @pytest.mark.asyncio
