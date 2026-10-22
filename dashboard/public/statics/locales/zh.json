@@ -977,6 +977,9 @@
         "update_core": "更新节点核心",
         "stats": "查看节点统计",
         "logs": "查看节点日志"
+      },
+      "hosts": {
+        "customize": "重命名和隐藏"
       }
     },
     "resources": {
@@ -3989,5 +3992,15 @@
     "updateCommandLabel": "通过 SSH 连接并运行:",
     "closeBanner": "关闭更新通知",
     "needsUpdate": "需要更新"
+  },
+  "hostCustomizations": {
+    "pageDescription": "为您的用户重命名或隐藏主机",
+    "description": "为您自己的用户重命名或隐藏主机。主机设置仍由所有者管理。",
+    "saved": "已为您的用户更新主机",
+    "original": "原名称：{{remark}}",
+    "disabledByOwner": "已被所有者禁用",
+    "customRemark": "对您用户显示的名称",
+    "visible": "向我的用户显示",
+    "empty": "暂无可用主机。"
   }
 }

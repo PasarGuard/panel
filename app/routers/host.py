@@ -2,7 +2,15 @@ from fastapi import APIRouter, Depends, status
 
 from app.db import AsyncSession, get_db
 from app.models.admin import AdminDetails
-from app.models.host import BaseHost, BulkHostsActionResponse, BulkHostSelection, CreateHost, RemoveHostsResponse
+from app.models.host import (
+    BaseHost,
+    BulkHostsActionResponse,
+    BulkHostSelection,
+    CreateHost,
+    HostCustomization,
+    HostCustomizationModify,
+    RemoveHostsResponse,
+)
 from app.operation import OperatorType
 from app.operation.host import HostOperation
 from app.utils import responses
@@ -12,6 +20,34 @@ from .dependencies import get_host_list_query
 
 host_operator = HostOperation(operator_type=OperatorType.API)
 router = APIRouter(tags=["Host"], prefix="/api/host", responses={401: responses._401, 403: responses._403})
+
+
+@router.get("s/customizations", response_model=list[HostCustomization])
+async def get_host_customizations(
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(require_permission("hosts", "customize")),
+):
+    """
+    Get the hosts the current admin can rename or hide, with the admin's own remark and state for each.
+
+    Customizations only apply to the current admin's users and never change the host itself.
+    """
+    return await host_operator.get_host_customizations(db=db, admin=admin)
+
+
+@router.put("/{host_id}/customization", response_model=HostCustomization, responses={404: responses._404})
+async def modify_host_customization(
+    host_id: int,
+    modification: HostCustomizationModify,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(require_permission("hosts", "customize")),
+):
+    """
+    Set the current admin's own remark for a host, or hide it from the admin's users.
+
+    Send an empty **remark** to use the host's remark, and **is_disabled** false to show the host again.
+    """
+    return await host_operator.modify_host_customization(db, host_id=host_id, modification=modification, admin=admin)
 
 
 @router.get("/{host_id}", response_model=BaseHost)

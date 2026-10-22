@@ -5,8 +5,14 @@ from sqlalchemy.dialects.mysql import insert as mysql_insert
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import ProxyHost, ProxyInbound
-from app.models.host import CreateHost, HostListQuery
+from app.db.models import (
+    AdminHostOverride,
+    Group,
+    ProxyHost,
+    ProxyInbound,
+    inbounds_groups_association,
+)
+from app.models.host import CreateHost, HostCustomizationModify, HostListQuery
 
 
 async def upsert_inbounds(db: AsyncSession, inbound_tags: list[str]) -> dict[str, ProxyInbound]:
@@ -213,6 +219,7 @@ async def remove_host(db: AsyncSession, db_host: ProxyHost) -> ProxyHost:
     Returns:
         ProxyHost: The removed proxy host.
     """
+    await db.execute(delete(AdminHostOverride).where(AdminHostOverride.host_id == db_host.id))
     await db.delete(db_host)
     await db.commit()
     return db_host
@@ -229,5 +236,63 @@ async def remove_hosts(db: AsyncSession, host_ids: list[int]) -> None:
     if not host_ids:
         return
 
+    await db.execute(delete(AdminHostOverride).where(AdminHostOverride.host_id.in_(host_ids)))
     await db.execute(delete(ProxyHost).where(ProxyHost.id.in_(host_ids)))
     await db.commit()
+
+
+async def get_group_inbound_tags(db: AsyncSession, group_ids: list[int]) -> set[str]:
+    """Return the inbound tags reachable through the given groups."""
+    if not group_ids:
+        return set()
+    stmt = (
+        select(ProxyInbound.tag)
+        .join(inbounds_groups_association, ProxyInbound.id == inbounds_groups_association.c.inbound_id)
+        .join(Group, Group.id == inbounds_groups_association.c.group_id)
+        .where(Group.id.in_(group_ids))
+    )
+    return set((await db.execute(stmt)).scalars().all())
+
+
+async def get_admin_host_overrides(db: AsyncSession, admin_id: int) -> dict[int, AdminHostOverride]:
+    """Return an admin's host overrides keyed by host ID."""
+    result = await db.execute(select(AdminHostOverride).where(AdminHostOverride.admin_id == admin_id))
+    return {override.host_id: override for override in result.scalars().all()}
+
+
+async def get_admin_host_override_rows(db: AsyncSession, admin_id: int) -> list[tuple[AdminHostOverride, str | None]]:
+    """Return an admin's host overrides together with the inbound tag of each host."""
+    stmt = (
+        select(AdminHostOverride, ProxyHost.inbound_tag)
+        .join(ProxyHost, ProxyHost.id == AdminHostOverride.host_id)
+        .where(AdminHostOverride.admin_id == admin_id)
+    )
+    return [(override, inbound_tag) for override, inbound_tag in (await db.execute(stmt)).all()]
+
+
+async def set_admin_host_override(
+    db: AsyncSession, admin_id: int, host_id: int, override: HostCustomizationModify
+) -> AdminHostOverride | None:
+    """
+    Store an admin's override for a host, or remove it when it no longer changes anything.
+
+    Returns:
+        AdminHostOverride | None: The stored override, or None when the host is back to its defaults.
+    """
+    stmt = select(AdminHostOverride).where(AdminHostOverride.admin_id == admin_id, AdminHostOverride.host_id == host_id)
+    db_override = (await db.execute(stmt)).scalar_one_or_none()
+
+    if override.remark is None and not override.is_disabled:
+        if db_override is not None:
+            await db.delete(db_override)
+            await db.commit()
+        return None
+
+    if db_override is None:
+        db_override = AdminHostOverride(admin_id=admin_id, host_id=host_id)
+        db.add(db_override)
+    db_override.remark = override.remark
+    db_override.is_disabled = override.is_disabled
+    await db.commit()
+    await db.refresh(db_override)
+    return db_override

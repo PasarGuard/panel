@@ -3,30 +3,63 @@ import asyncio
 from app import notification
 from app.core.hosts import host_manager
 from app.db import AsyncSession
+from app.db.crud.admin_role import get_role_by_admin_id
 from app.db.crud.host import (
     create_host,
+    get_admin_host_override_rows,
+    get_admin_host_overrides,
+    get_group_inbound_tags,
     get_host_by_id,
     get_hosts,
     modify_host,
     modify_hosts as crud_modify_hosts,
     remove_host,
     remove_hosts,
+    set_admin_host_override,
 )
-from app.db.models import ProxyHost
+from app.db.models import AdminHostOverride, ProxyHost
 from app.models.admin import AdminDetails
+from app.models.admin_role import RoleAccess, RolePermissions
 from app.models.client_template import ClientTemplateType
 from app.models.host import (
     BaseHost,
     BulkHostsActionResponse,
     BulkHostSelection,
     CreateHost,
+    HostCustomization,
+    HostCustomizationModify,
     HostListQuery,
+    HostOverride,
     RemoveHostsResponse,
 )
 from app.operation import BaseOperation
+from app.operation.permissions import get_allowed_group_ids, role_grants
 from app.utils.logger import get_logger
 
 logger = get_logger("host-operation")
+
+
+async def get_effective_host_overrides(db: AsyncSession, admin_id: int) -> dict[int, HostOverride]:
+    """
+    Return the host overrides an admin's users get right now, keyed by host ID.
+
+    Saved overrides stop applying once the admin's role loses ``hosts.customize``, and for hosts outside the
+    role's allowed groups, so revoking access takes effect at once and re-granting it restores them.
+    """
+    rows = await get_admin_host_override_rows(db, admin_id)
+    if not rows:
+        return {}
+    role = await get_role_by_admin_id(db, admin_id)
+    if role is None:
+        return {}
+    if not role.is_owner:
+        if not role_grants(RolePermissions.model_validate(role.permissions or {}), "hosts", "customize"):
+            return {}
+        allowed_group_ids = RoleAccess.model_validate(role.access or {}).allowed_group_ids
+        if allowed_group_ids is not None:
+            inbound_tags = await get_group_inbound_tags(db, allowed_group_ids)
+            rows = [(override, inbound_tag) for override, inbound_tag in rows if inbound_tag in inbound_tags]
+    return {override.host_id: HostOverride.model_validate(override) for override, _ in rows}
 
 
 class HostOperation(BaseOperation):
@@ -246,3 +279,47 @@ class HostOperation(BaseOperation):
             )
 
         return self._build_bulk_action_response(hosts_to_update)
+
+    async def _get_customizable_hosts(self, db: AsyncSession, admin: AdminDetails) -> list[ProxyHost]:
+        """Hosts the admin may rename or hide: all of them, or those reachable through the role's allowed groups."""
+        db_hosts = await get_hosts(db=db)
+        allowed_group_ids = get_allowed_group_ids(admin)
+        if allowed_group_ids is None:
+            return db_hosts
+        inbound_tags = await get_group_inbound_tags(db, allowed_group_ids)
+        return [db_host for db_host in db_hosts if db_host.inbound_tag in inbound_tags]
+
+    @staticmethod
+    def _build_customization(db_host: ProxyHost, db_override: AdminHostOverride | None) -> HostCustomization:
+        return HostCustomization(
+            host_id=db_host.id,
+            remark=db_host.remark,
+            inbound_tag=db_host.inbound_tag,
+            host_disabled=bool(db_host.is_disabled),
+            custom_remark=db_override.remark if db_override else None,
+            is_disabled=db_override.is_disabled if db_override else False,
+        )
+
+    async def _ensure_db_admin(self, admin: AdminDetails) -> None:
+        if admin.id is None:
+            await self.raise_error(message="Host customization is not available for env admins", code=403)
+
+    async def get_host_customizations(self, db: AsyncSession, admin: AdminDetails) -> list[HostCustomization]:
+        await self._ensure_db_admin(admin)
+        db_hosts = await self._get_customizable_hosts(db, admin)
+        overrides = await get_admin_host_overrides(db, admin.id)
+        return [self._build_customization(db_host, overrides.get(db_host.id)) for db_host in db_hosts]
+
+    async def modify_host_customization(
+        self, db: AsyncSession, host_id: int, modification: HostCustomizationModify, admin: AdminDetails
+    ) -> HostCustomization:
+        """Rename or hide a host for the admin's own users; the host itself is left untouched."""
+        await self._ensure_db_admin(admin)
+        db_host = next((h for h in await self._get_customizable_hosts(db, admin) if h.id == host_id), None)
+        if db_host is None:
+            await self.raise_error(message="Host not found", code=404)
+
+        db_override = await set_admin_host_override(db, admin.id, host_id, modification)
+        logger.info(f'Host "{host_id}" customized by admin "{admin.username}"')
+
+        return self._build_customization(db_host, db_override)
