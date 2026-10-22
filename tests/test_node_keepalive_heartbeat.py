@@ -12,12 +12,14 @@ from grpclib.const import Cardinality, Handler
 from grpclib.server import Server
 from PasarGuardNodeBridge import Health, NodeType
 from PasarGuardNodeBridge.common import service_grpc, service_pb2 as service
+from sqlalchemy.exc import IntegrityError
 
 from app.db.models import Node, NodeConnectionType, NodeStatus
 from app.models.node import NodeCreate, NodeModify
+from app.nats import leader as leader_module
 from app.node import NodeManager, heartbeat as heartbeat_module
 from app.node.bridge import create_node
-from app.node.heartbeat import NodeHeartbeat, heartbeat_interval, keep_alive_too_short
+from app.node.heartbeat import NodeHeartbeat, heartbeat_interval, keep_alive_too_short, shortest_safe_keep_alive
 from app.operation import OperatorType, node as node_operation
 from app.operation.node import NodeOperation
 
@@ -105,7 +107,14 @@ def test_interval_follows_keep_alive_within_bounds():
     assert [heartbeat_interval(value) for value in (8, 20, 40, 60, 600)] == [5, 5, 10, 15, 15]
 
 
-def test_keep_alive_must_survive_two_lost_beats():
+def _workers(monkeypatch, count: int):
+    # Several workers elect a job leader over NATS.
+    monkeypatch.setattr(leader_module, "is_nats_enabled", lambda: count > 1)
+    monkeypatch.setattr(leader_module.server_settings, "workers", count)
+
+
+def test_keep_alive_must_survive_two_lost_beats(monkeypatch):
+    _workers(monkeypatch, 1)
     assert [keep_alive_too_short(value) for value in (0, 5, 19, 20, 30, 60, 600)] == [
         False,
         True,
@@ -115,6 +124,23 @@ def test_keep_alive_must_survive_two_lost_beats():
         False,
         False,
     ]
+    assert shortest_safe_keep_alive() == 20
+
+
+def test_keep_alive_must_also_survive_a_job_leader_change(monkeypatch):
+    # With several workers only the leader beats; a new one takes over up to 20 s after it dies.
+    _workers(monkeypatch, 4)
+    assert [keep_alive_too_short(value) for value in (0, 19, 20, 30, 39, 40, 60, 600)] == [
+        False,
+        True,
+        True,
+        True,
+        True,
+        False,
+        False,
+        False,
+    ]
+    assert shortest_safe_keep_alive() == 40
 
 
 @pytest.mark.asyncio
@@ -332,6 +358,7 @@ def operation(monkeypatch):
     operator._connect_single_node_background = AsyncMock()
     logger = MagicMock()
     monkeypatch.setattr(node_operation, "logger", logger)
+    _workers(monkeypatch, 1)
     monkeypatch.setattr(node_operation.notification, "create_node", AsyncMock())
     monkeypatch.setattr(node_operation.notification, "modify_node", AsyncMock())
     return SimpleNamespace(operator=operator, logger=logger, monkeypatch=monkeypatch)
@@ -354,6 +381,34 @@ async def test_create_warns_about_a_keep_alive_the_heartbeat_cannot_hold(operati
     assert bool(warnings) is warned
     if warned:
         assert "keep_alive" in warnings[0] and "short-keep-alive" in warnings[0]
+
+
+@pytest.mark.asyncio
+async def test_create_warns_with_the_minimum_for_several_workers(operation):
+    _workers(operation.monkeypatch, 4)
+    operation.monkeypatch.setattr(node_operation, "create_node", AsyncMock(return_value=_stored_node(keep_alive=30)))
+
+    await operation.operator.create_node(
+        object(), NodeCreate.model_construct(**_node_fields(keep_alive=30)), MagicMock()
+    )
+
+    (warning,) = _warnings(operation.logger)
+    assert "job leader change" in warning and "at least 40s" in warning
+
+
+@pytest.mark.asyncio
+async def test_rejected_create_does_not_warn(operation):
+    duplicate = IntegrityError("INSERT", {}, Exception("duplicate"))
+    operation.monkeypatch.setattr(node_operation, "create_node", AsyncMock(side_effect=duplicate))
+
+    with pytest.raises(ValueError):
+        await operation.operator.create_node(
+            SimpleNamespace(rollback=AsyncMock()),
+            NodeCreate.model_construct(**_node_fields(keep_alive=10)),
+            MagicMock(),
+        )
+
+    assert _warnings(operation.logger) == []
 
 
 @pytest.mark.asyncio

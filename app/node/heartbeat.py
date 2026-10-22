@@ -7,11 +7,17 @@ bridge marks BROKEN, so on a lossy link the timer can run out while the panel is
 """
 
 import asyncio
+import itertools
 import time
 
 from PasarGuardNodeBridge import Health, PasarGuardNode
 
-from app.nats.leader import is_job_leader, needs_job_leader
+from app.nats.leader import (
+    DEFAULT_LEASE_SECONDS,
+    HEARTBEAT_INTERVAL as LEADER_RETRY_SECONDS,
+    is_job_leader,
+    needs_job_leader,
+)
 from app.node import NodeManager, node_manager
 from app.utils.logger import get_logger
 
@@ -22,6 +28,9 @@ MAX_INTERVAL = 15.0
 # Two beats in a row may be lost: the third starts three intervals after the last
 # success and may take its whole timeout (one interval) to finish.
 SAFE_BEATS = 4
+# With several workers only the job leader beats. When it dies, nobody beats until its
+# lease runs out and another worker takes it over on its next try.
+LEADER_HANDOVER = DEFAULT_LEASE_SECONDS + LEADER_RETRY_SECONDS
 _TICK_SECONDS = 1.0
 
 
@@ -29,8 +38,23 @@ def heartbeat_interval(keep_alive: int) -> float:
     return min(max(keep_alive / 4, MIN_INTERVAL), MAX_INTERVAL)
 
 
+def _longest_silence(keep_alive: int) -> float:
+    interval = heartbeat_interval(keep_alive)
+    silence = SAFE_BEATS * interval
+    if needs_job_leader():
+        # The leader dies just before a beat, and the new leader's first beat may
+        # take its whole timeout.
+        silence = max(silence, 2 * interval + LEADER_HANDOVER)
+    return silence
+
+
 def keep_alive_too_short(keep_alive: int) -> bool:
-    return 0 < keep_alive < SAFE_BEATS * heartbeat_interval(keep_alive)
+    return 0 < keep_alive < _longest_silence(keep_alive)
+
+
+def shortest_safe_keep_alive() -> int:
+    # Ends: the silence stops growing once the interval reaches MAX_INTERVAL.
+    return next(value for value in itertools.count(1) if not keep_alive_too_short(value))
 
 
 class NodeHeartbeat:
