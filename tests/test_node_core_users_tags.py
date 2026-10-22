@@ -10,7 +10,7 @@ import os
 from datetime import UTC, datetime
 from uuid import uuid4
 
-import pytest
+import pytest_asyncio
 from sqlalchemy import delete, insert
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
@@ -20,7 +20,8 @@ from app.db.models import Group, ProxyInbound, User, UserStatus, inbounds_groups
 from app.node.user import core_users
 
 
-@pytest.fixture
+# On the test's loop, so the teardown can still close the connections it opened.
+@pytest_asyncio.fixture(loop_scope="function")
 async def session_factory():
     if os.getenv("TEST_FROM", "local").lower() == "local":
         engine = create_async_engine("sqlite+aiosqlite://", poolclass=StaticPool)
@@ -29,7 +30,12 @@ async def session_factory():
         yield async_sessionmaker(engine, expire_on_commit=False)
         await engine.dispose()
     else:
+        # The app engine outlives each test's event loop: drop pooled connections
+        # an earlier test opened on its (now closed) loop, and close ours before
+        # this loop ends.
+        await base.engine.dispose(close=False)
         yield base.SessionLocal
+        await base.engine.dispose()
 
 
 async def test_user_with_many_inbounds_gets_every_tag(session_factory):
