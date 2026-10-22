@@ -154,6 +154,7 @@ class _FakeDB:
 
 
 def _patch_health_check_db(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(node_checker, "_owns_health_checks", lambda: True)
     monkeypatch.setattr(node_checker, "GetDB", lambda: _FakeDB())
     monkeypatch.setattr(NodeOperation, "_update_single_node_status", AsyncMock())
     monkeypatch.setattr(node_checker, "get_bridge_memory", lambda: (None, None, None))
