@@ -85,6 +85,70 @@ def test_create_user_rejects_too_large_on_hold_expire_duration(access_token):
         cleanup_groups(access_token, core, groups)
 
 
+def test_user_endpoints_reject_out_of_range_durations_and_timestamps(access_token):
+    core, groups = setup_groups(access_token, 1)
+    user = create_user(access_token, group_ids=[groups[0]["id"]], payload={"username": unique_name("out_of_range")})
+    try:
+        too_far = MAX_ON_HOLD_EXPIRE_DURATION_SECONDS + 1
+        cases = [
+            ("put", f"/api/user/by-id/{user['id']}", {"expire": 10**20}),
+            ("put", f"/api/user/by-id/{user['id']}", {"on_hold_timeout": 10**12}),
+            ("put", f"/api/user/by-id/{user['id']}", {"on_hold_timeout": -1}),
+            ("put", f"/api/user/by-id/{user['id']}", {"on_hold_timeout": too_far}),
+            ("put", f"/api/user/by-id/{user['id']}", {"next_plan": {"data_limit": 1, "expire": 10**13}}),
+            ("put", f"/api/user/by-id/{user['id']}", {"next_plan": {"data_limit": 1, "expire": too_far}}),
+            ("put", f"/api/user/by-id/{user['id']}", {"next_plan": {"data_limit": 1, "expire": -1}}),
+            (
+                "post",
+                "/api/user",
+                {
+                    "username": unique_name("out_of_range_hold"),
+                    "group_ids": [groups[0]["id"]],
+                    "status": "on_hold",
+                    "on_hold_expire_duration": 3600,
+                    "on_hold_timeout": 10**12,
+                },
+            ),
+            *(
+                (
+                    "post",
+                    "/api/user",
+                    {
+                        "username": unique_name("out_of_range_hold"),
+                        "group_ids": [groups[0]["id"]],
+                        "status": "on_hold",
+                        "on_hold_expire_duration": 3600,
+                        "on_hold_timeout": timeout,
+                    },
+                )
+                for timeout in (-1, too_far)
+            ),
+            (
+                "post",
+                "/api/user",
+                {
+                    "username": unique_name("out_of_range_plan"),
+                    "group_ids": [groups[0]["id"]],
+                    "next_plan": {"data_limit": 1, "expire": 10**13},
+                },
+            ),
+        ]
+        for method, url, body in cases:
+            response = getattr(client, method)(url, headers=auth_headers(access_token), json=body)
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY, (body, response.status_code)
+
+        response = client.put(
+            f"/api/user/by-id/{user['id']}",
+            headers=auth_headers(access_token),
+            json={"next_plan": {"data_limit": 1, "expire": MAX_ON_HOLD_EXPIRE_DURATION_SECONDS}},
+        )
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["next_plan"]["expire"] == MAX_ON_HOLD_EXPIRE_DURATION_SECONDS
+    finally:
+        delete_user(access_token, user["username"])
+        cleanup_groups(access_token, core, groups)
+
+
 def set_user_online_at(username: str, online_at: datetime) -> None:
     async def _set_online_at():
         async with TestSession() as session:
@@ -2053,6 +2117,62 @@ def test_reset_user_usage(access_token):
         assert response.status_code == status.HTTP_200_OK
     finally:
         delete_user(access_token, user["username"])
+        cleanup_groups(access_token, core, groups)
+
+
+def _put_user_back_on_hold(access_token: str, user: dict, how: str) -> dict:
+    if how == "toggle":
+        response = client.put(
+            f"/api/user/{user['username']}/disabled", headers=auth_headers(access_token), json={"disabled": False}
+        )
+    elif how == "bulk_enable":
+        response = client.post("/api/users/bulk/enable", headers=auth_headers(access_token), json={"ids": [user["id"]]})
+        assert response.status_code == status.HTTP_200_OK
+        response = client.get(f"/api/user/{user['username']}", headers=auth_headers(access_token))
+    else:
+        response = client.put(
+            f"/api/user/{user['username']}",
+            headers=auth_headers(access_token),
+            json={"status": "on_hold", "on_hold_expire_duration": 3600},
+        )
+    assert response.status_code == status.HTTP_200_OK
+    return response.json()
+
+
+def test_user_put_back_on_hold_ignores_earlier_traffic(access_token):
+    core, groups = setup_groups(access_token, 1)
+    try:
+        for how in ("toggle", "bulk_enable", "modify"):
+            user = create_user(
+                access_token,
+                group_ids=[groups[0]["id"]],
+                payload={
+                    "username": unique_name(f"test_re_hold_{how}"),
+                    "status": "on_hold",
+                    "on_hold_expire_duration": 3600,
+                },
+            )
+            try:
+                # It connected while on hold and was disabled before the review activated it. Whole seconds, a few
+                # seconds back: MySQL DATETIME drops fractions, and the later edit must still land after it.
+                seen_at = (datetime.now(UTC) - timedelta(seconds=3)).replace(microsecond=0)
+                set_user_online_at(user["username"], seen_at)
+                response = client.put(
+                    f"/api/user/{user['username']}/disabled",
+                    headers=auth_headers(access_token),
+                    json={"disabled": True},
+                )
+                assert response.status_code == status.HTTP_200_OK
+
+                data = _put_user_back_on_hold(access_token, user, how)
+                assert data["status"] == "on_hold", how
+                # The last-online time is kept, but going back on hold counts as an edit, so only traffic
+                # after it may start the user's period or stop the on-hold timeout.
+                assert datetime.fromisoformat(data["online_at"]) == seen_at, how
+                assert data["edit_at"] is not None and datetime.fromisoformat(data["edit_at"]) > seen_at, how
+            finally:
+                delete_user(access_token, user["username"])
+    finally:
         cleanup_groups(access_token, core, groups)
 
 
