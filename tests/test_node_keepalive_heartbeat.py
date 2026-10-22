@@ -274,7 +274,9 @@ async def test_heartbeat_starts_only_where_the_node_connections_live(monkeypatch
 
 
 @pytest.mark.asyncio
-async def test_heartbeat_sends_get_base_info_over_grpc():
+async def test_heartbeat_sends_get_base_info_over_grpc(monkeypatch):
+    # CI's multi-worker jobs would otherwise make this process a non-leader that never beats.
+    monkeypatch.setattr(heartbeat_module, "needs_job_leader", lambda: False)
     received = []
 
     async def get_base_info(stream):
