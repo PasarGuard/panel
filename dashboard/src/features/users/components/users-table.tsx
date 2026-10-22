@@ -1178,7 +1178,14 @@ const UsersTable = memo(() => {
         onClearAdvanceSearch={handleClearAdvanceSearch}
         canSortByHwidCount={canReadHwids}
       />
-      {canBulkMutateUsers && <BulkActionsBar selectedCount={selectedCount} onClear={clearSelection} actions={bulkActions} />}
+      {canBulkMutateUsers && (
+        <BulkActionsBar
+          selectedCount={selectedCount}
+          onClear={clearSelection}
+          // While the table shows loading rows the selected users are out of sight, so no bulk action until they are back
+          actions={isPageLoading ? bulkActions.map(action => ({ ...action, disabled: true })) : bulkActions}
+        />
+      )}
       {isEmpty && (
         <Card className="mb-12">
           <CardContent className="p-8 text-center">
