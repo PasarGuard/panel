@@ -1,6 +1,7 @@
 """xHTTP download hosts: a parent host must keep working when its download host is removed, disabled or deleted."""
 
 import asyncio
+from copy import deepcopy
 from types import SimpleNamespace
 
 import pytest
@@ -143,10 +144,10 @@ def test_full_refresh_skips_a_host_that_cannot_be_prepared(download_pair, monkey
     pair = download_pair
     prepare = hosts_module._prepare_subscription_inbound_data
 
-    async def broken_parent(host, down_settings=None):
+    async def broken_parent(host, down_settings=None, **kwargs):
         if host.id == pair.parent["id"]:
             raise ValueError("broken stored settings")
-        return await prepare(host, down_settings)
+        return await prepare(host, down_settings, **kwargs)
 
     monkeypatch.setattr(hosts_module, "_prepare_subscription_inbound_data", broken_parent)
     asyncio.run(_full_host_refresh())
@@ -217,3 +218,35 @@ def test_disable_download_host_by_edit_drops_it_from_parent(download_pair):
     # A full rebuild must not bring the disabled download host back
     asyncio.run(_full_host_refresh())
     assert _download_addresses(pair.user["subscription_url"]) == []
+
+
+def test_unusable_download_host_does_not_fall_back_to_inbound_download_settings(download_pair):
+    pair = download_pair
+    # The parent's inbound has its own downloadSettings, which hosts without a download host inherit
+    up_inbound = deepcopy(pair.up_inbound)
+    up_inbound["streamSettings"]["xhttpSettings"]["extra"] = {
+        "downloadSettings": {"address": "inbound-default.example.com", "port": 443, "network": "xhttp"}
+    }
+    response = client.put(
+        f"/api/core/{pair.core_id}?restart_nodes=false",
+        headers=pair.headers,
+        json=_core_body(pair.core_name, [up_inbound, pair.down_inbound]),
+    )
+    assert response.status_code == status.HTTP_200_OK, response.text
+    asyncio.run(_full_host_refresh())
+    assert _download_addresses(pair.user["subscription_url"]) == ["download.example.com"]
+
+    # The parent chose a download host: while that host is disabled the parent is served without one
+    response = client.post("/api/hosts/bulk/disable", headers=pair.headers, json={"ids": [pair.download["id"]]})
+    assert response.status_code == status.HTTP_200_OK, response.text
+    assert _download_addresses(pair.user["subscription_url"]) == []
+    asyncio.run(_full_host_refresh())
+    asyncio.run(_host_manager_setup())
+    assert _download_addresses(pair.user["subscription_url"]) == []
+
+    # A parent without a download host still inherits the inbound's downloadSettings
+    parent = {key: value for key, value in pair.parent.items() if key != "id"}
+    parent["transport_settings"]["xhttp_settings"]["download_settings"] = None
+    response = client.put(f"/api/host/{pair.parent['id']}", headers=pair.headers, json=parent)
+    assert response.status_code == status.HTTP_200_OK, response.text
+    assert _download_addresses(pair.user["subscription_url"]) == ["inbound-default.example.com"]
