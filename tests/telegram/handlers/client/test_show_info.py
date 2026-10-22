@@ -58,3 +58,19 @@ async def test_get_user_client_not_found(monkeypatch, fake_message):
     await show_info.get_user(event, db=object())
 
     event.reply.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_get_user_client_links_are_escaped(monkeypatch, fake_user, fake_message):
+    event = type(fake_message)(text="/sub/token")
+
+    monkeypatch.setattr(show_info.user_operations, "get_validated_sub", AsyncMock(return_value=fake_user))
+    monkeypatch.setattr(show_info.user_operations, "validate_user", AsyncMock(return_value=fake_user))
+    monkeypatch.setattr(show_info.subscription_operations, "validated_user", AsyncMock(return_value=fake_user))
+    monkeypatch.setattr(
+        show_info.subscription_operations, "fetch_config", AsyncMock(return_value=("vless://a?x=1&y=2#<r>", None))
+    )
+
+    await show_info.get_user(event, db=object())
+
+    assert event.answer.await_args.args[0] == "<pre>vless://a?x=1&amp;y=2#&lt;r&gt;</pre>"

@@ -12,8 +12,7 @@ ENTITY = "admin"
 
 
 async def create_admin(admin: AdminDetails, by: str):
-    username, by = escape_tg_html((admin.username, by))
-    role = admin.role.name if admin.role else "unknown"
+    username, role, by = escape_tg_html((admin.username, admin.role.name if admin.role else "unknown", by))
     data = messages.CREATE_ADMIN.format(
         username=username,
         role=role,
@@ -28,8 +27,7 @@ async def create_admin(admin: AdminDetails, by: str):
 
 
 async def modify_admin(admin: AdminDetails, by: str):
-    username, by = escape_tg_html((admin.username, by))
-    role = admin.role.name if admin.role else "unknown"
+    username, role, by = escape_tg_html((admin.username, admin.role.name if admin.role else "unknown", by))
     data = messages.MODIFY_ADMIN.format(
         username=username,
         role=role,
@@ -76,7 +74,7 @@ async def admin_usage_limit_reached(admin: AdminDetails, usage_percentage: int, 
 
 
 async def admin_login(username: str, password: str, client_ip: str, success: bool):
-    username, password = escape_tg_html((username, password))
+    username, password, client_ip = escape_tg_html((username, password, client_ip))
     data = messages.ADMIN_LOGIN.format(
         status="Successful" if success else "Failed",
         username=username,

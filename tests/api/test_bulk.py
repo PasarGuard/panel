@@ -4,7 +4,7 @@ from datetime import UTC, datetime as dt, timedelta as td
 from fastapi import status
 from sqlalchemy import select
 
-from app.db.models import User
+from app.db.models import Admin, User
 from app.utils.crypto import generate_wireguard_keypair, get_wireguard_public_key
 from tests.api import TestSession, client
 from tests.api.helpers import (
@@ -43,6 +43,24 @@ def set_user_used_traffic(username: str, used_traffic: int) -> None:
             await session.commit()
 
     asyncio.run(_set_usage())
+
+
+def set_admin_used_traffic(username: str, used_traffic: int) -> None:
+    async def _set_usage():
+        async with TestSession() as session:
+            db_admin = (await session.execute(select(Admin).where(Admin.username == username))).scalar_one()
+            db_admin.used_traffic = used_traffic
+            await session.commit()
+
+    asyncio.run(_set_usage())
+
+
+def get_admin_used_traffic(username: str) -> int:
+    async def _get_usage():
+        async with TestSession() as session:
+            return (await session.execute(select(Admin.used_traffic).where(Admin.username == username))).scalar_one()
+
+    return asyncio.run(_get_usage())
 
 
 def set_user_wireguard_keys(username: str, private_key: str, public_key: str) -> None:
@@ -692,4 +710,46 @@ def test_bulk_set_owner_by_ids(access_token):
             assert user_response.json()["admin"]["username"] == new_owner["username"]
     finally:
         cleanup(access_token, core, groups, users)
+        delete_admin(access_token, new_owner["username"])
+
+
+def test_bulk_set_owner_moves_admin_traffic_only_for_changed_owners(access_token):
+    gb = 1024**3
+    core, groups = setup_groups(access_token, 1)
+    users = [
+        create_user(access_token, group_ids=[groups[0]["id"]], payload={"username": unique_name("bulk_owner_usage")})
+        for _ in range(2)
+    ]
+    old_owner = create_admin(access_token)
+    new_owner = create_admin(access_token)
+
+    def bulk_set_owner(user_ids: list[int], admin_username: str) -> None:
+        response = client.put(
+            "/api/users/bulk/set_owner",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={"ids": user_ids, "admin_username": admin_username},
+        )
+        assert response.status_code == status.HTTP_200_OK
+
+    try:
+        bulk_set_owner([user["id"] for user in users], old_owner["username"])
+        for user in users:
+            set_user_used_traffic(user["username"], 5 * gb)
+        set_admin_used_traffic(old_owner["username"], 10 * gb)
+        set_admin_used_traffic(new_owner["username"], 1 * gb)
+
+        bulk_set_owner([users[0]["id"]], new_owner["username"])
+        assert get_admin_used_traffic(old_owner["username"]) == 5 * gb
+        assert get_admin_used_traffic(new_owner["username"]) == 6 * gb
+
+        # users[0] already belongs to new_owner: only users[1] moves, so only its traffic is added.
+        bulk_set_owner([user["id"] for user in users], new_owner["username"])
+        assert get_admin_used_traffic(old_owner["username"]) == 0
+        assert get_admin_used_traffic(new_owner["username"]) == 11 * gb
+
+        bulk_set_owner([user["id"] for user in users], new_owner["username"])
+        assert get_admin_used_traffic(new_owner["username"]) == 11 * gb
+    finally:
+        cleanup(access_token, core, groups, users)
+        delete_admin(access_token, old_owner["username"])
         delete_admin(access_token, new_owner["username"])

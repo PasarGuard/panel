@@ -462,6 +462,8 @@ async def ensure_wireguard_subnet_pools(db: AsyncSession) -> None:
 
     Used on core create so we do not run a full user reconcile; allocations happen when
     groups gain the inbound via sync_users_allocations.
+    The rows stay locked until commit: a transaction that locks user rows before it allocates
+    calls this first, to keep the pool -> users lock order of every other writer.
     """
     namespaces = wg_namespaces(await get_wg_cores(db))
     if not namespaces:

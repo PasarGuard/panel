@@ -7,11 +7,11 @@ from operator import attrgetter
 
 from PasarGuardNodeBridge import NodeAPIError, PasarGuardNode
 from PasarGuardNodeBridge.common.service_pb2 import StatType
-from sqlalchemy import BigInteger, DateTime, and_, bindparam, func, insert, or_, select, union_all, update
+from sqlalchemy import BigInteger, DateTime, and_, bindparam, case, func, insert, or_, select, union_all, update
 from sqlalchemy.dialects.mysql import insert as mysql_insert
 from sqlalchemy.dialects.postgresql import ARRAY, insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
-from sqlalchemy.exc import DatabaseError, OperationalError
+from sqlalchemy.exc import DatabaseError, DataError, IntegrityError, OperationalError
 from sqlalchemy.sql.expression import Insert
 
 from app import on_shutdown, scheduler
@@ -42,6 +42,8 @@ USER_ADMIN_LOOKUP_BATCH_SIZE = 1_000
 _pending_user_usage_history: defaultdict[tuple[dt, int, int], int] = defaultdict(int)
 _user_usage_history_lock = asyncio.Lock()
 _user_usage_history_last_flush: float | None = None
+# Failed flushes keep at most this many older 10-minute buckets (one hour) next to the current one
+USER_USAGE_HISTORY_MAX_PENDING_BUCKETS = 6
 ONLINE_AT_WRITE_INTERVAL = td(minutes=1)
 DEADLOCK_MAX_RETRIES = 5
 
@@ -106,7 +108,7 @@ def build_node_user_usage_upsert(dialect: str, upsert_params: list[dict]):
                 source.c.node_id,
                 func.sum(source.c.value).label("used_traffic"),
             )
-            .select_from(source.join(User, User.id == source.c.uid))
+            .select_from(source.join(User, User.id == source.c.uid).join(Node, Node.id == source.c.node_id))
             .group_by(source.c.created_at, source.c.uid, source.c.node_id)
         )
 
@@ -129,6 +131,24 @@ def build_node_user_usage_upsert(dialect: str, upsert_params: list[dict]):
                 },
             )
         ]
+
+    if dialect == "mysql":
+        # One statement that asyncmy sends as a multi-row VALUES list; building a UNION of
+        # one SELECT per row cost more CPU than the write itself. IGNORE turns the foreign key
+        # error of a user or node deleted since the stats were read into a warning and skips
+        # that row, as the users and nodes join does on the other dialects.
+        stmt = (
+            mysql_insert(NodeUserUsage)
+            .values(
+                created_at=bindparam("created_at"),
+                user_id=bindparam("uid"),
+                node_id=bindparam("node_id"),
+                used_traffic=bindparam("value"),
+            )
+            .prefix_with("IGNORE")
+        )
+        stmt = stmt.on_duplicate_key_update(used_traffic=NodeUserUsage.used_traffic + stmt.inserted.used_traffic)
+        return [(stmt, upsert_params)]
 
     select_parts = []
     stmt_params = {}
@@ -158,24 +178,9 @@ def build_node_user_usage_upsert(dialect: str, upsert_params: list[dict]):
             source.c.node_id,
             func.sum(source.c.value).label("used_traffic"),
         )
-        .select_from(source.join(User, User.id == source.c.uid))
+        .select_from(source.join(User, User.id == source.c.uid).join(Node, Node.id == source.c.node_id))
         .group_by(source.c.created_at, source.c.uid, source.c.node_id)
     )
-
-    if dialect == "mysql":
-        insert_source = select_stmt.subquery("insert_source")
-        insert_select_stmt = select(
-            insert_source.c.created_at,
-            insert_source.c.uid,
-            insert_source.c.node_id,
-            insert_source.c.used_traffic,
-        )
-        stmt = mysql_insert(NodeUserUsage).from_select(
-            ["created_at", "user_id", "node_id", "used_traffic"],
-            insert_select_stmt,
-        )
-        stmt = stmt.on_duplicate_key_update(used_traffic=NodeUserUsage.used_traffic + insert_source.c.used_traffic)
-        return [(stmt, stmt_params)]
 
     stmt = sqlite_insert(NodeUserUsage).from_select(
         ["created_at", "user_id", "node_id", "used_traffic"],
@@ -189,14 +194,26 @@ def build_node_user_usage_upsert(dialect: str, upsert_params: list[dict]):
 
 
 def build_user_traffic_update(dialect: str, usage_params: list[dict]):
-    """Build a set-based user traffic update when the database supports arrays."""
-    if dialect == "postgresql":
+    """Build a set-based user traffic update on PostgreSQL and MySQL, an executemany one on SQLite."""
+    if dialect in ("postgresql", "mysql"):
         aggregated_usage = defaultdict(int)
         for param in usage_params:
             aggregated_usage[param["uid"]] += param["value"]
 
         aggregated_usage = dict(sorted(aggregated_usage.items()))
 
+    if dialect == "mysql":
+        # asyncmy runs an executemany UPDATE as one round trip per row, so add the
+        # deltas of the whole batch in one statement with a CASE on the primary key
+        stmt = (
+            update(User)
+            .where(User.id.in_(list(aggregated_usage)))
+            .values(used_traffic=User.used_traffic + case(aggregated_usage, value=User.id))
+            .execution_options(synchronize_session=False)
+        )
+        return stmt, None
+
+    if dialect == "postgresql":
         source = (
             func.unnest(
                 bindparam("uids", type_=ARRAY(BigInteger())),
@@ -269,15 +286,14 @@ async def update_users_traffic(usage_params: list[dict]) -> None:
 
     dialect = await get_dialect()
     ordered_params = sorted(usage_params, key=lambda item: int(item["uid"]))
-    stmt, params = build_user_traffic_update(dialect, ordered_params)
     async with JOB_SEM:
         if dialect == "postgresql":
-            await safe_execute(stmt, params)
+            await safe_execute(*build_user_traffic_update(dialect, ordered_params))
             return
 
         batch_size = USER_TRAFFIC_UPDATE_BATCH_SIZE_BY_DIALECT.get(dialect, len(ordered_params))
-        for batch in _chunked(params, batch_size):
-            await safe_execute(stmt, batch)
+        for batch in _chunked(ordered_params, batch_size):
+            await safe_execute(*build_user_traffic_update(dialect, batch))
 
 
 async def touch_users_online_at(user_ids: list[int], now: dt | None = None) -> None:
@@ -523,8 +539,17 @@ async def _write_node_user_usage_params(dialect: str, upsert_params: list[dict])
     async with JOB_SEM:
         for batch in batches:
             queries = build_node_user_usage_upsert(dialect, batch)
-            for stmt, stmt_params in queries:
-                await safe_execute(stmt, stmt_params)
+            try:
+                for stmt, stmt_params in queries:
+                    await safe_execute(stmt, stmt_params)
+            except (DataError, IntegrityError) as err:
+                # The same rows would be rejected again on every retry and block all later history writes
+                logger.error(
+                    "Dropped %s node user usage history rows (%s bytes) rejected by the database: %s",
+                    len(batch),
+                    sum(param["value"] for param in batch),
+                    getattr(err, "orig", err),
+                )
 
 
 async def record_user_stats_batched(all_node_params: dict, usage_coefficients: dict):
@@ -536,6 +561,22 @@ async def record_user_stats_batched(all_node_params: dict, usage_coefficients: d
     dialect = await get_dialect()
     upsert_params = _prepare_node_user_usage_params(all_node_params, usage_coefficients, created_at)
     await _write_node_user_usage_params(dialect, upsert_params)
+
+
+def _drop_stale_pending_user_usage_history() -> None:
+    """Keep failed flushes from piling up history without limit."""
+    buckets = sorted({created_at for created_at, _, _ in _pending_user_usage_history})
+    if len(buckets) <= USER_USAGE_HISTORY_MAX_PENDING_BUCKETS:
+        return
+    cutoff = buckets[-USER_USAGE_HISTORY_MAX_PENDING_BUCKETS]
+    stale_keys = [key for key in _pending_user_usage_history if key[0] < cutoff]
+    for key in stale_keys:
+        del _pending_user_usage_history[key]
+    logger.error(
+        "Dropped %s buffered node user usage history rows older than %s after repeated flush failures",
+        len(stale_keys),
+        cutoff.isoformat(),
+    )
 
 
 async def _flush_pending_user_usage_history_locked(now_monotonic: float | None = None) -> int:
@@ -556,7 +597,11 @@ async def _flush_pending_user_usage_history_locked(now_monotonic: float | None =
         if value
     ]
     if upsert_params:
-        await _write_node_user_usage_params("postgresql", upsert_params)
+        try:
+            await _write_node_user_usage_params("postgresql", upsert_params)
+        except Exception:
+            _drop_stale_pending_user_usage_history()
+            raise
     _pending_user_usage_history.clear()
     _user_usage_history_last_flush = now_monotonic if now_monotonic is not None else _monotonic_now()
     return len(upsert_params)
@@ -680,7 +725,10 @@ async def record_node_stats_batched(all_node_params: dict):
     # Execute all node stats with limited concurrency
     tasks = [_record_single_node(node_id, params) for node_id, params in all_node_params.items()]
     if tasks:
-        await asyncio.gather(*tasks, return_exceptions=True)
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        for node_id, result in zip(all_node_params, results):
+            if isinstance(result, Exception):
+                logger.error("Failed to record node usage history for node %s: %s", node_id, result)
 
 
 def _process_users_stats_response(stats_response):

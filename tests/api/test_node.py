@@ -7,7 +7,7 @@ from uuid import UUID, uuid4
 
 import pytest
 from fastapi import status
-from sqlalchemy import event, func, inspect, select
+from sqlalchemy import event, func, inspect, select, update
 from sqlalchemy.orm import selectinload
 
 from app.db.crud.core import create_core_config, remove_core_config
@@ -1091,6 +1091,63 @@ async def test_node_metadata_modify_schedules_background_reconnect_without_force
             # Name-only edits replace the local bridge object, but the replacement
             # attaches to the healthy remote backend instead of restarting it.
             assert forced_starts == [False, False]
+        finally:
+            if node_id is not None:
+                db_node = await session.get(Node, node_id)
+                if db_node:
+                    await db_remove_node(session, db_node)
+            db_core = await session.get(CoreConfig, core_id)
+            if db_core:
+                await remove_core_config(session, db_core)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("sent_core", "restart"), [("default", False), ("other", True)])
+async def test_node_without_core_restarts_only_when_moved_off_the_default_core(
+    monkeypatch: pytest.MonkeyPatch, sent_core: str, restart: bool
+):
+    # A NULL core (nodes from before per-node cores, or whose core was deleted) runs core 1.
+    operator = NodeOperation(operator_type=OperatorType.API)
+    forced_starts: list[bool] = []
+
+    async def record_background_connect(node_id: int, *, force_start: bool = False) -> None:
+        forced_starts.append(force_start)
+
+    monkeypatch.setattr(operator, "_update_node_impl", AsyncMock())
+    monkeypatch.setattr(operator, "_connect_single_node_background", record_background_connect)
+    monkeypatch.setattr("app.operation.node.notification.create_node", AsyncMock())
+    monkeypatch.setattr("app.operation.node.notification.modify_node", AsyncMock())
+
+    admin = AdminDetails(username="admin", role=AdminRoleData(is_owner=True))
+    async with TestSession() as session:
+        core = await create_core_config(session, core_create_model(unique_name("core_node_null")))
+        core_id = inspect(core).identity[0]
+        node_id: int | None = None
+        try:
+            created = await operator.create_node(
+                session,
+                NodeCreate(**node_create_payload(name=unique_name("node_null_core"), core_config_id=core_id)),
+                admin,
+            )
+            node_id = created.id
+            await session.execute(update(Node).where(Node.id == node_id).values(core_config_id=None))
+            await session.commit()
+            session.expire_all()
+            await asyncio.sleep(0)
+            forced_starts.clear()
+
+            # The edit dialog sends the core it shows for the node along with the rename.
+            await operator.modify_node(
+                session,
+                node_id,
+                NodeModify(
+                    name=unique_name("node_null_core_renamed"), core_config_id=1 if sent_core == "default" else core_id
+                ),
+                admin,
+            )
+            await asyncio.sleep(0)
+
+            assert forced_starts == [restart]
         finally:
             if node_id is not None:
                 db_node = await session.get(Node, node_id)

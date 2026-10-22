@@ -1,5 +1,6 @@
 import random
 from datetime import UTC, datetime as dt, timedelta as td
+from html import escape
 from io import BytesIO
 
 from aiogram import F, Router
@@ -78,7 +79,7 @@ async def process_username(event: Message | CallbackQuery, state: FSMContext, db
         try:
             UserValidator.validate_username(username)
         except ValueError as e:
-            msg = await event.reply(f"❌ {e}", reply_markup=RandomUsername().as_markup())
+            msg = await event.reply(f"❌ {escape(str(e))}", reply_markup=RandomUsername().as_markup())
             await add_to_messages_to_delete(state, msg)
             return
     else:
@@ -588,7 +589,7 @@ async def create_user_from_template_choose(
         try:
             UserValidator.validate_username(username)
         except ValueError as e:
-            msg = await event.reply(f"❌ {e}", reply_markup=RandomUsername(with_template=True).as_markup())
+            msg = await event.reply(f"❌ {escape(str(e))}", reply_markup=RandomUsername(with_template=True).as_markup())
             await add_to_messages_to_delete(state, msg)
             return
     else:
@@ -695,7 +696,7 @@ async def get_v2ray_links(
     max_message_length = 4085  # Telegram message limit (including formatting)
     if len(links) < max_message_length:
         await event.message.answer(Texts.client_user_details(user))
-        await event.message.answer(f"<pre>{links}</pre>")
+        await event.message.answer(f"<pre>{escape(links)}</pre>")
     else:
         file = BytesIO(links.encode("utf-8"))
         await event.message.answer_document(

@@ -176,7 +176,9 @@ def compile_date_diff_postgresql(element, compiler, **kw):
 
 @compiles(DateDiff, "mysql")
 def compile_date_diff_mysql(element, compiler, **kw):
-    return f"DATEDIFF({compiler.process(element.date1)}, {compiler.process(element.date2)})"
+    # Elapsed days like the other dialects: DATEDIFF() counts calendar dates, so 10 seconds across midnight would be
+    # a whole day and a reset cycle could end minutes after it started
+    return f"TIMESTAMPDIFF(SECOND, {compiler.process(element.date2)}, {compiler.process(element.date1)}) / 86400"
 
 
 @compiles(DateDiff, "sqlite")

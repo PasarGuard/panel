@@ -49,6 +49,14 @@ class UserTemplateWithValidator(UserTemplate):
     def validate_username(cls, v):
         return UserValidator.validate_username(v, False, True)
 
+    @field_validator("on_hold_timeout", check_fields=False)
+    @classmethod
+    def validate_on_hold_timeout(cls, v):
+        # Bound on input only, like next_plan expire: UserTemplateResponse must still load stored rows.
+        if v is not None and not 0 <= v <= MAX_ON_HOLD_EXPIRE_DURATION_SECONDS:
+            raise ValueError(f"on_hold_timeout must be between 0 and {MAX_ON_HOLD_EXPIRE_DURATION_SECONDS} seconds")
+        return v
+
 
 class UserTemplateCreate(UserTemplateWithValidator):
     @field_validator("group_ids", mode="after")

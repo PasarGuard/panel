@@ -58,6 +58,16 @@ if database_settings.is_sqlite:
         cursor.execute("PRAGMA busy_timeout=5000")
         cursor.close()
 
+elif database_settings.is_mysql:
+    # GROUP_CONCAT output is cut at group_concat_max_len (1024 bytes by default on
+    # MySQL); node payloads join every inbound tag of a user with it. 16 MiB is
+    # far more than any user's tag list and valid on MySQL and MariaDB.
+    @event.listens_for(engine.sync_engine, "connect")
+    def _set_mysql_session(dbapi_conn, _connection_record):
+        cursor = dbapi_conn.cursor()
+        cursor.execute("SET SESSION group_concat_max_len = 16777216")
+        cursor.close()
+
 
 SessionLocal = async_sessionmaker(autocommit=False, autoflush=False, expire_on_commit=False, bind=engine)
 
