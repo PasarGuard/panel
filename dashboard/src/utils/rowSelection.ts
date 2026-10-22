@@ -16,3 +16,9 @@ export const keepVisibleRowSelection = (selection: RowSelection, visibleRowIds: 
   const kept = Object.entries(selection).filter(([rowId, selected]) => selected && visible.has(rowId))
   return kept.length === Object.keys(selection).length ? selection : Object.fromEntries(kept)
 }
+
+/**
+ * The selection the table keeps after a render: a reset (the caller cleared the selection) wins over dropping rows
+ * that are no longer shown. Applied one after the other in the same render, the pruned old selection came back.
+ */
+export const nextRowSelection = (selection: RowSelection, visibleRowIds: string[], reset: boolean): RowSelection => (reset ? {} : keepVisibleRowSelection(selection, visibleRowIds))

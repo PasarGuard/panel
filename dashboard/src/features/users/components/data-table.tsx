@@ -4,7 +4,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import useDirDetection from '@/hooks/use-dir-detection'
 import { cn } from '@/lib/utils'
 import { UserResponse } from '@/service/api'
-import { getSelectedRowIds, keepVisibleRowSelection } from '@/utils/rowSelection'
+import { getSelectedRowIds, nextRowSelection } from '@/utils/rowSelection'
 import { ChevronDown, Rss } from 'lucide-react'
 import ActionButtons from './action-buttons'
 import { OnlineStatus } from './online-status'
@@ -212,21 +212,23 @@ export const DataTable = memo(
 
     const table = useReactTable(tableConfig)
 
-    useEffect(() => {
-      setRowSelection({})
-      onSelectionChange?.([])
-    }, [resetSelectionKey])
+    // The reset key the selection was last cleared for; null so the first run clears it, as on every key change
+    const resetSelectionKeyRef = useRef<number | null>(null)
 
     // Bulk actions must only target rows on screen: drop selected rows that a page, search or filter change, or a refresh, took away.
+    // A reset is handled in the same effect and wins, so pruning cannot bring back a selection the caller just cleared.
     useEffect(() => {
-      const next = keepVisibleRowSelection(
+      const reset = resetSelectionKeyRef.current !== resetSelectionKey
+      resetSelectionKeyRef.current = resetSelectionKey
+      const next = nextRowSelection(
         rowSelection,
         data.map(row => String(row.id)),
+        reset,
       )
       if (next === rowSelection) return
       setRowSelection(next)
       onSelectionChange?.(getSelectedRowIds(next))
-    }, [data, onSelectionChange, rowSelection])
+    }, [data, onSelectionChange, resetSelectionKey, rowSelection])
 
     const handleRowToggle = useCallback((rowId: number) => {
       setExpandedRow(prev => (prev === rowId ? null : rowId))
