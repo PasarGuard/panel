@@ -13,6 +13,24 @@ from sqlalchemy.engine import make_url
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, project_root)
 
+# Each xdist worker gets its own SQLite file. The app engine reads SQLALCHEMY_DATABASE_URL when config is imported
+# below, so the per-worker URL must be set here, for it and for the test helpers' DATABASE_URL alike: with only
+# DATABASE_URL changed, API requests use the shared, unmigrated app database ("no such table: jwt").
+# xdist sets PYTEST_XDIST_WORKER before it imports this module.
+_xdist_worker = os.environ.get("PYTEST_XDIST_WORKER")
+_requested_database_url = make_url(os.environ.get("DATABASE_URL", "sqlite+aiosqlite:///./test.db"))
+_worker_database_dir: Path | None = None
+if (
+    _xdist_worker
+    and os.environ.get("TEST_FROM", "local") == "local"
+    and _requested_database_url.get_backend_name() == "sqlite"
+    and _requested_database_url.database not in (None, "", ":memory:")
+):
+    _worker_database_dir = Path(tempfile.mkdtemp(prefix=f"pasarguard-pytest-{_xdist_worker}-"))
+    _worker_database_url = str(_requested_database_url.set(database=str(_worker_database_dir / "test.db")))
+    os.environ["DATABASE_URL"] = _worker_database_url
+    os.environ["SQLALCHEMY_DATABASE_URL"] = _worker_database_url
+
 # Override settings for tests
 from config import auth_settings, runtime_settings, server_settings
 
@@ -53,30 +71,21 @@ def pytest_collection_modifyitems(config, items):
 
 
 def pytest_configure(config):
-    """Give each xdist worker its own SQLite database before API test imports."""
-    worker = getattr(config, "workerinput", None)
-    if worker is None:
+    """Refuse parallel runs that cannot get a per-worker SQLite database (set up at import, above)."""
+    if getattr(config, "workerinput", None) is None:
         return
 
     if os.environ.get("TEST_FROM", "local") != "local":
         raise pytest.UsageError("Parallel tests require TEST_FROM=local and SQLite; use serial tests for CI databases")
-
-    database_url = os.environ.get("DATABASE_URL", "sqlite+aiosqlite:///./test.db")
-    url = make_url(database_url)
-    if url.get_backend_name() != "sqlite" or not url.database or url.database == ":memory:":
+    if _worker_database_dir is None:
         raise pytest.UsageError("Parallel tests require a file backed SQLite DATABASE_URL")
-
-    database_dir = Path(tempfile.mkdtemp(prefix=f"pasarguard-pytest-{worker['workerid']}-"))
-    config._pasarguard_database_dir = database_dir
-    os.environ["DATABASE_URL"] = str(url.set(database=str(database_dir / "test.db")))
 
 
 def pytest_unconfigure(config):
-    database_dir = getattr(config, "_pasarguard_database_dir", None)
-    if database_dir is not None:
-        for file in database_dir.iterdir():
+    if _worker_database_dir is not None and _worker_database_dir.exists():
+        for file in _worker_database_dir.iterdir():
             file.unlink()
-        database_dir.rmdir()
+        _worker_database_dir.rmdir()
 
 
 # Filter out all warnings
