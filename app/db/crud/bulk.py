@@ -183,9 +183,10 @@ async def activate_all_disabled_users(db: AsyncSession, admin: Admin | None = No
         query_for_active_users = query_for_active_users.where(User.admin_id == admin.id)
         query_for_on_hold_users = query_for_on_hold_users.where(User.admin_id == admin.id)
 
+    # Back on hold: only traffic from now on may start the user's period.
     await db.execute(
         query_for_on_hold_users.values(
-            {User.status: UserStatus.on_hold, User.last_status_change: dt.now(UTC)},
+            {User.status: UserStatus.on_hold, User.last_status_change: dt.now(UTC), User.online_at: None},
         )
     )
     await db.execute(

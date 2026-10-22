@@ -2098,6 +2098,58 @@ def test_reset_user_usage(access_token):
         cleanup_groups(access_token, core, groups)
 
 
+def _put_user_back_on_hold(access_token: str, user: dict, how: str) -> dict:
+    if how == "toggle":
+        response = client.put(
+            f"/api/user/{user['username']}/disabled", headers=auth_headers(access_token), json={"disabled": False}
+        )
+    elif how == "bulk_enable":
+        response = client.post("/api/users/bulk/enable", headers=auth_headers(access_token), json={"ids": [user["id"]]})
+        assert response.status_code == status.HTTP_200_OK
+        response = client.get(f"/api/user/{user['username']}", headers=auth_headers(access_token))
+    else:
+        response = client.put(
+            f"/api/user/{user['username']}",
+            headers=auth_headers(access_token),
+            json={"status": "on_hold", "on_hold_expire_duration": 3600},
+        )
+    assert response.status_code == status.HTTP_200_OK
+    return response.json()
+
+
+def test_user_put_back_on_hold_forgets_earlier_traffic(access_token):
+    core, groups = setup_groups(access_token, 1)
+    try:
+        for how in ("toggle", "bulk_enable", "modify"):
+            user = create_user(
+                access_token,
+                group_ids=[groups[0]["id"]],
+                payload={
+                    "username": unique_name(f"test_re_hold_{how}"),
+                    "status": "on_hold",
+                    "on_hold_expire_duration": 3600,
+                },
+            )
+            try:
+                # It connected while on hold and was disabled before the review activated it.
+                set_user_online_at(user["username"], datetime.now(UTC))
+                response = client.put(
+                    f"/api/user/{user['username']}/disabled",
+                    headers=auth_headers(access_token),
+                    json={"disabled": True},
+                )
+                assert response.status_code == status.HTTP_200_OK
+
+                data = _put_user_back_on_hold(access_token, user, how)
+                assert data["status"] == "on_hold", how
+                # Only traffic after it is back on hold may start its period or stop the on-hold timeout.
+                assert data["online_at"] is None, how
+            finally:
+                delete_user(access_token, user["username"])
+    finally:
+        cleanup_groups(access_token, core, groups)
+
+
 def test_reset_on_hold_user_usage_preserves_hold_state(access_token):
     core, groups = setup_groups(access_token, 1)
     user = create_user(

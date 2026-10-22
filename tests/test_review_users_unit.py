@@ -490,6 +490,59 @@ async def test_on_hold_timeout_action_only_hits_users_whose_timeout_expired(db_s
 
 
 @pytest.mark.asyncio
+async def test_user_put_back_on_hold_by_activate_all_gets_the_timeout_action(db_session):
+    from app.db.crud.bulk import activate_all_disabled_users
+
+    now = dt.now(UTC)
+    admin = Admin(username="re-hold-owner", hashed_password="x")
+    db_session.add(admin)
+    await db_session.flush()
+    # It connected while on hold and was disabled before the review activated it; its timeout has passed since.
+    user = User(
+        username="re-held",
+        status=UserStatus.disabled,
+        admin_id=admin.id,
+        on_hold_expire_duration=30 * 86400,
+        on_hold_timeout=now - td(minutes=1),
+    )
+    db_session.add(user)
+    await db_session.flush()
+    user.created_at = now - td(days=3)
+    user.online_at = now - td(days=2)
+    await db_session.commit()
+    user_id = user.id
+
+    await activate_all_disabled_users(db_session, admin)
+
+    @asynccontextmanager
+    async def _get_db():
+        yield db_session
+
+    async def _validate(db_user, include_subscription_url=True):
+        return SimpleNamespace(id=db_user.id, username=db_user.username)
+
+    with (
+        patch.object(review_users, "GetDB", _get_db),
+        patch.object(
+            review_users,
+            "general_settings",
+            AsyncMock(return_value=SimpleNamespace(on_hold_timeout_action=OnHoldTimeoutAction.disable)),
+        ),
+        patch.object(review_users, "sync_users", AsyncMock()),
+        patch.object(review_users.user_operator, "validate_user", side_effect=_validate),
+        patch("app.jobs.review_users.notification.user_status_change", AsyncMock()),
+    ):
+        await review_users.on_hold_to_active_users_job()
+
+    db_session.expire_all()
+    stored = (await db_session.execute(select(User).where(User.id == user_id))).scalar_one()
+    # Traffic from before it was put back on hold does not start its period.
+    assert stored.status == UserStatus.disabled
+    assert stored.expire is None
+    assert stored.online_at is None
+
+
+@pytest.mark.asyncio
 async def test_bad_next_plan_does_not_stall_other_next_plan_users(db_session):
     # Rows stored before next_plan expire was bounded (SQLite keeps any int) make reset_user_by_next overflow.
     ids = {}
