@@ -2,6 +2,7 @@ services:
   pasarguard:
     image: pasarguard/panel:latest
     restart: always
+    stop_grace_period: 50s
     env_file: .env
     network_mode: host
     volumes:

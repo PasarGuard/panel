@@ -172,3 +172,7 @@ deadlock-analysis.md
 # AI
 .AGENT
 graphify-out
+
+# Never publish locally retrieved Railway bootstrap credentials.
+**/.pasarguard/
+**/initial-owner.json

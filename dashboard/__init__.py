@@ -43,12 +43,12 @@ def build_api_interface():
 
 
 def build():
-    proc = subprocess.Popen(
+    subprocess.run(
         ["bun", "run", "build", "--outDir", build_dir, "--assetsDir", "statics"],
         env={**os.environ, "VITE_BASE_API": dashboard_settings.vite_base_api},
         cwd=base_dir,
+        check=True,
     )
-    proc.wait()
     with open(build_dir / "index.html", "r") as file:
         html = file.read()
     with open(build_dir / "404.html", "w") as file:
@@ -67,17 +67,20 @@ def run_dev():
 
 
 def run_build(app):
-    if runtime_settings.role.runs_panel and not build_dir.is_dir():
+    if runtime_settings.role.runs_panel and not ((build_dir / "index.html").is_file() and statics_dir.is_dir()):
         build()
 
     app.mount(dashboard_settings.path, DashboardStaticFiles(directory=build_dir, html=True), name="dashboard")
     app.mount("/statics/", DashboardStaticFiles(directory=statics_dir, html=True), name="statics")
 
 
+def _run_dashboard(app):
+    # Receive the running app, never capture a previously constructed instance.
+    if runtime_settings.debug:
+        run_dev()
+    else:
+        run_build(app)
+
+
 def setup_dashboard(app):
-    @on_startup
-    def run_dashboard():
-        if runtime_settings.debug:
-            run_dev()
-        else:
-            run_build(app)
+    on_startup(_run_dashboard)

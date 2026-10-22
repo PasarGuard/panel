@@ -133,7 +133,7 @@ class SingBoxConfiguration(BaseSubscription):
         else:
             transport["headers"] = {k: [v] for k, v in config.http_headers.items()} if config.http_headers else {}
 
-        if config.random_user_agent:
+        if config.random_user_agent and self.user_agent_list:
             transport.setdefault("headers", {})["User-Agent"] = choice(self.user_agent_list)
 
         return self._normalize_and_remove_none_values(transport)
@@ -159,7 +159,7 @@ class SingBoxConfiguration(BaseSubscription):
         }
         transport["headers"]["host"] = [host] if host else None
 
-        if config.random_user_agent:
+        if config.random_user_agent and self.user_agent_list:
             transport["headers"]["User-Agent"] = [choice(self.user_agent_list)]
 
         return self._normalize_and_remove_none_values(transport)
@@ -189,7 +189,7 @@ class SingBoxConfiguration(BaseSubscription):
             "path": path,
         }
 
-        if config.random_user_agent:
+        if config.random_user_agent and self.user_agent_list:
             transport["headers"]["User-Agent"] = [choice(self.user_agent_list)]
 
         return self._normalize_and_remove_none_values(transport)

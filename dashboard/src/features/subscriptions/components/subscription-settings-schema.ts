@@ -1,3 +1,4 @@
+import type { UseFormReturn } from 'react-hook-form'
 import { z } from 'zod'
 
 export const builtInVariableKeys = [
@@ -167,3 +168,6 @@ export const defaultSubscriptionRules: SubscriptionRuleFormData[] = [
     target: 'links_base64',
   },
 ]
+
+export type SubscriptionFormInput = z.input<typeof subscriptionSchema>
+export type SubscriptionSettingsForm = UseFormReturn<SubscriptionFormInput, unknown, SubscriptionFormData>

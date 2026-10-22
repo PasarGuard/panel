@@ -17,7 +17,8 @@ export default defineConfig({
   build: {
     outDir: 'build',
     assetsDir: 'statics',
-    emptyOutDir: false,
+    // Old hashed bundles otherwise accumulate in the PWA precache on rebuilds.
+    emptyOutDir: true,
     rollupOptions: {
       output: {
         manualChunks(id) {

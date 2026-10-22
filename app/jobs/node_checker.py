@@ -7,6 +7,7 @@ from app import notification, on_shutdown, on_startup, scheduler
 from app.db import GetDB
 from app.db.crud.node import get_limited_nodes, get_nodes
 from app.db.models import Node, NodeStatus
+from app.lifecycle import ShutdownPhase
 from app.models.node import NodeListQuery, NodeNotification
 from app.nats import is_multi_worker
 from app.node import node_manager
@@ -359,13 +360,6 @@ async def initialize_nodes():
         replace_existing=True,
     )
 
-    # Multi-uvicorn workers must not Stop remote cores / clear shared sync queues on exit.
-    if feature_settings.stop_nodes_on_shutdown and server_settings.workers <= 1:
-        on_shutdown(shutdown_nodes)
-
-    on_shutdown(_stop_node_loops)
-    on_shutdown(shutdown_bridge_memory)
-
 
 async def _stop_node_loops():
     for task in _node_loop_tasks:
@@ -389,6 +383,18 @@ async def shutdown_nodes():
     stop_tasks = [node.stop() for node in nodes.values()]
 
     # Run all tasks concurrently and wait for them to complete
-    await asyncio.gather(*stop_tasks, return_exceptions=True)
+    results = await asyncio.gather(*stop_tasks, return_exceptions=True)
+    errors = [result for result in results if isinstance(result, BaseException)]
+    if errors:
+        raise BaseExceptionGroup("Some node stop operations failed", errors)
 
     logger.info("All nodes' cores have been stopped.")
+
+
+# Register before startup can partially fail; explicit phases make import order
+# irrelevant. Stop local maintenance before remote cores, then flush, then close.
+if runtime_settings.role.runs_node:
+    on_shutdown(_stop_node_loops, phase=ShutdownPhase.QUIESCE)
+    if feature_settings.stop_nodes_on_shutdown and server_settings.workers <= 1:
+        on_shutdown(shutdown_nodes, phase=ShutdownPhase.PRODUCERS)
+    on_shutdown(shutdown_bridge_memory, phase=ShutdownPhase.TRANSPORTS)

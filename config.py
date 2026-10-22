@@ -1,10 +1,19 @@
+import os
 from functools import cached_property
 from typing import Any
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import AliasChoices, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# Apply the same safe defaults to SSH/CLI processes as to PID 1. Docker exec does
+# not inherit environment variables dynamically added by the entrypoint.
 from role import Role
+
+if os.environ.get("RAILWAY_ENVIRONMENT_ID"):
+    from railway_runtime import automatic_profile_enabled, configure_environment, volume_is_mounted
+
+    if automatic_profile_enabled(dict(os.environ)):
+        os.environ.update(configure_environment(dict(os.environ), mounted=volume_is_mounted()))
 
 
 class EnvSettings(BaseSettings):
@@ -26,6 +35,22 @@ class RuntimeSettings(EnvSettings):
 
 
 runtime_settings = RuntimeSettings()
+
+
+class ShutdownSettings(EnvSettings):
+    request_drain_timeout: float = Field(
+        default=10, gt=0, allow_inf_nan=False, validation_alias="SHUTDOWN_REQUEST_DRAIN_TIMEOUT"
+    )
+    timeout: float = Field(default=30, gt=0, allow_inf_nan=False, validation_alias="SHUTDOWN_TIMEOUT")
+    hook_timeout: float = Field(default=5, gt=0, allow_inf_nan=False, validation_alias="SHUTDOWN_HOOK_TIMEOUT")
+
+
+class MemoryQueueSettings(EnvSettings):
+    capacity: int = Field(default=256, ge=1, validation_alias="MEMORY_NOTIFICATION_QUEUE_CAPACITY")
+    enqueue_timeout: float = Field(
+        default=1, gt=0, allow_inf_nan=False, validation_alias="MEMORY_NOTIFICATION_QUEUE_ENQUEUE_TIMEOUT"
+    )
+    max_item_bytes: int = Field(default=65536, ge=1, validation_alias="MEMORY_NOTIFICATION_QUEUE_MAX_ITEM_BYTES")
 
 
 class DatabaseSettings(EnvSettings):
@@ -60,7 +85,8 @@ class DatabaseSettings(EnvSettings):
 
 class ServerSettings(EnvSettings):
     host: str = Field(default="0.0.0.0", validation_alias="UVICORN_HOST")
-    port: int = Field(default=8000, validation_alias="UVICORN_PORT")
+    port: int = Field(default=8000, ge=1, le=65535, validation_alias=AliasChoices("UVICORN_PORT", "PORT"))
+    allow_insecure_http: bool = Field(default=False, validation_alias="UVICORN_ALLOW_INSECURE_HTTP")
     uds: str | None = Field(default=None, validation_alias="UVICORN_UDS")
     ssl_certfile: str | None = Field(default=None, validation_alias="UVICORN_SSL_CERTFILE")
     ssl_keyfile: str | None = Field(default=None, validation_alias="UVICORN_SSL_KEYFILE")
@@ -74,6 +100,12 @@ class ServerSettings(EnvSettings):
     @classmethod
     def normalize_ssl_ca_type(cls, value: str) -> str:
         return value.lower()
+
+    @model_validator(mode="after")
+    def validate_tls_pair(self):
+        if bool(self.ssl_certfile) != bool(self.ssl_keyfile):
+            raise ValueError("UVICORN_SSL_CERTFILE and UVICORN_SSL_KEYFILE must be configured together")
+        return self
 
     @cached_property
     def has_ssl(self) -> bool:
@@ -198,20 +230,23 @@ class UsageSettings(EnvSettings):
 
 
 class JobSettings(EnvSettings):
-    core_health_check_interval: int = Field(default=10, validation_alias="JOB_CORE_HEALTH_CHECK_INTERVAL")
-    record_node_usages_interval: int = Field(default=30, validation_alias="JOB_RECORD_NODE_USAGES_INTERVAL")
-    record_user_usages_interval: int = Field(default=10, validation_alias="JOB_RECORD_USER_USAGES_INTERVAL")
-    review_users_interval: int = Field(default=30, validation_alias="JOB_REVIEW_USERS_INTERVAL")
-    review_admin_limits_interval: int = Field(default=10, validation_alias="JOB_REVIEW_ADMIN_LIMITS_INTERVAL")
-    send_notifications_interval: int = Field(default=30, validation_alias="JOB_SEND_NOTIFICATIONS_INTERVAL")
-    gather_nodes_stats_interval: int = Field(default=25, validation_alias="JOB_GATHER_NODES_STATS_INTERVAL")
-    remove_old_inbounds_interval: int = Field(default=600, validation_alias="JOB_REMOVE_OLD_INBOUNDS_INTERVAL")
-    remove_expired_users_interval: int = Field(default=3600, validation_alias="JOB_REMOVE_EXPIRED_USERS_INTERVAL")
-    reset_user_data_usage_interval: int = Field(default=600, validation_alias="JOB_RESET_USER_DATA_USAGE_INTERVAL")
-    reset_node_usage_interval: int = Field(default=60, validation_alias="JOB_RESET_NODE_USAGE_INTERVAL")
-    check_node_limits_interval: int = Field(default=60, validation_alias="JOB_CHECK_NODE_LIMITS_INTERVAL")
+    misfire_grace_time: int = Field(default=60, ge=1, validation_alias="JOB_MISFIRE_GRACE_TIME")
+    core_health_check_interval: int = Field(default=10, ge=1, validation_alias="JOB_CORE_HEALTH_CHECK_INTERVAL")
+    record_node_usages_interval: int = Field(default=30, ge=1, validation_alias="JOB_RECORD_NODE_USAGES_INTERVAL")
+    record_user_usages_interval: int = Field(default=10, ge=1, validation_alias="JOB_RECORD_USER_USAGES_INTERVAL")
+    review_users_interval: int = Field(default=30, ge=1, validation_alias="JOB_REVIEW_USERS_INTERVAL")
+    review_admin_limits_interval: int = Field(default=10, ge=1, validation_alias="JOB_REVIEW_ADMIN_LIMITS_INTERVAL")
+    send_notifications_interval: int = Field(default=30, ge=1, validation_alias="JOB_SEND_NOTIFICATIONS_INTERVAL")
+    gather_nodes_stats_interval: int = Field(default=25, ge=1, validation_alias="JOB_GATHER_NODES_STATS_INTERVAL")
+    remove_old_inbounds_interval: int = Field(default=600, ge=1, validation_alias="JOB_REMOVE_OLD_INBOUNDS_INTERVAL")
+    remove_expired_users_interval: int = Field(default=3600, ge=1, validation_alias="JOB_REMOVE_EXPIRED_USERS_INTERVAL")
+    reset_user_data_usage_interval: int = Field(
+        default=600, ge=1, validation_alias="JOB_RESET_USER_DATA_USAGE_INTERVAL"
+    )
+    reset_node_usage_interval: int = Field(default=60, ge=1, validation_alias="JOB_RESET_NODE_USAGE_INTERVAL")
+    check_node_limits_interval: int = Field(default=60, ge=1, validation_alias="JOB_CHECK_NODE_LIMITS_INTERVAL")
     cleanup_subscription_updates_interval: int = Field(
-        default=600, validation_alias="JOB_CLEANUP_SUBSCRIPTION_UPDATES_INTERVAL"
+        default=600, ge=1, validation_alias="JOB_CLEANUP_SUBSCRIPTION_UPDATES_INTERVAL"
     )
 
 
@@ -219,6 +254,8 @@ class FeatureSettings(EnvSettings):
     stop_nodes_on_shutdown: bool = Field(default=True, validation_alias="STOP_NODES_ON_SHUTDOWN")
 
 
+shutdown_settings = ShutdownSettings()
+memory_queue_settings = MemoryQueueSettings()
 database_settings = DatabaseSettings()
 server_settings = ServerSettings()
 dashboard_settings = DashboardSettings()

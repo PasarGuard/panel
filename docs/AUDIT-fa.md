@@ -1,0 +1,305 @@
+# گزارش بررسی، اصلاح و اعتبارسنجی
+
+تاریخ: ۲۲ اکتبر ۲۰۲۶
+
+## خلاصهٔ آخرین وضعیت تأییدشده
+
+- مجموعهٔ کامل محلی: **۸۱۷ passed، ۳ skipped، ۶ subtest موفق**؛ NATS واقعی فعال بود.
+- **Docker واقعی، node رسمی + پردازهٔ واقعی Xray، NATS integration، داشبورد و توقف تمیز** در [CI run 39709463046](https://github.com/devv1112/panel/actions/runs/39709463046) موفق شدند؛ تست native که محلی skip بود در CI اجرا شد.
+- **SQLite، PostgreSQL، MySQL، MariaDB و TimescaleDB** در [CI run 39709463062](https://github.com/devv1112/panel/actions/runs/39709463062) با migration، check و تست‌ها موفق شدند.
+- ظرفیت حافظهٔ queued+inflight، سقف payload، backpressure، فازهای shutdown و بودجهٔ زمانی اکنون پیاده‌سازی و آزموده شده‌اند.
+- دو probe خارجی opt-in هنوز در این دور روی runner اجرا نشده‌اند؛ نتیجهٔ محلی قبلی آن‌ها TLS EOF بود. این موارد با تست TLS محلی یا native node یکی نیستند.
+
+بخش‌های میانی تاریخچهٔ دورهای قبلی هستند؛ وضعیت جاری و محدودیت‌های آن در بخش آخر ثبت شده‌اند.
+
+## دامنه و صداقت گزارش
+
+تغییرات روی checkout مخزن `devv1112/panel` و شاخهٔ `arena/263b0995-panel` انجام شده است. فایل‌ها متعلق به PasarGuard هستند، اما این checkout با مخزن لینک‌شدهٔ `deevv1214/PasarGuard` یکی فرض نشده است. SHA مشاهده‌شدهٔ main مخزن لینک‌شده `44999c8ced60622d9ee985eb6fe22d8627239eda` و پایهٔ checkout فعلی `b56ffe369f542152c52c69733205baeaf3f6e4cd` است. هیچ تغییری به مخزن لینک‌شده ارسال نشده است.
+
+این کار ممیزی جامع امنیتی، اثبات ریاضی نبود باگ، بررسی تک‌تک بیت‌ها یا اجرای صدبارهٔ همهٔ تست‌های سیستم نیست. حلقهٔ صدباره دقیقاً برای تست‌های مستقل deployment انجام شده و دامنهٔ آن در پایین آمده است.
+
+## اصلاحات
+
+### اجرا و استقرار
+
+- پشتیبانی از PORT با تقدم UVICORN_PORT و اعتبارسنجی بازهٔ پورت.
+- گزینهٔ صریح HTTP پشت TLS termination؛ حفظ رفتار محدودکنندهٔ قبلی در حالت پیش‌فرض.
+- ساخت داشبورد از سورس در Docker؛ حذف وابستگی به artifact جداگانهٔ CI.
+- تثبیت Bun به نسخهٔ آزمایش‌شده و افزودن typecheck به فرمان build.
+- توقف هنگام شکست ساخت داشبورد.
+- timeout محدود healthcheck، هماهنگی پورت و عدم probe اشتباه HTTP برای workerهای بدون HTTP. بررسی worker فقط شناسایی command پردازهٔ PID 1 است، نه سلامت عملیات.
+- تنظیمات Railway و workflow جدید برای تست runtime، داشبورد و Docker smoke. خود workflow روی GitHub هنوز اجرا نشده است.
+
+### چرخهٔ عمر
+
+- cleanup پس از خطای startup و بدنهٔ lifespan.
+- ادامهٔ cleanup پس از شکست معمول یک hook و حفظ خطای اصلی.
+- انتظار برای awaitable برگشتی از callback همگام، بدون استفاده از API منسوخ asyncio.iscoroutinefunction.
+
+### پروتکل و subscription
+
+- پشتیبانی قبلی Trojan/VLESS/VMess شناسایی شد؛ قابلیت تکراری به مدل‌ها اضافه نشده است.
+- مولد opt-in تنظیمات هر سه پروتکل با WebSocket، پورت/tag/مسیر مجزا، clients خالی و محدودیت انتشار بدون TLS اضافه شد.
+- جلوگیری از tag تکراری Xray و تغییر ناخواستهٔ مجموعهٔ exclude ورودی.
+- اصلاح URI برای IPv6 و جلوگیری از افزایش لینک‌های خارجی هنگام render مجدد.
+- جلوگیری از خطای انتخاب تصادفی User-Agent از لیست خالی و تغییر ناخواستهٔ headerهای ورودی.
+- رد محتوای User-Agent شامل عضو غیررشته‌ای یا رشتهٔ خالی در اعتبارسنجی template.
+
+### داشبورد و قرارداد API
+
+- اجرای اولیهٔ TypeScript، ۵۳۴ diagnostic خطا نشان داد؛ علت عمده این بود که مولد API نوع response wrapper تولید می‌کرد اما mutator بدنهٔ JSON را برمی‌گرداند.
+- تنظیم مولد اصلاح و فایل API از OpenAPI خود برنامه مجدداً تولید شد؛ خروجی تولیدشده دستی ویرایش نشده است. حذف تعداد زیادی خط مربوط به wrapperهای ناسازگار است، نه حذف endpointها.
+- AbortSignal به شکل RequestInit به کلاینت داده و تا HTTP منتقل می‌شود.
+- تفکیک نوع ورودی فرم با defaultهای اختیاری از خروجی parsed آن؛ حذف any در فرم متغیرهای subscription.
+- اصلاح نوع core، فیلتر IDs و کلیدهای notification مطابق فرم واقعی.
+- حفظ uplink_chunk_size به شکل رشته/بازه، نه تبدیل مخرب به عدد.
+- تبدیل نام‌های XMux فرم به aliasهای قرارداد API و حفظ مقدار معتبر صفر برای keep-alive.
+- پاک‌کردن خروجی قدیمی در build داشبورد؛ bundleهای hashشدهٔ قدیمی قبلاً در precache ساخت‌های بعدی جمع می‌شدند.
+- mock قدیمی تست reconnect node به امضای جدید force_start به‌روزرسانی شد؛ تست اکنون صریحاً False در create و True در modify را بررسی می‌کند، نه اینکه assertion حذف شود.
+
+## شواهد اجرا
+
+- Python 3.14.0 از سورس CPython ساخته شد، چون دریافت runtime آماده از GitHub با محدودیت شبکه مواجه بود. ابزار و فایل‌های حجیم در cache خارج از مخزن هستند.
+- وابستگی‌ها با `uv sync --frozen --group dev` نصب شدند.
+- آخرین اجرای ثبت‌شدهٔ مجموعهٔ کامل محلی: **۸۱۷ تست موفق، ۳ skipped و ۶ subtest موفق**؛ تست native جداگانه در CI اجرا و موفق شد.؛ بدون شکست. شرح بازبینی مجدد در انتهای همین گزارش آمده است.
+- در نسخهٔ فعلی، ۲۵ تست مستقل deployment در ۱۰۰ iteration اجرا شدند: ۲۵۰۰ اجرای موفق. این آزمون پایداری محدود است، نه صد ممیزی مستقل یا صد آزمون بار production.
+- در دور قبل شش تست Bun موفق بودند (در دور جدید هفت تست): قرارداد بدنهٔ HTTP، انتقال AbortSignal، تبدیل XMux و حفظ صفر/بازه، حالت transport خالی و قواعد پیش‌فرض subscription.
+- TypeScript با strict فعال و بدون noCheck، ts-ignore یا غیرفعال‌سازی strict موفق شد.
+- build production داشبورد موفق بود؛ هشدار اندازهٔ برخی chunkهای بزرگ همچنان وجود دارد و خطای build نیست.
+- migration کامل روی SQLite تازه اجرا شد و `alembic check` گزارش `No new upgrade operations detected` داد.
+- اجرای واقعی برنامه با DEBUG=false و PORT=8000 روی 0.0.0.0 موفق شد. `/health` و `/dashboard/` پاسخ ۲۰۰ دادند؛ ۱۷ فایل اولیهٔ JS/CSS صفحه نیز پاسخ موفق داشتند. این smoke test، آزمون مرورگر تعاملی نیست.
+- Ruff برای فایل‌های Python تغییریافته، compileall با Python هدف، بررسی Bash و `git diff --check` موفق بودند.
+
+## موارد تأییدنشده و ریسک باقی‌مانده — ثبت تاریخی؛ وضعیت جاری در بخش آخر
+
+1. Docker در محیط موجود نبود؛ خود image نهایی ساخته/اجرا نشده است. CI smoke برای این مرحله اضافه شده، اما نتیجهٔ آن هنوز موجود نیست.
+2. PostgreSQL/MySQL/NATS واقعی، تست‌های skipped و سناریوهای چندپردازه/چندنودی در این محیط تأیید نشده‌اند. نتیجهٔ SQLite را به آن‌ها تعمیم ندهید.
+3. تست native باینری Xray، اتصال کلاینت خارجی، TLS واقعی، پهنای باند و نشست طولانی انجام نشده است. پشتیبانی parser و تولید لینک با عبور واقعی ترافیک یکسان نیست.
+4. استقرار روی حساب واقعی Railway/Katabump/Deepnote انجام نشده و دائمی یا رایگان‌ماندن آن تضمین نیست. جزئیات رسمی منابع در DEPLOYMENT-fa.md ثبت شده‌اند.
+5. fuzzing، ممیزی جامع احراز هویت/مجوزها، بررسی supply chain همهٔ وابستگی‌ها، تست بار و سناریوی بازیابی disaster انجام نشده‌اند.
+6. رجیستری و منابع lifecycle همچنان process-global هستند. انباشت callback در ساخت مکرر app اصلاح و lifespan هم‌زمان صریحاً رد می‌شود؛ اما تغییر ROLE و اجرای مجدد کامل lifespan در همان پردازه پشتیبانی/تأیید نشده است.
+7. healthcheck سبک و restart محدود، دیتابیس خراب یا دادهٔ حذف‌شده را ترمیم نمی‌کنند. backup و بازیابی آزمایش‌شده ضروری است. قابلیت «هوش مصنوعی خودترمیمگر» ادعا یا اضافه نشده است.
+
+## اسناد استفاده
+
+- [استقرار و محدودیت میزبان‌ها](DEPLOYMENT-fa.md)
+- [راه‌اندازی Trojan، VLESS و VMess](PROTOCOLS-fa.md)
+
+## بازبینی انتقادی مجدد — اصلاحات همین دور
+
+موفقیت تست‌های قبلی به‌معنای کافی‌بودن بررسی نبود. در این دور، خود تغییرات قبلی نیز بازبینی شدند:
+
+- **TLS ناقص:** تعیین فقط certificate یا فقط key قبلاً می‌توانست به مسیر HTTP برگردد. اکنون اعتبارسنجی تنظیمات آن را رد می‌کند؛ سه تست جدید اضافه شد.
+- **لغو cleanup:** CancelledError از Exception مشتق نمی‌شود و می‌توانست hookهای بعدی را متوقف کند. اکنون cleanupهای بعدی اجرا می‌شوند؛ cancellation بدنه حفظ و خطاهای مستقل cleanup با BaseExceptionGroup گزارش می‌شوند. دو تست اضافه شد.
+- **آمادگی داشبورد:** وجود صرف پوشهٔ build کافی نیست؛ اکنون index.html و پوشهٔ statics نیز لازم‌اند. سه تست برای خروجی ناقص/کامل اضافه شد.
+- **قرارداد HTTP:** mutator علاوه بر signal، اکنون سایر گزینه‌های RequestInit مانند credentials و redirect را منتقل می‌کند. تست جدید redirect:error نشان می‌دهد سیاست درخواست دور ریخته نمی‌شود.
+- **ورودی سرویس:** start.sh از مسیر خودش اجرا می‌شود، ROLE را نرمال و اعتبارسنجی می‌کند، برای ROLE نامعتبر migration اجرا نمی‌کند و exit code شکست migration را حفظ می‌کند. ROLE موجود در .env با parser خود برنامه خوانده می‌شود، نه source کردن فایل به‌عنوان کد shell. پنج تست مستقل اضافه شد.
+- **healthcheck و dotenv:** تنظیمات پورت، TLS، UDS و ROLE در صورت وجود .env با parser برنامه خوانده می‌شوند؛ شکست parser باعث خروج ناموفق healthcheck می‌شود.
+- **جابجایی virtualenv در Docker:** محیط نصب به مسیر ثابت /opt/venv منتقل شد تا shebang ابزارهای نصب‌شده پس از انتقال از builder نامعتبر نشود. این اصلاح هنوز نیاز به اجرای واقعی Docker smoke دارد.
+- **جلوگیری از ورود دادهٔ محلی به image:** الگوهای nested برای dotenv، دیتابیس‌های محلی، WAL/SHM و __pycache__ به dockerignore اضافه شدند. این الگوها جای استفاده از secret manager را نمی‌گیرند.
+
+**نتیجهٔ اجرای این دور:** ۶۷۴ تست بک‌اند موفق، ۱۹ skipped و ۶ subtest موفق؛ هفت تست Bun موفق؛ TypeScript سخت‌گیرانه و build production موفق؛ Ruff، compileall و بررسی Bash نیز موفق شدند. هشدار bundleهای بزرگ داشبورد همچنان باقی است. ساخت image در Docker و عبور ترافیک از node خارجی همچنان تأیید نشده‌اند.
+
+تعداد تست‌های مستقل deployment در این نسخه ۲۳ است و همین نسخه در ۱۰۰ دور مستقل دوباره آزمایش شد: ۲۳۰۰ اجرای موفق. دو تست اضافی نیز مسیر واقعی خواندن dotenv توسط healthcheck و رد TLS ناقص در آن را آزمایش می‌کنند. هنوز نه ممیزی همهٔ مسیرها انجام شده، نه نبود همهٔ باگ‌ها اثبات شده است.
+
+اجرای واقعی نسخهٔ جدید این بار از خود start.sh انجام شد: migration اجرا شد، application startup کامل شد و healthcheck و داشبورد پاسخ موفق دادند. هیچ node واقعی در این محیط ثبت نشده است؛ این موفقیت را نباید تست تونل تلقی کرد.
+
+در لاگ سرویس قدیمی پیام‌های missed job زمان‌بندی نیز مشاهده شد. علت قطعی و رفتار جبران همهٔ jobها پس از وقفه هنوز آزمون اختصاصی نشده است؛ تضمین اجرای job در زمان مقرر روی میزبان خواب‌شونده یا تحت کمبود منابع داده نمی‌شود. این موضوع و رجیستری سراسری lifecycle از موارد باقی‌مانده‌اند، نه مواردی که صرفاً با موفقیت تست‌های واحد رفع‌شده فرض شوند.
+
+
+## دور تازه: factory، زمان‌بندی و session اعلان‌ها
+
+این بخش جایگزین وضعیت قدیمی «بررسی اختصاصی نشده» در دور قبلی است؛ محدودیت‌های production همچنان پابرجا هستند.
+
+- **انباشت callback:** ثبت scheduler/leadership فقط یک بار در پردازه انجام می‌شود. callback داشبورد به app در حال اجرا وابسته است، نه app قبلیِ captureشده. تست در interpreter مستقل ۱۰۱ app متفاوت می‌سازد و ثابت‌ماندن تعداد callbackهای startup/shutdown/leadership را بررسی می‌کند. تست جداگانه انتخاب app صحیح داشبورد را پوشش می‌دهد.
+- **تداخل lifespan:** قفل غیرمسدودکننده مانع اجرای هم‌زمان دو lifespan می‌شود تا app دوم نتواند منابع app اول را ببندد. شکست startup نیز قفل را آزاد می‌کند. این تغییر به‌معنای پشتیبانی از restart کامل در همان پردازه نیست.
+- **زمان‌بندی:** پیش‌فرض jobها `max_instances=1`، `coalesce=True` و `JOB_MISFIRE_GRACE_TIME=60` است؛ override صریح هر job محفوظ است. آزمون executor واقعی APScheduler اجرای ۵ ثانیه عقب‌افتاده و گزارش missed برای ۱۲۰ ثانیه تأخیر را بررسی می‌کند. آزمون پردازش زمان‌بندی نیز backlog کوتاه را به یک submission تبدیل می‌کند. همهٔ فاصله‌های job و grace باید عدد صحیح مثبت باشند؛ صفر و مقدار منفی رد می‌شوند.
+- **session اعلان‌ها:** خواندن ناموفق تنظیمات یا ساخت ناموفق session جدید دیگر session سالم قبلی را نمی‌بندد. تعویض session زیر قفل انجام و بسته‌شدن session قبلی await می‌شود. cleanup نهایی idempotent است و بعد از توقف dispatcher و flush اعلان‌ها ثبت می‌شود؛ ترتیب ثبت نیز آزمون دارد.
+
+### نتایج تازهٔ اجرا
+
+- مجموعهٔ کامل بک‌اند، Python 3.14 و SQLite تست تازه با یکسان‌بودن دو URL دیتابیس: **۷۱۶ passed، ۱۹ skipped، ۶ subtest موفق؛ ۹۱٫۴۹ ثانیه**.
+- مجموعهٔ متمرکز factory/session/scheduler/dashboard/deployment: **۶۸ passed و ۶ subtest موفق**.
+- **۱۰۰ اجرای مستقل × ۲۵ تست deployment = ۲۵۰۰ اجرای موفق**. این تکرار محدود است، نه صد ممیزی کامل یا صد بار اجرای کل مجموعه.
+- داشبورد: **۷ تست Bun، ۱۵ assertion، صفر شکست**؛ TypeScript سخت‌گیرانه و build production موفق. هشدار chunkهای بزرگ باقی است؛ precache شامل ۳۰۷ فایل، حدود ۱۰٫۲ MiB است.
+- Ruff، compileall و `git diff --check` موفق بودند.
+
+### مرزهای تأیید
+
+درست‌بودن تعداد callbackها، اثبات reentrancy همهٔ منابع نیست. ROLE باید از شروع پردازه ثابت بماند و فقط یک lifespan فعال مجاز است. پس از shutdown کامل، MemoryJobStore ممکن است jobهای ثبت‌شده هنگام import را پاک کند؛ راهکار استقرار توصیه‌شده restart پردازه توسط supervisor است، نه بازکردن دوبارهٔ lifespan همان app. اجرای ترتیبی کامل lifespan هنوز آزمون/حل نشده است.
+
+grace محدود، coalescing و عدم هم‌پوشانی jobهای پیش‌فرض، تضمین جبران قطعی پس از خواب طولانی میزبان، قطع برق، crash، بار شدید یا failover نیستند. اجرای قدیمی‌تر از grace همچنان missed می‌شود. علت قطعی پیام‌های missed در سرویس قبلی به‌صورت forensic اثبات نشده است. تست Docker، ترافیک node خارجی، حساب واقعی میزبان‌ها، NATS و موارد skipped همچنان انجام‌نشده‌اند. smoke test سرویس ثبت‌شده در بخش‌های قبل مربوط به دور قبلی است، نه اجرای تازهٔ این تغییرات lifecycle.
+
+
+## بازبینی سخت‌گیرانهٔ مسیرهای شکست اعلان‌ها — ۲۲ اکتبر ۲۰۲۶
+
+این دور بازنویسی هدفمند مسیر آسیب‌دیده است، نه ادعای بازنویسی یا ممیزی کامل همهٔ کد مخزن. اصلاحات زیر با تست رگرسیون انجام شدند:
+
+| ایراد | اصلاح و شواهد |
+|---|---|
+| پیام webhook نامعتبر می‌توانست به متغیر تعریف‌نشده یا پیام قبلی مراجعه کند | اعتبارسنجی مستقل هر پیام؛ کنارگذاشتن ورودی خراب با لاگ بدون payload؛ تست پیام خراب قبل و بعد از پیام سالم |
+| لغو task یا شکست dequeue/send پس از برداشت، پیام‌های ناتمام را رها می‌کرد | نگهداری پیام‌های pending و تلاش برای requeue در finally؛ تست cancel واقعی task، شکست dequeue/send و لغو batch دوم بدون ارسال مجدد batch موفق اول |
+| شکست اولین requeue مانع تلاش برای پیام‌های بعدی می‌شد | تلاش برای همهٔ pendingها؛ گزارش ExceptionGroup در نبود خطای اصلی و حفظ cancellation در حضور آن |
+| drain نامحدود اجرای عادی می‌توانست زیر تولید پیوسته طولانی شود و حافظهٔ batch را رشد دهد | سقف ۱۰۰ پیام در هر اجرای عادی و batchهای ارسال حداکثر ۵۰تایی؛ این سقف، اندازهٔ کل صف حافظه را محدود نمی‌کند |
+| محدودکردن flush نهایی می‌توانست backlog بالاتر از سقف را در حافظه رها کند | flush نهایی از سقف اجرای عادی مستثناست؛ تست ۱۰۷ پیام و حفظ پیام آینده بدون مصرف دوباره در همان دور |
+| پاسخ‌های HTTP صریحاً آزاد نمی‌شدند | استفاده از async context manager برای پاسخ؛ تست شش status و ارسال HTTP محلی با connector محدود به یک اتصال |
+| لاگ خطای webhook شامل URL، متن پاسخ یا متن exception بالقوه محرمانه بود | لاگ این helper فقط status یا نوع خطا را ثبت می‌کند؛ تست عدم افشای secret. این ادعا به کل لاگ‌های مخزن تعمیم داده نمی‌شود |
+| metadata نامعتبر retry پذیرفته می‌شد | رد tries منفی و timestampهای NaN/Infinity |
+| نقش‌های producer-only صف‌های NATS را باز می‌کردند، اما cleanup هر دو را تضمین نمی‌کردند | ثبت cleanup هر دو صف برای همهٔ نقش‌ها، با deduplication موجود؛ تست ساخت برنامه در چهار نقش در interpreterهای مستقل، بدون اتصال به broker واقعی |
+
+### نتیجهٔ نهایی این دور
+
+- **۷۴۳ تست بک‌اند موفق، ۱۹ skipped و ۶ subtest موفق، در ۸۸٫۳۷ ثانیه**؛ SQLite تست تازه و یکسان‌بودن DATABASE_URL و SQLALCHEMY_DATABASE_URL.
+- **۳۲ تست متمرکز** webhook/factory/session موفق. این دور ۲۷ تست نسبت به نتیجهٔ ۷۱۶تایی قبلی افزوده است.
+- **۱۰۰ دور مستقل deployment × ۲۵ تست = ۲۵۰۰ اجرای موفق** مجدداً انجام شد؛ این عدد ممیزی صدبارهٔ کل برنامه نیست.
+- **۷ تست Bun، ۱۵ assertion، TypeScript سخت‌گیرانه و build تولیدی موفق**؛ هشدار chunk بزرگ و precache حدود ۱۰٫۲ MiB همچنان باقی است.
+- Ruff فایل‌های همین دور، compileall، بررسی Bash و git diff --check موفق بودند.
+- موارد skipped طبق شرط‌های سورس شامل تست‌های integration نیازمند NATS_SERVER_BINARY و تست‌های شبکهٔ opt-in REALITY هستند؛ هیچ نتیجه‌ای برای آن‌ها جعل یا به تست‌های mock تعمیم داده نشده است.
+
+### قضاوت انتقادی و ریسک‌های باز
+
+**برای ادعای «بدون باگ»، «تحویل تضمین‌شده» یا «خودترمیم کامل»، تأیید نمی‌شود.** به‌ویژه:
+
+1. **تحویل پایدار — اولویت بالا:** NatsNotificationQueue هنوز هنگام dequeue و پیش از ارسال HTTP، ack می‌کند. finally جدید در خطا و cancellation معمول کمک می‌کند، اما SIGKILL/crash یا خرابی broker بین برداشت و requeue می‌تواند پیام را از بین ببرد. راهکار معماری نیازمند ack پس از پردازش یا outbox پایدار، lease/redelivery، dead-letter queue و کلید idempotency است؛ در این دور پیاده‌سازی یا تأیید نشده‌اند.
+2. **معنای موفقیت ارسال:** قرارداد فعلی موفقیت حداقل یک webhook است، نه همهٔ مقصدها. retry پس از لغو هم ممکن است تحویل تکراری بسازد، چون مقصد شاید درخواست را قبل از قطع پاسخ دریافت کرده باشد. موفقیت per-recipient و exactly-once ادعا نمی‌شود.
+3. **مصرف منابع و shutdown:** صف InMemory همچنان محدودیت ظرفیت/backpressure ندارد. سقف batch، این مشکل را حل نمی‌کند. flush نهایی عمداً drain قبلی را حفظ می‌کند و زیر backlog، مقصد کند یا تولید هم‌زمان deadline قطعی ندارد؛ supervisor می‌تواند آن را قطع کند و پیام حافظه از بین برود.
+4. **ترتیب shutdown با node واقعی:** بعضی hookهای node هنگام startup ثبت می‌شوند. ترتیب کامل توقف producerها، flush و بستن منابع در سناریوی node/NATS واقعی هنوز آزمون نشده است؛ ثبت cleanup برای همهٔ نقش‌ها را نباید اثبات ترتیب کامل همهٔ منابع دانست.
+5. **منابع process-global:** محدودیت ROLE ثابت و یک lifespan فعال پابرجاست؛ restart کامل در همان پردازه هنوز پشتیبانی/تأیید نشده است.
+6. **دامنهٔ بیرونی:** Docker واقعی، PostgreSQL/MySQL/NATS واقعی، crash/failover، node خارجی و ترافیک Trojan/VLESS/VMess، مرورگر تعاملی، تست بار، ممیزی جامع مجوزها و supply chain تأیید نشده‌اند. میزبان رایگانِ همواره روشن نیز تضمین نمی‌شود.
+
+سرویس preview قبلی مبنای نتیجهٔ این دور نیست؛ پس از این تغییرات، smoke جدید start.sh یا استقرار واقعی روی میزبان انجام نشده است. شواهد این دور به تست‌ها و build ثبت‌شده محدود هستند.
+
+
+## دور تازه: راه‌اندازی و شکست صف NATS — ۲۲ اکتبر ۲۰۲۶
+
+تمرکز این دور `app/notification/nats_queue.py` بود، نه ادعای تحلیل کامل همهٔ خطوط مخزن. پس از ردیابی سه مصرف‌کنندهٔ dequeue، تغییر یک‌جانبهٔ ack رد شد: انتقال ایمن آن نیاز به قرارداد receipt/lease مشترک، settlement همهٔ مصرف‌کننده‌ها، retry محدود و idempotency دارد. **نقص ack زودهنگام همچنان باز است.**
+
+### ایرادات اصلاح‌شده
+
+- **نشت اتصال در setup ناموفق:** قبلاً اتصال قبل از تکمیل ساخت stream/consumer روی singleton ذخیره می‌شد و در شکست راه‌اندازی بسته نمی‌شد. اکنون state فقط پس از موفقیت کامل منتشر و اتصال تازه در خطا یا cancellation بسته می‌شود؛ تلاش close حداکثر سه ثانیه است.
+- **initialize تکراری و هم‌زمان:** قفل async مانع ایجاد اتصال‌های رقیب می‌شود؛ initialize موفق idempotent است. ارتقای producer به consumer از اتصال موجود استفاده می‌کند و شکست ارتقا، producer سالم را از بین نمی‌برد. تست concurrent عمداً با yield در connect اجرا می‌شود تا race واقعی قابل‌بازتولید باشد.
+- **فرض نادرست «هر خطای add_stream یعنی stream موجود است»:** خطای عمومی دیگر بلعیده نمی‌شود. پس از APIError، وجود و دسترسی stream با stream_info بررسی می‌شود؛ خطای transport یا نبود stream باعث شکست قابل‌مشاهدهٔ startup و cleanup می‌شود. این بررسی تضمین تطابق همهٔ تنظیمات stream موجود با تنظیمات مطلوب نیست.
+- **گزارش خطای broker به‌عنوان صف خالی:** فقط timeout و پاسخ واقعاً خالی به None تبدیل می‌شوند. خطای غیرمنتظرهٔ fetch و خطای ack به caller منتقل می‌شوند تا قابل‌پایش باشند.
+- **poison message خام:** JSON خراب، UTF-8 نامعتبر و JSON غیر-object دیگر بی‌پایان nak نمی‌شوند؛ با Msg.term از چرخهٔ redelivery حذف می‌شوند. payload در لاگ ثبت نمی‌شود. این رفتار quarantine یا dead-letter storage نیست و دادهٔ خام خراب برای بازیابی نگهداری نمی‌شود.
+- annotation زمان timeout از int به float اصلاح شد تا مقادیر واقعی مانند ۰٫۱ ثانیه را توصیف کند؛ رفتار timeout تغییر داده نشده است.
+
+### شواهد این دور
+
+- **۲۲ تست جدید** برای setup، reuse، upgrade، رقابت هم‌زمان، آزادشدن قفل پس از شکست، cancellation، خطای stream، دادهٔ خراب، timeout، fetch و ack افزوده شد.
+- تست‌های متمرکز صف جدید + webhook + factory: **۵۰ passed**.
+- مجموعهٔ کامل با Python 3.14 و SQLite تست تازه: **۷۶۵ passed، ۱۹ skipped، ۶ subtest موفق؛ ۱۰۰٫۳۶ ثانیه**.
+- خروجی واقعی `-rs`: **۱۷ تست integration NATS** به علت نبود NATS_SERVER_BINARY و **۲ تست REALITY شبکه‌ای opt-in** اجرا نشده‌اند. تست‌های تازه mock-based هستند و جای broker واقعی را نمی‌گیرند.
+- **۱۰۰ دور مستقل × ۲۵ تست deployment = ۲۵۰۰ اجرای موفق** مجدداً انجام شد؛ این آزمون بار، soak test یا صد اجرای مجموعهٔ کامل نیست.
+- **۷ تست Bun، ۱۵ assertion، TypeScript سخت‌گیرانه و build production موفق**؛ build در ۶٫۷۹ ثانیه، با همان هشدار chunk بزرگ.
+- Ruff و format-check دو فایل همین دور، compileall، bash syntax و diff-check موفق بودند. API واقعی Msg.term نیز در نسخهٔ نصب‌شدهٔ nats-py موجود است؛ نتیجهٔ broker واقعی ادعا نمی‌شود.
+
+### مرز تأیید و تصمیم معماری
+
+بستن اتصال شکست‌خورده، معادل تضمین تحویل نیست. crash بین dequeue و ارسال، نبود ظرفیت محدود صف حافظه، deadline نامحدود flush، ترتیب کامل shutdown در node/NATS واقعی و restart کامل lifespan در همان پردازه همچنان حل/تأیید نشده‌اند. Docker، node خارجی، حساب میزبان رایگان، تست بار و ممیزی جامع امنیت نیز همان وضعیت قبلی را دارند.
+
+این دور قرارداد قدیمی dict-returning dequeue و ack هنگام برداشت را حفظ می‌کند تا مصرف‌کننده‌های webhook، dispatcher و flush تلگرام/دیسکورد با تغییری نصفه ناسازگار نشوند. برای ادعای تحویل پایدار، مرحلهٔ معماری بعدی باید هر سه مسیر را یکپارچه تغییر دهد و با broker واقعی، قطع اتصال، kill پردازه و redelivery آزموده شود. «تمام ایرادات رفع شد» نتیجهٔ این گزارش نیست.
+
+
+## اصلاح قرارداد ack، اجرای NATS واقعی و preset سه پروتکل
+
+**این بخش وضعیت جاری را مشخص می‌کند و مطالب تاریخیِ «ack هنوز اصلاح نشده / ۱۷ تست NATS اجرا نشده» در بخش‌های قبل را به‌روز می‌کند.**
+
+### قرارداد تحویل جاری
+
+- `NotificationDelivery` و API `claim` اضافه شدند. هر سه مصرف‌کنندهٔ production یعنی webhook، dispatcher و flush تلگرام/دیسکورد به claim منتقل شده‌اند. هیچ مسیر مصرف production از dequeue مخرب استفاده نمی‌کند؛ dequeue قدیمی فقط برای سازگاری نگه داشته شده و برای مصرف جدید نباید استفاده شود.
+- پیام NATS هنگام claim تأیید نمی‌شود. پس از پردازش موفق، `ack_sync` از broker تأیید می‌گیرد. پیام نامعتبر، کانال غیرفعال یا retry تمام‌شده، سیاست terminal صریح دارند؛ ack برای این موارد به‌معنای تحویل HTTP نیست.
+- retry ابتدا replacement را در JetStream publish می‌کند و فقط پس از موفقیت آن، پیام اصلی را ack می‌کند. شکست publish پیام اصلی را ack نمی‌کند.
+- در cancellation یا خروج بدون settlement، پیام NATS با تأخیر یک‌ثانیه nak می‌شود؛ در crash که finally اجرا نمی‌شود، ack timeout امکان redelivery می‌دهد. در حافظه، خروج بدون settlement پیام را برمی‌گرداند، ولی crash حافظه را حفظ نمی‌کند.
+- heartbeat هر ۱۰ ثانیه تا settlement، زمان پردازش را به broker اعلام می‌کند؛ پس از settlement/خروج task heartbeat لغو و await می‌شود. این زمان‌بندی بر ack_wait پیش‌فرض consumer تکیه دارد؛ consumer موجود با ack_wait کوتاه‌تر از heartbeat می‌تواند redelivery اضافی داشته باشد.
+- خطاهای عادی کانال تلگرام/دیسکورد دیگر به‌عنوان موفقیت بلعیده نمی‌شوند. سه تلاش سطح صف مجاز است؛ هر تلاش، retryهای HTTP تنظیم‌شدهٔ قبلی را نیز دارد. پس از اتمام، پیام terminal و خطا ثبت می‌شود؛ dead-letter پایدار هنوز اضافه نشده است.
+
+**این قرارداد at-least-once در محدودهٔ سیاست retry است، نه exactly-once و نه تضمین رسیدن تمام پیام‌ها.** اگر ارسال HTTP انجام شده اما نتیجه/ack نامطمئن باشد، تکرار محتمل است. failover چند leader، idempotency مقصد، outbox و dead-letter همچنان نیازمند کار مستقل‌اند. قرارداد «موفقیت حداقل یک webhook» نیز عوض نشده است.
+
+### شواهد NATS واقعی
+
+- NATS Server **۲٫۱۴٫۰** به‌صورت پردازهٔ واقعی با JetStream و storage موقت اجرا شد؛ تست‌های این بخش mock جای broker ندارند.
+- دانلود مستقیم release رسمی به host خارج از allowlist redirect و با EOF متوقف شد. برای محیط تست، باینری از بستهٔ پین‌شدهٔ npm `@eplightning/nats-server-linux-x64@2.14.0` بدون اجرای install script استخراج شد. این بسته توزیع شخص ثالث است، نه ادعای build از سورس یا تأیید امضای upstream.
+- SHA256 باینری آزمایش‌شده: `c67f0fb76603cbd7b59ae4103b37668e627dbf7b9f4bef121c60cfebce304fff`.
+- integrity رجیستری بسته: `sha512-shqkMJIma4ZSGRBb2tUOXWHCp+Dg72Ap9pPGBVnibe75U6cGuCECc5zXgRLhfkMnzE9TZf6iShsyfIf1/Re8Nw==`.
+- **هر ۱۷ تست NATS قبلاً skipped اکنون اجرا و موفق شدند.** دو تست واقعی تازه نیز pending بودن پیام قبل از ack و redelivery پس از `os._exit(13)` در پردازهٔ مصرف‌کننده را بررسی کردند؛ این خروج عمداً finally را اجرا نمی‌کند.
+- مجموعهٔ متمرکز delivery/queue/webhook/NATS: **۷۴ passed در ۸۹٫۷۲ ثانیه**.
+- workflow مستقل CI برای NATS اضافه شد که archive رسمی نسخهٔ پین‌شده را با SHA256SUMS upstream بررسی می‌کند. این workflow هنوز روی GitHub اجرا نشده است.
+
+### وضعیت صادقانهٔ دو تست خارجی
+
+هر دو تست با `REALITY_SCAN_NETWORK_TEST=1` واقعاً اجرا شدند، نه اینکه فقط skip برداشته شود. هر دو برای `example.com:443` و `1.0.0.1:443` با **TLS UNEXPECTED_EOF_WHILE_READING** شکست خوردند. مقصدها خارج از allowlist خروجی این محیط‌اند. بنابراین موفقیت آن دو در این محیط **تأیید نمی‌شود**؛ assertionها ضعیف، TLS غیرفعال یا نتیجه mock نشده است. پیام خطای تست‌ها برای تشخیص روشن‌تر به reason واقعی متصل شد.
+
+دو تست دیگر، مستقل از آن تست‌های خارجی، با سرور TLS محلی واقعی، گواهی موقت مورداعتماد، TLS 1.3 و ALPN h2 اضافه و موفق شدند. هم SNI مشخص و هم کشف SNI از گواهی بررسی شد؛ guard ضد SSRF در production تغییر نکرده است. این دو تست، دسترسی اینترنت یا رفتار سرور خارجی را اثبات نمی‌کنند. اجرای خارجی اصلی در workflow دستی CI با input صریح `network_probes` نیز آماده شده، اما روی runner خارجی هنوز اجرا نشده است.
+
+### تنظیمات Trojan / VLESS / VMess
+
+- در فرم افزودن/ویرایش Core نوع Xray، دکمهٔ **Trojan / VLESS / VMess — WS + TLS proxy** اضافه شد.
+- preset سه inbound مستقل با tag/path/port متفاوت، loopback-only، clients خالیِ panel-managed، آمار مصرف و قواعد مسدودسازی شبکه‌های خصوصی می‌سازد. هیچ credential مشترکی تولید نمی‌کند.
+- جایگزینی JSON نیازمند تأیید صریح مدیر دربارهٔ TLS proxy و overwrite است؛ بدون تأیید اعمال نمی‌شود و روی WireGuard قابل‌اعمال نیست. متن هشدار فارسی نیز اضافه شد.
+- تست Bun برابری کامل preset رابط با CLI معتبر موجود و عدم تغییر متقابل نمونه‌ها را بررسی می‌کند. CLI همچنان TLS مستقیم با مسیر certificate/key یا حالت loopback پشت TLS proxy را پشتیبانی می‌کند.
+- این قابلیت تنظیمات است، نه node provisioner. node واقعی، دامنه/گواهی، reverse proxy، Host عمومی TLS، گروه و کاربر همچنان باید تنظیم شوند. هیچ تونل WAN واقعی از این محیط برقرار یا تأیید نشده است.
+
+### نتیجهٔ نهایی این نسخه
+
+- مجموعهٔ کامل با NATS واقعی، Python 3.14 و SQLite تازه: **۷۹۳ passed، ۲ skipped، ۶ subtest موفق؛ ۲۰۸٫۱۸ ثانیه**. تنها دو skipped در این اجرا همان تست‌های خارجی opt-in هستند؛ اجرای جداگانهٔ ناموفق آن‌ها بالا ثبت شده است.
+- تست TLS محلی واقعی: **۲ passed**؛ جزء همان مجموعهٔ کامل.
+- داشبورد: **۱۰ تست موفق، ۳۳ assertion، TypeScript سخت‌گیرانه و build production موفق**. هشدار chunkهای بزرگ باقی است.
+- **۱۰۰ دور deployment × ۲۵ تست = ۲۵۰۰ اجرای موفق**؛ نه صد ممیزی یا صد اجرای کل suite.
+- Ruff فایل‌های همین دور، compileall، بررسی Bash و diff-check موفق بودند.
+
+cache و virtualenv دور قبلی در این محیط موجود نبودند؛ runtime Python 3.14 و وابستگی‌های قفل‌شده برای اجرای این دور دوباره آماده شدند. باینری broker، خروجی build و runtimeهای حجیم در مخزن نسخه‌بندی نشده‌اند. Docker، تست مرورگر تعاملی و ترافیک خارجی Xray در این دور انجام نشده‌اند.
+
+
+## دور جاری: ظرفیت حافظه، بودجهٔ توقف و اجرای واقعی Docker/node
+
+این بخش وضعیت جاری را جایگزین موارد تاریخیِ «ظرفیت صف / deadline / Docker / node واقعی تأیید نشده» می‌کند؛ محدودیت‌های زیر همچنان باید رعایت شوند.
+
+### اصلاحات ظرفیت
+
+دو صف InMemory اکنون هرکدام پیش‌فرض ظرفیت ۲۵۶ و سقف هر payload برابر ۶۴ KiB دارند. ظرفیت **queued + inflight** را حساب می‌کند. semaphore تا settlement رزرو می‌ماند؛ retry و release از همان جای رزروشده استفاده می‌کنند. این طراحی از deadlock ناشی از پرکردن جای پیام claimشده توسط producer جلوگیری می‌کند. enqueue پر بعد از یک ثانیه با خطای صریح رد می‌شود؛ ورودی نیز برای جلوگیری از mutation پس از enqueue از JSON snapshot می‌شود. محدودیت‌ها از env تنظیم و اعتبارسنجی می‌شوند. صف حافظه پایدار نیست و سقف شمارش/serialized payload، سقف دقیق RSS نیست.
+
+### اصلاحات توقف
+
+- فازهای صریح QUIESCE / PRODUCERS / SEAL_QUEUES / DRAIN / TRANSPORTS جای اتکا به ترتیب import را گرفتند؛ ترتیب درون فاز ثابت است.
+- hookهای node پیش از startup ثبت می‌شوند تا شکست نیمه‌کارهٔ initialize باعث نبود cleanup نشود. maintenance قبل از stop core و bridge بعد از drain بسته می‌شود. خطای آشکار stop یک node دیگر با پیام «همه متوقف شدند» پنهان نمی‌شود.
+- بودجهٔ کل cleanup پیش‌فرض ۳۰ ثانیه، سقف hook پنج ثانیه، و مهلت تخلیهٔ درخواست Uvicorn ده ثانیه است. سهم hookها از زمان باقی‌مانده محاسبه و برای cancellation/finally نیز زمان رزرو می‌شود تا hook کند تمام زمانِ بستن transportها را نگیرد.
+- در timeout، task لغو می‌شود و اگر cancellation را نادیده بگیرد بی‌نهایت await نمی‌شود؛ اجرای lifespan جدید در حضور cleanup زنده رد می‌شود. خطای اصلی startup/body حفظ و خطاهای cleanup مستقل گزارش می‌شوند.
+- Compose grace پنجاه ثانیه و Docker STOPSIGNAL=SIGTERM دارد. event loop مسدود، syscall گیرکرده یا task سرکش را نمی‌توان در Python به‌طور قطعی متوقف کرد؛ hard deadline نهایی به supervisor و SIGKILL وابسته است. نتیجهٔ timeout به‌معنای drain موفق نیست.
+
+### شواهد محلی
+
+- **۸۱۷ passed، ۳ skipped، ۶ subtest موفق؛ ۱۸۶٫۱۸ ثانیه** با Python 3.14، SQLite تازه و NATS واقعی.
+- سه skipped محلی: دو probe خارجی opt-in و یک تست نیازمند باینری native node/Xray. همان تست native در CI بدون skip اجرا و موفق شد.
+- تست‌های تازهٔ صف، ظرفیت inflight، backpressure، timeout producer، cancellation، snapshot، payload، quiesce و retry رزروشده را پوشش می‌دهند.
+- تست‌های lifecycle ترتیب فاز مستقل از ثبت دیرهنگام، timeout با ادامهٔ close، و hookای را که cancellation را نادیده می‌گیرد پوشش می‌دهند.
+- یک integration تازه با JetStream واقعی اثبات می‌کند پیام claimشده در flushِ timeoutشده، پس از بستن اتصال برای مصرف‌کنندهٔ بعدی باقی می‌ماند.
+- **۱۰۰ اجرای مستقل × ۲۹ تست deployment = ۲۹۰۰ اجرای موفق**؛ این صد اجرای کل suite یا ممیزی کامل نیست.
+- Ruff، format، compileall، Bash syntax و diff-check موفق بودند.
+
+### شواهد CI واقعی، نه صرف آماده‌سازی
+
+کد برای اجرای CI روی همان شاخه push شد. commit آزموده‌شده: `440459e95ea4e097d30b9a9f09006f09dfec6f32`.
+
+[Deployment checks — run 39709463046](https://github.com/devv1112/panel/actions/runs/39709463046) با conclusion **success**:
+
+| job | شواهد و نتیجه |
+|---|---|
+| runtime-regressions | آزمون‌های مستقل lifecycle/deployment و syntax موفق |
+| dashboard | ۱۰ تست Bun، strict TypeScript و build موفق؛ هشدار chunk بزرگ باقی است |
+| nats-integration | نصب archive رسمی پین‌شده با checksum و تست‌های JetStream شامل crash/redelivery/deadline موفق |
+| native-node-shutdown | Node رسمی v0.5.4 و Xray v26.3.27 با SHA256 پین‌شده؛ TLS معتبر محلی، شروع core، توقف maintenance، stop واقعی، تأیید API و خروج پردازهٔ فرزند Xray پیش از drain/close موفق |
+| docker-smoke | image واقعاً از checkout ساخته شد؛ migration/startup و health/dashboard و healthcheck داخلی موفق؛ stop با grace پنجاه ثانیه، خروج صفر و Application shutdown complete موفق |
+| external-network-probes | طبق شرط opt-in skipped؛ موفقیت آن ادعا نمی‌شود |
+
+آزمون native از کلاینت واقعی NodeBridge و تابع shutdown_nodes پنل با node/Xray اجرایی در runner استفاده می‌کند؛ endpoint جعلی یا mock برای stop نیست. رجیستری lifecycle آزمون به چهار مرحلهٔ مربوط محدود است؛ این آزمون جای استقرار production کامل، چند node یا چند مالک را نمی‌گیرد. آزمون Docker پنل مستقل از node native روی host runner است، نه تست کامل همهٔ سرویس‌ها داخل یک شبکهٔ production.
+
+CLI/daemon Docker محلی وجود نداشت؛ CI این محدودیت را با اجرای واقعی روی runner رفع کرد. نتیجهٔ jobها و stepها از API GitHub تأیید شد؛ دانلود archive لاگ‌ها در sandbox به host خارج از allowlist redirect شد و در دسترس نبود. این محدودیت مشاهدهٔ لاگ به معنی اجرا نشدن jobها نیست. تلاش workflow_dispatch تست‌های خارجی نیز با مجوز محدود اتصال، HTTP 403 گرفت؛ دورزدن مجوز یا ادعای اجرای آن‌ها انجام نشد.
+
+### مرزهای باقی‌مانده
+
+دو probe خارجی قبلی هنوز روی runner با دسترسی لازم اجرا نشده‌اند؛ نتیجهٔ محلی قبلی آن‌ها TLS EOF بود. تحویل exactly-once، outbox/idempotency مقصد و dead-letter، cap دیسک/retention JetStream، stress/soak طولانی، crash چندنودی و عبور واقعی ترافیک WAN همچنان تأیید نشده‌اند. ظرفیت حافظه و deadline ایمن‌تر شدند، اما «همهٔ باگ‌ها رفع شد» نتیجهٔ این گزارش نیست.
+
+
+### نتیجهٔ تکمیلی ماتریس دیتابیس‌ها
+
+[Test Database Migrations — run 39709463062](https://github.com/devv1112/panel/actions/runs/39709463062) برای همان commit runtime `440459e95ea4e097d30b9a9f09006f09dfec6f32` با conclusion **success** تمام شد. هر پنج job **test-sqlite، test-postgres، test-mysql، test-mariadb و test-timescaledb** موفق بودند؛ مراحل migration، check و اجرای مستقیم `uv run pytest tests/` موفق شدند و exit code تست با pipe مخفی نشده است. برای MariaDB و TimescaleDB تنظیم NATS فعال و UVICORN_WORKERS=2 در workflow استفاده شد؛ این نتیجه معادل stress/failover چند worker واقعی در production نیست. شمار دقیق تست‌های هر job از archive لاگِ خارج از allowlist استخراج نشده و برای آن عددی ادعا نمی‌شود.

@@ -1,0 +1,230 @@
+name: Deployment checks
+
+on:
+  pull_request:
+  push:
+  workflow_dispatch:
+    inputs:
+      network_probes:
+        description: 'Run external REALITY TLS probes (requires unrestricted authorized egress)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  runtime-regressions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.14'
+      - name: Dependency-free runtime regressions
+        run: python -m unittest discover -s tests/deployment -v
+      - name: Validate shell entrypoints
+        run: bash -n start.sh healthcheck.sh
+
+  railway-infrastructure:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - run: npm ci --prefix .railway --ignore-scripts --no-audit --no-fund
+      - run: npm run --prefix .railway check
+      - run: npm run --prefix .railway render:test
+      - run: bash -n scripts/railway-provision.sh
+
+  dashboard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.3'
+      - run: bun install --frozen-lockfile
+        working-directory: dashboard
+      - run: bun test
+        working-directory: dashboard
+      # build runs the strict TypeScript check before bundling.
+      - run: bun run build
+        working-directory: dashboard
+
+  docker-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build directly from the checkout, without CI frontend artifacts
+        run: docker build -t pasarguard-smoke .
+      - name: Boot behind simulated TLS termination
+        run: |
+          docker run -d --name pasarguard-smoke -p 127.0.0.1:18080:18080 \
+            -e PORT=18080 -e UVICORN_HOST=0.0.0.0 \
+            -e UVICORN_ALLOW_INSECURE_HTTP=true -e DEBUG=false \
+            -e SQLALCHEMY_DATABASE_URL=sqlite+aiosqlite:////tmp/smoke.db \
+            pasarguard-smoke
+          curl --fail --silent --show-error --retry 40 --retry-all-errors \
+            --retry-delay 2 --max-time 5 http://127.0.0.1:18080/health
+          curl --fail --silent --show-error http://127.0.0.1:18080/dashboard/ > /dev/null
+          docker exec pasarguard-smoke /code/healthcheck.sh
+      - name: Graceful stop within supervisor budget
+        run: |
+          docker stop --timeout 50 pasarguard-smoke
+          test "$(docker inspect --format '{{.State.ExitCode}}' pasarguard-smoke)" = 0
+          docker logs pasarguard-smoke > "$RUNNER_TEMP/panel-stop.log" 2>&1
+          grep -q 'Application shutdown complete' "$RUNNER_TEMP/panel-stop.log"
+          if grep -E 'Shutdown hook exceeded|Application shutdown failed|shutdown budget exhausted' "$RUNNER_TEMP/panel-stop.log"; then
+            exit 1
+          fi
+      - name: Railway profile with real persistent volume and automatic production Owner
+        run: |
+          docker volume create railway-smoke-data
+          docker run -d --name railway-smoke -p 127.0.0.1:18081:18081 \
+            -e RAILWAY_ENVIRONMENT_ID=ci -e RAILWAY_VOLUME_MOUNT_PATH=/data \
+            -e PORT=18081 -v railway-smoke-data:/data pasarguard-smoke
+          curl --fail --silent --show-error --retry 40 --retry-all-errors \
+            --retry-delay 2 --max-time 5 http://127.0.0.1:18081/health
+          docker exec -i railway-smoke python - <<'PY'
+          import json
+          import stat
+          import urllib.parse
+          import urllib.request
+          from pathlib import Path
+          from config import database_settings, runtime_settings
+          assert database_settings.url == 'sqlite+aiosqlite:////data/db.sqlite3'
+          assert runtime_settings.debug is False
+          path = Path('/data/.pasarguard/initial-owner.json')
+          assert stat.S_IMODE(path.stat().st_mode) == 0o600
+          credentials = json.loads(path.read_text())
+          data = urllib.parse.urlencode(credentials).encode()
+          request = urllib.request.Request('http://127.0.0.1:18081/api/admin/token', data=data)
+          with urllib.request.urlopen(request, timeout=15) as response:
+              assert json.load(response)['access_token']
+          print('Automatic Owner authenticated in production; no password printed')
+          PY
+          # Verify that the volume lock survives bash -> Python exec.
+          docker run -d --name railway-contender -e RAILWAY_ENVIRONMENT_ID=ci \
+            -v railway-smoke-data:/data pasarguard-smoke
+          code=$(timeout 20 docker wait railway-contender)
+          test "$code" != 0
+          docker logs railway-contender 2>&1 | grep -q 'Another panel instance'
+          # A new container, not just a process restart, must retain the Owner.
+          docker logs railway-smoke > "$RUNNER_TEMP/railway-first.log" 2>&1
+          docker cp railway-smoke:/data/.pasarguard/initial-owner.json "$RUNNER_TEMP/railway-owner.json"
+          docker stop --timeout 50 railway-smoke
+          docker rm railway-smoke
+          docker run -d --name railway-smoke -p 127.0.0.1:18081:18081 \
+            -e RAILWAY_ENVIRONMENT_ID=ci -v railway-smoke-data:/data \
+            -e PORT=18081 pasarguard-smoke
+          curl --fail --silent --show-error --retry 40 --retry-all-errors \
+            --retry-delay 2 --max-time 5 http://127.0.0.1:18081/health
+          docker cp "$RUNNER_TEMP/railway-owner.json" railway-smoke:/tmp/previous-owner.json
+          docker exec -i railway-smoke python - <<'PY'
+          from pathlib import Path
+          assert Path('/tmp/previous-owner.json').read_bytes() == Path('/data/.pasarguard/initial-owner.json').read_bytes()
+          print('Owner credentials survived container replacement without reset')
+          PY
+          docker logs railway-smoke > "$RUNNER_TEMP/railway.log" 2>&1
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          root = Path(os.environ['RUNNER_TEMP'])
+          secret = json.loads((root / 'railway-owner.json').read_text())['password']
+          assert secret not in (root / 'railway.log').read_text()
+          assert secret not in (root / 'railway-first.log').read_text()
+          (root / 'railway-owner.json').unlink()
+          PY
+          docker stop --timeout 50 railway-smoke
+          test "$(docker inspect --format '{{.State.ExitCode}}' railway-smoke)" = 0
+          # No persistent volume must fail closed, never silently use ephemeral SQLite.
+          if docker run --rm -e RAILWAY_ENVIRONMENT_ID=ci pasarguard-smoke; then
+            echo 'ERROR: profile started without a volume'
+            exit 1
+          fi
+      - name: Container logs
+        if: always()
+        run: docker logs pasarguard-smoke || true
+      - name: Cleanup
+        if: always()
+        run: |
+          docker rm -f pasarguard-smoke railway-smoke railway-contender || true
+          docker volume rm railway-smoke-data || true
+          rm -f "$RUNNER_TEMP/railway-owner.json"
+
+  nats-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.14'
+      - run: python -m pip install uv==0.13.4
+      - run: uv sync --frozen --group dev
+      - name: Real SQLite migrations and idempotent production Owner bootstrap
+        run: uv run pytest tests/test_railway_bootstrap.py -q
+      - name: Install pinned NATS with upstream archive checksum
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/nats"
+          gh release download v2.14.0 --repo nats-io/nats-server \
+            --pattern nats-server-v2.14.0-linux-amd64.tar.gz --pattern SHA256SUMS \
+            --dir "$RUNNER_TEMP/nats"
+          cd "$RUNNER_TEMP/nats"
+          sha256sum --ignore-missing --check SHA256SUMS
+          tar -xzf nats-server-v2.14.0-linux-amd64.tar.gz
+          echo "$RUNNER_TEMP/nats/nats-server-v2.14.0-linux-amd64" >> "$GITHUB_PATH"
+      - name: Real JetStream integration including consumer crash/redelivery
+        run: uv run pytest -q tests/test_nats_sync_integration.py tests/test_notification_delivery.py
+
+  external-network-probes:
+    if: github.event_name == 'workflow_dispatch' && inputs.network_probes
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.14'
+      - run: python -m pip install uv==0.13.4
+      - run: uv sync --frozen --group dev
+      - name: External REALITY probes (not mocked)
+        env:
+          REALITY_SCAN_NETWORK_TEST: '1'
+        run: uv run pytest -q tests/test_reality_scan_unit.py -k 'live_example or bare_ip_discovers_sni'
+
+  native-node-shutdown:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.14'
+      - run: python -m pip install uv==0.13.4
+      - run: uv sync --frozen --group dev
+      - name: Download checksum-pinned native node and Xray
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/native-node" "$RUNNER_TEMP/native-xray"
+          gh release download v0.5.4 --repo PasarGuard/node \
+            --pattern pasarguard-node-linux-amd64.zip --dir "$RUNNER_TEMP/native-node"
+          gh release download v26.3.27 --repo XTLS/Xray-core \
+            --pattern Xray-linux-64.zip --dir "$RUNNER_TEMP/native-xray"
+          echo "2670664910a9441195703e916ac610458267817a95ab5960f004ba617803a159  $RUNNER_TEMP/native-node/pasarguard-node-linux-amd64.zip" | sha256sum --check
+          echo "23cd9af937744d97776ee35ecad4972cf4b2109d1e0fe6be9930467608f7c8ae  $RUNNER_TEMP/native-xray/Xray-linux-64.zip" | sha256sum --check
+          unzip "$RUNNER_TEMP/native-node/pasarguard-node-linux-amd64.zip" -d "$RUNNER_TEMP/native-node"
+          unzip "$RUNNER_TEMP/native-xray/Xray-linux-64.zip" xray -d "$RUNNER_TEMP/native-xray"
+          chmod +x "$RUNNER_TEMP/native-node/pasarguard-node-linux-amd64" "$RUNNER_TEMP/native-xray/xray"
+      - name: Real native core start and ordered shutdown (ephemeral local node only)
+        env:
+          NATIVE_NODE_BINARY: ${{ runner.temp }}/native-node/pasarguard-node-linux-amd64
+          XRAY_BINARY: ${{ runner.temp }}/native-xray/xray
+        run: uv run pytest -q tests/test_native_node_shutdown.py --tb=short

@@ -2195,12 +2195,12 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                       <FormLabel>{t('hostsDialog.xhttp.uplinkChunkSize')}</FormLabel>
                                       <FormControl>
                                         <Input
-                                          type="number"
+                                          type="text"
                                           {...field}
                                           value={field.value ?? ''}
                                           onChange={e => {
                                             const value = e.target.value
-                                            field.onChange(value === '' ? null : parseInt(value, 10))
+                                            field.onChange(value === '' ? undefined : value)
                                           }}
                                         />
                                       </FormControl>

@@ -15,7 +15,7 @@ class TelegramNotification(BaseModel):
     message: str
     chat_id: int | None = Field(default=None)
     topic_id: int | None = Field(default=None)
-    tries: int = Field(default=0)
+    tries: int = Field(default=0, ge=0)
 
 
 class DiscordNotification(BaseModel):
@@ -24,7 +24,7 @@ class DiscordNotification(BaseModel):
     type: Literal["discord"] = Field(default="discord")
     json_data: dict
     webhook: str
-    tries: int = Field(default=0)
+    tries: int = Field(default=0, ge=0)
 
 
 class WebhookNotification(BaseModel):
@@ -32,8 +32,8 @@ class WebhookNotification(BaseModel):
 
     type: Literal["webhook"] = Field(default="webhook")
     payload: dict  # the jsonable_encoder'd notification (what gets POSTed to webhook URLs)
-    send_at: float  # when to send (for delayed retry)
-    tries: int = Field(default=0)
+    send_at: float = Field(allow_inf_nan=False)  # when to send (for delayed retry)
+    tries: int = Field(default=0, ge=0)
 
 
 # Telegram/Discord queue singleton
@@ -138,3 +138,10 @@ async def enqueue_webhook(payload: dict, send_at: float | None = None, tries: in
         tries=tries,
     )
     await get_webhook_queue().enqueue(notification.model_dump())
+
+
+def quiesce_queues():
+    """Reject new memory producers after producer shutdown, retain reserved retries."""
+    for queue in (queue_instance, webhook_queue_instance):
+        if isinstance(queue, InMemoryNotificationQueue):
+            queue.quiesce()

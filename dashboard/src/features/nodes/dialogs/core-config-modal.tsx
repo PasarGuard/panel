@@ -13,6 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { DEFAULT_XRAY_CORE_CONFIG_JSON } from '@/lib/default-xray-core-config'
+import { createManagedProtocolPreset } from '@/lib/managed-protocol-preset'
 import {
   canGenerateShadowsocksPassword,
   createWireGuardCoreConfigJson,
@@ -79,6 +80,8 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
   const [vlessAdvancedSeed, setVlessAdvancedSeed] = useState<VlessBuilderOptions | undefined>(undefined)
   const [isVlessAdvancedModalOpen, setIsVlessAdvancedModalOpen] = useState(false)
   const [discardChangesOpen, setDiscardChangesOpen] = useState(false)
+  const [protocolPresetOpen, setProtocolPresetOpen] = useState(false)
+  const [tlsProxyConfirmed, setTlsProxyConfirmed] = useState(false)
 
   // Results dialog state
   const [isResultsDialogOpen, setIsResultsDialogOpen] = useState(false)
@@ -832,6 +835,29 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
         }}
       />
       {renderResultDialog()}
+      <AlertDialog open={protocolPresetOpen} onOpenChange={open => { setProtocolPresetOpen(open); if (!open) setTlsProxyConfirmed(false) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Trojan / VLESS / VMess — WebSocket + TLS proxy</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t('coreConfigModal.managedProtocolsWarning', { defaultValue: 'This replaces the current JSON with three loopback-only inbounds (10001–10003). A TLS reverse proxy on the same host/network namespace must forward /pasarguard/vless, /pasarguard/vmess and /pasarguard/trojan. Configure public Hosts with TLS, domain and port 443, then assign inbound tags to a group and user. No node, certificate or tunnel is provisioned automatically.' })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <label className="flex items-start gap-2 text-sm">
+            <Checkbox checked={tlsProxyConfirmed} onCheckedChange={value => setTlsProxyConfirmed(value === true)} />
+            {t('coreConfigModal.confirmTlsProxy', { defaultValue: 'I have configured TLS termination and understand that this replaces the current core JSON.' })}
+          </label>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
+            <AlertDialogAction disabled={!tlsProxyConfirmed || !isXrayBackend} onClick={() => {
+              const config = JSON.stringify(createManagedProtocolPreset(), null, 2)
+              form.setValue('config', config, { shouldDirty: true, shouldValidate: true })
+              validateJsonContent(config)
+              debouncedConfigChange(config)
+            }}>{t('coreConfigModal.applyManagedProtocols', { defaultValue: 'Apply protocol preset' })}</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <Dialog open={isDialogOpen} onOpenChange={handleDialogOpenChange}>
         <DialogContent className="h-full w-full max-w-5xl md:h-auto">
           <DialogHeader>
@@ -847,6 +873,7 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
                 <div className="grid grid-cols-1 gap-4 md:h-full md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] md:gap-6">
                   <div className="flex flex-col">
                     <div className="flex flex-col space-y-4 md:h-full">
+                      {isXrayBackend && <Button type="button" variant="outline" onClick={() => setProtocolPresetOpen(true)}>Trojan / VLESS / VMess — WS + TLS proxy</Button>}
                       {/* Form: Core configuration JSON */}
                       <FormField
                         control={form.control}
