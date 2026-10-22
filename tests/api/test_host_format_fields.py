@@ -44,6 +44,14 @@ OVERSIZED_FORMAT_VALUES = [
     ("remark", "{USERNAME:^100000}"),
 ]
 
+# !r and !a wrap the value in quotes: an address with quotes is skipped as unsafe, the other fields break
+QUOTING_CONVERSION_VALUES = [
+    ("address", ["{SERVER_IP!r}"]),
+    ("sni", ["{USERNAME!r}.example.com"]),
+    ("host", ["{USERNAME!a}.example.com"]),
+    ("path", "/ws/{USERNAME!a}"),
+]
+
 
 def _host_payload(**overrides) -> dict:
     return {
@@ -54,7 +62,7 @@ def _host_payload(**overrides) -> dict:
     } | overrides
 
 
-@pytest.mark.parametrize("field,value", UNRENDERABLE_VALUES + OVERSIZED_FORMAT_VALUES)
+@pytest.mark.parametrize("field,value", UNRENDERABLE_VALUES + OVERSIZED_FORMAT_VALUES + QUOTING_CONVERSION_VALUES)
 def test_host_with_unrenderable_format_field_is_rejected(access_token, field, value):
     headers = auth_headers(access_token)
     core = create_core(access_token)
@@ -106,8 +114,8 @@ def test_host_with_format_variables_is_accepted(access_token):
     headers = auth_headers(access_token)
     core = create_core(access_token)
     payload = _host_payload(
-        remark="{USERNAME:>256} {{literal}} {CUSTOM_VAR}",
-        address=["{SERVER_IP}"],
+        remark="{USERNAME:>256} {USERNAME!r} {{literal}} {CUSTOM_VAR}",
+        address=["{SERVER_IP!s}"],
         sni=["{USERNAME}.example.com"],
         host=["cdn.example.com"],
         path="/ws/{USERNAME}?ed={DAYS_LEFT:>4}",

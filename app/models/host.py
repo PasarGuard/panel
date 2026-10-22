@@ -748,13 +748,14 @@ class FormatVariables(dict):
         return key.join("{}")
 
 
-def validate_format_variables(value: str) -> str:
+def validate_format_variables(value: str, allow_quoting: bool = True) -> str:
     """Reject a value that the subscription cannot render with ``str.format_map``.
 
     Unbalanced braces and positional fields (``{}``, ``{0}``) always fail; attribute and index
     fields (``{USERNAME.x}``, ``{USERNAME[9]}``) fail or not depending on the user, so only plain
     variable names (with an optional format spec) are allowed. ``{{`` and ``}}`` stay literal braces.
     Widths and precisions above ``MAX_FORMAT_SPEC_NUMBER`` are rejected before anything is formatted.
+    ``allow_quoting=False`` also rejects the ``!r`` and ``!a`` conversions, which wrap the value in quotes.
     """
     if has_oversized_format_spec(value):
         raise ValueError(
@@ -762,12 +763,14 @@ def validate_format_variables(value: str) -> str:
             f"{MAX_FORMAT_SPEC_NUMBER}"
         )
     try:
-        fields = [field for _, field, _, _ in Formatter().parse(value) if field is not None]
+        fields = [(field, conversion) for _, field, _, conversion in Formatter().parse(value) if field is not None]
         value.format_map(FormatVariables())
     except ValueError, AttributeError, IndexError, TypeError:
         raise ValueError(f'Invalid formatting variables in "{value}"')
-    if any("." in field or "[" in field for field in fields):
+    if any("." in field or "[" in field for field, _ in fields):
         raise ValueError(f'Invalid formatting variables in "{value}"')
+    if not allow_quoting and any(conversion in ("r", "a") for _, conversion in fields):
+        raise ValueError(f'Invalid formatting variables in "{value}": !r and !a add quotes, use the plain field')
     return value
 
 
@@ -885,19 +888,19 @@ class CreateHost(BaseHost):
         if v and any(has_markup_unsafe_chars(address) for address in v):
             raise ValueError("Address cannot contain quotes, angle brackets, backticks, backslashes or whitespace")
         for address in v or ():
-            validate_format_variables(address)
+            validate_format_variables(address, allow_quoting=False)
         return v
 
     @field_validator("sni", "host", mode="after")
     def validate_sets(cls, v: set):
         v = StringArrayValidator.len_check(v, 1000)
         for item in v or ():
-            validate_format_variables(item)
+            validate_format_variables(item, allow_quoting=False)
         return v
 
     @field_validator("path", mode="after")
     def validate_path(cls, v):
-        return validate_format_variables(v) if v else v
+        return validate_format_variables(v, allow_quoting=False) if v else v
 
 
 class BulkHostSelection(BaseModel):
