@@ -180,6 +180,18 @@ async def core_users(
     return bridge_users
 
 
+async def removal_users(db: AsyncSession, user_ids: list[int] | set[int]) -> list[ProtoUser]:
+    """Removal payloads (no inbounds) with the stored credentials of the given users that still exist.
+
+    Nodes may need the credentials to find what to remove: node v0.5.4's
+    WireGuard backend ignores a removal without a public key and peer IPs.
+    """
+    if not user_ids:
+        return []
+    stmt = select(User.id, User.proxy_settings).where(User.id.in_(list(user_ids)))
+    return [_serialize_user_for_node(row.id, row.proxy_settings or {}) for row in (await db.execute(stmt)).all()]
+
+
 async def serialize_users_for_node(
     users: list[User],
     allowed_protocols: frozenset[ProxyProtocol] | None = None,
