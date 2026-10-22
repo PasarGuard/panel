@@ -13,6 +13,7 @@ from app.models.node import NodeListQuery, NodeNotification
 from app.nats import is_multi_worker, needs_shared_bridge_memory
 from app.nats.leader import is_job_leader, needs_job_leader, set_on_leadership_lost
 from app.node import node_manager
+from app.node.heartbeat import node_heartbeat
 from app.node.nats_memory import ensure_bridge_memory, get_bridge_memory, shutdown_bridge_memory
 from app.operation import OperatorType
 from app.operation.node import NodeOperation
@@ -49,12 +50,16 @@ class _ProbeBackoff:
     leader: bool
     failures: int = 0
     next_probe_at: float = 0.0
+    probed_at: float = 0.0
+    unanswered: bool = False
 
 
 @dataclass
 class _ProbeAttempt:
     # Taken once the check holds a slot: a busy queue must not use up the backoff.
     started: float = 0.0
+    # The node sent no reply (a timeout or a failed connection), not an error of its own.
+    unanswered: bool = False
 
 
 _probe_backoffs: dict[int, _ProbeBackoff] = {}
@@ -78,8 +83,15 @@ def _in_probe_backoff(db_node: Node, node: PasarGuardNode) -> bool:
     if backoff is None:
         return False
     # Any status change (an admin enable, edit or reconnect, or a recovery), a new
-    # connection object or a leader change probes at once.
-    if db_node.status != NodeStatus.error or backoff.node is not node or backoff.leader != _owns_health_checks():
+    # connection object or a leader change probes at once. So does a heartbeat answer
+    # after a probe the node never replied to: its link works again, and only the
+    # probe can tell whether the node is healthy.
+    if (
+        db_node.status != NodeStatus.error
+        or backoff.node is not node
+        or backoff.leader != _owns_health_checks()
+        or (backoff.unanswered and node_heartbeat.answered_since(db_node.id, node, backoff.probed_at))
+    ):
         _probe_backoffs.pop(db_node.id, None)
         return False
     return time.monotonic() < backoff.next_probe_at
@@ -101,6 +113,8 @@ async def _record_probe(db_node: Node, node: PasarGuardNode, probed: Health, att
     delay = min(job_settings.node_health_max_backoff, interval * 2**backoff.failures)
     # Half an interval of slack, so a run that starts a moment early still probes.
     backoff.next_probe_at = attempt.started + delay - interval / 2
+    backoff.probed_at = attempt.started
+    backoff.unanswered = attempt.unanswered
 
 
 async def _node_answers(node: PasarGuardNode, db_node: Node) -> bool:
@@ -253,6 +267,8 @@ async def _check_node(db_node: Node, node: PasarGuardNode, attempt: _ProbeAttemp
         except Exception:
             _health_streaks.pop(db_node.id, None)
             raise
+        # A code above 0 is a reply from the node; the bridge uses 0 and below when none came.
+        attempt.unanswered = health is Health.BROKEN and (error_code is None or error_code <= 0)
 
         if health in (Health.HEALTHY, Health.BROKEN):
             if not _accept_health(db_node, node, health):
@@ -298,6 +314,7 @@ async def _check_node(db_node: Node, node: PasarGuardNode, attempt: _ProbeAttemp
             and db_node.status == NodeStatus.error
             and not await _node_answers(node, db_node)
         ):
+            attempt.unanswered = True
             return health
 
         # Prefer shared lifecycle state so multi-worker local NOT_CONNECTED does not thrash Start.

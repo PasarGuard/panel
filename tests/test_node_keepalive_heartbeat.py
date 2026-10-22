@@ -29,6 +29,7 @@ class _FakeBridgeNode:
         self.health = Health.HEALTHY
         self.beats: list[float] = []
         self.hang: asyncio.Event | None = None
+        self.down = False
         self.cancelled = False
 
     async def get_extra(self):
@@ -51,6 +52,8 @@ class _FakeBridgeNode:
             except asyncio.CancelledError:
                 self.cancelled = True
                 raise
+        if self.down:
+            raise TimeoutError
         return SimpleNamespace(started=True)
 
 
@@ -202,6 +205,29 @@ async def test_nodes_being_torn_down_are_skipped(beat):
     try:
         await beat.tick_at(0, 15)
         assert node.beats == []
+    finally:
+        await beat.heartbeat.stop()
+
+
+@pytest.mark.asyncio
+async def test_answers_are_kept_per_bridge_object(beat):
+    node = await beat.manager.update_node(_db_node(1, keep_alive=60))
+    try:
+        await beat.tick_at(0)
+        answered = beat.clock[0]
+        assert beat.heartbeat.answered_since(1, node, answered - 1)
+        assert not beat.heartbeat.answered_since(1, node, answered)
+        # An answer to an older connection object says nothing about the new one.
+        assert not beat.heartbeat.answered_since(1, _FakeBridgeNode(), answered - 1)
+
+        # A lost beat records nothing.
+        node.down = True
+        await beat.tick_at(15)
+        assert not beat.heartbeat.answered_since(1, node, answered)
+
+        await beat.manager.remove_node(1, remote_stop=False)
+        await beat.tick_at(0)
+        assert not beat.heartbeat.answered_since(1, node, 0)
     finally:
         await beat.heartbeat.stop()
 

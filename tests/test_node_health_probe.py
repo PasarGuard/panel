@@ -9,10 +9,11 @@ from uuid import uuid4
 
 import certifi
 import pytest
-from PasarGuardNodeBridge import Health, NodeType
+from PasarGuardNodeBridge import Health, NodeAPIError, NodeType
 
 from app.db.models import CoreType, NodeStatus
 from app.jobs import node_checker
+from app.node import heartbeat as heartbeat_module
 from app.node.bridge import create_node
 from app.operation import node as node_operation
 from app.operation.node import NodeOperation
@@ -212,6 +213,102 @@ async def test_backoff_counts_from_when_the_check_gets_a_slot(checker):
     checker.clock[0] += 10
     await node_checker.process_node_health_check(db_node, node)
     assert probe.await_count == 2
+
+
+@pytest.fixture
+def heartbeat(checker):
+    """The process heartbeat, beating node 41 on the checker's clock."""
+    beater = heartbeat_module.node_heartbeat
+    nodes = []
+    manager = SimpleNamespace(get_keep_alive_nodes=AsyncMock(side_effect=lambda: [(41, node, 60) for node in nodes]))
+    checker.monkeypatch.setattr(beater, "_manager", manager)
+    checker.monkeypatch.setattr(beater, "_due", {})
+    checker.monkeypatch.setattr(beater, "_beats", {})
+    checker.monkeypatch.setattr(beater, "_answers", {})
+    checker.monkeypatch.setattr(heartbeat_module, "needs_job_leader", lambda: False)
+    checker.monkeypatch.setattr(heartbeat_module, "time", node_checker.time)
+
+    async def beat(node):
+        nodes[:] = [node]
+        await beater.tick()
+        for _ in range(3):
+            await asyncio.sleep(0)
+
+    return beat
+
+
+def _unreachable(checker, kind):
+    """An errored node whose health check gets no reply, and the switch that brings its link back."""
+    link = [False]
+    if kind == "timed_out":
+        # The probe reply is lost, as on a lossy link.
+        node, probed = _fake_node(), TIMEOUT
+    else:
+        # Never connected: only the reachability probe goes out.
+        node, probed = _fake_node(Health.NOT_CONNECTED), (Health.NOT_CONNECTED, None, None)
+    answer = node.info.return_value
+
+    async def info(timeout=None):
+        if not link[0]:
+            raise NodeAPIError(-1, "Request timed out")
+        return answer
+
+    node.info = AsyncMock(side_effect=info)
+    checker.monkeypatch.setattr(node_checker, "verify_node_backend_health", AsyncMock(return_value=probed))
+    return node, link
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("kind", ["timed_out", "never_connected"])
+async def test_a_heartbeat_answer_ends_the_backoff_of_an_unreachable_node(checker, heartbeat, kind):
+    repair = AsyncMock()
+    checker.monkeypatch.setattr(node_checker.node_operator, "connect_single_node", repair)
+    db_node, (node, link) = _db_node(), _unreachable(checker, kind)
+    assert await _runs(checker, db_node, node, 60) == [0, 20, 60]
+    start = checker.clock[0]
+
+    # Next probe due at +60; the link is back and answers a heartbeat at +15.
+    checker.clock[0] = start + 10
+    assert await _runs(checker, db_node, node, 0) == []
+    checker.clock[0] = start + 15
+    link[0] = True
+    await heartbeat(node)
+    checker.clock[0] = start + 20
+    assert await _runs(checker, db_node, node, 0) == [0]
+
+    # The probe still decides: it failed again, and the older answer does not end the new backoff.
+    checker.clock[0] = start + 30
+    assert await _runs(checker, db_node, node, 0) == []
+    if kind == "never_connected":
+        # Reachable again, so this run tried to start it.
+        repair.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("kind", ["failed_start", "dead_core"])
+async def test_a_heartbeat_answer_keeps_the_backoff_of_a_node_that_answered(checker, heartbeat, kind):
+    """A node that replies but cannot be repaired gains nothing from more attempts."""
+    checker.monkeypatch.setattr(node_checker.node_operator, "connect_single_node", AsyncMock())
+    if kind == "failed_start":
+        node, result = _fake_node(Health.NOT_CONNECTED), (Health.NOT_CONNECTED, None, None)
+    else:
+        node, result = _fake_node(), (Health.BROKEN, 503, "backend not initialized")
+    probe = AsyncMock(return_value=result)
+    checker.monkeypatch.setattr(node_checker, "verify_node_backend_health", probe)
+    db_node = _db_node()
+
+    probed = []
+    start = checker.clock[0]
+    for offset in range(0, 121, 5):
+        checker.clock[0] = start + offset
+        await heartbeat(node)
+        if offset % 10 == 0:
+            before = probe.await_count
+            await node_checker.process_node_health_check(db_node, node)
+            if probe.await_count > before:
+                probed.append(offset)
+
+    assert probed == [0, 20, 60, 120]
 
 
 @pytest.mark.asyncio

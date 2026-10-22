@@ -38,6 +38,7 @@ class NodeHeartbeat:
         self._manager = manager
         self._due: dict[int, float] = {}
         self._beats: dict[int, asyncio.Task] = {}
+        self._answers: dict[int, tuple[PasarGuardNode, float]] = {}
         self._loop: asyncio.Task | None = None
 
     def start(self) -> None:
@@ -52,6 +53,12 @@ class NodeHeartbeat:
         self._loop = None
         self._beats.clear()
         self._due.clear()
+        self._answers.clear()
+
+    def answered_since(self, node_id: int, node: PasarGuardNode, since: float) -> bool:
+        """Whether this connection object got a beat answered after ``since`` (``time.monotonic()``)."""
+        answer = self._answers.get(node_id)
+        return answer is not None and answer[0] is node and answer[1] > since
 
     async def _run(self) -> None:
         while True:
@@ -75,16 +82,16 @@ class NodeHeartbeat:
                 continue
             interval = heartbeat_interval(keep_alive)
             self._due[node_id] = now + interval
-            self._beats[node_id] = asyncio.create_task(self._beat(node, interval))
+            self._beats[node_id] = asyncio.create_task(self._beat(node_id, node, interval))
 
         for node_id in self._due.keys() - live:
             self._due.pop(node_id, None)
+            self._answers.pop(node_id, None)
             beat = self._beats.pop(node_id, None)
             if beat is not None:
                 beat.cancel()
 
-    @staticmethod
-    async def _beat(node: PasarGuardNode, interval: float) -> None:
+    async def _beat(self, node_id: int, node: PasarGuardNode, interval: float) -> None:
         if await node.get_health() is Health.INVALID:
             return
         try:
@@ -94,6 +101,9 @@ class NodeHeartbeat:
             await node.info(timeout=interval)
         except Exception as exc:
             logger.debug("[%s] Keep-alive heartbeat failed: %s", node.name, exc)
+            return
+        # The health check reads this to stop backing off a node it could not reach.
+        self._answers[node_id] = (node, time.monotonic())
 
 
 node_heartbeat = NodeHeartbeat()
