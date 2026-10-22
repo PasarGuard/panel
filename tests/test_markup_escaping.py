@@ -266,3 +266,15 @@ def test_bot_client_user_details_escape_subscription_url():
 
     assert _raw_markup(text) == []
     assert "token?a=1&amp;b=2" in text
+
+
+async def test_telegram_group_messages_accept_a_group_without_inbound_tags(monkeypatch):
+    from app.notification.telegram import group as telegram_group
+
+    sent = _capture_telegram(monkeypatch, telegram_group)
+    group = GroupResponse(id=2, name="empty", inbound_tags=None)
+    await telegram_group.create_group(group, "owner")
+    await telegram_group.modify_group(group, "owner")
+
+    assert len(sent) == 2
+    assert all("None" not in message for message in sent)
