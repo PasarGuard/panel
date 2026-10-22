@@ -431,8 +431,10 @@ async def session_factory(monkeypatch: pytest.MonkeyPatch, tmp_path):
 
     yield session_factory
 
+    # With TEST_FROM set this is the shared CI database, which later test files use too: leave every table, empty
     async with engine.begin() as conn:
         await conn.run_sync(base.Base.metadata.drop_all)
+        await conn.run_sync(base.Base.metadata.create_all)
     await engine.dispose()
     if needs_json_default_fix and proxy_column is not None:
         proxy_column.server_default = proxy_default
