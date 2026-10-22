@@ -205,6 +205,9 @@ async def update_admin(db: AsyncSession, db_admin: Admin, modified_admin: AdminM
             if db_admin.status != new_status:
                 db_admin.status = new_status
                 db_admin.last_status_change = datetime.now(UTC)
+        # Re-arm the usage warnings that are above the usage under the new limit.
+        usage_percentage = db_admin.used_traffic * 100 / db_admin.data_limit if db_admin.data_limit else 0
+        await delete_admin_notification_reminders(db, db_admin.id, ReminderType.data_usage, usage_percentage)
     if modified_admin.password is not None:
         db_admin.hashed_password = await hash_password(modified_admin.password)
         db_admin.password_reset_at = datetime.now(UTC)
@@ -604,14 +607,16 @@ async def delete_admin_notification_reminders(
     db: AsyncSession,
     admin_id: int,
     reminder_type: ReminderType,
+    above_threshold: float | None = None,
 ) -> None:
-    """Delete persisted admin reminders for a specific type (used when re-arming thresholds)."""
-    await db.execute(
-        delete(AdminNotificationReminder).where(
-            AdminNotificationReminder.admin_id == admin_id,
-            AdminNotificationReminder.type == reminder_type,
-        )
-    )
+    """Delete persisted admin reminders for a specific type (used when re-arming thresholds).
+
+    With above_threshold, only reminders for higher thresholds are deleted.
+    """
+    conditions = [AdminNotificationReminder.admin_id == admin_id, AdminNotificationReminder.type == reminder_type]
+    if above_threshold is not None:
+        conditions.append(AdminNotificationReminder.threshold > above_threshold)
+    await db.execute(delete(AdminNotificationReminder).where(*conditions))
 
 
 async def get_active_to_limited_admins(db: AsyncSession) -> list[Admin]:
