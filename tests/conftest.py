@@ -6,6 +6,7 @@ from collections import Counter
 from pathlib import Path
 
 import pytest
+from dotenv import dotenv_values
 from pydantic import PydanticDeprecatedSince20
 from sqlalchemy.engine import make_url
 
@@ -16,13 +17,23 @@ sys.path.insert(0, project_root)
 # Each xdist worker gets its own SQLite file. The app engine reads SQLALCHEMY_DATABASE_URL when config is imported
 # below, so the per-worker URL must be set here, for it and for the test helpers' DATABASE_URL alike: with only
 # DATABASE_URL changed, API requests use the shared, unmigrated app database ("no such table: jwt").
-# xdist sets PYTEST_XDIST_WORKER before it imports this module.
+# xdist sets PYTEST_XDIST_WORKER before it imports this module. TEST_FROM and DATABASE_URL are read like the test
+# settings read them (tests/api/__init__.py): the environment first, then .env, names in any case.
+_dotenv = {key.upper(): value for key, value in dotenv_values(".env").items() if value is not None}
+
+
+def _test_setting(name: str, default: str) -> str:
+    environ = {key.upper(): value for key, value in os.environ.items()}
+    return environ.get(name, _dotenv.get(name, default))
+
+
 _xdist_worker = os.environ.get("PYTEST_XDIST_WORKER")
-_requested_database_url = make_url(os.environ.get("DATABASE_URL", "sqlite+aiosqlite:///./test.db"))
+_test_from = _test_setting("TEST_FROM", "local")
+_requested_database_url = make_url(_test_setting("DATABASE_URL", "sqlite+aiosqlite:///./test.db"))
 _worker_database_dir: Path | None = None
 if (
     _xdist_worker
-    and os.environ.get("TEST_FROM", "local") == "local"
+    and _test_from == "local"
     and _requested_database_url.get_backend_name() == "sqlite"
     and _requested_database_url.database not in (None, "", ":memory:")
 ):
@@ -75,7 +86,7 @@ def pytest_configure(config):
     if getattr(config, "workerinput", None) is None:
         return
 
-    if os.environ.get("TEST_FROM", "local") != "local":
+    if _test_from != "local":
         raise pytest.UsageError("Parallel tests require TEST_FROM=local and SQLite; use serial tests for CI databases")
     if _worker_database_dir is None:
         raise pytest.UsageError("Parallel tests require a file backed SQLite DATABASE_URL")
