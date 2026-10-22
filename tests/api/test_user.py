@@ -87,6 +87,8 @@ def test_user_endpoints_reject_out_of_range_durations_and_timestamps(access_toke
         cases = [
             ("put", f"/api/user/by-id/{user['id']}", {"expire": 10**20}),
             ("put", f"/api/user/by-id/{user['id']}", {"on_hold_timeout": 10**12}),
+            ("put", f"/api/user/by-id/{user['id']}", {"on_hold_timeout": -1}),
+            ("put", f"/api/user/by-id/{user['id']}", {"on_hold_timeout": too_far}),
             ("put", f"/api/user/by-id/{user['id']}", {"next_plan": {"data_limit": 1, "expire": 10**13}}),
             ("put", f"/api/user/by-id/{user['id']}", {"next_plan": {"data_limit": 1, "expire": too_far}}),
             ("put", f"/api/user/by-id/{user['id']}", {"next_plan": {"data_limit": 1, "expire": -1}}),
@@ -100,6 +102,20 @@ def test_user_endpoints_reject_out_of_range_durations_and_timestamps(access_toke
                     "on_hold_expire_duration": 3600,
                     "on_hold_timeout": 10**12,
                 },
+            ),
+            *(
+                (
+                    "post",
+                    "/api/user",
+                    {
+                        "username": unique_name("out_of_range_hold"),
+                        "group_ids": [groups[0]["id"]],
+                        "status": "on_hold",
+                        "on_hold_expire_duration": 3600,
+                        "on_hold_timeout": timeout,
+                    },
+                )
+                for timeout in (-1, too_far)
             ),
             (
                 "post",
