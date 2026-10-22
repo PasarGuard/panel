@@ -308,3 +308,28 @@ async def test_sync_node_users_still_marks_the_node_on_a_node_error(monkeypatch:
     assert exc_info.value.status_code == 409
     update_status.assert_awaited_once()
     assert update_status.await_args.kwargs["status"] == NodeStatus.error
+
+
+@pytest.mark.asyncio
+async def test_sync_node_users_keeps_503_when_delivery_claims_outlive_the_lease(monkeypatch: pytest.MonkeyPatch):
+    from app.node.bridge import FullSyncConflictError
+
+    operator = NodeOperation(operator_type=OperatorType.API)
+    db_node = SimpleNamespace(id=6, status=NodeStatus.connected, core_config_id=None)
+    monkeypatch.setattr(operator, "get_validated_node", AsyncMock(return_value=db_node))
+    monkeypatch.setattr(operator, "_get_core_users_map", AsyncMock(return_value=({}, {1: []})))
+    monkeypatch.setattr(node_operation_module.node_manager, "get_node", AsyncMock(return_value=object()))
+    # What capture_queued_work raises when claims are still active after the lease.
+    stuck = FullSyncConflictError(
+        503, "1 user delivery claim(s) still in flight after the lease; full sync not started"
+    )
+    monkeypatch.setattr(node_operation_module.node_manager, "sync_full", AsyncMock(side_effect=stuck))
+    update_status = AsyncMock()
+    monkeypatch.setattr(node_operation_module, "update_node_status", update_status)
+
+    with pytest.raises(HTTPException) as exc_info:
+        await operator._sync_node_users_local(object(), 6, True)
+
+    assert exc_info.value.status_code == 503
+    # Nothing reached the node, so its status is left alone.
+    update_status.assert_not_awaited()

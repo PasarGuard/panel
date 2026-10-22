@@ -1267,8 +1267,9 @@ class NodeOperation(BaseOperation):
                 code=409,
             )
         except FullSyncConflictError as e:
-            # Another snapshot (a Start, a repair) holds the node's fence; nothing reached the node.
-            await self.raise_error(message=e.detail, code=409)
+            # Another snapshot (a Start, a repair) holds the node's fence (409), or deliveries are
+            # still in flight past their lease (503); nothing reached the node.
+            await self.raise_error(message=e.detail, code=e.code)
         except NodeAPIError as e:
             await update_node_status(db=db, db_node=db_node, status=NodeStatus.error, message=e.detail)
             await self.raise_error(message=e.detail, code=e.code)
