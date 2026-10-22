@@ -60,3 +60,7 @@ dashboard/build
 **/__pycache__
 
 **/*-journal
+
+# Never publish locally retrieved Railway bootstrap credentials.
+**/.pasarguard/
+**/initial-owner.json

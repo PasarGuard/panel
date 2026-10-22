@@ -1,10 +1,19 @@
+import os
 from functools import cached_property
 from typing import Any
 
 from pydantic import AliasChoices, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# Apply the same safe defaults to SSH/CLI processes as to PID 1. Docker exec does
+# not inherit environment variables dynamically added by the entrypoint.
 from role import Role
+
+if os.environ.get("RAILWAY_ENVIRONMENT_ID"):
+    from railway_runtime import automatic_profile_enabled, configure_environment, volume_is_mounted
+
+    if automatic_profile_enabled(dict(os.environ)):
+        os.environ.update(configure_environment(dict(os.environ), mounted=volume_is_mounted()))
 
 
 class EnvSettings(BaseSettings):

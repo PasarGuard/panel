@@ -1,5 +1,7 @@
 # استقرار و محدودیت‌های عملی
 
+> برای preset خودکار جدید Railway ابتدا [RAILWAY-fa.md](RAILWAY-fa.md) را بخوانید. تنظیمات Railway در این صفحه مربوط به مسیر دستی/پیشرفته است؛ برای آن `PASARGUARD_RAILWAY_AUTO_CONFIG=false` لازم است. در preset خودکار Owner بدون کلید موقت ساخته می‌شود و رمز فقط از فایل خصوصی روی volume دریافت می‌شود.
+
 این راهنما برای نسخهٔ موجود در همین مخزن است؛ تضمین اجرای رایگان، امنیت مطلق یا خودترمیمی داده‌ها نیست.
 
 ## Railway
@@ -14,11 +16,11 @@ DEBUG=false
 UVICORN_HOST=0.0.0.0
 UVICORN_ALLOW_INSECURE_HTTP=true
 UVICORN_WORKERS=1
-SUDO_USERNAME=choose-a-private-admin-name
-SUDO_PASSWORD=replace-with-a-long-random-password
+RAILWAY_DEPLOYMENT_DRAINING_SECONDS=50
 SQLALCHEMY_DATABASE_URL=sqlite+aiosqlite:////data/db.sqlite3
 ```
 
+- برای مهلت خاموش‌شدن، `RAILWAY_DEPLOYMENT_DRAINING_SECONDS=50` را تنظیم کنید؛ مستندات Railway مقدار پیش‌فرض فاصلهٔ SIGTERM تا SIGKILL را صفر اعلام می‌کند. این مهلت از بودجهٔ پیش‌فرض حدود ۴۰ ثانیه‌ای برنامه بیشتر است. [4](https://docs.railway.com/variables/reference)
 - یک volume پایدار روی `/data` متصل کنید. بدون volume، SQLite با تعویض container از دست می‌رود. یک replica استفاده کنید و backup خارج از سرویس نگه دارید؛ بازیابی backup را نیز آزمایش کنید.
 - پورت `PORT` پلتفرم خودکار خوانده می‌شود؛ `UVICORN_PORT` اگر تعیین شود مقدم است. معمولاً آن را تعیین نکنید.
 - گزینهٔ HTTP فقط پشت پراکسی با TLS معتبر مجاز است. TLS عمومی را پلتفرم فراهم می‌کند؛ این گزینه نباید برای انتشار HTTP بدون رمزنگاری استفاده شود.
@@ -26,6 +28,19 @@ SQLALCHEMY_DATABASE_URL=sqlite+aiosqlite:////data/db.sqlite3
 - محدودیت CORS را با `ALLOWED_ORIGINS=https://your-domain.example` مشخص کنید.
 - برای PostgreSQL، URL مناسب درایور async را در `SQLALCHEMY_DATABASE_URL` بگذارید: `postgresql+asyncpg://USER:PASSWORD@HOST:PORT/DB`. اتصال محرمانه را در مخزن ثبت نکنید. URL عادی پلتفرم لزوماً مستقیم قابل‌استفاده نیست.
 - migration قبل از اجرای پنل انجام می‌شود و شکست آن مانع اجرا می‌شود. قبل از ارتقا backup بگیرید. برای چند replica، migration باید جداگانه و سریالی مدیریت شود؛ این راهنما تک‌replica است.
+
+## ایجاد حساب Owner در production
+
+با `DEBUG=false`، متغیرهای `SUDO_USERNAME` و `SUDO_PASSWORD` برای ورود production کافی نیستند؛ fallback آن‌ها مخصوص debug است. DEBUG را برای دورزدن ساخت Owner فعال نکنید.
+
+در shell **داخل کانتینرِ همان سرویس**، با دسترسی به همان volume و متغیرهای دیتابیس:
+
+```sh
+cd /code
+python pasarguard-cli.py generate-temp-key
+```
+
+کلید یک‌بارمصرف پنج دقیقه معتبر است. در صفحهٔ `/dashboard/` گزینهٔ **Owner access → Create** را باز کنید؛ کلید، نام کاربری و رمز قوی را وارد کنید. کلید یا رمز را در مخزن، چت یا تصویر عمومی منتشر نکنید. اجرای CLI روی لپ‌تاپ با SQLite محلی، کلید قابل‌استفاده برای دیتابیس کانتینر نمی‌سازد.
 
 ## آزمون پس از استقرار
 
@@ -145,3 +160,10 @@ workflow CI نسخهٔ ۲٫۱۴٫۰ را از release رسمی با checksum arc
 
 
 ماتریس دیتابیس هم برای همان commit در [run 39709463062](https://github.com/devv1112/panel/actions/runs/39709463062) با نتیجهٔ موفق کامل شد: SQLite، PostgreSQL، MySQL، MariaDB و TimescaleDB، شامل migration/check/tests. این شواهد جای backup/restore واقعی یا آزمون بار و failover production را نمی‌گیرد.
+
+
+## تصحیح راهنمای میزبان‌ها پس از بررسی اسناد رسمی
+
+- KataBump در بند ۲٫۴ AUP استفاده به‌عنوان traffic relay شامل proxy/VPN/tunnelling را منع کرده است. نصب node یا عبور ترافیک Trojan/VLESS/VMess روی آن توصیه/تجویز نمی‌شود. بررسی امکان panel-only باید جداگانه با پشتیبانی انجام شود. [1](https://legal.katabump.com/acceptable-use/)
+- FAQ و راهنمای مشاهده‌شدهٔ KataBump پشتیبانی از Python ۳٫۱۴ موردنیاز این مخزن را تأیید نمی‌کنند؛ نسخهٔ موجود باید در Startup همان حساب بررسی شود. در نبود runtime، ورودی HTTPS، فضای کافی و راه اجرای CLI، مسیر نصب قطعی این نسخه روی Free تأیید نیست. [1](https://docs.katabump.com/faq)
+- Deepnote برای incoming connection پورت ۸۰۸۰ را منتشر می‌کند؛ تنظیم workspace و project هر دو لازم‌اند. پردازهٔ ترمینال مانع inactivity shutdown نمی‌شود. بنابراین مسیر Deepnote فقط آزمایشی/جلسه‌ای است، نه تضمین production همیشه روشن. همچنین `/work` طبق اسناد Deepnote بر object storage متکی است؛ سازگاری قفل‌گذاری/دوام SQLite روی آن را فرض نکنید. برای آزمایش می‌توان دیتابیس زنده را در `/tmp` نگه داشت و فقط snapshot بسته‌شدهٔ حاصل از SQLite backup API را در فایل‌های پروژه کپی کرد؛ `/tmp` پس از restart از دست می‌رود و تغییرات بعد از آخرین snapshot قابل‌بازیابی نیستند. برای دادهٔ ماندگار عملیاتی، دیتابیس خارجیِ سازگار را جداگانه پیکربندی و آزمون کنید. [1](https://deepnote.com/docs/importing-data-to-deepnote) [1](https://deepnote.com/docs/incoming-connections) [12](https://deepnote.com/docs/long-running-jobs)

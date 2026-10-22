@@ -68,12 +68,79 @@ jobs:
           if grep -E 'Shutdown hook exceeded|Application shutdown failed|shutdown budget exhausted' "$RUNNER_TEMP/panel-stop.log"; then
             exit 1
           fi
+      - name: Railway profile with real persistent volume and automatic production Owner
+        run: |
+          docker volume create railway-smoke-data
+          docker run -d --name railway-smoke -p 127.0.0.1:18081:18081 \
+            -e RAILWAY_ENVIRONMENT_ID=ci -e RAILWAY_VOLUME_MOUNT_PATH=/data \
+            -e PORT=18081 -v railway-smoke-data:/data pasarguard-smoke
+          curl --fail --silent --show-error --retry 40 --retry-all-errors \
+            --retry-delay 2 --max-time 5 http://127.0.0.1:18081/health
+          docker exec -i railway-smoke python - <<'PY'
+          import json
+          import stat
+          import urllib.parse
+          import urllib.request
+          from pathlib import Path
+          from config import database_settings, runtime_settings
+          assert database_settings.url == 'sqlite+aiosqlite:////data/db.sqlite3'
+          assert runtime_settings.debug is False
+          path = Path('/data/.pasarguard/initial-owner.json')
+          assert stat.S_IMODE(path.stat().st_mode) == 0o600
+          credentials = json.loads(path.read_text())
+          data = urllib.parse.urlencode(credentials).encode()
+          request = urllib.request.Request('http://127.0.0.1:18081/api/admin/token', data=data)
+          with urllib.request.urlopen(request, timeout=15) as response:
+              assert json.load(response)['access_token']
+          print('Automatic Owner authenticated in production; no password printed')
+          PY
+          # Verify that the volume lock survives bash -> Python exec.
+          docker run -d --name railway-contender -e RAILWAY_ENVIRONMENT_ID=ci \
+            -v railway-smoke-data:/data pasarguard-smoke
+          code=$(timeout 20 docker wait railway-contender)
+          test "$code" != 0
+          docker logs railway-contender 2>&1 | grep -q 'Another panel instance'
+          # A new container, not just a process restart, must retain the Owner.
+          docker cp railway-smoke:/data/.pasarguard/initial-owner.json "$RUNNER_TEMP/railway-owner.json"
+          docker stop --timeout 50 railway-smoke
+          docker rm railway-smoke
+          docker run -d --name railway-smoke -p 127.0.0.1:18081:18081 \
+            -e RAILWAY_ENVIRONMENT_ID=ci -v railway-smoke-data:/data \
+            -e PORT=18081 pasarguard-smoke
+          curl --fail --silent --show-error --retry 40 --retry-all-errors \
+            --retry-delay 2 --max-time 5 http://127.0.0.1:18081/health
+          docker cp "$RUNNER_TEMP/railway-owner.json" railway-smoke:/tmp/previous-owner.json
+          docker exec -i railway-smoke python - <<'PY'
+          from pathlib import Path
+          assert Path('/tmp/previous-owner.json').read_bytes() == Path('/data/.pasarguard/initial-owner.json').read_bytes()
+          print('Owner credentials survived container replacement without reset')
+          PY
+          docker logs railway-smoke > "$RUNNER_TEMP/railway.log" 2>&1
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          root = Path(os.environ['RUNNER_TEMP'])
+          secret = json.loads((root / 'railway-owner.json').read_text())['password']
+          assert secret not in (root / 'railway.log').read_text()
+          (root / 'railway-owner.json').unlink()
+          PY
+          docker stop --timeout 50 railway-smoke
+          test "$(docker inspect --format '{{.State.ExitCode}}' railway-smoke)" = 0
+          # No persistent volume must fail closed, never silently use ephemeral SQLite.
+          if docker run --rm -e RAILWAY_ENVIRONMENT_ID=ci pasarguard-smoke; then
+            echo 'ERROR: profile started without a volume'
+            exit 1
+          fi
       - name: Container logs
         if: always()
         run: docker logs pasarguard-smoke || true
       - name: Cleanup
         if: always()
-        run: docker rm -f pasarguard-smoke || true
+        run: |
+          docker rm -f pasarguard-smoke railway-smoke railway-contender || true
+          docker volume rm railway-smoke-data || true
+          rm -f "$RUNNER_TEMP/railway-owner.json"
 
   nats-integration:
     runs-on: ubuntu-latest
@@ -85,6 +152,8 @@ jobs:
           python-version: '3.14'
       - run: python -m pip install uv==0.13.4
       - run: uv sync --frozen --group dev
+      - name: Real SQLite migrations and idempotent production Owner bootstrap
+        run: uv run pytest tests/test_railway_bootstrap.py -q
       - name: Install pinned NATS with upstream archive checksum
         env:
           GH_TOKEN: ${{ github.token }}

@@ -1,3 +1,12 @@
+## Railway deployment / نصب Railway
+
+**For this branch:** [راهنمای نصب Railway با حداقل تنظیم دستی](docs/RAILWAY-fa.md).
+The Railway preset builds the dashboard, validates a persistent `/data` volume,
+runs migrations and creates a private initial Owner automatically. You must still
+connect the volume and generate a public domain in your Railway account. No free
+uptime guarantee and no VPN traffic node are implied. Initial credentials are
+never printed in deployment logs. Use branch `arena/263b0995-panel` until merged.
+
 <p align="center">
   <a href="https://github.com/PasarGuard/panel" target="_blank" rel="noopener noreferrer">
     <picture>
