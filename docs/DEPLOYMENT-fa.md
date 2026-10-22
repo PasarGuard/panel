@@ -6,11 +6,14 @@
 
 ## Railway
 
-فایل `railway.toml` ساخت Docker، مسیر سلامت و حداکثر پنج تلاش restart پس از خروج ناموفق را مشخص می‌کند. Dockerfile داشبورد را از سورس می‌سازد و به artifact جداگانهٔ CI وابسته نیست. ساخت frontend می‌تواند حافظهٔ قابل‌توجهی بخواهد؛ محدودیت حساب را بررسی کنید.
+برای پروژهٔ جدید از `.railway/railway.ts` و راهنمای RAILWAY-fa.md استفاده کنید. `railway.toml` فقط برای سازگاری سرویس‌های legacy نگه داشته شده؛ Config as Code در اسناد فعلی deprecated است و سرویس جدید نباید به شناسایی آن تکیه کند. [1](https://docs.railway.com/infrastructure-as-code)
+
+فایل legacy ساخت Docker، مسیر سلامت و حداکثر پنج تلاش restart پس از خروج ناموفق را مشخص می‌کند. Dockerfile داشبورد را از سورس می‌سازد و به artifact جداگانهٔ CI وابسته نیست. ساخت frontend می‌تواند حافظهٔ قابل‌توجهی بخواهد؛ محدودیت حساب را بررسی کنید.
 
 متغیرهای سرویس:
 
 ```dotenv
+PASARGUARD_RAILWAY_AUTO_CONFIG=false
 ROLE=all-in-one
 DEBUG=false
 UVICORN_HOST=0.0.0.0

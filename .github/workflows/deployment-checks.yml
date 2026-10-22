@@ -26,6 +26,18 @@ jobs:
       - name: Validate shell entrypoints
         run: bash -n start.sh healthcheck.sh
 
+  railway-infrastructure:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - run: npm ci --prefix .railway --ignore-scripts --no-audit --no-fund
+      - run: npm run --prefix .railway check
+      - run: npm run --prefix .railway render:test
+      - run: bash -n scripts/railway-provision.sh
+
   dashboard:
     runs-on: ubuntu-latest
     steps:
@@ -101,6 +113,7 @@ jobs:
           test "$code" != 0
           docker logs railway-contender 2>&1 | grep -q 'Another panel instance'
           # A new container, not just a process restart, must retain the Owner.
+          docker logs railway-smoke > "$RUNNER_TEMP/railway-first.log" 2>&1
           docker cp railway-smoke:/data/.pasarguard/initial-owner.json "$RUNNER_TEMP/railway-owner.json"
           docker stop --timeout 50 railway-smoke
           docker rm railway-smoke
@@ -123,6 +136,7 @@ jobs:
           root = Path(os.environ['RUNNER_TEMP'])
           secret = json.loads((root / 'railway-owner.json').read_text())['password']
           assert secret not in (root / 'railway.log').read_text()
+          assert secret not in (root / 'railway-first.log').read_text()
           (root / 'railway-owner.json').unlink()
           PY
           docker stop --timeout 50 railway-smoke

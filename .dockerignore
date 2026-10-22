@@ -64,3 +64,6 @@ dashboard/build
 # Never publish locally retrieved Railway bootstrap credentials.
 **/.pasarguard/
 **/initial-owner.json
+
+# Infrastructure authoring is evaluated locally by the Railway CLI, not in the image.
+.railway

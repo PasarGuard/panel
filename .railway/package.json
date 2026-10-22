@@ -1,0 +1,16 @@
+{
+  "name": "pasarguard-railway-infrastructure",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "tsc --noEmit",
+    "render:test": "node --import tsx test.mjs"
+  },
+  "dependencies": {
+    "railway": "3.16.0"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "tsx": "4.20.6"
+  }
+}

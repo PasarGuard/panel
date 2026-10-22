@@ -1,9 +1,13 @@
 ## Railway deployment / نصب Railway
 
 **For this branch:** [راهنمای نصب Railway با حداقل تنظیم دستی](docs/RAILWAY-fa.md).
+New projects use `.railway/railway.ts` (official Infrastructure as Code), not the
+legacy `railway.toml`. After `railway login` and `railway init`, run
+`bash scripts/railway-provision.sh` and review/approve the resource plan.
 The Railway preset builds the dashboard, validates a persistent `/data` volume,
-runs migrations and creates a private initial Owner automatically. You must still
-connect the volume and generate a public domain in your Railway account. No free
+runs migrations and creates a private initial Owner automatically. The provisioning
+script requests the service, volume and domain after your approval; a repository
+URL alone cannot authorize cloud resource creation. No free
 uptime guarantee and no VPN traffic node are implied. Initial credentials are
 never printed in deployment logs. Use branch `arena/263b0995-panel` until merged.
 

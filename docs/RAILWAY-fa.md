@@ -21,7 +21,44 @@
 
 این پروفایل offsite backup، auto-upgrade، صدور گواهی node، اتصال node خارجی یا ارتقای پلن را خودکار نمی‌کند. پشتیبانی چند replica، HA و PostgreSQL جزو این preset نیست.
 
-## نصب گام‌به‌گام
+## مسیر پیشنهادی: ساخت خودکار زیرساخت با IaC رسمی
+
+**به‌روزرسانی مهم ۲۲ اکتبر ۲۰۲۶:** اسناد فعلی Railway، Config as Code قدیمی (`railway.toml`/`railway.json`) را deprecated اعلام می‌کنند؛ برای سرویس‌های جدید باید از Infrastructure as Code یا تنظیمات حساب استفاده کرد. IaC با CLI و پس از تأیید مدیر حساب اعمال می‌شود، نه صرفاً با import URL مخزن. فایل `.railway/railway.ts` این پروژه سرویس، volume، mount و تنظیمات استقرار را تعریف می‌کند. [1](https://docs.railway.com/infrastructure-as-code)
+
+پیش‌نیاز محلی: Git، Node.js 22+، npm، Bash (Linux/macOS/WSL) و دسترسی به حساب خودتان. ابتدا اجازهٔ دسترسی Railway به مخزن GitHub را در مرورگر تأیید کنید؛ هیچ رمز یا token را در چت یا کد نگذارید.
+
+```sh
+git clone --depth 1 --branch arena/263b0995-panel https://github.com/devv1112/panel.git
+cd panel
+npm install -g @railway/cli@5.71.0
+railway login
+railway init
+bash scripts/railway-provision.sh
+```
+
+در `railway init` یک **پروژهٔ جدید و خالی** در workspace/پلن موردنظر خود بسازید. اسکریپت وابستگی‌های SDK رسمی را از lockfile نصب و اعتبارسنجی می‌کند، plan را نشان می‌دهد و برای apply تأیید می‌خواهد. قبل از تأیید، نام پروژه/محیط، ۱ سرویس panel، ۱ volume به نام panel-data و هزینه/سقف حساب را بررسی کنید. هیچ گزینهٔ `--yes` یا تأیید خودکار تغییر مخرب در اسکریپت نیست.
+
+پس از تأیید، این موارد درخواست می‌شوند:
+
+- اتصال همین مخزن و همین شاخه به سرویس `panel`؛
+- ساخت volume به اندازهٔ ۵۰۰ مگابایت و mount در `/data`؛
+- Dockerfile builder، PORT=8080، یک replica، healthcheck و drain پنجاه‌ثانیه‌ای؛
+- خاموش‌کردن خواب خودکار برای نیازهای پس‌زمینهٔ پنل — این کار مصرف اعتبار را متوقف نمی‌کند؛
+- ساخت دامنهٔ عمومی با `railway domain --service panel --port 8080`.
+
+تعریف volume در API رسمی: [1](https://docs.railway.com/infrastructure-as-code/reference). ساخت دامنه با CLI: [1](https://docs.railway.com/cli/domain).
+
+SDK روی Node 22 در این محیط type-check و برای production/staging به‌صورت آفلاین render و با validator رسمی بررسی شده است. **ساخت منابع واقعی در حساب Railway اینجا انجام نشده**؛ اجازهٔ حساب، اتصال GitHub، ظرفیت منطقه و وضعیت پلن تنها هنگام plan/apply واقعی معلوم می‌شوند.
+
+فایل IaC از partial ownership استفاده می‌کند تا منابع نامرتبط را مدیریت نکند. بااین‌حال plan را همیشه بخوانید. برای پروژهٔ قبلیِ تحت مدیریت legacy، ابتدا طبق راهنمای رسمی مهاجرت کنید؛ صرفاً این اسکریپت را روی production قبلی اجرا نکنید. تغییر mount، حذف volume یا تغییر اندازهٔ رو به پایین ممکن است مخرب باشد.
+
+اسکریپت برای نصب اولیه و ساخت دامنه است. در دفعات بعد برای تغییرات زیرساخت، `railway config plan` و `railway config apply` را پس از بازبینی اجرا کنید؛ اگر دامنه از قبل وجود دارد، دوباره آن را نسازید.
+
+پس از استقرار، به مرحلهٔ «دریافت امن رمز اولیه» در همین راهنما بروید؛ دیگر لازم نیست volume یا متغیرهای برنامه را دستی بسازید.
+
+## نصب گام‌به‌گام از رابط وب، بدون IaC
+
+این مسیر چند تنظیم دستی دارد؛ واردکردن تنها URL کافی نیست.
 
 ### ۱. مخزن و شاخه
 
@@ -49,7 +86,7 @@ Root directory: /
 
 ### ۳. تنظیمات سرویس
 
-`railway.toml` باید شناسایی شود:
+برای سرویس جدید این گزینه‌ها را در UI تنظیم کنید؛ به `railway.toml` legacy تکیه نکنید. در مسیر IaC بالا، همین گزینه‌ها از `.railway/railway.ts` اعمال می‌شوند:
 
 ```text
 Builder: Dockerfile
@@ -62,7 +99,7 @@ Healthcheck timeout: 120 seconds
 Draining time: 50 seconds
 ```
 
-مستندات تنظیمات استقرار: [1](https://docs.railway.com/reference/config-as-code).
+مستندات جایگزین فعلی: [1](https://docs.railway.com/infrastructure-as-code).
 
 برای نصب معمولی این preset **هیچ فایل .env، رمز ثابت، متغیر SUDO، سرویس NATS یا دیتابیس جداگانه لازم نیست**. اگر قبلاً متغیرهای دستی ناسازگار گذاشته‌اید، آن‌ها را حذف کنید؛ برنامه به‌جای نادیده‌گرفتن بی‌صدای تعارض، متوقف می‌شود.
 
@@ -151,7 +188,7 @@ scp YOUR-PANEL.up.railway.app@ssh.railway.com:/data/db.backup.sqlite3 ./panel-ba
 
 طبق اسناد رسمی فعلی، trial اعتبار ۵ دلار/تا ۳۰ روز و Free اعتبار ۱ دلار ماهانه دارد. Free سقف ۰٫۵ گیگابایت RAM و ۰٫۵ گیگابایت volume دارد. هیچ تضمینی نیست که بار شما تمام ماه در این اعتبار یا حافظه جا شود. مصرف CPU/RAM/egress/storage را در حساب خود بررسی کنید. [1](https://docs.railway.com/pricing/free-trial) [6](https://docs.railway.com/pricing/plans)
 
-قفل برنامه مانع دو پردازهٔ هم‌زمان روی همین volume می‌شود، اما جای سیاست استقرار تک‌replica را نمی‌گیرد. برای این نصب ادعای zero-downtime نداریم. `/health` فقط پاسخ‌گویی HTTP است، نه تأیید عبور ترافیک، سلامت node یا همهٔ وابستگی‌ها.
+قفل برنامه مانع دو پردازهٔ هم‌زمان روی همین volume می‌شود، اما جای سیاست استقرار تک‌replica را نمی‌گیرد. برای این نصب ادعای zero-downtime نداریم؛ Railway نیز برای سرویس‌های دارای volume، downtime کوتاه هنگام redeploy را اعلام کرده است. [1](https://docs.railway.com/volumes/reference) `/health` فقط پاسخ‌گویی HTTP است، نه تأیید عبور ترافیک، سلامت node یا همهٔ وابستگی‌ها.
 
 ## تنظیمات پیشرفته و خروج صریح از preset
 
@@ -172,7 +209,7 @@ uv run pytest tests/test_railway_bootstrap.py -q
 
 CI در `.github/workflows/deployment-checks.yml` ساخت Docker واقعی، boot با volume واقعی، ورود HTTP با Owner ساخته‌شده در production، حفظ credential پس از تعویض کانتینر، منع نمونهٔ دوم روی همان volume و توقف بدون volume را بررسی می‌کند. وضعیت اجرای موفق/ناموفق را از Actions همان commit بخوانید؛ وجود یک workflow به‌تنهایی به معنی موفق‌بودن آن نیست.
 
-این آزمون‌ها شبیه‌سازی محیط Railway روی Docker هستند، نه دسترسی یا استقرار انجام‌شده در حساب Railway شما. فایل `railway.toml` و mountهای واقعی میزبان همچنان باید در اولین deployment حساب خودتان بررسی شوند.
+این آزمون‌ها شبیه‌سازی محیط Railway روی Docker هستند، نه دسترسی یا استقرار انجام‌شده در حساب Railway شما. plan/apply مربوط به IaC و mountهای واقعی میزبان همچنان باید در اولین deployment حساب خودتان بررسی شوند. فایل railway.toml صرفاً سازگاری legacy است.
 
 ## node و پروتکل‌ها
 

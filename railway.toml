@@ -1,3 +1,4 @@
+# Legacy services only. New projects: .railway/railway.ts (see docs/RAILWAY-fa.md).
 [build]
 builder = "DOCKERFILE"
 dockerfilePath = "Dockerfile"
