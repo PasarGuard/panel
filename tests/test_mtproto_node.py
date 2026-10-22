@@ -440,13 +440,21 @@ async def test_manual_mtproto_sync_still_applying_is_not_node_error(monkeypatch:
 
     exc, update_status = await sync(CoreType.mtproto)
     assert exc.status_code == 409
-    assert exc.detail == node_operation_module.MTPROTO_SYNC_PENDING_MESSAGE
+    assert exc.detail.startswith(node_operation_module.MTPROTO_SYNC_PENDING_MESSAGE)
+    assert error.detail in exc.detail
     update_status.assert_not_awaited()
 
     exc, update_status = await sync(CoreType.xray)
     assert exc.status_code == 500
     assert exc.detail == error.detail
     update_status.assert_awaited_once()
+
+    error = NodeAPIError(503, "core is not started yet")
+    exc, update_status = await sync(CoreType.mtproto)
+    assert exc.status_code == 409
+    assert exc.detail.startswith(node_operation_module.MTPROTO_SYNC_PENDING_MESSAGE)
+    assert "core is not started yet" in exc.detail
+    update_status.assert_not_awaited()
 
 
 def test_is_mtproto_retry_later_error():

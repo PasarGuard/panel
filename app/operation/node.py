@@ -1412,7 +1412,13 @@ class NodeOperation(BaseOperation):
             if core is not None and core.type == CoreType.mtproto and is_mtproto_retry_later_error(e):
                 # The node keeps applying the users after this call returns: not a node failure.
                 logger.info(f'"{db_node.name}" MTProto node is still applying the users: {e.detail}')
-                await self.raise_error(message=MTPROTO_SYNC_PENDING_MESSAGE, code=409)
+                node_answer = (e.detail or "").strip()
+                message = (
+                    f"{MTPROTO_SYNC_PENDING_MESSAGE} Node: {node_answer}"
+                    if node_answer
+                    else MTPROTO_SYNC_PENDING_MESSAGE
+                )
+                await self.raise_error(message=message, code=409)
             await update_node_status(db=db, db_node=db_node, status=NodeStatus.error, message=e.detail)
             await self.raise_error(message=e.detail, code=e.code)
 
