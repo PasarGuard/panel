@@ -733,3 +733,22 @@ def test_core_save_with_other_changes_keeps_stop(access_token, monkeypatch):
         config["routing"]["domainStrategy"] = "IPIfNonMatch"
 
     assert _stop_first_after_save(access_token, monkeypatch, change) is True
+
+
+def test_mtproto_core_save_keeps_stop(access_token, monkeypatch):
+    """Nodes cannot apply an MTProto edit to the running telemt, so even an unchanged save keeps the Stop."""
+    restart = AsyncMock()
+    monkeypatch.setattr(core_router.node_operator, "restart_all_node", restart)
+    core = create_mtproto_core(access_token)
+    changed = deepcopy(core["config"])
+    changed["censorship"]["tls_domain"] = "www.example.com"
+    try:
+        # The save sends no type, so the stored MTProto type reaches the live-update check too.
+        for config in (core["config"], changed):
+            restart.reset_mock()
+            response = _save_core(access_token, core, config)
+            assert response.status_code == status.HTTP_200_OK
+            restart.assert_awaited_once()
+            assert restart.await_args.kwargs["stop_first"] is True
+    finally:
+        delete_core(access_token, core["id"])
