@@ -1,4 +1,5 @@
 from datetime import UTC, datetime as dt, timedelta as td
+from html import escape
 
 from aiogram import F, Router
 from aiogram.exceptions import TelegramBadRequest
@@ -149,7 +150,7 @@ async def bulk_template_sequence_username(event: Message, db: AsyncSession, stat
     try:
         UserValidator.validate_username(base_username)
     except ValueError as e:
-        msg = await event.reply(f"❌ {e}", reply_markup=CancelKeyboard().as_markup())
+        msg = await event.reply(f"❌ {escape(str(e))}", reply_markup=CancelKeyboard().as_markup())
         await add_to_messages_to_delete(state, msg)
         return
 
@@ -235,7 +236,7 @@ async def _perform_bulk_creation(
         result = await user_operations.bulk_create_users_from_template(db, payload, admin)
     except Exception as e:
         await state.clear()
-        return await target.answer(f"❌ {e}")
+        return await target.answer(f"❌ {escape(str(e))}")
     await state.clear()
 
     if result.created == 0:

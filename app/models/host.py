@@ -1,12 +1,13 @@
 from copy import deepcopy
 from enum import Enum
-from ipaddress import ip_network
+from ipaddress import ip_address, ip_network
+from string import Formatter
 from typing import Any
 
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator, model_serializer, model_validator
 
 from app.db.models import ProxyHostALPN, ProxyHostFingerprint, ProxyHostSecurity, UserStatus
-from app.utils.helpers import has_markup_unsafe_chars
+from app.utils.helpers import MAX_FORMAT_SPEC_NUMBER, has_markup_unsafe_chars, has_oversized_format_spec
 
 from .validators import ListValidator, StringArrayValidator
 
@@ -226,17 +227,68 @@ class FinalMaskDomainSettings(FinalMaskBaseModel):
     domain: str | None = Field(default=None)
 
 
+class FinalMaskXdnsDomain(FinalMaskBaseModel):
+    names: list[str] = Field(default_factory=list)
+    len_limit: int | None = Field(default=None, alias="lenLimit")
+    label_limit: int | None = Field(default=None, alias="labelLimit")
+    types: list[int] | None = Field(default=None)
+    edns0: int | None = Field(default=None)
+
+    @model_serializer(mode="wrap")
+    def omit_unset_options(self, handler):
+        return {key: value for key, value in handler(self).items() if value is not None}
+
+
+class FinalMaskXdnsResolver(FinalMaskBaseModel):
+    addrs: list[str] = Field(default_factory=list)
+    worker: int | None = Field(default=None, ge=0)
+    tls_config: dict[str, Any] | None = Field(default=None, alias="tlsConfig")
+    quic_config: dict[str, Any] | None = Field(default=None, alias="quicConfig")
+
+    @model_validator(mode="after")
+    def ensure_doh_tls_config(self):
+        # Xray's DoH resolver requires a non-nil tlsConfig, including when its
+        # defaults are desired. An empty object enables the default fingerprint.
+        if any(addr.startswith("https://") for addr in self.addrs) and self.tls_config is None:
+            self.tls_config = {}
+        return self
+
+
 class FinalMaskXdnsSettings(FinalMaskBaseModel):
-    domains: list[str] | None = Field(default=None)
-    resolvers: list[str] | None = Field(default=None)
-    domain: str | None = Field(default=None)
+    domains: list[FinalMaskXdnsDomain] | None = Field(default=None)
+    resolvers: list[FinalMaskXdnsResolver] | None = Field(default=None)
+    extra_poll: int | None = Field(default=None, alias="extraPoll", ge=0, le=3)
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_legacy_lists(cls, value):
+        if not isinstance(value, dict):
+            return value
+        result = {**value}
+        for key, member in (("domains", "names"), ("resolvers", "addrs")):
+            if isinstance(result.get(key), list):
+                result[key] = [{member: [item]} if isinstance(item, str) else item for item in result[key]]
+        return result
 
 
 class FinalMaskXicmpSettings(FinalMaskBaseModel):
     dgram: bool | None = Field(default=None)
     ips: list[str] | None = Field(default=None)
-    listen_ip: str | None = Field(default=None, alias="listenIp")
-    id: int | None = Field(default=None)
+
+    @model_validator(mode="before")
+    @classmethod
+    def remove_obsolete_fields(cls, value):
+        if not isinstance(value, dict):
+            return value
+        return {key: item for key, item in value.items() if key not in ("listenIp", "listen_ip", "id")}
+
+    @field_validator("ips")
+    @classmethod
+    def validate_ips(cls, value):
+        if value is not None:
+            for ip in value:
+                ip_address(ip)
+        return value
 
 
 class FinalMaskSalamanderSettings(FinalMaskPasswordSettings):
@@ -388,7 +440,7 @@ FINAL_MASK_TCP_SETTINGS_MODELS = {
 FINAL_MASK_UDP_SETTINGS_MODELS = {
     FinalMaskUdpType.header_custom: FinalMaskUdpHeaderCustomSettings,
     FinalMaskUdpType.mkcp_legacy: FinalMaskMkcpLegacySettings,
-    FinalMaskUdpType.header_dns: FinalMaskXdnsSettings,
+    FinalMaskUdpType.header_dns: FinalMaskDomainSettings,
     FinalMaskUdpType.header_dtls: FinalMaskPasswordSettings,
     FinalMaskUdpType.header_srtp: FinalMaskPasswordSettings,
     FinalMaskUdpType.header_utp: FinalMaskPasswordSettings,
@@ -677,17 +729,49 @@ class MuxSettings(BaseModel):
     xray: XrayMuxSettings | None = Field(default=None)
 
 
+class MasqueHostSettings(BaseModel):
+    remote_dns: list[str] | None = Field(default=None)
+    xmux: XMuxSettings | None = Field(default=None)
+
+
 class TransportSettings(BaseModel):
     xhttp_settings: XHttpSettings | None = Field(default=None)
     grpc_settings: GRPCSettings | None = Field(default=None)
     kcp_settings: KCPSettings | None = Field(default=None)
     tcp_settings: TcpSettings | None = Field(default=None)
     websocket_settings: WebSocketSettings | None = Field(default=None)
+    masque_settings: MasqueHostSettings | None = Field(default=None)
 
 
 class FormatVariables(dict):
     def __missing__(self, key):
         return key.join("{}")
+
+
+def validate_format_variables(value: str, allow_quoting: bool = True) -> str:
+    """Reject a value that the subscription cannot render with ``str.format_map``.
+
+    Unbalanced braces and positional fields (``{}``, ``{0}``) always fail; attribute and index
+    fields (``{USERNAME.x}``, ``{USERNAME[9]}``) fail or not depending on the user, so only plain
+    variable names (with an optional format spec) are allowed. ``{{`` and ``}}`` stay literal braces.
+    Widths and precisions above ``MAX_FORMAT_SPEC_NUMBER`` are rejected before anything is formatted.
+    ``allow_quoting=False`` also rejects the ``!r`` and ``!a`` conversions, which wrap the value in quotes.
+    """
+    if has_oversized_format_spec(value):
+        raise ValueError(
+            f'Invalid formatting variables in "{value}": width and precision must be numbers up to '
+            f"{MAX_FORMAT_SPEC_NUMBER}"
+        )
+    try:
+        fields = [(field, conversion) for _, field, _, conversion in Formatter().parse(value) if field is not None]
+        value.format_map(FormatVariables())
+    except ValueError, AttributeError, IndexError, TypeError:
+        raise ValueError(f'Invalid formatting variables in "{value}"')
+    if any("." in field or "[" in field for field, _ in fields):
+        raise ValueError(f'Invalid formatting variables in "{value}"')
+    if not allow_quoting and any(conversion in ("r", "a") for _, conversion in fields):
+        raise ValueError(f'Invalid formatting variables in "{value}": !r and !a add quotes, use the plain field')
+    return value
 
 
 class WireGuardHostOverrides(BaseModel):
@@ -785,12 +869,7 @@ class CreateHost(BaseHost):
     def validate_remark(cls, v):
         if not v:
             raise ValueError("Remark cannot be empty")
-        try:
-            v.format_map(FormatVariables())
-        except ValueError:
-            raise ValueError("Invalid formatting variables")
-
-        return v
+        return validate_format_variables(v)
 
     @field_validator("alpn", mode="after")
     def remove_duplicates(cls, v):
@@ -808,11 +887,20 @@ class CreateHost(BaseHost):
         v = StringArrayValidator.len_check(v, 256)
         if v and any(has_markup_unsafe_chars(address) for address in v):
             raise ValueError("Address cannot contain quotes, angle brackets, backticks, backslashes or whitespace")
+        for address in v or ():
+            validate_format_variables(address, allow_quoting=False)
         return v
 
     @field_validator("sni", "host", mode="after")
     def validate_sets(cls, v: set):
-        return StringArrayValidator.len_check(v, 1000)
+        v = StringArrayValidator.len_check(v, 1000)
+        for item in v or ():
+            validate_format_variables(item, allow_quoting=False)
+        return v
+
+    @field_validator("path", mode="after")
+    def validate_path(cls, v):
+        return validate_format_variables(v, allow_quoting=False) if v else v
 
 
 class BulkHostSelection(BaseModel):

@@ -67,6 +67,7 @@ from app.models.stats import (
 from app.nats import needs_shared_bridge_memory
 from app.nats.node_rpc import node_nats_client
 from app.node import UserSyncPreemptedError, core_users, node_manager
+from app.node.bridge import FullSyncConflictError
 from app.node.manager_sync import publish_node_sync
 from app.node.nats_memory import clear_bridge_memory_for_node
 from app.operation import BaseOperation, OperatorType
@@ -596,9 +597,10 @@ class NodeOperation(BaseOperation):
             await self.get_validated_core_config(db, modified_node.core_config_id)
 
         updates = modified_node.model_dump(exclude_none=True)
-        force_start = any(
-            field in updates and updates[field] != getattr(db_node, field) for field in NODE_RESTART_FIELDS
-        )
+        current = {field: getattr(db_node, field) for field in NODE_RESTART_FIELDS}
+        # A node without a core runs the default core; sending it is not a core change.
+        current["core_config_id"] = current["core_config_id"] or 1
+        force_start = any(field in updates and updates[field] != current[field] for field in NODE_RESTART_FIELDS)
 
         try:
             db_node = await modify_node(db, db_node, modified_node)
@@ -1291,6 +1293,10 @@ class NodeOperation(BaseOperation):
                 message="User sync was interrupted by a change to the node's connection or its removal, retry",
                 code=409,
             )
+        except FullSyncConflictError as e:
+            # Another snapshot (a Start, a repair) holds the node's fence (409), or deliveries are
+            # still in flight past their lease (503); nothing reached the node.
+            await self.raise_error(message=e.detail, code=e.code)
         except NodeAPIError as e:
             await update_node_status(db=db, db_node=db_node, status=NodeStatus.error, message=e.detail)
             await self.raise_error(message=e.detail, code=e.code)

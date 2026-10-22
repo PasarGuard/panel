@@ -23,6 +23,9 @@ export const shadowsocksSettingsSchema = z.object({
 export const hysteriaSettingsSchema = z.object({
   auth: z.string().min(1).optional(),
 })
+export const masqueSettingsSchema = z.object({
+  password: z.string().min(1).optional(),
+})
 export const wireguardSettingsSchema = z.object({
   private_key: z.string().nullable().optional(),
   public_key: z.string().nullable().optional(),
@@ -34,6 +37,7 @@ export const proxyTableInputSchema = z.object({
   shadowsocks: shadowsocksSettingsSchema.optional(),
   wireguard: wireguardSettingsSchema.optional(),
   hysteria: hysteriaSettingsSchema.optional(),
+  masque: masqueSettingsSchema.optional(),
 })
 
 export const userStatusCreateEnum = z.enum(['active', 'on_hold'])
@@ -123,6 +127,9 @@ export const getDefaultUserForm = async () => {
       },
       hysteria: {
         auth: undefined,
+      },
+      masque: {
+        password: undefined,
       },
     },
   } satisfies UseFormValues

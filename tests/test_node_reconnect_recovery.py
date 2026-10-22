@@ -192,6 +192,7 @@ async def test_failed_sync_recovers_local_attachment_with_cooldown(monkeypatch):
 async def test_failed_sync_does_not_mask_dead_backend(monkeypatch):
     db_node, node, _ = setup_node(monkeypatch, health=Health.BROKEN)
     node.requires_hard_reset = MagicMock(return_value=True)
+    monkeypatch.setattr(node_checker, "_owns_health_checks", lambda: True)
     monkeypatch.setattr(node_checker, "GetDB", FakeDB)
     monkeypatch.setattr(node_checker, "get_bridge_memory", lambda: (None, None, None))
     monkeypatch.setattr(NodeOperation, "_update_single_node_status", AsyncMock())
