@@ -406,14 +406,40 @@ async def test_failed_start_on_a_reachable_node_backs_off(checker):
 
 
 @pytest.mark.asyncio
-async def test_one_slow_node_does_not_hold_up_the_run(monkeypatch):
+async def test_a_follower_backs_off_on_its_own_and_starts_over_as_leader(checker):
+    leader = [False]
+    checker.monkeypatch.setattr(node_checker, "_owns_health_checks", lambda: leader[0])
+    checker.monkeypatch.setattr(node_checker, "verify_node_backend_health", AsyncMock(return_value=TIMEOUT))
+    db_node, node = _db_node(), _fake_node()
+
+    assert await _runs(checker, db_node, node, 30) == [0, 20]
+    assert node_checker._probe_backoffs[db_node.id].leader is False
+
+    # Winning the leadership probes at once, then backs off as the leader.
+    leader[0] = True
+    checker.clock[0] += 10
+    assert await _runs(checker, db_node, node, 10) == [0]
+    assert node_checker._probe_backoffs[db_node.id].leader is True
+
+
+def _health_run(monkeypatch, check, count=3):
+    """node_health_check over `count` connected nodes, each checked by `check`."""
     monkeypatch.setattr(node_checker.job_settings, "core_health_check_interval", 0.5)
-    monkeypatch.setattr(node_checker, "_check_tasks", {})
+    for cache in ("_check_tasks", "_health_streaks", "_probe_backoffs", "_sync_recovery_deadlines"):
+        monkeypatch.setattr(node_checker, cache, {})
+    monkeypatch.setattr(node_checker, "_node_loop_tasks", [])
     monkeypatch.setattr(node_checker, "GetDB", lambda: _FakeDB())
-    db_nodes = [SimpleNamespace(id=index, name=f"node-{index}", status=NodeStatus.connected) for index in (1, 2, 3)]
+    db_nodes = [
+        SimpleNamespace(id=index, name=f"node-{index}", status=NodeStatus.connected) for index in range(1, count + 1)
+    ]
     monkeypatch.setattr(node_checker, "get_nodes", AsyncMock(return_value=(db_nodes, len(db_nodes))))
     nodes = {db_node.id: object() for db_node in db_nodes}
     monkeypatch.setattr(node_checker.node_manager, "get_nodes", AsyncMock(return_value=nodes))
+    monkeypatch.setattr(node_checker, "process_node_health_check", check)
+
+
+@pytest.mark.asyncio
+async def test_one_slow_node_does_not_hold_up_the_run(monkeypatch):
     release = asyncio.Event()
     checked = collections.Counter()
 
@@ -422,7 +448,7 @@ async def test_one_slow_node_does_not_hold_up_the_run(monkeypatch):
         if db_node.id == 1:
             await release.wait()
 
-    monkeypatch.setattr(node_checker, "process_node_health_check", check)
+    _health_run(monkeypatch, check)
     try:
         await asyncio.wait_for(node_checker.node_health_check(), timeout=2)
         await asyncio.wait_for(node_checker.node_health_check(), timeout=2)
@@ -434,3 +460,44 @@ async def test_one_slow_node_does_not_hold_up_the_run(monkeypatch):
             await asyncio.sleep(0)
     await asyncio.wait_for(node_checker.node_health_check(), timeout=2)
     assert checked == {1: 2, 2: 3, 3: 3}
+
+
+@pytest.mark.asyncio
+async def test_a_check_that_raises_is_logged_and_runs_again(monkeypatch):
+    logger = MagicMock()
+    monkeypatch.setattr(node_checker, "logger", logger)
+    checked = collections.Counter()
+
+    async def check(db_node, node):
+        checked[db_node.id] += 1
+        if db_node.id == 1:
+            raise RuntimeError("boom")
+
+    _health_run(monkeypatch, check, count=2)
+    await asyncio.wait_for(node_checker.node_health_check(), timeout=2)
+    await asyncio.wait_for(node_checker.node_health_check(), timeout=2)
+
+    assert checked == {1: 2, 2: 2}
+    assert node_checker._check_tasks == {}
+    assert [call.args[1] for call in logger.error.call_args_list] == ["node-1", "node-1"]
+
+
+@pytest.mark.asyncio
+async def test_shutdown_cancels_checks_still_running(monkeypatch):
+    cancelled = []
+
+    async def check(db_node, node):
+        try:
+            await asyncio.sleep(3600)
+        except asyncio.CancelledError:
+            cancelled.append(db_node.id)
+            raise
+
+    _health_run(monkeypatch, check, count=2)
+    await asyncio.wait_for(node_checker.node_health_check(), timeout=2)
+    assert node_checker._check_tasks.keys() == {1, 2}
+
+    await asyncio.wait_for(node_checker._stop_node_loops(), timeout=2)
+
+    assert sorted(cancelled) == [1, 2]
+    assert node_checker._check_tasks == {}

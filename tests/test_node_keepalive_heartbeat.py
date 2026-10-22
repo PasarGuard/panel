@@ -15,6 +15,7 @@ from PasarGuardNodeBridge.common import service_grpc, service_pb2 as service
 from sqlalchemy.exc import IntegrityError
 
 from app.db.models import Node, NodeConnectionType, NodeStatus
+from app.jobs import node_heartbeat as heartbeat_job
 from app.models.node import NodeCreate, NodeModify
 from app.nats import leader as leader_module
 from app.node import NodeManager, heartbeat as heartbeat_module
@@ -256,6 +257,20 @@ async def test_answers_are_kept_per_bridge_object(beat):
         assert not beat.heartbeat.answered_since(1, node, 0)
     finally:
         await beat.heartbeat.stop()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("runs_node", [True, False])
+async def test_heartbeat_starts_only_where_the_node_connections_live(monkeypatch, runs_node):
+    start, shutdown_hooks = MagicMock(), []
+    monkeypatch.setattr(heartbeat_job.node_heartbeat, "start", start)
+    monkeypatch.setattr(heartbeat_job, "on_shutdown", shutdown_hooks.append)
+    monkeypatch.setattr(heartbeat_job, "runtime_settings", SimpleNamespace(role=SimpleNamespace(runs_node=runs_node)))
+
+    await heartbeat_job.start_node_heartbeat()
+
+    assert start.called is runs_node
+    assert shutdown_hooks == ([heartbeat_job.node_heartbeat.stop] if runs_node else [])
 
 
 @pytest.mark.asyncio
