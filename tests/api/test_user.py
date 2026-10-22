@@ -2147,8 +2147,9 @@ def test_user_put_back_on_hold_ignores_earlier_traffic(access_token):
                 },
             )
             try:
-                # It connected while on hold and was disabled before the review activated it.
-                seen_at = datetime.now(UTC)
+                # It connected while on hold and was disabled before the review activated it. Whole seconds, a few
+                # seconds back: MySQL DATETIME drops fractions, and the later edit must still land after it.
+                seen_at = (datetime.now(UTC) - timedelta(seconds=3)).replace(microsecond=0)
                 set_user_online_at(user["username"], seen_at)
                 response = client.put(
                     f"/api/user/{user['username']}/disabled",
