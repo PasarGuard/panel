@@ -55,6 +55,7 @@ from app.db.crud.user import (
     revoke_user_sub,
     set_owner,
 )
+from app.db.crud.wireguard import ensure_wireguard_subnet_pools
 from app.db.models import User, UserStatus, UserTemplate
 from app.models.admin import AdminDetails
 from app.models.proxy import ProxyTable
@@ -1929,6 +1930,9 @@ class UserOperation(BaseOperation):
         modified_user_ids: list[int] = []
         try:
             if user_template.reset_usages:
+                # The modify below allocates WireGuard IPs, which locks the pool rows before user rows everywhere
+                # else: take them before the reset locks the users, or a concurrent modify can deadlock with us
+                await ensure_wireguard_subnet_pools(db)
                 # One set-based reset for all users; it reloads them, so each one below is edited from fresh state
                 await bulk_reset_user_data_usage(
                     db,

@@ -3,31 +3,45 @@ number of users. Runs on SQLite by default and on PostgreSQL/MySQL/MariaDB with 
 
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
-from sqlalchemy import DateTime, event, func, literal, select
+from sqlalchemy import DateTime, event, func, literal, select, text
 
 from app.db.compiles_types import DateDiff
 from app.db.crud.user import (
     bulk_reset_user_data_usage,
     get_user_by_id,
     get_users_to_reset_data_usage,
+    modify_user,
     refresh_and_load_user,
     reset_user_data_usage,
 )
+from app.db.crud.wireguard import ensure_wireguard_subnet_pools
 from app.db.models import (
+    CoreConfig,
+    CoreType,
     DataLimitResetStrategy,
+    Group,
     NextPlan,
     NodeUserUsage,
     NotificationReminder,
+    ProxyInbound,
     ReminderType,
     User,
     UserStatus,
+    UserTemplate,
     UserUsageResetLogs,
 )
 from app.jobs import record_usages
 from app.models.proxy import ProxyTable
+from app.models.settings import HWIDSettings
+from app.models.user import BulkUsersApplyTemplate, UserModify
+from app.operation import OperatorType, user as user_operation
+from app.operation.user import UserOperation
 from tests.test_record_usages import reset_user_usage_history_buffer, session_factory  # noqa: F401
 
 
@@ -316,3 +330,95 @@ async def test_reset_cycle_length_is_elapsed_time_on_every_database(session_fact
     # A daily cycle is due after 1 day: 10 seconds across midnight are not a day, 23h58m on one date almost are
     assert float(across_midnight) < 0.001
     assert 0.99 < float(within_one_date) < 1
+
+
+async def _wait_for_a_lock_wait(session_factory, writer: asyncio.Task) -> bool:  # noqa: F811
+    async with session_factory() as db:
+        if db.bind.dialect.name == "postgresql":
+            waits = text("SELECT count(*) FROM pg_locks WHERE NOT granted")
+        else:
+            waits = text("SELECT count(*) FROM information_schema.innodb_trx WHERE trx_state = 'LOCK WAIT'")
+        # InnoDB refreshes innodb_trx only when it was not read for 0.1 s, so poll slower than that
+        for _ in range(100):
+            if writer.done():
+                return False
+            if (await db.execute(waits)).scalar_one():
+                return True
+            await asyncio.sleep(0.2)
+    raise AssertionError("the other writer neither finished nor waited for a lock")
+
+
+@pytest.mark.asyncio
+async def test_apply_template_reset_locks_wireguard_pools_before_user_rows(session_factory, monkeypatch):  # noqa: F811
+    # Every writer that allocates WireGuard IPs locks the subnet pool rows before it writes user rows. Applying a
+    # template resets the users first and allocates afterwards, in one transaction, so it must take the pool locks
+    # before the reset locks the users, or it deadlocks with a concurrent modify of one of its users.
+    if session_factory.kw["bind"].dialect.name == "sqlite":
+        pytest.skip("SQLite runs one writer at a time, there are no row locks to order")
+
+    async with session_factory() as db:
+        inbound = ProxyInbound(tag="wg0")
+        template_group = Group(name="template", inbounds=[inbound])
+        other_group = Group(name="other", inbounds=[inbound])
+        template = UserTemplate(
+            name="reset",
+            username_prefix=None,
+            username_suffix=None,
+            extra_settings=None,
+            groups=[template_group],
+            data_limit=5_000,
+            reset_usages=True,
+        )
+        core = CoreConfig(name="wg", config={"interface_name": "wg0", "address": ["10.77.0.1/24"]}, type=CoreType.wg)
+        db_user = _user("applied", used_traffic=3_000, data_limit=1_000, status=UserStatus.limited)
+        db.add_all([inbound, template_group, other_group, template, core, db_user])
+        await db.flush()
+        await ensure_wireguard_subnet_pools(db)
+        await db.commit()
+        user_id, template_id, other_group_id = db_user.id, template.id, other_group.id
+
+    async def modify_groups_in_another_session():
+        # An admin moves the user to another WireGuard group meanwhile (a single modify: pool rows, then the user)
+        async with session_factory() as other:
+            other_user = await get_user_by_id(other, user_id)
+            await modify_user(other, other_user, UserModify(group_ids=[other_group_id]))
+
+    writers: list[asyncio.Task] = []
+    writer_waited: list[bool] = []
+    bulk_reset = user_operation.bulk_reset_user_data_usage
+
+    async def reset_then_let_another_writer_in(db, users, **kwargs):
+        reset_users = await bulk_reset(db, users, **kwargs)
+        writers.append(asyncio.create_task(modify_groups_in_another_session()))
+        writer_waited.append(await _wait_for_a_lock_wait(session_factory, writers[0]))
+        return reset_users
+
+    async def no_op(*args, **kwargs):
+        return None
+
+    async def fake_url(user):
+        return "https://sub.example/sub/token"
+
+    monkeypatch.setattr(user_operation, "bulk_reset_user_data_usage", reset_then_let_another_writer_in)
+    monkeypatch.setattr(user_operation, "hwid_settings", AsyncMock(return_value=HWIDSettings()))
+    monkeypatch.setattr(user_operation, "sync_users", no_op)
+    monkeypatch.setattr(
+        user_operation,
+        "notification",
+        SimpleNamespace(modify_user=no_op, reset_user_data_usage=no_op, user_status_change=no_op),
+    )
+    monkeypatch.setattr(UserOperation, "generate_subscription_url", staticmethod(fake_url))
+
+    async def apply_template():
+        async with session_factory() as db:
+            await UserOperation(OperatorType.API).bulk_apply_template_to_users(
+                db,
+                BulkUsersApplyTemplate(ids={user_id}, user_template_id=template_id),
+                SimpleNamespace(is_owner=True, role=None, username="tester"),
+            )
+
+    applied = await asyncio.wait_for(asyncio.gather(apply_template(), return_exceptions=True), 30)
+    modified = await asyncio.wait_for(asyncio.gather(*writers, return_exceptions=True), 30)
+    assert writer_waited == [True]
+    assert [result for result in applied + modified if isinstance(result, BaseException)] == []
+    assert await _lifetime(session_factory, user_id) == (0, 3_000)

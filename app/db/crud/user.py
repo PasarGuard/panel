@@ -1423,6 +1423,9 @@ async def bulk_reset_user_data_usage(
     """
     Resets the data usage for a list of users and logs the reset.
 
+    The users are reloaded with `populate_existing`: with `commit=False`, pending in-memory changes on them are
+    discarded, so flush them first.
+
     Args:
         db (AsyncSession): Database session.
         users (list[User]): The list of user objects whose data usage is to be reset.
