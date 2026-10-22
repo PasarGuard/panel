@@ -2349,7 +2349,10 @@
     "shadowsocksPasswordGenerationFailed": "تولید رمز عبور ناموفق بود",
     "discardChangesTitle": "لغو تغییرات؟",
     "discardChangesDescription": "اگر این ویرایشگر را ببندید، تغییرات ذخیره‌نشدهٔ پیکربندی هسته از بین خواهد رفت.",
-    "scanRealityTarget": "اسکن هدف"
+    "scanRealityTarget": "اسکن هدف",
+    "managedProtocolsWarning": "این گزینه JSON فعلی را با سه ورودی فقط روی loopback و پورت‌های ۱۰۰۰۱ تا ۱۰۰۰۳ جایگزین می‌کند. پراکسی TLS در همان میزبان و فضای شبکه باید مسیرهای /pasarguard/vless و /pasarguard/vmess و /pasarguard/trojan را هدایت کند. سپس Host عمومی با دامنه، TLS و پورت ۴۴۳ و گروه و کاربر را تنظیم کنید. هیچ node، گواهی یا تونل فعالی خودکار ایجاد نمی‌شود.",
+    "confirmTlsProxy": "پراکسی TLS را تنظیم کرده‌ام و می‌دانم JSON فعلی هسته جایگزین می‌شود.",
+    "applyManagedProtocols": "اعمال تنظیمات سه پروتکل"
   },
   "coreEditor": {
     "nameRequired": "نام الزامی است",

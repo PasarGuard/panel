@@ -324,8 +324,8 @@ def test_scan_sync_skips_extra_probes_when_unreachable(monkeypatch):
 @pytest.mark.asyncio
 async def test_scan_reality_target_live_example():
     result = await rs.scan_reality_target("example.com:443", timeout=8)
-    assert result["tls13"] is True
-    assert result["h2"] is True
+    assert result["tls13"] is True, result.get("reason")
+    assert result["h2"] is True, result
     assert result["cert_valid"] is True
     assert result["latency_ms"] is not None
     assert result["sni"] == "example.com"
@@ -336,7 +336,7 @@ async def test_scan_reality_target_live_example():
 @pytest.mark.asyncio
 async def test_scan_reality_target_bare_ip_discovers_sni():
     result = await rs.scan_reality_target("1.0.0.1:443", timeout=8)
-    assert result["sni_discovered"] is True
+    assert result["sni_discovered"] is True, result.get("reason")
     assert result["sni"]
     assert result["cert_valid"] is True
 

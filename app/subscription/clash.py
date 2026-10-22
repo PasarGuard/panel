@@ -79,7 +79,7 @@ class ClashConfiguration(BaseSubscription):
         if config.request:
             result.update(config.request)
 
-        if random_user_agent:
+        if random_user_agent and self.user_agent_list:
             result["headers"]["User-Agent"] = choice(self.user_agent_list)
 
         return self._normalize_and_remove_none_values(result)
@@ -112,7 +112,7 @@ class ClashConfiguration(BaseSubscription):
             "max-early-data": max_early_data if max_early_data and not is_httpupgrade else None,
             "early-data-header-name": early_data_header_name if max_early_data and not is_httpupgrade else None,
         }
-        if random_user_agent:
+        if random_user_agent and self.user_agent_list:
             result["headers"]["User-Agent"] = choice(self.user_agent_list)
 
         return self._normalize_and_remove_none_values(result)

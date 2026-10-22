@@ -1,3 +1,4 @@
+import type { SubscriptionSettingsForm } from './subscription-settings-schema'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -5,11 +6,10 @@ import { CustomVariablesPopover, normalizeCustomVariableKey } from '@/components
 import type { SubscriptionFormData } from '@/features/subscriptions/components/subscription-settings-schema'
 import { builtInVariableKeys } from '@/features/subscriptions/components/subscription-settings-schema'
 import { Plus, Trash2 } from 'lucide-react'
-import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
 export interface SubscriptionCustomVariablesSectionProps {
-  form: UseFormReturn<any>
+  form: SubscriptionSettingsForm
 }
 
 const nextCustomVariableKey = (variables: NonNullable<SubscriptionFormData['custom_variables']>) => {
@@ -25,7 +25,7 @@ const nextCustomVariableKey = (variables: NonNullable<SubscriptionFormData['cust
 
 export function SubscriptionCustomVariablesSection({ form }: SubscriptionCustomVariablesSectionProps) {
   const { t } = useTranslation()
-  const customVariables = form.watch('custom_variables') || []
+  const customVariables = (form.watch('custom_variables') || []).map(variable => ({ key: variable.key ?? '', value: variable.value ?? '' }))
   const builtInKeys = new Set<string>(builtInVariableKeys)
 
   const setCustomVariables = (variables: NonNullable<SubscriptionFormData['custom_variables']>) => {

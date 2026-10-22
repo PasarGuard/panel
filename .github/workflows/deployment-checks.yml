@@ -1,0 +1,147 @@
+name: Deployment checks
+
+on:
+  pull_request:
+  push:
+  workflow_dispatch:
+    inputs:
+      network_probes:
+        description: 'Run external REALITY TLS probes (requires unrestricted authorized egress)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  runtime-regressions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.14'
+      - name: Dependency-free runtime regressions
+        run: python -m unittest discover -s tests/deployment -v
+      - name: Validate shell entrypoints
+        run: bash -n start.sh healthcheck.sh
+
+  dashboard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.3'
+      - run: bun install --frozen-lockfile
+        working-directory: dashboard
+      - run: bun test
+        working-directory: dashboard
+      # build runs the strict TypeScript check before bundling.
+      - run: bun run build
+        working-directory: dashboard
+
+  docker-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build directly from the checkout, without CI frontend artifacts
+        run: docker build -t pasarguard-smoke .
+      - name: Boot behind simulated TLS termination
+        run: |
+          docker run -d --name pasarguard-smoke -p 127.0.0.1:18080:18080 \
+            -e PORT=18080 -e UVICORN_HOST=0.0.0.0 \
+            -e UVICORN_ALLOW_INSECURE_HTTP=true -e DEBUG=false \
+            -e SQLALCHEMY_DATABASE_URL=sqlite+aiosqlite:////tmp/smoke.db \
+            pasarguard-smoke
+          curl --fail --silent --show-error --retry 40 --retry-all-errors \
+            --retry-delay 2 --max-time 5 http://127.0.0.1:18080/health
+          curl --fail --silent --show-error http://127.0.0.1:18080/dashboard/ > /dev/null
+          docker exec pasarguard-smoke /code/healthcheck.sh
+      - name: Graceful stop within supervisor budget
+        run: |
+          docker stop --timeout 50 pasarguard-smoke
+          test "$(docker inspect --format '{{.State.ExitCode}}' pasarguard-smoke)" = 0
+          docker logs pasarguard-smoke > "$RUNNER_TEMP/panel-stop.log" 2>&1
+          grep -q 'Application shutdown complete' "$RUNNER_TEMP/panel-stop.log"
+          if grep -E 'Shutdown hook exceeded|Application shutdown failed|shutdown budget exhausted' "$RUNNER_TEMP/panel-stop.log"; then
+            exit 1
+          fi
+      - name: Container logs
+        if: always()
+        run: docker logs pasarguard-smoke || true
+      - name: Cleanup
+        if: always()
+        run: docker rm -f pasarguard-smoke || true
+
+  nats-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.14'
+      - run: python -m pip install uv==0.13.4
+      - run: uv sync --frozen --group dev
+      - name: Install pinned NATS with upstream archive checksum
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/nats"
+          gh release download v2.14.0 --repo nats-io/nats-server \
+            --pattern nats-server-v2.14.0-linux-amd64.tar.gz --pattern SHA256SUMS \
+            --dir "$RUNNER_TEMP/nats"
+          cd "$RUNNER_TEMP/nats"
+          sha256sum --ignore-missing --check SHA256SUMS
+          tar -xzf nats-server-v2.14.0-linux-amd64.tar.gz
+          echo "$RUNNER_TEMP/nats/nats-server-v2.14.0-linux-amd64" >> "$GITHUB_PATH"
+      - name: Real JetStream integration including consumer crash/redelivery
+        run: uv run pytest -q tests/test_nats_sync_integration.py tests/test_notification_delivery.py
+
+  external-network-probes:
+    if: github.event_name == 'workflow_dispatch' && inputs.network_probes
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.14'
+      - run: python -m pip install uv==0.13.4
+      - run: uv sync --frozen --group dev
+      - name: External REALITY probes (not mocked)
+        env:
+          REALITY_SCAN_NETWORK_TEST: '1'
+        run: uv run pytest -q tests/test_reality_scan_unit.py -k 'live_example or bare_ip_discovers_sni'
+
+  native-node-shutdown:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.14'
+      - run: python -m pip install uv==0.13.4
+      - run: uv sync --frozen --group dev
+      - name: Download checksum-pinned native node and Xray
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/native-node" "$RUNNER_TEMP/native-xray"
+          gh release download v0.5.4 --repo PasarGuard/node \
+            --pattern pasarguard-node-linux-amd64.zip --dir "$RUNNER_TEMP/native-node"
+          gh release download v26.3.27 --repo XTLS/Xray-core \
+            --pattern Xray-linux-64.zip --dir "$RUNNER_TEMP/native-xray"
+          echo "2670664910a9441195703e916ac610458267817a95ab5960f004ba617803a159  $RUNNER_TEMP/native-node/pasarguard-node-linux-amd64.zip" | sha256sum --check
+          echo "23cd9af937744d97776ee35ecad4972cf4b2109d1e0fe6be9930467608f7c8ae  $RUNNER_TEMP/native-xray/Xray-linux-64.zip" | sha256sum --check
+          unzip "$RUNNER_TEMP/native-node/pasarguard-node-linux-amd64.zip" -d "$RUNNER_TEMP/native-node"
+          unzip "$RUNNER_TEMP/native-xray/Xray-linux-64.zip" xray -d "$RUNNER_TEMP/native-xray"
+          chmod +x "$RUNNER_TEMP/native-node/pasarguard-node-linux-amd64" "$RUNNER_TEMP/native-xray/xray"
+      - name: Real native core start and ordered shutdown (ephemeral local node only)
+        env:
+          NATIVE_NODE_BINARY: ${{ runner.temp }}/native-node/pasarguard-node-linux-amd64
+          XRAY_BINARY: ${{ runner.temp }}/native-xray/xray
+        run: uv run pytest -q tests/test_native_node_shutdown.py --tb=short

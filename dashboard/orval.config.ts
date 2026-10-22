@@ -12,6 +12,9 @@ export default defineConfig({
       tslint: true,
       headers: false,
       override: {
+        // The ofetch mutator returns the parsed body and throws on HTTP errors.
+        // Do not generate { data, status, headers } wrappers it never returns.
+        fetch: { includeHttpResponseReturnType: false },
         mutator: {
           path: './src/service/http.ts',
           name: 'orvalFetcher',

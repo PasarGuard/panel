@@ -1,8 +1,8 @@
 import asyncio
 from contextlib import suppress
-from typing import Any
 
 import aiohttp
+from pydantic import ValidationError
 
 from app import on_startup
 from app.models.settings import NotificationSettings
@@ -20,17 +20,28 @@ from app.utils.logger import get_logger
 client: aiohttp.ClientSession | None = None
 
 
+_client_lock = asyncio.Lock()
+
+
 async def define_client():
-    """
-    Re-create the global aiohttp.ClientSession.
-    Call this function after changing the proxy setting.
-    """
+    """Replace the HTTP session only after settings and replacement are ready."""
     global client
-    if client and not client.closed:
-        asyncio.create_task(client.close())
-    settings = await notification_settings()
-    proxy_url = settings.proxy_url
-    client = create_outbound_http_session(proxy=proxy_url if proxy_url else None)
+    async with _client_lock:
+        settings = await notification_settings()
+        replacement = create_outbound_http_session(proxy=settings.proxy_url or None)
+        previous = client
+        client = replacement
+        if previous and not previous.closed:
+            await previous.close()
+
+
+async def close_notification_client():
+    global client
+    async with _client_lock:
+        previous = client
+        client = None
+        if previous and not previous.closed:
+            await previous.close()
 
 
 on_startup(define_client)
@@ -150,7 +161,7 @@ async def send_telegram_message(message, chat_id: int | None = None, topic_id: i
 async def _process_discord_notification(notification: DiscordNotification):
     settings: NotificationSettings = await notification_settings()
     if not settings.notify_discord:
-        return
+        return True
 
     success = await _send_discord_webhook_direct(
         json_data=notification.json_data, webhook=notification.webhook, max_retries=settings.max_retries
@@ -158,12 +169,13 @@ async def _process_discord_notification(notification: DiscordNotification):
 
     if success:
         logger.debug("Discord notification delivered")
+    return success
 
 
 async def _process_telegram_notification(notification: TelegramNotification):
     settings: NotificationSettings = await notification_settings()
     if not settings.notify_telegram or not settings.telegram_api_token:
-        return
+        return True
 
     success = await _send_telegram_message_direct(
         message=notification.message,
@@ -175,37 +187,57 @@ async def _process_telegram_notification(notification: TelegramNotification):
 
     if success:
         logger.debug("Telegram notification delivered")
+    return success
 
 
 async def process_notification(item: dict | None):
+    """Return True for delivered/disabled/invalid items, False for transient failure."""
     if not item:
-        return
-
+        return True
     try:
         match item.get("type"):
             case "discord":
-                notification = DiscordNotification(**item)
-                await _process_discord_notification(notification)
+                return await _process_discord_notification(DiscordNotification(**item))
             case "telegram":
-                notification = TelegramNotification(**item)
-                await _process_telegram_notification(notification)
+                return await _process_telegram_notification(TelegramNotification(**item))
             case _:
-                logger.warning(f"Unknown notification type received: {item}")
+                logger.warning("Discarding unknown notification type")
+                return True
+    except ValidationError:
+        logger.warning("Discarding malformed notification")
+        return True
     except Exception as err:
-        logger.error(f"Failed to process notification: {err}")
+        logger.error("Failed to process notification (%s)", type(err).__name__)
+        return False
+
+
+async def consume_notification(queue, *, timeout=1):
+    delivery = await queue.claim(timeout=timeout)
+    if delivery is None:
+        return False
+    async with delivery:
+        if await process_notification(delivery.item):
+            await delivery.acknowledge()
+        else:
+            tries = delivery.item.get("tries", 0)
+            # Malformed retry metadata must not create an infinite delivery loop.
+            if not isinstance(tries, int) or tries < 0 or tries >= 2:
+                logger.error("Notification delivery attempts exhausted")
+                await delivery.acknowledge()
+            else:
+                await delivery.retry({**delivery.item, "tries": tries + 1})
+    return True
 
 
 async def run_notification_dispatcher():
     queue = get_queue()
     while True:
         try:
-            item: dict[str, Any] | None = await queue.dequeue(timeout=1)
-            if item:
-                await process_notification(item)
+            await consume_notification(queue)
         except asyncio.CancelledError:
             break
         except Exception as err:
-            logger.error(f"Notification dispatcher error: {err}")
+            logger.error("Notification dispatcher error (%s)", type(err).__name__)
             await asyncio.sleep(1)
 
 

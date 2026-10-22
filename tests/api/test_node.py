@@ -943,10 +943,10 @@ def test_realtime_node_stats(access_token, node_operator_mock):
 @pytest.mark.asyncio
 async def test_node_create_and_modify_schedule_background_reconnect(monkeypatch: pytest.MonkeyPatch):
     operator = NodeOperation(operator_type=OperatorType.API)
-    scheduled_node_ids: list[int] = []
+    scheduled_connections: list[tuple[int, bool]] = []
 
-    async def record_background_connect(node_id: int) -> None:
-        scheduled_node_ids.append(node_id)
+    async def record_background_connect(node_id: int, *, force_start: bool = False) -> None:
+        scheduled_connections.append((node_id, force_start))
 
     monkeypatch.setattr(operator, "_update_node_impl", AsyncMock())
     monkeypatch.setattr(operator, "_connect_single_node_background", record_background_connect)
@@ -975,7 +975,7 @@ async def test_node_create_and_modify_schedule_background_reconnect(monkeypatch:
             )
             await asyncio.sleep(0)
 
-            assert scheduled_node_ids == [created.id, modified.id]
+            assert scheduled_connections == [(created.id, False), (modified.id, True)]
         finally:
             if node_id is not None:
                 db_node = await session.get(Node, node_id)

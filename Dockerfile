@@ -1,7 +1,15 @@
 ARG PYTHON_VERSION=3.14
 
+# Build the dashboard from source; do not depend on an external CI artifact.
+FROM oven/bun:1.4.3 AS dashboard-builder
+WORKDIR /dashboard
+COPY dashboard/ ./
+RUN bun install --frozen-lockfile
+ENV VITE_BASE_API=/
+RUN bun run build && cp build/index.html build/404.html
+
 FROM ghcr.io/astral-sh/uv:python$PYTHON_VERSION-bookworm-slim AS builder
-ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
+ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_PROJECT_ENVIRONMENT=/opt/venv
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
@@ -23,10 +31,12 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 FROM python:$PYTHON_VERSION-slim-bookworm
 
+COPY --from=builder /opt/venv /opt/venv
 COPY --from=builder /build /code
 WORKDIR /code
+COPY --from=dashboard-builder /dashboard/build /code/dashboard/build
 
-ENV PATH="/code/.venv/bin:$PATH"
+ENV PATH="/opt/venv/bin:$PATH"
 
 # Keep the runtime trust store explicit. Outbound notification clients use it
 # without replacing Python's process-wide SSLContext.
@@ -47,5 +57,9 @@ COPY healthcheck.sh /code/healthcheck.sh
 RUN chmod +x /code/healthcheck.sh
 
 RUN chmod +x /code/start.sh
+
+STOPSIGNAL SIGTERM
+
+HEALTHCHECK --interval=30s --timeout=6s --start-period=60s --retries=3 CMD ["/code/healthcheck.sh"]
 
 ENTRYPOINT ["/code/start.sh"]

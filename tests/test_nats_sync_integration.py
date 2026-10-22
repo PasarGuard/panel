@@ -501,3 +501,123 @@ async def test_live_index_survives_consumer_recreation(jetstream):
         assert [item.user.email for item in await store.claim_users("1", "reader", 10, 30)] == ["after-consumer-loss"]
     finally:
         await store.close()
+
+
+@pytest.mark.asyncio
+async def test_notification_claim_remains_pending_until_settlement(jetstream):
+    from app.notification.nats_queue import NatsNotificationQueue
+
+    queue = NatsNotificationQueue(stream_name="delivery_" + uuid4().hex, subject="delivery." + uuid4().hex)
+    await jetstream.js.add_stream(name=queue.STREAM_NAME, subjects=[queue.SUBJECT])
+    queue._js = jetstream.js
+    queue._consumer = await jetstream.js.pull_subscribe(
+        queue.SUBJECT, durable=queue.CONSUMER_NAME, stream=queue.STREAM_NAME
+    )
+    await queue.enqueue({"event": "test"})
+    delivery = await queue.claim(timeout=2)
+    async with delivery:
+        info = await jetstream.js.consumer_info(queue.STREAM_NAME, queue.CONSUMER_NAME)
+        assert info.num_ack_pending == 1
+        await delivery.acknowledge()
+    info = await jetstream.js.consumer_info(queue.STREAM_NAME, queue.CONSUMER_NAME)
+    assert info.num_ack_pending == 0
+
+
+@pytest.mark.asyncio
+async def test_notification_redelivered_after_consumer_process_crash(jetstream):
+    from nats.js.api import ConsumerConfig
+
+    from app.notification.nats_queue import NatsNotificationQueue
+
+    queue = NatsNotificationQueue(stream_name="crash_" + uuid4().hex, subject="crash." + uuid4().hex)
+    await jetstream.js.add_stream(name=queue.STREAM_NAME, subjects=[queue.SUBJECT])
+    queue._js = jetstream.js
+    queue._consumer = await jetstream.js.pull_subscribe(
+        queue.SUBJECT, durable=queue.CONSUMER_NAME, stream=queue.STREAM_NAME, config=ConsumerConfig(ack_wait=0.3)
+    )
+    await queue.enqueue({"event": "survives-crash"})
+    code = """
+import asyncio, os, sys, nats
+from app.notification.nats_queue import NatsNotificationQueue
+async def main():
+    nc = await nats.connect(sys.argv[1])
+    queue = NatsNotificationQueue(stream_name=sys.argv[2], subject=sys.argv[3])
+    queue._js = nc.jetstream()
+    queue._consumer = await queue._js.pull_subscribe(queue.SUBJECT, durable=queue.CONSUMER_NAME, stream=queue.STREAM_NAME)
+    delivery = await queue.claim(timeout=2)
+    assert delivery.item == {'event': 'survives-crash'}
+    os._exit(13)
+asyncio.run(main())
+"""
+    child = await asyncio.create_subprocess_exec(
+        sys.executable,
+        "-c",
+        code,
+        jetstream.url,
+        queue.STREAM_NAME,
+        queue.SUBJECT,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    try:
+        stdout, stderr = await asyncio.wait_for(child.communicate(), 30)
+        assert child.returncode == 13, (stdout, stderr)
+    finally:
+        if child.returncode is None:
+            child.kill()
+            await child.wait()
+    delivery = await queue.claim(timeout=3)
+    assert delivery.item == {"event": "survives-crash"}
+    async with delivery:
+        await delivery.acknowledge()
+
+
+@pytest.mark.asyncio
+async def test_shutdown_deadline_preserves_unsettled_jetstream_message(jetstream):
+    import importlib.util
+
+    from app.notification.nats_queue import NatsNotificationQueue
+
+    queue = NatsNotificationQueue(stream_name="timeout_" + uuid4().hex, subject="timeout." + uuid4().hex)
+    own = await nats.connect(jetstream.url)
+    queue._js = own.jetstream()
+    await queue._js.add_stream(name=queue.STREAM_NAME, subjects=[queue.SUBJECT])
+    queue._consumer = await queue._js.pull_subscribe(
+        queue.SUBJECT, durable=queue.CONSUMER_NAME, stream=queue.STREAM_NAME
+    )
+    await queue.enqueue({"event": "shutdown-timeout"})
+    spec = importlib.util.spec_from_file_location(
+        "deadline_lifecycle", Path(__file__).resolve().parents[1] / "app/lifecycle.py"
+    )
+    lifecycle = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(lifecycle)
+    lifecycle.configure_shutdown(timeout=0.5, hook_timeout=0.1)
+    events = []
+
+    async def hanging_drain():
+        delivery = await queue.claim(timeout=1)
+        assert delivery is not None
+        async with delivery:
+            events.append("claimed")
+            await asyncio.Event().wait()
+
+    async def close_transport():
+        await own.close()
+        events.append("closed")
+
+    lifecycle.on_shutdown(close_transport, phase=lifecycle.ShutdownPhase.TRANSPORTS)
+    lifecycle.on_shutdown(hanging_drain, phase=lifecycle.ShutdownPhase.DRAIN)
+    try:
+        with pytest.raises(ExceptionGroup):
+            async with lifecycle.lifespan(None):
+                pass
+        assert events == ["claimed", "closed"]
+        assert own.is_closed
+        recovery = await jetstream.js.pull_subscribe(
+            queue.SUBJECT, durable=queue.CONSUMER_NAME, stream=queue.STREAM_NAME
+        )
+        messages = await recovery.fetch(1, timeout=3)
+        assert json.loads(messages[0].data) == {"event": "shutdown-timeout"}
+        await messages[0].ack_sync()
+    finally:
+        await own.close()

@@ -11,7 +11,7 @@ from cryptography.hazmat.backends import default_backend
 from app import create_app  # noqa: F401
 from app.nats import require_nats_if_multiworker
 from app.utils.logger import LOGGING_CONFIG, get_logger
-from config import logging_settings, runtime_settings, server_settings
+from config import logging_settings, runtime_settings, server_settings, shutdown_settings
 
 logger = get_logger("uvicorn-main")
 
@@ -120,9 +120,16 @@ if __name__ == "__main__":
         if server_settings.uds:
             bind_args["uds"] = server_settings.uds
         else:
-            ip = check_and_modify_ip(server_settings.host)
+            ip = (
+                server_settings.host
+                if server_settings.allow_insecure_http
+                else check_and_modify_ip(server_settings.host)
+            )
 
-            logger.warning(f"""
+            if server_settings.allow_insecure_http:
+                logger.warning("HTTP binding explicitly enabled; use a TLS-terminating reverse proxy.")
+            else:
+                logger.warning(f"""
 {click.style("IMPORTANT!", blink=True, bold=True, fg="yellow")}
 You're running PasarGuard without specifying {click.style("UVICORN_SSL_CERTFILE", italic=True, fg="magenta")} and {click.style("UVICORN_SSL_KEYFILE", italic=True, fg="magenta")}.
 The application will only be accessible through localhost. This means that {click.style("PasarGuard and subscription URLs will not be accessible externally", bold=True)}.
@@ -161,6 +168,7 @@ Then, navigate to {click.style(f"http://{ip}:{server_settings.port}", bold=True)
             loop=server_settings.loop,
             proxy_headers=server_settings.proxy_headers,
             forwarded_allow_ips=server_settings.forwarded_allow_ips,
+            timeout_graceful_shutdown=shutdown_settings.request_drain_timeout,
         )
     except FileNotFoundError:  # to prevent error on removing unix sock
         pass

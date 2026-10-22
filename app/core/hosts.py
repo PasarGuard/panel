@@ -13,6 +13,7 @@ from app.core.manager import core_manager
 from app.db import GetDB
 from app.db.crud.host import get_host_by_id, get_hosts, upsert_inbounds
 from app.db.models import ProxyHostSecurity
+from app.lifecycle import ShutdownPhase
 from app.models.host import BaseHost, FinalMask, TransportSettings, WireGuardHostOverrides
 from app.models.subscription import (
     GRPCTransportConfig,
@@ -29,10 +30,10 @@ from app.nats.client import setup_nats_kv
 from app.nats.kv_cas import is_kv_miss
 from app.nats.message import MessageTopic
 from app.nats.router import router
+from app.subscription.base import normalize_and_remove_none_values
 from app.utils.logger import get_logger
 from config import runtime_settings
 from role import Role
-from app.subscription.base import normalize_and_remove_none_values
 
 
 def _string_list(value) -> list[str]:
@@ -709,7 +710,7 @@ async def initialize_hosts():
         await host_manager.setup(db)
 
 
-@on_shutdown
+@on_shutdown(phase=ShutdownPhase.TRANSPORTS)
 async def shutdown_hosts():
     if runtime_settings.role == Role.NODE:
         return

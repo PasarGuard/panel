@@ -1,23 +1,36 @@
 #!/bin/bash
 
-# Health check script that adapts to different binding scenarios:
-# 1. Unix socket (UDS)
-# 2. Reverse proxy (Caddy) - health checks through localhost
-# 3. Direct HTTP binding
-# 4. Direct HTTPS binding
-
-PORT=${UVICORN_PORT:-8000}
-CERTFILE=${UVICORN_SSL_CERTFILE}
-KEYFILE=${UVICORN_SSL_KEYFILE}
-UDS=${UVICORN_UDS}
-DEBUG=${DEBUG:-false}
+# Resolve local settings consistently when invoked from another directory.
+cd -- "$(dirname -- "${BASH_SOURCE[0]}")" || exit 1
+# Use the same dotenv parser and environment precedence as the application.
+# Capture the command status before mapfile (process substitutions mask failures).
+if [ -f .env ]; then
+    effective_settings="$(python -c 'from config import runtime_settings, server_settings
+for value in (runtime_settings.role.value, server_settings.port, server_settings.ssl_certfile or "", server_settings.ssl_keyfile or "", server_settings.uds or ""):
+    print(value)')" || exit 1
+    mapfile -t settings <<< "$effective_settings"
+    ROLE="${settings[0]}"
+    PORT="${settings[1]}"
+    CERTFILE="${settings[2]}"
+    KEYFILE="${settings[3]}"
+    UDS="${settings[4]:-}"
+else
+    PORT=${UVICORN_PORT:-${PORT:-8000}}
+    CERTFILE=${UVICORN_SSL_CERTFILE}
+    KEYFILE=${UVICORN_SSL_KEYFILE}
+    UDS=${UVICORN_UDS}
+fi
+ROLE="${ROLE:-all-in-one}"
+ROLE="${ROLE,,}"
+ROLE="${ROLE#"${ROLE%%[![:space:]]*}"}"
+ROLE="${ROLE%"${ROLE##*[![:space:]]}"}"
 
 # Function to check health via HTTP/HTTPS
 check_http_health() {
     local protocol=$1
     local host=$2
     local port=$3
-    local curl_flags="-sf"
+    local curl_flags="-sf --connect-timeout 2 --max-time 5"
 
     # Add --insecure for HTTPS self-signed certs
     if [ "$protocol" = "https" ]; then
@@ -37,12 +50,21 @@ check_uds_health() {
     fi
 
     # Use curl with unix socket
-    curl -sf --unix-socket "$socket_path" "http://localhost/health" 2>/dev/null
+    curl -sf --connect-timeout 2 --max-time 5 --unix-socket "$socket_path" "http://localhost/health" 2>/dev/null
     return $?
 }
 
 # Main health check logic
 main() {
+    # Split workers do not expose HTTP. Check their PID-1 command rather than
+    # incorrectly marking a healthy worker unhealthy on every /health probe.
+    if [ "${ROLE:-all-in-one}" = "node" ] || [ "${ROLE:-all-in-one}" = "scheduler" ]; then
+        exec python -c 'import os, pathlib, sys
+expected = (sys.argv[1] + "_worker.py").encode()
+args = pathlib.Path("/proc/1/cmdline").read_bytes().split(b"\0")
+sys.exit(0 if any(os.path.basename(arg) == expected for arg in args) else 1)' "$ROLE"
+    fi
+
     # Case 1: Unix socket binding
     if [ -n "$UDS" ]; then
         if check_uds_health "$UDS"; then

@@ -1,6 +1,7 @@
 import base64
 import json
 import urllib.parse as urlparse
+from ipaddress import IPv6Address
 from random import choice
 from urllib.parse import quote
 
@@ -61,9 +62,10 @@ class StandardLinks(BaseSubscription):
         self.links.append(link)
 
     def render(self):
+        links = list(self.links)
         if subscription_env_settings.external_config:
-            self.links.append(subscription_env_settings.external_config)
-        return "\n".join(self.links)
+            links.append(subscription_env_settings.external_config)
+        return "\n".join(links)
 
     def add(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict):
         """
@@ -79,6 +81,15 @@ class StandardLinks(BaseSubscription):
         link = handler(remark=remark, address=address, inbound=inbound, settings=settings)
         if link:
             self.add_link(link)
+
+    @staticmethod
+    def _uri_address(address: str) -> str:
+        # URI authorities require brackets; VMess JSON addresses do not.
+        try:
+            IPv6Address(address)
+        except ValueError:
+            return address
+        return f"[{address}]"
 
     # ========== Transport Handlers (Only receive what they need) ==========
 
@@ -125,15 +136,18 @@ class StandardLinks(BaseSubscription):
             "uplinkChunkSize": config.uplink_chunk_size,
             "noGRPCHeader": config.no_grpc_header,
             "xmux": config.xmux,
-            "headers": config.http_headers if config.http_headers else {},
+            "headers": dict(config.http_headers or {}),
             "downloadSettings": config.download_settings,
         }
 
         if config.random_user_agent:
-            if config.mode in ("stream-one", "stream-up") and not config.no_grpc_header:
-                extra["headers"]["User-Agent"] = choice(self.grpc_user_agent_data)
-            else:
-                extra["headers"]["User-Agent"] = choice(self.user_agent_list)
+            user_agents = (
+                self.grpc_user_agent_data
+                if config.mode in ("stream-one", "stream-up") and not config.no_grpc_header
+                else self.user_agent_list
+            )
+            if user_agents:
+                extra["headers"]["User-Agent"] = choice(user_agents)
 
         extra = self._normalize_and_remove_none_values(extra)
         if extra:
@@ -254,6 +268,7 @@ class StandardLinks(BaseSubscription):
 
     def _build_vless(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict) -> str:
         """Build VLESS link"""
+        address = self._uri_address(address)
         # Process grpc path
         path = self._process_path(inbound)
 
@@ -284,6 +299,7 @@ class StandardLinks(BaseSubscription):
 
     def _build_trojan(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict) -> str:
         """Build Trojan link"""
+        address = self._uri_address(address)
         # Process grpc path
         path = self._process_path(inbound)
 
@@ -306,6 +322,7 @@ class StandardLinks(BaseSubscription):
 
     def _build_shadowsocks(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict) -> str:
         """Build Shadowsocks link"""
+        address = self._uri_address(address)
         method, password = self.detect_shadowsocks_2022(
             inbound.is_2022,
             inbound.method,
@@ -319,6 +336,7 @@ class StandardLinks(BaseSubscription):
 
     def _build_hysteria(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict) -> str:
         """Build Hysteria link"""
+        address = self._uri_address(address)
         payload = {}
         obfs_password, quic_params = self._get_hysteria_data_from_finalmask(inbound.finalmask)
         if obfs_password:

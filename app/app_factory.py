@@ -1,4 +1,5 @@
 import warnings
+from functools import cache
 
 from fastapi import FastAPI, Request, status
 from fastapi.encoders import jsonable_encoder
@@ -9,7 +10,7 @@ from fastapi.routing import APIRoute
 from sqlalchemy.exc import DBAPIError
 
 from app.db.base import database_pool_summary
-from app.lifecycle import on_shutdown, on_startup
+from app.lifecycle import ShutdownPhase, configure_shutdown, on_shutdown, on_startup
 from app.middlewares import setup_middleware
 from app.nats import is_multi_worker, require_nats_if_multiworker
 from app.nats.message import MessageTopic
@@ -198,7 +199,7 @@ def _register_nats_handlers(
 ):
     if enable_router:
         on_startup(router.start)
-        on_shutdown(router.stop)
+        on_shutdown(router.stop, phase=ShutdownPhase.TRANSPORTS)
     if enable_settings:
         router.register_handler(MessageTopic.SETTING, handle_settings_message)
     if enable_client_templates:
@@ -214,7 +215,10 @@ def _register_nats_handlers(
         router.register_handler(MessageTopic.NODE, _ignore_worker_sync_message)
 
 
+@cache
 def _register_scheduler_hooks():
+    # Scheduler, notification queues and leadership callbacks are process-wide
+    # singletons. App construction must not create new callback closures each time.
     from app.notification.queue_manager import initialize_queues
 
     on_startup(initialize_queues)
@@ -313,7 +317,7 @@ def _register_scheduler_hooks():
                 started_notifications["value"] = False
 
         on_startup(_start_notification_dispatcher_if_leader)
-        on_shutdown(_stop_notification_dispatcher_if_started)
+        on_shutdown(_stop_notification_dispatcher_if_started, phase=ShutdownPhase.QUIESCE)
 
     async def _stop_scheduler_and_leader():
         await _cancel_reclaim_task()
@@ -321,7 +325,7 @@ def _register_scheduler_hooks():
             scheduler.shutdown()
         await stop_job_leader()
 
-    on_shutdown(_stop_scheduler_and_leader)
+    on_shutdown(_stop_scheduler_and_leader, phase=ShutdownPhase.QUIESCE)
 
 
 def _register_jobs():
@@ -342,8 +346,15 @@ def _warn_deprecated_role():
     logger.warning(message)
 
 
+def _log_application_version():
+    logger.info(f"PasarGuard v{__version__} ({runtime_settings.role.value})")
+
+
 def create_app() -> FastAPI:
     from app.lifecycle import lifespan
+    from config import shutdown_settings
+
+    configure_shutdown(timeout=shutdown_settings.timeout, hook_timeout=shutdown_settings.hook_timeout)
 
     # Fail fast before NATS handlers / queues register (covers all-in-one + UVICORN_WORKERS>1).
     require_nats_if_multiworker(is_multi_worker())
@@ -379,7 +390,7 @@ def create_app() -> FastAPI:
         from app.nats.scheduler_rpc import start_scheduler_rpc, stop_scheduler_rpc
 
         on_startup(start_scheduler_rpc)
-        on_shutdown(stop_scheduler_rpc)
+        on_shutdown(stop_scheduler_rpc, phase=ShutdownPhase.QUIESCE)
 
     enable_router = (
         runtime_settings.role.runs_panel or runtime_settings.role.runs_node or runtime_settings.role.runs_scheduler
@@ -394,9 +405,22 @@ def create_app() -> FastAPI:
     _register_scheduler_hooks()
     _register_jobs()
 
+    # Register after job flush hooks: queued notifications still need this client.
+    from app.notification.client import close_notification_client
+
+    on_shutdown(close_notification_client, phase=ShutdownPhase.TRANSPORTS)
+
+    # Producer-only roles also open both NATS queues, but do not import/register
+    # scheduler-only flush hooks. Register cleanup for every role, after flushes.
+    from app.notification.queue_manager import quiesce_queues, shutdown_queues, shutdown_webhook_queue
+
+    on_shutdown(quiesce_queues, phase=ShutdownPhase.SEAL_QUEUES)
+    on_shutdown(shutdown_queues, phase=ShutdownPhase.TRANSPORTS)
+    on_shutdown(shutdown_webhook_queue, phase=ShutdownPhase.TRANSPORTS)
+
     _use_route_names_as_operation_ids(app)
 
-    on_startup(lambda: logger.info(f"PasarGuard v{__version__} ({runtime_settings.role.value})"))
+    on_startup(_log_application_version)
     on_startup(_log_database_pool_budget)
 
     @app.exception_handler(RequestValidationError)

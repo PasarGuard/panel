@@ -46,8 +46,8 @@ class XRayConfig(dict):
             fallbacks_inbound_tags = set()
 
         self._type = CoreType.xray
-        exclude_inbound_tags.update(fallbacks_inbound_tags)
-        self.exclude_inbound_tags = exclude_inbound_tags
+        # Never mutate caller-owned sets (shared when validating multiple cores).
+        self.exclude_inbound_tags = set(exclude_inbound_tags) | set(fallbacks_inbound_tags)
         self.fallbacks_inbound_tags = set(fallbacks_inbound_tags)
 
         self._inbounds = []
@@ -105,16 +105,24 @@ class XRayConfig(dict):
         if not self.get("outbounds"):
             raise ValueError("config doesn't have outbounds")
 
+        inbound_tags = set()
         for inbound in self["inbounds"]:
-            if not inbound.get("tag"):
+            if not isinstance(inbound.get("tag"), str) or not inbound["tag"]:
                 raise ValueError("all inbounds must have a unique tag")
+            if inbound["tag"] in inbound_tags:
+                raise ValueError("all inbounds must have a unique tag")
+            inbound_tags.add(inbound["tag"])
             if "," in inbound.get("tag"):
                 raise ValueError("character «,» is not allowed in inbound tag")
             if "<=>" in inbound.get("tag"):
                 raise ValueError("character «<=>» is not allowed in inbound tag")
+        outbound_tags = set()
         for outbound in self["outbounds"]:
-            if not outbound.get("tag"):
+            if not isinstance(outbound.get("tag"), str) or not outbound["tag"]:
                 raise ValueError("all outbounds must have a unique tag")
+            if outbound["tag"] in outbound_tags:
+                raise ValueError("all outbounds must have a unique tag")
+            outbound_tags.add(outbound["tag"])
 
     def _find_fallback_inbound(self, inbound: dict) -> list:
         """Find fallback inbounds for an inbound."""

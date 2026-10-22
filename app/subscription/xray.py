@@ -103,13 +103,13 @@ class XrayConfiguration(BaseSubscription):
         host = config.host if isinstance(config.host, str) else (config.host[0] if config.host else "")
 
         ws_settings = {
-            "headers": config.http_headers if config.http_headers else {},
+            "headers": dict(config.http_headers or {}),
             "heartbeatPeriod": config.heartbeat_period,
             "path": path,
             "host": host,
         }
 
-        if config.random_user_agent:
+        if config.random_user_agent and self.user_agent_list:
             ws_settings["headers"]["User-Agent"] = choice(self.user_agent_list)
 
         return self._normalize_and_remove_none_values(ws_settings)
@@ -119,12 +119,12 @@ class XrayConfiguration(BaseSubscription):
         host = config.host if isinstance(config.host, str) else (config.host[0] if config.host else "")
 
         httpupgrade_settings = {
-            "headers": config.http_headers if config.http_headers else {},
+            "headers": dict(config.http_headers or {}),
             "path": path,
             "host": host,
         }
 
-        if config.random_user_agent:
+        if config.random_user_agent and self.user_agent_list:
             httpupgrade_settings["headers"]["User-Agent"] = choice(self.user_agent_list)
 
         return self._normalize_and_remove_none_values(httpupgrade_settings)
@@ -140,7 +140,7 @@ class XrayConfiguration(BaseSubscription):
         }
 
         extra = {
-            "headers": config.http_headers if config.http_headers else {},
+            "headers": dict(config.http_headers or {}),
             "scMaxEachPostBytes": config.sc_max_each_post_bytes,
             "scMinPostsIntervalMs": config.sc_min_posts_interval_ms,
             "xPaddingBytes": config.x_padding_bytes,
@@ -167,10 +167,13 @@ class XrayConfiguration(BaseSubscription):
         }
 
         if config.random_user_agent:
-            if config.mode in ("stream-one", "stream-up") and not config.no_grpc_header:
-                extra["headers"]["User-Agent"] = choice(self.grpc_user_agent_data)
-            else:
-                extra["headers"]["User-Agent"] = choice(self.user_agent_list)
+            user_agents = (
+                self.grpc_user_agent_data
+                if config.mode in ("stream-one", "stream-up") and not config.no_grpc_header
+                else self.user_agent_list
+            )
+            if user_agents:
+                extra["headers"]["User-Agent"] = choice(user_agents)
 
         xhttp_settings["extra"] = extra
         return self._normalize_and_remove_none_values(xhttp_settings)
@@ -197,7 +200,7 @@ class XrayConfiguration(BaseSubscription):
         if config.http_headers and "user-agent" in config.http_headers:
             grpc_settings["user_agent"] = config.http_headers["user-agent"]
 
-        if config.random_user_agent:
+        if config.random_user_agent and self.grpc_user_agent_data:
             grpc_settings["user_agent"] = choice(self.grpc_user_agent_data)
 
         return self._normalize_and_remove_none_values(grpc_settings)
@@ -257,7 +260,7 @@ class XrayConfiguration(BaseSubscription):
         if host:
             tcp_settings["header"]["request"]["headers"]["Host"] = [host]
 
-        if config.random_user_agent:
+        if config.random_user_agent and self.user_agent_list:
             tcp_settings["header"]["request"]["headers"]["User-Agent"] = [choice(self.user_agent_list)]
 
         return self._normalize_and_remove_none_values(tcp_settings)
@@ -272,7 +275,7 @@ class XrayConfiguration(BaseSubscription):
             "host": [host] if host else [],
         }
 
-        if config.random_user_agent:
+        if config.random_user_agent and self.user_agent_list:
             http_settings["headers"]["User-Agent"] = [choice(self.user_agent_list)]
 
         return self._normalize_and_remove_none_values(http_settings)

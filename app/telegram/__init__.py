@@ -9,6 +9,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from nats.js.kv import KeyValue
 
 from app import on_shutdown, on_startup
+from app.lifecycle import ShutdownPhase
 from app.models.settings import RunMethod, Telegram
 from app.nats import is_nats_enabled
 from app.nats.client import setup_nats_kv
@@ -268,4 +269,4 @@ async def shutdown_telegram_bot():
 
 
 on_startup(startup_telegram_bot)
-on_shutdown(shutdown_telegram_bot)
+on_shutdown(shutdown_telegram_bot, phase=ShutdownPhase.QUIESCE)

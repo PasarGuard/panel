@@ -10,7 +10,7 @@ export const $fetch = ofetch.create({
     options.headers.set('X-Client-Timezone', dateUtils.getSystemTimeZone())
     options.headers.set('X-Client-Timezone-Offset-Minutes', String(-new Date().getTimezoneOffset()))
     if (token) {
-      options.headers.set('Authorization', `Bearer ${getAuthToken()}`)
+      options.headers.set('Authorization', `Bearer ${token}`)
     }
   },
 })
@@ -39,9 +39,10 @@ export type BodyType<BodyData> = BodyData
  * Query params are pre-encoded into the URL by the generated getXxxUrl() helpers.
  */
 export const orvalFetcher = async <T>(url: string, options: RequestInit = {}): Promise<T> => {
-  const { method = 'GET', body, headers } = options
+  const { method = 'GET', body, headers, ...requestOptions } = options
 
   return fetcher<T>(url, {
+    ...requestOptions,
     method: method as FetchOptions<'json'>['method'],
     body: body ?? undefined,
     headers: headers as HeadersInit | undefined,

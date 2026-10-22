@@ -1,3 +1,4 @@
+import type { SubscriptionSettingsForm } from './subscription-settings-schema'
 import { SortableApplication } from '@/features/subscriptions/components/sortable-application'
 import type { SubscriptionApplicationFormData, SubscriptionFormData } from '@/features/subscriptions/components/subscription-settings-schema'
 import { Badge } from '@/components/ui/badge'
@@ -7,7 +8,6 @@ import { rectSortingStrategy, SortableContext } from '@dnd-kit/sortable'
 import { Plus, RotateCcw, Settings } from 'lucide-react'
 import type { ComponentProps } from 'react'
 import type { FieldArrayWithId } from 'react-hook-form'
-import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
 const PLATFORM_KEYS = ['ios', 'android', 'windows', 'macos', 'linux', 'appletv', 'androidtv'] as const
@@ -15,7 +15,7 @@ const PLATFORM_KEYS = ['ios', 'android', 'windows', 'macos', 'linux', 'appletv',
 type DndContextSensors = NonNullable<ComponentProps<typeof DndContext>['sensors']>
 
 export interface SubscriptionApplicationsSectionProps {
-  form: UseFormReturn<SubscriptionFormData>
+  form: SubscriptionSettingsForm
   applicationFields: FieldArrayWithId<SubscriptionFormData, 'applications'>[]
   sensors: DndContextSensors
   onDragEnd: (event: DragEndEvent) => void

@@ -158,12 +158,12 @@ export const Login: FC = () => {
 
     // A token exists - check whether it's still valid before deciding
     // whether to redirect to the dashboard or drop the stale session
-    getCurrentAdmin(controller.signal)
+    getCurrentAdmin({ signal: controller.signal })
       .then(() => {
         navigate('/', { replace: true })
       })
       .catch((error: any) => {
-        if (error?.name === 'AbortError') return
+        if (controller.signal.aborted || error?.name === 'AbortError') return
         // Another flow (e.g. a manual login) already replaced the token - don't clobber it
         if (getAuthToken() !== token) return
         // Only drop the session on a confirmed auth failure; transient/network

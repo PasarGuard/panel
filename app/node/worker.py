@@ -12,6 +12,7 @@ from app.core.manager import core_manager
 from app.db import GetDB
 from app.db.crud.node import get_node_by_id, get_nodes
 from app.db.models import NodeStatus
+from app.lifecycle import ShutdownPhase
 from app.models.node import NodeCoreUpdate, NodeGeoFilesUpdate, NodeListQuery
 from app.nats.proto_utils import deserialize_proto_message, deserialize_proto_messages
 from app.nats.rpc_service import BaseRpcService
@@ -171,9 +172,7 @@ class NodeWorkerService(BaseRpcService):
         # Refresh from KV before connecting to avoid stale core cache races.
         await core_manager._reload_from_cache()
         async with GetDB() as db:
-            await self._node_operator.connect_single_node(
-                db, node_id, force_start=bool(data.get("force_start"))
-            )
+            await self._node_operator.connect_single_node(db, node_id, force_start=bool(data.get("force_start")))
 
     async def _connect_nodes_bulk(self, data: dict):
         node_ids = data.get("node_ids")
@@ -192,9 +191,7 @@ class NodeWorkerService(BaseRpcService):
                     ),
                     load_usage_logs=False,
                 )
-            await self._node_operator.connect_nodes_bulk(
-                db, nodes, force_start=bool(data.get("force_start"))
-            )
+            await self._node_operator.connect_nodes_bulk(db, nodes, force_start=bool(data.get("force_start")))
 
     async def _disconnect_node(self, data: dict):
         node_id = data.get("node_id")
@@ -354,6 +351,6 @@ async def start_node_worker():
     await node_worker_service.start()
 
 
-@on_shutdown
+@on_shutdown(phase=ShutdownPhase.QUIESCE)
 async def stop_node_worker():
     await node_worker_service.stop()

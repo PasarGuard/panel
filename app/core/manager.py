@@ -15,6 +15,7 @@ from app.core.xray import XRayConfig
 from app.db import GetDB
 from app.db.crud.core import get_core_configs
 from app.db.models import CoreConfig, CoreType
+from app.lifecycle import ShutdownPhase
 from app.models.core import CoreListQuery
 from app.nats import is_multi_worker, is_nats_enabled
 from app.nats.client import setup_nats_kv
@@ -80,7 +81,7 @@ class CoreManager:
             # Deserialize state using JSON
             try:
                 cached_state = json.loads(entry.value.decode("utf-8"))
-            except (json.JSONDecodeError, UnicodeDecodeError):
+            except json.JSONDecodeError, UnicodeDecodeError:
                 self._logger.warning("Failed to decode CoreManager state as JSON, ignoring...")
                 return False
 
@@ -346,7 +347,7 @@ async def init_core_manager():
         await core_manager.initialize(db)
 
 
-@on_shutdown
+@on_shutdown(phase=ShutdownPhase.TRANSPORTS)
 async def shutdown_core_manager():
     # Close NATS connection
     if core_manager._nc:

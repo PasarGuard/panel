@@ -1,3 +1,4 @@
+import { serializeTransportSettings } from '@/features/hosts/forms/host-payload'
 import MainSection from '@/features/hosts/components/hosts-list'
 import { type HostFormValues } from '@/features/hosts/forms/host-form'
 import PageHeader from '@/components/layout/page-header'
@@ -107,22 +108,7 @@ export default function HostsPage() {
         pinned_peer_cert_sha256: formData.pinned_peer_cert_sha256 || undefined,
         verify_peer_cert_by_name: formData.verify_peer_cert_by_name && formData.verify_peer_cert_by_name.length > 0 ? formData.verify_peer_cert_by_name : undefined,
         vless_route: formData.vless_route || undefined,
-        transport_settings: formData.transport_settings
-          ? {
-              ...formData.transport_settings,
-              xhttp_settings: formData.transport_settings.xhttp_settings
-                ? {
-                    ...formData.transport_settings.xhttp_settings,
-                    xmux: formData.transport_settings.xhttp_settings.xmux
-                      ? {
-                          ...formData.transport_settings.xhttp_settings.xmux,
-                          h_keep_alive_period: formData.transport_settings.xhttp_settings.xmux.h_keep_alive_period || undefined,
-                        }
-                      : undefined,
-                  }
-                : undefined,
-            }
-          : undefined,
+        transport_settings: serializeTransportSettings(formData.transport_settings),
         mux_settings: allProtocolsNone
           ? undefined
           : formData.mux_settings

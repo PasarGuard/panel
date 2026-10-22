@@ -120,7 +120,7 @@ export interface HostFormValues {
       seq_key?: string
       uplink_data_placement?: string
       uplink_data_key?: string
-      uplink_chunk_size?: number
+      uplink_chunk_size?: string
       sc_max_each_post_bytes?: string
       sc_min_posts_interval_ms?: string
       download_settings?: number
@@ -204,7 +204,9 @@ const transportSettingsSchema = z
         seq_key: z.string().nullish().optional(),
         uplink_data_placement: z.string().nullish().optional(),
         uplink_data_key: z.string().nullish().optional(),
-        uplink_chunk_size: z.number().nullish().optional(),
+        uplink_chunk_size: z.string().nullish().optional().refine(val => !val || /^\d{1,16}(-\d{1,16})?$/.test(val), {
+          message: "Uplink chunk size must be a number or range, e.g. '3072' or '1000-3000'",
+        }),
         sc_max_each_post_bytes: z.string().nullish().optional(),
         sc_min_posts_interval_ms: z.string().nullish().optional(),
         download_settings: z.number().nullish().optional(),

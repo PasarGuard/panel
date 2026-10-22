@@ -1,3 +1,4 @@
+import type { SubscriptionSettingsForm } from './subscription-settings-schema'
 import { SortableSubscriptionRule } from '@/features/subscriptions/components/sortable-subscription-rule'
 import type { SubscriptionFormData } from '@/features/subscriptions/components/subscription-settings-schema'
 import { Badge } from '@/components/ui/badge'
@@ -9,7 +10,6 @@ import { FileText, Plus, RotateCcw } from 'lucide-react'
 import type { ComponentProps } from 'react'
 import { useMemo, useRef } from 'react'
 import type { FieldArrayWithId } from 'react-hook-form'
-import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
 type DndContextSensors = NonNullable<ComponentProps<typeof DndContext>['sensors']>
@@ -17,7 +17,7 @@ type DndContextSensors = NonNullable<ComponentProps<typeof DndContext>['sensors'
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max)
 
 export interface SubscriptionRulesSectionProps {
-  form: UseFormReturn<SubscriptionFormData>
+  form: SubscriptionSettingsForm
   ruleFields: FieldArrayWithId<SubscriptionFormData, 'rules'>[]
   sensors: DndContextSensors
   onDragEnd: (event: DragEndEvent) => void
