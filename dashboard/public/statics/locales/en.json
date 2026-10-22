@@ -2163,7 +2163,7 @@
     "usageRatioPlaceholder": "Enter usage ratio",
     "connectionType": "Connection Type",
     "keepAlive": "Keep Alive",
-    "keepAliveDescription": "Set the keep alive interval",
+    "keepAliveDescription": "How long the node keeps its core running without hearing from the panel (0 keeps it running). Use at least 20 seconds, or 120-300 seconds on unstable links.",
     "days": "Days",
     "minutes": "Minutes",
     "seconds": "Seconds",
