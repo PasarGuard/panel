@@ -246,7 +246,7 @@ async def test_bulk_connect_continues_after_old_mtproto_node(monkeypatch: pytest
     ]
     bridge_nodes = {node.id: _not_connected_bridge_node() for node in nodes}
 
-    async def start_or_attach(pg_node, db_node, core, users, backend_type, *, force_start=False):
+    async def start_or_attach(pg_node, db_node, core, users, backend_type, *, force_start=False, stop_first=True):
         if core is mtproto_core:
             raise NodeAPIError(500, "invalid backend type")
         return INFO
@@ -289,7 +289,7 @@ async def test_bulk_connect_writes_other_nodes_before_slow_mtproto_start(monkeyp
     mtproto_started = asyncio.Event()
     release_mtproto = asyncio.Event()
 
-    async def start_or_attach(pg_node, db_node, core, users, backend_type, *, force_start=False):
+    async def start_or_attach(pg_node, db_node, core, users, backend_type, *, force_start=False, stop_first=True):
         if core is mtproto_core:
             mtproto_started.set()
             await release_mtproto.wait()
@@ -355,7 +355,7 @@ async def test_bulk_connect_status_write_waits_for_user_load_on_shared_session(m
         loading = False
         return []
 
-    async def start_or_attach(pg_node, db_node, core, users, backend_type, *, force_start=False):
+    async def start_or_attach(pg_node, db_node, core, users, backend_type, *, force_start=False, stop_first=True):
         if core.type == CoreType.mtproto:
             await users()
         return INFO
