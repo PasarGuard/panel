@@ -55,9 +55,16 @@ async def _full_host_refresh() -> None:
 
 
 async def _host_manager_setup() -> None:
-    # Startup path without NATS KV state: HostManager.setup rebuilds every host from the database
-    async with GetTestDB() as db:
-        await host_manager.setup(db)
+    # Startup path without NATS KV state: HostManager.setup rebuilds every host from the database. NATS stays off
+    # for the call: with it, setup would load a KV snapshot instead, and connect from this short-lived loop, leaving
+    # the shared manager a client whose loop is gone (every later host change in the session then waits on it).
+    nats_enabled = host_manager._nats_enabled
+    host_manager._nats_enabled = False
+    try:
+        async with GetTestDB() as db:
+            await host_manager.setup(db)
+    finally:
+        host_manager._nats_enabled = nats_enabled
 
 
 @pytest.fixture
