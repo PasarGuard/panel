@@ -278,6 +278,44 @@ async def test_bulk_connect_continues_after_old_mtproto_node(monkeypatch: pytest
 
 
 @pytest.mark.asyncio
+async def test_bulk_connect_passes_stop_first_to_both_node_groups(monkeypatch: pytest.MonkeyPatch):
+    # A core save sends stop_first=False only for Xray-only live edits (#1030); the MTProto group must not drop it.
+    xray_core = SimpleNamespace(type=CoreType.xray)
+    mtproto_core = SimpleNamespace(type=CoreType.mtproto)
+    nodes = [
+        SimpleNamespace(id=71, name="xray-node", status=NodeStatus.connected, core_config_id=1),
+        SimpleNamespace(id=72, name="mtproto-node", status=NodeStatus.connected, core_config_id=2),
+    ]
+    bridge_nodes = {node.id: _not_connected_bridge_node() for node in nodes}
+    seen: dict[int, tuple[bool, bool]] = {}
+
+    async def start_or_attach(pg_node, db_node, core, users, backend_type, *, force_start=False, stop_first=True):
+        seen[db_node.id] = (force_start, stop_first)
+        return INFO
+
+    monkeypatch.setattr(node_operation_module.node_manager, "update_node", AsyncMock())
+    monkeypatch.setattr(
+        node_operation_module.node_manager, "get_node", AsyncMock(side_effect=lambda node_id: bridge_nodes[node_id])
+    )
+    monkeypatch.setattr(
+        NodeOperation,
+        "_get_core_users_map",
+        AsyncMock(return_value=({1: xray_core, 2: mtproto_core}, {1: [], 2: []})),
+    )
+    monkeypatch.setattr(NodeOperation, "_start_or_attach_node", AsyncMock(side_effect=start_or_attach))
+    monkeypatch.setattr(node_operation_module, "bulk_update_node_status", AsyncMock())
+    monkeypatch.setattr(node_operation_module.notification, "connect_node", AsyncMock())
+    monkeypatch.setattr(node_operation_module.notification, "error_node", AsyncMock())
+
+    for stop_first in (False, True):
+        seen.clear()
+        await NodeOperation.__new__(NodeOperation)._connect_nodes_bulk_local(
+            object(), nodes, force_start=True, stop_first=stop_first
+        )
+        assert seen == {71: (True, stop_first), 72: (True, stop_first)}
+
+
+@pytest.mark.asyncio
 async def test_bulk_connect_writes_other_nodes_before_slow_mtproto_start(monkeypatch: pytest.MonkeyPatch):
     xray_core = SimpleNamespace(type=CoreType.xray)
     mtproto_core = SimpleNamespace(type=CoreType.mtproto)
