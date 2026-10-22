@@ -189,6 +189,32 @@ async def test_a_good_probe_ends_the_backoff(checker):
 
 
 @pytest.mark.asyncio
+async def test_backoff_counts_from_when_the_check_gets_a_slot(checker):
+    probe = AsyncMock(return_value=TIMEOUT)
+    checker.monkeypatch.setattr(node_checker, "verify_node_backend_health", probe)
+    slots = asyncio.Semaphore(1)
+    checker.monkeypatch.setattr(node_checker, "NODE_CHECK_SEM", slots)
+    db_node, node = _db_node(), _fake_node()
+
+    await slots.acquire()
+    check = asyncio.create_task(node_checker.process_node_health_check(db_node, node))
+    await asyncio.sleep(0)
+    # Other nodes hold every check slot for 15 s.
+    checker.clock[0] += 15
+    slots.release()
+    await check
+    assert probe.await_count == 1
+
+    # The 20 s backoff starts at the probe, not when the run queued the check.
+    checker.clock[0] += 10
+    await node_checker.process_node_health_check(db_node, node)
+    assert probe.await_count == 1
+    checker.clock[0] += 10
+    await node_checker.process_node_health_check(db_node, node)
+    assert probe.await_count == 2
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "admin_action",
     ["reconnected", "enabled_or_edited", "new_connection"],

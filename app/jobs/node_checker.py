@@ -51,6 +51,12 @@ class _ProbeBackoff:
     next_probe_at: float = 0.0
 
 
+@dataclass
+class _ProbeAttempt:
+    # Taken once the check holds a slot: a busy queue must not use up the backoff.
+    started: float = 0.0
+
+
 _probe_backoffs: dict[int, _ProbeBackoff] = {}
 # Per-node checks still running after their run returned (see node_health_check).
 _check_tasks: dict[int, asyncio.Task] = {}
@@ -79,7 +85,7 @@ def _in_probe_backoff(db_node: Node, node: PasarGuardNode) -> bool:
     return time.monotonic() < backoff.next_probe_at
 
 
-async def _record_probe(db_node: Node, node: PasarGuardNode, probed: Health, started: float) -> None:
+async def _record_probe(db_node: Node, node: PasarGuardNode, probed: Health, attempt: _ProbeAttempt) -> None:
     # Only nodes already reported as error back off, so the failure threshold
     # before that still counts consecutive runs. A failed probe can still end
     # healthy when the same run repaired the node.
@@ -94,7 +100,7 @@ async def _record_probe(db_node: Node, node: PasarGuardNode, probed: Health, sta
     interval = job_settings.core_health_check_interval
     delay = min(job_settings.node_health_max_backoff, interval * 2**backoff.failures)
     # Half an interval of slack, so a run that starts a moment early still probes.
-    backoff.next_probe_at = started + delay - interval / 2
+    backoff.next_probe_at = attempt.started + delay - interval / 2
 
 
 async def _node_answers(node: PasarGuardNode, db_node: Node) -> bool:
@@ -227,14 +233,15 @@ async def process_node_health_check(db_node: Node, node: PasarGuardNode):
     if _in_probe_backoff(db_node, node):
         return
 
-    started = time.monotonic()
-    probed = await _check_node(db_node, node)
+    attempt = _ProbeAttempt()
+    probed = await _check_node(db_node, node, attempt)
     if probed is not Health.INVALID:
-        await _record_probe(db_node, node, probed, started)
+        await _record_probe(db_node, node, probed, attempt)
 
 
-async def _check_node(db_node: Node, node: PasarGuardNode) -> Health:
+async def _check_node(db_node: Node, node: PasarGuardNode, attempt: _ProbeAttempt) -> Health:
     async with NODE_CHECK_SEM:
+        attempt.started = time.monotonic()
         try:
             health, error_code, error_message = await verify_node_backend_health(
                 node, db_node.name, timeout=_probe_timeout(db_node)
