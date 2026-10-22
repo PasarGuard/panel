@@ -1,12 +1,13 @@
 from copy import deepcopy
 from enum import Enum
 from ipaddress import ip_address, ip_network
+from string import Formatter
 from typing import Any
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator, model_serializer, model_validator
 
 from app.db.models import ProxyHostALPN, ProxyHostFingerprint, ProxyHostSecurity, UserStatus
-from app.utils.helpers import has_markup_unsafe_chars
+from app.utils.helpers import MAX_FORMAT_SPEC_NUMBER, has_markup_unsafe_chars, has_oversized_format_spec
 
 from .validators import ListValidator, StringArrayValidator
 
@@ -747,6 +748,32 @@ class FormatVariables(dict):
         return key.join("{}")
 
 
+def validate_format_variables(value: str, allow_quoting: bool = True) -> str:
+    """Reject a value that the subscription cannot render with ``str.format_map``.
+
+    Unbalanced braces and positional fields (``{}``, ``{0}``) always fail; attribute and index
+    fields (``{USERNAME.x}``, ``{USERNAME[9]}``) fail or not depending on the user, so only plain
+    variable names (with an optional format spec) are allowed. ``{{`` and ``}}`` stay literal braces.
+    Widths and precisions above ``MAX_FORMAT_SPEC_NUMBER`` are rejected before anything is formatted.
+    ``allow_quoting=False`` also rejects the ``!r`` and ``!a`` conversions, which wrap the value in quotes.
+    """
+    if has_oversized_format_spec(value):
+        raise ValueError(
+            f'Invalid formatting variables in "{value}": width and precision must be numbers up to '
+            f"{MAX_FORMAT_SPEC_NUMBER}"
+        )
+    try:
+        fields = [(field, conversion) for _, field, _, conversion in Formatter().parse(value) if field is not None]
+        value.format_map(FormatVariables())
+    except ValueError, AttributeError, IndexError, TypeError:
+        raise ValueError(f'Invalid formatting variables in "{value}"')
+    if any("." in field or "[" in field for field, _ in fields):
+        raise ValueError(f'Invalid formatting variables in "{value}"')
+    if not allow_quoting and any(conversion in ("r", "a") for _, conversion in fields):
+        raise ValueError(f'Invalid formatting variables in "{value}": !r and !a add quotes, use the plain field')
+    return value
+
+
 class WireGuardHostOverrides(BaseModel):
     """Optional per-host values merged into WireGuard subscription output."""
 
@@ -842,12 +869,7 @@ class CreateHost(BaseHost):
     def validate_remark(cls, v):
         if not v:
             raise ValueError("Remark cannot be empty")
-        try:
-            v.format_map(FormatVariables())
-        except ValueError:
-            raise ValueError("Invalid formatting variables")
-
-        return v
+        return validate_format_variables(v)
 
     @field_validator("alpn", mode="after")
     def remove_duplicates(cls, v):
@@ -865,11 +887,20 @@ class CreateHost(BaseHost):
         v = StringArrayValidator.len_check(v, 256)
         if v and any(has_markup_unsafe_chars(address) for address in v):
             raise ValueError("Address cannot contain quotes, angle brackets, backticks, backslashes or whitespace")
+        for address in v or ():
+            validate_format_variables(address, allow_quoting=False)
         return v
 
     @field_validator("sni", "host", mode="after")
     def validate_sets(cls, v: set):
-        return StringArrayValidator.len_check(v, 1000)
+        v = StringArrayValidator.len_check(v, 1000)
+        for item in v or ():
+            validate_format_variables(item, allow_quoting=False)
+        return v
+
+    @field_validator("path", mode="after")
+    def validate_path(cls, v):
+        return validate_format_variables(v, allow_quoting=False) if v else v
 
 
 class BulkHostSelection(BaseModel):

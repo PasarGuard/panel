@@ -741,8 +741,17 @@ export default function HostsList({
       // Revert the optimistic update on error
       setHosts(hosts)
 
-      // Show error message
-      toast.error(t('host.priorityUpdateError', { defaultValue: 'Failed to update priorities' }))
+      // Show error message, with the API's reason (a 422 names the host value it rejected)
+      const detail = (error as any)?.data?.detail
+      const description =
+        typeof detail === 'string'
+          ? detail
+          : detail && typeof detail === 'object'
+            ? Object.entries(detail)
+                .map(([field, message]) => `${field}: ${message}`)
+                .join('\n')
+            : undefined
+      toast.error(t('host.priorityUpdateError', { defaultValue: 'Failed to update priorities' }), { description })
     } finally {
       setIsUpdatingPriorities(false)
     }

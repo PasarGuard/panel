@@ -1,6 +1,7 @@
 import html
 import re
 from datetime import UTC, datetime as dt, timezone as tz
+from string import Formatter
 
 from pydantic import ValidationError
 
@@ -180,3 +181,26 @@ _MARKUP_UNSAFE_CHARS = frozenset("<>\"'`\\")
 def has_markup_unsafe_chars(value: str) -> bool:
     """Returns True if value contains a quote, angle bracket, backtick, backslash, whitespace or control character."""
     return any(char in _MARKUP_UNSAFE_CHARS or char.isspace() or not char.isprintable() for char in value)
+
+
+# Largest width or precision a host format field may use. str.format_map builds the padded result before anything
+# can check its size, so "{USERNAME:>1000000000}" would allocate a gigabyte on save and on every subscription render.
+MAX_FORMAT_SPEC_NUMBER = 256
+
+
+def has_oversized_format_spec(value: str) -> bool:
+    """Returns True if a format field in value has a width or precision above MAX_FORMAT_SPEC_NUMBER, or a nested
+    field (``{USERNAME:>{PAD}}``) whose size is only known when it renders."""
+    try:
+        specs = [spec for _, field, spec, _ in Formatter().parse(value) if field is not None and spec]
+    except ValueError:
+        # Unbalanced braces: str.format_map rejects the value before it formats anything
+        return False
+    for spec in specs:
+        if "{" in spec:
+            return True
+        for number in re.findall(r"\d+", spec):
+            digits = number.lstrip("0")
+            if len(digits) > len(str(MAX_FORMAT_SPEC_NUMBER)) or int(digits or "0") > MAX_FORMAT_SPEC_NUMBER:
+                return True
+    return False

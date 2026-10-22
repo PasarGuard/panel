@@ -126,12 +126,15 @@ def _normalize_finalmask_link(final_mask_settings: FinalMask | dict | str | None
 async def _prepare_subscription_inbound_data(
     host: BaseHost,
     down_settings: SubscriptionInboundData | None = None,
+    omit_download_settings: bool = False,
 ) -> SubscriptionInboundData:
     """Merge host overrides with inbound defaults for subscription generation.
 
     Return reusable TLS and transport settings, retaining address and port
     candidates for selection on each request. ``down_settings`` supplies a
-    prepared download host for an xHTTP host with xHTTP settings. For MASQUE,
+    prepared download host for an xHTTP host with xHTTP settings.
+    ``omit_download_settings`` serves the host without download settings, not
+    even the inbound's, for a host whose own download host is unusable. For MASQUE,
     absent or empty host DNS settings fall back to inbound DNS; entries are
     stripped and blank entries removed. Explicit host HTTP headers, including
     an empty mapping, override inbound headers for MASQUE and xHTTP.
@@ -396,7 +399,9 @@ async def _prepare_subscription_inbound_data(
                 else inbound_config.get("uplink_chunk_size")
             ),
             xmux=xs.xmux.model_dump(by_alias=True, exclude_none=True) if xs and xs.xmux else inbound_config.get("xmux"),
-            download_settings=down_settings if xs and down_settings else inbound_config.get("download_settings"),
+            download_settings=None
+            if omit_download_settings
+            else (down_settings if xs and down_settings else inbound_config.get("download_settings")),
             http_headers=host.http_headers if host.http_headers is not None else inbound_config.get("http_headers"),
             random_user_agent=host.random_user_agent,
         )
@@ -544,7 +549,8 @@ class HostManager:
     # setup() trusts a stored snapshot of prepared hosts over the DB. Bump the key when a release changes
     # what unchanged hosts prepare to, so NATS installs rebuild instead of serving the old data.
     # v3: the inbound finalmask no longer carries server-only "filter" layers ("state_v2" is taken by PR #1020).
-    STATE_CACHE_KEY = "state_v3"
+    # v4: a disabled, deleted or unserved xHTTP download host is no longer embedded in its parent.
+    STATE_CACHE_KEY = "state_v4"
     KV_BUCKET_NAME = "host_manager_state"
 
     def __init__(self):
@@ -672,25 +678,45 @@ class HostManager:
         await self.get_hosts.cache.clear()
         clear_sub_config_cache()
 
-    @staticmethod
     async def _prepare_host_entry(
-        db: AsyncSession, host: BaseHost, inbounds_list: list[str]
+        self, db: AsyncSession, host: BaseHost, inbounds_list: list[str]
     ) -> tuple[int, SubscriptionInboundData] | None:
         if host.is_disabled or (host.inbound_tag not in inbounds_list):
             return None
 
-        # Handle downstream for xhttp
+        # Handle downstream for xhttp. Without a usable (existing, enabled, served) download host,
+        # clients use this host both ways: the inbound's own downloadSettings only apply to hosts without one.
         downstream_data = None
+        has_download_host = False
         if (
             host.transport_settings
             and host.transport_settings.xhttp_settings
             and (ds_host := host.transport_settings.xhttp_settings.download_settings)
         ):
+            has_download_host = True
             downstream = await get_host_by_id(db, ds_host)
-            if downstream:
-                downstream_base = BaseHost.model_validate(downstream)
-                downstream_data: SubscriptionInboundData = await _prepare_subscription_inbound_data(downstream_base)
-        subscription_data = await _prepare_subscription_inbound_data(host, downstream_data)
+            if downstream is None or downstream.inbound_tag not in inbounds_list:
+                self._logger.warning(
+                    f'Download host "{ds_host}" of host "{host.id}" is missing or its inbound is gone, '
+                    "serving the host without it"
+                )
+            elif not downstream.is_disabled:
+                try:
+                    downstream_base = BaseHost.model_validate(downstream)
+                    downstream_data = await _prepare_subscription_inbound_data(downstream_base)
+                except Exception as exc:
+                    self._logger.warning(
+                        f'Download host "{ds_host}" of host "{host.id}" is invalid, serving the host without it: {exc!r}'
+                    )
+
+        try:
+            subscription_data = await _prepare_subscription_inbound_data(
+                host, downstream_data, omit_download_settings=has_download_host and downstream_data is None
+            )
+        except Exception as exc:
+            # One broken host must not abort a full refresh or the startup rebuild
+            self._logger.error(f'Skipping host "{host.id}", its subscription settings cannot be prepared: {exc!r}')
+            return None
 
         # Return subscription data directly
         return host.id, subscription_data
