@@ -127,6 +127,8 @@ async def test_health_check_attaches_ambiguous_timed_out_start_before_reconnect(
     node = MagicMock()
     node.requires_hard_reset.return_value = False
     node.get_lifecycle_state = AsyncMock(return_value=state)
+    node.get_health = AsyncMock(return_value=Health.NOT_CONNECTED)
+    node.info = AsyncMock(return_value=SimpleNamespace(started=True))
     db_node = SimpleNamespace(id=19, name="slow-node", status=NodeStatus.error)
 
     monkeypatch.setattr(
