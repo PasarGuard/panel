@@ -33,7 +33,7 @@ import { SelectorPanel } from '@/features/bulk/components/selector-panel'
 import { TimeUnitSelect, TIME_UNIT_SECONDS, type TimeUnit } from '@/components/common/time-unit-select'
 import { formatDateByLocale } from '@/utils/datePickerUtils'
 import { formatBytes, gbToBytes } from '@/utils/formatByte'
-import { toWholeSeconds } from '@/utils/timeUnitSeconds'
+import { toPositiveWholeSeconds } from '@/utils/timeUnitSeconds'
 import { useDebouncedSearch } from '@/hooks/use-debounced-search'
 import { cn } from '@/lib/utils'
 import useDirDetection from '@/hooks/use-dir-detection'
@@ -90,12 +90,8 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
       setExpireSeconds(undefined)
       return
     }
-    const num = Number(expireAmount)
-    if (num <= 0) {
-      setExpireSeconds(undefined)
-      return
-    }
-    setExpireSeconds(toWholeSeconds(num, TIME_UNIT_SECONDS[expireUnit]))
+    // Undefined for an amount that rounds below one second, so the steps below block it like an empty amount
+    setExpireSeconds(toPositiveWholeSeconds(Number(expireAmount), TIME_UNIT_SECONDS[expireUnit]))
   }, [expireAmount, expireUnit])
 
   const { data: groupsData, isLoading: groupsLoading } = useGetGroupsSimple({ limit: PAGE_SIZE, offset: 0, all: true })
@@ -160,7 +156,7 @@ export default function BulkFlow({ operationType }: BulkFlowProps) {
           return dataLimit !== undefined && dataLimit > 0
         }
         if (operationType === 'expire') {
-          return expireAmount !== undefined && expireAmount > 0
+          return expireSeconds !== undefined
         }
         return true
       case 2:
