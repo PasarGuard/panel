@@ -9,6 +9,9 @@ class _CapturingSession:
     def __init__(self):
         self.statements = []
 
+    async def flush(self):
+        pass
+
     async def execute(self, statement):
         self.statements.append(statement)
         return self

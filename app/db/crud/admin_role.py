@@ -113,7 +113,9 @@ async def remove_ids_from_role_access(db: AsyncSession, field: str, removed_ids:
     if not removed:
         return
     # Lock the role rows (in id order) and reload them: two deletes running at once would otherwise both read
-    # the same allowlist and the later write would put back the id the earlier one removed.
+    # the same allowlist and the later write would put back the id the earlier one removed. Flush first, so the
+    # reload cannot discard a pending change on a role in this session.
+    await db.flush()
     query = select(AdminRole).order_by(AdminRole.id).with_for_update().execution_options(populate_existing=True)
     for role in (await db.execute(query)).scalars():
         allowed = (role.access or {}).get(field)
