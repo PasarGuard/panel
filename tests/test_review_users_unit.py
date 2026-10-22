@@ -494,7 +494,10 @@ async def test_user_put_back_on_hold_by_activate_all_gets_the_timeout_action(db_
     from app.db.crud.bulk import activate_all_disabled_users
 
     now = dt.now(UTC)
-    admin = Admin(username="re-hold-owner", hashed_password="x")
+    role = AdminRole(name="role-re-hold", is_owner=False, permissions={}, limits={}, features={}, access={})
+    db_session.add(role)
+    await db_session.flush()
+    admin = Admin(username="re-hold-owner", hashed_password="x", role_id=role.id)
     db_session.add(admin)
     await db_session.flush()
     # It connected while on hold and was disabled before the review activated it; its timeout has passed since.
