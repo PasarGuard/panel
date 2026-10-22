@@ -64,7 +64,7 @@ def _probe_timeout(db_node: Node) -> int:
     # Not default_timeout: admins raise that for slow Starts, and a probe that waits
     # as long on a dead link holds a check slot and delays every other node.
     limit = job_settings.node_health_probe_timeout
-    return min(limit, getattr(db_node, "default_timeout", None) or limit)
+    return min(limit, db_node.default_timeout or limit)
 
 
 def _in_probe_backoff(db_node: Node, node: PasarGuardNode) -> bool:

@@ -129,7 +129,7 @@ async def test_health_check_attaches_ambiguous_timed_out_start_before_reconnect(
     node.get_lifecycle_state = AsyncMock(return_value=state)
     node.get_health = AsyncMock(return_value=Health.NOT_CONNECTED)
     node.info = AsyncMock(return_value=SimpleNamespace(started=True))
-    db_node = SimpleNamespace(id=19, name="slow-node", status=NodeStatus.error)
+    db_node = SimpleNamespace(id=19, name="slow-node", status=NodeStatus.error, default_timeout=10)
 
     monkeypatch.setattr(
         node_checker,
@@ -169,7 +169,7 @@ async def test_health_check_reapplies_config_when_keep_alive_stopped_core(monkey
     node.requires_hard_reset.return_value = False
     node.get_lifecycle_state = AsyncMock(return_value=None)
     node.update_observed_lifecycle = AsyncMock()
-    db_node = SimpleNamespace(id=19, name="dead-core", status=NodeStatus.connected)
+    db_node = SimpleNamespace(id=19, name="dead-core", status=NodeStatus.connected, default_timeout=10)
 
     _patch_health_check_db(monkeypatch)
     monkeypatch.setattr(
@@ -191,7 +191,7 @@ async def test_health_check_waits_when_core_not_started_during_in_flight_start(m
     node.requires_hard_reset.return_value = False
     node.get_lifecycle_state = AsyncMock(return_value=None)
     node.update_observed_lifecycle = AsyncMock()
-    db_node = SimpleNamespace(id=19, name="starting-node", status=NodeStatus.connected)
+    db_node = SimpleNamespace(id=19, name="starting-node", status=NodeStatus.connected, default_timeout=10)
 
     _patch_health_check_db(monkeypatch)
     NodeOperation._in_flight_connects.add(19)
@@ -227,7 +227,7 @@ async def test_health_check_waits_when_core_is_still_starting(monkeypatch: pytes
     node.requires_hard_reset.return_value = False
     node.get_lifecycle_state = AsyncMock(return_value=None)
     node.update_observed_lifecycle = AsyncMock()
-    db_node = SimpleNamespace(id=19, name="starting-core", status=NodeStatus.connected)
+    db_node = SimpleNamespace(id=19, name="starting-core", status=NodeStatus.connected, default_timeout=10)
 
     _patch_health_check_db(monkeypatch)
     monkeypatch.setattr(

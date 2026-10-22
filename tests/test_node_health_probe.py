@@ -73,7 +73,7 @@ def _db_node(status=NodeStatus.error, **extra):
 @pytest.fixture
 def checker(monkeypatch):
     monkeypatch.setattr(node_checker, "_health_streaks", {})
-    monkeypatch.setattr(node_checker, "_probe_backoffs", {}, raising=False)
+    monkeypatch.setattr(node_checker, "_probe_backoffs", {})
     monkeypatch.setattr(node_checker.job_settings, "node_health_fail_threshold", 3)
     monkeypatch.setattr(node_checker.job_settings, "node_health_recover_threshold", 2)
     monkeypatch.setattr(node_checker.job_settings, "core_health_check_interval", 10)
@@ -285,7 +285,7 @@ async def test_failed_start_on_a_reachable_node_backs_off(checker):
 @pytest.mark.asyncio
 async def test_one_slow_node_does_not_hold_up_the_run(monkeypatch):
     monkeypatch.setattr(node_checker.job_settings, "core_health_check_interval", 0.5)
-    monkeypatch.setattr(node_checker, "_check_tasks", {}, raising=False)
+    monkeypatch.setattr(node_checker, "_check_tasks", {})
     monkeypatch.setattr(node_checker, "GetDB", lambda: _FakeDB())
     db_nodes = [SimpleNamespace(id=index, name=f"node-{index}", status=NodeStatus.connected) for index in (1, 2, 3)]
     monkeypatch.setattr(node_checker, "get_nodes", AsyncMock(return_value=(db_nodes, len(db_nodes))))
