@@ -250,3 +250,22 @@ def test_unusable_download_host_does_not_fall_back_to_inbound_download_settings(
     response = client.put(f"/api/host/{pair.parent['id']}", headers=pair.headers, json=parent)
     assert response.status_code == status.HTTP_200_OK, response.text
     assert _download_addresses(pair.user["subscription_url"]) == ["inbound-default.example.com"]
+
+
+class _FakeKV:
+    def __init__(self, entries: dict[str, bytes]):
+        self.entries = entries
+
+    async def get(self, key: str):
+        value = self.entries.get(key)
+        return SimpleNamespace(value=value) if value is not None else None
+
+
+def test_host_snapshot_written_before_the_download_host_checks_is_not_loaded():
+    # "state_v3" snapshots can embed a disabled download host, so setup() must rebuild the hosts from the database
+    manager = hosts_module.HostManager()
+    manager._kv = _FakeKV({"state_v3": b"{}"})
+    assert asyncio.run(manager._load_state_from_cache()) is False
+
+    manager._kv = _FakeKV({hosts_module.HostManager.STATE_CACHE_KEY: b"{}"})
+    assert asyncio.run(manager._load_state_from_cache()) is True

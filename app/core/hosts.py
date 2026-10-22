@@ -549,7 +549,8 @@ class HostManager:
     # setup() trusts a stored snapshot of prepared hosts over the DB. Bump the key when a release changes
     # what unchanged hosts prepare to, so NATS installs rebuild instead of serving the old data.
     # v3: the inbound finalmask no longer carries server-only "filter" layers ("state_v2" is taken by PR #1020).
-    STATE_CACHE_KEY = "state_v3"
+    # v4: a disabled, deleted or unserved xHTTP download host is no longer embedded in its parent.
+    STATE_CACHE_KEY = "state_v4"
     KV_BUCKET_NAME = "host_manager_state"
 
     def __init__(self):
