@@ -22,7 +22,9 @@ class FakeDB:
 
 
 def setup_node(monkeypatch, *, health=Health.HEALTHY, state=None):
-    db_node = SimpleNamespace(id=91, name="node", status=NodeStatus.connected, core_config_id=1, keep_alive=60)
+    db_node = SimpleNamespace(
+        id=91, name="node", status=NodeStatus.connected, core_config_id=1, keep_alive=60, default_timeout=10
+    )
     core = SimpleNamespace(type=None, inbounds=["in"], protocols=frozenset(), to_str=lambda: "{}")
     info = SimpleNamespace(started=True, node_version="0.5.4", core_version="26.3.27")
     node = SimpleNamespace(

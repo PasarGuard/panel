@@ -65,9 +65,11 @@ from app.models.stats import (
     validate_user_count_metric_scope,
 )
 from app.nats import needs_shared_bridge_memory
+from app.nats.leader import needs_job_leader
 from app.nats.node_rpc import node_nats_client
 from app.node import UserSyncPreemptedError, core_users, node_manager
 from app.node.bridge import FullSyncConflictError
+from app.node.heartbeat import heartbeat_interval, keep_alive_too_short, shortest_safe_keep_alive
 from app.node.manager_sync import publish_node_sync
 from app.node.nats_memory import clear_bridge_memory_for_node
 from app.operation import BaseOperation, OperatorType
@@ -571,12 +573,27 @@ class NodeOperation(BaseOperation):
         except Exception as exc:
             logger.error(f"Background node connection failed for node {node_id}: {exc}")
 
+    @staticmethod
+    def _warn_short_keep_alive(node_name: str, keep_alive: int) -> None:
+        # Values that work today stay valid; this only explains a stopped core later.
+        if keep_alive_too_short(keep_alive):
+            logger.warning(
+                'Node "%s" keep_alive %ss is short: the panel sends a heartbeat every %ss, and %s stop its '
+                "core. Use at least %ss (120-300s on unstable links), or 0 to never stop it.",
+                node_name,
+                keep_alive,
+                f"{heartbeat_interval(keep_alive):g}",
+                "two lost in a row or a job leader change" if needs_job_leader() else "two lost in a row",
+                shortest_safe_keep_alive(),
+            )
+
     async def create_node(self, db: AsyncSession, new_node: NodeCreate, admin: AdminDetails) -> NodeResponse:
         await self.get_validated_core_config(db, new_node.core_config_id)
         try:
             db_node = await create_node(db, new_node)
         except IntegrityError:
             await self.raise_error(message=f'Node "{new_node.name}" already exists', code=409, db=db)
+        self._warn_short_keep_alive(db_node.name, db_node.keep_alive)
 
         try:
             await self._update_node_impl(db_node)
@@ -606,6 +623,8 @@ class NodeOperation(BaseOperation):
             db_node = await modify_node(db, db_node, modified_node)
         except IntegrityError:
             await self.raise_error(message=f'Node "{db_node.name}" already exists', code=409, db=db)
+        if "keep_alive" in updates and updates["keep_alive"] != current["keep_alive"]:
+            self._warn_short_keep_alive(db_node.name, db_node.keep_alive)
 
         if db_node.status in (NodeStatus.disabled, NodeStatus.limited):
             await self.disconnect_single_node(db_node.id)

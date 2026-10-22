@@ -58,7 +58,7 @@ def checker(monkeypatch):
 
 
 def _db_node(status=NodeStatus.connected):
-    return SimpleNamespace(id=7, name="debounced", status=status)
+    return SimpleNamespace(id=7, name="debounced", status=status, default_timeout=10)
 
 
 def _written_statuses(update_status):
@@ -125,7 +125,7 @@ async def test_streak_restarts_when_the_stored_status_changes(checker):
 @pytest.mark.asyncio
 async def test_followers_never_write_status_or_repair(checker):
     checker.monkeypatch.setattr(node_checker, "_owns_health_checks", lambda: False)
-    connected, errored = _db_node(), SimpleNamespace(id=8, name="errored", status=NodeStatus.error)
+    connected, errored = _db_node(), SimpleNamespace(id=8, name="errored", status=NodeStatus.error, default_timeout=10)
 
     await checker.run(connected, _make_node(), *[DEAD_CORE] * 5)
     await checker.run(errored, _make_node(), *[HEALTHY] * 3)
