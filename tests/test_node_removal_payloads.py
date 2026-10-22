@@ -259,3 +259,31 @@ async def test_on_hold_timeout_delete_is_removed_even_if_delivered_before_its_co
         assert wireguard(seen[-1]) == (PUBLIC_KEY, PEER_IPS)
     finally:
         await close_node(node)
+
+
+@pytest.mark.parametrize(
+    "wireguard_now",
+    [None, {"public_key": PUBLIC_KEY, "private_key": "", "peer_ips": []}],
+    ids=["settings-removed", "peer-ips-cleared"],
+)
+async def test_removal_keeps_the_queued_wireguard_identity_when_the_stored_one_is_gone(
+    maker, monkeypatch, wireguard_now
+):
+    user_id = await seed_wireguard_user(maker)
+    async with maker() as db:
+        await db.execute(update(User).where(User.id == user_id).values(status=UserStatus.disabled))
+        await db.commit()
+        db_user = (await db.execute(select(User).where(User.id == user_id))).scalar_one()
+        queued = await serialize_user(db_user)
+        # The WireGuard settings change before the queued removal is delivered; VLESS stays.
+        settings = {"vless": dict(db_user.proxy_settings["vless"])}
+        if wireguard_now is not None:
+            settings["wireguard"] = wireguard_now
+        await db.execute(update(User).where(User.id == user_id).values(proxy_settings=settings))
+        await db.commit()
+
+    delivered = await _deliver(monkeypatch, queued)
+    assert list(delivered.inbounds) == []
+    # The node can only find the peer by the identity it was added with.
+    assert wireguard(delivered) == (PUBLIC_KEY, PEER_IPS)
+    assert delivered.proxies.vless.id == settings["vless"]["id"]

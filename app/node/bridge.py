@@ -54,16 +54,30 @@ def get_refresh_handler() -> RefreshHandler | None:
     return _refresh_handler
 
 
+def _has_wireguard_identity(user: User) -> bool:
+    wireguard = user.proxies.wireguard
+    return bool(wireguard.public_key and wireguard.peer_ips)
+
+
 def _keep_removal_credentials(fresh: User, queued: User) -> User:
-    """Give a removal without credentials (its user is gone) the queued payload's credentials.
+    """Give a removal the queued payload's credentials where its own cannot identify the user.
 
     Nodes may need them to find what to remove: node v0.5.4's WireGuard
-    backend ignores a removal without a public key and peer IPs. Only the
+    backend ignores a removal without a public key and peer IPs. A removal
+    without credentials (its user is gone) takes all of them; one whose stored
+    WireGuard identity is gone or incomplete takes the queued one. Only the
     credentials are kept; the removal still carries no inbounds.
     """
-    if fresh.inbounds or fresh.HasField("proxies") or not queued.HasField("proxies"):
+    if fresh.inbounds or not queued.HasField("proxies"):
         return fresh
-    return User(email=fresh.email, proxies=queued.proxies)
+    if not fresh.HasField("proxies"):
+        return User(email=fresh.email, proxies=queued.proxies)
+    if _has_wireguard_identity(fresh) or not _has_wireguard_identity(queued):
+        return fresh
+    kept = User()
+    kept.CopyFrom(fresh)
+    kept.proxies.wireguard.CopyFrom(queued.proxies.wireguard)
+    return kept
 
 
 class FullSyncConflictError(NodeAPIError):
