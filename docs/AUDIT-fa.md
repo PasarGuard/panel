@@ -2,6 +2,16 @@
 
 تاریخ: ۲۲ اکتبر ۲۰۲۶
 
+## خلاصهٔ آخرین وضعیت تأییدشده
+
+- مجموعهٔ کامل محلی: **۸۱۷ passed، ۳ skipped، ۶ subtest موفق**؛ NATS واقعی فعال بود.
+- **Docker واقعی، node رسمی + پردازهٔ واقعی Xray، NATS integration، داشبورد و توقف تمیز** در [CI run 39709463046](https://github.com/devv1112/panel/actions/runs/39709463046) موفق شدند؛ تست native که محلی skip بود در CI اجرا شد.
+- **SQLite، PostgreSQL، MySQL، MariaDB و TimescaleDB** در [CI run 39709463062](https://github.com/devv1112/panel/actions/runs/39709463062) با migration، check و تست‌ها موفق شدند.
+- ظرفیت حافظهٔ queued+inflight، سقف payload، backpressure، فازهای shutdown و بودجهٔ زمانی اکنون پیاده‌سازی و آزموده شده‌اند.
+- دو probe خارجی opt-in هنوز در این دور روی runner اجرا نشده‌اند؛ نتیجهٔ محلی قبلی آن‌ها TLS EOF بود. این موارد با تست TLS محلی یا native node یکی نیستند.
+
+بخش‌های میانی تاریخچهٔ دورهای قبلی هستند؛ وضعیت جاری و محدودیت‌های آن در بخش آخر ثبت شده‌اند.
+
 ## دامنه و صداقت گزارش
 
 تغییرات روی checkout مخزن `devv1112/panel` و شاخهٔ `arena/263b0995-panel` انجام شده است. فایل‌ها متعلق به PasarGuard هستند، اما این checkout با مخزن لینک‌شدهٔ `deevv1214/PasarGuard` یکی فرض نشده است. SHA مشاهده‌شدهٔ main مخزن لینک‌شده `44999c8ced60622d9ee985eb6fe22d8627239eda` و پایهٔ checkout فعلی `b56ffe369f542152c52c69733205baeaf3f6e4cd` است. هیچ تغییری به مخزن لینک‌شده ارسال نشده است.
@@ -51,7 +61,7 @@
 
 - Python 3.14.0 از سورس CPython ساخته شد، چون دریافت runtime آماده از GitHub با محدودیت شبکه مواجه بود. ابزار و فایل‌های حجیم در cache خارج از مخزن هستند.
 - وابستگی‌ها با `uv sync --frozen --group dev` نصب شدند.
-- آخرین اجرای ثبت‌شدهٔ مجموعهٔ کامل: **۷۹۳ تست موفق، ۲ skipped و ۶ subtest موفق**؛ بدون شکست. شرح بازبینی مجدد در انتهای همین گزارش آمده است.
+- آخرین اجرای ثبت‌شدهٔ مجموعهٔ کامل محلی: **۸۱۷ تست موفق، ۳ skipped و ۶ subtest موفق**؛ تست native جداگانه در CI اجرا و موفق شد.؛ بدون شکست. شرح بازبینی مجدد در انتهای همین گزارش آمده است.
 - در نسخهٔ فعلی، ۲۵ تست مستقل deployment در ۱۰۰ iteration اجرا شدند: ۲۵۰۰ اجرای موفق. این آزمون پایداری محدود است، نه صد ممیزی مستقل یا صد آزمون بار production.
 - در دور قبل شش تست Bun موفق بودند (در دور جدید هفت تست): قرارداد بدنهٔ HTTP، انتقال AbortSignal، تبدیل XMux و حفظ صفر/بازه، حالت transport خالی و قواعد پیش‌فرض subscription.
 - TypeScript با strict فعال و بدون noCheck، ts-ignore یا غیرفعال‌سازی strict موفق شد.
@@ -60,7 +70,7 @@
 - اجرای واقعی برنامه با DEBUG=false و PORT=8000 روی 0.0.0.0 موفق شد. `/health` و `/dashboard/` پاسخ ۲۰۰ دادند؛ ۱۷ فایل اولیهٔ JS/CSS صفحه نیز پاسخ موفق داشتند. این smoke test، آزمون مرورگر تعاملی نیست.
 - Ruff برای فایل‌های Python تغییریافته، compileall با Python هدف، بررسی Bash و `git diff --check` موفق بودند.
 
-## موارد تأییدنشده و ریسک باقی‌مانده
+## موارد تأییدنشده و ریسک باقی‌مانده — ثبت تاریخی؛ وضعیت جاری در بخش آخر
 
 1. Docker در محیط موجود نبود؛ خود image نهایی ساخته/اجرا نشده است. CI smoke برای این مرحله اضافه شده، اما نتیجهٔ آن هنوز موجود نیست.
 2. PostgreSQL/MySQL/NATS واقعی، تست‌های skipped و سناریوهای چندپردازه/چندنودی در این محیط تأیید نشده‌اند. نتیجهٔ SQLite را به آن‌ها تعمیم ندهید.
@@ -238,3 +248,58 @@ grace محدود، coalescing و عدم هم‌پوشانی jobهای پیش‌�
 - Ruff فایل‌های همین دور، compileall، بررسی Bash و diff-check موفق بودند.
 
 cache و virtualenv دور قبلی در این محیط موجود نبودند؛ runtime Python 3.14 و وابستگی‌های قفل‌شده برای اجرای این دور دوباره آماده شدند. باینری broker، خروجی build و runtimeهای حجیم در مخزن نسخه‌بندی نشده‌اند. Docker، تست مرورگر تعاملی و ترافیک خارجی Xray در این دور انجام نشده‌اند.
+
+
+## دور جاری: ظرفیت حافظه، بودجهٔ توقف و اجرای واقعی Docker/node
+
+این بخش وضعیت جاری را جایگزین موارد تاریخیِ «ظرفیت صف / deadline / Docker / node واقعی تأیید نشده» می‌کند؛ محدودیت‌های زیر همچنان باید رعایت شوند.
+
+### اصلاحات ظرفیت
+
+دو صف InMemory اکنون هرکدام پیش‌فرض ظرفیت ۲۵۶ و سقف هر payload برابر ۶۴ KiB دارند. ظرفیت **queued + inflight** را حساب می‌کند. semaphore تا settlement رزرو می‌ماند؛ retry و release از همان جای رزروشده استفاده می‌کنند. این طراحی از deadlock ناشی از پرکردن جای پیام claimشده توسط producer جلوگیری می‌کند. enqueue پر بعد از یک ثانیه با خطای صریح رد می‌شود؛ ورودی نیز برای جلوگیری از mutation پس از enqueue از JSON snapshot می‌شود. محدودیت‌ها از env تنظیم و اعتبارسنجی می‌شوند. صف حافظه پایدار نیست و سقف شمارش/serialized payload، سقف دقیق RSS نیست.
+
+### اصلاحات توقف
+
+- فازهای صریح QUIESCE / PRODUCERS / SEAL_QUEUES / DRAIN / TRANSPORTS جای اتکا به ترتیب import را گرفتند؛ ترتیب درون فاز ثابت است.
+- hookهای node پیش از startup ثبت می‌شوند تا شکست نیمه‌کارهٔ initialize باعث نبود cleanup نشود. maintenance قبل از stop core و bridge بعد از drain بسته می‌شود. خطای آشکار stop یک node دیگر با پیام «همه متوقف شدند» پنهان نمی‌شود.
+- بودجهٔ کل cleanup پیش‌فرض ۳۰ ثانیه، سقف hook پنج ثانیه، و مهلت تخلیهٔ درخواست Uvicorn ده ثانیه است. سهم hookها از زمان باقی‌مانده محاسبه و برای cancellation/finally نیز زمان رزرو می‌شود تا hook کند تمام زمانِ بستن transportها را نگیرد.
+- در timeout، task لغو می‌شود و اگر cancellation را نادیده بگیرد بی‌نهایت await نمی‌شود؛ اجرای lifespan جدید در حضور cleanup زنده رد می‌شود. خطای اصلی startup/body حفظ و خطاهای cleanup مستقل گزارش می‌شوند.
+- Compose grace پنجاه ثانیه و Docker STOPSIGNAL=SIGTERM دارد. event loop مسدود، syscall گیرکرده یا task سرکش را نمی‌توان در Python به‌طور قطعی متوقف کرد؛ hard deadline نهایی به supervisor و SIGKILL وابسته است. نتیجهٔ timeout به‌معنای drain موفق نیست.
+
+### شواهد محلی
+
+- **۸۱۷ passed، ۳ skipped، ۶ subtest موفق؛ ۱۸۶٫۱۸ ثانیه** با Python 3.14، SQLite تازه و NATS واقعی.
+- سه skipped محلی: دو probe خارجی opt-in و یک تست نیازمند باینری native node/Xray. همان تست native در CI بدون skip اجرا و موفق شد.
+- تست‌های تازهٔ صف، ظرفیت inflight، backpressure، timeout producer، cancellation، snapshot، payload، quiesce و retry رزروشده را پوشش می‌دهند.
+- تست‌های lifecycle ترتیب فاز مستقل از ثبت دیرهنگام، timeout با ادامهٔ close، و hookای را که cancellation را نادیده می‌گیرد پوشش می‌دهند.
+- یک integration تازه با JetStream واقعی اثبات می‌کند پیام claimشده در flushِ timeoutشده، پس از بستن اتصال برای مصرف‌کنندهٔ بعدی باقی می‌ماند.
+- **۱۰۰ اجرای مستقل × ۲۹ تست deployment = ۲۹۰۰ اجرای موفق**؛ این صد اجرای کل suite یا ممیزی کامل نیست.
+- Ruff، format، compileall، Bash syntax و diff-check موفق بودند.
+
+### شواهد CI واقعی، نه صرف آماده‌سازی
+
+کد برای اجرای CI روی همان شاخه push شد. commit آزموده‌شده: `440459e95ea4e097d30b9a9f09006f09dfec6f32`.
+
+[Deployment checks — run 39709463046](https://github.com/devv1112/panel/actions/runs/39709463046) با conclusion **success**:
+
+| job | شواهد و نتیجه |
+|---|---|
+| runtime-regressions | آزمون‌های مستقل lifecycle/deployment و syntax موفق |
+| dashboard | ۱۰ تست Bun، strict TypeScript و build موفق؛ هشدار chunk بزرگ باقی است |
+| nats-integration | نصب archive رسمی پین‌شده با checksum و تست‌های JetStream شامل crash/redelivery/deadline موفق |
+| native-node-shutdown | Node رسمی v0.5.4 و Xray v26.3.27 با SHA256 پین‌شده؛ TLS معتبر محلی، شروع core، توقف maintenance، stop واقعی، تأیید API و خروج پردازهٔ فرزند Xray پیش از drain/close موفق |
+| docker-smoke | image واقعاً از checkout ساخته شد؛ migration/startup و health/dashboard و healthcheck داخلی موفق؛ stop با grace پنجاه ثانیه، خروج صفر و Application shutdown complete موفق |
+| external-network-probes | طبق شرط opt-in skipped؛ موفقیت آن ادعا نمی‌شود |
+
+آزمون native از کلاینت واقعی NodeBridge و تابع shutdown_nodes پنل با node/Xray اجرایی در runner استفاده می‌کند؛ endpoint جعلی یا mock برای stop نیست. رجیستری lifecycle آزمون به چهار مرحلهٔ مربوط محدود است؛ این آزمون جای استقرار production کامل، چند node یا چند مالک را نمی‌گیرد. آزمون Docker پنل مستقل از node native روی host runner است، نه تست کامل همهٔ سرویس‌ها داخل یک شبکهٔ production.
+
+CLI/daemon Docker محلی وجود نداشت؛ CI این محدودیت را با اجرای واقعی روی runner رفع کرد. نتیجهٔ jobها و stepها از API GitHub تأیید شد؛ دانلود archive لاگ‌ها در sandbox به host خارج از allowlist redirect شد و در دسترس نبود. این محدودیت مشاهدهٔ لاگ به معنی اجرا نشدن jobها نیست. تلاش workflow_dispatch تست‌های خارجی نیز با مجوز محدود اتصال، HTTP 403 گرفت؛ دورزدن مجوز یا ادعای اجرای آن‌ها انجام نشد.
+
+### مرزهای باقی‌مانده
+
+دو probe خارجی قبلی هنوز روی runner با دسترسی لازم اجرا نشده‌اند؛ نتیجهٔ محلی قبلی آن‌ها TLS EOF بود. تحویل exactly-once، outbox/idempotency مقصد و dead-letter، cap دیسک/retention JetStream، stress/soak طولانی، crash چندنودی و عبور واقعی ترافیک WAN همچنان تأیید نشده‌اند. ظرفیت حافظه و deadline ایمن‌تر شدند، اما «همهٔ باگ‌ها رفع شد» نتیجهٔ این گزارش نیست.
+
+
+### نتیجهٔ تکمیلی ماتریس دیتابیس‌ها
+
+[Test Database Migrations — run 39709463062](https://github.com/devv1112/panel/actions/runs/39709463062) برای همان commit runtime `440459e95ea4e097d30b9a9f09006f09dfec6f32` با conclusion **success** تمام شد. هر پنج job **test-sqlite، test-postgres، test-mysql، test-mariadb و test-timescaledb** موفق بودند؛ مراحل migration، check و اجرای مستقیم `uv run pytest tests/` موفق شدند و exit code تست با pipe مخفی نشده است. برای MariaDB و TimescaleDB تنظیم NATS فعال و UVICORN_WORKERS=2 در workflow استفاده شد؛ این نتیجه معادل stress/failover چند worker واقعی در production نیست. شمار دقیق تست‌های هر job از archive لاگِ خارج از allowlist استخراج نشده و برای آن عددی ادعا نمی‌شود.

@@ -95,7 +95,26 @@ ROLE را پیش از شروع پردازه تعیین و در همان پردا
 
 ## تحویل اعلان‌ها و محدودیت صف
 
-هر اجرای عادی webhook حداکثر ۱۰۰ پیام برداشت و در batchهای حداکثر ۵۰تایی ارسال می‌کند. flush نهایی این سقف را ندارد تا backlog حافظه فقط به علت سقف رها نشود؛ در نتیجه پایان سریع shutdown تضمین نیست و deadline پردازه باید با supervisor تنظیم شود. صف InMemory پایدار یا دارای ظرفیت محدود نیست.
+هر اجرای عادی webhook حداکثر ۱۰۰ پیام برداشت و در batchهای حداکثر ۵۰تایی ارسال می‌کند. drain نهایی از سقف تعداد پیام مستثناست، اما اکنون تحت بودجهٔ زمانی lifecycle قرار دارد. با اتمام مهلت، hook لغو، برای finally مهلت کوتاه رزرو و cleanupهای بعدی اجرا می‌شوند. پیام NATS ناتمام ack نمی‌شود و می‌تواند redeliver شود؛ صف حافظه پس از مرگ پردازه بازیابی نمی‌شود.
+
+صف حافظه برای هر یک از دو کانال، پیش‌فرض ۲۵۶ پیام و حداکثر ۶۵۵۳۶ بایت JSON برای هر پیام دارد. پیام claimشده نیز ظرفیت اشغال می‌کند؛ retry از همان جای رزروشده استفاده می‌کند، نه ظرفیت تازه. بنابراین پرشدن صف با producer جدید، retry مصرف‌کننده را پشت صف قفل نمی‌کند. ورودی snapshot می‌شود تا تغییر بعدی شیء توسط caller محدودیت را دور نزند. این سقف، اندازهٔ payload نگهداری‌شده را محدود می‌کند، نه RSS دقیق Python یا حافظهٔ مصرفی caller پیش از enqueue.
+
+producer در حالت پر پس از پیش‌فرض یک ثانیه `QueueOverloadedError` می‌گیرد؛ پیام بی‌صدا حذف نمی‌شود. caller باید retry/reject را مدیریت کند. enqueue پیام بزرگ/غیرقابل‌سریال‌سازی نیز خطا دارد. پس از فاز SEAL، producer جدید رد می‌شود ولی retry/release رزروشده قابل‌اجراست.
+
+```dotenv
+MEMORY_NOTIFICATION_QUEUE_CAPACITY=256
+MEMORY_NOTIFICATION_QUEUE_ENQUEUE_TIMEOUT=1
+MEMORY_NOTIFICATION_QUEUE_MAX_ITEM_BYTES=65536
+SHUTDOWN_REQUEST_DRAIN_TIMEOUT=10
+SHUTDOWN_TIMEOUT=30
+SHUTDOWN_HOOK_TIMEOUT=5
+```
+
+این مقادیر باید مثبت و timeoutها finite باشند. مهلت درخواست Uvicorn قبل از بودجهٔ cleanup اجرا می‌شود؛ supervisor/container را بالاتر از مجموع آن‌ها تنظیم کنید. compose نمونه `stop_grace_period: 50s` دارد؛ برای Docker مستقیم از `docker stop --timeout 50 ...` استفاده کنید. اگر بودجه‌ها را افزایش می‌دهید، این grace را نیز افزایش دهید.
+
+ترتیب shutdown: **QUIESCE → PRODUCERS → SEAL_QUEUES → DRAIN → TRANSPORTS**. توقف scheduler/dispatcher/maintenance قبل از coreهای node، سپس drain و در پایان بستن HTTP/NATS/bridge انجام می‌شود. ترتیب درون هر فاز ثابت است. hookهای node پیش از startup ثبت می‌شوند تا شکست نیمه‌کارهٔ startup cleanup را حذف نکند.
+
+بودجهٔ واقعی هر hook حداقلِ سقف hook و سهم باقی‌مانده از بودجهٔ کل است؛ بخش آخر این سهم برای cancellation/finally رزرو می‌شود. hookای که cancellation را نادیده می‌گیرد دیگر lifespan را بی‌نهایت نگه نمی‌دارد، اما ممکن است task آن هنوز زنده باشد؛ بازکردن lifespan جدید تا پایان آن رد می‌شود. Python نمی‌تواند کد sync مسدودکننده یا syscall گیرکرده را با این روش قطع کند؛ hard deadline را supervisor با SIGKILL اعمال می‌کند. timeout، خطای shutdown است، نه موفقیت drain کامل.
 
 پیام‌های webhook ناتمام در خطا/cancellation معمول مجدداً به صف برگردانده می‌شوند، اما این کار تحویل exactly-once نیست: درخواست لغوشده ممکن است در مقصد اجرا شده باشد. مصرف‌کننده‌های production اکنون از claim استفاده می‌کنند: ack پس از پردازش، یا بعد از publish موفق پیام retry انجام می‌شود. heartbeat هر ۱۰ ثانیه است و consumerهای موجود با ack_wait کوتاه‌تر نیاز به بازبینی دارند. crash پیش از settlement، پیام اصلی را برای redelivery باقی می‌گذارد؛ ولی ارسال HTTP نامطمئن می‌تواند تکراری شود. برای اعلان‌های حیاتی هنوز outbox، idempotency مقصد و dead-letter لازم است؛ راهکار فعلی را تضمین تحویل همهٔ پیام‌ها تلقی نکنید. موفقیت فعلی batch نیز به‌معنای پذیرش حداقل یک webhook است، نه تمام مقصدها.
 
@@ -112,3 +131,17 @@ NATS_SERVER_BINARY=/absolute/path/to/nats-server uv run pytest -q tests/test_nat
 ```
 
 workflow CI نسخهٔ ۲٫۱۴٫۰ را از release رسمی با checksum archive نصب می‌کند. دو probe خارجی فقط با input دستی `network_probes` اجرا می‌شوند؛ شبکهٔ محدود این sandbox اتصال TLS به مقصدهای آن‌ها را قطع می‌کند. موفقیت TLS محلی به‌معنای موفقیت probe خارجی یا تونل WAN نیست.
+
+
+### شواهد اجرا در GitHub Actions
+
+نسخهٔ runtime در commit `440459e95ea4e097d30b9a9f09006f09dfec6f32` روی همین شاخه آزموده شد:
+
+- [Deployment checks](https://github.com/devv1112/panel/actions/runs/39709463046): ساخت image از سورس، migration/startup، health و dashboard، healthcheck داخل کانتینر و `docker stop --timeout 50` موفق؛ خروج صفر و لاگ `Application shutdown complete` بررسی شدند.
+- job native-node-shutdown در همان run باینری رسمی Node **v0.5.4** و Xray **v26.3.27** را با SHA256 پین‌شده اجرا کرد. core واقعاً شروع و سپس با مسیر shutdown پنل متوقف شد؛ پاسخ API و خروج پردازهٔ فرزند Xray پیش از drain/close آزموده شدند. این node موقت و محلیِ runner بود، نه node production کاربر.
+- NATS واقعی و تست deadline/redelivery نیز در همان CI موفق بودند.
+
+این شواهد به سناریوی آزموده‌شده محدود است، نه اثبات failover چند node یا عبور ترافیک WAN. دو probe خارجی قبلی در این run opt-in و skipped بودند؛ اتصال فعلی اجازهٔ workflow_dispatch ندارد، بنابراین اجرای خارجی دستی آن‌ها در این دور ادعا نمی‌شود.
+
+
+ماتریس دیتابیس هم برای همان commit در [run 39709463062](https://github.com/devv1112/panel/actions/runs/39709463062) با نتیجهٔ موفق کامل شد: SQLite، PostgreSQL، MySQL، MariaDB و TimescaleDB، شامل migration/check/tests. این شواهد جای backup/restore واقعی یا آزمون بار و failover production را نمی‌گیرد.
