@@ -456,5 +456,8 @@ def test_is_mtproto_retry_later_error():
     assert is_retry_later(NodeAPIError(504, "x"))
     assert is_retry_later(NodeAPIError(500, "failed to update users: the users are still being applied"))
     assert is_retry_later(NodeAPIError(500, "context deadline exceeded"))
+    # gRPC UNAVAILABLE and HTTP 503 both reach the panel as code 503 (detail text unchanged by the node)
+    assert is_retry_later(NodeAPIError(503, "telemt is restarting"))
+    assert is_retry_later(NodeAPIError(503, "HTTP error: telemt is busy"))
     assert not is_retry_later(NodeAPIError(-1, "Channel initialization failed: x"))
     assert not is_retry_later(NodeAPIError(500, "invalid backend type"))

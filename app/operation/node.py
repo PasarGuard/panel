@@ -122,7 +122,7 @@ def is_mtproto_retry_later_error(error: NodeAPIError) -> bool:
     if error.code == -1 and (detail == "Request timed out" or detail.startswith("Timeout error")):
         return True
     detail = detail.lower()
-    return error.code == 504 or any(marker in detail for marker in _MTPROTO_RETRY_LATER_MARKERS)
+    return error.code in (503, 504) or any(marker in detail for marker in _MTPROTO_RETRY_LATER_MARKERS)
 
 
 class NodeOperation(BaseOperation):
