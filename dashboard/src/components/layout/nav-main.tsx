@@ -28,6 +28,8 @@ export function NavMain({
       title: string
       url: string
       icon: LucideIcon
+      /** Shown as is instead of translating `title` (e.g. plugin names). */
+      label?: string
       /** When true, highlight for paths under `url` (e.g. /nodes/cores/123). */
       matchPrefix?: boolean
     }[]
@@ -72,11 +74,11 @@ export function NavMain({
                         const base = subItem.url.replace(/\/$/, '')
                         const subActive = location.pathname === subItem.url || (subItem.matchPrefix && (location.pathname === base || location.pathname.startsWith(`${base}/`)))
                         return (
-                          <SidebarMenuSubItem key={subItem.title}>
+                          <SidebarMenuSubItem key={subItem.url}>
                             <SidebarMenuSubButton asChild className="flex h-8 items-center gap-2" isActive={subActive}>
                               <NavLink to={subItem.url} end={!subItem.matchPrefix} onClick={handleNavigation}>
                                 <subItem.icon />
-                                <span>{t(subItem.title)}</span>
+                                <span>{subItem.label ?? t(subItem.title)}</span>
                               </NavLink>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
