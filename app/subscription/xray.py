@@ -24,7 +24,7 @@ from app.models.subscription import (
 
 from . import BaseSubscription
 from .base import dumps_compact
-from .template_directives import DIRECTIVE_KEY, HostCandidate, XrayDirective, parse_xray_directive
+from .template_directives import DIRECTIVE_KEY, HostCandidate, XrayDirective, XrayInject, parse_xray_directive
 
 SINGLE_CONFIG_DEFAULT_REMARKS = "PasarGuard"
 
@@ -50,7 +50,6 @@ class XrayConfiguration(BaseSubscription):
         xray_template_content: str | None = None,
         user_agent_template_content: str | None = None,
         grpc_user_agent_template_content: str | None = None,
-        single_remarks: str | None = None,
     ):
         """Initialize an empty subscription builder from optional JSON templates.
 
@@ -66,7 +65,7 @@ class XrayConfiguration(BaseSubscription):
         self.config = []
         self.template = json.loads(xray_template_content) if xray_template_content else {}
         # Remarks of the one config a "single" mode template produces (the subscription profile title).
-        self.single_remarks = single_remarks
+        self.single_remarks: str | None = None
         self._hosts: list[_XrayHost] = []
         self._directives: dict[str | None, XrayDirective | None] = {}
         self._single_templates: set[str | None] = set()
@@ -101,14 +100,14 @@ class XrayConfiguration(BaseSubscription):
         }
 
     def add_config(self, remarks, outbounds, template_content: str | None = None):
+        if template_content in self._single_templates:
+            # A "single" mode template gives one config, placed where its first host would be; it is already there.
+            return
         json_template = json.loads(template_content) if template_content is not None else self.template.copy()
         if DIRECTIVE_KEY in json_template:
             directive = self._template_directive(template_content, json_template.pop(DIRECTIVE_KEY))
             if directive is not None and self._hosts:
                 if directive.mode == "single":
-                    # One config per template, placed where its first host would be.
-                    if template_content in self._single_templates:
-                        return
                     self._single_templates.add(template_content)
                 self.config.append(_DirectiveConfig(len(self._hosts) - 1, json_template, directive))
                 self._has_directive_configs = True
@@ -157,24 +156,40 @@ class XrayConfiguration(BaseSubscription):
                 for index, host in enumerate(self._hosts)
                 if index != skip_index and inject.select.matches(host.candidate)
             ]
-            if inject.tag_prefix or inject.tag_from == "index":
-                reserved_prefixes.add(inject.tag_prefix or "proxy")
-            for number, host in enumerate(selected, start=1):
-                if inject.tag_from == "remark":
-                    name = self._sanitize_tag(host.candidate.remark) or str(number)
-                    base_tag = f"{inject.tag_prefix}-{name}" if inject.tag_prefix else name
-                else:
-                    base_tag = f"{inject.tag_prefix or 'proxy'}-{number}"
-                reserved_prefixes.add(base_tag)
-                injected.append((host, base_tag))
+            injected.extend(self._tag_injected_hosts(inject, selected, reserved_prefixes))
+        if item.directive.mode == "single" and not injected:
+            # Nothing selected: the template's own outbounds (often direct) would come first and carry all traffic.
+            # Like an empty sing-box/Clash group, fall back to all of the user's hosts.
+            injected = self._tag_injected_hosts(item.directive.inject[0], self._hosts, reserved_prefixes)
 
+        prefixes = tuple(reserved_prefixes)
         if skip_index is not None:
-            outbounds = self._retag_outbounds(outbounds, None, used_tags, reserved_prefixes)
+            outbounds = self._retag_outbounds(outbounds, None, used_tags, prefixes)
         for host, base_tag in injected:
-            outbounds.extend(self._retag_outbounds(host.outbounds, base_tag, used_tags, reserved_prefixes))
+            outbounds.extend(self._retag_outbounds(host.outbounds, base_tag, used_tags, prefixes))
 
         json_template["outbounds"] = outbounds + template_outbounds
         return json_template
+
+    @classmethod
+    def _tag_injected_hosts(
+        cls, inject: XrayInject, hosts: list[_XrayHost], reserved_prefixes: set[str]
+    ) -> list[tuple[_XrayHost, str]]:
+        """Base tags for the hosts of one inject entry; their prefixes go into ``reserved_prefixes``."""
+        if inject.tag_prefix or inject.tag_from == "index":
+            reserved_prefixes.add(inject.tag_prefix or "proxy")
+        tagged = []
+        for number, host in enumerate(hosts, start=1):
+            if inject.tag_from == "remark":
+                name = cls._sanitize_tag(host.candidate.remark) or str(number)
+                base_tag = f"{inject.tag_prefix}-{name}" if inject.tag_prefix else name
+            else:
+                base_tag = f"{inject.tag_prefix or 'proxy'}-{number}"
+            # A tag under an already reserved prefix adds nothing and would only slow the prefix checks down.
+            if not base_tag.startswith(tuple(reserved_prefixes)):
+                reserved_prefixes.add(base_tag)
+            tagged.append((host, base_tag))
+        return tagged
 
     @staticmethod
     def _sanitize_tag(remark: str) -> str:
@@ -191,10 +206,10 @@ class XrayConfiguration(BaseSubscription):
         return tag
 
     @staticmethod
-    def _helper_tag(old_tag: str, main_tag: str, reserved_prefixes: set[str]) -> str:
+    def _helper_tag(old_tag: str, main_tag: str, reserved_prefixes: tuple[str, ...]) -> str:
         """Tag for a helper outbound that no balancer/observatory prefix selector of the injected tags matches."""
         base = f"{old_tag}-{main_tag}"
-        if not any(base.startswith(prefix) for prefix in reserved_prefixes):
+        if not base.startswith(reserved_prefixes):
             return base
         taken_first_chars = {prefix[0] for prefix in reserved_prefixes if prefix}
         candidates = chain("_~", map(chr, range(0x21, 0x110000)))
@@ -203,7 +218,7 @@ class XrayConfiguration(BaseSubscription):
 
     @classmethod
     def _retag_outbounds(
-        cls, outbounds: list[dict], base_tag: str | None, used_tags: set, reserved_prefixes: set[str]
+        cls, outbounds: list[dict], base_tag: str | None, used_tags: set, reserved_prefixes: tuple[str, ...]
     ) -> list[dict]:
         """Copy a host's outbounds, the main one under ``base_tag`` (None keeps it); helper outbounds
         (fragment/noise dialer) get tags outside ``reserved_prefixes`` and dialerProxy references follow them."""
@@ -213,7 +228,7 @@ class XrayConfiguration(BaseSubscription):
         renamed = {}
         for helper in helpers:
             old_tag = helper.get("tag")
-            if base_tag is None and not any(str(old_tag).startswith(prefix) for prefix in reserved_prefixes):
+            if base_tag is None and not str(old_tag).startswith(reserved_prefixes):
                 continue
             helper["tag"] = cls._unique_tag(cls._helper_tag(old_tag, main["tag"], reserved_prefixes), used_tags)
             renamed[old_tag] = helper["tag"]
