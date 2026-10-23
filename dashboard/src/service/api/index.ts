@@ -8388,6 +8388,77 @@ export const getCreateGroupUrl = () => {
   return `/api/group`
 }
 
+export const getGetDefaultSubscriptionRulesUrl = () => {
+  return `/api/settings/subscription/defaults`
+}
+
+/**
+ * @summary Get Default Subscription Rules
+ */
+export const getDefaultSubscriptionRules = async (options?: RequestInit): Promise<SubRule[]> => {
+  return orvalFetcher<SubRule[]>(getGetDefaultSubscriptionRulesUrl(), {
+    ...options,
+    method: 'GET',
+  })
+}
+
+export const getGetDefaultSubscriptionRulesQueryKey = () => {
+  return [`/api/settings/subscription/defaults`] as const
+}
+
+export const getGetDefaultSubscriptionRulesQueryOptions = <TData = Awaited<ReturnType<typeof getDefaultSubscriptionRules>>, TError = ErrorType<Unauthorized | Forbidden>>(options?: {
+  query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getDefaultSubscriptionRules>>, TError, TData>>
+  request?: SecondParameter<typeof orvalFetcher>
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {}
+
+  const queryKey = queryOptions?.queryKey ?? getGetDefaultSubscriptionRulesQueryKey()
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getDefaultSubscriptionRules>>> = ({ signal }) => getDefaultSubscriptionRules({ signal, ...requestOptions })
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<Awaited<ReturnType<typeof getDefaultSubscriptionRules>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetDefaultSubscriptionRulesQueryResult = NonNullable<Awaited<ReturnType<typeof getDefaultSubscriptionRules>>>
+export type GetDefaultSubscriptionRulesQueryError = ErrorType<Unauthorized | Forbidden>
+
+export function useGetDefaultSubscriptionRules<TData = Awaited<ReturnType<typeof getDefaultSubscriptionRules>>, TError = ErrorType<Unauthorized | Forbidden>>(
+  options: {
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getDefaultSubscriptionRules>>, TError, TData>> &
+      Pick<DefinedInitialDataOptions<Awaited<ReturnType<typeof getDefaultSubscriptionRules>>, TError, Awaited<ReturnType<typeof getDefaultSubscriptionRules>>>, 'initialData'>
+    request?: SecondParameter<typeof orvalFetcher>
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetDefaultSubscriptionRules<TData = Awaited<ReturnType<typeof getDefaultSubscriptionRules>>, TError = ErrorType<Unauthorized | Forbidden>>(
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getDefaultSubscriptionRules>>, TError, TData>> &
+      Pick<UndefinedInitialDataOptions<Awaited<ReturnType<typeof getDefaultSubscriptionRules>>, TError, Awaited<ReturnType<typeof getDefaultSubscriptionRules>>>, 'initialData'>
+    request?: SecondParameter<typeof orvalFetcher>
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetDefaultSubscriptionRules<TData = Awaited<ReturnType<typeof getDefaultSubscriptionRules>>, TError = ErrorType<Unauthorized | Forbidden>>(
+  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getDefaultSubscriptionRules>>, TError, TData>>; request?: SecondParameter<typeof orvalFetcher> },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get Default Subscription Rules
+ */
+
+export function useGetDefaultSubscriptionRules<TData = Awaited<ReturnType<typeof getDefaultSubscriptionRules>>, TError = ErrorType<Unauthorized | Forbidden>>(
+  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getDefaultSubscriptionRules>>, TError, TData>>; request?: SecondParameter<typeof orvalFetcher> },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetDefaultSubscriptionRulesQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+  return withQueryKey(query, queryOptions.queryKey)
+}
+
+
+
 /**
  * Creates a new group in the system. Only authorized administrators can create groups.
  * @summary Create a new group
