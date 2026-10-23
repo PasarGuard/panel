@@ -9,8 +9,8 @@ in ``create_app()`` touches the DB/NATS at construction time — those are all
 registered as on_startup hooks that never fire in this script.
 
 Usage:
-    uv run python scripts/export_openapi.py [output_path]
-    uv run python scripts/export_openapi.py --gen-client   # also run orval
+    uv run python export_openapi.py [output_path]
+    uv run python export_openapi.py --gen-client   # also run orval
 
 Why Python drives orval instead of the Makefile: setting an env var inline
 (``VAR=val cmd``) is POSIX-shell syntax and fails under Windows cmd.exe, which
@@ -34,11 +34,10 @@ from pathlib import Path
 # before app/config import (which reads ROLE). Env var wins over .env.
 os.environ["ROLE"] = "all-in-one"
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+REPO_ROOT = Path(__file__).resolve().parent
 DASHBOARD_DIR = REPO_ROOT / "dashboard"
 
-# Ensure the repo root is importable whether run as `python scripts/x.py`
-# (script dir on path) or `python -m scripts.x` (cwd on path).
+# Ensure the repo root is importable when invoked from another directory.
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 

@@ -1,7 +1,9 @@
 import asyncio
+from typing import NamedTuple
 
 from app import notification
 from app.core.hosts import host_manager
+from app.core.live_update import node_facing, only_live_parts_changed
 from app.core.manager import core_manager
 from app.db import AsyncSession
 from app.db.crud.core import (
@@ -41,6 +43,12 @@ from app.utils.logger import get_logger
 from app.utils.reality_scan import RealityScanError, scan_reality_target
 
 logger = get_logger("core-operation")
+
+
+class CoreModification(NamedTuple):
+    core: CoreResponse
+    # Nodes can apply the edit to the running Xray without a restart.
+    live_on_nodes: bool
 
 
 class CoreOperation(BaseOperation):
@@ -158,9 +166,11 @@ class CoreOperation(BaseOperation):
 
     async def modify_core(
         self, db: AsyncSession, core_id: int, modified_core: CoreCreate, admin: AdminDetails
-    ) -> CoreResponse:
+    ) -> CoreModification:
         db_core = await self.get_validated_core_config(db, core_id)
         was_wg = bool(wg_core_interfaces(db_core))
+        # What nodes run now, read before update_core replaces it.
+        before = node_facing(await core_manager.get_core(db_core.id))
         try:
             validated_core = core_manager.validate_core(
                 modified_core.config,
@@ -187,7 +197,7 @@ class CoreOperation(BaseOperation):
             await self._reconcile_wireguard(db)
         await self._refresh_hosts_from_db(db)
 
-        return core
+        return CoreModification(core, only_live_parts_changed(before, node_facing(validated_core)))
 
     async def delete_core(self, db: AsyncSession, core_id: int, admin: AdminDetails) -> None:
         if core_id == 1:

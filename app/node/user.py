@@ -70,6 +70,12 @@ def _serialize_user_for_node(
     inbounds: list[str] | None = None,
     allowed_protocols: frozenset[ProxyProtocol] | None = None,
 ) -> ProtoUser:
+    """Build a node user with the numeric ID as its email and supplied inbounds.
+
+    Include credentials only for ``allowed_protocols``; both ``None`` and an
+    empty set select all protocols. MASQUE uses the stored ``password`` as its
+    node credential. Bridge serialization errors propagate to the caller.
+    """
     allowed_protocols = allowed_protocols or _ALL_PROXY_PROTOCOLS
 
     proxy_kwargs = {}
@@ -89,6 +95,8 @@ def _serialize_user_for_node(
         proxy_kwargs["wireguard_peer_ips"] = wireguard_settings.get("peer_ips") or []
     if ProxyProtocol.hysteria in allowed_protocols:
         proxy_kwargs["hysteria_auth"] = user_settings.get("hysteria", {}).get("auth")
+    if ProxyProtocol.masque in allowed_protocols:
+        proxy_kwargs["masque_pass"] = user_settings.get("masque", {}).get("password")
 
     return create_user(
         str(id),
@@ -170,6 +178,18 @@ async def core_users(
                 )
             )
     return bridge_users
+
+
+async def removal_users(db: AsyncSession, user_ids: list[int] | set[int]) -> list[ProtoUser]:
+    """Removal payloads (no inbounds) with the stored credentials of the given users that still exist.
+
+    Nodes may need the credentials to find what to remove: node v0.5.4's
+    WireGuard backend ignores a removal without a public key and peer IPs.
+    """
+    if not user_ids:
+        return []
+    stmt = select(User.id, User.proxy_settings).where(User.id.in_(list(user_ids)))
+    return [_serialize_user_for_node(row.id, row.proxy_settings or {}) for row in (await db.execute(stmt)).all()]
 
 
 async def serialize_users_for_node(

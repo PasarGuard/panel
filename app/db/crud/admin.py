@@ -15,10 +15,12 @@ from app.db.crud.general import (
 from app.db.models import (
     Admin,
     AdminNotificationReminder,
+    AdminPasskey,
     AdminRole,
     AdminUsageLogs,
     APIKey,
     NodeUserUsage,
+    PasskeyChallenge,
     ReminderType,
     User,
 )
@@ -203,6 +205,9 @@ async def update_admin(db: AsyncSession, db_admin: Admin, modified_admin: AdminM
             if db_admin.status != new_status:
                 db_admin.status = new_status
                 db_admin.last_status_change = datetime.now(UTC)
+        # Re-arm the usage warnings that are above the usage under the new limit.
+        usage_percentage = db_admin.used_traffic * 100 / db_admin.data_limit if db_admin.data_limit else 0
+        await delete_admin_notification_reminders(db, db_admin.id, ReminderType.data_usage, usage_percentage)
     if modified_admin.password is not None:
         db_admin.hashed_password = await hash_password(modified_admin.password)
         db_admin.password_reset_at = datetime.now(UTC)
@@ -244,6 +249,7 @@ async def remove_admin(db: AsyncSession, dbadmin: Admin) -> None:
         dbadmin (Admin): The admin object to be removed.
     """
     await db.execute(delete(APIKey).where(APIKey.admin_id == dbadmin.id))
+    await db.execute(delete(PasskeyChallenge).where(PasskeyChallenge.admin_id == dbadmin.id))
     await db.delete(dbadmin)
     await db.commit()
 
@@ -601,14 +607,16 @@ async def delete_admin_notification_reminders(
     db: AsyncSession,
     admin_id: int,
     reminder_type: ReminderType,
+    above_threshold: float | None = None,
 ) -> None:
-    """Delete persisted admin reminders for a specific type (used when re-arming thresholds)."""
-    await db.execute(
-        delete(AdminNotificationReminder).where(
-            AdminNotificationReminder.admin_id == admin_id,
-            AdminNotificationReminder.type == reminder_type,
-        )
-    )
+    """Delete persisted admin reminders for a specific type (used when re-arming thresholds).
+
+    With above_threshold, only reminders for higher thresholds are deleted.
+    """
+    conditions = [AdminNotificationReminder.admin_id == admin_id, AdminNotificationReminder.type == reminder_type]
+    if above_threshold is not None:
+        conditions.append(AdminNotificationReminder.threshold > above_threshold)
+    await db.execute(delete(AdminNotificationReminder).where(*conditions))
 
 
 async def get_active_to_limited_admins(db: AsyncSession) -> list[Admin]:
@@ -843,8 +851,14 @@ async def remove_admins(db: AsyncSession, admin_ids: list[int]) -> None:
     if not admin_ids:
         return
 
+    # SQLite runs without foreign key enforcement, so ON DELETE CASCADE never fires there, and it can hand
+    # a freed id to the next admin. Delete every admin-owned row here, or a leftover passkey signs in as
+    # whoever gets the id next.
     await db.execute(update(User).where(User.admin_id.in_(admin_ids)).values(admin_id=None))
     await db.execute(delete(APIKey).where(APIKey.admin_id.in_(admin_ids)))
+    await db.execute(delete(AdminPasskey).where(AdminPasskey.admin_id.in_(admin_ids)))
+    await db.execute(delete(PasskeyChallenge).where(PasskeyChallenge.admin_id.in_(admin_ids)))
+    await db.execute(delete(AdminNotificationReminder).where(AdminNotificationReminder.admin_id.in_(admin_ids)))
     await db.execute(delete(AdminUsageLogs).where(AdminUsageLogs.admin_id.in_(admin_ids)))
     await db.execute(delete(Admin).where(Admin.id.in_(admin_ids)))
     await db.commit()

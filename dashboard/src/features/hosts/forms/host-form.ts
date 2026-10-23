@@ -1,5 +1,5 @@
 import * as z from 'zod'
-import type { CreateHost, FinalMask, XrayNoiseSettings } from '@/service/api'
+import type { CreateHost, FinalMask, XMuxSettings, XrayNoiseSettings } from '@/service/api'
 
 interface Brutal {
   enable?: boolean
@@ -40,6 +40,14 @@ interface MuxSettings {
   xray?: XrayMuxSettings
   sing_box?: SingBoxMuxSettings
   clash?: ClashMuxSettings
+}
+
+interface MasqueXMuxFormValues {
+  max_concurrency?: string
+  max_connections?: string
+  c_max_reuse_times?: string
+  h_max_reusable_secs?: string
+  h_keep_alive_period?: number | null
 }
 
 export interface HostFormValues {
@@ -93,7 +101,7 @@ export interface HostFormValues {
   mux_settings?: MuxSettings
   wireguard_overrides?: {
     allowed_ips?: string[]
-    mtu?: number
+    mtu?: number | null
     reserved?: string
     keepalive_seconds?: number
     dns?: string[]
@@ -102,6 +110,10 @@ export interface HostFormValues {
     xray?: number | null
   }
   transport_settings?: {
+    masque_settings?: {
+      remote_dns?: string[]
+      xmux?: MasqueXMuxFormValues
+    }
     xhttp_settings?: {
       mode?: 'auto' | 'packet-up' | 'stream-up' | 'stream-one'
       no_grpc_header?: boolean
@@ -141,7 +153,7 @@ export interface HostFormValues {
       initial_windows_size?: number
     }
     kcp_settings?: {
-      mtu?: number
+      mtu?: number | null
       tti?: number
       uplink_capacity?: number
       downlink_capacity?: number
@@ -175,8 +187,25 @@ export function mapHostTransportSettingsForApi(settings: HostFormValues['transpo
   if (!settings) return undefined
   const xhttp = settings.xhttp_settings
   const xmux = xhttp?.xmux
+  const masque = settings.masque_settings
+  const masqueXmux = masque?.xmux
+  const mappedMasqueXmux = masqueXmux
+    ? {
+        maxConcurrency: masqueXmux.max_concurrency || undefined,
+        maxConnections: masqueXmux.max_connections || undefined,
+        cMaxReuseTimes: masqueXmux.c_max_reuse_times || undefined,
+        hMaxReusableSecs: masqueXmux.h_max_reusable_secs || undefined,
+        hKeepAlivePeriod: masqueXmux.h_keep_alive_period ?? undefined,
+      }
+    : undefined
   return {
     ...settings,
+    masque_settings: masque
+      ? {
+          ...masque,
+          xmux: mappedMasqueXmux && Object.values(mappedMasqueXmux).some(value => value !== undefined) ? mappedMasqueXmux : undefined,
+        }
+      : undefined,
     xhttp_settings: xhttp
       ? {
           ...xhttp,
@@ -194,6 +223,30 @@ export function mapHostTransportSettingsForApi(settings: HostFormValues['transpo
       : undefined,
   }
 }
+
+export function mapMasqueXmuxForForm(xmux: XMuxSettings | null | undefined): MasqueXMuxFormValues | undefined {
+  if (!xmux) return undefined
+  return {
+    max_concurrency: xmux.maxConcurrency ?? undefined,
+    max_connections: xmux.maxConnections ?? undefined,
+    c_max_reuse_times: xmux.cMaxReuseTimes ?? undefined,
+    h_max_reusable_secs: xmux.hMaxReusableSecs ?? undefined,
+    h_keep_alive_period: xmux.hKeepAlivePeriod ?? undefined,
+  }
+}
+
+const masqueXmuxRangeField = z
+  .string()
+  .nullish()
+  .optional()
+  .refine(value => {
+    if (!value) return true
+    if (!/^\d{1,16}(?:-\d{1,16})?$/.test(value)) return false
+    const bounds = value.split('-').map(Number)
+    return bounds[0] <= bounds[bounds.length - 1] && bounds.every(bound => bound <= 2147483647)
+  }, {
+    message: "Enter an ordered number or range such as '1-3' (up to 2147483647)",
+  })
 
 const transportSettingsSchema = z
   .object({
@@ -362,6 +415,33 @@ const transportSettingsSchema = z
       })
       .nullish()
       .optional(),
+    masque_settings: z
+      .object({
+        remote_dns: z.array(z.string()).optional(),
+        xmux: z
+          .object({
+            max_concurrency: masqueXmuxRangeField,
+            max_connections: masqueXmuxRangeField,
+            c_max_reuse_times: masqueXmuxRangeField,
+            h_max_reusable_secs: masqueXmuxRangeField,
+            h_keep_alive_period: z.number().int().nullish().optional(),
+          })
+          .superRefine((value, context) => {
+            const connections = Number(value.max_connections?.split('-').pop() || 0)
+            const concurrency = Number(value.max_concurrency?.split('-').pop() || 0)
+            if (connections > 0 && concurrency > 0) {
+              context.addIssue({
+                code: 'custom',
+                path: ['max_concurrency'],
+                message: 'Max Connections and Max Concurrency cannot both be set',
+              })
+            }
+          })
+          .nullish()
+          .optional(),
+      })
+      .nullish()
+      .optional(),
   })
   .nullish()
   .optional()
@@ -487,7 +567,7 @@ export const HostFormSchema = z.object({
   wireguard_overrides: z
     .object({
       allowed_ips: z.array(z.string()).optional(),
-      mtu: z.number().min(576).max(9000).optional(),
+      mtu: z.number().min(576).max(9000).nullish(),
       reserved: z.string().max(64).optional(),
       keepalive_seconds: z.number().min(0).max(86400).optional(),
       dns: z.array(z.string()).optional(),
