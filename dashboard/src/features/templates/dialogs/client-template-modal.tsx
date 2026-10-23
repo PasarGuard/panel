@@ -16,7 +16,7 @@ import { ClientTemplateType, useCreateClientTemplate, useModifyClientTemplate } 
 import { queryClient } from '@/utils/query-client'
 import { Pencil, FileCode2, Info, TriangleAlert } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { UseFormReturn } from 'react-hook-form'
+import { UseFormReturn, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -57,7 +57,8 @@ export default function ClientTemplateModal({ isDialogOpen, onOpenChange, form, 
   const templateType = form.watch('template_type')
   const isYaml = isYamlType(templateType)
   const isHappRouting = isHappRoutingType(templateType)
-  const content = form.watch('content')
+  // useWatch keeps typing from re-rendering the whole templates page; only the Happ routing editor needs it
+  const content = useWatch({ control: form.control, name: 'content', disabled: !isHappRouting })
   const happRoutingLinkSize = useMemo(() => (isHappRouting ? (buildHappRoutingLink(content || '')?.length ?? null) : null), [content, isHappRouting])
 
   const validateContent = useCallback(
