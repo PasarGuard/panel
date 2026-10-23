@@ -36,8 +36,21 @@ export function SubscriptionRuleAdvancedSheet({ form, ruleIndex, rowId, open, on
   const responseHeaderCount = responseHeaderEntries.length
 
   const happRoutingTemplateId = form.watch(`rules.${ruleIndex}.happ_routing_template_id`)
-  const { data: happRoutingData, isLoading: isLoadingHappRouting } = useGetClientTemplatesSimple({ template_type: ClientTemplateType.happ_routing, all: true }, { query: { enabled: open } })
+  const {
+    data: happRoutingData,
+    isLoading: isLoadingHappRouting,
+    isError: isHappRoutingError,
+  } = useGetClientTemplatesSimple({ template_type: ClientTemplateType.happ_routing, all: true }, { query: { enabled: open } })
   const happRoutingTemplates = happRoutingData?.templates ?? []
+  // Keep a selected id visible when the list failed to load or does not contain it
+  const isHappRoutingIdMissing = happRoutingTemplateId != null && !isLoadingHappRouting && !happRoutingTemplates.some(template => template.id === happRoutingTemplateId)
+  const happRoutingLabelId = `${rowId}-happ-routing-label`
+  // Same rule as the backend: only non-empty trimmed pairs are sent, any letter case
+  const hasManualRoutingHeader = (headers: Record<string, unknown> | undefined) =>
+    Object.entries(headers || {}).some(([key, value]) => key.trim().toLowerCase() === 'routing' && String(value ?? '').trim() !== '')
+  const globalResponseHeaders = form.watch('response_headers') as Record<string, string> | undefined
+  const hasRuleRoutingConflict = happRoutingTemplateId != null && hasManualRoutingHeader(responseHeaders)
+  const hasGlobalRoutingConflict = happRoutingTemplateId != null && hasManualRoutingHeader(globalResponseHeaders)
 
   const addResponseHeader = () => {
     const nextKey = `x-header-${Object.keys(responseHeaders).length + 1}`
@@ -83,18 +96,21 @@ export function SubscriptionRuleAdvancedSheet({ form, ruleIndex, rowId, open, on
 
         <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-6 py-4">
           <div className="space-y-2">
-            <p className="text-foreground text-sm font-medium">{t('settings.subscriptions.rules.happRouting')}</p>
+            <p id={happRoutingLabelId} className="text-foreground text-sm font-medium">
+              {t('settings.subscriptions.rules.happRouting')}
+            </p>
             <p className="text-muted-foreground text-sm">{t('settings.subscriptions.rules.happRoutingDescription')}</p>
             <Select
               value={happRoutingTemplateId != null ? String(happRoutingTemplateId) : NO_HAPP_ROUTING}
               onValueChange={value => form.setValue(`rules.${ruleIndex}.happ_routing_template_id`, value === NO_HAPP_ROUTING ? null : Number(value), { shouldDirty: true })}
               disabled={isLoadingHappRouting}
             >
-              <SelectTrigger>
-                <SelectValue placeholder={isLoadingHappRouting ? t('loading', { defaultValue: 'Loading...' }) : undefined} />
+              <SelectTrigger aria-labelledby={happRoutingLabelId}>
+                <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={NO_HAPP_ROUTING}>{t('settings.subscriptions.rules.happRoutingNone')}</SelectItem>
+                {isHappRoutingIdMissing && <SelectItem value={String(happRoutingTemplateId)}>{`#${happRoutingTemplateId}`}</SelectItem>}
                 {happRoutingTemplates.map(template => (
                   <SelectItem key={template.id} value={String(template.id)}>
                     {template.name}
@@ -102,6 +118,9 @@ export function SubscriptionRuleAdvancedSheet({ form, ruleIndex, rowId, open, on
                 ))}
               </SelectContent>
             </Select>
+            {isHappRoutingError && <p className="text-destructive text-sm">{t('settings.subscriptions.rules.happRoutingLoadFailed')}</p>}
+            {hasRuleRoutingConflict && <p className="text-destructive text-sm">{t('settings.subscriptions.rules.happRoutingRuleHeaderConflict')}</p>}
+            {hasGlobalRoutingConflict && <p className="text-destructive text-sm">{t('settings.subscriptions.rules.happRoutingGlobalHeaderConflict')}</p>}
           </div>
 
           <div className="space-y-4">
