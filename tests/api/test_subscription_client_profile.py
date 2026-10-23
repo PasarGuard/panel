@@ -376,3 +376,57 @@ def test_subscription_page_drops_unsafe_announce_link_from_variable(env):
     response = client.get(safe["subscription_url"], headers=BROWSER_HEADERS)
     assert response.status_code == status.HTTP_200_OK
     assert 'href="tg://resolve?domain=acme"' in response.text
+
+
+def test_profile_response_headers_must_be_latin1_except_encoded_ones(env):
+    response = client.post(
+        "/api/client_profile",
+        headers=env.headers,
+        json={"name": unique_name("sub_profile"), "settings": {"response_headers": {"X-Plan": "Премиум"}}},
+    )
+    assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY, response.text
+
+    env.add_host()
+    user = env.user(env.profile(settings={"response_headers": {"profile-title": "Премиум"}}))
+    response = client.get(f"{user['subscription_url']}/links")
+    assert response.status_code == status.HTTP_200_OK, response.text
+    assert _decode_title(response.headers["profile-title"]) == "Премиум"
+
+
+def test_profile_saved_before_stricter_checks_does_not_break_subscriptions(env):
+    from sqlalchemy import update
+
+    from app.db.models import ClientProfile as DBClientProfile
+    from app.subscription.client_profiles import refresh_client_profiles_cache
+    from tests.api import TestSession
+
+    env.add_host()
+    stored = env.profile(settings={"support_url": "https://support.example.com"})
+    user = env.user(env.profile(settings={"announce": "ok"}))
+    stored_user = env.user(stored)
+
+    async def _store_old_values() -> None:
+        async with TestSession() as session:
+            await session.execute(
+                update(DBClientProfile)
+                .where(DBClientProfile.id == stored["id"])
+                .values(
+                    settings={
+                        "announce": "x",
+                        "announce_url": "javascript:alert(1)",
+                        "response_headers": {"X-Plan": "Премиум"},
+                    }
+                )
+            )
+            await session.commit()
+        await refresh_client_profiles_cache()
+
+    asyncio.run(_store_old_values())
+
+    response = client.get(f"{user['subscription_url']}/links")
+    assert response.status_code == status.HTTP_200_OK, response.text
+    response = client.get(f"/api/client_profile/{stored['id']}", headers=env.headers)
+    assert response.status_code == status.HTTP_200_OK, response.text
+    response = client.get(stored_user["subscription_url"], headers=BROWSER_HEADERS)
+    assert response.status_code == status.HTTP_200_OK, response.text
+    assert "javascript:" not in response.text
