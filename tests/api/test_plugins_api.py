@@ -51,6 +51,10 @@ def setup(ctx):
     async def owner_only():
         return {"ok": True}
 
+    @ctx.router.get("/settings-editor", dependencies=[Depends(ctx.deps.permission("settings", "update"))])
+    async def settings_editor():
+        return {"ok": True}
+
     @ctx.router.get("/public", dependencies=[Depends(ctx.deps.public)])
     async def public():
         return {"public": True}
@@ -198,6 +202,13 @@ def test_plugin_routes_require_admin_unless_public(probe, access_token, plain_ad
     assert client.get("/api/plugins/probe/public").json() == {"public": True}
     # Failed plugins mount nothing
     assert client.get("/api/plugins/broken/secret", headers=auth_headers(access_token)).status_code == 404
+
+
+def test_plugin_route_with_permission_dependency(probe, access_token, plain_admin):
+    url = "/api/plugins/probe/settings-editor"
+    assert client.get(url).status_code == status.HTTP_401_UNAUTHORIZED
+    assert client.get(url, headers=auth_headers(plain_admin)).status_code == status.HTTP_403_FORBIDDEN
+    assert client.get(url, headers=auth_headers(access_token)).json() == {"ok": True}
 
 
 def test_user_created_event_reaches_plugin_once_with_notifications_off(probe, access_token, monkeypatch):

@@ -31,7 +31,8 @@ class PluginDeps:
     """FastAPI dependencies for plugin routes.
 
     Routes on ``ctx.router`` require an authenticated admin unless they declare
-    ``dependencies=[Depends(ctx.deps.public)]`` (then the plugin is responsible for auth).
+    ``dependencies=[Depends(ctx.deps.public)]`` (then the plugin is responsible for auth). "Admin" means any
+    admin or API key, including sub-admins with limited roles: use ``owner`` or ``permission(...)`` to narrow it.
     """
 
     public = staticmethod(_public)
@@ -47,6 +48,12 @@ class PluginDeps:
         from app.routers.authentication import require_owner
 
         return require_owner
+
+    def permission(self, resource: str, action: str):
+        """Dependency that allows only admins whose role grants ``action`` on ``resource`` (e.g. "users", "read")."""
+        from app.routers.authentication import require_permission
+
+        return require_permission(resource, action)
 
 
 class PluginSubscription:
