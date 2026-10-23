@@ -17,7 +17,7 @@ from app.jobs._usage_queries import (
     build_node_usage_upsert,
     build_node_user_usage_upsert,
     build_online_at_updates,
-    build_user_traffic_update,  # noqa: F401 - preserve the public statement builder
+    build_user_traffic_update,
 )
 from app.jobs._usage_storage import Receipt, StaleUsageCollection, UsageStore
 from app.node import node_manager
@@ -122,6 +122,22 @@ async def safe_execute(stmt, params=None, max_retries: int = DEADLOCK_MAX_RETRIE
             await conn.execute(stmt, params)
 
     await _transaction(execute, max_retries)
+
+
+async def update_users_traffic(usage_params: list[dict]) -> None:
+    """Apply prepared user deltas with whole-transaction retries and bounded batches."""
+    if not usage_params:
+        return
+    dialect = await get_dialect()
+    ordered = sorted(usage_params, key=lambda item: int(item["uid"]))
+    batch_size = {"mysql": 1_000, "sqlite": 400}.get(dialect, len(ordered))
+
+    async def execute(conn):
+        for batch in _chunked(ordered, batch_size):
+            stmt, params = build_user_traffic_update(dialect, batch)
+            await conn.execute(stmt, params)
+
+    await _transaction(execute)
 
 
 async def touch_users_online_at(user_ids: list[int], now: dt | None = None) -> None:
