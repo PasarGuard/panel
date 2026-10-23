@@ -63,7 +63,7 @@ const UI_SESSION_REFRESH_MS = 10 * 60 * 1000
  * The iframe cannot send the Authorization header:
  * 1. a path-scoped cookie (POST /api/plugins/<id>/ui-session) with a short token that opens only this
  *    plugin's files lets it load them; it is renewed while the page is open;
- * 2. when the page posts {type: "pasarguard:ready"}, we answer with the token, theme and language.
+ * 2. when the page posts {type: "pasarguard:ready"}, we answer with the token, theme, language and text direction.
  * Both directions check the window and the origin of the other side.
  */
 export function PluginFrame({ pluginId, title }: PluginFrameProps) {
@@ -95,8 +95,8 @@ export function PluginFrame({ pluginId, title }: PluginFrameProps) {
     const target = iframeRef.current?.contentWindow
     const token = getAuthToken()
     if (!target || !token) return
-    target.postMessage({ type: 'pasarguard:context', token, theme: resolvedTheme, lang: i18n.language, cssVars: readThemeVariables() }, src.origin)
-  }, [i18n.language, resolvedTheme, src])
+    target.postMessage({ type: 'pasarguard:context', token, theme: resolvedTheme, lang: i18n.language, dir: i18n.dir(), cssVars: readThemeVariables() }, src.origin)
+  }, [i18n, i18n.language, resolvedTheme, src])
 
   useEffect(() => {
     const onMessage = (event: MessageEvent) => {

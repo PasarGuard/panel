@@ -12,10 +12,11 @@ import { Separator } from '@/components/ui/separator'
 import { PluginSettingsForm } from '@/features/plugins/components/plugin-settings-form'
 import type { JsonSchema } from '@/features/plugins/settings-schema'
 import { useGetPlugins, type PluginResponse } from '@/service/api'
+import { getErrorMessage } from '@/utils/error-utils'
 
 export default function PluginsPage() {
   const { t } = useTranslation()
-  const { data, isLoading } = useGetPlugins()
+  const { data, isLoading, isError, error, refetch } = useGetPlugins()
   const [editing, setEditing] = useState<PluginResponse | null>(null)
   const plugins = data?.plugins ?? []
 
@@ -28,7 +29,17 @@ export default function PluginsPage() {
 
       <div className="flex w-full flex-col gap-4 p-4">
         {isLoading && <p className="text-muted-foreground text-sm">{t('loading')}</p>}
-        {!isLoading && plugins.length === 0 && <p className="text-muted-foreground text-sm">{t('plugins.empty')}</p>}
+        {isError && !data && (
+          <div role="alert" className="flex flex-wrap items-center gap-2 text-sm">
+            <span className="text-destructive">
+              {t('error')}: {getErrorMessage(error)}
+            </span>
+            <Button variant="outline" size="sm" onClick={() => refetch()}>
+              {t('errorPage.actions.tryAgain')}
+            </Button>
+          </div>
+        )}
+        {!isLoading && !isError && plugins.length === 0 && <p className="text-muted-foreground text-sm">{t('plugins.empty')}</p>}
         {plugins.map(plugin => {
           const loaded = plugin.status === 'loaded'
           return (

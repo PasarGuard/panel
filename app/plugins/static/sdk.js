@@ -3,7 +3,7 @@
  *
  * The dashboard shows a plugin page in an iframe. The iframe cannot send the Authorization header, so:
  *   1. this script posts {type: "pasarguard:ready"} to the parent window;
- *   2. the dashboard answers with {type: "pasarguard:context", token, theme, lang, cssVars};
+ *   2. the dashboard answers with {type: "pasarguard:context", token, theme, lang, dir, cssVars};
  *   3. PasarGuard.ready() resolves with that context and PasarGuard.api() adds the token to requests.
  * Messages are accepted only from the parent window and only from this page's origin (or the origin of the
  * page that embedded it). Theme CSS variables (--background, --foreground, --primary, ...) are copied to
@@ -33,7 +33,8 @@
     root.style.colorScheme = ctx.theme === "dark" ? "dark" : "light";
     if (ctx.lang) {
       root.lang = ctx.lang;
-      root.dir = ctx.lang === "fa" ? "rtl" : "ltr";
+      // dir comes from the dashboard; older dashboards send only lang ("fa" or "fa-IR")
+      root.dir = ctx.dir === "rtl" || ctx.dir === "ltr" ? ctx.dir : /^fa/.test(ctx.lang) ? "rtl" : "ltr";
     }
   }
 
@@ -41,7 +42,7 @@
     if (event.source !== window.parent || allowedOrigins.indexOf(event.origin) === -1) return;
     var data = event.data;
     if (!data || data.type !== "pasarguard:context" || typeof data.token !== "string") return;
-    context = { token: data.token, theme: data.theme, lang: data.lang, cssVars: data.cssVars || {} };
+    context = { token: data.token, theme: data.theme, lang: data.lang, dir: data.dir, cssVars: data.cssVars || {} };
     applyTheme(context);
     waiters.splice(0).forEach(function (resolve) {
       resolve(context);
