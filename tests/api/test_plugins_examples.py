@@ -1,5 +1,8 @@
 """The example plugins in examples/plugins load and work."""
 
+import asyncio
+import sys
+import time
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from urllib.parse import quote
@@ -11,7 +14,18 @@ from app.plugins import manager, registry
 from app.scheduler import scheduler
 from app.subscription.config_cache import clear_sub_config_cache
 from tests.api import GetTestDB, app, client
-from tests.api.helpers import auth_headers, create_admin, create_user, delete_admin, delete_user, unique_name
+from tests.api.helpers import (
+    auth_headers,
+    create_admin,
+    create_core,
+    create_group,
+    create_user,
+    delete_admin,
+    delete_core,
+    delete_group,
+    delete_user,
+    unique_name,
+)
 from tests.plugin_helpers import reset_plugins
 
 EXAMPLES_DIR = Path(__file__).resolve().parents[2] / "examples" / "plugins"
@@ -27,6 +41,8 @@ def examples(monkeypatch):
     manager.load_all(EXAMPLES_DIR, ["expiring-report", "sub-banner"], runs_panel=True, runs_scheduler=True)
     for ctx in registry.active:
         manager.activate(app, ctx)
+    # sub-banner has an async setup: it runs at startup
+    asyncio.run(manager.finish_pending_setups(app))
     yield
     for job in scheduler.get_jobs():
         if job.id.startswith("plugin:"):
@@ -102,3 +118,34 @@ def test_sub_banner_prepends_info_link(examples, access_token):
         assert "00000000-0000-0000-0000-000000000000" not in clash
     finally:
         delete_user(access_token, username)
+
+
+def test_sub_banner_plan_comes_from_memory_not_the_database(examples, access_token, monkeypatch):
+    module = next(m for name, m in sys.modules.items() if name.endswith(".plugin") and hasattr(m, "groups_by_user"))
+    core = create_core(access_token)
+    group = create_group(access_token, name=unique_name("premium"))
+    username = unique_name("banner_plan_user")
+    try:
+        saved = client.put(
+            "/api/plugins/sub-banner/settings",
+            headers=auth_headers(access_token),
+            json={"plans": {group["name"]: "Premium"}},
+        )
+        assert saved.status_code == status.HTTP_200_OK
+        user = create_user(access_token, username=username, group_ids=[group["id"]])
+        # The user.created event fills the map in the background
+        deadline = time.monotonic() + 5
+        while module.groups_by_user.get(user["id"]) != [group["name"]] and time.monotonic() < deadline:
+            time.sleep(0.05)
+        assert module.groups_by_user.get(user["id"]) == [group["name"]]
+
+        def no_db():
+            raise AssertionError("subscription hooks must not open a database session")
+
+        monkeypatch.setattr(registry.get_active("sub-banner"), "db", no_db)
+        first_line = client.get(f"{user['subscription_url']}/links").text.splitlines()[0]
+        assert first_line.endswith(quote("Premium", safe=""))
+    finally:
+        delete_user(access_token, username)
+        delete_group(access_token, group["id"])
+        delete_core(access_token, core["id"])
