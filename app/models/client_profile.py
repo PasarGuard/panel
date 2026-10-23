@@ -9,6 +9,8 @@ from .validators import ListValidator
 
 # Same token rule as BaseOperation._HTTP_HEADER_NAME_PATTERN, which checks the final response headers.
 _HTTP_HEADER_NAME_PATTERN = re.compile(r"^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$")
+# Link schemes the subscription page may put into an href (announce_url)
+SAFE_LINK_SCHEMES = frozenset({"http", "https", "tg"})
 
 
 class ClientProfileTemplateType(StrEnum):
@@ -50,6 +52,17 @@ class ClientProfileSettings(BaseModel):
     @classmethod
     def validate_optional_text(cls, value: str | None) -> str | None:
         return _blank_to_none(value)
+
+    @field_validator("announce_url")
+    @classmethod
+    def validate_announce_url(cls, value: str | None) -> str | None:
+        # A link that starts with a variable is checked when the subscription page is rendered
+        if value is None or value.lstrip().startswith("{"):
+            return value
+        scheme, separator, _ = value.strip().partition(":")
+        if not separator or scheme.lower() not in SAFE_LINK_SCHEMES:
+            raise ValueError("announce_url must be an http, https or tg link")
+        return value
 
     @field_validator("response_headers")
     @classmethod

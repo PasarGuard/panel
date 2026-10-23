@@ -2,6 +2,7 @@ import re
 from datetime import UTC, datetime as dt
 from json import dumps as json_dumps
 from typing import Any, ClassVar
+from urllib.parse import urlsplit
 
 from fastapi import Response
 from fastapi.responses import HTMLResponse
@@ -11,6 +12,7 @@ from app.db.crud.hwid import get_user_hwid_by_value, register_user_hwid
 from app.db.crud.user import get_user_usages, user_sub_update
 from app.db.models import User
 from app.models.admin import AdminDetails
+from app.models.client_profile import SAFE_LINK_SCHEMES
 from app.models.settings import (
     Application,
     ConfigFormat,
@@ -202,6 +204,15 @@ class SubscriptionOperation(BaseOperation):
             return sub_settings.announce_url.format_map(format_variables)
         except ValueError, KeyError:
             return sub_settings.announce_url
+
+    @staticmethod
+    def _safe_link(url: str) -> str:
+        """Return url only if the subscription page may put it into an href (no javascript:, data: and the like)."""
+        try:
+            scheme = urlsplit(url.strip()).scheme.lower()
+        except ValueError:
+            return ""
+        return url if scheme in SAFE_LINK_SCHEMES else ""
 
     @staticmethod
     def create_response_headers(
@@ -696,7 +707,7 @@ class SubscriptionOperation(BaseOperation):
             "user": SubscriptionUserResponse.model_validate(user),
             "links": links,
             "announce": formatted_announce,
-            "announce_url": self._format_announce_url(sub_settings, format_variables),
+            "announce_url": self._safe_link(self._format_announce_url(sub_settings, format_variables)),
             "apps": self._make_apps_import_urls(
                 sub_settings.applications,
                 format_variables,
