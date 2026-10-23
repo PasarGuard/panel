@@ -1,7 +1,11 @@
 from aiocache import cached
 
 from app.db import GetDB
-from app.db.crud.client_template import get_client_template_contents_by_type, get_client_template_values
+from app.db.crud.client_template import (
+    get_client_template_contents,
+    get_client_template_contents_by_type,
+    get_client_template_values,
+)
 from app.models.client_template import ClientTemplateType
 from app.subscription.config_cache import clear_sub_config_cache
 
@@ -22,7 +26,7 @@ async def subscription_xray_templates() -> dict[int, str]:
 async def subscription_template_contents() -> dict[int, str]:
     """id -> content for every client template; client profiles reference templates by id."""
     async with GetDB() as db:
-        return await get_client_template_contents_by_type(db, None)
+        return await get_client_template_contents(db)
 
 
 async def refresh_client_templates_cache() -> None:

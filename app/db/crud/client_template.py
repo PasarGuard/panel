@@ -74,14 +74,18 @@ async def get_client_template_values(db: AsyncSession) -> dict[str, str]:
     return values
 
 
-async def get_client_template_contents_by_type(
-    db: AsyncSession, template_type: ClientTemplateType | None
-) -> dict[int, str]:
-    """id -> content for templates of one type, or of every type when template_type is None."""
-    stmt = select(ClientTemplate.id, ClientTemplate.content)
-    if template_type is not None:
-        stmt = stmt.where(ClientTemplate.template_type == template_type.value)
-    rows = (await db.execute(stmt)).all()
+async def get_client_template_contents_by_type(db: AsyncSession, template_type: ClientTemplateType) -> dict[int, str]:
+    rows = (
+        await db.execute(
+            select(ClientTemplate.id, ClientTemplate.content).where(ClientTemplate.template_type == template_type.value)
+        )
+    ).all()
+    return {row.id: row.content for row in rows}
+
+
+async def get_client_template_contents(db: AsyncSession) -> dict[int, str]:
+    """id -> content for templates of every type."""
+    rows = (await db.execute(select(ClientTemplate.id, ClientTemplate.content))).all()
     return {row.id: row.content for row in rows}
 
 
