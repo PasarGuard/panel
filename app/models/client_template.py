@@ -11,6 +11,7 @@ class ClientTemplateType(StrEnum):
     singbox_subscription = "singbox_subscription"
     user_agent = "user_agent"
     grpc_user_agent = "grpc_user_agent"
+    happ_routing = "happ_routing"
 
 
 class ClientTemplateBase(BaseModel):

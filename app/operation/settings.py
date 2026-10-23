@@ -2,8 +2,10 @@ import asyncio
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.crud.client_template import get_client_templates
 from app.db.crud.settings import get_settings, modify_settings
 from app.db.models import Settings
+from app.models.client_template import ClientTemplateListQuery, ClientTemplateType
 from app.models.settings import General, SettingsSchema, Subscription
 from app.nats.message import MessageTopic
 from app.nats.router import router
@@ -27,9 +29,35 @@ class SettingsOperation(BaseOperation):
     async def get_settings(self, db: AsyncSession) -> Settings:
         return await get_settings(db)
 
+    async def validate_happ_routing_templates(self, db: AsyncSession, subscription: Subscription) -> None:
+        rule_template_ids = [
+            (rule.pattern, rule.happ_routing_template_id)
+            for rule in subscription.rules
+            if rule.happ_routing_template_id is not None
+        ]
+        if not rule_template_ids:
+            return
+
+        ids = sorted({template_id for _, template_id in rule_template_ids})
+        db_templates, _ = await get_client_templates(db, ClientTemplateListQuery(ids=ids, limit=len(ids)))
+        template_types = {t.id: t.template_type for t in db_templates}
+        for pattern, template_id in rule_template_ids:
+            if template_id not in template_types:
+                await self.raise_error(
+                    message=f'Subscription rule "{pattern}": Happ routing template {template_id} not found', code=400
+                )
+            if template_types[template_id] != ClientTemplateType.happ_routing.value:
+                await self.raise_error(
+                    message=f'Subscription rule "{pattern}": template {template_id} is not a Happ routing template',
+                    code=400,
+                )
+
     async def modify_settings(self, db: AsyncSession, modify: SettingsSchema) -> SettingsSchema:
         db_settings = await get_settings(db)
         old_settings = SettingsSchema.model_validate(db_settings)
+
+        if modify.subscription:
+            await self.validate_happ_routing_templates(db, modify.subscription)
 
         if modify.general and modify.general.custom_variables is not None:
             subscription = modify.subscription or Subscription.model_validate(db_settings.subscription)

@@ -24,6 +24,8 @@ from app.models.subscription import SubscriptionUsageQuery
 from app.models.user import SubscriptionUserResponse, UsersResponseWithInbounds
 from app.settings import hwid_settings, subscription_settings
 from app.subscription import sub_update_buffer as _sub_update_buffer  # noqa: F401  # registers per-worker flush loop
+from app.subscription.client_templates import subscription_happ_routing_templates
+from app.subscription.happ_routing import build_happ_routing_link, parse_happ_routing_profile
 from app.subscription.share import (
     apply_custom_format_variables,
     encode_title,
@@ -34,11 +36,14 @@ from app.subscription.share import (
 )
 from app.templates import render_template
 from app.utils.hwid import resolve_effective_hwid_settings
+from app.utils.logger import get_logger
 from app.utils.performance import phase
 from config import template_settings
 
 from . import BaseOperation
 from .user import UserOperation
+
+logger = get_logger("subscription-operation")
 
 client_config = {
     ConfigFormat.clash_meta: {
@@ -101,6 +106,8 @@ class SubscriptionOperation(BaseOperation):
         ConfigFormat.clash,
         ConfigFormat.clash_meta,
     }
+    # Formats where a Happ routing link can be a bare line of the body (a deeplink is not valid YAML)
+    _ROUTING_BODY_FORMATS: ClassVar[set[ConfigFormat]] = {ConfigFormat.links, ConfigFormat.links_base64}
     _SUB_CONFIG_LOAD: ClassVar[dict[str, bool]] = {
         "load_next_plan": False,
         "load_usage_logs": False,
@@ -298,6 +305,27 @@ class SubscriptionOperation(BaseOperation):
             else:
                 body_lines.append(f"#{key}: {value}")
         return http_headers, body_lines
+
+    @staticmethod
+    async def _get_happ_routing_link(rule: SubRule | None) -> str | None:
+        """Build the Happ routing link of the matched rule; never fails the subscription."""
+        if not rule or rule.happ_routing_template_id is None:
+            return None
+
+        template_id = rule.happ_routing_template_id
+        content = (await subscription_happ_routing_templates()).get(template_id)
+        if content is None:
+            logger.warning(f'Happ routing template {template_id} of rule "{rule.pattern}" not found, skipping routing')
+            return None
+        try:
+            return build_happ_routing_link(parse_happ_routing_profile(content))
+        except ValueError as exc:
+            logger.warning(f'Happ routing template {template_id} of rule "{rule.pattern}" is invalid, skipping: {exc}')
+            return None
+
+    @classmethod
+    def _routing_in_body(cls, placement: HeaderPlacement, client_type: ConfigFormat | None) -> bool:
+        return placement != HeaderPlacement.header and client_type in cls._ROUTING_BODY_FORMATS
 
     @staticmethod
     def _stringify_rule_header_value(value: Any, format_variables: dict[str, str | int | float]) -> str:
@@ -556,13 +584,16 @@ class SubscriptionOperation(BaseOperation):
             response_headers, body_lines = self._split_headers_for_placement(
                 response_headers, sub_settings.header_placement, client_type
             )
+            as_base64 = client_config.get(client_type, {}).get("as_base64", False)
             if body_lines:
-                conf = inject_body_placement(
-                    conf,
-                    body_lines,
-                    sub_settings.header_placement.value,
-                    client_config.get(client_type, {}).get("as_base64", False),
-                )
+                conf = inject_body_placement(conf, body_lines, sub_settings.header_placement.value, as_base64)
+
+            if routing_link := await self._get_happ_routing_link(matched_rule):
+                if self._routing_in_body(sub_settings.header_placement, client_type):
+                    # Happ reads a bare link from the body; keep it as the very first line
+                    conf = inject_body_placement(conf, [routing_link], HeaderPlacement.body_start.value, as_base64)
+                else:
+                    response_headers["routing"] = routing_link
 
         # Create response with appropriate headers
         return Response(content=conf, media_type=media_type, headers=response_headers)
@@ -880,6 +911,10 @@ class SubscriptionOperation(BaseOperation):
             response_headers, _ = self._split_headers_for_placement(
                 response_headers, sub_settings.header_placement, client_type
             )
+            if not self._routing_in_body(sub_settings.header_placement, client_type) and (
+                routing_link := await self._get_happ_routing_link(matched_rule)
+            ):
+                response_headers["routing"] = routing_link
 
             config = client_config.get(client_type, {})
             if "media_type" in config:
