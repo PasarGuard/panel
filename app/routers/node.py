@@ -383,7 +383,7 @@ async def user_online_ip_list_all_nodes(
 async def users_ranked_by_ip_count(
     query: Annotated[UserIPRankingQuery, Depends(get_user_ip_ranking_query)],
     db: AsyncSession = Depends(get_db),
-    _: AdminDetails = Depends(require_permission("nodes", "stats")),
+    admin: AdminDetails = Depends(require_permission("nodes", "stats")),
 ):
     """Rank users by the number of IPs connected right now.
 
@@ -393,10 +393,10 @@ async def users_ranked_by_ip_count(
     connection closes. Order: distinct IP count (highest first), then used_traffic
     (highest first), then username (A to Z). Each entry carries its current IPs
     with last-seen timestamps and the stored used_traffic. Nodes that cannot
-    report IPs are counted in skipped_node_count. Pages and total are recomputed
+    report IPs are counted in skipped_node_count. Needs users.read; with the own scope only the caller's users are listed. Pages and total are recomputed
     from live data on every request, so the list can change between requests.
     """
-    return await node_operator.get_users_ip_ranking(db=db, query=query)
+    return await node_operator.get_users_ip_ranking(db=db, query=query, admin=admin)
 
 
 @router.get("/{node_id}/online_stats/{user_id}", response_model=dict[int, int])

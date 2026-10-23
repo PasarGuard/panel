@@ -76,6 +76,7 @@ from app.node import UserSyncPreemptedError, core_users, node_manager
 from app.node.manager_sync import publish_node_sync
 from app.node.nats_memory import clear_bridge_memory_for_node
 from app.operation import BaseOperation, OperatorType
+from app.operation.permissions import PermissionDenied, enforce_permission, get_scope_admin_id
 from app.utils.logger import get_logger
 from config import runtime_settings
 
@@ -800,8 +801,16 @@ class NodeOperation(BaseOperation):
     async def get_users_online_ips(self, node_ids: list[int] | None = None) -> tuple[dict[int, dict[str, int]], int]:
         return await self._get_users_online_ips(node_ids)
 
-    async def get_users_ip_ranking(self, db: AsyncSession, query: UserIPRankingQuery) -> UserIPRankingList:
-        return await self._get_users_ip_ranking_impl(db, query)
+    async def get_users_ip_ranking(
+        self, db: AsyncSession, query: UserIPRankingQuery, admin: AdminDetails
+    ) -> UserIPRankingList:
+        # The ranking lists usernames and traffic, so it needs users.read and follows its scope
+        try:
+            enforce_permission(admin, "users", "read")
+        except PermissionDenied as exc:
+            await self.raise_error(message=str(exc), code=403)
+        owner = admin.username if get_scope_admin_id(admin, "users", "read") is not None else None
+        return await self._get_users_ip_ranking_impl(db, query, owner)
 
     async def _get_node_user_ip_list_safe(self, node_id: int, email: str) -> dict[str, int] | None:
         """Wrapper method that returns None instead of raising exceptions"""
@@ -1303,7 +1312,7 @@ class NodeOperation(BaseOperation):
                     continue
                 user_ips = ips_by_user.setdefault(user_id, {})
                 for ip, last_seen in ips.items():
-                    if last_seen > user_ips.get(ip, 0):
+                    if ip not in user_ips or last_seen > user_ips[ip]:
                         user_ips[ip] = last_seen
 
         return ips_by_user, skipped_node_count
@@ -1315,6 +1324,7 @@ class NodeOperation(BaseOperation):
         updated_at: datetime,
         query: UserIPRankingQuery,
         skipped_node_count: int = 0,
+        owner: str | None = None,
     ) -> UserIPRankingList:
         counts = {
             user_id: len(ips)
@@ -1326,9 +1336,16 @@ class NodeOperation(BaseOperation):
         if not counts:
             return UserIPRankingList(users=[], updated_at=updated_at, total=0, skipped_node_count=skipped_node_count)
 
+        # An admin limited to their own users sees only those, whatever admin_ids asks for
         users = await get_users(
             db,
-            UserListQuery(ids=list(counts), admin_ids=query.admin_ids, group_ids=query.group_ids, status=query.status),
+            UserListQuery(
+                ids=list(counts),
+                admin_ids=None if owner else query.admin_ids,
+                owner=[owner] if owner else None,
+                group_ids=query.group_ids,
+                status=query.status,
+            ),
             load_usage_logs=False,
         )
         users_by_id = {user.id: user for user in users}
@@ -1360,11 +1377,15 @@ class NodeOperation(BaseOperation):
             users=entries, updated_at=updated_at, total=len(visible_ids), skipped_node_count=skipped_node_count
         )
 
-    async def _get_users_ip_ranking_local(self, db: AsyncSession, query: UserIPRankingQuery) -> UserIPRankingList:
+    async def _get_users_ip_ranking_local(
+        self, db: AsyncSession, query: UserIPRankingQuery, owner: str | None = None
+    ) -> UserIPRankingList:
         ips_by_user, skipped_node_count = await self._get_users_online_ips(query.node_ids)
-        return await self._resolve_ip_ranking(db, ips_by_user, datetime.now(UTC), query, skipped_node_count)
+        return await self._resolve_ip_ranking(db, ips_by_user, datetime.now(UTC), query, skipped_node_count, owner)
 
-    async def _get_users_ip_ranking_remote(self, db: AsyncSession, query: UserIPRankingQuery) -> UserIPRankingList:
+    async def _get_users_ip_ranking_remote(
+        self, db: AsyncSession, query: UserIPRankingQuery, owner: str | None = None
+    ) -> UserIPRankingList:
         try:
             data = await node_nats_client.request("get_users_ip_ranking", {"node_ids": query.node_ids})
         except RuntimeError as exc:
@@ -1373,7 +1394,7 @@ class NodeOperation(BaseOperation):
 
         snapshot = UserOnlineIPsSnapshot.model_validate(data)
         return await self._resolve_ip_ranking(
-            db, snapshot.users, snapshot.computed_at, query, snapshot.skipped_node_count
+            db, snapshot.users, snapshot.computed_at, query, snapshot.skipped_node_count, owner
         )
 
     async def _sync_node_users_local(self, db: AsyncSession, node_id: int, flush_users: bool) -> NodeResponse:

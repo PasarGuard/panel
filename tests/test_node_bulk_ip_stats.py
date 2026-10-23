@@ -1,12 +1,15 @@
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
+from fastapi import HTTPException
 from PasarGuardNodeBridge import NodeAPIError
 from sqlalchemy import update
 
 from app.db.models import Admin, Group, ProxyInbound, User, UserStatus, users_groups_association
+from app.models.admin import AdminDetails
 from app.models.node import UserIPRankingQuery
 from app.models.proxy import ProxyTable
 from app.operation import OperatorType
@@ -450,3 +453,71 @@ async def test_ip_ranking_offset_past_end_returns_empty_page():
 
     assert result.users == []
     assert result.total == 2
+
+
+@pytest.mark.asyncio
+async def test_online_ips_keeps_ip_whose_last_seen_is_zero(monkeypatch: pytest.MonkeyPatch):
+    operation = NodeOperation(operator_type=OperatorType.API)
+
+    async def fake_get_healthy_nodes():
+        return [(1, object())]
+
+    async def fake_bulk(node_id):
+        return {"1": {"1.2.3.4": 0}}
+
+    monkeypatch.setattr("app.operation.node.node_manager.get_healthy_nodes", fake_get_healthy_nodes)
+    monkeypatch.setattr(operation, "_get_node_users_ip_list_bulk_safe", fake_bulk)
+
+    result, _ = await operation._get_users_online_ips()
+
+    assert result == {1: {"1.2.3.4": 0}}
+
+
+@pytest.mark.asyncio
+async def test_ip_ranking_with_owner_lists_only_that_admins_users():
+    ids = await _make_ranking_fixture()
+    operation = NodeOperation(operator_type=OperatorType.API)
+    ips_by_user = {ids["active"]: _ips(5), ids["limited"]: _ips(5), ids["other_admin"]: _ips(9)}
+
+    async with TestSession() as session:
+        owner = (await session.get(Admin, ids["admin_a"])).username
+        result = await operation._resolve_ip_ranking(
+            session, ips_by_user, NOW, UserIPRankingQuery(admin_ids=[ids["admin_b"]]), owner=owner
+        )
+
+    assert {entry.user_id for entry in result.users} == {ids["active"], ids["limited"]}
+
+
+def _admin_with(users_read) -> AdminDetails:
+    permissions = {"nodes": {"stats": True}}
+    if users_read is not None:
+        permissions["users"] = {"read": users_read}
+    role = {"is_owner": False, "permissions": permissions, "limits": {}, "features": {}, "access": {}}
+    return AdminDetails(id=7, username="scoped_admin", role=role)
+
+
+@pytest.mark.asyncio
+async def test_ip_ranking_needs_users_read(monkeypatch: pytest.MonkeyPatch):
+    operation = NodeOperation(operator_type=OperatorType.API)
+    monkeypatch.setattr(operation, "_get_users_ip_ranking_impl", AsyncMock())
+
+    with pytest.raises(HTTPException) as denied:
+        await operation.get_users_ip_ranking(None, UserIPRankingQuery(), _admin_with(None))
+
+    assert denied.value.status_code == 403
+    operation._get_users_ip_ranking_impl.assert_not_called()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("users_read", "expected_owner"), [({"scope": 1}, "scoped_admin"), ({"scope": 2}, None)])
+async def test_ip_ranking_follows_the_users_read_scope(
+    monkeypatch: pytest.MonkeyPatch, users_read: dict[str, int], expected_owner: str | None
+):
+    operation = NodeOperation(operator_type=OperatorType.API)
+    impl = AsyncMock()
+    monkeypatch.setattr(operation, "_get_users_ip_ranking_impl", impl)
+    query = UserIPRankingQuery()
+
+    await operation.get_users_ip_ranking(None, query, _admin_with(users_read))
+
+    impl.assert_awaited_once_with(None, query, expected_owner)
