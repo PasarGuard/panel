@@ -156,7 +156,7 @@ export default function Cores({ cores, onDuplicateCore, onDeleteCore, canCreate 
   const filteredCores = useMemo(() => {
     if (!searchQuery.trim()) return coresList
     const query = searchQuery.toLowerCase().trim()
-    return coresList.filter((core: CoreResponse) => core.name?.toLowerCase().includes(query))
+    return coresList.filter((core: CoreResponse) => core.name?.toLowerCase().includes(query) || core.note?.toLowerCase().includes(query))
   }, [coresList, searchQuery])
 
   const isSortingDisabled = !canUpdate || !!searchQuery.trim() || reorderCoresMutation.isPending
