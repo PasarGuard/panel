@@ -46,6 +46,7 @@ from app.models.stats import (
     UserCountMetricStat,
     UserCountMetricStatsList,
 )
+from app.models.validators import CountryCodeValidator
 from app.node import user as node_user_module
 from app.node.sync import _blocked_admin_ids_for_users
 from app.operation import OperatorType
@@ -1512,6 +1513,12 @@ def test_node_country_code_and_note_create_modify_clear(access_token, node_api_w
         {"country_code": "DEU"},
         {"country_code": "1A"},
         {"country_code": "D"},
+        {"country_code": "ß"},
+        # User-assigned codes are not countries.
+        {"country_code": "zz"},
+        {"country_code": "AA"},
+        {"country_code": "QM"},
+        {"country_code": "xa"},
         {"note": "x" * 501},
     ],
 )
@@ -1522,3 +1529,8 @@ def test_node_invalid_country_code_or_long_note_rejected(access_token, node_oper
     assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
     node_operator_mock.create_node.assert_not_awaited()
     node_operator_mock.modify_node.assert_not_awaited()
+
+
+@pytest.mark.parametrize("code", ["de", "GB", "xk", "QA"])
+def test_node_country_code_accepts_real_and_kosovo_codes(code):
+    assert CountryCodeValidator.validate_country_code(f" {code} ") == code.upper()

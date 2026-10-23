@@ -335,6 +335,11 @@ class CountryCodeValidator:
         value = value.strip()
         if not value:
             return None
+        # Check before upper(): "ß".upper() is "SS".
         if not re.fullmatch(r"[A-Za-z]{2}", value):
             raise ValueError("country_code must be an ISO 3166-1 alpha-2 code (e.g. DE)")
-        return value.upper()
+        value = value.upper()
+        # User-assigned codes (AA, QM-QZ, XA-XZ, ZZ) are not countries; XK (Kosovo) is the common exception.
+        if value != "XK" and re.fullmatch(r"AA|Q[M-Z]|X[A-Z]|ZZ", value):
+            raise ValueError("country_code must be an ISO 3166-1 alpha-2 code (e.g. DE)")
+        return value
