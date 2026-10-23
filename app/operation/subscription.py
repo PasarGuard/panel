@@ -24,6 +24,11 @@ from app.models.subscription import SubscriptionUsageQuery
 from app.models.user import SubscriptionUserResponse, UsersResponseWithInbounds
 from app.settings import hwid_settings, subscription_settings
 from app.subscription import sub_update_buffer as _sub_update_buffer  # noqa: F401  # registers per-worker flush loop
+from app.subscription.client_profiles import (
+    apply_client_profile_settings,
+    drop_removed_response_headers,
+    get_client_profile,
+)
 from app.subscription.share import (
     apply_custom_format_variables,
     encode_title,
@@ -122,6 +127,7 @@ class SubscriptionOperation(BaseOperation):
             user.inbounds = await db_user.inbounds()
         user.expire = db_user.expire
         user.lifetime_used_traffic = db_user.lifetime_used_traffic
+        user.client_profile = await get_client_profile(db_user.client_profile_id)
 
         return user
 
@@ -145,10 +151,12 @@ class SubscriptionOperation(BaseOperation):
         user: UsersResponseWithInbounds, format_variables: dict, sub_settings: SubSettings
     ) -> str:
         """Format profile title with dynamic variables, falling back to default if needed."""
-        # Prefer admin's profile_title over subscription settings
+        # Prefer client profile's, then admin's profile_title over subscription settings
         profile_title = (
-            getattr(user.admin, "profile_title", None) if user.admin else None
-        ) or sub_settings.profile_title
+            SubscriptionOperation._client_profile_setting(user, "profile_title")
+            or (getattr(user.admin, "profile_title", None) if user.admin else None)
+            or sub_settings.profile_title
+        )
 
         if not profile_title:
             return "Subscription"
@@ -158,6 +166,20 @@ class SubscriptionOperation(BaseOperation):
         except ValueError, KeyError:
             # Invalid format string, return original title
             return profile_title
+
+    @staticmethod
+    def _client_profile_setting(user: UsersResponseWithInbounds, field: str) -> Any:
+        profile = getattr(user, "client_profile", None)
+        return getattr(profile.settings, field) if profile is not None else None
+
+    @staticmethod
+    def _resolve_support_url(user: UsersResponseWithInbounds, sub_settings: SubSettings) -> str:
+        # Prefer client profile's, then admin's support_url over subscription settings
+        return (
+            SubscriptionOperation._client_profile_setting(user, "support_url")
+            or (getattr(user.admin, "support_url", None) if user.admin else None)
+            or sub_settings.support_url
+        )
 
     @staticmethod
     def _format_announce(sub_settings: SubSettings, format_variables: dict) -> str:
@@ -210,8 +232,7 @@ class SubscriptionOperation(BaseOperation):
         formatted_announce = SubscriptionOperation._format_announce(sub_settings, format_variables)
         formatted_announce_url = SubscriptionOperation._format_announce_url(sub_settings, format_variables)
 
-        # Prefer admin's support_url over subscription settings
-        support_url = (getattr(user.admin, "support_url", None) if user.admin else None) or sub_settings.support_url
+        support_url = SubscriptionOperation._resolve_support_url(user, sub_settings)
 
         # Use 'inline' for browser viewing, 'attachment' for download
         disposition = "inline" if inline else "attachment"
@@ -318,8 +339,7 @@ class SubscriptionOperation(BaseOperation):
     @staticmethod
     def create_info_response_headers(user: UsersResponseWithInbounds, sub_settings: SubSettings) -> dict:
         """Create response headers for /info endpoint with only support-url, announce, and announce-url."""
-        # Prefer admin's support_url over subscription settings
-        support_url = (getattr(user.admin, "support_url", None) if user.admin else None) or sub_settings.support_url
+        support_url = SubscriptionOperation._resolve_support_url(user, sub_settings)
         custom_variables = get_effective_custom_variables(user, sub_settings.custom_variables)
         format_variables = setup_format_variables(user, sub_settings.custom_variables)
         apply_custom_format_variables(format_variables, custom_variables)
@@ -333,12 +353,12 @@ class SubscriptionOperation(BaseOperation):
         }
 
         # Only include headers that have values
-        return {k: v for k, v in headers.items() if v}
+        return drop_removed_response_headers({k: v for k, v in headers.items() if v}, user.client_profile)
 
     async def fetch_config(self, user: UsersResponseWithInbounds, client_type: ConfigFormat) -> tuple[str | bytes, str]:
         # Get client configuration
         config = client_config.get(client_type, {})
-        sub_settings = await subscription_settings()
+        sub_settings = apply_client_profile_settings(await subscription_settings(), user.client_profile)
         randomize_order = sub_settings.randomize_order
 
         # Generate subscription content
@@ -476,6 +496,7 @@ class SubscriptionOperation(BaseOperation):
             )
         role_hwid_settings = db_user.admin.role.hwid if db_user.admin and db_user.admin.role else None
         user = await self.validated_user(db_user)
+        sub_settings = apply_client_profile_settings(sub_settings, user.client_profile)
         is_browser_request = "text/html" in accept_header
         is_subscription_page_request = is_browser_request and not sub_settings.disable_sub_template
         if is_subscription_page_request:
@@ -544,6 +565,7 @@ class SubscriptionOperation(BaseOperation):
                         sub_settings, await self._get_rule_response_header_variables(user, client_type)
                     )
                 )
+                response_headers = drop_removed_response_headers(response_headers, user.client_profile)
                 response_headers.update(
                     self._format_rule_response_headers(
                         matched_rule, await self._get_rule_response_header_variables(user, client_type)
@@ -569,7 +591,7 @@ class SubscriptionOperation(BaseOperation):
 
     async def get_format_variables(self, user: UsersResponseWithInbounds) -> dict:
         """Get format variables for URL formatting."""
-        sub_settings: SubSettings = await subscription_settings()
+        sub_settings: SubSettings = apply_client_profile_settings(await subscription_settings(), user.client_profile)
         custom_variables = get_effective_custom_variables(user, sub_settings.custom_variables)
         format_variables = setup_format_variables(user, sub_settings.custom_variables)
         sub_url = await UserOperation.generate_subscription_url(user)
@@ -617,6 +639,7 @@ class SubscriptionOperation(BaseOperation):
                 **self._SUB_CONFIG_LOAD,
             )
         user = await self.validated_user(db_user)
+        sub_settings = apply_client_profile_settings(sub_settings, user.client_profile)
 
         await self.validate_and_register_hwid(
             db,
@@ -639,6 +662,7 @@ class SubscriptionOperation(BaseOperation):
                     sub_settings, await self._get_rule_response_header_variables(user, client_type)
                 )
             )
+            response_headers = drop_removed_response_headers(response_headers, user.client_profile)
             response_headers = self.sanitize_response_headers(response_headers)
         except ValueError as exc:
             await self.raise_error(message=str(exc), code=400)
@@ -701,6 +725,7 @@ class SubscriptionOperation(BaseOperation):
         sub_settings: SubSettings = await subscription_settings()
         db_user = await self.get_validated_sub(db, token, load_admin_role=True, **self._SUB_CONFIG_LOAD)
         user = await self.validated_user(db_user)
+        sub_settings = apply_client_profile_settings(sub_settings, user.client_profile)
         is_hwid_enabled = await self.is_user_hwid_enabled(db_user)
 
         links = []
@@ -719,6 +744,7 @@ class SubscriptionOperation(BaseOperation):
                     sub_settings, await self._get_rule_response_header_variables(user, ConfigFormat.links)
                 )
             )
+            response_headers = drop_removed_response_headers(response_headers, user.client_profile)
             response_headers = self.sanitize_response_headers(response_headers)
         except ValueError as exc:
             await self.raise_error(message=str(exc), code=400)
@@ -742,8 +768,8 @@ class SubscriptionOperation(BaseOperation):
         if client_type == ConfigFormat.block:
             await self.raise_error(message="Client not supported", code=406)
 
-        sub_settings: SubSettings = await subscription_settings()
         user = await self.validated_user(db_user)
+        sub_settings: SubSettings = apply_client_profile_settings(await subscription_settings(), user.client_profile)
 
         response_headers = self.create_response_headers(
             user, request_url, sub_settings, extension=client_config.get(client_type, {}).get("extension", "")
@@ -754,6 +780,7 @@ class SubscriptionOperation(BaseOperation):
                     sub_settings, await self._get_rule_response_header_variables(user, client_type)
                 )
             )
+            response_headers = drop_removed_response_headers(response_headers, user.client_profile)
             response_headers = self.sanitize_response_headers(response_headers)
         except ValueError as exc:
             await self.raise_error(message=str(exc), code=400)
@@ -785,6 +812,7 @@ class SubscriptionOperation(BaseOperation):
         sub_settings: SubSettings = await subscription_settings()
         db_user = await self.get_validated_sub(db, token=token, **self._SUB_INFO_LOAD)
         user = await self.validated_user(db_user)
+        sub_settings = apply_client_profile_settings(sub_settings, user.client_profile)
 
         response_headers = self.create_info_response_headers(user, sub_settings)
         try:
@@ -803,7 +831,7 @@ class SubscriptionOperation(BaseOperation):
         db_user = await self.get_validated_sub(db, token=token, load_admin_role=True, **self._SUB_CONFIG_LOAD)
         user = await self.validated_user(db_user)
         is_hwid_enabled = await self.is_user_hwid_enabled(db_user)
-        sub_settings: SubSettings = await subscription_settings()
+        sub_settings: SubSettings = apply_client_profile_settings(await subscription_settings(), user.client_profile)
         format_variables = await self.get_format_variables(user)
         return self._make_apps_import_urls(
             sub_settings.applications,
@@ -841,6 +869,7 @@ class SubscriptionOperation(BaseOperation):
         sub_settings: SubSettings = await subscription_settings()
         db_user = await self.get_validated_sub(db, token, load_admin_role=True, **self._SUB_CONFIG_LOAD)
         user = await self.validated_user(db_user)
+        sub_settings = apply_client_profile_settings(sub_settings, user.client_profile)
         is_browser_request = "text/html" in accept_header
         is_subscription_page_request = is_browser_request and not sub_settings.disable_sub_template
         if is_subscription_page_request:
@@ -868,6 +897,7 @@ class SubscriptionOperation(BaseOperation):
                         sub_settings, await self._get_rule_response_header_variables(user, client_type)
                     )
                 )
+                response_headers = drop_removed_response_headers(response_headers, user.client_profile)
                 response_headers.update(
                     self._format_rule_response_headers(
                         matched_rule, await self._get_rule_response_header_variables(user, client_type)
