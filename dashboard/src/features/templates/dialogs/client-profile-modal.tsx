@@ -185,7 +185,8 @@ export default function ClientProfileModal({ isDialogOpen, onOpenChange, form, e
                         return (
                           <FormItem>
                             <FormLabel>{TEMPLATE_TYPE_LABELS[type]}</FormLabel>
-                            <Select value={field.value} onValueChange={field.onChange} disabled={!canListTemplates}>
+                            {/* Remount once the list arrives: Radix keeps the label of the item it first rendered */}
+                            <Select key={templatesData ? 'loaded' : 'loading'} value={field.value} onValueChange={field.onChange} disabled={!canListTemplates}>
                               <FormControl>
                                 <SelectTrigger>
                                   <SelectValue />
@@ -193,7 +194,7 @@ export default function ClientProfileModal({ isDialogOpen, onOpenChange, form, e
                               </FormControl>
                               <SelectContent>
                                 <SelectItem value={DEFAULT_TEMPLATE_VALUE}>{t('clientProfiles.defaultTemplate', { defaultValue: 'Default template' })}</SelectItem>
-                                {!hasCurrent && <SelectItem value={field.value}>{`#${field.value}`}</SelectItem>}
+                                {!hasCurrent && (templatesData || !canListTemplates) && <SelectItem value={field.value}>{`#${field.value}`}</SelectItem>}
                                 {options.map(template => (
                                   <SelectItem key={template.id} value={String(template.id)}>
                                     {template.name}

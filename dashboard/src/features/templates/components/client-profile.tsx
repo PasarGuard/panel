@@ -39,7 +39,7 @@ const ClientProfile = ({
             <div className="min-w-0 truncate font-medium">{profile.name}</div>
             <div className="text-muted-foreground flex min-w-0 items-center gap-1 text-sm">
               <Users className="h-3.5 w-3.5 shrink-0" />
-              <span>{t('clientProfiles.usersCount', { count: profile.users_count ?? 0, defaultValue: '{{count}} users' })}</span>
+              <span className="whitespace-nowrap">{t('clientProfiles.usersCount', { count: profile.users_count ?? 0, defaultValue: '{{count}} users' })}</span>
             </div>
             {profile.note ? <div className="text-muted-foreground mt-1 line-clamp-2 text-xs">{profile.note}</div> : null}
           </div>
