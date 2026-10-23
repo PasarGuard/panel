@@ -102,7 +102,10 @@ class PluginSettingsAccess:
         return deepcopy(self._values)
 
     def on_change(self, fn: Callable[[dict], Any]) -> Callable[[dict], Any]:
-        """Register ``fn(new_settings)`` (sync or async), called in every worker after settings change."""
+        """Register ``fn(new_settings)``, called in every worker after settings change.
+
+        An async hook runs on the event loop, a sync one in a worker thread; each has 10 s.
+        """
         self.change_hooks.append(fn)
         return fn
 

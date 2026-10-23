@@ -230,6 +230,54 @@ async def test_state_change_inside_dedup_window_reaches_plugins(clean_plugins, m
     assert received == [False, True]
 
 
+async def test_nats_settings_refresh_does_not_wait_for_on_change(clean_plugins, monkeypatch):
+    from contextlib import asynccontextmanager
+
+    from app.plugins import settings as plugin_settings
+    from app.plugins.registry import PluginRecord
+
+    days = {"type": "object", "properties": {"days": {"type": "integer", "default": 7}}}
+    ctx = PluginContext("demo", "1.0.0", days)
+    registry.records["demo"] = PluginRecord(id="demo", status="loaded", context=ctx)
+    seen: list[tuple[str, int]] = []
+    release = asyncio.Event()
+
+    async def slow(values):
+        await release.wait()
+        seen.append(("async", values["days"]))
+
+    def blocking(values):
+        seen.append(("sync", values["days"]))
+
+    ctx.settings.on_change(slow)
+    ctx.settings.on_change(blocking)
+
+    @asynccontextmanager
+    async def fake_db():
+        yield None
+
+    stored = {"demo": {"days": 3}}
+
+    async def get_plugin_settings(db, plugin_ids):
+        return stored
+
+    monkeypatch.setattr(plugin_settings, "GetDB", fake_db)
+    monkeypatch.setattr(plugin_settings, "get_plugin_settings", get_plugin_settings)
+
+    message = {"action": "settings", "plugin_id": "demo"}
+    await asyncio.wait_for(plugin_settings.handle_plugin_message(message), timeout=1)
+    # Values apply at once; the hooks wait in the background
+    assert ctx.settings.get() == {"days": 3}
+    stored["demo"] = {"days": 4}
+    await asyncio.wait_for(plugin_settings.handle_plugin_message(message), timeout=1)
+    assert ctx.settings.get() == {"days": 4}
+    assert seen == []
+    release.set()
+    await asyncio.wait_for(plugin_settings.drain(), timeout=5)
+    # One change at a time per plugin, in order, each with the values it was started for
+    assert seen == [("async", 3), ("sync", 3), ("async", 4), ("sync", 4)]
+
+
 def test_jobs_registered_only_in_scheduler_role(tmp_path, clean_plugins):
     code = """
     def setup(ctx):

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+from copy import deepcopy
 
 from app.db import GetDB
 from app.db.crud.plugin import get_plugin_settings
@@ -14,6 +15,10 @@ from app.utils.logger import get_logger
 logger = get_logger("plugins")
 
 CHANGE_HOOK_TIMEOUT = 10.0
+# on_change runs after a NATS refresh in the background, so it never holds up other NATS messages
+_tasks: set[asyncio.Task] = set()
+# One lock per plugin: its hooks run one change at a time, in order
+_locks: dict[str, asyncio.Lock] = {}
 
 
 def _contexts(plugin_ids: list[str] | None = None) -> list[PluginContext]:
@@ -24,23 +29,47 @@ def _contexts(plugin_ids: list[str] | None = None) -> list[PluginContext]:
     ]
 
 
-async def fire_change(ctx: PluginContext) -> None:
-    for hook in list(ctx.settings.change_hooks):
-        try:
-            result = hook(ctx.settings.get())
-            if inspect.isawaitable(result):
-                await asyncio.wait_for(result, timeout=CHANGE_HOOK_TIMEOUT)
-        except asyncio.CancelledError:
-            raise
-        except Exception:
-            ctx.logger.exception("Plugin settings on_change handler failed")
+async def fire_change(ctx: PluginContext, values: dict | None = None) -> None:
+    """Run the plugin's on_change hooks with ``values`` (default: current settings).
+
+    A sync hook runs in a thread so it cannot block the event loop.
+    """
+    async with _locks.setdefault(ctx.id, asyncio.Lock()):
+        for hook in list(ctx.settings.change_hooks):
+            try:
+                current = deepcopy(values) if values is not None else ctx.settings.get()
+                if inspect.iscoroutinefunction(hook):
+                    result = hook(current)
+                else:
+                    result = await asyncio.wait_for(asyncio.to_thread(hook, current), timeout=CHANGE_HOOK_TIMEOUT)
+                if inspect.isawaitable(result):
+                    await asyncio.wait_for(result, timeout=CHANGE_HOOK_TIMEOUT)
+            except asyncio.CancelledError:
+                raise
+            except TimeoutError:
+                ctx.logger.warning(f"Plugin settings on_change handler timed out after {CHANGE_HOOK_TIMEOUT:g} s")
+            except Exception:
+                ctx.logger.exception("Plugin settings on_change handler failed")
 
 
-async def apply_values(ctx: PluginContext, values: dict, *, notify: bool) -> None:
+def _fire_change_later(ctx: PluginContext) -> None:
+    task = asyncio.create_task(fire_change(ctx, ctx.settings.get()))
+    _tasks.add(task)
+    task.add_done_callback(_tasks.discard)
+
+
+async def drain() -> None:
+    """Wait for on_change hooks started by NATS refreshes (tests, shutdown)."""
+    while _tasks:
+        await asyncio.gather(*list(_tasks), return_exceptions=True)
+
+
+async def apply_values(ctx: PluginContext, values: dict, *, notify: bool) -> bool:
+    """Store new values; return True if they changed. ``notify`` waits for the on_change hooks."""
     changed = values != ctx.settings.get()
     ctx.settings.set_values(values)
     if not changed:
-        return
+        return False
     if ctx.subscription.transforms or ctx.subscription.variable_hooks:
         from app.subscription.config_cache import clear_sub_config_cache
 
@@ -48,10 +77,14 @@ async def apply_values(ctx: PluginContext, values: dict, *, notify: bool) -> Non
         clear_sub_config_cache()
     if notify:
         await fire_change(ctx)
+    return True
 
 
 async def load_settings_from_db(plugin_ids: list[str] | None = None, *, notify: bool) -> None:
-    """Read stored settings for loaded plugins (startup, NATS refresh). Invalid data falls back to defaults."""
+    """Read stored settings for loaded plugins (startup, NATS refresh). Invalid data falls back to defaults.
+
+    With ``notify`` the on_change hooks of changed plugins are started in the background.
+    """
     contexts = _contexts(plugin_ids)
     if not contexts:
         return
@@ -67,7 +100,8 @@ async def load_settings_from_db(plugin_ids: list[str] | None = None, *, notify: 
         if errors:
             logger.warning(f"Stored settings of plugin {ctx.id!r} are invalid ({'; '.join(errors)}), using defaults")
             values = ctx.settings.defaults()
-        await apply_values(ctx, values, notify=notify)
+        if await apply_values(ctx, values, notify=False) and notify:
+            _fire_change_later(ctx)
 
 
 async def handle_plugin_message(data: dict) -> None:

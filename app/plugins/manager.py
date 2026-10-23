@@ -211,10 +211,10 @@ async def finish_pending_setups(app: FastAPI) -> None:
 def init_plugins(
     app: FastAPI, plugins_dir: str | Path, plugin_ids: list[str], *, runs_panel: bool, runs_scheduler: bool
 ):
-    from app.lifecycle import on_startup
+    from app.lifecycle import on_shutdown, on_startup
     from app.nats.message import MessageTopic
     from app.nats.router import router
-    from app.plugins.settings import handle_plugin_message, load_settings_from_db
+    from app.plugins.settings import CHANGE_HOOK_TIMEOUT, drain, handle_plugin_message, load_settings_from_db
 
     load_all(plugins_dir, plugin_ids, runs_panel=runs_panel, runs_scheduler=runs_scheduler)
     activate_all(app)
@@ -223,5 +223,12 @@ def init_plugins(
         await load_settings_from_db(notify=False)
         await finish_pending_setups(app)
 
+    async def stop_plugins():
+        try:
+            await asyncio.wait_for(drain(), timeout=CHANGE_HOOK_TIMEOUT)
+        except TimeoutError:
+            logger.warning("Plugin settings on_change handlers still running at shutdown")
+
     on_startup(start_plugins)
+    on_shutdown(stop_plugins)
     router.register_handler(MessageTopic.PLUGIN, handle_plugin_message)

@@ -5,6 +5,7 @@ import base64
 import pathlib
 import sys
 import time
+from unittest.mock import AsyncMock
 from urllib.parse import quote
 
 import pytest
@@ -327,6 +328,11 @@ def test_subscription_variables_in_host_remarks(probe, access_token):
 
 
 def test_plugin_settings_get_put_validation(probe, access_token, plain_admin, monkeypatch):
+    from app.nats.message import MessageTopic
+    from app.nats.router import router as nats_router
+
+    published = AsyncMock()
+    monkeypatch.setattr(nats_router, "publish", published)
     url = "/api/plugins/probe/settings"
     assert client.get(url, headers=auth_headers(access_token)).json() == {"days": 7, "label": "x"}
     assert client.get(url, headers=auth_headers(plain_admin)).status_code == status.HTTP_403_FORBIDDEN
@@ -338,7 +344,11 @@ def test_plugin_settings_get_put_validation(probe, access_token, plain_admin, mo
     assert invalid.json()["detail"] == {"days": "must be >= 1"}
     unknown = client.put(url, headers=auth_headers(access_token), json={"days": 3, "extra": True})
     assert unknown.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+    not_owner = client.put(url, headers=auth_headers(plain_admin), json={"days": 5})
+    assert not_owner.status_code == status.HTTP_403_FORBIDDEN
+    assert client.get(url, headers=auth_headers(access_token)).json() == {"days": 7, "label": "x"}
     assert probe["changes"] == []
+    published.assert_not_called()
 
     saved = client.put(url, headers=auth_headers(access_token), json={"days": 3})
     assert saved.status_code == status.HTTP_200_OK
@@ -356,11 +366,21 @@ def test_plugin_settings_get_put_validation(probe, access_token, plain_admin, mo
 
     assert asyncio.run(stored()) == {"days": 3, "label": "x"}
 
-    # Another worker's NATS refresh: reload from the database and fire on_change there
+    # The save is announced to the other workers on the plugin topic
+    published.assert_awaited_once()
+    topic, message = published.await_args.args
+    assert topic == MessageTopic.PLUGIN
+
+    # Another worker's NATS refresh with that message: reload from the database and fire on_change there
     monkeypatch.setattr(plugin_settings_module, "GetDB", GetTestDB)
     ctx = registry.get_active("probe")
     ctx.settings.set_values(ctx.settings.defaults())
-    asyncio.run(plugin_settings_module.handle_plugin_message({"action": "settings", "plugin_id": "probe"}))
+
+    async def refresh():
+        await plugin_settings_module.handle_plugin_message(message)
+        await plugin_settings_module.drain()
+
+    asyncio.run(refresh())
     assert ctx.settings.get() == {"days": 3, "label": "x"}
     assert probe["changes"][-1] == {"days": 3, "label": "x"}
 

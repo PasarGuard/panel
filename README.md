@@ -389,7 +389,8 @@ enabled plugins and runs `setup()`, so install the same plugins with the same `P
   the same name and the same data (usage counters and timestamps aside) within 15 seconds are merged; a
   change of state, such as a user disabled and enabled again, reaches plugins every time.
 - Saving settings updates the database and tells the other workers over NATS; `on_change` runs in every
-  worker.
+  worker (in the background there, so a slow hook does not hold up other panel sync messages). A sync
+  `on_change` runs in a worker thread; use `async def` if it needs the event loop.
 
 ### Examples
 
