@@ -22,6 +22,7 @@ function cloneWg(d: WireGuardCoreDraft): WireGuardCoreDraft {
 export interface PersistedSnapshot {
   kind: CoreKind
   coreName: string
+  coreNote: string
   fallbacksInboundTags: string[]
   excludeInboundTags: string[]
   xrayProfile: Profile | null
@@ -37,6 +38,7 @@ function captureSnapshot(s: CoreEditorStoreState): PersistedSnapshot {
   return {
     kind: s.kind,
     coreName: s.coreName,
+    coreNote: s.coreNote,
     fallbacksInboundTags: [...s.fallbacksInboundTags],
     excludeInboundTags: [...s.excludeInboundTags],
     xrayProfile: s.xrayProfile ? cloneProfile(s.xrayProfile) : null,
@@ -62,6 +64,7 @@ function applyPersistedSnapshot(snapshot: PersistedSnapshot): Partial<CoreEditor
     return {
       kind: snapshot.kind,
       coreName: snapshot.coreName,
+      coreNote: snapshot.coreNote,
       fallbacksInboundTags: [...snapshot.fallbacksInboundTags],
       excludeInboundTags: [...snapshot.excludeInboundTags],
       xrayProfile: null,
@@ -81,6 +84,7 @@ function applyPersistedSnapshot(snapshot: PersistedSnapshot): Partial<CoreEditor
     return {
       kind: snapshot.kind,
       coreName: snapshot.coreName,
+      coreNote: snapshot.coreNote,
       fallbacksInboundTags: [...snapshot.fallbacksInboundTags],
       excludeInboundTags: [...snapshot.excludeInboundTags],
       xrayProfile: p,
@@ -103,6 +107,8 @@ export interface CoreEditorStoreState {
   isNew: boolean
   coreId: number | null
   coreName: string
+  /** Panel-only admin note; not part of the config sent to nodes. */
+  coreNote: string
   kind: CoreKind
   restartNodes: boolean
   fallbacksInboundTags: string[]
@@ -124,6 +130,7 @@ export interface CoreEditorStoreState {
   initNew: (kind: CoreKind, name?: string) => void
   reset: () => void
   setCoreName: (name: string) => void
+  setCoreNote: (note: string) => void
   setActiveSection: (s: XrayCoreSection | WgCoreSection) => void
   setRestartNodes: (v: boolean) => void
   setFallbacksInboundTags: (tags: string[]) => void
@@ -147,6 +154,7 @@ export const useCoreEditorStore = create<CoreEditorStoreState>((set, get) => ({
   isNew: false,
   coreId: null,
   coreName: '',
+  coreNote: '',
   kind: 'xray',
   restartNodes: true,
   fallbacksInboundTags: [],
@@ -181,6 +189,7 @@ export const useCoreEditorStore = create<CoreEditorStoreState>((set, get) => ({
           isNew: false,
           coreId: core.id,
           coreName: core.name,
+          coreNote: core.note ?? '',
           kind,
           restartNodes: nav.restartNodes,
           fallbacksInboundTags: [],
@@ -205,6 +214,7 @@ export const useCoreEditorStore = create<CoreEditorStoreState>((set, get) => ({
         isNew: false,
         coreId: core.id,
         coreName: core.name,
+        coreNote: core.note ?? '',
         kind,
         restartNodes: nav.restartNodes,
         fallbacksInboundTags: [],
@@ -230,6 +240,7 @@ export const useCoreEditorStore = create<CoreEditorStoreState>((set, get) => ({
       isNew: false,
       coreId: core.id,
       coreName: core.name,
+      coreNote: core.note ?? '',
       kind,
       restartNodes: nav.restartNodes,
       fallbacksInboundTags: fallbacks,
@@ -256,6 +267,7 @@ export const useCoreEditorStore = create<CoreEditorStoreState>((set, get) => ({
         isNew: true,
         coreId: null,
         coreName: name,
+        coreNote: '',
         kind,
         restartNodes: true,
         fallbacksInboundTags: [],
@@ -280,6 +292,7 @@ export const useCoreEditorStore = create<CoreEditorStoreState>((set, get) => ({
       isNew: true,
       coreId: null,
       coreName: name,
+      coreNote: '',
       kind,
       restartNodes: true,
       fallbacksInboundTags: [],
@@ -304,6 +317,7 @@ export const useCoreEditorStore = create<CoreEditorStoreState>((set, get) => ({
       isNew: false,
       coreId: null,
       coreName: '',
+      coreNote: '',
       kind: 'xray',
       restartNodes: true,
       fallbacksInboundTags: [],
@@ -322,6 +336,8 @@ export const useCoreEditorStore = create<CoreEditorStoreState>((set, get) => ({
     }),
 
   setCoreName: coreName => set({ coreName, dirty: true }),
+
+  setCoreNote: coreNote => set({ coreNote, dirty: true }),
 
   setActiveSection: activeSection => set({ activeSection }),
 

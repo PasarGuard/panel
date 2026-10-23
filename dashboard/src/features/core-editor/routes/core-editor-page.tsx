@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import PageHeader from '@/components/layout/page-header'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { CoreEditorLayout } from '@/features/core-editor/components/shell/core-editor-layout'
 import { CoreSectionTabsPlaceholder } from '@/features/core-editor/components/shell/core-section-sidebar'
@@ -178,6 +179,8 @@ export default function CoreEditorPage() {
   const kind = useCoreEditorStore(s => s.kind)
   const coreName = useCoreEditorStore(s => s.coreName)
   const setCoreName = useCoreEditorStore(s => s.setCoreName)
+  const coreNote = useCoreEditorStore(s => s.coreNote)
+  const setCoreNote = useCoreEditorStore(s => s.setCoreNote)
   const hasActualChanges = useCoreEditorStore(selectCoreEditorHasActualChanges)
   const discardDraft = useCoreEditorStore(s => s.discardDraft)
   const markClean = useCoreEditorStore(s => s.markClean)
@@ -272,6 +275,8 @@ export default function CoreEditorPage() {
       return
     }
     setNameSubmitAttempted(false)
+    // Empty note clears it on the server (null); the note alone never restarts nodes.
+    const note = coreNote.trim() || null
     setSaving(true)
     try {
       if (kind === 'wg') {
@@ -292,6 +297,7 @@ export default function CoreEditorPage() {
               config: cfg,
               exclude_inbound_tags: [],
               fallbacks_inbound_tags: [],
+              note,
             },
           })
           toast.success(t('coreConfigModal.createSuccess', { name }))
@@ -308,6 +314,7 @@ export default function CoreEditorPage() {
               config: cfg,
               exclude_inbound_tags: [],
               fallbacks_inbound_tags: [],
+              note,
             },
             params: { restart_nodes: restartNodes },
           })
@@ -330,6 +337,7 @@ export default function CoreEditorPage() {
               config: cfg,
               exclude_inbound_tags: excludeInboundTags,
               fallbacks_inbound_tags: fallbacksInboundTags,
+              note,
             },
           })
           toast.success(t('coreConfigModal.createSuccess', { name }))
@@ -346,6 +354,7 @@ export default function CoreEditorPage() {
               config: cfg,
               exclude_inbound_tags: excludeInboundTags,
               fallbacks_inbound_tags: fallbacksInboundTags,
+              note,
             },
             params: { restart_nodes: restartNodes },
           })
@@ -366,6 +375,7 @@ export default function CoreEditorPage() {
     }
   }, [
     coreName,
+    coreNote,
     kind,
     wgDraft,
     xrayProfile,
@@ -442,6 +452,15 @@ export default function CoreEditorPage() {
               </SelectContent>
             </Select>
           </div>
+          <Textarea
+            value={coreNote}
+            onChange={e => setCoreNote(e.target.value)}
+            rows={1}
+            maxLength={500}
+            className="min-h-9 max-w-2xl resize-y py-1.5"
+            placeholder={t('coreConfigModal.notePlaceholder', { defaultValue: 'Optional note for admins' })}
+            aria-label={t('coreConfigModal.note', { defaultValue: 'Note' })}
+          />
           {kind === 'xray' && xrayImportWarnings.length > 0 && (
             <Alert>
               <AlertTitle>{t('coreEditor.importWarnings', { defaultValue: 'Import notes' })}</AlertTitle>
