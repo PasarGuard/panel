@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { LoaderButton } from '@/components/ui/loader-button'
@@ -28,7 +29,7 @@ export function PluginSettingsForm({ pluginId, schema }: PluginSettingsFormProps
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const fields = useMemo(() => schemaFields(schema), [schema])
-  const { data: settings, isLoading } = useGetPluginSettings(pluginId)
+  const { data: settings, isError, error: loadError, refetch } = useGetPluginSettings(pluginId)
   const [values, setValues] = useState<PluginFormValues>({})
   const [errors, setErrors] = useState<Record<string, string>>({})
   const modify = useModifyPluginSettings()
@@ -49,7 +50,9 @@ export function PluginSettingsForm({ pluginId, schema }: PluginSettingsFormProps
 
   const onSubmit = (event: React.FormEvent) => {
     event.preventDefault()
-    const { data, errors: localErrors } = fromFormValues(fields, values, settings ?? {})
+    // Without the saved values a save would replace them with empty ones
+    if (!settings) return
+    const { data, errors: localErrors } = fromFormValues(fields, values, settings)
     if (Object.keys(localErrors).length > 0) {
       setErrors(Object.fromEntries(Object.entries(localErrors).map(([key, kind]) => [key, kind === 'json' ? t('plugins.invalidJson') : t('plugins.invalidNumber')])))
       return
@@ -77,13 +80,23 @@ export function PluginSettingsForm({ pluginId, schema }: PluginSettingsFormProps
 
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-4">
+      {isError && !settings && (
+        <div role="alert" className="border-destructive/50 flex flex-wrap items-center justify-between gap-2 rounded-md border p-3 text-sm">
+          <span className="text-destructive">
+            {t('plugins.loadFailed')}: {getErrorMessage(loadError)}
+          </span>
+          <Button type="button" variant="outline" size="sm" onClick={() => refetch()}>
+            {t('errorPage.actions.tryAgain')}
+          </Button>
+        </div>
+      )}
       {fields.map(field => (
-        <PluginFieldInput key={field.name} field={field} value={values[field.name]} error={errors[field.name]} disabled={isLoading} onChange={value => setValue(field.name, value)} />
+        <PluginFieldInput key={field.name} field={field} value={values[field.name]} error={errors[field.name]} disabled={!settings} onChange={value => setValue(field.name, value)} />
       ))}
       {errors.$ && <p className="text-destructive text-sm">{errors.$}</p>}
       <div className="flex justify-end">
-        <LoaderButton type="submit" isLoading={modify.isPending} disabled={isLoading} loadingText={t('plugins.saving')}>
-          {t('plugins.save')}
+        <LoaderButton type="submit" isLoading={modify.isPending} disabled={!settings} loadingText={t('saving')}>
+          {t('save')}
         </LoaderButton>
       </div>
     </form>
@@ -101,6 +114,9 @@ interface PluginFieldInputProps {
 function PluginFieldInput({ field, value, error, disabled, onChange }: PluginFieldInputProps) {
   const { t } = useTranslation()
   const id = `plugin-field-${field.name}`
+  const descriptionId = field.description ? `${id}-description` : undefined
+  const hintId = `${id}-hint`
+  const errorId = `${id}-error`
   const hint = field.kind === 'string-array' ? t('plugins.oneValuePerLine') : field.kind === 'json' ? t('plugins.jsonValue') : undefined
 
   if (field.kind === 'boolean') {
@@ -108,22 +124,34 @@ function PluginFieldInput({ field, value, error, disabled, onChange }: PluginFie
       <div className="flex items-center justify-between gap-4 rounded-md border p-3">
         <div className="flex flex-col gap-1">
           <Label htmlFor={id}>{field.label}</Label>
-          {field.description && <p className="text-muted-foreground text-xs">{field.description}</p>}
+          {field.description && (
+            <p id={descriptionId} className="text-muted-foreground text-xs">
+              {field.description}
+            </p>
+          )}
         </div>
-        <Switch id={id} checked={value === true} disabled={disabled} onCheckedChange={checked => onChange(checked)} />
+        <Switch id={id} aria-describedby={descriptionId} checked={value === true} disabled={disabled} onCheckedChange={checked => onChange(checked)} />
       </div>
     )
   }
+
+  const describedBy = [descriptionId, hint ? hintId : undefined, error ? errorId : undefined].filter(Boolean).join(' ') || undefined
+  const a11y = { 'aria-invalid': error ? true : undefined, 'aria-describedby': describedBy, 'aria-required': field.required || undefined }
 
   return (
     <div className="flex flex-col gap-1.5">
       <Label htmlFor={id}>
         {field.label}
-        {field.required && <span className="text-destructive"> *</span>}
+        {field.required && (
+          <span aria-hidden="true" className="text-destructive">
+            {' '}
+            *
+          </span>
+        )}
       </Label>
       {field.kind === 'enum' ? (
         <Select value={typeof value === 'string' ? value : ''} disabled={disabled} onValueChange={onChange}>
-          <SelectTrigger id={id}>
+          <SelectTrigger id={id} {...a11y}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -137,6 +165,7 @@ function PluginFieldInput({ field, value, error, disabled, onChange }: PluginFie
       ) : field.kind === 'string-array' || field.kind === 'json' ? (
         <Textarea
           id={id}
+          {...a11y}
           dir="ltr"
           rows={field.kind === 'json' ? 6 : 4}
           className={field.kind === 'json' ? 'font-mono text-xs' : undefined}
@@ -147,6 +176,7 @@ function PluginFieldInput({ field, value, error, disabled, onChange }: PluginFie
       ) : (
         <Input
           id={id}
+          {...a11y}
           type={field.kind === 'number' || field.kind === 'integer' ? 'number' : 'text'}
           step={field.kind === 'integer' ? 1 : 'any'}
           min={field.minimum}
@@ -156,9 +186,21 @@ function PluginFieldInput({ field, value, error, disabled, onChange }: PluginFie
           onChange={event => onChange(event.target.value)}
         />
       )}
-      {field.description && <p className="text-muted-foreground text-xs">{field.description}</p>}
-      {hint && <p className="text-muted-foreground text-xs">{hint}</p>}
-      {error && <p className="text-destructive text-xs">{error}</p>}
+      {field.description && (
+        <p id={descriptionId} className="text-muted-foreground text-xs">
+          {field.description}
+        </p>
+      )}
+      {hint && (
+        <p id={hintId} className="text-muted-foreground text-xs">
+          {hint}
+        </p>
+      )}
+      {error && (
+        <p id={errorId} className="text-destructive text-xs">
+          {error}
+        </p>
+      )}
     </div>
   )
 }
