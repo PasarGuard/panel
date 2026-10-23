@@ -25,6 +25,7 @@ def mock_db_session(monkeypatch: pytest.MonkeyPatch):
     db_session = MagicMock(spec=TestSession)
     monkeypatch.setattr("app.settings.GetDB", db_session)
     monkeypatch.setattr("app.subscription.client_templates.GetDB", GetTestDB)
+    monkeypatch.setattr("app.subscription.client_profiles.GetDB", GetTestDB)
     monkeypatch.setattr("app.subscription.sub_update_buffer.GetDB", GetTestDB)
     # get_secret_key is cached, so through the app engine it would leave a pooled
     # connection on a TestClient loop that is closed after the request.
