@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import AceEditor from 'react-ace'
 import ace from 'ace-builds/src-noconflict/ace'
 import 'ace-builds/src-noconflict/mode-c_cpp'
@@ -29,7 +30,9 @@ import 'ace-builds/src-noconflict/theme-monokai'
 import 'ace-builds/src-noconflict/theme-textmate'
 import workerJsonUrl from 'ace-builds/src-noconflict/worker-json?url'
 
+import '@/components/common/ace-json-jinja-mode'
 import { monacoLanguageToAceMode } from '@/components/common/code-editor-language'
+import type { CodeEditorMarker } from '@/components/common/code-editor-panel'
 
 ace.config.setModuleUrl('ace/mode/json_worker', workerJsonUrl)
 
@@ -43,10 +46,20 @@ export interface MobileCodeAceEditorProps {
   onChange: (value: string) => void
   onLoad?: (editor: unknown) => void
   readOnly?: boolean
+  /** Errors to show in the gutter, by 1-based line. */
+  markers?: CodeEditorMarker[]
 }
 
-export default function MobileCodeAceEditor({ value, language, aceMode: aceModeProp, theme, onChange, onLoad, readOnly }: MobileCodeAceEditorProps) {
+export default function MobileCodeAceEditor({ value, language, aceMode: aceModeProp, theme, onChange, onLoad, readOnly, markers }: MobileCodeAceEditorProps) {
   const mode = aceModeProp ?? monacoLanguageToAceMode(language)
+  const editorRef = useRef<{ getSession: () => { clearAnnotations: () => void } } | null>(null)
+
+  // Ace keeps the JSON worker's gutter annotations after it is switched off.
+  const previousModeRef = useRef(mode)
+  useEffect(() => {
+    if (previousModeRef.current === 'json' && mode !== 'json') editorRef.current?.getSession().clearAnnotations()
+    previousModeRef.current = mode
+  }, [mode])
 
   return (
     <AceEditor
@@ -57,8 +70,12 @@ export default function MobileCodeAceEditor({ value, language, aceMode: aceModeP
       height="100%"
       value={value}
       onChange={onChange}
-      onLoad={onLoad}
+      onLoad={editor => {
+        editorRef.current = editor
+        onLoad?.(editor)
+      }}
       readOnly={readOnly}
+      annotations={markers?.map(({ line, message }) => ({ row: line - 1, column: 0, type: 'error', text: message }))}
       editorProps={{ $blockScrolling: true }}
       setOptions={{
         useWorker: mode === 'json',

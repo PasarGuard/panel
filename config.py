@@ -148,6 +148,10 @@ class TemplateSettings(EnvSettings):
         default="subscription/index.html", validation_alias="SUBSCRIPTION_PAGE_TEMPLATE"
     )
     home_page_template: str = Field(default="home/index.html", validation_alias="HOME_PAGE_TEMPLATE")
+    # Threads that render them, how many more renders may wait, and how long a request waits for its render (seconds)
+    render_workers: int = Field(default=4, ge=1, validation_alias="TEMPLATE_RENDER_WORKERS")
+    render_backlog: int = Field(default=256, ge=0, validation_alias="TEMPLATE_RENDER_BACKLOG")
+    render_timeout: float = Field(default=30, gt=0, validation_alias="TEMPLATE_RENDER_TIMEOUT")
 
 
 class UserCleanupSettings(EnvSettings):

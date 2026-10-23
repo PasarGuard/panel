@@ -1,6 +1,6 @@
 import { CodeEditorPanel } from '@/components/common/code-editor-panel'
 import type { ClientTemplateFormValues } from '@/features/templates/forms/client-template-form'
-import { DEFAULT_TEMPLATE_CONTENT } from '@/features/templates/forms/client-template-form'
+import { DEFAULT_TEMPLATE_CONTENT, isAlwaysJinja, isNeverJinja } from '@/features/templates/forms/client-template-form'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
@@ -9,11 +9,12 @@ import { LoaderButton } from '@/components/ui/loader-button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import useDirDetection from '@/hooks/use-dir-detection'
+import { JSON_JINJA_LANGUAGE_ID } from '@/lib/json-jinja-language'
 import { cn } from '@/lib/utils'
-import { ClientTemplateType, useCreateClientTemplate, useModifyClientTemplate } from '@/service/api'
+import { ClientTemplateType, useCreateClientTemplate, useModifyClientTemplate, validateClientTemplate } from '@/service/api'
 import { queryClient } from '@/utils/query-client'
 import { Pencil, FileCode2 } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -28,9 +29,20 @@ const TEMPLATE_TYPE_LABELS: Record<string, string> = {
 
 const isYamlType = (templateType: string) => templateType === ClientTemplateType.clash_subscription
 
+// The editor checks plain JSON itself; YAML and Jinja'd JSON only make sense once rendered, which the server does.
+const rendersOnServer = (templateType: string, useJinja: boolean) => isYamlType(templateType) || useJinja
+
 interface ValidationResult {
   isValid: boolean
   error?: string
+}
+
+// How long the content must stay unchanged before the server is asked to check it.
+const LIVE_CHECK_DELAY_MS = 500
+
+interface LiveCheck {
+  error: string
+  line: number | null
 }
 
 interface ClientTemplateModalProps {
@@ -48,9 +60,16 @@ export default function ClientTemplateModal({ isDialogOpen, onOpenChange, form, 
   const modifyClientTemplate = useModifyClientTemplate()
   const [isCodeEditorFullscreen, setIsCodeEditorFullscreen] = useState(false)
   const [validation, setValidation] = useState<ValidationResult>({ isValid: true })
+  const [liveCheck, setLiveCheck] = useState<LiveCheck | null>(null)
 
   const templateType = form.watch('template_type')
+  const content = form.watch('content') ?? ''
   const isYaml = isYamlType(templateType)
+  const useJinja = !isNeverJinja(templateType) && (isAlwaysJinja(templateType) || !!form.watch('use_jinja'))
+  const isJinjaJson = !isYaml && useJinja
+  const shouldCheckLive = isDialogOpen && rendersOnServer(templateType, useJinja) && content.trim() !== ''
+  const editorError = validation.isValid ? liveCheck?.error : validation.error
+  const liveMarkers = useMemo(() => (liveCheck?.line ? [{ line: liveCheck.line, message: liveCheck.error }] : []), [liveCheck])
 
   const validateContent = useCallback(
     (value: string, showToast = false) => {
@@ -63,7 +82,8 @@ export default function ClientTemplateModal({ isDialogOpen, onOpenChange, form, 
         return false
       }
 
-      if (isYaml) {
+      // Like YAML, Jinja'd JSON can't be checked here; the server renders and validates it on save.
+      if (rendersOnServer(templateType, useJinja)) {
         setValidation({ isValid: true })
         return true
       }
@@ -81,17 +101,13 @@ export default function ClientTemplateModal({ isDialogOpen, onOpenChange, form, 
         return false
       }
     },
-    [isYaml, t],
+    [templateType, useJinja, t],
   )
 
   const handleEditorValidation = useCallback(
     (markers: any[]) => {
-      if (isYaml) {
-        validateContent(form.getValues().content)
-        return
-      }
-
-      if (markers.length > 0) {
+      const { content } = form.getValues()
+      if (!rendersOnServer(templateType, useJinja) && markers.length > 0) {
         setValidation({
           isValid: false,
           error: markers[0].message,
@@ -99,17 +115,41 @@ export default function ClientTemplateModal({ isDialogOpen, onOpenChange, form, 
         return
       }
 
-      validateContent(form.getValues().content)
+      validateContent(content)
     },
-    [form, isYaml, validateContent],
+    [form, templateType, useJinja, validateContent],
   )
 
   useEffect(() => {
     setValidation({ isValid: true })
     if (!editingTemplate) {
       form.setValue('content', DEFAULT_TEMPLATE_CONTENT[templateType as ClientTemplateType] ?? '')
+      form.setValue('use_jinja', isAlwaysJinja(templateType as ClientTemplateType))
     }
   }, [editingTemplate, form, templateType])
+
+  useEffect(() => {
+    if (!shouldCheckLive) {
+      setLiveCheck(null)
+      return
+    }
+
+    let stale = false
+    const timer = setTimeout(async () => {
+      try {
+        const result = await validateClientTemplate({ template_type: templateType, content, use_jinja: useJinja })
+        if (!stale) setLiveCheck(result.valid ? null : { error: result.error ?? '', line: result.line ?? null })
+      } catch {
+        // The check is advisory (it can fail for lack of permission, or when the server is busy), so a failed call
+        // keeps what was shown; saving validates on the server regardless.
+      }
+    }, LIVE_CHECK_DELAY_MS)
+
+    return () => {
+      stale = true
+      clearTimeout(timer)
+    }
+  }, [shouldCheckLive, templateType, content, useJinja])
 
   useEffect(() => {
     if (!isDialogOpen) {
@@ -124,8 +164,9 @@ export default function ClientTemplateModal({ isDialogOpen, onOpenChange, form, 
     }
 
     let finalContent = values.content
+    const effectiveUseJinja = !isNeverJinja(values.template_type) && (isAlwaysJinja(values.template_type) || !!values.use_jinja)
 
-    if (!isYamlType(values.template_type)) {
+    if (!rendersOnServer(values.template_type, effectiveUseJinja)) {
       try {
         finalContent = JSON.stringify(JSON.parse(values.content), null, 2)
       } catch {
@@ -140,14 +181,14 @@ export default function ClientTemplateModal({ isDialogOpen, onOpenChange, form, 
       if (editingTemplate && editingTemplateId !== undefined) {
         await modifyClientTemplate.mutateAsync({
           templateId: editingTemplateId,
-          data: { name: values.name, content: finalContent, is_default: values.is_default },
+          data: { name: values.name, content: finalContent, is_default: values.is_default, use_jinja: effectiveUseJinja },
         })
         toast.success(t('success', { defaultValue: 'Success' }), {
           description: t('clientTemplates.updateSuccess', { name: values.name, defaultValue: 'Template "{{name}}" updated successfully' }),
         })
       } else {
         await createClientTemplate.mutateAsync({
-          data: { name: values.name, template_type: values.template_type, content: finalContent, is_default: values.is_default },
+          data: { name: values.name, template_type: values.template_type, content: finalContent, is_default: values.is_default, use_jinja: effectiveUseJinja },
         })
         toast.success(t('success', { defaultValue: 'Success' }), {
           description: t('clientTemplates.createSuccess', { name: values.name, defaultValue: 'Template "{{name}}" created successfully' }),
@@ -193,19 +234,20 @@ export default function ClientTemplateModal({ isDialogOpen, onOpenChange, form, 
                           <FormControl className="md:flex md:flex-1">
                             <CodeEditorPanel
                               value={field.value || ''}
-                              language={isYaml ? 'yaml' : 'json'}
+                              language={isYaml ? 'yaml' : isJinjaJson ? JSON_JINJA_LANGUAGE_ID : 'json'}
                               onChange={value => {
                                 field.onChange(value)
                                 validateContent(value)
                               }}
                               onValidate={handleEditorValidation}
+                              markers={liveMarkers}
                               enableFullscreen
                               dialogOpen={isDialogOpen}
                               onFullscreenChange={setIsCodeEditorFullscreen}
                               embeddedContainerClassName="h-[calc(50vh-1rem)] sm:h-[calc(55vh-1rem)] md:min-h-[450px]"
                             />
                           </FormControl>
-                          {validation.error && !validation.isValid && <FormMessage>{validation.error}</FormMessage>}
+                          {editorError && <FormMessage>{editorError}</FormMessage>}
                         </FormItem>
                       )}
                     />
@@ -267,6 +309,30 @@ export default function ClientTemplateModal({ isDialogOpen, onOpenChange, form, 
                       </FormItem>
                     )}
                   />
+
+                  {isNeverJinja(templateType) ? null : isAlwaysJinja(templateType) ? (
+                    <p className="text-muted-foreground rounded-lg border p-3 text-xs">
+                      {t('clientTemplates.clashAlwaysJinja', { defaultValue: 'Clash templates always render as Jinja2, since they need the generated proxy list.' })}
+                    </p>
+                  ) : (
+                    <FormField
+                      control={form.control}
+                      name="use_jinja"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
+                          <div className="space-y-1">
+                            <FormLabel className="cursor-pointer">{t('clientTemplates.useJinja', { defaultValue: 'Render as Jinja2' })}</FormLabel>
+                            <p className="text-muted-foreground text-xs">
+                              {t('clientTemplates.useJinjaDescription', { defaultValue: 'Off: plain JSON, served as written. On: rendered with Jinja2 for each user.' })}
+                            </p>
+                          </div>
+                          <FormControl>
+                            <Switch checked={!!field.value} onCheckedChange={field.onChange} />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                  )}
                 </div>
               </div>
             </div>
@@ -276,7 +342,7 @@ export default function ClientTemplateModal({ isDialogOpen, onOpenChange, form, 
                 <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isPending}>
                   {t('cancel')}
                 </Button>
-                <LoaderButton type="submit" isLoading={isPending} disabled={!validation.isValid || isPending} loadingText={t('saving', { defaultValue: 'Saving...' })}>
+                <LoaderButton type="submit" isLoading={isPending} disabled={!!editorError || isPending} loadingText={t('saving', { defaultValue: 'Saving...' })}>
                   {editingTemplate ? t('modify') : t('create')}
                 </LoaderButton>
               </div>
