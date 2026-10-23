@@ -9,6 +9,7 @@ export const clientTemplateFormSchema = z.object({
     ClientTemplateType.singbox_subscription,
     ClientTemplateType.user_agent,
     ClientTemplateType.grpc_user_agent,
+    ClientTemplateType.happ_routing,
   ]),
   content: z.string().min(1, 'Content is required'),
   is_default: z.boolean().optional(),
@@ -17,6 +18,31 @@ export const clientTemplateFormSchema = z.object({
 export type ClientTemplateFormValues = z.infer<typeof clientTemplateFormSchema>
 const DEFAULT_USER_AGENT_TEMPLATE = {
   list: [],
+}
+// Shape of the "Example Custom Profile" from the Happ routing docs
+const DEFAULT_HAPP_ROUTING_TEMPLATE = {
+  Name: 'PasarGuard',
+  GlobalProxy: 'true',
+  RemoteDNSType: 'DoH',
+  RemoteDNSDomain: 'https://cloudflare-dns.com/dns-query',
+  RemoteDNSIP: '1.1.1.1',
+  DomesticDNSType: 'DoU',
+  DomesticDNSDomain: '',
+  DomesticDNSIP: '8.8.8.8',
+  Geoipurl: 'https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geoip.dat',
+  Geositeurl: 'https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geosite.dat',
+  LastUpdated: '',
+  DnsHosts: {
+    'cloudflare-dns.com': '1.1.1.1',
+  },
+  DirectSites: [],
+  DirectIp: ['10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16', '169.254.0.0/16', '224.0.0.0/4', '255.255.255.255'],
+  ProxySites: [],
+  ProxyIp: [],
+  BlockSites: [],
+  BlockIp: [],
+  DomainStrategy: 'IPIfNonMatch',
+  FakeDNS: 'false',
 }
 export const DEFAULT_TEMPLATE_CONTENT: Record<ClientTemplateType, string> = {
   [ClientTemplateType.clash_subscription]: `mode: rule
@@ -191,6 +217,8 @@ rules:
   [ClientTemplateType.user_agent]: JSON.stringify(DEFAULT_USER_AGENT_TEMPLATE, null, 2),
 
   [ClientTemplateType.grpc_user_agent]: JSON.stringify(DEFAULT_USER_AGENT_TEMPLATE, null, 2),
+
+  [ClientTemplateType.happ_routing]: JSON.stringify(DEFAULT_HAPP_ROUTING_TEMPLATE, null, 2),
 }
 
 export const clientTemplateFormDefaultValues: Partial<ClientTemplateFormValues> = {

@@ -2,12 +2,14 @@ import { withCustomVariableDefaults, type SubscriptionSettingsForm } from './sub
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Textarea } from '@/components/ui/textarea'
 import { CustomVariablesPopover, VariablesList } from '@/components/ui/variables-popover'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
+import { ClientTemplateType, useGetClientTemplatesSimple } from '@/service/api'
 import { Info, Plus, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
@@ -18,6 +20,8 @@ export interface SubscriptionRuleAdvancedSheetProps {
   open: boolean
   onOpenChange: (open: boolean) => void
 }
+
+const NO_HAPP_ROUTING = 'none'
 
 export function SubscriptionRuleAdvancedSheet({ form, ruleIndex, rowId, open, onOpenChange }: SubscriptionRuleAdvancedSheetProps) {
   const { t } = useTranslation()
@@ -30,6 +34,10 @@ export function SubscriptionRuleAdvancedSheet({ form, ruleIndex, rowId, open, on
   const responseHeaders = (form.watch(`rules.${ruleIndex}.response_headers`) || {}) as Record<string, string>
   const responseHeaderEntries = Object.entries(responseHeaders)
   const responseHeaderCount = responseHeaderEntries.length
+
+  const happRoutingTemplateId = form.watch(`rules.${ruleIndex}.happ_routing_template_id`)
+  const { data: happRoutingData, isLoading: isLoadingHappRouting } = useGetClientTemplatesSimple({ template_type: ClientTemplateType.happ_routing, all: true }, { query: { enabled: open } })
+  const happRoutingTemplates = happRoutingData?.templates ?? []
 
   const addResponseHeader = () => {
     const nextKey = `x-header-${Object.keys(responseHeaders).length + 1}`
@@ -74,6 +82,28 @@ export function SubscriptionRuleAdvancedSheet({ form, ruleIndex, rowId, open, on
         </SheetHeader>
 
         <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-6 py-4">
+          <div className="space-y-2">
+            <p className="text-foreground text-sm font-medium">{t('settings.subscriptions.rules.happRouting')}</p>
+            <p className="text-muted-foreground text-sm">{t('settings.subscriptions.rules.happRoutingDescription')}</p>
+            <Select
+              value={happRoutingTemplateId != null ? String(happRoutingTemplateId) : NO_HAPP_ROUTING}
+              onValueChange={value => form.setValue(`rules.${ruleIndex}.happ_routing_template_id`, value === NO_HAPP_ROUTING ? null : Number(value), { shouldDirty: true })}
+              disabled={isLoadingHappRouting}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder={isLoadingHappRouting ? t('loading', { defaultValue: 'Loading...' }) : undefined} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NO_HAPP_ROUTING}>{t('settings.subscriptions.rules.happRoutingNone')}</SelectItem>
+                {happRoutingTemplates.map(template => (
+                  <SelectItem key={template.id} value={String(template.id)}>
+                    {template.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
           <div className="space-y-4">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0 flex-1">
