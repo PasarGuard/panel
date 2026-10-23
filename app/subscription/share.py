@@ -155,6 +155,24 @@ def _build_subscription_config(
     return None
 
 
+def _hosts_use_jinja_override(
+    hosts: list[SubscriptionInboundData], xray_template_overrides: dict[int, TemplateSource] | None
+) -> bool:
+    """Whether a host selects an Xray template of its own that is Jinja. Any host counts, filtered out or not: which
+    ones this user gets is only known while building, and the pool is chosen before."""
+    if not xray_template_overrides:
+        return False
+    for host in hosts:
+        template_id = host.subscription_templates.get("xray") if isinstance(host.subscription_templates, dict) else None
+        if (
+            isinstance(template_id, int)
+            and (override := xray_template_overrides.get(template_id))
+            and override.use_jinja
+        ):
+            return True
+    return False
+
+
 async def generate_subscription(
     user: UsersResponseWithInbounds,
     config_format: str,
@@ -200,8 +218,10 @@ async def generate_subscription(
 
         # Jinja is CPU work: it runs in the render pool's threads so it does not block the event loop. Without any, as
         # with share links, WireGuard and Outline, a busy pool cannot refuse the request.
-        needs_pool = any(source.use_jinja for source in used_templates.values()) or any(
-            _custom_variable_parts(variable)[2] for variable in custom_variables
+        needs_pool = (
+            any(source.use_jinja for source in used_templates.values())
+            or _hosts_use_jinja_override(all_hosts, xray_template_overrides)
+            or any(_custom_variable_parts(variable)[2] for variable in custom_variables)
         )
         config = await subscription_pool.run(build) if needs_pool else build()
         if as_base64 and not isinstance(config, bytes):
