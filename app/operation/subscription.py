@@ -1,5 +1,6 @@
 import re
 from datetime import UTC, datetime as dt
+from functools import lru_cache
 from json import dumps as json_dumps
 from typing import Any, ClassVar
 
@@ -44,6 +45,16 @@ from . import BaseOperation
 from .user import UserOperation
 
 logger = get_logger("subscription-operation")
+
+
+@lru_cache(maxsize=64)
+def _happ_routing_link_from_content(template_id: int, content: str) -> str | None:
+    """Ready routing link per template text; an invalid text is logged once, not on every subscription poll."""
+    try:
+        return build_happ_routing_link(parse_happ_routing_profile(content))
+    except ValueError as exc:
+        logger.warning(f"Happ routing template {template_id} is invalid, skipping routing: {exc}")
+        return None
 
 
 client_config = {
@@ -318,11 +329,7 @@ class SubscriptionOperation(BaseOperation):
         if content is None:
             logger.warning(f'Happ routing template {template_id} of rule "{rule.pattern}" not found, skipping routing')
             return None
-        try:
-            return build_happ_routing_link(parse_happ_routing_profile(content))
-        except ValueError as exc:
-            logger.warning(f'Happ routing template {template_id} of rule "{rule.pattern}" is invalid, skipping: {exc}')
-            return None
+        return _happ_routing_link_from_content(template_id, content)
 
     @staticmethod
     def _drop_routing_headers(headers: dict[str, str]) -> dict[str, str]:
