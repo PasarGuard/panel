@@ -8,7 +8,7 @@ from weakref import WeakKeyDictionary
 
 from PasarGuardNodeBridge import NodeAPIError, PasarGuardNode
 from PasarGuardNodeBridge.common.service_pb2 import StatType
-from sqlalchemy.exc import DatabaseError, OperationalError
+from sqlalchemy.exc import DatabaseError, DataError, IntegrityError, OperationalError
 
 from app import on_shutdown, scheduler
 from app.db import GetDB
@@ -40,6 +40,9 @@ NODE_USER_USAGE_BATCH_SIZE_BY_DIALECT = {
 _pending_user_usage_history: defaultdict[tuple[dt, int, int], int] = defaultdict(int)
 _user_usage_history_lock = asyncio.Lock()
 _user_usage_history_last_flush: float | None = None
+# Failed flushes keep at most this many older 10-minute buckets (one hour) next to the current one
+USER_USAGE_HISTORY_MAX_PENDING_BUCKETS = 6
+ONLINE_AT_WRITE_INTERVAL = td(minutes=1)
 DEADLOCK_MAX_RETRIES = 5
 
 # Prevent overlapping usage jobs from stacking writes (and deadlocks) when
@@ -202,8 +205,18 @@ async def _write_node_user_usage_params(dialect: str, upsert_params: list[dict])
 
     # Execute batched UPSERTs with concurrency control
     for batch in batches:
-        for stmt, stmt_params in build_node_user_usage_upsert(dialect, batch):
-            await safe_execute(stmt, stmt_params)
+        queries = build_node_user_usage_upsert(dialect, batch)
+        try:
+            for stmt, stmt_params in queries:
+                await safe_execute(stmt, stmt_params)
+        except (DataError, IntegrityError) as err:
+            # The same rows would be rejected again on every retry and block all later history writes
+            logger.error(
+                "Dropped %s node user usage history rows (%s bytes) rejected by the database: %s",
+                len(batch),
+                sum(param["value"] for param in batch),
+                getattr(err, "orig", err),
+            )
 
 
 async def record_user_stats_batched(all_node_params: dict, usage_coefficients: dict):
@@ -215,6 +228,22 @@ async def record_user_stats_batched(all_node_params: dict, usage_coefficients: d
     dialect = await get_dialect()
     upsert_params = _prepare_node_user_usage_params(all_node_params, usage_coefficients, created_at)
     await _write_node_user_usage_params(dialect, upsert_params)
+
+
+def _drop_stale_pending_user_usage_history() -> None:
+    """Keep failed flushes from piling up history without limit."""
+    buckets = sorted({created_at for created_at, _, _ in _pending_user_usage_history})
+    if len(buckets) <= USER_USAGE_HISTORY_MAX_PENDING_BUCKETS:
+        return
+    cutoff = buckets[-USER_USAGE_HISTORY_MAX_PENDING_BUCKETS]
+    stale_keys = [key for key in _pending_user_usage_history if key[0] < cutoff]
+    for key in stale_keys:
+        del _pending_user_usage_history[key]
+    logger.error(
+        "Dropped %s buffered node user usage history rows older than %s after repeated flush failures",
+        len(stale_keys),
+        cutoff.isoformat(),
+    )
 
 
 async def _flush_pending_user_usage_history_locked(now_monotonic: float | None = None) -> int:
@@ -235,7 +264,11 @@ async def _flush_pending_user_usage_history_locked(now_monotonic: float | None =
         if value
     ]
     if upsert_params:
-        await _write_node_user_usage_params("postgresql", upsert_params)
+        try:
+            await _write_node_user_usage_params("postgresql", upsert_params)
+        except Exception:
+            _drop_stale_pending_user_usage_history()
+            raise
     _pending_user_usage_history.clear()
     _user_usage_history_last_flush = now_monotonic if now_monotonic is not None else _monotonic_now()
     return len(upsert_params)
@@ -362,7 +395,10 @@ async def record_node_stats_batched(all_node_params: dict):
     # Execute all node stats with limited concurrency
     tasks = [_record_single_node(node_id, params) for node_id, params in all_node_params.items()]
     if tasks:
-        await asyncio.gather(*tasks)
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        for node_id, result in zip(all_node_params, results):
+            if isinstance(result, Exception):
+                logger.error("Failed to record node usage history for node %s: %s", node_id, result)
 
 
 def _process_users_stats_response(stats_response):
@@ -419,7 +455,8 @@ async def _node_usage_coefficient(node: PasarGuardNode, node_id: int) -> float:
         return cached[0]
     try:
         extra = await node.get_extra()
-        coeff = float(extra.get("usage_coefficient", 1)) if extra else 1.0
+        raw_coeff = extra.get("usage_coefficient") if extra else None
+        coeff = float(raw_coeff) if raw_coeff is not None else 1.0
         if not math.isfinite(coeff) or coeff < 0:
             raise ValueError("Invalid usage coefficient")
     except Exception as exc:

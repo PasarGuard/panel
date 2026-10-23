@@ -432,6 +432,69 @@ function applyHysteriaTransportUdpmasksToCompiledConfig(profile: Profile, config
   return changed ? { ...config, inbounds } : config
 }
 
+const WIREGUARD_INBOUND_STREAM_KEYS = new Set(['sockopt', 'finalmask'])
+
+/**
+ * Xray WireGuard inbounds read only sockopt and finalmask from `streamSettings`; the kit also compiles network,
+ * security and their settings (and verbatim source may carry stale ws/tls), so keep just those two keys.
+ */
+function keepWireguardInboundStreamOptions(config: Record<string, unknown>): Record<string, unknown> {
+  if (!Array.isArray(config.inbounds)) return config
+
+  let changed = false
+  const inbounds = config.inbounds.map(compiledInbound => {
+    if (!isRecord(compiledInbound) || compiledInbound.protocol !== 'wireguard' || !isRecord(compiledInbound.streamSettings)) return compiledInbound
+    const streamSettings = compiledInbound.streamSettings
+    const kept = Object.fromEntries(Object.entries(streamSettings).filter(([key]) => WIREGUARD_INBOUND_STREAM_KEYS.has(key.toLowerCase())))
+    if (Object.keys(kept).length === Object.keys(streamSettings).length) return compiledInbound
+    changed = true
+    const next = { ...compiledInbound }
+    if (Object.keys(kept).length > 0) next.streamSettings = kept
+    else delete next.streamSettings
+    return next
+  })
+
+  return changed ? { ...config, inbounds } : config
+}
+
+/**
+ * The kit clones outbound `settings` from the model, but its source merge (`mergeJsonPreservingSource`) then restores
+ * source keys it does not know (`kernelMode`, `remoteDNS`, `DNS`) and merges the untagged `peers` by index, so keys,
+ * peer fields and peers deleted in the WireGuard outbound editor would come back on save. A WireGuard outbound that
+ * matches the model at its index (same protocol and tag) therefore takes the model settings as they are; for an
+ * unedited import they equal the source settings. For raw settings patches, compile without the source merge so
+ * patches retain precedence and removed settings/peers cannot be restored from the source.
+ */
+function applyWireguardOutboundSettingsFromProfile(profile: Profile, config: Record<string, unknown>): Record<string, unknown> {
+  if (!Array.isArray(config.outbounds)) return config
+
+  let changed = false
+  let patchedConfig: Record<string, unknown> | undefined
+  const outbounds = config.outbounds.map((compiledOutbound, index) => {
+    if (!isRecord(compiledOutbound) || compiledOutbound.protocol !== 'wireguard' || !isRecord(compiledOutbound.settings)) return compiledOutbound
+    const profileOutbound = profile.outbounds?.[index]
+    if (profileOutbound?.protocol !== 'wireguard' || profileOutbound.tag !== compiledOutbound.tag) return compiledOutbound
+    changed = true
+    const settingsPath = `/outbounds/${index}/settings`
+    const hasSettingsPatch = profileOutbound.raw?.some(p => p.path === '/settings' || p.path.startsWith('/settings/'))
+      || profile.raw?.patches?.some(p => p.path === '/outbounds' || p.path === `/outbounds/${index}` || p.path === settingsPath || p.path.startsWith(`${settingsPath}/`))
+    if (hasSettingsPatch) {
+      patchedConfig ??= buildXrayConfig({ ...profile, raw: { ...profile.raw, source: undefined, sourceProfileFingerprint: undefined } }, { mode: 'permissive' }).config as Record<string, unknown>
+      const patchedOutbound = Array.isArray(patchedConfig.outbounds) ? asRecord(patchedConfig.outbounds[index]) : null
+      if (patchedOutbound) {
+        const next = { ...compiledOutbound }
+        if ('settings' in patchedOutbound) next.settings = JSON.parse(JSON.stringify(patchedOutbound.settings))
+        else delete next.settings
+        return next
+      }
+    }
+    const settings = JSON.parse(JSON.stringify(asRecord(profileOutbound.settings) ?? {})) as Record<string, unknown>
+    return { ...compiledOutbound, settings }
+  })
+
+  return changed ? { ...config, outbounds } : config
+}
+
 /**
  * Issues from {@link buildXrayConfig} in strict mode when the profile does not compile (schema / semantic / unsafe patches, …).
  */
@@ -471,7 +534,8 @@ export function profileToPersistedConfig(profile: Profile): Record<string, unkno
     ),
   )
 
-  return applyFinalmaskFragmentCompatibilityToCompiledConfig(applyUnmodeledTopLevelSectionsToCompiledConfig(prepared, result))
+  const withTopLevel = applyFinalmaskFragmentCompatibilityToCompiledConfig(applyUnmodeledTopLevelSectionsToCompiledConfig(prepared, result))
+  return keepWireguardInboundStreamOptions(applyWireguardOutboundSettingsFromProfile(prepared, withTopLevel))
 }
 
 export function validateProfileForSave(profile: Profile) {

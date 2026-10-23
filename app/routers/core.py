@@ -94,12 +94,14 @@ async def modify_core_config(
     db: AsyncSession = Depends(get_db),
 ):
     """Update an existing core configuration."""
-    response = await core_operator.modify_core(db, core_id, modified_core, admin)
+    result = await core_operator.modify_core(db, core_id, modified_core, admin)
 
     if restart_nodes:
-        await node_operator.restart_all_node(db=db, core_id=core_id, admin=admin)
+        # Nodes apply routing and outbound edits to the running Xray, so only
+        # other edits need the Stop that forces a restart.
+        await node_operator.restart_all_node(db=db, core_id=core_id, admin=admin, stop_first=not result.live_on_nodes)
 
-    return response
+    return result.core
 
 
 @router.delete("/{core_id}", status_code=status.HTTP_204_NO_CONTENT)

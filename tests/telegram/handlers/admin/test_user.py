@@ -423,3 +423,19 @@ async def test_get_subscription_qr_not_found(monkeypatch, admin, fake_message, f
     await user_h.get_subscription_qr(event, db=object(), admin=admin, callback_data=callback_data)
 
     event.answer.assert_awaited_once_with(user_h.Texts.user_not_found, show_alert=True)
+
+
+@pytest.mark.asyncio
+async def test_get_v2ray_links_are_escaped(monkeypatch, admin, fake_user, fake_message, fake_callback):
+    event = type(fake_callback)(message=type(fake_message)())
+    callback_data = UserPanel.Callback(user_id=11, action=UserPanelAction.v2ray_links)
+    monkeypatch.setattr(user_h.user_operations, "get_validated_user_by_id", AsyncMock(return_value=fake_user))
+    monkeypatch.setattr(user_h.user_operations, "validate_user", AsyncMock(return_value=fake_user))
+    monkeypatch.setattr(user_h.subscription_operations, "validated_user", AsyncMock(return_value=fake_user))
+    monkeypatch.setattr(
+        user_h.subscription_operations, "fetch_config", AsyncMock(return_value=("vless://a?x=1&y=2#<r>", None))
+    )
+
+    await user_h.get_v2ray_links(event, db=object(), admin=admin, callback_data=callback_data)
+
+    assert event.message.answer.await_args.args[0] == "<pre>vless://a?x=1&amp;y=2#&lt;r&gt;</pre>"

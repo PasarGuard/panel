@@ -413,7 +413,7 @@ export function RealityScanDialog({ open, onOpenChange, initialTarget }: Reality
         if (controller.signal.aborted) return
         patch(target, { status: 'scanning' })
         try {
-          const res = await scanRealityTarget({ target, timeout }, controller.signal)
+          const res = await scanRealityTarget({ target, timeout }, { signal: controller.signal })
           if (controller.signal.aborted) return
           patch(target, { status: 'done', result: res })
         } catch (error) {

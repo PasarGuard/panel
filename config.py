@@ -213,6 +213,10 @@ class JobSettings(EnvSettings):
         default=60, ge=1, validation_alias="JOB_CLEANUP_USAGE_RECEIPTS_INTERVAL"
     )
     core_health_check_interval: int = Field(default=10, validation_alias="JOB_CORE_HEALTH_CHECK_INTERVAL")
+    node_health_fail_threshold: int = Field(default=3, ge=1, validation_alias="NODE_HEALTH_FAIL_THRESHOLD")
+    node_health_recover_threshold: int = Field(default=2, ge=1, validation_alias="NODE_HEALTH_RECOVER_THRESHOLD")
+    node_health_probe_timeout: int = Field(default=5, ge=1, validation_alias="NODE_HEALTH_PROBE_TIMEOUT")
+    node_health_max_backoff: int = Field(default=60, ge=0, validation_alias="NODE_HEALTH_MAX_BACKOFF")
     record_node_usages_interval: int = Field(default=30, validation_alias="JOB_RECORD_NODE_USAGES_INTERVAL")
     record_user_usages_interval: int = Field(default=10, validation_alias="JOB_RECORD_USER_USAGES_INTERVAL")
     review_users_interval: int = Field(default=30, validation_alias="JOB_REVIEW_USERS_INTERVAL")

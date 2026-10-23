@@ -268,12 +268,13 @@ class UsageStore:
         # Keep set-based PostgreSQL writes and throttled timestamps inside the
         # receipt transaction, so retries cannot charge a partially applied batch.
         if user_params:
-            stmt, parameters = build_user_traffic_update(self.dialect, user_params)
             if self.dialect == "postgresql":
+                stmt, parameters = build_user_traffic_update(self.dialect, user_params)
                 await conn.execute(stmt, parameters)
             else:
-                for batch in chunks(parameters):
-                    await conn.execute(stmt, batch)
+                for batch in chunks(user_params):
+                    stmt, parameters = build_user_traffic_update(self.dialect, batch)
+                    await conn.execute(stmt, parameters)
             for stmt, parameters in build_online_at_updates(
                 self.dialect, [stat["uid"] for stat in user_params], collected_at
             ):

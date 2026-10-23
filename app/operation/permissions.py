@@ -1,7 +1,7 @@
 from functools import wraps
 
 from app.models.admin import AdminDetails
-from app.models.admin_role import PermissionScope, RoleLimits
+from app.models.admin_role import PermissionScope, RoleLimits, RolePermissions
 
 
 class PermissionDenied(Exception):
@@ -30,6 +30,39 @@ def _get_resource_action(admin: AdminDetails, resource: str, action: str):
     permissions = admin.role.permissions if admin.role else None
     resource_perms = permissions.get(resource) if permissions else None
     return (resource_perms or {}).get(action) if resource_perms is not None else None
+
+
+def _permission_level(value) -> PermissionScope:
+    """Map an action to its access level, denying missing or malformed grants."""
+    if value is True:
+        return PermissionScope.ALL
+    if isinstance(value, dict) and set(value) == {"scope"}:
+        try:
+            return PermissionScope(value["scope"])
+        except ValueError, TypeError:
+            pass
+    return PermissionScope.NONE
+
+
+def intersect_permissions(requested: RolePermissions, ceiling: RolePermissions) -> RolePermissions:
+    """Keep only grants permitted by both maps, choosing the narrower action scope."""
+    effective = {}
+    for resource, actions in requested.model_dump(exclude_none=True).items():
+        allowed_actions = ceiling.get(resource)
+        if allowed_actions is None:
+            continue
+        effective[resource] = {}
+        for action, value in actions.items():
+            allowed = allowed_actions.get(action)
+            scope = min(_permission_level(value), _permission_level(allowed))
+            if scope == PermissionScope.NONE:
+                grant = False
+            elif value is True and allowed is True:
+                grant = True
+            else:
+                grant = {"scope": scope}
+            effective[resource][action] = grant
+    return RolePermissions.model_validate(effective)
 
 
 _READ_ACTIONS = frozenset({"read", "read_simple", "read_general", "logs", "stats"})

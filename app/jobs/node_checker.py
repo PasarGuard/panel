@@ -1,5 +1,6 @@
 import asyncio
 import time
+from dataclasses import dataclass
 
 from PasarGuardNodeBridge import Health, NodeAPIError, PasarGuardNode
 from PasarGuardNodeBridge.storage import LifecycleStatus
@@ -10,7 +11,9 @@ from app.db.crud.node import get_limited_nodes, get_nodes
 from app.db.models import Node, NodeStatus
 from app.models.node import NodeListQuery, NodeNotification
 from app.nats import is_multi_worker, needs_shared_bridge_memory
+from app.nats.leader import is_job_leader, needs_job_leader, set_on_leadership_lost
 from app.node import node_manager
+from app.node.heartbeat import node_heartbeat
 from app.node.nats_memory import ensure_bridge_memory, get_bridge_memory, shutdown_bridge_memory
 from app.operation import OperatorType
 from app.operation.node import NodeOperation
@@ -26,6 +29,146 @@ NODE_CHECK_SEM = asyncio.Semaphore(5)  # Max 5 concurrent node health checks
 ACTIVE_NODE_STATUSES = [NodeStatus.connected, NodeStatus.connecting, NodeStatus.error]
 _SYNC_RECOVERY_INTERVAL = 60.0
 _sync_recovery_deadlines: dict[int, float] = {}
+_VERSION_REFRESH_INTERVAL = 300.0
+_version_refresh_deadlines: dict[int, float] = {}
+_CORE_STARTING_GRACE = 60.0
+_core_starting_since: dict[int, tuple[PasarGuardNode, float]] = {}
+
+
+@dataclass
+class _HealthStreak:
+    node: PasarGuardNode
+    status: NodeStatus
+    leader: bool
+    failures: int = 0
+    successes: int = 0
+    broken: bool = False
+
+
+_health_streaks: dict[int, _HealthStreak] = {}
+
+
+@dataclass
+class _ProbeBackoff:
+    node: PasarGuardNode
+    leader: bool
+    failures: int = 0
+    next_probe_at: float = 0.0
+    probed_at: float = 0.0
+    unanswered: bool = False
+
+
+@dataclass
+class _ProbeAttempt:
+    # Taken once the check holds a slot: a busy queue must not use up the backoff.
+    started: float = 0.0
+    # The node sent no reply (a timeout or a failed connection), not an error of its own.
+    unanswered: bool = False
+
+
+_probe_backoffs: dict[int, _ProbeBackoff] = {}
+# Per-node checks still running after their run returned (see node_health_check).
+_check_tasks: dict[int, asyncio.Task] = {}
+
+
+def _owns_health_checks() -> bool:
+    return not needs_job_leader() or is_job_leader()
+
+
+def _probe_timeout(db_node: Node) -> int:
+    # Not default_timeout: admins raise that for slow Starts, and a probe that waits
+    # as long on a dead link holds a check slot and delays every other node.
+    limit = job_settings.node_health_probe_timeout
+    return min(limit, db_node.default_timeout or limit)
+
+
+def _in_probe_backoff(db_node: Node, node: PasarGuardNode) -> bool:
+    backoff = _probe_backoffs.get(db_node.id)
+    if backoff is None:
+        return False
+    # Any status change (an admin enable, edit or reconnect, or a recovery), a new
+    # connection object or a leader change probes at once. So does a heartbeat answer
+    # after a probe the node never replied to: its link works again, and only the
+    # probe can tell whether the node is healthy.
+    if (
+        db_node.status != NodeStatus.error
+        or backoff.node is not node
+        or backoff.leader != _owns_health_checks()
+        or (backoff.unanswered and node_heartbeat.answered_since(db_node.id, node, backoff.probed_at))
+    ):
+        _probe_backoffs.pop(db_node.id, None)
+        return False
+    return time.monotonic() < backoff.next_probe_at
+
+
+async def _record_probe(db_node: Node, node: PasarGuardNode, probed: Health, attempt: _ProbeAttempt) -> None:
+    # Only nodes already reported as error back off, so the failure threshold
+    # before that still counts consecutive runs. A failed probe can still end
+    # healthy when the same run repaired the node.
+    if probed is Health.HEALTHY or db_node.status != NodeStatus.error or await node.get_health() is Health.HEALTHY:
+        _probe_backoffs.pop(db_node.id, None)
+        return
+    leader = _owns_health_checks()
+    backoff = _probe_backoffs.get(db_node.id)
+    if backoff is None or backoff.node is not node or backoff.leader != leader:
+        backoff = _probe_backoffs[db_node.id] = _ProbeBackoff(node, leader)
+    backoff.failures = min(backoff.failures + 1, 10)
+    interval = job_settings.core_health_check_interval
+    delay = min(job_settings.node_health_max_backoff, interval * 2**backoff.failures)
+    # Half an interval of slack, so a run that starts a moment early still probes.
+    backoff.next_probe_at = attempt.started + delay - interval / 2
+    backoff.probed_at = attempt.started
+    backoff.unanswered = attempt.unanswered
+
+
+async def _node_answers(node: PasarGuardNode, db_node: Node) -> bool:
+    try:
+        await node.info(timeout=_probe_timeout(db_node))
+        return True
+    except Exception as exc:
+        logger.debug("[%s] Node did not answer the reachability probe: %s", db_node.name, exc)
+        return False
+
+
+def _reset_health_streaks() -> None:
+    _health_streaks.clear()
+
+
+def _accept_health(db_node: Node, node: PasarGuardNode, health: Health) -> bool:
+    leader = _owns_health_checks()
+    streak = _health_streaks.get(db_node.id)
+    if streak is None or streak.node is not node or streak.status != db_node.status or streak.leader != leader:
+        streak = _health_streaks[db_node.id] = _HealthStreak(node, db_node.status, leader)
+    if health is Health.BROKEN:
+        streak.successes = 0
+        streak.failures = min(streak.failures + 1, job_settings.node_health_fail_threshold)
+        accepted = streak.failures >= job_settings.node_health_fail_threshold
+        streak.broken = streak.broken or accepted
+        return accepted
+    streak.failures = 0
+    streak.successes = min(streak.successes + 1, job_settings.node_health_recover_threshold)
+    if (streak.broken or db_node.status != NodeStatus.connected) and (
+        streak.successes < job_settings.node_health_recover_threshold
+    ):
+        return False
+    streak.broken = False
+    return True
+
+
+async def _set_node_health(node: PasarGuardNode, health: Health, node_name: str) -> None:
+    try:
+        if await node.get_health() != health:
+            await node.set_health(health)
+    except Exception:
+        # A failed local-state write must never turn a failed probe into success.
+        logger.exception("[%s] Failed to set node health to %s", node_name, health.name)
+
+
+async def _repair_node(node_id: int) -> None:
+    if not _owns_health_checks():
+        return
+    async with GetDB() as db:
+        await node_operator.connect_single_node(db, node_id, health_check=True)
 
 
 # pg-node returns these while the HTTP API is up. They are not interchangeable:
@@ -75,90 +218,117 @@ async def _start_already_in_progress(db_node: Node, shared_state) -> bool:
     return coordinator is not None and await coordinator.has_active_lease(str(db_node.id))
 
 
-async def verify_node_backend_health(node: PasarGuardNode, node_name: str) -> tuple[Health, int | None, str | None]:
+async def _core_still_stopped_after_grace(db_node: Node, node: PasarGuardNode, timeout: int) -> bool:
+    """Distinguish a slow Start from a core left stopped after a node restart."""
+    now = time.monotonic()
+    first_seen = _core_starting_since.get(db_node.id)
+    if first_seen is None or first_seen[0] is not node:
+        _core_starting_since[db_node.id] = (node, now)
+        return False
+    if now - first_seen[1] < _CORE_STARTING_GRACE:
+        return False
+    if await _start_already_in_progress(db_node, await node.get_lifecycle_state()):
+        return False
+    try:
+        info = await node.info(timeout=timeout)
+    except Exception:
+        return False
+    return info is not None and not info.started
+
+
+async def verify_node_backend_health(
+    node: PasarGuardNode, node_name: str, timeout: int | None = None
+) -> tuple[Health, int | None, str | None]:
     """
     Verify node health by checking backend stats.
     Returns (health, error_code, error_message) - error_code and error_message are None if no error occurred.
     """
-    current_health = await asyncio.wait_for(node.get_health(), timeout=10)
-
-    # Skip nodes that are not connected or invalid
-    if current_health in (Health.NOT_CONNECTED, Health.INVALID):
-        return current_health, None, None
-
     try:
-        await node.get_backend_stats()
-        if current_health != Health.HEALTHY:
-            await node.set_health(Health.HEALTHY)
-            logger.debug(f"[{node_name}] Node health is HEALTHY")
+        current_health = await asyncio.wait_for(node.get_health(), timeout=10)
+        if current_health in (Health.NOT_CONNECTED, Health.INVALID):
+            return current_health, None, None
+        await node.get_backend_stats(timeout=timeout)
         return Health.HEALTHY, None, None
-    except NodeAPIError as e:
-        logger.error(
-            f"[{node_name}] Health check failed, setting health to BROKEN | Error: NodeAPIError(code={e.code}) - {e.detail}"
-        )
-        try:
-            await node.set_health(Health.BROKEN)
-            return Health.BROKEN, e.code, e.detail
-        except Exception as e_set_health:
-            error_type_set = type(e_set_health).__name__
-            logger.error(f"[{node_name}] Failed to set health to BROKEN | Error: {error_type_set} - {e_set_health!s}")
-            return current_health, e.code, e.detail
-    except Exception as e:
-        error_type = type(e).__name__
-        error_message = f"{error_type}: {e!s}"
-        logger.error(f"[{node_name}] Health check failed, setting health to BROKEN | Error: {error_message}")
-        try:
-            await node.set_health(Health.BROKEN)
-            return Health.BROKEN, None, error_message
-        except Exception as e_set_health:
-            error_type_set = type(e_set_health).__name__
-            logger.error(f"[{node_name}] Failed to set health to BROKEN | Error: {error_type_set} - {e_set_health!s}")
-            return current_health, None, error_message
+    except TimeoutError:
+        return Health.BROKEN, -1, "Health check timeout"
+    except NodeAPIError as exc:
+        logger.debug("[%s] Backend health probe failed: %s", node_name, exc.detail)
+        return Health.BROKEN, exc.code, exc.detail
+    except Exception as exc:
+        error_message = f"{type(exc).__name__}: {exc!s}"
+        logger.debug("[%s] Backend health probe failed: %s", node_name, error_message)
+        return Health.BROKEN, None, error_message
 
 
 async def process_node_health_check(db_node: Node, node: PasarGuardNode):
-    """
-    Process health check for a single node:
-    1. Verify backend health
-    2. Recover shared user sync when healthy
-    3. Compare with database status
-    4. Update status if needed
-
-    Timeout handling:
-    - For timeout errors (code=-1): Don't reconnect, just wait for recovery
-    - For other errors (code > -1): Reconnect (connection works but has another issue)
-    - For NOT_CONNECTED/INVALID: Reconnect immediately
-    """
-    if node is None:
+    """Probe every worker's attachment; only the job leader changes shared status."""
+    if node is None or db_node.status not in ACTIVE_NODE_STATUSES:
+        _health_streaks.pop(db_node.id, None)
+        _probe_backoffs.pop(db_node.id, None)
+        _core_starting_since.pop(db_node.id, None)
+        return
+    if _in_probe_backoff(db_node, node):
         return
 
-    # Limit concurrent health checks to prevent DB/API overload
+    attempt = _ProbeAttempt()
+    probed = await _check_node(db_node, node, attempt)
+    if probed is not Health.INVALID:
+        await _record_probe(db_node, node, probed, attempt)
+
+
+async def _check_node(db_node: Node, node: PasarGuardNode, attempt: _ProbeAttempt) -> Health:
     async with NODE_CHECK_SEM:
+        attempt.started = time.monotonic()
         try:
-            health, error_code, error_message = await verify_node_backend_health(node, db_node.name)
+            health, error_code, error_message = await verify_node_backend_health(
+                node, db_node.name, timeout=_probe_timeout(db_node)
+            )
         except TimeoutError:
-            # Record timeout error in database but don't reconnect
-            logger.warning(f"[{db_node.name}] Health check timed out")
-            async with GetDB() as db:
-                await NodeOperation._update_single_node_status(
-                    db, db_node.id, NodeStatus.error, message="Health check timeout"
-                )
-            return
-        except NodeAPIError as e:
-            # Record error in database
-            async with GetDB() as db:
-                await NodeOperation._update_single_node_status(db, db_node.id, NodeStatus.error, message=e.detail)
-            # For timeout errors (code=-1), don't reconnect - just wait for recovery
-            if e.code == -1:
-                logger.warning(f"[{db_node.name}] Health check timed out (NodeAPIError), waiting for recovery")
-                return
-            # For other errors, reconnect
-            async with GetDB() as db:
-                await node_operator.connect_single_node(db, db_node.id)
-            return
+            health, error_code, error_message = Health.BROKEN, -1, "Health check timeout"
+        except NodeAPIError as exc:
+            health, error_code, error_message = Health.BROKEN, exc.code, exc.detail
+        except Exception:
+            _health_streaks.pop(db_node.id, None)
+            raise
+        # A code above 0 is a reply from the node; the bridge uses 0 and below when none came.
+        attempt.unanswered = health is Health.BROKEN and (error_code is None or error_code <= 0)
+        if health is Health.BROKEN and is_core_starting_error(error_code, error_message):
+            stopped_after_grace = await _core_still_stopped_after_grace(db_node, node, _probe_timeout(db_node))
+        else:
+            _core_starting_since.pop(db_node.id, None)
+            stopped_after_grace = False
+        core_is_dead = is_core_dead_error(error_code, error_message) or stopped_after_grace
+
+        if health in (Health.HEALTHY, Health.BROKEN):
+            if not _accept_health(db_node, node, health):
+                # An explicitly absent backend needs repair immediately; only
+                # its downtime reporting waits for the configured threshold.
+                if health is Health.BROKEN and core_is_dead:
+                    shared_state = await node.get_lifecycle_state()
+                    if _owns_health_checks() and not await _start_already_in_progress(db_node, shared_state):
+                        await _set_node_health(node, health, db_node.name)
+                        await _repair_node(db_node.id)
+                return health
+            await _set_node_health(node, health, db_node.name)
+        else:
+            _health_streaks.pop(db_node.id, None)
 
         # Skip nodes that are already healthy and connected
         if health == Health.HEALTHY and db_node.status == NodeStatus.connected:
+            now = time.monotonic()
+            next_refresh = _version_refresh_deadlines.setdefault(db_node.id, now + _VERSION_REFRESH_INTERVAL)
+            if now >= next_refresh:
+                _version_refresh_deadlines[db_node.id] = now + _VERSION_REFRESH_INTERVAL
+                try:
+                    async with GetDB() as db:
+                        refreshed = await NodeOperation.refresh_node_versions(
+                            db, db_node.id, node, timeout=_probe_timeout(db_node), persist=_owns_health_checks()
+                        )
+                    if not refreshed:
+                        _version_refresh_deadlines[db_node.id] = now + _SYNC_RECOVERY_INTERVAL
+                except Exception as exc:
+                    _version_refresh_deadlines[db_node.id] = now + _SYNC_RECOVERY_INTERVAL
+                    logger.debug("[%s] Could not refresh node versions: %s", db_node.name, exc)
             requires_recovery = node.requires_hard_reset()
             if requires_recovery or needs_shared_bridge_memory():
                 # A slow user-sync RPC does not mean the backend is dead. Repair
@@ -174,11 +344,21 @@ async def process_node_health_check(db_node: Node, node: PasarGuardNode):
                         # poll. Retry discovery even without a fresh update;
                         # the live KV index makes empty polls request-free.
                         await NodeOperation._resume_shared_sync(node)
-            return
+            return health
 
         if health is Health.INVALID:
             logger.warning(f"[{db_node.name}] Node health is INVALID, ignoring...")
-            return
+            return health
+
+        # Attach and Start below each wait the full default_timeout, and Start
+        # loads every user first: a node that already failed must answer first.
+        if (
+            health is Health.NOT_CONNECTED
+            and db_node.status == NodeStatus.error
+            and not await _node_answers(node, db_node)
+        ):
+            attempt.unanswered = True
+            return health
 
         # Prefer shared lifecycle state so multi-worker local NOT_CONNECTED does not thrash Start.
         # A BROKEN observation with desired HEALTHY can be an ambiguous client-side Start
@@ -191,7 +371,7 @@ async def process_node_health_check(db_node: Node, node: PasarGuardNode):
         ):
             attached = await NodeOperation._attach_if_running(node, db_node.name)
             if attached is not None:
-                return
+                return health
 
             _, coordinator, _ = get_bridge_memory()
             if coordinator is not None and await coordinator.has_active_lease(str(db_node.id)):
@@ -199,7 +379,7 @@ async def process_node_health_check(db_node: Node, node: PasarGuardNode):
                     "[%s] Shared lifecycle HEALTHY with active lease; waiting for owner",
                     db_node.name,
                 )
-                return
+                return health
 
             # Stale/failed desired-healthy state: fall through to reconnect only after
             # the attach probe and active-lease check have both failed.
@@ -208,63 +388,79 @@ async def process_node_health_check(db_node: Node, node: PasarGuardNode):
                 db_node.name,
             )
 
-        # Handle NOT_CONNECTED - reconnect immediately
+        # Followers repair local attachments but never restart a core or publish
+        # status transitions from independent, potentially conflicting samples.
+        if not _owns_health_checks():
+            return health
+
         if health is Health.NOT_CONNECTED:
-            async with GetDB() as db:
-                await node_operator.connect_single_node(db, db_node.id)
-            return
+            # Initial connection is a lifecycle operation, not a failed probe.
+            # An already-errored node still needs confirmed recovery afterwards.
+            if db_node.status == NodeStatus.error:
+                await _repair_node(db_node.id)
+            else:
+                async with GetDB() as db:
+                    await node_operator.connect_single_node(db, db_node.id)
+            return health
 
-        # Handle BROKEN health
-        if health == Health.BROKEN:
-            # Record actual error in database
+        if health is Health.BROKEN:
             async with GetDB() as db:
-                await NodeOperation._update_single_node_status(db, db_node.id, NodeStatus.error, message=error_message)
-            if shared_state is not None:
+                updated = await NodeOperation._update_single_node_status(
+                    db,
+                    db_node.id,
+                    NodeStatus.error,
+                    message=error_message or "Backend health check failed",
+                    expected_status=db_node.status,
+                )
+            if not updated:
+                _health_streaks.pop(db_node.id, None)
+                return health
+            # Check before publishing BROKEN: STARTING is evidence of an operation
+            # already in progress and must not be overwritten by its health probe.
+            starting = await _start_already_in_progress(db_node, shared_state)
+            if not _owns_health_checks():
+                return health
+            if shared_state is not None and not starting:
                 await node.update_observed_lifecycle(LifecycleStatus.BROKEN, expected_epoch=shared_state.epoch)
-            # Let pg-node recover transient Xray API/core failures internally.
-            if should_reconnect_after_health_error(error_code, error_message):
-                async with GetDB() as db:
-                    await node_operator.connect_single_node(db, db_node.id)
-                return
-            # Keep-alive timeout / crash leaves HTTP up but Xray stopped
-            # ("backend not initialized"). A second Start while Xray is still
-            # coming up ("core is not started yet") would kill that process.
-            if is_core_dead_error(error_code, error_message) and not await _start_already_in_progress(
-                db_node, shared_state
+            if not starting and (
+                should_reconnect_after_health_error(error_code, error_message)
+                or core_is_dead
             ):
-                logger.warning(f"[{db_node.name}] Core is not running; re-applying config")
-                async with GetDB() as db:
-                    await node_operator.connect_single_node(db, db_node.id)
-            # For timeout (code=-1 or None) or an in-flight/starting core, wait.
-            return
+                await _repair_node(db_node.id)
+            return health
 
-        # Update status for recovering nodes
-        if db_node.status in (NodeStatus.connecting, NodeStatus.error) and health == Health.HEALTHY:
+        if db_node.status in (NodeStatus.connecting, NodeStatus.error) and health is Health.HEALTHY:
+            try:
+                info = await node.info(timeout=_probe_timeout(db_node))
+            except Exception as exc:
+                logger.debug("[%s] Could not read live versions during recovery: %s", db_node.name, exc)
+                return health
+            if info is None or not info.started or not info.node_version or not info.core_version:
+                return health
+            node_version, core_version = info.node_version, info.core_version
+            if not _owns_health_checks():
+                return health
+            await node.set_reported_versions(node_version, core_version)
             async with GetDB() as db:
-                logger.info(f"Node '{db_node.name}' have been recovered")
-                node_version, core_version = await node.get_versions()
-                # Connection restored without a hard reset. Suppress the default
-                # connect notification and send a distinct "recovered" one instead,
-                # so a self-recovery is visibly different from a full reconnect.
-                await NodeOperation._update_single_node_status(
+                updated = await NodeOperation._update_single_node_status(
                     db,
                     db_node.id,
                     NodeStatus.connected,
                     xray_version=core_version,
                     node_version=node_version,
                     send_notification=False,
+                    expected_status=db_node.status,
                 )
+            if not updated:
+                _health_streaks.pop(db_node.id, None)
+                return health
             if shared_state is not None:
                 await node.update_observed_lifecycle(LifecycleStatus.HEALTHY, expected_epoch=shared_state.epoch)
+            logger.info("Node '%s' has recovered", db_node.name)
             await notification.recovered_node(
-                NodeNotification(
-                    id=db_node.id,
-                    name=db_node.name,
-                    xray_version=core_version,
-                    node_version=node_version,
-                )
+                NodeNotification(id=db_node.id, name=db_node.name, xray_version=core_version, node_version=node_version)
             )
-            return
+        return health
 
 
 async def check_node_limits():
@@ -303,10 +499,43 @@ async def node_health_check():
         db_nodes, _ = await get_nodes(db=db, query=NodeListQuery(status=ACTIVE_NODE_STATUSES), load_usage_logs=False)
 
     dict_nodes = await node_manager.get_nodes()
-    for node_id in _sync_recovery_deadlines.keys() - dict_nodes.keys():
-        _sync_recovery_deadlines.pop(node_id, None)
-    check_tasks = [process_node_health_check(db_node, dict_nodes.get(db_node.id)) for db_node in db_nodes]
-    await asyncio.gather(*check_tasks, return_exceptions=True)
+    active_ids = {db_node.id for db_node in db_nodes if db_node.id in dict_nodes}
+    for cache in (
+        _sync_recovery_deadlines,
+        _version_refresh_deadlines,
+        _core_starting_since,
+        _health_streaks,
+        _probe_backoffs,
+    ):
+        for node_id in cache.keys() - active_ids:
+            cache.pop(node_id, None)
+    tasks = [_start_check(db_node, dict_nodes.get(db_node.id)) for db_node in db_nodes]
+    if not tasks:
+        return
+    # Return before the next tick. A slow node (a long Start, a dead link) keeps
+    # its check running and is skipped until it ends, instead of making the whole
+    # run overrun its interval and the scheduler skip every other node with it.
+    _, pending = await asyncio.wait(tasks, timeout=job_settings.core_health_check_interval * 0.8)
+    if pending:
+        logger.debug("Health check run left %d slow node check(s) running", len(pending))
+
+
+def _start_check(db_node: Node, node: PasarGuardNode | None) -> asyncio.Task:
+    task = _check_tasks.get(db_node.id)
+    if task is None or task.done():
+        task = _check_tasks[db_node.id] = asyncio.create_task(_run_check(db_node, node))
+    return task
+
+
+async def _run_check(db_node: Node, node: PasarGuardNode | None) -> None:
+    try:
+        await process_node_health_check(db_node, node)
+    except Exception as exc:
+        _health_streaks.pop(db_node.id, None)
+        logger.error("[%s] Health check failed: %s", db_node.name, exc, exc_info=exc)
+    finally:
+        if _check_tasks.get(db_node.id) is asyncio.current_task():
+            _check_tasks.pop(db_node.id, None)
 
 
 _node_loop_tasks: list[asyncio.Task] = []
@@ -344,7 +573,7 @@ async def initialize_nodes():
             await node_operator.connect_nodes_bulk(db, db_nodes)
             startup_log("All nodes' cores have been started.")
 
-    from app.nats.leader import needs_job_leader
+    set_on_leadership_lost(_reset_health_streaks)
 
     if needs_job_leader():
         # Every uvicorn worker must keep local node attachments healthy.
@@ -385,11 +614,16 @@ async def initialize_nodes():
 
 
 async def _stop_node_loops():
-    for task in _node_loop_tasks:
+    tasks = [*_node_loop_tasks, *_check_tasks.values()]
+    for task in tasks:
         task.cancel()
-    if _node_loop_tasks:
-        await asyncio.gather(*_node_loop_tasks, return_exceptions=True)
+    if tasks:
+        await asyncio.gather(*tasks, return_exceptions=True)
     _node_loop_tasks.clear()
+    _check_tasks.clear()
+    _reset_health_streaks()
+    _sync_recovery_deadlines.clear()
+    _probe_backoffs.clear()
 
 
 async def shutdown_nodes():

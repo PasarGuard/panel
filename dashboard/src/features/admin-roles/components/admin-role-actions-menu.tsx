@@ -13,6 +13,7 @@ import { queryClient } from '@/utils/query-client'
 import { AdminRoleResponse, getGetRolesQueryKey, getGetRolesSimpleQueryKey, useDeleteRole } from '@/service/api'
 
 import { isProtectedRole, isReadOnlyRole } from '@/features/admin-roles/forms/admin-role-form'
+import { translateHtml } from '@/utils/html-translation'
 
 interface AdminRoleActionsMenuProps {
   role: AdminRoleResponse
@@ -93,7 +94,10 @@ export default function AdminRoleActionsMenu({ role, onEdit, onDuplicate, classN
           <AlertDialogHeader>
             <AlertDialogTitle>{t('adminRoles.deleteConfirmation', { defaultValue: 'Delete role' })}</AlertDialogTitle>
             <AlertDialogDescription>
-              <span dir={dir} dangerouslySetInnerHTML={{ __html: t('adminRoles.deleteConfirm', { name: role.name, defaultValue: 'Are you sure you want to delete role <b>{{name}}</b>?' }) }} />
+              <span
+                dir={dir}
+                dangerouslySetInnerHTML={{ __html: translateHtml(t, 'adminRoles.deleteConfirm', { name: role.name, defaultValue: 'Are you sure you want to delete role <b>{{name}}</b>?' }) }}
+              />
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

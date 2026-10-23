@@ -8,6 +8,7 @@ from app.db.crud.host import (
     get_host_by_id,
     get_hosts,
     modify_host,
+    modify_hosts as crud_modify_hosts,
     remove_host,
     remove_hosts,
 )
@@ -40,23 +41,44 @@ class HostOperation(BaseOperation):
         if db_template.template_type != ClientTemplateType.xray_subscription.value:
             await self.raise_error("Selected template must be an Xray subscription template", 400, db=db)
 
-    async def validate_ds_host(self, db: AsyncSession, host: CreateHost, host_id: int | None = None) -> ProxyHost:
-        if (
-            host.transport_settings
-            and host.transport_settings.xhttp_settings
-            and (nested_host := host.transport_settings.xhttp_settings.download_settings)
-        ):
+    @staticmethod
+    def _download_host_id(host: BaseHost | ProxyHost) -> int | None:
+        settings = host.transport_settings
+        if isinstance(settings, dict):
+            return (settings.get("xhttp_settings") or {}).get("download_settings")
+        return settings.xhttp_settings.download_settings if settings and settings.xhttp_settings else None
+
+    @classmethod
+    def _dependent_hosts(cls, db_hosts: list[ProxyHost], host_ids: set[int]) -> list[ProxyHost]:
+        """Return the hosts outside ``host_ids`` that use one of them as their xHTTP download host."""
+        return [host for host in db_hosts if host.id not in host_ids and cls._download_host_id(host) in host_ids]
+
+    async def check_download_hosts_unused(self, db: AsyncSession, host_ids: set[int]) -> None:
+        """Refuse to delete a download host that a remaining host still uses."""
+        if dependents := self._dependent_hosts(await get_hosts(db=db), host_ids):
+            names = ", ".join(f'"{host.remark}" (id {host.id})' for host in dependents)
+            await self.raise_error(
+                f"Host is the xHTTP download host of {names}; remove it from their download settings first",
+                409,
+                db=db,
+            )
+
+    async def validate_ds_host(
+        self,
+        db: AsyncSession,
+        host: BaseHost | ProxyHost,
+        host_id: int | None = None,
+        *,
+        hosts_by_id: dict[int, ProxyHost | CreateHost] | None = None,
+    ) -> None:
+        if nested_host := self._download_host_id(host):
             if host_id and nested_host == host_id:
-                return await self.raise_error("download host cannot be the same as the host", 400, db=db)
-            ds_host = await get_host_by_id(db, nested_host)
+                await self.raise_error("download host cannot be the same as the host", 400, db=db)
+            ds_host = hosts_by_id.get(nested_host) if hosts_by_id is not None else await get_host_by_id(db, nested_host)
             if not ds_host:
-                return await self.raise_error("download host not found", 404, db=db)
-            if (
-                ds_host.transport_settings
-                and ds_host.transport_settings.get("xhttp_settings")
-                and ds_host.transport_settings.get("xhttp_settings").get("download_settings")
-            ):
-                return await self.raise_error("download host cannot have a download host", 400, db=db)
+                await self.raise_error("download host not found", 404, db=db)
+            if self._download_host_id(ds_host):
+                await self.raise_error("download host cannot have a download host", 400, db=db)
 
     async def create_host(self, db: AsyncSession, new_host: CreateHost, admin: AdminDetails) -> BaseHost:
         await self.validate_subscription_templates(db, new_host)
@@ -105,6 +127,7 @@ class HostOperation(BaseOperation):
 
     async def remove_host(self, db: AsyncSession, host_id: int, admin: AdminDetails):
         db_host = await self.get_validated_host(db, host_id)
+        await self.check_download_hosts_unused(db, {db_host.id})
         await remove_host(db, db_host)
         logger.info(f'Host "{db_host.id}" deleted by admin "{admin.username}"')
 
@@ -117,18 +140,26 @@ class HostOperation(BaseOperation):
     async def modify_hosts(
         self, db: AsyncSession, modified_hosts: list[CreateHost], admin: AdminDetails
     ) -> list[BaseHost]:
-        for host in modified_hosts:
-            await self.validate_subscription_templates(db, host)
-            await self.validate_ds_host(db, host, host.id)
-
-            old_host: ProxyHost | None = None
-            if host.id is not None:
-                old_host = await get_host_by_id(db, host.id)
-
-            if old_host is None:
-                await create_host(db, host)
-            else:
-                await modify_host(db, old_host, host)
+        try:
+            db_hosts = await get_hosts(db=db)
+            hosts_by_id = {host.id: host for host in db_hosts}
+            host_ids = [host.id for host in modified_hosts if host.id is not None]
+            modified_ids = set(host_ids)
+            if len(host_ids) != len(modified_ids):
+                await self.raise_error("Duplicate host IDs", 400, db=db)
+            final_hosts = hosts_by_id | {host.id: host for host in modified_hosts if host.id in hosts_by_id}
+            for host in modified_hosts:
+                await self.validate_subscription_templates(db, host)
+                await self.validate_ds_host(db, host, host.id, hosts_by_id=final_hosts)
+            # Updating a download host must not introduce a chain for an unchanged parent.
+            for host in db_hosts:
+                if host.id not in modified_ids and self._download_host_id(host) in modified_ids:
+                    await self.validate_ds_host(db, host, host.id, hosts_by_id=final_hosts)
+            await self.check_host_inbound_tags(list({host.inbound_tag for host in modified_hosts if host.inbound_tag}))
+            await crud_modify_hosts(db, modified_hosts, db_hosts)
+        except Exception:
+            await db.rollback()
+            raise
 
         db_hosts = await get_hosts(db=db)
         await host_manager.add_hosts(db, db_hosts)
@@ -144,6 +175,8 @@ class HostOperation(BaseOperation):
     ) -> RemoveHostsResponse:
         """Remove multiple hosts by ID"""
         ids_list = list(bulk_hosts.ids)
+        if not ids_list:
+            await self.raise_error(message="Host selection cannot be empty", code=400)
         db_hosts = await get_hosts(db, HostListQuery(ids=ids_list, limit=len(ids_list)))
 
         found_ids = {h.id for h in db_hosts}
@@ -152,6 +185,7 @@ class HostOperation(BaseOperation):
             await self.raise_error(message="Host not found", code=404)
 
         host_ids = [h.id for h in db_hosts]
+        await self.check_download_hosts_unused(db, set(host_ids))
 
         # Batch delete using CRUD function
         await remove_hosts(db, host_ids)
@@ -178,7 +212,10 @@ class HostOperation(BaseOperation):
         *,
         is_disabled: bool,
     ) -> BulkHostsActionResponse:
+        """Change the enabled state of an explicitly selected, nonempty set of hosts."""
         ids_list = list(bulk_hosts.ids)
+        if not ids_list:
+            await self.raise_error(message="Host selection cannot be empty", code=400)
         db_hosts = await get_hosts(db, HostListQuery(ids=ids_list, limit=len(ids_list)))
 
         found_ids = {h.id for h in db_hosts}
@@ -197,7 +234,9 @@ class HostOperation(BaseOperation):
             await db.refresh(db_host)
 
         if hosts_to_update:
-            await host_manager.add_hosts(db, hosts_to_update)
+            # Hosts that use a toggled host as their download host embed it, so rebuild them too
+            dependents = self._dependent_hosts(await get_hosts(db=db), {db_host.id for db_host in hosts_to_update})
+            await host_manager.add_hosts(db, [*hosts_to_update, *dependents])
 
         for db_host in hosts_to_update:
             host = BaseHost.model_validate(db_host)

@@ -7,11 +7,7 @@ from fastapi import Response
 from fastapi.responses import HTMLResponse
 
 from app.db import AsyncSession
-from app.db.crud.hwid import (
-    get_user_hwid_by_value,
-    get_user_hwid_count,
-    register_user_hwid,
-)
+from app.db.crud.hwid import get_user_hwid_by_value, register_user_hwid
 from app.db.crud.user import get_user_usages, user_sub_update
 from app.db.models import User
 from app.models.admin import AdminDetails
@@ -447,16 +443,9 @@ class SubscriptionOperation(BaseOperation):
                 last_used = last_used.replace(tzinfo=UTC)
             if last_used is not None and (dt.now(UTC) - last_used).total_seconds() < 300:
                 return
-            await register_user_hwid(db, user_id, x_hwid, x_device_os, x_ver_os, x_device_model)
-            return
 
-        # It's a new HWID, check limit
-        if limit is not None and limit > 0:
-            current_count = await get_user_hwid_count(db, user_id)
-            if current_count >= limit:
-                await self.raise_error(message="Device limit reached", code=403)
-
-        await register_user_hwid(db, user_id, x_hwid, x_device_os, x_ver_os, x_device_model)
+        if not await register_user_hwid(db, user_id, x_hwid, x_device_os, x_ver_os, x_device_model, limit=limit):
+            await self.raise_error(message="Device limit reached", code=403)
 
     async def user_subscription(
         self,
@@ -520,6 +509,10 @@ class SubscriptionOperation(BaseOperation):
                 )
             )
         else:
+            # Reject unsupported clients before registering the HWID, so they never use up a device slot
+            client_type = matched_rule.target if matched_rule else None
+            if client_type == ConfigFormat.block or not client_type:
+                await self.raise_error(message="Client not supported", code=406)
             await self.validate_and_register_hwid(
                 db,
                 db_user.id,
@@ -530,9 +523,6 @@ class SubscriptionOperation(BaseOperation):
                 x_ver_os,
                 x_device_model,
             )
-            client_type = matched_rule.target if matched_rule else None
-            if client_type == ConfigFormat.block or not client_type:
-                await self.raise_error(message="Client not supported", code=406)
 
             # Update user subscription info
             await user_sub_update(db, db_user.id, user_agent, ip=ip, hwid=x_hwid)
@@ -714,7 +704,10 @@ class SubscriptionOperation(BaseOperation):
         is_hwid_enabled = await self.is_user_hwid_enabled(db_user)
 
         links = []
-        if sub_settings.allow_browser_config:
+        global_hwid_conf: HWIDSettings = await hwid_settings()
+        if sub_settings.allow_browser_config and (
+            not is_hwid_enabled or not global_hwid_conf.require_hwid_for_manual_sub
+        ):
             conf, _ = await self.fetch_config(user, ConfigFormat.links)
             links = conf.splitlines()
         format_variables = await self.get_format_variables(user)
