@@ -39,7 +39,7 @@ export const useClientTemplatesListColumns = ({ onEdit, canCreate = true, canUpd
               if (canUpdate) onEdit(template)
             }}
           >
-            <span className="truncate font-medium">{template.name}</span>
+            <span className="min-w-[6ch] truncate font-medium">{template.name}</span>
             <ClientTemplateMarkers isDefault={template.is_default} isSystem={template.is_system} />
             <ServerGroupsBadge content={template.content} />
           </div>
