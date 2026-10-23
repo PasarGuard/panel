@@ -67,9 +67,13 @@ class PluginOperation(BaseOperation):
         if record is None or record.context is None or not record.ui or record.path is None:
             await self.raise_error(message="Plugin UI not found", code=404)
 
-        entry = (record.path / record.ui).resolve()
-        ui_root = entry.parent
-        target = entry if not file_path else (ui_root / file_path).resolve()
-        if not target.is_relative_to(record.path) or not target.is_relative_to(ui_root) or not target.is_file():
+        try:
+            entry = (record.path / record.ui).resolve()
+            ui_root = entry.parent
+            target = entry if not file_path else (ui_root / file_path).resolve()
+            found = target.is_relative_to(record.path) and target.is_relative_to(ui_root) and target.is_file()
+        except ValueError, OSError:  # NUL bytes, names the OS rejects
+            found = False
+        if not found:
             await self.raise_error(message="File not found", code=404)
         return target

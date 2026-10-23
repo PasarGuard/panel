@@ -15,7 +15,7 @@ from pathlib import Path
 
 from apscheduler.triggers.cron import CronTrigger
 from fastapi import APIRouter, Depends, FastAPI
-from fastapi.routing import APIRoute, APIWebSocketRoute
+from fastapi.routing import APIRoute
 
 from app.plugins import registry
 from app.plugins.context import PluginContext, _public
@@ -56,17 +56,44 @@ def _is_public(route) -> bool:
     return False
 
 
-def mount_routes(app: FastAPI, ctx: PluginContext) -> None:
-    """Mount ``ctx.router`` at ``/api/plugins/<id>``; routes are admin-only unless marked public."""
-    if not ctx.runs_panel or not ctx.router.routes:
-        return
+def _check_routes(routes, owner: str) -> None:
+    """Allow only FastAPI HTTP routes: panel auth is applied as a router dependency, which Starlette routes,
+    mounts and websockets do not run, so they would be public."""
+    for route in routes:
+        if isinstance(route, APIRoute):
+            continue
+        original = getattr(route, "original_router", None)
+        if isinstance(original, APIRouter):
+            _check_routes(list(original.routes) + list(getattr(original, "_low_priority_routes", [])), owner)
+            continue
+        path = getattr(route, "path", None) or type(route).__name__
+        raise ValueError(
+            f"Plugin route {path!r} of {owner!r} is not supported: only HTTP routes added with "
+            "@ctx.router.get/post/put/patch/delete/api_route are allowed "
+            "(websocket, mount and plain Starlette routes would bypass panel auth)"
+        )
+
+
+def split_routes(ctx: PluginContext) -> tuple[APIRouter, APIRouter]:
+    """Split ``ctx.router`` into admin-only and public routes; raises on routes auth cannot protect."""
     protected = APIRouter()
     public = APIRouter()
+    if not ctx.runs_panel:
+        return protected, public
+    _check_routes(ctx.router.routes, ctx.id)
     for route in ctx.router.routes:
-        if isinstance(route, (APIRoute, APIWebSocketRoute)) and _is_public(route):
+        if isinstance(route, APIRoute) and _is_public(route):
             public.routes.append(route)
         else:
             protected.routes.append(route)
+    return protected, public
+
+
+def mount_routes(app: FastAPI, ctx: PluginContext, routers: tuple[APIRouter, APIRouter] | None = None) -> None:
+    """Mount ``ctx.router`` at ``/api/plugins/<id>``; routes are admin-only unless marked public."""
+    if not ctx.runs_panel or not ctx.router.routes:
+        return
+    protected, public = routers if routers is not None else split_routes(ctx)
     prefix = f"{PLUGIN_API_PREFIX}/{ctx.id}"
     tags = [f"Plugin: {ctx.id}"]
     if protected.routes:
@@ -90,14 +117,17 @@ def _job_wrapper(ctx: PluginContext, fn):
     return run_plugin_job
 
 
+def _job_ids(ctx: PluginContext) -> list[str]:
+    return [f"plugin:{ctx.id}:{getattr(fn, '__name__', 'job')}:{index}" for index, (fn, _) in enumerate(ctx.jobs)]
+
+
 def register_jobs(ctx: PluginContext) -> None:
     """Add plugin jobs to the shared APScheduler (scheduler role only; paused while not the job leader)."""
     if not ctx.runs_scheduler:
         return
     from app.scheduler import scheduler
 
-    for index, (fn, when) in enumerate(ctx.jobs):
-        job_id = f"plugin:{ctx.id}:{getattr(fn, '__name__', 'job')}:{index}"
+    for job_id, (fn, when) in zip(_job_ids(ctx), ctx.jobs):
         if "cron" in when:
             trigger = CronTrigger.from_crontab(when["cron"], timezone="UTC")
             scheduler.add_job(
@@ -115,12 +145,42 @@ def register_jobs(ctx: PluginContext) -> None:
             )
 
 
+def unregister_jobs(ctx: PluginContext) -> None:
+    if not ctx.runs_scheduler:
+        return
+    from app.scheduler import scheduler
+
+    for job_id in _job_ids(ctx):
+        if scheduler.get_job(job_id) is not None:
+            scheduler.remove_job(job_id)
+
+
 def activate(app: FastAPI, ctx: PluginContext) -> None:
+    """Check routes, add jobs, then mount routes; a failure leaves nothing of the plugin mounted or scheduled."""
     try:
-        mount_routes(app, ctx)
+        routers = split_routes(ctx)
         register_jobs(ctx)
+        try:
+            mount_routes(app, ctx, routers)
+        except Exception:
+            unregister_jobs(ctx)
+            raise
     finally:
         ctx.activated = True
+
+
+def activate_all(app: FastAPI) -> None:
+    """Activate plugins whose sync setup succeeded; a plugin that fails activation is marked failed."""
+    for ctx in list(registry.active):
+        try:
+            activate(app, ctx)
+        except Exception as exc:
+            registry.active.remove(ctx)
+            record = registry.records[ctx.id]
+            record.status = "failed"
+            record.error = str(exc) or type(exc).__name__
+            record.context = None
+            logger.exception(f"Plugin {ctx.id!r} skipped: activation failed")
 
 
 async def finish_pending_setups(app: FastAPI) -> None:
@@ -157,16 +217,7 @@ def init_plugins(
     from app.plugins.settings import handle_plugin_message, load_settings_from_db
 
     load_all(plugins_dir, plugin_ids, runs_panel=runs_panel, runs_scheduler=runs_scheduler)
-    for ctx in list(registry.active):
-        try:
-            activate(app, ctx)
-        except Exception as exc:
-            registry.active.remove(ctx)
-            record = registry.records[ctx.id]
-            record.status = "failed"
-            record.error = str(exc) or type(exc).__name__
-            record.context = None
-            logger.exception(f"Plugin {ctx.id!r} skipped: activation failed")
+    activate_all(app)
 
     async def start_plugins(app: FastAPI):
         await load_settings_from_db(notify=False)

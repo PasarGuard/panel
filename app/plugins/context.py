@@ -11,6 +11,7 @@ from collections.abc import Callable
 from copy import deepcopy
 from typing import Any
 
+from apscheduler.triggers.cron import CronTrigger
 from fastapi import APIRouter
 
 from app.plugins import schema
@@ -162,6 +163,11 @@ class PluginContext:
             raise ValueError("ctx.job() needs exactly one of seconds= or cron=")
         if seconds is not None and seconds <= 0:
             raise ValueError("ctx.job(seconds=...) must be positive")
+        if cron is not None:
+            try:
+                CronTrigger.from_crontab(cron, timezone="UTC")
+            except ValueError as exc:
+                raise ValueError(f"ctx.job(cron={cron!r}) is not a valid crontab: {exc}") from None
         self.jobs.append((fn, {"seconds": seconds} if seconds is not None else {"cron": cron}))
         return fn
 

@@ -17,6 +17,8 @@ from .authentication import get_current_for_request, oauth2_scheme, require_owne
 PLUGIN_UI_COOKIE = "pasarguard_plugin_ui"
 SDK_FILE = Path(__file__).resolve().parent.parent / "plugins" / "static" / "sdk.js"
 
+LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1"}
+
 router = APIRouter(tags=["Plugins"], prefix="/api/plugins", responses={401: responses._401, 403: responses._403})
 
 plugin_operator = PluginOperation(operator_type=OperatorType.API)
@@ -30,6 +32,14 @@ async def require_plugin_ui_owner(
     if not admin.is_owner:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the owner can perform this action")
     return admin
+
+
+def ui_cookie_secure(request: Request) -> bool:
+    """Secure unless the panel is opened on localhost over plain HTTP; TLS may end at a proxy that sends no headers."""
+    forwarded_proto = request.headers.get("x-forwarded-proto", "").split(",")[0].strip().lower()
+    if request.url.scheme == "https" or forwarded_proto == "https":
+        return True
+    return request.url.hostname not in LOCAL_HOSTS
 
 
 @router.get("", response_model=PluginsResponse)
@@ -77,7 +87,7 @@ async def create_plugin_ui_session(
             token,
             max_age=max_age,
             path=f"/api/plugins/{plugin_id}/ui/",
-            secure=request.url.scheme == "https",
+            secure=ui_cookie_secure(request),
             httponly=True,
             samesite="strict",
         )

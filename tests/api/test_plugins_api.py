@@ -2,6 +2,7 @@
 
 import asyncio
 import base64
+import pathlib
 import sys
 import time
 from urllib.parse import quote
@@ -9,10 +10,13 @@ from urllib.parse import quote
 import pytest
 from fastapi import status
 from sqlalchemy import select
+from starlette.websockets import WebSocketDisconnect
 
 from app.db.models import PluginSettings
 from app.models.notification_enable import NotificationEnable
 from app.plugins import events, manager, registry, settings as plugin_settings_module
+from app.scheduler import scheduler
+from app.subscription.config_cache import clear_sub_config_cache
 from tests.api import GetTestDB, TestSession, app, client
 from tests.api.helpers import (
     auth_headers,
@@ -102,6 +106,8 @@ SETTINGS_SCHEMA = {
 @pytest.fixture
 def probe(tmp_path, monkeypatch):
     reset_plugins()
+    # The subscription cache is keyed by user id, and SQLite reuses ids of deleted users
+    clear_sub_config_cache()
     monkeypatch.setattr(events, "HANDLER_TIMEOUT", 0.5)
     make_plugin(
         tmp_path,
@@ -119,6 +125,7 @@ def probe(tmp_path, monkeypatch):
     del app.router.routes[routes_before:]
     app.router._mark_routes_changed()
     reset_plugins()
+    clear_sub_config_cache()
     client.cookies.clear()
 
 
@@ -335,9 +342,190 @@ def test_plugin_ui_files_need_owner_and_block_traversal(probe, access_token, pla
     assert session.status_code == status.HTTP_204_NO_CONTENT
     cookie = session.headers["set-cookie"]
     assert "Path=/api/plugins/probe/ui/" in cookie and "HttpOnly" in cookie and "SameSite=strict" in cookie
-    assert client.get(index).status_code == status.HTTP_200_OK
+    assert "Secure" in cookie
+    https_index = f"https://testserver{index}"
+    assert client.get(https_index).status_code == status.HTTP_200_OK
     client.cookies.clear()
-    assert client.get(index).status_code == status.HTTP_401_UNAUTHORIZED
+    assert client.get(https_index).status_code == status.HTTP_401_UNAUTHORIZED
+
+
+def test_plugin_ui_file_with_nul_byte_is_404(probe, access_token, monkeypatch):
+    # On Linux Path.resolve() raises ValueError for a NUL byte (Windows drops it); simulate that everywhere
+    original_resolve = pathlib.Path.resolve
+
+    def resolve(self, *args, **kwargs):
+        if "\x00" in str(self):
+            raise ValueError("embedded null byte")
+        return original_resolve(self, *args, **kwargs)
+
+    monkeypatch.setattr(pathlib.Path, "resolve", resolve)
+    for path in ("%00", "app.js%00.html", "%00/../plugin.py"):
+        response = client.get(f"/api/plugins/probe/ui/{path}", headers=auth_headers(access_token))
+        assert response.status_code == status.HTTP_404_NOT_FOUND, path
+    assert client.get("/api/plugins/probe/ui/app.js", headers=auth_headers(access_token)).status_code == 200
+
+
+@pytest.mark.parametrize(
+    ("url", "headers", "secure"),
+    [
+        # TLS ended by a proxy that sends no X-Forwarded-* headers: the panel sees plain http
+        ("http://panel.example.com/api/plugins/probe/ui-session", {}, True),
+        ("https://panel.example.com/api/plugins/probe/ui-session", {}, True),
+        ("http://localhost/api/plugins/probe/ui-session", {}, False),
+        ("http://127.0.0.1/api/plugins/probe/ui-session", {}, False),
+        ("http://testserver/api/plugins/probe/ui-session", {"Host": "[::1]:8000"}, False),
+        ("http://localhost/api/plugins/probe/ui-session", {"X-Forwarded-Proto": "https"}, True),
+    ],
+)
+def test_plugin_ui_cookie_is_secure_except_plain_localhost(probe, access_token, url, headers, secure):
+    response = client.post(url, headers={**auth_headers(access_token), **headers})
+    assert response.status_code == status.HTTP_204_NO_CONTENT
+    assert ("Secure" in response.headers["set-cookie"]) is secure
+
+
+UNPROTECTED_ROUTES = {
+    "raw": """
+from starlette.responses import PlainTextResponse
+
+
+def setup(ctx):
+    async def raw(request):
+        return PlainTextResponse("raw")
+
+    ctx.router.add_route("/raw", raw)
+    ctx.job(lambda: None, seconds=60)
+""",
+    "decorated": """
+from starlette.responses import PlainTextResponse
+
+
+def setup(ctx):
+    @ctx.router.route("/raw")
+    async def raw(request):
+        return PlainTextResponse("raw")
+""",
+    "socket": """
+def setup(ctx):
+    @ctx.router.websocket("/raw")
+    async def raw(websocket):
+        await websocket.accept()
+        await websocket.send_text("raw")
+        await websocket.close()
+""",
+    "mounted": """
+from starlette.applications import Starlette
+from starlette.responses import PlainTextResponse
+from starlette.routing import Route
+
+
+async def raw(request):
+    return PlainTextResponse("raw")
+
+
+def setup(ctx):
+    ctx.router.mount("/raw", Starlette(routes=[Route("/", raw)]))
+""",
+    "nested": """
+from fastapi import APIRouter
+from starlette.responses import PlainTextResponse
+
+
+def setup(ctx):
+    sub = APIRouter()
+
+    async def raw(request):
+        return PlainTextResponse("raw")
+
+    sub.add_route("/raw", raw)
+    ctx.router.include_router(sub)
+""",
+}
+
+SUB_ROUTER = """
+from fastapi import APIRouter
+
+
+def setup(ctx):
+    sub = APIRouter()
+
+    @sub.get("/raw")
+    async def raw():
+        return {"ok": True}
+
+    ctx.router.include_router(sub, prefix="/sub")
+"""
+
+ROUTE_AND_JOB = """
+def setup(ctx):
+    @ctx.router.get("/hello")
+    async def hello():
+        return {"ok": True}
+
+    ctx.job(lambda: None, cron=CRON)
+"""
+
+
+@pytest.fixture
+def activate_plugins(tmp_path):
+    """Load fixture plugins and activate them the way ``init_plugins`` does."""
+    reset_plugins()
+    routes_before = len(app.router.routes)
+
+    def load(plugins: dict[str, str], *, runs_scheduler: bool = False):
+        for plugin_id, code in plugins.items():
+            make_plugin(tmp_path, plugin_id, code)
+        manager.load_all(tmp_path, list(plugins), runs_panel=True, runs_scheduler=runs_scheduler)
+        manager.activate_all(app)
+        return registry.records
+
+    yield load
+    for job in scheduler.get_jobs():
+        if job.id.startswith("plugin:"):
+            scheduler.remove_job(job.id)
+    del app.router.routes[routes_before:]
+    app.router._mark_routes_changed()
+    reset_plugins()
+
+
+def test_plugin_routes_without_panel_auth_are_refused(activate_plugins, access_token):
+    records = activate_plugins({**UNPROTECTED_ROUTES, "subrouter": SUB_ROUTER}, runs_scheduler=True)
+
+    for plugin_id in UNPROTECTED_ROUTES:
+        assert records[plugin_id].status == "failed", plugin_id
+        assert "would bypass panel auth" in records[plugin_id].error, plugin_id
+        assert records[plugin_id].context is None
+        for path in (f"/api/plugins/{plugin_id}/raw", f"/api/plugins/{plugin_id}/raw/"):
+            assert client.get(path).status_code == status.HTTP_404_NOT_FOUND, path
+            assert client.get(path, headers=auth_headers(access_token)).status_code == 404, path
+    with pytest.raises(WebSocketDisconnect), client.websocket_connect("/api/plugins/socket/raw") as websocket:
+        websocket.receive_text()
+    # Refused before its jobs were scheduled
+    assert not [job.id for job in scheduler.get_jobs() if job.id.startswith("plugin:raw:")]
+
+    # Sub-routers made of FastAPI routes are fine and stay admin-only
+    assert records["subrouter"].status == "loaded"
+    assert client.get("/api/plugins/subrouter/sub/raw").status_code == status.HTTP_401_UNAUTHORIZED
+    assert client.get("/api/plugins/subrouter/sub/raw", headers=auth_headers(access_token)).json() == {"ok": True}
+
+
+def test_plugin_with_invalid_cron_fails_without_routes(activate_plugins, access_token):
+    records = activate_plugins({"badcron": ROUTE_AND_JOB.replace("CRON", '"61 * * * *"')}, runs_scheduler=True)
+    assert records["badcron"].status == "failed"
+    assert client.get("/api/plugins/badcron/hello", headers=auth_headers(access_token)).status_code == 404
+    assert not [job.id for job in scheduler.get_jobs() if job.id.startswith("plugin:badcron:")]
+    # Refused at setup time by ctx.job(), with a message naming the call
+    assert "ctx.job(cron='61 * * * *') is not a valid crontab" in records["badcron"].error
+
+
+def test_plugin_whose_jobs_fail_to_register_mounts_no_routes(activate_plugins, access_token, monkeypatch):
+    def failing_register_jobs(ctx):
+        raise RuntimeError("scheduler unavailable")
+
+    monkeypatch.setattr(manager, "register_jobs", failing_register_jobs)
+    records = activate_plugins({"nojobs": ROUTE_AND_JOB.replace("CRON", '"0 9 * * *"')}, runs_scheduler=True)
+    assert records["nojobs"].status == "failed"
+    assert records["nojobs"].error == "scheduler unavailable"
+    assert client.get("/api/plugins/nojobs/hello", headers=auth_headers(access_token)).status_code == 404
 
 
 def test_plugin_sdk_is_served(probe):

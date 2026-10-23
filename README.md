@@ -239,7 +239,9 @@ PLUGINS_DIR = "/var/lib/pasarguard/plugins"
 PLUGINS = "expiring-report,sub-banner"
 ```
 
-With `PLUGINS` empty the plugin system is off: nothing is imported, no route is added. A plugin that
+With `PLUGINS` empty the plugin system is off: no plugin code is imported and no plugin routes are added.
+The panel's own `/api/plugins` endpoints stay mounted; `GET /api/plugins` (owner only, requested by the
+dashboard once on load for the owner) then returns an empty list. A plugin that
 fails to load (bad manifest, wrong panel version, exception in `setup`) is skipped and logged; the panel
 always starts. Owners see loaded and failed plugins (with the error) under **Plugins** in the sidebar;
 the item is hidden while no plugin is enabled.
@@ -293,7 +295,8 @@ expiring-report/
 | `ctx.db()` | `async with ctx.db() as db:` SQLAlchemy session (full access) |
 
 Plugins may import other panel modules (`app.*`), but those are internal and can change in any release.
-Register everything inside `setup()`: routes and jobs added later are not picked up. An `async def setup`
+Register everything inside `setup()`: routes and jobs added later are not picked up. An invalid
+`cron` expression makes `setup()` fail, so the plugin is skipped with that error. An `async def setup`
 runs at startup, after the plugin settings are read from the database. In a sync `setup()` the settings
 are still the schema defaults; read them inside handlers, not at setup time.
 
@@ -315,7 +318,9 @@ def setup(ctx):
 `dependencies=[Depends(ctx.deps.owner)]` for owner-only routes. A route that does its own authentication
 (for example a webhook with a secret) must say so explicitly with `dependencies=[Depends(ctx.deps.public)]`.
 `/api/plugins/<id>/settings`, `/api/plugins/<id>/ui/...` and `/api/plugins/<id>/ui-session` are reserved
-by the panel.
+by the panel. Only HTTP routes declared with `@ctx.router.get/post/put/patch/delete/api_route` (or included
+sub-routers made of them) are allowed: websocket routes, `mount()`, `add_route()` and `@ctx.router.route`
+would not run the panel's auth dependency, so a plugin that adds them is refused with an error.
 
 **Events.** Names are dotted versions of the panel notification events: `user.created`, `user.modified`,
 `user.removed`, `user.status_changed` (expired, limited, disabled, active, on_hold), `user.usage_reset`,
@@ -324,8 +329,11 @@ by the panel.
 `host.modified`, `host.removed`, `hosts.modified`, `group.*`, `user_template.*`, `core.*`, `admin_role.*`,
 `api_key.*` (`created` / `modified` / `removed`), `admin.created`, `admin.modified`, `admin.removed`,
 `admin.usage_reset`, `admin.usage_limit_reached`, `admin.login`. The payload is the event's data as JSON,
-for example `{"event": "user.created", "user": {...}, "by": "admin-username"}`. Passwords are never
-included (`admin.login` has `username`, `client_ip`, `success`). Plugin events fire even when Telegram,
+for example `{"event": "user.created", "user": {...}, "by": "admin-username"}`. Admin passwords and API
+keys are never included (`admin.login` has `username`, `client_ip`, `success`). The payloads are otherwise
+the same data webhook notifications carry: user payloads contain the proxy credentials (VLESS/VMess UUIDs,
+Trojan and Shadowsocks passwords) and the subscription URL with its token, admin payloads contain contact
+fields such as the Discord webhook. Treat them as secrets. Plugin events fire even when Telegram,
 Discord and webhook notifications are turned off. Each handler runs in the background with a 10 second
 timeout; errors and timeouts are logged and never affect the action that caused the event.
 
@@ -346,7 +354,10 @@ keywords are ignored). Settings are stored in the `plugin_settings` table and ed
 or via `GET/PUT /api/plugins/<id>/settings`.
 
 **Dashboard page.** If the manifest has `ui`, the plugin gets a sidebar entry that opens the UI folder in a
-sandboxed iframe (`/api/plugins/<id>/ui/`, owner only). Include `/api/plugins/sdk.js` in the page:
+iframe (`/api/plugins/<id>/ui/`, owner only). The iframe is same-origin with
+`sandbox="allow-scripts allow-forms allow-same-origin"`, which does **not** isolate the plugin: the page can
+reach the dashboard window and storage and gets the owner's token, so plugin UI is trusted code with full
+owner access, like the plugin's Python code. Include `/api/plugins/sdk.js` in the page:
 
 ```html
 <script src="/api/plugins/sdk.js"></script>
@@ -359,7 +370,11 @@ sandboxed iframe (`/api/plugins/<id>/ui/`, owner only). Include `/api/plugins/sd
 
 `PasarGuard.api(path, options)` is `fetch` with the admin token added and JSON handling. The dashboard
 passes the token with `postMessage` after the page reports it is ready; both sides check the window and the
-origin. Theme colors are copied to the page as CSS variables (`hsl(var(--background))`, `--foreground`,
+origin. To load the files without an `Authorization` header the dashboard first sets an HttpOnly,
+`SameSite=Strict` cookie limited to `/api/plugins/<id>/ui/`, holding the same token; it is `Secure` unless the
+panel is opened over plain HTTP on `localhost`. The panel has no logout endpoint, so logging out of the
+dashboard does not clear this cookie: it expires together with the token (`JWT_ACCESS_TOKEN_EXPIRE_MINUTES`).
+Theme colors are copied to the page as CSS variables (`hsl(var(--background))`, `--foreground`,
 `--primary`, ...) and the `dark` class is set in dark mode. Plugins cannot change existing dashboard screens
 (slots in existing dialogs are planned for a later version).
 
@@ -378,7 +393,7 @@ enabled plugins and runs `setup()`, so install the same plugins with the same `P
 
 ### Examples
 
-Two example plugins live in [`examples/plugins`](examples/plugins): `expiring-report` (settings, admin
+Two example plugins live in [`examples/plugins`](examples/plugins): `expiring-report` (settings, owner-only
 endpoint, dashboard page with CSV export, daily job) and `sub-banner` (subscription transform that adds an
 info line such as `⏳ 12 days left · Premium` to links subscriptions, and a `{PLAN}` variable by group).
 

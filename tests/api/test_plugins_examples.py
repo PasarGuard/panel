@@ -9,8 +9,9 @@ from fastapi import status
 
 from app.plugins import manager, registry
 from app.scheduler import scheduler
+from app.subscription.config_cache import clear_sub_config_cache
 from tests.api import GetTestDB, app, client
-from tests.api.helpers import auth_headers, create_user, delete_user, unique_name
+from tests.api.helpers import auth_headers, create_admin, create_user, delete_admin, delete_user, unique_name
 from tests.plugin_helpers import reset_plugins
 
 EXAMPLES_DIR = Path(__file__).resolve().parents[2] / "examples" / "plugins"
@@ -19,6 +20,8 @@ EXAMPLES_DIR = Path(__file__).resolve().parents[2] / "examples" / "plugins"
 @pytest.fixture
 def examples(monkeypatch):
     reset_plugins()
+    # The subscription cache is keyed by user id, and SQLite reuses ids of deleted users
+    clear_sub_config_cache()
     monkeypatch.setattr("app.db.GetDB", GetTestDB)  # ctx.db() of the plugins
     routes_before = len(app.router.routes)
     manager.load_all(EXAMPLES_DIR, ["expiring-report", "sub-banner"], runs_panel=True, runs_scheduler=True)
@@ -31,6 +34,7 @@ def examples(monkeypatch):
     del app.router.routes[routes_before:]
     app.router._mark_routes_changed()
     reset_plugins()
+    clear_sub_config_cache()
 
 
 def test_examples_load(examples, access_token):
@@ -64,6 +68,18 @@ def test_expiring_report_lists_users(examples, access_token):
 
         wide = client.get("/api/plugins/expiring-report/users?days=90", headers=auth_headers(access_token)).json()
         assert later in [user["username"] for user in wide["users"]]
+
+        # The report covers all users, so a sub-admin may not read it
+        admin = create_admin(access_token)
+        try:
+            token = client.post(
+                "/api/admin/token",
+                data={"username": admin["username"], "password": admin["password"], "grant_type": "password"},
+            ).json()["access_token"]
+            sub_admin = client.get("/api/plugins/expiring-report/users", headers=auth_headers(token))
+            assert sub_admin.status_code == status.HTTP_403_FORBIDDEN
+        finally:
+            delete_admin(access_token, admin["username"])
 
         ui = client.get("/api/plugins/expiring-report/ui/", headers=auth_headers(access_token))
         assert ui.status_code == status.HTTP_200_OK and "/api/plugins/sdk.js" in ui.text

@@ -2,7 +2,7 @@
 
 from datetime import UTC, datetime, timedelta
 
-from fastapi import Query
+from fastapi import Depends, Query
 from sqlalchemy import select
 
 # Panel internals: allowed, but not a stable API.
@@ -34,8 +34,8 @@ def setup(ctx):
             )
         return users
 
-    # Admin-only: the default for ctx.router routes.
-    @ctx.router.get("/users")
+    # Owner-only: the list covers all users, and a sub-admin may only see their own.
+    @ctx.router.get("/users", dependencies=[Depends(ctx.deps.owner)])
     async def list_expiring_users(days: int | None = Query(None, ge=1, le=3650)):
         days = days or ctx.settings.get()["days"]
         return {"days": days, "users": await expiring_users(days)}
