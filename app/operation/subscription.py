@@ -45,6 +45,7 @@ from .user import UserOperation
 
 logger = get_logger("subscription-operation")
 
+
 client_config = {
     ConfigFormat.clash_meta: {
         "config_format": "clash_meta",
@@ -323,6 +324,11 @@ class SubscriptionOperation(BaseOperation):
             logger.warning(f'Happ routing template {template_id} of rule "{rule.pattern}" is invalid, skipping: {exc}')
             return None
 
+    @staticmethod
+    def _drop_routing_headers(headers: dict[str, str]) -> dict[str, str]:
+        """The rule's Happ routing template wins over any manual "routing" header (rule or global)."""
+        return {key: value for key, value in headers.items() if key.strip().lower() != "routing"}
+
     @classmethod
     def _routing_in_body(cls, placement: HeaderPlacement, client_type: ConfigFormat | None) -> bool:
         return placement != HeaderPlacement.header and client_type in cls._ROUTING_BODY_FORMATS
@@ -581,19 +587,23 @@ class SubscriptionOperation(BaseOperation):
             except ValueError as exc:
                 await self.raise_error(message=str(exc), code=400)
 
-            response_headers, body_lines = self._split_headers_for_placement(
-                response_headers, sub_settings.header_placement, client_type
-            )
-            as_base64 = client_config.get(client_type, {}).get("as_base64", False)
-            if body_lines:
-                conf = inject_body_placement(conf, body_lines, sub_settings.header_placement.value, as_base64)
+            routing_link = await self._get_happ_routing_link(matched_rule)
+            if routing_link:
+                response_headers = self._drop_routing_headers(response_headers)
 
-            if routing_link := await self._get_happ_routing_link(matched_rule):
-                if self._routing_in_body(sub_settings.header_placement, client_type):
-                    # Happ reads a bare link from the body; keep it as the very first line
-                    conf = inject_body_placement(conf, [routing_link], HeaderPlacement.body_start.value, as_base64)
+            placement = sub_settings.header_placement
+            response_headers, body_lines = self._split_headers_for_placement(response_headers, placement, client_type)
+            as_base64 = client_config.get(client_type, {}).get("as_base64", False)
+            if routing_link and self._routing_in_body(placement, client_type):
+                # Happ reads a bare link from the body; keep it as the very first line
+                if placement == HeaderPlacement.body_start:
+                    body_lines = [routing_link, *body_lines]
                 else:
-                    response_headers["routing"] = routing_link
+                    conf = inject_body_placement(conf, [routing_link], HeaderPlacement.body_start.value, as_base64)
+            elif routing_link:
+                response_headers["routing"] = routing_link
+            if body_lines:
+                conf = inject_body_placement(conf, body_lines, placement.value, as_base64)
 
         # Create response with appropriate headers
         return Response(content=conf, media_type=media_type, headers=response_headers)
@@ -908,12 +918,13 @@ class SubscriptionOperation(BaseOperation):
             except ValueError as exc:
                 await self.raise_error(message=str(exc), code=400)
 
+            routing_link = await self._get_happ_routing_link(matched_rule)
+            if routing_link:
+                response_headers = self._drop_routing_headers(response_headers)
             response_headers, _ = self._split_headers_for_placement(
                 response_headers, sub_settings.header_placement, client_type
             )
-            if not self._routing_in_body(sub_settings.header_placement, client_type) and (
-                routing_link := await self._get_happ_routing_link(matched_rule)
-            ):
+            if routing_link and not self._routing_in_body(sub_settings.header_placement, client_type):
                 response_headers["routing"] = routing_link
 
             config = client_config.get(client_type, {})

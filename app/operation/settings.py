@@ -38,6 +38,15 @@ class SettingsOperation(BaseOperation):
         if not rule_template_ids:
             return
 
+        if any(str(name).strip().lower() == "routing" for name in subscription.response_headers):
+            await self.raise_error(
+                message=(
+                    'Subscription response headers have a manual "routing" header, but subscription rules use '
+                    "Happ routing templates. Remove one of them."
+                ),
+                code=400,
+            )
+
         ids = sorted({template_id for _, template_id in rule_template_ids})
         db_templates, _ = await get_client_templates(db, ClientTemplateListQuery(ids=ids, limit=len(ids)))
         template_types = {t.id: t.template_type for t in db_templates}
